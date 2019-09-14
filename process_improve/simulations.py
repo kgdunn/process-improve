@@ -1,4 +1,4 @@
-# (c) Kevin Dunn, 2019.
+# (c) Kevin Dunn, 2019. MIT License.
 
 from numpy.random import normal
 import pandas as pd

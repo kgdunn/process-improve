@@ -1,3 +1,5 @@
+# (c) Kevin Dunn, 2019. MIT License.
+
 def pareto_plot(model, ylab="Effect name", xlab="Magnitude of effect",
                 main="Pareto plot", legendtitle="Sign of coefficients",
                 negative=("Negative", "grey"), positive=("Positive", "black"),
@@ -40,8 +42,14 @@ def pareto_plot(model, ylab="Effect name", xlab="Magnitude of effect",
     """
 
     # TODO: which plotting library to use?
-    pass
+    print('TODO')
 
 
 
 paretoPlot = pareto_plot
+
+
+def contour_plot():
+    pass
+
+contourPlot = contour_plot

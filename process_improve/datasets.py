@@ -1,3 +1,6 @@
+# (c) Kevin Dunn, 2019. MIT License.
+import pandas as pd
+
 def distillateflow():
     """The flow rate of distillate from the top of a distillation column.
 
@@ -212,3 +215,8 @@ def solar():
 
     """
     pass
+
+def data(dataset: str) -> pd.DataFrame:
+    """
+    Returns the ``dataset`` given by the string name.
+    """
