@@ -7,11 +7,9 @@ def popcorn(t=120, T=None):
     """
     Simulation of stovetop popcorn cooking.
 
-
     A fixed number of popcorn kernels are cooked are heated at the same
     temperature. This simulation returns the number of kernels that are edible
     when the pot is left on the stove for a given number of `t` seconds.
-
 
 
     Parameters
