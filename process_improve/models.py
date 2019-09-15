@@ -1,74 +1,68 @@
 # (c) Kevin Dunn, 2019. MIT License.
 
 #import statsmodels.api as sm
-#import statsmodels.formula.api as smf
+import warnings
+import numpy as np
 import pandas as pd
+import statsmodels.formula.api as smf
+from statsmodels.regression.linear_model import OLS
+from statsmodels.iolib.summary import Summary
 
 from plotting import paretoPlot
 from datasets import data
-from structures import c
+from structures import c, expand, gather
 
-class expand(object):
-    pass
-
-    def grid(**kwargs):
-        """
-        Create the expanded grid here.
-        """
-        print('TODO')
-        return kwargs.values()
-
-
-def gather(*args, **kwargs):
+class Model(OLS):
     """
-    Gathers the named inputs together as columns for a data frame.
+    Just a thin wrapper around the OLS class from Statsmodels."""
+    def __init__(self, OLS_instance):
+        self._OLS = OLS_instance
 
+    def summary(self, alpha=0.05, print_to_screen=True):
+        """
+        Side effect: prints to the screen.
+        """
+        #Taken from statsmodels.regression.linear_model.py
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            smry = self._OLS.summary()
+
+        if np.isinf(self._OLS.scale):
+            se = (f"Residual standard error: --- on {int(self._OLS.df_resid)} "
+                   "degrees of freedom.")
+        else:
+            se = (f"Residual standard error: {np.sqrt(self._OLS.scale)} on "
+                  f"{int(self._OLS.df_resid)} degrees of freedom.")
+
+
+        smry.add_extra_txt([se])
+        #if print_to_screen:
+        #    print(smry)
+
+        return smry
+
+
+
+def lm(model_spec: str, data: pd.DataFrame) -> Model:
     """
-    # TODO : handle the case where the shape of an input >= 2 columns
-
-    out = pd.DataFrame(data=None, index=None, columns=None, dtype=None)
-    lens = [len(value) for value in kwargs.values()]
-    avg_count = pd.np.median(lens)
-    index = []
-    for key, value in kwargs.items():
-        #assert len(value) == avg_count, (f"Column {key} must have length "
-        #                                 f"{avg_count}.")
-        if isinstance(value, list):
-            out[key] = value
-        elif isinstance(value, pd.DataFrame):
-            out[key] = value.values.ravel()
-
-            if hasattr(value, '_pi_index'):
-                index.append(value.index)
-
-    # TODO : check that all indexes are common, to merge. Or use the pandas
-    #        functionality of merging series with the same index
-
+    """
+    model = smf.ols(model_spec, data=data).fit()
+    out = Model(OLS_instance = model)
     return out
 
 
-def lm(model_spec: str, data: pd.DataFrame):
-    """
-    """
-    out = {}
-    print('TODO')
-    #results = smf.ols('y ~ A*B', data=dat).fit()
-    return out
-
-
-def summary(model: dict):
+def summary(model: Model):
     """
     Prints a summary to the screen of the model.
     """
-    print('TODO')
-    return None
+    return model.summary()
 
 
 if __name__ == '__main__':
 
     # 3B
     A = c(-1, +1, -1, +1)
-    B = c(-1, -1, +1, +1)
+    B = c(-1, -1, +1, +1, name='B')
     y = c(52, 74, 62, 80)
 
     expt = gather(A=A, B=B, y=y)
