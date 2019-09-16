@@ -1,5 +1,6 @@
 import unittest
 
+import numpy as np
 import pandas as pd
 
 from structures import (gather, c)
@@ -52,12 +53,22 @@ class TestStructures(unittest.TestCase):
         self.assertTrue(C5._hi == 6)
         self.assertTrue(C5.name == 'C5')
 
-
-
         self.assertTrue(len(y) ==6)
         self.assertTrue(y.name == 'conversion')
 
 
+    def test_column_math(self):
+        self.A = [-1, +1, -1, +1, 0, +1]
+        self.B = [-1, -1, +1, +1, 0,  0]
+        A = c(*(self.A))
+        B = c(*(self.B), name="B")
+        C1 = A * B
+        C2 = B * A
+
+        self.assertTrue(np.all(C1.values == [+1, -1, -1, +1, 0, 0]))
+        self.assertTrue(np.all(C1.index == A.index))
+        self.assertTrue(np.all(C2.values == [+1, -1, -1, +1, 0, 0]))
+        self.assertTrue(np.all(C2.index == A.index))
 
     def test_gather(self):
         A = c(self.A)
