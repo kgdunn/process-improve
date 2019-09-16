@@ -99,11 +99,14 @@ def gather(*args, **kwargs):
         #                                 f"{avg_count}.")
         if isinstance(value, list):
             out[key] = value
-        elif isinstance(value, pd.DataFrame):
-            out[key] = value.values.ravel()
+        elif isinstance(value, pd.Series):
+            out[key] = value.values
 
             if hasattr(value, '_pi_index'):
                 index.append(value.index)
+
+        elif isinstance(value, pd.DataFrame):
+            assert False, "Handle this case still"
 
     # TODO : check that all indexes are common, to merge. Or use the pandas
     #        functionality of merging series with the same index
