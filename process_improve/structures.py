@@ -32,8 +32,8 @@ def c(*args, **kwargs) -> Column:
     A = c( 4, 5,  6,  4,  6, range=(4, 6))
     A = c( 4, 5,  6,  4,  6, center=5, range=(4, 6))  # more explicit
     A = c( 4, 5,  6,  4,  6, lo=4, hi=6)
-    A = c( 4, 5,  6,  4,  6, lo=4, hi=6, name = 'A)
-    A = c([4, 5,  6,  4,  6], lo=4, hi=6, name = 'A)
+    A = c( 4, 5,  6,  4,  6, lo=4, hi=6, name = 'A')
+    A = c([4, 5,  6,  4,  6], lo=4, hi=6, name = 'A')
 
     """
     #TODO: handle the case when this is a list, tuple, or iterable
