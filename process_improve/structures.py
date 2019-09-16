@@ -48,12 +48,19 @@ def c(*args, **kwargs) -> Column:
 
     default_idx = list(range(1, len(sanitize)+1))
     index = kwargs.get('index', default_idx)
-    assert len(index) == len(sanitize), ('Length of "index" must match the '
-                                         'number of numeric inputs.')
+    if len(index) != len(sanitize):
+        raise IndexError(('Length of "index" must match the '
+                          'number of numeric inputs.'))
 
     name = kwargs.get('name', 'Unnamed')
-    out = pd.DataFrame(data={name: sanitize}, index=index)
+    out = pd.Series(data=sanitize, index=index, name=name)
     out._pi_index = True
+
+    out._range = kwargs.get('range', None)
+    out._center = kwargs.get('center', None)
+    out._lo = kwargs.get('lo', None)
+    out._hi = kwargs.get('hi', None)
+
     return out
 
 
