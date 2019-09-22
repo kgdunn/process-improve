@@ -114,3 +114,5 @@ if __name__ == '__main__':
     # Now rebuild the linear model with only the 4 important terms
     mod_res4 = lm("y ~ A*C*E*G", expt)
     paretoPlot(mod_res4)
+
+

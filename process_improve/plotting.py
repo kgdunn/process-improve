@@ -53,3 +53,8 @@ def contour_plot():
     pass
 
 contourPlot = contour_plot
+
+
+def predict_plot():
+    """Predictions via slides on a plot."""
+    pass

@@ -35,17 +35,34 @@ def c(*args, **kwargs) -> Column:
     A = c( 4, 5,  6,  4,  6, lo=4, hi=6, name = 'A')
     A = c([4, 5,  6,  4,  6], lo=4, hi=6, name = 'A')
 
+
+    B = c(0, 1, 0, 1, 0, 2, levels =(0, 1, 2))
+
+
     """
-    #TODO: handle the case when this is a list, tuple, or iterable
     sanitize = []
+    numeric = True
+    if 'levels' in kwargs:
+        numeric = False
+
     for j in args:
         if isinstance(j, Iterable):
             if isinstance(j, np.ndarray):
                 sanitize = j.ravel().tolist()
 
-        else:
-            sanitize.append(float(j))
+            if isinstance(j, pd.Series):
+                sanitize = j.copy()
+                if 'index' not in kwargs:
+                    kwargs['index'] = sanitize.index
 
+        else:
+            try:
+                sanitize.append(float(j))
+            except ValueError:
+                numeric = False
+                sanitize.append(j)
+
+    # Index creation
     default_idx = list(range(1, len(sanitize)+1))
     index = kwargs.get('index', default_idx)
     if len(index) != len(sanitize):
@@ -56,13 +73,28 @@ def c(*args, **kwargs) -> Column:
     out = pd.Series(data=sanitize, index=index, name=name)
     out._pi_index = True
 
-    out._range = kwargs.get('range', None)
-    out._center = kwargs.get('center', None)
-    out._lo = kwargs.get('lo', None)
-    out._hi = kwargs.get('hi', None)
+
+
+    # Use sensible defaults, if not provided
+    out._pi_lo = None
+    out._pi_hi = None
+    out._pi_range = None
+    out._pi_center = None
+    out._pi_numeric = numeric
+    if numeric:
+        out._pi_lo = kwargs.get('lo', out.min())
+        out._pi_hi = kwargs.get('hi', out.max())
+        out._pi_range = kwargs.get('range', (out._lo, out._hi))
+        out._pi_center = kwargs.get('center', np.mean(out._range))
+    else:
+        if 'levels' in kwargs:
+            out._pi_levels = kwargs.get('levels')
+        else:
+            levels = out.unique()
+            levels.sort()
+            out._pi_levels = {'name': levels.tolist()} # for use with Patsy
 
     return out
-
 
 class expand(object):
     pass
