@@ -16,6 +16,8 @@ class TestStructures(unittest.TestCase):
         self.A = [-1, +1, -1, +1, 0, +1]
         self.B = [-1, -1, +1, +1, 0,  0]
         self.C = [4, 5, 6, 4, 6]
+        self.D = [0, 1, 'green']
+
 
         self.y = [52, 74, 62, 80, 50, 65]
 
@@ -35,16 +37,17 @@ class TestStructures(unittest.TestCase):
         self.assertTrue(A1.shape == (6,))
         self.assertTrue(hasattr(A1, '_pi_index'))
         self.assertTrue(hasattr(A1, 'name'))
+
         self.assertTrue(A1.name == 'Unnamed')
-        self.assertTrue(hasattr(A1, '_lo'))
-        self.assertTrue(A1._lo == -1)
-        self.assertTrue(hasattr(A1, '_hi'))
-        self.assertTrue(A1._hi == +1)
-        self.assertTrue(hasattr(A1, '_range'))
-        self.assertTrue(A1._range[0] == -1)
-        self.assertTrue(A1._range[1] == +1)
-        self.assertTrue(hasattr(A1, '_center'))
-        self.assertTrue(A1._center == 0)
+        self.assertTrue(hasattr(A1, '_pi_lo'))
+        self.assertTrue(A1._pi_lo == -1)
+        self.assertTrue(hasattr(A1, '_pi_hi'))
+        self.assertTrue(A1._pi_hi == +1)
+        self.assertTrue(hasattr(A1, '_pi_range'))
+        self.assertTrue(A1._pi_range[0] == -1)
+        self.assertTrue(A1._pi_range[1] == +1)
+        self.assertTrue(hasattr(A1, '_pi_center'))
+        self.assertTrue(A1._pi_center == 0)
 
 
         self.assertTrue(isinstance(A2.index, pd.Index))
@@ -58,19 +61,23 @@ class TestStructures(unittest.TestCase):
         self.assertTrue(B.name == 'B')
 
 
-        self.assertTrue(C1._range == (4, 6))
-        self.assertTrue(C2._center == 5)
-        self.assertTrue(C2._range == (4, 6))
-        self.assertTrue(C3._lo == 4)
-        self.assertTrue(C3._hi == 6)
-        self.assertTrue(C4._lo == 4)
-        self.assertTrue(C4._hi == 6)
-        self.assertTrue(C5._hi == 6)
+        self.assertTrue(C1._pi_range == (4, 6))
+        self.assertTrue(C2._pi_center == 5)
+        self.assertTrue(C2._pi_range == (4, 6))
+        self.assertTrue(C3._pi_lo == 4)
+        self.assertTrue(C3._pi_hi == 6)
+        self.assertTrue(C4._pi_lo == 4)
+        self.assertTrue(C4._pi_hi == 6)
+        self.assertTrue(C5._pi_hi == 6)
         self.assertTrue(C5.name == 'C5')
 
         # User says the low is 5, but the minimum is actually different
-        self.assertTrue(C6._lo == 5)
-        self.assertTrue(C6._range == (5, 6))
+        self.assertTrue(C6._pi_lo == 5)
+        self.assertTrue(C6._pi_range == (5, 6))
+
+
+        D = c(*(self.D))
+        self.assertTrue(D._pi_numeric == True)
 
 
         self.assertTrue(len(y) == 6)
@@ -115,15 +122,20 @@ class Test_API_usage(unittest.TestCase):
     def test_case_1(self):
         pass
         index = self.df1.index
-        C = c(self.df1['C'], lo = self.df1['C'].min(), hi = self.df1['C'].max(),
-              index=index)
-        M = c(self.df1['M'], levels = self.df1['M'].unique())
-        V = c(self.df1['V'], lo = self.df1['V'].min(), hi=self.df1['V'].max())
-        B = c(self.df1['B'], levels = self.df1['B'].unique())
+        C = c(self.df1['C'],
+              lo = self.df1['C'].min(),
+              hi = self.df1['C'].max(),
+              index=index, name='C')
+        M = c(self.df1['M'], levels = self.df1['M'].unique(), name='M')
+        V = c(self.df1['V'], lo = self.df1['V'].min(), hi=self.df1['V'].max(),
+               name='V')
+        B = c(self.df1['B'], name='B')
+        self.assertTrue(B._pi_levels[B.name] == ['Ard', 'Eme'])
+
 
         y = self.df1['y']
 
-        expt = gather(C, M, V, B, y)
+        expt = gather(C=C, M=M, V=V, B=B, y=y)
         self.assertTrue(C.index == M.index)
 
         model = Model("log10(y) ~ C*M*B*V", expt)

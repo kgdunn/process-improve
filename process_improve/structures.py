@@ -55,6 +55,11 @@ def c(*args, **kwargs) -> Column:
                 if 'index' not in kwargs:
                     kwargs['index'] = sanitize.index
 
+            try:
+                [float(j) for j in sanitize]
+            except ValueError:
+                numeric = False
+
         else:
             try:
                 sanitize.append(float(j))
@@ -73,8 +78,6 @@ def c(*args, **kwargs) -> Column:
     out = pd.Series(data=sanitize, index=index, name=name)
     out._pi_index = True
 
-
-
     # Use sensible defaults, if not provided
     out._pi_lo = None
     out._pi_hi = None
@@ -84,15 +87,18 @@ def c(*args, **kwargs) -> Column:
     if numeric:
         out._pi_lo = kwargs.get('lo', out.min())
         out._pi_hi = kwargs.get('hi', out.max())
-        out._pi_range = kwargs.get('range', (out._lo, out._hi))
-        out._pi_center = kwargs.get('center', np.mean(out._range))
+        out._pi_range = kwargs.get('range', (out._pi_lo, out._pi_hi))
+        out._pi_center = kwargs.get('center', np.mean(out._pi_range))
     else:
         if 'levels' in kwargs:
-            out._pi_levels = kwargs.get('levels')
+            msg = "Levels must be list or tuple of the unique level names."
+            # TODO: Check that all entries in the level list are accounted for.
+            assert isinstance(kwargs.get('levels'), Iterable), msg
+            out._pi_levels = {name: list(kwargs.get('levels'))}
         else:
             levels = out.unique()
             levels.sort()
-            out._pi_levels = {'name': levels.tolist()} # for use with Patsy
+            out._pi_levels = {name: levels.tolist()} # for use with Patsy
 
     return out
 
