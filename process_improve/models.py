@@ -1,4 +1,5 @@
 # (c) Kevin Dunn, 2019. MIT License.
+from typing import Optional
 
 
 # import statsmodels.api as sm
@@ -8,6 +9,8 @@ import pandas as pd
 import statsmodels.formula.api as smf
 from statsmodels.regression.linear_model import OLS
 from statsmodels.iolib.summary import Summary
+from statsmodels.iolib.table import Cell
+
 
 from plotting import paretoPlot
 from datasets import data
@@ -27,18 +30,21 @@ class Model(OLS):
         # Taken from statsmodels.regression.linear_model.py
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
+
             smry = self._OLS.summary()
+            # print(smry)
+            # Call this directly and modify the result to suppress what we
+            # don't really care to show:
 
-        if np.isinf(self._OLS.scale):
-            se = (f"Residual standard error: --- on {int(self._OLS.df_resid)} "
-                  "degrees of freedom.")
-        else:
-            se = (f"Residual standard error: {np.sqrt(self._OLS.scale)} on "
-                  f"{int(self._OLS.df_resid)} degrees of freedom.")
+            smry.tables[0].pop(8)
 
-        smry.add_extra_txt([se])
-        # if print_to_screen:
-        #     print(smry)
+            #Residual standard error
+            se = '---'
+            if not(np.isinf(self._OLS.scale)):
+                se = f'{np.sqrt(self._OLS.scale):.4f}'
+            smry.tables[0][7][2].data = '  Residuals std error'
+            smry.tables[0][7][3].data = se
+
 
         return smry
 
@@ -51,19 +57,22 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
     return out
 
 
-def summary(model: Model):
+def summary(model: Model, show: Optional[bool] = True):
     """
     Prints a summary to the screen of the model.
     """
-    return model.summary()
+    out = model.summary()
+    if show:
+        print(out)
+    return out
 
 
 if __name__ == '__main__':
 
     # 3B
-    A = c(-1, +1, -1, +1)
-    B = c(-1, -1, +1, +1, name='B')
-    y = c(52, 74, 62, 80)
+    A = c(-1, +1, -1, +1, 1, name='Additive')
+    B = c(-1, -1, +1, +1, 1, name='Blender')
+    y = c(52, 74, 62, 80, 82)
 
     expt = gather(A=A, B=B, y=y)
     popped_corn = lm("y ~ A + B + A*B", expt)
