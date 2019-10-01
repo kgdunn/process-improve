@@ -41,9 +41,12 @@ class Model(OLS):
             #Residual standard error
             se = '---'
             if not(np.isinf(self._OLS.scale)):
-                se = f'{np.sqrt(self._OLS.scale):.4f}'
-            smry.tables[0][7][2].data = '  Residuals std error'
-            smry.tables[0][7][3].data = se
+                se = f'{np.sqrt(self._OLS.scale):.3f}'
+            smry.tables[0][7][0].data = 'Residual std error'
+            smry.tables[0][7][1].data = se
+            #smry.tables[0][7][0].data = se
+            #smry.tables[0][7][1].data = se
+
 
 
         return smry
@@ -72,7 +75,7 @@ if __name__ == '__main__':
     # 3B
     A = c(-1, +1, -1, +1, 1, name='Additive')
     B = c(-1, -1, +1, +1, 1, name='Blender')
-    y = c(52, 74, 62, 80, 82)
+    y = c(52, 74, 62, 80, 820)
 
     expt = gather(A=A, B=B, y=y)
     popped_corn = lm("y ~ A + B + A*B", expt)
