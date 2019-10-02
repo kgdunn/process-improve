@@ -1,4 +1,5 @@
 # (c) Kevin Dunn, 2019. MIT License.
+
 import pandas as pd
 from bokeh.plotting import figure, show
 
@@ -145,4 +146,11 @@ contourPlot = contour_plot
 
 def predict_plot():
     """Predictions via slides on a plot."""
+    pass
+
+
+def interaction_plot():
+    """
+    Interaction plot
+    """
     pass

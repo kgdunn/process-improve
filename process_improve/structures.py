@@ -102,22 +102,19 @@ def c(*args, **kwargs) -> Column:
 
     return out
 
-class expand(object):
-    pass
+class expand_grid(**kwargs):
+    """
+    Create the expanded grid here.
+    """
+    n_col = len(kwargs)
+    itrs = [v.values for v in kwargs.values()]
+    product = list(itertools.product(*itrs))
+    vals = np.fliplr(np.array(product).reshape(len(product), n_col))
+    out = []
+    for name, values in zip(kwargs.keys(), np.split(vals, n_col, axis=1)):
+        out.append(c(values, name=name))
 
-    def grid(**kwargs):
-        """
-        Create the expanded grid here.
-        """
-        n_col = len(kwargs)
-        itrs = [v.values for v in kwargs.values()]
-        product = list(itertools.product(*itrs))
-        vals = np.fliplr(np.array(product).reshape(len(product), n_col))
-        out = []
-        for name, values in zip(kwargs.keys(), np.split(vals, n_col, axis=1)):
-            out.append(c(values, name=name))
-
-        return out
+    return out
 
 
 
