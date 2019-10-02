@@ -1,7 +1,28 @@
 # (c) Kevin Dunn, 2019. MIT License.
-
+import numpy as np
 import pandas as pd
 from bokeh.plotting import figure, show
+
+import matplotlib
+import matplotlib.cm as cm
+import matplotlib.mlab as mlab
+import matplotlib.pyplot as plt
+
+
+from structures import expand_grid
+from models import predict
+
+
+def get_param_names(model):
+
+    params = model._OLS.params.copy()
+    try:
+        params.drop('Intercept', inplace=True)
+    except KeyError:
+        pass
+
+    params.dropna(inplace=True)
+    return params
 
 def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
                 main="Pareto plot", legendtitle="Sign of coefficients",
@@ -52,13 +73,8 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
     # http://holoviews.org/reference/elements/bokeh/ErrorBars.html
 
 
-    params = model._OLS.params.copy()
-    try:
-        params.drop('Intercept', inplace=True)
-    except KeyError:
-        pass
+    params = get_param_names(model)
 
-    params.dropna(inplace=True)
     param_values = params.values
     bar_colours = [negative[1] if p < 0 else positive[1] for p in param_values]
     params = params.abs()
@@ -138,8 +154,107 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
 paretoPlot = pareto_plot
 
 
-def contour_plot():
-    pass
+def contour_plot(model, xlabel=None, ylabel=None, main = None,
+    N = 25, xlim = (-3.2, 3.2), ylim = (-3.2, 3.2),
+    colour_function = "terrain", show=True, show_expt_data=True):
+    """
+    valid.names <- colnames(model.frame(lsmodel))[dim(model.frame(lsmodel))[2]:2]
+    if (!is.character(xlab)) {
+        stop("The \"xlab\" input must be a character (string) name of a variable in the model.")
+    }
+    if (!is.character(ylab)) {
+        stop("The \"ylab\" input must be a character (string) name of a variable in the model.")
+    }
+    if (!(xlab %in% valid.names)) {
+        stop(paste("The variable \"", toString(xlab), "\" was not a variable name in the linear model.\n ",
+            "Valid variable names are: ", toString(valid.names),
+            sep = ""))
+    }
+    if (!(ylab %in% valid.names)) {
+        stop(paste("The variable \"", toString(ylab), "\" was not a variable name in the linear model.\n ",
+            "Valid variable names are: ", toString(valid.names),
+            sep = ""))
+    }
+    """
+    h_grid = np.linspace(xlim[0], xlim[1], num = N)
+    v_grid = np.linspace(ylim[0], ylim[1], num = N)
+    H, V = np.meshgrid(h_grid, v_grid)
+    h_grid, v_grid = H.ravel(), V.ravel()
+
+    params = get_param_names(model)
+    if xlabel is None:
+        xlabel = params.index[0]
+    else:
+        xlabel = str(xlabel)
+
+    if ylabel is None:
+        ylabel = params.index[1]
+    else:
+        ylabel = str(ylabel)
+
+
+    kwargs = {xlabel: h_grid, ylabel: v_grid}
+    Z = predict(model, **kwargs)
+    Z = Z.values.reshape(N, N)
+
+    # Create a simple contour plot with labels using default colors.  The
+    # inline argument to clabel will control whether the labels are draw
+    # over the line segments of the contour, removing the lines beneath
+    # the label
+    fig = plt.figure(figsize=(7,5))
+    levels = np.linspace(Z.min(), Z.max(), N)
+
+    # Show the data from the experiment as dots on the plot
+    if show_expt_data:
+        plt.plot(model.data[xlabel],
+                 model.data[ylabel],
+                 'dimgrey',
+                 linestyle = '',
+                 marker = 'o',
+                 ms=15,
+                 linewidth=2)
+
+    if main is None:
+        main = 'Contour plot'
+        if hasattr(model.data, '_pi_title'):
+            main += ': ' + getattr(model.data, '_pi_title')
+
+
+
+    plt.title(main)
+    plt.xlabel(xlabel, fontsize=12, fontweight="bold")
+    plt.ylabel(ylabel, fontsize=12, fontweight="bold")
+
+    #from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+    # Set up the plot for the first time
+    plt.xlim(xlim)
+    plt.ylim(ylim)
+    plt.grid(color='#DDDDDD')
+
+    CS = plt.contour(H, V, Z,
+                     colors='black',
+                     levels=levels,
+                     linestyles='dotted')
+    plt.clabel(CS, inline=True, fontsize=10, fmt='%1.0f' )
+
+
+    plt.imshow(Z, extent=[xlim[0], xlim[1], ylim[0], ylim[1]],
+               origin='lower',
+               cmap= colour_function, #'RdGy',
+               alpha=0.5)
+    plt.colorbar()
+
+    if show:
+        plt.show()
+
+    return plt
+
+
+
+
+
+
 
 contourPlot = contour_plot
 

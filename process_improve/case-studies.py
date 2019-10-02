@@ -6,7 +6,7 @@ from models import (lm, summary)
 from plotting import (pareto_plot, contour_plot)
 
 
-def case_3B(object):
+def case_3B():
     """
     See video 3B in the Coursera series. R code equivalent: http://yint.org/3B
 
@@ -16,14 +16,14 @@ def case_3B(object):
     B = c(-1, -1, +1, +1, name='Blender')
     y = c(52, 74, 62, 80, units='number of popped kernels')
 
-    expt = gather(A=A, B=B, y=y)
+    expt = gather(A=A, B=B, y=y, title='Popping corn!')
     popped_corn = lm("y ~ A + B + A*B", expt)
     popped_corn = lm("y ~ A*B", expt)
     summary(popped_corn)
-    contour_plot(popped_corn)
+    contour_plot(popped_corn, show=False)
 
 
-def case_3C(object):
+def case_3C():
     """
     See video 3C in the Coursera series. R code equivalent: http://yint.org/3C
 
@@ -36,9 +36,10 @@ def case_3C(object):
 
     water = lm("y ~ C * T * S", expt)
     summary(water)
+    contour_plot(water, "C", "T")
     pareto_plot(water)
 
-def case_3D(object):
+def case_3D():
     """
     solar = data("solar")
     model_y1 = lm("y1 ~ A*B*C*D", data=solar)
@@ -76,7 +77,7 @@ def case_3D(object):
     """
     pass
 
-def case_w2(object):
+def case_w2():
     """
     Teaching case week 2: https://yint.org/w2
     """
@@ -108,11 +109,57 @@ def case_w2(object):
     paste0('Predicted value is: ', y.hat, ' crispiness.')
 
 
+def case_w4_1():
+    """
+    Teaching case week 4: https://yint.org/w4
+    """
+    # S = Free shipping if order amount is €30 or more [-1],
+    # or if order amount is over €50 [+1]
+    S = c(-1, +1, -1, +1, -1, +1, -1, +1, name='Free shipping amount')
+
+    # Does the purchaser need to create a profile first [+1] or not [-1]?
+    P = c(-1, -1, +1, +1, -1, -1, +1, +1, name='Create profile: No/Yes')
+
+    # Response: daily sales amount
+    y = c(348, 359, 327, 243, 356, 363, 296, 257)
+
+    # Linear model using S, P and S*P to predict the response
+    expt = gather(S=S, P=P, y=y, title='Experiment without mistake')
+    model_sales = lm("y ~ S*P", expt)
+    summary(model_sales)
+    contour_plot(model_sales)
+
+
+def case_w4_2():
+    """
+    Teaching case week 4: https://yint.org/w4
+    """
+    # S = Free shipping if order amount is €30 or more [-1], or if
+    # order amount is over €50 [+1]. Notice that a mistake was made
+    # with the last experiment: order minimum for free shipping was €60 [+1].
+    S = c(-1, +1, -1, +1, -1, +1, -1, +2, name='Free shipping amount')
+
+    # Does the purchaser need to create a profile first [+1] or not [-1]?
+    P = c(-1, -1, +1, +1, -1, -1, +1, +1, name='Create profile: No/Yes')
+
+    # Response: daily sales amount
+    y = c(348, 359, 327, 243, 356, 363, 296, 220, units='€ sales')
+
+    # Linear model using S, P and S*P to predict the response
+    expt = gather(S=S, P=P, y=y, title='Experiment with mistake')
+    model_sales_mistake = lm("y ~ S*P", expt)
+    summary(model_sales_mistake)
+
+    contour_plot(model_sales_mistake)
+
 
 if __name__ == '__main__':
     case_3B()
-    case_3C()
-    case_3D()
+    #case_3C()
+    #case_3D()
 
-    case_w2()
+    #case_w2()
+    case_w4_1()
+    case_w4_2()
+
 

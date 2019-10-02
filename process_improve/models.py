@@ -11,11 +11,6 @@ from statsmodels.iolib.summary import Summary
 from statsmodels.iolib.table import Cell
 
 
-from .plotting import paretoPlot
-from .datasets import data
-from .structures import c, expand, gather
-
-
 class Model(OLS):
     """
     Just a thin wrapper around the OLS class from Statsmodels."""
@@ -30,7 +25,11 @@ class Model(OLS):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
 
-            smry = self._OLS.summary()
+            main = 'OLS Regression Results'
+            if hasattr(self.data, '_pi_title'):
+                main += ': ' + str(getattr(self.data, '_pi_title'))
+
+            smry = self._OLS.summary(title=main)
             # print(smry)
             # Call this directly and modify the result to suppress what we
             # don't really care to show:
@@ -46,9 +45,16 @@ class Model(OLS):
             #smry.tables[0][7][0].data = se
             #smry.tables[0][7][1].data = se
 
-
-
         return smry
+
+
+def predict(model, **kwargs):
+    """
+    Make predictions from the model
+    """
+    kwargs
+    return model._OLS.predict(exog=dict(kwargs))
+
 
 
 def lm(model_spec: str, data: pd.DataFrame) -> Model:
@@ -56,6 +62,7 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
     """
     model = smf.ols(model_spec, data=data).fit()
     out = Model(OLS_instance=model)
+    out.data = data
     return out
 
 

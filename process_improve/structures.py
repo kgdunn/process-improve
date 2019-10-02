@@ -102,7 +102,7 @@ def c(*args, **kwargs) -> Column:
 
     return out
 
-class expand_grid(**kwargs):
+def expand_grid(**kwargs):
     """
     Create the expanded grid here.
     """
@@ -146,4 +146,7 @@ def gather(*args, **kwargs):
     # TODO : check that all indexes are common, to merge. Or use the pandas
     #        functionality of merging series with the same index
 
+
+    if kwargs.get('title', False):
+        out._pi_title = kwargs.get('title')
     return out

@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from structures import (gather, c)
-from models import Model, summary
+from models import (lm, summary)
 from plotting import (pareto_plot, contour_plot)
 
 class TestStructures(unittest.TestCase):
@@ -136,9 +136,9 @@ class Test_API_usage(unittest.TestCase):
         y = self.df1['y']
 
         expt = gather(C=C, M=M, V=V, B=B, y=y)
-        self.assertTrue(C.index == M.index)
+        self.assertTrue(np.all(C.index == M.index))
 
-        model = Model("log10(y) ~ C*M*B*V", expt)
+        model = lm("np.log10(y) ~ C*M*B*V", expt)
         #summary(model)
         #pareto_plot(model)
         #contour_plot(model, C, M)
