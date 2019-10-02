@@ -12,9 +12,9 @@ from statsmodels.iolib.summary import Summary
 from statsmodels.iolib.table import Cell
 
 
-from plotting import paretoPlot
-from datasets import data
-from structures import c, expand, gather
+from .plotting import paretoPlot
+from .datasets import data
+from .structures import c, expand, gather
 
 
 class Model(OLS):

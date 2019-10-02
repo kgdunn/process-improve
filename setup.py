@@ -4,8 +4,8 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="process-improve-kevindunn",
-    version="0.0.1",
+    name="process-improve",
+    version="0.1.3",
     author="Kevin Dunn",
     author_email="kgdunn@gmail.com",
     description="Process Improvement using Data, particularly Designed Experiments",

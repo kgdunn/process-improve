@@ -89,12 +89,12 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
     p.yaxis.axis_label_text_font_size = '14pt'
 
 
-    j = 1
-    for k,v in this_series.iteritems():
-
-        p.rect(x=v/2, y=j, width=abs(v) height=0.4,color=(76,114,176),
-          width_units="data", height_units="data")
-        j += 1
+#    j = 1
+#    for k,v in this_series.iteritems():#
+#
+#        p.rect(x=v/2, y=j, width=abs(v), height=0.4,color=(76,114,176),
+#          width_units="data", height_units="data")
+#        j += 1
 
     show(p)
 
