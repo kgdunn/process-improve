@@ -151,7 +151,7 @@ paretoPlot = pareto_plot
 def contour_plot(model, xlabel=None, ylabel=None, main=None,
         N=25, xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
         colour_function="terrain", show=True, show_expt_data=True,
-        figsize=(10, 10)):
+        figsize=(10, 10), dpi=100):
     """
     Show a contour plot of the model.
 
@@ -202,7 +202,7 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
     # inline argument to clabel will control whether the labels are draw
     # over the line segments of the contour, removing the lines beneath
     # the label
-    fig = plt.figure(figsize=figsize, dpi=300, facecolor='white',
+    fig = plt.figure(figsize=figsize, dpi=dpi, facecolor='white',
                      edgecolor='white')
     levels = np.linspace(Z.min(), Z.max(), N)
 
