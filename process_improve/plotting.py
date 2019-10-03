@@ -8,10 +8,7 @@ import matplotlib.cm as cm
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 
-
-from structures import expand_grid
-from models import predict
-
+from . models import predict
 
 def get_param_names(model):
 
