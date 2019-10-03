@@ -1,10 +1,12 @@
 import numpy as np
 import pandas as pd
 
+import os
+import sys
+sys.path.append(os.path.split(__file__)[0])
+
 from structures import (gather, c, expand_grid)
 from models import (lm, summary)
-from plotting import (pareto_plot, contour_plot)
-
 
 def case_3B():
     """
@@ -113,6 +115,7 @@ def case_w4_1():
     """
     Teaching case week 4: https://yint.org/w4
     """
+    from plotting import (pareto_plot, contour_plot)
     # S = Free shipping if order amount is €30 or more [-1],
     # or if order amount is over €50 [+1]
     S = c(-1, +1, -1, +1, -1, +1, -1, +1, name='Free shipping amount')
@@ -154,7 +157,7 @@ def case_w4_2():
 
 
 if __name__ == '__main__':
-    #case_3B()
+    # case_3B()
     #case_3C()
     #case_3D()
 

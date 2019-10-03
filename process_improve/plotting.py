@@ -8,7 +8,7 @@ import matplotlib.cm as cm
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 
-from . models import predict
+from .models import predict
 
 def get_param_names(model):
 
@@ -202,7 +202,8 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
     # inline argument to clabel will control whether the labels are draw
     # over the line segments of the contour, removing the lines beneath
     # the label
-    fig = plt.figure(*figsize)
+    fig = plt.figure(figsize=figsize, dpi=300, facecolor='white',
+                     edgecolor='white')
     levels = np.linspace(Z.min(), Z.max(), N)
 
     # Show the data from the experiment as dots on the plot
