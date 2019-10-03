@@ -52,7 +52,7 @@ def predict(model, **kwargs):
     """
     Make predictions from the model
     """
-    kwargs
+    #kwargs
     return model._OLS.predict(exog=dict(kwargs))
 
 
