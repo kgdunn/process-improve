@@ -154,7 +154,7 @@ def case_w4_2():
 
 
 if __name__ == '__main__':
-    case_3B()
+    #case_3B()
     #case_3C()
     #case_3D()
 

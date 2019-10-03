@@ -202,7 +202,7 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
     # inline argument to clabel will control whether the labels are draw
     # over the line segments of the contour, removing the lines beneath
     # the label
-    fig = plt.figure(figsize)
+    fig = plt.figure(*figsize)
     levels = np.linspace(Z.min(), Z.max(), N)
 
     # Show the data from the experiment as dots on the plot
