@@ -145,15 +145,19 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
                #height_units = "data")
 
 
-
-
-
 paretoPlot = pareto_plot
 
 
-def contour_plot(model, xlabel=None, ylabel=None, main = None,
-    N = 25, xlim = (-3.2, 3.2), ylim = (-3.2, 3.2),
-    colour_function = "terrain", show=True, show_expt_data=True):
+def contour_plot(model, xlabel=None, ylabel=None, main=None,
+        N=25, xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
+        colour_function="terrain", show=True, show_expt_data=True,
+        figsize=(10, 10)):
+    """
+    Show a contour plot of the model.
+
+    NOTE: currently only works for variables with 2 factors. Check back next
+          next week for an update.
+    """
     """
     valid.names <- colnames(model.frame(lsmodel))[dim(model.frame(lsmodel))[2]:2]
     if (!is.character(xlab)) {
@@ -198,7 +202,7 @@ def contour_plot(model, xlabel=None, ylabel=None, main = None,
     # inline argument to clabel will control whether the labels are draw
     # over the line segments of the contour, removing the lines beneath
     # the label
-    fig = plt.figure(figsize=(7,5))
+    fig = plt.figure(figsize)
     levels = np.linspace(Z.min(), Z.max(), N)
 
     # Show the data from the experiment as dots on the plot
