@@ -1,14 +1,29 @@
 # (c) Kevin Dunn, 2019. MIT License.
 import numpy as np
 import pandas as pd
-from bokeh.plotting import figure, show
 
 import matplotlib
 import matplotlib.cm as cm
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 
-from .models import predict
+try:
+    from .models import predict
+except ImportError:
+    from models import predict
+
+
+def get_plot_title(main, model, prefix=''):
+    """
+    Constructs a sensible plot title from the ``model``.
+    """
+    if main is None:
+        main = prefix
+        if hasattr(model.data, '_pi_title'):
+            main += ': ' + getattr(model.data, '_pi_title')
+
+    return main
+
 
 def get_param_names(model):
 
@@ -73,76 +88,47 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
     params = get_param_names(model)
 
     param_values = params.values
+    beta_str = [f"+{i:0.4g}" if i > 0 else f'{i:0.4g}' for i in param_values]
     bar_colours = [negative[1] if p < 0 else positive[1] for p in param_values]
+
     params = params.abs()
+    # Shuffle the collected information in the same way
+    beta_str = [beta_str[i] for i in params.argsort().values]
     bar_colours = [bar_colours[i] for i in params.argsort().values]
     params = params.sort_values(na_position='last')
 
+    # -----
+    from bokeh.plotting import figure, show, ColumnDataSource
+    source = ColumnDataSource(data=dict(
+        x=params.values,
+        y=np.arange(1, len(params.index) + 1),
+        factor_names=params.index.values,
+        bar_colours=bar_colours,
+        original_magnitude_with_sign=beta_str,
 
-    data = {'Cities': {'Des_Moines': 80.0, 'Lubbock': -300.0, 'Minneapolis': 85.7,
-                            'Orange_County': 80.0, 'Salt_Lake_City': 81.8, 'San_Diego': 80.0,
-                            'San_Francisco': -400.0, 'Troy': -400.0, 'Wilmington': -300.0}}
-    #df_data = pd.DataFrame(data).sort_values('Cities', ascending=False)
-    df_data = pd.DataFrame(data)
+    ))
+    TOOLTIPS = [
+        ("Factor name", "@factor_names"),
+        ("Magnitude and sign", "@original_magnitude_with_sign"),
+    ]
+    p = figure(plot_width=400, plot_height=400, tooltips=TOOLTIPS,
+               title=get_plot_title(main, model, prefix='Pareto plot'))
+    p.hbar(y='y', right='x', height=0.5, left=0, fill_color='bar_colours',
+           line_color='bar_colours', source=source)
 
-    this_series = df_data.loc[:,'Cities']
-    p = figure(width=800, height=600, y_range=this_series.index.tolist())
-
-    p.grid.grid_line_alpha=1.0
-    p.grid.grid_line_color = "white"
-
-    p.xaxis.axis_label = 'xlabel'
     p.xaxis.axis_label_text_font_size = '14pt'
+    p.xaxis.axis_label = xlabel
     p.xaxis.major_label_text_font_size = '14pt'
-    #p.x_range = Range1d(0,50)
-    #p.xaxis[0].ticker=FixedTicker(ticks=[i for i in xrange(0,5,1)])
+    p.xaxis.axis_label_text_font_style = 'normal'
 
     p.yaxis.major_label_text_font_size = '14pt'
-    p.yaxis.axis_label = 'ylabel'
-
+    p.yaxis.axis_label = ylabel
     p.yaxis.axis_label_text_font_size = '14pt'
+    p.yaxis.axis_label_text_font_style = 'normal'
 
-
-#    j = 1
-#    for k,v in this_series.iteritems():#
-#
-#        p.rect(x=v/2, y=j, width=abs(v), height=0.4,color=(76,114,176),
-#          width_units="data", height_units="data")
-#        j += 1
-
+    p.xaxis.bounds = (0, params.max()*1.05)
     show(p)
 
-
-
-
-
-    #p = figure(width=800, height=600, y_range=params.index.tolist())
-    #a = 2
-    ##p.grid.grid_line_alpha=1.0
-    ##p.grid.grid_line_color = "white"
-    ##p.xaxis.axis_label = xlabel
-    #show(p)
-
-    #p.xaxis.axis_label_text_font_size = '14pt'
-    ##p.xaxis.axis_label_text_font_style = 'normal'
-    #p.xaxis.major_label_text_font_size = '14pt'
-
-    #p.yaxis.major_label_text_font_size = '14pt'
-    #p.yaxis.axis_label = ylabel
-    #p.yaxis.axis_label_text_font_size = '14pt'
-    ##p.yaxis.axis_label_text_font_style = 'normal'
-
-
-    #for idx, key_val in enumerate(params.iteritems()):
-        #key, val = key_val
-        #print(key, val)
-        #p.rect(x = val,
-               #y = idx-0.5,
-               #width = val,
-               #height = 0.4,
-               #color = bar_colours[idx],
-               #width_units = "data",
-               #height_units = "data")
 
 
 paretoPlot = pareto_plot
@@ -155,8 +141,16 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
     """
     Show a contour plot of the model.
 
+    TODO:
+    * more than 2 factors in model
+    * two axes; for the real-world and coded units
+    * Hover display of experimental data points
+    * add a bit of jitter to the data if the numbers are exactly the same [option]
+
+
     NOTE: currently only works for variables with 2 factors. Check back next
           next week for an update.
+
     """
     """
     valid.names <- colnames(model.frame(lsmodel))[dim(model.frame(lsmodel))[2]:2]
@@ -216,14 +210,7 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
                  ms=15,
                  linewidth=2)
 
-    if main is None:
-        main = 'Contour plot'
-        if hasattr(model.data, '_pi_title'):
-            main += ': ' + getattr(model.data, '_pi_title')
-
-
-
-    plt.title(main)
+    plt.title(get_plot_title(main, model, prefix='Contour plot'))
     plt.xlabel(xlabel, fontsize=12, fontweight="bold")
     plt.ylabel(ylabel, fontsize=12, fontweight="bold")
 
@@ -238,12 +225,11 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
                      colors='black',
                      levels=levels,
                      linestyles='dotted')
-    plt.clabel(CS, inline=True, fontsize=10, fmt='%1.0f' )
-
+    plt.clabel(CS, inline=True, fontsize=10, fmt='%1.0f')
 
     plt.imshow(Z, extent=[xlim[0], xlim[1], ylim[0], ylim[1]],
                origin='lower',
-               cmap= colour_function, #'RdGy',
+               cmap=colour_function,  # 'RdGy',
                alpha=0.5)
     plt.colorbar()
 
