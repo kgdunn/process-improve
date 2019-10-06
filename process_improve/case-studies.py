@@ -219,6 +219,33 @@ def case_worksheet_5():
     pareto_plot(model_start)
 
 
+def api_usage():
+
+    A, B, C, D = full_factorial(4, names = ['A', 'B', 'C', 'D'])
+
+    A = supplement(A, name = 'Feed rate', units='g/min', lo = 5, high = 8.0)
+    B = supplement(B, name = 'Initial inoculate amount', units = 'g', lo = 300,
+                   hi = 400)
+    C = supplement(C, name = 'Feed substrate concentration', units = 'g/L',
+                   lo = 40, hi = 60)
+    D = supplement(D, name = 'Dissolved oxygen set-point', units = 'mg/L',
+                   lo = 4, hi = 5)
+
+    y = c(60, 59, 63, 61, 69, 61, 94, 93, 56, 63, 70, 65, 44, 45, 78, 77,
+          units='g/L', name = 'Yield')
+
+    expt = gather(A, B, C, D, y, title='Initial experiments; full factorial')
+
+    expt.show_actual(std_order=True)
+    expt.show_actual(random_order=True, seed=13)
+    expt.show_coded()
+    expt.export(save_as='xls' , filename='abc.xlsx'))
+
+    model_start = lm("y ~ <full>", expt)
+    model_start = lm("y ~ <2fi>", expt)
+    model_start = lm("y ~ <3fi>", expt)
+
+
 
 
 
