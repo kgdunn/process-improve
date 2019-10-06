@@ -155,11 +155,46 @@ def case_w4_2():
 
     contour_plot(model_sales_mistake)
 
+def case_worksheet():
+    """
+    A = feed rate 				5 g/min or 8 g/min
+    B = initial inoculate amount 		300 g or 400 g
+    C = feed substrate concentration 	40 g/L or 60 g/L
+    D = dissolved oxygen set-point 	4 mg/L or 5 mg/L
+
+    The 16 experiments from a full factorial, 24, were randomly run, and the yields from the bioreactor, y, are reported here in standard order: y = [60, 59, 63, 61, 69, 61, 94, 93, 56, 63, 70, 65, 44, 45, 78, 77]. The yield has units of g/L.
+
+    """
+    pass
+
+    #A, B, C, D = (4, names = ['A', 'B', 'C', 'D'])
+
+
+    #y = c(5, 30, 6, 33, 4, 3, 5, 4)
+
+    #A = c(-1, +1, -1, +1, -1, +1, -1, +2, name='Free shipping amount')
+
+    ## Does the purchaser need to create a profile first [+1] or not [-1]?
+    #P = c(-1, -1, +1, +1, -1, -1, +1, +1, name='Create profile: No/Yes')
+
+    ## Response: daily sales amount
+    #y = c(348, 359, 327, 243, 356, 363, 296, 220, units='€ sales')
+
+    ## Linear model using S, P and S*P to predict the response
+    #expt = gather(S=S, P=P, y=y, title='Experiment with mistake')
+    #model_sales_mistake = lm("y ~ S*P", expt)
+    #summary(model_sales_mistake)
+
+    #contour_plot(model_sales_mistake    )
+
+
+
 
 if __name__ == '__main__':
     # case_3B()
-    case_3C()
+    #case_3C()
     #case_3D()
+    case_worksheet()
 
     #case_w2()
     case_w4_1()

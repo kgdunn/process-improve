@@ -11,6 +11,46 @@ class Column(pd.Series):
     def __init__(self):
         pass
 
+
+def create_names(n: int, letters=True, prefix='X', start_at=1, padded=True):
+    """
+    Returns default factor names, for a given number of `n` [integer] factors.
+    The factor name "I" is never used.
+
+    If `letters` is True (default), then at most 25 factors can be returned.
+
+    If `letters` is False, then the prefix is used to construct names which are
+    the combination of the prefix and numbers, starting at `start_at`.
+
+    Example:
+        >>> create_names(5)
+            ["A", "B", "C", "D", "E"]
+
+        >>> create_names(3, letters=False)
+            ["X1", "X2", "X3"]
+
+        >>> create_names(3, letters=False, prefix='Q', start_at=9,
+                             padded=True)
+            ["Q09", "Q10", "Q11"]
+    """
+    if letters and n <= 25:
+        out = [chr(65+i) for i in range(n)]
+        if 'I' in out:
+            out.remove('I')
+            out.append(chr(65+n))
+
+    else:
+        longest = 0
+        if padded:
+            longest = len(str(start_at + n - 1))
+
+        out = [f'{str(prefix)}{str(i).rjust(longest, "0")}' for i in \
+                                        range(start_at, n + start_at)]
+
+    return out
+
+
+
 def c(*args, **kwargs) -> Column:
     """
     Performs the equivalent of the R function "c(...)", to combine data elements

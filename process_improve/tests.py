@@ -3,9 +3,11 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from structures import (gather, c)
+from structures import (gather, c, create_names)
 from models import (lm, summary)
 from plotting import (pareto_plot, contour_plot)
+
+
 
 class TestStructures(unittest.TestCase):
     """
@@ -17,9 +19,26 @@ class TestStructures(unittest.TestCase):
         self.B = [-1, -1, +1, +1, 0,  0]
         self.C = [4, 5, 6, 4, 6]
         self.D = [0, 1, 'green']
-
-
         self.y = [52, 74, 62, 80, 50, 65]
+
+    def test_create_names(self):
+        """ Creating factor names."
+        """
+
+        self.assertListEqual(create_names(5),  ["A", "B", "C", "D", "E"])
+
+        self.assertListEqual(create_names(3, letters=False),
+                             ["X1", "X2", "X3"])
+
+        self.assertListEqual(create_names(3, letters=False, prefix='Q',
+                                          start_at=9, padded=True),
+                             ["Q09", "Q10", "Q11"])
+
+        self.assertListEqual(create_names(4, letters=False, prefix='Z',
+                                          start_at=99, padded=True),
+                             ["Z099", "Z100", "Z101", "Z102"])
+
+
 
     def test_create(self):
         A1 = c(*(self.A))
@@ -144,10 +163,6 @@ class Test_API_usage(unittest.TestCase):
         #contour_plot(model, C, M)
         #contour_plot(model, "C", "M")
         #predict_plot(model)
-
-
-
-
 
 if __name__ == '__main__':
     unittest.main()
