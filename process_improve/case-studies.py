@@ -5,9 +5,10 @@ import os
 import sys
 sys.path.append(os.path.split(__file__)[0])
 
-from structures import (gather, c, expand_grid)
+from structures import (gather, c, expand_grid, supplement)
 from models import (lm, summary)
 from plotting import (pareto_plot, contour_plot)
+from designs_factorial import full_factorial
 
 def case_3B():
     """
@@ -155,37 +156,68 @@ def case_w4_2():
 
     contour_plot(model_sales_mistake)
 
-def case_worksheet():
+def case_worksheet_5():
     """
+    We have a bioreactor system, and we are investigating four factors:
     A = feed rate 				5 g/min or 8 g/min
     B = initial inoculate amount 		300 g or 400 g
     C = feed substrate concentration 	40 g/L or 60 g/L
     D = dissolved oxygen set-point 	4 mg/L or 5 mg/L
 
-    The 16 experiments from a full factorial, 24, were randomly run, and the yields from the bioreactor, y, are reported here in standard order: y = [60, 59, 63, 61, 69, 61, 94, 93, 56, 63, 70, 65, 44, 45, 78, 77]. The yield has units of g/L.
+    The 16 experiments from a full factorial, were randomly run, and the yields
+    from the bioreactor, y, are reported here in standard order:
+    y = [60, 59, 63, 61, 69, 61, 94, 93, 56, 63, 70, 65, 44, 45, 78, 77].
+    The yield has units of g/L.
 
+    Without running any code or calculations, answer these questions:
+    * how many 2-factor interactions are there in this full factorial: _______
+    * how many 3-factor interactions are there in this full factorial: _______
+    * how many 4-factor interactions are there in this full factorial: _______
+    * how many terms can you fit in a full linear model, including the intercept
+    * how many data points do you have to fit this model: _________
+    * what will be the value of R2 if you fit this full linear model: _______
+    * and the standard error will be exactly: ________
+
+
+    Run your adjusted code and check that the values of A, B, C and D in the
+    vector are in the order they should be.
+
+    Use a Pareto-plot to identify the significant effects.
+
+    Rebuild the model now without the factor, or factors which have the least
+    influence on the model. Compare the existing model with this newly updated
+    model. What do you notice about the coefficients?
+
+
+    What would be your advice to your colleagues to improve the yield?
+
+    Which main effects should you change?
+
+    Will the interaction(s) of this main effect, or these main effects,
+    work in your favour, or work against you?
+
+    Make predictions of experiments in several directions of the main factors,
+    to try to maximize the reactor yield.
     """
-    pass
 
-    #A, B, C, D = (4, names = ['A', 'B', 'C', 'D'])
+    A, B, C, D = full_factorial(4, names = ['A', 'B', 'C', 'D'])
 
+    A = supplement(A, name = 'Feed rate', units='g/min', lo = 5, high = 8.0)
+    B = supplement(B, name = 'Initial inoculate amount', units = 'g', lo = 300,
+                   hi = 400)
+    C = supplement(C, name = 'Feed substrate concentration', units = 'g/L',
+                   lo = 40, hi = 60)
+    D = supplement(D, name = 'Dissolved oxygen set-point', units = 'mg/L',
+                   lo = 4, hi = 5)
 
-    #y = c(5, 30, 6, 33, 4, 3, 5, 4)
+    y = c(60, 59, 63, 61, 69, 61, 94, 93, 56, 63, 70, 65, 44, 45, 78, 77,
+          units='g/L', name = 'Yield')
 
-    #A = c(-1, +1, -1, +1, -1, +1, -1, +2, name='Free shipping amount')
+    expt = gather(A, B, C, D, y, title='Initial experiments; full factorial')
+    model_start = lm("y ~ A*B*C*D", expt)
+    summary(model_start)
+    pareto_plot(model_start)
 
-    ## Does the purchaser need to create a profile first [+1] or not [-1]?
-    #P = c(-1, -1, +1, +1, -1, -1, +1, +1, name='Create profile: No/Yes')
-
-    ## Response: daily sales amount
-    #y = c(348, 359, 327, 243, 356, 363, 296, 220, units='€ sales')
-
-    ## Linear model using S, P and S*P to predict the response
-    #expt = gather(S=S, P=P, y=y, title='Experiment with mistake')
-    #model_sales_mistake = lm("y ~ S*P", expt)
-    #summary(model_sales_mistake)
-
-    #contour_plot(model_sales_mistake    )
 
 
 
@@ -194,7 +226,7 @@ if __name__ == '__main__':
     # case_3B()
     #case_3C()
     #case_3D()
-    case_worksheet()
+    case_worksheet_5()
 
     #case_w2()
     case_w4_1()
