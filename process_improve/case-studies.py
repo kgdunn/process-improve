@@ -6,7 +6,7 @@ import sys
 sys.path.append(os.path.split(__file__)[0])
 
 from structures import (gather, c, expand_grid, supplement)
-from models import (lm, summary)
+from models import (lm, summary, predict)
 from plotting import (pareto_plot, contour_plot)
 from designs_factorial import full_factorial
 
@@ -103,13 +103,13 @@ def case_w2():
 
     # See how the two factors affect the response:
     contour_plot(model_crispy )
-    interaction_plot(T, F, y)
-    interaction_plot(F, T, y)
+    #interaction_plot(T, F, y)
+    #interaction_plot(F, T, y)
 
     # Make a prediction with this model:
     xT = +2   # corresponds to 110 minutes
     xF = -1   # corresponds to 20 grams of fat
-    y.hat = predict(model_crispy, data.frame(T = xT, F = xF))
+    y.hat = predict(model_crispy, pd.DataFrame(T = xT, F = xF))
     paste0('Predicted value is: ', y.hat, ' crispiness.')
 
 def case_w4_1():
@@ -151,16 +151,15 @@ def case_w4_2():
     expt = gather(S=S, P=P, y=y, title='Experiment with mistake')
     model_sales_mistake = lm("y ~ S*P", expt)
     summary(model_sales_mistake)
-
     contour_plot(model_sales_mistake)
 
 def case_worksheet_5():
     """
     We have a bioreactor system, and we are investigating four factors:
-    A = feed rate 				5 g/min or 8 g/min
-    B = initial inoculate amount 		300 g or 400 g
-    C = feed substrate concentration 	40 g/L or 60 g/L
-    D = dissolved oxygen set-point 	4 mg/L or 5 mg/L
+    A = feed rate 				          5 g/min or   8 g/min
+    B = initial inoculant amount 		300 g     or 400 g
+    C = feed substrate concentration 	 40 g/L   or  60 g/L
+    D = dissolved oxygen set-point 	      4 mg/L  or   5 mg/L
 
     The 16 experiments from a full factorial, were randomly run, and the yields
     from the bioreactor, y, are reported here in standard order:
@@ -201,7 +200,7 @@ def case_worksheet_5():
     A, B, C, D = full_factorial(4, names=['A', 'B', 'C', 'D'])
 
     A = supplement(A, name = 'Feed rate', units='g/min', lo = 5, high = 8.0)
-    B = supplement(B, name = 'Initial inoculate amount', units = 'g', lo = 300,
+    B = supplement(B, name = 'Initial inoculant amount', units = 'g', lo = 300,
                    hi = 400)
     C = supplement(C, name = 'Feed substrate concentration', units = 'g/L',
                    lo = 40, hi = 60)
@@ -256,12 +255,12 @@ def api_usage():
     model_start = lm("y ~ <3fi>", expt)
 
 if __name__ == '__main__':
-    # case_3B()
+    #case_3B()
     #case_3C()
     #case_3D()
     case_worksheet_5()
 
-    #case_w2()
+    case_w2()
     case_w4_1()
     case_w4_2()
 

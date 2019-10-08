@@ -157,7 +157,14 @@ def expand_grid(**kwargs):
     return out
 
 def supplement(x, **kwargs):
-    return x
+    return c(x.values, **kwargs)
+    #(A, name = 'Feed rate', units='g/min', lo = 5, high = 8.0)
+        #B = supplement(B, name = 'Initial inoculate amount', units = 'g', lo = 300,
+                       #hi = 400)
+        #C = supplement(C, name = 'Feed substrate concentration', units = 'g/L',
+                       #lo = 40, hi = 60)
+        #D = supplement(D, name = 'Dissolved oxygen set-point', units = 'mg/L',
+                       #lo = 4, hi = 5)
 
 def gather(*args, **kwargs):
     """
