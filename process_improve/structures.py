@@ -156,11 +156,14 @@ def expand_grid(**kwargs):
 
     return out
 
-
+def supplement():
+    pass
 
 def gather(*args, **kwargs):
     """
     Gathers the named inputs together as columns for a data frame.
+
+    expt = gather(A=A, B=B, y=y, title='My experiment in factors A and B')
 
     """
     # TODO : handle the case where the shape of an input >= 2 columns

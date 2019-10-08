@@ -3,7 +3,7 @@ Various factorial designs
 """
 from typing import Optional
 import itertools
-from
+
 
 try:
     from .structures import create_names

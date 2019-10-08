@@ -26,7 +26,6 @@ def case_3B():
     summary(popped_corn)
     contour_plot(popped_corn, show=False)
 
-
 def case_3C():
     """
     See video 3C in the Coursera series. R code equivalent: http://yint.org/3C
@@ -36,7 +35,7 @@ def case_3C():
     C = T = S = c(-1, +1)
     C, T, S = expand_grid(C=C, T=T, S=S)
     y = c(5, 30, 6, 33, 4, 3, 5, 4)
-    expt = gather(C=C, T=T, S=S, y=y)
+    expt = gather(C=C, T=T, S=S, y=y, title='Water treatment')
 
     water = lm("y ~ C * T * S", expt)
     summary(water)
@@ -112,7 +111,6 @@ def case_w2():
     y.hat = predict(model_crispy, data.frame(T = xT, F = xF))
     paste0('Predicted value is: ', y.hat, ' crispiness.')
 
-
 def case_w4_1():
     """
     Teaching case week 4: https://yint.org/w4
@@ -132,7 +130,6 @@ def case_w4_1():
     model_sales = lm("y ~ S*P", expt)
     summary(model_sales)
     contour_plot(model_sales)
-
 
 def case_w4_2():
     """
@@ -218,7 +215,6 @@ def case_worksheet_5():
     summary(model_start)
     pareto_plot(model_start)
 
-
 def api_usage():
 
     A, B, C, D = full_factorial(4, names = ['A', 'B', 'C', 'D'])
@@ -239,7 +235,7 @@ def api_usage():
     expt.show_actual(random_order=True, seed=13)
     expt.show_coded()
     expt.power()
-    expt.export(save_as='xls' , filename='abc.xlsx'))
+    expt.export(save_as='xls' , filename='abc.xlsx')
 
 
     center_points = expt.get_center_points()
@@ -253,13 +249,9 @@ def api_usage():
     model_start = lm("y ~ <2fi>", expt)
     model_start = lm("y ~ <3fi>", expt)
 
-
-
-
-
 if __name__ == '__main__':
     # case_3B()
-    #case_3C()
+    case_3C()
     #case_3D()
     case_worksheet_5()
 

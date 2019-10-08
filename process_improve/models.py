@@ -47,6 +47,23 @@ class Model(OLS):
 
         return smry
 
+    def get_parameters(self, drop_intercept=True) -> pd.DataFrame:
+        """Gets the paramter values; returns it in a Pandas dataframe"""
+
+        params = self._OLS.params.copy()
+        try:
+            if drop_intercept:
+                params.drop('Intercept', inplace=True)
+        except KeyError:
+            pass
+
+        params.dropna(inplace=True)
+        return params
+
+    def get_title(self) -> str:
+        """ Gets the model's title, if it has one. Always returns a string."""
+        return getattr(self.data, '_pi_title', '')
+
 
 def predict(model, **kwargs):
     """

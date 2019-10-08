@@ -40,7 +40,7 @@ class TestStructures(unittest.TestCase):
 
 
 
-    def test_create(self):
+    def test_create_factors(self):
         A1 = c(*(self.A))
         A2 = c(*(self.A), index=['lo', 'hi', 'lo', 'hi', 'cp', 'hi'])
         B = c(*(self.B), name='B')
@@ -123,6 +123,11 @@ class TestStructures(unittest.TestCase):
         expt = gather(A=A, B=B, y=y)
         self.assertTrue(expt.shape == (6, 3))
 
+        expt = gather(A=A, B=B, y=y, title='Testing expt name')
+
+        #Eventually this method must go to the "DF" class; currently in the
+        # model class; not really appropriate there.
+        self.assertTrue(expt.get_title() == 'Testing expt name')
 
 class TestModels(unittest.TestCase):
     pass

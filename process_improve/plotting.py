@@ -2,10 +2,12 @@
 import numpy as np
 import pandas as pd
 
-import matplotlib
-import matplotlib.cm as cm
-import matplotlib.mlab as mlab
+#import matplotlib
+#import matplotlib.cm as cm
+#import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
+from bokeh.plotting import figure, ColumnDataSource
+from bokeh.plotting import show as show_plot
 
 try:
     from .models import predict
@@ -17,24 +19,15 @@ def get_plot_title(main, model, prefix=''):
     """
     Constructs a sensible plot title from the ``model``.
     """
-    if main is None:
+    if main is not None:
         main = prefix
-        if hasattr(model.data, '_pi_title'):
-            main += ': ' + getattr(model.data, '_pi_title')
+        title = model.get_title()
+        if title:
+            main += ': ' + title
 
     return main
 
 
-def get_param_names(model):
-
-    params = model._OLS.params.copy()
-    try:
-        params.drop('Intercept', inplace=True)
-    except KeyError:
-        pass
-
-    params.dropna(inplace=True)
-    return params
 
 def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
                 main="Pareto plot", legendtitle="Sign of coefficients",
@@ -78,55 +71,30 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
 
 
     """
-    # Inspired from: https://stackoverflow.com/questions/33737079/how-to-plot-horizontal-bar-chart-in-bokeh-python
-
     # TODO: show error bars
     #error_bars = model._OLS.conf_int()
     # http://holoviews.org/reference/elements/bokeh/ErrorBars.html
 
-
-    TRY THIS: https://stackoverflow.com/questions/37173230/how-do-i-use-custom-labels-for-ticks-in-bokeh
-
-        import pandas as pd
-        from bokeh.charts import Bar, output_file, show
-        from bokeh.models import FuncTickFormatter
-
-        skills_list = ['cheese making', 'squanching', 'leaving harsh criticisms']
-        pct_counts = [25, 40, 1]
-        df = pd.DataFrame({'skill':skills_list, 'pct jobs with skill':pct_counts})
-        p = Bar(df, 'index', values='pct jobs with skill', title="Top skills for ___ jobs", legend=False)
-        label_dict = {}
-        for i, s in enumerate(skills_list):
-            label_dict[i] = s
-
-        p.xaxis.formatter = FuncTickFormatter(code="""
-            var labels = %s;
-            return labels[tick];
-        """ % label_dict)
-
-        output_file("bar.html")
-        show(p)
-
-
-    params = get_param_names(model)
+    params = model.get_parameters()
 
     param_values = params.values
     beta_str = [f"+{i:0.4g}" if i > 0 else f'{i:0.4g}' for i in param_values]
     bar_colours = [negative[1] if p < 0 else positive[1] for p in param_values]
+    bar_signs = ['Positive' if i > 0 else 'Negative' for i in param_values]
 
     params = params.abs()
     # Shuffle the collected information in the same way
     beta_str = [beta_str[i] for i in params.argsort().values]
     bar_colours = [bar_colours[i] for i in params.argsort().values]
+    bar_signs = [bar_signs[i] for i in params.argsort().values]
     params = params.sort_values(na_position='last')
 
-    # -----
-    from bokeh.plotting import figure, show, ColumnDataSource
     source = ColumnDataSource(data=dict(
         x=params.values,
         y=np.arange(1, len(params.index) + 1),
         factor_names=params.index.values,
         bar_colours=bar_colours,
+        bar_signs=bar_signs,
         original_magnitude_with_sign=beta_str,
 
     ))
@@ -137,20 +105,45 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
     p = figure(plot_width=400, plot_height=400, tooltips=TOOLTIPS,
                title=get_plot_title(main, model, prefix='Pareto plot'))
     p.hbar(y='y', right='x', height=0.5, left=0, fill_color='bar_colours',
-           line_color='bar_colours', source=source)
+           line_color='bar_colours', legend='bar_signs', source=source)
 
     p.xaxis.axis_label_text_font_size = '14pt'
     p.xaxis.axis_label = xlabel
     p.xaxis.major_label_text_font_size = '14pt'
     p.xaxis.axis_label_text_font_style = 'normal'
+    p.xaxis.bounds = (0, params.max()*1.05)
 
     p.yaxis.major_label_text_font_size = '14pt'
     p.yaxis.axis_label = ylabel
     p.yaxis.axis_label_text_font_size = '14pt'
     p.yaxis.axis_label_text_font_style = 'normal'
 
-    p.xaxis.bounds = (0, params.max()*1.05)
-    show(p)
+    locations = source.data['y'].tolist()
+    labels = source.data['factor_names']
+    p.yaxis.ticker = locations
+    p.yaxis.major_label_overrides = dict(zip(locations, labels))
+
+
+#p = figure(x_range=fruits, y_range=(0,9), plot_height=250, title="Fruit Counts",
+#           toolbar_location=None, tools="")
+
+#p.vbar(x='fruits', top='counts', width=0.9, color='color', legend="fruits", source=source)
+
+#p.xgrid.grid_line_color = None
+    p.legend.orientation = "vertical"
+    p.legend.location = "bottom_right"
+
+    if show:
+        show_plot(p)
+    else:
+        return p
+
+
+
+p = figure()
+p.circle(x=[1,2,3], y=[4,6,5], size=20)
+
+
 
 
 
@@ -199,7 +192,7 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
     H, V = np.meshgrid(h_grid, v_grid)
     h_grid, v_grid = H.ravel(), V.ravel()
 
-    params = get_param_names(model)
+    params = model.get_parameters()
     if xlabel is None:
         xlabel = params.index[0]
     else:
@@ -219,7 +212,7 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
     # inline argument to clabel will control whether the labels are draw
     # over the line segments of the contour, removing the lines beneath
     # the label
-    fig = plt.figure(figsize=figsize, dpi=dpi, facecolor='white',
+    _ = plt.figure(figsize=figsize, dpi=dpi, facecolor='white',
                      edgecolor='white')
     levels = np.linspace(Z.min(), Z.max(), N)
 
