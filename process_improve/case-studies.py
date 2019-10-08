@@ -39,7 +39,7 @@ def case_3C():
 
     water = lm("y ~ C * T * S", expt)
     summary(water)
-    #contour_plot(water, "C", "T")
+    contour_plot(water, "C", "T", S=0)
     pareto_plot(water)
 
 def case_3D():
@@ -197,7 +197,7 @@ def case_worksheet_5():
     to try to maximize the reactor yield.
     """
 
-    A, B, C, D = full_factorial(4, names = ['A', 'B', 'C', 'D'])
+    A, B, C, D = full_factorial(4, names=['A', 'B', 'C', 'D'])
 
     A = supplement(A, name = 'Feed rate', units='g/min', lo = 5, high = 8.0)
     B = supplement(B, name = 'Initial inoculate amount', units = 'g', lo = 300,
