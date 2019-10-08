@@ -32,7 +32,7 @@ def get_plot_title(main, model, prefix=''):
 def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
                 main="Pareto plot", legendtitle="Sign of coefficients",
                 negative=("Negative", "grey"), positive=("Positive", "black"),
-                show=True):
+                show=True, plot_width=500, plot_height=None):
     """
     Plots the Pareto plot for a given model.
 
@@ -102,7 +102,9 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
         ("Factor name", "@factor_names"),
         ("Magnitude and sign", "@original_magnitude_with_sign"),
     ]
-    p = figure(plot_width=400, plot_height=400, tooltips=TOOLTIPS,
+    p = figure(plot_width=plot_width,
+               plot_height=plot_height or (500 + (len(params)-8)*20),
+               tooltips=TOOLTIPS,
                title=get_plot_title(main, model, prefix='Pareto plot'))
     p.hbar(y='y', right='x', height=0.5, left=0, fill_color='bar_colours',
            line_color='bar_colours', legend='bar_signs', source=source)
@@ -122,14 +124,6 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
     labels = source.data['factor_names']
     p.yaxis.ticker = locations
     p.yaxis.major_label_overrides = dict(zip(locations, labels))
-
-
-#p = figure(x_range=fruits, y_range=(0,9), plot_height=250, title="Fruit Counts",
-#           toolbar_location=None, tools="")
-
-#p.vbar(x='fruits', top='counts', width=0.9, color='color', legend="fruits", source=source)
-
-#p.xgrid.grid_line_color = None
     p.legend.orientation = "vertical"
     p.legend.location = "bottom_right"
 
@@ -137,15 +131,6 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
         show_plot(p)
     else:
         return p
-
-
-
-p = figure()
-p.circle(x=[1,2,3], y=[4,6,5], size=20)
-
-
-
-
 
 paretoPlot = pareto_plot
 

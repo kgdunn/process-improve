@@ -6,9 +6,9 @@ import itertools
 
 
 try:
-    from .structures import create_names
+    from .structures import create_names, c, expand_grid
 except ImportError:
-    from structures import create_names
+    from structures import create_names, c, expand_grid
 
 
 def full_factorial(nfactors: int, names:Optional[list] = None):
@@ -23,20 +23,8 @@ def full_factorial(nfactors: int, names:Optional[list] = None):
     if names is None:
         names = create_names(nfactors)
 
-
-
-    #n_col = len(kwargs)
-    #itrs = [v.values for v in kwargs.values()]
-    #product = list(itertools.product(*itrs))
-    #vals = np.fliplr(np.array(product).reshape(len(product), n_col))
-    #out = []
-    #for name, values in zip(kwargs.keys(), np.split(vals, n_col, axis=1)):
-        #out.append(c(values, name=name))
-
-    #return out
-
-    #A = B = C = D = c(-1, +1)
-    #A, B, C, D = expand_grid(A=A, B=B, C=C, D=D)
+    # Expand the full factorial out into variables
+    return expand_grid(**dict(zip(names, [c(-1, +1), ]*len(names))))
 
 
 

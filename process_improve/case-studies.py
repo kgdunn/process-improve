@@ -26,7 +26,7 @@ def case_3B():
     summary(popped_corn)
     contour_plot(popped_corn, show=False)
 
-def case_3C():
+def case_3C(show=False):
     """
     See video 3C in the Coursera series. R code equivalent: http://yint.org/3C
 
@@ -39,8 +39,9 @@ def case_3C():
 
     water = lm("y ~ C * T * S", expt)
     summary(water)
-    #contour_plot(water, "C", "T")
-    pareto_plot(water)
+    if show:
+        contour_plot(water, "C", "T", show=show)
+        pareto_plot(water,show=show)
 
 def case_3D():
     """
@@ -210,7 +211,8 @@ def case_worksheet_5():
     y = c(60, 59, 63, 61, 69, 61, 94, 93, 56, 63, 70, 65, 44, 45, 78, 77,
           units='g/L', name = 'Yield')
 
-    expt = gather(A, B, C, D, y, title='Initial experiments; full factorial')
+    expt = gather(A=A, B=B, C=C, D=D, y=y,
+                  title='Initial experiments; full factorial')
     model_start = lm("y ~ A*B*C*D", expt)
     summary(model_start)
     pareto_plot(model_start)

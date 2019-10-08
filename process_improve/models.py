@@ -7,9 +7,8 @@ import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
 from statsmodels.regression.linear_model import OLS
-from statsmodels.iolib.summary import Summary
-from statsmodels.iolib.table import Cell
-
+#from statsmodels.iolib.summary import Summary
+#from statsmodels.iolib.table import Cell
 
 class Model(OLS):
     """

@@ -156,8 +156,8 @@ def expand_grid(**kwargs):
 
     return out
 
-def supplement():
-    pass
+def supplement(x, **kwargs):
+    return x
 
 def gather(*args, **kwargs):
     """
