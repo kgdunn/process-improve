@@ -214,8 +214,12 @@ def case_worksheet_5():
     expt = gather(A=A, B=B, C=C, D=D, y=y,
                   title='Initial experiments; full factorial')
     model_start = lm("y ~ A*B*C*D", expt)
+    model_start.get_factors(level=1)
     summary(model_start)
     pareto_plot(model_start)
+    contour_plot(model_start, "A", "B")
+    contour_plot(model_start, "B", "C")
+    contour_plot(model_start, "C", "D")
 
 def api_usage():
 
@@ -253,7 +257,7 @@ def api_usage():
 
 if __name__ == '__main__':
     # case_3B()
-    case_3C()
+    #case_3C()
     #case_3D()
     case_worksheet_5()
 

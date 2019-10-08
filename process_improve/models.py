@@ -7,8 +7,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
 from statsmodels.regression.linear_model import OLS
-#from statsmodels.iolib.summary import Summary
-#from statsmodels.iolib.table import Cell
+from patsy import ModelDesc
 
 class Model(OLS):
     """
@@ -16,6 +15,11 @@ class Model(OLS):
     def __init__(self, OLS_instance, model_spec):
         self._OLS = OLS_instance
         self._model_spec = model_spec
+
+    def __str__(self):
+        spec = ModelDesc.from_formula(self._model_spec)
+        return spec.describe()
+
 
     def summary(self, alpha=0.05, print_to_screen=True):
         """
@@ -60,10 +64,24 @@ class Model(OLS):
         params.dropna(inplace=True)
         return params
 
+    def get_factors(self, level=1):
+        """
+        Gets the factors in a model which correspond to a certain level:
+        1 : pure factors
+        2 : 2-factor interactions and quadratic terms
+        3 : 3-factor interactions and cubic terms
+        4 : etc
+        """
+        spec = ModelDesc.from_formula(self._model_spec)
+        return [term.name() for term in spec.rhs_termlist \
+                                                if len(term.factors)==level]
+
+
     def get_title(self) -> str:
         """ Gets the model's title, if it has one. Always returns a string."""
         return getattr(self.data, '_pi_title', '')
 
+Model.__repr__ = Model.__str__
 
 def predict(model, **kwargs):
     """

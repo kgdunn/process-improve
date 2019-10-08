@@ -178,14 +178,14 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
     H, V = np.meshgrid(h_grid, v_grid)
     h_grid, v_grid = H.ravel(), V.ravel()
 
-    params = model.get_parameters()
+    pure_factors = model.get_factors(level=1)
     if xlabel is None:
-        xlabel = params.index[0]
+        xlabel = pure_factors[0]
     else:
         xlabel = str(xlabel)
 
     if ylabel is None:
-        ylabel = params.index[1]
+        ylabel = pure_factors[1]
     else:
         ylabel = str(ylabel)
 
@@ -193,9 +193,15 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
     if other_factors is not None and isinstance(other_factors, dict):
         kwargs = kwargs.update(other_factors)
 
-    # Look at which factors are
-    #
+    # Look at which factors are included, and pop them out. The remaining
+    # factors are specified at their zero level
 
+    unspecified_factors = [i for i in pure_factors if i not in kwargs.keys()]
+    for factor in unspecified_factors:
+        kwargs[factor] = np.zeros_like(h_grid)
+
+    assert sorted(kwargs.keys()) == sorted(pure_factors), ("Not all factors "
+                                                           "were specified.")
     Z = predict(model, **kwargs)
     Z = Z.values.reshape(N, N)
 
@@ -221,7 +227,6 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
     plt.xlabel(xlabel, fontsize=12, fontweight="bold")
     plt.ylabel(ylabel, fontsize=12, fontweight="bold")
 
-    #from matplotlib.backends.backend_agg import FigureCanvasAgg
 
     # Set up the plot for the first time
     plt.xlim(xlim)
