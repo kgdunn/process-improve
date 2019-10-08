@@ -72,7 +72,7 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
 
     """
     # TODO: show error bars
-    #error_bars = model._OLS.conf_int()
+    # error_bars = model._OLS.conf_int()
     # http://holoviews.org/reference/elements/bokeh/ErrorBars.html
 
     params = model.get_parameters()
@@ -124,6 +124,7 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
     labels = source.data['factor_names']
     p.yaxis.ticker = locations
     p.yaxis.major_label_overrides = dict(zip(locations, labels))
+
     p.legend.orientation = "vertical"
     p.legend.location = "bottom_right"
 
@@ -138,7 +139,7 @@ paretoPlot = pareto_plot
 def contour_plot(model, xlabel=None, ylabel=None, main=None,
         N=25, xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
         colour_function="terrain", show=True, show_expt_data=True,
-        figsize=(10, 10), dpi=100):
+        figsize=(10, 10), dpi=100, other_factors=None):
     """
     Show a contour plot of the model.
 
@@ -188,8 +189,13 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
     else:
         ylabel = str(ylabel)
 
-
     kwargs = {xlabel: h_grid, ylabel: v_grid}
+    if other_factors is not None and isinstance(other_factors, dict):
+        kwargs = kwargs.update(other_factors)
+
+    # Look at which factors are
+    #
+
     Z = predict(model, **kwargs)
     Z = Z.values.reshape(N, N)
 
@@ -238,11 +244,6 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
         plt.show()
 
     return plt
-
-
-
-
-
 
 
 contourPlot = contour_plot

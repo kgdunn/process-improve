@@ -13,8 +13,9 @@ from statsmodels.regression.linear_model import OLS
 class Model(OLS):
     """
     Just a thin wrapper around the OLS class from Statsmodels."""
-    def __init__(self, OLS_instance):
+    def __init__(self, OLS_instance, model_spec):
         self._OLS = OLS_instance
+        self._model_spec = model_spec
 
     def summary(self, alpha=0.05, print_to_screen=True):
         """
@@ -75,9 +76,10 @@ def predict(model, **kwargs):
 
 def lm(model_spec: str, data: pd.DataFrame) -> Model:
     """
+    Create a linear model.
     """
     model = smf.ols(model_spec, data=data).fit()
-    out = Model(OLS_instance=model)
+    out = Model(OLS_instance=model, model_spec=model_spec)
     out.data = data
     return out
 
