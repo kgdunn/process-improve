@@ -173,6 +173,10 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
             sep = ""))
     }
     """
+    contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
+        N=25, xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
+        colour_function="terrain", show=True, show_expt_data=True,
+        figsize=(10, 10), dpi=100, other_factors=None)
     h_grid = np.linspace(xlim[0], xlim[1], num = N)
     v_grid = np.linspace(ylim[0], ylim[1], num = N)
     H, V = np.meshgrid(h_grid, v_grid)
@@ -264,3 +268,176 @@ def interaction_plot():
     Interaction plot
     """
     pass
+
+
+#SHOW variable names on pareto plot for main factors
+#Can bokeh do nice contour plots?
+def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
+        N=25, xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
+        colour_function="terrain", show=True, show_expt_data=True,
+        figsize=(10, 10), dpi=100, other_factors=None):
+    # https://stackoverflow.com/questions/33533047/how-to-make-a-contour-plot-in-python-using-bokeh-or-other-libs
+    from skimage import measure
+    import numpy as np
+
+    from bokeh.plotting import figure, show
+    from bokeh.colors import RGB
+    from matplotlib import cm
+
+    from bokeh.models import (ColorBar,
+                              FixedTicker,
+                              LinearColorMapper,
+                              PrintfTickFormatter)
+
+    #N = 500
+    #x = np.linspace(0, 10, N)
+    #y = np.linspace(0, 10, N)
+    #xx, yy = np.meshgrid(x, y)
+    #d = np.sin(xx)*np.cos(yy)
+
+    #levels = np.linspace(d.min(), d.max(), 25)
+
+    #mapper = LinearColorMapper(palette='Spectral11', low=-1, high=1)
+
+    #p = figure(x_range=(0, 10), y_range=(0, 10),
+               #tooltips=[("x", "$x"), ("y", "$y"), ("value", "@image")])
+
+    ## must give a vector of image data for image parameter
+    #p.image(image=[d], x=0, y=0, dw=10, dh=10, palette='Spectral11')
+
+    ##levels = np.linspace(-1, 1, 12)
+    #color_bar = ColorBar(color_mapper=mapper,
+                         #major_label_text_font_size="8pt",
+                         #ticker=FixedTicker(ticks=levels),
+                         #formatter=PrintfTickFormatter(format='%.2f'),
+                         #label_standoff=6,
+                         #border_line_color=None,
+                         #location=(0, 0))
+
+    #p.add_layout(color_bar, 'right')
+
+    #for level in levels:
+        #contours = measure.find_contours(d, level)
+        #for contour in contours:
+            #x = contour[:,1]/50
+            #y = contour[:,0]/50
+            #p.line(x, y, color='grey', line_width=2)
+
+
+
+
+
+
+
+    h_grid = np.linspace(xlim[0], xlim[1], num = N)
+    v_grid = np.linspace(ylim[0], ylim[1], num = N)
+    H, V = np.meshgrid(h_grid, v_grid)
+    h_grid, v_grid = H.ravel(), V.ravel()
+
+    pure_factors = model.get_factors(level=1)
+    if xlabel is None:
+        xlabel = pure_factors[0]
+    else:
+        xlabel = str(xlabel)
+
+    if ylabel is None:
+        ylabel = pure_factors[1]
+    else:
+        ylabel = str(ylabel)
+
+    kwargs = {xlabel: h_grid, ylabel: v_grid}
+    if other_factors is not None and isinstance(other_factors, dict):
+        kwargs = kwargs.update(other_factors)
+
+    # Look at which factors are included, and pop them out. The remaining
+    # factors are specified at their zero level
+
+    unspecified_factors = [i for i in pure_factors if i not in kwargs.keys()]
+    for factor in unspecified_factors:
+        kwargs[factor] = np.zeros_like(h_grid)
+
+    assert sorted(kwargs.keys()) == sorted(pure_factors), ("Not all factors "
+                                                           "were specified.")
+    Z = predict(model, **kwargs)
+    Z = Z.values.reshape(N, N)
+    z_min, z_max = Z.min(), Z.max()
+    levels = np.linspace(z_min, z_max, N)
+
+    # Convert the Matplotlib colour mapper to Bokeh
+    # https://stackoverflow.com/questions/49931311/using-matplotlibs-colormap-for-bokehs-color-bar
+    mapper = getattr(cm, colour_function)
+    colours = (255 * mapper(range(256))).astype('int')
+    colour_palette = [RGB(*tuple(rgb)).to_hex() for rgb in colours]
+    color_mapper = LinearColorMapper(palette=colour_palette,
+                                     low=z_min,
+                                     high=z_max)
+
+
+
+    # Create a simple contour plot with labels using default colors.  The
+    # inline argument to clabel will control whether the labels are draw
+    # over the line segments of the contour, removing the lines beneath
+    # the label
+    _ = plt.figure(figsize=figsize,
+                   dpi=dpi,
+                   facecolor='white',
+                   edgecolor='white',
+                   x_range=(0, 10),
+                   y_range=(0, 10),
+                   tooltips=[("x", "$x"), ("y", "$y"), ("value", "@image")])
+
+
+
+    # must give a vector of image data for image parameter
+    p.image(image=[d], x=0, y=0, dw=10, dh=10, palette='Spectral11')
+
+    color_bar = ColorBar(color_mapper=color_mapper,
+                         major_label_text_font_size="8pt",
+                         ticker=FixedTicker(ticks=levels),
+                         formatter=PrintfTickFormatter(format='%.2f'),
+                         label_standoff=6,
+                         border_line_color=None,
+                         location=(0, 0))
+
+
+
+
+
+
+    # Show the data from the experiment as dots on the plot
+    if show_expt_data:
+        plt.plot(model.data[xlabel],
+                 model.data[ylabel],
+                 'dimgrey',
+                 linestyle = '',
+                 marker = 'o',
+                 ms=15,
+                 linewidth=2)
+
+    plt.title(get_plot_title(main, model, prefix='Contour plot'))
+    plt.xlabel(xlabel, fontsize=12, fontweight="bold")
+    plt.ylabel(ylabel, fontsize=12, fontweight="bold")
+
+
+    # Set up the plot for the first time
+    plt.xlim(xlim)
+    plt.ylim(ylim)
+    plt.grid(color='#DDDDDD')
+
+    CS = plt.contour(H, V, Z,
+                     colors='black',
+                     levels=levels,
+                     linestyles='dotted')
+    plt.clabel(CS, inline=True, fontsize=10, fmt='%1.0f')
+
+    plt.imshow(Z, extent=[xlim[0], xlim[1], ylim[0], ylim[1]],
+               origin='lower',
+               cmap=colour_function,  # 'RdGy',
+               alpha=0.5)
+    plt.colorbar()
+
+    if show:
+        plt.show()
+
+    return plt
+

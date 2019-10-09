@@ -24,5 +24,7 @@ setuptools.setup(
         'numpy',
         'statsmodels',
         'bokeh',
+        'scikit-image',
+        'colorcet',
     ]
 )

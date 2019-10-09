@@ -232,8 +232,6 @@ def api_usage():
     D = supplement(D, name = 'Dissolved oxygen set-point', units = 'mg/L',
                    lo = 4, hi = 5)
 
-
-
     expt = gather(A, B, C, D, title='Initial experiments; full factorial')
 
     expt.show_actual(std_order=True)
@@ -259,6 +257,7 @@ if __name__ == '__main__':
     #case_3C()
     #case_3D()
     case_worksheet_5()
+    api_usage()
 
     case_w2()
     case_w4_1()
