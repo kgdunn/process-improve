@@ -156,7 +156,6 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
     Show a contour plot of the model.
 
     TODO:
-    * more than 2 factors in model
     * two axes; for the real-world and coded units
     * Hover display of experimental data points
     * add a bit of jitter to the data if the numbers are exactly the same [option]
@@ -185,10 +184,10 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
             sep = ""))
     }
     """
-    # contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
-        # N=25, xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
-        # colour_function="terrain", show=True, show_expt_data=True,
-        # figsize=(10, 10), dpi=100, other_factors=None)
+    contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
+        N=25, xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
+        colour_function="terrain", show=True, show_expt_data=True,
+        figsize=(10, 10), dpi=100, other_factors=None)
     h_grid = np.linspace(xlim[0], xlim[1], num=N)
     v_grid = np.linspace(ylim[0], ylim[1], num = N)
     H, V = np.meshgrid(h_grid, v_grid)
@@ -283,6 +282,31 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
         N=25, xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
         colour_function="terrain", show=True, show_expt_data=True,
         figsize=(10, 10), dpi=100, other_factors=None):
+
+    #N = 20
+    #img = np.empty((N,N), dtype=np.uint32)
+    #view = img.view(dtype=np.uint8).reshape((N, N, 4))
+    #for i in range(N):
+        #for j in range(N):
+            #view[i, j, 0] = int(i/N*255)
+            #view[i, j, 1] = 158
+            #view[i, j, 2] = int(j/N*255)
+            #view[i, j, 3] = 255
+
+    #p = figure(tooltips=[("x", "$x"), ("y", "$y"), ("value", "@image")])
+    #p.x_range.range_padding = p.y_range.range_padding = 0
+
+    ## must give a vector of images
+    #p.image_rgba(image=[img], x=-1.5, y=-2, dw=3, dh=3)
+
+    # show_plot(p)  # open a browser
+
+    # TODO: better hovering:
+    https://stackoverflow.com/questions/29435200/bokeh-plotting-enable-tooltips-for-only-some-glyphs
+
+
+
+
     # https://stackoverflow.com/questions/33533047/how-to-make-a-contour-plot-in-python-using-bokeh-or-other-libs
     from skimage import measure
     import numpy as np
@@ -292,49 +316,13 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
     from matplotlib import cm
 
     from bokeh.models import (ColorBar,
-                              FixedTicker,
+                              # FixedTicker,
+                              BasicTicker,
                               LinearColorMapper,
                               PrintfTickFormatter)
 
-    #N = 500
-    #x = np.linspace(0, 10, N)
-    #y = np.linspace(0, 10, N)
-    #xx, yy = np.meshgrid(x, y)
-    #d = np.sin(xx)*np.cos(yy)
-
-    #levels = np.linspace(d.min(), d.max(), 25)
-
-    #mapper = LinearColorMapper(palette='Spectral11', low=-1, high=1)
-
-    #p = figure(x_range=(0, 10), y_range=(0, 10),
-               #tooltips=[("x", "$x"), ("y", "$y"), ("value", "@image")])
-
-    ## must give a vector of image data for image parameter
-    #p.image(image=[d], x=0, y=0, dw=10, dh=10, palette='Spectral11')
-
-    ##levels = np.linspace(-1, 1, 12)
-    #color_bar = ColorBar(color_mapper=mapper,
-                         #major_label_text_font_size="8pt",
-                         #ticker=FixedTicker(ticks=levels),
-                         #formatter=PrintfTickFormatter(format='%.2f'),
-                         #label_standoff=6,
-                         #border_line_color=None,
-                         #location=(0, 0))
-
-    #p.add_layout(color_bar, 'right')
-
-    #for level in levels:
-        #contours = measure.find_contours(d, level)
-        #for contour in contours:
-            #x = contour[:,1]/50
-            #y = contour[:,0]/50
-            #p.line(x, y, color='grey', line_width=2)
-
-
-
-
-    h_grid = np.linspace(xlim[0], xlim[1], num = N)
-    v_grid = np.linspace(ylim[0], ylim[1], num = N)
+    h_grid = np.linspace(xlim[0], xlim[1], num=N)
+    v_grid = np.linspace(ylim[0], ylim[1], num=N)
     H, V = np.meshgrid(h_grid, v_grid)
     h_grid, v_grid = H.ravel(), V.ravel()
 
@@ -376,72 +364,100 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
                                      low=z_min,
                                      high=z_max)
 
+    p = figure(x_range=xlim,
+               y_range=ylim,
+               tooltips=[("x", "$x"),
+                         ("y", "$y"),
+                         ("value", "@image")])
 
-
-    # Create a simple contour plot with labels using default colors.  The
-    # inline argument to clabel will control whether the labels are draw
-    # over the line segments of the contour, removing the lines beneath
-    # the label
-    _ = plt.figure(figsize=figsize,
-                   dpi=dpi,
-                   facecolor='white',
-                   edgecolor='white',
-                   x_range=(0, 10),
-                   y_range=(0, 10),
-                   tooltips=[("x", "$x"), ("y", "$y"), ("value", "@image")])
-
-
-
-    # must give a vector of image data for image parameter
-    p.image(image=[d], x=0, y=0, dw=10, dh=10, palette='Spectral11')
+    # Create the image layer
+    p.image(image=[Z],
+            x=xlim[0],
+            y=ylim[0],
+            dw=xlim[1] - xlim[0],
+            dh=ylim[1] - ylim[0],
+            color_mapper=color_mapper,
+            global_alpha=0.5,           # with some transparency
+            )
 
     color_bar = ColorBar(color_mapper=color_mapper,
                          major_label_text_font_size="8pt",
-                         ticker=FixedTicker(ticks=levels),
+                         ticker=BasicTicker(max_interval=(z_max - z_min) / N),
                          formatter=PrintfTickFormatter(format='%.2f'),
                          label_standoff=6,
                          border_line_color=None,
                          location=(0, 0))
 
+    p.add_layout(color_bar, 'right')
+
+    scaler_y = (ylim[1] - ylim[0]) / (N-1)
+    scaler_x = (xlim[1] - xlim[0]) / (N - 1)
+    for level in levels:
+        contours = measure.find_contours(Z, level)
+        for contour in contours:
+            x = contour[:, 1] * scaler_y + ylim[0]
+            y = contour[:, 0] * scaler_x + xlim[0]
+            p.dash(x, y, color='darkgrey', line_width=1)
+
+    # Add raw data points
+
+    TODO: bigger experimental markers
+    TODO: hover for the data point shows the factor settings for the data point
+
+    if show_expt_data:
+        p.circle(model.data[xlabel],
+                 model.data[ylabel],
+                 color='black',
+                 # linestyle='',
+                 # marker='o',
+                 # ms=15,
+                 line_width=2)
 
 
+    # Axis labels:
+    p.xaxis.axis_label_text_font_size = '14pt'
+    p.xaxis.axis_label=xlabel
+    p.xaxis.major_label_text_font_size='14pt'
+    p.xaxis.axis_label_text_font_style='normal'
+    p.xaxis.bounds = (xlim[0], xlim[1])
+
+    p.yaxis.major_label_text_font_size='14pt'
+    p.yaxis.axis_label=ylabel
+    p.yaxis.axis_label_text_font_size='14pt'
+    p.yaxis.axis_label_text_font_style='normal'
+    p.yaxis.bounds = (ylim[0], ylim[1])
+
+
+    if show:
+        show_plot(p)
+
+    return plt
 
 
 
     # Show the data from the experiment as dots on the plot
-    if show_expt_data:
-        plt.plot(model.data[xlabel],
-                 model.data[ylabel],
-                 'dimgrey',
-                 linestyle = '',
-                 marker = 'o',
-                 ms=15,
-                 linewidth=2)
+    #
 
-    plt.title(get_plot_title(main, model, prefix='Contour plot'))
-    plt.xlabel(xlabel, fontsize=12, fontweight="bold")
-    plt.ylabel(ylabel, fontsize=12, fontweight="bold")
-
+    #plt.title(get_plot_title(main, model, prefix='Contour plot'))
+    #plt.xlabel(xlabel, fontsize=12, fontweight="bold")
+    #plt.ylabel(ylabel, fontsize=12, fontweight="bold")
 
     # Set up the plot for the first time
-    plt.xlim(xlim)
-    plt.ylim(ylim)
-    plt.grid(color='#DDDDDD')
+    # plt.xlim(xlim)
+    # plt.ylim(ylim)
+    # plt.grid(color='#DDDDDD')
 
-    CS = plt.contour(H, V, Z,
-                     colors='black',
-                     levels=levels,
-                     linestyles='dotted')
-    plt.clabel(CS, inline=True, fontsize=10, fmt='%1.0f')
+    # CS=plt.contour(H, V, Z,
+                     # colors='black',
+                     # levels=levels,
+                     # linestyles='dotted')
+    #plt.clabel(CS, inline=True, fontsize=10, fmt='%1.0f')
 
-    plt.imshow(Z, extent=[xlim[0], xlim[1], ylim[0], ylim[1]],
-               origin='lower',
-               cmap=colour_function,  # 'RdGy',
-               alpha=0.5)
-    plt.colorbar()
+    # plt.imshow(Z, extent=[xlim[0], xlim[1], ylim[0], ylim[1]],
+               # origin='lower',
+               # cmap=colour_function,  # 'RdGy',
+               # alpha=0.5)
+    # plt.colorbar()
 
-    if show:
-        plt.show()
 
-    return plt
 
