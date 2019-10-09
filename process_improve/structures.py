@@ -1,5 +1,8 @@
 # (c) Kevin Dunn, 2019. MIT License.
 import itertools
+import warnings
+
+from collections import defaultdict
 from collections.abc import Iterable
 import numpy as np
 import pandas as pd
@@ -179,6 +182,9 @@ def gather(*args, **kwargs):
     # TODO : handle the case where the shape of an input >= 2 columns
 
     out = pd.DataFrame(data=None, index=None, columns=None, dtype=None)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        setattr(out, '_pi_source', defaultdict(str))
     lens = [len(value) for value in kwargs.values()]
     avg_count = pd.np.median(lens)
     index = []
@@ -189,6 +195,7 @@ def gather(*args, **kwargs):
             out[key] = value
         elif isinstance(value, pd.Series):
             out[key] = value.values
+            out._pi_source[key] = value.name
 
             if hasattr(value, '_pi_index'):
                 index.append(value.index)

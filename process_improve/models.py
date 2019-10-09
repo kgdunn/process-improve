@@ -64,7 +64,7 @@ class Model(OLS):
         params.dropna(inplace=True)
         return params
 
-    def get_factors(self, level=1):
+    def get_factor_names(self, level=1):
         """
         Gets the factors in a model which correspond to a certain level:
         1 : pure factors

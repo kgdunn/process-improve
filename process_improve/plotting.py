@@ -83,11 +83,21 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
     bar_signs = ['Positive' if i > 0 else 'Negative' for i in param_values]
 
     params = params.abs()
+    base_parameters = model.get_factor_names(level=1)
+    full_names = []
+    for param_name, param_value in params.iteritems():
+        if param_name in base_parameters:
+            fname = model.data._pi_source.get(param_name, param_name)
+            full_names.append(fname)
+        else:
+            full_names.append(f'Interaction between {param_name}')
+
     # Shuffle the collected information in the same way
-    beta_str = [beta_str[i] for i in params.argsort().values]
-    bar_colours = [bar_colours[i] for i in params.argsort().values]
+    beta_str=[beta_str[i] for i in params.argsort().values]
+    bar_colours=[bar_colours[i] for i in params.argsort().values]
     bar_signs = [bar_signs[i] for i in params.argsort().values]
-    params = params.sort_values(na_position='last')
+    full_names = [full_names[i] for i in params.argsort().values]
+    params=params.sort_values(na_position='last')
 
     source = ColumnDataSource(data=dict(
         x=params.values,
@@ -95,38 +105,40 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
         factor_names=params.index.values,
         bar_colours=bar_colours,
         bar_signs=bar_signs,
+        full_names=full_names,
         original_magnitude_with_sign=beta_str,
 
     ))
     TOOLTIPS = [
-        ("Factor name", "@factor_names"),
+        ("Short name", "@factor_names"),
+        ("Full name", "@full_names"),
         ("Magnitude and sign", "@original_magnitude_with_sign"),
     ]
-    p = figure(plot_width=plot_width,
-               plot_height=plot_height or (500 + (len(params)-8)*20),
+    p=figure(plot_width=plot_width,
+               plot_height=plot_height or (500 + (len(params) - 8) * 20),
                tooltips=TOOLTIPS,
                title=get_plot_title(main, model, prefix='Pareto plot'))
     p.hbar(y='y', right='x', height=0.5, left=0, fill_color='bar_colours',
            line_color='bar_colours', legend='bar_signs', source=source)
 
-    p.xaxis.axis_label_text_font_size = '14pt'
-    p.xaxis.axis_label = xlabel
-    p.xaxis.major_label_text_font_size = '14pt'
-    p.xaxis.axis_label_text_font_style = 'normal'
-    p.xaxis.bounds = (0, params.max()*1.05)
+    p.xaxis.axis_label_text_font_size='14pt'
+    p.xaxis.axis_label=xlabel
+    p.xaxis.major_label_text_font_size='14pt'
+    p.xaxis.axis_label_text_font_style='normal'
+    p.xaxis.bounds=(0, params.max() * 1.05)
 
-    p.yaxis.major_label_text_font_size = '14pt'
-    p.yaxis.axis_label = ylabel
-    p.yaxis.axis_label_text_font_size = '14pt'
-    p.yaxis.axis_label_text_font_style = 'normal'
+    p.yaxis.major_label_text_font_size='14pt'
+    p.yaxis.axis_label=ylabel
+    p.yaxis.axis_label_text_font_size='14pt'
+    p.yaxis.axis_label_text_font_style='normal'
 
-    locations = source.data['y'].tolist()
-    labels = source.data['factor_names']
-    p.yaxis.ticker = locations
-    p.yaxis.major_label_overrides = dict(zip(locations, labels))
+    locations=source.data['y'].tolist()
+    labels=source.data['factor_names']
+    p.yaxis.ticker=locations
+    p.yaxis.major_label_overrides=dict(zip(locations, labels))
 
-    p.legend.orientation = "vertical"
-    p.legend.location = "bottom_right"
+    p.legend.orientation="vertical"
+    p.legend.location="bottom_right"
 
     if show:
         show_plot(p)
@@ -182,7 +194,7 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
     H, V = np.meshgrid(h_grid, v_grid)
     h_grid, v_grid = H.ravel(), V.ravel()
 
-    pure_factors = model.get_factors(level=1)
+    pure_factors = model.get_factor_names(level=1)
     if xlabel is None:
         xlabel = pure_factors[0]
     else:
@@ -253,21 +265,17 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
 
     return plt
 
-
 contourPlot = contour_plot
-
 
 def predict_plot():
     """Predictions via slides on a plot."""
     pass
-
 
 def interaction_plot():
     """
     Interaction plot
     """
     pass
-
 
 #SHOW variable names on pareto plot for main factors
 #Can bokeh do nice contour plots?
@@ -325,15 +333,12 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
 
 
 
-
-
-
     h_grid = np.linspace(xlim[0], xlim[1], num = N)
     v_grid = np.linspace(ylim[0], ylim[1], num = N)
     H, V = np.meshgrid(h_grid, v_grid)
     h_grid, v_grid = H.ravel(), V.ravel()
 
-    pure_factors = model.get_factors(level=1)
+    pure_factors = model.get_factor_names(level=1)
     if xlabel is None:
         xlabel = pure_factors[0]
     else:
