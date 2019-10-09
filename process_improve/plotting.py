@@ -173,11 +173,11 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
             sep = ""))
     }
     """
-    contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
-        N=25, xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
-        colour_function="terrain", show=True, show_expt_data=True,
-        figsize=(10, 10), dpi=100, other_factors=None)
-    h_grid = np.linspace(xlim[0], xlim[1], num = N)
+    # contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
+        # N=25, xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
+        # colour_function="terrain", show=True, show_expt_data=True,
+        # figsize=(10, 10), dpi=100, other_factors=None)
+    h_grid = np.linspace(xlim[0], xlim[1], num=N)
     v_grid = np.linspace(ylim[0], ylim[1], num = N)
     H, V = np.meshgrid(h_grid, v_grid)
     h_grid, v_grid = H.ravel(), V.ravel()
@@ -230,7 +230,6 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
     plt.title(get_plot_title(main, model, prefix='Contour plot'))
     plt.xlabel(xlabel, fontsize=12, fontweight="bold")
     plt.ylabel(ylabel, fontsize=12, fontweight="bold")
-
 
     # Set up the plot for the first time
     plt.xlim(xlim)

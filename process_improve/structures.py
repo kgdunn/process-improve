@@ -115,6 +115,9 @@ def c(*args, **kwargs) -> Column:
                           'number of numeric inputs.'))
 
     name = kwargs.get('name', 'Unnamed')
+    units = kwargs.get('units', '')
+    if units:
+        name = f'{name} [{units}]'
     out = pd.Series(data=sanitize, index=index, name=name)
     out._pi_index = True
 
@@ -195,6 +198,8 @@ def gather(*args, **kwargs):
 
     # TODO : check that all indexes are common, to merge. Or use the pandas
     #        functionality of merging series with the same index
+    if index:
+        out.index = index[0]
 
 
     if kwargs.get('title', False):
