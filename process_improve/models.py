@@ -17,10 +17,6 @@ class Model(OLS):
         self._model_spec = model_spec
 
         # Standard error
-        self.se = 0
-        if not(np.isinf(self._OLS.scale)):
-            self.se = f'{np.sqrt(self._OLS.scale):.3f}'
-
         self.df_resid = self._OLS.df_resid
         self.df_model = self._OLS.df_model
         self.nobs = self._OLS.nobs
@@ -54,9 +50,13 @@ class Model(OLS):
 
             smry.tables[0].pop(8)
 
+            se = '---'
+            if not(np.isinf(self._OLS.scale)):
+                se = f'{np.sqrt(self._OLS.scale):.3f}'
+
             #Residual standard error
             smry.tables[0][7][0].data = 'Residual std error'
-            smry.tables[0][7][1].data = self.se
+            smry.tables[0][7][1].data = se
             #smry.tables[0][7][0].data = se
             #smry.tables[0][7][1].data = se
 

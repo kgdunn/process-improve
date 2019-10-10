@@ -2,7 +2,6 @@
 import numpy as np
 import pandas as pd
 
-import matplotlib.pyplot as plt
 from bokeh.plotting import figure, ColumnDataSource
 from bokeh.plotting import show as show_plot
 from bokeh.models import HoverTool
@@ -181,15 +180,17 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
             sep = ""))
     }
     """
-    plt = contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
-                             N=25, xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
-                             colour_function="terrain", show=True,
-                             show_expt_data=True,
-                             figsize=(10, 10), dpi=100, other_factors=None)
-
-    # Matplotlib version
     if False:
 
+        plt = contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
+                                 N=25, xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
+                                 colour_function="terrain", show=True,
+                                 show_expt_data=True,
+                                 figsize=(10, 10), dpi=100, other_factors=None)
+
+    # Matplotlib version
+    if True:
+        import matplotlib.pyplot as plt
         h_grid = np.linspace(xlim[0], xlim[1], num=N)
         v_grid = np.linspace(ylim[0], ylim[1], num = N)
         H, V = np.meshgrid(h_grid, v_grid)
