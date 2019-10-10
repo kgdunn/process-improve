@@ -265,7 +265,7 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
         if show:
             plt.show()
 
-    return plt
+    #return plt
 
 contourPlot = contour_plot
 
