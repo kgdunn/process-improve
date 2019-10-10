@@ -16,6 +16,20 @@ class Model(OLS):
         self._OLS = OLS_instance
         self._model_spec = model_spec
 
+        # Standard error
+        self.se = 0
+        if not(np.isinf(self._OLS.scale)):
+            self.se = f'{np.sqrt(self._OLS.scale):.3f}'
+
+        self.df_resid = self._OLS.df_resid
+        self.df_model = self._OLS.df_model
+        self.nobs = self._OLS.nobs
+        self.rsquared = self.R2 = self._OLS.rsquared
+        self.residuals = self._OLS.resid
+
+        # Will be replaced by the "lm()" function
+        self.data = None
+
     def __str__(self):
         spec = ModelDesc.from_formula(self._model_spec)
         return spec.describe()
@@ -41,11 +55,8 @@ class Model(OLS):
             smry.tables[0].pop(8)
 
             #Residual standard error
-            se = '---'
-            if not(np.isinf(self._OLS.scale)):
-                se = f'{np.sqrt(self._OLS.scale):.3f}'
             smry.tables[0][7][0].data = 'Residual std error'
-            smry.tables[0][7][1].data = se
+            smry.tables[0][7][1].data = self.se
             #smry.tables[0][7][0].data = se
             #smry.tables[0][7][1].data = se
 
@@ -81,6 +92,8 @@ class Model(OLS):
         """ Gets the model's title, if it has one. Always returns a string."""
         return getattr(self.data, '_pi_title', '')
 
+
+
 Model.__repr__ = Model.__str__
 
 def predict(model, **kwargs):
@@ -99,6 +112,7 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
     model = smf.ols(model_spec, data=data).fit()
     out = Model(OLS_instance=model, model_spec=model_spec)
     out.data = data
+
     return out
 
 

@@ -2,12 +2,10 @@
 import numpy as np
 import pandas as pd
 
-#import matplotlib
-#import matplotlib.cm as cm
-#import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 from bokeh.plotting import figure, ColumnDataSource
 from bokeh.plotting import show as show_plot
+from bokeh.models import HoverTool
 
 try:
     from .models import predict
@@ -107,7 +105,6 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
         bar_signs=bar_signs,
         full_names=full_names,
         original_magnitude_with_sign=beta_str,
-
     ))
     TOOLTIPS = [
         ("Short name", "@factor_names"),
@@ -184,83 +181,88 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
             sep = ""))
     }
     """
-    contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
-        N=25, xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
-        colour_function="terrain", show=True, show_expt_data=True,
-        figsize=(10, 10), dpi=100, other_factors=None)
-    h_grid = np.linspace(xlim[0], xlim[1], num=N)
-    v_grid = np.linspace(ylim[0], ylim[1], num = N)
-    H, V = np.meshgrid(h_grid, v_grid)
-    h_grid, v_grid = H.ravel(), V.ravel()
+    plt = contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
+                             N=25, xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
+                             colour_function="terrain", show=True,
+                             show_expt_data=True,
+                             figsize=(10, 10), dpi=100, other_factors=None)
 
-    pure_factors = model.get_factor_names(level=1)
-    if xlabel is None:
-        xlabel = pure_factors[0]
-    else:
-        xlabel = str(xlabel)
+    # Matplotlib version
+    if False:
 
-    if ylabel is None:
-        ylabel = pure_factors[1]
-    else:
-        ylabel = str(ylabel)
+        h_grid = np.linspace(xlim[0], xlim[1], num=N)
+        v_grid = np.linspace(ylim[0], ylim[1], num = N)
+        H, V = np.meshgrid(h_grid, v_grid)
+        h_grid, v_grid = H.ravel(), V.ravel()
 
-    kwargs = {xlabel: h_grid, ylabel: v_grid}
-    if other_factors is not None and isinstance(other_factors, dict):
-        kwargs = kwargs.update(other_factors)
+        pure_factors = model.get_factor_names(level=1)
+        if xlabel is None:
+            xlabel = pure_factors[0]
+        else:
+            xlabel = str(xlabel)
 
-    # Look at which factors are included, and pop them out. The remaining
-    # factors are specified at their zero level
+        if ylabel is None:
+            ylabel = pure_factors[1]
+        else:
+            ylabel = str(ylabel)
 
-    unspecified_factors = [i for i in pure_factors if i not in kwargs.keys()]
-    for factor in unspecified_factors:
-        kwargs[factor] = np.zeros_like(h_grid)
+        kwargs = {xlabel: h_grid, ylabel: v_grid}
+        if other_factors is not None and isinstance(other_factors, dict):
+            kwargs = kwargs.update(other_factors)
 
-    assert sorted(kwargs.keys()) == sorted(pure_factors), ("Not all factors "
-                                                           "were specified.")
-    Z = predict(model, **kwargs)
-    Z = Z.values.reshape(N, N)
+        # Look at which factors are included, and pop them out. The remaining
+        # factors are specified at their zero level
 
-    # Create a simple contour plot with labels using default colors.  The
-    # inline argument to clabel will control whether the labels are draw
-    # over the line segments of the contour, removing the lines beneath
-    # the label
-    _ = plt.figure(figsize=figsize, dpi=dpi, facecolor='white',
-                     edgecolor='white')
-    levels = np.linspace(Z.min(), Z.max(), N)
+        unspecified_factors = [i for i in pure_factors if i not in kwargs.keys()]
+        for factor in unspecified_factors:
+            kwargs[factor] = np.zeros_like(h_grid)
 
-    # Show the data from the experiment as dots on the plot
-    if show_expt_data:
-        plt.plot(model.data[xlabel],
-                 model.data[ylabel],
-                 'dimgrey',
-                 linestyle = '',
-                 marker = 'o',
-                 ms=15,
-                 linewidth=2)
+        assert sorted(kwargs.keys()) == sorted(pure_factors), ("Not all factors "
+                                                               "were specified.")
+        Z = predict(model, **kwargs)
+        Z = Z.values.reshape(N, N)
 
-    plt.title(get_plot_title(main, model, prefix='Contour plot'))
-    plt.xlabel(xlabel, fontsize=12, fontweight="bold")
-    plt.ylabel(ylabel, fontsize=12, fontweight="bold")
+        # Create a simple contour plot with labels using default colors.  The
+        # inline argument to clabel will control whether the labels are draw
+        # over the line segments of the contour, removing the lines beneath
+        # the label
+        _ = plt.figure(figsize=figsize, dpi=dpi, facecolor='white',
+                         edgecolor='white')
+        levels = np.linspace(Z.min(), Z.max(), N)
 
-    # Set up the plot for the first time
-    plt.xlim(xlim)
-    plt.ylim(ylim)
-    plt.grid(color='#DDDDDD')
+        # Show the data from the experiment as dots on the plot
+        if show_expt_data:
+            plt.plot(model.data[xlabel],
+                     model.data[ylabel],
+                     'dimgrey',
+                     linestyle = '',
+                     marker = 'o',
+                     ms=15,
+                     linewidth=2)
 
-    CS = plt.contour(H, V, Z,
-                     colors='black',
-                     levels=levels,
-                     linestyles='dotted')
-    plt.clabel(CS, inline=True, fontsize=10, fmt='%1.0f')
+        plt.title(get_plot_title(main, model, prefix='Contour plot'))
+        plt.xlabel(xlabel, fontsize=12, fontweight="bold")
+        plt.ylabel(ylabel, fontsize=12, fontweight="bold")
 
-    plt.imshow(Z, extent=[xlim[0], xlim[1], ylim[0], ylim[1]],
-               origin='lower',
-               cmap=colour_function,  # 'RdGy',
-               alpha=0.5)
-    plt.colorbar()
+        # Set up the plot for the first time
+        plt.xlim(xlim)
+        plt.ylim(ylim)
+        plt.grid(color='#DDDDDD')
 
-    if show:
-        plt.show()
+        CS = plt.contour(H, V, Z,
+                         colors='black',
+                         levels=levels,
+                         linestyles='dotted')
+        plt.clabel(CS, inline=True, fontsize=10, fmt='%1.0f')
+
+        plt.imshow(Z, extent=[xlim[0], xlim[1], ylim[0], ylim[1]],
+                   origin='lower',
+                   cmap=colour_function,  # 'RdGy',
+                   alpha=0.5)
+        plt.colorbar()
+
+        if show:
+            plt.show()
 
     return plt
 
@@ -283,29 +285,7 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
         colour_function="terrain", show=True, show_expt_data=True,
         figsize=(10, 10), dpi=100, other_factors=None):
 
-    #N = 20
-    #img = np.empty((N,N), dtype=np.uint32)
-    #view = img.view(dtype=np.uint8).reshape((N, N, 4))
-    #for i in range(N):
-        #for j in range(N):
-            #view[i, j, 0] = int(i/N*255)
-            #view[i, j, 1] = 158
-            #view[i, j, 2] = int(j/N*255)
-            #view[i, j, 3] = 255
-
-    #p = figure(tooltips=[("x", "$x"), ("y", "$y"), ("value", "@image")])
-    #p.x_range.range_padding = p.y_range.range_padding = 0
-
-    ## must give a vector of images
-    #p.image_rgba(image=[img], x=-1.5, y=-2, dw=3, dh=3)
-
-    # show_plot(p)  # open a browser
-
-    # TODO: better hovering:
-    https://stackoverflow.com/questions/29435200/bokeh-plotting-enable-tooltips-for-only-some-glyphs
-
-
-
+    # TODO: show labels of contour plot
 
     # https://stackoverflow.com/questions/33533047/how-to-make-a-contour-plot-in-python-using-bokeh-or-other-libs
     from skimage import measure
@@ -316,7 +296,6 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
     from matplotlib import cm
 
     from bokeh.models import (ColorBar,
-                              # FixedTicker,
                               BasicTicker,
                               LinearColorMapper,
                               PrintfTickFormatter)
@@ -366,23 +345,28 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
 
     p = figure(x_range=xlim,
                y_range=ylim,
-               tooltips=[("x", "$x"),
-                         ("y", "$y"),
-                         ("value", "@image")])
-
+                # https://github.com/bokeh/bokeh/issues/2351
+               tools="pan,wheel_zoom,box_zoom, box_select,lasso_select,reset,save",
+               )
     # Create the image layer
-    p.image(image=[Z],
-            x=xlim[0],
-            y=ylim[0],
-            dw=xlim[1] - xlim[0],
-            dh=ylim[1] - ylim[0],
-            color_mapper=color_mapper,
-            global_alpha=0.5,           # with some transparency
-            )
+    h_image = p.image(image=[Z],
+                      x=xlim[0],
+                      y=ylim[0],
+                      dw=xlim[1] - xlim[0],
+                      dh=ylim[1] - ylim[0],
+                      color_mapper=color_mapper,
+                      global_alpha=0.5,           # with some transparency
+                      name='contour_image',
+                      )
+    # hover_tool_names.append('contour_image')
+    h1 = HoverTool(tooltips=[(xlabel, "$x"),
+                             (ylabel, "$y"),
+                             ("Predicted response", "@image")],
+                   renderers=[h_image])  # custom tooltip for the predicted image
 
     color_bar = ColorBar(color_mapper=color_mapper,
                          major_label_text_font_size="8pt",
-                         ticker=BasicTicker(max_interval=(z_max - z_min) / N),
+                         ticker=BasicTicker(max_interval=(z_max - z_min) / N * 2),
                          formatter=PrintfTickFormatter(format='%.2f'),
                          label_standoff=6,
                          border_line_color=None,
@@ -390,7 +374,7 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
 
     p.add_layout(color_bar, 'right')
 
-    scaler_y = (ylim[1] - ylim[0]) / (N-1)
+    scaler_y = (ylim[1] - ylim[0]) / (N - 1)
     scaler_x = (xlim[1] - xlim[0]) / (N - 1)
     for level in levels:
         contours = measure.find_contours(Z, level)
@@ -399,34 +383,53 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
             y = contour[:, 0] * scaler_x + xlim[0]
             p.dash(x, y, color='darkgrey', line_width=1)
 
-    # Add raw data points
-
-    TODO: bigger experimental markers
-    TODO: hover for the data point shows the factor settings for the data point
+    # TODO: bigger experimental markers
+    # TODO: hover for the data point shows the factor settings for the data point
 
     if show_expt_data:
-        p.circle(model.data[xlabel],
-                 model.data[ylabel],
-                 color='black',
-                 # linestyle='',
-                 # marker='o',
-                 # ms=15,
-                 line_width=2)
 
+        source = ColumnDataSource(data=dict(
+            x=model.data[xlabel],
+            y=model.data[ylabel],
+            output=model.data["y"].to_list(),  # <-- this needs to be generalized
+            # bar_colours=bar_colours,
+            # bar_signs=bar_signs,
+            # full_names=full_names,
+            # original_magnitude_with_sign=beta_str,
+        ))
+        h_expts = p.circle(x='x',
+                           y='y',
+                           color='black',
+                           source=source,
+                           # linestyle='',
+                           # marker='o',
+                           size=10,
+                           line_width=2,
+                           name='experimental_points',)
+        h2 = HoverTool(tooltips=[(xlabel, "$x"),
+                                 (ylabel, "$y"),
+                                 #("Other factors", "NA"),
+                                 ("Actual value", "@output")  # why not working???
+                                 ],
+                       renderers=[h_expts])  # custom tooltip for the predicted image
 
     # Axis labels:
     p.xaxis.axis_label_text_font_size = '14pt'
-    p.xaxis.axis_label=xlabel
-    p.xaxis.major_label_text_font_size='14pt'
-    p.xaxis.axis_label_text_font_style='normal'
+    p.xaxis.axis_label = xlabel
+    p.xaxis.major_label_text_font_size = '14pt'
+    p.xaxis.axis_label_text_font_style = 'bold'
     p.xaxis.bounds = (xlim[0], xlim[1])
 
-    p.yaxis.major_label_text_font_size='14pt'
-    p.yaxis.axis_label=ylabel
-    p.yaxis.axis_label_text_font_size='14pt'
-    p.yaxis.axis_label_text_font_style='normal'
+    p.yaxis.major_label_text_font_size = '14pt'
+    p.yaxis.axis_label = ylabel
+    p.yaxis.axis_label_text_font_size = '14pt'
+    p.yaxis.axis_label_text_font_style = 'bold'
     p.yaxis.bounds = (ylim[0], ylim[1])
 
+
+    # Add the hover tooltips:
+    p.add_tools(h1)
+    p.add_tools(h2)
 
     if show:
         show_plot(p)
@@ -436,7 +439,7 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
 
 
     # Show the data from the experiment as dots on the plot
-    #
+    # TODO: add some jitter
 
     #plt.title(get_plot_title(main, model, prefix='Contour plot'))
     #plt.xlabel(xlabel, fontsize=12, fontweight="bold")
