@@ -6,6 +6,8 @@ from bokeh.plotting import figure, ColumnDataSource
 from bokeh.plotting import show as show_plot
 from bokeh.models import HoverTool
 
+# No other good way to get contour labels in Bokeh, sadly
+
 try:
     from .models import predict
 except ImportError:
@@ -23,7 +25,6 @@ def get_plot_title(main, model, prefix=''):
             main += ': ' + title
 
     return main
-
 
 
 def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
@@ -180,16 +181,16 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
             sep = ""))
     }
     """
-    if False:
+    if True:
 
-        plt = contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
-                                 N=25, xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
-                                 colour_function="terrain", show=True,
-                                 show_expt_data=True,
-                                 figsize=(10, 10), dpi=100, other_factors=None)
+        plt = contour_plot_bokeh(model, xlabel, ylabel, main,
+                                 N, xlim, ylim,
+                                 colour_function, show,
+                                 show_expt_data,
+                                 figsize, dpi, other_factors)
 
     # Matplotlib version
-    if True:
+    if False:
         import matplotlib.pyplot as plt
         h_grid = np.linspace(xlim[0], xlim[1], num=N)
         v_grid = np.linspace(ylim[0], ylim[1], num = N)
@@ -335,6 +336,13 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
     z_min, z_max = Z.min(), Z.max()
     levels = np.linspace(z_min, z_max, N)
 
+    from matplotlib.pyplot import contour, clabel
+    CS = contour(H, V, Z, levels=levels, linestyles='dotted')
+    clabel(CS, inline=True, fontsize=10, fmt='%1.0f')
+    contour_labels = [(float(q._x), float(q._y), float(q._text))\
+                                                     for q in CS.labelTexts]
+
+
     # Convert the Matplotlib colour mapper to Bokeh
     # https://stackoverflow.com/questions/49931311/using-matplotlibs-colormap-for-bokehs-color-bar
     mapper = getattr(cm, colour_function)
@@ -343,6 +351,11 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
     color_mapper = LinearColorMapper(palette=colour_palette,
                                      low=z_min,
                                      high=z_max)
+
+    # Another alternative:
+    # https://stackoverflow.com/questions/35315259/using-colormap-with-bokeh-scatter
+    #colors = ["#%02x%02x%02x" % (int(r), int(g), int(b)) for r, g, b, _ in 255*mpl.cm.viridis(mpl.colors.Normalize()(radii))]
+
 
     p = figure(x_range=xlim,
                y_range=ylim,
@@ -375,14 +388,27 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
 
     p.add_layout(color_bar, 'right')
 
-    scaler_y = (ylim[1] - ylim[0]) / (N - 1)
-    scaler_x = (xlim[1] - xlim[0]) / (N - 1)
-    for level in levels:
-        contours = measure.find_contours(Z, level)
-        for contour in contours:
-            x = contour[:, 1] * scaler_y + ylim[0]
-            y = contour[:, 0] * scaler_x + xlim[0]
-            p.dash(x, y, color='darkgrey', line_width=1)
+
+    #Contour lines using Scipy:
+    #scaler_y = (ylim[1] - ylim[0]) / (N - 1)
+    #scaler_x = (xlim[1] - xlim[0]) / (N - 1)
+    #for level in levels:
+        #contours = measure.find_contours(Z, level)
+        #for contour in contours:
+            #x = contour[:, 1] * scaler_y + ylim[0]
+            #y = contour[:, 0] * scaler_x + xlim[0]
+            #
+
+
+    for idx, cccontour in enumerate(CS.allsegs):
+        if cccontour:
+            x = cccontour[0][:,0]
+            y = cccontour[0][:,1]
+            p.line(x, y, line_dash = 'dashed', color='darkgrey', line_width=1)
+            level = levels[idx]
+
+
+
 
     # TODO: bigger experimental markers
     # TODO: hover for the data point shows the factor settings for the data point
@@ -435,7 +461,7 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
     if show:
         show_plot(p)
 
-    return plt
+
 
 
 

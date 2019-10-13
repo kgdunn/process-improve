@@ -215,7 +215,7 @@ def case_worksheet_5():
     model_start = lm("y ~ A*B*C*D", expt)
 
     summary(model_start)
-    pareto_plot(model_start, plot_width=800)
+    #pareto_plot(model_start, plot_width=800)
     contour_plot(model_start, "A", "B")
     contour_plot(model_start, "B", "C")
     contour_plot(model_start, "C", "D")
