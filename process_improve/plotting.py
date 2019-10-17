@@ -503,6 +503,6 @@ def tradeoff_table(show_in_browser= True,
     """
     if show_in_browser:
         path = Path(__file__)
-        fname = "trade-off-table.png"
+        fname = "trade-off-table.html"
         fqp = f"file://{path.drive}/{'/'.join(path.parts[1:-1])}/media/{fname}"
         webbrowser.open_new_tab(fqp)
