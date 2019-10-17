@@ -8,8 +8,6 @@ from bokeh.plotting import figure, ColumnDataSource
 from bokeh.plotting import show as show_plot
 from bokeh.models import HoverTool
 
-# No other good way to get contour labels in Bokeh, sadly
-
 try:
     from .models import predict
 except ImportError:
@@ -29,8 +27,12 @@ def get_plot_title(main, model, prefix=''):
     return main
 
 
-def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
-                up_to_level=None,  # show all factors and interactions
+def pareto_plot(model,
+                ylabel="Effect name",
+                xlabel="Magnitude of effect",
+
+                # show all factors and interactions
+                up_to_level=None,
                 main="Pareto plot", legendtitle="Sign of coefficients",
                 negative=("Negative", "grey"), positive=("Positive", "black"),
                 show=True, plot_width=500, plot_height=None):

@@ -109,6 +109,8 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
     """
     Create a linear model.
     """
+    # TODO: handle collinear columns, aliases.
+    #
     model = smf.ols(model_spec, data=data).fit()
     out = Model(OLS_instance=model, model_spec=model_spec)
     out.data = data

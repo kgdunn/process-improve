@@ -274,8 +274,8 @@ def case_worksheet_6():
 if __name__ == '__main__':
 # tradeoff_table()
     #case_3B()
-    case_3C(show=True)
-    case_3D()
+    # case_3C(show=True)
+    #case_3D()
     # case_worksheet_5()
     # api_usage()
     case_worksheet_6()
