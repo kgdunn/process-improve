@@ -41,7 +41,7 @@ def case_3C(show=False):
     summary(water)
     if show:
         contour_plot(water, "C", "T", show=show)
-        pareto_plot(water,show=show)
+        pareto_plot(water, show=show, up_to_level=2)
 
 def case_3D():
     """
@@ -252,13 +252,33 @@ def api_usage():
     model_start = lm("y ~ <2fi>", expt)
     model_start = lm("y ~ <3fi>", expt)
 
+def case_worksheet_6():
+    """
+    Half-fraction
+    """
+    # The half-fraction, when C = A*B
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    C = A * B
+
+    # The response: stability [units=days]
+    y = c(41, 27, 35, 20, name="Stability", units="days")
+
+    # Linear model using only 4 experiments
+    expt = gather(A=A, B=B, C=C, y=y, title='Half-fraction, using C = A*B')
+    model_stability_poshalf = lm("y ~ A*B*C", expt)
+    summary(model_stability_poshalf)
+    pareto_plot(model_stability_poshalf)
+    pareto_plot(model_stability_poshalf, up_to_level=2)
+
 if __name__ == '__main__':
-    tradeoff_table()
+# tradeoff_table()
     #case_3B()
-    #case_3C()
-    #case_3D()
-    case_worksheet_5()
-    api_usage()
+    case_3C(show=True)
+    case_3D()
+    # case_worksheet_5()
+    # api_usage()
+    case_worksheet_6()
 
     case_w2()
     case_w4_1()

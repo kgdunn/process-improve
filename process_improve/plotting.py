@@ -30,6 +30,7 @@ def get_plot_title(main, model, prefix=''):
 
 
 def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
+                up_to_level=None,  # show all factors and interactions
                 main="Pareto plot", legendtitle="Sign of coefficients",
                 negative=("Negative", "grey"), positive=("Positive", "black"),
                 show=True, plot_width=500, plot_height=None):
@@ -39,10 +40,12 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
     Parameters
     ----------
     model: required; a model created by the package.
-    ylab: string; optional, default: "Effect name"
+    ylabel: string; optional, default: "Effect name"
         The label on the y-axis of the Pareto plot.
-    xlab: string; optional, default: "Magnitude of effect"
+    xlabel: string; optional, default: "Magnitude of effect"
         The label on the x-axis of the Pareto plot
+    up_to_level: integer, default = None [all levels]
+        Up to which level interactions should be displayed
     main: string; optional, default: "Pareto plot"
         The plot title.
     legendtitle: string; optional, default: "Sign of coefficients"
@@ -78,6 +81,14 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
     # https://docs.bokeh.org/en/latest/docs/user_guide/annotations.html
 
     params = model.get_parameters()
+    if up_to_level:
+        assert isinstance(up_to_level, int), ("Specify an integer value for "
+                                              "`up_to_level`.")
+        keep = []
+        for k in range(up_to_level):
+            keep.extend(model.get_factor_names(level=k + 1))
+
+        params = params.filter(keep)
 
     param_values = params.values
     beta_str = [f"+{i:0.4g}" if i > 0 else f'{i:0.4g}' for i in param_values]
@@ -501,8 +512,12 @@ def tradeoff_table(show_in_browser= True,
     Shows the trade-off table in a web-browser. The PDF display is not
     supported yet.
     """
+    # TOCONSIDER: show the image inline, esp for Jupyter notebooks.
+    # https://github.com/bokeh/bokeh/issues/2426
     if show_in_browser:
         path = Path(__file__)
-        fname = "trade-off-table.html"
+        # Wrapping the image in HTML does not work in Jupyter notebooks.
+        fname = "trade-off-table.png"
         fqp = f"file://{path.drive}/{'/'.join(path.parts[1:-1])}/media/{fname}"
-        webbrowser.open_new_tab(fqp)
+        url = 'https://yint.org/tradeoff'
+        webbrowser.open_new_tab(url)
