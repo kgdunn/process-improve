@@ -7,7 +7,7 @@ sys.path.append(os.path.split(__file__)[0])
 
 from structures import (gather, c, expand_grid, supplement)
 from models import (lm, summary, predict)
-from plotting import (pareto_plot, contour_plot)
+from plotting import (pareto_plot, contour_plot, tradeoff_table)
 from designs_factorial import full_factorial
 
 def case_3B():
@@ -253,6 +253,7 @@ def api_usage():
     model_start = lm("y ~ <3fi>", expt)
 
 if __name__ == '__main__':
+    tradeoff_table()
     #case_3B()
     #case_3C()
     #case_3D()

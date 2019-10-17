@@ -8,6 +8,6 @@ name = "process_improve"
 from . structures import (c, gather, expand_grid, supplement)
 from . models import (lm, summary)
 from . plotting import (pareto_plot, contour_plot, predict_plot,
-                       interaction_plot)
+                       interaction_plot, tradeoff_table)
 from . designs_factorial import (full_factorial)
 

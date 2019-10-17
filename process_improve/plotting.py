@@ -1,4 +1,6 @@
 # (c) Kevin Dunn, 2019. MIT License.
+from pathlib import Path
+import webbrowser
 import numpy as np
 import pandas as pd
 
@@ -66,12 +68,14 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
 
     p = pareto_plot(model, main="Pareto plot for my experiment", show=False)
     p.save('save_plot_to_figure.png')
-
-
     """
-    # TODO: show error bars
+    # TODO: show error bars : see Bokeh annotations: Whiskers model
+    # p.add_layout(
+    # Whisker(source=e_source, base="base", upper="upper", lower="lower")
+    # )
     # error_bars = model._OLS.conf_int()
     # http://holoviews.org/reference/elements/bokeh/ErrorBars.html
+    # https://docs.bokeh.org/en/latest/docs/user_guide/annotations.html
 
     params = model.get_parameters()
 
@@ -91,11 +95,11 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
             full_names.append(f'Interaction between {param_name}')
 
     # Shuffle the collected information in the same way
-    beta_str=[beta_str[i] for i in params.argsort().values]
-    bar_colours=[bar_colours[i] for i in params.argsort().values]
+    beta_str = [beta_str[i] for i in params.argsort().values]
+    bar_colours = [bar_colours[i] for i in params.argsort().values]
     bar_signs = [bar_signs[i] for i in params.argsort().values]
     full_names = [full_names[i] for i in params.argsort().values]
-    params=params.sort_values(na_position='last')
+    params = params.sort_values(na_position='last')
 
     source = ColumnDataSource(data=dict(
         x=params.values,
@@ -111,31 +115,31 @@ def pareto_plot(model, ylabel="Effect name", xlabel="Magnitude of effect",
         ("Full name", "@full_names"),
         ("Magnitude and sign", "@original_magnitude_with_sign"),
     ]
-    p=figure(plot_width=plot_width,
+    p = figure(plot_width=plot_width,
                plot_height=plot_height or (500 + (len(params) - 8) * 20),
                tooltips=TOOLTIPS,
                title=get_plot_title(main, model, prefix='Pareto plot'))
     p.hbar(y='y', right='x', height=0.5, left=0, fill_color='bar_colours',
            line_color='bar_colours', legend='bar_signs', source=source)
 
-    p.xaxis.axis_label_text_font_size='14pt'
-    p.xaxis.axis_label=xlabel
-    p.xaxis.major_label_text_font_size='14pt'
-    p.xaxis.axis_label_text_font_style='normal'
-    p.xaxis.bounds=(0, params.max() * 1.05)
+    p.xaxis.axis_label_text_font_size = '14pt'
+    p.xaxis.axis_label = xlabel
+    p.xaxis.major_label_text_font_size = '14pt'
+    p.xaxis.axis_label_text_font_style = 'normal'
+    p.xaxis.bounds = (0, params.max() * 1.05)
 
-    p.yaxis.major_label_text_font_size='14pt'
-    p.yaxis.axis_label=ylabel
-    p.yaxis.axis_label_text_font_size='14pt'
-    p.yaxis.axis_label_text_font_style='normal'
+    p.yaxis.major_label_text_font_size = '14pt'
+    p.yaxis.axis_label = ylabel
+    p.yaxis.axis_label_text_font_size = '14pt'
+    p.yaxis.axis_label_text_font_style = 'normal'
 
-    locations=source.data['y'].tolist()
-    labels=source.data['factor_names']
-    p.yaxis.ticker=locations
-    p.yaxis.major_label_overrides=dict(zip(locations, labels))
+    locations = source.data['y'].tolist()
+    labels = source.data['factor_names']
+    p.yaxis.ticker = locations
+    p.yaxis.major_label_overrides = dict(zip(locations, labels))
 
-    p.legend.orientation="vertical"
-    p.legend.location="bottom_right"
+    p.legend.orientation = "vertical"
+    p.legend.location = "bottom_right"
 
     if show:
         show_plot(p)
@@ -491,3 +495,14 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
 
 
 
+def tradeoff_table(show_in_browser= True,
+                   show_pdf=False):
+    """
+    Shows the trade-off table in a web-browser. The PDF display is not
+    supported yet.
+    """
+    if show_in_browser:
+        path = Path(__file__)
+        fname = "trade-off-table.png"
+        fqp = f"file://{path.drive}/{'/'.join(path.parts[1:-1])}/media/{fname}"
+        webbrowser.open_new_tab(fqp)
