@@ -20,7 +20,9 @@ class Model(OLS):
         self.df_resid = self._OLS.df_resid
         self.df_model = self._OLS.df_model
         self.nobs = self._OLS.nobs
-        self.rsquared = self.R2 = self._OLS.rsquared
+        # Leads to errors for size inconsistency if the data frames have
+        # missing data?
+        #self.rsquared = self.R2 = self._OLS.rsquared
         self.residuals = self._OLS.resid
 
         # Will be replaced by the "lm()" function
