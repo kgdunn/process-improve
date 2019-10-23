@@ -2,6 +2,7 @@
 
 from typing import Optional
 import warnings
+from collections import defaultdict
 
 import numpy as np
 import pandas as pd
@@ -114,12 +115,12 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
     # TODO: handle collinear columns, aliases.
     #
 
-    def clean_aliases(model, model_desc):
+    def find_aliases(model, model_desc):
         """
-        Finds columns which are exactly correlated and removes these
+        Finds columns which are exactly correlated.
+        Returns a dictionary of aliasing.
         """
         cc = np.corrcoef(model.exog.T)
-        names = model.exog_names
         aliasing = defaultdict(list)
         lim = 0.9995
         terms = model_desc.rhs_termlist
@@ -128,6 +129,10 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
 
         for idx, column in enumerate(range(cc.shape[1])):
             candidates = [i for i,j in enumerate(np.abs(cc[column])) if (j>lim)]
+            alias_len = [(i, len(terms[i].factors)) for i in candidates]
+            alias_len.sort(reverse=True)
+            for entry in alias_len[0:-1]:
+                drop_columns.append(entry[0])
 
             for col in candidates:
                 if col == idx:
@@ -138,12 +143,13 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
                     aliasing[terms[idx].factors].append(terms[col].factors)
 
 
-        return model, aliasing
+        return aliasing, set(drop_columns)
 
 
     pre_model = smf.ols(model_spec, data=data)
     model_description = ModelDesc.from_formula(model_spec)
-    post_model = clean_aliases(pre_model, model_description)
+    aliasing, drop_columns = find_aliases(pre_model, model_description)
+
     model = pre_model.fit()
     out = Model(OLS_instance=model, model_spec=model_spec)
     out.data = data
