@@ -102,7 +102,7 @@ def c(*args, **kwargs) -> Column:
                 sanitize = j.copy()
 
             try:
-                [float(j) for j in sanitize]
+                sanitize = [float(j) for j in sanitize]
             except ValueError:
                 numeric = False
 
