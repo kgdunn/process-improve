@@ -113,7 +113,38 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
     """
     # TODO: handle collinear columns, aliases.
     #
-    model = smf.ols(model_spec, data=data).fit()
+
+    def clean_aliases(model, model_desc):
+        """
+        Finds columns which are exactly correlated and removes these
+        """
+        cc = np.corrcoef(model.exog.T)
+        names = model.exog_names
+        aliasing = defaultdict(list)
+        lim = 0.9995
+        terms = model_desc.rhs_termlist
+
+        drop_columns = []
+
+        for idx, column in enumerate(range(cc.shape[1])):
+            candidates = [i for i,j in enumerate(np.abs(cc[column])) if (j>lim)]
+
+            for col in candidates:
+                if col == idx:
+                    # It is of course perfectly correlated with itself
+                    pass
+                else:
+                    model_desc.rhs_termlist[col].factors
+                    aliasing[terms[idx].factors].append(terms[col].factors)
+
+
+        return model, aliasing
+
+
+    pre_model = smf.ols(model_spec, data=data)
+    model_description = ModelDesc.from_formula(model_spec)
+    post_model = clean_aliases(pre_model, model_description)
+    model = pre_model.fit()
     out = Model(OLS_instance=model, model_spec=model_spec)
     out.data = data
 
