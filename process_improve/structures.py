@@ -98,6 +98,9 @@ def c(*args, **kwargs) -> Column:
                 if 'index' not in kwargs:
                     kwargs['index'] = sanitize.index
 
+            if isinstance(j, list):
+                sanitize = j.copy()
+
             try:
                 [float(j) for j in sanitize]
             except ValueError:
