@@ -127,15 +127,24 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
         For example if AB = CD, then return AB to keep.
         For example if A = BCD, then return A, and not the BCD column to keep.
         """
-        cc = np.dot(model.exog.T, model.exog)/model.exog.shape[0]
+        has_variation = model.exog.std(axis=0) > np.sqrt(np.finfo(float).eps)
+
+        #np.dot(model.exog.T, model.exog)/model.exog.shape[0]
+        # Drop columns whihc do not have any variation
+        corrcoef = np.corrcoef(model.exog[:, has_variation].T,
+                         ddof=0)
         aliasing = defaultdict(list)
         lim = 0.9995
         terms = model_desc.rhs_termlist
 
         drop_columns = []
-        keep_columns = list(range(cc.shape[1]))
-        for idx, column in enumerate(range(cc.shape[1])):
-            candidates = [i for i,j in enumerate(np.abs(cc[column])) if (j>lim)]
+        keep_columns = list(range(len(has_variation)))
+        counter = -1
+        for idx, check in enumerate(has_variation):#enumerate(range(cc.shape[1])):
+            if check:
+                counter += 1
+
+            candidates = [i for i,j in enumerate(np.abs(corrcoef[counter])) if (j>lim)]
             alias_len = [(i, len(terms[i].factors)) for i in candidates]
             alias_len.sort(reverse=True)
             for entry in alias_len[0:-1]:
