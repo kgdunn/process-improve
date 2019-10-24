@@ -7,13 +7,14 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
+import statsmodels.api as sm
 from statsmodels.regression.linear_model import OLS
 from patsy import ModelDesc
 
 class Model(OLS):
     """
     Just a thin wrapper around the OLS class from Statsmodels."""
-    def __init__(self, OLS_instance, model_spec):
+    def __init__(self, OLS_instance, model_spec, aliasing=None):
         self._OLS = OLS_instance
         self._model_spec = model_spec
 
@@ -28,6 +29,7 @@ class Model(OLS):
 
         # Will be replaced by the "lm()" function
         self.data = None
+        self.aliasing = aliasing
 
     def __str__(self):
         spec = ModelDesc.from_formula(self._model_spec)
@@ -118,21 +120,30 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
     def find_aliases(model, model_desc):
         """
         Finds columns which are exactly correlated.
-        Returns a dictionary of aliasing.
+        Returns a dictionary of aliasing and a list of columns to keep.
+
+        The columns to keep will be in the order checked. Perhaps this can be
+        improved.
+        For example if AB = CD, then return AB to keep.
+        For example if A = BCD, then return A, and not the BCD column to keep.
         """
-        cc = np.corrcoef(model.exog.T)
+        cc = np.dot(model.exog.T, model.exog)/model.exog.shape[0]
         aliasing = defaultdict(list)
         lim = 0.9995
         terms = model_desc.rhs_termlist
 
         drop_columns = []
-
+        keep_columns = list(range(cc.shape[1]))
         for idx, column in enumerate(range(cc.shape[1])):
             candidates = [i for i,j in enumerate(np.abs(cc[column])) if (j>lim)]
             alias_len = [(i, len(terms[i].factors)) for i in candidates]
             alias_len.sort(reverse=True)
             for entry in alias_len[0:-1]:
                 drop_columns.append(entry[0])
+                try:
+                    keep_columns.pop(keep_columns.index(entry[0]))
+                except ValueError:
+                    pass
 
             for col in candidates:
                 if col == idx:
@@ -143,15 +154,18 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
                     aliasing[terms[idx].factors].append(terms[col].factors)
 
 
-        return aliasing, set(drop_columns)
+        return aliasing, list(set(drop_columns))
 
 
     pre_model = smf.ols(model_spec, data=data)
     model_description = ModelDesc.from_formula(model_spec)
     aliasing, drop_columns = find_aliases(pre_model, model_description)
+    drop_column_names = [pre_model.data.xnames[i] for i in drop_columns]
 
-    model = pre_model.fit()
-    out = Model(OLS_instance=model, model_spec=model_spec)
+    post_model = smf.ols(model_spec, data=data, drop_cols=drop_column_names)
+    out = Model(OLS_instance=post_model.fit(),
+                model_spec=model_spec,
+                aliasing=aliasing)
     out.data = data
 
     return out

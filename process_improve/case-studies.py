@@ -109,8 +109,8 @@ def case_w2():
     # Make a prediction with this model:
     xT = +2   # corresponds to 110 minutes
     xF = -1   # corresponds to 20 grams of fat
-    y.hat = predict(model_crispy, pd.DataFrame(T = xT, F = xF))
-    paste0('Predicted value is: ', y.hat, ' crispiness.')
+    #y.hat = predict(model_crispy, pd.DataFrame(T = xT, F = xF))
+    #paste0('Predicted value is: ', y.hat, ' crispiness.')
 
 def case_w4_1():
     """
