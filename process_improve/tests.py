@@ -130,10 +130,63 @@ class TestStructures(unittest.TestCase):
         self.assertTrue(expt.get_title() == 'Testing expt name')
 
 class TestModels(unittest.TestCase):
-    pass
-    # popped_corn = lm("y ~ A + B + A*B", expt)
-    # summary(popped_corn)
+    def setUp(self):
 
+        A = c(-1, +1, -1, +1)
+        B = c(-1, -1, +1, +1)
+        C = A * B
+        y = c(41, 27, 35, 20, name="Stability", units="days")
+        self.expt = gather(A=A, B=B, C=C, y=y, 
+                           title='Half-fraction, using C = A*B')
+        self.model_stability_poshalf = lm("y ~ A*B*C", self.expt)
+
+        """
+        Results from R:
+        A = c(-1, +1, -1, +1)
+        B = c(-1, -1, +1, +1)
+        C = A*B
+        y = c(41, 27, 35, 20)
+        data = data.frame(A=A, B=B, C=C, y=y)
+        model = lm(y ~ A*B*C, data=data)
+        summary(model)
+
+        Call:
+            lm(formula = y ~ A * B * C, data = data)
+
+            Residuals:
+            ALL 4 residuals are 0: no residual degrees of freedom!
+
+            Coefficients: (4 not defined because of singularities)
+                        Estimate Std. Error t value Pr(>|t|)
+            (Intercept)    30.75         NA      NA       NA
+            A              -7.25         NA      NA       NA
+            B              -3.25         NA      NA       NA
+            C              -0.25         NA      NA       NA
+            A:B               NA         NA      NA       NA
+            A:C               NA         NA      NA       NA
+            B:C               NA         NA      NA       NA
+            A:B:C             NA         NA      NA       NA
+
+            Residual standard error: NaN on 0 degrees of freedom
+            Multiple R-squared:      1,	Adjusted R-squared:    NaN 
+            F-statistic:   NaN on 3 and 0 DF,  p-value: NA
+        """
+
+    def test_half_fraction(self):
+        """
+        Testing attributes for the half-fraction model.
+        """
+        self.assertTrue(self.model_stability_poshalf.nobs == 4)
+        A == -7.25  == BC
+        B == -3.25  == AC
+        C ==  -0.25 == AB
+        Int = ABC = 30.75
+        self.R2 = 1.00
+
+        self.df_resid = 0
+        self.df_model = 4
+        
+        self.residuals = [0, 0, 0, 0]
 
 class Test_API_usage(unittest.TestCase):
     def setUp(self):
