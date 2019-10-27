@@ -102,7 +102,7 @@ def pareto_plot(model,
     full_names = []
     for param_name, param_value in params.iteritems():
         if param_name in base_parameters:
-            fname = model.data._pi_source.get(param_name, param_name)
+            fname = model.data.pi_source.get(param_name, param_name)
             full_names.append(fname)
         else:
             full_names.append(f'Interaction between {param_name}')
@@ -423,8 +423,6 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
             y = cccontour[0][:,1]
             p.line(x, y, line_dash = 'dashed', color='darkgrey', line_width=1)
             level = levels[idx]
-
-
 
 
     # TODO: bigger experimental markers

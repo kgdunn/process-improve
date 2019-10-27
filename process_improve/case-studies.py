@@ -266,6 +266,7 @@ def case_worksheet_6():
 
     # Linear model using only 4 experiments
     expt = gather(A=A, B=B, C=C, y=y, title='Half-fraction, using C = A*B')
+    print(expt)
     model_stability_poshalf = lm("y ~ A*B*C", expt)
     summary(model_stability_poshalf)
     pareto_plot(model_stability_poshalf)

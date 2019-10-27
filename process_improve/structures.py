@@ -15,6 +15,29 @@ class Column(pd.Series):
         pass
 
 
+class Expt(pd.DataFrame):
+    """
+    Dataframe object with experimental data. Builds on the Pandas dataframe,
+    but with some extra attributes.
+    """
+    # Temporary properties
+    _internal_names = pd.DataFrame._internal_names + ['not_used_for_now']
+    _internal_names_set = set(_internal_names)
+
+    # Properties which survive subsetting, etc
+    _metadata = ['pi_source', 'pi_title']
+
+    @property
+    def _constructor(self):
+        return Expt
+
+    def __repr__(self):
+        title = f'Name: {self.pi_title}'
+        dimensions = (f'Size: {self.shape[0]} experiments; '
+                      f'{self.shape[1]} columns.')
+        return '\n'.join([pd.DataFrame.__repr__(self), title, dimensions])
+
+
 def create_names(n: int, letters=True, prefix='X', start_at=1, padded=True):
     """
     Returns default factor names, for a given number of `n` [integer] factors.
@@ -179,15 +202,20 @@ def gather(*args, **kwargs):
     """
     Gathers the named inputs together as columns for a data frame.
 
+    Removes any rows that have ANY missing values. If even 1 value in a row
+    is missing, then that row is removed.
+
+    Usage
+    -----
+
     expt = gather(A=A, B=B, y=y, title='My experiment in factors A and B')
 
     """
-    # TODO : handle the case where the shape of an input >= 2 columns
+    # TODO : handle the case where the shape of an input >= 2 columns:  category
 
-    out = pd.DataFrame(data=None, index=None, columns=None, dtype=None)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        setattr(out, '_pi_source', defaultdict(str))
+    out = Expt(data=None, index=None, columns=None, dtype=None)
+    out.pi_source = defaultdict(str)
+
     lens = [len(value) for value in kwargs.values()]
     avg_count = pd.np.median(lens)
     index = []
@@ -198,7 +226,7 @@ def gather(*args, **kwargs):
             out[key] = value
         elif isinstance(value, pd.Series):
             out[key] = value.values
-            out._pi_source[key] = value.name
+            out.pi_source[key] = value.name
 
             if hasattr(value, '_pi_index'):
                 index.append(value.index)
@@ -211,7 +239,9 @@ def gather(*args, **kwargs):
     if index:
         out.index = index[0]
 
+    # Drop any missing values:
+    out.dropna(axis=0, how="any", inplace=True)
 
-    if kwargs.get('title', False):
-        out._pi_title = kwargs.get('title')
+    # Set the title, if one was provided
+    out.pi_title = kwargs.get('title', None)
     return out

@@ -45,8 +45,8 @@ class Model(OLS):
             warnings.simplefilter("ignore")
 
             main = 'OLS Regression Results'
-            if hasattr(self.data, '_pi_title'):
-                main += ': ' + str(getattr(self.data, '_pi_title'))
+            if self.data.pi_title:
+                main += ': ' + str(self.data.pi_title)
 
             smry = self._OLS.summary(title=main)
             # print(smry)
@@ -95,7 +95,7 @@ class Model(OLS):
 
     def get_title(self) -> str:
         """ Gets the model's title, if it has one. Always returns a string."""
-        return getattr(self.data, '_pi_title', '')
+        return self.data.pi_title or ''
 
 
 
