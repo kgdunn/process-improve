@@ -22,7 +22,7 @@ def get_plot_title(main, model, prefix=''):
         main = prefix
         title = model.get_title()
         if title:
-            main += ': ' + title
+            main += f': {title}'
 
     return main
 

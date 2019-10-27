@@ -1,7 +1,5 @@
 # (c) Kevin Dunn, 2019. MIT License.
 import itertools
-import warnings
-
 from collections import defaultdict
 from collections.abc import Iterable
 import numpy as np
@@ -11,8 +9,22 @@ class Column(pd.Series):
     """
     Creates a column. Can be used as a factor, or a response vector.
     """
-    def __init__(self):
-        pass
+    # Temporary properties
+    _internal_names = pd.DataFrame._internal_names + ['not_used_for_now']
+    _internal_names_set = set(_internal_names)
+
+    # Properties which survive subsetting, etc
+    _metadata = ['pi_index',   # might be used later if the user provides their own index
+                 'pi_numeric', # if numeric indicator
+                 'pi_lo',      # if numeric: low level (-1)
+                 'pi_hi',      # if numeric: high level (+1)
+                 'pi_range',   # if numeric: range: distance from low to high
+                 'pi_center',  # if numeric: midway between low and high (0)
+                ]
+
+    @property
+    def _constructor(self):
+        return Column
 
 
 class Expt(pd.DataFrame):
@@ -36,6 +48,10 @@ class Expt(pd.DataFrame):
         dimensions = (f'Size: {self.shape[0]} experiments; '
                       f'{self.shape[1]} columns.')
         return '\n'.join([pd.DataFrame.__repr__(self), title, dimensions])
+
+
+    def get_title(self):
+        return self.pi_title or ''
 
 
 def create_names(n: int, letters=True, prefix='X', start_at=1, padded=True):
@@ -104,7 +120,6 @@ def c(*args, **kwargs) -> Column:
 
     B = c(0, 1, 0, 1, 0, 2, levels =(0, 1, 2))
 
-
     """
     sanitize = []
     numeric = True
@@ -147,30 +162,32 @@ def c(*args, **kwargs) -> Column:
     units = kwargs.get('units', '')
     if units:
         name = f'{name} [{units}]'
-    out = pd.Series(data=sanitize, index=index, name=name)
-    out._pi_index = True
+
+    out = Column(data=sanitize, index=index, name=name)
+    #out = pd.Series(data=sanitize, index=index, name=name)
 
     # Use sensible defaults, if not provided
-    out._pi_lo = None
-    out._pi_hi = None
-    out._pi_range = None
-    out._pi_center = None
-    out._pi_numeric = numeric
+    out.pi_index = True
+    out.pi_lo = None
+    out.pi_hi = None
+    out.pi_range = None
+    out.pi_center = None
+    out.pi_numeric = numeric
     if numeric:
-        out._pi_lo = kwargs.get('lo', out.min())
-        out._pi_hi = kwargs.get('hi', out.max())
-        out._pi_range = kwargs.get('range', (out._pi_lo, out._pi_hi))
-        out._pi_center = kwargs.get('center', np.mean(out._pi_range))
+        out.pi_lo = kwargs.get('lo', out.min())
+        out.pi_hi = kwargs.get('hi', out.max())
+        out.pi_range = kwargs.get('range', (out.pi_lo, out.pi_hi))
+        out.pi_center = kwargs.get('center', np.mean(out.pi_range))
     else:
         if 'levels' in kwargs:
             msg = "Levels must be list or tuple of the unique level names."
             # TODO: Check that all entries in the level list are accounted for.
             assert isinstance(kwargs.get('levels'), Iterable), msg
-            out._pi_levels = {name: list(kwargs.get('levels'))}
+            out.pi_levels = {name: list(kwargs.get('levels'))}
         else:
             levels = out.unique()
             levels.sort()
-            out._pi_levels = {name: levels.tolist()} # for use with Patsy
+            out.pi_levels = {name: levels.tolist()} # for use with Patsy
 
     return out
 
@@ -228,7 +245,7 @@ def gather(*args, **kwargs):
             out[key] = value.values
             out.pi_source[key] = value.name
 
-            if hasattr(value, '_pi_index'):
+            if hasattr(value, 'pi_index'):
                 index.append(value.index)
 
         elif isinstance(value, pd.DataFrame):

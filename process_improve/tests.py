@@ -54,23 +54,23 @@ class TestStructures(unittest.TestCase):
 
         self.assertTrue(isinstance(A1, pd.Series))
         self.assertTrue(A1.shape == (6,))
-        self.assertTrue(hasattr(A1, '_pi_index'))
+        self.assertTrue(hasattr(A1, 'pi_index'))
         self.assertTrue(hasattr(A1, 'name'))
 
         self.assertTrue(A1.name == 'Unnamed')
-        self.assertTrue(hasattr(A1, '_pi_lo'))
-        self.assertTrue(A1._pi_lo == -1)
-        self.assertTrue(hasattr(A1, '_pi_hi'))
-        self.assertTrue(A1._pi_hi == +1)
-        self.assertTrue(hasattr(A1, '_pi_range'))
-        self.assertTrue(A1._pi_range[0] == -1)
-        self.assertTrue(A1._pi_range[1] == +1)
-        self.assertTrue(hasattr(A1, '_pi_center'))
-        self.assertTrue(A1._pi_center == 0)
+        self.assertTrue(hasattr(A1, 'pi_lo'))
+        self.assertTrue(A1.pi_lo == -1)
+        self.assertTrue(hasattr(A1, 'pi_hi'))
+        self.assertTrue(A1.pi_hi == +1)
+        self.assertTrue(hasattr(A1, 'pi_range'))
+        self.assertTrue(A1.pi_range[0] == -1)
+        self.assertTrue(A1.pi_range[1] == +1)
+        self.assertTrue(hasattr(A1, 'pi_center'))
+        self.assertTrue(A1.pi_center == 0)
 
 
         self.assertTrue(isinstance(A2.index, pd.Index))
-        self.assertTrue(hasattr(A2, '_pi_index'))
+        self.assertTrue(hasattr(A2, 'pi_index'))
         self.assertTrue(A2.name == 'Unnamed')
 
         with self.assertRaises(IndexError):
@@ -80,23 +80,23 @@ class TestStructures(unittest.TestCase):
         self.assertTrue(B.name == 'B')
 
 
-        self.assertTrue(C1._pi_range == (4, 6))
-        self.assertTrue(C2._pi_center == 5)
-        self.assertTrue(C2._pi_range == (4, 6))
-        self.assertTrue(C3._pi_lo == 4)
-        self.assertTrue(C3._pi_hi == 6)
-        self.assertTrue(C4._pi_lo == 4)
-        self.assertTrue(C4._pi_hi == 6)
-        self.assertTrue(C5._pi_hi == 6)
+        self.assertTrue(C1.pi_range == (4, 6))
+        self.assertTrue(C2.pi_center == 5)
+        self.assertTrue(C2.pi_range == (4, 6))
+        self.assertTrue(C3.pi_lo == 4)
+        self.assertTrue(C3.pi_hi == 6)
+        self.assertTrue(C4.pi_lo == 4)
+        self.assertTrue(C4.pi_hi == 6)
+        self.assertTrue(C5.pi_hi == 6)
         self.assertTrue(C5.name == 'C5')
 
         # User says the low is 5, but the minimum is actually different
-        self.assertTrue(C6._pi_lo == 5)
-        self.assertTrue(C6._pi_range == (5, 6))
+        self.assertTrue(C6.pi_lo == 5)
+        self.assertTrue(C6.pi_range == (5, 6))
 
 
         D = c(*(self.D))
-        self.assertTrue(D._pi_numeric == True)
+        self.assertTrue(D.pi_numeric == True)
 
 
         self.assertTrue(len(y) == 6)
@@ -154,7 +154,7 @@ class Test_API_usage(unittest.TestCase):
         V = c(self.df1['V'], lo = self.df1['V'].min(), hi=self.df1['V'].max(),
                name='V')
         B = c(self.df1['B'], name='B')
-        self.assertTrue(B._pi_levels[B.name] == ['Ard', 'Eme'])
+        self.assertTrue(B.pi_levels[B.name] == ['Ard', 'Eme'])
 
 
         y = self.df1['y']

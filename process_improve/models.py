@@ -95,7 +95,7 @@ class Model(OLS):
 
     def get_title(self) -> str:
         """ Gets the model's title, if it has one. Always returns a string."""
-        return self.data.pi_title or ''
+        return self.data.get_title()
 
 
 
@@ -131,8 +131,7 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
 
         #np.dot(model.exog.T, model.exog)/model.exog.shape[0]
         # Drop columns whihc do not have any variation
-        corrcoef = np.corrcoef(model.exog[:, has_variation].T,
-                         ddof=0)
+        corrcoef = np.corrcoef(model.exog[:, has_variation].T) #, ddof=0)
         aliasing = defaultdict(list)
         lim = 0.9995
         terms = model_desc.rhs_termlist
