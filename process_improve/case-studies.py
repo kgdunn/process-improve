@@ -268,9 +268,39 @@ def case_worksheet_6():
     expt = gather(A=A, B=B, C=C, y=y, title='Half-fraction, using C = A*B')
     print(expt)
     model_stability_poshalf = lm("y ~ A*B*C", expt)
+
+    
     summary(model_stability_poshalf)
     pareto_plot(model_stability_poshalf)
     pareto_plot(model_stability_poshalf, up_to_level=2)
+
+def case_worksheet_8():
+    """
+    Highly-fractionated factorial
+    """
+    A, B, C = full_factorial(3, names = ['A', 'B', 'C'])
+
+    # These 4 factors are generated, using the trade-off table relationships
+    D = A*B
+    E = A*C
+    F = B*C
+    G = A*B*C
+    
+    # These are the 8 experimental outcomes, corresponding to the 8 entries 
+    # in each of the vectors above
+    y = c(320, 276, 306, 290, 272, 274, 290, 255)
+
+    expt = gather(A=A, B=B, C=C, D=D, E=E, F=F, G=G, y=y,
+                 title="Fractopm")
+
+    # And finally, the linear model
+    mod_ff = lm("y ~ A*B*C*D*E*F*G", data=expt)
+    pareto_plot(mod_ff)
+
+    # Now rebuild the linear model with only the 4 important terms
+    mod_res4 =  lm("y ~ A*C*E*G", data=expt)
+    pareto_plot(mod_res4)
+ 
 
 if __name__ == '__main__':
 # tradeoff_table()
@@ -280,6 +310,7 @@ if __name__ == '__main__':
     # case_worksheet_5()
     # api_usage()
     case_worksheet_6()
+    case_worksheet_8()
 
     case_w2()
     case_w4_1()

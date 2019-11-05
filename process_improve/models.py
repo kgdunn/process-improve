@@ -130,8 +130,18 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
         has_variation = model.exog.std(axis=0) > np.sqrt(np.finfo(float).eps)
 
         #np.dot(model.exog.T, model.exog)/model.exog.shape[0]
-        # Drop columns whihc do not have any variation
-        corrcoef = np.corrcoef(model.exog[:, has_variation].T) #, ddof=0)
+        # Drop columns which do not have any variation
+        #corrcoef = np.corrcoef(model.exog[:, has_variation].T) #, ddof=0)
+        c = np.cov(model.exog.T, None, rowvar=True)
+        try:
+            d = np.diag(c)
+        except ValueError:
+            # scalar covariance
+            # nan if incorrect value (nan, inf, 0), 1 otherwise
+            return c / c
+        stddev = np.sqrt(d.real)
+        
+        #corrcoef = np.corrcoef(model.exog.T) #, ddof=0)
         aliasing = defaultdict(list)
         lim = 0.9995
         terms = model_desc.rhs_termlist
@@ -142,14 +152,20 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
         for idx, check in enumerate(has_variation):#enumerate(range(cc.shape[1])):
             if check:
                 counter += 1
+                corrcoef = c / stddev[idx, None]
+                corrcoef = corrcoef / stddev[None, idx]
+                candidates = [i for i,j in enumerate(np.abs(corrcoef[idx, :])) if (j>lim)] 
+            else:
+                # Column with no variation
+                candidates = [i for i,j in enumerate(has_variation) if (j<=lim)]
 
-            candidates = [i for i,j in enumerate(np.abs(corrcoef[counter])) if (j>lim)]
-            alias_len = [(i, len(terms[i].factors)) for i in candidates]
+            # Now drop out the candidates with the longest word lengths
+            alias_len = [(len(terms[i].factors), i) for i in candidates]
             alias_len.sort(reverse=True)
             for entry in alias_len[0:-1]:
-                drop_columns.append(entry[0])
+                drop_columns.append(entry[1])
                 try:
-                    keep_columns.pop(keep_columns.index(entry[0]))
+                    keep_columns.pop(keep_columns.index(entry[1]))
                 except ValueError:
                     pass
 
@@ -160,7 +176,6 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
                 else:
                     model_desc.rhs_termlist[col].factors
                     aliasing[terms[idx].factors].append(terms[col].factors)
-
 
         return aliasing, list(set(drop_columns))
 
