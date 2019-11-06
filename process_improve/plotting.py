@@ -132,9 +132,12 @@ def pareto_plot(model,
         ("Magnitude and sign", "@original_magnitude_with_sign"),
     ]
 
-    alias_strings = model.get_aliases(aliasing_up_to_level)
+    alias_strings = model.get_aliases(aliasing_up_to_level,
+                                      drop_intercept = True,
+                                      websafe = True)
+
     if len(alias_strings) != 0:
-        TOOLTIPS.append(("Aliasing", "@alias_strings"),)
+        TOOLTIPS.append(("Aliasing", "@alias_strings{safe}"),)
     else:
         alias_strings = [''] * len(params.values)
     alias_strings = [alias_strings[i] for i in sort_order]

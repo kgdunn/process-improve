@@ -120,11 +120,22 @@ class Model(OLS):
         """ Gets the model's title, if it has one. Always returns a string."""
         return self.data.get_title()
 
-    def get_aliases(self, aliasing_up_to_level: Optional[int] = 2,
-                    drop_intercept: Optional[bool] = True) -> list:
+    def get_aliases(self,
+                    aliasing_up_to_level: Optional[int] = 2,
+                    drop_intercept: Optional[bool] = True,
+                    websafe: Optional[bool] = False) -> list:
         """
         Returns a list, containing strings, representing the aliases
         of the fitted effects.
+
+        aliasing_up_to_level: up to which level of interactions shown
+
+        drop_intercept: default is True, but sometimes it is interesting to
+            know which effects are aliased with the intercept
+
+        websafe: default is False; if True, will print the first term
+            in the aliasing in bold, since that is the nominally estimated
+            effect.
         """
         alias_strings = []
         if len(self.aliasing.keys()) == 0:
@@ -132,7 +143,11 @@ class Model(OLS):
 
         params = self.get_parameters(drop_intercept=drop_intercept)
         for p_name in params.index.values:
-            aliasing = p_name
+            if websafe:
+                aliasing = ('<span style="font-size: 130%; font-weight: 700">'
+                            f'{p_name}</span>')
+            else:
+                aliasing = p_name
             suffix = ''
             for alias in self.aliasing[tuple([p_name])]:
 
@@ -140,7 +155,10 @@ class Model(OLS):
                 if (len(alias)-1) <= aliasing_up_to_level:
                     aliasing += f" {alias[0]} {':'.join(alias[1:])}"
                 if (len(alias)-1) > aliasing_up_to_level:
-                    suffix = ' + higher interactions'
+                    if websafe:
+                        suffix = r' + <i>higher interactions</i>'
+                    else:
+                        suffix = ' + higher interactions'
 
             # Finished with this parameter
             alias_strings.append(aliasing + suffix)
