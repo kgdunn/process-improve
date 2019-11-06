@@ -120,11 +120,11 @@ def pareto_plot(model,
             full_names.append(f'Interaction between {param_name}')
 
     # Shuffle the collected information in the same way
-    beta_str = [beta_str[i] for i in params.argsort().values]
-    bar_colours = [bar_colours[i] for i in params.argsort().values]
-    bar_signs = [bar_signs[i] for i in params.argsort().values]
-    full_names = [full_names[i] for i in params.argsort().values]
-    params = params.sort_values(na_position='last')
+    sort_order = params.argsort().values
+    beta_str = [beta_str[i] for i in sort_order]
+    bar_colours = [bar_colours[i] for i in sort_order]
+    bar_signs = [bar_signs[i] for i in sort_order]
+    full_names = [full_names[i] for i in sort_order]
 
     TOOLTIPS = [
         ("Short name", "@factor_names"),
@@ -137,7 +137,10 @@ def pareto_plot(model,
         TOOLTIPS.append(("Aliasing", "@alias_strings"),)
     else:
         alias_strings = [''] * len(params.values)
+    alias_strings = [alias_strings[i] for i in sort_order]
 
+    # And only right at the end you can sort the parameter values:
+    params = params.sort_values(na_position='last')
 
     source = ColumnDataSource(data=dict(
         x=params.values,
