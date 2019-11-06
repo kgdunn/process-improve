@@ -143,7 +143,7 @@ def pareto_plot(model,
         ("Full name", "@full_names"),
         ("Magnitude and sign", "@original_magnitude_with_sign"),
     ]
-    if len(alias_strings) == 0:
+    if len(alias_strings) != 0:
         TOOLTIPS.append(("Aliasing", "@alias_strings"),)
 
     p = figure(plot_width=plot_width,
