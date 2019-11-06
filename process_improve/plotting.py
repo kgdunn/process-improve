@@ -34,8 +34,16 @@ def pareto_plot(model,
                 # show all factors and interactions
                 up_to_level=None,
                 main="Pareto plot", legendtitle="Sign of coefficients",
-                negative=("Negative", "grey"), positive=("Positive", "black"),
-                show=True, plot_width=500, plot_height=None):
+                negative=("Negative effects", "#0080FF"),
+                positive=("Positive effects", "#FF8000"),
+
+                show=True,
+                plot_width=500,
+                plot_height=None,
+
+                # In the hover over the bars
+                aliasing_up_to_level=2):
+
     """
     Plots the Pareto plot for a given model.
 
@@ -60,6 +68,9 @@ def pareto_plot(model,
         second entry is the colour of the positive coefficient bars.
     show: boolean; optional, default: True
         Whether or not to show the plot directly.
+    aliasing_up_to_level: int; optional, default: 2
+        Shows aliasing as hover entries on the bars, up to this level of
+        interaction.
 
     Returns
     -------
@@ -97,6 +108,7 @@ def pareto_plot(model,
     bar_colours = [negative[1] if p < 0 else positive[1] for p in param_values]
     bar_signs = ['Positive' if i > 0 else 'Negative' for i in param_values]
 
+    #Show the absolute parameter values, but we will colour code them
     params = params.abs()
     base_parameters = model.get_factor_names(level=1)
     full_names = []
@@ -114,6 +126,20 @@ def pareto_plot(model,
     full_names = [full_names[i] for i in params.argsort().values]
     params = params.sort_values(na_position='last')
 
+    alias_string = []
+    for p_name in params.index.values:
+        aliasing = p_name
+        suffix = ''
+        for alias in model.aliasing[tuple(p_name)]:
+            if len(alias) <= aliasing_up_to_level:
+                aliasing += f" + {''.join(alias)}"
+            if len(alias) > aliasing_up_to_level:
+                suffix = ' + higher interactions'
+
+        alias_string.append(aliasing + suffix)
+
+
+
     source = ColumnDataSource(data=dict(
         x=params.values,
         y=np.arange(1, len(params.index) + 1),
@@ -122,11 +148,13 @@ def pareto_plot(model,
         bar_signs=bar_signs,
         full_names=full_names,
         original_magnitude_with_sign=beta_str,
+        alias_string=alias_string,
     ))
     TOOLTIPS = [
         ("Short name", "@factor_names"),
         ("Full name", "@full_names"),
         ("Magnitude and sign", "@original_magnitude_with_sign"),
+        ("Aliasing", "@alias_string"),
     ]
     p = figure(plot_width=plot_width,
                plot_height=plot_height or (500 + (len(params) - 8) * 20),

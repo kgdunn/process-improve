@@ -140,7 +140,7 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
             # nan if incorrect value (nan, inf, 0), 1 otherwise
             return c / c
         stddev = np.sqrt(d.real)
-        
+
         #corrcoef = np.corrcoef(model.exog.T) #, ddof=0)
         aliasing = defaultdict(list)
         lim = 0.9995
@@ -154,7 +154,7 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
                 counter += 1
                 corrcoef = c / stddev[idx, None]
                 corrcoef = corrcoef / stddev[None, idx]
-                candidates = [i for i,j in enumerate(np.abs(corrcoef[idx, :])) if (j>lim)] 
+                candidates = [i for i,j in enumerate(np.abs(corrcoef[idx, :])) if (j>lim)]
             else:
                 # Column with no variation
                 candidates = [i for i,j in enumerate(has_variation) if (j<=lim)]
@@ -174,8 +174,9 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
                     # It is of course perfectly correlated with itself
                     pass
                 else:
-                    model_desc.rhs_termlist[col].factors
-                    aliasing[terms[idx].factors].append(terms[col].factors)
+                    aliases = [t.name() for t in terms[col].factors]
+                    key = tuple([t.name() for t in terms[idx].factors])
+                    aliasing[key].append(aliases)
 
         return aliasing, list(set(drop_columns))
 
@@ -194,7 +195,9 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
     return out
 
 
-def summary(model: Model, show: Optional[bool] = True):
+def summary(model: Model,
+            show: Optional[bool] = True,
+            ):
     """
     Prints a summary to the screen of the model.
     """

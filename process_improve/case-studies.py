@@ -269,7 +269,7 @@ def case_worksheet_6():
     print(expt)
     model_stability_poshalf = lm("y ~ A*B*C", expt)
 
-    
+
     summary(model_stability_poshalf)
     pareto_plot(model_stability_poshalf)
     pareto_plot(model_stability_poshalf, up_to_level=2)
@@ -285,8 +285,8 @@ def case_worksheet_8():
     E = A*C
     F = B*C
     G = A*B*C
-    
-    # These are the 8 experimental outcomes, corresponding to the 8 entries 
+
+    # These are the 8 experimental outcomes, corresponding to the 8 entries
     # in each of the vectors above
     y = c(320, 276, 306, 290, 272, 274, 290, 255)
 
@@ -300,7 +300,7 @@ def case_worksheet_8():
     # Now rebuild the linear model with only the 4 important terms
     mod_res4 =  lm("y ~ A*C*E*G", data=expt)
     pareto_plot(mod_res4)
- 
+
 
 if __name__ == '__main__':
 # tradeoff_table()
