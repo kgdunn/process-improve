@@ -11,6 +11,29 @@ import statsmodels.api as sm
 from statsmodels.regression.linear_model import OLS
 from patsy import ModelDesc
 
+
+def forg(x, prec=3):
+    """
+    Yanked from the code for Statsmodels\iolib\summary.py
+    and adjusted
+    """
+    if prec == 3:
+        # for 3 decimals
+        if (abs(x) >= 1e4) or (abs(x) < 1e-4):
+            return '%9.3g' % x
+        else:
+            return '%9.3f' % x
+    elif prec == 4:
+        if (abs(x) >= 1e4) or (abs(x) < 1e-4):
+            return '%10.4g' % x
+        else:
+            return '%10.4f' % x
+    else:
+        raise NotImplementedError
+
+
+
+
 class Model(OLS):
     """
     Just a thin wrapper around the OLS class from Statsmodels."""
@@ -97,6 +120,33 @@ class Model(OLS):
         """ Gets the model's title, if it has one. Always returns a string."""
         return self.data.get_title()
 
+    def get_aliases(self, aliasing_up_to_level: Optional[int] = 2,
+                    drop_intercept: Optional[bool] = True) -> list:
+        """
+        Returns a list, containing strings, representing the aliases
+        of the fitted effects.
+        """
+        alias_strings = []
+        if len(self.aliasing.keys()) == 0:
+            return alias_strings
+
+        params = self.get_parameters(drop_intercept=drop_intercept)
+        for p_name in params.index.values:
+            aliasing = p_name
+            suffix = ''
+            for alias in self.aliasing[tuple([p_name])]:
+
+                # Subtract "-1" because the first list entry tracks the sign
+                if (len(alias)-1) <= aliasing_up_to_level:
+                    aliasing += f" {alias[0]} {':'.join(alias[1:])}"
+                if (len(alias)-1) > aliasing_up_to_level:
+                    suffix = ' + higher interactions'
+
+            # Finished with this parameter
+            alias_strings.append(aliasing + suffix)
+
+        # All done
+        return alias_strings
 
 
 Model.__repr__ = Model.__str__
@@ -105,7 +155,6 @@ def predict(model, **kwargs):
     """
     Make predictions from the model
     """
-    # kwargs
     return model._OLS.predict(exog=dict(kwargs))
 
 
@@ -117,9 +166,10 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
     # TODO: handle collinear columns, aliases.
     #
 
-    def find_aliases(model, model_desc):
+    def find_aliases(model, model_desc, threshold_correlation = 0.99):
         """
-        Finds columns which are exactly correlated.
+        Finds columns which are exactly correlated, or up to at least a level
+        of `threshold_correlation`.
         Returns a dictionary of aliasing and a list of columns to keep.
 
         The columns to keep will be in the order checked. Perhaps this can be
@@ -132,7 +182,10 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
         #np.dot(model.exog.T, model.exog)/model.exog.shape[0]
         # Drop columns which do not have any variation
         #corrcoef = np.corrcoef(model.exog[:, has_variation].T) #, ddof=0)
+
+        # Snippet of code here is from the NumPy "corrcoef" function. Adapted.
         c = np.cov(model.exog.T, None, rowvar=True)
+        dot_product = np.dot(model.exog.T, model.exog)
         try:
             d = np.diag(c)
         except ValueError:
@@ -141,42 +194,65 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
             return c / c
         stddev = np.sqrt(d.real)
 
-        #corrcoef = np.corrcoef(model.exog.T) #, ddof=0)
         aliasing = defaultdict(list)
-        lim = 0.9995
         terms = model_desc.rhs_termlist
-
         drop_columns = []
-        keep_columns = list(range(len(has_variation)))
+        #keep_columns = list(range(len(has_variation)))
         counter = -1
-        for idx, check in enumerate(has_variation):#enumerate(range(cc.shape[1])):
+        for idx, check in enumerate(has_variation):
             if check:
                 counter += 1
                 corrcoef = c / stddev[idx, None]
                 corrcoef = corrcoef / stddev[None, idx]
-                candidates = [i for i,j in enumerate(np.abs(corrcoef[idx, :])) if (j>lim)]
+                candidates = [i for i,j in enumerate(np.abs(corrcoef[idx, :])) \
+                                                   if (j>threshold_correlation)]
+                signs = [np.sign(j) for j in corrcoef[idx, :]]
             else:
-                # Column with no variation
-                candidates = [i for i,j in enumerate(has_variation) if (j<=lim)]
+                # Columns with no variation
+                candidates = [i for i,j in enumerate(has_variation) \
+                                                if (j<=threshold_correlation)]
+
+            # Track the correlation signs
+            signs = [np.sign(j) for j in dot_product[idx,:]]
 
             # Now drop out the candidates with the longest word lengths
             alias_len = [(len(terms[i].factors), i) for i in candidates]
             alias_len.sort(reverse=True)
             for entry in alias_len[0:-1]:
                 drop_columns.append(entry[1])
-                try:
-                    keep_columns.pop(keep_columns.index(entry[1]))
-                except ValueError:
-                    pass
+                #try:
+                    #keep_columns.pop(keep_columns.index(entry[1]))
+                #except ValueError:
+                    #pass
 
             for col in candidates:
                 if col == idx:
                     # It is of course perfectly correlated with itself
                     pass
                 else:
+
                     aliases = [t.name() for t in terms[col].factors]
+                    if len(aliases) == 0:
+                        aliases = ['Intercept']
+
                     key = tuple([t.name() for t in terms[idx].factors])
+                    if len(key) == 0:
+                        key = ('Intercept', )
+
+                    if signs[col] > 0:
+                        aliases.insert(0, '+')
+                    if signs[col] < 0:
+                        aliases.insert(0, '-')
                     aliasing[key].append(aliases)
+
+        # Sort the aliases in length:
+
+        for key, val in aliasing.items():
+            alias_len = [(len(i), i) if i[1] != 'Intercept' else (1E5, i) for i in val]
+            alias_len.sort()
+            aliasing[key] = [i[1] for i in alias_len]
+
+
 
         return aliasing, list(set(drop_columns))
 
@@ -197,11 +273,24 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
 
 def summary(model: Model,
             show: Optional[bool] = True,
+            aliasing_up_to_level: Optional[int]=3,
             ):
     """
     Prints a summary to the screen of the model.
+
+    Appends, if there is any aliasing, a summary of those aliases,
+    up to the (integer) level of interaction: `aliasing_up_to_level`.
     """
     out = model.summary()
+    extra = []
+    aliases = model.get_aliases(aliasing_up_to_level, drop_intercept=False)
+    values = model.get_parameters(drop_intercept=False).values
+    if len(aliases):
+        extra.append('Aliasing pattern')
+        for value, alias in zip(values, aliases):
+            extra.append(f' {forg(value, 4)} = {alias}' )
+
+    out.add_extra_txt(extra)
     if show:
         print(out)
     return out

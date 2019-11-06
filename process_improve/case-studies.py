@@ -248,9 +248,9 @@ def api_usage():
                   77, cp_expt, units='g/L', name = 'Yield')
 
 
-    model_start = lm("y ~ <full>", expt)
-    model_start = lm("y ~ <2fi>", expt)
-    model_start = lm("y ~ <3fi>", expt)
+    #model_start = lm("y ~ <full>", expt)
+    #model_start = lm("y ~ <2fi>", expt)
+    #model_start = lm("y ~ <3fi>", expt)
 
 def case_worksheet_6():
     """
@@ -266,13 +266,19 @@ def case_worksheet_6():
 
     # Linear model using only 4 experiments
     expt = gather(A=A, B=B, C=C, y=y, title='Half-fraction, using C = A*B')
-    print(expt)
     model_stability_poshalf = lm("y ~ A*B*C", expt)
-
-
     summary(model_stability_poshalf)
     pareto_plot(model_stability_poshalf)
-    pareto_plot(model_stability_poshalf, up_to_level=2)
+
+    # The half-fraction, when C = -A*B
+    C = -A * B
+    y = c(41, 27, 35, 20, name="Stability", units="days")
+
+    # Linear model using only 4 experiments
+    expt = gather(A=A, B=B, C=C, y=y, title='Half-fraction, using C = -A*B')
+    model_stability_neghalf = lm("y ~ A*B*C", expt)
+    summary(model_stability_neghalf)
+    pareto_plot(model_stability_neghalf)
 
 def case_worksheet_8():
     """
@@ -295,10 +301,12 @@ def case_worksheet_8():
 
     # And finally, the linear model
     mod_ff = lm("y ~ A*B*C*D*E*F*G", data=expt)
+    summary(mod_ff)
     pareto_plot(mod_ff)
 
     # Now rebuild the linear model with only the 4 important terms
     mod_res4 =  lm("y ~ A*C*E*G", data=expt)
+    summary(mod_res4)
     pareto_plot(mod_res4)
 
 

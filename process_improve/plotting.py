@@ -126,19 +126,7 @@ def pareto_plot(model,
     full_names = [full_names[i] for i in params.argsort().values]
     params = params.sort_values(na_position='last')
 
-    alias_string = []
-    for p_name in params.index.values:
-        aliasing = p_name
-        suffix = ''
-        for alias in model.aliasing[tuple(p_name)]:
-            if len(alias) <= aliasing_up_to_level:
-                aliasing += f" + {''.join(alias)}"
-            if len(alias) > aliasing_up_to_level:
-                suffix = ' + higher interactions'
-
-        alias_string.append(aliasing + suffix)
-
-
+    alias_strings = model.get_aliases(aliasing_up_to_level)
 
     source = ColumnDataSource(data=dict(
         x=params.values,
@@ -148,13 +136,13 @@ def pareto_plot(model,
         bar_signs=bar_signs,
         full_names=full_names,
         original_magnitude_with_sign=beta_str,
-        alias_string=alias_string,
+        alias_strings=alias_strings,
     ))
     TOOLTIPS = [
         ("Short name", "@factor_names"),
         ("Full name", "@full_names"),
         ("Magnitude and sign", "@original_magnitude_with_sign"),
-        ("Aliasing", "@alias_string"),
+        ("Aliasing", "@alias_strings"),
     ]
     p = figure(plot_width=plot_width,
                plot_height=plot_height or (500 + (len(params) - 8) * 20),
