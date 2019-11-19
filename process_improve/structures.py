@@ -53,6 +53,29 @@ class Column(pd.Series):
         return out
 
 
+    def extend(self, values):
+        """
+        Extends the column with the list of new values.
+        """
+        assert isinstance(values, list), "The 'values' must be in a list [...]"
+        prior_n = self.index[-1]
+        index = list(range(prior_n + 1, prior_n + len(values) + 1))
+        new = pd.Series(data=values, index=index)
+        intermediate = self.copy(deep=True)
+        intermediate = intermediate.append(new)
+
+        # Carry the meta data over. For some reason the `pd.Series.append`
+        # function does not do this (yet?)
+        for key in self._metadata:
+            setattr(intermediate, key, getattr(self, key))
+        intermediate.name = self.name
+        return intermediate
+
+
+
+
+
+
 class Expt(pd.DataFrame):
     """
     Dataframe object with experimental data. Builds on the Pandas dataframe,

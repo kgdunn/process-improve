@@ -317,10 +317,19 @@ def case_worksheet_9():
     expt1 = gather(D=D1, y=y1, title="Experiment 1")
     model1 = lm("y ~ D", data=expt1)
     summary(model1)
-    p = slider_plot(model1, "T", "y",
-                    x_slider="T",
-                    xlim=(-2, 5),
-                    color="black")
+    #p = plot_model(model1, "T", "y",
+    #                x_slider="T",
+    #                xlim=(-2, 5),
+    #                color="black")
+
+
+    d2 = d1.extend([36, 36])
+    D2 = d2.to_coded()
+    y2 = y1.extend([51, 54])
+    expt2 = gather(D=D2, y=y2, title="Experiment with 2 center points")
+    model2 = lm("y ~ D + I(1/np.sqrt(D))", data=expt2)
+    summary(model2)
+
 
 
 if __name__ == '__main__':
