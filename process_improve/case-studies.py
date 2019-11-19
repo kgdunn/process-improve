@@ -7,7 +7,7 @@ sys.path.append(os.path.split(__file__)[0])
 
 from structures import (gather, c, expand_grid, supplement)
 from models import (lm, summary, predict)
-from plotting import (pareto_plot, contour_plot, tradeoff_table)
+from plotting import (pareto_plot, contour_plot, slider_plot)
 from designs_factorial import full_factorial
 
 def case_3B():
@@ -309,6 +309,19 @@ def case_worksheet_8():
     summary(mod_res4)
     pareto_plot(mod_res4)
 
+def case_worksheet_9():
+    d1 = c(24, 48, center=36, range=(24, 48), coded=False, units='hours',
+           name='Duration')
+    D1 = d1.to_coded()
+    y1 = c(23, 64, name="Production", units="g/unit sugar")
+    expt1 = gather(D=D1, y=y1, title="Experiment 1")
+    model1 = lm("y ~ D", data=expt1)
+    summary(model1)
+    p = slider_plot(model1, "T", "y",
+                    x_slider="T",
+                    xlim=(-2, 5),
+                    color="black")
+
 
 if __name__ == '__main__':
 # tradeoff_table()
@@ -317,8 +330,9 @@ if __name__ == '__main__':
     #case_3D()
     # case_worksheet_5()
     # api_usage()
-    case_worksheet_6()
-    case_worksheet_8()
+    #case_worksheet_6()
+    #case_worksheet_8()
+    case_worksheet_9()
 
     case_w2()
     case_w4_1()

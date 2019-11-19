@@ -551,3 +551,11 @@ def tradeoff_table(show_in_browser= True,
         fqp = f"file://{path.drive}/{'/'.join(path.parts[1:-1])}/media/{fname}"
         url = 'https://yint.org/tradeoff'
         webbrowser.open_new_tab(url)
+
+
+def slider_plot(model, x_column, y_column, x_slider=None, y_slider=None,
+                **kwargs):
+    """
+
+    """
+    return None

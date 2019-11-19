@@ -9,6 +9,7 @@ class Column(pd.Series):
     """
     Creates a column. Can be used as a factor, or a response vector.
     """
+    #https://pandas.pydata.org/pandas-docs/stable/development/extending.html
     # Temporary properties
     _internal_names = pd.DataFrame._internal_names + ['not_used_for_now']
     _internal_names_set = set(_internal_names)
@@ -20,11 +21,36 @@ class Column(pd.Series):
                  'pi_hi',      # if numeric: high level (+1)
                  'pi_range',   # if numeric: range: distance from low to high
                  'pi_center',  # if numeric: midway between low and high (0)
+                 'pi_is_coded',# is it a coded variables, or in real-world units
+                 'pi_units',   # string variable, containing the units
+                 'pi_name',    # name of the column
                 ]
 
     @property
     def _constructor(self):
         return Column
+
+    def to_coded(self, center=None, range=None):
+        """
+        Converts the column vector to coded units.
+        """
+        out = self.copy(deep=True)
+        if self.pi_is_coded:
+            return out
+
+        x_center = center or self.pi_center
+        x_range = range or self.pi_range
+        # Simply override the values and the `pi_is_coded` flag, but all the
+        # rest remains as is.
+        out.iloc[:] = (self.values - x_center) / (0.5 * np.diff(x_range)[0])
+        out.pi_is_coded = True
+
+        return out
+
+    def copy(self, deep=True):
+        out = pd.Series.copy(self, deep=deep)
+        out.name = self.name
+        return out
 
 
 class Expt(pd.DataFrame):
@@ -110,19 +136,33 @@ def c(*args, **kwargs) -> Column:
     # All equivalent ways of creating a factor, "A"
 
     A = c(-1, 0, +1, -1, +1)
+
     A = c(-1, 0, +1, -1, +1, index=['lo', 'cp', 'hi', 'lo', 'hi'])
     A = c( 4, 5,  6,  4,  6, range=(4, 6))
     A = c( 4, 5,  6,  4,  6, center=5, range=(4, 6))  # more explicit
     A = c( 4, 5,  6,  4,  6, lo=4, hi=6)
     A = c( 4, 5,  6,  4,  6, lo=4, hi=6, name = 'A')
     A = c([4, 5,  6,  4,  6], lo=4, hi=6, name = 'A')
+    A = c([4, 5,  6,  4,  6], lo=4, hi=6, name = 'A')
 
+    # By default, the assumption is the variable levels supplied are coded
+    # units. But if any one of the following: `lo`, `hi`, `center` OR `range`
+    # are specified, then immediately it is assumed that the variable values
+    # are not coded.
+    # So, to force the specification, you may supply the optional input of
+    # `is_coded` as True or False
+    A = c([4, 5,  6,  4,  6], lo=1, hi=3, is_coded=True)
+    A = c([4, 5,  6,  4,  6], lo=1, hi=3, is_coded=False, units="g/mL")
 
+    # Categorical variables
     B = c(0, 1, 0, 1, 0, 2, levels =(0, 1, 2))
+    M = c("Dry", "Wet", "Dry", "Wet", levels = ("Dry", "Wet"))
 
     """
     sanitize = []
     numeric = True
+    override_coded = kwargs.get('is_coded', None)
+
     if 'levels' in kwargs:
         numeric = False
 
@@ -173,11 +213,46 @@ def c(*args, **kwargs) -> Column:
     out.pi_range = None
     out.pi_center = None
     out.pi_numeric = numeric
+    out.pi_units = None
+    out.pi_name = name
+    out.pi_is_coded = True
+
     if numeric:
-        out.pi_lo = kwargs.get('lo', out.min())
-        out.pi_hi = kwargs.get('hi', out.max())
-        out.pi_range = kwargs.get('range', (out.pi_lo, out.pi_hi))
-        out.pi_center = kwargs.get('center', np.mean(out.pi_range))
+
+        # If any of 'lo', 'hi', 'center', or 'range' are specified, then it
+        # is assumed that the variable is NOT coded
+        try:
+            out.pi_lo = kwargs.get('lo')
+            out.pi_is_coded = False
+        except KeyError:
+            out.pi_lo = out.min()
+
+        try:
+            out.pi_hi = kwargs.get('hi')
+            out.pi_is_coded = False
+        except KeyError:
+            out.pi_hi = out.max()
+
+        try:
+            out.pi_range = kwargs.get('range')
+            out.pi_is_coded = False
+        except KeyError:
+            out.pi_range = (out.pi_lo, out.pi_hi)
+
+        try:
+            out.pi_center = kwargs.get('center')
+            out.pi_is_coded = False
+        except KeyError:
+            out.pi_center = np.mean(out.pi_range)
+
+
+        # Finally, the user might have over-ridden the coding flag:
+        if override_coded is not None:
+            out.pi_is_coded = override_coded
+
+
+        out.pi_units = kwargs.get('units', '')
+
     else:
         if 'levels' in kwargs:
             msg = "Levels must be list or tuple of the unique level names."
