@@ -37,9 +37,10 @@ def forg(x, prec=3):
 class Model(OLS):
     """
     Just a thin wrapper around the OLS class from Statsmodels."""
-    def __init__(self, OLS_instance, model_spec, aliasing=None):
+    def __init__(self, OLS_instance, model_spec, aliasing=None, name=None):
         self._OLS = OLS_instance
         self._model_spec = model_spec
+        self.name = name
 
         # Standard error
         self.df_resid = self._OLS.df_resid
@@ -116,6 +117,11 @@ class Model(OLS):
                                                 if len(term.factors)==level]
 
 
+    def get_response_name(self):
+        spec = ModelDesc.from_formula(self._model_spec)
+        return spec.lhs_termlist[0].name()
+
+
     def get_title(self) -> str:
         """ Gets the model's title, if it has one. Always returns a string."""
         return self.data.get_title()
@@ -177,13 +183,12 @@ def predict(model, **kwargs):
 
 
 
-def lm(model_spec: str, data: pd.DataFrame) -> Model:
+def lm(model_spec: str,
+       data: pd.DataFrame,
+       name: Optional[str] = None) -> Model:
     """
     Create a linear model.
     """
-    # TODO: handle collinear columns, aliases.
-    #
-
     def find_aliases(model, model_desc, threshold_correlation = 0.99):
         """
         Finds columns which are exactly correlated, or up to at least a level
@@ -199,7 +204,7 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
 
         #np.dot(model.exog.T, model.exog)/model.exog.shape[0]
         # Drop columns which do not have any variation
-        #corrcoef = np.corrcoef(model.exog[:, has_variation].T) #, ddof=0)
+        corrcoef = np.corrcoef(model.exog[:, has_variation].T) #, ddof=0)
 
         # Snippet of code here is from the NumPy "corrcoef" function. Adapted.
         c = np.cov(model.exog.T, None, rowvar=True)
@@ -215,13 +220,21 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
         aliasing = defaultdict(list)
         terms = model_desc.rhs_termlist
         drop_columns = []
-        #keep_columns = list(range(len(has_variation)))
         counter = -1
+        corrcoef = c.copy()
         for idx, check in enumerate(has_variation):
             if check:
                 counter += 1
-                corrcoef = c / stddev[idx, None]
-                corrcoef = corrcoef / stddev[None, idx]
+
+                for j, stddev_value in enumerate(stddev):
+                    if stddev_value == 0:
+                        pass
+                    else:
+                        corrcoef[idx, j] = c[idx, j] / stddev[idx] / stddev[j]
+
+                #corrcoef = c / stddev[idx, None]
+                #corrcoef = corrcoef / stddev[None, idx]
+
                 candidates = [i for i,j in enumerate(np.abs(corrcoef[idx, :])) \
                                                    if (j>threshold_correlation)]
                 signs = [np.sign(j) for j in corrcoef[idx, :]]
@@ -238,10 +251,6 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
             alias_len.sort(reverse=True)
             for entry in alias_len[0:-1]:
                 drop_columns.append(entry[1])
-                #try:
-                    #keep_columns.pop(keep_columns.index(entry[1]))
-                #except ValueError:
-                    #pass
 
             for col in candidates:
                 if col == idx:
@@ -264,13 +273,10 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
                     aliasing[key].append(aliases)
 
         # Sort the aliases in length:
-
         for key, val in aliasing.items():
             alias_len = [(len(i), i) if i[1] != 'Intercept' else (1E5, i) for i in val]
             alias_len.sort()
             aliasing[key] = [i[1] for i in alias_len]
-
-
 
         return aliasing, list(set(drop_columns))
 
@@ -281,9 +287,12 @@ def lm(model_spec: str, data: pd.DataFrame) -> Model:
     drop_column_names = [pre_model.data.xnames[i] for i in drop_columns]
 
     post_model = smf.ols(model_spec, data=data, drop_cols=drop_column_names)
+
+    name = name or data.pi_title
     out = Model(OLS_instance=post_model.fit(),
                 model_spec=model_spec,
-                aliasing=aliasing)
+                aliasing=aliasing,
+                name=name)
     out.data = data
 
     return out

@@ -463,11 +463,8 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
         source = ColumnDataSource(data=dict(
             x=model.data[xlabel],
             y=model.data[ylabel],
-            output=model.data["y"].to_list(),  # <-- this needs to be generalized
-            # bar_colours=bar_colours,
-            # bar_signs=bar_signs,
-            # full_names=full_names,
-            # original_magnitude_with_sign=beta_str,
+            output=model.data[model.get_response_name()].to_list(),
+
         ))
         h_expts = p.circle(x='x',
                            y='y',
@@ -484,6 +481,8 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
                                  ("Actual value", "@output")  # why not working???
                                  ],
                        renderers=[h_expts])  # custom tooltip for the predicted image
+        h2.point_policy='snap_to_data'
+        h2.line_policy='none'
 
     # Axis labels:
     p.xaxis.axis_label_text_font_size = '14pt'
@@ -553,9 +552,166 @@ def tradeoff_table(show_in_browser= True,
         webbrowser.open_new_tab(url)
 
 
-def slider_plot(model, x_column, y_column, x_slider=None, y_slider=None,
-                **kwargs):
+def plot_model(model, x_column, y_column=None, fig=None,
+               x_slider=None, y_slider=None, show_expt_data=True,
+               figsize=(10, 10), dpi=100, **kwargs):
     """
+    Plots a `model` object with a given model input as `x_column` against
+    the model's output: `y_column`. If `y_column` is not specified, then it
+    found from the `model`.
 
+    For model's with more than 1 inputs, the `y_column` is the variable to be
+    plotted on the y-axis, and then the plot type is a contour plot.
     """
-    return None
+    pure_factors = model.get_factor_names(level=1)
+    dpi_max = dpi**3.5  # should be reasonable for most modern computers
+    per_axis_points = min(dpi, np.power(dpi_max, 1/len(pure_factors)))
+
+    # `oneD=True`: the x-variable is a model input, and the y-axis is a response
+    oneD = False
+    if y_column and y_column not in pure_factors:
+        oneD = True
+        y_column = model.get_response_name()
+
+    param_names = [model.get_response_name(),]
+    param_names.extend(model.get_factor_names())
+    assert x_column in param_names, "x_column must exist in the model."
+    assert y_column in param_names, "y_column must exist in the model."
+
+    xrange = model.data[x_column].min(), model.data[x_column].max()
+    xdelta = xrange[1] - xrange[0]
+    xlim = kwargs.get('xlim', (xrange[0]-xdelta*0.05, xrange[1]+xdelta*0.05))
+    h_grid = np.linspace(xlim[0], xlim[1], num=per_axis_points)
+    plotdata = {x_column: h_grid}
+
+    if not oneD:
+        yrange = model.data[y_column].min(), model.data[y_column].max()
+        ydelta = yrange[1] - yrange[0]
+        ylim = kwargs.get('ylim', (yrange[0]-ydelta*0.05,
+                                   yrange[1]+ydelta*0.05))
+
+        v_grid = np.linspace(ylim[0], ylim[1], num=per_axis_points)
+        H, V = np.meshgrid(h_grid, v_grid)
+        h_grid, v_grid = H.ravel(), V.ravel()
+        plotdata[x_column] = h_grid
+        plotdata[y_column] = v_grid
+
+    #TODO: handle the 2D case later
+
+    #if other_factors is not None and isinstance(other_factors, dict):
+        #plotdata = kwargs.update(other_factors)
+
+    ## Look at which factors are included, and pop them out. The remaining
+    ## factors are specified at their zero level
+
+    #unspecified_factors = [i for i in pure_factors if i not in kwargs.keys()]
+    #for factor in unspecified_factors:
+        #plotdata[factor] = np.zeros_like(h_grid)
+
+    #assert sorted(kwargs.keys()) == sorted(pure_factors), ("Not all factors "
+                                                           #"were specified.")
+
+    Z = predict(model, **plotdata)
+
+    if not oneD:
+        Z = Z.values.reshape(N, N)
+        z_min, z_max = Z.min(), Z.max()
+        levels = np.linspace(z_min, z_max, N)
+
+        from matplotlib.pyplot import contour, clabel
+        CS = contour(H, V, Z, levels=levels, linestyles='dotted')
+        clabel(CS, inline=True, fontsize=10, fmt='%1.0f')
+        contour_labels = [(float(q._x), float(q._y), float(q._text))\
+                                                         for q in CS.labelTexts]
+
+
+        # Convert the Matplotlib colour mapper to Bokeh
+        # https://stackoverflow.com/questions/49931311/using-matplotlibs-colormap-for-bokehs-color-bar
+        mapper = getattr(cm, colour_function)
+        colours = (255 * mapper(range(256))).astype('int')
+        colour_palette = [RGB(*tuple(rgb)).to_hex() for rgb in colours]
+        color_mapper = LinearColorMapper(palette=colour_palette,
+                                         low=z_min,
+                                         high=z_max)
+    else:
+        plotdata[y_column] = Z
+        yrange = Z.min(), Z.max()
+        ydelta = yrange[1] - yrange[0]
+        ylim = kwargs.get('ylim', (yrange[0]-ydelta*0.05,
+                                   yrange[1]+ydelta*0.05))
+
+    if fig:
+        p = fig
+        prior_figure = True
+    else:
+        prior_figure = False
+        p = figure(x_range=xlim,
+                   y_range=ylim,
+                    # https://github.com/bokeh/bokeh/issues/2351
+                   tools="pan,wheel_zoom,box_zoom, box_select,lasso_select,reset,save",
+                   )
+
+    if oneD:
+        h_line = p.line(plotdata[x_column], \
+               plotdata[y_column],
+               line_dash = 'solid',
+               color=kwargs.get('color', 'black'),
+               line_width=kwargs.get('line_width', 2))
+        h1 = HoverTool(tooltips=[(x_column, "$x"),
+                                 (f"Prediction of {y_column}", "$y"),
+                                 ("Source", model.name or '')
+                                 ],
+                       renderers=[h_line])  # custom tooltip for the predicted image
+        #h1.point_policy='snap_to_data'
+        h1.line_policy='nearest'
+
+
+    if show_expt_data:
+        source = ColumnDataSource(data=dict(
+            x = model.data[x_column],
+            y = model.data[y_column],
+            output=model.data[model.get_response_name()].to_list(),
+        ))
+        h_expts = p.circle(x='x',
+                           y='y',
+                           color='black',
+                           source=source,
+                           size=10,
+                           line_width=2,
+                           name='Experimental_points',)
+        h2 = HoverTool(tooltips=[(x_column, "$x"),
+                                 (y_column, "$y"),
+                                 ("Experimental value", "@output")
+                                 ],
+                       renderers=[h_expts])
+
+        h2.point_policy='snap_to_data'
+        h2.line_policy='none'
+
+
+    # Axis labels:
+    p.xaxis.axis_label_text_font_size = '14pt'
+    p.xaxis.axis_label = x_column
+    p.xaxis.major_label_text_font_size = '14pt'
+    p.xaxis.axis_label_text_font_style = 'bold'
+
+    p.yaxis.major_label_text_font_size = '14pt'
+    p.yaxis.axis_label = y_column
+    p.yaxis.axis_label_text_font_size = '14pt'
+    p.yaxis.axis_label_text_font_style = 'bold'
+    if prior_figure:
+        p.xaxis.bounds = (min(xlim[0], p.x_range.start),
+                          max(xlim[1], p.x_range.end))
+        p.yaxis.bounds = (min(ylim[0], p.y_range.start),
+                          max(ylim[1], p.y_range.end))
+    else:
+
+        p.xaxis.bounds = (xlim[0], xlim[1])
+        p.yaxis.bounds = (ylim[0], ylim[1])
+
+    # Add the hover tooltips:
+    p.add_tools(h1)
+    p.add_tools(h2)
+
+    show_plot(p)
+    return p

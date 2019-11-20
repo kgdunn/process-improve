@@ -7,7 +7,7 @@ sys.path.append(os.path.split(__file__)[0])
 
 from structures import (gather, c, expand_grid, supplement)
 from models import (lm, summary, predict)
-from plotting import (pareto_plot, contour_plot, slider_plot)
+from plotting import (pareto_plot, contour_plot, plot_model)
 from designs_factorial import full_factorial
 
 def case_3B():
@@ -310,41 +310,74 @@ def case_worksheet_8():
     pareto_plot(mod_res4)
 
 def case_worksheet_9():
+    """
+
+    Experiment
+    number	Date and time	Duration
+    [hours]	Product created [g], per unit sugar used
+    1	06 May 2019 09:36	24.0	23
+    2	06 May 2019 09:37	48.0	64
+    3	06 May 2019 09:38	36.0	51
+    4	06 May 2019 09:38	36.0	54
+    5	06 May 2019 09:40	60.0	71
+    6	20 May 2019 10:33	75.0	79
+    7	20 May 2019 10:40	90.0	81
+    8	20 May 2019 10:44	95.0	82
+    9	20 May 2019 10:45	105.0	67
+    """
     d1 = c(24, 48, center=36, range=(24, 48), coded=False, units='hours',
            name='Duration')
     D1 = d1.to_coded()
     y1 = c(23, 64, name="Production", units="g/unit sugar")
-    expt1 = gather(D=D1, y=y1, title="Experiment 1")
+    expt1 = gather(D=D1, y=y1, title="Starting off")
     model1 = lm("y ~ D", data=expt1)
     summary(model1)
-    #p = plot_model(model1, "T", "y",
-    #                x_slider="T",
-    #                xlim=(-2, 5),
-    #                color="black")
-
+    p = plot_model(model1, "D", "y", xlim=(-2, 5), color="blue")
 
     d2 = d1.extend([36, 36])
     D2 = d2.to_coded()
     y2 = y1.extend([51, 54])
-    expt2 = gather(D=D2, y=y2, title="Experiment with 2 center points")
-    model2 = lm("y ~ D + I(1/np.sqrt(D))", data=expt2)
-    summary(model2)
+    expt2 = gather(D=D2, y=y2, title="Added 2 center points")
 
+    # Model 2: y = intercept + D
+    model2 = lm("y ~ D", data=expt2)
+    summary(model2)
+    p = plot_model(model2, "D", "y", fig=p, xlim=(-2, 5), color="darkgreen")
+
+    # Model 2B: y = intercept + D + D^2
+    model2B = lm("y ~ D + I(D**2)", data=expt2)
+    summary(model2B)
+    p = plot_model(model2B, "D", "y", fig=p, xlim=(-2, 5), color="red")
+
+
+    # Try a new point at +2:
+    d3 = d2.extend([60])
+    D3 = d3.to_coded()
+    predict(model2B, D=D3)   # predicts ___
+
+    # Acutal y = 71. Therefore, our model isn't so good. Improve it:
+    y3 = y2.extend([71])
+    expt3 = gather(D=D3, y=y3, title="Extend out to +2 (coded)")
+    model3 = lm("y ~ D + I(D**2)", data=expt3, name='Quadratic model')
+    summary(model3)
+
+    # Plot it again: purple
+    p = plot_model(model3, "D", "y", fig=p, xlim=(-2, 5), color="purple")
 
 
 if __name__ == '__main__':
-# tradeoff_table()
+    # tradeoff_table()
     #case_3B()
     # case_3C(show=True)
     #case_3D()
-    # case_worksheet_5()
+    case_worksheet_5()
     # api_usage()
     #case_worksheet_6()
     #case_worksheet_8()
     case_worksheet_9()
 
-    case_w2()
-    case_w4_1()
-    case_w4_2()
+    #case_w2()
+    #case_w4_1()
+    #case_w4_2()
 
 
