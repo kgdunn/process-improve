@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="process-improve",
-    version="0.6.1",
+    version="0.6.2",
     author="Kevin Dunn",
     author_email="kgdunn@gmail.com",
     description="Process Improvement using Data, particularly Designed Experiments",
@@ -25,6 +25,5 @@ setuptools.setup(
         'statsmodels',
         'bokeh',
         'scikit-image',
-        'colorcet',
     ]
 )

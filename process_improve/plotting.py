@@ -317,10 +317,6 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
 
 contourPlot = contour_plot
 
-def predict_plot():
-    """Predictions via slides on a plot."""
-    pass
-
 def interaction_plot():
     """
     Interaction plot
