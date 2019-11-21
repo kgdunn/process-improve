@@ -355,7 +355,7 @@ def case_worksheet_9():
     D3 = d3.to_coded()
     predict(model2B, D=D3)   # predicts ___
 
-    # Acutal y = 71. Therefore, our model isn't so good. Improve it:
+    # Actual y = 71. Therefore, our model isn't so good. Improve it:
     y3 = y2.extend([71])
     expt3 = gather(D=D3, y=y3, title="Extend out to +2 (coded)")
     model3 = lm("y ~ D + I(D**2)", data=expt3, name='Quadratic model')
@@ -370,6 +370,13 @@ if __name__ == '__main__':
     #case_3B()
     # case_3C(show=True)
     #case_3D()
+    t = c(45, 55, lo=45, hi=55)
+    T = t.to_coded()
+    t = c(45, 55, 40, 67, lo=45, hi=55)
+    t.to_coded()
+    t.to_coded().to_realworld()
+
+
     case_worksheet_5()
     # api_usage()
     #case_worksheet_6()

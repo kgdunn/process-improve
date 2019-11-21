@@ -47,6 +47,23 @@ class Column(pd.Series):
 
         return out
 
+    def to_realworld(self, center=None, range=None):
+        """
+        Converts the column vector to real-world units.
+        """
+        out = self.copy(deep=True)
+        if not self.pi_is_coded:
+            return out
+
+        x_center = center or self.pi_center
+        x_range = range or self.pi_range
+        # Simply override the values and the `pi_is_coded` flag, but all the
+        # rest remains as is.
+        out.iloc[:] = self.values * (0.5 * np.diff(x_range)[0]) + x_center
+        out.pi_is_coded = False
+
+        return out
+
     def copy(self, deep=True):
         out = pd.Series.copy(self, deep=deep)
         out.name = self.name
@@ -184,7 +201,7 @@ def c(*args, **kwargs) -> Column:
     """
     sanitize = []
     numeric = True
-    override_coded = kwargs.get('is_coded', None)
+    override_coded = kwargs.get('coded', None)
 
     if 'levels' in kwargs:
         numeric = False
@@ -245,25 +262,25 @@ def c(*args, **kwargs) -> Column:
         # If any of 'lo', 'hi', 'center', or 'range' are specified, then it
         # is assumed that the variable is NOT coded
         try:
-            out.pi_lo = kwargs.get('lo')
+            out.pi_lo = kwargs['lo']
             out.pi_is_coded = False
         except KeyError:
             out.pi_lo = out.min()
 
         try:
-            out.pi_hi = kwargs.get('hi')
+            out.pi_hi = kwargs['hi']
             out.pi_is_coded = False
         except KeyError:
             out.pi_hi = out.max()
 
         try:
-            out.pi_range = kwargs.get('range')
+            out.pi_range = kwargs['range']
             out.pi_is_coded = False
         except KeyError:
             out.pi_range = (out.pi_lo, out.pi_hi)
 
         try:
-            out.pi_center = kwargs.get('center')
+            out.pi_center = kwargs['center']
             out.pi_is_coded = False
         except KeyError:
             out.pi_center = np.mean(out.pi_range)
