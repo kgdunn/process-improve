@@ -189,7 +189,7 @@ def lm(model_spec: str,
     """
     Create a linear model.
     """
-    def find_aliases(model, model_desc, threshold_correlation = 0.99):
+    def find_aliases(model, model_desc, threshold_correlation = 0.995):
         """
         Finds columns which are exactly correlated, or up to at least a level
         of `threshold_correlation`.
@@ -235,8 +235,8 @@ def lm(model_spec: str,
                 #corrcoef = c / stddev[idx, None]
                 #corrcoef = corrcoef / stddev[None, idx]
 
-                candidates = [i for i,j in enumerate(np.abs(corrcoef[idx, :])) \
-                                                   if (j>threshold_correlation)]
+                candidates = [i for i,val in enumerate(np.abs(corrcoef[idx, :]))\
+                                                if (val>threshold_correlation)]
                 signs = [np.sign(j) for j in corrcoef[idx, :]]
             else:
                 # Columns with no variation
