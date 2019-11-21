@@ -44,6 +44,9 @@ class Column(pd.Series):
         # rest remains as is.
         out.iloc[:] = (self.values - x_center) / (0.5 * np.diff(x_range)[0])
         out.pi_is_coded = True
+        if out.pi_name:
+            out.name = f'{out.pi_name} [coded]'
+
 
         return out
 
@@ -61,6 +64,9 @@ class Column(pd.Series):
         # rest remains as is.
         out.iloc[:] = self.values * (0.5 * np.diff(x_range)[0]) + x_center
         out.pi_is_coded = False
+        if out.pi_name  and out.pi_units:
+            out.name = f'{out.pi_name} [{out.pi_units}]'
+
 
         return out
 
@@ -87,10 +93,6 @@ class Column(pd.Series):
             setattr(intermediate, key, getattr(self, key))
         intermediate.name = self.name
         return intermediate
-
-
-
-
 
 
 class Expt(pd.DataFrame):
@@ -238,14 +240,8 @@ def c(*args, **kwargs) -> Column:
         raise IndexError(('Length of "index" must match the '
                           'number of numeric inputs.'))
 
-    name = kwargs.get('name', 'Unnamed')
-    units = kwargs.get('units', '')
-    if units:
-        name = f'{name} [{units}]'
 
-    out = Column(data=sanitize, index=index, name=name)
-    #out = pd.Series(data=sanitize, index=index, name=name)
-
+    out = Column(data=sanitize, index=index, name=None)
     # Use sensible defaults, if not provided
     out.pi_index = True
     out.pi_lo = None
@@ -254,7 +250,7 @@ def c(*args, **kwargs) -> Column:
     out.pi_center = None
     out.pi_numeric = numeric
     out.pi_units = None
-    out.pi_name = name
+    out.pi_name = None
     out.pi_is_coded = True
 
     if numeric:
@@ -303,6 +299,13 @@ def c(*args, **kwargs) -> Column:
             levels = out.unique()
             levels.sort()
             out.pi_levels = {name: levels.tolist()} # for use with Patsy
+
+    out.name = out.pi_name = kwargs.get('name', 'Unnamed')
+    units = kwargs.get('units', '')
+    if units and not(out.pi_is_coded):
+        out.name = f'{out.name} [{units}]'
+    if out.pi_is_coded:
+        out.name = f'{out.name} [coded]'
 
     return out
 

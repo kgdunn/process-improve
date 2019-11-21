@@ -372,9 +372,9 @@ if __name__ == '__main__':
     #case_3D()
     t = c(45, 55, lo=45, hi=55)
     T = t.to_coded()
-    t = c(45, 55, 40, 67, lo=45, hi=55)
-    t.to_coded()
-    t.to_coded().to_realworld()
+    t = c(45, 55, 40, 67, lo=45, hi=55,name="Temperature", units="C")
+    T = t.to_coded()
+    t = T.to_realworld()
 
 
     case_worksheet_5()
