@@ -136,7 +136,7 @@ class TestModels(unittest.TestCase):
         B = c(-1, -1, +1, +1)
         C = A * B
         y = c(41, 27, 35, 20, name="Stability", units="days")
-        self.expt = gather(A=A, B=B, C=C, y=y, 
+        self.expt = gather(A=A, B=B, C=C, y=y,
                            title='Half-fraction, using C = A*B')
         self.model_stability_poshalf = lm("y ~ A*B*C", self.expt)
 
@@ -168,7 +168,7 @@ class TestModels(unittest.TestCase):
             A:B:C             NA         NA      NA       NA
 
             Residual standard error: NaN on 0 degrees of freedom
-            Multiple R-squared:      1,	Adjusted R-squared:    NaN 
+            Multiple R-squared:      1,	Adjusted R-squared:    NaN
             F-statistic:   NaN on 3 and 0 DF,  p-value: NA
         """
 
@@ -185,8 +185,13 @@ class TestModels(unittest.TestCase):
 
         self.df_resid = 0
         self.df_model = 4
-        
+
         self.residuals = [0, 0, 0, 0]
+
+
+    Test aliasing detection
+    Test real-world and coded unit conversion back and forth
+
 
 class Test_API_usage(unittest.TestCase):
     def setUp(self):

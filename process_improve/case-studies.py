@@ -372,25 +372,123 @@ def issue20():
     model4 = lm("y ~ d + I(np.power(d, 2))", data=expt4)
     summary(model4)
 
+def case_worksheet_10():
+
+    # Price: 0 # 0.25 above and 0.25 $/part below
+    p = c(0.75, 0.75, 0.5, 1.0, 0.5, 1.0, center=0.75, range=[0.5, 1.0],
+          name = "Price", units='$/part')
+    t = c(325, 325, 250, 250, 400, 400, center=325, range=[250, 400],
+          name = 'Throughput', units = 'parts/hour')
+    P1 = p.to_coded()
+    T1 = t.to_coded()
+    y_1 = c(5317, 5322, 3104, 3497, 4873, 5031,
+            name = "Response: profit per hour", units="$/hour")
+
+    expt1 = gather(P=P1, T=T1, y=y_1, title="First experiment")
+
+    mod_base1 = lm("y ~ P * T", data=expt1)
+    summary(mod_base1)
+    contour_plot(mod_base1, "P", "T")
+
+    # TODO: predictions in the hover in sensible values, not 3.425E3, but 3425.
+
+
+
+    # predict the points, using the model:
+    prediction_1 = predict(mod_base1, P=P1, T=T1)
+    print(prediction_1)
+    print(y_1 - prediction_1)
+
+
+    # Try anyway, to verify it first: P = ___ and T = ___ (0.25, 2.0)
+    P2 = P1.extend([0.25])
+    T2 = T1.extend([2,])
+
+    p2 = P2.to_realworld()
+    t2 = T2.to_realworld()
+
+    print(predict(mod_base1, P = P2, T = T2))
+
+
+    # Should have a predicted profit of ___, but actual is ____.
+    # Confirms our model is in a very nonlinear region.
+
+    # Perhaps our factorial was far too big.
+    # Make the range smaller
+
+
+    ## Second factorial: points are re-used
+    ## ----------------
+    #P.center = 0.875
+    #P.range =  0.25   # 0.125 above and 0.125 $/part below
+    #T.center = 362.5
+    #T.range =  75    # 75 total range
+
+    #P.rw <- c(___, ___, ___, ___, ___)
+    #P.coded <- (P.rw - P.center)/(0.5*P.range)
+    #T.rw <- c(___, ___, ___, ___, ___)
+    #T.coded <- (T.rw - T.center)/(0.5*T.range)
+    #y.2 <-  c(____, ____, ____, ____ ____)
+    #mod.base.2 <- lm(y.2 ~ P.coded * T.coded)
+    #summary(mod.base.2)
+    #contourPlot(mod.base.2, "P.coded", "T.coded")
+
+
+    ## Predict directly from least squares model, the next experiment
+    #P.coded.test = ___
+    #T.coded.test = ___
+    #predict(mod.base.2, data.frame(P.coded=P.coded.test, T.coded=T.coded.test))
+    ## Prediction is ___
+    ## In RW units that corresponds to
+    #P.coded.test * (0.5*P.range)  + P.center #= ____
+    #T.coded.test * (0.5*T.range)  + T.center #= ____
+    ## ACTUAL is ____. Spot on with prediction.
+
+    ## Add this point to the model
+    #P.rw <- c(___, ___, ___, ___, ___, ___)
+    #P.coded <- (P.rw - P.center)/(0.5*P.range)
+    #T.rw <- c(___, ___, ___, ___, ___, ___)
+    #T.coded <- (T.rw - T.center)/(0.5*T.range)
+    #y.3 <-  c(____, ____, ____, ____, ____, ____)
+    #mod.base.3 <- lm(y.3 ~ P.coded * T.coded)
+    #summary(mod.base.3)
+    #contourPlot(mod.base.3, "P.coded", "T.coded")
+
+    ## Next step
+    #P.coded.test = ___
+    #T.coded.test = ___
+    #predict(mod.base.3, data.frame(P.coded=P.coded.test, T.coded=T.coded.test))
+    ## Prediction is ___
+    ## In RW units that corresponds to
+    #P.coded.test * (0.5*P.range)  + P.center #= ___
+    #T.coded.test * (0.5*T.range)  + T.center #= ___
+
+
+    ## We have ample evidence the model type needs to change. We need nonlinear terms.
+    ## Add the 4 axial points to the end of "P.rw" and "T.rw" vectors
+    ## Build a model with nonlinear terms:
+    #P.coded <- c(...)
+    #T.coded <- c(...)
+    #y.4 <- c(...)
+    #mod.nonlinear <- lm(  y.4 ~ P.coded * T.coded + I(P.coded^2) + I(T.coded^2)   )
+
+    #summary(mod.nonlinear)
+    #contourPlot(mod.nonlinear, "P.coded", "T.coded")
+
+
+
 
 if __name__ == '__main__':
     # tradeoff_table()
     #case_3B()
     # case_3C(show=True)
     #case_3D()
-    issue20()
-    t = c(45, 55, lo=45, hi=55)
-    T = t.to_coded()
-    t = c(45, 55, 40, 67, lo=45, hi=55,name="Temperature", units="C")
-    T = t.to_coded()
-    t = T.to_realworld()
-
-
-    case_worksheet_5()
+    #case_worksheet_5()
     # api_usage()
     #case_worksheet_6()
     #case_worksheet_8()
-    case_worksheet_9()
+    #case_worksheet_9()
+    case_worksheet_10()
 
     #case_w2()
     #case_w4_1()
