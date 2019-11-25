@@ -188,6 +188,11 @@ class TestModels(unittest.TestCase):
 
         self.residuals = [0, 0, 0, 0]
 
+
+    Test aliasing detection
+    Test real-world and coded unit conversion back and forth
+
+
 class Test_API_usage(unittest.TestCase):
     def setUp(self):
         full_path = os.path.join(os.path.split(__file__)[0],

@@ -40,6 +40,7 @@ class Column(pd.Series):
 
         x_center = center or self.pi_center
         x_range = range or self.pi_range
+
         # Simply override the values and the `pi_is_coded` flag, but all the
         # rest remains as is.
         out.iloc[:] = (self.values - x_center) / (0.5 * np.diff(x_range)[0])
@@ -276,6 +277,15 @@ def c(*args, **kwargs) -> Column:
             out.pi_range = (out.pi_lo, out.pi_hi)
 
         try:
+            _ = (e for e in out.pi_range)
+        except TypeError:
+            assert False, ("The `range` input must be an iterable, with "
+                           "2 values.")
+        assert len(out.pi_range) == 2, ("The `range` variable must be a tuple, "
+                                        "with 2 values.")
+        out.pi_range = tuple(out.pi_range)
+
+        try:
             out.pi_center = kwargs['center']
             out.pi_is_coded = False
         except KeyError:
@@ -333,7 +343,7 @@ def supplement(x, **kwargs):
         #D = supplement(D, name = 'Dissolved oxygen set-point', units = 'mg/L',
                        #lo = 4, hi = 5)
 
-def gather(*args, **kwargs):
+def gather(*args, title=None, **kwargs):
     """
     Gathers the named inputs together as columns for a data frame.
 
@@ -352,11 +362,8 @@ def gather(*args, **kwargs):
     out.pi_source = defaultdict(str)
 
     lens = [len(value) for value in kwargs.values()]
-    avg_count = pd.np.median(lens)
     index = []
     for key, value in kwargs.items():
-        #assert len(value) == avg_count, (f"Column {key} must have length "
-        #                                 f"{avg_count}.")
         if isinstance(value, list):
             out[key] = value
         elif isinstance(value, pd.Series):
@@ -378,5 +385,5 @@ def gather(*args, **kwargs):
     out.dropna(axis=0, how="any", inplace=True)
 
     # Set the title, if one was provided
-    out.pi_title = kwargs.get('title', None)
+    out.pi_title = title
     return out
