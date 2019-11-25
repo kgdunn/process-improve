@@ -365,8 +365,6 @@ def case_worksheet_9():
     p = plot_model(model3, "D", "y", fig=p, xlim=(-2, 5), color="purple")
 
 
-<<<<<<< HEAD
-=======
 def issue20():
     d4 = c(24, 48, 36, 36, 60, units='hours', lo=24, high=48)
     y4 = c(31, 65, 52, 54, 69)
@@ -479,20 +477,12 @@ def case_worksheet_10():
 
 
 
->>>>>>> 58369ee23fc4720f69c9a8e4e0249376fe0222a2
 
 if __name__ == '__main__':
     # tradeoff_table()
     #case_3B()
     # case_3C(show=True)
     #case_3D()
-<<<<<<< HEAD
-    case_worksheet_5()
-    #api_usage()
-    #case_worksheet_6()
-    #case_worksheet_8()
-    case_worksheet_9()
-=======
     #case_worksheet_5()
     # api_usage()
     #case_worksheet_6()
@@ -500,9 +490,6 @@ if __name__ == '__main__':
     #case_worksheet_9()
     case_worksheet_10()
 
->>>>>>> 58369ee23fc4720f69c9a8e4e0249376fe0222a2
     #case_w2()
     #case_w4_1()
     #case_w4_2()
-
-
