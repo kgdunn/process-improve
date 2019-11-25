@@ -136,7 +136,7 @@ class TestModels(unittest.TestCase):
         B = c(-1, -1, +1, +1)
         C = A * B
         y = c(41, 27, 35, 20, name="Stability", units="days")
-        self.expt = gather(A=A, B=B, C=C, y=y, 
+        self.expt = gather(A=A, B=B, C=C, y=y,
                            title='Half-fraction, using C = A*B')
         self.model_stability_poshalf = lm("y ~ A*B*C", self.expt)
 
@@ -168,7 +168,7 @@ class TestModels(unittest.TestCase):
             A:B:C             NA         NA      NA       NA
 
             Residual standard error: NaN on 0 degrees of freedom
-            Multiple R-squared:      1,	Adjusted R-squared:    NaN 
+            Multiple R-squared:      1,	Adjusted R-squared:    NaN
             F-statistic:   NaN on 3 and 0 DF,  p-value: NA
         """
 
@@ -185,7 +185,7 @@ class TestModels(unittest.TestCase):
 
         self.df_resid = 0
         self.df_model = 4
-        
+
         self.residuals = [0, 0, 0, 0]
 
 class Test_API_usage(unittest.TestCase):
@@ -221,6 +221,13 @@ class Test_API_usage(unittest.TestCase):
         #contour_plot(model, C, M)
         #contour_plot(model, "C", "M")
         #predict_plot(model)
+
+    def test_aliasing(self):
+        d4 = c(24, 48, 36, 36, 60, units='hours', lo=24, high=48)
+        y4 = c(31, 65, 52, 54, 69)
+        expt4 = gather(d=d4, y=y4, title="RW units")
+        model4 = lm("y ~ d + I(np.power(d, 2))", data=expt4)
+        # Assert that there is aliasing at correlation threshold 0.99, but 0.995
 
 if __name__ == '__main__':
     unittest.main()

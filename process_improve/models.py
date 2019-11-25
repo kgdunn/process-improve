@@ -185,7 +185,8 @@ def predict(model, **kwargs):
 
 def lm(model_spec: str,
        data: pd.DataFrame,
-       name: Optional[str] = None) -> Model:
+       name: Optional[str] = None,
+       alias_threshold: Optional[float] = 0.995) -> Model:
     """
     Create a linear model.
     """
@@ -283,7 +284,9 @@ def lm(model_spec: str,
 
     pre_model = smf.ols(model_spec, data=data)
     model_description = ModelDesc.from_formula(model_spec)
-    aliasing, drop_columns = find_aliases(pre_model, model_description)
+    aliasing, drop_columns = find_aliases(pre_model,
+                                        model_description,
+                                        threshold_correlation = alias_threshold)
     drop_column_names = [pre_model.data.xnames[i] for i in drop_columns]
 
     post_model = smf.ols(model_spec, data=data, drop_cols=drop_column_names)

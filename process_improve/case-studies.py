@@ -365,33 +365,17 @@ def case_worksheet_9():
     p = plot_model(model3, "D", "y", fig=p, xlim=(-2, 5), color="purple")
 
 
-def issue20():
-    d4 = c(24, 48, 36, 36, 60, units='hours', lo=24, high=48)
-    y4 = c(31, 65, 52, 54, 69)
-    expt4 = gather(d=d4, y=y4, title="RW units")
-    model4 = lm("y ~ d + I(np.power(d, 2))", data=expt4)
-    summary(model4)
-
 
 if __name__ == '__main__':
     # tradeoff_table()
     #case_3B()
     # case_3C(show=True)
     #case_3D()
-    issue20()
-    t = c(45, 55, lo=45, hi=55)
-    T = t.to_coded()
-    t = c(45, 55, 40, 67, lo=45, hi=55,name="Temperature", units="C")
-    T = t.to_coded()
-    t = T.to_realworld()
-
-
     case_worksheet_5()
-    # api_usage()
+    #api_usage()
     #case_worksheet_6()
     #case_worksheet_8()
     case_worksheet_9()
-
     #case_w2()
     #case_w4_1()
     #case_w4_2()
