@@ -6,7 +6,8 @@ import pandas as pd
 
 from bokeh.plotting import figure, ColumnDataSource
 from bokeh.plotting import show as show_plot
-from bokeh.models import HoverTool
+from bokeh.models import HoverTool, Range1d
+
 
 try:
     from .models import predict
@@ -571,7 +572,10 @@ def plot_model(model, x_column, y_column=None, fig=None,
 
     param_names = [model.get_response_name(),]
     param_names.extend(model.get_factor_names())
-    assert x_column in param_names, "x_column must exist in the model."
+
+    # Not always a great test: y = I(1/d) does not pick up that "d" is the model
+    # even though it is via the term encapsulated in I(...)
+    #assert x_column in param_names, "x_column must exist in the model."
     assert y_column in param_names, "y_column must exist in the model."
 
     xrange = model.data[x_column].min(), model.data[x_column].max()
@@ -653,12 +657,18 @@ def plot_model(model, x_column, y_column=None, fig=None,
                line_dash = 'solid',
                color=kwargs.get('color', 'black'),
                line_width=kwargs.get('line_width', 2))
-        h1 = HoverTool(tooltips=[(x_column, "$x"),
-                                 (f"Prediction of {y_column}", "$y"),
-                                 ("Source", model.name or '')
-                                 ],
-                       renderers=[h_line])  # custom tooltip for the predicted image
-        #h1.point_policy='snap_to_data'
+        y_units = model.data.pi_units[y_column]
+
+        tooltips = [(x_column, "$x")]
+        if y_units:
+            tooltips.append((f"Prediction of {y_column} [{y_units}]", "$y"))
+        else:
+            tooltips.append((f"Prediction of {y_column}", "$y"))
+
+        tooltips.append(("Source", model.name or ''))
+
+        # custom tooltip for the predicted prediction line
+        h1 = HoverTool(tooltips=tooltips, renderers=[h_line])
         h1.line_policy='nearest'
 
 
@@ -696,14 +706,25 @@ def plot_model(model, x_column, y_column=None, fig=None,
     p.yaxis.axis_label_text_font_size = '14pt'
     p.yaxis.axis_label_text_font_style = 'bold'
     if prior_figure:
-        p.xaxis.bounds = (min(xlim[0], p.x_range.start),
-                          max(xlim[1], p.x_range.end))
-        p.yaxis.bounds = (min(ylim[0], p.y_range.start),
-                          max(ylim[1], p.y_range.end))
-    else:
 
-        p.xaxis.bounds = (xlim[0], xlim[1])
-        p.yaxis.bounds = (ylim[0], ylim[1])
+        #p.xaxis.bounds =
+        p.x_range = Range1d(min(xlim[0],
+                                p.x_range.start,
+                                min(model.data[x_column])),
+                            max(xlim[1],
+                                p.x_range.end,
+                                max(model.data[x_column])))
+        p.y_range = Range1d(min(ylim[0],
+                                p.y_range.start,
+                                min(model.data[y_column])),
+                            max(ylim[1],
+                                p.y_range.end,
+                                max(model.data[y_column])))
+
+
+    else:
+        p.x_range = Range1d(xlim[0], xlim[1])
+        p.y_range = Range1d(ylim[0], ylim[1])
 
     # Add the hover tooltips:
     p.add_tools(h1)
