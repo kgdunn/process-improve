@@ -69,8 +69,11 @@ class Model(OLS):
             warnings.simplefilter("ignore")
 
             main = 'OLS Regression Results'
-            if self.data.pi_title:
-                main += ': ' + str(self.data.pi_title)
+            if self.name:
+                main += ': ' + str(self.name)
+            else:
+                if self.data.pi_title:
+                    main += ': ' + str(self.data.pi_title)
 
             smry = self._OLS.summary(title=main)
             # print(smry)
