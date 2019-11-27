@@ -1,13 +1,16 @@
 import os
+import sys
 import unittest
 import numpy as np
 import pandas as pd
 
-from structures import (gather, c, create_names)
-from models import (lm, summary)
-from plotting import (pareto_plot, contour_plot)
+# To allow our import below to succeed.
+sys.path.append(os.path.split(__file__)[0])
 
-
+from structures import (gather, c, expand_grid, supplement, create_names)
+from models import (lm, summary, predict)
+from plotting import (pareto_plot, contour_plot, plot_model)
+from designs_factorial import full_factorial
 
 class TestStructures(unittest.TestCase):
     """
@@ -37,7 +40,6 @@ class TestStructures(unittest.TestCase):
         self.assertListEqual(create_names(4, letters=False, prefix='Z',
                                           start_at=99, padded=True),
                              ["Z099", "Z100", "Z101", "Z102"])
-
 
 
     def test_create_factors(self):
@@ -79,7 +81,6 @@ class TestStructures(unittest.TestCase):
         self.assertTrue(B.shape == (6,))
         self.assertTrue(B.name == 'B [coded]')
 
-
         self.assertTrue(C1.pi_range == (4, 6))
         self.assertTrue(C2.pi_center == 5)
         self.assertTrue(C2.pi_range == (4, 6))
@@ -94,10 +95,8 @@ class TestStructures(unittest.TestCase):
         self.assertTrue(C6.pi_lo == 5)
         self.assertTrue(C6.pi_range == (5, 6))
 
-
         D = c(*(self.D))
         self.assertTrue(D.pi_numeric == True)
-
 
         self.assertTrue(len(y) == 6)
         self.assertTrue(y.name == 'conversion [%]')
@@ -241,7 +240,6 @@ class Test_API_usage(unittest.TestCase):
         Test conversion between real-world and coded units.
         """
         self.assertTrue(False)
-
 
 if __name__ == '__main__':
     unittest.main()
