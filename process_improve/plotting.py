@@ -4,16 +4,20 @@ import webbrowser
 import numpy as np
 import pandas as pd
 
+from matplotlib import cm
+from bokeh.models import (ColorBar,
+                          BasicTicker,
+                          LinearColorMapper,
+                          PrintfTickFormatter)
 from bokeh.plotting import figure, ColumnDataSource
 from bokeh.plotting import show as show_plot
 from bokeh.models import HoverTool, Range1d
-
+from bokeh.colors import RGB
 
 try:
     from .models import predict
 except ImportError:
     from models import predict
-
 
 def get_plot_title(main, model, prefix=''):
     """
@@ -44,6 +48,9 @@ def pareto_plot(model,
 
                 # In the hover over the bars
                 aliasing_up_to_level=2):
+
+    # TODO: show full variable names + units on pareto plot for main factors
+    #       an interactions
 
     """
     Plots the Pareto plot for a given model.
@@ -194,7 +201,7 @@ paretoPlot = pareto_plot
 
 
 def contour_plot(model, xlabel=None, ylabel=None, main=None,
-        N=25, xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
+        xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
         colour_function="terrain", show=True, show_expt_data=True,
         figsize=(10, 10), dpi=100, other_factors=None):
     """
@@ -232,7 +239,7 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
     if True:
 
         plt = contour_plot_bokeh(model, xlabel, ylabel, main,
-                                 N, xlim, ylim,
+                                 xlim, ylim,
                                  colour_function, show,
                                  show_expt_data,
                                  figsize, dpi, other_factors)
@@ -240,6 +247,7 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
     # Matplotlib version
     if False:
         import matplotlib.pyplot as plt
+        N=25 #was a function input
         h_grid = np.linspace(xlim[0], xlim[1], num=N)
         v_grid = np.linspace(ylim[0], ylim[1], num = N)
         H, V = np.meshgrid(h_grid, v_grid)
@@ -324,27 +332,18 @@ def interaction_plot():
     """
     pass
 
-#SHOW variable names on pareto plot for main factors
-#Can bokeh do nice contour plots?
+
 def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
-        N=25, xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
+        xlim=(-3.2, 3.2), ylim=(-3.2, 3.2),
         colour_function="terrain", show=True, show_expt_data=True,
-        figsize=(10, 10), dpi=100, other_factors=None):
+        figsize=(10, 10), dpi=50, other_factors=None):
 
     # TODO: show labels of contour plot
 
     # https://stackoverflow.com/questions/33533047/how-to-make-a-contour-plot-in-python-using-bokeh-or-other-libs
-    from skimage import measure
-    import numpy as np
 
-    from bokeh.plotting import figure, show
-    from bokeh.colors import RGB
-    from matplotlib import cm
-
-    from bokeh.models import (ColorBar,
-                              BasicTicker,
-                              LinearColorMapper,
-                              PrintfTickFormatter)
+    dpi_max = dpi**3.5
+    N = per_axis_points = min(dpi, np.power(dpi_max, 0.5))
 
     h_grid = np.linspace(xlim[0], xlim[1], num=N)
     v_grid = np.linspace(ylim[0], ylim[1], num=N)
@@ -383,8 +382,8 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
     from matplotlib.pyplot import contour, clabel
     CS = contour(H, V, Z, levels=levels, linestyles='dotted')
     clabel(CS, inline=True, fontsize=10, fmt='%1.0f')
-    contour_labels = [(float(q._x), float(q._y), float(q._text))\
-                                                     for q in CS.labelTexts]
+    #contour_labels = [(float(q._x), float(q._y), float(q._text))\
+    #                                                 for q in CS.labelTexts]
 
 
     # Convert the Matplotlib colour mapper to Bokeh
@@ -400,29 +399,30 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
     # https://stackoverflow.com/questions/35315259/using-colormap-with-bokeh-scatter
     #colors = ["#%02x%02x%02x" % (int(r), int(g), int(b)) for r, g, b, _ in 255*mpl.cm.viridis(mpl.colors.Normalize()(radii))]
 
-
     p = figure(x_range=xlim,
                y_range=ylim,
                 # https://github.com/bokeh/bokeh/issues/2351
-               tools="pan,wheel_zoom,box_zoom, box_select,lasso_select,reset,save",
+               tools="pan,wheel_zoom,box_zoom,box_select,lasso_select,reset,save",
                )
     # Create the image layer
-    h_image = p.image(image=[Z],
-                      x=xlim[0],
-                      y=ylim[0],
-                      dw=xlim[1] - xlim[0],
-                      dh=ylim[1] - ylim[0],
+    source = {'Xax': [h_grid],
+              'Yax': [v_grid],
+              'predictions': [Z]}
+    h_image = p.image(source=source,
+                      image = 'predictions',
+                      x = xlim[0],
+                      y = ylim[0],
+                      dw= xlim[1] - xlim[0],
+                      dh= ylim[1] - ylim[0],
                       color_mapper=color_mapper,
                       global_alpha=0.5,           # with some transparency
                       name='contour_image',
                       )
-    # hover_tool_names.append('contour_image')
-    # custom tooltip for the predicted image
-    h1 = HoverTool(tooltips=[(xlabel, "$x{0.4g}"),
-                             (ylabel, "$y{0.4f}"),
-                             ("Predicted response", "@{image}{0.4g}")],
+    h1 = HoverTool(tooltips=[(xlabel, "@{Xax}{0.4g}"),
+                             (ylabel, "@{Yax}{0.4f}"),
+                             ("Predicted", "@{predictions}{0.4g}")],
                    renderers=[h_image],
-                   formatters={"Predicted response": 'printf',
+                   formatters={"Predicted": 'printf',
                                xlabel: 'printf',
                                ylabel: 'printf'}
                 )
@@ -466,7 +466,6 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
             x=model.data[xlabel],
             y=model.data[ylabel],
             output=model.data[model.get_response_name()].to_list(),
-
         ))
         h_expts = p.circle(x='x',
                            y='y',
@@ -489,16 +488,6 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
                        )
         h2.point_policy='snap_to_data'
         h2.line_policy='none'
-
-
-
-        h1 = HoverTool(tooltips=[(xlabel, "$x{0.4g}"),
-                                 (ylabel, "$y{0.4f}"),
-                                 ("Predicted response", "@{image}{0.4g}")],
-                       renderers=[h_image],
-
-                    )
-
 
 
     # Axis labels:
