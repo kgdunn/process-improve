@@ -293,8 +293,8 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
             plt.plot(model.data[xlabel],
                      model.data[ylabel],
                      'dimgrey',
-                     linestyle = '',
-                     marker = 'o',
+                     linestyle='',
+                     marker='o',
                      ms=15,
                      linewidth=2)
 
@@ -322,9 +322,8 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
         if show:
             plt.show()
 
-    #return plt
-
 contourPlot = contour_plot
+
 
 def interaction_plot():
     """
@@ -343,7 +342,7 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
     # https://stackoverflow.com/questions/33533047/how-to-make-a-contour-plot-in-python-using-bokeh-or-other-libs
 
     dpi_max = dpi**3.5
-    N = per_axis_points = min(dpi, np.power(dpi_max, 0.5))
+    N = min(dpi, np.power(dpi_max, 0.5))
 
     h_grid = np.linspace(xlim[0], xlim[1], num=N)
     v_grid = np.linspace(ylim[0], ylim[1], num=N)
@@ -425,7 +424,7 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
                    formatters={"Predicted": 'printf',
                                xlabel: 'printf',
                                ylabel: 'printf'}
-                )
+                  )
 
     color_bar = ColorBar(color_mapper=color_mapper,
                          major_label_text_font_size="8pt",
@@ -438,15 +437,15 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
     p.add_layout(color_bar, 'right')
 
 
-    #Contour lines using Scipy:
-    #scaler_y = (ylim[1] - ylim[0]) / (N - 1)
-    #scaler_x = (xlim[1] - xlim[0]) / (N - 1)
-    #for level in levels:
-        #contours = measure.find_contours(Z, level)
-        #for contour in contours:
-            #x = contour[:, 1] * scaler_y + ylim[0]
-            #y = contour[:, 0] * scaler_x + xlim[0]
-            #
+    # Contour lines using Scipy:
+    # scaler_y = (ylim[1] - ylim[0]) / (N - 1)
+    # scaler_x = (xlim[1] - xlim[0]) / (N - 1)
+    # for level in levels:
+        # contours = measure.find_contours(Z, level)
+        # for contour in contours:
+            # x = contour[:, 1] * scaler_y + ylim[0]
+            # y = contour[:, 0] * scaler_x + xlim[0]
+
 
 
     for idx, cccontour in enumerate(CS.allsegs):
@@ -454,7 +453,7 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
             x = cccontour[0][:,0]
             y = cccontour[0][:,1]
             p.line(x, y, line_dash = 'dashed', color='darkgrey', line_width=1)
-            level = levels[idx]
+
 
 
     # TODO: bigger experimental markers
@@ -641,7 +640,7 @@ def plot_model(model, x_column, y_column=None, fig=None,
                     # https://github.com/bokeh/bokeh/issues/2351
                    tools="pan,wheel_zoom,box_zoom, box_select,lasso_select,reset,save",
                    )
-                   
+
     h_line = p.line(plotdata[x_column], \
             plotdata[y_column],
             line_dash = 'solid',
