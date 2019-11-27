@@ -109,8 +109,8 @@ def case_w2():
     # Make a prediction with this model:
     xT = +2   # corresponds to 110 minutes
     xF = -1   # corresponds to 20 grams of fat
-    #y.hat = predict(model_crispy, pd.DataFrame(T = xT, F = xF))
-    #paste0('Predicted value is: ', y.hat, ' crispiness.')
+    y_hat = predict(model_crispy, T = xT, F = xF)
+    print(f'Predicted value is: {y_hat} crispiness.')
 
 def case_w4_1():
     """
@@ -494,12 +494,9 @@ def case_worksheet_10():
 
     mod_base1 = lm("y ~ P * T", data=expt1)
     summary(mod_base1)
-    contour_plot(mod_base1, "P", "T")
+    contour_plot(mod_base1, "P", "T", show=False)
 
-    The prediction on the hover is NOT the prediction from the model. It is
-    discretized into the image bands. Fix this.
-
-    # predict the points, using the model:
+    # Predict the points, using the model:
     prediction_1 = predict(mod_base1, P=P1, T=T1)
     print(prediction_1)
     print(y1 - prediction_1)
@@ -507,94 +504,135 @@ def case_worksheet_10():
     # We see clear non-linearity, especially when viewed in the direction of T
 
     # Try anyway to make a prediction, to verify it
-    # P = 0.15 and T = 2.0:
+    # P ~ 0.15 and T ~ 2.0:
     P2 = P1.extend([0.15])
     T2 = T1.extend([2.0])
     p2 = P2.to_realworld()
     t2 = T2.to_realworld()
-
+    print(t2) # 0.765
+    print(p2) # 475
     print(predict(mod_base1, P = P2, T = T2))
 
+    # Should have a predicted profit of 8599, but actual is 4654.
+    # Confirms our model is in a very nonlinear region in the T=Throughput 
+    # direction.
 
-    # Should have a predicted profit of ___, but actual is ____.
-    # Confirms our model is in a very nonlinear region.
+    # Perhaps our factorial was far too big. Make the range smaller in T.
+    # Prior range = [250;400]; now try [287.5; ]
 
-    # Perhaps our factorial was far too big.
-    # Make the range smaller
+    # Second factorial: re-use some of the points
+    # * Original center point become bottom left
+    # * Original (+1, +1) become top right
+    p3 = c(0.75, 0.85, 0.75, 0.85, 0.65, 0.85, 0.765, center=0.80, range=[0.75, 0.85],
+            name = "Price", units = '$/part')
+    t3 = c(325, 325,  400,   400,  400,  250, 475, center = (325+400)/2,
+            range=(325, 400),  name = 'Throughput', units = 'parts/hour')
 
+    # 2nd, 
+    y3 = c(7755, 7784, 7373, 7397, 7363, 5812, 4654,
+            name = "Response: profit per hour", units="$/hour")
+    P3 = p3.to_coded()
+    T3 = t3.to_coded()
+    expt3 = gather(P=P3, T=T3, y=y3, title="Smaller ranges")
+    mod_base3 = lm("y ~ P * T", data=expt3)
+    summary(mod_base3)
+    contour_plot(mod_base3, "P", "T")
 
-    ## Second factorial: points are re-used
-    ## ----------------
-    #P.center = 0.875
-    #P.range =  0.25   # 0.125 above and 0.125 $/part below
-    #T.center = 362.5
-    #T.range =  75    # 75 total range
+    # Predict directly from least squares model, the next experiment
+    # at coded values of (+2, +2) seems good
+    predict(mod_base3, P=+2, T=+2)
+    # Prediction is 7855
 
-    #P.rw <- c(___, ___, ___, ___, ___)
-    #P.coded <- (P.rw - P.center)/(0.5*P.range)
-    #T.rw <- c(___, ___, ___, ___, ___)
-    #T.coded <- (T.rw - T.center)/(0.5*T.range)
-    #y.2 <-  c(____, ____, ____, ____ ____)
-    #mod.base.2 <- lm(y.2 ~ P.coded * T.coded)
-    #summary(mod.base.2)
-    #contourPlot(mod.base.2, "P.coded", "T.coded")
-
-
-    ## Predict directly from least squares model, the next experiment
-    #P.coded.test = ___
-    #T.coded.test = ___
-    #predict(mod.base.2, data.frame(P.coded=P.coded.test, T.coded=T.coded.test))
-    ## Prediction is ___
-    ## In RW units that corresponds to
-    #P.coded.test * (0.5*P.range)  + P.center #= ____
-    #T.coded.test * (0.5*T.range)  + T.center #= ____
-    ## ACTUAL is ____. Spot on with prediction.
-
-    ## Add this point to the model
-    #P.rw <- c(___, ___, ___, ___, ___, ___)
-    #P.coded <- (P.rw - P.center)/(0.5*P.range)
-    #T.rw <- c(___, ___, ___, ___, ___, ___)
-    #T.coded <- (T.rw - T.center)/(0.5*T.range)
-    #y.3 <-  c(____, ____, ____, ____, ____, ____)
-    #mod.base.3 <- lm(y.3 ~ P.coded * T.coded)
-    #summary(mod.base.3)
-    #contourPlot(mod.base.3, "P.coded", "T.coded")
-
-    ## Next step
-    #P.coded.test = ___
-    #T.coded.test = ___
-    #predict(mod.base.3, data.frame(P.coded=P.coded.test, T.coded=T.coded.test))
-    ## Prediction is ___
-    ## In RW units that corresponds to
-    #P.coded.test * (0.5*P.range)  + P.center #= ___
-    #T.coded.test * (0.5*T.range)  + T.center #= ___
+    # In RW units that corresponds to: p=0.9 and t=437.5 = 438 parts/hour
+    P4 = P3.extend([+2])
+    T4 = T3.extend([+2])
+    print(P4.to_realworld())
+    print(T4.to_realworld())
 
 
-    ## We have ample evidence the model type needs to change. We need nonlinear terms.
-    ## Add the 4 axial points to the end of "P.rw" and "T.rw" vectors
-    ## Build a model with nonlinear terms:
-    #P.coded <- c(...)
-    #T.coded <- c(...)
-    #y.4 <- c(...)
-    #mod.nonlinear <- lm(  y.4 ~ P.coded * T.coded + I(P.coded^2) + I(T.coded^2)   )
+    # ACTUAL value achieved is 6325. Not a good prediction yet either.
+    # Add this point to the model. This point is below any of the base factorial 
+    # points!
+    y4 = y3.extend([6325])
+    expt4 = gather(P=P4, T=T4, y=y4, title="Adding the next exploration")
+    mod_base4 = lm("y ~ P * T", data=expt4)
+    contour_plot(mod_base4, "P", "T")
 
-    #summary(mod.nonlinear)
-    #contourPlot(mod.nonlinear, "P.coded", "T.coded")
+    # It is clear that this model does not meet our needs. We need a model with
+    # quadratic fitting, nonlinear terms, to estimate the nonlinear surface.
+    expt5 = expt4.copy()
+    mod_base5 = lm("y ~ P*T + I(P**2) + I(T**2)", data=expt5)
+    print(summary(mod_base5))
+
+    # add the xlim input in a second round
+    contour_plot(mod_base5, "P", "T", xlim=(-2, 4)) 
+
+    # Run at (P=3, T=-0.3) for the next run
+    P6 = P4.extend([+3])
+    T6 = T4.extend([-0.3])
+    print(P6.to_realworld())
+    print(T6.to_realworld())
+
+    # Corresponds to p = 0.95 $/part, t=351 parts/hour
+    # Predict = 7939
+    # Actual = 7969. Really good matching.
+    # UPdate the model and check
+    y6 = y4.extend([7969])
+    expt6 = gather(P=P6, T=T6, y=y6, title="After extrapolation, based on quadratic term")
+    mod_base6 = lm("y ~ P*T + I(P**2) + I(T**2)", data=expt6)
+    contour_plot(mod_base6, "P", "T", xlim=(-2, 5)) 
+
+    # Extrapolate again to (P=5, T=-0.3) for the next run
+    P7 = P6.extend([+5])
+    T7 = T6.extend([-0.3])
+    print(P7.to_realworld())
+    print(T7.to_realworld())
+    predict(mod_base6, P=5, T=-0.3)
+
+    # to P = 1.05, T=351 parts/hour
+    # Predict = 7982
+    # Actual = 8018. Better than predicted. Perhaps surface is a steeper quadratic.
+    # Update the model and check
+    y7 = y6.extend([7982])
+    expt7 = gather(P=P7, T=T7, y=y7, title="With 2 extrapolations")
+    mod_base7 = lm("y ~ P*T + I(P**2) + I(T**2)", data=expt7)
+    contour_plot(mod_base7, "P", "T", xlim=(-2, 148)) 
+
+def case_worksheet_10B():
+    # Code for this system: https://rsmopt.com/system/concrete-strength/
 
 
+    # Price: 0 # 0.25 above and 0.25 $/part below
+    p = c(0.75, 0.75, 0.65, 0.85, 0.65, 0.85, center=0.75, range=[0.65, 0.85],
+          name = "Price",      units = '$/part')
+    t = c( 325,  325,  250,  250,  400,  400, center=325, range=[250, 400],
+           name = 'Throughput', units = 'parts/hour')
+    P1 = p.to_coded()
+    T1 = t.to_coded()
+    y1 = c(7740, 7755, 5651, 5812, 7363, 7397, name = "Response: profit per hour", units="$/hour")
+    expt1 = gather(P=P1, T=T1, y=y1, title="First experiment")
 
+    mod_base1 = lm("y ~ P * T", data=expt1)
+    summary(mod_base1)
+    contour_plot(mod_base1, "P", "T", show=False)
 
+    # Predict the points, using the model:
+    prediction_1 = predict(mod_base1, P=P1, T=T1)
+    print(prediction_1)
+    print(y1 - prediction_1)
+
+    # W
 if __name__ == '__main__':
     # tradeoff_table()
-    #case_3B()
-    # case_3C(show=True)
+    #case_3B()    # case_3C(show=True)
     #case_3D()
     #case_worksheet_5()
     # api_usage()
     #case_worksheet_6()
     #case_worksheet_8()
-    case_worksheet_9()
-    case_worksheet_10()
+    #case_worksheet_9()
+    #case_worksheet_10()
+    case_worksheet_10B()
 
     #case_w2()
     #case_w4_1()
