@@ -301,10 +301,6 @@ def c(*args, **kwargs) -> Column:
         if override_coded is not None:
             out.pi_is_coded = override_coded
 
-
-
-
-
     else:
         if 'levels' in kwargs:
             msg = "Levels must be list or tuple of the unique level names."

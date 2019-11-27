@@ -50,14 +50,14 @@ class TestStructures(unittest.TestCase):
         C4 = c(*(self.C), lo=4, hi=6, name='C4')
         C5 = c([4, 5,  6,  4,  6], lo=4, hi=6, name='C5')
         C6 = c(*(self.C), lo=5, hi=6, name='C6')
-        y = c(*(self.y), name='conversion')
+        y = c(*(self.y), name='conversion', units = '%')
 
         self.assertTrue(isinstance(A1, pd.Series))
         self.assertTrue(A1.shape == (6,))
         self.assertTrue(hasattr(A1, 'pi_index'))
         self.assertTrue(hasattr(A1, 'name'))
 
-        self.assertTrue(A1.name == 'Unnamed')
+        self.assertTrue(A1.name == 'Unnamed [coded]')
         self.assertTrue(hasattr(A1, 'pi_lo'))
         self.assertTrue(A1.pi_lo == -1)
         self.assertTrue(hasattr(A1, 'pi_hi'))
@@ -71,13 +71,13 @@ class TestStructures(unittest.TestCase):
 
         self.assertTrue(isinstance(A2.index, pd.Index))
         self.assertTrue(hasattr(A2, 'pi_index'))
-        self.assertTrue(A2.name == 'Unnamed')
+        self.assertTrue(A2.name == 'Unnamed [coded]')
 
         with self.assertRaises(IndexError):
             A2 = c(*(self.A), index=['lo', 'hi', 'lo', 'hi', 'cp'])
 
         self.assertTrue(B.shape == (6,))
-        self.assertTrue(B.name == 'B')
+        self.assertTrue(B.name == 'B [coded]')
 
 
         self.assertTrue(C1.pi_range == (4, 6))
@@ -100,7 +100,7 @@ class TestStructures(unittest.TestCase):
 
 
         self.assertTrue(len(y) == 6)
-        self.assertTrue(y.name == 'conversion')
+        self.assertTrue(y.name == 'conversion [%]')
 
     def test_column_math(self):
         self.A = [-1, +1, -1, +1, 0, +1]
@@ -177,21 +177,18 @@ class TestModels(unittest.TestCase):
         Testing attributes for the half-fraction model.
         """
         self.assertTrue(self.model_stability_poshalf.nobs == 4)
-        A == -7.25  == BC
-        B == -3.25  == AC
-        C ==  -0.25 == AB
-        Int = ABC = 30.75
-        self.R2 = 1.00
+        self.assertTrue(self.model_stability_poshalf.df_resid == 0)
+        beta = self.model_stability_poshalf.get_parameters(drop_intercept=False)
 
-        self.df_resid = 0
-        self.df_model = 4
+        self.assertAlmostEqual(beta['A'], -7.25)
+        self.assertAlmostEqual(beta['B'], -3.25)
+        self.assertAlmostEqual(beta['C'], -0.25)
+        self.assertAlmostEqual(beta['Intercept'], 30.75)
+        self.assertTrue(self.model_stability_poshalf.get_aliases() == \
+                        ['A + B:C', 'B + A:C', 'C + A:B'])
 
-        self.residuals = [0, 0, 0, 0]
-
-
-    Test aliasing detection
-    Test real-world and coded unit conversion back and forth
-
+        for resid in self.model_stability_poshalf.residuals:
+            self.assertAlmostEqual(resid, 0.0)
 
 class Test_API_usage(unittest.TestCase):
     def setUp(self):
@@ -232,7 +229,19 @@ class Test_API_usage(unittest.TestCase):
         y4 = c(31, 65, 52, 54, 69)
         expt4 = gather(d=d4, y=y4, title="RW units")
         model4 = lm("y ~ d + I(np.power(d, 2))", data=expt4)
-        # Assert that there is aliasing at correlation threshold 0.99, but 0.995
+        self.assertEqual(len(model4.aliasing), 0)
+
+        model5 = lm("y ~ d + I(np.power(d, 2))", data=expt4,
+                    alias_threshold=0.99)
+        self.assertEqual(len(model5.aliasing), 2)
+
+
+    def test_realworld_coded(self):
+        """
+        Test conversion between real-world and coded units.
+        """
+        self.assertTrue(False)
+
 
 if __name__ == '__main__':
     unittest.main()
