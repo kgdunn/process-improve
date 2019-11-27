@@ -623,30 +623,12 @@ def plot_model(model, x_column, y_column=None, fig=None,
     Z = predict(model, **plotdata)
 
     if not oneD:
-        Z = Z.values.reshape(N, N)
-        z_min, z_max = Z.min(), Z.max()
-        levels = np.linspace(z_min, z_max, N)
-
-        from matplotlib.pyplot import contour, clabel
-        CS = contour(H, V, Z, levels=levels, linestyles='dotted')
-        clabel(CS, inline=True, fontsize=10, fmt='%1.0f')
-        contour_labels = [(float(q._x), float(q._y), float(q._text))\
-                                                         for q in CS.labelTexts]
-
-
-        # Convert the Matplotlib colour mapper to Bokeh
-        # https://stackoverflow.com/questions/49931311/using-matplotlibs-colormap-for-bokehs-color-bar
-        mapper = getattr(cm, colour_function)
-        colours = (255 * mapper(range(256))).astype('int')
-        colour_palette = [RGB(*tuple(rgb)).to_hex() for rgb in colours]
-        color_mapper = LinearColorMapper(palette=colour_palette,
-                                         low=z_min,
-                                         high=z_max)
+        assert False
     else:
         plotdata[y_column] = Z
         yrange = Z.min(), Z.max()
         ydelta = yrange[1] - yrange[0]
-        ylim = kwargs.get('ylim', (yrange[0]-ydelta*0.05,
+        ylim = kwargs.get('ylim',(yrange[0]-ydelta*0.05,
                                    yrange[1]+ydelta*0.05))
 
     if fig:
@@ -659,26 +641,25 @@ def plot_model(model, x_column, y_column=None, fig=None,
                     # https://github.com/bokeh/bokeh/issues/2351
                    tools="pan,wheel_zoom,box_zoom, box_select,lasso_select,reset,save",
                    )
+                   
+    h_line = p.line(plotdata[x_column], \
+            plotdata[y_column],
+            line_dash = 'solid',
+            color=kwargs.get('color', 'black'),
+            line_width=kwargs.get('line_width', 2))
+    y_units = model.data.pi_units[y_column]
 
-    if oneD:
-        h_line = p.line(plotdata[x_column], \
-               plotdata[y_column],
-               line_dash = 'solid',
-               color=kwargs.get('color', 'black'),
-               line_width=kwargs.get('line_width', 2))
-        y_units = model.data.pi_units[y_column]
+    tooltips = [(x_column, "$x")]
+    if y_units:
+        tooltips.append((f"Prediction of {y_column} [{y_units}]", "$y"))
+    else:
+        tooltips.append((f"Prediction of {y_column}", "$y"))
 
-        tooltips = [(x_column, "$x")]
-        if y_units:
-            tooltips.append((f"Prediction of {y_column} [{y_units}]", "$y"))
-        else:
-            tooltips.append((f"Prediction of {y_column}", "$y"))
+    tooltips.append(("Source", model.name or ''))
 
-        tooltips.append(("Source", model.name or ''))
-
-        # custom tooltip for the predicted prediction line
-        h1 = HoverTool(tooltips=tooltips, renderers=[h_line])
-        h1.line_policy='nearest'
+    # custom tooltip for the predicted prediction line
+    h1 = HoverTool(tooltips=tooltips, renderers=[h_line])
+    h1.line_policy='nearest'
 
 
     if show_expt_data:

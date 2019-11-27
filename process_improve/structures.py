@@ -253,7 +253,8 @@ def c(*args, **kwargs) -> Column:
     out.pi_units = None
     out.pi_name = None
     out.pi_is_coded = True
-
+    
+    out.pi_name = kwargs.get('name', 'Unnamed')
     if numeric:
 
         # If any of 'lo', 'hi', 'center', or 'range' are specified, then it
@@ -306,13 +307,13 @@ def c(*args, **kwargs) -> Column:
             msg = "Levels must be list or tuple of the unique level names."
             # TODO: Check that all entries in the level list are accounted for.
             assert isinstance(kwargs.get('levels'), Iterable), msg
-            out.pi_levels = {name: list(kwargs.get('levels'))}
+            out.pi_levels = {out.pi_name : list(kwargs.get('levels'))}
         else:
             levels = out.unique()
             levels.sort()
-            out.pi_levels = {name: levels.tolist()} # for use with Patsy
+            out.pi_levels = {out.pi_name : levels.tolist()} # for use with Patsy
 
-    out.name = out.pi_name = kwargs.get('name', 'Unnamed')
+    
     units = kwargs.get('units', '')
     if units and not(out.pi_is_coded):
         out.name = f'{out.name} [{units}]'
