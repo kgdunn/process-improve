@@ -106,7 +106,7 @@ class Expt(pd.DataFrame):
     _internal_names_set = set(_internal_names)
 
     # Properties which survive subsetting, etc
-    _metadata = ['pi_source', 'pi_title']
+    _metadata = ['pi_source', 'pi_title', 'pi_units']
 
     @property
     def _constructor(self):
@@ -189,9 +189,9 @@ def c(*args, **kwargs) -> Column:
     A = c([4, 5,  6,  4,  6], lo=4, hi=6, name = 'A')
 
     # By default, the assumption is the variable levels supplied are coded
-    # units. But if any one of the following: `lo`, `hi`, `center` OR `range`
-    # are specified, then immediately it is assumed that the variable values
-    # are not coded.
+    # units. But if any one of the following: `lo`, `hi`, `center`, `range` OR
+    # `units` are specified, then immediately it is assumed that the variable
+    # values are not coded.
     # So, to force the specification, you may supply the optional input of
     # `is_coded` as True or False
     A = c([4, 5,  6,  4,  6], lo=1, hi=3, is_coded=True)
@@ -291,13 +291,19 @@ def c(*args, **kwargs) -> Column:
         except KeyError:
             out.pi_center = np.mean(out.pi_range)
 
+        try:
+            out.pi_units = kwargs['units']
+            out.pi_is_coded = False
+        except KeyError:
+            out.pi_units = ''
 
         # Finally, the user might have over-ridden the coding flag:
         if override_coded is not None:
             out.pi_is_coded = override_coded
 
 
-        out.pi_units = kwargs.get('units', '')
+
+
 
     else:
         if 'levels' in kwargs:
@@ -343,7 +349,7 @@ def supplement(x, **kwargs):
         #D = supplement(D, name = 'Dissolved oxygen set-point', units = 'mg/L',
                        #lo = 4, hi = 5)
 
-def gather(*args, title=None, **kwargs):
+def gather(*args, title=None, **kwargs) -> Expt:
     """
     Gathers the named inputs together as columns for a data frame.
 
@@ -360,6 +366,7 @@ def gather(*args, title=None, **kwargs):
 
     out = Expt(data=None, index=None, columns=None, dtype=None)
     out.pi_source = defaultdict(str)
+    out.pi_units = defaultdict(str)
 
     lens = [len(value) for value in kwargs.values()]
     index = []
@@ -369,6 +376,7 @@ def gather(*args, title=None, **kwargs):
         elif isinstance(value, pd.Series):
             out[key] = value.values
             out.pi_source[key] = value.name
+            out.pi_units[key] = value.pi_units
 
             if hasattr(value, 'pi_index'):
                 index.append(value.index)

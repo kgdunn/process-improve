@@ -311,7 +311,6 @@ def case_worksheet_8():
 
 def case_worksheet_9():
     """
-
     Experiment
     number	Date and time	Duration
     [hours]	Product created [g], per unit sugar used
@@ -363,6 +362,115 @@ def case_worksheet_9():
 
     # Plot it again: purple
     p = plot_model(model3, "D", "y", fig=p, xlim=(-2, 5), color="purple")
+
+
+    #------------
+    # Normally at this point I would reset the frame of reference;
+    # keep our range the same (24 hours)
+    # -1: 36 hours [prior coded "0" now becomes "-1]
+    #  0: 48 hours [prior coded "+1" now becomes "0"]
+    # +1: 60 hours [prior coded "+2" now becomes "+1"]
+
+    # At this point I will also switch the model type back to real-world units.
+    # For 2 reasons: there is only 1 variable that is interesting (duration), so
+    # coded units don't matter; secondly the model types we will use cannot be
+    # built when the coded x-value is negative.
+    d4 = c(24, 48, 36, 36, 60, coded=False, units='hours', name='Duration')
+    y4 = c(23, 64, 51, 54, 71, name="Production", units="g/unit sugar")
+
+
+    """
+    Experiment
+    number	Date and time	Duration
+    [hours]	Product created [g], per unit sugar used
+    1	06 May 2019 09:36	24.0	23
+    2	06 May 2019 09:37	48.0	64
+    3	06 May 2019 09:38	36.0	51
+    4	06 May 2019 09:38	36.0	54
+    5	06 May 2019 09:40	60.0	71
+    6	20 May 2019 10:33	75.0	79
+    7	20 May 2019 10:40	90.0	81
+    8	20 May 2019 10:44	95.0	82
+    9	20 May 2019 10:45	105.0	67
+    """
+
+
+    # Rebuild the model, and start the plots again. Try different model type
+    expt4 = gather(d=d4, y=y4, title="Switch over to real-world units")
+    model4 = lm("y ~ d + I(d**2)", data=expt4)
+    summary(model4)
+    p = plot_model(model4, "d", "y", xlim=(20, 105), color="purple")
+
+
+    # Let's see how well this model fits. If we run an experiment at 75 hours,
+    # we should notice a drop-off. But, predict it first:
+    d5 = d4.extend([75])
+    print(predict(model4, d=d5))
+
+    # Expect a predicted value of 57 in the output. # Actual result: 79.
+    # Bad prediction.
+
+    # Let's try a different model structure: y = intercept + 1/d
+    y5 = y4.extend([79])
+    expt5 = gather(d=d5, y=y5, title="Hyperbolic model")
+    model5 = lm("y ~ I(1/d)", data=expt5)
+    summary(model5)
+    p = plot_model(model5, "d", "y", fig=p, xlim=(20, 105),
+                   color="darkgreen")
+
+
+    # -------
+    # Let's try at around 90 hours. Expect an outcome of around 83 units.
+    d6 = d5.extend([90])
+    print(predict(model5, d=d6))
+
+    # Got a value of 81 instead. Stabilized?
+    y6 = y5.extend([81])
+    expt6 = gather(d=d6, y=y6, title="Hyperbolic model with point at d=90 hrs")
+    # Rebuild the model with the new data point, keeping model structure: y=1/d
+    model6 = lm("y ~  I(1/d)", data=expt6)
+    summary(model6)
+    p = plot_model(model6, "d", "y", fig=p, xlim=(20, 105), color="blue")
+
+
+    # Try adding few more points:
+    # Point 8. Try 95 hours. Seems to sqrt.  Predict 83.5; actual: 82
+    # Point 9: Try 105 hour to see decline.  Predict 85.4; actual: 67
+    # Massive difference: something is different in the system here?
+
+    ## Build a model with all values now
+    d7 = d6.extend([95, 105])
+    print(predict(model6, d=d7))
+
+    y7 = y6.extend([82, 67])
+    expt7 = gather(d=d7, y=y7, title="Hyperbolic model all 9 points")
+    model7 = lm("y ~  I(1/d)", data=expt7)
+    summary(model7)
+    p = plot_model(model7, "d", "y", fig=p, xlim=(20, 110), color="red")
+
+
+
+    # The current model structure does not allow for decrease/stabilization.
+    # Rebuild it with a different structure
+    # Model 7:  y = 1/d               SE = 6.181
+    # Model 8:  y = d + 1/sqrt(d)     SE = 4.596
+    # Model 9:  y = d + 1/log(d)      SE = 4.648
+    # Model 10: y = d + d^2           SE = 4.321
+
+
+    model8 = lm("y ~ d + I(1/np.sqrt(d))", data=expt7, name="With sqrt term")
+    summary(model8)
+    p = plot_model(model8, "d", "y", fig=p, xlim=(20, 110), color="orange")
+
+    model9 = lm("y ~ d + I(1/np.log(d))", data=expt7, name="With log term")
+    summary(model9)
+    p = plot_model(model9, "d", "y", fig=p, xlim=(20, 110), color="brown")
+
+    model10 = lm("y ~ d + I(d**2)", data=expt7, name="With quadratic term")
+    summary(model10)
+    p = plot_model(model10, "d", "y", fig=p, xlim=(20, 110), color="darkcyan")
+
+
 
 
 def issue20():
@@ -485,7 +593,7 @@ if __name__ == '__main__':
     # api_usage()
     #case_worksheet_6()
     #case_worksheet_8()
-    #case_worksheet_9()
+    case_worksheet_9()
     case_worksheet_10()
 
     #case_w2()
