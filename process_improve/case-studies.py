@@ -375,35 +375,33 @@ def issue20():
 def case_worksheet_10():
 
     # Price: 0 # 0.25 above and 0.25 $/part below
-    p = c(0.75, 0.75, 0.5, 1.0, 0.5, 1.0, center=0.75, range=[0.5, 1.0],
-          name = "Price", units='$/part')
-    t = c(325, 325, 250, 250, 400, 400, center=325, range=[250, 400],
-          name = 'Throughput', units = 'parts/hour')
+    p = c(0.75, 0.75, 0.65, 0.85, 0.65, 0.85, center=0.75, range=[0.65, 0.85],
+          name = "Price",      units = '$/part')
+    t = c( 325,  325,  250,  250,  400,  400, center=325, range=[250, 400],
+           name = 'Throughput', units = 'parts/hour')
     P1 = p.to_coded()
     T1 = t.to_coded()
-    y_1 = c(5317, 5322, 3104, 3497, 4873, 5031,
-            name = "Response: profit per hour", units="$/hour")
-
-    expt1 = gather(P=P1, T=T1, y=y_1, title="First experiment")
+    y1 = c(7740, 7755, 5651, 5812, 7363, 7397, name = "Response: profit per hour", units="$/hour")
+    expt1 = gather(P=P1, T=T1, y=y1, title="First experiment")
 
     mod_base1 = lm("y ~ P * T", data=expt1)
     summary(mod_base1)
     contour_plot(mod_base1, "P", "T")
 
-    # TODO: predictions in the hover in sensible values, not 3.425E3, but 3425.
-
-
+    The prediction on the hover is NOT the prediction from the model. It is
+    discretized into the image bands. Fix this.
 
     # predict the points, using the model:
     prediction_1 = predict(mod_base1, P=P1, T=T1)
     print(prediction_1)
-    print(y_1 - prediction_1)
+    print(y1 - prediction_1)
 
+    # We see clear non-linearity, especially when viewed in the direction of T
 
-    # Try anyway, to verify it first: P = ___ and T = ___ (0.25, 2.0)
-    P2 = P1.extend([0.25])
-    T2 = T1.extend([2,])
-
+    # Try anyway to make a prediction, to verify it
+    # P = 0.15 and T = 2.0:
+    P2 = P1.extend([0.15])
+    T2 = T1.extend([2.0])
     p2 = P2.to_realworld()
     t2 = T2.to_realworld()
 

@@ -416,10 +416,15 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
                       name='contour_image',
                       )
     # hover_tool_names.append('contour_image')
-    h1 = HoverTool(tooltips=[(xlabel, "$x"),
-                             (ylabel, "$y"),
-                             ("Predicted response", "@image")],
-                   renderers=[h_image])  # custom tooltip for the predicted image
+    # custom tooltip for the predicted image
+    h1 = HoverTool(tooltips=[(xlabel, "$x{0.4g}"),
+                             (ylabel, "$y{0.4f}"),
+                             ("Predicted response", "@{image}{0.4g}")],
+                   renderers=[h_image],
+                   formatters={"Predicted response": 'printf',
+                               xlabel: 'printf',
+                               ylabel: 'printf'}
+                )
 
     color_bar = ColorBar(color_mapper=color_mapper,
                          major_label_text_font_size="8pt",
@@ -471,14 +476,29 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
                            size=10,
                            line_width=2,
                            name='experimental_points',)
-        h2 = HoverTool(tooltips=[(xlabel, "$x"),
-                                 (ylabel, "$y"),
-                                 #("Other factors", "NA"),
-                                 ("Actual value", "@output")  # why not working???
+        # custom tooltip for the experimental points
+        h2 = HoverTool(tooltips=[(xlabel, "$x{0.4g}"),
+                                 (ylabel, "$y{0.4g}"),
+                                 ("Actual value", "@{output}{0.4g}")  # why not working???
                                  ],
-                       renderers=[h_expts])  # custom tooltip for the predicted image
+                       renderers=[h_expts],
+                       formatters={"Actual value": 'printf',
+                                   xlabel: 'printf',
+                                   ylabel: 'printf'}
+                       )
         h2.point_policy='snap_to_data'
         h2.line_policy='none'
+
+
+
+        h1 = HoverTool(tooltips=[(xlabel, "$x{0.4g}"),
+                                 (ylabel, "$y{0.4f}"),
+                                 ("Predicted response", "@{image}{0.4g}")],
+                       renderers=[h_image],
+
+                    )
+
+
 
     # Axis labels:
     p.xaxis.axis_label_text_font_size = '14pt'
