@@ -470,9 +470,6 @@ def case_worksheet_9():
     summary(model10)
     p = plot_model(model10, "d", "y", fig=p, xlim=(20, 110), color="darkcyan")
 
-
-
-
 def issue20():
     d4 = c(24, 48, 36, 36, 60, units='hours', lo=24, high=48)
     y4 = c(31, 65, 52, 54, 69)
@@ -514,7 +511,7 @@ def case_worksheet_10():
     print(predict(mod_base1, P = P2, T = T2))
 
     # Should have a predicted profit of 8599, but actual is 4654.
-    # Confirms our model is in a very nonlinear region in the T=Throughput 
+    # Confirms our model is in a very nonlinear region in the T=Throughput
     # direction.
 
     # Perhaps our factorial was far too big. Make the range smaller in T.
@@ -528,7 +525,7 @@ def case_worksheet_10():
     t3 = c(325, 325,  400,   400,  400,  250, 475, center = (325+400)/2,
             range=(325, 400),  name = 'Throughput', units = 'parts/hour')
 
-    # 2nd, 
+    # 2nd,
     y3 = c(7755, 7784, 7373, 7397, 7363, 5812, 4654,
             name = "Response: profit per hour", units="$/hour")
     P3 = p3.to_coded()
@@ -551,7 +548,7 @@ def case_worksheet_10():
 
 
     # ACTUAL value achieved is 6325. Not a good prediction yet either.
-    # Add this point to the model. This point is below any of the base factorial 
+    # Add this point to the model. This point is below any of the base factorial
     # points!
     y4 = y3.extend([6325])
     expt4 = gather(P=P4, T=T4, y=y4, title="Adding the next exploration")
@@ -565,7 +562,7 @@ def case_worksheet_10():
     print(summary(mod_base5))
 
     # add the xlim input in a second round
-    contour_plot(mod_base5, "P", "T", xlim=(-2, 4)) 
+    contour_plot(mod_base5, "P", "T", xlim=(-2, 4))
 
     # Run at (P=3, T=-0.3) for the next run
     P6 = P4.extend([+3])
@@ -580,7 +577,7 @@ def case_worksheet_10():
     y6 = y4.extend([7969])
     expt6 = gather(P=P6, T=T6, y=y6, title="After extrapolation, based on quadratic term")
     mod_base6 = lm("y ~ P*T + I(P**2) + I(T**2)", data=expt6)
-    contour_plot(mod_base6, "P", "T", xlim=(-2, 5)) 
+    contour_plot(mod_base6, "P", "T", xlim=(-2, 5))
 
     # Extrapolate again to (P=5, T=-0.3) for the next run
     P7 = P6.extend([+5])
@@ -596,32 +593,160 @@ def case_worksheet_10():
     y7 = y6.extend([7982])
     expt7 = gather(P=P7, T=T7, y=y7, title="With 2 extrapolations")
     mod_base7 = lm("y ~ P*T + I(P**2) + I(T**2)", data=expt7)
-    contour_plot(mod_base7, "P", "T", xlim=(-2, 148)) 
-
-def case_worksheet_10B():
-    # Code for this system: https://rsmopt.com/system/concrete-strength/
+    contour_plot(mod_base7, "P", "T", xlim=(-2, 148))
 
 
-    # Price: 0 # 0.25 above and 0.25 $/part below
-    p = c(0.75, 0.75, 0.65, 0.85, 0.65, 0.85, center=0.75, range=[0.65, 0.85],
+def case_worksheet_10C():
+    # Price: 0 # 0.05 above and 0.05 $/part below
+    p1 = c(0.75, 0.75, 0.7, 0.8, 0.7, 0.80, center=0.75, range=[0.70, 0.80],
           name = "Price",      units = '$/part')
-    t = c( 325,  325,  250,  250,  400,  400, center=325, range=[250, 400],
+    t1 = c( 325,  325,  300, 300, 350, 350, center=325, range=[300, 350],
            name = 'Throughput', units = 'parts/hour')
-    P1 = p.to_coded()
-    T1 = t.to_coded()
-    y1 = c(7740, 7755, 5651, 5812, 7363, 7397, name = "Response: profit per hour", units="$/hour")
+    P1 = p1.to_coded()
+    T1 = t1.to_coded()
+    y1 = c(7082, 7089, 6637, 6686, 7181, 7234,
+          name = "Response: profit per hour", units="$/hour")
     expt1 = gather(P=P1, T=T1, y=y1, title="First experiment")
 
     mod_base1 = lm("y ~ P * T", data=expt1)
     summary(mod_base1)
-    contour_plot(mod_base1, "P", "T", show=False)
+    contour_plot(mod_base1, "P", "T")
 
     # Predict the points, using the model:
     prediction_1 = predict(mod_base1, P=P1, T=T1)
     print(prediction_1)
     print(y1 - prediction_1)
 
-    # W
+    # We see clear non-linearity, especially when viewed in the direction of T
+
+    # Try anyway to make a prediction, to verify it
+    # P ~ 0.7 and T ~ 2.0:
+    P2 = P1.extend([0.7])
+    T2 = T1.extend([2.0])
+    p2 = P2.to_realworld()
+    t2 = T2.to_realworld()
+    print(p2) # 0.785
+    print(t2) # 375
+    print(predict(mod_base1, P = P2, T = T2))
+
+    # Should have a predicted profit of 7550, but actual is 7094.
+    # Confirms our model is in a very nonlinear region in the T=Throughput
+    # direction.
+
+    # Add axial points, starting in the T direction:
+    P3 = P2.extend([0, 0])
+    T3 = T2.extend([1.68, -1.68])
+    p3 = P3.to_realworld()
+    t3 = T3.to_realworld()
+    print(p3) # 0.75, 0.75
+    print(t3) # 367, 283
+
+    # Now build model with quadratic term in the T direction
+    y3 = y1.extend([7094, 7174, 6258])
+    expt3 = gather(P=P3, T=T3, y=y3, title="With axial points")
+    mod_base3 = lm("y ~ P * T + I(T**2)", data=expt3)
+    summary(mod_base3)
+    contour_plot(mod_base3, "P", "T", xlim=(-1.5, 5))
+    #
+
+    #Try extrapolating far out: (P, T) = (4, 1)
+    P4 = P3.extend([4])
+    T4 = T3.extend([1])
+    p4 = P4.to_realworld()
+    t4 = T4.to_realworld()
+    print(p4) # 0.95
+    print(t4) # 350
+
+    predict(mod_base3, P=P4, T=T4) # 7301
+    # Actual: 7291  # great! Keep going
+    y4 = y3.extend([7291])
+
+    #Try extrapolating far out: (P, T) = (6, 1)
+    P5 = P4.extend([6])
+    T5 = T4.extend([1])
+    p5 = P5.to_realworld()
+    t5 = T5.to_realworld()
+    print(p5) # 1.05
+    print(t5) # 350
+
+    predict(mod_base3, P=P5, T=T5) # 7344
+    # Actual: 7324  # great! Keep going
+    y5 = y4.extend([7324])
+
+    # Visualize model first
+    y5 = y
+    expt5 = gather(P=P5, T=T5, y=y5, title="With extrapolated points")
+    mod_base5 = lm("y ~ P * T + I(T**2)", data=expt5)
+    summary(mod_base5)
+    contour_plot(mod_base5, "P", "T", xlim=(-1.5, 18))
+
+    #Try extrapolating further out: (P, T) = (10, 1)
+    P6 = P5.extend([10])
+    T6 = T5.extend([1])
+    p6 = P6.to_realworld()
+    t6 = T6.to_realworld()
+    print(p6) # 1.25
+    print(t6) # 350
+
+    predict(mod_base3, P=P6, T=T6) # 7431
+    # Actual: 7378  # Not matching; rebuild the model eventually.
+    y6 = y5.extend([7378])
+
+
+def case_worksheet_10B():
+    # Code for this system: https://rsmopt.com/system/concrete-strength/
+
+    # C: cement = 1.8 and 4.2 kg)
+    # W: amount of water (between 0.4 and 1.1 L)
+
+    c1 = c(2.5, 3, 2.5, 3, center=2.75, range=[2.5, 3],
+            name = "cement", units = 'kg')
+    w1 = c(0.5, 0.5, 0.9, 0.9, center=0.7, range=[0.5, 0.9],
+            name = 'Throughput', units = 'parts/hour')
+    C1 = c1.to_coded()
+    W1 = w1.to_coded()
+    y1 = c(14476, 14598, 14616, 14465, name = "Strength", units="-")
+    expt1 = gather(C=C1, W=W1, y=y1, title="First experiment")
+
+    mod_base1 = lm("y ~ C * W", data=expt1)
+    summary(mod_base1)
+    contour_plot(mod_base1, "C", "W")
+
+    # Predict the points, using the model:
+    prediction_1 = predict(mod_base1, C=C1, W=W1)
+    print(prediction_1)
+    print(y1 - prediction_1)
+
+
+    # Very nonlinear: saddle: up left, or bottom right
+    # Bottom right: (C, W) = (2, -2)
+    C2 = C1.extend([2])
+    W2 = W1.extend([-2])
+
+    # Predict at this point: 14794
+    predict(mod_base1, C=C2, W=W2)
+    c2 = C2.to_realworld()
+    w2 = W2.to_realworld()
+
+    # Actual: at c=3.25; w=0.4 (constraint): 14362. So wrong direction
+    y1 = c(14476, 14598, 14616, 14465, name = "Strength", units="-")
+    expt1 = gather(C=C1, W=W1, y=y1, title="First experiment")
+
+    # Try the other way: C, W= -2, 2
+    C2 = C1.extend([-2])
+    W2 = W1.extend([+2])
+
+    # Predict at this point: 14830
+    predict(mod_base1, C=C2, W=W2)
+    c2 = C2.to_realworld()  # 2.25
+    w2 = W2.to_realworld()  # 1.1
+
+    # Actual: 13982;
+
+
+
+
+
 if __name__ == '__main__':
     # tradeoff_table()
     #case_3B()    # case_3C(show=True)
@@ -632,7 +757,7 @@ if __name__ == '__main__':
     #case_worksheet_8()
     #case_worksheet_9()
     #case_worksheet_10()
-    case_worksheet_10B()
+    case_worksheet_10C()
 
     #case_w2()
     #case_w4_1()

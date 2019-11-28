@@ -120,7 +120,7 @@ def pareto_plot(model,
     params = params.abs()
     base_parameters = model.get_factor_names(level=1)
     full_names = []
-    for param_name, param_value in params.iteritems():
+    for param_name, _ in params.iteritems():
         if param_name in base_parameters:
             fname = model.data.pi_source.get(param_name, param_name)
             full_names.append(fname)
@@ -448,7 +448,7 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
 
 
 
-    for idx, cccontour in enumerate(CS.allsegs):
+    for _, cccontour in enumerate(CS.allsegs):
         if cccontour:
             x = cccontour[0][:,0]
             y = cccontour[0][:,1]
@@ -510,16 +510,12 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
     if show:
         show_plot(p)
 
-
-
-
-
     # Show the data from the experiment as dots on the plot
     # TODO: add some jitter
 
-    #plt.title(get_plot_title(main, model, prefix='Contour plot'))
-    #plt.xlabel(xlabel, fontsize=12, fontweight="bold")
-    #plt.ylabel(ylabel, fontsize=12, fontweight="bold")
+    # plt.title(get_plot_title(main, model, prefix='Contour plot'))
+    # plt.xlabel(xlabel, fontsize=12, fontweight="bold")
+    # plt.ylabel(ylabel, fontsize=12, fontweight="bold")
 
     # Set up the plot for the first time
     # plt.xlim(xlim)
@@ -530,7 +526,7 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
                      # colors='black',
                      # levels=levels,
                      # linestyles='dotted')
-    #plt.clabel(CS, inline=True, fontsize=10, fmt='%1.0f')
+    # plt.clabel(CS, inline=True, fontsize=10, fmt='%1.0f')
 
     # plt.imshow(Z, extent=[xlim[0], xlim[1], ylim[0], ylim[1]],
                # origin='lower',
@@ -552,7 +548,7 @@ def tradeoff_table(show_in_browser= True,
         path = Path(__file__)
         # Wrapping the image in HTML does not work in Jupyter notebooks.
         fname = "trade-off-table.png"
-        fqp = f"file://{path.drive}/{'/'.join(path.parts[1:-1])}/media/{fname}"
+        #fqp = f"file://{path.drive}/{'/'.join(path.parts[1:-1])}/media/{fname}"
         url = 'https://yint.org/tradeoff'
         webbrowser.open_new_tab(url)
 
