@@ -236,13 +236,12 @@ def contour_plot(model, xlabel=None, ylabel=None, main=None,
             sep = ""))
     }
     """
-    if True:
-
-        plt = contour_plot_bokeh(model, xlabel, ylabel, main,
-                                 xlim, ylim,
-                                 colour_function, show,
-                                 show_expt_data,
-                                 figsize, dpi, other_factors)
+    plt = contour_plot_bokeh(model, xlabel, ylabel, main,
+                             xlim, ylim,
+                             colour_function, show,
+                             show_expt_data,
+                             figsize, dpi, other_factors)
+    return plt
 
     # Matplotlib version
     if False:
@@ -379,6 +378,11 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
     levels = np.linspace(z_min, z_max, N)
 
     from matplotlib.pyplot import contour, clabel
+    import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('Agg')
+    # Turn interactive plotting off
+    plt.ioff()
     CS = contour(H, V, Z, levels=levels, linestyles='dotted')
     clabel(CS, inline=True, fontsize=10, fmt='%1.0f')
     #contour_labels = [(float(q._x), float(q._y), float(q._text))\
@@ -509,6 +513,7 @@ def contour_plot_bokeh(model, xlabel=None, ylabel=None, main=None,
 
     if show:
         show_plot(p)
+    return p
 
     # Show the data from the experiment as dots on the plot
     # TODO: add some jitter
