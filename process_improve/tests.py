@@ -239,7 +239,16 @@ class Test_API_usage(unittest.TestCase):
         """
         Test conversion between real-world and coded units.
         """
-        self.assertTrue(False)
+        c1 = c(2.5, 3, 2.5, 3, center=2.75, range=[2.5, 3], name = "cement")
+        c1_coded = c1.to_coded()
+        self.assertListEqual(c1_coded.to_list(), [-1., 1., -1., 1.])
+
+        c2 = c([-1., -1., +1., +1.], center=2.75, range=[2.5, 3], 
+               name="cement", coded=True)
+        c2_rw = c2.to_realworld()
+        self.assertListEqual(c2_rw.to_list(), [2.5, 2.5, 3.0, 3.0])
+
+        
 
 if __name__ == '__main__':
     unittest.main()

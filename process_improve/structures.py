@@ -193,9 +193,9 @@ def c(*args, **kwargs) -> Column:
     # `units` are specified, then immediately it is assumed that the variable
     # values are not coded.
     # So, to force the specification, you may supply the optional input of
-    # `is_coded` as True or False
-    A = c([4, 5,  6,  4,  6], lo=1, hi=3, is_coded=True)
-    A = c([4, 5,  6,  4,  6], lo=1, hi=3, is_coded=False, units="g/mL")
+    # `coded` as True or False
+    A = c([4, 5,  6,  4,  6], lo=1, hi=3, coded=True)
+    A = c([4, 5,  6,  4,  6], lo=1, hi=3, coded=False, units="g/mL")
 
     # Categorical variables
     B = c(0, 1, 0, 1, 0, 2, levels =(0, 1, 2))
