@@ -54,7 +54,7 @@ check:  # if the first command gives a return, then stage those files, then run 
 	pre-commit run --all-files
 
 lint: ## check style with flake8
-	flake8 rvs tests
+	flake8 process_improve tests
 
 test: ## run tests quickly with the default Python
 	python -W ignore -m pytest --exitfirst
@@ -63,15 +63,15 @@ test-all: ## run tests on every Python version with tox
 	tox
 
 coverage: ## check code coverage quickly with the default Python
-	coverage run --source rvs -m pytest
+	coverage run --source process_improve -m pytest
 	coverage report -m
 	coverage html
 	python -m http.server 8080
 
 docs: ## generate Sphinx HTML documentation, including API docs
-	rm -f docs/rvs.rst
+	rm -f docs/process_improve.rst
 	rm -f docs/modules.rst
-	sphinx-apidoc -o docs/ rvs
+	sphinx-apidoc -o docs/ process_improve
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
 	python -m http.server 8080 --directory docs/_build/html/

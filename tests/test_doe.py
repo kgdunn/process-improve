@@ -187,13 +187,13 @@ class TestModels(unittest.TestCase):
 
 class Test_API_usage(unittest.TestCase):
     def setUp(self):
-        full_path = os.path.join(os.path.split(__file__)[0], "media", "test_doe1.csv")
+        full_path = os.path.join(os.path.split(__file__)[0], "fixtures", "test_doe1.csv")
         self.assertTrue(os.path.exists(full_path))
         self.df1 = pd.read_csv(full_path)
         self.df1.set_index("Run order", inplace=True)
 
     def test_case_1(self):
-        pass
+
         index = self.df1.index
         C = c(
             self.df1["C"], lo=self.df1["C"].min(), hi=self.df1["C"].max(), index=index, name="C",
@@ -201,7 +201,7 @@ class Test_API_usage(unittest.TestCase):
         M = c(self.df1["M"], levels=self.df1["M"].unique(), name="M")
         V = c(self.df1["V"], lo=self.df1["V"].min(), hi=self.df1["V"].max(), name="V")
         B = c(self.df1["B"], name="B")
-        self.assertTrue(B.pi_levels[B.name] == ["Ard", "Eme"])
+        self.assertTrue(B.pi_levels["B"] == ["Ard", "Eme"])
 
         y = self.df1["y"]
 

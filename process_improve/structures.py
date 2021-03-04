@@ -255,6 +255,7 @@ def c(*args, **kwargs) -> Column:  # noqa: C901
     out.pi_is_coded = True
 
     out.pi_name = kwargs.get("name", "Unnamed")
+    out.name = out.pi_name
     if numeric:
 
         # If any of 'lo', 'hi', 'center', or 'range' are specified, then it
@@ -375,8 +376,8 @@ def gather(*args, title=None, **kwargs) -> Expt:
         elif isinstance(value, pd.Series):
             out[key] = value.values
             out.pi_source[key] = value.name
-            out.pi_units[key] = value.pi_units
-
+            out.pi_units[key] = value.pi_units if hasattr(value, 'pi_units') else ''
+ 
             if hasattr(value, "pi_index"):
                 index.append(value.index)
 
