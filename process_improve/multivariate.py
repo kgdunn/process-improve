@@ -58,6 +58,41 @@ class PCA(PCA_sklearn):
         h = (2 * center_spe ** 2) / variance_spe
         return chi2.ppf(conf_level, h) * g
 
+    def ellipse_coordinates(score_h, score_v, T2_limit_alpha, n_points=100):
+        """
+            We want the (score_h, score_v) coordinate pairs that form the T2 ellipse.
+            
+        
+            Inputs: s_h (std deviation of the score on the horizontal axis)
+                    s_v (std deviation of the score on the vertical axis)
+                    T2_limit_alpha: the T2_limit at the alpha confidence value
+        
+            Equation of ellipse in canonical form (http://en.wikipedia.org/wiki/Ellipse)
+        
+             (t_horiz/s_h)^2 + (t_vert/s_v)^2  =  T2_limit_alpha
+        
+             s_horiz = stddev(T_horiz)
+             s_vert  = stddev(T_vert)
+             T2_limit_alpha = T2 confidence limit at a given alpha value (e.g. 99#)
+        
+            Equation of ellipse, parametric form (http://en.wikipedia.org/wiki/Ellipse)
+        
+            t_horiz = sqrt(T2_limit_alpha)*s_h*cos(t) 
+            t_vert  = sqrt(T2_limit_alpha)*s_v*sin(t) 
+        
+            where t ranges between 0 and 2*pi
+        
+            Returns `n-points` equi-spaced points on the ellipse.
+            """
+
+        h_const = np.sqrt(T2_limit_alpha) * s_h
+        v_const = np.sqrt(T2_limit_alpha) * s_v
+        dt = 2*np.pi/(n_points-1)
+        steps = np.linspace(0, n_points-1, n_points)
+        x = np.cos(steps*dt)*h_const
+        y = np.sin(steps*dt)*v_const
+        return x, y
+
 
 # Create our own mean centering and scaling to unit variance (MCUV) class
 # The default scaler in sklearn does not handle small datasets accurately, with ddof.
