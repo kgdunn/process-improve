@@ -1,21 +1,19 @@
 # (c) Kevin Dunn, 2019-2021. MIT License.
 
-from typing import Optional
 import warnings
 from collections import defaultdict
+from typing import Optional, List, Any
 
 import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
-import statsmodels.api as sm
 from statsmodels.regression.linear_model import OLS
 from patsy import ModelDesc
 
 
 def forg(x, prec=3):
     """
-    Yanked from the code for Statsmodels\iolib\summary.py
-    and adjusted
+    Yanked from the code for Statsmodels / iolib / summary.py and adjusted.
     """
     if prec == 3:
         # for 3 decimals
@@ -126,7 +124,7 @@ class Model(OLS):
 
     def get_aliases(
         self,
-        aliasing_up_to_level: Optional[int] = 2,
+        aliasing_up_to_level: int = 2,
         drop_intercept: Optional[bool] = True,
         websafe: Optional[bool] = False,
     ) -> list:
@@ -143,14 +141,17 @@ class Model(OLS):
             in the aliasing in bold, since that is the nominally estimated
             effect.
         """
-        alias_strings = []
+        alias_strings: List[Any] = []
         if len(self.aliasing.keys()) == 0:
             return alias_strings
 
         params = self.get_parameters(drop_intercept=drop_intercept)
         for p_name in params.index.values:
             if websafe:
-                aliasing = '<span style="font-size: 130%; font-weight: 700">' f"{p_name}</span>"
+                aliasing = (
+                    '<span style="font-size: 130%; font-weight: 700">'
+                    f"{p_name}</span>"
+                )
             else:
                 aliasing = p_name
             suffix = ""
@@ -172,7 +173,7 @@ class Model(OLS):
         return alias_strings
 
 
-Model.__repr__ = Model.__str__
+# Model.__repr__ = Model.__str__
 
 
 def predict(model, **kwargs):
@@ -247,7 +248,9 @@ def lm(
             else:
                 # Columns with no variation
                 candidates = [
-                    i for i, j in enumerate(has_variation) if (j <= threshold_correlation)
+                    i
+                    for i, j in enumerate(has_variation)
+                    if (j <= threshold_correlation)
                 ]
 
             # Track the correlation signs
@@ -297,14 +300,21 @@ def lm(
     post_model = smf.ols(model_spec, data=data, drop_cols=drop_column_names)
 
     name = name or data.pi_title
-    out = Model(OLS_instance=post_model.fit(), model_spec=model_spec, aliasing=aliasing, name=name)
+    out = Model(
+        OLS_instance=post_model.fit(),
+        model_spec=model_spec,
+        aliasing=aliasing,
+        name=name,
+    )
     out.data = data
 
     return out
 
 
 def summary(
-    model: Model, show: Optional[bool] = True, aliasing_up_to_level: Optional[int] = 3,
+    model: Model,
+    show: Optional[bool] = True,
+    aliasing_up_to_level: int = 3,
 ):
     """
     Prints a summary to the screen of the model.
@@ -325,4 +335,3 @@ def summary(
     if show:
         print(out)
     return out
-

@@ -80,9 +80,9 @@ def grocery(p=3.46, h=150, P=None, H=None):
         H = h
 
     if (len(P) > 1) | (len(H) > 1):
-        assert False, (
-            "Running the grocery store experiments in parallel is " "(intentionally) not allowed."
-        )
+        assert (
+            False
+        ), "Running the grocery store experiments in parallel is (intentionally) not allowed."
 
     if pd.isna(P) or pd.isna(H):
         assert False, "All function inputs must be finite numbers."

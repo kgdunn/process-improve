@@ -9,10 +9,7 @@ from bokeh.plotting import show as show_plot
 from bokeh.models import HoverTool, Range1d
 from bokeh.colors import RGB
 
-try:
-    from .models import predict
-except ImportError:
-    from models import predict
+from .models import predict
 
 
 def get_plot_title(main, model, prefix=""):
@@ -99,7 +96,9 @@ def pareto_plot(
 
     params = model.get_parameters()
     if up_to_level:
-        assert isinstance(up_to_level, int), "Specify an integer value for " "`up_to_level`."
+        assert isinstance(up_to_level, int), (
+            "Specify an integer value for " "`up_to_level`."
+        )
         keep = []
         for k in range(up_to_level):
             keep.extend(model.get_factor_names(level=k + 1))
@@ -135,10 +134,14 @@ def pareto_plot(
         ("Magnitude and sign", "@original_magnitude_with_sign"),
     ]
 
-    alias_strings = model.get_aliases(aliasing_up_to_level, drop_intercept=True, websafe=True)
+    alias_strings = model.get_aliases(
+        aliasing_up_to_level, drop_intercept=True, websafe=True
+    )
 
     if len(alias_strings) != 0:
-        TOOLTIPS.append(("Aliasing", "@alias_strings{safe}"),)
+        TOOLTIPS.append(
+            ("Aliasing", "@alias_strings{safe}"),
+        )
     else:
         alias_strings = [""] * len(params.values)
     alias_strings = [alias_strings[i] for i in sort_order]
@@ -297,7 +300,9 @@ def contour_plot(
         for factor in unspecified_factors:
             kwargs[factor] = np.zeros_like(h_grid)
 
-        assert sorted(kwargs.keys()) == sorted(pure_factors), "Not all factors " "were specified."
+        assert sorted(kwargs.keys()) == sorted(
+            pure_factors
+        ), "Not all factors were specified."
         Z = predict(model, **kwargs)
         Z = Z.values.reshape(N, N)
 
@@ -404,7 +409,9 @@ def contour_plot_bokeh(
     for factor in unspecified_factors:
         kwargs[factor] = np.zeros_like(h_grid)
 
-    assert sorted(kwargs.keys()) == sorted(pure_factors), "Not all factors " "were specified."
+    assert sorted(kwargs.keys()) == sorted(pure_factors), (
+        "Not all factors " "were specified."
+    )
     Z = predict(model, **kwargs)
     Z = Z.values.reshape(N, N)
     z_min, z_max = Z.min(), Z.max()
@@ -636,7 +643,9 @@ def plot_model(
     if not oneD:
         yrange = model.data[y_column].min(), model.data[y_column].max()
         ydelta = yrange[1] - yrange[0]
-        ylim = kwargs.get("ylim", (yrange[0] - ydelta * 0.05, yrange[1] + ydelta * 0.05))
+        ylim = kwargs.get(
+            "ylim", (yrange[0] - ydelta * 0.05, yrange[1] + ydelta * 0.05)
+        )
 
         v_grid = np.linspace(ylim[0], ylim[1], num=per_axis_points)
         H, V = np.meshgrid(h_grid, v_grid)
@@ -667,7 +676,9 @@ def plot_model(
         plotdata[y_column] = Z
         yrange = Z.min(), Z.max()
         ydelta = yrange[1] - yrange[0]
-        ylim = kwargs.get("ylim", (yrange[0] - ydelta * 0.05, yrange[1] + ydelta * 0.05))
+        ylim = kwargs.get(
+            "ylim", (yrange[0] - ydelta * 0.05, yrange[1] + ydelta * 0.05)
+        )
 
     if fig:
         p = fig
@@ -720,7 +731,11 @@ def plot_model(
             name="Experimental_points",
         )
         h2 = HoverTool(
-            tooltips=[(x_column, "$x"), (y_column, "$y"), ("Experimental value", "@output")],
+            tooltips=[
+                (x_column, "$x"),
+                (y_column, "$y"),
+                ("Experimental value", "@output"),
+            ],
             renderers=[h_expts],
         )
 

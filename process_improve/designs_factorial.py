@@ -2,13 +2,8 @@
 Various factorial designs
 """
 from typing import Optional
-import itertools
 
-
-try:
-    from .structures import create_names, c, expand_grid
-except ImportError:
-    from structures import create_names, c, expand_grid
+from .structures import create_names, c, expand_grid
 
 
 def full_factorial(nfactors: int, names: Optional[list] = None):
@@ -24,5 +19,4 @@ def full_factorial(nfactors: int, names: Optional[list] = None):
         names = create_names(nfactors)
 
     # Expand the full factorial out into variables
-    return expand_grid(**dict(zip(names, [c(-1, +1),] * len(names))))
-
+    return expand_grid(**dict(zip(names, [c(-1, +1)] * len(names))))

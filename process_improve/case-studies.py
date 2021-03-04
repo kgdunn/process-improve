@@ -1,15 +1,7 @@
-import numpy as np
-import pandas as pd
-
-import os
-import sys
-
-sys.path.append(os.path.split(__file__)[0])
-
-from structures import gather, c, expand_grid, supplement
-from models import lm, summary, predict
-from plotting import pareto_plot, contour_plot, plot_model
-from designs_factorial import full_factorial
+from .structures import gather, c, expand_grid, supplement
+from .models import lm, summary, predict
+from .plotting import pareto_plot, contour_plot, plot_model
+from .designs_factorial import full_factorial
 
 
 def case_3B():
@@ -163,18 +155,19 @@ def case_w4_2():
 
 def case_worksheet_5():
     """
-    We have a bioreactor system, and we are investigating four factors:
-    A = feed rate 				          5 g/min or   8 g/min
-    B = initial inoculant amount 		300 g     or 400 g
-    C = feed substrate concentration 	 40 g/L   or  60 g/L
-    D = dissolved oxygen set-point 	      4 mg/L  or   5 mg/L
+    A = feed rate                           5 g/min     or   8 g/min
+    B = initial inoculant amount            300 g       or 400 g
+    C = feed substrate concentration        40 g/L      or  60 g/L
+    D = dissolved oxygen set-point          4 mg/L      or   5 mg/L
 
     The 16 experiments from a full factorial, were randomly run, and the yields
     from the bioreactor, y, are reported here in standard order:
+
     y = [60, 59, 63, 61, 69, 61, 94, 93, 56, 63, 70, 65, 44, 45, 78, 77].
     The yield has units of g/L.
 
     Without running any code or calculations, answer these questions:
+
     * how many 2-factor interactions are there in this full factorial: _______
     * how many 3-factor interactions are there in this full factorial: _______
     * how many 4-factor interactions are there in this full factorial: _______
@@ -182,7 +175,6 @@ def case_worksheet_5():
     * how many data points do you have to fit this model: _________
     * what will be the value of R2 if you fit this full linear model: _______
     * and the standard error will be exactly: ________
-
 
     Run your adjusted code and check that the values of A, B, C and D in the
     vector are in the order they should be.
@@ -192,7 +184,6 @@ def case_worksheet_5():
     Rebuild the model now without the factor, or factors which have the least
     influence on the model. Compare the existing model with this newly updated
     model. What do you notice about the coefficients?
-
 
     What would be your advice to your colleagues to improve the yield?
 
@@ -213,7 +204,24 @@ def case_worksheet_5():
     D = supplement(D, name="Dissolved oxygen set-point", units="mg/L", lo=4, hi=5)
 
     y = c(
-        60, 59, 63, 61, 69, 61, 94, 93, 56, 63, 70, 65, 44, 45, 78, 77, units="g/L", name="Yield"
+        60,
+        59,
+        63,
+        61,
+        69,
+        61,
+        94,
+        93,
+        56,
+        63,
+        70,
+        65,
+        44,
+        45,
+        78,
+        77,
+        units="g/L",
+        name="Yield",
     )
 
     expt = gather(A=A, B=B, C=C, D=D, y=y, title="Initial experiments; full factorial")
@@ -334,19 +342,21 @@ def case_worksheet_8():
 def case_worksheet_9():
     """
     Experiment
-    number	Date and time	Duration
-    [hours]	Product created [g], per unit sugar used
-    1	06 May 2019 09:36	24.0	23
-    2	06 May 2019 09:37	48.0	64
-    3	06 May 2019 09:38	36.0	51
-    4	06 May 2019 09:38	36.0	54
-    5	06 May 2019 09:40	60.0	71
-    6	20 May 2019 10:33	75.0	79
-    7	20 May 2019 10:40	90.0	81
-    8	20 May 2019 10:44	95.0	82
-    9	20 May 2019 10:45	105.0	67
+    number       Date and time        Duration    Product created [g]
+                                      [hours]      per unit sugar used
+    1            06 May 2019 09:36    24.0        23
+    2            06 May 2019 09:37    48.0        64
+    3            06 May 2019 09:38    36.0        51
+    4            06 May 2019 09:38    36.0        54
+    5            06 May 2019 09:40    60.0        71
+    6            20 May 2019 10:33    75.0        79
+    7            20 May 2019 10:40    90.0        81
+    8            20 May 2019 10:44    95.0        82
+    9            20 May 2019 10:45    105.0       67
     """
-    d1 = c(24, 48, center=36, range=(24, 48), coded=False, units="hours", name="Duration")
+    d1 = c(
+        24, 48, center=36, range=(24, 48), coded=False, units="hours", name="Duration"
+    )
     D1 = d1.to_coded()
     y1 = c(23, 64, name="Production", units="g/unit sugar")
     expt1 = gather(D=D1, y=y1, title="Starting off")
@@ -396,21 +406,6 @@ def case_worksheet_9():
     # built when the coded x-value is negative.
     d4 = c(24, 48, 36, 36, 60, coded=False, units="hours", name="Duration")
     y4 = c(23, 64, 51, 54, 71, name="Production", units="g/unit sugar")
-
-    """
-    Experiment
-    number	Date and time	Duration
-    [hours]	Product created [g], per unit sugar used
-    1	06 May 2019 09:36	24.0	23
-    2	06 May 2019 09:37	48.0	64
-    3	06 May 2019 09:38	36.0	51
-    4	06 May 2019 09:38	36.0	54
-    5	06 May 2019 09:40	60.0	71
-    6	20 May 2019 10:33	75.0	79
-    7	20 May 2019 10:40	90.0	81
-    8	20 May 2019 10:44	95.0	82
-    9	20 May 2019 10:45	105.0	67
-    """
 
     # Rebuild the model, and start the plots again. Try different model type
     expt4 = gather(d=d4, y=y4, title="Switch over to real-world units")
@@ -518,7 +513,16 @@ def case_worksheet_10():
     )
     P1 = p.to_coded()
     T1 = t.to_coded()
-    y1 = c(7740, 7755, 5651, 5812, 7363, 7397, name="Response: profit per hour", units="$/hour")
+    y1 = c(
+        7740,
+        7755,
+        5651,
+        5812,
+        7363,
+        7397,
+        name="Response: profit per hour",
+        units="$/hour",
+    )
     expt1 = gather(P=P1, T=T1, y=y1, title="First experiment")
 
     mod_base1 = lm("y ~ P * T", data=expt1)
@@ -581,7 +585,15 @@ def case_worksheet_10():
 
     # 2nd,
     y3 = c(
-        7755, 7784, 7373, 7397, 7363, 5812, 4654, name="Response: profit per hour", units="$/hour"
+        7755,
+        7784,
+        7373,
+        7397,
+        7363,
+        5812,
+        4654,
+        name="Response: profit per hour",
+        units="$/hour",
     )
     P3 = p3.to_coded()
     T3 = t3.to_coded()
@@ -629,7 +641,9 @@ def case_worksheet_10():
     # Actual = 7969. Really good matching.
     # UPdate the model and check
     y6 = y4.extend([7969])
-    expt6 = gather(P=P6, T=T6, y=y6, title="After extrapolation, based on quadratic term")
+    expt6 = gather(
+        P=P6, T=T6, y=y6, title="After extrapolation, based on quadratic term"
+    )
     mod_base6 = lm("y ~ P*T + I(P**2) + I(T**2)", data=expt6)
     contour_plot(mod_base6, "P", "T", xlim=(-2, 5))
 
@@ -678,7 +692,16 @@ def case_worksheet_10C():
     )
     P1 = p1.to_coded()
     T1 = t1.to_coded()
-    y1 = c(7082, 7089, 6637, 6686, 7181, 7234, name="Response: profit per hour", units="$/hour")
+    y1 = c(
+        7082,
+        7089,
+        6637,
+        6686,
+        7181,
+        7234,
+        name="Response: profit per hour",
+        units="$/hour",
+    )
     expt1 = gather(P=P1, T=T1, y=y1, title="First experiment")
 
     mod_base1 = lm("y ~ P * T", data=expt1)
@@ -747,7 +770,6 @@ def case_worksheet_10C():
     y5 = y4.extend([7324])
 
     # Visualize model first
-    y5 = y
     expt5 = gather(P=P5, T=T5, y=y5, title="With extrapolated points")
     mod_base5 = lm("y ~ P * T + I(T**2)", data=expt5)
     summary(mod_base5)
@@ -763,7 +785,7 @@ def case_worksheet_10C():
 
     predict(mod_base3, P=P6, T=T6)  # 7431
     # Actual: 7378  # Not matching; rebuild the model eventually.
-    y6 = y5.extend([7378])
+    _ = y5.extend([7378])
 
 
 def case_worksheet_10B():
@@ -773,7 +795,16 @@ def case_worksheet_10B():
     # W: amount of water (between 0.4 and 1.1 L)
 
     c1 = c(2.5, 3, 2.5, 3, center=2.75, range=[2.5, 3], name="cement", units="kg")
-    w1 = c(0.5, 0.5, 0.9, 0.9, center=0.7, range=[0.5, 0.9], name="Throughput", units="parts/hour")
+    w1 = c(
+        0.5,
+        0.5,
+        0.9,
+        0.9,
+        center=0.7,
+        range=[0.5, 0.9],
+        name="Throughput",
+        units="parts/hour",
+    )
     C1 = c1.to_coded()
     W1 = w1.to_coded()
     y1 = c(14476, 14598, 14616, 14465, name="Strength", units="-")
@@ -810,7 +841,7 @@ def case_worksheet_10B():
     predict(mod_base1, C=C2, W=W2)
     c2 = C2.to_realworld()  # 2.25
     w2 = W2.to_realworld()  # 1.1
-
+    print(c2, w2)
     # Actual: 13982;
 
 
@@ -829,4 +860,3 @@ if __name__ == "__main__":
     # case_w2()
     # case_w4_1()
     # case_w4_2()
-
