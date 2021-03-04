@@ -3,12 +3,14 @@ import pandas as pd
 
 import os
 import sys
+
 sys.path.append(os.path.split(__file__)[0])
 
-from structures import (gather, c, expand_grid, supplement)
-from models import (lm, summary, predict)
-from plotting import (pareto_plot, contour_plot, plot_model)
+from structures import gather, c, expand_grid, supplement
+from models import lm, summary, predict
+from plotting import pareto_plot, contour_plot, plot_model
 from designs_factorial import full_factorial
+
 
 def case_3B():
     """
@@ -16,15 +18,16 @@ def case_3B():
 
     Two factors, no extra degrees of freedom.
     """
-    A = c(-1, +1, -1, +1, name='Additive')
-    B = c(-1, -1, +1, +1, name='Blender')
-    y = c(52, 74, 62, 80, units='number of popped kernels')
+    A = c(-1, +1, -1, +1, name="Additive")
+    B = c(-1, -1, +1, +1, name="Blender")
+    y = c(52, 74, 62, 80, units="number of popped kernels")
 
-    expt = gather(A=A, B=B, y=y, title='Popping corn!')
+    expt = gather(A=A, B=B, y=y, title="Popping corn!")
     popped_corn = lm("y ~ A + B + A*B", expt)
     popped_corn = lm("y ~ A*B", expt)
     summary(popped_corn)
     contour_plot(popped_corn, show=False)
+
 
 def case_3C(show=False):
     """
@@ -35,13 +38,14 @@ def case_3C(show=False):
     C = T = S = c(-1, +1)
     C, T, S = expand_grid(C=C, T=T, S=S)
     y = c(5, 30, 6, 33, 4, 3, 5, 4)
-    expt = gather(C=C, T=T, S=S, y=y, title='Water treatment')
+    expt = gather(C=C, T=T, S=S, y=y, title="Water treatment")
 
     water = lm("y ~ C * T * S", expt)
     summary(water)
     if show:
         contour_plot(water, "C", "T", show=show)
         pareto_plot(water, show=show, up_to_level=2)
+
 
 def case_3D():
     """
@@ -81,6 +85,7 @@ def case_3D():
     """
     pass
 
+
 def case_w2():
     """
     Teaching case week 2: https://yint.org/w2
@@ -94,7 +99,7 @@ def case_w2():
     F = c(-1, -1, +1, +1, lo=20, hi=30)
 
     # Response y is the crispiness
-    y = c(37, 57, 49, 53, units='crispiness')
+    y = c(37, 57, 49, 53, units="crispiness")
 
     # Fit a linear model
     expt = gather(T=T, F=F, y=y)
@@ -102,15 +107,16 @@ def case_w2():
     summary(model_crispy)
 
     # See how the two factors affect the response:
-    contour_plot(model_crispy )
-    #interaction_plot(T, F, y)
-    #interaction_plot(F, T, y)
+    contour_plot(model_crispy)
+    # interaction_plot(T, F, y)
+    # interaction_plot(F, T, y)
 
     # Make a prediction with this model:
-    xT = +2   # corresponds to 110 minutes
-    xF = -1   # corresponds to 20 grams of fat
-    y_hat = predict(model_crispy, T = xT, F = xF)
-    print(f'Predicted value is: {y_hat} crispiness.')
+    xT = +2  # corresponds to 110 minutes
+    xF = -1  # corresponds to 20 grams of fat
+    y_hat = predict(model_crispy, T=xT, F=xF)
+    print(f"Predicted value is: {y_hat} crispiness.")
+
 
 def case_w4_1():
     """
@@ -118,19 +124,20 @@ def case_w4_1():
     """
     # S = Free shipping if order amount is €30 or more [-1],
     # or if order amount is over €50 [+1]
-    S = c(-1, +1, -1, +1, -1, +1, -1, +1, name='Free shipping amount')
+    S = c(-1, +1, -1, +1, -1, +1, -1, +1, name="Free shipping amount")
 
     # Does the purchaser need to create a profile first [+1] or not [-1]?
-    P = c(-1, -1, +1, +1, -1, -1, +1, +1, name='Create profile: No/Yes')
+    P = c(-1, -1, +1, +1, -1, -1, +1, +1, name="Create profile: No/Yes")
 
     # Response: daily sales amount
     y = c(348, 359, 327, 243, 356, 363, 296, 257)
 
     # Linear model using S, P and S*P to predict the response
-    expt = gather(S=S, P=P, y=y, title='Experiment without mistake')
+    expt = gather(S=S, P=P, y=y, title="Experiment without mistake")
     model_sales = lm("y ~ S*P", expt)
     summary(model_sales)
     contour_plot(model_sales)
+
 
 def case_w4_2():
     """
@@ -139,19 +146,20 @@ def case_w4_2():
     # S = Free shipping if order amount is €30 or more [-1], or if
     # order amount is over €50 [+1]. Notice that a mistake was made
     # with the last experiment: order minimum for free shipping was €60 [+1].
-    S = c(-1, +1, -1, +1, -1, +1, -1, +2, name='Free shipping amount')
+    S = c(-1, +1, -1, +1, -1, +1, -1, +2, name="Free shipping amount")
 
     # Does the purchaser need to create a profile first [+1] or not [-1]?
-    P = c(-1, -1, +1, +1, -1, -1, +1, +1, name='Create profile: No/Yes')
+    P = c(-1, -1, +1, +1, -1, -1, +1, +1, name="Create profile: No/Yes")
 
     # Response: daily sales amount
-    y = c(348, 359, 327, 243, 356, 363, 296, 220, units='€ sales')
+    y = c(348, 359, 327, 243, 356, 363, 296, 220, units="€ sales")
 
     # Linear model using S, P and S*P to predict the response
-    expt = gather(S=S, P=P, y=y, title='Experiment with mistake')
+    expt = gather(S=S, P=P, y=y, title="Experiment with mistake")
     model_sales_mistake = lm("y ~ S*P", expt)
     summary(model_sales_mistake)
     contour_plot(model_sales_mistake)
+
 
 def case_worksheet_5():
     """
@@ -197,60 +205,73 @@ def case_worksheet_5():
     to try to maximize the reactor yield.
     """
 
-    A, B, C, D = full_factorial(4, names=['A', 'B', 'C', 'D'])
+    A, B, C, D = full_factorial(4, names=["A", "B", "C", "D"])
 
-    A = supplement(A, name = 'Feed rate', units='g/min', lo = 5, high = 8.0)
-    B = supplement(B, name = 'Initial inoculant amount', units = 'g', lo = 300,
-                   hi = 400)
-    C = supplement(C, name = 'Feed substrate concentration', units = 'g/L',
-                   lo = 40, hi = 60)
-    D = supplement(D, name = 'Dissolved oxygen set-point', units = 'mg/L',
-                   lo = 4, hi = 5)
+    A = supplement(A, name="Feed rate", units="g/min", lo=5, high=8.0)
+    B = supplement(B, name="Initial inoculant amount", units="g", lo=300, hi=400)
+    C = supplement(C, name="Feed substrate concentration", units="g/L", lo=40, hi=60)
+    D = supplement(D, name="Dissolved oxygen set-point", units="mg/L", lo=4, hi=5)
 
-    y = c(60, 59, 63, 61, 69, 61, 94, 93, 56, 63, 70, 65, 44, 45, 78, 77,
-          units='g/L', name = 'Yield')
+    y = c(
+        60, 59, 63, 61, 69, 61, 94, 93, 56, 63, 70, 65, 44, 45, 78, 77, units="g/L", name="Yield"
+    )
 
-    expt = gather(A=A, B=B, C=C, D=D, y=y,
-                  title='Initial experiments; full factorial')
+    expt = gather(A=A, B=B, C=C, D=D, y=y, title="Initial experiments; full factorial")
     model_start = lm("y ~ A*B*C*D", expt)
 
     summary(model_start)
-    #pareto_plot(model_start, plot_width=800)
+    # pareto_plot(model_start, plot_width=800)
     contour_plot(model_start, "A", "B")
     contour_plot(model_start, "B", "C")
     contour_plot(model_start, "C", "D")
 
+
 def api_usage():
 
-    A, B, C, D = full_factorial(4, names = ['A', 'B', 'C', 'D'])
+    A, B, C, D = full_factorial(4, names=["A", "B", "C", "D"])
 
-    A = supplement(A, name = 'Feed rate', units='g/min', lo = 5, high = 8.0)
-    B = supplement(B, name = 'Initial inoculant amount', units = 'g', lo = 300,
-                   hi = 400)
-    C = supplement(C, name = 'Feed substrate concentration', units = 'g/L',
-                   lo = 40, hi = 60)
-    D = supplement(D, name = 'Dissolved oxygen set-point', units = 'mg/L',
-                   lo = 4, hi = 5)
+    A = supplement(A, name="Feed rate", units="g/min", lo=5, high=8.0)
+    B = supplement(B, name="Initial inoculant amount", units="g", lo=300, hi=400)
+    C = supplement(C, name="Feed substrate concentration", units="g/L", lo=40, hi=60)
+    D = supplement(D, name="Dissolved oxygen set-point", units="mg/L", lo=4, hi=5)
 
-    expt = gather(A, B, C, D, title='Initial experiments; full factorial')
+    expt = gather(A, B, C, D, title="Initial experiments; full factorial")
 
     expt.show_actual(std_order=True)
     expt.show_actual(random_order=True, seed=13)
     expt.show_coded()
     expt.power()
-    expt.export(save_as='xls' , filename='abc.xlsx')
-
+    expt.export(save_as="xls", filename="abc.xlsx")
 
     center_points = expt.get_center_points()
     expt.append(center_points)
     cp_expt = 70
-    expt['y'] = c(60, 59, 63, 61, 69, 61, 94, 93, 56, 63, 70, 65, 44, 45, 78,
-                  77, cp_expt, units='g/L', name = 'Yield')
+    expt["y"] = c(
+        60,
+        59,
+        63,
+        61,
+        69,
+        61,
+        94,
+        93,
+        56,
+        63,
+        70,
+        65,
+        44,
+        45,
+        78,
+        77,
+        cp_expt,
+        units="g/L",
+        name="Yield",
+    )
 
+    # model_start = lm("y ~ <full>", expt)
+    # model_start = lm("y ~ <2fi>", expt)
+    # model_start = lm("y ~ <3fi>", expt)
 
-    #model_start = lm("y ~ <full>", expt)
-    #model_start = lm("y ~ <2fi>", expt)
-    #model_start = lm("y ~ <3fi>", expt)
 
 def case_worksheet_6():
     """
@@ -265,7 +286,7 @@ def case_worksheet_6():
     y = c(41, 27, 35, 20, name="Stability", units="days")
 
     # Linear model using only 4 experiments
-    expt = gather(A=A, B=B, C=C, y=y, title='Half-fraction, using C = A*B')
+    expt = gather(A=A, B=B, C=C, y=y, title="Half-fraction, using C = A*B")
     model_stability_poshalf = lm("y ~ A*B*C", expt)
     summary(model_stability_poshalf)
     pareto_plot(model_stability_poshalf)
@@ -275,29 +296,29 @@ def case_worksheet_6():
     y = c(41, 27, 35, 20, name="Stability", units="days")
 
     # Linear model using only 4 experiments
-    expt = gather(A=A, B=B, C=C, y=y, title='Half-fraction, using C = -A*B')
+    expt = gather(A=A, B=B, C=C, y=y, title="Half-fraction, using C = -A*B")
     model_stability_neghalf = lm("y ~ A*B*C", expt)
     summary(model_stability_neghalf)
     pareto_plot(model_stability_neghalf)
+
 
 def case_worksheet_8():
     """
     Highly-fractionated factorial
     """
-    A, B, C = full_factorial(3, names = ['A', 'B', 'C'])
+    A, B, C = full_factorial(3, names=["A", "B", "C"])
 
     # These 4 factors are generated, using the trade-off table relationships
-    D = A*B
-    E = A*C
-    F = B*C
-    G = A*B*C
+    D = A * B
+    E = A * C
+    F = B * C
+    G = A * B * C
 
     # These are the 8 experimental outcomes, corresponding to the 8 entries
     # in each of the vectors above
     y = c(320, 276, 306, 290, 272, 274, 290, 255)
 
-    expt = gather(A=A, B=B, C=C, D=D, E=E, F=F, G=G, y=y,
-                 title="Fractopm")
+    expt = gather(A=A, B=B, C=C, D=D, E=E, F=F, G=G, y=y, title="Fractopm")
 
     # And finally, the linear model
     mod_ff = lm("y ~ A*B*C*D*E*F*G", data=expt)
@@ -305,9 +326,10 @@ def case_worksheet_8():
     pareto_plot(mod_ff)
 
     # Now rebuild the linear model with only the 4 important terms
-    mod_res4 =  lm("y ~ A*C*E*G", data=expt)
+    mod_res4 = lm("y ~ A*C*E*G", data=expt)
     summary(mod_res4)
     pareto_plot(mod_res4)
+
 
 def case_worksheet_9():
     """
@@ -324,8 +346,7 @@ def case_worksheet_9():
     8	20 May 2019 10:44	95.0	82
     9	20 May 2019 10:45	105.0	67
     """
-    d1 = c(24, 48, center=36, range=(24, 48), coded=False, units='hours',
-           name='Duration')
+    d1 = c(24, 48, center=36, range=(24, 48), coded=False, units="hours", name="Duration")
     D1 = d1.to_coded()
     y1 = c(23, 64, name="Production", units="g/unit sugar")
     expt1 = gather(D=D1, y=y1, title="Starting off")
@@ -348,23 +369,21 @@ def case_worksheet_9():
     summary(model2B)
     p = plot_model(model2B, "D", "y", fig=p, xlim=(-2, 5), color="red")
 
-
     # Try a new point at +2:
     d3 = d2.extend([60])
     D3 = d3.to_coded()
-    predict(model2B, D=D3)   # predicts ___
+    predict(model2B, D=D3)  # predicts ___
 
     # Actual y = 71. Therefore, our model isn't so good. Improve it:
     y3 = y2.extend([71])
     expt3 = gather(D=D3, y=y3, title="Extend out to +2 (coded)")
-    model3 = lm("y ~ D + I(D**2)", data=expt3, name='Quadratic model')
+    model3 = lm("y ~ D + I(D**2)", data=expt3, name="Quadratic model")
     summary(model3)
 
     # Plot it again: purple
     p = plot_model(model3, "D", "y", fig=p, xlim=(-2, 5), color="purple")
 
-
-    #------------
+    # ------------
     # Normally at this point I would reset the frame of reference;
     # keep our range the same (24 hours)
     # -1: 36 hours [prior coded "0" now becomes "-1]
@@ -375,9 +394,8 @@ def case_worksheet_9():
     # For 2 reasons: there is only 1 variable that is interesting (duration), so
     # coded units don't matter; secondly the model types we will use cannot be
     # built when the coded x-value is negative.
-    d4 = c(24, 48, 36, 36, 60, coded=False, units='hours', name='Duration')
+    d4 = c(24, 48, 36, 36, 60, coded=False, units="hours", name="Duration")
     y4 = c(23, 64, 51, 54, 71, name="Production", units="g/unit sugar")
-
 
     """
     Experiment
@@ -394,13 +412,11 @@ def case_worksheet_9():
     9	20 May 2019 10:45	105.0	67
     """
 
-
     # Rebuild the model, and start the plots again. Try different model type
     expt4 = gather(d=d4, y=y4, title="Switch over to real-world units")
     model4 = lm("y ~ d + I(d**2)", data=expt4)
     summary(model4)
     p = plot_model(model4, "d", "y", xlim=(20, 105), color="purple")
-
 
     # Let's see how well this model fits. If we run an experiment at 75 hours,
     # we should notice a drop-off. But, predict it first:
@@ -415,9 +431,7 @@ def case_worksheet_9():
     expt5 = gather(d=d5, y=y5, title="Hyperbolic model")
     model5 = lm("y ~ I(1/d)", data=expt5)
     summary(model5)
-    p = plot_model(model5, "d", "y", fig=p, xlim=(20, 105),
-                   color="darkgreen")
-
+    p = plot_model(model5, "d", "y", fig=p, xlim=(20, 105), color="darkgreen")
 
     # -------
     # Let's try at around 90 hours. Expect an outcome of around 83 units.
@@ -431,7 +445,6 @@ def case_worksheet_9():
     model6 = lm("y ~  I(1/d)", data=expt6)
     summary(model6)
     p = plot_model(model6, "d", "y", fig=p, xlim=(20, 105), color="blue")
-
 
     # Try adding few more points:
     # Point 8. Try 95 hours. Seems to sqrt.  Predict 83.5; actual: 82
@@ -448,15 +461,12 @@ def case_worksheet_9():
     summary(model7)
     p = plot_model(model7, "d", "y", fig=p, xlim=(20, 110), color="red")
 
-
-
     # The current model structure does not allow for decrease/stabilization.
     # Rebuild it with a different structure
     # Model 7:  y = 1/d               SE = 6.181
     # Model 8:  y = d + 1/sqrt(d)     SE = 4.596
     # Model 9:  y = d + 1/log(d)      SE = 4.648
     # Model 10: y = d + d^2           SE = 4.321
-
 
     model8 = lm("y ~ d + I(1/np.sqrt(d))", data=expt7, name="With sqrt term")
     summary(model8)
@@ -470,23 +480,45 @@ def case_worksheet_9():
     summary(model10)
     p = plot_model(model10, "d", "y", fig=p, xlim=(20, 110), color="darkcyan")
 
+
 def issue20():
-    d4 = c(24, 48, 36, 36, 60, units='hours', lo=24, high=48)
+    d4 = c(24, 48, 36, 36, 60, units="hours", lo=24, high=48)
     y4 = c(31, 65, 52, 54, 69)
     expt4 = gather(d=d4, y=y4, title="RW units")
     model4 = lm("y ~ d + I(np.power(d, 2))", data=expt4)
     summary(model4)
 
+
 def case_worksheet_10():
 
     # Price: 0 # 0.25 above and 0.25 $/part below
-    p = c(0.75, 0.75, 0.65, 0.85, 0.65, 0.85, center=0.75, range=[0.65, 0.85],
-          name = "Price",      units = '$/part')
-    t = c( 325,  325,  250,  250,  400,  400, center=325, range=[250, 400],
-           name = 'Throughput', units = 'parts/hour')
+    p = c(
+        0.75,
+        0.75,
+        0.65,
+        0.85,
+        0.65,
+        0.85,
+        center=0.75,
+        range=[0.65, 0.85],
+        name="Price",
+        units="$/part",
+    )
+    t = c(
+        325,
+        325,
+        250,
+        250,
+        400,
+        400,
+        center=325,
+        range=[250, 400],
+        name="Throughput",
+        units="parts/hour",
+    )
     P1 = p.to_coded()
     T1 = t.to_coded()
-    y1 = c(7740, 7755, 5651, 5812, 7363, 7397, name = "Response: profit per hour", units="$/hour")
+    y1 = c(7740, 7755, 5651, 5812, 7363, 7397, name="Response: profit per hour", units="$/hour")
     expt1 = gather(P=P1, T=T1, y=y1, title="First experiment")
 
     mod_base1 = lm("y ~ P * T", data=expt1)
@@ -506,9 +538,9 @@ def case_worksheet_10():
     T2 = T1.extend([2.0])
     p2 = P2.to_realworld()
     t2 = T2.to_realworld()
-    print(t2) # 0.765
-    print(p2) # 475
-    print(predict(mod_base1, P = P2, T = T2))
+    print(t2)  # 0.765
+    print(p2)  # 475
+    print(predict(mod_base1, P=P2, T=T2))
 
     # Should have a predicted profit of 8599, but actual is 4654.
     # Confirms our model is in a very nonlinear region in the T=Throughput
@@ -520,14 +552,37 @@ def case_worksheet_10():
     # Second factorial: re-use some of the points
     # * Original center point become bottom left
     # * Original (+1, +1) become top right
-    p3 = c(0.75, 0.85, 0.75, 0.85, 0.65, 0.85, 0.765, center=0.80, range=[0.75, 0.85],
-            name = "Price", units = '$/part')
-    t3 = c(325, 325,  400,   400,  400,  250, 475, center = (325+400)/2,
-            range=(325, 400),  name = 'Throughput', units = 'parts/hour')
+    p3 = c(
+        0.75,
+        0.85,
+        0.75,
+        0.85,
+        0.65,
+        0.85,
+        0.765,
+        center=0.80,
+        range=[0.75, 0.85],
+        name="Price",
+        units="$/part",
+    )
+    t3 = c(
+        325,
+        325,
+        400,
+        400,
+        400,
+        250,
+        475,
+        center=(325 + 400) / 2,
+        range=(325, 400),
+        name="Throughput",
+        units="parts/hour",
+    )
 
     # 2nd,
-    y3 = c(7755, 7784, 7373, 7397, 7363, 5812, 4654,
-            name = "Response: profit per hour", units="$/hour")
+    y3 = c(
+        7755, 7784, 7373, 7397, 7363, 5812, 4654, name="Response: profit per hour", units="$/hour"
+    )
     P3 = p3.to_coded()
     T3 = t3.to_coded()
     expt3 = gather(P=P3, T=T3, y=y3, title="Smaller ranges")
@@ -545,7 +600,6 @@ def case_worksheet_10():
     T4 = T3.extend([+2])
     print(P4.to_realworld())
     print(T4.to_realworld())
-
 
     # ACTUAL value achieved is 6325. Not a good prediction yet either.
     # Add this point to the model. This point is below any of the base factorial
@@ -598,14 +652,33 @@ def case_worksheet_10():
 
 def case_worksheet_10C():
     # Price: 0 # 0.05 above and 0.05 $/part below
-    p1 = c(0.75, 0.75, 0.7, 0.8, 0.7, 0.80, center=0.75, range=[0.70, 0.80],
-          name = "Price",      units = '$/part')
-    t1 = c( 325,  325,  300, 300, 350, 350, center=325, range=[300, 350],
-           name = 'Throughput', units = 'parts/hour')
+    p1 = c(
+        0.75,
+        0.75,
+        0.7,
+        0.8,
+        0.7,
+        0.80,
+        center=0.75,
+        range=[0.70, 0.80],
+        name="Price",
+        units="$/part",
+    )
+    t1 = c(
+        325,
+        325,
+        300,
+        300,
+        350,
+        350,
+        center=325,
+        range=[300, 350],
+        name="Throughput",
+        units="parts/hour",
+    )
     P1 = p1.to_coded()
     T1 = t1.to_coded()
-    y1 = c(7082, 7089, 6637, 6686, 7181, 7234,
-          name = "Response: profit per hour", units="$/hour")
+    y1 = c(7082, 7089, 6637, 6686, 7181, 7234, name="Response: profit per hour", units="$/hour")
     expt1 = gather(P=P1, T=T1, y=y1, title="First experiment")
 
     mod_base1 = lm("y ~ P * T", data=expt1)
@@ -625,9 +698,9 @@ def case_worksheet_10C():
     T2 = T1.extend([2.0])
     p2 = P2.to_realworld()
     t2 = T2.to_realworld()
-    print(p2) # 0.785
-    print(t2) # 375
-    print(predict(mod_base1, P = P2, T = T2))
+    print(p2)  # 0.785
+    print(t2)  # 375
+    print(predict(mod_base1, P=P2, T=T2))
 
     # Should have a predicted profit of 7550, but actual is 7094.
     # Confirms our model is in a very nonlinear region in the T=Throughput
@@ -638,8 +711,8 @@ def case_worksheet_10C():
     T3 = T2.extend([1.68, -1.68])
     p3 = P3.to_realworld()
     t3 = T3.to_realworld()
-    print(p3) # 0.75, 0.75
-    print(t3) # 367, 283
+    print(p3)  # 0.75, 0.75
+    print(t3)  # 367, 283
 
     # Now build model with quadratic term in the T direction
     y3 = y1.extend([7094, 7174, 6258])
@@ -649,27 +722,27 @@ def case_worksheet_10C():
     contour_plot(mod_base3, "P", "T", xlim=(-1.5, 5))
     #
 
-    #Try extrapolating far out: (P, T) = (4, 1)
+    # Try extrapolating far out: (P, T) = (4, 1)
     P4 = P3.extend([4])
     T4 = T3.extend([1])
     p4 = P4.to_realworld()
     t4 = T4.to_realworld()
-    print(p4) # 0.95
-    print(t4) # 350
+    print(p4)  # 0.95
+    print(t4)  # 350
 
-    predict(mod_base3, P=P4, T=T4) # 7301
+    predict(mod_base3, P=P4, T=T4)  # 7301
     # Actual: 7291  # great! Keep going
     y4 = y3.extend([7291])
 
-    #Try extrapolating far out: (P, T) = (6, 1)
+    # Try extrapolating far out: (P, T) = (6, 1)
     P5 = P4.extend([6])
     T5 = T4.extend([1])
     p5 = P5.to_realworld()
     t5 = T5.to_realworld()
-    print(p5) # 1.05
-    print(t5) # 350
+    print(p5)  # 1.05
+    print(t5)  # 350
 
-    predict(mod_base3, P=P5, T=T5) # 7344
+    predict(mod_base3, P=P5, T=T5)  # 7344
     # Actual: 7324  # great! Keep going
     y5 = y4.extend([7324])
 
@@ -680,15 +753,15 @@ def case_worksheet_10C():
     summary(mod_base5)
     contour_plot(mod_base5, "P", "T", xlim=(-1.5, 18))
 
-    #Try extrapolating further out: (P, T) = (10, 1)
+    # Try extrapolating further out: (P, T) = (10, 1)
     P6 = P5.extend([10])
     T6 = T5.extend([1])
     p6 = P6.to_realworld()
     t6 = T6.to_realworld()
-    print(p6) # 1.25
-    print(t6) # 350
+    print(p6)  # 1.25
+    print(t6)  # 350
 
-    predict(mod_base3, P=P6, T=T6) # 7431
+    predict(mod_base3, P=P6, T=T6)  # 7431
     # Actual: 7378  # Not matching; rebuild the model eventually.
     y6 = y5.extend([7378])
 
@@ -699,13 +772,11 @@ def case_worksheet_10B():
     # C: cement = 1.8 and 4.2 kg)
     # W: amount of water (between 0.4 and 1.1 L)
 
-    c1 = c(2.5, 3, 2.5, 3, center=2.75, range=[2.5, 3],
-            name = "cement", units = 'kg')
-    w1 = c(0.5, 0.5, 0.9, 0.9, center=0.7, range=[0.5, 0.9],
-            name = 'Throughput', units = 'parts/hour')
+    c1 = c(2.5, 3, 2.5, 3, center=2.75, range=[2.5, 3], name="cement", units="kg")
+    w1 = c(0.5, 0.5, 0.9, 0.9, center=0.7, range=[0.5, 0.9], name="Throughput", units="parts/hour")
     C1 = c1.to_coded()
     W1 = w1.to_coded()
-    y1 = c(14476, 14598, 14616, 14465, name = "Strength", units="-")
+    y1 = c(14476, 14598, 14616, 14465, name="Strength", units="-")
     expt1 = gather(C=C1, W=W1, y=y1, title="First experiment")
 
     mod_base1 = lm("y ~ C * W", data=expt1)
@@ -716,7 +787,6 @@ def case_worksheet_10B():
     prediction_1 = predict(mod_base1, C=C1, W=W1)
     print(prediction_1)
     print(y1 - prediction_1)
-
 
     # Very nonlinear: saddle: up left, or bottom right
     # Bottom right: (C, W) = (2, -2)
@@ -729,7 +799,7 @@ def case_worksheet_10B():
     w2 = W2.to_realworld()
 
     # Actual: at c=3.25; w=0.4 (constraint): 14362. So wrong direction
-    y1 = c(14476, 14598, 14616, 14465, name = "Strength", units="-")
+    y1 = c(14476, 14598, 14616, 14465, name="Strength", units="-")
     expt1 = gather(C=C1, W=W1, y=y1, title="First experiment")
 
     # Try the other way: C, W= -2, 2
@@ -744,21 +814,19 @@ def case_worksheet_10B():
     # Actual: 13982;
 
 
-
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     # tradeoff_table()
-    #case_3B()    # case_3C(show=True)
-    #case_3D()
-    #case_worksheet_5()
+    # case_3B()    # case_3C(show=True)
+    # case_3D()
+    # case_worksheet_5()
     # api_usage()
-    #case_worksheet_6()
-    #case_worksheet_8()
-    #case_worksheet_9()
-    #case_worksheet_10()
+    # case_worksheet_6()
+    # case_worksheet_8()
+    # case_worksheet_9()
+    # case_worksheet_10()
     case_worksheet_10C()
 
-    #case_w2()
-    #case_w4_1()
-    #case_w4_2()
+    # case_w2()
+    # case_w4_1()
+    # case_w4_2()
+

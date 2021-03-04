@@ -11,7 +11,7 @@ except ImportError:
     from structures import create_names, c, expand_grid
 
 
-def full_factorial(nfactors: int, names:Optional[list] = None):
+def full_factorial(nfactors: int, names: Optional[list] = None):
     """
     Creates a full factorial (2^k) design for the case when there are
     `nfactors` [integer] number of factors.
@@ -24,8 +24,5 @@ def full_factorial(nfactors: int, names:Optional[list] = None):
         names = create_names(nfactors)
 
     # Expand the full factorial out into variables
-    return expand_grid(**dict(zip(names, [c(-1, +1), ]*len(names))))
-
-
-
+    return expand_grid(**dict(zip(names, [c(-1, +1),] * len(names))))
 

@@ -1,16 +1,12 @@
 import os
-import sys
 import unittest
 import numpy as np
 import pandas as pd
 
-# To allow our import below to succeed.
-sys.path.append(os.path.split(__file__)[0])
 
-from structures import (gather, c, expand_grid, supplement, create_names)
-from models import (lm, summary, predict)
-from plotting import (pareto_plot, contour_plot, plot_model)
-from designs_factorial import full_factorial
+from .structures import gather, create_names, c
+from .models import lm
+
 
 class TestStructures(unittest.TestCase):
     """
@@ -19,67 +15,66 @@ class TestStructures(unittest.TestCase):
 
     def setUp(self):
         self.A = [-1, +1, -1, +1, 0, +1]
-        self.B = [-1, -1, +1, +1, 0,  0]
+        self.B = [-1, -1, +1, +1, 0, 0]
         self.C = [4, 5, 6, 4, 6]
-        self.D = [0, 1, 'green']
+        self.D = [0, 1, "green"]
         self.y = [52, 74, 62, 80, 50, 65]
 
     def test_create_names(self):
         """ Creating factor names."
         """
 
-        self.assertListEqual(create_names(5),  ["A", "B", "C", "D", "E"])
+        self.assertListEqual(create_names(5), ["A", "B", "C", "D", "E"])
 
-        self.assertListEqual(create_names(3, letters=False),
-                             ["X1", "X2", "X3"])
+        self.assertListEqual(create_names(3, letters=False), ["X1", "X2", "X3"])
 
-        self.assertListEqual(create_names(3, letters=False, prefix='Q',
-                                          start_at=9, padded=True),
-                             ["Q09", "Q10", "Q11"])
+        self.assertListEqual(
+            create_names(3, letters=False, prefix="Q", start_at=9, padded=True),
+            ["Q09", "Q10", "Q11"],
+        )
 
-        self.assertListEqual(create_names(4, letters=False, prefix='Z',
-                                          start_at=99, padded=True),
-                             ["Z099", "Z100", "Z101", "Z102"])
-
+        self.assertListEqual(
+            create_names(4, letters=False, prefix="Z", start_at=99, padded=True),
+            ["Z099", "Z100", "Z101", "Z102"],
+        )
 
     def test_create_factors(self):
         A1 = c(*(self.A))
-        A2 = c(*(self.A), index=['lo', 'hi', 'lo', 'hi', 'cp', 'hi'])
-        B = c(*(self.B), name='B')
+        A2 = c(*(self.A), index=["lo", "hi", "lo", "hi", "cp", "hi"])
+        B = c(*(self.B), name="B")
         C1 = c(*(self.C), range=(4, 6))
         C2 = c(*(self.C), center=5, range=(4, 6))
         C3 = c(*(self.C), lo=4, hi=6)
-        C4 = c(*(self.C), lo=4, hi=6, name='C4')
-        C5 = c([4, 5,  6,  4,  6], lo=4, hi=6, name='C5')
-        C6 = c(*(self.C), lo=5, hi=6, name='C6')
-        y = c(*(self.y), name='conversion', units = '%')
+        C4 = c(*(self.C), lo=4, hi=6, name="C4")
+        C5 = c([4, 5, 6, 4, 6], lo=4, hi=6, name="C5")
+        C6 = c(*(self.C), lo=5, hi=6, name="C6")
+        y = c(*(self.y), name="conversion", units="%")
 
         self.assertTrue(isinstance(A1, pd.Series))
         self.assertTrue(A1.shape == (6,))
-        self.assertTrue(hasattr(A1, 'pi_index'))
-        self.assertTrue(hasattr(A1, 'name'))
+        self.assertTrue(hasattr(A1, "pi_index"))
+        self.assertTrue(hasattr(A1, "name"))
 
-        self.assertTrue(A1.name == 'Unnamed [coded]')
-        self.assertTrue(hasattr(A1, 'pi_lo'))
+        self.assertTrue(A1.name == "Unnamed [coded]")
+        self.assertTrue(hasattr(A1, "pi_lo"))
         self.assertTrue(A1.pi_lo == -1)
-        self.assertTrue(hasattr(A1, 'pi_hi'))
+        self.assertTrue(hasattr(A1, "pi_hi"))
         self.assertTrue(A1.pi_hi == +1)
-        self.assertTrue(hasattr(A1, 'pi_range'))
+        self.assertTrue(hasattr(A1, "pi_range"))
         self.assertTrue(A1.pi_range[0] == -1)
         self.assertTrue(A1.pi_range[1] == +1)
-        self.assertTrue(hasattr(A1, 'pi_center'))
+        self.assertTrue(hasattr(A1, "pi_center"))
         self.assertTrue(A1.pi_center == 0)
 
-
         self.assertTrue(isinstance(A2.index, pd.Index))
-        self.assertTrue(hasattr(A2, 'pi_index'))
-        self.assertTrue(A2.name == 'Unnamed [coded]')
+        self.assertTrue(hasattr(A2, "pi_index"))
+        self.assertTrue(A2.name == "Unnamed [coded]")
 
         with self.assertRaises(IndexError):
-            A2 = c(*(self.A), index=['lo', 'hi', 'lo', 'hi', 'cp'])
+            A2 = c(*(self.A), index=["lo", "hi", "lo", "hi", "cp"])
 
         self.assertTrue(B.shape == (6,))
-        self.assertTrue(B.name == 'B [coded]')
+        self.assertTrue(B.name == "B [coded]")
 
         self.assertTrue(C1.pi_range == (4, 6))
         self.assertTrue(C2.pi_center == 5)
@@ -89,21 +84,21 @@ class TestStructures(unittest.TestCase):
         self.assertTrue(C4.pi_lo == 4)
         self.assertTrue(C4.pi_hi == 6)
         self.assertTrue(C5.pi_hi == 6)
-        self.assertTrue(C5.name == 'C5')
+        self.assertTrue(C5.name == "C5")
 
         # User says the low is 5, but the minimum is actually different
         self.assertTrue(C6.pi_lo == 5)
         self.assertTrue(C6.pi_range == (5, 6))
 
         D = c(*(self.D))
-        self.assertTrue(D.pi_numeric == True)
+        self.assertTrue(D.pi_numeric is True)
 
         self.assertTrue(len(y) == 6)
-        self.assertTrue(y.name == 'conversion [%]')
+        self.assertTrue(y.name == "conversion [%]")
 
     def test_column_math(self):
         self.A = [-1, +1, -1, +1, 0, +1]
-        self.B = [-1, -1, +1, +1, 0,  0]
+        self.B = [-1, -1, +1, +1, 0, 0]
         A = c(*(self.A))
         B = c(*(self.B), name="B")
         C1 = A * B
@@ -117,16 +112,17 @@ class TestStructures(unittest.TestCase):
     def test_gather(self):
         A = c(*(self.A))
         B = c(*(self.B))
-        y = c(*(self.y), name='conversion')
+        y = c(*(self.y), name="conversion")
 
         expt = gather(A=A, B=B, y=y)
         self.assertTrue(expt.shape == (6, 3))
 
-        expt = gather(A=A, B=B, y=y, title='Testing expt name')
+        expt = gather(A=A, B=B, y=y, title="Testing expt name")
 
-        #Eventually this method must go to the "DF" class; currently in the
+        # Eventually this method must go to the "DF" class; currently in the
         # model class; not really appropriate there.
-        self.assertTrue(expt.get_title() == 'Testing expt name')
+        self.assertTrue(expt.get_title() == "Testing expt name")
+
 
 class TestModels(unittest.TestCase):
     def setUp(self):
@@ -135,8 +131,7 @@ class TestModels(unittest.TestCase):
         B = c(-1, -1, +1, +1)
         C = A * B
         y = c(41, 27, 35, 20, name="Stability", units="days")
-        self.expt = gather(A=A, B=B, C=C, y=y,
-                           title='Half-fraction, using C = A*B')
+        self.expt = gather(A=A, B=B, C=C, y=y, title="Half-fraction, using C = A*B")
         self.model_stability_poshalf = lm("y ~ A*B*C", self.expt)
 
         """
@@ -179,76 +174,68 @@ class TestModels(unittest.TestCase):
         self.assertTrue(self.model_stability_poshalf.df_resid == 0)
         beta = self.model_stability_poshalf.get_parameters(drop_intercept=False)
 
-        self.assertAlmostEqual(beta['A'], -7.25)
-        self.assertAlmostEqual(beta['B'], -3.25)
-        self.assertAlmostEqual(beta['C'], -0.25)
-        self.assertAlmostEqual(beta['Intercept'], 30.75)
-        self.assertTrue(self.model_stability_poshalf.get_aliases() == \
-                        ['A + B:C', 'B + A:C', 'C + A:B'])
+        self.assertAlmostEqual(beta["A"], -7.25)
+        self.assertAlmostEqual(beta["B"], -3.25)
+        self.assertAlmostEqual(beta["C"], -0.25)
+        self.assertAlmostEqual(beta["Intercept"], 30.75)
+        self.assertTrue(
+            self.model_stability_poshalf.get_aliases() == ["A + B:C", "B + A:C", "C + A:B"]
+        )
 
         for resid in self.model_stability_poshalf.residuals:
             self.assertAlmostEqual(resid, 0.0)
 
+
 class Test_API_usage(unittest.TestCase):
     def setUp(self):
-        full_path = os.path.join(os.path.split(__file__)[0],
-                                 'media', 'test_doe1.csv')
+        full_path = os.path.join(os.path.split(__file__)[0], "media", "test_doe1.csv")
         self.assertTrue(os.path.exists(full_path))
         self.df1 = pd.read_csv(full_path)
-        self.df1.set_index('Run order', inplace=True)
+        self.df1.set_index("Run order", inplace=True)
 
     def test_case_1(self):
         pass
         index = self.df1.index
-        C = c(self.df1['C'],
-              lo = self.df1['C'].min(),
-              hi = self.df1['C'].max(),
-              index=index, name='C')
-        M = c(self.df1['M'], levels = self.df1['M'].unique(), name='M')
-        V = c(self.df1['V'], lo = self.df1['V'].min(), hi=self.df1['V'].max(),
-               name='V')
-        B = c(self.df1['B'], name='B')
-        self.assertTrue(B.pi_levels[B.name] == ['Ard', 'Eme'])
+        C = c(self.df1["C"], lo=self.df1["C"].min(), hi=self.df1["C"].max(), index=index, name="C")
+        M = c(self.df1["M"], levels=self.df1["M"].unique(), name="M")
+        V = c(self.df1["V"], lo=self.df1["V"].min(), hi=self.df1["V"].max(), name="V")
+        B = c(self.df1["B"], name="B")
+        self.assertTrue(B.pi_levels[B.name] == ["Ard", "Eme"])
 
-
-        y = self.df1['y']
+        y = self.df1["y"]
 
         expt = gather(C=C, M=M, V=V, B=B, y=y)
         self.assertTrue(np.all(C.index == M.index))
 
-        model = lm("np.log10(y) ~ C*M*B*V", expt)
-        #summary(model)
-        #pareto_plot(model)
-        #contour_plot(model, C, M)
-        #contour_plot(model, "C", "M")
-        #predict_plot(model)
+        _ = lm("np.log10(y) ~ C*M*B*V", expt)
+        # summary(model)
+        # pareto_plot(model)
+        # contour_plot(model, C, M)
+        # contour_plot(model, "C", "M")
+        # predict_plot(model)
 
     def test_aliasing(self):
-        d4 = c(24, 48, 36, 36, 60, units='hours', lo=24, high=48)
+        d4 = c(24, 48, 36, 36, 60, units="hours", lo=24, high=48)
         y4 = c(31, 65, 52, 54, 69)
         expt4 = gather(d=d4, y=y4, title="RW units")
         model4 = lm("y ~ d + I(np.power(d, 2))", data=expt4)
         self.assertEqual(len(model4.aliasing), 0)
 
-        model5 = lm("y ~ d + I(np.power(d, 2))", data=expt4,
-                    alias_threshold=0.99)
+        model5 = lm("y ~ d + I(np.power(d, 2))", data=expt4, alias_threshold=0.99)
         self.assertEqual(len(model5.aliasing), 2)
-
 
     def test_realworld_coded(self):
         """
         Test conversion between real-world and coded units.
         """
-        c1 = c(2.5, 3, 2.5, 3, center=2.75, range=[2.5, 3], name = "cement")
+        c1 = c(2.5, 3, 2.5, 3, center=2.75, range=[2.5, 3], name="cement")
         c1_coded = c1.to_coded()
-        self.assertListEqual(c1_coded.to_list(), [-1., 1., -1., 1.])
+        self.assertListEqual(c1_coded.to_list(), [-1.0, 1.0, -1.0, 1.0])
 
-        c2 = c([-1., -1., +1., +1.], center=2.75, range=[2.5, 3], 
-               name="cement", coded=True)
+        c2 = c([-1.0, -1.0, +1.0, +1.0], center=2.75, range=[2.5, 3], name="cement", coded=True)
         c2_rw = c2.to_realworld()
         self.assertListEqual(c2_rw.to_list(), [2.5, 2.5, 3.0, 3.0])
 
-        
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

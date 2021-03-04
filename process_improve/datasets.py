@@ -1,5 +1,6 @@
-# (c) Kevin Dunn, 2019. MIT License.
+# (c) Kevin Dunn, 2019-2021. MIT License.
 import pandas as pd
+
 
 def distillateflow():
     """The flow rate of distillate from the top of a distillation column.
@@ -22,6 +23,7 @@ def distillateflow():
 
     """
     pass
+
 
 def pollutant():
     """
@@ -92,6 +94,7 @@ def oildoe():
     """
     pass
 
+
 def golf():
     """
     Full factorial experiments to maximize a golfer's driving distance.
@@ -127,6 +130,7 @@ def golf():
     -------
     """
     pass
+
 
 def boilingpot():
     """
@@ -169,6 +173,7 @@ def boilingpot():
     -------
     """
     pass
+
 
 def solar():
     """
@@ -215,6 +220,7 @@ def solar():
 
     """
     pass
+
 
 def data(dataset: str) -> pd.DataFrame:
     """

@@ -106,5 +106,3 @@ venv.bak/
 
 # mypy
 .mypy_cache/
-snippets.py
-snippets.py

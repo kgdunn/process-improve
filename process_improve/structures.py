@@ -1,30 +1,33 @@
-# (c) Kevin Dunn, 2019. MIT License.
+# (c) Kevin Dunn, 2019-2021. MIT License.
 import itertools
 from collections import defaultdict
 from collections.abc import Iterable
 import numpy as np
 import pandas as pd
 
+
 class Column(pd.Series):
     """
     Creates a column. Can be used as a factor, or a response vector.
     """
-    #https://pandas.pydata.org/pandas-docs/stable/development/extending.html
+
+    # https://pandas.pydata.org/pandas-docs/stable/development/extending.html
     # Temporary properties
-    _internal_names = pd.DataFrame._internal_names + ['not_used_for_now']
+    _internal_names = pd.DataFrame._internal_names + ["not_used_for_now"]
     _internal_names_set = set(_internal_names)
 
     # Properties which survive subsetting, etc
-    _metadata = ['pi_index',   # might be used later if the user provides their own index
-                 'pi_numeric', # if numeric indicator
-                 'pi_lo',      # if numeric: low level (-1)
-                 'pi_hi',      # if numeric: high level (+1)
-                 'pi_range',   # if numeric: range: distance from low to high
-                 'pi_center',  # if numeric: midway between low and high (0)
-                 'pi_is_coded',# is it a coded variables, or in real-world units
-                 'pi_units',   # string variable, containing the units
-                 'pi_name',    # name of the column
-                ]
+    _metadata = [
+        "pi_index",  # might be used later if the user provides their own index
+        "pi_numeric",  # if numeric indicator
+        "pi_lo",  # if numeric: low level (-1)
+        "pi_hi",  # if numeric: high level (+1)
+        "pi_range",  # if numeric: range: distance from low to high
+        "pi_center",  # if numeric: midway between low and high (0)
+        "pi_is_coded",  # is it a coded variables, or in real-world units
+        "pi_units",  # string variable, containing the units
+        "pi_name",  # name of the column
+    ]
 
     @property
     def _constructor(self):
@@ -46,8 +49,7 @@ class Column(pd.Series):
         out.iloc[:] = (self.values - x_center) / (0.5 * np.diff(x_range)[0])
         out.pi_is_coded = True
         if out.pi_name:
-            out.name = f'{out.pi_name} [coded]'
-
+            out.name = f"{out.pi_name} [coded]"
 
         return out
 
@@ -65,9 +67,8 @@ class Column(pd.Series):
         # rest remains as is.
         out.iloc[:] = self.values * (0.5 * np.diff(x_range)[0]) + x_center
         out.pi_is_coded = False
-        if out.pi_name  and out.pi_units:
-            out.name = f'{out.pi_name} [{out.pi_units}]'
-
+        if out.pi_name and out.pi_units:
+            out.name = f"{out.pi_name} [{out.pi_units}]"
 
         return out
 
@@ -75,7 +76,6 @@ class Column(pd.Series):
         out = pd.Series.copy(self, deep=deep)
         out.name = self.name
         return out
-
 
     def extend(self, values):
         """
@@ -101,29 +101,28 @@ class Expt(pd.DataFrame):
     Dataframe object with experimental data. Builds on the Pandas dataframe,
     but with some extra attributes.
     """
+
     # Temporary properties
-    _internal_names = pd.DataFrame._internal_names + ['not_used_for_now']
+    _internal_names = pd.DataFrame._internal_names + ["not_used_for_now"]
     _internal_names_set = set(_internal_names)
 
     # Properties which survive subsetting, etc
-    _metadata = ['pi_source', 'pi_title', 'pi_units']
+    _metadata = ["pi_source", "pi_title", "pi_units"]
 
     @property
     def _constructor(self):
         return Expt
 
     def __repr__(self):
-        title = f'Name: {self.pi_title}'
-        dimensions = (f'Size: {self.shape[0]} experiments; '
-                      f'{self.shape[1]} columns.')
-        return '\n'.join([pd.DataFrame.__repr__(self), title, dimensions])
-
+        title = f"Name: {self.pi_title}"
+        dimensions = f"Size: {self.shape[0]} experiments; " f"{self.shape[1]} columns."
+        return "\n".join([pd.DataFrame.__repr__(self), title, dimensions])
 
     def get_title(self):
-        return self.pi_title or ''
+        return self.pi_title or ""
 
 
-def create_names(n: int, letters=True, prefix='X', start_at=1, padded=True):
+def create_names(n: int, letters=True, prefix="X", start_at=1, padded=True):
     """
     Returns default factor names, for a given number of `n` [integer] factors.
     The factor name "I" is never used.
@@ -145,21 +144,19 @@ def create_names(n: int, letters=True, prefix='X', start_at=1, padded=True):
             ["Q09", "Q10", "Q11"]
     """
     if letters and n <= 25:
-        out = [chr(65+i) for i in range(n)]
-        if 'I' in out:
-            out.remove('I')
-            out.append(chr(65+n))
+        out = [chr(65 + i) for i in range(n)]
+        if "I" in out:
+            out.remove("I")
+            out.append(chr(65 + n))
 
     else:
         longest = 0
         if padded:
             longest = len(str(start_at + n - 1))
 
-        out = [f'{str(prefix)}{str(i).rjust(longest, "0")}' for i in \
-                                        range(start_at, n + start_at)]
+        out = [f'{str(prefix)}{str(i).rjust(longest, "0")}' for i in range(start_at, n + start_at)]
 
     return out
-
 
 
 def c(*args, **kwargs) -> Column:
@@ -204,9 +201,9 @@ def c(*args, **kwargs) -> Column:
     """
     sanitize = []
     numeric = True
-    override_coded = kwargs.get('coded', None)
+    override_coded = kwargs.get("coded", None)
 
-    if 'levels' in kwargs:
+    if "levels" in kwargs:
         numeric = False
 
     for j in args:
@@ -216,8 +213,8 @@ def c(*args, **kwargs) -> Column:
 
             if isinstance(j, pd.Series):
                 sanitize = j.copy()
-                if 'index' not in kwargs:
-                    kwargs['index'] = sanitize.index
+                if "index" not in kwargs:
+                    kwargs["index"] = sanitize.index
 
             if isinstance(j, list):
                 sanitize = j.copy()
@@ -235,12 +232,10 @@ def c(*args, **kwargs) -> Column:
                 sanitize.append(j)
 
     # Index creation
-    default_idx = list(range(1, len(sanitize)+1))
-    index = kwargs.get('index', default_idx)
+    default_idx = list(range(1, len(sanitize) + 1))
+    index = kwargs.get("index", default_idx)
     if len(index) != len(sanitize):
-        raise IndexError(('Length of "index" must match the '
-                          'number of numeric inputs.'))
-
+        raise IndexError(('Length of "index" must match the ' "number of numeric inputs."))
 
     out = Column(data=sanitize, index=index, name=None)
     # Use sensible defaults, if not provided
@@ -253,26 +248,26 @@ def c(*args, **kwargs) -> Column:
     out.pi_units = None
     out.pi_name = None
     out.pi_is_coded = True
-    
-    out.pi_name = kwargs.get('name', 'Unnamed')
+
+    out.pi_name = kwargs.get("name", "Unnamed")
     if numeric:
 
         # If any of 'lo', 'hi', 'center', or 'range' are specified, then it
         # is assumed that the variable is NOT coded
         try:
-            out.pi_lo = kwargs['lo']
+            out.pi_lo = kwargs["lo"]
             out.pi_is_coded = False
         except KeyError:
             out.pi_lo = out.min()
 
         try:
-            out.pi_hi = kwargs['hi']
+            out.pi_hi = kwargs["hi"]
             out.pi_is_coded = False
         except KeyError:
             out.pi_hi = out.max()
 
         try:
-            out.pi_range = kwargs['range']
+            out.pi_range = kwargs["range"]
             out.pi_is_coded = False
         except KeyError:
             out.pi_range = (out.pi_lo, out.pi_hi)
@@ -280,47 +275,45 @@ def c(*args, **kwargs) -> Column:
         try:
             _ = (e for e in out.pi_range)
         except TypeError:
-            assert False, ("The `range` input must be an iterable, with "
-                           "2 values.")
-        assert len(out.pi_range) == 2, ("The `range` variable must be a tuple, "
-                                        "with 2 values.")
+            assert False, "The `range` input must be an iterable, with " "2 values."
+        assert len(out.pi_range) == 2, "The `range` variable must be a tuple, " "with 2 values."
         out.pi_range = tuple(out.pi_range)
 
         try:
-            out.pi_center = kwargs['center']
+            out.pi_center = kwargs["center"]
             out.pi_is_coded = False
         except KeyError:
             out.pi_center = np.mean(out.pi_range)
 
         try:
-            out.pi_units = kwargs['units']
+            out.pi_units = kwargs["units"]
             out.pi_is_coded = False
         except KeyError:
-            out.pi_units = ''
+            out.pi_units = ""
 
         # Finally, the user might have over-ridden the coding flag:
         if override_coded is not None:
             out.pi_is_coded = override_coded
 
     else:
-        if 'levels' in kwargs:
+        if "levels" in kwargs:
             msg = "Levels must be list or tuple of the unique level names."
             # TODO: Check that all entries in the level list are accounted for.
-            assert isinstance(kwargs.get('levels'), Iterable), msg
-            out.pi_levels = {out.pi_name : list(kwargs.get('levels'))}
+            assert isinstance(kwargs.get("levels"), Iterable), msg
+            out.pi_levels = {out.pi_name: list(kwargs.get("levels"))}
         else:
             levels = out.unique()
             levels.sort()
-            out.pi_levels = {out.pi_name : levels.tolist()} # for use with Patsy
+            out.pi_levels = {out.pi_name: levels.tolist()}  # for use with Patsy
 
-    
-    units = kwargs.get('units', '')
-    if units and not(out.pi_is_coded):
-        out.name = f'{out.name} [{units}]'
+    units = kwargs.get("units", "")
+    if units and not (out.pi_is_coded):
+        out.name = f"{out.name} [{units}]"
     if out.pi_is_coded:
-        out.name = f'{out.name} [coded]'
+        out.name = f"{out.name} [coded]"
 
     return out
+
 
 def expand_grid(**kwargs):
     """
@@ -336,15 +329,17 @@ def expand_grid(**kwargs):
 
     return out
 
+
 def supplement(x, **kwargs):
     return c(x.values, **kwargs)
-    #(A, name = 'Feed rate', units='g/min', lo = 5, high = 8.0)
-        #B = supplement(B, name = 'Initial inoculate amount', units = 'g', lo = 300,
-                       #hi = 400)
-        #C = supplement(C, name = 'Feed substrate concentration', units = 'g/L',
-                       #lo = 40, hi = 60)
-        #D = supplement(D, name = 'Dissolved oxygen set-point', units = 'mg/L',
-                       #lo = 4, hi = 5)
+    # (A, name = 'Feed rate', units='g/min', lo = 5, high = 8.0)
+    # B = supplement(B, name = 'Initial inoculate amount', units = 'g', lo = 300,
+    # hi = 400)
+    # C = supplement(C, name = 'Feed substrate concentration', units = 'g/L',
+    # lo = 40, hi = 60)
+    # D = supplement(D, name = 'Dissolved oxygen set-point', units = 'mg/L',
+    # lo = 4, hi = 5)
+
 
 def gather(*args, title=None, **kwargs) -> Expt:
     """
@@ -365,7 +360,7 @@ def gather(*args, title=None, **kwargs) -> Expt:
     out.pi_source = defaultdict(str)
     out.pi_units = defaultdict(str)
 
-    lens = [len(value) for value in kwargs.values()]
+    _ = [len(value) for value in kwargs.values()]
     index = []
     for key, value in kwargs.items():
         if isinstance(value, list):
@@ -375,7 +370,7 @@ def gather(*args, title=None, **kwargs) -> Expt:
             out.pi_source[key] = value.name
             out.pi_units[key] = value.pi_units
 
-            if hasattr(value, 'pi_index'):
+            if hasattr(value, "pi_index"):
                 index.append(value.index)
 
         elif isinstance(value, pd.DataFrame):

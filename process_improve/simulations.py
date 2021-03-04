@@ -1,7 +1,8 @@
-# (c) Kevin Dunn, 2019. MIT License.
+# (c) Kevin Dunn, 2019-2021. MIT License.
 
 from numpy.random import normal
 import pandas as pd
+
 
 def popcorn(t=120, T=None):
     """
@@ -29,7 +30,7 @@ def popcorn(t=120, T=None):
 
     Source
     ------
-    Kevin Dunn, Process Improvement using Data, Chapter 5, 2010 to 2019,
+    Kevin Dunn, Process Improvement using Data, Chapter 5, 2010 to 2021,
     https://learnche.org/pid
 
 
@@ -51,7 +52,6 @@ def popcorn(t=120, T=None):
     pass
 
 
-
 def grocery(p=3.46, h=150, P=None, H=None):
     """
     Simulation of grocery store profits for a single product.
@@ -70,7 +70,7 @@ def grocery(p=3.46, h=150, P=None, H=None):
 
     Source
     ------
-    Kevin Dunn, Process Improvement using Data, Chapter 5, 2010 to 2019,
+    Kevin Dunn, Process Improvement using Data, Chapter 5, 2010 to 2021,
     https://learnche.org/pid
 
     """
@@ -79,21 +79,30 @@ def grocery(p=3.46, h=150, P=None, H=None):
     if H is None:
         H = h
 
-    if ( (len(P) > 1) | (len(H) > 1)):
-        assert False, ("Running the grocery store experiments in parallel is "
-                       "(intentionally) not allowed.")
+    if (len(P) > 1) | (len(H) > 1):
+        assert False, (
+            "Running the grocery store experiments in parallel is " "(intentionally) not allowed."
+        )
 
     if pd.isna(P) or pd.isna(H):
         assert False, "All function inputs must be finite numbers."
-    elif (P < 0):
+    elif P < 0:
         assert False, "Please provide a positive sales price, P."
-    elif (H < 0):
+    elif H < 0:
         assert False, "The height of the shelving, H, must be a positive value."
 
     a_coded = (P - 3.2) / 0.2
     b_coded = (H - 50) / 100
-    y = round( (18 * a_coded + 12 * b_coded - 7 * a_coded * a_coded
-                 - 6.0 * b_coded * b_coded  - 8.5 * a_coded * b_coded + 60) * 10.0
-                + normal(0, 1) * 2
-             )
+    y = round(
+        (
+            18 * a_coded
+            + 12 * b_coded
+            - 7 * a_coded * a_coded
+            - 6.0 * b_coded * b_coded
+            - 8.5 * a_coded * b_coded
+            + 60
+        )
+        * 10.0
+        + normal(0, 1) * 2
+    )
     return y
