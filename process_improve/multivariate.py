@@ -1,18 +1,15 @@
 import numpy as np
-from scipy.stats import f, chi2, t
+from scipy.stats import f, chi2
 from sklearn.decomposition import PCA as PCA_sklearn
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_is_fitted
-
-# We will specialize this class later on.
-PCA = PCA_sklearn
 
 
 class PCA(PCA_sklearn):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def fit(self, X, y=None) -> PCA:
+    def fit(self, X, y=None) -> PCA_sklearn:
         self = super().fit(X)
 
         self.N = X.shape[0]

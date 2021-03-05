@@ -1,5 +1,4 @@
 import pandas as pd
-import pytest
 from pytest import approx
 
 from process_improve.multivariate import PCA, MCUVScaler
