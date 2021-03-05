@@ -4,6 +4,8 @@ from sklearn.decomposition import PCA as PCA_sklearn
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_is_fitted
 
+from .robust import Sn
+
 
 class PCA(PCA_sklearn):
     def __init__(self, *args, **kwargs):
@@ -39,14 +41,16 @@ class PCA(PCA_sklearn):
         A, N = self.n_components, self.N
         return A * (N - 1) * (N + 1) / (N * (N - A)) * f.isf((1 - conf_level), A, N - A)
 
-    def SPE_limit(self, conf_level=0.95) -> float:
+    def SPE_limit(self, conf_level=0.95, robust=True) -> float:
         check_is_fitted(self, "squared_prediction_error")
 
         assert conf_level > 0.0
         assert conf_level < 1.0
-        if self.N > 7:
+        if (self.N > 15) and robust:
+            # The "15" is just a rough cut off, above which the robust estimators would
+            # start to work well. Below which we can get doubtful results.
             center_spe = self.squared_prediction_error.median()
-            variance_spe = self.squared_prediction_error.var()  # TODO: robustify
+            variance_spe = Sn(self.squared_prediction_error) ** 2
         else:
             center_spe = self.squared_prediction_error.mean()
             variance_spe = self.squared_prediction_error.var()
