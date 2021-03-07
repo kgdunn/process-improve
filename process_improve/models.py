@@ -212,7 +212,7 @@ def lm(
 
         # Snippet of code here is from the NumPy "corrcoef" function. Adapted.
         c = np.cov(model.exog.T, None, rowvar=True)
-        dot_product = np.dot(model.exog.T, model.exog)
+        dot_product = model.exog.T @ model.exog
         try:
             d = np.diag(c)
         except ValueError:

@@ -142,7 +142,6 @@ def test_centering(tablet_spectra_data):
     """
     Mean centering of the testing data.
     """
-    from rvs.stats.multivariate import center
 
     spectra, _ = tablet_spectra_data
     out = center(spectra)
@@ -151,7 +150,6 @@ def test_centering(tablet_spectra_data):
 
 def test_scaling(tablet_spectra_data):
     """Scaling by standard deviation."""
-    from rvs.stats.multivariate import scale, center
 
     spectra, _ = tablet_spectra_data
     out = scale(center(spectra))
@@ -182,16 +180,15 @@ def test_basic_pca_model(tablet_spectra_data):
     (it is just a rearrangement of X)
     * :math:`\text{SVD}(X): UDV' = X` and :math:`V' = P'` and :math:`UD = T`
     """
-    from rvs.stats.multivariate import scale, center, PCA
 
     spectra, known_scores_covar = tablet_spectra_data
 
     # Number of components to calculate
-    model = PCA(n_components=2, method="nipals")  # force the NIPALS method
+    model = PCA(n_components=2)  # force the NIPALS method
     model.fit(scale(center(spectra)))
 
     # P'P = identity matrix of size A x A
-    orthogonal_check = np.dot(model.loadings.T, model.P)
+    orthogonal_check = model.loadings.T @ model.loadings
     assert 0.0 == approx(np.linalg.norm(orthogonal_check - np.eye(model.A)), rel=1e-9)
 
     # Check the R2 value against the R software output
@@ -200,7 +197,7 @@ def test_basic_pca_model(tablet_spectra_data):
 
     # Unit length: actually checked above, via subtraction with I matrix.
     # Check if scores are orthogonal
-    scores_covar = np.dot(model.scores.T, model.scores)
+    scores_covar = model.t_scores.T @ model.t_scores
     for i in range(model.A):
         for j in range(model.A):
 
@@ -218,7 +215,9 @@ def test_basic_pca_model(tablet_spectra_data):
     autoscaled_X = scale(center(spectra))
     u, s, v = np.linalg.svd(autoscaled_X)
 
-    loadings_delta = np.linalg.norm(np.abs(v[0 : model.A, :]) - np.abs(model.loadings.T))
+    loadings_delta = np.linalg.norm(
+        np.abs(v[0 : model.A, :]) - np.abs(model.loadings.T)
+    )
     assert loadings_delta == approx(0, abs=1e-8)
 
     # It is not possible, it seems, to get the scores to match the SVD
@@ -242,7 +241,9 @@ def test_errors_PCA_invalid_calls():
     """
     K, N, A = 4, 3, 5
     data = np.random.uniform(low=-1, high=1, size=(N, K))
-    with pytest.raises(ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"):
+    with pytest.raises(
+        ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"
+    ):
         _ = PCA(n_components=A, method="nipals", tol=0)
 
     with pytest.raises(ValueError, match="Method 'SVDS' is not known."):
@@ -251,7 +252,9 @@ def test_errors_PCA_invalid_calls():
     with pytest.raises(ValueError, match="Missing data method 'SCP' is not known."):
         _ = PCA(n_components=A, md_method="SCP")
 
-    with pytest.warns(SpecificationWarning, match=r"The requested number of components is (.*)"):
+    with pytest.warns(
+        SpecificationWarning, match=r"The requested number of components is (.*)"
+    ):
         model = PCA(
             n_components=A,
         )
@@ -264,7 +267,9 @@ def test_errors_PCA_invalid_calls():
     from scipy.sparse import csr_matrix
 
     sparse_data = csr_matrix([[1, 2, 0], [0, 0, 3], [4, 0, 5]])
-    with pytest.raises(TypeError, match="This PCA class does not support sparse input."):
+    with pytest.raises(
+        TypeError, match="This PCA class does not support sparse input."
+    ):
         model = PCA(n_components=2)
         model.fit(sparse_data)
 
@@ -292,7 +297,7 @@ def test_no_more_variance():
     A = 3
     T = np.random.uniform(low=-1, high=1, size=(N, 2))
     P = np.random.uniform(low=-1, high=1, size=(K, 2))
-    X = np.dot(T, P.T)
+    X = T @ P.T
     meanX = X.mean(axis=0)
     stdX = X.std(axis=0, ddof=0)
     X = (X - meanX) / stdX
@@ -312,7 +317,7 @@ def test_columns_with_no_variance():
     cols_with_no_variance = [10, 3]
     T = np.random.uniform(low=-1, high=1, size=(N, A))
     P = np.random.uniform(low=-1, high=1, size=(K, A))
-    X = np.dot(T, P.T)
+    X = T @ P.T
     meanX = X.mean(axis=0)
     stdX = X.std(axis=0, ddof=0)
     X = (X - meanX) / stdX
@@ -325,10 +330,10 @@ def test_columns_with_no_variance():
     # no variance must be zero
     assert np.sum(np.abs(m.loadings[cols_with_no_variance, :])) == approx(0, abs=1e-15)
     # The loadings must still be orthonormal though:
-    assert np.sum(np.identity(m.A) - np.dot(m.loadings.T, m.loadings)) == approx(0, abs=1e-15)
+    assert np.sum(np.identity(m.A) - m.loadings.T @ m.loadings) == approx(0, abs=1e-15)
 
     # Are scores orthogonal?
-    covmatrix = np.dot(m.scores.T, m.scores)
+    covmatrix = m.t_scores.T @ m.t_scores
     covmatrix - np.diag(np.diag(covmatrix))
     np.sum(np.abs(covmatrix - np.diag(np.diag(covmatrix)))) == approx(0, abs=1e-6)
 
@@ -392,8 +397,8 @@ def test_wold_model_results(pca_paper_by_wold_etal):
     assert pca_2.loadings[:, 1] == approx([-0.2017, 0.9370, -0.2017, -0.2017], rel=1e-4)
 
     # Scores. The scaling is off here by a constant factor of 0.8165
-    # assert pca_2.scores[:, 0] == approx([-1.6229, -0.3493, 1.9723], rel=1E-3)
-    # assert pca_2.scores[:, 1] == approx([0.6051, -0.9370, 0.3319], rel=1E-4)
+    # assert pca_2.t_scores[:, 0] == approx([-1.6229, -0.3493, 1.9723], rel=1E-3)
+    # assert pca_2.t_scores[:, 1] == approx([0.6051, -0.9370, 0.3319], rel=1E-4)
 
     # R2 values, given on page 43
     assert pca_2.R2 == approx([0.831, 0.169], rel=1e-2)
@@ -431,7 +436,9 @@ def test_errors_PLS_invalid_calls():
     K, N, M, A = 4, 3, 2, 5
     dataX = np.random.uniform(low=-1, high=1, size=(N, K))
     dataY = np.random.uniform(low=-1, high=1, size=(N, M))
-    with pytest.raises(ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"):
+    with pytest.raises(
+        ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"
+    ):
         _ = PLS(n_components=A, method="nipals", tol=0)
 
     with pytest.raises(ValueError, match="Method 'SVDS' is not known."):
@@ -440,7 +447,9 @@ def test_errors_PLS_invalid_calls():
     with pytest.raises(ValueError, match="Missing data method 'SCP' is not known."):
         _ = PLS(n_components=A, md_method="SCP")
 
-    with pytest.warns(SpecificationWarning, match=r"The requested number of components is (.*)"):
+    with pytest.warns(
+        SpecificationWarning, match=r"The requested number of components is (.*)"
+    ):
         model = PLS(
             n_components=A,
         )
@@ -449,7 +458,9 @@ def test_errors_PLS_invalid_calls():
     from scipy.sparse import csr_matrix
 
     sparse_data = csr_matrix([[1, 2], [0, 3], [4, 5]])
-    with pytest.raises(TypeError, match="This PLS class does not support sparse input."):
+    with pytest.raises(
+        TypeError, match="This PLS class does not support sparse input."
+    ):
         model = PLS(n_components=2)
         model.fit(dataX, sparse_data)
 
@@ -591,7 +602,9 @@ def PLS_model_SIMCA_1_component():
         ]
     )
 
-    data["y"] = np.array([1.12, 1.01, 0.97, 0.83, 0.93, 1.02, 0.91, 0.7, 1.26, 1.05, 0.95])
+    data["y"] = np.array(
+        [1.12, 1.01, 0.97, 0.83, 0.93, 1.02, 0.91, 0.7, 1.26, 1.05, 0.95]
+    )
     data["expected_y_predicted"] = [
         1.17475,
         0.930441,
@@ -674,7 +687,9 @@ def PLS_model_SIMCA_1_component():
             0.764301,
         ]
     )
-    data["Xavg"] = np.array([41.38802, 21.03755, 20.03097, 0.3884909, 0.1072455, -1.006582])
+    data["Xavg"] = np.array(
+        [41.38802, 21.03755, 20.03097, 0.3884909, 0.1072455, -1.006582]
+    )
     data["Xws"] = 1 / np.array(
         [
             1.259059,
@@ -693,7 +708,6 @@ def PLS_model_SIMCA_1_component():
 
 
 def test_compare_model_output(PLS_model_SIMCA_1_component):
-    from sklearn.cross_decomposition import PLSRegression
 
     data = PLS_model_SIMCA_1_component
 
@@ -722,21 +736,23 @@ def test_compare_model_output(PLS_model_SIMCA_1_component):
     # Manually make the PLS prediction
     X_check = data["X"].copy()
     X_check_mcuv = (X_check - plsmodel.x_mean_) / plsmodel.x_std_
-    t1_predict_manually = np.dot(X_check_mcuv, plsmodel.x_weights_)
+    t1_predict_manually = X_check_mcuv @ plsmodel.x_weights_
 
     # Simca's C:
     N = data["X"].shape[0]
-    simca_C = np.dot(y_pp.reshape(1, N), t1_predict) / np.dot(t1_predict.T, t1_predict)
+    simca_C = (y_pp.reshape(1, N) @ t1_predict) / t1_predict.T @ t1_predict
     assert t1_predict_manually == approx(t1_predict, 1e-9)
 
     # Deflate the X's:
-    X_check_mcuv -= np.dot(t1_predict_manually, plsmodel.x_loadings_.T)
+    X_check_mcuv -= t1_predict_manually @ plsmodel.x_loadings_.T
     y_hat = t1_predict_manually * simca_C
     y_hat_rawunits = y_hat * plsmodel.y_std_ + plsmodel.y_mean_
     assert data["expected_y_predicted"] == approx(y_hat_rawunits.ravel(), abs=1e-5)
 
     prediction_error = data["y"] - y_hat_rawunits.ravel()
-    R2_y = (data["y"].var(ddof=1) - prediction_error.var(ddof=1)) / data["y"].var(ddof=1)
+    R2_y = (data["y"].var(ddof=1) - prediction_error.var(ddof=1)) / data["y"].var(
+        ddof=1
+    )
     assert R2_y == approx(data["R2Y"], abs=1e-6)
 
 
@@ -761,7 +777,9 @@ def test_compare_model_api(PLS_model_SIMCA_1_component):
     assert data["t1"] == approx(T.ravel(), abs=1e-5)
     assert data["loadings_P1"] == approx(P.ravel(), abs=1e-5)
     assert data["loadings_r1"] == approx(R.ravel(), abs=1e-6)
-    assert data["expected_y_predicted"] == approx(plsmodel.predictions.ravel(), abs=1e-5)
+    assert data["expected_y_predicted"] == approx(
+        plsmodel.predictions.ravel(), abs=1e-5
+    )
     assert data["R2Y"] == approx(plsmodel.R2Ycum, abs=1e-6)
 
     # Check the model's predictions
@@ -993,7 +1011,9 @@ def test_compare_model_api_2PCs(test_PLS_model_SIMCA_2_components):
     assert np.abs(data["T"]) == approx(np.abs(plsmodel.scores), abs=1e-5)
     assert np.abs(data["loadings_P"]) == approx(np.abs(plsmodel.loadings), abs=1e-5)
     assert np.abs(data["loadings_W"]) == approx(np.abs(plsmodel.weights_x), abs=1e-5)
-    assert data["expected_y_predicted"] == approx(plsmodel.predictions.ravel(), abs=1e-5)
+    assert data["expected_y_predicted"] == approx(
+        plsmodel.predictions.ravel(), abs=1e-5
+    )
     assert sum(data["R2Y"]) == approx(plsmodel.R2Ycum, abs=1e-7)
 
     # Check the model's predictions
@@ -1044,20 +1064,25 @@ def PLS_model_SIMCA_LDPE_example():
     Ky = 5
     A = 6
     """
-
-    fixture_file = pathlib.Path(__file__).parents[1] / "fixtures" / "LDPE-PLS-model.xlsx"
-    values = pd.read_csv(pathlib.Path(__file__).parents[1] / "fixtures" / "LDPE.csv")
     out = {}
-    out["expected_T"] = pd.read_excel(fixture_file, sheet_name="T", header=None)
-    out["expected_P"] = pd.read_excel(fixture_file, sheet_name="P", header=None)
-    out["expected_W"] = pd.read_excel(fixture_file, sheet_name="W", header=None)
-    out["expected_C"] = pd.read_excel(fixture_file, sheet_name="C", header=None)
-    out["expected_U"] = pd.read_excel(fixture_file, sheet_name="U", header=None)
-    out["expected_Tsq"] = pd.read_excel(fixture_file, sheet_name="Tsq", header=None)
-    out["expected_Y_hat"] = pd.read_excel(fixture_file, sheet_name="Y_hat", header=None)
-    out["expected_SD_t"] = pd.read_excel(fixture_file, sheet_name="SDt", header=None)
-    out["expected_T2_lim_95"] = pd.read_excel(fixture_file, sheet_name="T2_lim_95", header=None)
-    out["expected_T2_lim_99"] = pd.read_excel(fixture_file, sheet_name="T2_lim_99", header=None)
+    values = pd.read_csv(
+        pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "LDPE.csv"
+    )
+    out["expect_T"] = pd.read_csv(
+        pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "T.csv", header=None
+    )
+
+    # out["expected_P"] = pd.read_excel(fixture_file, sheet_name="P", header=None)
+    # out["expected_W"] = pd.read_excel(fixture_file, sheet_name="W", header=None)
+    # out["expected_C"] = pd.read_excel(fixture_file, sheet_name="C", header=None)
+    # out["expected_U"] = pd.read_excel(fixture_file, sheet_name="U", header=None)
+    # out["expected_Tsq"] = pd.read_excel(fixture_file, sheet_name="Tsq", header=None)
+    # out["expected_Y_hat"] = pd.read_excel(fixture_file, sheet_name="Y_hat", header=None)
+    out["expected_SD_t"] = np.array(
+        [1.872539, 1.440642, 1.216218, 1.141096, 1.059435, 0.9459715]
+    )
+    out["expected_T2_lim_95"] = 15.2017
+    out["expected_T2_lim_99"] = 21.2239
     out["X"] = values.iloc[:, :14]
     out["Y"] = values.iloc[:, 15:]
     out["A"] = 6
@@ -1074,7 +1099,12 @@ def test_PLS_model_SIMCA_LDPE_compare_model_api(PLS_model_SIMCA_LDPE_example):
     """
     data = PLS_model_SIMCA_LDPE_example
     plsmodel = PLS(n_components=data["A"], method="nipals")
-    plsmodel.fit(data["X"], data["Y"])
+
+    X_mcuv = MCUVScaler().fit_transform(data["X"])
+    Y_mcuv = MCUVScaler().fit_transform(data["Y"])
+
+    plsmodel.fit(X_mcuv, Y_mcuv)
+    plsmodel
 
     # TODO: This test fails. Investigate settings used to fit the model, to see if they
     # match how the expected results were generated.

@@ -23,21 +23,41 @@ eps = np.sqrt(np.finfo(float).eps)
 
 
 class PCA(PCA_sklearn):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        n_components=None,
+        *,
+        copy=True,
+        whiten=False,
+        svd_solver="auto",
+        tol=0.0,
+        iterated_power="auto",
+        random_state=None,
+    ):
+        super().__init__(
+            n_components, copy, whiten, svd_solver, tol, iterated_power, random_state
+        )
 
     def fit(self, X, y=None) -> PCA_sklearn:
         self = super().fit(X)
 
-        self.N = X.shape[0]
+        # Reference points for convenience:
+        self.loadings = (
+            self.components_.T
+        )  # note, this one is transposed, to conform to stds.
+        self.A = self.n_components
+        self.N = self.n_samples_
+        self.K = self.n_features_
+
         self.scaling_factor_for_scores = np.sqrt(self.explained_variance_)
         self.t_scores = super().fit_transform(X)
         self.hotellings_T2 = np.sum(
             (self.t_scores / self.scaling_factor_for_scores) ** 2, axis=1
         )
 
-        error_X = X - self.t_scores @ self.components_
+        error_X = X - self.t_scores @ self.loadings.T
         self.squared_prediction_error = np.sum(error_X ** 2, axis=1)
+
         return self
 
     def T2_limit(self, conf_level=0.95) -> float:
@@ -328,7 +348,7 @@ class PLS:
         self.scores_y = y_scores
         self.loadings = self.P = plsmodel.x_loadings_
         self.loadings_y = self.C = plsmodel.y_loadings_
-        self.predictions_pp = np.dot(self.scores, self.loadings_y.T)
+        self.predictions_pp = self.scores @ self.loadings_y.T
         self.predictions = self.predictions_pp * plsmodel.y_std_ + plsmodel.y_mean_
         self.weights_x = plsmodel.x_weights_
 
@@ -342,7 +362,7 @@ class PLS:
         # SPE, Q, DModX (different names for the same thing)
         # --------------------------------------------------
         # Predictions of X and Y spaces
-        X_hat = np.dot(self.scores, self.loadings.T)
+        X_hat = self.scores @ self.loadings.T
         X_check = self.X.copy()
         X_check -= self.x_mean_
         X_check_mcuv = X_check / self.x_std_
@@ -397,14 +417,14 @@ class PLS:
         for a in range(self.A):
             p = self.loadings[:, a].reshape(self.K, 1)
             w = self.weights_x[:, a].reshape(self.K, 1)
-            temp = np.dot(X_mcuv, w)
-            X_mcuv -= np.dot(temp, p.T)
+            temp = X_mcuv @ w
+            X_mcuv -= temp @ p.T
             state.scores[:, a] = temp.ravel()
 
         # After using all self.A components, calculate SPE-residuals (sum over rows of the errors)
         state.SPE = np.power(X_mcuv, 2).sum(axis=1)
         state.Tsq = np.sum(np.power((state.scores / self.SD_t), 2), 1)
-        y_hat = np.dot(state.scores, self.loadings_y.T)
+        y_hat = state.scores @ self.loadings_y.T
 
         # Un-preprocess and return the entire state object
         state.y_hat = y_hat * self.y_std_ + self.y_mean_
@@ -448,7 +468,10 @@ def ssq(X: np.ndarray, axis: Optional[int] = None) -> Any:
 
 
 def terminate_check(
-    t_a_guess: np.ndarray, t_a: np.ndarray, model: PCA, iterations: int
+    t_a_guess: np.ndarray,
+    t_a: np.ndarray,
+    model: PCA,
+    iterations: int,
 ) -> bool:
     """The PCA iterative algorithm is terminated when any one of these
     conditions is True
