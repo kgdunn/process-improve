@@ -42,21 +42,76 @@ class PCA(PCA_sklearn):
         self = super().fit(X)
 
         # Reference points for convenience:
-        self.loadings = (
-            self.components_.T
-        )  # note, this one is transposed, to conform to stds.
         self.A = self.n_components
         self.N = self.n_samples_
         self.K = self.n_features_
+        # note: this one is transposed, to conform to standards
+        self.loadings = self.components_.T
 
-        self.scaling_factor_for_scores = np.sqrt(self.explained_variance_)
-        self.t_scores = super().fit_transform(X)
-        self.hotellings_T2 = np.sum(
-            (self.t_scores / self.scaling_factor_for_scores) ** 2, axis=1
+        component_names = [f"PC {a+1}" for a in range(self.A)]
+        self.scaling_factor_for_scores = pd.Series(
+            np.sqrt(self.explained_variance_),
+            index=component_names,
+            name="Standard deviation per score",
+        )
+        self.t_scores = pd.DataFrame(
+            super().fit_transform(X), columns=component_names, index=X.index
+        )
+        self.Hotellings_T2 = pd.DataFrame(
+            np.zeros(shape=(self.N, self.A)),
+            columns=component_names,
+            index=X.index,
+            # name="Hotelling's T^2 statistic, per component",
         )
 
-        error_X = X - self.t_scores @ self.loadings.T
-        self.squared_prediction_error = np.sum(error_X ** 2, axis=1)
+        self.R2 = pd.Series(
+            np.zeros(shape=(self.A,)),
+            index=component_names,
+            name="Model's R^2, per component",
+        )
+        self.R2cum = pd.Series(
+            np.zeros(shape=(self.A,)),
+            index=component_names,
+            name="Cumulative model's R^2, per component",
+        )
+        self.R2k_cum = pd.DataFrame(
+            np.zeros(shape=(self.K, self.A)),
+            columns=component_names,
+            index=X.columns,
+            # name ="Per variable R^2, per component"
+        )
+
+        # error_X = X - self.t_scores @ self.loadings.T
+        # self.squared_prediction_error = np.sum(error_X ** 2, axis=1)
+        self.squared_prediction_error = pd.DataFrame(
+            np.zeros((self.N, self.A)), columns=component_names, index=X.index.copy()
+        )
+        Xd = X.copy()
+        prior_SS_col = ssq(Xd.values, axis=0)
+        base_variance = np.sum(prior_SS_col)
+        for a in range(self.A):
+            self.Hotellings_T2.iloc[:, a] = (
+                self.Hotellings_T2.iloc[:, max(0, a - 1)]
+                + (self.t_scores.iloc[:, a] / self.scaling_factor_for_scores[a]) ** 2
+            )
+
+            Xd -= self.t_scores.iloc[:, [a]] @ self.loadings[:, [a]].T
+            # These are the Residual Sums of Squares (RSS); i.e X-X_hat
+            row_SSX = ssq(Xd.values, axis=1)
+            col_SSX = ssq(Xd.values, axis=0)
+
+            # TODO(KGD): check correction factor
+            self.squared_prediction_error.iloc[:, a] = row_SSX / self.K
+
+            # TODO: some entries in prior_SS_col can be zero and leads to nan entries in R2k_cum
+            self.R2k_cum.iloc[:, a] = 1 - col_SSX / prior_SS_col
+
+            # R2 and cumulative R2 value for the whole block
+            self.R2cum[a] = 1 - sum(row_SSX) / base_variance
+            if a > 0:
+                self.R2[a] = self.R2cum[a] - self.R2cum[a - 1]
+            else:
+                self.R2[a] = self.R2cum[a]
 
         return self
 
@@ -83,14 +138,16 @@ class PCA(PCA_sklearn):
 
         assert conf_level > 0.0
         assert conf_level < 1.0
+
+        values = self.squared_prediction_error.iloc[:, self.A - 1]
         if (self.N > 15) and robust:
             # The "15" is just a rough cut off, above which the robust estimators would
             # start to work well. Below which we can get doubtful results.
-            center_spe = self.squared_prediction_error.median()
-            variance_spe = Sn(self.squared_prediction_error) ** 2
+            center_spe = values.median()
+            variance_spe = Sn(values) ** 2
         else:
-            center_spe = self.squared_prediction_error.mean()
-            variance_spe = self.squared_prediction_error.var()
+            center_spe = values.mean()
+            variance_spe = values.var()
 
         g = variance_spe / (2 * center_spe)
         h = (2 * center_spe ** 2) / variance_spe
