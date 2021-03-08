@@ -24,12 +24,7 @@ def test_basic_PCA():
     Arrays with no variance should not be able to have variance extracted.
     """
 
-    foods = pd.read_csv("https://openmv.net/file/food-texture.csv").drop(
-        [
-            "Unnamed: 0",
-        ],
-        axis=1,
-    )
+    foods = pd.read_csv("https://openmv.net/file/food-texture.csv").drop(["Unnamed: 0",], axis=1,)
     scaler = MCUVScaler().fit(foods)
     foods_mcuv = scaler.fit_transform(foods)
 
@@ -203,13 +198,9 @@ def test_basic_pca_model(tablet_spectra_data):
 
             # Technically not need, but more explict this way.
             if i == j:
-                assert scores_covar.iloc[i, j] == approx(
-                    known_scores_covar[i, j], rel=1e-2
-                )
+                assert scores_covar.iloc[i, j] == approx(known_scores_covar[i, j], rel=1e-2)
             else:
-                assert scores_covar.iloc[i, j] == approx(
-                    known_scores_covar[i, j], abs=1e-4
-                )
+                assert scores_covar.iloc[i, j] == approx(known_scores_covar[i, j], abs=1e-4)
 
                 if i >= 1:
                     assert scores_covar.iloc[j, j] > scores_covar.iloc[i, i]
@@ -219,9 +210,7 @@ def test_basic_pca_model(tablet_spectra_data):
     autoscaled_X = scale(center(spectra))
     u, s, v = np.linalg.svd(autoscaled_X)
 
-    loadings_delta = np.linalg.norm(
-        np.abs(v[0 : model.A, :]) - np.abs(model.loadings.T)
-    )
+    loadings_delta = np.linalg.norm(np.abs(v[0 : model.A, :]) - np.abs(model.loadings.T))
     assert loadings_delta == approx(0, abs=1e-8)
 
     # It is not possible, it seems, to get the scores to match the SVD
@@ -247,9 +236,7 @@ def test_errors_PCA_invalid_calls():
     """
     K, N, A = 4, 3, 5
     data = np.random.uniform(low=-1, high=1, size=(N, K))
-    with pytest.raises(
-        ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"
-    ):
+    with pytest.raises(ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"):
         _ = PCA(n_components=A, method="nipals", tol=0)
 
     with pytest.raises(ValueError, match="Method 'SVDS' is not known."):
@@ -258,12 +245,8 @@ def test_errors_PCA_invalid_calls():
     with pytest.raises(ValueError, match="Missing data method 'SCP' is not known."):
         _ = PCA(n_components=A, md_method="SCP")
 
-    with pytest.warns(
-        SpecificationWarning, match=r"The requested number of components is (.*)"
-    ):
-        model = PCA(
-            n_components=A,
-        )
+    with pytest.warns(SpecificationWarning, match=r"The requested number of components is (.*)"):
+        model = PCA(n_components=A,)
         model.fit(data)
 
     with pytest.raises(ValueError, match="Eig method is not supported yet."):
@@ -273,9 +256,7 @@ def test_errors_PCA_invalid_calls():
     from scipy.sparse import csr_matrix
 
     sparse_data = csr_matrix([[1, 2, 0], [0, 0, 3], [4, 0, 5]])
-    with pytest.raises(
-        TypeError, match="This PCA class does not support sparse input."
-    ):
+    with pytest.raises(TypeError, match="This PCA class does not support sparse input."):
         model = PCA(n_components=2)
         model.fit(sparse_data)
 
@@ -334,16 +315,16 @@ def test_columns_with_no_variance():
 
     # `loadings` is a K by A matrix.  Check sum of loadings in rows with
     # no variance must be zero
-    assert np.sum(np.abs(m.loadings[cols_with_no_variance, :])) == approx(0, abs=1e-14)
+    assert np.sum(np.abs(m.loadings.iloc[cols_with_no_variance, :].values)) == approx(0, abs=1e-14)
     # The loadings must still be orthonormal though:
-    assert np.sum(np.identity(m.A) - m.loadings.T @ m.loadings) == approx(0, abs=1e-14)
+    assert np.sum(np.identity(m.A) - m.loadings.values.T @ m.loadings.values) == approx(
+        0, abs=1e-14
+    )
 
     # Are scores orthogonal?
     covmatrix = m.t_scores.T @ m.t_scores
     covmatrix - np.diag(np.diag(covmatrix))
-    (np.sum(np.abs(covmatrix - np.diag(np.diag(covmatrix))))).values == approx(
-        0, abs=1e-6
-    )
+    (np.sum(np.abs(covmatrix - np.diag(np.diag(covmatrix))))).values == approx(0, abs=1e-6)
 
 
 @pytest.fixture
@@ -401,12 +382,8 @@ def test_wold_model_results(pca_paper_by_wold_etal):
     X_preproc = scale(center(pca_paper_by_wold_etal))
     pca_2 = PCA(n_components=2)
     pca_2.fit(X_preproc)
-    assert np.abs(pca_2.loadings[:, 0]) == approx(
-        [0.5410, 0.3493, 0.5410, 0.5410], rel=1e-3
-    )
-    assert np.abs(pca_2.loadings[:, 1]) == approx(
-        [0.2017, 0.9370, 0.2017, 0.2017], rel=1e-4
-    )
+    assert np.abs(pca_2.loadings[:, 0]) == approx([0.5410, 0.3493, 0.5410, 0.5410], rel=1e-3)
+    assert np.abs(pca_2.loadings[:, 1]) == approx([0.2017, 0.9370, 0.2017, 0.2017], rel=1e-4)
 
     # Scores. The scaling is off here by a constant factor of 0.8165
     # assert pca_2.t_scores[:, 0] == approx([-1.6229, -0.3493, 1.9723], rel=1E-3)
@@ -448,9 +425,7 @@ def test_errors_PLS_invalid_calls():
     K, N, M, A = 4, 3, 2, 5
     dataX = np.random.uniform(low=-1, high=1, size=(N, K))
     dataY = np.random.uniform(low=-1, high=1, size=(N, M))
-    with pytest.raises(
-        ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"
-    ):
+    with pytest.raises(ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"):
         _ = PLS(n_components=A, method="nipals", tol=0)
 
     with pytest.raises(ValueError, match="Method 'SVDS' is not known."):
@@ -459,20 +434,14 @@ def test_errors_PLS_invalid_calls():
     with pytest.raises(ValueError, match="Missing data method 'SCP' is not known."):
         _ = PLS(n_components=A, md_method="SCP")
 
-    with pytest.warns(
-        SpecificationWarning, match=r"The requested number of components is (.*)"
-    ):
-        model = PLS(
-            n_components=A,
-        )
+    with pytest.warns(SpecificationWarning, match=r"The requested number of components is (.*)"):
+        model = PLS(n_components=A,)
         model.fit(dataX, dataY)
 
     from scipy.sparse import csr_matrix
 
     sparse_data = csr_matrix([[1, 2], [0, 3], [4, 5]])
-    with pytest.raises(
-        TypeError, match="This PLS class does not support sparse input."
-    ):
+    with pytest.raises(TypeError, match="This PLS class does not support sparse input."):
         model = PLS(n_components=2)
         model.fit(dataX, sparse_data)
 
@@ -523,100 +492,21 @@ def PLS_model_SIMCA_1_component():
     data = {}
     data["X"] = np.array(
         [
-            [
-                41.1187,
-                21.2833,
-                21.1523,
-                0.2446,
-                -0.0044,
-                -0.131,
-            ],
-            [
-                41.7755,
-                22.0978,
-                21.1653,
-                0.3598,
-                0.1622,
-                -0.9325,
-            ],
-            [
-                41.2568,
-                21.4873,
-                20.7407,
-                0.2536,
-                0.1635,
-                -0.7467,
-            ],
-            [
-                41.5469,
-                22.2043,
-                20.4518,
-                0.6317,
-                0.1997,
-                -1.7525,
-            ],
-            [
-                40.0234,
-                23.7399,
-                21.978,
-                -0.0534,
-                -0.0158,
-                -1.7619,
-            ],
-            [
-                39.9203,
-                21.9997,
-                21.5859,
-                -0.1811,
-                0.089,
-                -0.4138,
-            ],
-            [
-                42.1886,
-                21.4891,
-                20.4427,
-                0.686,
-                0.1124,
-                -1.0464,
-            ],
-            [
-                42.1454,
-                20.3803,
-                18.2327,
-                0.6607,
-                0.1291,
-                -2.1476,
-            ],
-            [
-                42.272,
-                18.9725,
-                18.3763,
-                0.561,
-                0.0453,
-                -0.5962,
-            ],
-            [
-                41.49,
-                18.603,
-                17.9978,
-                0.4872,
-                0.1198,
-                -0.6052,
-            ],
-            [
-                41.5306,
-                19.1558,
-                18.2172,
-                0.6233,
-                0.1789,
-                -0.9386,
-            ],
+            [41.1187, 21.2833, 21.1523, 0.2446, -0.0044, -0.131,],
+            [41.7755, 22.0978, 21.1653, 0.3598, 0.1622, -0.9325,],
+            [41.2568, 21.4873, 20.7407, 0.2536, 0.1635, -0.7467,],
+            [41.5469, 22.2043, 20.4518, 0.6317, 0.1997, -1.7525,],
+            [40.0234, 23.7399, 21.978, -0.0534, -0.0158, -1.7619,],
+            [39.9203, 21.9997, 21.5859, -0.1811, 0.089, -0.4138,],
+            [42.1886, 21.4891, 20.4427, 0.686, 0.1124, -1.0464,],
+            [42.1454, 20.3803, 18.2327, 0.6607, 0.1291, -2.1476,],
+            [42.272, 18.9725, 18.3763, 0.561, 0.0453, -0.5962,],
+            [41.49, 18.603, 17.9978, 0.4872, 0.1198, -0.6052,],
+            [41.5306, 19.1558, 18.2172, 0.6233, 0.1789, -0.9386,],
         ]
     )
 
-    data["y"] = np.array(
-        [1.12, 1.01, 0.97, 0.83, 0.93, 1.02, 0.91, 0.7, 1.26, 1.05, 0.95]
-    )
+    data["y"] = np.array([1.12, 1.01, 0.97, 0.83, 0.93, 1.02, 0.91, 0.7, 1.26, 1.05, 0.95])
     data["expected_y_predicted"] = [
         1.17475,
         0.930441,
@@ -631,24 +521,10 @@ def PLS_model_SIMCA_1_component():
         0.958111,
     ]
     data["loadings_P1"] = np.array(
-        [
-            -0.2650725,
-            -0.2165038,
-            0.08547913,
-            -0.3954746,
-            -0.4935882,
-            0.7541404,
-        ]
+        [-0.2650725, -0.2165038, 0.08547913, -0.3954746, -0.4935882, 0.7541404,]
     )
     data["loadings_r1"] = np.array(
-        [
-            -0.04766187,
-            -0.3137862,
-            0.004006641,
-            -0.238001,
-            -0.4430451,
-            0.8039384,
-        ]
+        [-0.04766187, -0.3137862, 0.004006641, -0.238001, -0.4430451, 0.8039384,]
     )
     data["loadings_y_c1"] = 0.713365
     data["SDt"] = 1.19833
@@ -699,19 +575,8 @@ def PLS_model_SIMCA_1_component():
             0.764301,
         ]
     )
-    data["Xavg"] = np.array(
-        [41.38802, 21.03755, 20.03097, 0.3884909, 0.1072455, -1.006582]
-    )
-    data["Xws"] = 1 / np.array(
-        [
-            1.259059,
-            0.628138,
-            0.6594034,
-            3.379028,
-            13.8272,
-            1.589986,
-        ]
-    )
+    data["Xavg"] = np.array([41.38802, 21.03755, 20.03097, 0.3884909, 0.1072455, -1.006582])
+    data["Xws"] = 1 / np.array([1.259059, 0.628138, 0.6594034, 3.379028, 13.8272, 1.589986,])
     data["Yavg"] = 0.9772727
     data["Yws"] = 1 / 6.826007  # Simca-P uses inverse standard deviation
     data["A"] = 1
@@ -762,9 +627,7 @@ def test_compare_model_output(PLS_model_SIMCA_1_component):
     assert data["expected_y_predicted"] == approx(y_hat_rawunits.ravel(), abs=1e-5)
 
     prediction_error = data["y"] - y_hat_rawunits.ravel()
-    R2_y = (data["y"].var(ddof=1) - prediction_error.var(ddof=1)) / data["y"].var(
-        ddof=1
-    )
+    R2_y = (data["y"].var(ddof=1) - prediction_error.var(ddof=1)) / data["y"].var(ddof=1)
     assert R2_y == approx(data["R2Y"], abs=1e-6)
 
 
@@ -789,9 +652,7 @@ def test_compare_model_api(PLS_model_SIMCA_1_component):
     assert data["t1"] == approx(T.ravel(), abs=1e-5)
     assert data["loadings_P1"] == approx(P.ravel(), abs=1e-5)
     assert data["loadings_r1"] == approx(R.ravel(), abs=1e-6)
-    assert data["expected_y_predicted"] == approx(
-        plsmodel.predictions.ravel(), abs=1e-5
-    )
+    assert data["expected_y_predicted"] == approx(plsmodel.predictions.ravel(), abs=1e-5)
     assert data["R2Y"] == approx(plsmodel.R2Ycum, abs=1e-6)
 
     # Check the model's predictions
@@ -816,76 +677,20 @@ def test_PLS_model_SIMCA_2_components():
     out = {}
     out["X"] = np.array(
         [
-            [
-                1.27472,
-                0.897732,
-                -0.193397,
-            ],
-            [
-                1.27472,
-                -1.04697,
-                0.264243,
-            ],
-            [
-                0.00166722,
-                1.26739,
-                1.06862,
-            ],
-            [
-                0.00166722,
-                -0.0826556,
-                -1.45344,
-            ],
-            [
-                0.00166722,
-                -1.46484,
-                1.91932,
-            ],
-            [
-                -1.27516,
-                0.849516,
-                -0.326239,
-            ],
-            [
-                -1.27516,
-                -1.06304,
-                0.317718,
-            ],
-            [
-                -0.000590006,
-                1.26739,
-                1.06862,
-            ],
-            [
-                -0.000590006,
-                -0.0826556,
-                -1.45344,
-            ],
-            [
-                -0.000590006,
-                -1.09519,
-                0.427109,
-            ],
-            [
-                -1.27516,
-                0.849516,
-                -0.326239,
-            ],
-            [
-                -1.27516,
-                -1.06304,
-                0.317718,
-            ],
-            [
-                1.27398,
-                0.897732,
-                -0.193397,
-            ],
-            [
-                1.27398,
-                -0.130872,
-                -1.4372,
-            ],
+            [1.27472, 0.897732, -0.193397,],
+            [1.27472, -1.04697, 0.264243,],
+            [0.00166722, 1.26739, 1.06862,],
+            [0.00166722, -0.0826556, -1.45344,],
+            [0.00166722, -1.46484, 1.91932,],
+            [-1.27516, 0.849516, -0.326239,],
+            [-1.27516, -1.06304, 0.317718,],
+            [-0.000590006, 1.26739, 1.06862,],
+            [-0.000590006, -0.0826556, -1.45344,],
+            [-0.000590006, -1.09519, 0.427109,],
+            [-1.27516, 0.849516, -0.326239,],
+            [-1.27516, -1.06304, 0.317718,],
+            [1.27398, 0.897732, -0.193397,],
+            [1.27398, -0.130872, -1.4372,],
         ]
     )
 
@@ -1023,9 +828,7 @@ def test_compare_model_api_2PCs(test_PLS_model_SIMCA_2_components):
     assert np.abs(data["T"]) == approx(np.abs(plsmodel.scores), abs=1e-5)
     assert np.abs(data["loadings_P"]) == approx(np.abs(plsmodel.loadings), abs=1e-5)
     assert np.abs(data["loadings_W"]) == approx(np.abs(plsmodel.weights_x), abs=1e-5)
-    assert data["expected_y_predicted"] == approx(
-        plsmodel.predictions.ravel(), abs=1e-5
-    )
+    assert data["expected_y_predicted"] == approx(plsmodel.predictions.ravel(), abs=1e-5)
     assert sum(data["R2Y"]) == approx(plsmodel.R2Ycum, abs=1e-7)
 
     # Check the model's predictions
@@ -1077,9 +880,7 @@ def PLS_model_SIMCA_LDPE_example():
     A = 6
     """
     out = {}
-    values = pd.read_csv(
-        pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "LDPE.csv"
-    )
+    values = pd.read_csv(pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "LDPE.csv")
     out["expect_T"] = pd.read_csv(
         pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "T.csv", header=None
     )
@@ -1090,9 +891,7 @@ def PLS_model_SIMCA_LDPE_example():
     # out["expected_U"] = pd.read_excel(fixture_file, sheet_name="U", header=None)
     # out["expected_Tsq"] = pd.read_excel(fixture_file, sheet_name="Tsq", header=None)
     # out["expected_Y_hat"] = pd.read_excel(fixture_file, sheet_name="Y_hat", header=None)
-    out["expected_SD_t"] = np.array(
-        [1.872539, 1.440642, 1.216218, 1.141096, 1.059435, 0.9459715]
-    )
+    out["expected_SD_t"] = np.array([1.872539, 1.440642, 1.216218, 1.141096, 1.059435, 0.9459715])
     out["expected_T2_lim_95"] = 15.2017
     out["expected_T2_lim_99"] = 21.2239
     out["X"] = values.iloc[:, :14]

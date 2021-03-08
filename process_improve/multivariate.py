@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Optional, Any
 
 import numpy as np
@@ -12,6 +13,8 @@ from sklearn.utils.validation import check_is_fitted
 
 from .robust import Sn
 
+eps = np.sqrt(np.finfo(float).eps)
+
 
 class SpecificationWarning(UserWarning):
     """ Parent warning class. """
@@ -19,7 +22,90 @@ class SpecificationWarning(UserWarning):
     pass
 
 
-eps = np.sqrt(np.finfo(float).eps)
+def T2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -> float:
+    """Returns the Hotelling's T2 value at the given level of confidence.
+
+        Parameters
+        ----------
+        conf_level : float, optional
+            Fractional confidence limit, less that 1.00; by default 0.95
+
+        Returns
+        -------
+        float
+            The Hotelling's T2 limit at the given level of confidence.
+        """
+    assert conf_level > 0.0
+    assert conf_level < 1.0
+    assert n_rows > 0
+    A, N = n_components, n_rows
+    return A * (N - 1) * (N + 1) / (N * (N - A)) * f.isf((1 - conf_level), A, N - A)
+
+
+def ellipse_coordinates(
+    score_horiz: int,
+    score_vert: int,
+    T2_limit_conf_level: float = 0.95,
+    n_points: int = 100,
+    n_components: int = 0,
+    scaling_factor_for_scores=None,
+    n_rows: int = 0,
+) -> tuple:
+    """Get the (score_horiz, score_vert) coordinate pairs that form the T2 ellipse when
+        plotting the score `score_horiz` on the horizontal axis and `score_vert` on the
+        vertical axis.
+
+        Scores are referred to by number, starting at 1 and ending with `model.components_`
+
+
+    Parameters
+    ----------
+    score_horiz : int
+        [description]
+    score_vert : int
+        [description]
+    T2_limit_conf_level : float
+        The `conf_level` confidence value: e.g. 0.95 is for the 95% confidence limit.
+    n_points : int, optional
+        Number of points to use in the ellipse; by default 100.
+
+    Returns
+    -------
+    tuple of 2 elements; the first for the x-axis; the second for the y-axis.
+        Returns `n_points` equispaced points that can be used to plot an ellipse.
+
+    Background
+    ----------
+
+    Equation of ellipse in *canonical* form (http://en.wikipedia.org/wiki/Ellipse)
+
+        (t_horiz/s_h)^2 + (t_vert/s_v)^2  =  T2_limit_alpha
+        s_horiz = stddev(T_horiz)
+        s_vert  = stddev(T_vert)
+        T2_limit_alpha = T2 confidence limit at a given alpha value
+
+    Equation of ellipse, *parametric* form (http://en.wikipedia.org/wiki/Ellipse):
+
+        t_horiz = sqrt(T2_limit_alpha)*s_h*cos(t)
+        t_vert  = sqrt(T2_limit_alpha)*s_v*sin(t)
+
+        where t ranges between 0 and 2*pi.
+    """
+    assert score_horiz >= 1
+    assert score_vert >= 1
+    assert score_horiz <= n_components
+    assert score_vert <= n_components
+    assert T2_limit_conf_level > 0
+    assert T2_limit_conf_level < 1
+    assert n_rows > 0
+    s_h = scaling_factor_for_scores[score_horiz - 1]
+    s_v = scaling_factor_for_scores[score_vert - 1]
+    T2_limit_specific = np.sqrt(T2_limit(T2_limit_conf_level, n_components= n_components, n_rows=n_rows))
+    dt = 2 * np.pi / (n_points - 1)
+    steps = np.linspace(0, n_points - 1, n_points)
+    x = np.cos(steps * dt) * T2_limit_specific * s_h
+    y = np.sin(steps * dt) * T2_limit_specific * s_v
+    return x, y
 
 
 class PCA(PCA_sklearn):
@@ -34,9 +120,7 @@ class PCA(PCA_sklearn):
         iterated_power="auto",
         random_state=None,
     ):
-        super().__init__(
-            n_components, copy, whiten, svd_solver, tol, iterated_power, random_state
-        )
+        super().__init__(n_components, copy, whiten, svd_solver, tol, iterated_power, random_state)
 
     def fit(self, X, y=None) -> PCA_sklearn:
         self = super().fit(X)
@@ -45,10 +129,13 @@ class PCA(PCA_sklearn):
         self.A = self.n_components
         self.N = self.n_samples_
         self.K = self.n_features_
-        # note: this one is transposed, to conform to standards
-        self.loadings = self.components_.T
+        # Note: this one is transposed, to conform to standards
+        self.loadings = pd.DataFrame(self.components_.copy()).T
+        self.loadings.index = X.columns
 
         component_names = [f"PC {a+1}" for a in range(self.A)]
+        self.loadings.columns = component_names
+
         self.scaling_factor_for_scores = pd.Series(
             np.sqrt(self.explained_variance_),
             index=component_names,
@@ -65,9 +152,7 @@ class PCA(PCA_sklearn):
         )
 
         self.R2 = pd.Series(
-            np.zeros(shape=(self.A,)),
-            index=component_names,
-            name="Model's R^2, per component",
+            np.zeros(shape=(self.A,)), index=component_names, name="Model's R^2, per component",
         )
         self.R2cum = pd.Series(
             np.zeros(shape=(self.A,)),
@@ -95,7 +180,7 @@ class PCA(PCA_sklearn):
                 + (self.t_scores.iloc[:, a] / self.scaling_factor_for_scores[a]) ** 2
             )
 
-            Xd -= self.t_scores.iloc[:, [a]] @ self.loadings[:, [a]].T
+            Xd -= self.t_scores.iloc[:, [a]] @ self.loadings.iloc[:, [a]].T
             # These are the Residual Sums of Squares (RSS); i.e X-X_hat
             row_SSX = ssq(Xd.values, axis=1)
             col_SSX = ssq(Xd.values, axis=0)
@@ -113,25 +198,16 @@ class PCA(PCA_sklearn):
             else:
                 self.R2[a] = self.R2cum[a]
 
+        self.ellipse_coordinates = partial(
+            ellipse_coordinates,
+            n_components=self.n_components,
+            scaling_factor_for_scores=self.scaling_factor_for_scores,
+            n_rows=self.N
+        )
+
+        self.T2_limit = partial(T2_limit, n_components=self.n_components, n_rows=self.N)
+
         return self
-
-    def T2_limit(self, conf_level=0.95) -> float:
-        """Returns the Hotelling's T2 value at the given level of confidence.
-
-        Parameters
-        ----------
-        conf_level : float, optional
-            Fractional confidence limit, less that 1.00; by default 0.95
-
-        Returns
-        -------
-        float
-            The Hotelling's T2 limit at the given level of confidence.
-        """
-        assert conf_level > 0.0
-        assert conf_level < 1.0
-        A, N = self.n_components, self.N
-        return A * (N - 1) * (N + 1) / (N * (N - A)) * f.isf((1 - conf_level), A, N - A)
 
     def SPE_limit(self, conf_level=0.95, robust=True) -> float:
         check_is_fitted(self, "squared_prediction_error")
@@ -153,68 +229,6 @@ class PCA(PCA_sklearn):
         h = (2 * center_spe ** 2) / variance_spe
         return chi2.ppf(conf_level, h) * g
 
-    def ellipse_coordinates(
-        self,
-        score_horiz: int,
-        score_vert: int,
-        T2_limit_conf_level: float = 0.05,
-        n_points: int = 100,
-    ) -> tuple:
-        """Get the (score_horiz, score_vert) coordinate pairs that form the T2 ellipse when
-            plotting the score `score_horiz` on the horizontal axis and `score_vert` on the
-            vertical axis.
-
-            Scores are referred to by number, starting at 1 and ending with `model.components_`
-
-
-        Parameters
-        ----------
-        score_horiz : int
-            [description]
-        score_vert : int
-            [description]
-        T2_limit_conf_level : float
-            The `conf_level` confidence value: e.g. 0.95 is for the 95% confidence limit.
-        n_points : int, optional
-            Number of points to use in the ellipse; by default 100.
-
-        Returns
-        -------
-        tuple of 2 elements; the first for the x-axis; the second for the y-axis.
-            Returns `n_points` equispaced points that can be used to plot an ellipse.
-
-        Background
-        ----------
-
-        Equation of ellipse in *canonical* form (http://en.wikipedia.org/wiki/Ellipse)
-
-            (t_horiz/s_h)^2 + (t_vert/s_v)^2  =  T2_limit_alpha
-            s_horiz = stddev(T_horiz)
-            s_vert  = stddev(T_vert)
-            T2_limit_alpha = T2 confidence limit at a given alpha value
-
-        Equation of ellipse, *parametric* form (http://en.wikipedia.org/wiki/Ellipse):
-
-            t_horiz = sqrt(T2_limit_alpha)*s_h*cos(t)
-            t_vert  = sqrt(T2_limit_alpha)*s_v*sin(t)
-
-            where t ranges between 0 and 2*pi.
-        """
-        assert score_horiz >= 1
-        assert score_vert >= 1
-        assert score_horiz <= self.n_components
-        assert score_vert <= self.n_components
-        assert T2_limit_conf_level > 0
-        assert T2_limit_conf_level < 1
-        s_h = self.scaling_factor_for_scores[score_horiz - 1]
-        s_v = self.scaling_factor_for_scores[score_vert - 1]
-        T2_limit = self.T2_limit(T2_limit_conf_level)
-        dt = 2 * np.pi / (n_points - 1)
-        steps = np.linspace(0, n_points - 1, n_points)
-        x = np.cos(steps * dt) * np.sqrt(T2_limit) * s_h
-        y = np.sin(steps * dt) * np.sqrt(T2_limit) * s_v
-        return x, y
-
 
 class MCUVScaler(BaseEstimator, TransformerMixin):
     """
@@ -229,9 +243,7 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
         self.center_x_ = X.mean()
         # this is the key difference with "preprocessing.StandardScaler"
         self.scale_x_ = X.std(ddof=1)
-        self.scale_x_[
-            self.scale_x_ == 0
-        ] = 1.0  # columns with no variance are left as-is.
+        self.scale_x_[self.scale_x_ == 0] = 1.0  # columns with no variance are left as-is.
         return self
 
     def transform(self, X):
@@ -283,9 +295,7 @@ class PLS:
         self.random_state = 13 if random_state is None else int(random_state)
 
         # Check the remaining inputs
-        assert (
-            self.conf < 0.50
-        ), "Confidence level must be a small fraction, e.g. 0.05 for 95%"
+        assert self.conf < 0.50, "Confidence level must be a small fraction, e.g. 0.05 for 95%"
         self.n_components = self.A
         self.tol = float(tol)
         if not 1e-16 < self.tol < 1:
@@ -465,9 +475,7 @@ class PLS:
         state = State()
         state.N, state.K = X.shape
 
-        assert (
-            self.K == state.K
-        ), "Prediction data must same number of columns as training data."
+        assert self.K == state.K, "Prediction data must same number of columns as training data."
         X_mcuv = (X - self.x_mean_) / self.x_std_
 
         state.scores = np.zeros((state.N, self.A))
@@ -498,38 +506,25 @@ def ssq(X: np.ndarray, axis: Optional[int] = None) -> Any:
     if axis == 0:
         out_ax0 = np.zeros(K)
         for k in np.arange(K):
-            data = X[:, k]
-            for val in data.flat:
-                if not np.isnan(val):
-                    out_ax0[k] += val ** 2
+            out_ax0[k] += np.nansum(X[:, k] ** 2)
 
         return out_ax0
 
     if axis == 1:
         out_ax1 = np.zeros(N)
         for n in np.arange(N):
-            data = X[n, :]
-            for val in data.flat:
-                if not np.isnan(val):
-                    out_ax1[n] += val ** 2
+            out_ax1[n] += np.nansum(X[n, :] ** 2)
 
         return out_ax1
 
     out = 0.0
     if axis is None:
-        for val in X.flat:
-            if not np.isnan(val):
-                out += val ** 2
+        out = np.nansum(X ** 2)
 
     return out
 
 
-def terminate_check(
-    t_a_guess: np.ndarray,
-    t_a: np.ndarray,
-    model: PCA,
-    iterations: int,
-) -> bool:
+def terminate_check(t_a_guess: np.ndarray, t_a: np.ndarray, model: PCA, iterations: int,) -> bool:
     """The PCA iterative algorithm is terminated when any one of these
     conditions is True
     #. scores converge: the norm between two successive iterations
