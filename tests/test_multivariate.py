@@ -70,6 +70,34 @@ def test_basic_PCA():
 
 
 @pytest.fixture
+def kamyr_data_missing_value():
+    return pd.read_csv(
+        pathlib.Path(__file__).parents[0] / "fixtures" / "kamyr.csv", index_col=0, header=None,
+    )
+
+
+def test_PCA_with_missing_data(kamyr_data_missing_value):
+
+    X_mcuv = MCUVScaler().fit_transform(kamyr_data_missing_value)
+
+    # Build the model
+    A = 2
+    pca = PCA(n_components=A)
+    assert pca.missing_data_settings is None
+
+    # Check that default missing data options were used
+    pca.fit(X_mcuv)
+    assert isinstance(pca.missing_data_settings, dict)
+    assert "tol" in pca.missing_data_settings
+
+    # options.show_progress = false;
+    # options.min_lv = A;
+    # PCA = lvm({'Column', X}, options);
+
+    # assertEAE(PCA.P{1}' * PCA.P{1} - eye(A), zeros(A), 1);
+
+
+@pytest.fixture
 def mv_utilities():
     """
     Multivariate methods depend on an internal regression and Sum of Squares
@@ -253,7 +281,7 @@ def test_errors_PCA_no_variance_to_start():
     """
     K, N, A = 17, 12, 5
     data = np.zeros((N, K))
-    model = PCA(n_components=A, method="nipals")
+    model = PCA(n_components=A)
     with pytest.raises(RuntimeError):
         model.fit(data)
 
