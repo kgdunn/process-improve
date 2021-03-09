@@ -1,3 +1,5 @@
+# (c) Kevin Dunn, 2019-2021. MIT License.
+
 import pathlib
 
 
@@ -648,12 +650,13 @@ def test_compare_model_output(PLS_model_SIMCA_1_component):
 
     # Simca's C:
     N = data["X"].shape[0]
-    simca_C = (y_pp.reshape(1, N) @ t1_predict) / t1_predict.T @ t1_predict
+    simca_C = (y_pp.reshape(1, N) @ t1_predict) / (t1_predict.T @ t1_predict)
+    assert simca_C == approx(data['loadings_y_c1'], 1e-6)
     assert t1_predict_manually == approx(t1_predict, 1e-9)
 
     # Deflate the X's:
     X_check_mcuv -= t1_predict_manually @ plsmodel.x_loadings_.T
-    y_hat = t1_predict_manually * simca_C
+    y_hat = t1_predict_manually @ simca_C
     y_hat_rawunits = y_hat * plsmodel.y_std_ + plsmodel.y_mean_
     assert data["expected_y_predicted"] == approx(y_hat_rawunits.ravel(), abs=1e-5)
 

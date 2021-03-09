@@ -1,4 +1,5 @@
-# (c) Kevin Dunn, 2019-2021. MIT License.
+# (c) Kevin Dunn, 2010-2021. MIT License. Based on own private work over the years.
+
 import itertools
 from collections import defaultdict
 from collections.abc import Iterable
@@ -154,10 +155,7 @@ def create_names(n: int, letters=True, prefix="X", start_at=1, padded=True):
         if padded:
             longest = len(str(start_at + n - 1))
 
-        out = [
-            f'{str(prefix)}{str(i).rjust(longest, "0")}'
-            for i in range(start_at, n + start_at)
-        ]
+        out = [f'{str(prefix)}{str(i).rjust(longest, "0")}' for i in range(start_at, n + start_at)]
 
     return out
 
@@ -238,9 +236,7 @@ def c(*args, **kwargs) -> Column:  # noqa: C901
     default_idx = list(range(1, len(sanitize) + 1))
     index = kwargs.get("index", default_idx)
     if len(index) != len(sanitize):
-        raise IndexError(
-            ('Length of "index" must match the ' "number of numeric inputs.")
-        )
+        raise IndexError(('Length of "index" must match the ' "number of numeric inputs."))
 
     out = Column(data=sanitize, index=index, name=None)
     # Use sensible defaults, if not provided
@@ -282,9 +278,7 @@ def c(*args, **kwargs) -> Column:  # noqa: C901
             _ = (e for e in out.pi_range)
         except TypeError:
             assert False, "The `range` input must be an iterable, with " "2 values."
-        assert len(out.pi_range) == 2, (
-            "The `range` variable must be a tuple, " "with 2 values."
-        )
+        assert len(out.pi_range) == 2, "The `range` variable must be a tuple, " "with 2 values."
         out.pi_range = tuple(out.pi_range)
 
         try:
@@ -376,8 +370,8 @@ def gather(*args, title=None, **kwargs) -> Expt:
         elif isinstance(value, pd.Series):
             out[key] = value.values
             out.pi_source[key] = value.name
-            out.pi_units[key] = value.pi_units if hasattr(value, 'pi_units') else ''
- 
+            out.pi_units[key] = value.pi_units if hasattr(value, "pi_units") else ""
+
             if hasattr(value, "pi_index"):
                 index.append(value.index)
 

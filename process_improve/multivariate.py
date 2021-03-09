@@ -1,3 +1,5 @@
+# (c) Kevin Dunn, 2010-2021. MIT License. Based on own private work over the years.
+
 from functools import partial
 from typing import Optional, Any
 

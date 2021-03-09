@@ -1,3 +1,5 @@
+# (c) Kevin Dunn, 2010-2021. MIT License. Based on own private work over the years.
+
 import numpy as np
 import pandas as pd
 

@@ -1,6 +1,10 @@
 pandas
 numpy
+matplotlib
 statsmodels
 bokeh
 scikit-image
 sklearn
+pytest
+patsy
+
