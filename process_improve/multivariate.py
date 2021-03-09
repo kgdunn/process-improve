@@ -25,16 +25,16 @@ class SpecificationWarning(UserWarning):
 def T2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -> float:
     """Returns the Hotelling's T2 value at the given level of confidence.
 
-        Parameters
-        ----------
-        conf_level : float, optional
-            Fractional confidence limit, less that 1.00; by default 0.95
+    Parameters
+    ----------
+    conf_level : float, optional
+        Fractional confidence limit, less that 1.00; by default 0.95
 
-        Returns
-        -------
-        float
-            The Hotelling's T2 limit at the given level of confidence.
-        """
+    Returns
+    -------
+    float
+        The Hotelling's T2 limit at the given level of confidence.
+    """
     assert conf_level > 0.0
     assert conf_level < 1.0
     assert n_rows > 0
@@ -100,7 +100,9 @@ def ellipse_coordinates(
     assert n_rows > 0
     s_h = scaling_factor_for_scores[score_horiz - 1]
     s_v = scaling_factor_for_scores[score_vert - 1]
-    T2_limit_specific = np.sqrt(T2_limit(T2_limit_conf_level, n_components= n_components, n_rows=n_rows))
+    T2_limit_specific = np.sqrt(
+        T2_limit(T2_limit_conf_level, n_components=n_components, n_rows=n_rows)
+    )
     dt = 2 * np.pi / (n_points - 1)
     steps = np.linspace(0, n_points - 1, n_points)
     x = np.cos(steps * dt) * T2_limit_specific * s_h
@@ -152,7 +154,9 @@ class PCA(PCA_sklearn):
         )
 
         self.R2 = pd.Series(
-            np.zeros(shape=(self.A,)), index=component_names, name="Model's R^2, per component",
+            np.zeros(shape=(self.A,)),
+            index=component_names,
+            name="Model's R^2, per component",
         )
         self.R2cum = pd.Series(
             np.zeros(shape=(self.A,)),
@@ -186,7 +190,7 @@ class PCA(PCA_sklearn):
             col_SSX = ssq(Xd.values, axis=0)
 
             # TODO(KGD): check correction factor
-            self.squared_prediction_error.iloc[:, a] = row_SSX / self.K
+            self.squared_prediction_error.iloc[:, a] = np.sqrt(row_SSX)
 
             # TODO: some entries in prior_SS_col can be zero and leads to nan entries in R2k_cum
             self.R2k_cum.iloc[:, a] = 1 - col_SSX / prior_SS_col
@@ -202,7 +206,7 @@ class PCA(PCA_sklearn):
             ellipse_coordinates,
             n_components=self.n_components,
             scaling_factor_for_scores=self.scaling_factor_for_scores,
-            n_rows=self.N
+            n_rows=self.N,
         )
 
         self.T2_limit = partial(T2_limit, n_components=self.n_components, n_rows=self.N)
@@ -215,7 +219,10 @@ class PCA(PCA_sklearn):
         assert conf_level > 0.0
         assert conf_level < 1.0
 
-        values = self.squared_prediction_error.iloc[:, self.A - 1]
+        # The limit is for the squares (i.e. the sum of the squared errors)
+        # self.squared_prediction_error has be square-rooted outside this function, so undo that
+        values = self.squared_prediction_error.iloc[:, self.A - 1] ** 2
+
         if (self.N > 15) and robust:
             # The "15" is just a rough cut off, above which the robust estimators would
             # start to work well. Below which we can get doubtful results.
@@ -223,11 +230,12 @@ class PCA(PCA_sklearn):
             variance_spe = Sn(values) ** 2
         else:
             center_spe = values.mean()
-            variance_spe = values.var()
+            variance_spe = values.var(ddof=1)
 
         g = variance_spe / (2 * center_spe)
-        h = (2 * center_spe ** 2) / variance_spe
-        return chi2.ppf(conf_level, h) * g
+        h = (2 * (center_spe ** 2)) / variance_spe
+        # Then take the square root again, to return the limit for SPE
+        return np.sqrt(chi2.ppf(conf_level, h) * g)
 
 
 class MCUVScaler(BaseEstimator, TransformerMixin):
@@ -524,7 +532,12 @@ def ssq(X: np.ndarray, axis: Optional[int] = None) -> Any:
     return out
 
 
-def terminate_check(t_a_guess: np.ndarray, t_a: np.ndarray, model: PCA, iterations: int,) -> bool:
+def terminate_check(
+    t_a_guess: np.ndarray,
+    t_a: np.ndarray,
+    model: PCA,
+    iterations: int,
+) -> bool:
     """The PCA iterative algorithm is terminated when any one of these
     conditions is True
     #. scores converge: the norm between two successive iterations
