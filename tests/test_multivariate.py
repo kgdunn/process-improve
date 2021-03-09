@@ -316,7 +316,7 @@ def test_no_more_variance():
     meanX = X.mean(axis=0)
     stdX = X.std(axis=0, ddof=0)
     X = pd.DataFrame((X - meanX) / stdX)
-    m = PCA(n_components=A)
+    _ = PCA(n_components=A)
 
     # with pytest.raises(RuntimeError):
     #    m.fit(X)
@@ -651,7 +651,7 @@ def test_compare_model_output(PLS_model_SIMCA_1_component):
     # Simca's C:
     N = data["X"].shape[0]
     simca_C = (y_pp.reshape(1, N) @ t1_predict) / (t1_predict.T @ t1_predict)
-    assert simca_C == approx(data['loadings_y_c1'], 1e-6)
+    assert simca_C == approx(data["loadings_y_c1"], 1e-6)
     assert t1_predict_manually == approx(t1_predict, 1e-9)
 
     # Deflate the X's:

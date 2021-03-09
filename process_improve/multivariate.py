@@ -13,8 +13,6 @@ from sklearn.decomposition import PCA as PCA_sklearn
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.utils.validation import check_is_fitted
 
-from .robust import Sn
-
 eps = np.sqrt(np.finfo(float).eps)
 
 
@@ -124,7 +122,9 @@ class PCA(PCA_sklearn):
         iterated_power="auto",
         random_state=None,
     ):
-        super().__init__(n_components, copy, whiten, svd_solver, tol, iterated_power, random_state)
+        super().__init__(
+            n_components, copy, whiten, svd_solver, tol, iterated_power, random_state
+        )
 
     def fit(self, X, y=None) -> PCA_sklearn:
         self = super().fit(X)
@@ -156,7 +156,9 @@ class PCA(PCA_sklearn):
         )
 
         self.R2 = pd.Series(
-            np.zeros(shape=(self.A,)), index=component_names, name="Model's R^2, per component",
+            np.zeros(shape=(self.A,)),
+            index=component_names,
+            name="Model's R^2, per component",
         )
         self.R2cum = pd.Series(
             np.zeros(shape=(self.A,)),
@@ -245,7 +247,9 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
         self.center_x_ = X.mean()
         # this is the key difference with "preprocessing.StandardScaler"
         self.scale_x_ = X.std(ddof=1)
-        self.scale_x_[self.scale_x_ == 0] = 1.0  # columns with no variance are left as-is.
+        self.scale_x_[
+            self.scale_x_ == 0
+        ] = 1.0  # columns with no variance are left as-is.
         return self
 
     def transform(self, X):
@@ -297,7 +301,9 @@ class PLS:
         self.random_state = 13 if random_state is None else int(random_state)
 
         # Check the remaining inputs
-        assert self.conf < 0.50, "Confidence level must be a small fraction, e.g. 0.05 for 95%"
+        assert (
+            self.conf < 0.50
+        ), "Confidence level must be a small fraction, e.g. 0.05 for 95%"
         self.n_components = self.A
         self.tol = float(tol)
         if not 1e-16 < self.tol < 1:
@@ -477,7 +483,9 @@ class PLS:
         state = State()
         state.N, state.K = X.shape
 
-        assert self.K == state.K, "Prediction data must same number of columns as training data."
+        assert (
+            self.K == state.K
+        ), "Prediction data must same number of columns as training data."
         X_mcuv = (X - self.x_mean_) / self.x_std_
 
         state.scores = np.zeros((state.N, self.A))
@@ -526,7 +534,12 @@ def ssq(X: np.ndarray, axis: Optional[int] = None) -> Any:
     return out
 
 
-def terminate_check(t_a_guess: np.ndarray, t_a: np.ndarray, model: PCA, iterations: int,) -> bool:
+def terminate_check(
+    t_a_guess: np.ndarray,
+    t_a: np.ndarray,
+    model: PCA,
+    iterations: int,
+) -> bool:
     """The PCA iterative algorithm is terminated when any one of these
     conditions is True
     #. scores converge: the norm between two successive iterations
