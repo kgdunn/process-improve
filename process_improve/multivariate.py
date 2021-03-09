@@ -154,9 +154,7 @@ class PCA(PCA_sklearn):
         )
 
         self.R2 = pd.Series(
-            np.zeros(shape=(self.A,)),
-            index=component_names,
-            name="Model's R^2, per component",
+            np.zeros(shape=(self.A,)), index=component_names, name="Model's R^2, per component",
         )
         self.R2cum = pd.Series(
             np.zeros(shape=(self.A,)),
@@ -223,14 +221,8 @@ class PCA(PCA_sklearn):
         # self.squared_prediction_error has be square-rooted outside this function, so undo that
         values = self.squared_prediction_error.iloc[:, self.A - 1] ** 2
 
-        if (self.N > 15) and robust:
-            # The "15" is just a rough cut off, above which the robust estimators would
-            # start to work well. Below which we can get doubtful results.
-            center_spe = values.median()
-            variance_spe = Sn(values) ** 2
-        else:
-            center_spe = values.mean()
-            variance_spe = values.var(ddof=1)
+        center_spe = values.mean()
+        variance_spe = values.var(ddof=1)
 
         g = variance_spe / (2 * center_spe)
         h = (2 * (center_spe ** 2)) / variance_spe
@@ -532,12 +524,7 @@ def ssq(X: np.ndarray, axis: Optional[int] = None) -> Any:
     return out
 
 
-def terminate_check(
-    t_a_guess: np.ndarray,
-    t_a: np.ndarray,
-    model: PCA,
-    iterations: int,
-) -> bool:
+def terminate_check(t_a_guess: np.ndarray, t_a: np.ndarray, model: PCA, iterations: int,) -> bool:
     """The PCA iterative algorithm is terminated when any one of these
     conditions is True
     #. scores converge: the norm between two successive iterations

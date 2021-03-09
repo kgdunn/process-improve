@@ -19,6 +19,33 @@ from process_improve.multivariate import (
 )
 
 
+def test_PCA_SPE_limits():
+    """
+    Simulate data and see if SPE limit cuts off at 5%.
+    """
+    N = 1000
+    outliers = []
+    for k in range(20):
+
+        # The desired mean values of the sample.
+        mu = np.array([0.0, 0.0, 0.0])
+
+        # The desired covariance matrix.
+        r = np.array([[5.20, -4.98, -1.00], [-4.98, 5.50, 2.94], [-1.00, 2.94, 2.77]])
+
+        X = pd.DataFrame(np.random.multivariate_normal(mu, r, size=N))
+        scaler = MCUVScaler().fit(X)
+        mcuv = scaler.fit_transform(X)
+
+        A = 2
+        pca = PCA(n_components=A).fit(mcuv)
+        SPE_limit = pca.SPE_limit(0.95, robust=False)
+
+        outliers.append((pca.squared_prediction_error.iloc[:, A - 1] > SPE_limit).sum())
+
+    assert np.mean(outliers) == approx(50, rel=0.1)
+
+
 def test_basic_PCA():
     """
     Arrays with no variance should not be able to have variance extracted.
@@ -382,8 +409,12 @@ def test_wold_model_results(pca_paper_by_wold_etal):
     X_preproc = scale(center(pca_paper_by_wold_etal))
     pca_2 = PCA(n_components=2)
     pca_2.fit(X_preproc)
-    assert np.abs(pca_2.loadings[:, 0]) == approx([0.5410, 0.3493, 0.5410, 0.5410], rel=1e-3)
-    assert np.abs(pca_2.loadings[:, 1]) == approx([0.2017, 0.9370, 0.2017, 0.2017], rel=1e-4)
+    assert np.abs(pca_2.loadings.values[:, 0]) == approx(
+        [0.5410, 0.3493, 0.5410, 0.5410], abs=1e-4
+    )
+    assert np.abs(pca_2.loadings.values[:, 1]) == approx(
+        [0.2017, 0.9370, 0.2017, 0.2017], abs=1e-4
+    )
 
     # Scores. The scaling is off here by a constant factor of 0.8165
     # assert pca_2.t_scores[:, 0] == approx([-1.6229, -0.3493, 1.9723], rel=1E-3)
