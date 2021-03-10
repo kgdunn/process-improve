@@ -1,5 +1,5 @@
 # (c) Kevin Dunn, 2010-2021. MIT License. Based on own private work over the years.
-
+import time
 from functools import partial
 from typing import Optional, Any
 import warnings
@@ -127,14 +127,15 @@ class PCA(PCA_sklearn):
     ):
         super().__init__(n_components, copy, whiten, svd_solver, tol, iterated_power, random_state)
         self.missing_data_settings = missing_data_settings
+        self.has_missing_data = False
 
     def fit(self, X, y=None) -> PCA_sklearn:
-        # If there are missing data, then the missing data settings apply. These are the defaults:
-        #
-        # md_method = "pmp"
-        # md_tol = (np.sqrt(np.finfo(float).eps),)
-        # md_max_iter = (1000,)
+
         if np.any(X.isna()):
+            # If there are missing data, then the missing data settings apply. Defaults are:
+            # md_method = "pmp"
+            # md_tol = (np.sqrt(np.finfo(float).eps),)
+            # md_max_iter = (1000,)
             default_mds = dict(md_method="pmp", md_tol=eps, md_max_iter=100)
             if isinstance(self.missing_data_settings, dict):
                 self.missing_data_settings.update(default_mds)
@@ -145,13 +146,12 @@ class PCA(PCA_sklearn):
                 n_components=self.n_components,
                 random_state=self.random_state,
                 missing_data_settings=self.missing_data_settings,
-            )
-            self.fit(X)
+            ).fit(X)
 
         else:
             self = super().fit(X)
 
-        # Reference points for convenience:
+        # We have now fitted the model. Apply some convenience shortcuts for the user.
         self.A = self.n_components
         self.N = self.n_samples_
         self.K = self.n_features_
@@ -167,62 +167,82 @@ class PCA(PCA_sklearn):
             index=component_names,
             name="Standard deviation per score",
         )
-        self.t_scores = pd.DataFrame(
-            super().fit_transform(X), columns=component_names, index=X.index
-        )
         self.Hotellings_T2 = pd.DataFrame(
             np.zeros(shape=(self.N, self.A)),
             columns=component_names,
             index=X.index,
             # name="Hotelling's T^2 statistic, per component",
         )
+        if self.has_missing_data:
+            self.t_scores = pd.DataFrame(self.t_scores, columns=component_names, index=X.index)
+            self.squared_prediction_error = pd.DataFrame(
+                self.squared_prediction_error, columns=component_names, index=X.index.copy(),
+            )
+            self.R2 = pd.Series(self.R2, index=component_names, name="Model's R^2, per component",)
+            self.R2cum = pd.Series(
+                self.R2cum, index=component_names, name="Cumulative model's R^2, per component",
+            )
+            self.R2k_cum = pd.DataFrame(
+                self.R2k_cum,
+                columns=component_names,
+                index=X.columns,
+                # name ="Per variable R^2, per component"
+            )
+        else:
+            self.t_scores = pd.DataFrame(
+                super().fit_transform(X), columns=component_names, index=X.index
+            )
+            self.squared_prediction_error = pd.DataFrame(
+                np.zeros((self.N, self.A)), columns=component_names, index=X.index.copy(),
+            )
+            self.R2 = pd.Series(
+                np.zeros(shape=(self.A,)),
+                index=component_names,
+                name="Model's R^2, per component",
+            )
+            self.R2cum = pd.Series(
+                np.zeros(shape=(self.A,)),
+                index=component_names,
+                name="Cumulative model's R^2, per component",
+            )
+            self.R2k_cum = pd.DataFrame(
+                np.zeros(shape=(self.K, self.A)),
+                columns=component_names,
+                index=X.columns,
+                # name ="Per variable R^2, per component"
+            )
 
-        self.R2 = pd.Series(
-            np.zeros(shape=(self.A,)), index=component_names, name="Model's R^2, per component",
-        )
-        self.R2cum = pd.Series(
-            np.zeros(shape=(self.A,)),
-            index=component_names,
-            name="Cumulative model's R^2, per component",
-        )
-        self.R2k_cum = pd.DataFrame(
-            np.zeros(shape=(self.K, self.A)),
-            columns=component_names,
-            index=X.columns,
-            # name ="Per variable R^2, per component"
-        )
+        if not self.has_missing_data:
+            Xd = X.copy()
+            prior_SS_col = ssq(Xd.values, axis=0)
+            base_variance = np.sum(prior_SS_col)
+            for a in range(self.A):
+                Xd -= self.t_scores.iloc[:, [a]] @ self.loadings.iloc[:, [a]].T
+                # These are the Residual Sums of Squares (RSS); i.e X-X_hat
+                row_SSX = ssq(Xd.values, axis=1)
+                col_SSX = ssq(Xd.values, axis=0)
 
-        # error_X = X - self.t_scores @ self.loadings.T
-        # self.squared_prediction_error = np.sum(error_X ** 2, axis=1)
-        self.squared_prediction_error = pd.DataFrame(
-            np.zeros((self.N, self.A)), columns=component_names, index=X.index.copy()
-        )
-        Xd = X.copy()
-        prior_SS_col = ssq(Xd.values, axis=0)
-        base_variance = np.sum(prior_SS_col)
+                # Don't use a check correction factor. Define SPE simply as the sum of squares of
+                # the errors, then take the square root, so it is interpreted like a standard error.
+                # If the user wants to normalize it, then this is a clean base value to start from.
+                self.squared_prediction_error.iloc[:, a] = np.sqrt(row_SSX)
+
+                # TODO: some entries in prior_SS_col can be zero and leads to nan entries in R2k_cum
+                self.R2k_cum.iloc[:, a] = 1 - col_SSX / prior_SS_col
+
+                # R2 and cumulative R2 value for the whole block
+                self.R2cum[a] = 1 - sum(row_SSX) / base_variance
+                if a > 0:
+                    self.R2[a] = self.R2cum[a] - self.R2cum[a - 1]
+                else:
+                    self.R2[a] = self.R2cum[a]
+        # end: has no missing data
+
         for a in range(self.A):
             self.Hotellings_T2.iloc[:, a] = (
                 self.Hotellings_T2.iloc[:, max(0, a - 1)]
                 + (self.t_scores.iloc[:, a] / self.scaling_factor_for_scores[a]) ** 2
             )
-
-            Xd -= self.t_scores.iloc[:, [a]] @ self.loadings.iloc[:, [a]].T
-            # These are the Residual Sums of Squares (RSS); i.e X-X_hat
-            row_SSX = ssq(Xd.values, axis=1)
-            col_SSX = ssq(Xd.values, axis=0)
-
-            # TODO(KGD): check correction factor
-            self.squared_prediction_error.iloc[:, a] = np.sqrt(row_SSX)
-
-            # TODO: some entries in prior_SS_col can be zero and leads to nan entries in R2k_cum
-            self.R2k_cum.iloc[:, a] = 1 - col_SSX / prior_SS_col
-
-            # R2 and cumulative R2 value for the whole block
-            self.R2cum[a] = 1 - sum(row_SSX) / base_variance
-            if a > 0:
-                self.R2[a] = self.R2cum[a] - self.R2cum[a - 1]
-            else:
-                self.R2[a] = self.R2cum[a]
 
         self.ellipse_coordinates = partial(
             ellipse_coordinates,
@@ -235,14 +255,18 @@ class PCA(PCA_sklearn):
 
         return self
 
-    def SPE_limit(self, conf_level=0.95, robust=True) -> float:
+    def fit_transform(self, X, y=None):
+        self.fit(X)
+        assert False, "Still do the transform part"
+
+    def SPE_limit(self, conf_level=0.95) -> float:
         check_is_fitted(self, "squared_prediction_error")
 
         assert conf_level > 0.0
         assert conf_level < 1.0
 
         # The limit is for the squares (i.e. the sum of the squared errors)
-        # self.squared_prediction_error has be square-rooted outside this function, so undo that
+        # I.e. self.squared_prediction_error was square-rooted outside this function, so undo that.
         values = self.squared_prediction_error.iloc[:, self.A - 1] ** 2
 
         center_spe = values.mean()
@@ -258,38 +282,40 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
     """
     Create our PCA class if there is even a single missing data value in the X input array.
 
-    The default method to impute missing values is the PMP algorithm (`md_method="pmp"`).  
+    The default method to impute missing values is the PMP algorithm (`md_method="pmp"`).
+
     Missing data method options are:
 
     * 'pmp'         Projection to Model Plane
     * 'scp'         Single Component Projection
     * 'nipals'      Same as 'scp': non-linear iterative partial least squares.
+    * 'tsr': TODO
+    * Other options? See papers by Abel Folch-Fortuny and also:
+    https://analyticalsciencejournals.onlinelibrary.wiley.com/doi/abs/10.1002/cem.750
 
-    See `SCP`_ method when there is
-    missing data, or even when there is not.  
     """
 
     def __init__(
-        self, n_components=None, copy: bool = True, random_state=None, missing_data_settings=dict
+        self, n_components=None, copy: bool = True, random_state=None, missing_data_settings=dict,
     ):
         self.n_components = n_components
         self.random_state = None
         self.missing_data_settings = missing_data_settings
+        self.has_missing_data = True
 
         # TODO: various settings assertions here
         assert True
 
     def fit(self, X, y=None):
 
-        # Force to NumPy array:
+        # Force input to NumPy array:
         self.data = np.asarray(X)
         self.N, self.K = self.data.shape
 
-        # Check if number of components is supported. against maximum
+        # Check if number of components is supported against maximum requested
         min_dim = min(self.N, self.K)
-        self.A = min_dim if self.A is None else int(self.A)
+        self.A = min_dim if self.n_components is None else int(self.n_components)
         if self.A > min_dim:
-
             warn = (
                 "The requested number of components is more than can be "
                 "computed from data. The maximum number of components is "
@@ -304,33 +330,25 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         self.n_samples_ = self.N
         self.n_features_ = self.K
 
-        self.components_ = P : K x A
-        #self.scaling_factor_for_scores = pd.Series(A)
-        self.t_scores = T = N x A
-        self.Hotellings_T2 = np.zeros(shape=(self.N, self.A))
-        self.R2 = pd.Series(
-            np.zeros(shape=(self.A,)), index=component_names, name="Model's R^2, per component",
-        )
-        self.R2cum = pd.Series(
-            np.zeros(shape=(self.A,)),
-            index=component_names,
-            name="Cumulative model's R^2, per component",
-        )
-        self.R2k_cum = pd.DataFrame(
-            np.zeros(shape=(self.K, self.A)),
-            columns=component_names,
-            index=X.columns,
-            # name ="Per variable R^2, per component"
-        )
-        self.squared_prediction_error = pd.DataFrame(
-            np.zeros((self.N, self.A)), columns=component_names, index=X.index.copy()
-        )
+        self.components_ = np.zeros((self.K, self.A))
+        self.t_scores = np.zeros((self.N, self.A))
+        self.R2 = np.zeros(shape=(self.A,))
+        self.R2cum = np.zeros(shape=(self.A,))
+        self.R2k_cum = np.zeros(shape=(self.K, self.A))
+        self.squared_prediction_error = np.zeros((self.N, self.A))
 
         # Perform MD algorithm here
-        if self.missing_data_settings["md_method"].lower() == "pmp":
-            self._fit_pmp(X)
-        elif self.missing_data_settings["md_method"].lower() in ["scp", "nipals"]:
-            self._fit_nipals(X)
+        # if self.missing_data_settings["md_method"].lower() == "pmp":
+        #    self._fit_pmp(X)
+        # elif self.missing_data_settings["md_method"].lower() in ["scp", "nipals"]:
+        self._fit_nipals_pca(settings=self.missing_data_settings)
+
+        # The receiving function has some expectations on shapes which differ from our convention.
+        # So undo this.
+        self.components_ = self.components_.T
+
+        # Additional calculations, which can be done after the missing data method is complete.
+        self.explained_variance_ = np.diag(self.t_scores.T @ self.t_scores) / (self.N - 1)
         return self
 
     def transform(self, X):
@@ -345,7 +363,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         X = X.copy()
         return X
 
-    def _fit_nipals(self, X):
+    def _fit_nipals_pca(self, settings):
         """
         Internal method to fit the PCA model using the NIPALS algorithm.
         """
@@ -353,21 +371,18 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         N, K, A = self.N, self.K, self.A
 
         # 2. Initialize, or build on the existing results:
-        self.T = self.scores = self.factors = np.zeros(shape=(N, A))
-        self.P = self.loadings = np.zeros(shape=(K, A))
-        self.SPE = np.zeros(shape=(N, A))
-        self.HotellingsT2 = np.zeros(shape=(N, A))
-        self.R2 = np.zeros(shape=(A,))
-        self.R2cum = np.zeros(shape=(A,))
-        self.R2k_cum = np.zeros(shape=(K, A))
+        self.t_scores = np.zeros(shape=(N, A))
+        self.components_ = np.zeros(shape=(K, A))
+        self.timing = np.zeros((A, 1))
 
         # 4. Create direct links to the data
         Xd = np.asarray(self.data)
         base_variance = ssq(Xd)
 
         # Initialize storage:
-        self.timing = np.zeros((1, A)) * np.nan
-        self.iterations = np.zeros((1, A)) * np.nan
+        self.extra_info = {}
+        self.extra_info["timing"] = np.zeros((1, A)) * np.nan
+        self.extra_info["iterations"] = np.zeros((1, A)) * np.nan
 
         for a in np.arange(A):
 
@@ -375,12 +390,13 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
             start_time = time.time()
             itern = 0
 
-            # 1. Find a column with the largest variance as t1_start
+            # 1. Find a column with the largest variance as t1_start; replace missing with zeros
             col_max_variance = Xd.var(axis=0).argmax()
             score_start = Xd[:, col_max_variance].reshape(N, 1)
+            score_start[np.isnan(score_start)] = 0
             start_SS_col = ssq(Xd, axis=0)
 
-            if sum(start_SS_col) < self.tol:
+            if sum(start_SS_col) < settings["md_tol"]:
                 emsg = (
                     "There is no variance left in the data array: cannot "
                     f"compute any more components beyond component {a}."
@@ -388,13 +404,11 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
                 raise RuntimeError(emsg)
 
             # Initialize t_a with random numbers, or carefully select a column
-            # from X. <-- Don't do this anymore. Pick a column from X as the
-            # initial guess instead.
-            # np.random.seed(self.random_state)
-            # score_start = np.random.uniform(low=-1, high=1, size=(N,1))
+            # from X. <-- Don't do this anymore.
+            # Rather: Pick a column from X as the initial guess instead.
             t_a = score_start + 1.0
             p_a = np.zeros((K, 1))
-            while not (terminate_check(score_start, t_a, self, itern)):
+            while not (terminate_check(score_start, t_a, iterations=itern, settings=settings)):
 
                 # 0: Richardson's acceleration, or any numerical acceleration
                 #    method for PCA where there is slow convergence?
@@ -421,8 +435,8 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
 
                 itern += 1
 
-            self.timing[0][a] = time.time() - start_time
-            self.iterations[0][a] = itern
+            self.extra_info["timing"][0, a] = time.time() - start_time
+            self.extra_info["iterations"][0, a] = itern
 
             # Loop terminated!  Now deflate the X-matrix
             Xd -= np.dot(t_a, p_a.T)
@@ -430,7 +444,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
             row_SSX = ssq(Xd, axis=1)
             col_SSX = ssq(Xd, axis=0)
 
-            self.SPE[:, a] = row_SSX / K  # TODO(KGD): check correction factor
+            self.squared_prediction_error[:, a] = np.sqrt(row_SSX)
 
             # TODO: some entries in start_SS_col can be zero and leads to nan entries in R2k_cum
             self.R2k_cum[:, a] = 1 - col_SSX / start_SS_col
@@ -458,10 +472,8 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
                 t_a *= -1.0
 
             # Store the loadings and scores
-            self.P[:, a] = p_a.flatten()
-            self.T[:, a] = t_a.flatten()
-
-            self.HotellingsT2[:, a] = 0
+            self.components_[:, a] = p_a.flatten()
+            self.t_scores[:, a] = t_a.flatten()
 
         # end looping on A components
 
@@ -549,7 +561,7 @@ class PLS:
         # Attributes and internal values initialized
         self.TSS = 0.0
         self.ESS = None
-        self.scores = self.factors = self.T = None
+        self.scores = self.T = None
         self.scores_y = None
         self.loadings = self.P = None
         self.loadings_y = None
@@ -647,9 +659,9 @@ class PLS:
         self.y_mean_ = plsmodel.y_mean_
         self.y_std_ = plsmodel.y_std_
 
-        self.scores = self.factors = self.T = plsmodel.x_scores_
+        self.scores = self.T = plsmodel.x_scores_
         self.scores_y = y_scores
-        self.loadings = self.P = plsmodel.x_loadings_
+        self.loadings = plsmodel.x_loadings_
         self.loadings_y = self.C = plsmodel.y_loadings_
         self.predictions_pp = self.scores @ self.loadings_y.T
         self.predictions = self.predictions_pp * plsmodel.y_std_ + plsmodel.y_mean_
@@ -760,18 +772,19 @@ def ssq(X: np.ndarray, axis: Optional[int] = None) -> Any:
     return out
 
 
-def terminate_check(t_a_guess: np.ndarray, t_a: np.ndarray, model: PCA, iterations: int,) -> bool:
-    """The PCA iterative algorithm is terminated when any one of these
-    conditions is True
+def terminate_check(
+    t_a_guess: np.ndarray, t_a: np.ndarray, iterations: int, settings: dict
+) -> bool:
+    """The PCA iterative algorithm is terminated when any one of these conditions is True:
+
     #. scores converge: the norm between two successive iterations
-    #. a max number of iterations is reached
+    #. maximum number of iterations is reached
     """
     score_tol = np.linalg.norm(t_a_guess - t_a, ord=None)
-    # print(score_tol)
-    converged = score_tol < model.tol
-    max_iter = iterations > model.max_iter
+    converged = score_tol < settings["md_tol"]
+    max_iter = iterations > settings["md_max_iter"]
     if np.any([max_iter, converged]):
-        return True  # algorithm has converged
+        return True
     else:
         return False
 

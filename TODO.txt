@@ -1,0 +1,20 @@
+function  v = robust_scale(a)
+% Using the formula from Mosteller and Tukey, Data Analysis and Regression,
+% p 207-208, 1977.
+    n = numel(a);
+    location = median(a);
+    spread_MAD = median(abs(a-location));
+    ui = (a - location)/(6*spread_MAD);
+    % Valid u_i values used in the summation:
+    vu = ui.^2 <= 1;
+    num = (a(vu)-location).^2 .* (1-ui(vu).^2).^4;
+    den = (1-ui(vu).^2) .* (1-5*ui(vu).^2);
+    v = n * sum(num) / (sum(den))^2;
+end
+
+
+#---------
+Robust PLS investigated?
+    S. Serneels, C. Croux, P. Filzmoser, P.J. Van Espen, Partial Robust M-regression, Chemometrics and Intelligent Laboratory Systems, 79 (2005), 55-64
+
+#------
