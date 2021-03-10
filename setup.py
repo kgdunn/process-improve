@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="process-improve",
-    version="0.7.1",
+    version="0.7.2",
     author="Kevin Dunn",
     author_email="kgdunn@gmail.com",
     description="Process Improvement using Data, particularly Designed Experiments",
@@ -18,6 +18,15 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires=">=3.6",
-    install_requires=["pandas", "numpy", "statsmodels", "bokeh", "scikit-image",],
+    python_requires=">=3.7",
+    install_requires=[
+        "pandas",
+        "numpy",
+        "statsmodels",
+        "matplotlib",
+        "bokeh",
+        "sklearn",
+        "patsy",
+        "scikit-image",
+    ],
 )
