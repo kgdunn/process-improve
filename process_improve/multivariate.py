@@ -14,7 +14,7 @@ from sklearn.decomposition import PCA as PCA_sklearn
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.utils.validation import check_is_fitted
 
-eps = np.sqrt(np.finfo(float).eps)
+epsqrt = np.sqrt(np.finfo(float).eps)
 
 
 class SpecificationWarning(UserWarning):
@@ -134,9 +134,9 @@ class PCA(PCA_sklearn):
         if np.any(X.isna()):
             # If there are missing data, then the missing data settings apply. Defaults are:
             # md_method = "pmp"
-            # md_tol = (np.sqrt(np.finfo(float).eps),)
+            # md_tol = np.sqrt(np.finfo(float).eps)
             # md_max_iter = (1000,)
-            default_mds = dict(md_method="pmp", md_tol=eps, md_max_iter=100)
+            default_mds = dict(md_method="pmp", md_tol=epsqrt, md_max_iter=100)
             if isinstance(self.missing_data_settings, dict):
                 self.missing_data_settings.update(default_mds)
             else:
@@ -342,10 +342,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         #    self._fit_pmp(X)
         # elif self.missing_data_settings["md_method"].lower() in ["scp", "nipals"]:
         self._fit_nipals_pca(settings=self.missing_data_settings)
-
-        # The receiving function has some expectations on shapes which differ from our convention.
-        # So undo this.
-        self.components_ = self.components_.T
+        # self._fit_tsr(settings=self.missing_data_settings)
 
         # Additional calculations, which can be done after the missing data method is complete.
         self.explained_variance_ = np.diag(self.t_scores.T @ self.t_scores) / (self.N - 1)
@@ -371,8 +368,6 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         N, K, A = self.N, self.K, self.A
 
         # 2. Initialize, or build on the existing results:
-        self.t_scores = np.zeros(shape=(N, A))
-        self.components_ = np.zeros(shape=(K, A))
         self.timing = np.zeros((A, 1))
 
         # 4. Create direct links to the data
@@ -476,6 +471,51 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
             self.t_scores[:, a] = t_a.flatten()
 
         # end looping on A components
+
+    def _fit_tsr(self, settings):
+        # TODO: these eventually move to the defaults/user specified
+        settings["md_tol"] = epsqrt
+        settings["md_max_iter"] = 500
+        delta = 1e100
+
+        Xd = np.asarray(self.data)
+        N, K, A = self.N, self.K, self.A
+        mmap = np.isnan(Xd)
+        # Could impute missing values per row, but leave it at zero, assuming the data are MCUV.
+        Xd[mmap] = 0.0
+        itern = 0
+        while (itern < settings["md_max_iter"]) and (delta > settings["md_tol"]):
+            itern += 1
+            missing_X = Xd[mmap]
+            mean_X = np.mean(Xd, axis=0)
+            S = np.cov(Xd, rowvar=False, ddof=1)
+            Xc = Xd - mean_X
+            if N > K:
+                _, _, V = np.linalg.svd(Xc, full_matrices=False)
+            else:
+                V, _, _ = np.linalg.svd(Xc.T, full_matrices=False)
+
+            V = V[:, 0:A]
+            for n in range(N):
+                # If there are missing values (mis) in the n-th row. Compared to obs-erved values.
+                row_mis = mmap[n, :]
+                row_obs = ~row_mis
+                if np.any(row_mis):
+                    # Form the so-called key-matrix, L
+                    L = V[row_obs, 0 : min(A, sum(row_obs))]
+                    S11 = S[row_obs, :][:, row_obs]
+                    S21 = S[row_mis, :][:, row_obs]
+                    z2 = (S21 @ L) @ np.linalg.pinv(L.T @ S11 @ L) @ L.T
+                    Xc[n, row_mis] = z2 @ Xc[n, row_obs]
+            Xd = Xc + mean_X
+            delta = np.mean((Xd[mmap] - missing_X) ** 2)
+
+        # All done: return the results in `self`
+        S = np.cov(Xd, rowvar=False, ddof=1)
+        _, _, V = np.linalg.svd(S, full_matrices=False)
+        self.components_ = V[:, 0:A]
+        self.t_scores = (Xd - np.mean(Xd, axis=0)) @ self.components_
+        self.data = Xd
 
 
 class MCUVScaler(BaseEstimator, TransformerMixin):
@@ -804,7 +844,7 @@ def quick_regress(Y, x):
             b[k] = np.sum(x.T * np.nan_to_num(Y[:, k]))
             temp = ~np.isnan(Y[:, k]) * x.T
             denom = np.dot(temp, temp.T)[0][0]
-            if np.abs(denom) > eps:
+            if np.abs(denom) > epsqrt:
                 b[k] /= denom
         return b
 
@@ -814,7 +854,7 @@ def quick_regress(Y, x):
             b[n] = np.sum(x[:, 0] * np.nan_to_num(Y[n, :]))
             # TODO(KGD): check: this denom is usually(always?) equal to 1.0
             denom = ssq(~np.isnan(Y[n, :]) * x.T)
-            if np.abs(denom) > eps:
+            if np.abs(denom) > epsqrt:
                 b[n] /= denom
         return b
 
@@ -897,3 +937,59 @@ def scale(X, func=np.std, axis=0, extra_output=False, **kwargs):
         return np.multiply(X, vector), vector
     else:
         return np.multiply(X, vector)
+
+
+# def _apply_pca(self, new=None):
+#     """
+#     Project new observations, ``new``, onto the existing latent variable
+#     model.  Returns a ``Projection`` object, which contains the scores,
+#     SPE, T2, and predictions.
+
+#     If ``new`` is not provided it will return a ``Projection`` object
+#     for the training data set.
+#     """
+#     # TODO: complete this code.
+#     new = preprocess(LVM, new)
+#     result = Projection()
+#     result.scores = np.zeros([LVM.J, LVM.A])
+#     result.SPE = np.zeros([LVM.J, 1])
+#     result.T2 = np.zeros([LVM.J, 1])
+#     result.Yhat = np.zeros([LVM.J, LVM.M])
+
+#     # (1, 2, ... J) * every tag * for J time steps * for every LV
+#     # result.c_scores = np.zeros([LVM.J, LVM.K, LVM.J, LVM.A]) * np.nan
+
+#     K = LVM.K
+#     x_project = new.copy()
+#     for j in np.arange(LVM.J):
+#         idx_beg, idx_end = K * j, K * (j + 1)
+#         x = x_project.copy()
+#         if LVM.opt.md_method == "scp":
+#             for a in np.arange(LVM.A):
+
+#                 if LVM.M:  # PLS
+#                     r = LVM.W[0:idx_end, a]
+#                 else:  # PCA
+#                     r = LVM.P[0:idx_end, a]
+
+#                 rtr = np.dot(r.T, r)
+#                 p = LVM.P[0:idx_end, a]
+
+#                 # t_{\text{new},j}(a) = \mathbf{P/W}'_*(:,a) \mathbf{x}_\text{pp}/DEN
+#                 temp = (r * x[0, 0:idx_end]) / (rtr + 0.0)
+#                 # result.c_scores[0:j+1, :, j, a] = temp.reshape(j+1, LVM.K)
+#                 result.scores[j, a] = np.nansum(temp)
+
+#                 # \mathbf{x}_\text{pp} -= t_{\text{new},j}(a) \mathbf{P}'_*(:,a)
+#                 x[0, 0:idx_end] -= result.scores[j, a] * p
+
+#             # The error_j is only the portion related to the current time step
+#             error_j = x[0, idx_beg:idx_end]
+
+#         result.SPE[j, 0] = np.nansum(error_j ** 2)
+#         result.T2[j, 0] = np.sum((result.scores[j, :] / LVM.S[j, :]) ** 2)
+#         Yhat_MCUV = np.dot(result.scores[j, :], LVM.C.T)
+#         result.Yhat[j, :] = Yhat_MCUV / (LVM.PPY[1][1] + 0.0) + LVM.PPY[0][1]
+
+#     return result
+
