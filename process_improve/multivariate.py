@@ -133,10 +133,12 @@ class PCA(PCA_sklearn):
 
         if np.any(X.isna()):
             # If there are missing data, then the missing data settings apply. Defaults are:
-            # md_method = "pmp"
-            # md_tol = np.sqrt(np.finfo(float).eps)
-            # md_max_iter = (1000,)
-            default_mds = dict(md_method="pmp", md_tol=epsqrt, md_max_iter=100)
+            #
+            #       md_method = "pmp"
+            #       md_tol = np.sqrt(np.finfo(float).eps)
+            #       md_max_iter = (1000,)
+
+            default_mds = dict(md_method="tsr", md_tol=epsqrt, md_max_iter=100)
             if isinstance(self.missing_data_settings, dict):
                 self.missing_data_settings.update(default_mds)
             else:
@@ -150,13 +152,15 @@ class PCA(PCA_sklearn):
 
         else:
             self = super().fit(X)
+            self.components_ = self.components_.copy().T
 
         # We have now fitted the model. Apply some convenience shortcuts for the user.
         self.A = self.n_components
         self.N = self.n_samples_
         self.K = self.n_features_
         # Note: this one is transposed, to conform to standards
-        self.loadings = pd.DataFrame(self.components_.copy()).T
+
+        self.loadings = pd.DataFrame(self.components_.copy())
         self.loadings.index = X.columns
 
         component_names = [f"PC {a+1}" for a in range(self.A)]
@@ -176,11 +180,19 @@ class PCA(PCA_sklearn):
         if self.has_missing_data:
             self.t_scores = pd.DataFrame(self.t_scores, columns=component_names, index=X.index)
             self.squared_prediction_error = pd.DataFrame(
-                self.squared_prediction_error, columns=component_names, index=X.index.copy(),
+                self.squared_prediction_error,
+                columns=component_names,
+                index=X.index.copy(),
             )
-            self.R2 = pd.Series(self.R2, index=component_names, name="Model's R^2, per component",)
+            self.R2 = pd.Series(
+                self.R2,
+                index=component_names,
+                name="Model's R^2, per component",
+            )
             self.R2cum = pd.Series(
-                self.R2cum, index=component_names, name="Cumulative model's R^2, per component",
+                self.R2cum,
+                index=component_names,
+                name="Cumulative model's R^2, per component",
             )
             self.R2k_cum = pd.DataFrame(
                 self.R2k_cum,
@@ -193,7 +205,9 @@ class PCA(PCA_sklearn):
                 super().fit_transform(X), columns=component_names, index=X.index
             )
             self.squared_prediction_error = pd.DataFrame(
-                np.zeros((self.N, self.A)), columns=component_names, index=X.index.copy(),
+                np.zeros((self.N, self.A)),
+                columns=component_names,
+                index=X.index.copy(),
             )
             self.R2 = pd.Series(
                 np.zeros(shape=(self.A,)),
@@ -296,7 +310,11 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
     """
 
     def __init__(
-        self, n_components=None, copy: bool = True, random_state=None, missing_data_settings=dict,
+        self,
+        n_components=None,
+        copy: bool = True,
+        random_state=None,
+        missing_data_settings=dict,
     ):
         self.n_components = n_components
         self.random_state = None
@@ -338,11 +356,12 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         self.squared_prediction_error = np.zeros((self.N, self.A))
 
         # Perform MD algorithm here
-        # if self.missing_data_settings["md_method"].lower() == "pmp":
-        #    self._fit_pmp(X)
-        # elif self.missing_data_settings["md_method"].lower() in ["scp", "nipals"]:
-        self._fit_nipals_pca(settings=self.missing_data_settings)
-        # self._fit_tsr(settings=self.missing_data_settings)
+        if self.missing_data_settings["md_method"].lower() == "pmp":
+            self._fit_pmp(X)
+        elif self.missing_data_settings["md_method"].lower() in ["scp", "nipals"]:
+            self._fit_nipals_pca(settings=self.missing_data_settings)
+        elif self.missing_data_settings["md_method"].lower() in ["tsr"]:
+            self._fit_tsr(settings=self.missing_data_settings)
 
         # Additional calculations, which can be done after the missing data method is complete.
         self.explained_variance_ = np.diag(self.t_scores.T @ self.t_scores) / (self.N - 1)
@@ -495,7 +514,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
             else:
                 V, _, _ = np.linalg.svd(Xc.T, full_matrices=False)
 
-            V = V[:, 0:A]
+            V = V.T[:, 0:A]  # transpose first
             for n in range(N):
                 # If there are missing values (mis) in the n-th row. Compared to obs-erved values.
                 row_mis = mmap[n, :]
@@ -513,7 +532,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         # All done: return the results in `self`
         S = np.cov(Xd, rowvar=False, ddof=1)
         _, _, V = np.linalg.svd(S, full_matrices=False)
-        self.components_ = V[:, 0:A]
+        self.components_ = (V[0:A, :]).T  # transpose result to the right shape: K x A
         self.t_scores = (Xd - np.mean(Xd, axis=0)) @ self.components_
         self.data = Xd
 
@@ -992,4 +1011,3 @@ def scale(X, func=np.std, axis=0, extra_output=False, **kwargs):
 #         result.Yhat[j, :] = Yhat_MCUV / (LVM.PPY[1][1] + 0.0) + LVM.PPY[0][1]
 
 #     return result
-
