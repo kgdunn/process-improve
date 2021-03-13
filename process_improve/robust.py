@@ -47,7 +47,11 @@ def summary_stats(x, method="robust") -> dict:
 
     if method.lower() == "robust":
         out["center"], out["spread"] = out["median"], Sn(x)
-        if ((out["max"] - out["min"]) > 0) and (out["spread"] == 0) and (out["N_non_missing"] > 0):
+        if (
+            ((out["max"] - out["min"]) > 0)
+            and (out["spread"] == 0)
+            and (out["N_non_missing"] > 0)
+        ):
             # Don't fully trust the Sn() yet. It works strangely on quantized data when there is
             # little variation. Replace the RSD with the classically calculated version in this
             # very specific case. This example shows it: [99, 95, 95, 100, 100, 100, 100, 95, 100,

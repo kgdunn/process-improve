@@ -178,7 +178,8 @@ class TestModels(unittest.TestCase):
         self.assertAlmostEqual(beta["C"], -0.25)
         self.assertAlmostEqual(beta["Intercept"], 30.75)
         self.assertTrue(
-            self.model_stability_poshalf.get_aliases() == ["A + B:C", "B + A:C", "C + A:B"]
+            self.model_stability_poshalf.get_aliases()
+            == ["A + B:C", "B + A:C", "C + A:B"]
         )
 
         for resid in self.model_stability_poshalf.residuals:
@@ -187,7 +188,9 @@ class TestModels(unittest.TestCase):
 
 class Test_API_usage(unittest.TestCase):
     def setUp(self):
-        full_path = os.path.join(os.path.split(__file__)[0], "fixtures", "test_doe1.csv")
+        full_path = os.path.join(
+            os.path.split(__file__)[0], "fixtures", "test_doe1.csv"
+        )
         self.assertTrue(os.path.exists(full_path))
         self.df1 = pd.read_csv(full_path)
         self.df1.set_index("Run order", inplace=True)
@@ -196,7 +199,11 @@ class Test_API_usage(unittest.TestCase):
 
         index = self.df1.index
         C = c(
-            self.df1["C"], lo=self.df1["C"].min(), hi=self.df1["C"].max(), index=index, name="C",
+            self.df1["C"],
+            lo=self.df1["C"].min(),
+            hi=self.df1["C"].max(),
+            index=index,
+            name="C",
         )
         M = c(self.df1["M"], levels=self.df1["M"].unique(), name="M")
         V = c(self.df1["V"], lo=self.df1["V"].min(), hi=self.df1["V"].max(), name="V")
@@ -233,7 +240,13 @@ class Test_API_usage(unittest.TestCase):
         c1_coded = c1.to_coded()
         self.assertListEqual(c1_coded.to_list(), [-1.0, 1.0, -1.0, 1.0])
 
-        c2 = c([-1.0, -1.0, +1.0, +1.0], center=2.75, range=[2.5, 3], name="cement", coded=True,)
+        c2 = c(
+            [-1.0, -1.0, +1.0, +1.0],
+            center=2.75,
+            range=[2.5, 3],
+            name="cement",
+            coded=True,
+        )
         c2_rw = c2.to_realworld()
         self.assertListEqual(c2_rw.to_list(), [2.5, 2.5, 3.0, 3.0])
 

@@ -206,7 +206,24 @@ def case_worksheet_5():
     D = supplement(D, name="Dissolved oxygen set-point", units="mg/L", lo=4, hi=5)
 
     y = c(
-        60, 59, 63, 61, 69, 61, 94, 93, 56, 63, 70, 65, 44, 45, 78, 77, units="g/L", name="Yield",
+        60,
+        59,
+        63,
+        61,
+        69,
+        61,
+        94,
+        93,
+        56,
+        63,
+        70,
+        65,
+        44,
+        45,
+        78,
+        77,
+        units="g/L",
+        name="Yield",
     )
 
     expt = gather(A=A, B=B, C=C, D=D, y=y, title="Initial experiments; full factorial")
@@ -339,7 +356,9 @@ def case_worksheet_9():
     8            20 May 2019 10:44    95.0        82
     9            20 May 2019 10:45    105.0       67
     """
-    d1 = c(24, 48, center=36, range=(24, 48), coded=False, units="hours", name="Duration")
+    d1 = c(
+        24, 48, center=36, range=(24, 48), coded=False, units="hours", name="Duration"
+    )
     D1 = d1.to_coded()
     y1 = c(23, 64, name="Production", units="g/unit sugar")
     expt1 = gather(D=D1, y=y1, title="Starting off")
@@ -496,7 +515,16 @@ def case_worksheet_10():
     )
     P1 = p.to_coded()
     T1 = t.to_coded()
-    y1 = c(7740, 7755, 5651, 5812, 7363, 7397, name="Response: profit per hour", units="$/hour",)
+    y1 = c(
+        7740,
+        7755,
+        5651,
+        5812,
+        7363,
+        7397,
+        name="Response: profit per hour",
+        units="$/hour",
+    )
     expt1 = gather(P=P1, T=T1, y=y1, title="First experiment")
 
     mod_base1 = lm("y ~ P * T", data=expt1)
@@ -559,7 +587,15 @@ def case_worksheet_10():
 
     # 2nd,
     y3 = c(
-        7755, 7784, 7373, 7397, 7363, 5812, 4654, name="Response: profit per hour", units="$/hour",
+        7755,
+        7784,
+        7373,
+        7397,
+        7363,
+        5812,
+        4654,
+        name="Response: profit per hour",
+        units="$/hour",
     )
     P3 = p3.to_coded()
     T3 = t3.to_coded()
@@ -607,7 +643,9 @@ def case_worksheet_10():
     # Actual = 7969. Really good matching.
     # UPdate the model and check
     y6 = y4.extend([7969])
-    expt6 = gather(P=P6, T=T6, y=y6, title="After extrapolation, based on quadratic term")
+    expt6 = gather(
+        P=P6, T=T6, y=y6, title="After extrapolation, based on quadratic term"
+    )
     mod_base6 = lm("y ~ P*T + I(P**2) + I(T**2)", data=expt6)
     contour_plot(mod_base6, "P", "T", xlim=(-2, 5))
 
@@ -656,7 +694,16 @@ def case_worksheet_10C():
     )
     P1 = p1.to_coded()
     T1 = t1.to_coded()
-    y1 = c(7082, 7089, 6637, 6686, 7181, 7234, name="Response: profit per hour", units="$/hour",)
+    y1 = c(
+        7082,
+        7089,
+        6637,
+        6686,
+        7181,
+        7234,
+        name="Response: profit per hour",
+        units="$/hour",
+    )
     expt1 = gather(P=P1, T=T1, y=y1, title="First experiment")
 
     mod_base1 = lm("y ~ P * T", data=expt1)
@@ -751,7 +798,14 @@ def case_worksheet_10B():
 
     c1 = c(2.5, 3, 2.5, 3, center=2.75, range=[2.5, 3], name="cement", units="kg")
     w1 = c(
-        0.5, 0.5, 0.9, 0.9, center=0.7, range=[0.5, 0.9], name="Throughput", units="parts/hour",
+        0.5,
+        0.5,
+        0.9,
+        0.9,
+        center=0.7,
+        range=[0.5, 0.9],
+        name="Throughput",
+        units="parts/hour",
     )
     C1 = c1.to_coded()
     W1 = w1.to_coded()

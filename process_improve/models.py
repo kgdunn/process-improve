@@ -148,7 +148,10 @@ class Model(OLS):
         params = self.get_parameters(drop_intercept=drop_intercept)
         for p_name in params.index.values:
             if websafe:
-                aliasing = '<span style="font-size: 130%; font-weight: 700">' f"{p_name}</span>"
+                aliasing = (
+                    '<span style="font-size: 130%; font-weight: 700">'
+                    f"{p_name}</span>"
+                )
             else:
                 aliasing = p_name
             suffix = ""
@@ -245,7 +248,9 @@ def lm(
             else:
                 # Columns with no variation
                 candidates = [
-                    i for i, j in enumerate(has_variation) if (j <= threshold_correlation)
+                    i
+                    for i, j in enumerate(has_variation)
+                    if (j <= threshold_correlation)
                 ]
 
             # Track the correlation signs
@@ -296,7 +301,10 @@ def lm(
 
     name = name or data.pi_title
     out = Model(
-        OLS_instance=post_model.fit(), model_spec=model_spec, aliasing=aliasing, name=name,
+        OLS_instance=post_model.fit(),
+        model_spec=model_spec,
+        aliasing=aliasing,
+        name=name,
     )
     out.data = data
 
@@ -304,7 +312,9 @@ def lm(
 
 
 def summary(
-    model: Model, show: Optional[bool] = True, aliasing_up_to_level: int = 3,
+    model: Model,
+    show: Optional[bool] = True,
+    aliasing_up_to_level: int = 3,
 ):
     """
     Prints a summary to the screen of the model.

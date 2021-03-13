@@ -231,5 +231,3 @@ def calc_limits(self):
                 alpha = (1 - float(siglevel_str) / 100.0) / 2.0
                 n_ppf = stats.norm.ppf(1 - alpha)
                 block.lim.t[siglevel_str][:, a] = n_ppf * block.S[a]
-
-
