@@ -289,62 +289,46 @@ def test_basic_pca_model(tablet_spectra_data):
     # scores. Numerical error?
 
 
-@pytest.mark.skip(reason="API still has to be improved to handle this case")
 def test_errors_PCA_no_variance_to_start():
     """
-    Arrays with no variance should not be able to have variance extracted.
+    Arrays with no variance should seem to work, but should have no variability explained.
     """
     K, N, A = 17, 12, 5
-    data = np.zeros((N, K))
+    data = pd.DataFrame(np.zeros((N, K)))
     model = PCA(n_components=A)
-    with pytest.raises(RuntimeError):
-        model.fit(data)
+    # with pytest.raises(RuntimeError):
+    model.fit(data)
+    assert np.sum(model.t_scores.values, axis=None) == approx(0, abs=epsqrt)
+    assert model.R2cum.sum() == approx(0, abs=epsqrt)
+    assert np.isnan(model.R2cum[A - 1])
 
 
-@pytest.mark.skip(reason="API still has to be improved to handle this case")
 def test_errors_PCA_invalid_calls():
     """
     Tests various invalid calls, and corresponding error messages.
     """
     K, N, A = 4, 3, 5
-    data = np.random.uniform(low=-1, high=1, size=(N, K))
-    with pytest.raises(ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"):
-        _ = PCA(n_components=A, method="nipals", tol=0)
-
-    with pytest.raises(ValueError, match="Method 'SVDS' is not known."):
-        _ = PCA(n_components=A, method="SVDS")
-
-    with pytest.raises(ValueError, match="Missing data method 'SCP' is not known."):
-        _ = PCA(n_components=A, md_method="SCP")
-
-    with pytest.warns(SpecificationWarning, match=r"The requested number of components is (.*)"):
-        model = PCA(
-            n_components=A,
-        )
+    data = pd.DataFrame(np.random.uniform(low=-1, high=1, size=(N, K)))
+    with pytest.warns(
+        SpecificationWarning,
+        match=r"The requested number of components is more than can be computed from data(.*)",
+    ):
+        model = PCA(n_components=A)
         model.fit(data)
 
-    with pytest.raises(ValueError, match="Eig method is not supported yet."):
-        model = PCA(n_components=A, method="eig")
-        model.fit(data)
+    data.iloc[0, 0] = np.nan
+    with pytest.raises(AssertionError, match="Tolerance must exceed machine precision"):
+        _ = PCA(n_components=A, missing_data_settings=dict(md_method="nipals", md_tol=0)).fit(data)
 
-    from scipy.sparse import csr_matrix
+    with pytest.raises(AssertionError, match=r"Missing data method is not recognized(.*)"):
+        _ = PCA(n_components=A, missing_data_settings={"md_method": "SCP"}).fit(data)
 
-    sparse_data = csr_matrix([[1, 2, 0], [0, 0, 3], [4, 0, 5]])
-    with pytest.raises(TypeError, match="This PCA class does not support sparse input."):
-        model = PCA(n_components=2)
-        model.fit(sparse_data)
-
-
-def test_PCA_invalid_call():
-    """
-    Tests various valid calls
-    """
-    K, N, A = 4, 3, 5
-    data = np.random.uniform(low=-1, high=1, size=(N, K))
-    data = pd.DataFrame(data=data, columns=["A", "B", "C", "D"], index=["1", "3", "5"])
-    model = PCA(n_components=A)
-    with pytest.raises(ValueError):
-        model.fit(data)
+    # TODO: replace with a check to ensure the data is in a DataFrame.
+    # from scipy.sparse import csr_matrix
+    # sparse_data = csr_matrix([[1, 2, 0], [0, 0, 3], [4, 0, 5]])
+    # with pytest.raises(TypeError, match="This PCA class does not support sparse input."):
+    #     model = PCA(n_components=2)
+    #     model.fit(sparse_data)
 
 
 def test_no_more_variance():

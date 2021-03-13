@@ -131,6 +131,21 @@ class PCA(PCA_sklearn):
 
     def fit(self, X, y=None) -> PCA_sklearn:
 
+        self.N, self.K = X.shape
+
+        # Check if number of components is supported against maximum requested
+        min_dim = min(self.N, self.K)
+        self.A = min_dim if self.n_components is None else int(self.n_components)
+        if self.A > min_dim:
+            warn = (
+                "The requested number of components is more than can be "
+                "computed from data. The maximum number of components is "
+                f"the minimum of either the number of rows ({self.N}) or "
+                f"the number of columns ({self.K})."
+            )
+            warnings.warn(warn, SpecificationWarning)
+            self.A = self.n_components = min_dim
+
         if np.any(X.isna()):
             # If there are missing data, then the missing data settings apply. Defaults are:
             #
@@ -140,15 +155,17 @@ class PCA(PCA_sklearn):
 
             default_mds = dict(md_method="tsr", md_tol=epsqrt, md_max_iter=100)
             if isinstance(self.missing_data_settings, dict):
-                self.missing_data_settings.update(default_mds)
-            else:
-                self.missing_data_settings = default_mds
+                default_mds.update(self.missing_data_settings)
 
+            self.missing_data_settings = default_mds
             self = PCA_missing_values(
                 n_components=self.n_components,
                 random_state=self.random_state,
                 missing_data_settings=self.missing_data_settings,
-            ).fit(X)
+            )
+            self.N, self.K = X.shape
+            self.A = self.n_components
+            self.fit(X)
 
         else:
             self = super().fit(X)
@@ -309,6 +326,8 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
 
     """
 
+    valid_md_methods = ["pmp", "scp", "nipals", "tsr"]
+
     def __init__(
         self,
         n_components=None,
@@ -322,26 +341,22 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         self.has_missing_data = True
 
         # TODO: various settings assertions here
+        assert self.missing_data_settings["md_tol"] < 10, "Tolerance should not be too large"
+        assert (
+            self.missing_data_settings["md_tol"] > epsqrt ** 1.95
+        ), "Tolerance must exceed machine precision"
+
+        assert self.missing_data_settings["md_method"] in self.valid_md_methods, (
+            f"Missing data method is not recognized. ",
+            "Must be one of {valid_md_methods}.",
+        )
+
         assert True
 
     def fit(self, X, y=None):
 
         # Force input to NumPy array:
         self.data = np.asarray(X)
-        self.N, self.K = self.data.shape
-
-        # Check if number of components is supported against maximum requested
-        min_dim = min(self.N, self.K)
-        self.A = min_dim if self.n_components is None else int(self.n_components)
-        if self.A > min_dim:
-            warn = (
-                "The requested number of components is more than can be "
-                "computed from data. The maximum number of components is "
-                f"the minimum of either the number of rows ({self.N}) or "
-                f"the number of columns ({self.K})."
-            )
-            warnings.warn(warn, SpecificationWarning)
-            self.A = min_dim
 
         # Other setups:
         self.n_components = self.A
