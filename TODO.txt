@@ -123,8 +123,8 @@ Robust PLS investigated?
             col_SSY = ssq(Y, axis=0)
 
             blockX.stats.SPE[:, a] = row_SSX / K
-            blockX.stats.R2k_cum[:, a] = 1 - col_SSX / start_SSX_col
-            blockY.stats.R2k_cum[:, a] = 1 - col_SSY / start_SSY_col
+            blockX.stats.R2X_k_cum[:, a] = 1 - col_SSX / start_SSX_col
+            blockY.stats.R2Y_k_cum[:, a] = 1 - col_SSY / start_SSY_col
 
             # Cumulative R2 value for the whole block
             blockX.stats.R2[a] = 1 - sum(row_SSX) / sum(start_SSX_col)

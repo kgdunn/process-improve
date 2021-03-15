@@ -66,7 +66,7 @@ def test_PCA_foods():
     pca = PCA(n_components=A).fit(foods_mcuv)
 
     assert np.linalg.norm(
-        np.diag(pca.t_scores.T @ pca.t_scores) / (pca.N - 1) - pca.explained_variance_
+        np.diag(pca.x_scores.T @ pca.x_scores) / (pca.N - 1) - pca.explained_variance_
     ) == approx(0, abs=epsqrt)
 
     T2_limit_95 = pca.T2_limit(0.95)
@@ -257,7 +257,7 @@ def test_PCA_tablet_spectra(fixture_tablet_spectra_data):
 
     # Unit length: actually checked above, via subtraction with I matrix.
     # Check if scores are orthogonal
-    scores_covar = model.t_scores.T @ model.t_scores
+    scores_covar = model.x_scores.T @ model.x_scores
     for i in range(model.A):
         for j in range(model.A):
 
@@ -291,7 +291,7 @@ def test_PCA_errors_no_variance_to_start():
     model = PCA(n_components=A)
     # with pytest.raises(RuntimeError):
     model.fit(data)
-    assert np.sum(model.t_scores.values, axis=None) == approx(0, abs=epsqrt)
+    assert np.sum(model.x_scores.values, axis=None) == approx(0, abs=epsqrt)
     assert model.R2cum.sum() == approx(0, abs=epsqrt)
     assert np.isnan(model.R2cum[A - 1])
 
@@ -373,7 +373,7 @@ def test_PCA_columns_with_no_variance():
     )
 
     # Are scores orthogonal?
-    covmatrix = m.t_scores.T @ m.t_scores
+    covmatrix = m.x_scores.T @ m.x_scores
     covmatrix - np.diag(np.diag(covmatrix))
     (np.sum(np.abs(covmatrix - np.diag(np.diag(covmatrix))))).values == approx(0, abs=1e-6)
 
@@ -441,8 +441,8 @@ def test_PCA_Wold_model_results(fixture_pca_PCA_Wold_etal_paper):
     )
 
     # Scores. The scaling is off here by a constant factor of 0.8165
-    # assert pca_2.t_scores[:, 0] == approx([-1.6229, -0.3493, 1.9723], rel=1E-3)
-    # assert pca_2.t_scores[:, 1] == approx([0.6051, -0.9370, 0.3319], rel=1E-4)
+    # assert np.all(pca_2.x_scores["1"] == approx([-1.6229, -0.3493, 1.9723], rel=1e-3))
+    # assert np.all(pca_2.x_scores["2"] == approx([0.6051, -0.9370, 0.3319], rel=1e-4))
 
     # R2 values, given on page 43
     assert pca_2.R2.values == approx([0.831, 0.169], rel=1e-2)
@@ -658,8 +658,8 @@ def test_PLS_compare_sklearn_1_component(fixture_PLS_model_SIMCA_1_component):
     assert plsmodel.y_std_ == approx(data["Yws"], abs=1e-8)
 
     # Extract the model parameters
-    T = plsmodel.x_scores_
-    P = plsmodel.x_loadings_
+    T = plsmodel.x_scores
+    P = plsmodel.x_loadings
     assert T.ravel() == approx(data["t1"], abs=1e-5)
     assert np.std(T, ddof=1) == approx(data["SDt"], rel=1e-5)
     assert data["loadings_P1"].ravel() == approx(P.ravel(), rel=1e-5)
@@ -682,7 +682,7 @@ def test_PLS_compare_sklearn_1_component(fixture_PLS_model_SIMCA_1_component):
     assert t1_predict_manually == approx(t1_predict, 1e-9)
 
     # Deflate the X's:
-    X_check_mcuv -= t1_predict_manually @ plsmodel.x_loadings_.T
+    X_check_mcuv -= t1_predict_manually @ plsmodel.x_loadings.T
     y_hat = t1_predict_manually @ simca_C
     y_hat_rawunits = y_hat * plsmodel.y_std_ + plsmodel.y_mean_
     assert data["expected_y_predicted"] == approx(y_hat_rawunits.ravel(), abs=1e-5)
@@ -696,23 +696,24 @@ def test_PLS_compare_model_api(fixture_PLS_model_SIMCA_1_component):
 
     data = fixture_PLS_model_SIMCA_1_component
     plsmodel = PLS(n_components=data["A"])
-    plsmodel.fit(data["X"], data["y"])
+
+    X_mcuv = MCUVScaler().fit(data["X"])
+    Y_mcuv = MCUVScaler().fit(data["y"])
+
+    # center_x_
 
     # Check the pre-processing: sig figs have been taken as high as possible.
-    assert plsmodel.x_mean_ == approx(data["Xavg"], abs=1e-5)
-    assert plsmodel.x_std_ == approx(data["Xws"], abs=1e-6)
-    assert plsmodel.y_mean_ == approx(data["Yavg"], abs=1e-7)
-    assert plsmodel.y_std_ == approx(data["Yws"], abs=1e-8)
+    assert X_mcuv.center_.values == approx(data["Xavg"], abs=1e-5)
+    assert X_mcuv.scale_.values == approx(data["Xws"], abs=1e-6)
+    assert Y_mcuv.center_.values == approx(data["Yavg"], abs=1e-7)
+    assert Y_mcuv.scale_.values == approx(data["Yws"], abs=1e-8)
 
     # Extract the model parameters
-    T = plsmodel.scores
-    P = plsmodel.loadings
-    R = plsmodel.weights_x
-    assert np.std(T, ddof=1) == approx(data["SDt"], abs=1e-5)
-
-    assert data["t1"] == approx(T.ravel(), abs=1e-5)
-    assert data["loadings_P1"] == approx(P.ravel(), abs=1e-5)
-    assert data["loadings_r1"] == approx(R.ravel(), abs=1e-6)
+    plsmodel.fit(X_mcuv.transform(data["X"]), Y_mcuv.transform(data["y"]))
+    assert np.std(plsmodel.x_scores, ddof=1) == approx(data["SDt"], abs=1e-5)
+    assert data["t1"] == approx(plsmodel.x_scores.ravel(), abs=1e-5)
+    assert data["loadings_P1"] == approx(plsmodel.x_loadings.ravel(), abs=1e-5)
+    assert data["loadings_r1"] == approx(plsmodel.x_weights.ravel(), abs=1e-6)
     assert data["expected_y_predicted"] == approx(plsmodel.predictions.ravel(), abs=1e-5)
     assert data["R2Y"] == approx(plsmodel.R2Ycum, abs=1e-6)
 
@@ -878,7 +879,7 @@ def test_PLS_sklearn_2_components(fixture_PLS_SIMCA_2_components):
     # Extract the model parameters
     assert np.abs(data["T"]) == approx(np.abs(plsmodel.x_scores_), abs=1e-5)
     assert np.std(plsmodel.x_scores_, ddof=1, axis=0) == approx(data["SDt"], abs=1e-6)
-    assert np.abs(data["loadings_P"]) == approx(np.abs(plsmodel.x_loadings_), abs=1e-5)
+    assert np.abs(data["loadings_P"]) == approx(np.abs(plsmodel.x_loadings), abs=1e-5)
     assert np.abs(data["loadings_W"]) == approx(np.abs(plsmodel.x_weights_), abs=1e-5)
 
 
@@ -893,10 +894,10 @@ def test_PLS_compare_API(fixture_PLS_SIMCA_2_components):
     plsmodel.fit(X_mcuv, Y_mcuv)
 
     # Extract the model parameters
-    assert np.std(plsmodel.scores, ddof=1, axis=0) == approx(data["SDt"], abs=1e-6)
-    assert np.abs(data["T"]) == approx(np.abs(plsmodel.scores), abs=1e-5)
-    assert np.abs(data["loadings_P"]) == approx(np.abs(plsmodel.loadings), abs=1e-5)
-    assert np.abs(data["loadings_W"]) == approx(np.abs(plsmodel.weights_x), abs=1e-5)
+    assert np.std(plsmodel.x_scores, ddof=1, axis=0) == approx(data["SDt"], abs=1e-6)
+    assert np.abs(data["T"]) == approx(np.abs(plsmodel.x_scores), abs=1e-5)
+    assert np.abs(data["loadings_P"]) == approx(np.abs(plsmodel.x_loadings), abs=1e-5)
+    assert np.abs(data["loadings_W"]) == approx(np.abs(plsmodel.x_weights), abs=1e-5)
     assert data["expected_y_predicted"] == approx(plsmodel.predictions.ravel(), abs=1e-5)
     assert sum(data["R2Y"]) == approx(plsmodel.R2Ycum, abs=1e-7)
 
