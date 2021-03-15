@@ -126,7 +126,13 @@ class PCA(PCA_sklearn):
         missing_data_settings: Optional[dict] = None,
     ):
         super().__init__(
-            n_components, copy, whiten, svd_solver, tol, iterated_power, random_state
+            n_components=n_components,
+            copy=copy,
+            whiten=whiten,
+            svd_solver=svd_solver,
+            tol=tol,
+            iterated_power=iterated_power,
+            random_state=random_state,
         )
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = False
@@ -197,9 +203,7 @@ class PCA(PCA_sklearn):
             # name="Hotelling's T^2 statistic, per component",
         )
         if self.has_missing_data:
-            self.t_scores = pd.DataFrame(
-                self.t_scores, columns=component_names, index=X.index
-            )
+            self.t_scores = pd.DataFrame(self.t_scores, columns=component_names, index=X.index)
             self.squared_prediction_error = pd.DataFrame(
                 self.squared_prediction_error,
                 columns=component_names,
@@ -345,9 +349,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         self.has_missing_data = True
 
         # TODO: various settings assertions here
-        assert (
-            self.missing_data_settings["md_tol"] < 10
-        ), "Tolerance should not be too large"
+        assert self.missing_data_settings["md_tol"] < 10, "Tolerance should not be too large"
         assert (
             self.missing_data_settings["md_tol"] > epsqrt ** 1.95
         ), "Tolerance must exceed machine precision"
@@ -385,9 +387,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
             self._fit_tsr(settings=self.missing_data_settings)
 
         # Additional calculations, which can be done after the missing data method is complete.
-        self.explained_variance_ = np.diag(self.t_scores.T @ self.t_scores) / (
-            self.N - 1
-        )
+        self.explained_variance_ = np.diag(self.t_scores.T @ self.t_scores) / (self.N - 1)
         return self
 
     def transform(self, X):
@@ -445,9 +445,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
             # Rather: Pick a column from X as the initial guess instead.
             t_a = score_start + 1.0
             p_a = np.zeros((K, 1))
-            while not (
-                terminate_check(score_start, t_a, iterations=itern, settings=settings)
-            ):
+            while not (terminate_check(score_start, t_a, iterations=itern, settings=settings)):
 
                 # 0: Richardson's acceleration, or any numerical acceleration
                 #    method for PCA where there is slow convergence?
@@ -575,9 +573,7 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
         self.center_x_ = X.mean()
         # this is the key difference with "preprocessing.StandardScaler"
         self.scale_x_ = X.std(ddof=1)
-        self.scale_x_[
-            self.scale_x_ == 0
-        ] = 1.0  # columns with no variance are left as-is.
+        self.scale_x_[self.scale_x_ == 0] = 1.0  # columns with no variance are left as-is.
         return self
 
     def transform(self, X):
@@ -629,9 +625,7 @@ class PLS:
         self.random_state = 13 if random_state is None else int(random_state)
 
         # Check the remaining inputs
-        assert (
-            self.conf < 0.50
-        ), "Confidence level must be a small fraction, e.g. 0.05 for 95%"
+        assert self.conf < 0.50, "Confidence level must be a small fraction, e.g. 0.05 for 95%"
         self.n_components = self.A
         self.tol = float(tol)
         if not 1e-16 < self.tol < 1:
@@ -811,9 +805,7 @@ class PLS:
         state = State()
         state.N, state.K = X.shape
 
-        assert (
-            self.K == state.K
-        ), "Prediction data must same number of columns as training data."
+        assert self.K == state.K, "Prediction data must same number of columns as training data."
         X_mcuv = (X - self.x_mean_) / self.x_std_
 
         state.scores = np.zeros((state.N, self.A))
