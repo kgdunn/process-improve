@@ -256,8 +256,8 @@ class PCA(PCA_sklearn):
 
         if not self.has_missing_data:
             Xd = X.copy()
-            prior_SS_col = ssq(Xd.values, axis=0)
-            base_variance = np.sum(prior_SS_col)
+            prior_SSX_col = ssq(Xd.values, axis=0)
+            base_variance = np.sum(prior_SSX_col)
             for a in range(self.A):
                 Xd -= self.x_scores.iloc[:, [a]] @ self.loadings.iloc[:, [a]].T
                 # These are the Residual Sums of Squares (RSS); i.e X-X_hat
@@ -269,8 +269,8 @@ class PCA(PCA_sklearn):
                 # If the user wants to normalize it, then this is a clean base value to start from.
                 self.squared_prediction_error.iloc[:, a] = np.sqrt(row_SSX)
 
-                # TODO: some entries in prior_SS_col can be zero and leads to nan's in R2X_k_cum
-                self.R2X_k_cum.iloc[:, a] = 1 - col_SSX / prior_SS_col
+                # TODO: some entries in prior_SSX_col can be zero and leads to nan's in R2X_k_cum
+                self.R2X_k_cum.iloc[:, a] = 1 - col_SSX / prior_SSX_col
 
                 # R2 and cumulative R2 value for the whole block
                 self.R2cum[a] = 1 - sum(row_SSX) / base_variance
@@ -701,6 +701,9 @@ class PLS(PLS_sklearn):
         self.y_weights = pd.DataFrame(self.y_weights, index=Y.columns, columns=component_names)
         self.x_loadings = pd.DataFrame(self.x_loadings, index=X.columns, columns=component_names)
         self.y_loadings = pd.DataFrame(self.y_loadings, index=Y.columns, columns=component_names)
+        self.predictions = pd.DataFrame(
+            self.x_scores @ self.y_loadings.T, index=Y.index, columns=Y.columns
+        )
 
         self.explained_variance = np.diag(self.x_scores.T @ self.x_scores) / (self.N - 1)
         self.scaling_factor_for_scores = pd.Series(
@@ -737,38 +740,37 @@ class PLS(PLS_sklearn):
             columns=component_names,
             # name ="Per variable in the Y-space: R^2, per component"
         )
+
+        Xd = X.copy()
+        Yd = Y.copy()
+        prior_SSX_col = ssq(Xd.values, axis=0)
+        prior_SSY_col = ssq(Yd.values, axis=0)
+        base_variance_Y = np.sum(prior_SSY_col)
         for a in range(self.A):
             self.Hotellings_T2[f"{a+1}"] = (
                 self.Hotellings_T2.iloc[:, max(0, a - 1)]
                 + (self.x_scores.iloc[:, a] / self.scaling_factor_for_scores[a]) ** 2
             )
+            Xd -= self.x_scores.iloc[:, [a]] @ self.x_loadings.iloc[:, [a]].T
+            y_hat = self.x_scores.iloc[:, 0 : (a + 1)] @ self.y_loadings.iloc[:, 0 : (a + 1)].T
+            # These are the Residual Sums of Squares (RSS); i.e X-X_hat
+            row_SSX = ssq(Xd.values, axis=1)
+            col_SSX = ssq(Xd.values, axis=0)
+            row_SSY = ssq(y_hat.values, axis=1)
+            # R2 and cumulative R2 value for the whole block
+            self.R2cum[a] = sum(row_SSY) / base_variance_Y
+            if a > 0:
+                self.R2[a] = self.R2cum[a] - self.R2cum[a - 1]
+            else:
+                self.R2[a] = self.R2cum[a]
 
-        if not self.has_missing_data:
-            Xd = X.copy()
-            Yd = Y.copy()
-            prior_SS_col = ssq(Xd.values, axis=0)
-            base_variance = np.sum(prior_SS_col)
-            for a in range(self.A):
-                Xd -= self.x_scores.iloc[:, [a]] @ self.x_loadings.iloc[:, [a]].T
-                # These are the Residual Sums of Squares (RSS); i.e X-X_hat
-                row_SSX = ssq(Xd.values, axis=1)
-                col_SSX = ssq(Xd.values, axis=0)
+            # Don't use a check correction factor. Define SPE simply as the sum of squares of
+            # the errors, then take the square root, so it is interpreted like a standard error.
+            # If the user wants to normalize it, then this is a clean base value to start from.
+            self.squared_prediction_error.iloc[:, a] = np.sqrt(row_SSX)
 
-                # Don't use a check correction factor. Define SPE simply as the sum of squares of
-                # the errors, then take the square root, so it is interpreted like a standard error.
-                # If the user wants to normalize it, then this is a clean base value to start from.
-                self.squared_prediction_error.iloc[:, a] = np.sqrt(row_SSX)
-
-                # TODO: some entries in prior_SS_col can be zero and leads to nan's in R2X_k_cum
-                self.R2X_k_cum.iloc[:, a] = 1 - col_SSX / prior_SS_col
-
-                # R2 and cumulative R2 value for the whole block
-                self.R2cum[a] = 1 - sum(row_SSX) / base_variance
-                if a > 0:
-                    self.R2[a] = self.R2cum[a] - self.R2cum[a - 1]
-                else:
-                    self.R2[a] = self.R2cum[a]
-        # end: has no missing data
+            # TODO: some entries in prior_SSX_col can be zero and leads to nan's in R2X_k_cum
+            self.R2X_k_cum.iloc[:, a] = 1 - col_SSX / prior_SSX_col
 
         self.ellipse_coordinates = partial(
             ellipse_coordinates,
@@ -793,25 +795,23 @@ class PLS(PLS_sklearn):
 
         state = State()
         state.N, state.K = X.shape
-
         assert self.K == state.K, "Prediction data must same number of columns as training data."
-        X_mcuv = (X - self.x_mean_) / self.x_std_
+        X_mcuv = X.copy()
 
-        state.scores = np.zeros((state.N, self.A))
+        state.x_scores = np.zeros((state.N, self.A))
         for a in range(self.A):
-            p = self.x_loadings[:, a].reshape(self.K, 1)
-            w = self.x_weights[:, a].reshape(self.K, 1)
-            temp = X_mcuv @ w
+            p = self.x_loadings.iloc[:, [a]]
+            w = self.x_weights.iloc[:, [a]]
+            temp = X @ w
             X_mcuv -= temp @ p.T
-            state.scores[:, a] = temp.ravel()
+            state.x_scores[:, [a]] = temp
 
         # After using all self.A components, calculate SPE-residuals (sum over rows of the errors)
-        state.SPE = np.power(X_mcuv, 2).sum(axis=1)
-        state.Hotellings_T2 = np.sum(np.power((state.scores / self.SD_t), 2), 1)
-        y_hat = state.scores @ self.loadings_y.T
-
-        # Un-preprocess and return the entire state object
-        state.y_hat = y_hat * self.y_std_ + self.y_mean_
+        state.squared_prediction_error = np.power(X_mcuv, 2).sum(axis=1)
+        state.Hotellings_T2 = np.sum(
+            np.power((state.scores / self.scaling_factor_for_scores.values), 2), 1
+        )
+        state.y_hat = state.scores @ self.y_loadings.T
         return state
 
 

@@ -512,17 +512,17 @@ def fixture_PLS_model_SIMCA_1_component():
 
     TODO: test against R
 
-    X = matrix(c(41.1187, 21.2833, 21.1523, 0.2446, -0.0044, -0.131, 1.12,
-             41.7755, 22.0978, 21.1653, 0.3598, 0.1622, -0.9325, 1.01,
-             41.2568, 21.4873, 20.7407, 0.2536, 0.1635, -0.7467, 0.97,
-             41.5469, 22.2043, 20.4518, 0.6317, 0.1997, -1.7525, 0.83,
-             40.0234, 23.7399, 21.978, -0.0534, -0.0158, -1.7619, 0.93,
-             39.9203, 21.9997, 21.5859, -0.1811, 0.089, -0.4138, 1.02,
-             42.1886, 21.4891, 20.4427, 0.686, 0.1124, -1.0464, 0.91,
-             42.1454, 20.3803, 18.2327, 0.6607, 0.1291, -2.1476, 0.70,
-             42.272, 18.9725, 18.3763, 0.561, 0.0453, -0.5962, 1.26,
-             41.49, 18.603, 17.9978, 0.4872, 0.1198, -0.6052, 1.05,
-             41.5306, 19.1558, 18.2172, 0.6233, 0.1789, -0.9386, 0.95), nrow=11, byrow=T)
+    X = matrix(c(41.1187, 21.2833, 21.1523,  0.2446, -0.0044, -0.131,  1.12,
+                 41.7755, 22.0978, 21.1653,  0.3598,  0.1622, -0.9325, 1.01,
+                 41.2568, 21.4873, 20.7407,  0.2536,  0.1635, -0.7467, 0.97,
+                 41.5469, 22.2043, 20.4518,  0.6317,  0.1997, -1.7525, 0.83,
+                 40.0234, 23.7399, 21.978,  -0.0534, -0.0158, -1.7619, 0.93,
+                 39.9203, 21.9997, 21.5859, -0.1811,  0.089,  -0.4138, 1.02,
+                 42.1886, 21.4891, 20.4427,  0.686,   0.1124, -1.0464, 0.91,
+                 42.1454, 20.3803, 18.2327,  0.6607,  0.1291, -2.1476, 0.70,
+                 42.272,  18.9725, 18.3763,  0.561,   0.0453, -0.5962, 1.26,
+                 41.49,   18.603,  17.9978,  0.4872,  0.1198, -0.6052, 1.05,
+                 41.5306, 19.1558, 18.2172,  0.6233,  0.1789, -0.9386, 0.95), nrow=11, byrow=T)
 
     data = data.frame(X)
     colnames(data) <- c("A","B","C", "D", "E", "F", "y")
@@ -700,8 +700,6 @@ def test_PLS_compare_model_api(fixture_PLS_model_SIMCA_1_component):
     X_mcuv = MCUVScaler().fit(data["X"])
     Y_mcuv = MCUVScaler().fit(data["y"])
 
-    # center_x_
-
     # Check the pre-processing: sig figs have been taken as high as possible.
     assert X_mcuv.center_.values == approx(data["Xavg"], abs=1e-5)
     assert X_mcuv.scale_.values == approx(data["Xws"], abs=1e-6)
@@ -714,7 +712,10 @@ def test_PLS_compare_model_api(fixture_PLS_model_SIMCA_1_component):
     assert data["t1"] == approx(plsmodel.x_scores.ravel(), abs=1e-5)
     assert data["loadings_P1"] == approx(plsmodel.x_loadings.ravel(), abs=1e-5)
     assert data["loadings_r1"] == approx(plsmodel.x_weights.ravel(), abs=1e-6)
-    assert data["expected_y_predicted"] == approx(plsmodel.predictions.ravel(), abs=1e-5)
+
+    assert data["expected_y_predicted"] == approx(
+        Y_mcuv.inverse_transform(plsmodel.predictions.ravel()), abs=1e-5
+    )
     assert data["R2Y"] == approx(plsmodel.R2Ycum, abs=1e-6)
 
     # Check the model's predictions
@@ -724,7 +725,9 @@ def test_PLS_compare_model_api(fixture_PLS_model_SIMCA_1_component):
     assert plsmodel.SPE == approx(state.SPE, abs=1e-9)
     assert data["t1"] == approx(state.scores.ravel(), abs=1e-5)
     assert data["Tsq"] == approx(state.Tsq, abs=1e-5)
-    assert data["expected_y_predicted"] == approx(state.y_hat.ravel(), abs=1e-5)
+    assert data["expected_y_predicted"] == approx(
+        Y_mcuv.inverse_transform(state.y_hat.ravel()), abs=1e-5
+    )
 
 
 @pytest.fixture
@@ -888,26 +891,29 @@ def test_PLS_compare_API(fixture_PLS_SIMCA_2_components):
 
     plsmodel = PLS(n_components=data["A"])
 
-    X_mcuv = MCUVScaler().fit_transform(data["X"])
-    Y_mcuv = MCUVScaler().fit_transform(data["y"])
-
-    plsmodel.fit(X_mcuv, Y_mcuv)
+    X_mcuv = MCUVScaler().fit(data["X"])
+    Y_mcuv = MCUVScaler().fit(data["y"])
+    plsmodel.fit(X_mcuv.transform(data["X"]), Y_mcuv.transform(data["y"]))
 
     # Extract the model parameters
-    assert np.std(plsmodel.x_scores, ddof=1, axis=0) == approx(data["SDt"], abs=1e-6)
+    assert data["SDt"] == approx(np.std(plsmodel.x_scores, ddof=1, axis=0), abs=1e-6)
     assert np.abs(data["T"]) == approx(np.abs(plsmodel.x_scores), abs=1e-5)
     assert np.abs(data["loadings_P"]) == approx(np.abs(plsmodel.x_loadings), abs=1e-5)
     assert np.abs(data["loadings_W"]) == approx(np.abs(plsmodel.x_weights), abs=1e-5)
-    assert data["expected_y_predicted"] == approx(plsmodel.predictions.ravel(), abs=1e-5)
-    assert sum(data["R2Y"]) == approx(plsmodel.R2Ycum, abs=1e-7)
+    assert Y_mcuv.inverse_transform(plsmodel.predictions).values == approx(
+        data["expected_y_predicted"], abs=1e-5
+    )
+    assert sum(data["R2Y"]) == approx(plsmodel.R2cum.values[-1], abs=1e-7)
 
     # Check the model's predictions
-    state = plsmodel.predict(data["X"])
+    state = plsmodel.predict(X_mcuv.transform(data["X"]))
     # TODO: a check on SPE vs Simca-P. Here we are doing a check between the SPE from the
     # model building, to model-using, but not against an external library.
-    assert plsmodel.SPE == approx(state.SPE, abs=1e-10)
-    assert data["Tsq"] == approx(state.Tsq, abs=1e-5)
-    assert data["expected_y_predicted"] == approx(state.y_hat.ravel(), abs=1e-5)
+    assert plsmodel.squared_prediction_error == approx(state.squared_prediction_error, abs=1e-10)
+    assert data["Tsq"] == approx(state.Hotellings_T2, abs=1e-5)
+    assert data["expected_y_predicted"] == approx(
+        Y_mcuv.inverse_transform(state.y_hat), abs=1e-5
+    )
     assert np.abs(data["T"]) == approx(np.abs(state.scores), abs=1e-5)
 
 
@@ -981,10 +987,9 @@ def test_PLS_SIMCA_LDPE(fixture_PLS_LDPE_example):
     data = fixture_PLS_SIMCA_2_components
     plsmodel = PLS(n_components=data["A"])
 
-    X_mcuv = MCUVScaler().fit_transform(data["X"])
-    Y_mcuv = MCUVScaler().fit_transform(data["Y"])
-
-    plsmodel.fit(X_mcuv, Y_mcuv)
+    X_mcuv = MCUVScaler().fit(data["X"])
+    Y_mcuv = MCUVScaler().fit(data["y"])
+    plsmodel.fit(X_mcuv.transform(data["X"]), Y_mcuv.transform(data["y"]))
     plsmodel
 
     # TODO: This test fails. Investigate settings used to fit the model, to see if they
