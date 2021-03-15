@@ -482,7 +482,7 @@ def test_PLS_invalid_calls():
     dataX = pd.DataFrame(np.random.uniform(low=-1, high=1, size=(N, K)))
     dataY = pd.DataFrame(np.random.uniform(low=-1, high=1, size=(N, M)))
     with pytest.raises(ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"):
-        _ = PLS(n_components=A, method="nipals", tol=0)
+        _ = PLS(n_components=A, tol=0)
 
     with pytest.raises(ValueError, match="Method 'SVDS' is not known."):
         _ = PLS(n_components=A, method="SVDS")
@@ -736,42 +736,46 @@ def fixture_PLS_SIMCA_2_components():
     When X and y are mean centered and scaled, the model should provide the loadings listed here.
     """
     out = {}
-    out["X"] = np.array(
-        [
-            [1.27472, 0.897732, -0.193397,],
-            [1.27472, -1.04697, 0.264243,],
-            [0.00166722, 1.26739, 1.06862,],
-            [0.00166722, -0.0826556, -1.45344,],
-            [0.00166722, -1.46484, 1.91932,],
-            [-1.27516, 0.849516, -0.326239,],
-            [-1.27516, -1.06304, 0.317718,],
-            [-0.000590006, 1.26739, 1.06862,],
-            [-0.000590006, -0.0826556, -1.45344,],
-            [-0.000590006, -1.09519, 0.427109,],
-            [-1.27516, 0.849516, -0.326239,],
-            [-1.27516, -1.06304, 0.317718,],
-            [1.27398, 0.897732, -0.193397,],
-            [1.27398, -0.130872, -1.4372,],
-        ]
+    out["X"] = pd.DataFrame(
+        np.array(
+            [
+                [1.27472, 0.897732, -0.193397,],
+                [1.27472, -1.04697, 0.264243,],
+                [0.00166722, 1.26739, 1.06862,],
+                [0.00166722, -0.0826556, -1.45344,],
+                [0.00166722, -1.46484, 1.91932,],
+                [-1.27516, 0.849516, -0.326239,],
+                [-1.27516, -1.06304, 0.317718,],
+                [-0.000590006, 1.26739, 1.06862,],
+                [-0.000590006, -0.0826556, -1.45344,],
+                [-0.000590006, -1.09519, 0.427109,],
+                [-1.27516, 0.849516, -0.326239,],
+                [-1.27516, -1.06304, 0.317718,],
+                [1.27398, 0.897732, -0.193397,],
+                [1.27398, -0.130872, -1.4372,],
+            ]
+        )
     )
 
-    out["y"] = np.array(
-        [
-            -0.0862851,
-            -1.60162,
-            0.823439,
-            0.242033,
-            -1.64304,
-            1.59583,
-            -0.301604,
-            0.877623,
-            0.274155,
-            -0.967692,
-            1.47491,
-            -0.194163,
-            0.097352,
-            -0.590925,
-        ]
+    out["y"] = pd.DataFrame(
+        np.array(
+            [
+                -0.0862851,
+                -1.60162,
+                0.823439,
+                0.242033,
+                -1.64304,
+                1.59583,
+                -0.301604,
+                0.877623,
+                0.274155,
+                -0.967692,
+                1.47491,
+                -0.194163,
+                0.097352,
+                -0.590925,
+            ]
+        )
     )
     out["expected_y_predicted"] = [
         0.04587483,
@@ -881,8 +885,12 @@ def test_PLS_sklearn_2_components(fixture_PLS_SIMCA_2_components):
 def test_PLS_compare_API(fixture_PLS_SIMCA_2_components):
     data = fixture_PLS_SIMCA_2_components
 
-    plsmodel = PLS(n_components=data["A"], method="nipals")
-    plsmodel.fit(data["X"], data["y"])
+    plsmodel = PLS(n_components=data["A"])
+
+    X_mcuv = MCUVScaler().fit_transform(data["X"])
+    Y_mcuv = MCUVScaler().fit_transform(data["y"])
+
+    plsmodel.fit(X_mcuv, Y_mcuv)
 
     # Extract the model parameters
     assert np.std(plsmodel.scores, ddof=1, axis=0) == approx(data["SDt"], abs=1e-6)
@@ -970,7 +978,7 @@ def test_PLS_SIMCA_LDPE(fixture_PLS_LDPE_example):
         Dictionary of raw data and expected outputs from the PLS model.
     """
     data = fixture_PLS_SIMCA_2_components
-    plsmodel = PLS(n_components=data["A"], method="nipals")
+    plsmodel = PLS(n_components=data["A"])
 
     X_mcuv = MCUVScaler().fit_transform(data["X"])
     Y_mcuv = MCUVScaler().fit_transform(data["Y"])

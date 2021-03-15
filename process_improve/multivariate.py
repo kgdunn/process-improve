@@ -622,8 +622,6 @@ class PLS(PLS_sklearn):
         Abdi, "Partial least squares regression and projection on latent structure
         regression (PLS Regression)", 2010, DOI: 10.1002/wics.51
         """
-        if len(Y.shape) == 1:
-            Y = np.reshape(Y, (Y.shape[0], 1))
         self.N, self.K = X.shape
         self.Ny, self.Ky = Y.shape
         assert self.Ny == self.N, (
@@ -644,7 +642,7 @@ class PLS(PLS_sklearn):
             warnings.warn(warn, SpecificationWarning)
             self.A = self.n_components = min_dim
 
-        if np.any(X.isna()):
+        if np.any(Y.isna()) or np.any(X.isna()):
             # If there are missing data, then the missing data settings apply. Defaults are:
             #
             #       md_method = "tsr"
@@ -666,20 +664,24 @@ class PLS(PLS_sklearn):
 
         else:
             self = super().fit(X, Y)
-            self.components_ = self.components_.copy().T
+            self.x_scores_ = self.x_scores
+            self.y_scores_ = self.y_scores
+            self.x_weights_ = self.x_weights
+            self.y_weights_ = self.y_weights
+            self.x_loadings = self.x_loadings
+            self.y_loadings = self.y_loadings
+
             self.extra_info = {}
             self.extra_info["timing"] = np.zeros((1, self.A)) * np.nan
-            self.extra_info["iterations"] = np.zeros((1, self.A)) * np.nan
-
-            # plsmodel = PLSRegression(n_components=self.A, scale="True")
-            # plsmodel.fit(self.X, self.Y)
-            # t1_predict, y_scores = plsmodel.transform(self.X, self.Y)
+            self.extra_info["iterations"] = np.zeros((1, self.A)) * self.n_iter_
 
         # We have now fitted the model. Apply some convenience shortcuts for the user.
         self.A = self.n_components
         self.N = self.n_samples_
         self.K = self.n_features_
+
         # ???self.M = self.??
+
 
         # TODO:
         # # Attributes and internal values initialized
