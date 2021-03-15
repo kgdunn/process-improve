@@ -137,7 +137,21 @@ class PCA(PCA_sklearn):
         self.has_missing_data = False
 
     def fit(self, X, y=None) -> PCA_sklearn:
+        """
+        Fits a principal component analysis (PCA) model to the data.
 
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, n_features)
+            Training data, where `n_samples` is the number of samples (rows)
+            and `n_features` is the number of features (columns).
+        y : Not used; by default None
+
+        Returns
+        -------
+        PCA
+            Model object.
+        """
         self.N, self.K = X.shape
 
         # Check if number of components is supported against maximum requested
@@ -166,9 +180,7 @@ class PCA(PCA_sklearn):
 
             self.missing_data_settings = default_mds
             self = PCA_missing_values(
-                n_components=self.n_components,
-                random_state=self.random_state,
-                missing_data_settings=self.missing_data_settings,
+                n_components=self.n_components, missing_data_settings=self.missing_data_settings,
             )
             self.N, self.K = X.shape
             self.A = self.n_components
@@ -177,12 +189,14 @@ class PCA(PCA_sklearn):
         else:
             self = super().fit(X)
             self.components_ = self.components_.copy().T
+            self.extra_info = {}
+            self.extra_info["timing"] = np.zeros((1, self.A)) * np.nan
+            self.extra_info["iterations"] = np.zeros((1, self.A)) * np.nan
 
         # We have now fitted the model. Apply some convenience shortcuts for the user.
         self.A = self.n_components
         self.N = self.n_samples_
         self.K = self.n_features_
-        # Note: this one is transposed, to conform to standards
 
         self.loadings = pd.DataFrame(self.components_.copy())
         self.loadings.index = X.columns
@@ -204,19 +218,11 @@ class PCA(PCA_sklearn):
         if self.has_missing_data:
             self.t_scores = pd.DataFrame(self.t_scores, columns=component_names, index=X.index)
             self.squared_prediction_error = pd.DataFrame(
-                self.squared_prediction_error,
-                columns=component_names,
-                index=X.index.copy(),
+                self.squared_prediction_error, columns=component_names, index=X.index.copy(),
             )
-            self.R2 = pd.Series(
-                self.R2,
-                index=component_names,
-                name="Model's R^2, per component",
-            )
+            self.R2 = pd.Series(self.R2, index=component_names, name="Model's R^2, per component",)
             self.R2cum = pd.Series(
-                self.R2cum,
-                index=component_names,
-                name="Cumulative model's R^2, per component",
+                self.R2cum, index=component_names, name="Cumulative model's R^2, per component",
             )
             self.R2k_cum = pd.DataFrame(
                 self.R2k_cum,
@@ -229,9 +235,7 @@ class PCA(PCA_sklearn):
                 super().fit_transform(X), columns=component_names, index=X.index
             )
             self.squared_prediction_error = pd.DataFrame(
-                np.zeros((self.N, self.A)),
-                columns=component_names,
-                index=X.index.copy(),
+                np.zeros((self.N, self.A)), columns=component_names, index=X.index.copy(),
             )
             self.R2 = pd.Series(
                 np.zeros(shape=(self.A,)),
@@ -336,14 +340,9 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
     valid_md_methods = ["pmp", "scp", "nipals", "tsr"]
 
     def __init__(
-        self,
-        n_components=None,
-        copy: bool = True,
-        random_state=None,
-        missing_data_settings=dict,
+        self, n_components=None, copy: bool = True, missing_data_settings=dict,
     ):
         self.n_components = n_components
-        self.random_state = None
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = True
         self.missing_data_settings["md_max_iter"] = int(self.missing_data_settings["md_max_iter"])
@@ -581,16 +580,6 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
 
 
 class PLS(PLS_sklearn):
-    """
-    Performs a project to latent structures (PLS) or Partial Least Square (PLS) on the data.
-
-    References
-    ----------
-
-    Abdi, "Partial least squares regression and projection on latent structure
-    regression (PLS Regression)", 2010, DOI: 10.1002/wics.51
-    """
-
     def __init__(
         self,
         n_components: int = 2,
@@ -602,29 +591,36 @@ class PLS(PLS_sklearn):
         # Own extra inputs, for the case when there is missing data
         missing_data_settings: Optional[dict] = None,
     ):
-        self.max_iter = int(max_iter)
+        super().__init__(
+            n_components=n_components, scale=scale, max_iter=max_iter, tol=tol, copy=copy,
+        )
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = False
 
-        super().__init__(
-            n_components=n_components,
-            scale=scale,
-            max_iter=max_iter,
-            tol=tol,
-            copy=copy,
-        )
-
     def fit(self, X, Y) -> PLS_sklearn:
         """
+        Fits a projection to latent structures (PLS) or Partial Least Square (PLS) model to the
+        data.       
+    
         Parameters
         ----------
         X : array-like, shape (n_samples, n_features)
             Training data, where `n_samples` is the number of samples (rows)
             and `n_features` is the number of features (columns).
-
         Y : array-like, shape (n_samples, n_targets)
             Training data, where `n_samples` is the number of samples (rows)
             and `n_targets` is the number of target outputs (columns).
+
+        Returns
+        -------
+        PLS
+            Model object.
+
+        References
+        ----------
+
+        Abdi, "Partial least squares regression and projection on latent structure
+        regression (PLS Regression)", 2010, DOI: 10.1002/wics.51
         """
         if len(Y.shape) == 1:
             Y = np.reshape(Y, (Y.shape[0], 1))
@@ -661,22 +657,32 @@ class PLS(PLS_sklearn):
 
             self.missing_data_settings = default_mds
             self = PLS_missing_values(
-                n_components=self.n_components,
-                random_state=self.random_state,
-                missing_data_settings=self.missing_data_settings,
+                n_components=self.n_components, missing_data_settings=self.missing_data_settings,
             )
-
+            self.N, self.K = X.shape
+            self.Ny, self.M = Y.shape
             self.A = self.n_components
-            self.fit(X)
+            self.fit(X, Y)
 
         else:
-            self = super().fit(X)
+            self = super().fit(X, Y)
             self.components_ = self.components_.copy().T
+            self.extra_info = {}
+            self.extra_info["timing"] = np.zeros((1, self.A)) * np.nan
+            self.extra_info["iterations"] = np.zeros((1, self.A)) * np.nan
+
+            # plsmodel = PLSRegression(n_components=self.A, scale="True")
+            # plsmodel.fit(self.X, self.Y)
+            # t1_predict, y_scores = plsmodel.transform(self.X, self.Y)
+
+        # We have now fitted the model. Apply some convenience shortcuts for the user.
+        self.A = self.n_components
+        self.N = self.n_samples_
+        self.K = self.n_features_
+        # ???self.M = self.??
 
         # TODO:
         # # Attributes and internal values initialized
-        # DELETE: self.TSS = 0.0
-        # DELETE: self.ESS = None
         # self.t_scores = self.T = None
         # self.u_scores_y = None
         # self.loadings = self.P = None
@@ -694,16 +700,29 @@ class PLS(PLS_sklearn):
         # self.R2Yk_cum = None
         # self.timing = None
         # self.iterations = None
+        # Extract the model parameters
 
-        # We have now fitted the model. Apply some convenience shortcuts for the user.
-        self.A = self.n_components
-        self.N = self.n_samples_
-        self.K = self.n_features_
+        # self.TSS = np.sum(np.power(self.Y - np.mean(self.Y), 2))
+        # self.ESS = "TODO"
+        # self.scores = self.T = plsmodel.x_scores_
+        # self.scores_y = y_scores
+        # self.loadings = plsmodel.x_loadings_
+        # self.loadings_y = self.C = plsmodel.y_loadings_
+        # self.predictions_pp = self.scores @ self.loadings_y.T
+        # self.predictions = self.predictions_pp * plsmodel.y_std_ + plsmodel.y_mean_
+        # self.weights_x = plsmodel.x_weights_
+        # self.coeff = "TODO"
+        # self.eigenvalues = "TODO"
+        # self.eigenvectors = "TODO"
+        # self.R2Xcum = "TODO"
+        # self.R2Xk_cum = "TODO"
+        # error_y_ssq = np.sum((self.predictions - self.Y) ** 2, axis=None)
+        # self.R2Ycum = 1 - error_y_ssq / self.TSS
+        # self.R2Yk_cum = "TODO"
+        # self.timing = "TODO"
+        # self.iterations = "TODO"
 
         # Initialize storage:
-        self.extra_info = {}
-        self.extra_info["timing"] = np.zeros((1, self.A)) * np.nan
-        self.extra_info["iterations"] = np.zeros((1, self.A)) * np.nan
         self.loadings = pd.DataFrame(self.components_.copy())
         self.loadings.index = X.columns
         component_names = [f"{a+1}" for a in range(self.A)]
@@ -723,19 +742,11 @@ class PLS(PLS_sklearn):
         if self.has_missing_data:
             self.t_scores = pd.DataFrame(self.t_scores, columns=component_names, index=X.index)
             self.squared_prediction_error = pd.DataFrame(
-                self.squared_prediction_error,
-                columns=component_names,
-                index=X.index.copy(),
+                self.squared_prediction_error, columns=component_names, index=X.index.copy(),
             )
-            self.R2 = pd.Series(
-                self.R2,
-                index=component_names,
-                name="Model's R^2, per component",
-            )
+            self.R2 = pd.Series(self.R2, index=component_names, name="Model's R^2, per component",)
             self.R2cum = pd.Series(
-                self.R2cum,
-                index=component_names,
-                name="Cumulative model's R^2, per component",
+                self.R2cum, index=component_names, name="Cumulative model's R^2, per component",
             )
             self.R2k_cum = pd.DataFrame(
                 self.R2k_cum,
@@ -748,9 +759,7 @@ class PLS(PLS_sklearn):
                 super().fit_transform(X), columns=component_names, index=X.index
             )
             self.squared_prediction_error = pd.DataFrame(
-                np.zeros((self.N, self.A)),
-                columns=component_names,
-                index=X.index.copy(),
+                np.zeros((self.N, self.A)), columns=component_names, index=X.index.copy(),
             )
             self.R2 = pd.Series(
                 np.zeros(shape=(self.A,)),
@@ -771,6 +780,7 @@ class PLS(PLS_sklearn):
 
         if not self.has_missing_data:
             Xd = X.copy()
+            Yd = Y.copy()
             prior_SS_col = ssq(Xd.values, axis=0)
             base_variance = np.sum(prior_SS_col)
             for a in range(self.A):
@@ -811,84 +821,6 @@ class PLS(PLS_sklearn):
         self.T2_limit = partial(T2_limit, n_components=self.n_components, n_rows=self.N)
 
         return self
-
-        self.Y = np.asarray(Y)
-
-        # TODO: If missing data: implement PMP here.
-        # If no missing data
-        self._fit_nipals()
-
-        # TODO: Final calculations
-        # self._compute_rsquare_and_ic()
-        # if self._index is not None:
-        # self._to_pandas()
-
-    def _fit_nipals(self):
-        """This wrapper around the Scikit-Learn PLS function."""
-        # plsmodel = PLSRegression(n_components=self.A, scale="True")
-        plsmodel.fit(self.X, self.Y)
-        t1_predict, y_scores = plsmodel.transform(self.X, self.Y)
-
-        # Extract the model parameters
-
-        self.TSS = np.sum(np.power(self.Y - np.mean(self.Y), 2))
-        self.ESS = "TODO"
-
-        # self.x_mean_ = plsmodel.x_mean_
-        # self.x_std_ = plsmodel.x_std_
-        # self.y_mean_ = plsmodel.y_mean_
-        # self.y_std_ = plsmodel.y_std_
-
-        self.scores = self.T = plsmodel.x_scores_
-        self.scores_y = y_scores
-        self.loadings = plsmodel.x_loadings_
-        self.loadings_y = self.C = plsmodel.y_loadings_
-        self.predictions_pp = self.scores @ self.loadings_y.T
-        self.predictions = self.predictions_pp * plsmodel.y_std_ + plsmodel.y_mean_
-        self.weights_x = plsmodel.x_weights_
-
-        # Calculate Hotelling's T-squared
-        self.SD_t = np.std(self.T, axis=0, ddof=1)
-        self.Tsq = np.sum(self.T / self.SD_t, axis=1) ** 2
-        # Calculate confidence level for T-squared from the ppf of the F distribution
-        f_value = f.ppf(q=(1 - self.conf), dfn=self.A, dfd=self.N)
-        self.Tsq_limit = f_value * self.A * (self.N - 1) / (self.N - self.A)
-
-        # SPE, Q, DModX (different names for the same thing)
-        # --------------------------------------------------
-        # Predictions of X and Y spaces
-        X_hat = self.scores @ self.loadings.T
-        X_check = self.X.copy()
-        X_check -= self.x_mean_
-        X_check_mcuv = X_check / self.x_std_
-        error_X = X_check_mcuv - X_hat
-
-        # Calculate Q-residuals (sum over the rows of the error array)
-        # Estimate the confidence level for the Q-residuals
-        # See: https://nirpyresearch.com/outliers-detection-pls-regression-nir-spectroscopy-python/
-        self.SPE = np.sum(error_X ** 2, axis=1)
-        max_value = np.max(self.SPE) + 1
-        while 1 - np.sum(self.SPE > max_value) / np.sum(self.SPE > 0) > (1 - self.conf):
-            max_value -= 1
-
-        self.SPE_limit = max_value
-
-        self.coeff = "TODO"
-        self.eigenvalues = "TODO"
-        self.eigenvectors = "TODO"
-
-        self.R2Xcum = "TODO"
-        self.R2Xk_cum = "TODO"
-
-        error_y_ssq = np.sum((self.predictions - self.Y) ** 2, axis=None)
-
-        self.R2Ycum = 1 - error_y_ssq / self.TSS
-        self.R2Yk_cum = "TODO"
-
-        self.timing = "TODO"
-        self.iterations = "TODO"
-
-        # self._sklean_model = plsmodel
 
     def predict(self, X):
         """
@@ -945,14 +877,9 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
     valid_md_methods = ["pmp", "scp", "nipals", "tsr"]
 
     def __init__(
-        self,
-        n_components=None,
-        copy: bool = True,
-        random_state=None,
-        missing_data_settings=dict,
+        self, n_components=None, copy: bool = True, missing_data_settings=dict,
     ):
         self.n_components = n_components
-        self.random_state = None
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = True
         self.missing_data_settings["md_max_iter"] = int(self.missing_data_settings["md_max_iter"])
