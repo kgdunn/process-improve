@@ -7,11 +7,10 @@ import warnings
 import numpy as np
 import pandas as pd
 from scipy.stats import f, chi2
-from scipy.sparse import issparse
 
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.decomposition import PCA as PCA_sklearn
-from sklearn.cross_decomposition import PLSRegression
+from sklearn.cross_decomposition import PLSRegression as PLS_sklearn
 from sklearn.utils.validation import check_is_fitted
 
 epsqrt = np.sqrt(np.finfo(float).eps)
@@ -159,9 +158,9 @@ class PCA(PCA_sklearn):
             #
             #       md_method = "pmp"
             #       md_tol = np.sqrt(np.finfo(float).eps)
-            #       md_max_iter = (1000,)
+            #       md_max_iter = 1000
 
-            default_mds = dict(md_method="tsr", md_tol=epsqrt, md_max_iter=100)
+            default_mds = dict(md_method="tsr", md_tol=epsqrt, md_max_iter=1000)
             if isinstance(self.missing_data_settings, dict):
                 default_mds.update(self.missing_data_settings)
 
@@ -188,7 +187,7 @@ class PCA(PCA_sklearn):
         self.loadings = pd.DataFrame(self.components_.copy())
         self.loadings.index = X.columns
 
-        component_names = [f"PC {a+1}" for a in range(self.A)]
+        component_names = [f"{a+1}" for a in range(self.A)]
         self.loadings.columns = component_names
 
         self.scaling_factor_for_scores = pd.Series(
@@ -321,7 +320,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
     """
     Create our PCA class if there is even a single missing data value in the X input array.
 
-    The default method to impute missing values is the PMP algorithm (`md_method="pmp"`).
+    The default method to impute missing values is the TSR algorithm (`md_method="tsr"`).
 
     Missing data method options are:
 
@@ -347,19 +346,16 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         self.random_state = None
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = True
+        self.missing_data_settings["md_max_iter"] = int(self.missing_data_settings["md_max_iter"])
 
-        # TODO: various settings assertions here
         assert self.missing_data_settings["md_tol"] < 10, "Tolerance should not be too large"
         assert (
             self.missing_data_settings["md_tol"] > epsqrt ** 1.95
         ), "Tolerance must exceed machine precision"
 
         assert self.missing_data_settings["md_method"] in self.valid_md_methods, (
-            f"Missing data method is not recognized. ",
-            "Must be one of {valid_md_methods}.",
+            f"Missing data method is not recognized. Must be one of {self.valid_md_methods}.",
         )
-
-        assert True
 
     def fit(self, X, y=None):
 
@@ -409,10 +405,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         # NIPALS algorithm
         N, K, A = self.N, self.K, self.A
 
-        # 2. Initialize, or build on the existing results:
-        self.timing = np.zeros((A, 1))
-
-        # 4. Create direct links to the data
+        # Create direct links to the data
         Xd = np.asarray(self.data)
         base_variance = ssq(Xd)
 
@@ -423,11 +416,11 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
 
         for a in np.arange(A):
 
-            # 0. Timers and housekeeping
+            # Timers and housekeeping
             start_time = time.time()
             itern = 0
 
-            # 1. Find a column with the largest variance as t1_start; replace missing with zeros
+            # Find a column with the largest variance as t1_start; replace missing with zeros
             col_max_variance = Xd.var(axis=0).argmax()
             score_start = Xd[:, col_max_variance].reshape(N, 1)
             score_start[np.isnan(score_start)] = 0
@@ -515,11 +508,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         # end looping on A components
 
     def _fit_tsr(self, settings):
-        # TODO: these eventually move to the defaults/user specified
-        settings["md_tol"] = epsqrt
-        settings["md_max_iter"] = 500
         delta = 1e100
-
         Xd = np.asarray(self.data)
         N, K, A = self.N, self.K, self.A
         mmap = np.isnan(Xd)
@@ -591,7 +580,7 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
         return X * self.scale_x_ + self.center_x_
 
 
-class PLS:
+class PLS(PLS_sklearn):
     """
     Performs a project to latent structures (PLS) or Partial Least Square (PLS) on the data.
 
@@ -604,66 +593,31 @@ class PLS:
 
     def __init__(
         self,
-        n_components=None,
-        method="nipals",
-        tol=np.sqrt(np.finfo(float).eps),
-        max_iter=1000,
-        conf=0.05,  # 95% confidence level
-        md_method="pmp",
-        random_state=None,
+        n_components: int = 2,
+        *,
+        scale: bool = True,
+        max_iter: int = 1000,
+        tol: float = epsqrt,
+        copy: bool = True,
+        # Own extra inputs, for the case when there is missing data
+        missing_data_settings: Optional[dict] = None,
     ):
-        """
-        Currently only the NIPALS algorithm is supported. Missing data is NOT yet supported.
-        """
-
-        # Attributes which come later, during the .fit() function:
-        self.X = None
-        self.Y = None
-        self.conf = conf
-        self.N = self.K = None
-        self.A = max(0, int(n_components)) if n_components is not None else None
-        self.random_state = 13 if random_state is None else int(random_state)
-
-        # Check the remaining inputs
-        assert self.conf < 0.50, "Confidence level must be a small fraction, e.g. 0.05 for 95%"
-        self.n_components = self.A
-        self.tol = float(tol)
-        if not 1e-16 < self.tol < 1:
-            raise ValueError("Tolerance `tol`` must be between 1E-16 and 1.0")
         self.max_iter = int(max_iter)
+        self.missing_data_settings = missing_data_settings
+        self.has_missing_data = False
 
-        self.method = method.lower()
-        if self.method not in ("svd", "nipals"):
-            raise ValueError(f"Method '{method}' is not known.")
+        super().__init__(
+            n_components=n_components,
+            scale=scale,
+            deflation_mode="regression",
+            mode="A",
+            algorithm="nipals",
+            max_iter=max_iter,
+            tol=tol,
+            copy=copy,
+        )
 
-        self.md_method = md_method.lower()  # Missing data method
-        if self.md_method not in ("pmp",):
-            raise ValueError(f"Missing data method '{md_method}' is not known.")
-
-        # Attributes and internal values initialized
-        self.TSS = 0.0
-        self.ESS = None
-        self.scores = self.T = None
-        self.scores_y = None
-        self.loadings = self.P = None
-        self.loadings_y = None
-        self.weights_x = None
-        self.Tsq = None  # Hotelling's T2
-        self.Tsq_limit = None
-        self.SPE = None
-        self.SPE_limit = None
-        self.SD_t = None
-        self.coeff = None
-        self.eigenvalues = None
-        self.eigenvectors = None
-        self.R2Xcum = None
-        self.R2Xk_cum = None
-        self.R2Ycum = None
-        self.R2Yk_cum = None
-        self.timing = None
-        self.iterations = None
-
-    def fit(self, X, Y):
+    def fit(self, X, Y) -> PLS_sklearn:
         """
         Parameters
         ----------
@@ -675,38 +629,19 @@ class PLS:
             Training data, where `n_samples` is the number of samples (rows)
             and `n_targets` is the number of target outputs (columns).
         """
-        # Check the data:
-        self._index = self._columns = None
-        if isinstance(X, pd.DataFrame):
-            self._index = X.index
-            self._columns = X.columns
-
-        # Raise an error for sparse input.
-        # This is more informative than the generic one raised by check_array.
-        if issparse(X) or issparse(Y):
-            raise TypeError("This PLS class does not support sparse input.")
-
-        # Force to NumPy array:
-        self.X = np.asarray(X)
-        self.N, self.K = self.X.shape
-
-        self.Y = np.asarray(Y)
-        if len(self.Y.shape) == 1:
-            self.Y = np.reshape(self.Y, (self.Y.shape[0], 1))
-
-        self.Ny, self.Ky = self.Y.shape
-
+        if len(Y.shape) == 1:
+            Y = np.reshape(Y, (Y.shape[0], 1))
+        self.N, self.K = X.shape
+        self.Ny, self.Ky = Y.shape
         assert self.Ny == self.N, (
-            f"The X and Y arrays must have the same number of rows: "
-            f"X has {self.N} and Y has {self.Ny}."
+            f"The X and Y arrays must have the same number of rows: X has {self.N} and "
+            f"Y has {self.Ny}."
         )
 
-        # Check if number of components is supported. against maximum
+        # Check if number of components is supported against maximum requested
         min_dim = min(self.N, self.K)
-        self.A = min_dim if self.A is None else int(self.A)
+        self.A = min_dim if self.n_components is None else int(self.n_components)
         if self.A > min_dim:
-            import warnings
-
             warn = (
                 "The requested number of components is more than can be "
                 "computed from data. The maximum number of components is "
@@ -714,7 +649,173 @@ class PLS:
                 f"the number of columns ({self.K})."
             )
             warnings.warn(warn, SpecificationWarning)
-            self.A = min_dim
+            self.A = self.n_components = min_dim
+
+        if np.any(X.isna()):
+            # If there are missing data, then the missing data settings apply. Defaults are:
+            #
+            #       md_method = "tsr"
+            #       md_tol = np.sqrt(np.finfo(float).eps)
+            #       md_max_iter = self.max_iter
+
+            default_mds = dict(md_method="tsr", md_tol=epsqrt, md_max_iter=self.max_iter)
+            if isinstance(self.missing_data_settings, dict):
+                default_mds.update(self.missing_data_settings)
+
+            self.missing_data_settings = default_mds
+            self = PLS_missing_values(
+                n_components=self.n_components,
+                random_state=self.random_state,
+                missing_data_settings=self.missing_data_settings,
+            )
+
+            self.A = self.n_components
+            self.fit(X)
+
+        else:
+            self = super().fit(X)
+            self.components_ = self.components_.copy().T
+
+        # TODO:
+        # # Attributes and internal values initialized
+        # DELETE: self.TSS = 0.0
+        # DELETE: self.ESS = None
+        # self.t_scores = self.T = None
+        # self.u_scores_y = None
+        # self.loadings = self.P = None
+        # self.loadings_y = None
+        # self.weights_x = None
+        # self.Hotellings_T2 = None  # Hotelling's T2
+        # self.squared_prediction_error = None
+        # self.scaling_factor_for_scores = None
+        # self.beta_coefficients = None
+        # DELETE: self.eigenvalues = None
+        # DELETE: self.eigenvectors = None
+        # self.R2Xcum = None
+        # self.R2Xk_cum = None
+        # self.R2Ycum = None
+        # self.R2Yk_cum = None
+        # self.timing = None
+        # self.iterations = None
+
+        # We have now fitted the model. Apply some convenience shortcuts for the user.
+        self.A = self.n_components
+        self.N = self.n_samples_
+        self.K = self.n_features_
+
+        # Initialize storage:
+        self.extra_info = {}
+        self.extra_info["timing"] = np.zeros((1, self.A)) * np.nan
+        self.extra_info["iterations"] = np.zeros((1, self.A)) * np.nan
+        self.loadings = pd.DataFrame(self.components_.copy())
+        self.loadings.index = X.columns
+        component_names = [f"{a+1}" for a in range(self.A)]
+        self.loadings.columns = component_names
+
+        self.scaling_factor_for_scores = pd.Series(
+            np.sqrt(self.explained_variance_),
+            index=component_names,
+            name="Standard deviation per score",
+        )
+        self.Hotellings_T2 = pd.DataFrame(
+            np.zeros(shape=(self.N, self.A)),
+            columns=component_names,
+            index=X.index,
+            # name="Hotelling's T^2 statistic, per component",
+        )
+        if self.has_missing_data:
+            self.t_scores = pd.DataFrame(self.t_scores, columns=component_names, index=X.index)
+            self.squared_prediction_error = pd.DataFrame(
+                self.squared_prediction_error,
+                columns=component_names,
+                index=X.index.copy(),
+            )
+            self.R2 = pd.Series(
+                self.R2,
+                index=component_names,
+                name="Model's R^2, per component",
+            )
+            self.R2cum = pd.Series(
+                self.R2cum,
+                index=component_names,
+                name="Cumulative model's R^2, per component",
+            )
+            self.R2k_cum = pd.DataFrame(
+                self.R2k_cum,
+                columns=component_names,
+                index=X.columns,
+                # name ="Per variable R^2, per component"
+            )
+        else:
+            self.t_scores = pd.DataFrame(
+                super().fit_transform(X), columns=component_names, index=X.index
+            )
+            self.squared_prediction_error = pd.DataFrame(
+                np.zeros((self.N, self.A)),
+                columns=component_names,
+                index=X.index.copy(),
+            )
+            self.R2 = pd.Series(
+                np.zeros(shape=(self.A,)),
+                index=component_names,
+                name="Model's R^2, per component",
+            )
+            self.R2cum = pd.Series(
+                np.zeros(shape=(self.A,)),
+                index=component_names,
+                name="Cumulative model's R^2, per component",
+            )
+            self.R2k_cum = pd.DataFrame(
+                np.zeros(shape=(self.K, self.A)),
+                columns=component_names,
+                index=X.columns,
+                # name ="Per variable R^2, per component"
+            )
+
+        if not self.has_missing_data:
+            Xd = X.copy()
+            prior_SS_col = ssq(Xd.values, axis=0)
+            base_variance = np.sum(prior_SS_col)
+            for a in range(self.A):
+                Xd -= self.t_scores.iloc[:, [a]] @ self.loadings.iloc[:, [a]].T
+                # These are the Residual Sums of Squares (RSS); i.e X-X_hat
+                row_SSX = ssq(Xd.values, axis=1)
+                col_SSX = ssq(Xd.values, axis=0)
+
+                # Don't use a check correction factor. Define SPE simply as the sum of squares of
+                # the errors, then take the square root, so it is interpreted like a standard error.
+                # If the user wants to normalize it, then this is a clean base value to start from.
+                self.squared_prediction_error.iloc[:, a] = np.sqrt(row_SSX)
+
+                # TODO: some entries in prior_SS_col can be zero and leads to nan entries in R2k_cum
+                self.R2k_cum.iloc[:, a] = 1 - col_SSX / prior_SS_col
+
+                # R2 and cumulative R2 value for the whole block
+                self.R2cum[a] = 1 - sum(row_SSX) / base_variance
+                if a > 0:
+                    self.R2[a] = self.R2cum[a] - self.R2cum[a - 1]
+                else:
+                    self.R2[a] = self.R2cum[a]
+        # end: has no missing data
+
+        for a in range(self.A):
+            self.Hotellings_T2.iloc[:, a] = (
+                self.Hotellings_T2.iloc[:, max(0, a - 1)]
+                + (self.t_scores.iloc[:, a] / self.scaling_factor_for_scores[a]) ** 2
+            )
+
+        self.ellipse_coordinates = partial(
+            ellipse_coordinates,
+            n_components=self.n_components,
+            scaling_factor_for_scores=self.scaling_factor_for_scores,
+            n_rows=self.N,
+        )
+
+        self.T2_limit = partial(T2_limit, n_components=self.n_components, n_rows=self.N)
+
+        return self
+
+        self.Y = np.asarray(Y)
 
         # TODO: If missing data: implement PMP here.
         # If no missing data
@@ -727,7 +828,7 @@ class PLS:
 
     def _fit_nipals(self):
         """This wrapper around the Scikit-Learn PLS function."""
-        plsmodel = PLSRegression(n_components=self.A, scale="True")
+        # plsmodel = PLSRegression(n_components=self.A, scale="True")
         plsmodel.fit(self.X, self.Y)
         t1_predict, y_scores = plsmodel.transform(self.X, self.Y)
 
@@ -736,10 +837,10 @@ class PLS:
         self.TSS = np.sum(np.power(self.Y - np.mean(self.Y), 2))
         self.ESS = "TODO"
 
-        self.x_mean_ = plsmodel.x_mean_
-        self.x_std_ = plsmodel.x_std_
-        self.y_mean_ = plsmodel.y_mean_
-        self.y_std_ = plsmodel.y_std_
+        # self.x_mean_ = plsmodel.x_mean_
+        # self.x_std_ = plsmodel.x_std_
+        # self.y_mean_ = plsmodel.y_mean_
+        # self.y_std_ = plsmodel.y_std_
 
         self.scores = self.T = plsmodel.x_scores_
         self.scores_y = y_scores
@@ -790,7 +891,7 @@ class PLS:
         self.timing = "TODO"
         self.iterations = "TODO"
 
-        self._sklean_model = plsmodel
+        # self._sklean_model = plsmodel
 
     def predict(self, X):
         """
@@ -824,6 +925,49 @@ class PLS:
         # Un-preprocess and return the entire state object
         state.y_hat = y_hat * self.y_std_ + self.y_mean_
         return state
+
+
+class PLS_missing_values(BaseEstimator, TransformerMixin):
+    """
+    Create our PLS class if there is even a single missing data value in the X input array.
+
+    The default method to impute missing values is the TSR algorithm (`md_method="tsr"`).
+
+    Missing data method options are:
+
+    * 'pmp'         Projection to Model Plane
+    * 'scp'         Single Component Projection
+    * 'nipals'      Same as 'scp': non-linear iterative partial least squares.
+    * 'tsr':        Trimmed score regression
+
+    * Other options? See papers by Abel Folch-Fortuny and also:
+    https://analyticalsciencejournals.onlinelibrary.wiley.com/doi/abs/10.1002/cem.750
+
+    """
+
+    valid_md_methods = ["pmp", "scp", "nipals", "tsr"]
+
+    def __init__(
+        self,
+        n_components=None,
+        copy: bool = True,
+        random_state=None,
+        missing_data_settings=dict,
+    ):
+        self.n_components = n_components
+        self.random_state = None
+        self.missing_data_settings = missing_data_settings
+        self.has_missing_data = True
+        self.missing_data_settings["md_max_iter"] = int(self.missing_data_settings["md_max_iter"])
+
+        assert self.missing_data_settings["md_tol"] < 10, "Tolerance should not be too large"
+        assert (
+            self.missing_data_settings["md_tol"] > epsqrt ** 1.95
+        ), "Tolerance must exceed machine precision"
+
+        assert self.missing_data_settings["md_method"] in self.valid_md_methods, (
+            f"Missing data method is not recognized. Must be one of {self.valid_md_methods}.",
+        )
 
 
 def ssq(X: np.ndarray, axis: Optional[int] = None) -> Any:
