@@ -609,9 +609,6 @@ class PLS(PLS_sklearn):
         super().__init__(
             n_components=n_components,
             scale=scale,
-            deflation_mode="regression",
-            mode="A",
-            algorithm="nipals",
             max_iter=max_iter,
             tol=tol,
             copy=copy,

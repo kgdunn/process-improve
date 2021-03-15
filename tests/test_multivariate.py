@@ -504,8 +504,8 @@ def test_errors_PLS_invalid_calls():
     Tests various invalid calls, and corresponding error messages.
     """
     K, N, M, A = 4, 3, 2, 5
-    dataX = np.random.uniform(low=-1, high=1, size=(N, K))
-    dataY = np.random.uniform(low=-1, high=1, size=(N, M))
+    dataX = pd.DataFrame(np.random.uniform(low=-1, high=1, size=(N, K)))
+    dataY = pd.DataFrame(np.random.uniform(low=-1, high=1, size=(N, M)))
     with pytest.raises(
         ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"
     ):
