@@ -27,9 +27,10 @@ def test_PCA_SPE_limits():
     Simulate data and see if SPE limit cuts off at 5%.
     """
     N = 1000
+    repeats = 50
     outliers_95 = []
     outliers_99 = []
-    for k in range(20):
+    for k in range(repeats):
 
         # The desired mean values of the sample.
         mu = np.array([0.0, 0.0, 0.0])
@@ -46,8 +47,12 @@ def test_PCA_SPE_limits():
         SPE_limit_95 = pca.SPE_limit(0.95)
         SPE_limit_99 = pca.SPE_limit(0.99)
 
-        outliers_95.append((pca.squared_prediction_error.iloc[:, A - 1] > SPE_limit_95).sum())
-        outliers_99.append((pca.squared_prediction_error.iloc[:, A - 1] > SPE_limit_99).sum())
+        outliers_95.append(
+            (pca.squared_prediction_error.iloc[:, A - 1] > SPE_limit_95).sum()
+        )
+        outliers_99.append(
+            (pca.squared_prediction_error.iloc[:, A - 1] > SPE_limit_99).sum()
+        )
 
     assert np.mean(outliers_95) == approx(0.05 * N, rel=0.1)
     assert np.mean(outliers_99) == approx(0.01 * N, rel=0.1)
@@ -107,9 +112,9 @@ def test_PCA_missing_data(fixture_kamyr_data_missing_value):
     assert isinstance(model.missing_data_settings, dict)
     assert "md_tol" in model.missing_data_settings
 
-    assert np.linalg.norm((model.loadings.T @ model.loadings) - np.eye(model.A)) == approx(
-        0, abs=1e-2
-    )
+    assert np.linalg.norm(
+        (model.loadings.T @ model.loadings) - np.eye(model.A)
+    ) == approx(0, abs=1e-2)
 
 
 @pytest.fixture
@@ -270,9 +275,13 @@ def test_PCA_tablet_spectra(fixture_tablet_spectra_data):
 
             # Technically not need, but more explict this way.
             if i == j:
-                assert scores_covar.iloc[i, j] == approx(known_scores_covar[i, j], rel=1e-2)
+                assert scores_covar.iloc[i, j] == approx(
+                    known_scores_covar[i, j], rel=1e-2
+                )
             else:
-                assert scores_covar.iloc[i, j] == approx(known_scores_covar[i, j], abs=1e-4)
+                assert scores_covar.iloc[i, j] == approx(
+                    known_scores_covar[i, j], abs=1e-4
+                )
 
                 if i >= 1:
                     assert scores_covar.iloc[j, j] > scores_covar.iloc[i, i]
@@ -282,7 +291,9 @@ def test_PCA_tablet_spectra(fixture_tablet_spectra_data):
     autoscaled_X = scale(center(spectra))
     u, s, v = np.linalg.svd(autoscaled_X)
 
-    loadings_delta = np.linalg.norm(np.abs(v[0 : model.A, :]) - np.abs(model.loadings.T))
+    loadings_delta = np.linalg.norm(
+        np.abs(v[0 : model.A, :]) - np.abs(model.loadings.T)
+    )
     assert loadings_delta == approx(0, abs=1e-8)
 
     # It is not possible, it seems, to get the scores to match the SVD
@@ -318,9 +329,13 @@ def test_PCA_invalid_calls():
 
     data.iloc[0, 0] = np.nan
     with pytest.raises(AssertionError, match="Tolerance must exceed machine precision"):
-        _ = PCA(n_components=A, missing_data_settings=dict(md_method="nipals", md_tol=0)).fit(data)
+        _ = PCA(
+            n_components=A, missing_data_settings=dict(md_method="nipals", md_tol=0)
+        ).fit(data)
 
-    with pytest.raises(AssertionError, match=r"Missing data method is not recognized(.*)"):
+    with pytest.raises(
+        AssertionError, match=r"Missing data method is not recognized(.*)"
+    ):
         _ = PCA(n_components=A, missing_data_settings={"md_method": "SCP"}).fit(data)
 
     # TODO: replace with a check to ensure the data is in a DataFrame.
@@ -373,7 +388,9 @@ def test_PCA_columns_with_no_variance():
 
     # `loadings` is a K by A matrix.  Check sum of loadings in rows with
     # no variance must be zero
-    assert np.sum(np.abs(m.loadings.iloc[cols_with_no_variance, :].values)) == approx(0, abs=1e-14)
+    assert np.sum(np.abs(m.loadings.iloc[cols_with_no_variance, :].values)) == approx(
+        0, abs=1e-14
+    )
     # The loadings must still be orthonormal though:
     assert np.sum(np.identity(m.A) - m.loadings.values.T @ m.loadings.values) == approx(
         0, abs=1e-14
@@ -382,7 +399,9 @@ def test_PCA_columns_with_no_variance():
     # Are scores orthogonal?
     covmatrix = m.x_scores.T @ m.x_scores
     covmatrix - np.diag(np.diag(covmatrix))
-    (np.sum(np.abs(covmatrix - np.diag(np.diag(covmatrix))))).values == approx(0, abs=1e-6)
+    (np.sum(np.abs(covmatrix - np.diag(np.diag(covmatrix))))).values == approx(
+        0, abs=1e-6
+    )
 
 
 @pytest.fixture
@@ -408,7 +427,9 @@ def test_PCA_Wold_scaling(fixture_pca_PCA_Wold_etal_paper):
     Checks the scaling step. Page 40 of the above paper.
     """
 
-    out, scaling = scale(center(fixture_pca_PCA_Wold_etal_paper), extra_output=True, ddof=1)
+    out, scaling = scale(
+        center(fixture_pca_PCA_Wold_etal_paper), extra_output=True, ddof=1
+    )
     assert scaling == approx([1, 1, 0.5, 1])
 
 
@@ -440,8 +461,12 @@ def test_PCA_Wold_model_results(fixture_pca_PCA_Wold_etal_paper):
     X_preproc = scale(center(fixture_pca_PCA_Wold_etal_paper))
     pca_2 = PCA(n_components=2)
     pca_2.fit(X_preproc)
-    assert np.abs(pca_2.loadings.values[:, 0]) == approx([0.5410, 0.3493, 0.5410, 0.5410], abs=1e-4)
-    assert np.abs(pca_2.loadings.values[:, 1]) == approx([0.2017, 0.9370, 0.2017, 0.2017], abs=1e-4)
+    assert np.abs(pca_2.loadings.values[:, 0]) == approx(
+        [0.5410, 0.3493, 0.5410, 0.5410], abs=1e-4
+    )
+    assert np.abs(pca_2.loadings.values[:, 1]) == approx(
+        [0.2017, 0.9370, 0.2017, 0.2017], abs=1e-4
+    )
 
     # Scores. The scaling is off here by a constant factor of 0.8165
     # assert np.all(pca_2.x_scores["1"] == approx([-1.6229, -0.3493, 1.9723], rel=1e-3))
@@ -484,7 +509,9 @@ def test_PLS_invalid_calls():
     K, N, M, A = 4, 3, 2, 5
     dataX = pd.DataFrame(np.random.uniform(low=-1, high=1, size=(N, K)))
     dataY = pd.DataFrame(np.random.uniform(low=-1, high=1, size=(N, M)))
-    with pytest.raises(ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"):
+    with pytest.raises(
+        ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"
+    ):
         _ = PLS(n_components=A, tol=0)
 
     with pytest.raises(ValueError, match="Method 'SVDS' is not known."):
@@ -493,7 +520,9 @@ def test_PLS_invalid_calls():
     with pytest.raises(ValueError, match="Missing data method 'SCP' is not known."):
         _ = PLS(n_components=A, md_method="SCP")
 
-    with pytest.warns(SpecificationWarning, match=r"The requested number of components is (.*)"):
+    with pytest.warns(
+        SpecificationWarning, match=r"The requested number of components is (.*)"
+    ):
         model = PLS(
             n_components=A,
         )
@@ -502,7 +531,9 @@ def test_PLS_invalid_calls():
     from scipy.sparse import csr_matrix
 
     sparse_data = csr_matrix([[1, 2], [0, 3], [4, 5]])
-    with pytest.raises(TypeError, match="This PLS class does not support sparse input."):
+    with pytest.raises(
+        TypeError, match="This PLS class does not support sparse input."
+    ):
         model = PLS(n_components=2)
         model.fit(dataX, sparse_data)
 
@@ -731,7 +762,9 @@ def fixture_PLS_model_SIMCA_1_component():
             0.764301,
         ]
     )
-    data["Xavg"] = np.array([41.38802, 21.03755, 20.03097, 0.3884909, 0.1072455, -1.006582])
+    data["Xavg"] = np.array(
+        [41.38802, 21.03755, 20.03097, 0.3884909, 0.1072455, -1.006582]
+    )
     data["Xws"] = 1 / np.array(
         [
             1.259059,
@@ -1089,7 +1122,6 @@ def test_PLS_compare_API(fixture_PLS_SIMCA_2_components):
 @pytest.fixture
 def fixture_PLS_LDPE_example():
     """
-    Testing on 02 July 2020.
     No missing data.
     Source: https://openmv.net/info/ldpe
 
@@ -1113,6 +1145,7 @@ def fixture_PLS_LDPE_example():
     Fs1: flow rate of solvent to zone 1 [% of ethylene]
     Fs2: flow rate of solvent to zone 2 [% of ethylene]
     Press: pressure in the reactor [atm]
+    ------
     Conv: quality variable: cumulative conversion
     Mn: quality variable: number average molecular weight
     Mw: quality variable: weight average molecular weight
@@ -1120,27 +1153,57 @@ def fixture_PLS_LDPE_example():
     SCB: quality variable: short chain branching per 1000 C atoms
 
     N = 54
-    Kx = 14
-    Ky = 5
+    K = 14
+    M = 5
     A = 6
     """
     out = {}
-    values = pd.read_csv(pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "LDPE.csv")
-    out["expect_T"] = pd.read_csv(
+    values = pd.read_csv(
+        pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "LDPE.csv",
+        index_col=0,
+    )
+    out["expected_T"] = pd.read_csv(
         pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "T.csv", header=None
     )
-
-    # out["expected_P"] = pd.read_excel(fixture_file, sheet_name="P", header=None)
-    # out["expected_W"] = pd.read_excel(fixture_file, sheet_name="W", header=None)
-    # out["expected_C"] = pd.read_excel(fixture_file, sheet_name="C", header=None)
-    # out["expected_U"] = pd.read_excel(fixture_file, sheet_name="U", header=None)
-    # out["expected_Tsq"] = pd.read_excel(fixture_file, sheet_name="Tsq", header=None)
-    # out["expected_Y_hat"] = pd.read_excel(fixture_file, sheet_name="Y_hat", header=None)
-    out["expected_SD_t"] = np.array([1.872539, 1.440642, 1.216218, 1.141096, 1.059435, 0.9459715])
-    out["expected_T2_lim_95"] = 15.2017
-    out["expected_T2_lim_99"] = 21.2239
+    out["expected_P"] = pd.read_csv(
+        pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "P.csv", header=None
+    )
+    out["expected_W"] = pd.read_csv(
+        pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "W.csv", header=None
+    )
+    out["expected_C"] = pd.read_csv(
+        pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "C.csv", header=None
+    )
+    out["expected_U"] = pd.read_csv(
+        pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "U.csv", header=None
+    )
+    out["expected_Hotellings_T2_A3"] = pd.read_csv(
+        pathlib.Path(__file__).parents[0]
+        / "fixtures"
+        / "LDPE"
+        / "Hotellings_T2_A3.csv",
+        header=None,
+    )
+    out["expected_Hotellings_T2_A6"] = pd.read_csv(
+        pathlib.Path(__file__).parents[0]
+        / "fixtures"
+        / "LDPE"
+        / "Hotellings_T2_A6.csv",
+        header=None,
+    )
+    out["expected_Yhat_A6"] = pd.read_csv(
+        pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "Yhat_A6.csv",
+        header=None,
+    )
+    out["expected_SD_t"] = np.array(
+        [1.872539, 1.440642, 1.216218, 1.141096, 1.059435, 0.9459715]
+    )
+    out["expected_T2_lim_95_A6"] = 15.2017
+    out["expected_T2_lim_99_A6"] = 21.2239
     out["X"] = values.iloc[:, :14]
-    out["Y"] = values.iloc[:, 15:]
+    out["Y"] = values.iloc[:, 14:]
+    assert out["X"].shape == approx([54, 14])
+    assert out["Y"].shape == approx([54, 5])
     out["A"] = 6
     return out
 
@@ -1159,9 +1222,51 @@ def test_PLS_SIMCA_LDPE(fixture_PLS_LDPE_example):
     X_mcuv = MCUVScaler().fit(data["X"])
     Y_mcuv = MCUVScaler().fit(data["Y"])
     plsmodel.fit(X_mcuv.transform(data["X"]), Y_mcuv.transform(data["Y"]))
-    plsmodel
+    # Can onl
+    # y get these to very loosely match
+    assert data["expected_T2_lim_95_A6"] == approx(plsmodel.T2_limit(0.95), rel=1e-1)
+    assert data["expected_T2_lim_99_A6"] == approx(plsmodel.T2_limit(0.99), rel=1e-1)
 
-    # TODO: This test fails. Investigate settings used to fit the model, to see if they
-    # match how the expected results were generated.
+    assert np.mean(
+        np.abs(data["expected_T"].values) - np.abs(plsmodel.x_scores.values)
+    ) == approx(0, abs=1e-4)
+    assert np.mean(
+        np.abs(data["expected_P"].values) - np.abs(plsmodel.x_loadings.values)
+    ) == approx(0, abs=1e-5)
+    assert np.mean(
+        np.abs(data["expected_W"].values) - np.abs(plsmodel.x_weights.values)
+    ) == approx(0, abs=1e-6)
+    assert np.mean(
+        np.abs(data["expected_C"].values) - np.abs(plsmodel.y_loadings.values)
+    ) == approx(0, abs=1e-6)
+    assert np.mean(
+        np.abs(data["expected_U"].values) - np.abs(plsmodel.y_scores.values)
+    ) == approx(0, abs=1e-5)
+    assert np.mean(
+        data["expected_Hotellings_T2_A3"].values.ravel()
+        - plsmodel.Hotellings_T2.iloc[:, 2].values.ravel()
+    ) == approx(0, abs=1e-6)
+    assert np.mean(
+        data["expected_Hotellings_T2_A6"].values.ravel()
+        - plsmodel.Hotellings_T2.iloc[:, 5].values.ravel()
+    ) == approx(0, abs=1e-6)
+    assert np.mean(
+        data["expected_SD_t"].ravel()
+        - plsmodel.scaling_factor_for_scores.values.ravel()
+    ) == approx(0, abs=1e-5)
 
-    # Copy the code from the above test to check the outputs.
+    # Absolute sum of the deviations, accounting for the fact that each column in Y has quite
+    # different range/scaling.
+    assert np.sum(
+        np.abs(
+            np.sum(
+                np.abs(
+                    Y_mcuv.inverse_transform(plsmodel.y_predicted)
+                    - data["expected_Yhat_A6"].values
+                )
+            )
+            / Y_mcuv.center_
+        )
+    ) == approx(0, abs=1e-2)
+
+    # out[""] = np.array([1.872539, 1.440642, 1.216218, 1.141096, 1.059435, 0.9459715])
