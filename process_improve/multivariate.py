@@ -799,19 +799,23 @@ class PLS(PLS_sklearn):
         X_mcuv = X.copy()
 
         state.x_scores = np.zeros((state.N, self.A))
+        R = self.x_weights @ np.linalg.inv(self.x_loadings.T @ self.x_weights)
         for a in range(self.A):
-            p = self.x_loadings.iloc[:, [a]]
-            w = self.x_weights.iloc[:, [a]]
-            temp = X @ w
-            X_mcuv -= temp @ p.T
+            #p = self.x_loadings.iloc[:, [a]]
+            #w = self.x_weights.iloc[:, [a]]
+            r = R.iloc[:, [a]]
+            temp = X @ r
+            #X_mcuv -= temp @ p.T
             state.x_scores[:, [a]] = temp
 
         # After using all self.A components, calculate SPE-residuals (sum over rows of the errors)
         state.squared_prediction_error = np.power(X_mcuv, 2).sum(axis=1)
         state.Hotellings_T2 = np.sum(
-            np.power((state.scores / self.scaling_factor_for_scores.values), 2), 1
+            np.power((state.x_scores / self.scaling_factor_for_scores.values), 2), 1
         )
-        state.y_hat = state.scores @ self.y_loadings.T
+        state.y_hat = state.x_scores @ self.y_loadings.T
+
+        
         return state
 
 

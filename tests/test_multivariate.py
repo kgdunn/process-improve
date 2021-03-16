@@ -914,7 +914,7 @@ def test_PLS_compare_API(fixture_PLS_SIMCA_2_components):
     assert data["expected_y_predicted"] == approx(
         Y_mcuv.inverse_transform(state.y_hat), abs=1e-5
     )
-    assert np.abs(data["T"]) == approx(np.abs(state.scores), abs=1e-5)
+    assert np.abs(data["T"]) == approx(np.abs(state.x_scores), abs=1e-5)
 
 
 @pytest.fixture
