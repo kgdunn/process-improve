@@ -58,7 +58,12 @@ def test_PCA_foods():
     Arrays with no variance should not be able to have variance extracted.
     """
 
-    foods = pd.read_csv("https://openmv.net/file/food-texture.csv").drop(["Unnamed: 0",], axis=1,)
+    foods = pd.read_csv("https://openmv.net/file/food-texture.csv").drop(
+        [
+            "Unnamed: 0",
+        ],
+        axis=1,
+    )
     scaler = MCUVScaler().fit(foods)
     foods_mcuv = scaler.fit_transform(foods)
 
@@ -82,7 +87,9 @@ def test_PCA_foods():
 @pytest.fixture
 def fixture_kamyr_data_missing_value():
     return pd.read_csv(
-        pathlib.Path(__file__).parents[0] / "fixtures" / "kamyr.csv", index_col=None, header=None,
+        pathlib.Path(__file__).parents[0] / "fixtures" / "kamyr.csv",
+        index_col=None,
+        header=None,
     )
 
 
@@ -433,12 +440,8 @@ def test_PCA_Wold_model_results(fixture_pca_PCA_Wold_etal_paper):
     X_preproc = scale(center(fixture_pca_PCA_Wold_etal_paper))
     pca_2 = PCA(n_components=2)
     pca_2.fit(X_preproc)
-    assert np.abs(pca_2.loadings.values[:, 0]) == approx(
-        [0.5410, 0.3493, 0.5410, 0.5410], abs=1e-4
-    )
-    assert np.abs(pca_2.loadings.values[:, 1]) == approx(
-        [0.2017, 0.9370, 0.2017, 0.2017], abs=1e-4
-    )
+    assert np.abs(pca_2.loadings.values[:, 0]) == approx([0.5410, 0.3493, 0.5410, 0.5410], abs=1e-4)
+    assert np.abs(pca_2.loadings.values[:, 1]) == approx([0.2017, 0.9370, 0.2017, 0.2017], abs=1e-4)
 
     # Scores. The scaling is off here by a constant factor of 0.8165
     # assert np.all(pca_2.x_scores["1"] == approx([-1.6229, -0.3493, 1.9723], rel=1e-3))
@@ -491,7 +494,9 @@ def test_PLS_invalid_calls():
         _ = PLS(n_components=A, md_method="SCP")
 
     with pytest.warns(SpecificationWarning, match=r"The requested number of components is (.*)"):
-        model = PLS(n_components=A,)
+        model = PLS(
+            n_components=A,
+        )
         model.fit(dataX, dataY)
 
     from scipy.sparse import csr_matrix
@@ -549,17 +554,94 @@ def fixture_PLS_model_SIMCA_1_component():
     data["X"] = pd.DataFrame(
         np.array(
             [
-                [41.1187, 21.2833, 21.1523, 0.2446, -0.0044, -0.131,],
-                [41.7755, 22.0978, 21.1653, 0.3598, 0.1622, -0.9325,],
-                [41.2568, 21.4873, 20.7407, 0.2536, 0.1635, -0.7467,],
-                [41.5469, 22.2043, 20.4518, 0.6317, 0.1997, -1.7525,],
-                [40.0234, 23.7399, 21.978, -0.0534, -0.0158, -1.7619,],
-                [39.9203, 21.9997, 21.5859, -0.1811, 0.089, -0.4138,],
-                [42.1886, 21.4891, 20.4427, 0.686, 0.1124, -1.0464,],
-                [42.1454, 20.3803, 18.2327, 0.6607, 0.1291, -2.1476,],
-                [42.272, 18.9725, 18.3763, 0.561, 0.0453, -0.5962,],
-                [41.49, 18.603, 17.9978, 0.4872, 0.1198, -0.6052,],
-                [41.5306, 19.1558, 18.2172, 0.6233, 0.1789, -0.9386,],
+                [
+                    41.1187,
+                    21.2833,
+                    21.1523,
+                    0.2446,
+                    -0.0044,
+                    -0.131,
+                ],
+                [
+                    41.7755,
+                    22.0978,
+                    21.1653,
+                    0.3598,
+                    0.1622,
+                    -0.9325,
+                ],
+                [
+                    41.2568,
+                    21.4873,
+                    20.7407,
+                    0.2536,
+                    0.1635,
+                    -0.7467,
+                ],
+                [
+                    41.5469,
+                    22.2043,
+                    20.4518,
+                    0.6317,
+                    0.1997,
+                    -1.7525,
+                ],
+                [
+                    40.0234,
+                    23.7399,
+                    21.978,
+                    -0.0534,
+                    -0.0158,
+                    -1.7619,
+                ],
+                [
+                    39.9203,
+                    21.9997,
+                    21.5859,
+                    -0.1811,
+                    0.089,
+                    -0.4138,
+                ],
+                [
+                    42.1886,
+                    21.4891,
+                    20.4427,
+                    0.686,
+                    0.1124,
+                    -1.0464,
+                ],
+                [
+                    42.1454,
+                    20.3803,
+                    18.2327,
+                    0.6607,
+                    0.1291,
+                    -2.1476,
+                ],
+                [
+                    42.272,
+                    18.9725,
+                    18.3763,
+                    0.561,
+                    0.0453,
+                    -0.5962,
+                ],
+                [
+                    41.49,
+                    18.603,
+                    17.9978,
+                    0.4872,
+                    0.1198,
+                    -0.6052,
+                ],
+                [
+                    41.5306,
+                    19.1558,
+                    18.2172,
+                    0.6233,
+                    0.1789,
+                    -0.9386,
+                ],
             ]
         )
     )
@@ -581,10 +663,24 @@ def fixture_PLS_model_SIMCA_1_component():
         0.958111,
     ]
     data["loadings_P1"] = np.array(
-        [-0.2650725, -0.2165038, 0.08547913, -0.3954746, -0.4935882, 0.7541404,]
+        [
+            -0.2650725,
+            -0.2165038,
+            0.08547913,
+            -0.3954746,
+            -0.4935882,
+            0.7541404,
+        ]
     )
     data["loadings_r1"] = np.array(
-        [-0.04766187, -0.3137862, 0.004006641, -0.238001, -0.4430451, 0.8039384,]
+        [
+            -0.04766187,
+            -0.3137862,
+            0.004006641,
+            -0.238001,
+            -0.4430451,
+            0.8039384,
+        ]
     )
     data["loadings_y_c1"] = 0.713365
     data["SDt"] = 1.19833
@@ -636,7 +732,16 @@ def fixture_PLS_model_SIMCA_1_component():
         ]
     )
     data["Xavg"] = np.array([41.38802, 21.03755, 20.03097, 0.3884909, 0.1072455, -1.006582])
-    data["Xws"] = 1 / np.array([1.259059, 0.628138, 0.6594034, 3.379028, 13.8272, 1.589986,])
+    data["Xws"] = 1 / np.array(
+        [
+            1.259059,
+            0.628138,
+            0.6594034,
+            3.379028,
+            13.8272,
+            1.589986,
+        ]
+    )
     data["Yavg"] = 0.9772727
     data["Yws"] = 1 / 6.826007  # Simca-P uses inverse standard deviation
     data["A"] = 1
@@ -652,14 +757,14 @@ def test_PLS_compare_sklearn_1_component(fixture_PLS_model_SIMCA_1_component):
     plsmodel.fit(data["X"], data["y"])
 
     # Check the pre-processing: sig figs have been taken as high as possible.
-    assert plsmodel.x_mean_ == approx(data["Xavg"], abs=1e-5)
-    assert plsmodel.x_std_ == approx(data["Xws"], abs=1e-6)
-    assert plsmodel.y_mean_ == approx(data["Yavg"], abs=1e-7)
-    assert plsmodel.y_std_ == approx(data["Yws"], abs=1e-8)
+    assert plsmodel._x_mean == approx(data["Xavg"], abs=1e-5)
+    assert plsmodel._x_std == approx(data["Xws"], abs=1e-6)
+    assert plsmodel._y_mean == approx(data["Yavg"], abs=1e-7)
+    assert plsmodel._y_std == approx(data["Yws"], abs=1e-8)
 
     # Extract the model parameters
-    T = plsmodel.x_scores
-    P = plsmodel.x_loadings
+    T = plsmodel.x_scores_
+    P = plsmodel.x_loadings_
     assert T.ravel() == approx(data["t1"], abs=1e-5)
     assert np.std(T, ddof=1) == approx(data["SDt"], rel=1e-5)
     assert data["loadings_P1"].ravel() == approx(P.ravel(), rel=1e-5)
@@ -743,20 +848,76 @@ def fixture_PLS_SIMCA_2_components():
     out["X"] = pd.DataFrame(
         np.array(
             [
-                [1.27472, 0.897732, -0.193397,],
-                [1.27472, -1.04697, 0.264243,],
-                [0.00166722, 1.26739, 1.06862,],
-                [0.00166722, -0.0826556, -1.45344,],
-                [0.00166722, -1.46484, 1.91932,],
-                [-1.27516, 0.849516, -0.326239,],
-                [-1.27516, -1.06304, 0.317718,],
-                [-0.000590006, 1.26739, 1.06862,],
-                [-0.000590006, -0.0826556, -1.45344,],
-                [-0.000590006, -1.09519, 0.427109,],
-                [-1.27516, 0.849516, -0.326239,],
-                [-1.27516, -1.06304, 0.317718,],
-                [1.27398, 0.897732, -0.193397,],
-                [1.27398, -0.130872, -1.4372,],
+                [
+                    1.27472,
+                    0.897732,
+                    -0.193397,
+                ],
+                [
+                    1.27472,
+                    -1.04697,
+                    0.264243,
+                ],
+                [
+                    0.00166722,
+                    1.26739,
+                    1.06862,
+                ],
+                [
+                    0.00166722,
+                    -0.0826556,
+                    -1.45344,
+                ],
+                [
+                    0.00166722,
+                    -1.46484,
+                    1.91932,
+                ],
+                [
+                    -1.27516,
+                    0.849516,
+                    -0.326239,
+                ],
+                [
+                    -1.27516,
+                    -1.06304,
+                    0.317718,
+                ],
+                [
+                    -0.000590006,
+                    1.26739,
+                    1.06862,
+                ],
+                [
+                    -0.000590006,
+                    -0.0826556,
+                    -1.45344,
+                ],
+                [
+                    -0.000590006,
+                    -1.09519,
+                    0.427109,
+                ],
+                [
+                    -1.27516,
+                    0.849516,
+                    -0.326239,
+                ],
+                [
+                    -1.27516,
+                    -1.06304,
+                    0.317718,
+                ],
+                [
+                    1.27398,
+                    0.897732,
+                    -0.193397,
+                ],
+                [
+                    1.27398,
+                    -0.130872,
+                    -1.4372,
+                ],
             ]
         )
     )
@@ -909,10 +1070,12 @@ def test_PLS_compare_API(fixture_PLS_SIMCA_2_components):
     state = plsmodel.predict(X_mcuv.transform(data["X"]))
     # TODO: a check on SPE vs Simca-P. Here we are doing a check between the SPE from the
     # model building, to model-using, but not against an external library.
-    assert plsmodel.squared_prediction_error == approx(state.squared_prediction_error, abs=1e-10)
+    assert plsmodel.squared_prediction_error.iloc[:, -1].values == approx(
+        state.squared_prediction_error, abs=1e-10
+    )
     assert data["Tsq"] == approx(state.Hotellings_T2, abs=1e-5)
     assert data["expected_y_predicted"] == approx(
-        Y_mcuv.inverse_transform(state.y_hat), abs=1e-5
+        Y_mcuv.inverse_transform(state.y_hat).values.ravel(), abs=1e-5
     )
     assert np.abs(data["T"]) == approx(np.abs(state.x_scores), abs=1e-5)
 

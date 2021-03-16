@@ -180,7 +180,8 @@ class PCA(PCA_sklearn):
 
             self.missing_data_settings = default_mds
             self = PCA_missing_values(
-                n_components=self.n_components, missing_data_settings=self.missing_data_settings,
+                n_components=self.n_components,
+                missing_data_settings=self.missing_data_settings,
             )
             self.N, self.K = X.shape
             self.A = self.n_components
@@ -218,11 +219,19 @@ class PCA(PCA_sklearn):
         if self.has_missing_data:
             self.x_scores = pd.DataFrame(self.x_scores, columns=component_names, index=X.index)
             self.squared_prediction_error = pd.DataFrame(
-                self.squared_prediction_error, columns=component_names, index=X.index.copy(),
+                self.squared_prediction_error,
+                columns=component_names,
+                index=X.index.copy(),
             )
-            self.R2 = pd.Series(self.R2, index=component_names, name="Model's R^2, per component",)
+            self.R2 = pd.Series(
+                self.R2,
+                index=component_names,
+                name="Model's R^2, per component",
+            )
             self.R2cum = pd.Series(
-                self.R2cum, index=component_names, name="Cumulative model's R^2, per component",
+                self.R2cum,
+                index=component_names,
+                name="Cumulative model's R^2, per component",
             )
             self.R2X_k_cum = pd.DataFrame(
                 self.R2X_k_cum,
@@ -235,7 +244,9 @@ class PCA(PCA_sklearn):
                 super().fit_transform(X), columns=component_names, index=X.index
             )
             self.squared_prediction_error = pd.DataFrame(
-                np.zeros((self.N, self.A)), columns=component_names, index=X.index.copy(),
+                np.zeros((self.N, self.A)),
+                columns=component_names,
+                index=X.index.copy(),
             )
             self.R2 = pd.Series(
                 np.zeros(shape=(self.A,)),
@@ -340,7 +351,10 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
     valid_md_methods = ["pmp", "scp", "nipals", "tsr"]
 
     def __init__(
-        self, n_components=None, copy: bool = True, missing_data_settings=dict,
+        self,
+        n_components=None,
+        copy: bool = True,
+        missing_data_settings=dict,
     ):
         self.n_components = n_components
         self.missing_data_settings = missing_data_settings
@@ -592,7 +606,11 @@ class PLS(PLS_sklearn):
         missing_data_settings: Optional[dict] = None,
     ):
         super().__init__(
-            n_components=n_components, scale=scale, max_iter=max_iter, tol=tol, copy=copy,
+            n_components=n_components,
+            scale=scale,
+            max_iter=max_iter,
+            tol=tol,
+            copy=copy,
         )
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = False
@@ -600,8 +618,8 @@ class PLS(PLS_sklearn):
     def fit(self, X, Y) -> PLS_sklearn:
         """
         Fits a projection to latent structures (PLS) or Partial Least Square (PLS) model to the
-        data.       
-    
+        data.
+
         Parameters
         ----------
         X : array-like, shape (n_samples, n_features)
@@ -655,7 +673,8 @@ class PLS(PLS_sklearn):
 
             self.missing_data_settings = default_mds
             self = PLS_missing_values(
-                n_components=self.n_components, missing_data_settings=self.missing_data_settings,
+                n_components=self.n_components,
+                missing_data_settings=self.missing_data_settings,
             )
             self.N, self.K = X.shape
             self.Ny, self.M = Y.shape
@@ -666,12 +685,12 @@ class PLS(PLS_sklearn):
 
         else:
             self = super().fit(X, Y)
-            self.x_scores = self.x_scores_
-            self.y_scores = self.y_scores_
-            self.x_weights = self.x_weights_
-            self.y_weights = self.y_weights_
-            self.x_loadings = self.x_loadings_
-            self.y_loadings = self.y_loadings_
+            self.x_scores = self.x_scores_  # T: N x A
+            self.y_scores = self.y_scores_  # U: N x A
+            self.x_weights = self.x_weights_  # W: K x A
+            self.y_weights = self.y_weights_  #
+            self.x_loadings = self.x_loadings_  # P: K x A
+            self.y_loadings = self.y_loadings_  # C: M x A
 
             self.extra_info = {}
             self.extra_info["timing"] = np.zeros(self.A) * np.nan
@@ -680,18 +699,12 @@ class PLS(PLS_sklearn):
         # We have now fitted the model. Apply some convenience shortcuts for the user.
         self.A = self.n_components
 
-        # TODO:
-        # self.Hotellings_T2 = None  # Hotelling's T2
-        # self.squared_prediction_error = None
-        # self.scaling_factor_for_scores = None
-        # self.beta_coefficients = None
-        # self.TSS = np.sum(np.power(self.Y - np.mean(self.Y), 2))
-        # self.ESS = "TODO"
-
-        # self.loadings_y = = plsmodel.y_loadings_
-        # self.predictions_pp = self.scores @ self.loadings_y.T
-        # self.predictions = self.predictions_pp * plsmodel.y_std_ + plsmodel.y_mean_
-        # self.weights_x = plsmodel.x_weights_
+        # Further convenience calculations
+        # "direct_weights" is matrix R = W(P'W)^{-1}  [R is KxA matrix]; useful since T = XR
+        direct_weights = self.x_weights @ np.linalg.inv(self.x_loadings.T @ self.x_weights)
+        # beta = RC' [KxA by AxM = KxM]: the KxM matrix gives the direct link from the k-th (input)
+        # X variable, to the m-th (output) Y variable.
+        beta_coefficients = direct_weights @ self.y_loadings.T
 
         # Initialize storage:
         component_names = [f"{a+1}" for a in range(self.A)]
@@ -704,6 +717,9 @@ class PLS(PLS_sklearn):
         self.predictions = pd.DataFrame(
             self.x_scores @ self.y_loadings.T, index=Y.index, columns=Y.columns
         )
+        self.direct_weights = pd.DataFrame(direct_weights, index=X.columns, columns=component_names)
+
+        self.beta_coefficients = pd.DataFrame(beta_coefficients, index=X.columns, columns=Y.columns)
 
         self.explained_variance = np.diag(self.x_scores.T @ self.x_scores) / (self.N - 1)
         self.scaling_factor_for_scores = pd.Series(
@@ -718,10 +734,14 @@ class PLS(PLS_sklearn):
             # name="Hotelling's T^2 statistic, per component",
         )
         self.squared_prediction_error = pd.DataFrame(
-            np.zeros((self.N, self.A)), columns=component_names, index=X.index.copy(),
+            np.zeros((self.N, self.A)),
+            columns=component_names,
+            index=X.index.copy(),
         )
         self.R2 = pd.Series(
-            np.zeros(shape=(self.A)), index=component_names, name="Model's R^2, per component",
+            np.zeros(shape=(self.A)),
+            index=component_names,
+            name="Model's R^2, per component",
         )
         self.R2cum = pd.Series(
             np.zeros(shape=(self.A)),
@@ -796,26 +816,29 @@ class PLS(PLS_sklearn):
         state = State()
         state.N, state.K = X.shape
         assert self.K == state.K, "Prediction data must same number of columns as training data."
-        X_mcuv = X.copy()
 
-        state.x_scores = np.zeros((state.N, self.A))
-        R = self.x_weights @ np.linalg.inv(self.x_loadings.T @ self.x_weights)
+        state.x_scores = X @ self.direct_weights
+
+        # TODO: handle the missing data version here still
         for a in range(self.A):
-            #p = self.x_loadings.iloc[:, [a]]
-            #w = self.x_weights.iloc[:, [a]]
-            r = R.iloc[:, [a]]
-            temp = X @ r
-            #X_mcuv -= temp @ p.T
-            state.x_scores[:, [a]] = temp
+            pass
+            # p = self.x_loadings.iloc[:, [a]]
+            # w = self.x_weights.iloc[:, [a]]
+            # temp = X @ self.direct_weights.iloc[:, [a]]
+            # X_mcuv -= temp @ p.T
+            # state.x_scores[:, [a]] = temp
 
-        # After using all self.A components, calculate SPE-residuals (sum over rows of the errors)
-        state.squared_prediction_error = np.power(X_mcuv, 2).sum(axis=1)
+        # Scores are calculated, now do the rest
         state.Hotellings_T2 = np.sum(
             np.power((state.x_scores / self.scaling_factor_for_scores.values), 2), 1
         )
+        # Calculate SPE-residuals (sum over rows of the errors)
+        X_mcuv = X.copy()
+        X_mcuv -= state.x_scores @ self.x_loadings.T
+        state.squared_prediction_error = np.sqrt(np.power(X_mcuv, 2).sum(axis=1))
+        # Predicted values from the model (user still has to un-preprocess these predictions!)
         state.y_hat = state.x_scores @ self.y_loadings.T
 
-        
         return state
 
 
@@ -840,7 +863,10 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
     valid_md_methods = ["pmp", "scp", "nipals", "tsr"]
 
     def __init__(
-        self, n_components=None, copy: bool = True, missing_data_settings=dict,
+        self,
+        n_components=None,
+        copy: bool = True,
+        missing_data_settings=dict,
     ):
         self.n_components = n_components
         self.missing_data_settings = missing_data_settings
