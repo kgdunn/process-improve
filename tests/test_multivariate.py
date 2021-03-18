@@ -809,9 +809,9 @@ def test_PLS_compare_sklearn_1_component(fixture_PLS_model_SIMCA_1_component):
     # assert y_pp == approx((data["y"] - data["Yavg"]) / data["Yws"], abs=1e-6)
 
     # Manually make the PLS prediction
-    X_check = data["X"].copy()
-    X_check_mcuv = (X_check - plsmodel._x_mean) / plsmodel._x_std
-    t1_predict_manually = X_check_mcuv @ plsmodel.x_weights_
+    # X_check = data["X"].copy()
+    # X_check_mcuv = (X_check - plsmodel._x_mean) / plsmodel._x_std
+    # t1_predict_manually = X_check_mcuv @ plsmodel.x_weights_
 
     # TODO: fix the rest of this test. Not sure what the purpose of this test is anyway.
 

@@ -5,10 +5,10 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="process-improve",
-    version="0.7.4",
+    version="0.7.5",
     author="Kevin Dunn",
     author_email="kgdunn@gmail.com",
-    description="Process Improvement using Data, particularly Designed Experiments",
+    description="Process Improvement using Data: Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/kgdunn/process_improve",

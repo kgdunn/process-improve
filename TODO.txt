@@ -21,7 +21,10 @@ Robust PLS investigated?
     S. Serneels, C. Croux, P. Filzmoser, P.J. Van Espen, Partial Robust M-regression, Chemometrics and Intelligent Laboratory Systems, 79 (2005), 55-64
 
 #------
-
+* PLS with missing values: code below
+* PLS with TSR methods
+* Contribution plots
+* Boost coverage
 
 
     def _fit_PLS(self, blockX, blockY):
