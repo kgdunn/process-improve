@@ -22,92 +22,35 @@ class SpecificationWarning(UserWarning):
     pass
 
 
-def T2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -> float:
-    """Returns the Hotelling's T2 value at the given level of confidence.
-
-    Parameters
-    ----------
-    conf_level : float, optional
-        Fractional confidence limit, less that 1.00; by default 0.95
-
-    Returns
-    -------
-    float
-        The Hotelling's T2 limit at the given level of confidence.
+class MCUVScaler(BaseEstimator, TransformerMixin):
     """
-    assert conf_level > 0.0
-    assert conf_level < 1.0
-    assert n_rows > 0
-    A, N = n_components, n_rows
-    return A * (N - 1) * (N + 1) / (N * (N - A)) * f.isf((1 - conf_level), A, N - A)
-
-
-def ellipse_coordinates(
-    score_horiz: int,
-    score_vert: int,
-    T2_limit_conf_level: float = 0.95,
-    n_points: int = 100,
-    n_components: int = 0,
-    scaling_factor_for_scores=None,
-    n_rows: int = 0,
-) -> tuple:
-    """Get the (score_horiz, score_vert) coordinate pairs that form the T2 ellipse when
-        plotting the score `score_horiz` on the horizontal axis and `score_vert` on the
-        vertical axis.
-
-        Scores are referred to by number, starting at 1 and ending with `model.A`
-
-
-    Parameters
-    ----------
-    score_horiz : int
-        [description]
-    score_vert : int
-        [description]
-    T2_limit_conf_level : float
-        The `conf_level` confidence value: e.g. 0.95 is for the 95% confidence limit.
-    n_points : int, optional
-        Number of points to use in the ellipse; by default 100.
-
-    Returns
-    -------
-    tuple of 2 elements; the first for the x-axis; the second for the y-axis.
-        Returns `n_points` equispaced points that can be used to plot an ellipse.
-
-    Background
-    ----------
-
-    Equation of ellipse in *canonical* form (http://en.wikipedia.org/wiki/Ellipse)
-
-        (t_horiz/s_h)^2 + (t_vert/s_v)^2  =  T2_limit_alpha
-        s_horiz = stddev(T_horiz)
-        s_vert  = stddev(T_vert)
-        T2_limit_alpha = T2 confidence limit at a given alpha value
-
-    Equation of ellipse, *parametric* form (http://en.wikipedia.org/wiki/Ellipse):
-
-        t_horiz = sqrt(T2_limit_alpha)*s_h*cos(t)
-        t_vert  = sqrt(T2_limit_alpha)*s_v*sin(t)
-
-        where t ranges between 0 and 2*pi.
+    Create our own mean centering and scaling to unit variance (MCUV) class
+    The default scaler in sklearn does not handle small datasets accurately, with ddof.
     """
-    assert score_horiz >= 1
-    assert score_vert >= 1
-    assert score_horiz <= n_components
-    assert score_vert <= n_components
-    assert T2_limit_conf_level > 0
-    assert T2_limit_conf_level < 1
-    assert n_rows > 0
-    s_h = scaling_factor_for_scores[score_horiz - 1]
-    s_v = scaling_factor_for_scores[score_vert - 1]
-    T2_limit_specific = np.sqrt(
-        T2_limit(T2_limit_conf_level, n_components=n_components, n_rows=n_rows)
-    )
-    dt = 2 * np.pi / (n_points - 1)
-    steps = np.linspace(0, n_points - 1, n_points)
-    x = np.cos(steps * dt) * T2_limit_specific * s_h
-    y = np.sin(steps * dt) * T2_limit_specific * s_v
-    return x, y
+
+    def __init__(self):
+        pass
+
+    def fit(self, X, y=None):
+        self.center_ = X.mean()
+        # this is the key difference with "preprocessing.StandardScaler"
+        self.scale_ = X.std(ddof=1)
+        self.scale_[self.scale_ == 0] = 1.0  # columns with no variance are left as-is.
+        return self
+
+    def transform(self, X):
+        check_is_fitted(self, "center_")
+        check_is_fitted(self, "scale_")
+
+        X = X.copy()
+        return (X - self.center_) / self.scale_
+
+    def inverse_transform(self, X):
+        check_is_fitted(self, "center_")
+        check_is_fitted(self, "scale_")
+
+        X = X.copy()
+        return X * self.scale_ + self.center_
 
 
 class PCA(PCA_sklearn):
@@ -180,8 +123,7 @@ class PCA(PCA_sklearn):
 
             self.missing_data_settings = default_mds
             self = PCA_missing_values(
-                n_components=self.n_components,
-                missing_data_settings=self.missing_data_settings,
+                n_components=self.n_components, missing_data_settings=self.missing_data_settings,
             )
             self.N, self.K = X.shape
             self.A = self.n_components
@@ -217,23 +159,13 @@ class PCA(PCA_sklearn):
             # name="Hotelling's T^2 statistic, per component",
         )
         if self.has_missing_data:
-            self.x_scores = pd.DataFrame(
-                self.x_scores, columns=component_names, index=X.index
-            )
+            self.x_scores = pd.DataFrame(self.x_scores, columns=component_names, index=X.index)
             self.squared_prediction_error = pd.DataFrame(
-                self.squared_prediction_error,
-                columns=component_names,
-                index=X.index.copy(),
+                self.squared_prediction_error, columns=component_names, index=X.index.copy(),
             )
-            self.R2 = pd.Series(
-                self.R2,
-                index=component_names,
-                name="Model's R^2, per component",
-            )
+            self.R2 = pd.Series(self.R2, index=component_names, name="Model's R^2, per component",)
             self.R2cum = pd.Series(
-                self.R2cum,
-                index=component_names,
-                name="Cumulative model's R^2, per component",
+                self.R2cum, index=component_names, name="Cumulative model's R^2, per component",
             )
             self.R2X_k_cum = pd.DataFrame(
                 self.R2X_k_cum,
@@ -246,9 +178,7 @@ class PCA(PCA_sklearn):
                 super().fit_transform(X), columns=component_names, index=X.index
             )
             self.squared_prediction_error = pd.DataFrame(
-                np.zeros((self.N, self.A)),
-                columns=component_names,
-                index=X.index.copy(),
+                np.zeros((self.N, self.A)), columns=component_names, index=X.index.copy(),
             )
             self.R2 = pd.Series(
                 np.zeros(shape=(self.A,)),
@@ -353,21 +283,14 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
     valid_md_methods = ["pmp", "scp", "nipals", "tsr"]
 
     def __init__(
-        self,
-        n_components=None,
-        copy: bool = True,
-        missing_data_settings=dict,
+        self, n_components=None, copy: bool = True, missing_data_settings=dict,
     ):
         self.n_components = n_components
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = True
-        self.missing_data_settings["md_max_iter"] = int(
-            self.missing_data_settings["md_max_iter"]
-        )
+        self.missing_data_settings["md_max_iter"] = int(self.missing_data_settings["md_max_iter"])
 
-        assert (
-            self.missing_data_settings["md_tol"] < 10
-        ), "Tolerance should not be too large"
+        assert self.missing_data_settings["md_tol"] < 10, "Tolerance should not be too large"
         assert (
             self.missing_data_settings["md_tol"] > epsqrt ** 1.95
         ), "Tolerance must exceed machine precision"
@@ -402,9 +325,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
             self._fit_tsr(settings=self.missing_data_settings)
 
         # Additional calculations, which can be done after the missing data method is complete.
-        self.explained_variance_ = np.diag(self.x_scores.T @ self.x_scores) / (
-            self.N - 1
-        )
+        self.explained_variance_ = np.diag(self.x_scores.T @ self.x_scores) / (self.N - 1)
         return self
 
     def transform(self, X):
@@ -424,7 +345,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         Internal method to fit the PCA model using the NIPALS algorithm.
         """
         # NIPALS algorithm
-        N, K, A = self.N, self.K, self.A
+        K, A = self.K, self.A
 
         # Create direct links to the data
         Xd = np.asarray(self.data)
@@ -440,14 +361,9 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
             # Timers and housekeeping
             start_time = time.time()
             itern = 0
-
-            # Find a column with the largest variance as t1_start; replace missing with zeros
-            col_max_variance = Xd.var(axis=0).argmax()
-            score_start = Xd[:, col_max_variance].reshape(N, 1)
-            score_start[np.isnan(score_start)] = 0
             start_SS_col = ssq(Xd, axis=0)
 
-            if sum(start_SS_col) < settings["md_tol"]:
+            if sum(start_SS_col) < epsqrt:
                 emsg = (
                     "There is no variance left in the data array: cannot "
                     f"compute any more components beyond component {a}."
@@ -457,17 +373,17 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
             # Initialize t_a with random numbers, or carefully select a column
             # from X. <-- Don't do this anymore.
             # Rather: Pick a column from X as the initial guess instead.
-            t_a = score_start + 1.0
+            t_a_guess = Xd[:, [0]]  # .reshape(self.N, 1)
+            t_a_guess[np.isnan(t_a_guess)] = 0
+            t_a = t_a_guess + 1.0
             p_a = np.zeros((K, 1))
-            while not (
-                terminate_check(score_start, t_a, iterations=itern, settings=settings)
-            ):
+            while not (terminate_check(t_a_guess, t_a, iterations=itern, settings=settings)):
 
                 # 0: Richardson's acceleration, or any numerical acceleration
                 #    method for PCA where there is slow convergence?
 
                 # 0: starting point for convergence checking on next loop
-                score_start = t_a.copy()
+                t_a_guess = t_a.copy()
 
                 # 1: Regress the score, t_a, onto every column in X, compute the
                 #    regression coefficient and store in p_a
@@ -572,37 +488,6 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         self.data = Xd
 
 
-class MCUVScaler(BaseEstimator, TransformerMixin):
-    """
-    Create our own mean centering and scaling to unit variance (MCUV) class
-    The default scaler in sklearn does not handle small datasets accurately, with ddof.
-    """
-
-    def __init__(self):
-        pass
-
-    def fit(self, X, y=None):
-        self.center_ = X.mean()
-        # this is the key difference with "preprocessing.StandardScaler"
-        self.scale_ = X.std(ddof=1)
-        self.scale_[self.scale_ == 0] = 1.0  # columns with no variance are left as-is.
-        return self
-
-    def transform(self, X):
-        check_is_fitted(self, "center_")
-        check_is_fitted(self, "scale_")
-
-        X = X.copy()
-        return (X - self.center_) / self.scale_
-
-    def inverse_transform(self, X):
-        check_is_fitted(self, "center_")
-        check_is_fitted(self, "scale_")
-
-        X = X.copy()
-        return X * self.scale_ + self.center_
-
-
 class PLS(PLS_sklearn):
     def __init__(
         self,
@@ -616,11 +501,7 @@ class PLS(PLS_sklearn):
         missing_data_settings: Optional[dict] = None,
     ):
         super().__init__(
-            n_components=n_components,
-            scale=scale,
-            max_iter=max_iter,
-            tol=tol,
-            copy=copy,
+            n_components=n_components, scale=scale, max_iter=max_iter, tol=tol, copy=copy,
         )
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = False
@@ -677,16 +558,13 @@ class PLS(PLS_sklearn):
             #       md_tol = np.sqrt(np.finfo(float).eps)
             #       md_max_iter = self.max_iter
 
-            default_mds = dict(
-                md_method="tsr", md_tol=epsqrt, md_max_iter=self.max_iter
-            )
+            default_mds = dict(md_method="tsr", md_tol=epsqrt, md_max_iter=self.max_iter)
             if isinstance(self.missing_data_settings, dict):
                 default_mds.update(self.missing_data_settings)
 
             self.missing_data_settings = default_mds
             self = PLS_missing_values(
-                n_components=self.n_components,
-                missing_data_settings=self.missing_data_settings,
+                n_components=self.n_components, missing_data_settings=self.missing_data_settings,
             )
             self.N, self.K = X.shape
             self.Ny, self.M = Y.shape
@@ -699,7 +577,7 @@ class PLS(PLS_sklearn):
             # x_scores #T: N x A
             # y_scores # U: N x A
             # x_weights # W: K x A
-            # y_weights #
+            # y_weights # identical values to y_loadings. So this is redundant then.
             # x_loadings  # P: K x A
             # y_loadings  # C: M x A
 
@@ -712,33 +590,19 @@ class PLS(PLS_sklearn):
 
         # Further convenience calculations
         # "direct_weights" is matrix R = W(P'W)^{-1}  [R is KxA matrix]; useful since T = XR
-        direct_weights = self.x_weights_ @ np.linalg.inv(
-            self.x_loadings_.T @ self.x_weights_
-        )
+        direct_weights = self.x_weights_ @ np.linalg.inv(self.x_loadings_.T @ self.x_weights_)
         # beta = RC' [KxA by AxM = KxM]: the KxM matrix gives the direct link from the k-th (input)
         # X variable, to the m-th (output) Y variable.
         beta_coefficients = direct_weights @ self.y_loadings_.T
 
         # Initialize storage:
         component_names = [f"{a+1}" for a in range(self.A)]
-        self.x_scores = pd.DataFrame(
-            self.x_scores_, index=X.index, columns=component_names
-        )
-        self.y_scores = pd.DataFrame(
-            self.y_scores_, index=Y.index, columns=component_names
-        )
-        self.x_weights = pd.DataFrame(
-            self.x_weights_, index=X.columns, columns=component_names
-        )
-        self.y_weights = pd.DataFrame(
-            self.y_weights_, index=Y.columns, columns=component_names
-        )
-        self.x_loadings = pd.DataFrame(
-            self.x_loadings_, index=X.columns, columns=component_names
-        )
-        self.y_loadings = pd.DataFrame(
-            self.y_loadings_, index=Y.columns, columns=component_names
-        )
+        self.x_scores = pd.DataFrame(self.x_scores_, index=X.index, columns=component_names)
+        self.y_scores = pd.DataFrame(self.y_scores_, index=Y.index, columns=component_names)
+        self.x_weights = pd.DataFrame(self.x_weights_, index=X.columns, columns=component_names)
+        self.y_weights = pd.DataFrame(self.y_weights_, index=Y.columns, columns=component_names)
+        self.x_loadings = pd.DataFrame(self.x_loadings_, index=X.columns, columns=component_names)
+        self.y_loadings = pd.DataFrame(self.y_loadings_, index=Y.columns, columns=component_names)
         self.predictions = pd.DataFrame(
             self.x_scores @ self.y_loadings.T, index=Y.index, columns=Y.columns
         )
@@ -748,9 +612,7 @@ class PLS(PLS_sklearn):
         self.beta_coefficients = pd.DataFrame(
             beta_coefficients, index=X.columns, columns=Y.columns
         )
-        self.explained_variance = np.diag(self.x_scores.T @ self.x_scores) / (
-            self.N - 1
-        )
+        self.explained_variance = np.diag(self.x_scores.T @ self.x_scores) / (self.N - 1)
         self.scaling_factor_for_scores = pd.Series(
             np.sqrt(self.explained_variance),
             index=component_names,
@@ -763,14 +625,10 @@ class PLS(PLS_sklearn):
             # name="Hotelling's T^2 statistic, per component",
         )
         self.squared_prediction_error = pd.DataFrame(
-            np.zeros((self.N, self.A)),
-            columns=component_names,
-            index=X.index.copy(),
+            np.zeros((self.N, self.A)), columns=component_names, index=X.index.copy(),
         )
         self.R2 = pd.Series(
-            np.zeros(shape=(self.A)),
-            index=component_names,
-            name="Model's R^2, per component",
+            np.zeros(shape=(self.A)), index=component_names, name="Model's R^2, per component",
         )
         self.R2cum = pd.Series(
             np.zeros(shape=(self.A)),
@@ -783,7 +641,7 @@ class PLS(PLS_sklearn):
             columns=component_names,
             # name ="Per variable in the X-space: R^2, per component"
         )
-        self.R2Y_k_cum = pd.DataFrame(
+        self.R2Y_m_cum = pd.DataFrame(
             np.zeros(shape=(self.M, self.A)),
             index=Y.columns,
             columns=component_names,
@@ -801,14 +659,12 @@ class PLS(PLS_sklearn):
                 + (self.x_scores.iloc[:, a] / self.scaling_factor_for_scores[a]) ** 2
             )
             Xd -= self.x_scores.iloc[:, [a]] @ self.x_loadings.iloc[:, [a]].T
-            y_hat = (
-                self.x_scores.iloc[:, 0 : (a + 1)]
-                @ self.y_loadings.iloc[:, 0 : (a + 1)].T
-            )
+            y_hat = self.x_scores.iloc[:, 0 : (a + 1)] @ self.y_loadings.iloc[:, 0 : (a + 1)].T
             # These are the Residual Sums of Squares (RSS); i.e X-X_hat
             row_SSX = ssq(Xd.values, axis=1)
             col_SSX = ssq(Xd.values, axis=0)
             row_SSY = ssq(y_hat.values, axis=1)
+            col_SSY = ssq(y_hat.values, axis=0)
             # R2 and cumulative R2 value for the whole block
             self.R2cum[a] = sum(row_SSY) / base_variance_Y
             if a > 0:
@@ -823,6 +679,7 @@ class PLS(PLS_sklearn):
 
             # TODO: some entries in prior_SSX_col can be zero and leads to nan's in R2X_k_cum
             self.R2X_k_cum.iloc[:, a] = 1 - col_SSX / prior_SSX_col
+            self.R2Y_m_cum.iloc[:, a] = 1 - col_SSY / prior_SSY_col
 
         self.y_predicted = y_hat
 
@@ -849,9 +706,7 @@ class PLS(PLS_sklearn):
 
         state = State()
         state.N, state.K = X.shape
-        assert (
-            self.K == state.K
-        ), "Prediction data must same number of columns as training data."
+        assert self.K == state.K, "Prediction data must same number of columns as training data."
 
         state.x_scores = X @ self.direct_weights
 
@@ -899,21 +754,14 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
     valid_md_methods = ["pmp", "scp", "nipals", "tsr"]
 
     def __init__(
-        self,
-        n_components=None,
-        copy: bool = True,
-        missing_data_settings=dict,
+        self, n_components=None, copy: bool = True, missing_data_settings=dict,
     ):
         self.n_components = n_components
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = True
-        self.missing_data_settings["md_max_iter"] = int(
-            self.missing_data_settings["md_max_iter"]
-        )
+        self.missing_data_settings["md_max_iter"] = int(self.missing_data_settings["md_max_iter"])
 
-        assert (
-            self.missing_data_settings["md_tol"] < 10
-        ), "Tolerance should not be too large"
+        assert self.missing_data_settings["md_tol"] < 10, "Tolerance should not be too large"
         assert (
             self.missing_data_settings["md_tol"] > epsqrt ** 1.95
         ), "Tolerance must exceed machine precision"
@@ -921,6 +769,169 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
         assert self.missing_data_settings["md_method"] in self.valid_md_methods, (
             f"Missing data method is not recognized. Must be one of {self.valid_md_methods}.",
         )
+
+    def fit(self, X, Y):
+        """
+        Fits a PLS latent variable model between `X` and `Y` data arrays, accounting for missing
+        values (nan's) in either or both arrays.
+
+        1.  Höskuldsson, PLS regression methods, Journal of Chemometrics, 2(3), 211-228, 1998,
+            http://dx.doi.org/10.1002/cem.1180020306
+        """
+        # Force input to NumPy array:
+        self.Xd = np.asarray(X)
+        self.Yd = np.asarray(Y)
+
+        if np.any(np.sum(self.Yd, axis=1) == 0):
+            raise Warning(
+                (
+                    "Cannot handle the case yet where the entire observation in Y-matrix is "
+                    "missing. Please remove those rows and refit model."
+                )
+            )
+
+        # Other setups:
+        self.n_components = self.A
+        self.n_samples_ = self.N
+        self.n_features_ = self.K
+        # self.M ?
+
+        self.x_scores_ = np.zeros((self.N, self.A))  # T: N x A
+        self.y_scores_ = np.zeros((self.N, self.A))  # U: N x A
+        self.x_weights_ = np.zeros((self.K, self.A))  # W: K x A
+        self.y_weights_ = None
+        self.x_loadings_ = np.zeros((self.K, self.A))  # P: K x A
+        self.y_loadings_ = np.zeros((self.M, self.A))  # C: M x A
+
+        self.R2 = np.zeros(shape=(self.A,))
+        self.R2cum = np.zeros(shape=(self.A,))
+        self.R2X_k_cum = np.zeros(shape=(self.K, self.A))
+        self.R2Y_m_cum = np.zeros(shape=(self.M, self.A))
+        self.squared_prediction_error = np.zeros((self.N, self.A))
+
+        # Perform MD algorithm here
+        if self.missing_data_settings["md_method"].lower() == "pmp":
+            self._fit_pmp_pls(X)
+        elif self.missing_data_settings["md_method"].lower() in ["scp", "nipals"]:
+            self._fit_nipals_pls(settings=self.missing_data_settings)
+        elif self.missing_data_settings["md_method"].lower() in ["tsr"]:
+            self._fit_tsr_pls(settings=self.missing_data_settings)
+
+        # Additional calculations, which can be done after the missing data method is complete.
+        # self.explained_variance_ = np.diag(self.x_scores.T @ self.x_scores) / (self.N - 1)
+        return self
+
+    def _fit_nipals_pls(self, settings):
+        """
+        Internal method to fit the PLS model using the NIPALS algorithm.
+        """
+        # NIPALS algorithm
+        A = self.A
+
+        # Initialize storage:
+        self.extra_info = {}
+        self.extra_info["timing"] = np.zeros(A) * np.nan
+        self.extra_info["iterations"] = np.zeros(A) * np.nan
+
+        for a in np.arange(A):
+
+            # Timers and housekeeping
+            start_time = time.time()
+            itern = 0
+
+            start_SSX_col = ssq(self.Xd, axis=0)
+            start_SSY_col = ssq(self.Yd, axis=0)
+
+            if sum(start_SSX_col) < epsqrt:
+                emsg = (
+                    "There is no variance left in the data array for X: cannot "
+                    f"compute any more components beyond component {a}."
+                )
+                raise RuntimeError(emsg)
+            if sum(start_SSY_col) < epsqrt:
+                emsg = (
+                    "There is no variance left in the data array for Y: cannot "
+                    f"compute any more components beyond component {a}."
+                )
+                raise RuntimeError(emsg)
+
+            # Initialize t_a with random numbers, or carefully select a column from X or Y?
+            # Find a column with the largest variance as t1_start; replace missing with zeros
+            # All columns have the same variance if the data have been scaled to unit variance!
+            u_a_guess = self.Yd[:, [0]]
+            u_a_guess[np.isnan(u_a_guess)] = 0
+            u_a = u_a_guess + 1.0
+
+            while not (terminate_check(u_a_guess, u_a, iterations=itern, settings=settings)):
+
+                # 0: starting point for convergence checking on next loop
+                u_a_guess = u_a.copy()
+
+                # 1: Regress the score, u_a, onto every column in X, compute the
+                #    regression coefficient and store in w_a
+                # w_a = X.T * u_a / (u_a.T * u_a)
+                w_a = quick_regress(self.Xd, u_a)
+
+                # 2: Normalize w_a to unit length
+                w_a /= np.sqrt(ssq(w_a))
+
+                # 3: Now regress each row in X on the w_a vector, and store the
+                #    regression coefficient in t_a
+                # t_a = X * w_a / (w_a.T * w_a)
+                t_a = quick_regress(self.Xd, w_a)
+
+                # 4: Now regress score, t_a, onto every column in Y, compute the
+                #    regression coefficient and store in c_a
+                # c_a = Y * t_a / (t_a.T * t_a)
+                c_a = quick_regress(self.Yd, t_a)
+
+                # 5: Now regress each row in Y on the c_a vector, and store the
+                #    regression coefficient in u_a
+                # u_a = Y * c_a / (c_a.T * c_a)
+                #
+                # TODO(KGD):  % Still handle case when entire row in Y is missing
+                u_a = quick_regress(self.Yd, c_a)
+
+                itern += 1
+
+            self.extra_info["timing"][a] = time.time() - start_time
+            self.extra_info["iterations"][a] = itern
+
+            if itern > settings["md_max_iter"]:
+                Warning("PLS missing data [SCP method]: maximum number of iterations reached!")
+
+            # Loop terminated!
+            # 6: Now deflate the X-matrix.  To do that we need to calculate loadings for the
+            # X-space.  Regress columns of t_a onto each column in X and calculate loadings, p_a.
+            # Use this p_a to deflate afterwards.
+            p_a = quick_regress(self.Xd, t_a)  # Note the similarity with step 4!
+            self.Xd -= np.dot(t_a, p_a.T)  # and that similarity helps understand
+            self.Yd -= np.dot(t_a, c_a.T)  # the deflation process.
+
+            ## VIP value (only calculated for X-blocks); only last column is useful
+            # self.stats.VIP_a = np.zeros((self.K, self.A))
+            # self.stats.VIP = np.zeros(self.K)
+
+            # Store results
+            # -------------
+            # Flip the signs of the column vectors in P so that the largest
+            # magnitude element is positive (Wold, Esbensen, Geladi, PCA,
+            # CILS, 1987, p 42)
+            max_el_idx = np.argmax(np.abs(p_a))
+            if np.sign(p_a[max_el_idx]) < 1:
+                t_a *= -1.0
+                u_a *= -1.0
+                w_a *= -1.0
+                p_a *= -1.0
+                c_a *= -1.0
+
+            # Store the loadings and scores
+            self.x_scores_[:, a] = t_a.flatten()
+            self.y_scores_[:, a] = u_a.flatten()
+            self.x_weights_[:, a] = w_a.flatten()
+            self.x_loadings_[:, a] = p_a.flatten()
+            self.y_loadings_[:, a] = c_a.flatten()
+            # end looping on ``a``
 
 
 def ssq(X: np.ndarray, axis: Optional[int] = None) -> Any:
@@ -1061,7 +1072,7 @@ def scale(X, func=np.std, axis=0, extra_output=False, **kwargs):
     """
     # options = {}
     # options["markers"] = None
-    # options["variance_tolerance"] = 1e-7
+    # options["variance_tolerance"] = epsqrt
     # options["low_variance_replacement"] = np.NaN
 
     vector = pd.DataFrame(X).apply(func, axis=axis, **kwargs).values
@@ -1076,6 +1087,94 @@ def scale(X, func=np.std, axis=0, extra_output=False, **kwargs):
         return np.multiply(X, vector), vector
     else:
         return np.multiply(X, vector)
+
+
+def T2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -> float:
+    """Returns the Hotelling's T2 value at the given level of confidence.
+
+    Parameters
+    ----------
+    conf_level : float, optional
+        Fractional confidence limit, less that 1.00; by default 0.95
+
+    Returns
+    -------
+    float
+        The Hotelling's T2 limit at the given level of confidence.
+    """
+    assert conf_level > 0.0
+    assert conf_level < 1.0
+    assert n_rows > 0
+    A, N = n_components, n_rows
+    return A * (N - 1) * (N + 1) / (N * (N - A)) * f.isf((1 - conf_level), A, N - A)
+
+
+def ellipse_coordinates(
+    score_horiz: int,
+    score_vert: int,
+    T2_limit_conf_level: float = 0.95,
+    n_points: int = 100,
+    n_components: int = 0,
+    scaling_factor_for_scores=None,
+    n_rows: int = 0,
+) -> tuple:
+    """Get the (score_horiz, score_vert) coordinate pairs that form the T2 ellipse when
+        plotting the score `score_horiz` on the horizontal axis and `score_vert` on the
+        vertical axis.
+
+        Scores are referred to by number, starting at 1 and ending with `model.A`
+
+
+    Parameters
+    ----------
+    score_horiz : int
+        [description]
+    score_vert : int
+        [description]
+    T2_limit_conf_level : float
+        The `conf_level` confidence value: e.g. 0.95 is for the 95% confidence limit.
+    n_points : int, optional
+        Number of points to use in the ellipse; by default 100.
+
+    Returns
+    -------
+    tuple of 2 elements; the first for the x-axis; the second for the y-axis.
+        Returns `n_points` equispaced points that can be used to plot an ellipse.
+
+    Background
+    ----------
+
+    Equation of ellipse in *canonical* form (http://en.wikipedia.org/wiki/Ellipse)
+
+        (t_horiz/s_h)^2 + (t_vert/s_v)^2  =  T2_limit_alpha
+        s_horiz = stddev(T_horiz)
+        s_vert  = stddev(T_vert)
+        T2_limit_alpha = T2 confidence limit at a given alpha value
+
+    Equation of ellipse, *parametric* form (http://en.wikipedia.org/wiki/Ellipse):
+
+        t_horiz = sqrt(T2_limit_alpha)*s_h*cos(t)
+        t_vert  = sqrt(T2_limit_alpha)*s_v*sin(t)
+
+        where t ranges between 0 and 2*pi.
+    """
+    assert score_horiz >= 1
+    assert score_vert >= 1
+    assert score_horiz <= n_components
+    assert score_vert <= n_components
+    assert T2_limit_conf_level > 0
+    assert T2_limit_conf_level < 1
+    assert n_rows > 0
+    s_h = scaling_factor_for_scores[score_horiz - 1]
+    s_v = scaling_factor_for_scores[score_vert - 1]
+    T2_limit_specific = np.sqrt(
+        T2_limit(T2_limit_conf_level, n_components=n_components, n_rows=n_rows)
+    )
+    dt = 2 * np.pi / (n_points - 1)
+    steps = np.linspace(0, n_points - 1, n_points)
+    x = np.cos(steps * dt) * T2_limit_specific * s_h
+    y = np.sin(steps * dt) * T2_limit_specific * s_v
+    return x, y
 
 
 # def _apply_pca(self, new=None):
