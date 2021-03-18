@@ -15,7 +15,9 @@ def dtw_understanding():
     plt.plot(x, reference, ".-", c="blue")
     plt.plot(x, query, ".-", c="red")
     plt.grid()
-    res = dtw(query, y=reference, window_type="sakoechiba", window_size=int(0.2 * len(x)))
+    res = dtw(
+        query, y=reference, window_type="sakoechiba", window_size=int(0.2 * len(x))
+    )
     warping_path = res.get_warping_path(target="query")
     plt.plot(x, query[warping_path], ".-", c="purple")
     plt.title("The query signal (red), aligned (purple) with the reference (blue)")

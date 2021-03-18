@@ -123,7 +123,8 @@ class PCA(PCA_sklearn):
 
             self.missing_data_settings = default_mds
             self = PCA_missing_values(
-                n_components=self.n_components, missing_data_settings=self.missing_data_settings,
+                n_components=self.n_components,
+                missing_data_settings=self.missing_data_settings,
             )
             self.N, self.K = X.shape
             self.A = self.n_components
@@ -159,13 +160,23 @@ class PCA(PCA_sklearn):
             # name="Hotelling's T^2 statistic, per component",
         )
         if self.has_missing_data:
-            self.x_scores = pd.DataFrame(self.x_scores, columns=component_names, index=X.index)
-            self.squared_prediction_error = pd.DataFrame(
-                self.squared_prediction_error, columns=component_names, index=X.index.copy(),
+            self.x_scores = pd.DataFrame(
+                self.x_scores, columns=component_names, index=X.index
             )
-            self.R2 = pd.Series(self.R2, index=component_names, name="Model's R^2, per component",)
+            self.squared_prediction_error = pd.DataFrame(
+                self.squared_prediction_error,
+                columns=component_names,
+                index=X.index.copy(),
+            )
+            self.R2 = pd.Series(
+                self.R2,
+                index=component_names,
+                name="Model's R^2, per component",
+            )
             self.R2cum = pd.Series(
-                self.R2cum, index=component_names, name="Cumulative model's R^2, per component",
+                self.R2cum,
+                index=component_names,
+                name="Cumulative model's R^2, per component",
             )
             self.R2X_k_cum = pd.DataFrame(
                 self.R2X_k_cum,
@@ -178,7 +189,9 @@ class PCA(PCA_sklearn):
                 super().fit_transform(X), columns=component_names, index=X.index
             )
             self.squared_prediction_error = pd.DataFrame(
-                np.zeros((self.N, self.A)), columns=component_names, index=X.index.copy(),
+                np.zeros((self.N, self.A)),
+                columns=component_names,
+                index=X.index.copy(),
             )
             self.R2 = pd.Series(
                 np.zeros(shape=(self.A,)),
@@ -283,14 +296,21 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
     valid_md_methods = ["pmp", "scp", "nipals", "tsr"]
 
     def __init__(
-        self, n_components=None, copy: bool = True, missing_data_settings=dict,
+        self,
+        n_components=None,
+        copy: bool = True,
+        missing_data_settings=dict,
     ):
         self.n_components = n_components
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = True
-        self.missing_data_settings["md_max_iter"] = int(self.missing_data_settings["md_max_iter"])
+        self.missing_data_settings["md_max_iter"] = int(
+            self.missing_data_settings["md_max_iter"]
+        )
 
-        assert self.missing_data_settings["md_tol"] < 10, "Tolerance should not be too large"
+        assert (
+            self.missing_data_settings["md_tol"] < 10
+        ), "Tolerance should not be too large"
         assert (
             self.missing_data_settings["md_tol"] > epsqrt ** 1.95
         ), "Tolerance must exceed machine precision"
@@ -325,7 +345,9 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
             self._fit_tsr(settings=self.missing_data_settings)
 
         # Additional calculations, which can be done after the missing data method is complete.
-        self.explained_variance_ = np.diag(self.x_scores.T @ self.x_scores) / (self.N - 1)
+        self.explained_variance_ = np.diag(self.x_scores.T @ self.x_scores) / (
+            self.N - 1
+        )
         return self
 
     def transform(self, X):
@@ -377,7 +399,9 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
             t_a_guess[np.isnan(t_a_guess)] = 0
             t_a = t_a_guess + 1.0
             p_a = np.zeros((K, 1))
-            while not (terminate_check(t_a_guess, t_a, iterations=itern, settings=settings)):
+            while not (
+                terminate_check(t_a_guess, t_a, iterations=itern, settings=settings)
+            ):
 
                 # 0: Richardson's acceleration, or any numerical acceleration
                 #    method for PCA where there is slow convergence?
@@ -501,7 +525,11 @@ class PLS(PLS_sklearn):
         missing_data_settings: Optional[dict] = None,
     ):
         super().__init__(
-            n_components=n_components, scale=scale, max_iter=max_iter, tol=tol, copy=copy,
+            n_components=n_components,
+            scale=scale,
+            max_iter=max_iter,
+            tol=tol,
+            copy=copy,
         )
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = False
@@ -558,13 +586,16 @@ class PLS(PLS_sklearn):
             #       md_tol = np.sqrt(np.finfo(float).eps)
             #       md_max_iter = self.max_iter
 
-            default_mds = dict(md_method="tsr", md_tol=epsqrt, md_max_iter=self.max_iter)
+            default_mds = dict(
+                md_method="tsr", md_tol=epsqrt, md_max_iter=self.max_iter
+            )
             if isinstance(self.missing_data_settings, dict):
                 default_mds.update(self.missing_data_settings)
 
             self.missing_data_settings = default_mds
             self = PLS_missing_values(
-                n_components=self.n_components, missing_data_settings=self.missing_data_settings,
+                n_components=self.n_components,
+                missing_data_settings=self.missing_data_settings,
             )
             self.N, self.K = X.shape
             self.Ny, self.M = Y.shape
@@ -590,19 +621,33 @@ class PLS(PLS_sklearn):
 
         # Further convenience calculations
         # "direct_weights" is matrix R = W(P'W)^{-1}  [R is KxA matrix]; useful since T = XR
-        direct_weights = self.x_weights_ @ np.linalg.inv(self.x_loadings_.T @ self.x_weights_)
+        direct_weights = self.x_weights_ @ np.linalg.inv(
+            self.x_loadings_.T @ self.x_weights_
+        )
         # beta = RC' [KxA by AxM = KxM]: the KxM matrix gives the direct link from the k-th (input)
         # X variable, to the m-th (output) Y variable.
         beta_coefficients = direct_weights @ self.y_loadings_.T
 
         # Initialize storage:
         component_names = [f"{a+1}" for a in range(self.A)]
-        self.x_scores = pd.DataFrame(self.x_scores_, index=X.index, columns=component_names)
-        self.y_scores = pd.DataFrame(self.y_scores_, index=Y.index, columns=component_names)
-        self.x_weights = pd.DataFrame(self.x_weights_, index=X.columns, columns=component_names)
-        self.y_weights = pd.DataFrame(self.y_weights_, index=Y.columns, columns=component_names)
-        self.x_loadings = pd.DataFrame(self.x_loadings_, index=X.columns, columns=component_names)
-        self.y_loadings = pd.DataFrame(self.y_loadings_, index=Y.columns, columns=component_names)
+        self.x_scores = pd.DataFrame(
+            self.x_scores_, index=X.index, columns=component_names
+        )
+        self.y_scores = pd.DataFrame(
+            self.y_scores_, index=Y.index, columns=component_names
+        )
+        self.x_weights = pd.DataFrame(
+            self.x_weights_, index=X.columns, columns=component_names
+        )
+        self.y_weights = pd.DataFrame(
+            self.y_weights_, index=Y.columns, columns=component_names
+        )
+        self.x_loadings = pd.DataFrame(
+            self.x_loadings_, index=X.columns, columns=component_names
+        )
+        self.y_loadings = pd.DataFrame(
+            self.y_loadings_, index=Y.columns, columns=component_names
+        )
         self.predictions = pd.DataFrame(
             self.x_scores @ self.y_loadings.T, index=Y.index, columns=Y.columns
         )
@@ -612,7 +657,9 @@ class PLS(PLS_sklearn):
         self.beta_coefficients = pd.DataFrame(
             beta_coefficients, index=X.columns, columns=Y.columns
         )
-        self.explained_variance = np.diag(self.x_scores.T @ self.x_scores) / (self.N - 1)
+        self.explained_variance = np.diag(self.x_scores.T @ self.x_scores) / (
+            self.N - 1
+        )
         self.scaling_factor_for_scores = pd.Series(
             np.sqrt(self.explained_variance),
             index=component_names,
@@ -625,10 +672,14 @@ class PLS(PLS_sklearn):
             # name="Hotelling's T^2 statistic, per component",
         )
         self.squared_prediction_error = pd.DataFrame(
-            np.zeros((self.N, self.A)), columns=component_names, index=X.index.copy(),
+            np.zeros((self.N, self.A)),
+            columns=component_names,
+            index=X.index.copy(),
         )
         self.R2 = pd.Series(
-            np.zeros(shape=(self.A)), index=component_names, name="Model's R^2, per component",
+            np.zeros(shape=(self.A)),
+            index=component_names,
+            name="Model's R^2, per component",
         )
         self.R2cum = pd.Series(
             np.zeros(shape=(self.A)),
@@ -659,7 +710,10 @@ class PLS(PLS_sklearn):
                 + (self.x_scores.iloc[:, a] / self.scaling_factor_for_scores[a]) ** 2
             )
             Xd -= self.x_scores.iloc[:, [a]] @ self.x_loadings.iloc[:, [a]].T
-            y_hat = self.x_scores.iloc[:, 0 : (a + 1)] @ self.y_loadings.iloc[:, 0 : (a + 1)].T
+            y_hat = (
+                self.x_scores.iloc[:, 0 : (a + 1)]
+                @ self.y_loadings.iloc[:, 0 : (a + 1)].T
+            )
             # These are the Residual Sums of Squares (RSS); i.e X-X_hat
             row_SSX = ssq(Xd.values, axis=1)
             col_SSX = ssq(Xd.values, axis=0)
@@ -706,7 +760,9 @@ class PLS(PLS_sklearn):
 
         state = State()
         state.N, state.K = X.shape
-        assert self.K == state.K, "Prediction data must same number of columns as training data."
+        assert (
+            self.K == state.K
+        ), "Prediction data must same number of columns as training data."
 
         state.x_scores = X @ self.direct_weights
 
@@ -754,14 +810,21 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
     valid_md_methods = ["pmp", "scp", "nipals", "tsr"]
 
     def __init__(
-        self, n_components=None, copy: bool = True, missing_data_settings=dict,
+        self,
+        n_components=None,
+        copy: bool = True,
+        missing_data_settings=dict,
     ):
         self.n_components = n_components
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = True
-        self.missing_data_settings["md_max_iter"] = int(self.missing_data_settings["md_max_iter"])
+        self.missing_data_settings["md_max_iter"] = int(
+            self.missing_data_settings["md_max_iter"]
+        )
 
-        assert self.missing_data_settings["md_tol"] < 10, "Tolerance should not be too large"
+        assert (
+            self.missing_data_settings["md_tol"] < 10
+        ), "Tolerance should not be too large"
         assert (
             self.missing_data_settings["md_tol"] > epsqrt ** 1.95
         ), "Tolerance must exceed machine precision"
@@ -862,7 +925,9 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
             u_a_guess[np.isnan(u_a_guess)] = 0
             u_a = u_a_guess + 1.0
 
-            while not (terminate_check(u_a_guess, u_a, iterations=itern, settings=settings)):
+            while not (
+                terminate_check(u_a_guess, u_a, iterations=itern, settings=settings)
+            ):
 
                 # 0: starting point for convergence checking on next loop
                 u_a_guess = u_a.copy()
@@ -898,7 +963,9 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
             self.extra_info["iterations"][a] = itern
 
             if itern > settings["md_max_iter"]:
-                Warning("PLS missing data [SCP method]: maximum number of iterations reached!")
+                Warning(
+                    "PLS missing data [SCP method]: maximum number of iterations reached!"
+                )
 
             # Loop terminated!
             # 6: Now deflate the X-matrix.  To do that we need to calculate loadings for the
