@@ -1,0 +1,137 @@
+Nylon data set. Source:
+
+    Unsure. Is it from Kassidas, or from Nomikos?
+
+    Fault Detection and Diagnosis in Dynamic Multivariable Chemical Processes Using
+    Speech Recognition Methods, by Kassidas,Athanassios, PhD thesis, McMaster University, 1997.
+
+Dryer data set. Source:
+
+    Batch process improvement using latent variable methods, by Salvador García-Muñoz,
+    PhD thesis, McMaster University, 2004.
+
+    LI71131.PV  = CollectorTankLevel   = Level of the collector tank, always starts in zero (empty)
+    PDI71034.PV = DifferentialPressure = Differential pressure in the dryer
+    PIC71025.PV = DryerPressure        = Pressure in the dryer
+    II71032.PV  = AgitatorPower        = Power to the agitator
+    SIC71094.PV = AgitatorTorque       = Torque resistance for the agitator
+    XI71095.PV  = AgitatorSpeed        = Agitator Speed
+    TIC71050.OP = JacketTemperatureSP  = Set Point for the jacket heating medium
+    TIC71050.PV = JacketTemperature    = Temperature of the jacket heating medium
+    TIC71035.OP = DryerTemperatureSP   = Set Point for the temperature inside the dryer
+    TIC71035.PV = DryerTemp            = Temperature inside the dryer
+                  ClockTime            = Wall time (sample times; assumed to be evenly spaced)
+
+Code to manipulate the raw file to the proper format
+dryer_raw = pd.read_csv(pathlib.Path(__file__).parents[0] / "fixtures" / "dryer.csv")
+rawdata = load_melted_data_with_id(dryer_raw, batchid_col="batch_id")
+merge = {
+        1: 1,
+        2: 2,
+        3: 3,
+        4: 4,
+        5: 5,
+        6: 6,
+        7: 7,
+        8: 8,
+        9: 9,
+        10: 10,
+        11: 11,
+        12: 12,
+        13: 13,
+        14: 14,
+        15: 15,
+        16: 16,
+        17: 17,
+        18: 18,
+        19: 19,
+        20: 19,
+        21: 19,
+        22: 20,
+        23: 20,
+        24: 20,
+        25: 21,
+        26: 22,
+        27: 22,
+        28: 22,
+        29: 23,
+        30: 24,
+        31: 25,
+        32: 26,
+        33: 26,
+        35: 27,  # skip 34
+        36: 28,
+        37: 28,
+        38: 29,
+        39: 30,
+        40: 31,
+        41: 31,
+        42: 31,
+        43: 32,
+        44: 33,
+        45: 34,  # outlier!
+        46: 35,
+        47: 36,
+        48: 37,
+        49: 37,
+        50: 38,
+        51: 38,
+        52: 39,
+        53: 40,
+        54: 41,
+        55: 42,
+        56: 43,
+        57: 44,
+        58: 45,
+        59: 46,
+        60: 47,
+        61: 48,
+        62: 49,
+        63: 50,
+        64: 51,
+        65: 52,
+        66: 53,
+        67: 53,
+        68: 54,
+        69: 55,
+        70: 55,
+        71: 55,
+        72: 56,
+        73: 56,
+        74: 56,
+        75: 56,
+        76: 57,
+        77: 58,
+        78: 59,  # [79, 80, 81: skip]
+        82: 60,
+        83: 61,
+        84: 61,
+        85: 62,
+        86: 63,
+        87: 64,
+        88: 65,
+        89: 66,
+        90: 67,
+        91: 67,
+        92: 67,
+        93: 67,
+        94: 67,
+        95: 68,
+        96: 69,
+        97: 70,  # [skip: 98, 99]
+        100: 71,
+    }
+    outbatch = {}
+    for original, new in merge.items():
+        if str(new) not in outbatch:
+            outbatch[str(new)] = rawdata[str(original)]
+        else:
+            outbatch[str(new)] = pd.concat([outbatch[str(new)], rawdata[str(original)]])
+
+    out = pd.DataFrame()
+    for batch_id, batch in outbatch.items():
+        batch["batch_id"] = int(batch_id)
+        batch["ClockTime"] = range(batch.shape[0])
+        out = out.append(batch, ignore_index=True)
+
+    out.to_csv("dryer-cleaned.csv", index=False)
