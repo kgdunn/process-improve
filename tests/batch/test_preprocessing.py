@@ -3,7 +3,7 @@ import numpy as np
 # from process_improve.batch.preprocessing import batch_dtw
 
 
-def test_dtw_understanding():
+def dtw_understanding():
     x = np.linspace(0, 2 * np.pi, num=50)
     reference = np.reshape(np.sin(x), (50, 1))
     query = np.reshape(np.cos(x), (50, 1))
@@ -15,9 +15,7 @@ def test_dtw_understanding():
     plt.plot(x, reference, ".-", c="blue")
     plt.plot(x, query, ".-", c="red")
     plt.grid()
-    res = dtw(
-        query, y=reference, window_type="sakoechiba", window_size=int(0.2 * len(x))
-    )
+    res = dtw(query, y=reference, window_type="sakoechiba", window_size=int(0.2 * len(x)))
     warping_path = res.get_warping_path(target="query")
     plt.plot(x, query[warping_path], ".-", c="purple")
     plt.title("The query signal (red), aligned (purple) with the reference (blue)")

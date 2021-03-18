@@ -2,7 +2,7 @@ import pathlib
 import pytest
 import pandas as pd
 
-from batch_preprocessing.data_input import load_melted_data_with_id
+from process_improve.batch.data_input import load_melted_data_with_id
 
 
 @pytest.fixture
