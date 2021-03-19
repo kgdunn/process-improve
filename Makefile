@@ -35,7 +35,7 @@ clean-build: ## remove build artifacts
 	find . -name '*.egg-info' -exec rm -fr {} +
 	find . -name '*.egg' -exec rm -f {} +
 	# And set up the environment to the latest packages
-	pip install -U --user -r requirements_dev.txt
+	pip install -U --user -r requirements.txt
 
 clean-pyc: ## remove Python file artifacts
 	find . -name '*.pyc' -exec rm -f {} +

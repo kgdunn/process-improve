@@ -37,9 +37,7 @@ def determine_scaling(
     collector_mins = []
     for _, batch in batches.items():
         if robust:
-            rnge = batch[columns_to_align].quantile(0.98) - batch[
-                columns_to_align
-            ].quantile(0.02)
+            rnge = batch[columns_to_align].quantile(0.98) - batch[columns_to_align].quantile(0.02)
         else:
             rnge = batch[columns_to_align].max() - batch[columns_to_align].min()
 
@@ -107,9 +105,7 @@ def reverse_scaling(
     for batch_id, batch in batches.items():
         out[batch_id] = batch[columns_to_align].copy()
         for tag, column in out[batch_id].iteritems():
-            out[batch_id][tag] = (
-                column * scale_df.loc[tag, "Range"] + scale_df.loc[tag, "Minimum"]
-            )
+            out[batch_id][tag] = column * scale_df.loc[tag, "Range"] + scale_df.loc[tag, "Minimum"]
     return out
 
 
@@ -117,7 +113,7 @@ def batch_dtw(
     batches: Dict[str, pd.DataFrame],
     columns_to_align: list,
     reference_batch: str,
-    maximum_iterations: int = 25,
+    settings: dict = {"maximum_iterations": 25},
 ) -> dict:
     """
     Synchronize, via iterative DTW, with weighting.
@@ -150,7 +146,7 @@ def batch_dtw(
     j = index for the tags
     k = index into the rows of each batch, the samples: 0 ... k ... K_i
     """
-    assert maximum_iterations >= 3, "At least 3 iterations are required"
+    assert settings["maximum_iterations"] >= 3, "At least 3 iterations are required"
 
     scale_df = determine_scaling(batches=batches, columns_to_align=columns_to_align)
     batches_scaled = apply_scaling(batches, scale_df, columns_to_align)
@@ -218,9 +214,7 @@ def batch_dtw(
                 continue
 
             # TODO: try quadratic weights, but for now I will use the sum of the absolute values.
-            weights.loc[batch_id, column] = np.abs(
-                batch[column].values - avg_traj.values
-            ).sum()
+            weights.loc[batch_id, column] = np.abs(batch[column].values - avg_traj.values).sum()
 
     # invert_W = 1 / weights.sum(axis=0)
     # diagonal_W = len(columns_to_align)/invert_W.sum() * invert_W

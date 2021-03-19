@@ -1,6 +1,6 @@
 import numpy as np
 
-# from process_improve.batch.preprocessing import batch_dtw
+from process_improve.batch.preprocessing import batch_dtw
 
 
 def dtw_understanding():
@@ -15,9 +15,7 @@ def dtw_understanding():
     plt.plot(x, reference, ".-", c="blue")
     plt.plot(x, query, ".-", c="red")
     plt.grid()
-    res = dtw(
-        query, y=reference, window_type="sakoechiba", window_size=int(0.2 * len(x))
-    )
+    res = dtw(query, y=reference, window_type="sakoechiba", window_size=int(0.2 * len(x)))
     warping_path = res.get_warping_path(target="query")
     plt.plot(x, query[warping_path], ".-", c="purple")
     plt.title("The query signal (red), aligned (purple) with the reference (blue)")
@@ -78,23 +76,15 @@ def dtw_understanding():
     # Try
 
 
-def test_alignment(nylon_data):
-    # batches = nylon_data
-    pass
-
-    # batch_dtw(
-    #     batches,
-    #     columns_to_align=[
-    #         "Tag01",
-    #         "Tag02",
-    #         "Tag03",
-    #         "Tag04",
-    #         "Tag05",
-    #         "Tag06",
-    #         "Tag07",
-    #         "Tag08",
-    #         "Tag09",
-    #         "Tag10",
-    #     ],
-    #     reference_batch="3",
-    # )
+def test_alignment(dryer_data):
+    _ = batch_dtw(
+        dryer_data,
+        columns_to_align=[
+            "AgitatorPower",
+            "AgitatorTorque",
+            "JacketTemperatureSP",
+            "JacketTemperature",
+            "DryerTemp",
+        ],
+        reference_batch="3",
+    )
