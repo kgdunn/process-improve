@@ -1,6 +1,13 @@
 import numpy as np
+import matplotlib.pylab as plt
+from pytest import approx
 
-from process_improve.batch.preprocessing import batch_dtw
+from process_improve.batch.preprocessing import (
+    batch_dtw,
+    determine_scaling,
+    apply_scaling,
+    reverse_scaling,
+)
 
 
 def dtw_understanding():
@@ -9,8 +16,6 @@ def dtw_understanding():
     query = np.reshape(np.cos(x), (50, 1))
 
     # Template is shifted forward in time.
-    import matplotlib.pylab as plt
-    from dtwalign import dtw
 
     plt.plot(x, reference, ".-", c="blue")
     plt.plot(x, query, ".-", c="red")
@@ -76,15 +81,45 @@ def dtw_understanding():
     # Try
 
 
+def test_scaling(dryer_data):
+
+    #
+    #
+
+    columns_to_align = [
+        "AgitatorPower",
+        "AgitatorTorque",
+        "JacketTemperatureSP",
+        "JacketTemperature",
+        "DryerTemp",
+    ]
+    scale_df = determine_scaling(
+        dryer_data, columns_to_align=columns_to_align, settings={"robust": False},
+    )
+    assert np.array([152.3796, 48.2545, 101.7032, 73.1462, 68.0041]) == approx(
+        scale_df.loc[columns_to_align]["Range"]
+    )
+
+    batches_scaled = apply_scaling(dryer_data, scale_df, columns_to_align=columns_to_align)
+    reference_batch = batches_scaled["1"]
+    assert np.array([0.8354, 0.1660, 0.9833, 0.2556, 0.2884]) == approx(
+        reference_batch[columns_to_align].iloc[0], abs=1e-4
+    )
+    orig = reverse_scaling(batches_scaled, scale_df)
+    assert np.linalg.norm(orig["1"] - dryer_data["1"][columns_to_align]) == approx(0, abs=1e-10)
+
+
 def test_alignment(dryer_data):
-    _ = batch_dtw(
+    columns_to_align = [
+        "AgitatorPower",
+        "AgitatorTorque",
+        "JacketTemperatureSP",
+        "JacketTemperature",
+        "DryerTemp",
+    ]
+    outputs = batch_dtw(
         dryer_data,
-        columns_to_align=[
-            "AgitatorPower",
-            "AgitatorTorque",
-            "JacketTemperatureSP",
-            "JacketTemperature",
-            "DryerTemp",
-        ],
-        reference_batch="3",
+        columns_to_align=columns_to_align,
+        reference_batch="2",
+        settings={"robust": False},
     )

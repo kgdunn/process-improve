@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 
@@ -7,9 +7,7 @@ from dtwalign import dtw
 
 
 def determine_scaling(
-    batches: Dict[str, pd.DataFrame],
-    columns_to_align: List = None,
-    robust: bool = True,
+    batches: Dict[str, pd.DataFrame], columns_to_align: List = None, settings: dict = dict,
 ) -> pd.DataFrame:
     """
     Scales the batch data according to the variable ranges.
@@ -30,13 +28,17 @@ def determine_scaling(
 
     TODO: put this in a scikit-learn style: .fit() and .apply() style
     """
+    # This will be clumsy, until we have Python 3.9
+    default_settings = {"robust": True}
+    default_settings.update(settings)
+    settings = default_settings
     if columns_to_align is None:
         columns_to_align = batches[list(batches.keys())[0]].columns
 
     collector_rnge = []
     collector_mins = []
     for _, batch in batches.items():
-        if robust:
+        if settings["robust"]:
             rnge = batch[columns_to_align].quantile(0.98) - batch[columns_to_align].quantile(0.02)
         else:
             rnge = batch[columns_to_align].max() - batch[columns_to_align].min()
@@ -45,18 +47,14 @@ def determine_scaling(
         collector_rnge.append(rnge)
         collector_mins.append(batch.min())
 
-    if robust:
+    if settings["robust"]:
         scalings = pd.concat(
-            [
-                pd.DataFrame(collector_rnge).median(),
-                pd.DataFrame(collector_mins).median(),
-            ],
+            [pd.DataFrame(collector_rnge).median(), pd.DataFrame(collector_mins).median(),],
             axis=1,
         )
     else:
         scalings = pd.concat(
-            [pd.DataFrame(collector_rnge).mean(), pd.DataFrame(collector_mins).mean()],
-            axis=1,
+            [pd.DataFrame(collector_rnge).mean(), pd.DataFrame(collector_mins).mean()], axis=1,
         )
     scalings.columns = ["Range", "Minimum"]
     scalings["Minimum"] = 0.0
@@ -64,9 +62,7 @@ def determine_scaling(
 
 
 def apply_scaling(
-    batches: Dict[str, pd.DataFrame],
-    scale_df: pd.DataFrame,
-    columns_to_align: List = None,
+    batches: Dict[str, pd.DataFrame], scale_df: pd.DataFrame, columns_to_align: List = None,
 ) -> dict:
     """Scales the batches according to the information in the scaling dataframe.
 
@@ -95,10 +91,10 @@ def apply_scaling(
 
 
 def reverse_scaling(
-    batches: Dict[str, pd.DataFrame],
-    scale_df: pd.DataFrame,
-    columns_to_align: List = None,
+    batches: Dict[str, pd.DataFrame], scale_df: pd.DataFrame, columns_to_align: List = None,
 ):
+    # TODO: for now, `batches` must be a dict of batches. Allow it to be a dataframe for 1 batch
+
     if columns_to_align is None:
         columns_to_align = batches[list(batches.keys())[0]].columns
     out = {}
@@ -113,7 +109,7 @@ def batch_dtw(
     batches: Dict[str, pd.DataFrame],
     columns_to_align: list,
     reference_batch: str,
-    settings: dict = {"maximum_iterations": 25},
+    settings: dict = dict,
 ) -> dict:
     """
     Synchronize, via iterative DTW, with weighting.
@@ -146,9 +142,14 @@ def batch_dtw(
     j = index for the tags
     k = index into the rows of each batch, the samples: 0 ... k ... K_i
     """
+    default_settings = {"maximum_iterations": 25, "robust": True}
+    default_settings.update(settings)
+    settings = default_settings
     assert settings["maximum_iterations"] >= 3, "At least 3 iterations are required"
 
-    scale_df = determine_scaling(batches=batches, columns_to_align=columns_to_align)
+    scale_df = determine_scaling(
+        batches=batches, columns_to_align=columns_to_align, settings=settings
+    )
     batches_scaled = apply_scaling(batches, scale_df, columns_to_align)
     refbatch_sc = batches_scaled[reference_batch]
     prewarp = {}
@@ -251,7 +252,7 @@ def batch_dtw(
     aligned_wide_df.columns = new_labels
 
     return dict(
-        scalings=scale_df,
+        scale_df=scale_df,
         all_batches_sc=batches_scaled,
         prewarp=prewarp,
         problematic_threshold=problematic_threshold,
