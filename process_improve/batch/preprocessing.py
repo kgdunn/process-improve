@@ -1,9 +1,11 @@
-from typing import Dict, List, Optional
+from typing import Dict, List
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
+
 
 # dtwalign: https://github.com/statefb/dtwalign
-from dtwalign import dtw
+from dtwalign import dtw_from_distance_matrix
 
 
 def determine_scaling(
@@ -105,6 +107,72 @@ def reverse_scaling(
     return out
 
 
+def distance_matrix(test, ref, weight):
+    # TODO: allow user to specify `band`. The code below assumes that `band` is fixed as shown
+    # here, so therefore, if user provide `band`, the code needs to be adjusted.
+    nt = test.shape[0]  # 'test' data; will be align to the 'reference' data
+    nr = ref.shape[0]
+    band = np.ones((nt, 2))
+    band[:, 1] *= int(nr)
+    dist = np.zeros((nr, nt))
+
+    # Mahalanobis distance:
+    for idx, row in test.reset_index(drop=True).iterrows():
+        dist[:, idx] = np.diag((row - ref) @ weight @ ((row - ref).values.T))
+
+    # Sakoe-Chiba constraints?
+    D = np.zeros((nr, nt)) * np.NaN
+    D[0, 0] = dist[0, 0]
+    for idx in np.arange(1, nt):
+        D[0, idx] = dist[0, idx] + D[0, idx - 1]
+
+    for idx in np.arange(1, nr):
+        D[idx, 0] = dist[idx, 0] + D[idx - 1, 0]
+
+    for n in np.arange(1, nt):
+        for m in np.arange(max((1, band[n, 0])), int(band[n, 1])):
+            # index here must be integer!
+            D[m, n] = dist[m, n] + np.nanmin([D[m, n - 1], D[m - 1, n - 1], D[m - 1, n]])
+
+    return D
+
+
+def dtw(test, ref, weight, penalty_matrix=None):
+    # TODO: optimize: store the `D` matrix per batch, relative to a given reference, to
+    #       avoid recomputing it everytime.
+    show_plot = False
+    nt = test.shape[0]  # 'test' data; will be align to the 'reference' data
+    nr = ref.shape[0]
+
+    if penalty_matrix:
+        D = penalty_matrix
+    else:
+        D = distance_matrix(test, ref, weight)
+
+    out = dtw_from_distance_matrix(
+        D,
+        window_type="sakoechiba",
+        window_size=int(0.5 * nt),
+        dist_only=False,
+        open_begin=False,
+        open_end=False,
+    )
+    out.penalty_matrix = D
+
+    if show_plot:
+        X = np.arange(0, nt, 1)
+        Y = np.arange(0, nr, 1)
+        X, Y = np.meshgrid(X, Y)
+        fig = go.Figure(
+            data=[
+                go.Mesh3d(x=X.ravel(), y=Y.ravel(), z=D.ravel(), color="lightpink", opacity=0.90)
+            ]
+        )
+        fig.show()
+
+    return out
+
+
 def batch_dtw(
     batches: Dict[str, pd.DataFrame],
     columns_to_align: list,
@@ -152,32 +220,36 @@ def batch_dtw(
     )
     batches_scaled = apply_scaling(batches, scale_df, columns_to_align)
     refbatch_sc = batches_scaled[reference_batch]
+    weight = np.diag(np.ones(refbatch_sc.shape[1]))
+    D_matrix_cache = {}
+
     prewarp = {}
     distances = []
     for batch_id, batch in batches_scaled.items():
+        try:
+            # see Kassidas, page 180
+            res = dtw(batch, refbatch_sc, weight=weight)
+            D_matrix_cache[batch_id] = res.penalty_matrix
+            # TODO : Come back to page 181 of thesis: where more than 1 point in the target
+            #        trajectory is aligned with the reference: compute the average,
 
-        # x: will be DTW'ed to get it to align better with the reference.
-        res = dtw(
-            batch.values,
-            y=refbatch_sc.values,
-            window_type="none",
-            window_size=None,
-            step_pattern="symmetric2",
-            dist_only=False,
-            open_begin=False,
-            open_end=False,
-        )  # see Kassidas, page 180
+        except ValueError:
+            print(f"Failed on batch {batch_id}")
+
         x_warping_path = res.get_warping_path(target="query")
 
-        # Store the 'prewarped' data
-        prewarp[batch_id] = batches_scaled[batch_id].iloc[x_warping_path]
-        # batch.insert(2, "WarpPath", res.get_warping_path(target="reference"))
-        # b#atch.insert(3, "sequence", list(range(batch.shape[0])))
-        # prewarp[batch_id].insert(2, "sequence", list(range(prewarp[batch_id].shape[0])), True)
-        distances.append({"batch_id": batch_id, "Distance": res.distance})
-
-        # TODO : Come back to page 181 of thesis: where more than 1 point in the target trajectory
-        #        is aligned with the reference: compute the average
+        # # Store the 'prewarped' data
+        # prewarp[batch_id] = batches_scaled[batch_id].iloc[x_warping_path]
+        # # batch.insert(2, "WarpPath", res.get_warping_path(target="reference"))
+        # # b#atch.insert(3, "sequence", list(range(batch.shape[0])))
+        # # prewarp[batch_id].insert(2, "sequence", list(range(prewarp[batch_id].shape[0])), True)
+        distances.append(
+            {
+                "batch_id": batch_id,
+                "Distance": res.distance,
+                "Normalized distance": res.normalized_distance,
+            }
+        )
 
     #
     dist_df = pd.DataFrame(distances).set_index("batch_id")

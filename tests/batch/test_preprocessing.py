@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pylab as plt
 from pytest import approx
+from dtwalign import dtw
 
 from process_improve.batch.preprocessing import (
     batch_dtw,
