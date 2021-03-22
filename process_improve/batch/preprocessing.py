@@ -2,14 +2,16 @@ from typing import Dict, List
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from numba import jit
 
-
-# dtwalign: https://github.com/statefb/dtwalign
-from dtwalign import dtw_from_distance_matrix
+# # dtwalign: https://github.com/statefb/dtwalign
+# from dtwalign import dtw_from_distance_matrix
 
 
 def determine_scaling(
-    batches: Dict[str, pd.DataFrame], columns_to_align: List = None, settings: dict = dict,
+    batches: Dict[str, pd.DataFrame],
+    columns_to_align: List = None,
+    settings: dict = dict,
 ) -> pd.DataFrame:
     """
     Scales the batch data according to the variable ranges.
@@ -51,12 +53,16 @@ def determine_scaling(
 
     if settings["robust"]:
         scalings = pd.concat(
-            [pd.DataFrame(collector_rnge).median(), pd.DataFrame(collector_mins).median(),],
+            [
+                pd.DataFrame(collector_rnge).median(),
+                pd.DataFrame(collector_mins).median(),
+            ],
             axis=1,
         )
     else:
         scalings = pd.concat(
-            [pd.DataFrame(collector_rnge).mean(), pd.DataFrame(collector_mins).mean()], axis=1,
+            [pd.DataFrame(collector_rnge).mean(), pd.DataFrame(collector_mins).mean()],
+            axis=1,
         )
     scalings.columns = ["Range", "Minimum"]
     scalings["Minimum"] = 0.0
@@ -64,7 +70,9 @@ def determine_scaling(
 
 
 def apply_scaling(
-    batches: Dict[str, pd.DataFrame], scale_df: pd.DataFrame, columns_to_align: List = None,
+    batches: Dict[str, pd.DataFrame],
+    scale_df: pd.DataFrame,
+    columns_to_align: List = None,
 ) -> dict:
     """Scales the batches according to the information in the scaling dataframe.
 
@@ -93,7 +101,9 @@ def apply_scaling(
 
 
 def reverse_scaling(
-    batches: Dict[str, pd.DataFrame], scale_df: pd.DataFrame, columns_to_align: List = None,
+    batches: Dict[str, pd.DataFrame],
+    scale_df: pd.DataFrame,
+    columns_to_align: List = None,
 ):
     # TODO: for now, `batches` must be a dict of batches. Allow it to be a dataframe for 1 batch
 
@@ -137,6 +147,57 @@ def distance_matrix(test, ref, weight):
     return D
 
 
+@jit(nopython=True)
+def backtrack_optimal_path(D):
+    # D is a matrix of (nr x nt)
+    m, n = D.shape
+    m -= 1
+    n -= 1
+    path = np.array(((m, n),), dtype=np.int64)
+    path_sum = 0.0
+
+    while (n + m) != 0:
+        if n == 0:
+            m -= 1
+            path_sum += D[m, n]
+        elif m == 0:
+            n -= 1
+            path_sum += D[m, n]
+        else:
+            number = np.argmin([D[m - 1, n - 1], D[m, n - 1], D[m - 1, n]])
+
+            if number == 0:
+                path_sum += D[m - 1, n - 1]
+                n -= 1
+                m -= 1
+            elif number == 1:
+                path_sum += D[m, n - 1]
+                n -= 1
+            elif number == 2:
+                path_sum += D[m - 1, n]
+                m -= 1
+
+        path = np.vstack(([m, n], path))
+
+    return path, path_sum
+
+
+class DTWresult:
+    """Result class."""
+
+    def __init__(
+        self,
+        penalty_matrix: np.ndarray,
+        warping_path: np.ndarray,
+        distance: float,
+        normalized_distance: float,
+    ):
+        self.penalty_matrix = penalty_matrix
+        self.warping_path = warping_path
+        self.distance = distance
+        self.normalized_distance = normalized_distance
+
+
 def dtw(test, ref, weight, penalty_matrix=None):
     # TODO: optimize: store the `D` matrix per batch, relative to a given reference, to
     #       avoid recomputing it everytime.
@@ -149,28 +210,21 @@ def dtw(test, ref, weight, penalty_matrix=None):
     else:
         D = distance_matrix(test, ref, weight)
 
-    out = dtw_from_distance_matrix(
-        D,
-        window_type="sakoechiba",
-        window_size=int(0.5 * nt),
-        dist_only=False,
-        open_begin=False,
-        open_end=False,
-    )
-    out.penalty_matrix = D
+    path, distance = backtrack_optimal_path(D)
+    warping_path = np.zeros(nr)
+    for idx in range(nr):
+        warping_path[idx] = path[np.where(path[:, 0] == idx)[0][-1], 1]
 
     if show_plot:
         X = np.arange(0, nt, 1)
         Y = np.arange(0, nr, 1)
         X, Y = np.meshgrid(X, Y)
         fig = go.Figure(
-            data=[
-                go.Mesh3d(x=X.ravel(), y=Y.ravel(), z=D.ravel(), color="lightpink", opacity=0.90)
-            ]
+            data=[go.Mesh3d(x=X.ravel(), y=Y.ravel(), z=D.ravel(), color="lightpink", opacity=0.90)]
         )
         fig.show()
 
-    return out
+    return DTWresult(D, warping_path, distance, normalized_distance=distance / (nr + nt))
 
 
 def batch_dtw(
@@ -222,21 +276,20 @@ def batch_dtw(
     refbatch_sc = batches_scaled[reference_batch]
     weight = np.diag(np.ones(refbatch_sc.shape[1]))
     D_matrix_cache = {}
-
-    prewarp = {}
     distances = []
+
     for batch_id, batch in batches_scaled.items():
+        print(batch_id)
         try:
             # see Kassidas, page 180
-            res = dtw(batch, refbatch_sc, weight=weight)
-            D_matrix_cache[batch_id] = res.penalty_matrix
+            result = dtw(batch, refbatch_sc, weight=weight)
+            D_matrix_cache[batch_id] = result.penalty_matrix
+
             # TODO : Come back to page 181 of thesis: where more than 1 point in the target
             #        trajectory is aligned with the reference: compute the average,
 
         except ValueError:
             print(f"Failed on batch {batch_id}")
-
-        x_warping_path = res.get_warping_path(target="query")
 
         # # Store the 'prewarped' data
         # prewarp[batch_id] = batches_scaled[batch_id].iloc[x_warping_path]
@@ -246,8 +299,8 @@ def batch_dtw(
         distances.append(
             {
                 "batch_id": batch_id,
-                "Distance": res.distance,
-                "Normalized distance": res.normalized_distance,
+                "Distance": result.distance,
+                "Normalized distance": result.normalized_distance,
             }
         )
 
