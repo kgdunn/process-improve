@@ -126,3 +126,4 @@ def test_alignment(dryer_data):
         reference_batch="2",
         settings={"robust": False},
     )
+    assert outputs['']

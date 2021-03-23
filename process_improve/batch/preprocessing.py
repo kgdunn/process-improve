@@ -4,6 +4,8 @@ import pandas as pd
 import logging
 import plotly.graph_objects as go
 
+from .alignment_helpers import distance_matrix, backtrack_optimal_path
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 fh = logging.FileHandler(f"{__file__}.log")
@@ -17,14 +19,13 @@ logger.info(f"Analysis in {__file__}: starting.")
 # from numba import jit
 
 # # dtwalign: https://github.com/statefb/dtwalign
-# from dtwalign import dtw_from_distance_matrix
+from dtwalign import dtw_from_distance_matrix
+
 epsqrt = np.sqrt(np.finfo(float).eps)
 
 
 def determine_scaling(
-    batches: Dict[str, pd.DataFrame],
-    columns_to_align: List = None,
-    settings: dict = dict,
+    batches: Dict[str, pd.DataFrame], columns_to_align: List = None, settings: dict = dict,
 ) -> pd.DataFrame:
     """
     Scales the batch data according to the variable ranges.
@@ -66,16 +67,12 @@ def determine_scaling(
 
     if settings["robust"]:
         scalings = pd.concat(
-            [
-                pd.DataFrame(collector_rnge).median(),
-                pd.DataFrame(collector_mins).median(),
-            ],
+            [pd.DataFrame(collector_rnge).median(), pd.DataFrame(collector_mins).median(),],
             axis=1,
         )
     else:
         scalings = pd.concat(
-            [pd.DataFrame(collector_rnge).mean(), pd.DataFrame(collector_mins).mean()],
-            axis=1,
+            [pd.DataFrame(collector_rnge).mean(), pd.DataFrame(collector_mins).mean()], axis=1,
         )
     scalings.columns = ["Range", "Minimum"]
     scalings["Minimum"] = 0.0
@@ -83,9 +80,7 @@ def determine_scaling(
 
 
 def apply_scaling(
-    batches: Dict[str, pd.DataFrame],
-    scale_df: pd.DataFrame,
-    columns_to_align: List = None,
+    batches: Dict[str, pd.DataFrame], scale_df: pd.DataFrame, columns_to_align: List = None,
 ) -> dict:
     """Scales the batches according to the information in the scaling dataframe.
 
@@ -118,9 +113,7 @@ def apply_scaling(
 
 
 def reverse_scaling(
-    batches: Dict[str, pd.DataFrame],
-    scale_df: pd.DataFrame,
-    columns_to_align: List = None,
+    batches: Dict[str, pd.DataFrame], scale_df: pd.DataFrame, columns_to_align: List = None,
 ):
     # TODO: handle the case of DataFrames still
     if columns_to_align is None:
@@ -134,74 +127,6 @@ def reverse_scaling(
         for tag, column in out[batch_id].iteritems():
             out[batch_id][tag] = column * scale_df.loc[tag, "Range"] + scale_df.loc[tag, "Minimum"]
     return out
-
-
-def distance_matrix(test, ref, weight_matrix: np.ndarray):
-    # TODO: allow user to specify `band`. The code below assumes that `band` is fixed as shown
-    # here, so therefore, if user provide `band`, the code needs to be adjusted.
-    nt = test.shape[0]  # 'test' data; will be align to the 'reference' data
-    nr = ref.shape[0]
-    band = np.ones((nt, 2))
-    band[:, 1] *= int(nr)
-    dist = np.zeros((nr, nt))
-
-    # Mahalanobis distance:
-    for idx, row in test.reset_index(drop=True).iterrows():
-        dist[:, idx] = np.diag((row - ref) @ weight_matrix @ ((row - ref).values.T))
-
-    # TODO: Sakoe-Chiba constraints could still be added
-    D = np.zeros((nr, nt)) * np.NaN
-    D[0, 0] = dist[0, 0]
-    for idx in np.arange(1, nt):
-        D[0, idx] = dist[0, idx] + D[0, idx - 1]
-
-    for idx in np.arange(1, nr):
-        D[idx, 0] = dist[idx, 0] + D[idx - 1, 0]
-
-    for n in np.arange(1, nt):
-        for m in np.arange(max((1, band[n, 0])), int(band[n, 1])):
-            # index here must be integer!
-            D[m, n] = dist[m, n] + np.nanmin([D[m, n - 1], D[m - 1, n - 1], D[m - 1, n]])
-
-    return D
-
-
-def backtrack_optimal_path(D: np.ndarray):
-    nr, nt = D.shape
-    nr -= 1
-    nt -= 1
-    path = np.array(((nr, nt),), dtype=np.int64)
-    path_sum = 0.0
-
-    while (nt + nr) != 0:
-        if nt == 0:
-            nr -= 1
-            path_sum += D[nr, nt]
-        elif nr == 0:
-            nt -= 1
-            path_sum += D[nr, nt]
-        else:
-            # number = np.argmin([D[nr - 1, nt - 1], D[nr, nt - 1], D[nr - 1, nt]])
-            a, b, c = D[nr - 1, nt - 1], D[nr, nt - 1], D[nr - 1, nt]
-            if (a <= b) & (a <= c):
-                # assert number == 0
-                path_sum += D[nr - 1, nt - 1]
-                nt -= 1
-                nr -= 1
-            elif (b <= a) & (b <= c):
-                # assert number == 1
-                path_sum += D[nr, nt - 1]
-                nt -= 1
-            elif (c <= a) & (c <= b):
-                # assert number == 2
-                path_sum += D[nr - 1, nt]
-                nr -= 1
-            else:
-                assert False
-
-        path = np.vstack(([nr, nt], path))
-
-    return path, path_sum
 
 
 class DTWresult:
@@ -251,7 +176,7 @@ def dtw_core(test, ref, weight_matrix: np.ndarray):
     nr = ref.shape[0]
     assert test.shape[1] == ref.shape[1]
 
-    D = distance_matrix(test, ref, weight_matrix)
+    D = distance_matrix(test.values, ref.values, weight_matrix)
     md_path, distance = backtrack_optimal_path(D)
     warping_path = np.zeros(nr)
     for idx in range(nr):
@@ -266,7 +191,9 @@ def dtw_core(test, ref, weight_matrix: np.ndarray):
         Y = np.arange(0, nr, 1)
         X, Y = np.meshgrid(X, Y)
         fig = go.Figure(
-            data=[go.Mesh3d(x=X.ravel(), y=Y.ravel(), z=D.ravel(), color="lightpink", opacity=0.90)]
+            data=[
+                go.Mesh3d(x=X.ravel(), y=Y.ravel(), z=D.ravel(), color="lightpink", opacity=0.90)
+            ]
         )
         fig.show()
 
@@ -276,9 +203,7 @@ def dtw_core(test, ref, weight_matrix: np.ndarray):
 
 
 def one_iteration_dtw(
-    batches_scaled: dict,
-    refbatch_sc: pd.DataFrame,
-    weight_matrix: np.ndarray,
+    batches_scaled: dict, refbatch_sc: pd.DataFrame, weight_matrix: np.ndarray,
 ):
     aligned_batches = {}
     distances = []
@@ -344,7 +269,7 @@ def batch_dtw(
     j = index for the tags
     k = index into the rows of each batch, the samples: 0 ... k ... K_i
     """
-    default_settings = {"maximum_iterations": 25, "robust": True, "tolerance": 1}  # TODO: CHANGE!!
+    default_settings = {"maximum_iterations": 25, "robust": True, "tolerance": 0.5}
     default_settings.update(settings)
     settings = default_settings
     assert settings["maximum_iterations"] >= 3, "At least 3 iterations are required"
@@ -369,9 +294,7 @@ def batch_dtw(
         weight_history = np.vstack((weight_history, weight_vector.copy()))
 
         aligned_batches, average_batch = one_iteration_dtw(
-            batches_scaled=batches_scaled,
-            refbatch_sc=refbatch_sc,
-            weight_matrix=weight_matrix,
+            batches_scaled=batches_scaled, refbatch_sc=refbatch_sc, weight_matrix=weight_matrix,
         )
 
         # Deviations from the average batch:
