@@ -21,7 +21,9 @@ def dtw_understanding():
     plt.plot(x, reference, ".-", c="blue")
     plt.plot(x, query, ".-", c="red")
     plt.grid()
-    res = dtw(query, y=reference, window_type="sakoechiba", window_size=int(0.2 * len(x)))
+    res = dtw(
+        query, y=reference, window_type="sakoechiba", window_size=int(0.2 * len(x))
+    )
     warping_path = res.get_warping_path(target="query")
     plt.plot(x, query[warping_path], ".-", c="purple")
     plt.title("The query signal (red), aligned (purple) with the reference (blue)")
@@ -83,10 +85,6 @@ def dtw_understanding():
 
 
 def test_scaling(dryer_data):
-
-    #
-    #
-
     columns_to_align = [
         "AgitatorPower",
         "AgitatorTorque",
@@ -103,13 +101,17 @@ def test_scaling(dryer_data):
         scale_df.loc[columns_to_align]["Range"]
     )
 
-    batches_scaled = apply_scaling(dryer_data, scale_df, columns_to_align=columns_to_align)
+    batches_scaled = apply_scaling(
+        dryer_data, scale_df, columns_to_align=columns_to_align
+    )
     reference_batch = batches_scaled["1"]
     assert np.array([0.8354, 0.1660, 0.9833, 0.2556, 0.2884]) == approx(
         reference_batch[columns_to_align].iloc[0], abs=1e-4
     )
     orig = reverse_scaling(batches_scaled, scale_df)
-    assert np.linalg.norm(orig["1"] - dryer_data["1"][columns_to_align]) == approx(0, abs=1e-10)
+    assert np.linalg.norm(orig["1"] - dryer_data["1"][columns_to_align]) == approx(
+        0, abs=1e-10
+    )
 
 
 def test_alignment(dryer_data):
@@ -124,6 +126,164 @@ def test_alignment(dryer_data):
         dryer_data,
         columns_to_align=columns_to_align,
         reference_batch="2",
-        settings={"robust": False},
+        settings={
+            "robust": False,
+            "tolerance": 1,
+        },  # high tolerance ensures only 1 iteration
     )
-    assert outputs['']
+    assert [1, 1, 1, 1, 1] == approx(outputs["weight_history"][0])
+    assert [152.379618, 48.254502, 101.703155, 73.146169, 68.004085] == approx(
+        outputs["scale_df"]["Range"][columns_to_align]
+    )
+    b1 = outputs["aligned_batch_objects"]["1"]
+    expected_warping_path = [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        6,
+        7,
+        8,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        10,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        12,
+        13,
+        14,
+        16,
+        23,
+        24,
+        25,
+        36,
+        37,
+        38,
+        39,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        74,
+        75,
+        76,
+        77,
+        78,
+        81,
+        82,
+        91,
+        92,
+        95,
+        96,
+        97,
+        101,
+        102,
+        104,
+        105,
+        106,
+        108,
+        109,
+        110,
+        110,
+        110,
+        110,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        115,
+        116,
+        116,
+        117,
+        118,
+        118,
+        118,
+        119,
+        119,
+        120,
+        120,
+        121,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        139,
+        140,
+        141,
+        142,
+        142,
+        142,
+        142,
+        142,
+        142,
+        142,
+        143,
+        147,
+        148,
+    ]
+    assert expected_warping_path == approx(b1.warping_path + 1)
+    assert [1.0371, 0.1673, 0.9712, 0.6538, 0.2532] == approx(
+        outputs["last_average_batch"].iloc[1, :]
+        / (outputs["scale_df"]["Range"][columns_to_align]),
+        abs=1e-4,
+    )
+    outputs["aligned_wide_df"].shape[0] == 71
+    outputs["aligned_wide_df"].shape[1] == 11 * 129
+
+    # Repeat, with a lower tolerance
+    outputs = batch_dtw(
+        dryer_data,
+        columns_to_align=columns_to_align,
+        reference_batch="2",
+        settings={"robust": False, "tolerance": 0.01},
+    )
+    assert (5, 5) == outputs["weight_history"].shape
+    assert [0.43702525, 1.33206459, 0.98298667, 0.93599197, 1.31193153] == approx(
+        outputs["weight_history"][4, :], abs=1e-7
+    )

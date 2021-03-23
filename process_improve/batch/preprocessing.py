@@ -13,19 +13,17 @@ fh.setLevel(logging.DEBUG)
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 fh.setFormatter(formatter)
 logger.addHandler(fh)
-logger.info(f"Analysis in {__file__}: starting.")
 
-
-# from numba import jit
-
-# # dtwalign: https://github.com/statefb/dtwalign
-from dtwalign import dtw_from_distance_matrix
+# dtwalign: https://github.com/statefb/dtwalign
+# from dtwalign import dtw_from_distance_matrix
 
 epsqrt = np.sqrt(np.finfo(float).eps)
 
 
 def determine_scaling(
-    batches: Dict[str, pd.DataFrame], columns_to_align: List = None, settings: dict = dict,
+    batches: Dict[str, pd.DataFrame],
+    columns_to_align: List = None,
+    settings: dict = None,
 ) -> pd.DataFrame:
     """
     Scales the batch data according to the variable ranges.
@@ -48,7 +46,9 @@ def determine_scaling(
     """
     # This will be clumsy, until we have Python 3.9
     default_settings = {"robust": True}
-    default_settings.update(settings)
+    if settings:
+        default_settings.update(settings)
+
     settings = default_settings
     if columns_to_align is None:
         columns_to_align = batches[list(batches.keys())[0]].columns
@@ -57,7 +57,9 @@ def determine_scaling(
     collector_mins = []
     for _, batch in batches.items():
         if settings["robust"]:
-            rnge = batch[columns_to_align].quantile(0.98) - batch[columns_to_align].quantile(0.02)
+            rnge = batch[columns_to_align].quantile(0.98) - batch[
+                columns_to_align
+            ].quantile(0.02)
         else:
             rnge = batch[columns_to_align].max() - batch[columns_to_align].min()
 
@@ -67,12 +69,16 @@ def determine_scaling(
 
     if settings["robust"]:
         scalings = pd.concat(
-            [pd.DataFrame(collector_rnge).median(), pd.DataFrame(collector_mins).median(),],
+            [
+                pd.DataFrame(collector_rnge).median(),
+                pd.DataFrame(collector_mins).median(),
+            ],
             axis=1,
         )
     else:
         scalings = pd.concat(
-            [pd.DataFrame(collector_rnge).mean(), pd.DataFrame(collector_mins).mean()], axis=1,
+            [pd.DataFrame(collector_rnge).mean(), pd.DataFrame(collector_mins).mean()],
+            axis=1,
         )
     scalings.columns = ["Range", "Minimum"]
     scalings["Minimum"] = 0.0
@@ -80,7 +86,9 @@ def determine_scaling(
 
 
 def apply_scaling(
-    batches: Dict[str, pd.DataFrame], scale_df: pd.DataFrame, columns_to_align: List = None,
+    batches: Dict[str, pd.DataFrame],
+    scale_df: pd.DataFrame,
+    columns_to_align: List = None,
 ) -> dict:
     """Scales the batches according to the information in the scaling dataframe.
 
@@ -99,7 +107,8 @@ def apply_scaling(
     # TODO: handle the case of DataFrames still
     if columns_to_align is None:
         if isinstance(batches, dict):
-            columns_to_align = batches[list(batches.keys())[0]].columns
+            batch1 = batches[list(batches.keys())[0]]
+            columns_to_align = batch1.columns
         else:
             columns_to_align = batches.columns
     out = {}
@@ -113,7 +122,9 @@ def apply_scaling(
 
 
 def reverse_scaling(
-    batches: Dict[str, pd.DataFrame], scale_df: pd.DataFrame, columns_to_align: List = None,
+    batches: Dict[str, pd.DataFrame],
+    scale_df: pd.DataFrame,
+    columns_to_align: List = None,
 ):
     # TODO: handle the case of DataFrames still
     if columns_to_align is None:
@@ -125,7 +136,9 @@ def reverse_scaling(
     for batch_id, batch in batches.items():
         out[batch_id] = batch[columns_to_align].copy()
         for tag, column in out[batch_id].iteritems():
-            out[batch_id][tag] = column * scale_df.loc[tag, "Range"] + scale_df.loc[tag, "Minimum"]
+            out[batch_id][tag] = (
+                column * scale_df.loc[tag, "Range"] + scale_df.loc[tag, "Minimum"]
+            )
     return out
 
 
@@ -192,18 +205,31 @@ def dtw_core(test, ref, weight_matrix: np.ndarray):
         X, Y = np.meshgrid(X, Y)
         fig = go.Figure(
             data=[
-                go.Mesh3d(x=X.ravel(), y=Y.ravel(), z=D.ravel(), color="lightpink", opacity=0.90)
+                go.Mesh3d(
+                    x=X.ravel(),
+                    y=Y.ravel(),
+                    z=D.ravel(),
+                    color="lightpink",
+                    opacity=0.90,
+                )
             ]
         )
         fig.show()
 
     return DTWresult(
-        synced, D, md_path, warping_path, distance, normalized_distance=distance / (nr + nt)
+        synced,
+        D,
+        md_path,
+        warping_path,
+        distance,
+        normalized_distance=distance / (nr + nt),
     )
 
 
 def one_iteration_dtw(
-    batches_scaled: dict, refbatch_sc: pd.DataFrame, weight_matrix: np.ndarray,
+    batches_scaled: dict,
+    refbatch_sc: pd.DataFrame,
+    weight_matrix: np.ndarray,
 ):
     aligned_batches = {}
     distances = []
@@ -236,7 +262,7 @@ def batch_dtw(
     batches: Dict[str, pd.DataFrame],
     columns_to_align: list,
     reference_batch: str,
-    settings: dict = dict,
+    settings: dict = None,
 ) -> dict:
     """
     Synchronize, via iterative DTW, with weighting.
@@ -269,8 +295,9 @@ def batch_dtw(
     j = index for the tags
     k = index into the rows of each batch, the samples: 0 ... k ... K_i
     """
-    default_settings = {"maximum_iterations": 25, "robust": True, "tolerance": 0.5}
-    default_settings.update(settings)
+    default_settings = {"maximum_iterations": 25, "robust": True, "tolerance": 0.1}
+    if settings:
+        default_settings.update(settings)
     settings = default_settings
     assert settings["maximum_iterations"] >= 3, "At least 3 iterations are required"
 
@@ -294,13 +321,17 @@ def batch_dtw(
         weight_history = np.vstack((weight_history, weight_vector.copy()))
 
         aligned_batches, average_batch = one_iteration_dtw(
-            batches_scaled=batches_scaled, refbatch_sc=refbatch_sc, weight_matrix=weight_matrix,
+            batches_scaled=batches_scaled,
+            refbatch_sc=refbatch_sc,
+            weight_matrix=weight_matrix,
         )
 
         # Deviations from the average batch:
         next_weights = np.zeros((1, refbatch_sc.shape[1]))
         for _, result in aligned_batches.items():
-            next_weights += np.nansum(np.power(result.synced - average_batch, 2), axis=0)
+            next_weights += np.nansum(
+                np.power(result.synced - average_batch, 2), axis=0
+            )
             # TODO: use quadratic weights for now, but try sum of the absolute values instead
             #  np.abs(result.synced - average_batch).sum(axis=0)
 
@@ -313,7 +344,9 @@ def batch_dtw(
             # problematic_threshold = dist_df["Distance"].quantile(0.95)
 
         next_weights = 1.0 / np.where(next_weights > epsqrt, next_weights, 10000)
-        weight_vector = (next_weights / np.sum(next_weights) * len(columns_to_align)).ravel()
+        weight_vector = (
+            next_weights / np.sum(next_weights) * len(columns_to_align)
+        ).ravel()
         # If change in delta_weight is small, we terminate early; no need to fine-tune excessively.
         delta_weight = np.diag(weight_matrix) - weight_vector  # old - new
 
@@ -323,7 +356,9 @@ def batch_dtw(
     aligned_df = pd.DataFrame()
     for batch_id, result in aligned_batches.items():
         initial_row = batches[batch_id].iloc[result.md_path[0, 0], :].copy()
-        synced = align_with_path(result.md_path, batches[batch_id], initial_row=initial_row)
+        synced = align_with_path(
+            result.md_path, batches[batch_id], initial_row=initial_row
+        )
         synced.insert(1, "sequence", list(range(synced.shape[0])))
         aligned_df = aligned_df.append(synced)
 
@@ -333,7 +368,10 @@ def batch_dtw(
         "-".join(item)
         for item in zip(
             aligned_wide_df.columns.get_level_values(0),
-            [str(val).zfill(max_places) for val in aligned_wide_df.columns.get_level_values(1)],
+            [
+                str(val).zfill(max_places)
+                for val in aligned_wide_df.columns.get_level_values(1)
+            ],
         )
     ]
     aligned_wide_df.columns = new_labels

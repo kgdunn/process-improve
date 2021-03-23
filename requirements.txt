@@ -6,7 +6,7 @@ bokeh
 scikit-image
 scikit-learn>=0.24
 patsy
-dtwalign
+
 
 flake8>=3.7.8
 tox>=3.14.0
