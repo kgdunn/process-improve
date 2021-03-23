@@ -95,7 +95,9 @@ def test_scaling(dryer_data):
         "DryerTemp",
     ]
     scale_df = determine_scaling(
-        dryer_data, columns_to_align=columns_to_align, settings={"robust": False},
+        dryer_data,
+        columns_to_align=columns_to_align,
+        settings={"robust": False},
     )
     assert np.array([152.3796, 48.2545, 101.7032, 73.1462, 68.0041]) == approx(
         scale_df.loc[columns_to_align]["Range"]

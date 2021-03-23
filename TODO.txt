@@ -1,3 +1,18 @@
+
+Univariate:
+* does  it come from a given distribution?
+    https://www.itl.nist.gov/div898/handbook/eda/section3/eda35g.htm
+
+------------
+Outlier tests
+
+P7: Grubb's test/ Tietjen-Moore:
+https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h1.htm
+Multiple outliers: *** https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h3.htm
+https://www.itl.nist.gov/div898//software/dataplot/refman1/auxillar/grubtest.htm
+https://www.itl.nist.gov/div898//software/dataplot/refman1/auxillar/tietjen.htm
+
+------------
 function  v = robust_scale(a)
 % Using the formula from Mosteller and Tukey, Data Analysis and Regression,
 % p 207-208, 1977.
