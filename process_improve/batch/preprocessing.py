@@ -177,7 +177,7 @@ def align_with_path(md_path, batch, initial_row):
             # TODO : Come back to page 181 of thesis: where more than 1 point in the target
             #        trajectory is aligned with the reference: compute the average,
             temp = np.vstack((temp, batch.iloc[md_path[idx, 1], :]))
-            synced[row, :] = np.nanmean(temp, axis=0)
+            synced.iloc[row, :] = np.nanmean(temp, axis=0)
 
     return pd.DataFrame(
         synced,
