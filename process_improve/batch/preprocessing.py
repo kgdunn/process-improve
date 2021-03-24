@@ -328,7 +328,7 @@ def batch_dtw(
 
         # Deviations from the average batch:
         next_weights = np.zeros((1, refbatch_sc.shape[1]))
-        for _, result in aligned_batches.items():
+        for batch_id, result in aligned_batches.items():
             next_weights += np.nansum(
                 np.power(result.synced - average_batch, 2), axis=0
             )
@@ -354,12 +354,17 @@ def batch_dtw(
     # scaling for the trajectories
     weight_history = weight_history[1:, :]
     aligned_df = pd.DataFrame()
+
     for batch_id, result in aligned_batches.items():
         initial_row = batches[batch_id].iloc[result.md_path[0, 0], :].copy()
         synced = align_with_path(
             result.md_path, batches[batch_id], initial_row=initial_row
         )
+        if "batch_id" not in synced.columns:
+            synced.insert(0, "batch_id", batch_id)
         synced.insert(1, "sequence", list(range(synced.shape[0])))
+
+        result.synced = synced  # overwrite existing dataframe with this, unscaled, one.
         aligned_df = aligned_df.append(synced)
 
     max_places = int(np.ceil(np.log10(aligned_df["sequence"].max())))
