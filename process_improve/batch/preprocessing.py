@@ -165,13 +165,13 @@ class DTWresult:
 def align_with_path(md_path, batch, initial_row):
     row = 0
     nr = md_path[:, 0].max() + 1  # to account for the zero-based indexing
-    synced = np.zeros((nr, batch.shape[1]))
-    synced[row, :] = batch.iloc[md_path[0, 1], :]
+    synced = pd.DataFrame(np.zeros((nr, batch.shape[1])), columns=batch.columns)
+    synced.iloc[row, :] = batch.iloc[md_path[0, 1], :]
     temp = initial_row
     for idx in np.arange(1, md_path.shape[0]):
         if md_path[idx, 0] != md_path[idx - 1, 0]:
             row += 1
-            synced[row, :] = temp = batch.iloc[md_path[idx, 1], :]
+            synced.iloc[row, :] = temp = batch.iloc[md_path[idx, 1], :]
 
         else:
             # TODO : Come back to page 181 of thesis: where more than 1 point in the target
@@ -179,7 +179,9 @@ def align_with_path(md_path, batch, initial_row):
             temp = np.vstack((temp, batch.iloc[md_path[idx, 1], :]))
             synced[row, :] = np.nanmean(temp, axis=0)
 
-    return pd.DataFrame(synced, columns=batch.columns)
+    return pd.DataFrame(
+        synced,
+    )
 
 
 def dtw_core(test, ref, weight_matrix: np.ndarray):
@@ -413,6 +415,6 @@ def batch_dtw(
         scale_df=scale_df,
         aligned_batch_objects=aligned_batches,
         last_average_batch=last_average_batch,
-        weight_history=weight_history,
+        weight_history=pd.DataFrame(weight_history, columns=columns_to_align),
         aligned_wide_df=aligned_wide_df,
     )
