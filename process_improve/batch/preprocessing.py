@@ -165,13 +165,13 @@ class DTWresult:
 def align_with_path(md_path, batch, initial_row):
     row = 0
     nr = md_path[:, 0].max() + 1  # to account for the zero-based indexing
-    synced = np.zeros((nr, batch.shape[1]))
-    synced[row, :] = batch.iloc[md_path[0, 1], :]
+    synced = pd.DataFrame(np.zeros((nr, batch.shape[1])), columns=batch.columns)
+    synced.iloc[row, :] = batch.iloc[md_path[0, 1], :]
     temp = initial_row
     for idx in np.arange(1, md_path.shape[0]):
         if md_path[idx, 0] != md_path[idx - 1, 0]:
             row += 1
-            synced[row, :] = temp = batch.iloc[md_path[idx, 1], :]
+            synced.iloc[row, :] = temp = batch.iloc[md_path[idx, 1], :]
 
         else:
             # TODO : Come back to page 181 of thesis: where more than 1 point in the target
@@ -179,7 +179,9 @@ def align_with_path(md_path, batch, initial_row):
             temp = np.vstack((temp, batch.iloc[md_path[idx, 1], :]))
             synced[row, :] = np.nanmean(temp, axis=0)
 
-    return pd.DataFrame(synced, columns=batch.columns)
+    return pd.DataFrame(
+        synced,
+    )
 
 
 def dtw_core(test, ref, weight_matrix: np.ndarray):
@@ -230,16 +232,22 @@ def one_iteration_dtw(
     batches_scaled: dict,
     refbatch_sc: pd.DataFrame,
     weight_matrix: np.ndarray,
+    settings: dict = None,
 ):
+    default_settings = {"show_progress": True, "subsample": 1}
+    if settings:
+        default_settings.update(settings)
+    settings = default_settings
+
     aligned_batches = {}
     distances = []
     average_batch = refbatch_sc.copy().reset_index(drop=True) * 0.0
     successful_alignments = 0
     for batch_id, batch in batches_scaled.items():
-        logger.debug(f"  * {batch_id}")
         try:
             # see Kassidas, page 180
-            result = dtw_core(batch, refbatch_sc, weight_matrix=weight_matrix)
+            batch_subset = batch.iloc[:: settings["subsample"], :]
+            result = dtw_core(batch_subset, refbatch_sc, weight_matrix=weight_matrix)
             average_batch += result.synced
             aligned_batches[batch_id] = result
             successful_alignments += 1
@@ -250,6 +258,10 @@ def one_iteration_dtw(
                     "Normalized distance": result.normalized_distance,
                 }
             )
+            if settings["show_progress"]:
+                message = f"  * {batch_id}: distance = {result.distance}"
+                logger.debug(message)
+                print(message)
         except ValueError:
             assert False, f"Failed on batch {batch_id}"
 
@@ -295,17 +307,32 @@ def batch_dtw(
     j = index for the tags
     k = index into the rows of each batch, the samples: 0 ... k ... K_i
     """
-    default_settings = {"maximum_iterations": 25, "robust": True, "tolerance": 0.1}
+    default_settings = {
+        "maximum_iterations": 25,  # maximum iterations (stops here, even if not converged)
+        "tolerance": 0.1,  # convergence tolerance
+        "robust": True,  # use robust scaling
+        "show_progress": True,  # show progress
+        "subsample": 1,  # use every sample
+    }
     if settings:
         default_settings.update(settings)
     settings = default_settings
     assert settings["maximum_iterations"] >= 3, "At least 3 iterations are required"
+    assert (
+        reference_batch in batches
+    ), "`reference_batch` was not found in the dict of batches."
+    settings["subsample"] = int(settings["subsample"])
+
+    # Checks on the batch data (put in a sub-function)
+    for batch_id, batch in batches.items():
+        if "batch_id" not in batch.columns:
+            batches[batch_id].insert(0, "batch_id", batch_id)
 
     scale_df = determine_scaling(
         batches=batches, columns_to_align=columns_to_align, settings=settings
     )
     batches_scaled = apply_scaling(batches, scale_df, columns_to_align)
-    refbatch_sc = batches_scaled[reference_batch]
+    refbatch_sc = batches_scaled[reference_batch].iloc[:: int(settings["subsample"]), :]
     weight_vector = np.ones(refbatch_sc.shape[1])
     weight_matrix = np.diag(weight_vector)
     weight_history = np.zeros_like(weight_vector) * np.nan
@@ -315,7 +342,11 @@ def batch_dtw(
     while (np.linalg.norm(delta_weight) > settings["tolerance"]) and (
         iter <= settings["maximum_iterations"]
     ):
-        logger.debug(f"Iter = {iter} and norm = {np.linalg.norm(delta_weight)}")
+        if settings["show_progress"]:
+            message = f"Iter = {iter} and norm = {np.linalg.norm(delta_weight)}"
+            logger.debug(message)
+            print(message)
+
         iter += 1
         weight_matrix = np.diag(weight_vector)
         weight_history = np.vstack((weight_history, weight_vector.copy()))
@@ -327,6 +358,7 @@ def batch_dtw(
             batches_scaled=batches_scaled,
             refbatch_sc=refbatch_sc,
             weight_matrix=weight_matrix,
+            settings=settings,
         )
 
         # Deviations from the average batch:
@@ -361,7 +393,9 @@ def batch_dtw(
     for batch_id, result in aligned_batches.items():
         initial_row = batches[batch_id].iloc[result.md_path[0, 0], :].copy()
         synced = align_with_path(
-            result.md_path, batches[batch_id], initial_row=initial_row
+            result.md_path,
+            batches[batch_id].iloc[:: int(settings["subsample"]), :],
+            initial_row=initial_row,
         )
         if "batch_id" not in synced.columns:
             synced.insert(0, "batch_id", batch_id)
@@ -389,6 +423,6 @@ def batch_dtw(
         scale_df=scale_df,
         aligned_batch_objects=aligned_batches,
         last_average_batch=last_average_batch,
-        weight_history=weight_history,
+        weight_history=pd.DataFrame(weight_history, columns=columns_to_align),
         aligned_wide_df=aligned_wide_df,
     )
