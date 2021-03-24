@@ -276,7 +276,7 @@ def test_alignment(dryer_data):
     outputs["aligned_wide_df"].shape[0] == 71
     outputs["aligned_wide_df"].shape[1] == 11 * 129
 
-    # Repeat, with a lower tolerance
+    # Repeat, with a lower tolerance, to ensure the number of iterations exceeds 3.
     outputs = batch_dtw(
         dryer_data,
         columns_to_align=columns_to_align,

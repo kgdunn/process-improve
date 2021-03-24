@@ -309,7 +309,7 @@ def batch_dtw(
     weight_vector = np.ones(refbatch_sc.shape[1])
     weight_matrix = np.diag(weight_vector)
     weight_history = np.zeros_like(weight_vector) * np.nan
-
+    average_batch = None
     delta_weight = np.linalg.norm(weight_vector)
     iter = 0
     while (np.linalg.norm(delta_weight) > settings["tolerance"]) and (
@@ -319,6 +319,9 @@ def batch_dtw(
         iter += 1
         weight_matrix = np.diag(weight_vector)
         weight_history = np.vstack((weight_history, weight_vector.copy()))
+
+        if iter > 3:
+            refbatch_sc = average_batch
 
         aligned_batches, average_batch = one_iteration_dtw(
             batches_scaled=batches_scaled,
