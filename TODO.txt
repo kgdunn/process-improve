@@ -11,6 +11,11 @@ https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h1.htm
 Multiple outliers: *** https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h3.htm
 https://www.itl.nist.gov/div898//software/dataplot/refman1/auxillar/grubtest.htm
 https://www.itl.nist.gov/div898//software/dataplot/refman1/auxillar/tietjen.htm
+------------
+VIP for PCA and PLS
+Can you calculate prediction intervals for PLS?
+Confi intervals jackknife coeff?
+Use col in X with greatest variance for the starting score, after iteration 1
 
 ------------
 function  v = robust_scale(a)
