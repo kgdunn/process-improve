@@ -1,11 +1,13 @@
 # Built-in libraries
 import math
 import random
+from typing import Optional
 
 # Plotting settings
 import plotly.graph_objects as go
 from plotly.offline import plot as plotoffline
 import seaborn as sns
+import pandas as pd
 
 
 def get_rgba_from_triplet(incolour, alpha=1, string=False):
@@ -95,9 +97,7 @@ def plot__all_batches_per_tag(
     highlight_style = dict(width=6, color="rgba(255,0,0,0.9)")
     regular_style = dict()
     for batch_name, batch_df in df_dict.items():
-        assert (
-            tag in batch_df.columns
-        ), f"Tag '{tag}' not found in the batch with id {batch_name}."
+        assert tag in batch_df.columns, f"Tag '{tag}' not found in the batch with id {batch_name}."
         if time_column in batch_df.columns:
             time_data = batch_df[time_column]
         else:
@@ -129,8 +129,7 @@ def plot__all_batches_per_tag(
     traces.extend(highlight_traces)
 
     layout = go.Layout(
-        title=f"For all batches: '{tag}'."
-        + (f" [{str(extra_info)}]" if extra_info else ""),
+        title=f"For all batches: '{tag}'." + (f" [{str(extra_info)}]" if extra_info else ""),
         hovermode="closest",
         showlegend=True,
         legend=dict(
@@ -147,3 +146,41 @@ def plot__all_batches_per_tag(
         height=html_image_height,
     )
     return dict(data=traces, layout=layout)
+
+
+def plot__tag_time(
+    source: pd.Series,
+    overlap: bool = False,
+    filled: bool = False,
+    tag_order: Optional[list] = None,
+    x_axis_label: str = "Time, grouped per tag",
+    html_image_height: int = 900,
+    html_aspect_ratio_w_over_h: float = 16 / 9,
+):
+
+    """Plots a vector of information, for every tag [index level 0] over every time [index level 1]
+
+    Parameters
+    ----------
+    source : pd.Series
+        `source` series must be a multi-level Pandas index. Level 0 gives the unique names for each
+        tag, and level 1 gives the names for the 'time' or 'sequence' within a tag.
+    overlap : bool, optional
+        Should all tags overlap [True], or be plotted side-by-side [default; False]
+    filled : bool, optional
+        Should the area below the line be filled. Only makes sense if `overlap` is False.
+    tag_order : Optional[list], optional
+        Indicate the order of the tags on the x-axis. Makes sense if `overlap` is False.
+    colour_order : Optional[list], optional
+        A list of unique, or cycling colours to use, per tag.
+    x_axis_label : str, optional
+        Label for the x-axis, by default "Time, grouped per tag"
+    html_image_height : int, optional
+        Height, in pixels. By default 900
+    html_aspect_ratio_w_over_h : float, optional
+        Determines the image width, as a ratio of the height: by default 16/9
+    """
+    # TODO : Check if multi-level index
+    # TODO: assign colours
+    # TODO: extract names of tags; reorder if necessary
+    # TODO:
