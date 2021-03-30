@@ -18,3 +18,12 @@ def load_melted_data_with_id(in_df: pd.DataFrame, batch_id_col) -> dict:
         batches[str(batch_id)] = batch
 
     return batches
+
+
+def melt_df_to_series(
+    in_df: pd.DataFrame, exclude_columns=["batch_id"], name=None
+) -> pd.Series:
+    """Returns a Series with a multilevel-index, melted from the DataFrame"""
+    out = in_df.drop(exclude_columns, axis=1).T.stack()
+    out.name = name
+    return out
