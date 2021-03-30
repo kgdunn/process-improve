@@ -65,7 +65,7 @@ def determine_scaling(
 
         rnge[rnge.values == 0] = 1.0
         collector_rnge.append(rnge)
-        collector_mins.append(batch.min())
+        collector_mins.append(batch.min(axis=0))
 
     if settings["robust"]:
         scalings = pd.concat(
@@ -81,7 +81,7 @@ def determine_scaling(
             axis=1,
         )
     scalings.columns = ["Range", "Minimum"]
-    scalings["Minimum"] = 0.0
+    # scalings["Minimum"] = 0.0
     return scalings
 
 
