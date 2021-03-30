@@ -7,6 +7,8 @@ from typing import Optional
 import plotly.graph_objects as go
 from plotly.offline import plot as plotoffline
 import seaborn as sns
+
+import numpy as np
 import pandas as pd
 
 
@@ -97,7 +99,9 @@ def plot__all_batches_per_tag(
     highlight_style = dict(width=6, color="rgba(255,0,0,0.9)")
     regular_style = dict()
     for batch_name, batch_df in df_dict.items():
-        assert tag in batch_df.columns, f"Tag '{tag}' not found in the batch with id {batch_name}."
+        assert (
+            tag in batch_df.columns
+        ), f"Tag '{tag}' not found in the batch with id {batch_name}."
         if time_column in batch_df.columns:
             time_data = batch_df[time_column]
         else:
@@ -129,7 +133,8 @@ def plot__all_batches_per_tag(
     traces.extend(highlight_traces)
 
     layout = go.Layout(
-        title=f"For all batches: '{tag}'." + (f" [{str(extra_info)}]" if extra_info else ""),
+        title=f"For all batches: '{tag}'."
+        + (f" [{str(extra_info)}]" if extra_info else ""),
         hovermode="closest",
         showlegend=True,
         legend=dict(
@@ -152,8 +157,10 @@ def plot__tag_time(
     source: pd.Series,
     overlap: bool = False,
     filled: bool = False,
+    showlegend: bool = True,
     tag_order: Optional[list] = None,
     x_axis_label: str = "Time, grouped per tag",
+    y_axis_label: str = "",
     html_image_height: int = 900,
     html_aspect_ratio_w_over_h: float = 16 / 9,
 ):
@@ -164,7 +171,8 @@ def plot__tag_time(
     ----------
     source : pd.Series
         `source` series must be a multi-level Pandas index. Level 0 gives the unique names for each
-        tag, and level 1 gives the names for the 'time' or 'sequence' within a tag.
+        tag, and level 1 gives the names for the 'time' or 'sequence' within a tag. The level 1
+        must be numeric and monotonic.
     overlap : bool, optional
         Should all tags overlap [True], or be plotted side-by-side [default; False]
     filled : bool, optional
@@ -180,7 +188,57 @@ def plot__tag_time(
     html_aspect_ratio_w_over_h : float, optional
         Determines the image width, as a ratio of the height: by default 16/9
     """
-    # TODO : Check if multi-level index
-    # TODO: assign colours
-    # TODO: extract names of tags; reorder if necessary
-    # TODO:
+    assert len(source.index.levels) == 2, "`source` must have a multilevel index of 2"
+    tag_group = source.index.levels[0]
+    n_colours = len(tag_group)
+    random.seed(13)
+    colours = list(sns.husl_palette(n_colours))
+    colours = [get_rgba_from_triplet(c, string=True) for c in colours]
+    colour_assignment = dict(zip(tag_group, colours))
+
+    time_group = source.index.levels[1].values
+    deltas = np.diff(time_group)
+    assert all(deltas > 0), "Level 2 of the index must be numeric, increasing"
+    traces = []
+
+    offset = np.nanmean(deltas)
+    for tag, series in source.unstack(level=0).items():
+        x_axis = time_group
+        fill = None
+        if not (overlap):  # ie: side-by-side
+            if filled:
+                fill = "tozeroy"
+            offset += x_axis[-1]
+
+        trace = go.Scatter(
+            x=x_axis,
+            y=series,
+            name=tag,
+            mode="lines",
+            fill=fill,
+            fillcolor=colour_assignment[tag],
+            line=dict(color=colour_assignment[tag], width=2),
+            legendgroup=tag,
+            showlegend=showlegend,
+        )
+        traces.append(trace)
+
+    layout = go.Layout(
+        title=source.name or y_axis_label,
+        hovermode="closest",
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            traceorder="normal",
+            font=dict(family="sans-serif", size=12, color="#000"),
+            bordercolor="#DDDDDD",
+            borderwidth=1,
+        ),
+        autosize=False,
+        xaxis=dict(title=x_axis_label, gridwidth=1),
+        yaxis=dict(title=y_axis_label, gridwidth=2),
+        width=html_aspect_ratio_w_over_h * html_image_height,
+        height=html_image_height,
+    )
+
+    return dict(data=traces, layout=layout)
