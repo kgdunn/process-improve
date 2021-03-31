@@ -11,6 +11,15 @@ https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h1.htm
 Multiple outliers: *** https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h3.htm
 https://www.itl.nist.gov/div898//software/dataplot/refman1/auxillar/grubtest.htm
 https://www.itl.nist.gov/div898//software/dataplot/refman1/auxillar/tietjen.htm
+
+-----
+Comparisons
+
+* IMplement Holm test: https://stats.libretexts.org/Bookshelves/Applied_Statistics/Book%3A_Learning_Statistics_with_R_-_A_tutorial_for_Psychology_Students_and_other_Beginners_(Navarro)/14%3A_Comparing_Several_Means_(One-way_ANOVA)/14.06%3A_Multiple_Comparisons_and_Post_Hoc_Tests
+
+_-----
+Stats:
+Outlier detection: https://pyod.readthedocs.io/en/latest/
 ------------
 VIP for PCA and PLS
 Can you calculate prediction intervals for PLS?

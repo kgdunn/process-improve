@@ -2,7 +2,7 @@ import pathlib
 import pytest
 import pandas as pd
 
-from process_improve.batch.data_input import load_melted_data_with_id
+from process_improve.batch.data_input import melted_to_dict
 
 
 @pytest.fixture
@@ -10,7 +10,7 @@ def nylon_data():
     nylon_raw = pd.read_csv(
         pathlib.Path(__file__).parents[0] / "fixtures" / "nylon.csv"
     )
-    return load_melted_data_with_id(nylon_raw, batch_id_col="batch_id")
+    return melted_to_dict(nylon_raw, batch_id_col="batch_id")
 
 
 @pytest.fixture
@@ -18,4 +18,4 @@ def dryer_data():
     dryer_raw = pd.read_csv(
         pathlib.Path(__file__).parents[0] / "fixtures" / "dryer.csv"
     )
-    return load_melted_data_with_id(dryer_raw, batch_id_col="batch_id")
+    return melted_to_dict(dryer_raw, batch_id_col="batch_id")

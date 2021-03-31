@@ -24,7 +24,7 @@ Dryer data set. Source:
 
 Code to manipulate the raw file to the proper format
 dryer_raw = pd.read_csv(pathlib.Path(__file__).parents[0] / "fixtures" / "dryer.csv")
-rawdata = load_melted_data_with_id(dryer_raw, batchid_col="batch_id")
+rawdata = melted_to_dict(dryer_raw, batchid_col="batch_id")
 merge = {
         1: 1,
         2: 2,
