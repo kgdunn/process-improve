@@ -79,7 +79,9 @@ def wide_to_dict():
     pass
 
 
-def melt_df_to_series(in_df: pd.DataFrame, exclude_columns=["batch_id"], name=None) -> pd.Series:
+def melt_df_to_series(
+    in_df: pd.DataFrame, exclude_columns=["batch_id"], name=None
+) -> pd.Series:
     """Returns a Series with a multilevel-index, melted from the DataFrame"""
     out = in_df.drop(exclude_columns, axis=1).T.stack()
     out.name = name

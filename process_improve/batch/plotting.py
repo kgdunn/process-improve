@@ -188,6 +188,7 @@ def plot__tag_time(
     html_aspect_ratio_w_over_h : float, optional
         Determines the image width, as a ratio of the height: by default 16/9
     """
+    assert isinstance(source, pd.Series), "`source` must be a Pandas series"
     assert len(source.index.levels) == 2, "`source` must have a multilevel index of 2"
     tag_group = source.index.levels[0]
     n_colours = len(tag_group)
