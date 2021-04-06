@@ -2,9 +2,26 @@ from process_improve.batch.plotting import (
     plot__all_batches_per_tag,
     plot__tag_time,
     plot_to_HTML,
+    get_rgba_from_triplet,
 )
 from process_improve.batch.data_input import melt_df_to_series
 from process_improve.batch.preprocessing import determine_scaling, apply_scaling
+
+
+def test_plot_colours():
+
+    assert get_rgba_from_triplet(
+        [0.9677975592919913, 0.44127456009157356, 0.5358103155058701], 1
+    ) == [246, 112, 136, 1]
+
+    assert (
+        get_rgba_from_triplet(
+            [0.9677975592919913, 0.44127456009157356, 0.5358103155058701],
+            1,
+            as_string=True,
+        )
+        == "rgba(246,112,136,1.0)"
+    )
 
 
 def test_plotting_dryer(dryer_data):

@@ -12,17 +12,17 @@ import numpy as np
 import pandas as pd
 
 
-def get_rgba_from_triplet(incolour, alpha=1, string=False):
+def get_rgba_from_triplet(incolour, alpha=1, as_string=False):
     """
     Convert the input colour triplet (list) to a Plotly rgba(r,g,b,a) string if
-    `string` is True. If `False` it will return the list of 3 integer RGB
+    `as_string` is True. If `False` it will return the list of 3 integer RGB
     values.
 
-    E.g.    [0.9677975592919913, 0.44127456009157356, 0.5358103155058701] -> 'rgba(247,113,137,1)'
+    E.g.    [0.9677975592919913, 0.44127456009157356, 0.5358103155058701] -> 'rgba(246,112,136,1)'
     """
     assert len(incolour) == 3
     colours = [max(0, int(math.floor(c * 255))) for c in incolour]
-    if string:
+    if as_string:
         return f"rgba({colours[0]},{colours[1]},{colours[2]},{float(alpha)})"
     else:
         return colours
@@ -91,7 +91,7 @@ def plot__all_batches_per_tag(
     random.seed(13)
     colours = list(sns.husl_palette(n_colours))
     random.shuffle(colours)
-    colours = [get_rgba_from_triplet(c, string=True) for c in colours]
+    colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
     colour_assignment = dict(zip(unique_items, colours))
 
     traces = []
@@ -99,9 +99,7 @@ def plot__all_batches_per_tag(
     highlight_style = dict(width=6, color="rgba(255,0,0,0.9)")
     regular_style = dict()
     for batch_name, batch_df in df_dict.items():
-        assert (
-            tag in batch_df.columns
-        ), f"Tag '{tag}' not found in the batch with id {batch_name}."
+        assert tag in batch_df.columns, f"Tag '{tag}' not found in the batch with id {batch_name}."
         if time_column in batch_df.columns:
             time_data = batch_df[time_column]
         else:
@@ -133,8 +131,7 @@ def plot__all_batches_per_tag(
     traces.extend(highlight_traces)
 
     layout = go.Layout(
-        title=f"For all batches: '{tag}'."
-        + (f" [{str(extra_info)}]" if extra_info else ""),
+        title=f"For all batches: '{tag}'." + (f" [{str(extra_info)}]" if extra_info else ""),
         hovermode="closest",
         showlegend=True,
         legend=dict(
@@ -194,7 +191,7 @@ def plot__tag_time(
     n_colours = len(tag_group)
     random.seed(13)
     colours = list(sns.husl_palette(n_colours))
-    colours = [get_rgba_from_triplet(c, string=True) for c in colours]
+    colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
     colour_assignment = dict(zip(tag_group, colours))
 
     time_group = source.index.levels[1].values

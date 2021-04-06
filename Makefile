@@ -66,7 +66,7 @@ coverage: ## check code coverage quickly with the default Python
 	coverage run --source process_improve -m pytest
 	coverage report -m
 	coverage html
-	python -m http.server 8080
+	python -m http.server 8080 --directory htmlcov
 
 docs: ## generate Sphinx HTML documentation, including API docs
 	rm -f docs/process_improve.rst
