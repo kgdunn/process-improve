@@ -14,9 +14,6 @@ formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messag
 fh.setFormatter(formatter)
 logger.addHandler(fh)
 
-# dtwalign: https://github.com/statefb/dtwalign
-# from dtwalign import dtw_from_distance_matrix
-
 epsqrt = np.sqrt(np.finfo(float).eps)
 
 

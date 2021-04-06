@@ -25,7 +25,7 @@ VIP for PCA and PLS
 Can you calculate prediction intervals for PLS?
 Confi intervals jackknife coeff?
 Use col in X with greatest variance for the starting score, after iteration 1
-
+Contribution plot calculation
 ------------
 function  v = robust_scale(a)
 % Using the formula from Mosteller and Tukey, Data Analysis and Regression,

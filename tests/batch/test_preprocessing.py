@@ -1,7 +1,5 @@
 import numpy as np
-import matplotlib.pylab as plt
 from pytest import approx
-from dtwalign import dtw
 
 from process_improve.batch.preprocessing import (
     batch_dtw,
@@ -11,75 +9,75 @@ from process_improve.batch.preprocessing import (
 )
 
 
-def dtw_understanding():
-    x = np.linspace(0, 2 * np.pi, num=50)
-    reference = np.reshape(np.sin(x), (50, 1))
-    query = np.reshape(np.cos(x), (50, 1))
+# def dtw_understanding():
+#     x = np.linspace(0, 2 * np.pi, num=50)
+#     reference = np.reshape(np.sin(x), (50, 1))
+#     query = np.reshape(np.cos(x), (50, 1))
 
-    # Template is shifted forward in time.
+#     # Template is shifted forward in time.
 
-    plt.plot(x, reference, ".-", c="blue")
-    plt.plot(x, query, ".-", c="red")
-    plt.grid()
-    res = dtw(query, y=reference, window_type="sakoechiba", window_size=int(0.2 * len(x)))
-    warping_path = res.get_warping_path(target="query")
-    plt.plot(x, query[warping_path], ".-", c="purple")
-    plt.title("The query signal (red), aligned (purple) with the reference (blue)")
-    # plt.savefig("demo-of-DTW.png")
-    print(res.distance)
+#     plt.plot(x, reference, ".-", c="blue")
+#     plt.plot(x, query, ".-", c="red")
+#     plt.grid()
+#     res = dtw(query, y=reference, window_type="sakoechiba", window_size=int(0.2 * len(x)))
+#     warping_path = res.get_warping_path(target="query")
+#     plt.plot(x, query[warping_path], ".-", c="purple")
+#     plt.title("The query signal (red), aligned (purple) with the reference (blue)")
+#     # plt.savefig("demo-of-DTW.png")
+#     print(res.distance)
 
-    # Try other distance estimate:
-    # ref_steps = 50
-    # qry_steps = 50
-    # covariance = np.zeros((ref_steps, qry_steps))
-    #
-    # for j in range(qry_steps):
-    #     B = np.ones((ref_steps, 1)) * query[j]
-    #     covariance[:, j] = np.diag(np.matmul((B - reference), (B - reference).T))
-    #
-    # from scipy.spatial.distance import mahalanobis
-    #
-    # def distance_metric(x, y):
-    #     return mahalanobis(x, y, covariance)
-    #
-    # plt.plot(x, reference, ".-", c="blue")
-    # plt.plot(x, query, ".-", c="red")
-    # plt.grid()
-    # res = dtw(query, y=reference, dist=lambda x, y: distance_metric(x, y))
-    # warping_path = res.get_warping_path(target="query")
-    # plt.plot(x, query[warping_path], ".-", c="purple")
-    # plt.title("The query signal (red), aligned (purple) with the reference (blue)")
-    # plt.savefig("demo-of-DTW.png")
-    # print(res.distance)
+#     # Try other distance estimate:
+# # ref_steps = 50
+# # qry_steps = 50
+# # covariance = np.zeros((ref_steps, qry_steps))
+# #
+# # for j in range(qry_steps):
+# #     B = np.ones((ref_steps, 1)) * query[j]
+# #     covariance[:, j] = np.diag(np.matmul((B - reference), (B - reference).T))
+# #
+# # from scipy.spatial.distance import mahalanobis
+# #
+# # def distance_metric(x, y):
+# #     return mahalanobis(x, y, covariance)
+# #
+# # plt.plot(x, reference, ".-", c="blue")
+# # plt.plot(x, query, ".-", c="red")
+# # plt.grid()
+# # res = dtw(query, y=reference, dist=lambda x, y: distance_metric(x, y))
+# # warping_path = res.get_warping_path(target="query")
+# # plt.plot(x, query[warping_path], ".-", c="purple")
+# # plt.title("The query signal (red), aligned (purple) with the reference (blue)")
+# # plt.savefig("demo-of-DTW.png")
+# # print(res.distance)
 
-    # Another case: different lengths
-    plt.clf()
-    x_ref = np.linspace(0, 2 * np.pi, num=50)
-    reference = np.sin(x_ref)
-    x_query = np.linspace(0, 2 * np.pi, num=25)
-    query = np.sin(x_query) + np.random.randn(25) * 0.1
-    plt.plot(x_ref, reference, ".-", c="blue")
-    plt.plot(x_query, query, ".-", c="red")
-    plt.grid()
-    res = dtw(query, y=reference)
-    warping_path = res.get_warping_path(target="query")
-    plt.plot(x_ref, query[warping_path], ".-", c="purple")
-    plt.title("The query signal (red), aligned (purple) with the reference (blue)")
-    # plt.savefig("demo-of-DTW-varying-lengths.png")
-    print(res.distance)
+# # Another case: different lengths
+# plt.clf()
+# x_ref = np.linspace(0, 2 * np.pi, num=50)
+# reference = np.sin(x_ref)
+# x_query = np.linspace(0, 2 * np.pi, num=25)
+# query = np.sin(x_query) + np.random.randn(25) * 0.1
+# plt.plot(x_ref, reference, ".-", c="blue")
+# plt.plot(x_query, query, ".-", c="red")
+# plt.grid()
+# res = dtw(query, y=reference)
+# warping_path = res.get_warping_path(target="query")
+# plt.plot(x_ref, query[warping_path], ".-", c="purple")
+# plt.title("The query signal (red), aligned (purple) with the reference (blue)")
+# # plt.savefig("demo-of-DTW-varying-lengths.png")
+# print(res.distance)
 
-    plt.clf()
-    plt.plot(x_ref, x_query[warping_path])
-    # plt.savefig("demo-of-DTW-x-axis-distortion.png")
+# plt.clf()
+# plt.plot(x_ref, x_query[warping_path])
+# # plt.savefig("demo-of-DTW-x-axis-distortion.png")
 
-    plt.clf()
-    plt.plot(reference, query[warping_path], ".")
-    plt.xlabel("Reference")
-    plt.ylabel("Query (corrected)")
-    plt.grid()
-    # plt.savefig("demo-of-DTW-corrected-signal.png")
+# plt.clf()
+# plt.plot(reference, query[warping_path], ".")
+# plt.xlabel("Reference")
+# plt.ylabel("Query (corrected)")
+# plt.grid()
+# # plt.savefig("demo-of-DTW-corrected-signal.png")
 
-    # Try
+# # Try
 
 
 def test_scaling(dryer_data):
@@ -91,19 +89,25 @@ def test_scaling(dryer_data):
         "DryerTemp",
     ]
     scale_df = determine_scaling(
-        dryer_data, columns_to_align=columns_to_align, settings={"robust": False},
+        dryer_data,
+        columns_to_align=columns_to_align,
+        settings={"robust": False},
     )
     assert np.array([152.3796, 48.2545, 101.7032, 73.1462, 68.0041]) == approx(
         scale_df.loc[columns_to_align]["Range"]
     )
 
-    batches_scaled = apply_scaling(dryer_data, scale_df, columns_to_align=columns_to_align)
+    batches_scaled = apply_scaling(
+        dryer_data, scale_df, columns_to_align=columns_to_align
+    )
     reference_batch = batches_scaled["1"]
     assert np.array([0.793227, 0.171115, 1.007772, 0.051198, 0.050173]) == approx(
         reference_batch[columns_to_align].iloc[0], abs=1e-4
     )
     orig = reverse_scaling(batches_scaled, scale_df)
-    assert np.linalg.norm(orig["1"] - dryer_data["1"][columns_to_align]) == approx(0, abs=1e-10)
+    assert np.linalg.norm(orig["1"] - dryer_data["1"][columns_to_align]) == approx(
+        0, abs=1e-10
+    )
 
 
 def test_alignment(dryer_data):
@@ -118,7 +122,10 @@ def test_alignment(dryer_data):
         dryer_data,
         columns_to_align=columns_to_align,
         reference_batch="2",
-        settings={"robust": False, "tolerance": 1,},  # high tolerance ensures only 1 iteration
+        settings={
+            "robust": False,
+            "tolerance": 1,
+        },  # high tolerance ensures only 1 iteration
     )
     assert [1, 1, 1, 1, 1] == approx(outputs["weight_history"].iloc[0])
     assert [152.379618, 48.254502, 101.703155, 73.146169, 68.004085] == approx(
@@ -277,3 +284,32 @@ def test_alignment(dryer_data):
     # assert [0.43702525, 1.33206459, 0.98298667, 0.93599197, 1.31193153] == approx(
     #     outputs["weight_history"][4, :], abs=1e-7
     # )
+
+
+# def test_other():
+
+#     import pickle
+
+#     batch_data = pickle.load(open("other-dict.pkl", "rb"))
+
+#     columns_to_align = [
+#         # "batch_duration_hours",
+#         "f_our",
+#         "f_cpr",
+#         "f_dissolved_oxygen",
+#         "f_feed_setpoint",
+#         "f_feed",
+#         "f_co2_in_offgas",
+#         "f_ammonia_addition",
+#         "f_cum_feed",
+#     ]
+#     outputs = batch_dtw(
+#         batch_data,
+#         columns_to_align=columns_to_align,
+#         reference_batch=616005901,
+#         settings={
+#             "robust": False,
+#             "tolerance": 1,
+#             "subsample": 5,
+#         },
+#     )

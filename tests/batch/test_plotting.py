@@ -1,7 +1,7 @@
+from pytest import approx
 from process_improve.batch.plotting import (
     plot__all_batches_per_tag,
     plot__tag_time,
-    plot_to_HTML,
     get_rgba_from_triplet,
 )
 from process_improve.batch.data_input import melt_df_to_series
@@ -11,8 +11,8 @@ from process_improve.batch.preprocessing import determine_scaling, apply_scaling
 def test_plot_colours():
 
     assert get_rgba_from_triplet(
-        [0.9677975592919913, 0.44127456009157356, 0.5358103155058701], 1
-    ) == [246, 112, 136, 1]
+        [0.9677975592919913, 0.44127456009157356, 0.5358103155058701]
+    ) == approx([246, 112, 136])
 
     assert (
         get_rgba_from_triplet(
@@ -42,6 +42,7 @@ def test_plotting_nylon(nylon_data):
         df_dict=dict_df,
         tag="Tag09",
         x_axis_label="Samples since start of batch",
+        batches_to_highlight=["2", "3", "4"],
     )
     assert len(fig["data"]) == len(dict_df)
 
@@ -58,7 +59,6 @@ def test_plotting_tags(nylon_data):
         # tag_order: Optional[list] = None,
         # x_axis_label: str = "Time, grouped per tag",
     )
-    plot_to_HTML("test.html", fig)
     assert len(fig["data"]) == batches_scaled["1"].shape[1] - 1
 
     # TODO: plot side-by-side and colour filling
