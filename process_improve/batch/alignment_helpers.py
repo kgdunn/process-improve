@@ -1,9 +1,9 @@
-import numpy as np
-from numba import jit
-
 """
 Functions in this files will ONLY use NumPy, and are therefore candidates for speed up with Numba.
 """
+
+import numpy as np
+from numba import jit
 
 
 @jit(nopython=True)
