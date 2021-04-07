@@ -53,7 +53,7 @@ def plot__all_batches_per_tag(
     tag: str,
     time_column: str = None,
     extra_info="",
-    batches_to_highlight=[],
+    batches_to_highlight={},
     x_axis_label: str = "Time [sequence order]",
     html_image_height: int = 900,
     html_aspect_ratio_w_over_h: float = 16 / 9,
@@ -71,8 +71,10 @@ def plot__all_batches_per_tag(
         if left as the default, `None`.
     extra_info : str, optional
         Used in the plot title to add any extra details, by default ""
-    batches_to_highlight : list, optional
-        Batch identifiers (keys) that will be shown with a heavier line, by default []
+    batches_to_highlight : dict, optional
+        keys: an rgba colour string; for example: "rgba(255,0,0,0.9)"
+        values: a list of batch identifiers (must be valid keys in `df_dict`).
+        The highlighted batches will be shown with a heavier line.
     x_axis_label : str, optional
         String label for the x-axis, by default "Time [sequence order]"
 
@@ -96,8 +98,13 @@ def plot__all_batches_per_tag(
 
     traces = []
     highlight_traces = []
-    highlight_style = dict(width=6, color="rgba(255,0,0,0.9)")
+    highlight_width = 5
     regular_style = dict()
+
+    highlight_dict = {}
+    for key, val in batches_to_highlight.items():
+        highlight_dict.update({item: key for item in val if item in df_dict.keys()})
+
     for batch_name, batch_df in df_dict.items():
         assert (
             tag in batch_df.columns
@@ -107,11 +114,11 @@ def plot__all_batches_per_tag(
         else:
             time_data = list(range(batch_df.shape[0]))
 
-        if batch_name in batches_to_highlight:
+        if batch_name in highlight_dict.keys():
             trace = go.Scatter(
                 x=time_data,
                 y=batch_df[tag],
-                line=highlight_style,
+                line=dict(width=highlight_width, color=highlight_dict[batch_name]),
                 name=batch_name,
                 mode="lines",
                 opacity=0.8,
