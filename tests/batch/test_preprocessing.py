@@ -6,6 +6,7 @@ from process_improve.batch.preprocessing import (
     determine_scaling,
     apply_scaling,
     reverse_scaling,
+    find_reference_batch,
 )
 
 
@@ -213,3 +214,20 @@ def test_alignment(dryer_data):
     # assert [0.43702525, 1.33206459, 0.98298667, 0.93599197, 1.31193153] == approx(
     #     outputs["weight_history"][4, :], abs=1e-7
     # )
+
+
+def test_reference_batch_selection(dryer_data):
+    columns_to_align = [
+        "AgitatorPower",
+        "AgitatorTorque",
+        "JacketTemperatureSP",
+        "JacketTemperature",
+        "DryerTemp",
+    ]
+    _ = find_reference_batch(
+        dryer_data,
+        columns_to_align=columns_to_align,
+        settings={
+            "robust": False,
+        },
+    )
