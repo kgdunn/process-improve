@@ -6,10 +6,11 @@ There are 3 useful ways to represent batch data.
 `dict`: as a Python dictionary
 
     data = {
-        "batch 1": data frame with varying number of rows, but same number of columns,
+        "batch 1": data frame with varying number of rows, but same number of columns.
         "batch 2": etc
     }
 
+    The `keys` are unique identifiers for each batch, such as integers, or strings.
 
 `melt`: as a single Pandas data frame
 
@@ -34,7 +35,41 @@ There are 3 useful ways to represent batch data.
         unique elements in the level-1 column index.
 """
 
+import numpy as np
 import pandas as pd
+
+
+def check_valid_batch_dict(in_dict: dict, no_nan=False) -> bool:
+    """Check if the incoming dictionary of batch data is a valid dictionary of data.
+
+    Checks:
+    1. All batches in the dictionary have the same number of columns.
+    2. All columns are numeric.
+    3. If `no_nan` is True, also checks that there are no NaNs.
+
+    Parameters
+    ----------
+    in_dict : dict
+        A dictionary of batch data.
+
+    Returns
+    -------
+    bool
+        True, if it passes the checks.
+    """
+    assert len(in_dict) > 1
+    batch1 = in_dict[list(in_dict.keys())[0]]
+    base_columns = set(batch1.columns)
+    check = True
+    for _, batch in in_dict.items():
+        # Check 1
+        check *= base_columns == set(batch.columns)
+        # Check 2
+        check *= batch.select_dtypes(include=[np.number]).shape[1] == batch.shape[1]
+        # Check 3
+        check *= batch.isna().values.sum() == 0
+
+    return check
 
 
 def dict_to_melted(indf: pd.DataFrame) -> dict:
@@ -60,7 +95,7 @@ def melted_to_dict(in_df: pd.DataFrame, batch_id_col) -> dict:
     batches = {}
 
     for batch_id, batch in in_df.groupby(batch_id_col):
-        batches[str(batch_id)] = batch
+        batches[batch_id] = batch
 
     return batches
 

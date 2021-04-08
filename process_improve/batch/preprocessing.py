@@ -5,7 +5,7 @@ import logging
 import plotly.graph_objects as go
 
 from .alignment_helpers import distance_matrix, backtrack_optimal_path
-from .data_input import dict_to_wide
+from .data_input import dict_to_wide, check_valid_batch_dict
 
 from ..multivariate import MCUVScaler, PCA
 
@@ -81,7 +81,6 @@ def determine_scaling(
             axis=1,
         )
     scalings.columns = ["Range", "Minimum"]
-    # scalings["Minimum"] = 0.0
     return scalings
 
 
@@ -329,11 +328,7 @@ def batch_dtw(
     ), "`reference_batch` was not found in the dict of batches."
     settings["subsample"] = int(settings["subsample"])
 
-    # Checks on the batch data (put in a sub-function)
-    # TODO assert False, "Is this actually necessary? Why do this?"
-    for batch_id, batch in batches.items():
-        if "batch_id" not in batch.columns:
-            batches[batch_id].insert(0, "batch_id", batch_id)
+    assert check_valid_batch_dict(batches, no_nan=True)
 
     scale_df = determine_scaling(
         batches=batches, columns_to_align=columns_to_align, settings=settings
@@ -398,17 +393,10 @@ def batch_dtw(
     aligned_df = pd.DataFrame()
 
     for batch_id, result in aligned_batches.items():
-        initial_row = (
-            batches[batch_id]
-            .drop("batch_id", axis=1)
-            .iloc[result.md_path[0, 0], :]
-            .copy()
-        )
+        initial_row = batches[batch_id].iloc[result.md_path[0, 0], :].copy()
         synced = align_with_path(
             result.md_path,
-            batches[batch_id]
-            .drop("batch_id", axis=1)
-            .iloc[:: int(settings["subsample"]), :],
+            batches[batch_id].iloc[:: int(settings["subsample"]), :],
             initial_row=initial_row,
         )
         if "batch_id" not in synced.columns:
@@ -553,6 +541,8 @@ def find_reference_batch(
         default_settings.update(settings)
     settings = default_settings
     settings["subsample"] = int(settings["subsample"])
+
+    assert check_valid_batch_dict(batches)
 
     # Starts with the average duration batch.
     initial_reference_id = find_average_length(batches, settings)

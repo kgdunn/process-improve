@@ -30,12 +30,12 @@ def test_scaling(dryer_data):
     batches_scaled = apply_scaling(
         dryer_data, scale_df, columns_to_align=columns_to_align
     )
-    reference_batch = batches_scaled["1"]
+    reference_batch = batches_scaled[1]
     assert np.array([0.793227, 0.171115, 1.007772, 0.051198, 0.050173]) == approx(
         reference_batch[columns_to_align].iloc[0], abs=1e-4
     )
     orig = reverse_scaling(batches_scaled, scale_df)
-    assert np.linalg.norm(orig["1"] - dryer_data["1"][columns_to_align]) == approx(
+    assert np.linalg.norm(orig[1] - dryer_data[1][columns_to_align]) == approx(
         0, abs=1e-10
     )
 
@@ -51,7 +51,7 @@ def test_alignment(dryer_data):
     outputs = batch_dtw(
         dryer_data,
         columns_to_align=columns_to_align,
-        reference_batch="2",
+        reference_batch=2,
         settings={
             "robust": False,
             "tolerance": 1,
@@ -61,7 +61,7 @@ def test_alignment(dryer_data):
     assert [152.379618, 48.254502, 101.703155, 73.146169, 68.004085] == approx(
         outputs["scale_df"]["Range"][columns_to_align]
     )
-    b1 = outputs["aligned_batch_objects"]["1"]
+    b1 = outputs["aligned_batch_objects"][1]
     expected_warping_path = [
         1,
         2,
@@ -206,7 +206,7 @@ def test_alignment(dryer_data):
     outputs = batch_dtw(
         dryer_data,
         columns_to_align=columns_to_align,
-        reference_batch="2",
+        reference_batch=2,
         settings={"robust": False, "tolerance": 0.06},
     )
     assert (3, 5) == outputs["weight_history"].shape

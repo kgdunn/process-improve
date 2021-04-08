@@ -53,7 +53,7 @@ def test_plotting_nylon(nylon_data):
 def test_plotting_tags(nylon_data):
     scale_df = determine_scaling(nylon_data, settings={"robust": False})
     batches_scaled = apply_scaling(nylon_data, scale_df)
-    long_form = melt_df_to_series(batches_scaled["1"], name="Raw trajectories")
+    long_form = melt_df_to_series(batches_scaled[1], name="Raw trajectories")
 
     fig = plot__tag_time(
         source=long_form,
@@ -62,6 +62,6 @@ def test_plotting_tags(nylon_data):
         # tag_order: Optional[list] = None,
         # x_axis_label: str = "Time, grouped per tag",
     )
-    assert len(fig["data"]) == batches_scaled["1"].shape[1] - 1
+    assert len(fig["data"]) == batches_scaled[1].shape[1] - 1
 
     # TODO: plot side-by-side and colour filling
