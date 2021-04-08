@@ -1,4 +1,10 @@
 
+Don't force dict keys to be string!!
+
+SOMEHOW, batch_id gets added as the first column; causing crashes later when after alignment is done.
+in "align_with_path(md_path, batch, initial_row)", line: synced.iloc[row, :] = np.nanmean(temp, axis=0)
+-----
+
 Univariate:
 * does  it come from a given distribution?
     https://www.itl.nist.gov/div898/handbook/eda/section3/eda35g.htm

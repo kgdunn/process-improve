@@ -330,6 +330,7 @@ def batch_dtw(
     settings["subsample"] = int(settings["subsample"])
 
     # Checks on the batch data (put in a sub-function)
+    # TODO assert False, "Is this actually necessary? Why do this?"
     for batch_id, batch in batches.items():
         if "batch_id" not in batch.columns:
             batches[batch_id].insert(0, "batch_id", batch_id)
@@ -397,10 +398,17 @@ def batch_dtw(
     aligned_df = pd.DataFrame()
 
     for batch_id, result in aligned_batches.items():
-        initial_row = batches[batch_id].iloc[result.md_path[0, 0], :].copy()
+        initial_row = (
+            batches[batch_id]
+            .drop("batch_id", axis=1)
+            .iloc[result.md_path[0, 0], :]
+            .copy()
+        )
         synced = align_with_path(
             result.md_path,
-            batches[batch_id].iloc[:: int(settings["subsample"]), :],
+            batches[batch_id]
+            .drop("batch_id", axis=1)
+            .iloc[:: int(settings["subsample"]), :],
             initial_row=initial_row,
         )
         if "batch_id" not in synced.columns:
