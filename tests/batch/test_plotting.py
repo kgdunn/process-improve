@@ -42,7 +42,10 @@ def test_plotting_nylon(nylon_data):
         df_dict=dict_df,
         tag="Tag09",
         x_axis_label="Samples since start of batch",
-        batches_to_highlight=["2", "3", "4"],
+        batches_to_highlight={
+            "rgba(255,0,0,0.9)": ["2", "3", "4"],
+            "rgba(0,0,255,0.9)": ["5", "6"],
+        },
     )
     assert len(fig["data"]) == len(dict_df)
 

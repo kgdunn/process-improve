@@ -37,16 +37,17 @@ There are 3 useful ways to represent batch data.
 import pandas as pd
 
 
-def dict_to_melted():
-    """Reverse of `melted_to_dict`."""
+def dict_to_melted(indf: pd.DataFrame) -> dict:
+    """Reverse of `melted_to_dict`"""
     pass
 
 
-def dict_to_wide():
+def dict_to_wide(indf: dict) -> pd.DataFrame:
     """
     Data must be warped already.
     """
-    pass
+    outdf = pd.DataFrame()
+    return outdf
 
 
 def melted_to_dict(in_df: pd.DataFrame, batch_id_col) -> dict:

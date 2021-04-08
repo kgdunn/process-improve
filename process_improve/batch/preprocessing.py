@@ -5,6 +5,9 @@ import logging
 import plotly.graph_objects as go
 
 from .alignment_helpers import distance_matrix, backtrack_optimal_path
+from .data_input import dict_to_wide
+
+from ..multivariate import MCUVScaler, PCA
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -287,8 +290,14 @@ def batch_dtw(
         get no weight, and therefore do not influence the objective function.
     reference_batch : str
         Which key in the `batches` is the reference batch.
-    maximum_iterations : int
-        The maximum number of iterations allowed.
+    settings : dict
+        Default settings are = {
+            "maximum_iterations": 25,  # maximum iterations (stops here, even if not converged)
+            "tolerance": 0.1,  # convergence tolerance
+            "robust": True,  # use robust scaling
+            "show_progress": True,  # show progress
+            "subsample": 1,  # use every sample
+        }
 
     Returns
     -------
@@ -423,3 +432,143 @@ def batch_dtw(
         weight_history=pd.DataFrame(weight_history, columns=columns_to_align),
         aligned_wide_df=aligned_wide_df,
     )
+
+
+def resample_to_reference(
+    batches: Dict[str, pd.DataFrame],
+    columns_to_align: list,
+    reference_batch: str,
+    settings: dict = None,
+) -> dict:
+    """Resamples all `batches` (only the `columns_to_align`) to the duration of batch with
+    identifier `reference`.
+
+    Parameters
+    ----------
+    batches : Dict[str, pd.DataFrame]
+        Batch data, in the standard format.
+    columns_to_align : list
+        Which columns to use. Others are ignored.
+    reference_batch : str
+        Which key in the `batches` is the reference batch.
+    settings : dict, optional
+        [description], by default None
+
+    Returns
+    -------
+    dict
+        Batch data, in the standard format.
+    """
+    # TODO
+    pass
+
+
+def find_average_length(batches: Dict[str, pd.DataFrame], settings: dict = None):
+    """
+    Find the batch in `batches` with the average length.
+
+    Parameters
+    ----------
+    batches : Dict[str, pd.DataFrame]
+        Batch data, in the standard format.
+    settings : dict
+        Default settings are = {
+            "robust": True,  # use robust (median)
+        }
+
+    Returns
+    -------
+    One of the dictionary keys from `batches`.
+
+    """
+    default_settings = {
+        "robust": True,  # use robust scaling
+    }
+    if settings:
+        default_settings.update(settings)
+    settings = default_settings
+
+    batch_lengths = pd.Series(
+        {batch_id: df.shape[0] for batch_id, df in batches.items()}
+    )
+    if settings["robust"]:
+        # If multiple batches of the median length, return the last one.
+        return batch_lengths.index[
+            np.where((batch_lengths == batch_lengths.median()).values)[0][-1]
+        ]
+    else:
+        return batch_lengths.index[
+            (batch_lengths - batch_lengths.mean()).abs().argmin()
+        ]
+
+
+def find_reference_batch(
+    batches: Dict[str, pd.DataFrame],
+    columns_to_align: list,
+    settings: dict = None,
+):
+    """
+    Find a reference batch. Assumes NO missing data.
+
+    Starts with the average duration batch; resamples (simple interpolation) of all batches to
+    that duration. Unfolds that resampled data. Does PCA on the wide, unfolded data. Fits,
+    by default, 4 components. Excludes all batches with Hotelling's T2 > 90% limit. Refits PCA
+    with 4 components. Finds the batch which has the multivariate combination of scores which are
+    the smallest (i.e. closest to the model center) and ensures this batch has SPE < 50% of the
+    model limit.
+
+    Parameters
+    ----------
+    batches : Dict[str, pd.DataFrame]
+        Batch data, in the standard format.
+    columns_to_align : list
+        Which columns to use. Others are ignored.
+    settings : dict
+        Default settings are = {
+            "robust": True,  # use robust scaling
+            "subsample": 1,  # use every sample
+            "method": "pca_most_average", # the most average batch from a crudely aligned PCA
+            "n_components": 4,
+        }
+
+    Returns
+    -------
+    One of the dictionary keys from `batches`.
+
+    """
+    default_settings = {
+        "robust": True,  # use robust scaling
+        "subsample": 1,  # use every sample
+        "method": "pca_most_average",
+    }
+    if settings:
+        default_settings.update(settings)
+    settings = default_settings
+    settings["subsample"] = int(settings["subsample"])
+
+    # Starts with the average duration batch.
+    initial_reference_id = find_average_length(batches, settings)
+
+    # Resamples (simple interpolation) of all batches to that duration.
+    resampled = resample_to_reference(
+        batches,
+        columns_to_align,
+        reference_batch=initial_reference_id,
+        settings=settings,
+    )
+
+    # Unfolds that resampled data.
+    basewide = dict_to_wide(resampled)
+
+    # Does PCA on the wide, unfolded data. A=4
+    scaler = MCUVScaler().fit(basewide)
+    mcuv = scaler.fit_transform(basewide)
+
+    pca_first = PCA(n_components=settings["n_components"]).fit(mcuv)
+
+    # Excludes all batches with Hotelling's T2 > 90% limit.
+    _ = pca_first.T2_limit(0.90)  # = T2_limit_90
+
+    # Refits PCA with A=4
+
+    # Finds batch with scores; and ensures this batch has SPE < 50% of the model limit.
