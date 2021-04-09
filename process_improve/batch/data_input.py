@@ -52,6 +52,10 @@ def check_valid_batch_dict(in_dict: dict, no_nan=False) -> bool:
     in_dict : dict
         A dictionary of batch data.
 
+    no_nan : bool
+        If True, will also check that no missing values are present.
+
+
     Returns
     -------
     bool
@@ -72,16 +76,28 @@ def check_valid_batch_dict(in_dict: dict, no_nan=False) -> bool:
     return check
 
 
-def dict_to_melted(indf: pd.DataFrame) -> dict:
+def dict_to_melted(in_df: pd.DataFrame) -> dict:
     """Reverse of `melted_to_dict`"""
     pass
 
 
-def dict_to_wide(indf: dict) -> pd.DataFrame:
+def dict_to_wide(in_df: dict) -> pd.DataFrame:
     """
-    Data must be warped already.
+    Data must be warped already so that every batch has the same number of *rows*!
     """
     outdf = pd.DataFrame()
+    # TODO: add a check on the rows
+
+    # aligned_wide_df = in_df.pivot(index="batch_id", columns="sequence")
+    # new_labels = [
+    #     "-".join(item)
+    #     for item in zip(
+    #         aligned_wide_df.columns.get_level_values(0),
+    #         [str(val).zfill(max_places) for val in aligned_wide_df.columns.get_level_values(1)],
+    #     )
+    # ]
+    # aligned_wide_df.columns = new_labels
+
     return outdf
 
 

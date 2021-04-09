@@ -1,6 +1,7 @@
 from typing import Dict, List
 import numpy as np
 import pandas as pd
+import scipy as sp
 import logging
 import plotly.graph_objects as go
 
@@ -455,8 +456,32 @@ def resample_to_reference(
     dict
         Batch data, in the standard format.
     """
-    # TODO
-    pass
+    default_settings = {
+        "interpolate_kind": "cubic",  # must be a valid "scipy.interpolate.interp1d" `kind`
+    }
+    if settings:
+        default_settings.update(settings)
+    settings = default_settings
+    out = {}
+    target_time = np.arange(0, batches[reference_batch].shape[0])
+    target_time = target_time / target_time[-1]
+
+    for batch_id, batch in batches.items():
+        to_resample = np.arange(0, batch.shape[0])
+        to_resample = to_resample / to_resample[-1]
+        out_df = {}
+        for column, series in batch.iteritems():
+            if column in columns_to_align:
+                out_df[column] = sp.interpolate.interp1d(
+                    to_resample,
+                    series.values,
+                    copy=False,
+                    kind=settings["interpolate_kind"],
+                )(target_time)
+
+        out[batch_id] = pd.DataFrame(out_df)
+
+    return out
 
 
 def find_average_length(batches: Dict[str, pd.DataFrame], settings: dict = None):
