@@ -76,29 +76,51 @@ def check_valid_batch_dict(in_dict: dict, no_nan=False) -> bool:
     return check
 
 
-def dict_to_melted(in_df: pd.DataFrame) -> dict:
+def dict_to_melted(
+    in_df: pd.DataFrame, insert_batch_id_column=True, insert_sequence_column=False
+) -> dict:
     """Reverse of `melted_to_dict`"""
-    pass
+    out_df = pd.DataFrame()
+    batch_id_col = "batch_id"
+
+    num_rows = 0
+    for idx, (batch_id, batch) in enumerate(in_df.items()):
+        if idx == 0:
+            num_rows = batch.shape[0]
+            sequence = np.arange(0, num_rows)
+        assert (
+            num_rows == batch.shape[0]
+        ), "All batches must have the same number of samples"
+
+        if insert_batch_id_column and batch_id_col not in batch:
+            batch.insert(0, batch_id_col, batch_id)
+
+        if insert_sequence_column:
+            batch.insert(0, "__sequence__", sequence)
+
+        out_df = out_df.append(batch)
+
+    return out_df
 
 
-def dict_to_wide(in_df: dict) -> pd.DataFrame:
+def dict_to_wide(in_df: dict, group_by_time=False) -> pd.DataFrame:
     """
     Data must be warped already so that every batch has the same number of *rows*!
+
+    `group_by_time`: means that all the data from the first batch is on the left of the output
+    dataframe, and the last batch is collected on the right.
+
+    If `group_by_time` is False, then all data for the same tag are grouped together, side-by-side.
     """
-    outdf = pd.DataFrame()
-    # TODO: add a check on the rows
+    out_df = dict_to_melted(
+        in_df=in_df, insert_batch_id_column=True, insert_sequence_column=True
+    )
+    aligned_wide_df = out_df.pivot(index="batch_id", columns="__sequence__")
+    if group_by_time:
+        pass
+        # TODO: use the hierarchical indexing and regroup the columns
 
-    # aligned_wide_df = in_df.pivot(index="batch_id", columns="sequence")
-    # new_labels = [
-    #     "-".join(item)
-    #     for item in zip(
-    #         aligned_wide_df.columns.get_level_values(0),
-    #         [str(val).zfill(max_places) for val in aligned_wide_df.columns.get_level_values(1)],
-    #     )
-    # ]
-    # aligned_wide_df.columns = new_labels
-
-    return outdf
+    return aligned_wide_df
 
 
 def melted_to_dict(in_df: pd.DataFrame, batch_id_col) -> dict:
@@ -109,7 +131,6 @@ def melted_to_dict(in_df: pd.DataFrame, batch_id_col) -> dict:
     is a Pandas dataframe of the batch data for that batch.
     """
     batches = {}
-
     for batch_id, batch in in_df.groupby(batch_id_col):
         batches[batch_id] = batch
 
