@@ -216,7 +216,7 @@ def test_alignment(dryer_data):
     # )
 
 
-def test_reference_batch_selection(dryer_data):
+def test_reference_batch_selection_dryer(dryer_data):
     columns_to_align = [
         "AgitatorPower",
         "AgitatorTorque",
@@ -232,3 +232,26 @@ def test_reference_batch_selection(dryer_data):
         },
     )
     assert good_reference_candidate == 3
+
+
+def test_reference_batch_selection_nylon(nylon_data):
+    columns_to_align = [
+        "Tag01",
+        "Tag02",
+        "Tag03",
+        "Tag04",
+        "Tag05",
+        "Tag06",
+        "Tag07",
+        "Tag08",
+        "Tag09",
+        "Tag10",
+    ]
+    good_reference_candidate = find_reference_batch(
+        nylon_data,
+        columns_to_align=columns_to_align,
+        settings={
+            "robust": False,
+        },
+    )
+    assert good_reference_candidate == 45

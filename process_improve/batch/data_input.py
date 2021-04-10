@@ -22,16 +22,18 @@ There are 3 useful ways to represent batch data.
         * another column, usually called "time", indicates what the time is within that batch
         * typically sorted, but does not have to be
 
-`wide`: as a single Pandas data frame, as for the "melted" version, but pivotted instead
+`wide`: as a single Pandas data frame, as for the "melted" version, but pivoted instead, and
+these `wide` dataframes *always* have a multilevel column index, to help distinguish the tags
+from the time. It is a requirement of course that this representation is only for aligned data.
 
     data = pd.DataFrame(...)
 
         * each row is a unique batch number
         * the multilevel column index has
             * level 0: the column name
-            * level 1: the warped time
+            * level 1: the aligned time
 
-        This form only makes sense if the data are warped, so that there is the same number of
+        This form only makes sense if the data are aligned, so that there is the same number of
         unique elements in the level-1 column index.
 """
 
@@ -105,7 +107,7 @@ def dict_to_melted(
 
 def dict_to_wide(in_df: dict, group_by_time=False) -> pd.DataFrame:
     """
-    Data must be warped already so that every batch has the same number of *rows*!
+    Data must be aligned (warped) already so that every batch has the same number of *rows*!
 
     `group_by_time`: means that all the data from the first batch is on the left of the output
     dataframe, and the last batch is collected on the right.
@@ -139,12 +141,15 @@ def melted_to_dict(in_df: pd.DataFrame, batch_id_col) -> dict:
 
 def melted_to_wide(in_df: pd.DataFrame, batch_id_col) -> dict:
     """
-    Data must be warped already.
+    Data must be aligned already.
     """
     pass
+    # TODO: add the column multilevel column index.
+    # return dict_to_wide(melted_to_dict(in_df, batch_id_col))
 
 
-def wide_to_melted():
+def wide_to_melted(in_df: pd.DataFrame) -> pd.DataFrame:
+    # dict_to_melted(dict_to_wide(in_df))
     pass
 
 
