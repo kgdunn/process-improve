@@ -224,10 +224,11 @@ def test_reference_batch_selection(dryer_data):
         "JacketTemperature",
         "DryerTemp",
     ]
-    _ = find_reference_batch(
+    good_reference_candidate = find_reference_batch(
         dryer_data,
         columns_to_align=columns_to_align,
         settings={
             "robust": False,
         },
     )
+    assert good_reference_candidate == 3

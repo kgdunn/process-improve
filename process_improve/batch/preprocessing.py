@@ -561,8 +561,9 @@ def find_reference_batch(
         "robust": True,  # use robust scaling
         "subsample": 1,  # use every sample
         "method": "pca_most_average",
+        "n_components": 4,
     }
-    if settings:
+    if isinstance(settings, dict):
         default_settings.update(settings)
     settings = default_settings
     settings["subsample"] = int(settings["subsample"])
@@ -590,8 +591,22 @@ def find_reference_batch(
     pca_first = PCA(n_components=settings["n_components"]).fit(mcuv)
 
     # Excludes all batches with Hotelling's T2 > 90% limit.
-    _ = pca_first.T2_limit(0.90)  # = T2_limit_90
+    T2_limit_90 = pca_first.T2_limit(0.90)
+    to_keep = pca_first.Hotellings_T2.iloc[:, -1] < T2_limit_90
 
-    # Refits PCA with A=4
+    # Refits PCA with A=4 on a subset of the batches, to avoid biasing the PCA model too much.
+    basewide = basewide.loc[to_keep, :]
+    scaler = MCUVScaler().fit(basewide)
+    mcuv = scaler.fit_transform(basewide)
+    pca_second = PCA(n_components=settings["n_components"]).fit(mcuv)
 
     # Finds batch with scores; and ensures this batch has SPE < 50% of the model limit.
+    metrics = pd.DataFrame(
+        {
+            "HT2": pca_second.Hotellings_T2.iloc[:, -1],
+            "SPE": pca_second.squared_prediction_error.iloc[:, -1],
+        }
+    )
+    metrics = metrics.sort_values(by=["HT2", "SPE"])
+    metrics = metrics.query(f"SPE < {pca_second.SPE_limit(0.5)}")
+    return metrics.index[0]
