@@ -192,22 +192,8 @@ def test_median_abs_deviation():
 
     assert np.isnan(univariate.median_abs_deviation([np.nan, 1, 2], nan_policy="propagate"))
 
-    assert np.isnan(
-        univariate.median_abs_deviation(
-            [
-                np.nan,
-            ],
-            axis=None,
-        )
-    )
-    assert np.isnan(
-        univariate.median_abs_deviation(
-            [
-                np.nan,
-            ],
-            axis=0,
-        )
-    )
+    assert np.isnan(univariate.median_abs_deviation([np.nan,], axis=None,))
+    assert np.isnan(univariate.median_abs_deviation([np.nan,], axis=0,))
     assert np.isnan(univariate.median_abs_deviation([], axis=None))
     assert np.isnan(univariate.median_abs_deviation([], axis=0))
     assert np.isnan(univariate.median_abs_deviation(np.empty((2, 3, 4)) * np.nan, axis=None))
@@ -368,7 +354,7 @@ def test_as_numpy_array(univariate_summary):
 
 
 def test__raises_error():
-    with pytest.raises_assert_rewrite(match="Expecting a Numpy vector or Pandas series."):
+    with pytest.raises(ValueError, match="Expecting a NumPy vector or Pandas series."):
         univariate.summary_stats([1, 2, 3, 3, 2, 1])
 
 
@@ -732,9 +718,7 @@ def test_rosner_esd_no_outliers(outliers_data):
     """
     rosner, _ = outliers_data
     outliers, _ = univariate.outlier_detection_multiple(
-        rosner[1:-5],
-        algorithm="esd",
-        max_outliers_detected=0,
+        rosner[1:-5], algorithm="esd", max_outliers_detected=0,
     )
     assert outliers == []
 
@@ -784,31 +768,16 @@ def test_sequence_compare_R(outliers_data):
     """
     _, sequence = outliers_data
     outliers, reasons_regular = univariate.outlier_detection_multiple(
-        sequence,
-        algorithm="esd",
-        max_outliers_detected=1,
-        robust_variant=False,
-        alpha=0.05,
+        sequence, algorithm="esd", max_outliers_detected=1, robust_variant=False, alpha=0.05,
     )
     assert reasons_regular["p-value"][0] == approx(0.02066273, rel=1e-7)
 
     # Now with the robust version, to check NaN handling.
     outliers, reasons_robust = univariate.outlier_detection_multiple(
-        sequence,
-        algorithm="esd",
-        max_outliers_detected=1,
-        robust_variant=True,
-        alpha=0.05,
+        sequence, algorithm="esd", max_outliers_detected=1, robust_variant=True, alpha=0.05,
     )
     assert outliers[0] == 63
-    assert np.isnan(
-        univariate.median_abs_deviation(
-            [
-                np.nan,
-            ],
-            axis=None,
-        )
-    )
+    assert np.isnan(univariate.median_abs_deviation([np.nan,], axis=None,))
 
 
 def test_distribution_check():

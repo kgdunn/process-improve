@@ -663,7 +663,7 @@ def summary_stats(x, method="robust") -> dict:
     elif isinstance(x, np.ndarray):
         x = x.ravel()
     else:
-        assert False, "Expecting a NumPy vector or Pandas series."
+        raise ValueError("Expecting a NumPy vector or Pandas series.")
 
     out = {}
     out["mean"] = np.nanmean(x)

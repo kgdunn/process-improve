@@ -3,7 +3,7 @@ from pytest import approx
 import numpy as np
 import pandas as pd
 
-from process_improve.regression import (
+from process_improve.regression.methods import (
     multiple_linear_regression,
     repeated_median_slope,
     simple_robust_regression,
@@ -84,15 +84,7 @@ def multiple_linear_regression_data():
     2.161740342 0.308710432 0.085960163 0.016051677 0.004486278 0.017871649 0.252805729
     """
     X = np.array(
-        [
-            0.019847603,
-            0.039695205,
-            0.059542808,
-            0.07939041,
-            0.099238013,
-            0.119085616,
-            0.138933218,
-        ]
+        [0.019847603, 0.039695205, 0.059542808, 0.07939041, 0.099238013, 0.119085616, 0.138933218,]
     ).reshape(7, 1)
     y = np.array([0.2, 0.195089996, 0.284090012, 0.37808001, 0.46638, 0.561559975, 0.652559996])
     return X, y
@@ -264,24 +256,10 @@ def simple_robust_regression_data():
     x            4.60635459 4.75666351
 
     """
-    X = np.array(
-        [
-            0.0599125391,
-            0.0998562289,
-            0.1397959245,
-            0.1797268338,
-            0.2496405722,
-        ]
-    ).reshape(5, 1)
-    y = np.array(
-        [
-            0.2788299918,
-            0.4663000107,
-            0.6585199833,
-            0.8372399807,
-            1.1684000492,
-        ]
+    X = np.array([0.0599125391, 0.0998562289, 0.1397959245, 0.1797268338, 0.2496405722,]).reshape(
+        5, 1
     )
+    y = np.array([0.2788299918, 0.4663000107, 0.6585199833, 0.8372399807, 1.1684000492,])
     return X, y
 
 
