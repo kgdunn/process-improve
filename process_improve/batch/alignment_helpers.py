@@ -32,9 +32,7 @@ def distance_matrix(test: np.ndarray, ref: np.ndarray, weight_matrix: np.ndarray
     for n in np.arange(1, nt):
         for m in np.arange(max((1, band[n, 0])), band[n, 1]):
             # index here must be integer!
-            D[m, n] = dist[m, n] + np.nanmin(
-                [D[m, n - 1], D[m - 1, n - 1], D[m - 1, n]]
-            )
+            D[m, n] = dist[m, n] + np.nanmin([D[m, n - 1], D[m - 1, n - 1], D[m - 1, n]])
 
     return D
 

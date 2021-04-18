@@ -84,9 +84,19 @@ def multiple_linear_regression_data():
     2.161740342 0.308710432 0.085960163 0.016051677 0.004486278 0.017871649 0.252805729
     """
     X = np.array(
-        [0.019847603, 0.039695205, 0.059542808, 0.07939041, 0.099238013, 0.119085616, 0.138933218,]
+        [
+            0.019847603,
+            0.039695205,
+            0.059542808,
+            0.07939041,
+            0.099238013,
+            0.119085616,
+            0.138933218,
+        ]
     ).reshape(7, 1)
-    y = np.array([0.2, 0.195089996, 0.284090012, 0.37808001, 0.46638, 0.561559975, 0.652559996])
+    y = np.array(
+        [0.2, 0.195089996, 0.284090012, 0.37808001, 0.46638, 0.561559975, 0.652559996]
+    )
     return X, y
 
 
@@ -201,7 +211,9 @@ def test_input_transposed_vector(multiple_linear_regression_data):
     y = pd.DataFrame(y)
 
     # There is a difference with a transposed array
-    with pytest.raises(AssertionError, match=r"N >= K: You need at least as many rows .*"):
+    with pytest.raises(
+        AssertionError, match=r"N >= K: You need at least as many rows .*"
+    ):
         _ = multiple_linear_regression(x, y)
 
 
@@ -256,10 +268,24 @@ def simple_robust_regression_data():
     x            4.60635459 4.75666351
 
     """
-    X = np.array([0.0599125391, 0.0998562289, 0.1397959245, 0.1797268338, 0.2496405722,]).reshape(
-        5, 1
+    X = np.array(
+        [
+            0.0599125391,
+            0.0998562289,
+            0.1397959245,
+            0.1797268338,
+            0.2496405722,
+        ]
+    ).reshape(5, 1)
+    y = np.array(
+        [
+            0.2788299918,
+            0.4663000107,
+            0.6585199833,
+            0.8372399807,
+            1.1684000492,
+        ]
     )
-    y = np.array([0.2788299918, 0.4663000107, 0.6585199833, 0.8372399807, 1.1684000492,])
     return X, y
 
 
@@ -277,7 +303,9 @@ def test_regression_simple_robust(simple_robust_regression_data):
     assert out["intercept"] == approx(-0.00218, abs=1e-5)
     assert out["coefficients"][0] == approx(4.69038, rel=1e-6)
     assert out["conf_intervals"][0] == approx([4.61316875, 4.76759488], rel=1e-8)
-    assert out["conf_interval_intercept"] == approx([-0.0145235437, 0.0101581595], rel=1e-8)
+    assert out["conf_interval_intercept"] == approx(
+        [-0.0145235437, 0.0101581595], rel=1e-8
+    )
     assert out["residuals"][0:5] == approx(
         [0.0, 0.000118863, 0.005006413, -0.0035648, -0.000326859], abs=1e-9
     )

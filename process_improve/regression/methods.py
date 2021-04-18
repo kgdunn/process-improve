@@ -62,7 +62,9 @@ def simple_robust_regression(x, y, na_rm=None, conflevel=0.95, nowarn=False):
 
     out = {}
 
-    out["N"] = min(x.size - np.count_nonzero(np.isnan(x)), y.size - np.count_nonzero(np.isnan(y)))
+    out["N"] = min(
+        x.size - np.count_nonzero(np.isnan(x)), y.size - np.count_nonzero(np.isnan(y))
+    )
     out["intercept"] = intercept
     out["coefficients"] = [
         slope,
@@ -247,7 +249,9 @@ def multiple_linear_regression(X, y, fit_intercept=True, na_rm=True, conflevel=0
     out["fitted_values"] = results._results.fittedvalues
     out["R2"] = results._results.rsquared
     regression_ssq = np.sum(np.power(out["fitted_values"] - mean_y, 2))
-    out["residuals"] = results._results.resid  # == y.values.ravel() - out["fitted_values"]
+    out[
+        "residuals"
+    ] = results._results.resid  # == y.values.ravel() - out["fitted_values"]
     residual_ssq = np.sum(out["residuals"] * out["residuals"])
     out["R2_regression_based"] = regression_ssq / total_ssq
     out["R2_residual_based"] = 1 - (residual_ssq / total_ssq)

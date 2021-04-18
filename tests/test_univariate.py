@@ -172,7 +172,9 @@ def test_median_abs_deviation():
     from scipy import stats
 
     x = stats.norm.rvs(size=1000000, scale=2, random_state=123456)
-    assert univariate.median_abs_deviation(x, scale=1) == approx(1.3487398527041636, rel=1e-12)
+    assert univariate.median_abs_deviation(x, scale=1) == approx(
+        1.3487398527041636, rel=1e-12
+    )
     assert univariate.median_abs_deviation(x) == approx(1.9996446978061115, rel=1e-12)
 
     with pytest.raises(TypeError, match=r"The argument 'center' must .*"):
@@ -190,13 +192,31 @@ def test_median_abs_deviation():
     with pytest.raises(ValueError, match="The input contains nan values"):
         univariate.median_abs_deviation([np.nan, 1], nan_policy="raise")
 
-    assert np.isnan(univariate.median_abs_deviation([np.nan, 1, 2], nan_policy="propagate"))
+    assert np.isnan(
+        univariate.median_abs_deviation([np.nan, 1, 2], nan_policy="propagate")
+    )
 
-    assert np.isnan(univariate.median_abs_deviation([np.nan,], axis=None,))
-    assert np.isnan(univariate.median_abs_deviation([np.nan,], axis=0,))
+    assert np.isnan(
+        univariate.median_abs_deviation(
+            [
+                np.nan,
+            ],
+            axis=None,
+        )
+    )
+    assert np.isnan(
+        univariate.median_abs_deviation(
+            [
+                np.nan,
+            ],
+            axis=0,
+        )
+    )
     assert np.isnan(univariate.median_abs_deviation([], axis=None))
     assert np.isnan(univariate.median_abs_deviation([], axis=0))
-    assert np.isnan(univariate.median_abs_deviation(np.empty((2, 3, 4)) * np.nan, axis=None))
+    assert np.isnan(
+        univariate.median_abs_deviation(np.empty((2, 3, 4)) * np.nan, axis=None)
+    )
     assert np.isnan(univariate.median_abs_deviation(np.array([np.nan, np.nan]), axis=0))
 
 
@@ -334,7 +354,9 @@ def test_compare_to_R_with_without_missing(univariate_summary):
         assert out["median"] == approx(97.58, abs=1e-8)
         assert out["center"] == approx(97.58, abs=1e-8)  # center = median by default
         assert out["iqr"] == approx(6.045, abs=1e-8)
-        assert out["spread"] == approx(6.28653702970298, abs=1e-8)  # spread = Sn (changed in 0.5)
+        assert out["spread"] == approx(
+            6.28653702970298, abs=1e-8
+        )  # spread = Sn (changed in 0.5)
         assert out["rsd"] == approx(0.06442444178831, abs=1e-8)
         assert out["min"] == 88.71
         assert out["max"] == 108
@@ -366,15 +388,32 @@ def test_confidence_interval():
     Results of the CI, compared to R.
     t.test(r1-90)
     """
-    y = [108.0, 89.52, 95.16, 101.61, 99.19, 100, 93.55, 97.58, 93.55, 98.39, 88.71, 94.35]
+    y = [
+        108.0,
+        89.52,
+        95.16,
+        101.61,
+        99.19,
+        100,
+        93.55,
+        97.58,
+        93.55,
+        98.39,
+        88.71,
+        94.35,
+    ]
     data = pd.DataFrame(data={"values": y})
     expected_LB = 3.230888
     expected_UB = 10.037445
 
-    out = univariate.confidence_interval(data - 90, "values", conflevel=0.95, style="regular")
+    out = univariate.confidence_interval(
+        data - 90, "values", conflevel=0.95, style="regular"
+    )
     assert out[0] == approx(expected_LB, abs=1e-4)
     assert out[1] == approx(expected_UB, abs=1e-4)
-    out = univariate.confidence_interval(data - 90, "values", conflevel=0.95, style="robust")
+    out = univariate.confidence_interval(
+        data - 90, "values", conflevel=0.95, style="robust"
+    )
     # TODO: complete the test for the robust case
 
 
@@ -685,7 +724,11 @@ def outliers_data():
 def test_rosner_nonrobust_esd(outliers_data):
     rosner, _ = outliers_data
     outliers, reasons = univariate.outlier_detection_multiple(
-        rosner, algorithm="esd", max_outliers_detected=7, robust_variant=False, alpha=0.05
+        rosner,
+        algorithm="esd",
+        max_outliers_detected=7,
+        robust_variant=False,
+        alpha=0.05,
     )
 
     # Ensure the vector is unchanged afterwards
@@ -696,8 +739,12 @@ def test_rosner_nonrobust_esd(outliers_data):
 
     # Compare values in the explanation from NIST:
     # https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h3.htm
-    assert reasons["lambda"] == approx([3.158, 3.151, 3.143, 3.136, 3.128, 3.120, 3.111], rel=1e-3)
-    assert reasons["R_i"] == approx([3.118, 2.942, 3.179, 2.810, 2.815, 2.848, 2.279], rel=1e-3)
+    assert reasons["lambda"] == approx(
+        [3.158, 3.151, 3.143, 3.136, 3.128, 3.120, 3.111], rel=1e-3
+    )
+    assert reasons["R_i"] == approx(
+        [3.118, 2.942, 3.179, 2.810, 2.815, 2.848, 2.279], rel=1e-3
+    )
 
 
 def test_rosner_esd_kwargs(outliers_data):
@@ -706,7 +753,11 @@ def test_rosner_esd_kwargs(outliers_data):
     """
     rosner, _ = outliers_data
     outliers, _ = univariate.outlier_detection_multiple(
-        rosner, algorithm="esd", max_outliers_detected=7, robust_variant=True, alpha=0.05
+        rosner,
+        algorithm="esd",
+        max_outliers_detected=7,
+        robust_variant=True,
+        alpha=0.05,
     )
     assert outliers == [53]
 
@@ -718,7 +769,9 @@ def test_rosner_esd_no_outliers(outliers_data):
     """
     rosner, _ = outliers_data
     outliers, _ = univariate.outlier_detection_multiple(
-        rosner[1:-5], algorithm="esd", max_outliers_detected=0,
+        rosner[1:-5],
+        algorithm="esd",
+        max_outliers_detected=0,
     )
     assert outliers == []
 
@@ -768,16 +821,31 @@ def test_sequence_compare_R(outliers_data):
     """
     _, sequence = outliers_data
     outliers, reasons_regular = univariate.outlier_detection_multiple(
-        sequence, algorithm="esd", max_outliers_detected=1, robust_variant=False, alpha=0.05,
+        sequence,
+        algorithm="esd",
+        max_outliers_detected=1,
+        robust_variant=False,
+        alpha=0.05,
     )
     assert reasons_regular["p-value"][0] == approx(0.02066273, rel=1e-7)
 
     # Now with the robust version, to check NaN handling.
     outliers, reasons_robust = univariate.outlier_detection_multiple(
-        sequence, algorithm="esd", max_outliers_detected=1, robust_variant=True, alpha=0.05,
+        sequence,
+        algorithm="esd",
+        max_outliers_detected=1,
+        robust_variant=True,
+        alpha=0.05,
     )
     assert outliers[0] == 63
-    assert np.isnan(univariate.median_abs_deviation([np.nan,], axis=None,))
+    assert np.isnan(
+        univariate.median_abs_deviation(
+            [
+                np.nan,
+            ],
+            axis=None,
+        )
+    )
 
 
 def test_distribution_check():

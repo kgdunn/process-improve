@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 from .alignment_helpers import distance_matrix, backtrack_optimal_path
 from .data_input import dict_to_wide, check_valid_batch_dict
 
-from ..multivariate import MCUVScaler, PCA
+from ..multivariate.methods import MCUVScaler, PCA
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -22,9 +22,7 @@ epsqrt = np.sqrt(np.finfo(float).eps)
 
 
 def determine_scaling(
-    batches: Dict[str, pd.DataFrame],
-    columns_to_align: List = None,
-    settings: dict = None,
+    batches: Dict[str, pd.DataFrame], columns_to_align: List = None, settings: dict = None,
 ) -> pd.DataFrame:
     """
     Scales the batch data according to the variable ranges.
@@ -58,9 +56,7 @@ def determine_scaling(
     collector_mins = []
     for _, batch in batches.items():
         if settings["robust"]:
-            rnge = batch[columns_to_align].quantile(0.98) - batch[
-                columns_to_align
-            ].quantile(0.02)
+            rnge = batch[columns_to_align].quantile(0.98) - batch[columns_to_align].quantile(0.02)
         else:
             rnge = batch[columns_to_align].max() - batch[columns_to_align].min()
 
@@ -70,25 +66,19 @@ def determine_scaling(
 
     if settings["robust"]:
         scalings = pd.concat(
-            [
-                pd.DataFrame(collector_rnge).median(),
-                pd.DataFrame(collector_mins).median(),
-            ],
+            [pd.DataFrame(collector_rnge).median(), pd.DataFrame(collector_mins).median(),],
             axis=1,
         )
     else:
         scalings = pd.concat(
-            [pd.DataFrame(collector_rnge).mean(), pd.DataFrame(collector_mins).mean()],
-            axis=1,
+            [pd.DataFrame(collector_rnge).mean(), pd.DataFrame(collector_mins).mean()], axis=1,
         )
     scalings.columns = ["Range", "Minimum"]
     return scalings
 
 
 def apply_scaling(
-    batches: Dict[str, pd.DataFrame],
-    scale_df: pd.DataFrame,
-    columns_to_align: List = None,
+    batches: Dict[str, pd.DataFrame], scale_df: pd.DataFrame, columns_to_align: List = None,
 ) -> dict:
     """Scales the batches according to the information in the scaling dataframe.
 
@@ -122,9 +112,7 @@ def apply_scaling(
 
 
 def reverse_scaling(
-    batches: Dict[str, pd.DataFrame],
-    scale_df: pd.DataFrame,
-    columns_to_align: List = None,
+    batches: Dict[str, pd.DataFrame], scale_df: pd.DataFrame, columns_to_align: List = None,
 ):
     # TODO: handle the case of DataFrames still
     if columns_to_align is None:
@@ -136,9 +124,7 @@ def reverse_scaling(
     for batch_id, batch in batches.items():
         out[batch_id] = batch[columns_to_align].copy()
         for tag, column in out[batch_id].iteritems():
-            out[batch_id][tag] = (
-                column * scale_df.loc[tag, "Range"] + scale_df.loc[tag, "Minimum"]
-            )
+            out[batch_id][tag] = column * scale_df.loc[tag, "Range"] + scale_df.loc[tag, "Minimum"]
     return out
 
 
@@ -179,9 +165,7 @@ def align_with_path(md_path, batch, initial_row):
             temp = np.vstack((temp, batch.iloc[md_path[idx, 1], :]))
             synced.iloc[row, :] = np.nanmean(temp, axis=0)
 
-    return pd.DataFrame(
-        synced,
-    )
+    return pd.DataFrame(synced,)
 
 
 def dtw_core(test, ref, weight_matrix: np.ndarray):
@@ -207,24 +191,13 @@ def dtw_core(test, ref, weight_matrix: np.ndarray):
         X, Y = np.meshgrid(X, Y)
         fig = go.Figure(
             data=[
-                go.Mesh3d(
-                    x=X.ravel(),
-                    y=Y.ravel(),
-                    z=D.ravel(),
-                    color="lightpink",
-                    opacity=0.90,
-                )
+                go.Mesh3d(x=X.ravel(), y=Y.ravel(), z=D.ravel(), color="lightpink", opacity=0.90,)
             ]
         )
         fig.show()
 
     return DTWresult(
-        synced,
-        D,
-        md_path,
-        warping_path,
-        distance,
-        normalized_distance=distance / (nr + nt),
+        synced, D, md_path, warping_path, distance, normalized_distance=distance / (nr + nt),
     )
 
 
@@ -324,9 +297,7 @@ def batch_dtw(
         default_settings.update(settings)
     settings = default_settings
     assert settings["maximum_iterations"] >= 3, "At least 3 iterations are required"
-    assert (
-        reference_batch in batches
-    ), "`reference_batch` was not found in the dict of batches."
+    assert reference_batch in batches, "`reference_batch` was not found in the dict of batches."
     settings["subsample"] = int(settings["subsample"])
 
     assert check_valid_batch_dict(batches, no_nan=True)
@@ -367,9 +338,7 @@ def batch_dtw(
         # Deviations from the average batch:
         next_weights = np.zeros((1, refbatch_sc.shape[1]))
         for batch_id, result in aligned_batches.items():
-            next_weights += np.nansum(
-                np.power(result.synced - average_batch, 2), axis=0
-            )
+            next_weights += np.nansum(np.power(result.synced - average_batch, 2), axis=0)
             # TODO: use quadratic weights for now, but try sum of the absolute values instead
             #  np.abs(result.synced - average_batch).sum(axis=0)
 
@@ -382,9 +351,7 @@ def batch_dtw(
             # problematic_threshold = dist_df["Distance"].quantile(0.95)
 
         next_weights = 1.0 / np.where(next_weights > epsqrt, next_weights, 10000)
-        weight_vector = (
-            next_weights / np.sum(next_weights) * len(columns_to_align)
-        ).ravel()
+        weight_vector = (next_weights / np.sum(next_weights) * len(columns_to_align)).ravel()
         # If change in delta_weight is small, we terminate early; no need to fine-tune excessively.
         delta_weight = np.diag(weight_matrix) - weight_vector  # old - new
 
@@ -413,10 +380,7 @@ def batch_dtw(
         "-".join(item)
         for item in zip(
             aligned_wide_df.columns.get_level_values(0),
-            [
-                str(val).zfill(max_places)
-                for val in aligned_wide_df.columns.get_level_values(1)
-            ],
+            [str(val).zfill(max_places) for val in aligned_wide_df.columns.get_level_values(1)],
         )
     ]
     aligned_wide_df.columns = new_labels
@@ -473,10 +437,7 @@ def resample_to_reference(
         for column, series in batch.iteritems():
             if column in columns_to_align:
                 out_df[column] = sp.interpolate.interp1d(
-                    to_resample,
-                    series.values,
-                    copy=False,
-                    kind=settings["interpolate_kind"],
+                    to_resample, series.values, copy=False, kind=settings["interpolate_kind"],
                 )(target_time)
 
         out[batch_id] = pd.DataFrame(out_df)
@@ -509,24 +470,18 @@ def find_average_length(batches: Dict[str, pd.DataFrame], settings: dict = None)
         default_settings.update(settings)
     settings = default_settings
 
-    batch_lengths = pd.Series(
-        {batch_id: df.shape[0] for batch_id, df in batches.items()}
-    )
+    batch_lengths = pd.Series({batch_id: df.shape[0] for batch_id, df in batches.items()})
     if settings["robust"]:
         # If multiple batches of the median length, return the last one.
         return batch_lengths.index[
             np.where((batch_lengths == batch_lengths.median()).values)[0][-1]
         ]
     else:
-        return batch_lengths.index[
-            (batch_lengths - batch_lengths.mean()).abs().argmin()
-        ]
+        return batch_lengths.index[(batch_lengths - batch_lengths.mean()).abs().argmin()]
 
 
 def find_reference_batch(
-    batches: Dict[str, pd.DataFrame],
-    columns_to_align: list,
-    settings: dict = None,
+    batches: Dict[str, pd.DataFrame], columns_to_align: list, settings: dict = None,
 ):
     """
     Find a reference batch. Assumes NO missing data.
@@ -575,10 +530,7 @@ def find_reference_batch(
 
     # Resamples (simple interpolation) of all batches to that duration.
     resampled = resample_to_reference(
-        batches,
-        columns_to_align,
-        reference_batch=initial_reference_id,
-        settings=settings,
+        batches, columns_to_align, reference_batch=initial_reference_id, settings=settings,
     )
 
     # Unfolds that resampled data.

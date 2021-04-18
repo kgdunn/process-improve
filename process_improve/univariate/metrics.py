@@ -179,7 +179,9 @@ def _contains_nan(a, nan_policy="propagate"):
     """
     policies = ["propagate", "raise", "omit"]
     if nan_policy not in policies:
-        raise ValueError("nan_policy must be one of {%s}" % ", ".join("'%s'" % s for s in policies))
+        raise ValueError(
+            "nan_policy must be one of {%s}" % ", ".join("'%s'" % s for s in policies)
+        )
     try:
         # Calling np.sum to avoid creating a huge array into memory
         # e.g. np.isnan(a).any()
@@ -256,7 +258,9 @@ def ttest_difference_calculate(sample_A, sample_B, conflevel=0.995) -> dict:
     }
 
 
-def ttest_difference(df: pd.DataFrame, grouper_column: str, values_column: str, conflevel=0.995):
+def ttest_difference(
+    df: pd.DataFrame, grouper_column: str, values_column: str, conflevel=0.995
+):
     """
     Calculates the t-test for differences between two or more groups and returns a confidence
     interval for the difference. The test is for UNPAIRED differences.
@@ -300,8 +304,12 @@ def ttest_difference(df: pd.DataFrame, grouper_column: str, values_column: str, 
         groupA_name = groups.pop(0)
         for groupB_name in groups:
 
-            sample_A = data_subset[data_subset[grouper_column].eq(groupA_name)][values_column]
-            sample_B = data_subset[data_subset[grouper_column].eq(groupB_name)][values_column]
+            sample_A = data_subset[data_subset[grouper_column].eq(groupA_name)][
+                values_column
+            ]
+            sample_B = data_subset[data_subset[grouper_column].eq(groupB_name)][
+                values_column
+            ]
             sample_A = sample_A.astype(np.float64)
             sample_B = sample_B.astype(np.float64)
             basic_stats = ttest_difference_calculate(sample_A, sample_B, conflevel)
@@ -403,12 +411,18 @@ def ttest_paired_difference(
         groupA_name = groups.pop(0)
         for groupB_name in groups:
 
-            sample_A = data_subset[data_subset[grouper_column].eq(groupA_name)][values_column]
-            sample_B = data_subset[data_subset[grouper_column].eq(groupB_name)][values_column]
+            sample_A = data_subset[data_subset[grouper_column].eq(groupA_name)][
+                values_column
+            ]
+            sample_B = data_subset[data_subset[grouper_column].eq(groupB_name)][
+                values_column
+            ]
             sample_A = sample_A.astype(np.float64)
             sample_B = sample_B.astype(np.float64)
             assert sample_A.shape[0] == sample_B.shape[0]
-            differences = sample_A - sample_B.values  # only the .values of one vector are needed!
+            differences = (
+                sample_A - sample_B.values
+            )  # only the .values of one vector are needed!
             basic_stats = ttest_paired_difference_calculate(differences, conflevel)
             basic_stats.update(
                 {
@@ -481,7 +495,9 @@ def _mad_1d(x, center, nan_policy):
     return mad
 
 
-def median_abs_deviation(x, axis=0, center=np.median, scale="normal", nan_policy="omit"):
+def median_abs_deviation(
+    x, axis=0, center=np.median, scale="normal", nan_policy="omit"
+):
     r"""
 
     Taken from `scipy.stats.stats`: we want the same functionality, but with a slightly different
@@ -684,7 +700,11 @@ def summary_stats(x, method="robust") -> dict:
 
     if method.lower() == "robust":
         out["center"], out["spread"] = out["median"], Sn(x)
-        if ((out["max"] - out["min"]) > 0) and (out["spread"] == 0) and (out["N_non_missing"] > 0):
+        if (
+            ((out["max"] - out["min"]) > 0)
+            and (out["spread"] == 0)
+            and (out["N_non_missing"] > 0)
+        ):
             # Don't fully trust the Sn() yet. It works strangely on quantized data when there is
             # little variation. Replace the RSD with the classically calculated version in this
             # very specific case. This example shows it: [99, 95, 95, 100, 100, 100, 100, 95, 100,
@@ -800,9 +820,9 @@ def outlier_detection_multiple(
                 x.drop(R_i_idx, inplace=True)
 
         try:
-            cutoff_i = np.where(np.array(extra_out["R_i"]) - np.array(extra_out["lambda"]) >= 0,)[
-                0
-            ][0]
+            cutoff_i = np.where(
+                np.array(extra_out["R_i"]) - np.array(extra_out["lambda"]) >= 0,
+            )[0][0]
         except IndexError:
             cutoff_i = -1
 
@@ -876,7 +896,9 @@ def within_between_standard_deviation(df, measured: str, repeat: str) -> dict:
     if between_dof == 0:
         between_ms = 0
     else:
-        between_ms = max(0.0, (total_ms * total_dof - within_ms * within_dof) / between_dof)
+        between_ms = max(
+            0.0, (total_ms * total_dof - within_ms * within_dof) / between_dof
+        )
 
     return {
         "total_ms": total_ms,
