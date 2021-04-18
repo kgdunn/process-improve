@@ -5,6 +5,10 @@ Nylon data set. Source:
     Fault Detection and Diagnosis in Dynamic Multivariable Chemical Processes Using
     Speech Recognition Methods, by Kassidas,Athanassios, PhD thesis, McMaster University, 1997.
 
+    10 tags
+    N batches
+
+
 Dryer data set. Source:
 
     Batch process improvement using latent variable methods, by Salvador García-Muñoz,

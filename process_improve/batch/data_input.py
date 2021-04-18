@@ -143,6 +143,7 @@ def melted_to_wide(in_df: pd.DataFrame, batch_id_col) -> dict:
     """
     Data must be aligned already.
     """
+    assert batch_id_col in in_df
     pass
     # TODO: add the column multilevel column index.
     # return dict_to_wide(melted_to_dict(in_df, batch_id_col))
