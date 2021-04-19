@@ -1,4 +1,22 @@
+Prediction interval:
 
+
+x_model_fit = (model["fitted_values"] - model["intercept"]) / model["coefficients"][0]
+denom = np.nansum(np.power(x_model_fit - np.nanmean(x_model_fit), 2))
+avg_x = np.nanmean(x_model_fit)
+
+# Put this set of lines in a function: it is repeated again below.
+resolution = 50
+ci_range = np.linspace(np.nanmin(model["x"]), np.nanmax(model["x"]), resolution)
+ci_y_pred = model["intercept"] + model["coefficients"][0] * ci_range
+var_y = (model["SE"] ** 2) * (1 + 1 / model["N"] + (ci_range - avg_x) ** 2 / denom)
+std_y = np.sqrt(var_y)
+lower = ci_y_pred - float(model["t_value"]) * std_y
+upper = ci_y_pred + float(model["t_value"]) * std_y
+return np.vstack([ci_range, lower, upper]).T
+---
+Raincloud plot
+---
 Don't force dict keys to be string!!
 
 SOMEHOW, batch_id gets added as the first column; causing crashes later when after alignment is done.
