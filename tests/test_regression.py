@@ -82,6 +82,11 @@ def multiple_linear_regression_data():
     > cooks.distance(model)
     1           2           3           4           5           6           7
     2.161740342 0.308710432 0.085960163 0.016051677 0.004486278 0.017871649 0.252805729
+
+    > predict(lm(y~x), data.frame(x=c(0.019847603,0.138933218)), interval="predict")
+            fit        lwr       upr
+    1 0.1475825 0.04784391 0.2473211
+    2 0.6346346 0.53489603 0.7343732
     """
     X = np.array(
         [
@@ -152,6 +157,12 @@ def test_regression_model_with_intercept(multiple_linear_regression_data):
     assert out["influence"][1] == approx(0.308710432, abs=1e-6)
     assert out["influence"][2] == approx(0.085960163, abs=1e-6)
     assert out["influence"][6] == approx(0.252805729, abs=1e-6)
+
+    # Prediction interval at the extremes
+    assert out["pi_range"][0, 1] == approx(0.04784391, abs=1e-8)
+    assert out["pi_range"][0, 2] == approx(0.2473211, abs=1e-8)
+    assert out["pi_range"][-1, 1] == approx(0.53489603, abs=1e-8)
+    assert out["pi_range"][-1, 2] == approx(0.7343732, abs=1e-7)
 
 
 def test__regression_model_no_intercept(multiple_linear_regression_data):

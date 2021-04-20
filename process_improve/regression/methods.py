@@ -16,7 +16,9 @@ def fit_robust_lm(x: np.ndarray, y: np.ndarray) -> list:
 
     regression.repeated_median_slope
     """
-    rlm_model = sm.RLM(y, np.vstack([np.ones(x.size), x.ravel()]).T, M=sm.robust.norms.HuberT())
+    rlm_model = sm.RLM(
+        y, np.vstack([np.ones(x.size), x.ravel()]).T, M=sm.robust.norms.HuberT()
+    )
     rlm_results = rlm_model.fit()
     return rlm_results.params
 
@@ -53,7 +55,9 @@ def repeated_median_slope(x, y, nowarn=False):
     return np.nanmedian(medians)
 
 
-def simple_robust_regression(x, y, na_rm=None, conflevel=0.95, nowarn=False):
+def simple_robust_regression(
+    x, y, na_rm=None, conflevel=0.95, nowarn=False, pi_resolution=50
+):
     """
     x and y: iterables
     na_rm: None; no effect for robust regression. Here for consistency with the non-robust case.
@@ -77,7 +81,9 @@ def simple_robust_regression(x, y, na_rm=None, conflevel=0.95, nowarn=False):
 
     out = {}
 
-    out["N"] = min(x.size - np.count_nonzero(np.isnan(x)), y.size - np.count_nonzero(np.isnan(y)))
+    out["N"] = min(
+        x.size - np.count_nonzero(np.isnan(x)), y.size - np.count_nonzero(np.isnan(y))
+    )
     out["intercept"] = intercept
     out["coefficients"] = [
         slope,
@@ -93,11 +99,18 @@ def simple_robust_regression(x, y, na_rm=None, conflevel=0.95, nowarn=False):
     out["R2"] = regression_ssq / total_ssq
     out["SE"] = np.sqrt(residual_ssq / (len(x) - 2))
     out["x_ssq"] = np.sum(np.power(x - np.mean(x), 2))
+    c_t = t_value(1 - (1 - conflevel) / 2, out["N"] - 2)  # 2 fitted parameters
+    # out["t_value"] = np.array([c_t])  # for consistency with other regression models.
+    # "pi" = prediction interval
+    pi_range = np.linspace(np.min(x), np.max(x), pi_resolution)
+    pi_y_pred = out["intercept"] + out["coefficients"][0] * pi_range
     if out["x_ssq"] < __eps:
         out["standard_error_intercept"] = SE_b0 = np.NaN
         out["standard_errors"] = [
             np.NaN,
         ]
+        out["pi_range"] = np.vstack([pi_range, pi_y_pred, pi_y_pred]).T
+
     else:
         out["standard_error_intercept"] = SE_b0 = out["SE"] * np.sqrt(
             (1 / out["N"] + (mean_x) ** 2 / out["x_ssq"])
@@ -105,8 +118,14 @@ def simple_robust_regression(x, y, na_rm=None, conflevel=0.95, nowarn=False):
         out["standard_errors"] = [
             out["SE"] * 1 / np.sqrt(out["x_ssq"]),
         ]
+        var_y = (out["SE"] ** 2) * (
+            1 + 1 / out["N"] + (pi_range - np.mean(x)) ** 2 / out["x_ssq"]
+        )
+        std_y = np.sqrt(var_y)
+        lower = pi_y_pred - c_t * std_y
+        upper = pi_y_pred + c_t * std_y
+        out["pi_range"] = np.vstack([pi_range, lower, upper]).T
 
-    c_t = t_value(1 - (1 - conflevel) / 2, out["N"] - 2)  # 2 fitted parameters
     out["conf_interval_intercept"] = np.array(
         [out["intercept"] - c_t * SE_b0, out["intercept"] + c_t * SE_b0],
     )
@@ -118,8 +137,6 @@ def simple_robust_regression(x, y, na_rm=None, conflevel=0.95, nowarn=False):
             ],
         ]
     )
-    out["t_value"] = np.array([c_t])  # for consistency with other regression models.
-
     out["leverage"] = 1 / out["N"] + np.power(x - mean_x, 2) / out["x_ssq"]
     out["k"] = 2
     if out["SE"] < __eps:
@@ -134,48 +151,46 @@ def simple_robust_regression(x, y, na_rm=None, conflevel=0.95, nowarn=False):
     return out
 
 
-def multiple_linear_regression(X, y, fit_intercept=True, na_rm=True, conflevel=0.95):
+def multiple_linear_regression(
+    X, y, fit_intercept=True, na_rm=True, conflevel=0.95, pi_resolution=50
+):
     """
     Linear regression of the N rows and K columns of matrix `X` onto the single column 'y'.
 
     The matrix `X` will be augmented with a column of 1's if `fit_intercept` is True.
+    `na_rm`: True:  removes all observations with one or more missing values.
 
     Notes and limitations:
-
-        * Does not handle any missing data (yet). Later, when missing data are handled. TODO
-
-            `na_rm`: True:  removes all observations with one or more missing values.
-
         * does not handle weighting
-
         * N >= K at least as many rows as columns in X
 
     Returns a dictionary of outputs with these keys:
 
-    coefficients:   a vector of K coefficients, one for each column in ``X``
+        coefficients:   a vector of K coefficients, one for each column in ``X``
 
-    intercept:      returned if ``fit_intercept==True``
+        intercept:      returned if ``fit_intercept==True``
 
-    standard_errors:a vector of K standard errors, one for each column in ``X``
+        standard_errors:a vector of K standard errors, one for each column in ``X``
 
-    standard_error_intercept: standard error for the intercept
+        standard_error_intercept: standard error for the intercept
 
-    R2:             the infamous R^2 values
+        R2:             the infamous R^2 values
 
-    SE              the model's standard error
+        SE              the model's standard error
 
-    fitted_values   the N predicted values, one per row in ``y``
+        fitted_values   the N predicted values, one per row in ``y``
 
-    residuals       the N residuals
+        residuals       the N residuals
 
-    t_value        the t-values for the standard errors
+        t_value         the t-values for the standard errors
 
-    conf_intervals  the 95% confidence intervals for the model terms: K rows,
-                    2 columns: column 1 is lower, column 2 is upper
+        conf_intervals  the 95% confidence intervals for the model terms: K rows,
+                        2 columns: column 1 is lower, column 2 is upper
 
-    TODO: report hatvalues, discrepancy, leverage: for residual detection
+        pi_range       the prediction intervals, above an below, over the range of data.
+
+    TODO: report hatvalues, discrepancy:  for residual detection
     """
-    # TESTING: tests.test__multiple_linear_regression()
 
     alpha = 1.0 - conflevel
     out = {
@@ -262,14 +277,21 @@ def multiple_linear_regression(X, y, fit_intercept=True, na_rm=True, conflevel=0
     out["fitted_values"] = results._results.fittedvalues
     out["R2"] = results._results.rsquared
     regression_ssq = np.sum(np.power(out["fitted_values"] - mean_y, 2))
-    out["residuals"] = results._results.resid  # == y.values.ravel() - out["fitted_values"]
+    out[
+        "residuals"
+    ] = results._results.resid  # == y.values.ravel() - out["fitted_values"]
     residual_ssq = np.sum(out["residuals"] * out["residuals"])
     out["R2_regression_based"] = regression_ssq / total_ssq
     out["R2_residual_based"] = 1 - (residual_ssq / total_ssq)
     out["SE"] = np.sqrt(results._results.scale)  # np.sqrt(residual_ssq / (len(x) - 2))
     out["k"] = k
 
-    if x_vector.shape[1] == 1:
+    if x_vector.shape[1] == 1 and fit_intercept:
+        # "pi" = prediction interval
+        pi_range = np.linspace(
+            np.min(X.values[:, 1]), np.max(X.values[:, 1]), pi_resolution
+        )
+        pi_y_pred = out["intercept"] + out["coefficients"][0] * pi_range
         if out["SE"] < __eps:
             out["influence"] = out["residuals"] * 0.0
         else:
@@ -278,4 +300,15 @@ def multiple_linear_regression(X, y, fit_intercept=True, na_rm=True, conflevel=0
                 * out["leverage"]
                 / k
             )
+            var_y = (out["SE"] ** 2) * (
+                1
+                + 1 / out["N"]
+                + (pi_range - np.mean(X.values[:, 1])) ** 2 / out["x_ssq"]
+            )
+            std_y = np.sqrt(var_y)
+            c_t = t_value(1 - (1 - conflevel) / 2, out["N"] - 2)  # 2 fitted parameters
+            lower = pi_y_pred - c_t * std_y
+            upper = pi_y_pred + c_t * std_y
+            out["pi_range"] = np.vstack([pi_range, lower, upper]).T
+
     return out

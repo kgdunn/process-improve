@@ -69,7 +69,7 @@ def check_valid_batch_dict(in_dict: dict, no_nan=False) -> bool:
     check = True
     for _, batch in in_dict.items():
         # Check 1
-        check *= base_columns == set(batch.columns)
+        check = check & (base_columns == set(batch.columns))
         # Check 2
         check *= batch.select_dtypes(include=[np.number]).shape[1] == batch.shape[1]
         # Check 3
@@ -80,7 +80,7 @@ def check_valid_batch_dict(in_dict: dict, no_nan=False) -> bool:
 
 def dict_to_melted(
     in_df: pd.DataFrame, insert_batch_id_column=True, insert_sequence_column=False
-) -> dict:
+) -> pd.DataFrame:
     """Reverse of `melted_to_dict`"""
     out_df = pd.DataFrame()
     batch_id_col = "batch_id"
@@ -144,14 +144,14 @@ def melted_to_wide(in_df: pd.DataFrame, batch_id_col) -> dict:
     Data must be aligned already.
     """
     assert batch_id_col in in_df
-    pass
+    return {}
     # TODO: add the column multilevel column index.
     # return dict_to_wide(melted_to_dict(in_df, batch_id_col))
 
 
 def wide_to_melted(in_df: pd.DataFrame) -> pd.DataFrame:
     # dict_to_melted(dict_to_wide(in_df))
-    pass
+    return pd.DataFrame()
 
 
 def wide_to_dict():

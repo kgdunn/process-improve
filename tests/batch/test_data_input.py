@@ -19,7 +19,7 @@ def test_melted_to_dict(nylon_raw_melteddata):
 
 
 def test_melted_to_wide(nylon_raw_melteddata):
-    out = melted_to_wide(nylon_raw_melteddata, batch_id_col="batch_id")
+    _ = melted_to_wide(nylon_raw_melteddata, batch_id_col="batch_id")
     # assert out.shape == pytest.approx([2, 3])
 
 

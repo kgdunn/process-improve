@@ -83,12 +83,12 @@ def test_data_preprocessing(batch_data):
 def test_location_features(batch_data):
     """Simple tests regarding the mean, median, etc. Location-based features."""
 
-    assert features.f_mean(batch_data, tags=["Temp1", "Temp2", "Pressure1"]).values[0] == approx(
-        [-19.482056, -47.649381, 0.444674], rel=1e-7
-    )
-    assert features.f_median(batch_data, tags=["Temp1", "Temp2", "Pressure1"]).values[0] == approx(
-        [-28.19, -47.86, 0.3333059], rel=1e-7
-    )
+    assert features.f_mean(batch_data, tags=["Temp1", "Temp2", "Pressure1"]).values[
+        0
+    ] == approx([-19.482056, -47.649381, 0.444674], rel=1e-7)
+    assert features.f_median(batch_data, tags=["Temp1", "Temp2", "Pressure1"]).values[
+        0
+    ] == approx([-28.19, -47.86, 0.3333059], rel=1e-7)
 
 
 # Shape
@@ -113,12 +113,23 @@ def test_sum_features(batch_data):
     """Simple tests regarding the area
     Values were calculated manually in Excel."""
 
-    assert features.f_sum(batch_data, tags=["Temp1", "Temp2", "Pressure1"]).values[0] == approx(
-        [-9760.51, -23872.34, 222.781677], rel=1e-9
+    assert features.f_sum(batch_data, tags=["Temp1", "Temp2", "Pressure1"]).values[
+        0
+    ] == approx([-9760.51, -23872.34, 222.781677], rel=1e-9)
+    assert (
+        features.f_sum(
+            batch_data,
+            tags=["Temp1", "Temp2", "Pressure1"],
+            batch_col="Batch",
+        ).values[0]
+        == approx([-7304.88, -20801.57, 182.5183], rel=1e-6)
     )
-    assert features.f_sum(
-        batch_data, tags=["Temp1", "Temp2", "Pressure1"], batch_col="Batch"
-    ).values[0] == approx([-7304.88, -20801.57, 182.5183], rel=1e-6)
-    assert features.f_area(
-        batch_data, tags=["Temp1", "Temp2", "Pressure1"], batch_col="Batch", time_tag="UCI_minutes"
-    ).values[0] == approx([-73095.6162, -207910.839, 1648.069279], rel=1e-7)
+    assert (
+        features.f_area(
+            batch_data,
+            tags=["Temp1", "Temp2", "Pressure1"],
+            batch_col="Batch",
+            time_tag="UCI_minutes",
+        ).values[0]
+        == approx([-73095.6162, -207910.839, 1648.069279], rel=1e-7)
+    )

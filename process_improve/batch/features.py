@@ -10,7 +10,9 @@ _LOG.setLevel("INFO")
 
 
 # General
-def _prepare_data(df: pd.DataFrame, tags=None, batch_col=None, phase_col=None, age_col=None):
+def _prepare_data(
+    df: pd.DataFrame, tags=None, batch_col=None, phase_col=None, age_col=None
+):
     """
     General function, used for all feature extractions.
 
@@ -19,7 +21,11 @@ def _prepare_data(df: pd.DataFrame, tags=None, batch_col=None, phase_col=None, a
     """
 
     # Special case: a single series. Convert it to a dataframe
-    if isinstance(df, pd.Series) and (tags is None) and isinstance(df.index, pd.DatetimeIndex):
+    if (
+        isinstance(df, pd.Series)
+        and (tags is None)
+        and isinstance(df.index, pd.DatetimeIndex)
+    ):
         if df.name is None:
             name = "tag"
         else:
@@ -199,7 +205,9 @@ def f_area(data: pd.DataFrame, time_tag, tags=None, batch_col=None, phase_col=No
     See also: f_sum, f_cumsum
     """
     base_name = "area"
-    prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col, age_col=time_tag)
+    prepared, tags, output, _ = _prepare_data(
+        data, tags, batch_col, phase_col, age_col=time_tag
+    )
     f_names = [(tag + "_" + base_name) for tag in tags]
 
     # We will overwrite all entries in this dataframe, one-by-one
@@ -259,7 +267,9 @@ def f_slope(
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col, age_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
 
-    _LOG.debug(f"Can take time to get slopes for {len(tags)} tags on {len(prepared)} batches.")
+    _LOG.debug(
+        f"Can take time to get slopes for {len(tags)} tags on {len(prepared)} batches."
+    )
     # We will overwrite all entries in this dataframe, one-by-one
     output = prepared.sum()
     for batch_id, this_batch in prepared:

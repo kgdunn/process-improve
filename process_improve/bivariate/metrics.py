@@ -6,14 +6,14 @@ Bivariate statistical tools:
 * area under curve
 """
 
-from typing import List
+from typing import List, Union
 
 import numpy as np
 
 from ..regression.methods import fit_robust_lm
 
 
-def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter=41) -> int:
+def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter=41) -> Union[int, float]:
     """
     Finds the elbow point when plotting numeric entries in `x` vs numeric values in list `y`.
 
@@ -34,7 +34,9 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter=41) -> int:
     start = 5
     # assert divmod(max_iter, 2)[1]  # must be odd number; to ensure we calculate the median later
 
-    def calculate_line_length(x1: float, y1: float, x2: float, y2: float) -> float:
+    def calculate_line_length(
+        x1: float, y1: float, x2: np.ndarray, y2: np.ndarray
+    ) -> Union[float, np.ndarray]:
         """Returns the length of the line between 2 points (x1, y1) and (x2, y2), defined as:
         :math:`\\sqrt{(x2 - x1)^2 + (y2 - y1)^2}`
         """
@@ -51,10 +53,12 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter=41) -> int:
 
     # Eliminate missing values in x and y simultaneously.
     x, y = x[~(np.isnan(x) | np.isnan(y))], y[~(np.isnan(x) | np.isnan(y))]
-    assert len(x) > 10, "Requires more than 10 values in the vectors (not including missing data)."
-    idx = x.argsort()
-    x = x[idx]
-    y = y[idx]
+    assert (
+        len(x) > 10
+    ), "Requires more than 10 values in the vectors (not including missing data)."
+    idx_sort = x.argsort()
+    x = x[idx_sort]
+    y = y[idx_sort]
     N = x.size
     # Left and right anchor points: use median of the 5 points at start and end
     lft_x_avg = np.median(x[0:start])
@@ -124,17 +128,16 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter=41) -> int:
         if mid_idx[0].any():
             mid_idx = mid_idx[0][0]
         else:
-            mid_idx = np.nan
+            return np.nan
 
     mid_x = np.nanmedian(int_x_list)
-
-    if np.isnan(mid_idx) or np.isnan(mid_x):
+    if np.isnan(mid_x):
         return np.nan
 
     # TODO: Could robustify it:
     # np.quantile(calculate_line_length(mid_x, mid_y, xraw, yraw), 0.05)
-    mid_y = int_y_list[mid_idx]
-    return np.argmin(calculate_line_length(mid_x, mid_y, x, y))
+    mid_y = int_y_list[int(mid_idx)]
+    return int(np.argmin(calculate_line_length(mid_x, mid_y, x, y)))
 
 
 def find_line_intersection(m1: float, b1: float, m2: float, b2: float) -> tuple:
