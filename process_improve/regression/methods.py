@@ -6,6 +6,21 @@ from ..univariate.metrics import t_value
 __eps = np.finfo(np.float32).eps
 
 
+def fit_robust_lm(x: np.ndarray, y: np.ndarray) -> list:
+    """
+    Fits a robust linear model between Numpy vectors `x` and `y`, with an
+    intercept. Returns a list: [intercept, slope] of the fit. No extra
+    checking on data consistency is done.
+
+    See also:
+
+    regression.repeated_median_slope
+    """
+    rlm_model = sm.RLM(y, np.vstack([np.ones(x.size), x.ravel()]).T, M=sm.robust.norms.HuberT())
+    rlm_results = rlm_model.fit()
+    return rlm_results.params
+
+
 def repeated_median_slope(x, y, nowarn=False):
     """
     Robust slope calculation.
@@ -62,9 +77,7 @@ def simple_robust_regression(x, y, na_rm=None, conflevel=0.95, nowarn=False):
 
     out = {}
 
-    out["N"] = min(
-        x.size - np.count_nonzero(np.isnan(x)), y.size - np.count_nonzero(np.isnan(y))
-    )
+    out["N"] = min(x.size - np.count_nonzero(np.isnan(x)), y.size - np.count_nonzero(np.isnan(y)))
     out["intercept"] = intercept
     out["coefficients"] = [
         slope,
@@ -249,9 +262,7 @@ def multiple_linear_regression(X, y, fit_intercept=True, na_rm=True, conflevel=0
     out["fitted_values"] = results._results.fittedvalues
     out["R2"] = results._results.rsquared
     regression_ssq = np.sum(np.power(out["fitted_values"] - mean_y, 2))
-    out[
-        "residuals"
-    ] = results._results.resid  # == y.values.ravel() - out["fitted_values"]
+    out["residuals"] = results._results.resid  # == y.values.ravel() - out["fitted_values"]
     residual_ssq = np.sum(out["residuals"] * out["residuals"])
     out["R2_regression_based"] = regression_ssq / total_ssq
     out["R2_residual_based"] = 1 - (residual_ssq / total_ssq)

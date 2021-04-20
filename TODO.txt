@@ -1,3 +1,52 @@
+Batch data: missing values and smoothing tool:
+
+* lowess and SG filter for batch data
+
+-----
+add documentation
+-----
+Product development notebook:
+
+Output
+3 dofs available in general
+1 dof
+2 dof.
+
+PCA space. For outputs. On 7 properties A to G.
+Shows the correlations and quickly seeing gaps
+
+PCA on processing settings and blend properties. RX. Related to the scores. Often a 1 to 1 relationship of the outputs to the scores. So this is valid.
+
+Use the 5 properties of A to E from foods data set. Show that constraints are also possible. Indicates multiple solutions. Also mention the nulll space. Of multiple solutions. T -> X.
+
+Then go to the cinac case study. Show that the lvs are interesting and have meaning. We can design new product here. Y -> T.
+
+Now we can also go directly from Y to X, with a NLP solution. But it goes via the scores T. And it can handle additional constraints.
+Would be cool to demo this.
+
+Lastly how do you start out?
+* dB is partially available.
+* R selected from a regular mixture DoE.
+* Calculate XR. Do a doe in this space to select a subset of experimental conditions.
+* run those expts.
+* Start up your mixture model
+* See where there are holes literally in the spaces.
+* Use LV model inversion to find which process settings and ratios and materials are needed to fill in those gaps
+* Targeted DoE.
+
+
+raw material properties affect what final product properties is made clear in the pls loadings plot. Again, something that is not seen in NN model.
+
+Build a model explorer for the pls model of muteii for the rubbers, showing how the blend properties correlated with the 8 outputs.
+
+Show the approach on p 23 of muteii paper for how to start out. You can use what you have and add to it via a d optimal doe.
+Show figure 4 and emph that the full 111 expats were not needed. Only 17.
+
+
+-----
+
+
+
 Prediction interval:
 
 
