@@ -1,3 +1,7 @@
+Elbow method;
+https://github.com/Mathemilda/Numeric_ElbowMethod_For_K-means/blob/master/EstimatedClusterNumberWithWCSS.py
+
+--
 Prediction interval function to linear regression. Accepts any x input, gives the PI.
 ---
 Batch data: missing values and smoothing tool:
