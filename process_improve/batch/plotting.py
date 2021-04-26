@@ -57,6 +57,7 @@ def plot__all_batches_per_tag(
     x_axis_label: str = "Time [sequence order]",
     html_image_height: int = 900,
     html_aspect_ratio_w_over_h: float = 16 / 9,
+    y_limits: tuple = (None, None),
 ) -> dict:
     """Plots a particular `tag` over all batches in the given dataframe `df`.
 
