@@ -91,8 +91,14 @@ def test_PCA_foods():
 
 @pytest.fixture
 def fixture_kamyr_data_missing_value():
+    folder = (
+        pathlib.Path(__file__).parents[1]
+        / "process_improve"
+        / "datasets"
+        / "multivariate"
+    )
     return pd.read_csv(
-        pathlib.Path(__file__).parents[0] / "fixtures" / "kamyr.csv",
+        folder / "kamyr.csv",
         index_col=None,
         header=None,
     )
@@ -190,9 +196,14 @@ def fixture_tablet_spectra_data():
     PC3 -1.134026e-11 2.042206e-10  5.951125e+03 7.815970e-13
     PC4  3.454659e-11 5.821477e-11  7.815970e-13 4.910481e+03
     """
-
+    folder = (
+        pathlib.Path(__file__).parents[1]
+        / "process_improve"
+        / "datasets"
+        / "multivariate"
+    )
     spectra = pd.read_csv(
-        pathlib.Path(__file__).parents[0] / "fixtures" / "tablet-spectra.csv",
+        folder / "tablet-spectra.csv",
         index_col=0,
         header=None,
     )
@@ -1158,41 +1169,31 @@ def fixture_PLS_LDPE_example():
     A = 6
     """
     out = {}
+    folder = (
+        pathlib.Path(__file__).parents[1]
+        / "process_improve"
+        / "datasets"
+        / "multivariate"
+    )
     values = pd.read_csv(
-        pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "LDPE.csv",
+        folder / "LDPE" / "LDPE.csv",
         index_col=0,
     )
-    out["expected_T"] = pd.read_csv(
-        pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "T.csv", header=None
-    )
-    out["expected_P"] = pd.read_csv(
-        pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "P.csv", header=None
-    )
-    out["expected_W"] = pd.read_csv(
-        pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "W.csv", header=None
-    )
-    out["expected_C"] = pd.read_csv(
-        pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "C.csv", header=None
-    )
-    out["expected_U"] = pd.read_csv(
-        pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "U.csv", header=None
-    )
+    out["expected_T"] = pd.read_csv(folder / "LDPE" / "T.csv", header=None)
+    out["expected_P"] = pd.read_csv(folder / "LDPE" / "P.csv", header=None)
+    out["expected_W"] = pd.read_csv(folder / "LDPE" / "W.csv", header=None)
+    out["expected_C"] = pd.read_csv(folder / "LDPE" / "C.csv", header=None)
+    out["expected_U"] = pd.read_csv(folder / "LDPE" / "U.csv", header=None)
     out["expected_Hotellings_T2_A3"] = pd.read_csv(
-        pathlib.Path(__file__).parents[0]
-        / "fixtures"
-        / "LDPE"
-        / "Hotellings_T2_A3.csv",
+        folder / "LDPE" / "Hotellings_T2_A3.csv",
         header=None,
     )
     out["expected_Hotellings_T2_A6"] = pd.read_csv(
-        pathlib.Path(__file__).parents[0]
-        / "fixtures"
-        / "LDPE"
-        / "Hotellings_T2_A6.csv",
+        folder / "LDPE" / "Hotellings_T2_A6.csv",
         header=None,
     )
     out["expected_Yhat_A6"] = pd.read_csv(
-        pathlib.Path(__file__).parents[0] / "fixtures" / "LDPE" / "Yhat_A6.csv",
+        folder / "LDPE" / "Yhat_A6.csv",
         header=None,
     )
     out["expected_SD_t"] = np.array(

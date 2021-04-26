@@ -11,9 +11,11 @@ import process_improve.batch.features as features
 @pytest.fixture(scope="module")
 def batch_data():
     """Returns a small example of a batch data set."""
-
+    folder = (
+        pathlib.Path(__file__).parents[2] / "process_improve" / "datasets" / "batch"
+    )
     return pd.read_csv(
-        pathlib.Path(__file__).parents[0] / "fixtures" / "batch-fake-data.csv",
+        folder / "batch-fake-data.csv",
         index_col=1,
         header=0,
     )

@@ -1,4 +1,4 @@
-import os
+import pathlib
 import unittest
 import numpy as np
 import pandas as pd
@@ -188,11 +188,15 @@ class TestModels(unittest.TestCase):
 
 class Test_API_usage(unittest.TestCase):
     def setUp(self):
-        full_path = os.path.join(
-            os.path.split(__file__)[0], "fixtures", "test_doe1.csv"
+        # TODO: replace unittest -> pytest
+        # TODO: use path
+        folder = (
+            pathlib.Path(__file__).parents[1]
+            / "process_improve"
+            / "datasets"
+            / "experiments"
         )
-        self.assertTrue(os.path.exists(full_path))
-        self.df1 = pd.read_csv(full_path)
+        self.df1 = pd.read_csv(folder / "test_doe1.csv")
         self.df1.set_index("Run order", inplace=True)
 
     def test_case_1(self):

@@ -21,9 +21,13 @@ class test_validate_against_R_qcc_xbar_one:
     s = chart$std.dev       # 10.43234
     """
 
-    cc_values = pd.read_csv(
-        pathlib.Path(__file__).parents[0] / "fixtures" / "rubber-colour.csv"
+    folder = (
+        pathlib.Path(__file__).parents[1]
+        / "process_improve"
+        / "datasets"
+        / "monitoring"
     )
+    cc_values = pd.read_csv(folder / "rubber-colour.csv")
     y = cc_values["Colour"]
 
     # Do we get similar results to the "chart <- qcc(data=data$Colour, type="xbar.one")" from R?
@@ -168,9 +172,13 @@ class test_holt_winters_control_chart_BatchYield:
     http://openmv.net/info/batch-yield-and-purity (Kevin Dunn, personal data)
     """
 
-    cc_values = pd.read_csv(
-        pathlib.Path(__file__).parents[0] / "fixtures" / "batch-yield-and-purity.csv"
+    folder = (
+        pathlib.Path(__file__).parents[1]
+        / "process_improve"
+        / "datasets"
+        / "monitoring"
     )
+    cc_values = pd.read_csv(folder / "batch-yield-and-purity.csv")
     subgroupsN = 3
     rounder = int(np.floor(cc_values.shape[0] / 3))
     subgroups = (
