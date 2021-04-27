@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from process_improve.bivariate.metrics import find_elbow_point
+from process_improve.bivariate.methods import find_elbow_point
 
 
 @pytest.fixture
