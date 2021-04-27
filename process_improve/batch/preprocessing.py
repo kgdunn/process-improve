@@ -48,6 +48,7 @@ def determine_scaling(
     collector_mins = []
     for _, batch in batches.items():
         if settings["robust"]:
+            # TODO: consider f_iqr feature here. Would that work?
             rnge = batch[columns_to_align].quantile(0.98) - batch[
                 columns_to_align
             ].quantile(0.02)
@@ -578,7 +579,8 @@ def find_reference_batch(
     scaler = MCUVScaler().fit(basewide)
     mcuv = scaler.fit_transform(basewide)
 
-    pca_first = PCA(n_components=settings["n_components"]).fit(mcuv)
+    n_components = np.floor(settings["n_components"])
+    pca_first = PCA(n_components=n_components).fit(mcuv)
 
     # Excludes all batches with Hotelling's T2 > 90% limit.
     T2_limit_90 = pca_first.T2_limit(0.90)
@@ -588,7 +590,7 @@ def find_reference_batch(
     basewide = basewide.loc[to_keep, :]
     scaler = MCUVScaler().fit(basewide)
     mcuv = scaler.fit_transform(basewide)
-    pca_second = PCA(n_components=settings["n_components"]).fit(mcuv)
+    pca_second = PCA(n_components=n_components).fit(mcuv)
 
     # Finds batch with scores; and ensures this batch has SPE < 50% of the model limit.
     metrics = pd.DataFrame(

@@ -56,7 +56,7 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
 class PCA(PCA_sklearn):
     def __init__(
         self,
-        n_components: Optional[int] = None,
+        n_components: int = None,
         *,
         copy=True,
         whiten=False,

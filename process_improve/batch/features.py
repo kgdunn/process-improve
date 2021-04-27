@@ -1,15 +1,15 @@
-import logging
 from typing import Optional
 import pandas as pd
 import numpy as np
+from scipy.stats import norm
 
 from ..regression.methods import repeated_median_slope
-
-_LOG = logging.getLogger(__name__)
-_LOG.setLevel("INFO")
-
+from ..bivariate.methods import find_elbow_point
 
 # General
+# ------------------------------------------
+
+
 def _prepare_data(
     df: pd.DataFrame, tags=None, batch_col=None, phase_col=None, age_col=None
 ):
@@ -105,6 +105,7 @@ def _prepare_data(
 
 
 # Location-based features
+# ------------------------------------------
 def f_mean(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     """
     Feature:    mean
@@ -117,7 +118,6 @@ def f_mean(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
     output = prepared.mean()
-    _LOG.debug(f"Calculated f_mean for {len(tags)} tags.")
     return output.rename(columns=dict(zip(tags, f_names)))[f_names]
 
 
@@ -161,12 +161,112 @@ def f_median(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
 
     output = prepared.median()
     f_names = [(tag + "_" + base_name) for tag in tags]
-
-    _LOG.debug(f"Calculated f_median for {len(tags)} tags.")
     return output.rename(columns=dict(zip(tags, f_names)))[f_names]
 
 
+# Scale-based features
+# ------------------------------------------
+def f_std(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+    """
+    Feature:    std
+
+    The standard deviation for the given tags in ``tags``,
+    for each unique batch in the ``batch_col`` indicator column, and
+    within each unique phase, per batch, of the ``phase_col`` column.
+
+    See also: f_mad, f_iqr
+    """
+    base_name = "std"
+    prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
+    f_names = [(tag + "_" + base_name) for tag in tags]
+    output = prepared.std()
+    return output.rename(columns=dict(zip(tags, f_names)))
+
+
+def f_iqr(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+    """
+    Feature:    iqr
+
+    The InterQuartile Range (IQR) for the given tags in ``tags``,
+    for each unique batch in the ``batch_col`` indicator column, and
+    within each unique phase, per batch, of the ``phase_col`` column.
+
+    The IQR is a robust variant of the standard deviation.
+    The difference between the 75th percentile and the 25th percentile of a
+    sample this is the 25 % trimmed range, an example of an L - estimator.
+
+    See also: f_std, f_mad
+    """
+    # base_name = "iqr"
+    prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
+    # f_names = [(tag + "_" + base_name) for tag in tags]
+    # TODO: complete still
+    pass
+
+
+def f_mad(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+    """
+    Feature:    mad
+
+    The MEAN (not MEDIAN) Absolute Deviation for the given tags in ``tags``,
+    for each unique batch in the ``batch_col`` indicator column, and
+    within each unique phase, per batch, of the ``phase_col`` column.
+
+    The mean absolute deviation (MAD) is a measure of the variability of a
+    univariate sample of quantitative data. For values in a sequence
+    X1, X2, ..., Xn, the ``mad`` is the mean of the absolute deviations from
+    the data's mean.
+
+    Since the mean can be biased by outliers, the MAD can also be biased. If
+    an unbiased estimate is required, see `f_robust_mad`.
+
+    See also: f_std, f_iqr, f_robust_mad
+    """
+    base_name = "mad"
+    prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
+    f_names = [(tag + "_" + base_name) for tag in tags]
+    output = prepared.mad()
+    return output.rename(columns=dict(zip(tags, f_names)))
+
+
+def f_robust_mad(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+    """
+    Feature:    mad
+
+    The MEDIAN (not MEAN) Absolute Deviation for the given tags in ``tags``,
+    for each unique batch in the ``batch_col`` indicator column, and
+    within each unique phase, per batch, of the ``phase_col`` column.
+
+    In statistics, the median absolute deviation (MAD) is a robust measure of
+    the variability of a univariate sample of quantitative data.
+
+    For a univariate data set X1, X2, ..., Xn, the MAD is defined as the
+    median of the absolute deviations from the data's median.
+
+    from scipy.stats import norm as Gaussian
+    c_MAD_constant = Gaussian.ppf(3/4.0)
+    median = np.nanmedian(x)
+    mad = np.nanmedian((np.fabs(x - median)) / c_MAD_constant)
+
+    The constant correction factor is so that MAD agrees with standard
+    deviation for normally distributed data.
+
+    See also: f_mad, f_std, f_iqr,
+    """
+    c_MAD_const = norm.ppf(3 / 4.0)
+
+    base_name = "mad_robust"
+    prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
+    f_names = [(tag + "_" + base_name) for tag in tags]
+
+    assert False, "This next line of code fails. Fix it."
+    output = (np.fabs(prepared - prepared.median())).median() / c_MAD_const
+
+    return output.rename(columns=dict(zip(tags, f_names)))
+
+
 # Cumulative features
+# ------------------------------------------
 def f_sum(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     """
     Feature:    sum
@@ -184,7 +284,6 @@ def f_sum(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
     output = prepared.sum()
-    _LOG.debug(f"Calculated f_sum for {len(tags)} tags.")
     return output.rename(columns=dict(zip(tags, f_names)))
 
 
@@ -239,12 +338,135 @@ def f_area(data: pd.DataFrame, time_tag, tags=None, batch_col=None, phase_col=No
             #     + this_batch[tag].values[-1]
             # ) / 2
 
-    _LOG.debug(f"Calculated f_area for {len(tags)} tags.")
     # output.add_suffix('_' + base_name)
     return output.rename(columns=dict(zip(tags, f_names)))
 
 
+# Breakpoint detection:  rupture / breakpoint within a particular tag.
+# ------------------------------------------
+def f_rupture(data: pd.DataFrame, columns=None, batch_col=None, phase_col=None):
+    """
+    Feature:    rupture
+
+    The breakpoint in a given tag in ``columns`` (usually it is 1 tag),
+    for each unique batch in the ``batch_col`` indicator column, and
+    within each unique phase, per batch, of the ``phase_col`` column.
+    """
+    # Handle phase detection based on 1 column for now.
+    assert len(columns) == 1
+
+    # TODO: see https://github.com/deepcharles/ruptures
+
+    # base_name = "rupture"
+    # prepared = _prepare_data(data, columns, batch_col, phase_col)
+    # feature_columns = prepared['columns']
+    # grouper = prepared['data']
+
+    # import ruptures as rpt
+    # import matplotlib.pyplot as plt
+    # output = pd.DataFrame()
+    # for batch_id, subset in grouper:
+    # signal = subset[columns[0]].values
+    # algo = rpt.Pelt(model="rbf").fit(signal)
+    # result = algo.predict(pen=100)
+    # print(result)
+    # plt.show()
+    # fig = rpt.display(signal, result, computed_chg_pts=result)
+    # fig.save(batchid)
+
+
+# Extreme features
+# ------------------------------------------
+def f_min(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+    """
+    Feature:    min
+
+    The minimum value attained by each tag, for the given tags in ``tags``,
+    for each unique batch in the ``batch_col`` indicator column, and
+    within each unique phase, per batch, of the ``phase_col`` column.
+
+    To get the time-point when the minimum occured: `f_agemin`.
+
+    See also: f_agemin, f_max
+    """
+    base_name = "min"
+    prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
+    f_names = [(tag + "_" + base_name) for tag in tags]
+    output = prepared.min()
+    return output.rename(columns=dict(zip(tags, f_names)))
+
+
+def f_max(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+    """
+    Feature:    max
+
+    The maximum value attained by each tag, for the given tags in ``tags``,
+    for each unique batch in the ``batch_col`` indicator column, and
+    within each unique phase, per batch, of the ``phase_col`` column.
+
+    To get the time-point when the maximum occured: `f_agemax`.
+
+    See also: f_min
+    """
+    base_name = "max"
+    prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
+    f_names = [(tag + "_" + base_name) for tag in tags]
+    output = prepared.max()
+    return output.rename(columns=dict(zip(tags, f_names)))
+
+
+def f_agemin(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+    # TODO
+    pass
+
+
+def f_agemax(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+    # TODO
+    pass
+
+
+def f_last(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+    """
+    Feature:    endpoint
+
+    The final value attained by each tag, for the given tags in ``tags``,
+    for each unique batch in the ``batch_col`` indicator column, and
+    within each unique phase, per batch, of the ``phase_col`` column.
+
+    If you want to know *how many* rows [i.e. the last row], then consider
+    using the `f_count` feature.
+
+    See also: f_sum, f_count
+    """
+    base_name = "endpoint"
+    prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
+    f_names = [(tag + "_" + base_name) for tag in tags]
+    output = prepared.last()
+    return output.rename(columns=dict(zip(tags, f_names)))
+
+
+def f_count(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+    """
+    Feature:    count
+
+    The index number of the final value for each tag, for the given tags
+    in ``tags``, for each unique batch in the ``batch_col`` indicator column,
+    and within each unique phase, per batch, of the ``phase_col`` column.
+
+    Can be useful to get the 1-based index (it is a count!), and to then
+    use that index for other calculation purposes.
+
+    See also: f_sum, f_last
+    """
+    base_name = "count"
+    prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
+    f_names = [(tag + "_" + base_name) for tag in tags]
+    output = prepared.count()
+    return output.rename(columns=dict(zip(tags, f_names)))
+
+
 # Shape-based features
+# ------------------------------------------
 def f_slope(
     data: pd.DataFrame,
     x_axis_tag: str,
@@ -267,9 +489,6 @@ def f_slope(
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col, age_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
 
-    _LOG.debug(
-        f"Can take time to get slopes for {len(tags)} tags on {len(prepared)} batches."
-    )
     # We will overwrite all entries in this dataframe, one-by-one
     output = prepared.sum()
     for batch_id, this_batch in prepared:
@@ -279,5 +498,183 @@ def f_slope(
             X = this_batch[x_axis_tag]
             output.loc[batch_id][tag] = repeated_median_slope(X, this_batch[tag])
 
-    _LOG.info(f"Calculated slopes for {len(tags)} tags.")
+    return output.rename(columns=dict(zip(tags, f_names)))
+
+
+def cross(
+    series: pd.Series,
+    threshold: Optional[int] = 0,
+    direction: Optional[str] = "cross",
+    only_index: Optional[bool] = False,
+    first_point_only: Optional[bool] = False,
+) -> list:
+    """
+    Given a Series returns all the index values where the data values equal
+    the 'threshold' value. Will first drop all missing values from the series.
+
+    `direction`` can be 'rising' (for rising edge), 'falling' (for only falling
+    edge), or 'cross' for both edges.
+
+    If `only_index` is True (default False), then it will return the 0-based
+    index where crossing occur *just after*. E.g. if the returned index is 135,
+    then the crossing takes place at, or after, index 135, but before index 136.
+
+    If the setting `first_point_only` is set to True, only the first point where
+    the crossing occurs is reported. The rest are ignored. Default = all
+    crossings are report (i.e. `first_point_only=False`).
+
+    https://stackoverflow.com/questions/10475488/calculating-crossing-intercept-
+    points-of-a-series-or-dataframe
+    """
+    # Find if values are above or bellow y-value crossing:
+    series_no_na = series.dropna()
+    above = series_no_na.values > threshold
+    below = np.logical_not(above)
+    left_shifted_above = above[1:]
+    left_shifted_below = below[1:]
+    x_crossings = []
+    # Find indexes on left side of crossing point
+    if direction == "rising":
+        idxs = (left_shifted_above & below[0:-1]).nonzero()[0]
+    elif direction == "falling":
+        idxs = (left_shifted_below & above[0:-1]).nonzero()[0]
+    else:
+        rising = left_shifted_above & below[0:-1]
+        falling = left_shifted_below & above[0:-1]
+        idxs = (rising | falling).nonzero()[0]
+
+    if len(idxs) and first_point_only:
+        idxs = idxs[0]
+
+    # Calculate x crossings with interpolation using formula for a straight line
+    x1 = series_no_na.index.values[idxs]
+    x2 = series_no_na.index.values[idxs + 1]
+    y1 = series_no_na.values[idxs]
+    y2 = series_no_na.values[idxs + 1]
+
+    if only_index:
+        return idxs
+
+    try:
+        x_crossings = (threshold - y1) * (x2 - x1) / (y2 - y1) + x1
+    except TypeError:
+        #  If it is a type that cannot be subtracted or multiplied:
+        x_crossings = idxs
+
+    return x_crossings
+
+
+def f_crossing(
+    data: pd.DataFrame,
+    tag: str,
+    time_tag: str,
+    threshold: int = 0,
+    direction: str = "cross",
+    only_index: bool = False,
+    batch_col: Optional[str] = None,
+    phase_col: Optional[str] = None,
+    suffix: Optional[str] = None,
+) -> pd.DataFrame:
+    """
+    Feature:    cross
+
+    The time (`time_tag`) value at which `tag` crosses a certain numeric
+    `threshold``, either `direction='rising'`` (for rising edge), or
+    `direction='falling'`' (for falling edge), or 'cross' for both edges.
+
+    The time when the crossing occurs is found by linear interpolation
+    between the indices. If you prefer the index itself, use `only_index=True`,
+    but the default for that setting is `False`.
+
+    Does this for each unique batch in the `batch_col` indicator column, and
+    within each unique phase, per batch, of the `phase_col` column.
+
+    `suffix`: what to add to the data tag, to name to this feature.
+
+    Note: NaN is returned for a given batch and phase, if the crossing is not
+    found.
+
+    """
+    if suffix is None:
+        base_name = f"cross-{int(threshold)}"
+    else:
+        base_name = str(suffix)
+
+    assert isinstance(tag, str)
+    assert tag in data, f"Desired tag ['{tag}'] not found in the dataframe."
+
+    prepared, tags, output, _ = _prepare_data(
+        data,
+        [tag],
+        batch_col,
+        phase_col=None,
+        age_col=time_tag,
+    )
+
+    f_name = tag + "_" + base_name
+
+    output = prepared.apply(
+        lambda x: cross(
+            x[tag], threshold, direction, only_index=only_index, first_point_only=True
+        )
+    )
+
+    return pd.DataFrame(data={f_name: output})
+
+
+def f_elbow(
+    data: pd.DataFrame,
+    x_axis_tag: str,
+    tags=None,
+    only_index: Optional[bool] = False,
+    batch_col: Optional[str] = None,
+    phase_col: Optional[str] = None,
+) -> pd.DataFrame:
+    """
+    Feature:    elbow
+
+    The "elbow" of the given ``tags`` for each unique batch in the ``batch_col`` indicator column,
+    of the ``phase_col`` column.
+
+    The elbow is calculated against whichever variable is given by `x_axis_tag` (usually a time-
+    based tag).
+
+    The function returns the *value* on the x-axis where the elbox occurs. Sometimes you might
+    want the *index* of the value, so you can also find the corresponding y-axis value. Use
+    `only_index=True` for such cases.
+    """
+    import warnings
+
+    base_name = "elbow"
+    prepared, tags, output, _ = _prepare_data(
+        data, tags, batch_col, phase_col, age_col=x_axis_tag
+    )
+    f_names = [(tag + "_" + base_name) for tag in tags]
+
+    # We will overwrite all entries in this dataframe, one-by-one
+    output = prepared.sum()
+    for batch_id, this_batch in prepared:
+
+        if x_axis_tag not in this_batch:
+            this_batch.reset_index(inplace=True)
+        for tag in tags:
+            subset = this_batch[[x_axis_tag, tag]]
+            subset = subset.dropna()
+            X = subset[x_axis_tag]
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+
+                elbow_index = find_elbow_point(X, subset[tag])
+                if elbow_index < 0:
+                    elbow_index = np.nan
+
+                if only_index:
+                    output.loc[batch_id][tag] = elbow_index
+                else:
+                    if np.isnan(elbow_index):
+                        output.loc[batch_id][tag] = np.isnan
+                    else:
+                        output.loc[batch_id][tag] = X[elbow_index]
+
     return output.rename(columns=dict(zip(tags, f_names)))
