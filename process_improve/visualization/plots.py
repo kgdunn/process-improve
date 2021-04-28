@@ -2,7 +2,7 @@ import pandas as pd
 
 
 def raincloud(sequence: pd.Series) -> dict:
-    """Creates a raincloud plot from a series of data
+    """Creates a raincloud plot from a series of data. Raincloud plot = violin + boxplot + jitter.
 
     Parameters
     ----------
@@ -14,4 +14,6 @@ def raincloud(sequence: pd.Series) -> dict:
     dict
         A dictionary, which can be sent directly to Plotly for visualization.
     """
+    # TODO: split violin plot: https://plotly.com/python/violin/
+    # TODO: rug/dotplot
     pass
