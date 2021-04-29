@@ -1,3 +1,6 @@
+Add tests for f_cross and f_elbow
+
+------
 Elbow method;
 https://github.com/Mathemilda/Numeric_ElbowMethod_For_K-means/blob/master/EstimatedClusterNumberWithWCSS.py
 
