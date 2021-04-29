@@ -1,7 +1,7 @@
 # Built-in libraries
 import math
 import random
-from typing import Optional
+from typing import Any, Dict, Optional
 
 # Plotting settings
 import plotly.graph_objects as go
@@ -61,7 +61,7 @@ def plot__all_batches_per_tag(
     html_aspect_ratio_w_over_h: float = 16 / 9,
     y1_limits: tuple = (None, None),
     y2_limits: tuple = (None, None),
-) -> dict:
+) -> go.Figure:
     """Plots a particular `tag` over all batches in the given dataframe `df`.
 
     Parameters
@@ -70,7 +70,7 @@ def plot__all_batches_per_tag(
         Standard data format for batches.
     tag : str
         Which tag to plot? [on the y1 (left) axis]
-    TODO tag_y2 : str, optional
+    tag_y2 : str, optional
         Which tag to plot? [on the y2 (right) axis]
         Tag will be plotted with different scaling on the secondary axis, to allow time-series
         comparisons to be easier.
@@ -91,20 +91,21 @@ def plot__all_batches_per_tag(
         HTML image output height, by default 900
     html_aspect_ratio_w_over_h : float, optional
         HTML image aspect ratio: 16/9 (therefore the default width will be 1600 px)
-    TODO y1_limits: tuple, optional
+    y1_limits: tuple, optional
         Axis limits enforced on the y1 (left) axis. Default is (None, None) which means the data
-        themselves are used to determine the limits. Specify one or both limits.
+        themselves are used to determine the limits. Specify BOTH limits. Plotly requires
+        (at the moment https://github.com/plotly/plotly.js/issues/400) that you specify both.
         Order: (low limit, high limit)
-    TODO y2_limits: tuple, optional
+    y2_limits: tuple, optional
         Axis limits enforced on the y2 (right) axis. Default is (None, None) which means the data
-        themselves are used to determine the limits. Specify one or both limits.
-        Order: (low limit, high limit)
+        themselves are used to determine the limits. Specify BOTH limits. Plotly requires
+        (at the moment https://github.com/plotly/plotly.js/issues/400) that you specify both.
 
 
     Returns
     -------
-    dict
-        Standard Plotly dict with two keys: `data` and `layout`.
+    go.Figure
+        Standard Plotly fig object (dictionary-like).
     """
     unique_items = list(df_dict.keys())
     n_colours = len(unique_items)
@@ -114,50 +115,31 @@ def plot__all_batches_per_tag(
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
     colour_assignment = dict(zip(unique_items, colours))
 
-    traces = []
-    highlight_traces = []
+    # traces = []
+    # highlight_traces = []
     regular_style = dict()
-
     highlight_dict = {}
     for key, val in batches_to_highlight.items():
         highlight_dict.update({item: key for item in val if item in df_dict.keys()})
 
+    fig = go.Figure()
+
     for batch_name, batch_df in df_dict.items():
         assert tag in batch_df.columns, f"Tag '{tag}' not found in the batch with id {batch_name}."
-        assert (
-            tag_y2 in batch_df.columns
-        ), f"Tag '{tag}' not found in the batch with id {batch_name}."
+        if tag_y2:
+            assert (
+                tag_y2 in batch_df.columns
+            ), f"Tag '{tag}' not found in the batch with id {batch_name}."
         if time_column in batch_df.columns:
             time_data = batch_df[time_column]
         else:
             time_data = list(range(batch_df.shape[0]))
 
         if batch_name in highlight_dict.keys():
-            highlight_traces.append(
-                go.Scatter(
-                    x=time_data,
-                    y=batch_df[tag],
-                    line=dict(width=highlight_width, color=highlight_dict[batch_name]),
-                    name=batch_name,
-                    mode="lines",
-                    opacity=0.8,
-                    secondary_y=False,
-                )
-            )
-            if tag_y2:
-                trace = go.Scatter(
-                    x=time_data,
-                    y=batch_df[tag_y2],
-                    line=dict(width=highlight_width, color=highlight_dict[batch_name]),
-                    name=batch_name,
-                    mode="lines",
-                    opacity=0.8,
-                    secondary_y=True,
-                )
-                highlight_traces.append(trace)
+            continue  # come to this later
         else:
             regular_style["color"] = colour_assignment[batch_name]
-            traces.append(
+            fig.add_trace(
                 go.Scatter(
                     x=time_data,
                     y=batch_df[tag],
@@ -165,11 +147,11 @@ def plot__all_batches_per_tag(
                     line=regular_style,
                     mode="lines",
                     opacity=0.8,
-                    secondary_y=False,
+                    yaxis="y1",
                 )
             )
             if tag_y2:
-                traces.append(
+                fig.add_trace(
                     go.Scatter(
                         x=time_data,
                         y=batch_df[tag_y2],
@@ -177,16 +159,58 @@ def plot__all_batches_per_tag(
                         line=regular_style,
                         mode="lines",
                         opacity=0.8,
-                        secondary_y=True,
+                        yaxis="y2",
                     )
                 )
 
-    # Add the highlighted one last
-    traces.extend(highlight_traces)
+    # Add the highlighted batches last: therefore, sadly, we have to do another run-through.
+    # Plotly does not yet support z-orders.
+    for batch_name, batch_df in df_dict.items():
+        if time_column in batch_df.columns:
+            time_data = batch_df[time_column]
+        else:
+            time_data = list(range(batch_df.shape[0]))
 
-    layout = go.Layout(
+        if batch_name in highlight_dict.keys():
+            fig.add_trace(
+                go.Scatter(
+                    x=time_data,
+                    y=batch_df[tag],
+                    line=dict(width=highlight_width, color=highlight_dict[batch_name]),
+                    name=batch_name,
+                    mode="lines",
+                    opacity=0.8,
+                    yaxis="y1",
+                )
+            )
+            if tag_y2:
+                fig.add_trace(
+                    go.Scatter(
+                        x=time_data,
+                        y=batch_df[tag_y2],
+                        line=dict(width=highlight_width, color=highlight_dict[batch_name]),
+                        name=batch_name,
+                        mode="lines",
+                        opacity=0.8,
+                        yaxis="y2",
+                    )
+                )
+
+    yaxis1_dict = dict(title=tag, gridwidth=2, matches="y1", showticklabels=True, side="left")
+    if (y1_limits[0] is not None) or (y1_limits[1] is not None):
+        yaxis1_dict["autorange"] = False
+        yaxis1_dict["range"] = y1_limits
+
+    yaxis2_dict: Dict[str, Any] = dict(
+        title=tag_y2, gridwidth=2, matches="y2", showticklabels=True, side="right"
+    )
+    if (y2_limits[0] is not None) or (y2_limits[1] is not None):
+        yaxis2_dict["autorange"] = False
+        yaxis2_dict["range"] = y2_limits
+
+    fig.update_layout(
         title=f"Plot of: '{tag}'"
-        + (f"; {str(tag_y2)} on second axis." if tag_y2 else ".")
+        + (f" on left axis; with '{str(tag_y2)}' on right axis." if tag_y2 else ".")
         + (f" [{str(extra_info)}]" if extra_info else ""),
         hovermode="closest",
         showlegend=True,
@@ -199,11 +223,13 @@ def plot__all_batches_per_tag(
         ),
         autosize=False,
         xaxis=dict(title=x_axis_label, gridwidth=1),
-        yaxis=dict(title=tag, gridwidth=2),
+        yaxis=yaxis1_dict,
         width=html_aspect_ratio_w_over_h * html_image_height,
         height=html_image_height,
     )
-    return dict(data=traces, layout=layout)
+    if tag_y2:
+        fig.update_layout(yaxis2=yaxis2_dict)
+    return fig
 
 
 def plot__tag_time(

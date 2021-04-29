@@ -3,6 +3,7 @@ from process_improve.batch.plotting import (
     plot__all_batches_per_tag,
     plot__tag_time,
     get_rgba_from_triplet,
+    plot_to_HTML,
 )
 from process_improve.batch.data_input import melt_df_to_series
 from process_improve.batch.preprocessing import determine_scaling, apply_scaling
@@ -41,13 +42,17 @@ def test_plotting_nylon(nylon_data):
     fig = plot__all_batches_per_tag(
         df_dict=dict_df,
         tag="Tag09",
+        tag_y2="Tag07",
         x_axis_label="Samples since start of batch",
         batches_to_highlight={
-            "rgba(255,0,0,0.9)": ["2", "3", "4"],
-            "rgba(0,0,255,0.9)": ["5", "6"],
+            "rgba(255,0,0,0.9)": [2, 3, 4],
+            "rgba(0,0,255,0.9)": [5, 6],
+            "rgba(255,0,255,0.9)": [48],
         },
+        y2_limits=(6000, 8000),
     )
-    assert len(fig["data"]) == len(dict_df)
+    # plot_to_HTML("test.html", fig)
+    assert len(fig["data"]) == len(dict_df) * 2  # plotting two tags; double the number.
 
 
 def test_plotting_tags(nylon_data):
