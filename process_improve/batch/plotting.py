@@ -56,6 +56,7 @@ def plot__all_batches_per_tag(
     extra_info="",
     batches_to_highlight={},
     x_axis_label: str = "Time [sequence order]",
+    highlight_width: int = 5,
     html_image_height: int = 900,
     html_aspect_ratio_w_over_h: float = 16 / 9,
     y1_limits: tuple = (None, None),
@@ -84,6 +85,8 @@ def plot__all_batches_per_tag(
         The highlighted batches will be shown with a heavier line.
     x_axis_label : str, optional
         String label for the x-axis, by default "Time [sequence order]"
+    highlight_width: int, optional
+        The width of the highlighted lines; default = 5.
     html_image_height : int, optional
         HTML image output height, by default 900
     html_aspect_ratio_w_over_h : float, optional
@@ -113,7 +116,6 @@ def plot__all_batches_per_tag(
 
     traces = []
     highlight_traces = []
-    highlight_width = 5
     regular_style = dict()
 
     highlight_dict = {}
@@ -121,8 +123,9 @@ def plot__all_batches_per_tag(
         highlight_dict.update({item: key for item in val if item in df_dict.keys()})
 
     for batch_name, batch_df in df_dict.items():
+        assert tag in batch_df.columns, f"Tag '{tag}' not found in the batch with id {batch_name}."
         assert (
-            tag in batch_df.columns
+            tag_y2 in batch_df.columns
         ), f"Tag '{tag}' not found in the batch with id {batch_name}."
         if time_column in batch_df.columns:
             time_data = batch_df[time_column]
@@ -130,32 +133,60 @@ def plot__all_batches_per_tag(
             time_data = list(range(batch_df.shape[0]))
 
         if batch_name in highlight_dict.keys():
-            trace = go.Scatter(
-                x=time_data,
-                y=batch_df[tag],
-                line=dict(width=highlight_width, color=highlight_dict[batch_name]),
-                name=batch_name,
-                mode="lines",
-                opacity=0.8,
+            highlight_traces.append(
+                go.Scatter(
+                    x=time_data,
+                    y=batch_df[tag],
+                    line=dict(width=highlight_width, color=highlight_dict[batch_name]),
+                    name=batch_name,
+                    mode="lines",
+                    opacity=0.8,
+                    secondary_y=False,
+                )
             )
-            highlight_traces.append(trace)
+            if tag_y2:
+                trace = go.Scatter(
+                    x=time_data,
+                    y=batch_df[tag_y2],
+                    line=dict(width=highlight_width, color=highlight_dict[batch_name]),
+                    name=batch_name,
+                    mode="lines",
+                    opacity=0.8,
+                    secondary_y=True,
+                )
+                highlight_traces.append(trace)
         else:
             regular_style["color"] = colour_assignment[batch_name]
-            trace = go.Scatter(
-                x=time_data,
-                y=batch_df[tag],
-                name=batch_name,
-                line=regular_style,
-                mode="lines",
-                opacity=0.8,
+            traces.append(
+                go.Scatter(
+                    x=time_data,
+                    y=batch_df[tag],
+                    name=batch_name,
+                    line=regular_style,
+                    mode="lines",
+                    opacity=0.8,
+                    secondary_y=False,
+                )
             )
-            traces.append(trace)
+            if tag_y2:
+                traces.append(
+                    go.Scatter(
+                        x=time_data,
+                        y=batch_df[tag_y2],
+                        name=batch_name,
+                        line=regular_style,
+                        mode="lines",
+                        opacity=0.8,
+                        secondary_y=True,
+                    )
+                )
 
     # Add the highlighted one last
     traces.extend(highlight_traces)
 
     layout = go.Layout(
-        title=f"For all batches: '{tag}'."
+        title=f"Plot of: '{tag}'"
+        + (f"; {str(tag_y2)} on second axis." if tag_y2 else ".")
         + (f" [{str(extra_info)}]" if extra_info else ""),
         hovermode="closest",
         showlegend=True,
