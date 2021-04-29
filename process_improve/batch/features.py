@@ -1,7 +1,7 @@
 from typing import Optional
 import pandas as pd
 import numpy as np
-from scipy.stats import norm
+from scipy.stats import norm, iqr
 
 from ..regression.methods import repeated_median_slope
 from ..bivariate.methods import find_elbow_point
@@ -197,11 +197,11 @@ def f_iqr(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
 
     See also: f_std, f_mad
     """
-    # base_name = "iqr"
+    base_name = "iqr"
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
-    # f_names = [(tag + "_" + base_name) for tag in tags]
-    # TODO: complete still
-    pass
+    f_names = [(tag + "_" + base_name) for tag in tags]
+    output = prepared.agg(iqr)
+    return output.rename(columns=dict(zip(tags, f_names)))
 
 
 def f_mad(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
