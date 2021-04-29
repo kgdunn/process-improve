@@ -414,6 +414,9 @@ def batch_dtw(
     aligned_wide_df.columns = new_labels
     last_average_batch = reverse_scaling(dict(avg=average_batch), scale_df)["avg"]
 
+    # TODO : return a dict_df output instead of aligned data. This dict has the undo-scaling
+    #        already implemented.
+
     return dict(
         scale_df=scale_df,
         aligned_batch_objects=aligned_batches,

@@ -51,13 +51,15 @@ def plot_to_HTML(filename: str, fig: dict):
 def plot__all_batches_per_tag(
     df_dict: dict,
     tag: str,
+    tag_y2: str = None,
     time_column: str = None,
     extra_info="",
     batches_to_highlight={},
     x_axis_label: str = "Time [sequence order]",
     html_image_height: int = 900,
     html_aspect_ratio_w_over_h: float = 16 / 9,
-    y_limits: tuple = (None, None),
+    y1_limits: tuple = (None, None),
+    y2_limits: tuple = (None, None),
 ) -> dict:
     """Plots a particular `tag` over all batches in the given dataframe `df`.
 
@@ -66,7 +68,11 @@ def plot__all_batches_per_tag(
     df_dict : dict
         Standard data format for batches.
     tag : str
-        Which tag to plot?
+        Which tag to plot? [on the y1 (left) axis]
+    TODO tag_y2 : str, optional
+        Which tag to plot? [on the y2 (right) axis]
+        Tag will be plotted with different scaling on the secondary axis, to allow time-series
+        comparisons to be easier.
     time_column : str, optional
         Which tag on the x-axis. If not specified, creates sequential integers, starting from 0
         if left as the default, `None`.
@@ -78,11 +84,19 @@ def plot__all_batches_per_tag(
         The highlighted batches will be shown with a heavier line.
     x_axis_label : str, optional
         String label for the x-axis, by default "Time [sequence order]"
-
     html_image_height : int, optional
         HTML image output height, by default 900
     html_aspect_ratio_w_over_h : float, optional
         HTML image aspect ratio: 16/9 (therefore the default width will be 1600 px)
+    TODO y1_limits: tuple, optional
+        Axis limits enforced on the y1 (left) axis. Default is (None, None) which means the data
+        themselves are used to determine the limits. Specify one or both limits.
+        Order: (low limit, high limit)
+    TODO y2_limits: tuple, optional
+        Axis limits enforced on the y2 (right) axis. Default is (None, None) which means the data
+        themselves are used to determine the limits. Specify one or both limits.
+        Order: (low limit, high limit)
+
 
     Returns
     -------
