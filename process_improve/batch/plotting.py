@@ -125,7 +125,9 @@ def plot__all_batches_per_tag(
     fig = go.Figure()
 
     for batch_name, batch_df in df_dict.items():
-        assert tag in batch_df.columns, f"Tag '{tag}' not found in the batch with id {batch_name}."
+        assert (
+            tag in batch_df.columns
+        ), f"Tag '{tag}' not found in the batch with id {batch_name}."
         if tag_y2:
             assert (
                 tag_y2 in batch_df.columns
@@ -188,7 +190,9 @@ def plot__all_batches_per_tag(
                     go.Scatter(
                         x=time_data,
                         y=batch_df[tag_y2],
-                        line=dict(width=highlight_width, color=highlight_dict[batch_name]),
+                        line=dict(
+                            width=highlight_width, color=highlight_dict[batch_name]
+                        ),
                         name=batch_name,
                         mode="lines",
                         opacity=0.8,
@@ -196,7 +200,9 @@ def plot__all_batches_per_tag(
                     )
                 )
 
-    yaxis1_dict = dict(title=tag, gridwidth=2, matches="y1", showticklabels=True, side="left")
+    yaxis1_dict = dict(
+        title=tag, gridwidth=2, matches="y1", showticklabels=True, side="left"
+    )
     if (y1_limits[0] is not None) or (y1_limits[1] is not None):
         yaxis1_dict["autorange"] = False
         yaxis1_dict["range"] = y1_limits

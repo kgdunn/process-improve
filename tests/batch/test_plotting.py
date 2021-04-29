@@ -3,7 +3,6 @@ from process_improve.batch.plotting import (
     plot__all_batches_per_tag,
     plot__tag_time,
     get_rgba_from_triplet,
-    plot_to_HTML,
 )
 from process_improve.batch.data_input import melt_df_to_series
 from process_improve.batch.preprocessing import determine_scaling, apply_scaling

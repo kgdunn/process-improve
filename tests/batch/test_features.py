@@ -81,21 +81,36 @@ def test_data_preprocessing(batch_data):
     # TODO: Test the age column:
 
 
-# Location
+# Location-based features
+# ------------------------------------------
 def test_location_features(batch_data):
     """Simple tests regarding the mean, median, etc. Location-based features."""
 
-    assert features.f_mean(batch_data, tags=["Temp1", "Temp2", "Pressure1"]).values[
-        0
-    ] == approx([-19.482056, -47.649381, 0.444674], rel=1e-7)
-    assert features.f_median(batch_data, tags=["Temp1", "Temp2", "Pressure1"]).values[
-        0
-    ] == approx([-28.19, -47.86, 0.3333059], rel=1e-7)
+    assert features.f_mean(
+        batch_data, tags=["Temp1", "Temp2", "Pressure1"], batch_col="Batch"
+    ).loc[1].values[0] == approx([-16.71597254, -47.60084668, 0.41766206], abs=1e-7)
+
+    assert features.f_median(
+        batch_data, tags=["Temp1", "Temp2", "Pressure1"], batch_col="Batch"
+    ).loc[1].values[0] == approx([-25.63, -47.78, 0.33330592], abs=1e-7)
 
 
-# Shape
+# Scale-based features
+# ------------------------------------------
+def test_scale_features(batch_data):
+    """Simple tests regarding the scale-based features."""
+
+    assert features.f_std(
+        batch_data, tags=["Temp1", "Temp2", "Pressure1"], batch_col="Batch"
+    ).values[0] == approx([23.19985051, 1.321310847, 1.691319825], rel=1e-7)
+    assert features.f_iqr(
+        batch_data, tags=["Temp1", "Temp2", "Pressure1"], batch_col="Batch"
+    ).values[0] == approx([27.54, 1.85, 0.06666118399999998], rel=1e-7)
+
+
+# Shape-based features
+# ------------------------------------------
 def test_shape_features(batch_data):
-
     slopes = features.f_slope(
         batch_data,
         x_axis_tag="UCI_minutes",
@@ -135,3 +150,22 @@ def test_sum_features(batch_data):
         ).values[0]
         == approx([-73095.6162, -207910.839, 1648.069279], rel=1e-7)
     )
+
+
+# Extreme features
+# ------------------------------------------
+def test_extreme_features(batch_data):
+    """Simple tests regarding the extremum features."""
+
+    assert features.f_min(
+        batch_data, tags=["Temp1", "Temp2", "Pressure1"], batch_col="Batch"
+    ).values[0] == approx([-43.03, -49.92, 0.266644736], rel=1e-7)
+    assert features.f_max(
+        batch_data, tags=["Temp1", "Temp2", "Pressure1"], batch_col="Batch"
+    ).values[0] == approx([28.9, -42.14, 35.62373673], rel=1e-7)
+    assert features.f_last(
+        batch_data, tags=["Temp1", "Temp2", "Pressure1"], batch_col="Batch"
+    ).values[0] == approx([25.99, -47.45, 0.399967104], rel=1e-7)
+    assert features.f_count(
+        batch_data, tags=["Temp1", "Temp2", "Pressure1"], batch_col="Batch"
+    ).values[0] == approx([437, 437, 437], rel=1e-7)
