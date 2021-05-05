@@ -80,12 +80,14 @@ def pareto_plot(
     Example
     -------
 
-    model = linear()
+    model = linear(...)
     pareto_plot(model, main="Pareto plot for my experiment")
 
     p = pareto_plot(model, main="Pareto plot for my experiment", show=False)
     p.save('save_plot_to_figure.png')
     """
+    # TODO:BokehDeprecationWarning: 'legend' keyword is deprecated, use explicit 'legend_label',
+    #                               'legend_field', or 'legend_group' keywords instead
     # TODO: show error bars : see Bokeh annotations: Whiskers model
     # p.add_layout(
     # Whisker(source=e_source, base="base", upper="upper", lower="lower")
