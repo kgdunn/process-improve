@@ -1,3 +1,20 @@
+Function: check_valid_batch_dict
+--> return a dictionary of bools, showing which checks all passed and failed. To help diagnose
+when it fails.
+----
+
+Misssing data in batch
+
+# Fill in missing values
+def fill_na_values(df):
+    "Very very crude method for now"
+    return df.fillna(method='bfill').fillna(method='ffill')
+
+missing_filled = {}
+for batch_id, batch in  df_dict.items():
+    missing_filled[batch_id] = fill_na_values(batch)
+
+-----
 Add tests for f_cross and f_elbow
 
 ------
