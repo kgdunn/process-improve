@@ -5,7 +5,7 @@ import scipy as sp
 import plotly.graph_objects as go
 
 from .alignment_helpers import distance_matrix, backtrack_optimal_path
-from .data_input import dict_to_wide, check_valid_batch_dict
+from .data_input import dict_to_wide, check_valid_batch_dict, melted_to_dict
 from ..multivariate.methods import MCUVScaler, PCA
 
 epsqrt = np.sqrt(np.finfo(float).eps)
@@ -49,9 +49,7 @@ def determine_scaling(
     for _, batch in batches.items():
         if settings["robust"]:
             # TODO: consider f_iqr feature here. Would that work?
-            rnge = batch[columns_to_align].quantile(0.98) - batch[
-                columns_to_align
-            ].quantile(0.02)
+            rnge = batch[columns_to_align].quantile(0.98) - batch[columns_to_align].quantile(0.02)
         else:
             rnge = batch[columns_to_align].max() - batch[columns_to_align].min()
 
@@ -131,9 +129,7 @@ def reverse_scaling(
     for batch_id, batch in batches.items():
         out[batch_id] = batch[columns_to_align].copy()
         for tag, column in out[batch_id].iteritems():
-            out[batch_id][tag] = (
-                column * scale_df.loc[tag, "Range"] + scale_df.loc[tag, "Minimum"]
-            )
+            out[batch_id][tag] = column * scale_df.loc[tag, "Range"] + scale_df.loc[tag, "Minimum"]
     return out
 
 
@@ -283,7 +279,7 @@ def batch_dtw(
         Which columns to use during the alignment process. The others are aligned, but
         get no weight, and therefore do not influence the objective function.
     reference_batch : str
-        Which key in the `batches` is the reference batch.
+        Which key in the `batches` is the reference batch to use.
     settings : dict
         Default settings are = {
             "maximum_iterations": 25,  # maximum iterations (stops here, even if not converged)
@@ -291,7 +287,14 @@ def batch_dtw(
             "robust": True,  # use robust scaling
             "show_progress": True,  # show progress
             "subsample": 1,  # use every sample
+            "interpolate_time_axis_maximum: 100,  # interpolates everything to be on this scale
+            "interpolate_time_axis_delta: 1,  # with this resolution
+            "interpolate_method": "cubic" # any method from scipy.interpolate.interp1d allowed
         }
+
+        The default settings will therefore resampled the time axis to have 100 data points,
+        starting at 0 and ending at 99. You might want more points (change the delta), or use
+        a different x-axis maximum.
 
     Returns
     -------
@@ -307,20 +310,21 @@ def batch_dtw(
     j = index for the tags
     k = index into the rows of each batch, the samples: 0 ... k ... K_i
     """
-    default_settings = {
-        "maximum_iterations": 25,  # maximum iterations (stops here, even if not converged)
-        "tolerance": 0.1,  # convergence tolerance
-        "robust": True,  # use robust scaling
-        "show_progress": True,  # show progress
-        "subsample": 1,  # use every sample
-    }
+    default_settings = dict(
+        maximum_iterations=25,  # maximum iterations (stops here, even if not converged)
+        tolerance=0.1,  # convergence tolerance
+        robust=True,  # use robust scaling
+        show_progress=True,  # show progress
+        subsample=1,  # use every sample
+        interpolate_time_axis_maximum=100,  # interpolates everything to be on this scale
+        interpolate_time_axis_delta=1,
+        interpolate_method="cubic",  # any method from scipy.interpolate.interp1d allowed
+    )
     if settings:
         default_settings.update(settings)
     settings = default_settings
     assert settings["maximum_iterations"] >= 3, "At least 3 iterations are required"
-    assert (
-        reference_batch in batches
-    ), "`reference_batch` was not found in the dict of batches."
+    assert reference_batch in batches, "`reference_batch` was not found in the dict of batches."
 
     assert check_valid_batch_dict(batches, no_nan=True)
 
@@ -359,9 +363,7 @@ def batch_dtw(
         # Deviations from the average batch:
         next_weights = np.zeros((1, refbatch_sc.shape[1]))
         for batch_id, result in aligned_batches.items():
-            next_weights += np.nansum(
-                np.power(result.synced - average_batch, 2), axis=0
-            )
+            next_weights += np.nansum(np.power(result.synced - average_batch, 2), axis=0)
             # TODO: use quadratic weights for now, but try sum of the absolute values instead
             #  np.abs(result.synced - average_batch).sum(axis=0)
 
@@ -374,9 +376,7 @@ def batch_dtw(
             # problematic_threshold = dist_df["Distance"].quantile(0.95)
 
         next_weights = 1.0 / np.where(next_weights > epsqrt, next_weights, 10000)
-        weight_vector = (
-            next_weights / np.sum(next_weights) * len(columns_to_align)
-        ).ravel()
+        weight_vector = (next_weights / np.sum(next_weights) * len(columns_to_align)).ravel()
         # If change in delta_weight is small, we terminate early; no need to fine-tune excessively.
         delta_weight = np.diag(weight_matrix) - weight_vector  # old - new
 
@@ -384,45 +384,65 @@ def batch_dtw(
     # scaling for the trajectories
     weight_history = weight_history[1:, :]
     aligned_df = pd.DataFrame()
+    new_time_axis = np.arange(
+        0,
+        settings["interpolate_time_axis_maximum"],
+        settings["interpolate_time_axis_delta"],
+    )
 
     for batch_id, result in aligned_batches.items():
+        if settings["show_progress"]:
+            message = f"Iterpolating values for batch = {batch_id}"
+            print(message)
+
         initial_row = batches[batch_id].iloc[result.md_path[0, 0], :].copy()
         synced = align_with_path(
             result.md_path,
             batches[batch_id].iloc[:: int(settings["subsample"]), :],
             initial_row=initial_row,
         )
-        if "batch_id" not in synced.columns:
-            synced.insert(0, "batch_id", batch_id)
-        synced.insert(1, "sequence", list(range(synced.shape[0])))
-
-        result.synced = synced  # overwrite existing dataframe with this, unscaled, one.
-        aligned_df = aligned_df.append(synced)
-
-    max_places = int(np.ceil(np.log10(aligned_df["sequence"].max())))
-    aligned_wide_df = aligned_df.pivot(index="batch_id", columns="sequence")
-    new_labels = [
-        "-".join(item)
-        for item in zip(
-            aligned_wide_df.columns.get_level_values(0),
-            [
-                str(val).zfill(max_places)
-                for val in aligned_wide_df.columns.get_level_values(1)
-            ],
+        # Resample the trajectories of the aligned data now along this sequence.
+        sequence = np.linspace(
+            0,
+            settings["interpolate_time_axis_maximum"] - settings["interpolate_time_axis_delta"],
+            synced.shape[0],
         )
-    ]
-    aligned_wide_df.columns = new_labels
-    last_average_batch = reverse_scaling(dict(avg=average_batch), scale_df)["avg"]
+        assert new_time_axis.min() == sequence.min()
+        assert new_time_axis.max() == sequence.max()
 
-    # TODO : return a dict_df output instead of aligned data. This dict has the undo-scaling
-    #        already implemented.
+        synced_interpolated = pd.DataFrame()
+        for column, _ in synced.iteritems():
+            if column in ["batch_id", "_sequence_"]:
+                continue
+
+            interp_column = sp.interpolate.interp1d(
+                sequence,
+                synced[column],
+                kind=settings["interpolate_method"],
+                assume_sorted=True,
+            )
+            synced_interpolated[column] = interp_column(new_time_axis)
+
+        # Pop in 2 extra columns at the start of the df
+        synced_interpolated.insert(0, "batch_id", batch_id)
+        synced_interpolated.insert(1, "_sequence_", sequence)
+
+        # Overwrite existing dataframe with this, unscaled, and interpolated dataframe.
+        result.synced = synced_interpolated
+        aligned_df = aligned_df.append(synced_interpolated)
+
+    # Make the batch_id label consistent
+    aligned_df["batch_id"] = aligned_df["batch_id"].astype(type(batch_id))
+
+    last_average_batch = reverse_scaling(dict(avg=average_batch), scale_df)["avg"]
+    aligned_batch_dfdict = melted_to_dict(aligned_df, batch_id_col="batch_id")
 
     return dict(
         scale_df=scale_df,
         aligned_batch_objects=aligned_batches,
+        aligned_batch_dfdict=aligned_batch_dfdict,
         last_average_batch=last_average_batch,
         weight_history=pd.DataFrame(weight_history, columns=columns_to_align),
-        aligned_wide_df=aligned_wide_df,
     )
 
 
@@ -504,18 +524,14 @@ def find_average_length(batches: Dict[str, pd.DataFrame], settings: dict = None)
         default_settings.update(settings)
     settings = default_settings
 
-    batch_lengths = pd.Series(
-        {batch_id: df.shape[0] for batch_id, df in batches.items()}
-    )
+    batch_lengths = pd.Series({batch_id: df.shape[0] for batch_id, df in batches.items()})
     if settings["robust"]:
         # If multiple batches of the median length, return the last one.
         return batch_lengths.index[
             np.where((batch_lengths == batch_lengths.median()).values)[0][-1]
         ]
     else:
-        return batch_lengths.index[
-            (batch_lengths - batch_lengths.mean()).abs().argmin()
-        ]
+        return batch_lengths.index[(batch_lengths - batch_lengths.mean()).abs().argmin()]
 
 
 def find_reference_batch(

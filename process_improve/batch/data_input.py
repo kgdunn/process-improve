@@ -134,6 +134,9 @@ def melted_to_dict(in_df: pd.DataFrame, batch_id_col) -> dict:
     is a Pandas dataframe of the batch data for that batch.
     """
     batches = {}
+    assert (
+        batch_id_col in in_df
+    ), "The `batch_id_col` column does not exist in the incoming dataframe."
     for batch_id, batch in in_df.groupby(batch_id_col):
         batches[batch_id] = batch
 
@@ -146,6 +149,17 @@ def melted_to_wide(in_df: pd.DataFrame, batch_id_col) -> dict:
     """
     assert batch_id_col in in_df
     return {}
+
+    # max_places = int(np.ceil(np.log10(aligned_df["_sequence_"].max())))
+    # aligned_wide_df = aligned_df.pivot(index="batch_id", columns="_sequence_")
+    # new_labels = [
+    #     "-".join(item)
+    #     for item in zip(
+    #         aligned_wide_df.columns.get_level_values(0),
+    #         [str(val).zfill(max_places) for val in aligned_wide_df.columns.get_level_values(1)],
+    #     )
+    # ]
+    # aligned_wide_df.columns = new_labels
     # TODO: add the column multilevel column index.
     # return dict_to_wide(melted_to_dict(in_df, batch_id_col))
 
