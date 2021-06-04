@@ -63,22 +63,22 @@ def check_valid_batch_dict(in_dict: dict, no_nan=False) -> bool:
     bool
         True, if it passes the checks.
     """
-    assert len(in_dict) > 1, "At least one valid batch is required."
+    assert len(in_dict) > 1, "At least 1 batch is required in the dataframe dictionary."
     batch1 = in_dict[list(in_dict.keys())[0]]
     base_columns = set(batch1.columns)
     check = True
     for bid, batch in in_dict.items():
         # Check 1
         check = check & (base_columns == set(batch.columns))
-        assert check, "The column names must be the same in all batches. Differs in {bid}."
+        assert check, f"The column names must be the same in all batches. Differs in {bid}."
 
         # Check 2
         check *= batch.select_dtypes(include=[np.number]).shape[1] == batch.shape[1]
-        assert check, "All columns must be a numeric type. Differs in {bid}."
+        assert check, f"All columns must be a numeric type. Differs in {bid}."
 
         # Check 3
         check *= batch.isna().values.sum() == 0
-        assert check, "No missing values allowed. Missing values found in {bid}."
+        assert check, f"No missing values allowed. Missing values found in {bid}."
 
     return bool(check)
 
