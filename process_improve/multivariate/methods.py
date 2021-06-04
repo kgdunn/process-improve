@@ -17,7 +17,7 @@ epsqrt = np.sqrt(np.finfo(float).eps)
 
 
 class SpecificationWarning(UserWarning):
-    """ Parent warning class. """
+    """Parent warning class."""
 
     pass
 
@@ -754,7 +754,7 @@ class PLS(PLS_sklearn):
         """
 
         class State(object):
-            """ Class object to hold the prediction results together."""
+            """Class object to hold the prediction results together."""
 
             pass
 
