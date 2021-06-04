@@ -70,20 +70,17 @@ def check_valid_batch_dict(in_dict: dict, no_nan=False) -> bool:
     for bid, batch in in_dict.items():
         # Check 1
         check = check & (base_columns == set(batch.columns))
-        if check is False:
-            assert False, "The column names must be the same in all batches. Differs in {bid}."
+        assert check, "The column names must be the same in all batches. Differs in {bid}."
 
         # Check 2
         check *= batch.select_dtypes(include=[np.number]).shape[1] == batch.shape[1]
-        if check is False:
-            assert False, "All columns must be a numeric type. Differs in {bid}."
+        assert check, "All columns must be a numeric type. Differs in {bid}."
 
         # Check 3
         check *= batch.isna().values.sum() == 0
-        if check is False:
-            assert False, "No missing values allowed. Missing values found in {bid}."
+        assert check, "No missing values allowed. Missing values found in {bid}."
 
-    return check
+    return bool(check)
 
 
 def dict_to_melted(
