@@ -1,11 +1,7 @@
 Alignment in general:
 
 Get a percentage scale for the x-axis. With a particular specified resolution.
----
-Function: check_valid_batch_dict
---> return a dictionary of bools, showing which checks all passed and failed. To help diagnose
-when it fails.
-----
+====
 
 Misssing data in batch
 
