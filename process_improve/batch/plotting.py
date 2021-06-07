@@ -1,7 +1,7 @@
 # Built-in libraries
 import math
 import random
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 # Plotting settings
 import plotly.graph_objects as go
@@ -240,16 +240,8 @@ def plot__all_batches_per_tag(
 
 def plot__tag_time(
     source: pd.Series,
-    overlap: bool = False,
-    filled: bool = False,
-    showlegend: bool = True,
-    tag_order: Optional[list] = None,
-    x_axis_label: str = "Time, grouped per tag",
-    y_axis_label: str = "",
-    html_image_height: int = 900,
-    html_aspect_ratio_w_over_h: float = 16 / 9,
+    settings: dict = None,
 ):
-
     """Plots a vector of information, for every tag [index level 0] over every time [index level 1]
 
     Parameters
@@ -258,21 +250,53 @@ def plot__tag_time(
         `source` series must be a multi-level Pandas index. Level 0 gives the unique names for each
         tag, and level 1 gives the names for the 'time' or 'sequence' within a tag. The level 1
         must be numeric and monotonic.
-    overlap : bool, optional
-        Should all tags overlap [True], or be plotted side-by-side [default; False]
-    filled : bool, optional
-        Should the area below the line be filled. Only makes sense if `overlap` is False.
-    tag_order : Optional[list], optional
-        Indicate the order of the tags on the x-axis. Makes sense if `overlap` is False.
-    colour_order : Optional[list], optional
-        A list of unique, or cycling colours to use, per tag.
-    x_axis_label : str, optional
-        Label for the x-axis, by default "Time, grouped per tag"
-    html_image_height : int, optional
-        Height, in pixels. By default 900
-    html_aspect_ratio_w_over_h : float, optional
-        Determines the image width, as a ratio of the height: by default 16/9
+
+    settings : dict
+        Default settings are = {
+
+            "x_axis_label": "Time, grouped per tag"
+                What label is added to the x-axis?
+
+            "y_axis_label": ""
+                What label is added to the y-axis?
+
+            "overlap": False,
+                Should all tags overlap [True], or be plotted side-by-side [default; False]
+
+            "filled": False,
+                Should the area below the line be filled. Only makes sense if `overlap` is False.
+
+            "tag_order": Optional[list]
+                Indicates order of the tags on the x-axis. Makes sense only if `overlap` is False.
+
+            "showlegend": True,
+                Add a legend item for each tag
+
+            "html_image_height": 900,
+                in pixels
+
+            "html_aspect_ratio_w_over_h": 16/9,
+                sets the image width, as a ratio of the height
+
+        }
+
+
     """
+    # This will be clumsy, until we have Python 3.9
+    default_settings: Dict[str, Any] = dict(
+        x_axis_label="Time, grouped per tag",
+        y_axis_label="",
+        overlap=False,
+        filled=False,
+        tag_order=[],
+        html_image_height=900,
+        html_aspect_ratio_w_over_h=16 / 9,
+    )
+    if settings:
+        default_settings.update(settings)
+
+    settings = default_settings
+
     assert isinstance(source, pd.Series), "`source` must be a Pandas series"
     assert len(source.index.levels) == 2, "`source` must have a multilevel index of 2"
     tag_group = source.index.levels[0]
@@ -285,14 +309,16 @@ def plot__tag_time(
     time_group = source.index.levels[1].values
     deltas = np.diff(time_group)
     assert all(deltas > 0), "Level 2 of the index must be numeric, increasing"
+    # TODO: put the 3 checks above into a separate validation function
+
     traces = []
 
     offset = np.nanmean(deltas)
     for tag, series in source.unstack(level=0).items():
         x_axis = time_group
         fill = None
-        if not (overlap):  # ie: side-by-side
-            if filled:
+        if not (settings["overlap"]):  # ie: side-by-side
+            if settings["filled"]:
                 fill = "tozeroy"
             offset += x_axis[-1]
 
@@ -305,12 +331,12 @@ def plot__tag_time(
             fillcolor=colour_assignment[tag],
             line=dict(color=colour_assignment[tag], width=2),
             legendgroup=tag,
-            showlegend=showlegend,
+            showlegend=settings["showlegend"],
         )
         traces.append(trace)
 
     layout = go.Layout(
-        title=source.name or y_axis_label,
+        title=source.name or settings["y_axis_label"],
         hovermode="closest",
         showlegend=True,
         legend=dict(
@@ -321,10 +347,10 @@ def plot__tag_time(
             borderwidth=1,
         ),
         autosize=False,
-        xaxis=dict(title=x_axis_label, gridwidth=1),
-        yaxis=dict(title=y_axis_label, gridwidth=2),
-        width=html_aspect_ratio_w_over_h * html_image_height,
-        height=html_image_height,
+        xaxis=dict(title=settings["x_axis_label"], gridwidth=1),
+        yaxis=dict(title=settings["y_axis_label"], gridwidth=2),
+        width=settings["html_aspect_ratio_w_over_h"] * settings["html_image_height"],
+        height=settings["html_image_height"],
     )
 
     return dict(data=traces, layout=layout)
