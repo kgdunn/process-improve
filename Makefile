@@ -36,6 +36,7 @@ clean-build: ## remove build artifacts
 	find . -name '*.egg' -exec rm -f {} +
 	# And set up the environment to the latest packages
 	pip install -U --user -r requirements.txt
+	pre-commit autoupdate
 
 clean-pyc: ## remove Python file artifacts
 	find . -name '*.pyc' -exec rm -f {} +
