@@ -8,6 +8,7 @@ scikit-learn>=0.24
 patsy
 plotly>4.0
 numba
+seaborn
 
 flake8>=3.7.8
 tox>=3.14.0
