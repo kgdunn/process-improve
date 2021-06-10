@@ -38,6 +38,9 @@ clean-build: ## remove build artifacts
 	pip install -U --user -r requirements.txt
 	pre-commit autoupdate
 
+	# Development tools
+	pip install -U --user rope
+
 clean-pyc: ## remove Python file artifacts
 	find . -name '*.pyc' -exec rm -f {} +
 	find . -name '*.pyo' -exec rm -f {} +

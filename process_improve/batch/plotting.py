@@ -1,7 +1,8 @@
 # Built-in libraries
+import json
 import math
 import random
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 # Plotting settings
 import plotly.graph_objects as go
@@ -9,7 +10,10 @@ from plotly.offline import plot as plotoffline
 import seaborn as sns
 
 import numpy as np
-import pandas as pd
+
+# import pandas as pd
+
+from .data_input import check_valid_batch_dict
 
 
 def get_rgba_from_triplet(incolour, alpha=1, as_string=False):
@@ -80,9 +84,12 @@ def plot__all_batches_per_tag(
     extra_info : str, optional
         Used in the plot title to add any extra details, by default ""
     batches_to_highlight : dict, optional
-        keys: an rgba colour string; for example: "rgba(255,0,0,0.9)"
-        values: a list of batch identifiers (must be valid keys in `df_dict`).
-        The highlighted batches will be shown with a heavier line.
+        keys: an string which can be json.loads(...) and turns into a Plotly line specifier.
+        For example:
+            batches_to_highlight = grouper= {'{"width": 2, "color": "rgba(255,0,0,0.5)"}': redlist}
+
+            will plot batch identifiers (must be valid keys in `df_dict`) in the "redlist" list
+            with that colour and linewidth.
     x_axis_label : str, optional
         String label for the x-axis, by default "Time [sequence order]"
     highlight_width: int, optional
@@ -107,46 +114,52 @@ def plot__all_batches_per_tag(
     go.Figure
         Standard Plotly fig object (dictionary-like).
     """
+    default_line_width = 2
     unique_items = list(df_dict.keys())
     n_colours = len(unique_items)
     random.seed(13)
     colours = list(sns.husl_palette(n_colours))
     random.shuffle(colours)
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
-    colour_assignment = dict(zip(unique_items, colours))
-
-    # traces = []
-    # highlight_traces = []
-    regular_style = dict()
-    highlight_dict = {}
+    line_styles = {
+        k: dict(width=default_line_width, color=v)
+        for k, v in zip(unique_items, colours)
+    }
     for key, val in batches_to_highlight.items():
-        highlight_dict.update({item: key for item in val if item in df_dict.keys()})
+        line_styles.update(
+            {item: json.loads(key) for item in val if item in df_dict.keys()}
+        )
+
+    highlight_list = []
+    for key, val in batches_to_highlight.items():
+        highlight_list.extend(val)
+
+    highlight_list = list(set(highlight_list))
 
     fig = go.Figure()
 
-    for batch_name, batch_df in df_dict.items():
+    for batch_id, batch_df in df_dict.items():
         assert (
             tag in batch_df.columns
-        ), f"Tag '{tag}' not found in the batch with id {batch_name}."
+        ), f"Tag '{tag}' not found in the batch with id {batch_id}."
         if tag_y2:
             assert (
                 tag_y2 in batch_df.columns
-            ), f"Tag '{tag}' not found in the batch with id {batch_name}."
+            ), f"Tag '{tag}' not found in the batch with id {batch_id}."
         if time_column in batch_df.columns:
             time_data = batch_df[time_column]
         else:
             time_data = list(range(batch_df.shape[0]))
 
-        if batch_name in highlight_dict.keys():
+        if batch_id in highlight_list:
             continue  # come to this later
         else:
-            regular_style["color"] = colour_assignment[batch_name]
             fig.add_trace(
                 go.Scatter(
                     x=time_data,
                     y=batch_df[tag],
-                    name=batch_name,
-                    line=regular_style,
+                    name=batch_id,
+                    line=line_styles[batch_id],
                     mode="lines",
                     opacity=0.8,
                     yaxis="y1",
@@ -157,8 +170,8 @@ def plot__all_batches_per_tag(
                     go.Scatter(
                         x=time_data,
                         y=batch_df[tag_y2],
-                        name=batch_name,
-                        line=regular_style,
+                        name=batch_id,
+                        line=line_styles[batch_id],
                         mode="lines",
                         opacity=0.8,
                         yaxis="y2",
@@ -167,19 +180,19 @@ def plot__all_batches_per_tag(
 
     # Add the highlighted batches last: therefore, sadly, we have to do another run-through.
     # Plotly does not yet support z-orders.
-    for batch_name, batch_df in df_dict.items():
+    for batch_id, batch_df in df_dict.items():
         if time_column in batch_df.columns:
             time_data = batch_df[time_column]
         else:
             time_data = list(range(batch_df.shape[0]))
 
-        if batch_name in highlight_dict.keys():
+        if batch_id in highlight_list:
             fig.add_trace(
                 go.Scatter(
                     x=time_data,
                     y=batch_df[tag],
-                    line=dict(width=highlight_width, color=highlight_dict[batch_name]),
-                    name=batch_name,
+                    line=line_styles[batch_id],
+                    name=batch_id,
                     mode="lines",
                     opacity=0.8,
                     yaxis="y1",
@@ -190,10 +203,8 @@ def plot__all_batches_per_tag(
                     go.Scatter(
                         x=time_data,
                         y=batch_df[tag_y2],
-                        line=dict(
-                            width=highlight_width, color=highlight_dict[batch_name]
-                        ),
-                        name=batch_name,
+                        line=line_styles[batch_id],
+                        name=batch_id,
                         mode="lines",
                         opacity=0.8,
                         yaxis="y2",
@@ -238,81 +249,168 @@ def plot__all_batches_per_tag(
     return fig
 
 
-def plot__tag_time(
-    source: pd.Series,
-    overlap: bool = False,
-    filled: bool = False,
-    showlegend: bool = True,
-    tag_order: Optional[list] = None,
-    x_axis_label: str = "Time, grouped per tag",
-    y_axis_label: str = "",
-    html_image_height: int = 900,
-    html_aspect_ratio_w_over_h: float = 16 / 9,
-):
-
-    """Plots a vector of information, for every tag [index level 0] over every time [index level 1]
+def plot__multitags(
+    df_dict: dict,
+    batch_list: list = None,
+    tag_list: list = None,
+    time_column: str = None,
+    batches_to_highlight: dict = {},
+    settings: dict = None,
+    fig=None,
+) -> go.Figure:
+    """
+    Plots all the tags for a batch; or a subset of tags, if specified in `tag_list`.
 
     Parameters
     ----------
-    source : pd.Series
-        `source` series must be a multi-level Pandas index. Level 0 gives the unique names for each
-        tag, and level 1 gives the names for the 'time' or 'sequence' within a tag. The level 1
-        must be numeric and monotonic.
-    overlap : bool, optional
-        Should all tags overlap [True], or be plotted side-by-side [default; False]
-    filled : bool, optional
-        Should the area below the line be filled. Only makes sense if `overlap` is False.
-    tag_order : Optional[list], optional
-        Indicate the order of the tags on the x-axis. Makes sense if `overlap` is False.
-    colour_order : Optional[list], optional
-        A list of unique, or cycling colours to use, per tag.
-    x_axis_label : str, optional
-        Label for the x-axis, by default "Time, grouped per tag"
-    html_image_height : int, optional
-        Height, in pixels. By default 900
-    html_aspect_ratio_w_over_h : float, optional
-        Determines the image width, as a ratio of the height: by default 16/9
+    df_dict : dict
+        Standard data format for batches.
+
+    batch_list : list [default: None, will plot all batches in df_dict]
+        Which batches to plot; if provided, must be a list of valid keys into df_dict.
+
+    tag_list : list [default: None, will plot all tags in the dataframes]
+        Which tags to plot; tags will also be plotted in this order, or in the order of the
+        first dataframe if not specified.
+
+    time_column : str, optional
+        Which tag on the x-axis. If not specified, creates sequential integers, starting from 0
+        if left as the default, `None`.
+
+    batches_to_highlight : dict, optional
+        keys: an string which can be json.loads(...) and turns into a Plotly line specifier.
+        For example:
+            batches_to_highlight = grouper= {'{"width": 2, "color": "rgba(255,0,0,0.5)"}': redlist}
+
+            will plot batch identifiers (must be valid keys in `df_dict`) in the "redlist" list
+            with that colour and linewidth.
+
+    settings : dict
+        Default settings are = {
+            "nrows": 1 [int],
+                Number of rows in the plot.
+
+            "ncols": None
+                None = use as many columns as required to plot the data; else, supply an integer.
+
+            "x_axis_label": "Time, grouped per tag"
+                What label is added to the x-axis?
+
+            "title": ""
+                Overall plot title
+
+            "showlegend": True,
+                Add a legend item for each tag
+
+            "html_image_height": 900,
+                in pixels
+
+            "html_aspect_ratio_w_over_h": 16/9,
+                sets the image width, as a ratio of the height
+
+        }
+
+    fig : go.Figure
+        If supplied, uses the existing Plotly figure to draw in.
+
     """
-    assert isinstance(source, pd.Series), "`source` must be a Pandas series"
-    assert len(source.index.levels) == 2, "`source` must have a multilevel index of 2"
-    tag_group = source.index.levels[0]
-    n_colours = len(tag_group)
+    # This will be clumsy, until we have Python 3.9
+    default_settings: Dict[str, Any] = dict(
+        nrows=1,
+        ncols=0,
+        x_axis_label="Time, grouped per tag",
+        title="",
+        showlegend=True,
+        html_image_height=900,
+        html_aspect_ratio_w_over_h=16 / 9,
+        default_line_width=2,
+    )
+    if settings:
+        default_settings.update(settings)
+
+    settings = default_settings
+
+    assert check_valid_batch_dict(df_dict, no_nan=False)
+
+    if fig is None:
+        fig = go.Figure()
+
+    batch1 = df_dict[list(df_dict.keys())[0]]
+    if tag_list is None:
+        tag_list = list(batch1.columns)
+    tag_list = list(tag_list)  # Force it; sometimes we get non-list inputs
+
+    if batch_list is None:
+        batch_list = list(df_dict.keys())
+    batch_list = list(batch_list)
+
+    if time_column in tag_list:
+        tag_list.remove(time_column)
+
+    if settings["ncols"] == 0:
+        settings["ncols"] = int(np.ceil(len(tag_list) / int(settings["nrows"])))
+
+    specs = [[{"type": "scatter"}] * int(settings["ncols"])] * int(settings["nrows"])
+
+    fig.set_subplots(
+        rows=settings["nrows"],
+        cols=settings["ncols"],
+        shared_xaxes="all",
+        shared_yaxes=False,
+        start_cell="top-left",
+        vertical_spacing=0.2 / settings["nrows"],
+        horizontal_spacing=0.2 / settings["ncols"],
+        subplot_titles=tag_list,
+        specs=specs,
+    )
+
+    n_colours = len(df_dict)
     random.seed(13)
     colours = list(sns.husl_palette(n_colours))
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
-    colour_assignment = dict(zip(tag_group, colours))
-
-    time_group = source.index.levels[1].values
-    deltas = np.diff(time_group)
-    assert all(deltas > 0), "Level 2 of the index must be numeric, increasing"
-    traces = []
-
-    offset = np.nanmean(deltas)
-    for tag, series in source.unstack(level=0).items():
-        x_axis = time_group
-        fill = None
-        if not (overlap):  # ie: side-by-side
-            if filled:
-                fill = "tozeroy"
-            offset += x_axis[-1]
-
-        trace = go.Scatter(
-            x=x_axis,
-            y=series,
-            name=tag,
-            mode="lines",
-            fill=fill,
-            fillcolor=colour_assignment[tag],
-            line=dict(color=colour_assignment[tag], width=2),
-            legendgroup=tag,
-            showlegend=showlegend,
+    colour_assignment = {
+        key: dict(width=settings["default_line_width"], color=val)
+        for key, val in zip(list(df_dict.keys()), colours)
+    }
+    for key, val in batches_to_highlight.items():
+        colour_assignment.update(
+            {item: json.loads(key) for item in val if item in df_dict.keys()}
         )
-        traces.append(trace)
+    margin_dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
 
-    layout = go.Layout(
-        title=source.name or y_axis_label,
+    for batch_id, batch_df in df_dict.items():
+        if batch_id not in batch_list:
+            continue
+        # Time axis values
+        if time_column in batch_df.columns:
+            time_data = batch_df[time_column]
+        else:
+            time_data = list(range(batch_df.shape[0]))
+
+        row = col = 1
+        for tag in tag_list:
+            trace = go.Scatter(
+                x=time_data,
+                y=batch_df[tag],
+                name=batch_id,
+                mode="lines",
+                hovertemplate="Time: %{x}\ny: %{y}",
+                line=colour_assignment[batch_id],
+                legendgroup=batch_id,
+                showlegend=settings["showlegend"] if tag == tag_list[0] else False,
+            )
+            fig.add_trace(trace, row=row, col=col)
+
+            col += 1
+            if col > settings["ncols"]:
+                row += 1
+                col = 1
+
+    fig.update_layout(
+        title=settings["title"],
+        margin=margin_dict,
         hovermode="closest",
-        showlegend=True,
+        showlegend=settings["showlegend"],
         legend=dict(
             orientation="h",
             traceorder="normal",
@@ -321,10 +419,24 @@ def plot__tag_time(
             borderwidth=1,
         ),
         autosize=False,
-        xaxis=dict(title=x_axis_label, gridwidth=1),
-        yaxis=dict(title=y_axis_label, gridwidth=2),
-        width=html_aspect_ratio_w_over_h * html_image_height,
-        height=html_image_height,
+        xaxis=dict(
+            title=settings["x_axis_label"],
+            gridwidth=1,
+            mirror=True,  # ticks are mirror at the top of the frame also
+            showspikes=True,
+            visible=True,
+        ),
+        yaxis=dict(
+            gridwidth=2,
+            type="linear",
+            autorange=True,
+            showspikes=True,
+            visible=True,
+            showline=True,  # show a separating line
+            side="left",  # show on the RHS
+        ),
+        width=settings["html_aspect_ratio_w_over_h"] * settings["html_image_height"],
+        height=settings["html_image_height"],
     )
 
-    return dict(data=traces, layout=layout)
+    return fig

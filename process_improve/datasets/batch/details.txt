@@ -6,7 +6,7 @@ Nylon data set. Source:
     Speech Recognition Methods, by Kassidas,Athanassios, PhD thesis, McMaster University, 1997.
 
     10 tags
-    N batches
+    57 batches
 
 
 Dryer data set. Source:
