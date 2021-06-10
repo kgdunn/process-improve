@@ -119,7 +119,7 @@ class Model(OLS):
         return spec.lhs_termlist[0].name()
 
     def get_title(self) -> str:
-        """ Gets the model's title, if it has one. Always returns a string."""
+        """Gets the model's title, if it has one. Always returns a string."""
         return self.data.get_title()
 
     def get_aliases(

@@ -37,6 +37,9 @@ clean-build: ## remove build artifacts
 	# And set up the environment to the latest packages
 	pip install -U --user -r requirements.txt
 
+	# Development tools
+	pip install -U --user rope
+
 clean-pyc: ## remove Python file artifacts
 	find . -name '*.pyc' -exec rm -f {} +
 	find . -name '*.pyo' -exec rm -f {} +

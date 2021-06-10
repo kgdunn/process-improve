@@ -1,3 +1,23 @@
+Feedback
+----------
+
+Add plotting routines for MV models:
+    model.plot_loadings(...)
+    model.plot_scores(...)
+    model.plot_biplot(...)
+    model.plot_screeplot(...) etc
+
+
+R2* attributes from MV models are not filled in.
+
+Printing model object gives: 'PCA_missing_values' object has no attribute 'copy'
+
+Implement "fit_transform" method from PCA in sklearn
+
+Add a post-filter
+* set all values which are +/- eps absoulute from zero; force them to zero
+-----------
+
 Alignment in general:
 
 Get a percentage scale for the x-axis. With a particular specified resolution.

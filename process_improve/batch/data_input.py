@@ -70,15 +70,18 @@ def check_valid_batch_dict(in_dict: dict, no_nan=False) -> bool:
     for bid, batch in in_dict.items():
         # Check 1
         check = check & (base_columns == set(batch.columns))
-        assert check, f"The column names must be the same in all batches. Differs in {bid}."
+        assert (
+            check
+        ), f"The column names must be the same in all batches. Differs in {bid}."
 
         # Check 2
         check *= batch.select_dtypes(include=[np.number]).shape[1] == batch.shape[1]
         assert check, f"All columns must be a numeric type. Differs in {bid}."
 
         # Check 3
-        check *= batch.isna().values.sum() == 0
-        assert check, f"No missing values allowed. Missing values found in {bid}."
+        if no_nan:
+            check *= batch.isna().values.sum() == 0
+            assert check, f"No missing values allowed. Missing values found in {bid}."
 
     return bool(check)
 
@@ -95,13 +98,15 @@ def dict_to_melted(
         if idx == 0:
             num_rows = batch.shape[0]
             sequence = np.arange(0, num_rows)
-        assert num_rows == batch.shape[0], "All batches must have the same number of samples"
+        assert (
+            num_rows == batch.shape[0]
+        ), "All batches must have the same number of samples"
 
         if insert_batch_id_column and batch_id_col not in batch:
             batch.insert(0, batch_id_col, batch_id)
 
         if insert_sequence_column:
-            batch.insert(0, "__sequence__", sequence)
+            batch.insert(0, "_sequence_", sequence)
 
         out_df = out_df.append(batch)
 
@@ -117,8 +122,10 @@ def dict_to_wide(in_df: dict, group_by_batch=False) -> pd.DataFrame:
 
     If `group_by_batch` is False, then data for the same tag are grouped together, side-by-side.
     """
-    out_df = dict_to_melted(in_df=in_df, insert_batch_id_column=True, insert_sequence_column=True)
-    aligned_wide_df = out_df.pivot(index="batch_id", columns="__sequence__")
+    out_df = dict_to_melted(
+        in_df=in_df, insert_batch_id_column=True, insert_sequence_column=True
+    )
+    aligned_wide_df = out_df.pivot(index="batch_id", columns="_sequence_")
     if group_by_batch:
         pass
         # TODO: use the hierarchical indexing and regroup the columns
@@ -173,7 +180,9 @@ def wide_to_dict():
     pass
 
 
-def melt_df_to_series(in_df: pd.DataFrame, exclude_columns=["batch_id"], name=None) -> pd.Series:
+def melt_df_to_series(
+    in_df: pd.DataFrame, exclude_columns=["batch_id"], name=None
+) -> pd.Series:
     """Returns a Series with a multilevel-index, melted from the DataFrame"""
     out = in_df.drop(exclude_columns, axis=1).T.stack()
     out.name = name
