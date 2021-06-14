@@ -10,6 +10,9 @@ plotly>4.0
 numba
 seaborn
 
+# Notebook imports
+ipywidgets
+
 flake8>=3.7.8
 tox>=3.14.0
 coverage>=4.5.4
