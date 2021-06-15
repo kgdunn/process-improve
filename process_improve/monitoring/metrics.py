@@ -7,7 +7,7 @@ def calculate_Cpk(
     df: pd.DataFrame,
     which_column: str,
     specifications=(np.NaN, np.NaN),
-    trim_percentile: float = 5.0,
+    trim_percentile: float = 2.5,
 ) -> float:
     """
     Calculate the process capability, Cpk, near either the lower or the upper limit [will be
@@ -27,8 +27,8 @@ def calculate_Cpk(
         over time, then use two column names here, one of which is the lower specification and
         the second is the upper specification.
     trim_percentile : float, optional
-        If non-zero, then robust alternatives are used. The value specified here is the percentile
-        of the data that is trimmed away; by default 5 percent on the left, and 5% on the right.
+        If non-zero, then robust alternatives are used. The value specified is the percentile of
+        data that is trimmed away; by default 2.5 percent on the left, and 2.5% on the right.
 
     Returns
     -------
@@ -40,18 +40,14 @@ def calculate_Cpk(
     lower_spec, upper_spec = specifications
 
     if lower_spec is None:
-        Cpk_lower_spec = float(
-            np.nanpercentile(df[which_column].values, [trim_percentile])
-        )
+        Cpk_lower_spec = float(np.nanpercentile(df[which_column].values, [trim_percentile]))
     elif isinstance(lower_spec, str):
         Cpk_lower_spec = df[lower_spec]
     else:
         Cpk_lower_spec = float(lower_spec)
 
     if upper_spec is None:
-        Cpk_upper_spec = float(
-            np.nanpercentile(df[which_column].values, [100 - trim_percentile])
-        )
+        Cpk_upper_spec = float(np.nanpercentile(df[which_column].values, [100 - trim_percentile]))
     elif isinstance(upper_spec, str):
         Cpk_upper_spec = df[upper_spec]
     else:
@@ -68,7 +64,5 @@ def calculate_Cpk(
         spread_lower, spread_upper = metric_lower.std(), metric_upper.std()
 
     # TODO: return the RSD also: rsd = (spread / center) * 100
-    Cpk = np.nanmin(
-        [center_lower / (3 * spread_lower), center_upper / (3 * spread_upper)]
-    )
+    Cpk = np.nanmin([center_lower / (3 * spread_lower), center_upper / (3 * spread_upper)])
     return Cpk

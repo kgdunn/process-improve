@@ -5,7 +5,6 @@ from process_improve.batch.plotting import (
     get_rgba_from_triplet,
 )
 
-from process_improve.batch.data_input import melt_df_to_series
 from process_improve.batch.preprocessing import determine_scaling, apply_scaling
 
 
