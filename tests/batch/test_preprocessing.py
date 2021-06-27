@@ -207,7 +207,7 @@ def test_alignment(dryer_data):
         dryer_data,
         columns_to_align=columns_to_align,
         reference_batch=2,
-        settings={"robust": False, "tolerance": 0.06},
+        settings={"robust": False, "tolerance": 0.06, "show_progress": True},
     )
     assert (3, 5) == outputs["weight_history"].shape
     # TODO: still work on this, depending on how you terminate DTW.
