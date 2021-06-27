@@ -258,9 +258,7 @@ def one_iteration_dtw(
                     "Normalized distance": result.normalized_distance,
                 }
             )
-            if settings["show_progress"]:
-                message = f"  * {batch_id}: distance = {result.distance}"
-                print(message)
+
         except ValueError:
             assert False, f"Failed on batch {batch_id}"
 
@@ -405,10 +403,11 @@ def batch_dtw(
         settings["interpolate_time_axis_delta"],
     )
 
-    for batch_id, result in aligned_batches.items():
-        if settings["show_progress"]:
-            message = f"Iterpolating values for batch = {batch_id}"
-            print(message)
+    for batch_id, result in tqdm(
+        aligned_batches.items(),
+        desc="Iterpolating",
+        disable=not (settings["show_progress"]),
+    ):
 
         initial_row = batches[batch_id].iloc[result.md_path[0, 0], :].copy()
         synced = align_with_path(
