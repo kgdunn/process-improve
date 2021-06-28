@@ -122,13 +122,10 @@ def plot__all_batches_per_tag(
     random.shuffle(colours)
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
     line_styles = {
-        k: dict(width=default_line_width, color=v)
-        for k, v in zip(unique_items, colours)
+        k: dict(width=default_line_width, color=v) for k, v in zip(unique_items, colours)
     }
     for key, val in batches_to_highlight.items():
-        line_styles.update(
-            {item: json.loads(key) for item in val if item in df_dict.keys()}
-        )
+        line_styles.update({item: json.loads(key) for item in val if item in df_dict.keys()})
 
     highlight_list = []
     for key, val in batches_to_highlight.items():
@@ -139,9 +136,7 @@ def plot__all_batches_per_tag(
     fig = go.Figure()
 
     for batch_id, batch_df in df_dict.items():
-        assert (
-            tag in batch_df.columns
-        ), f"Tag '{tag}' not found in the batch with id {batch_id}."
+        assert tag in batch_df.columns, f"Tag '{tag}' not found in the batch with id {batch_id}."
         if tag_y2:
             assert (
                 tag_y2 in batch_df.columns
@@ -211,9 +206,7 @@ def plot__all_batches_per_tag(
                     )
                 )
 
-    yaxis1_dict = dict(
-        title=tag, gridwidth=2, matches="y1", showticklabels=True, side="left"
-    )
+    yaxis1_dict = dict(title=tag, gridwidth=2, matches="y1", showticklabels=True, side="left")
     if (y1_limits[0] is not None) or (y1_limits[1] is not None):
         yaxis1_dict["autorange"] = False
         yaxis1_dict["range"] = y1_limits
@@ -367,15 +360,14 @@ def plot__multitags(
     n_colours = len(df_dict)
     random.seed(13)
     colours = list(sns.husl_palette(n_colours))
+    random.shuffle(colours)
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
     colour_assignment = {
         key: dict(width=settings["default_line_width"], color=val)
         for key, val in zip(list(df_dict.keys()), colours)
     }
     for key, val in batches_to_highlight.items():
-        colour_assignment.update(
-            {item: json.loads(key) for item in val if item in df_dict.keys()}
-        )
+        colour_assignment.update({item: json.loads(key) for item in val if item in df_dict.keys()})
     margin_dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
 
     for batch_id, batch_df in df_dict.items():
