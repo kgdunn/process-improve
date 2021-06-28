@@ -85,6 +85,7 @@ servedocs: docs ## compile the docs watching for changes
 	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
 
 release: clean
+	git pull
 	python setup.py sdist
 	python setup.py bdist_wheel
 	ls -l dist

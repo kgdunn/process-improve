@@ -286,7 +286,7 @@ def plot__multitags(
             "ncols": None
                 None = use as many columns as required to plot the data; else, supply an integer.
 
-            "x_axis_label": "Time, grouped per tag"
+            "x_axis_label": "Time, grouped per tag"  <-- still TODO: make this show up.
                 What label is added to the x-axis?
 
             "title": ""
@@ -412,7 +412,6 @@ def plot__multitags(
         ),
         autosize=False,
         xaxis=dict(
-            title=settings["x_axis_label"],
             gridwidth=1,
             mirror=True,  # ticks are mirror at the top of the frame also
             showspikes=True,
