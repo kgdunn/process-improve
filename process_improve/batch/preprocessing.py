@@ -631,4 +631,4 @@ def find_reference_batch(
     if settings["number_of_reference_batches"] == 1:
         return metrics.index[0]  # returns a single entry from the index
     else:
-        return metrics.index[0 : settings["number_of_reference_batches"]]  # returns a list
+        return metrics.index[0 : settings["number_of_reference_batches"]].to_list()
