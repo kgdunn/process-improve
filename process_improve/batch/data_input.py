@@ -102,13 +102,15 @@ def dict_to_melted(
             num_rows == batch.shape[0]
         ), "All batches must have the same number of samples"
 
+        subset = batch.copy()
+
         if insert_batch_id_column and batch_id_col not in batch:
-            batch.insert(0, batch_id_col, batch_id)
+            subset.insert(0, batch_id_col, batch_id)
 
         if insert_sequence_column:
-            batch.insert(0, "_sequence_", sequence)
+            subset.insert(0, "_sequence_", sequence)
 
-        out_df = out_df.append(batch)
+        out_df = out_df.append(subset)
 
     return out_df
 
@@ -121,6 +123,8 @@ def dict_to_wide(in_df: dict, group_by_batch=False) -> pd.DataFrame:
     of the output dataframe, and the last batch is collected on the right.
 
     If `group_by_batch` is False, then data for the same tag are grouped together, side-by-side.
+
+    TODO: `group_by_batch` is not implemented yet.
     """
     out_df = dict_to_melted(
         in_df=in_df, insert_batch_id_column=True, insert_sequence_column=True
