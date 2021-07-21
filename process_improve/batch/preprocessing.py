@@ -580,6 +580,7 @@ def find_reference_batch(
             "subsample": 1,  # use every sample
             "method": "pca_most_average", # the most average batch from a crudely aligned PCA
             "n_components": 4,
+            "number_of_reference_batches": 1 # only a single batch will be returned
         }
 
     Returns
@@ -592,6 +593,7 @@ def find_reference_batch(
         "subsample": 1,  # use every sample
         "method": "pca_most_average",
         "n_components": 4,
+        "number_of_reference_batches": 1,
     }
     if isinstance(settings, dict):
         default_settings.update(settings)
@@ -638,4 +640,7 @@ def find_reference_batch(
     )
     metrics = metrics.sort_values(by=["HT2", "SPE"])
     metrics = metrics.query(f"SPE < {pca_second.SPE_limit(0.5)}")
-    return metrics.index[0]
+    if settings['number_of_reference_batches'] == 1:
+        return metrics.index[0] # returns a single entry from the index
+    else:
+        return metrics.index[0:settings['number_of_reference_batches']]  # returns a list
