@@ -7,6 +7,15 @@ Add plotting routines for MV models:
     model.plot_biplot(...)
     model.plot_screeplot(...) etc
 
+More natural API:
+    model.hotellings_t2
+    model.squared_prediction_error -> model.spe
+
+
+Component column numbers should be int, not strings.
+
+PLS has no SPE limit
+
 
 R2* attributes from MV models are not filled in.
 
