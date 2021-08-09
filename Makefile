@@ -35,6 +35,7 @@ clean-build: ## remove build artifacts
 	find . -name '*.egg-info' -exec rm -fr {} +
 	find . -name '*.egg' -exec rm -f {} +
 	# And set up the environment to the latest packages
+	pip install --upgrade pip
 	pip install -U --user -r requirements.txt
 	pre-commit autoupdate
 

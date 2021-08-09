@@ -34,13 +34,12 @@ def get_rgba_from_triplet(incolour, alpha=1, as_string=False):
 
 def plot_to_HTML(filename: str, fig: dict):
     config = dict(
-        {
-            "scrollZoom": True,
-            "displayModeBar": True,
-            "editable": False,
-            "displaylogo": False,
-            "showLink": False,
-        }
+        scrollZoom=True,
+        displayModeBar=True,
+        editable=False,
+        displaylogo=False,
+        showLink=False,
+        resonsive=True,
     )
     return plotoffline(
         figure_or_data=fig,
@@ -122,10 +121,13 @@ def plot__all_batches_per_tag(
     random.shuffle(colours)
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
     line_styles = {
-        k: dict(width=default_line_width, color=v) for k, v in zip(unique_items, colours)
+        k: dict(width=default_line_width, color=v)
+        for k, v in zip(unique_items, colours)
     }
     for key, val in batches_to_highlight.items():
-        line_styles.update({item: json.loads(key) for item in val if item in df_dict.keys()})
+        line_styles.update(
+            {item: json.loads(key) for item in val if item in df_dict.keys()}
+        )
 
     highlight_list = []
     for key, val in batches_to_highlight.items():
@@ -136,7 +138,9 @@ def plot__all_batches_per_tag(
     fig = go.Figure()
 
     for batch_id, batch_df in df_dict.items():
-        assert tag in batch_df.columns, f"Tag '{tag}' not found in the batch with id {batch_id}."
+        assert (
+            tag in batch_df.columns
+        ), f"Tag '{tag}' not found in the batch with id {batch_id}."
         if tag_y2:
             assert (
                 tag_y2 in batch_df.columns
@@ -206,7 +210,9 @@ def plot__all_batches_per_tag(
                     )
                 )
 
-    yaxis1_dict = dict(title=tag, gridwidth=2, matches="y1", showticklabels=True, side="left")
+    yaxis1_dict = dict(
+        title=tag, gridwidth=2, matches="y1", showticklabels=True, side="left"
+    )
     if (y1_limits[0] is not None) or (y1_limits[1] is not None):
         yaxis1_dict["autorange"] = False
         yaxis1_dict["range"] = y1_limits
@@ -292,7 +298,7 @@ def plot__multitags(
             "title": ""
                 Overall plot title
 
-            "showlegend": True,
+            "show_legend": True,
                 Add a legend item for each tag
 
             "html_image_height": 900,
@@ -307,13 +313,13 @@ def plot__multitags(
         If supplied, uses the existing Plotly figure to draw in.
 
     """
-    # This will be clumsy, until we have Python 3.9
+    # This will be clumsy, until we have Python 3.9. TODO: use pydantic instead
     default_settings: Dict[str, Any] = dict(
         nrows=1,
         ncols=0,
         x_axis_label="Time, grouped per tag",
         title="",
-        showlegend=True,
+        show_legend=True,
         html_image_height=900,
         html_aspect_ratio_w_over_h=16 / 9,
         default_line_width=2,
@@ -367,7 +373,9 @@ def plot__multitags(
         for key, val in zip(list(df_dict.keys()), colours)
     }
     for key, val in batches_to_highlight.items():
-        colour_assignment.update({item: json.loads(key) for item in val if item in df_dict.keys()})
+        colour_assignment.update(
+            {item: json.loads(key) for item in val if item in df_dict.keys()}
+        )
     margin_dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
 
     for batch_id, batch_df in df_dict.items():
@@ -389,7 +397,7 @@ def plot__multitags(
                 hovertemplate="Time: %{x}\ny: %{y}",
                 line=colour_assignment[batch_id],
                 legendgroup=batch_id,
-                showlegend=settings["showlegend"] if tag == tag_list[0] else False,
+                showlegend=settings["show_legend"] if tag == tag_list[0] else False,
             )
             fig.add_trace(trace, row=row, col=col)
 
@@ -402,7 +410,7 @@ def plot__multitags(
         title=settings["title"],
         margin=margin_dict,
         hovermode="closest",
-        showlegend=settings["showlegend"],
+        showlegend=settings["show_legend"],
         legend=dict(
             orientation="h",
             traceorder="normal",

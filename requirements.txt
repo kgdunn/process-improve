@@ -9,6 +9,7 @@ patsy
 plotly>4.0
 numba
 seaborn
+pydantic
 
 # Notebook imports
 ipywidgets

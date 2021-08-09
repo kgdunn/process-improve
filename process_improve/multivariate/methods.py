@@ -147,7 +147,7 @@ class PCA(PCA_sklearn):
         self.loadings = pd.DataFrame(self.x_loadings)
         self.loadings.index = X.columns
 
-        component_names = [f"{a+1}" for a in range(self.A)]
+        component_names = [a + 1 for a in range(self.A)]
         self.loadings.columns = component_names
 
         self.scaling_factor_for_scores = pd.Series(
@@ -241,7 +241,8 @@ class PCA(PCA_sklearn):
         for a in range(self.A):
             self.Hotellings_T2.iloc[:, a] = (
                 self.Hotellings_T2.iloc[:, max(0, a - 1)]
-                + (self.x_scores.iloc[:, a] / self.scaling_factor_for_scores[a]) ** 2
+                + (self.x_scores.iloc[:, a] / self.scaling_factor_for_scores.iloc[a])
+                ** 2
             )
 
         self.ellipse_coordinates = partial(
@@ -622,7 +623,7 @@ class PLS(PLS_sklearn):
         beta_coefficients = direct_weights @ self.y_loadings_.T
 
         # Initialize storage:
-        component_names = [f"{a+1}" for a in range(self.A)]
+        component_names = [a + 1 for a in range(self.A)]
         self.x_scores = pd.DataFrame(
             self.x_scores_, index=X.index, columns=component_names
         )
@@ -698,9 +699,10 @@ class PLS(PLS_sklearn):
         prior_SSY_col = ssq(Yd.values, axis=0)
         base_variance_Y = np.sum(prior_SSY_col)
         for a in range(self.A):
-            self.Hotellings_T2[f"{a+1}"] = (
+            self.Hotellings_T2.iloc[:, a] = (
                 self.Hotellings_T2.iloc[:, max(0, a - 1)]
-                + (self.x_scores.iloc[:, a] / self.scaling_factor_for_scores[a]) ** 2
+                + (self.x_scores.iloc[:, a] / self.scaling_factor_for_scores.iloc[a])
+                ** 2
             )
             Xd -= self.x_scores.iloc[:, [a]] @ self.x_loadings.iloc[:, [a]].T
             y_hat = (
@@ -1263,8 +1265,8 @@ def ellipse_coordinates(
     assert T2_limit_conf_level > 0
     assert T2_limit_conf_level < 1
     assert n_rows > 0
-    s_h = scaling_factor_for_scores[score_horiz - 1]
-    s_v = scaling_factor_for_scores[score_vert - 1]
+    s_h = scaling_factor_for_scores.iloc[score_horiz - 1]
+    s_v = scaling_factor_for_scores.iloc[score_vert - 1]
     T2_limit_specific = np.sqrt(
         T2_limit(T2_limit_conf_level, n_components=n_components, n_rows=n_rows)
     )
