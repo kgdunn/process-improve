@@ -1,9 +1,9 @@
 import pathlib
-import pytest
 
-from pytest import approx
 import numpy as np
 import pandas as pd
+import pytest
+from pytest import approx
 
 from process_improve.monitoring.control_charts import ControlChart
 

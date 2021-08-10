@@ -4,14 +4,12 @@ import math
 import random
 from typing import Any, Dict
 
-# Plotting settings
-import plotly.graph_objects as go
-from plotly.offline import plot as plotoffline
-import seaborn as sns
-
 import numpy as np
 
-# import pandas as pd
+# Plotting settings
+import plotly.graph_objects as go
+import seaborn as sns
+from plotly.offline import plot as plotoffline
 
 from .data_input import check_valid_batch_dict
 

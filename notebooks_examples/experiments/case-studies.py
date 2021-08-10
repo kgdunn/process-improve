@@ -1,9 +1,9 @@
 # (c) Kevin Dunn, 2010-2021. MIT License. Based on own private work over the years.
 
-from .structures import gather, c, expand_grid, supplement
-from .models import lm, summary, predict
-from .plotting import pareto_plot, contour_plot, plot_model
 from .designs_factorial import full_factorial
+from .models import lm, predict, summary
+from .plotting import contour_plot, pareto_plot, plot_model
+from .structures import c, expand_grid, gather, supplement
 
 
 def case_3B():

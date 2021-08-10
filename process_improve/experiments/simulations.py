@@ -1,7 +1,7 @@
 # (c) Kevin Dunn, 2010-2021. MIT License. Based on own private work over the years.
 
-from numpy.random import normal
 import pandas as pd
+from numpy.random import normal
 
 
 def popcorn(t=120, T=None):

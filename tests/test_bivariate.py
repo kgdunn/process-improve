@@ -1,5 +1,6 @@
-import pytest
 import numpy as np
+import pytest
+
 from process_improve.bivariate.methods import find_elbow_point
 
 

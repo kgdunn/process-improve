@@ -2,23 +2,22 @@
 
 import pathlib
 
-
+import numpy as np
+import pandas as pd
 import pytest
 from pytest import approx
-import pandas as pd
-import numpy as np
-
 from sklearn.cross_decomposition import PLSRegression
+
 from process_improve.multivariate.methods import (
-    epsqrt,
-    center,
-    scale,
-    quick_regress,
-    ssq,
     PCA,
-    MCUVScaler,
     PLS,
+    MCUVScaler,
     SpecificationWarning,
+    center,
+    epsqrt,
+    quick_regress,
+    scale,
+    ssq,
 )
 
 
@@ -275,8 +274,8 @@ def test_PCA_tablet_spectra(fixture_tablet_spectra_data):
     assert 0.0 == approx(np.linalg.norm(orthogonal_check - np.eye(model.A)), rel=1e-9)
 
     # Check the R2 value against the R software output
-    assert model.R2cum[0] == approx(0.7368, rel=1e-3)
-    assert model.R2cum[1] == approx(0.9221, rel=1e-2)
+    assert model.R2cum[1] == approx(0.7368, rel=1e-3)
+    assert model.R2cum[2] == approx(0.9221, rel=1e-2)
 
     # Unit length: actually checked above, via subtraction with I matrix.
     # Check if scores are orthogonal

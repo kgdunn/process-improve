@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
+
 from ..univariate.metrics import t_value
 
 __eps = np.finfo(np.float32).eps

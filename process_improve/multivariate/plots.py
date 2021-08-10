@@ -2,6 +2,7 @@
 
 # Built-in libraries
 from typing import Dict
+
 import plotly.graph_objects as go
 from pydantic import BaseModel
 

@@ -1,16 +1,15 @@
 # (c) Kevin Dunn, 2010-2021. MIT License. Based on own private work over the years.
 import time
-from functools import partial
-from typing import Optional, Any
 import warnings
+from functools import partial
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
-from scipy.stats import f, chi2
-
+from scipy.stats import chi2, f
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.decomposition import PCA as PCA_sklearn
 from sklearn.cross_decomposition import PLSRegression as PLS_sklearn
+from sklearn.decomposition import PCA as PCA_sklearn
 from sklearn.utils.validation import check_is_fitted
 
 epsqrt = np.sqrt(np.finfo(float).eps)
@@ -231,11 +230,11 @@ class PCA(PCA_sklearn):
                 self.R2X_k_cum.iloc[:, a] = 1 - col_SSX / prior_SSX_col
 
                 # R2 and cumulative R2 value for the whole block
-                self.R2cum[a] = 1 - sum(row_SSX) / base_variance
+                self.R2cum.iloc[a] = 1 - sum(row_SSX) / base_variance
                 if a > 0:
-                    self.R2[a] = self.R2cum[a] - self.R2cum[a - 1]
+                    self.R2.iloc[a] = self.R2cum.iloc[a] - self.R2cum.iloc[a - 1]
                 else:
-                    self.R2[a] = self.R2cum[a]
+                    self.R2.iloc[a] = self.R2cum.iloc[a]
         # end: has no missing data
 
         for a in range(self.A):
@@ -430,17 +429,17 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
             row_SSX = ssq(Xd, axis=1)
             col_SSX = ssq(Xd, axis=0)
 
-            self.squared_prediction_error_[:, a] = np.sqrt(row_SSX)
+            self.squared_prediction_error_.iloc[:, a] = np.sqrt(row_SSX)
 
             # TODO: some entries in start_SS_col can be zero and leads to nan's in R2X_k_cum
-            self.R2X_k_cum_[:, a] = 1 - col_SSX / start_SS_col
+            self.R2X_k_cum_.iloc[:, a] = 1 - col_SSX / start_SS_col
 
             # R2 and cumulative R2 value for the whole block
-            self.R2cum_[a] = 1 - sum(row_SSX) / base_variance
+            self.R2cum_.iloc[a] = 1 - sum(row_SSX) / base_variance
             if a > 0:
-                self.R2_[a] = self.R2cum_[a] - self.R2cum_[a - 1]
+                self.R2_.iloc[a] = self.R2cum_.iloc[a] - self.R2cum_.iloc[a - 1]
             else:
-                self.R2_[a] = self.R2cum_[a]
+                self.R2_.iloc[a] = self.R2cum_.iloc[a]
 
             # VIP value (only calculated for X-blocks); only last column is useful
             # self.VIP_a = np.zeros((self.K, self.A))
@@ -458,8 +457,8 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
                 t_a *= -1.0
 
             # Store the loadings and scores
-            self.x_loadings[:, a] = p_a.flatten()
-            self.x_scores_[:, a] = t_a.flatten()
+            self.x_loadings.iloc[:, a] = p_a.flatten()
+            self.x_scores_.iloc[:, a] = t_a.flatten()
 
         # end looping on A components
 
@@ -715,11 +714,11 @@ class PLS(PLS_sklearn):
             row_SSY = ssq(y_hat.values, axis=1)
             col_SSY = ssq(y_hat.values, axis=0)
             # R2 and cumulative R2 value for the whole block
-            self.R2cum[a] = sum(row_SSY) / base_variance_Y
+            self.R2cum.iloc[a] = sum(row_SSY) / base_variance_Y
             if a > 0:
-                self.R2[a] = self.R2cum[a] - self.R2cum[a - 1]
+                self.R2.iloc[a] = self.R2cum.iloc[a] - self.R2cum.iloc[a - 1]
             else:
-                self.R2[a] = self.R2cum[a]
+                self.R2.iloc[a] = self.R2cum.iloc[a]
 
             # Don't use a check correction factor. Define SPE simply as the sum of squares of
             # the errors, then take the square root, so it is interpreted like a standard error.

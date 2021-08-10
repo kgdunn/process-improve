@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+
 from ..univariate.metrics import Sn
 
 
@@ -40,14 +41,18 @@ def calculate_Cpk(
     lower_spec, upper_spec = specifications
 
     if lower_spec is None:
-        Cpk_lower_spec = float(np.nanpercentile(df[which_column].values, [trim_percentile]))
+        Cpk_lower_spec = float(
+            np.nanpercentile(df[which_column].values, [trim_percentile])
+        )
     elif isinstance(lower_spec, str):
         Cpk_lower_spec = df[lower_spec]
     else:
         Cpk_lower_spec = float(lower_spec)
 
     if upper_spec is None:
-        Cpk_upper_spec = float(np.nanpercentile(df[which_column].values, [100 - trim_percentile]))
+        Cpk_upper_spec = float(
+            np.nanpercentile(df[which_column].values, [100 - trim_percentile])
+        )
     elif isinstance(upper_spec, str):
         Cpk_upper_spec = df[upper_spec]
     else:
@@ -64,5 +69,7 @@ def calculate_Cpk(
         spread_lower, spread_upper = metric_lower.std(), metric_upper.std()
 
     # TODO: return the RSD also: rsd = (spread / center) * 100
-    Cpk = np.nanmin([center_lower / (3 * spread_lower), center_upper / (3 * spread_upper)])
+    Cpk = np.nanmin(
+        [center_lower / (3 * spread_lower), center_upper / (3 * spread_upper)]
+    )
     return Cpk

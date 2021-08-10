@@ -1,11 +1,11 @@
 import pathlib
 import unittest
+
 import numpy as np
 import pandas as pd
 
-
-from process_improve.experiments.structures import gather, create_names, c
 from process_improve.experiments.models import lm
+from process_improve.experiments.structures import c, create_names, gather
 
 
 class TestStructures(unittest.TestCase):

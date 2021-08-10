@@ -1,10 +1,11 @@
 from typing import Optional
-import pandas as pd
-import numpy as np
-from scipy.stats import norm, iqr
 
-from ..regression.methods import repeated_median_slope
+import numpy as np
+import pandas as pd
+from scipy.stats import iqr, norm
+
 from ..bivariate.methods import find_elbow_point
+from ..regression.methods import repeated_median_slope
 
 # General
 # ------------------------------------------

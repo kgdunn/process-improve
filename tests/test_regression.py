@@ -1,7 +1,7 @@
-import pytest
-from pytest import approx
 import numpy as np
 import pandas as pd
+import pytest
+from pytest import approx
 
 from process_improve.regression.methods import (
     multiple_linear_regression,

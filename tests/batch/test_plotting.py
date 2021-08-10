@@ -1,11 +1,11 @@
 from pytest import approx
+
 from process_improve.batch.plotting import (
+    get_rgba_from_triplet,
     plot__all_batches_per_tag,
     plot__multitags,
-    get_rgba_from_triplet,
 )
-
-from process_improve.batch.preprocessing import determine_scaling, apply_scaling
+from process_improve.batch.preprocessing import apply_scaling, determine_scaling
 
 
 def test_plot_colours():

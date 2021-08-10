@@ -2,6 +2,7 @@ import pathlib
 
 import pandas as pd
 import pytest
+
 from process_improve.batch.data_input import melted_to_dict, melted_to_wide
 
 

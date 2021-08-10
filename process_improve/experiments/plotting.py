@@ -1,13 +1,19 @@
 # (c) Kevin Dunn, 2019-2021. MIT License.
 import webbrowser
-import numpy as np
 
-from matplotlib import cm
-from bokeh.models import ColorBar, BasicTicker, LinearColorMapper, PrintfTickFormatter
-from bokeh.plotting import figure, ColumnDataSource
-from bokeh.plotting import show as show_plot
-from bokeh.models import HoverTool, Range1d
+import numpy as np
 from bokeh.colors import RGB
+from bokeh.models import (
+    BasicTicker,
+    ColorBar,
+    HoverTool,
+    LinearColorMapper,
+    PrintfTickFormatter,
+    Range1d,
+)
+from bokeh.plotting import ColumnDataSource, figure
+from bokeh.plotting import show as show_plot
+from matplotlib import cm
 
 from .models import predict
 
@@ -419,9 +425,9 @@ def contour_plot_bokeh(
     z_min, z_max = Z.min(), Z.max()
     levels = np.linspace(z_min, z_max, N)
 
-    from matplotlib.pyplot import contour, clabel
-    import matplotlib.pyplot as plt
     import matplotlib
+    import matplotlib.pyplot as plt
+    from matplotlib.pyplot import clabel, contour
 
     matplotlib.use("Agg")
     # Turn interactive plotting off

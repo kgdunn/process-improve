@@ -1,6 +1,5 @@
 Feedback
 ----------
-
 Add plotting routines for MV models:
     model.plot_loadings(...)
     model.plot_scores(...)

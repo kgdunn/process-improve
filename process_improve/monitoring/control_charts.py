@@ -5,8 +5,8 @@ Class for ControlChart: robust control charts with a balance between CUSUM and S
 import numpy as np
 import pandas as pd
 
-from ..univariate.metrics import median_abs_deviation
 from ..regression.methods import repeated_median_slope
+from ..univariate.metrics import median_abs_deviation
 
 
 def rho(x, k=2.52):

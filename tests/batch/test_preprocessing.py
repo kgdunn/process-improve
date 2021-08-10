@@ -2,11 +2,11 @@ import numpy as np
 from pytest import approx
 
 from process_improve.batch.preprocessing import (
+    apply_scaling,
     batch_dtw,
     determine_scaling,
-    apply_scaling,
-    reverse_scaling,
     find_reference_batch,
+    reverse_scaling,
 )
 
 

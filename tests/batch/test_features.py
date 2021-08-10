@@ -1,7 +1,8 @@
 import pathlib
+
+import pandas as pd
 import pytest
 from pytest import approx
-import pandas as pd
 
 import process_improve.batch.features as features
 

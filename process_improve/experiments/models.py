@@ -2,13 +2,13 @@
 
 import warnings
 from collections import defaultdict
-from typing import Optional, List, Any
+from typing import Any, List, Optional
 
 import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
-from statsmodels.regression.linear_model import OLS
 from patsy import ModelDesc
+from statsmodels.regression.linear_model import OLS
 
 
 def forg(x, prec=3):

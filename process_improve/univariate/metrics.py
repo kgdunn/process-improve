@@ -1,6 +1,6 @@
 import warnings
 from collections import defaultdict
-from typing import Tuple, List, DefaultDict, Any
+from typing import Any, DefaultDict, List, Tuple
 
 import numpy as np
 import pandas as pd

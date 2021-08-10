@@ -5,7 +5,7 @@ Various factorial designs
 """
 from typing import Optional
 
-from .structures import create_names, c, expand_grid
+from .structures import c, create_names, expand_grid
 
 
 def full_factorial(nfactors: int, names: Optional[list] = None):
