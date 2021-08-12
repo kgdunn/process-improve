@@ -18,7 +18,9 @@ def plot_pre_checks(model, pc_horiz, pc_vert) -> bool:
     return True
 
 
-def score_plot(model, pc_horiz=1, pc_vert=2, settings: Dict = None, fig=None) -> go.Figure:
+def score_plot(
+    model, pc_horiz=1, pc_vert=2, settings: Dict = None, fig=None
+) -> go.Figure:
     """Generates a 2-dimensional score plot for the given latent variable model.
 
     Parameters
@@ -81,7 +83,9 @@ def score_plot(model, pc_horiz=1, pc_vert=2, settings: Dict = None, fig=None) ->
         T2_limit_conf_level=setdict["ellipse_conf_level"],
     )
     fig.add_trace(go.Scatter(x=ellipse[0], y=ellipse[1], name="Hotelling's T^2 [95%]"))
-    fig.update_layout(xaxis_title_text=f"PC {pc_horiz}", yaxis_title_text=f"PC {pc_vert}")
+    fig.update_layout(
+        xaxis_title_text=f"PC {pc_horiz}", yaxis_title_text=f"PC {pc_vert}"
+    )
     fig.add_hline(y=0, line_color="black")
     fig.add_vline(x=0, line_color="black")
     fig.update_layout(
@@ -226,7 +230,9 @@ def loadings_plot(
             )
         )
 
-    fig.update_layout(xaxis_title_text=f"PC {pc_horiz}", yaxis_title_text=f"PC {pc_vert}")
+    fig.update_layout(
+        xaxis_title_text=f"PC {pc_horiz}", yaxis_title_text=f"PC {pc_vert}"
+    )
     fig.add_hline(y=0, line_color="black")
     fig.add_vline(x=0, line_color="black")
     fig.update_layout(
