@@ -221,12 +221,14 @@ def loadings_plot(
                 x=extra.loc[:, pc_horiz],
                 y=extra.loc[:, pc_vert],
                 name="Y-space loadings C",
-                mode="markers",
+                mode="markers+text",
                 marker=dict(
                     color="purple",
                     symbol="star",
                 ),
                 marker_size=7,
+                text=extra.index,
+                textposition="bottom center",
             )
         )
 
@@ -307,15 +309,16 @@ def spe_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
         with_a = model.squared_prediction_error.columns[with_a]
 
     # TODO: check `with_a`: what should it plot if `with_a` is zero, or > A?
-    # TODO: show a proper y-axis label
 
     class Settings(BaseModel):
         show_limit: bool = True
         conf_level: float = 0.95  # TODO: check constraint < 1
         title: str = (
-            f"Squared prediction error plot after fitting {with_a} components, with "
-            f"the {conf_level*100}% confidence limit"
+            "Squared prediction error plot after "
+            f"fitting {with_a} component{'s' if with_a > 1 else ''}"
+            f", with the {conf_level*100}% confidence limit"
         )
+
         show_observation_labels: bool = False  # TODO
         show_legend: bool = True
         html_image_height: float = 500.0
@@ -361,7 +364,7 @@ def spe_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
             visible=True,
         ),
         yaxis=dict(
-            title=setdict["title"],
+            title=f"SPE values after fitting {with_a} component{'s' if with_a > 1 else ''}",
             gridwidth=2,
             type="linear",
             autorange=True,
@@ -420,14 +423,13 @@ def t2_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
         with_a = model.Hotellings_T2.columns[with_a]
 
     # TODO: check `with_a`: what should it plot if `with_a` is zero, or > A?
-    # TODO: show a proper y-axis label
 
     class Settings(BaseModel):
         show_limit: bool = True
         conf_level: float = 0.95  # TODO: check constraint < 1
         title: str = (
-            f"Hotelling's T2 plot after fitting {with_a} components, "
-            f"with the {conf_level*100}% confidence limit"
+            f"Hotelling's T2 plot after fitting {with_a} component{'s' if with_a > 1 else ''}"
+            f", with the {conf_level*100}% confidence limit"
         )
         show_observation_labels: bool = False  # TODO
         show_legend: bool = True
@@ -455,7 +457,7 @@ def t2_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
     )
     fig.add_hline(y=0, line_color="black")
     fig.update_layout(
-        title_text=setdict["title"],
+        title_text=f"T2 values after fitting {with_a} component{'s' if with_a > 1 else ''}",
         margin=margin_dict,
         hovermode="closest",
         showlegend=setdict["show_legend"],
