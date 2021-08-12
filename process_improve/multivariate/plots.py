@@ -166,7 +166,10 @@ def loadings_plot(
     margin_dict: Dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
 
     class Settings(BaseModel):
-        title: str = f"Loadings plot of component {pc_horiz} vs component {pc_vert}"
+        title: str = (
+            f"Loadings plot [{loadings_type.upper()}] of component {pc_horiz} vs "
+            f"component {pc_vert}"
+        )
         show_column_labels: bool = True  # TODO
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
