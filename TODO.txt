@@ -1,17 +1,14 @@
 Feedback
 ----------
 Add plotting routines for MV models:
-    model.plot_loadings(...)
-    model.plot_scores(...)
-    model.plot_biplot(...)
     model.plot_screeplot(...) etc
 
 More natural API:
     model.hotellings_t2
     model.squared_prediction_error -> model.spe
 
+Plots should accept a pc_depth argument, then a 3D plot is made instead
 
-Component column numbers should be int, not strings.
 
 PLS has no SPE limit
 

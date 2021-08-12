@@ -69,7 +69,7 @@ def score_plot(
         html_aspect_ratio_w_over_h: float = 16 / 9.0
 
     if settings:
-        setdict = Settings(settings).dict()
+        setdict = Settings(**settings).dict()
     else:
         setdict = Settings().dict()
     if fig is None:
@@ -175,7 +175,7 @@ def loadings_plot(
         html_aspect_ratio_w_over_h: float = 16 / 9.0
 
     if settings:
-        setdict = Settings(settings).dict()
+        setdict = Settings(**settings).dict()
     else:
         setdict = Settings().dict()
     if fig is None:
@@ -328,7 +328,7 @@ def spe_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
         html_aspect_ratio_w_over_h: float = 16 / 9.0
 
     if settings:
-        setdict = Settings(settings).dict()
+        setdict = Settings(**settings).dict()
     else:
         setdict = Settings().dict()
     if fig is None:
@@ -440,7 +440,7 @@ def t2_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
         html_aspect_ratio_w_over_h: float = 16 / 9.0
 
     if settings:
-        setdict = Settings(settings).dict()
+        setdict = Settings(**settings).dict()
     else:
         setdict = Settings().dict()
     if fig is None:
