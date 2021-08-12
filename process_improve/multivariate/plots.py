@@ -7,19 +7,30 @@ import plotly.graph_objects as go
 from pydantic import BaseModel
 
 
-def plot_pre_checks(model, pc_horiz, pc_vert) -> bool:
+def plot_pre_checks(model, pc_horiz, pc_vert, pc_depth) -> bool:
     assert (
-        pc_horiz <= model.A
-    ), f"The model has {model.A} components. Ensure that pc_horiz<={model.A}."
+        0 < pc_horiz <= model.A
+    ), f"The model has {model.A} components. Ensure that 1 <= pc_horiz<={model.A}."
     assert (
-        pc_vert <= model.A
-    ), f"The model has {model.A} components. Ensure that pc_vert<={model.A}."
-    assert pc_horiz != pc_vert, "Specify two different components: pc_horiz != pc_vert"
+        0 < pc_vert <= model.A
+    ), f"The model has {model.A} components. Ensure that 1 <= pc_vert<={model.A}."
+    assert (
+        -1 <= pc_depth <= model.A
+    ), f"The model has {model.A} components. Ensure that 1 <= pc_depth<={model.A}."
+    assert (
+        len(set([pc_horiz, pc_vert, pc_depth])) == 3
+    ), "Specify distinct components for each axis"
+
     return True
 
 
 def score_plot(
-    model, pc_horiz=1, pc_vert=2, settings: Dict = None, fig=None
+    model,
+    pc_horiz: int = 1,
+    pc_vert: int = 2,
+    pc_depth: int = -1,
+    settings: Dict = None,
+    fig=None,
 ) -> go.Figure:
     """Generates a 2-dimensional score plot for the given latent variable model.
 
@@ -31,6 +42,8 @@ def score_plot(
         Which component to plot on the horizontal axis, by default 1 (the first component)
     pc_vert : int, optional
         Which component to plot on the vertical axis, by default 2 (the second component)
+    pc_depth : int, optional
+        If pc_depth >= 1, then a 3D score plot is generated, with this component on the 3rd axis
     settings : dict
         Default settings are = {
             "show_ellipse": True [bool],
@@ -56,7 +69,7 @@ def score_plot(
 
         }
     """
-    plot_pre_checks(model, pc_horiz, pc_vert)
+    plot_pre_checks(model, pc_horiz, pc_vert, pc_depth)
     margin_dict: Dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
 
     class Settings(BaseModel):
@@ -75,19 +88,55 @@ def score_plot(
     if fig is None:
         fig = go.Figure()
 
-    fig = model.x_scores.plot.scatter(x=pc_horiz, y=pc_vert, text=model.x_scores.index)
-    fig.update_traces(textposition="top center")
-    ellipse = model.ellipse_coordinates(
-        score_horiz=pc_horiz,
-        score_vert=pc_vert,
-        T2_limit_conf_level=setdict["ellipse_conf_level"],
-    )
-    fig.add_trace(go.Scatter(x=ellipse[0], y=ellipse[1], name="Hotelling's T^2 [95%]"))
+    name = "X-space scores [T]"
     fig.update_layout(
         xaxis_title_text=f"PC {pc_horiz}", yaxis_title_text=f"PC {pc_vert}"
     )
-    fig.add_hline(y=0, line_color="black")
-    fig.add_vline(x=0, line_color="black")
+
+    if pc_depth >= 1:
+
+        fig.add_trace(
+            go.Scatter3d(
+                x=model.x_scores.loc[:, pc_horiz],
+                y=model.x_scores.loc[:, pc_vert],
+                z=model.x_scores.loc[:, pc_depth],
+                name=name,
+                mode="markers",
+                marker=dict(
+                    color="darkblue",
+                    symbol="circle",
+                ),
+                text=model.x_scores.index,
+            )
+        )
+    else:
+        # Regular 2D plot
+        fig.add_trace(
+            go.Scatter(
+                x=model.x_scores.loc[:, pc_horiz],
+                y=model.x_scores.loc[:, pc_vert],
+                name=name,
+                mode="markers+text",
+                marker=dict(
+                    color="darkblue",
+                    symbol="circle",
+                ),
+                marker_size=7,
+                text=model.x_scores.index,
+                textposition="top center",
+            )
+        )
+        ellipse = model.ellipse_coordinates(
+            score_horiz=pc_horiz,
+            score_vert=pc_vert,
+            T2_limit_conf_level=setdict["ellipse_conf_level"],
+        )
+        fig.add_hline(y=0, line_color="black")
+        fig.add_vline(x=0, line_color="black")
+        fig.add_trace(
+            go.Scatter(x=ellipse[0], y=ellipse[1], name="Hotelling's T^2 [95%]")
+        )
+
     fig.update_layout(
         title_text=setdict["title"],
         margin=margin_dict,
@@ -119,6 +168,20 @@ def score_plot(
         width=setdict["html_aspect_ratio_w_over_h"] * setdict["html_image_height"],
         height=setdict["html_image_height"],
     )
+    if pc_depth >= 1:
+        fig.update_layout(
+            scene=dict(
+                xaxis=fig.to_dict()["layout"]["xaxis"],
+                yaxis=fig.to_dict()["layout"]["xaxis"],
+                zaxis=dict(
+                    title_text=f"PC {pc_depth}",
+                    mirror=True,
+                    showspikes=True,
+                    visible=True,
+                    gridwidth=1,
+                ),
+            ),
+        )
     return fig
 
 
@@ -162,7 +225,7 @@ def loadings_plot(
 
         }
     """
-    plot_pre_checks(model, pc_horiz, pc_vert)
+    plot_pre_checks(model, pc_horiz, pc_vert, pc_depth=0)
     margin_dict: Dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
 
     class Settings(BaseModel):
@@ -460,7 +523,7 @@ def t2_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
     )
     fig.add_hline(y=0, line_color="black")
     fig.update_layout(
-        title_text=f"T2 values after fitting {with_a} component{'s' if with_a > 1 else ''}",
+        title_text=setdict["title"],
         margin=margin_dict,
         hovermode="closest",
         showlegend=setdict["show_legend"],
@@ -479,7 +542,7 @@ def t2_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
             visible=True,
         ),
         yaxis=dict(
-            title_text=setdict["title"],
+            title_text=f"T2 values after fitting {with_a} component{'s' if with_a > 1 else ''}",
             gridwidth=2,
             type="linear",
             autorange=True,
