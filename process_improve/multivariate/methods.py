@@ -145,7 +145,7 @@ class PCA(PCA_sklearn):
         self.N = self.n_samples_
         self.K = self.n_features_
 
-        self.loadings = pd.DataFrame(self.x_loadings)
+        self.loadings = pd.DataFrame(self.x_loadings.copy())
         self.loadings.index = X.columns
 
         component_names = [a + 1 for a in range(self.A)]
@@ -246,6 +246,8 @@ class PCA(PCA_sklearn):
                 ** 2
             )
 
+        # Replace `self.loadings` with self.x_loadings
+        self.x_loadings = self.loadings
         self.ellipse_coordinates = partial(
             ellipse_coordinates,
             n_components=self.n_components,
