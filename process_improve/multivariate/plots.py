@@ -52,10 +52,10 @@ def score_plot(
             "ellipse_conf_level": 0.95 [float]
                 If the ellipse is added, which confidence level is used. A number < 1.00.
 
-            "title": f"Score plot of component {pc_horiz} vs component {pc_vert}"
+            "title": f"Score plot of ... "
                 Overall plot title
 
-            "show_observation_labels": False,
+            "show_labels": False,
                 Adds a label for each observation. Labels are always available in the hover.
 
             "show_legend": True,
@@ -75,8 +75,13 @@ def score_plot(
     class Settings(BaseModel):
         show_ellipse: bool = True
         ellipse_conf_level: float = 0.95  # TODO: check constraint
-        title: str = f"Score plot of component {pc_horiz} vs component {pc_vert}"
-        show_observation_labels: bool = False  # TODO
+        title: str = (
+            f"Score plot of component {pc_horiz} vs component {pc_vert}"
+            + f" vs component {pc_depth}"
+            if pc_depth > 0
+            else ""
+        )
+        show_labels: bool = False  # TODO
         show_legend: bool = True
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
@@ -101,7 +106,7 @@ def score_plot(
                 y=model.x_scores.loc[:, pc_vert],
                 z=model.x_scores.loc[:, pc_depth],
                 name=name,
-                mode="markers",
+                mode="markers+text" if setdict["show_labels"] else "markers",
                 marker=dict(
                     color="darkblue",
                     symbol="circle",
@@ -116,7 +121,7 @@ def score_plot(
                 x=model.x_scores.loc[:, pc_horiz],
                 y=model.x_scores.loc[:, pc_vert],
                 name=name,
-                mode="markers+text",
+                mode="markers+text" if setdict["show_labels"] else "markers",
                 marker=dict(
                     color="darkblue",
                     symbol="circle",
@@ -214,7 +219,7 @@ def loadings_plot(
             "title": f"Loadings plot of component {pc_horiz} vs component {pc_vert}"
                 Overall plot title
 
-            "show_column_labels": True,
+            "show_labels": True,
                 Adds a label for each column. Labels are always available in the hover.
 
             "html_image_height": 500,
@@ -233,7 +238,7 @@ def loadings_plot(
             f"Loadings plot [{loadings_type.upper()}] of component {pc_horiz} vs "
             f"component {pc_vert}"
         )
-        show_column_labels: bool = True  # TODO
+        show_labels: bool = True
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
 
@@ -266,7 +271,7 @@ def loadings_plot(
             x=what.loc[:, pc_horiz],
             y=what.loc[:, pc_vert],
             name="X-space loadings W*",
-            mode="markers+text",
+            mode="markers+text" if setdict["show_labels"] else "markers",
             marker=dict(
                 color="darkblue",
                 symbol="circle",
@@ -287,7 +292,7 @@ def loadings_plot(
                 x=extra.loc[:, pc_horiz],
                 y=extra.loc[:, pc_vert],
                 name="Y-space loadings C",
-                mode="markers+text",
+                mode="markers+text" if setdict["show_labels"] else "markers",
                 marker=dict(
                     color="purple",
                     symbol="star",
@@ -354,7 +359,7 @@ def spe_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
                        with the {conf_level*100}% confidence limit"
                 Overall plot title
 
-            "show_observation_labels": False,
+            "show_labels": False,
                 Adds a label for each observation. Labels are always available in the hover.
 
             "show_legend": True,
@@ -372,9 +377,12 @@ def spe_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
     margin_dict: Dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
 
     if with_a < 0:
+        # Get the actual name of the last column in the model if negative indexing is used
         with_a = model.squared_prediction_error.columns[with_a]
+    elif with_a == 0:
+        assert False, "`with_a` must be >= 1, or specified with negative indexing"
 
-    # TODO: check `with_a`: what should it plot if `with_a` is zero, or > A?
+    assert with_a <= model.A, "`with_a` must be <= the number of components fitted"
 
     class Settings(BaseModel):
         show_limit: bool = True
@@ -384,8 +392,7 @@ def spe_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
             f"fitting {with_a} component{'s' if with_a > 1 else ''}"
             f", with the {conf_level*100}% confidence limit"
         )
-
-        show_observation_labels: bool = False  # TODO
+        show_labels: bool = False  # TODO
         show_legend: bool = True
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
@@ -397,7 +404,7 @@ def spe_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
     if fig is None:
         fig = go.Figure()
 
-    fig = model.squared_prediction_error.loc[:, [with_a]].plot.scatter(
+    fig = model.squared_prediction_error.iloc[:, [with_a]].plot.scatter(
         x=model.squared_prediction_error.index,
         y=model.squared_prediction_error.columns[with_a - 1],
     )
@@ -469,7 +476,7 @@ def t2_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
                        with the {conf_level*100}% confidence limit""
                 Overall plot title
 
-            "show_observation_labels": False,
+            "show_labels": False,
                 Adds a label for each observation. Labels are always available in the hover.
 
             "show_legend": True,
@@ -497,7 +504,7 @@ def t2_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
             f"Hotelling's T2 plot after fitting {with_a} component{'s' if with_a > 1 else ''}"
             f", with the {conf_level*100}% confidence limit"
         )
-        show_observation_labels: bool = False  # TODO
+        show_labels: bool = False  # TODO
         show_legend: bool = True
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
