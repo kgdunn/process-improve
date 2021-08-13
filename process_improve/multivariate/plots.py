@@ -139,6 +139,8 @@ def score_plot(
                     color="darkblue",
                     symbol="circle",
                 ),
+                text=list(default_index),
+                textposition="top center",
             )
         )
         # Items to highlight, if any
@@ -223,7 +225,7 @@ def score_plot(
         autosize=False,
         xaxis=dict(
             gridwidth=1,
-            mirror=True,  # ticks are mirror at the top of the frame also
+            mirror=True,
             showspikes=True,
             visible=True,
         ),
@@ -233,8 +235,8 @@ def score_plot(
             autorange=True,
             showspikes=True,
             visible=True,
-            showline=True,  # show a separating line
-            side="left",  # show on the RHS
+            showline=True,
+            side="left",
         ),
         width=setdict["html_aspect_ratio_w_over_h"] * setdict["html_image_height"],
         height=setdict["html_image_height"],
@@ -382,7 +384,7 @@ def loadings_plot(
         autosize=False,
         xaxis=dict(
             gridwidth=1,
-            mirror=True,  # ticks are mirror at the top of the frame also
+            mirror=True,
             showspikes=True,
             visible=True,
         ),
@@ -392,8 +394,8 @@ def loadings_plot(
             autorange=True,
             showspikes=True,
             visible=True,
-            showline=True,  # show a separating line
-            side="left",  # show on the RHS
+            showline=True,
+            side="left",
         ),
         width=setdict["html_aspect_ratio_w_over_h"] * setdict["html_image_height"],
         height=setdict["html_image_height"],
@@ -559,7 +561,7 @@ def spe_plot(
         autosize=False,
         xaxis=dict(
             gridwidth=1,
-            mirror=True,  # ticks are mirror at the top of the frame also
+            mirror=True,
             showspikes=True,
             visible=True,
         ),
@@ -579,7 +581,13 @@ def spe_plot(
     return fig
 
 
-def t2_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
+def t2_plot(
+    model,
+    with_a=-1,
+    items_to_highlight: Dict[str, list] = None,
+    settings: Dict = None,
+    fig=None,
+) -> go.Figure:
     """Generates a Hotelling's T2 (T^2) plot for the given latent variable model using
     `with_a` number of latent variables. The default will use the total number of latent variables
     which have already been fitted.
@@ -591,6 +599,14 @@ def t2_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
     with_a : int, optional
         Uses this many number of latent variables, and therefore shows the SPE after this number of
         model components. By default the total number of components fitted will be used.
+    items_to_highlight : dict, optional
+        keys:   an string which can be json.loads(...) and turns into a Plotly line specifier.
+        values: a list of identifiers for the items to highlight [index names]
+        For example:
+            items_to_highlight = {'{"color": "red", "symbol": "cross"}': items_in_red}
+
+            will ensure the subset of the index listed in `items_in_red` in that colour and shape.
+
     settings : dict
         Default settings are = {
             "show_limit": True [bool],
@@ -602,6 +618,9 @@ def t2_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
             "title": f"Hotelling's T2 plot after fitting {with_a} components,
                        with the {conf_level*100}% confidence limit""
                 Overall plot title
+
+            "default_marker": optional, [dict]
+                dict(color="darkblue", symbol="circle", size=7)
 
             "show_labels": False,
                 Adds a label for each observation. Labels are always available in the hover.
@@ -631,6 +650,7 @@ def t2_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
             f"Hotelling's T2 plot after fitting {with_a} component{'s' if with_a > 1 else ''}"
             f", with the {conf_level*100}% confidence limit"
         )
+        default_marker: Dict = dict(color="darkblue", symbol="circle", size=7)
         show_labels: bool = False  # TODO
         show_legend: bool = True
         html_image_height: float = 500.0
@@ -643,12 +663,47 @@ def t2_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
     if fig is None:
         fig = go.Figure()
 
-    fig = model.Hotellings_T2.loc[:, [with_a]].plot.scatter(
-        x=model.Hotellings_T2.index,
-        y=model.Hotellings_T2.columns[with_a - 1],
-    )
-    limit_HT2_conf_level = model.T2_limit(conf_level=setdict["conf_level"])
+    name = f"T2 values after {with_a} component{'s' if with_a > 1 else ''}"
+    highlights: Dict[str, list] = {}
+    default_index = model.Hotellings_T2.index
+    if items_to_highlight is not None:
+        highlights = items_to_highlight.copy()
+        for key, items in items_to_highlight.items():
+            highlights[key] = list(set(items) & set(default_index))
+            default_index = (set(default_index) ^ set(highlights[key])) & set(
+                default_index
+            )
 
+    # Ensure it is back to a list
+    default_index = list(default_index)
+    fig.add_trace(
+        go.Scatter(
+            x=default_index,
+            y=model.Hotellings_T2.loc[default_index, with_a],
+            name=name,
+            mode="markers+text" if setdict["show_labels"] else "markers",
+            marker=setdict["default_marker"],
+            text=default_index,
+            textposition="top center",
+            showlegend=setdict["show_legend"],
+        )
+    )
+    # Items to highlight, if any
+    for key, index in highlights.items():
+        styling = json.loads(key)
+        fig.add_trace(
+            go.Scatter(
+                x=index,
+                y=model.Hotellings_T2.loc[index, with_a],
+                name=name,
+                mode="markers+text" if setdict["show_labels"] else "markers",
+                marker=styling,
+                text=index,
+                textposition="top center",
+            )
+        )
+
+    limit_HT2_conf_level = model.T2_limit(conf_level=setdict["conf_level"])
     fig.add_hline(
         y=limit_HT2_conf_level,
         line_color="red",
@@ -671,19 +726,19 @@ def t2_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
         autosize=False,
         xaxis=dict(
             gridwidth=1,
-            mirror=True,  # ticks are mirror at the top of the frame also
+            mirror=True,
             showspikes=True,
             visible=True,
         ),
         yaxis=dict(
-            title_text=f"T2 values after fitting {with_a} component{'s' if with_a > 1 else ''}",
+            title_text=name,
             gridwidth=2,
             type="linear",
             autorange=True,
             showspikes=True,
             visible=True,
-            showline=True,  # show a separating line
-            side="left",  # show on the RHS
+            showline=True,
+            side="left",
         ),
         width=setdict["html_aspect_ratio_w_over_h"] * setdict["html_image_height"],
         height=setdict["html_image_height"],
