@@ -50,7 +50,7 @@ def score_plot(
         keys:   an string which can be json.loads(...) and turns into a Plotly line specifier.
         values: a list of identifiers for the items to highlight [index names]
         For example:
-            items_to_highlight = {'{"color": "red", "symbol": "star"}': items_in_red}
+            items_to_highlight = {'{"color": "red", "symbol": "cross"}': items_in_red}
 
             will ensure the subset of the index listed in `items_in_red` in that colour and shape.
 
@@ -96,7 +96,9 @@ def score_plot(
         @validator("ellipse_conf_level")
         def check_ellipse_conf_level(cls, v):
             if v >= 1:
-                raise ValueError("`ellipse_conf_level` must be < 1.0")
+                raise ValueError("0.0 < `ellipse_conf_level` < 1.0")
+            if v <= 0:
+                raise ValueError("0.0 < `ellipse_conf_level` < 1.0")
             return v
 
     if settings:
@@ -115,7 +117,6 @@ def score_plot(
     default_index = model.x_scores.index
     if items_to_highlight is not None:
         highlights = items_to_highlight.copy()
-        default_index = model.x_scores.index
         for key, items in items_to_highlight.items():
             highlights[key] = list(set(items) & set(default_index))
             default_index = (set(default_index) ^ set(highlights[key])) & set(
@@ -400,7 +401,13 @@ def loadings_plot(
     return fig
 
 
-def spe_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
+def spe_plot(
+    model,
+    with_a=-1,
+    items_to_highlight: Dict[str, list] = None,
+    settings: Dict = None,
+    fig=None,
+) -> go.Figure:
     """Generates a squared-prediction error (SPE) plot for the given latent variable model using
     `with_a` number of latent variables. The default will use the total number of latent variables
     which have already been fitted.
@@ -412,6 +419,14 @@ def spe_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
     with_a : int, optional
         Uses this many number of latent variables, and therefore shows the SPE after this number of
         model components. By default the total number of components fitted will be used.
+    items_to_highlight : dict, optional
+        keys:   an string which can be json.loads(...) and turns into a Plotly line specifier.
+        values: a list of identifiers for the items to highlight [index names]
+        For example:
+            items_to_highlight = {'{"color": "red", "symbol": "cross"}': items_in_red}
+
+            will ensure the subset of the index listed in `items_in_red` in that colour and shape.
+
     settings : dict
         Default settings are = {
             "show_limit": True [bool],
@@ -423,6 +438,9 @@ def spe_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
             "title": f"Squared prediction error plot after fitting {with_a} components,
                        with the {conf_level*100}% confidence limit"
                 Overall plot title
+
+            "default_marker": optional, [dict]
+                dict(color="darkblue", symbol="circle", size=7)
 
             "show_labels": False,
                 Adds a label for each observation. Labels are always available in the hover.
@@ -457,10 +475,19 @@ def spe_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
             f"fitting {with_a} component{'s' if with_a > 1 else ''}"
             f", with the {conf_level*100}% confidence limit"
         )
-        show_labels: bool = False  # TODO
+        default_marker: Dict = dict(color="darkblue", symbol="circle", size=7)
+        show_labels: bool = False
         show_legend: bool = True
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
+
+        @validator("conf_level")
+        def check_conf_level(cls, v):
+            if v >= 1:
+                raise ValueError("0.0 < `conf_level` < 1.0")
+            if v <= 0:
+                raise ValueError("0.0 < `conf_level` < 1.0")
+            return v
 
     if settings:
         setdict = Settings(**settings).dict()
@@ -469,12 +496,47 @@ def spe_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
     if fig is None:
         fig = go.Figure()
 
-    fig = model.squared_prediction_error.iloc[:, [with_a]].plot.scatter(
-        x=model.squared_prediction_error.index,
-        y=model.squared_prediction_error.columns[with_a - 1],
-    )
-    limit_SPE_conf_level = model.SPE_limit(conf_level=setdict["conf_level"])
+    name = f"SPE values after {with_a} component{'s' if with_a > 1 else ''}"
+    highlights: Dict[str, list] = {}
+    default_index = model.squared_prediction_error.index
+    if items_to_highlight is not None:
+        highlights = items_to_highlight.copy()
+        for key, items in items_to_highlight.items():
+            highlights[key] = list(set(items) & set(default_index))
+            default_index = (set(default_index) ^ set(highlights[key])) & set(
+                default_index
+            )
 
+    # Ensure it is back to a list
+    default_index = list(default_index)
+    fig.add_trace(
+        go.Scatter(
+            x=default_index,
+            y=model.squared_prediction_error.loc[default_index, with_a],
+            name=name,
+            mode="markers+text" if setdict["show_labels"] else "markers",
+            marker=setdict["default_marker"],
+            text=default_index,
+            textposition="top center",
+            showlegend=setdict["show_legend"],
+        )
+    )
+    # Items to highlight, if any
+    for key, index in highlights.items():
+        styling = json.loads(key)
+        fig.add_trace(
+            go.Scatter(
+                x=index,
+                y=model.squared_prediction_error.loc[index, with_a],
+                name=name,
+                mode="markers+text" if setdict["show_labels"] else "markers",
+                marker=styling,
+                text=index,
+                textposition="top center",
+            )
+        )
+
+    limit_SPE_conf_level = model.SPE_limit(conf_level=setdict["conf_level"])
     fig.add_hline(
         y=limit_SPE_conf_level,
         line_color="red",
@@ -502,7 +564,7 @@ def spe_plot(model, with_a=-1, settings: Dict = None, fig=None) -> go.Figure:
             visible=True,
         ),
         yaxis=dict(
-            title=f"SPE values after fitting {with_a} component{'s' if with_a > 1 else ''}",
+            title=name,
             gridwidth=2,
             type="linear",
             autorange=True,
