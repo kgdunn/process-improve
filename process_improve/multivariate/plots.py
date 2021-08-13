@@ -1,10 +1,11 @@
 # (c) Kevin Dunn, 2010-2021. MIT License. Based on own private work over the years.
 
 # Built-in libraries
+import json
 from typing import Dict
 
 import plotly.graph_objects as go
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 
 
 def plot_pre_checks(model, pc_horiz, pc_vert, pc_depth) -> bool:
@@ -29,6 +30,7 @@ def score_plot(
     pc_horiz: int = 1,
     pc_vert: int = 2,
     pc_depth: int = -1,
+    items_to_highlight: Dict[str, list] = None,
     settings: Dict = None,
     fig=None,
 ) -> go.Figure:
@@ -44,6 +46,14 @@ def score_plot(
         Which component to plot on the vertical axis, by default 2 (the second component)
     pc_depth : int, optional
         If pc_depth >= 1, then a 3D score plot is generated, with this component on the 3rd axis
+    items_to_highlight : dict, optional
+        keys:   an string which can be json.loads(...) and turns into a Plotly line specifier.
+        values: a list of identifiers for the items to highlight [index names]
+        For example:
+            items_to_highlight = {'{"color": "red", "symbol": "star"}': items_in_red}
+
+            will ensure the subset of the index listed in `items_in_red` in that colour and shape.
+
     settings : dict
         Default settings are = {
             "show_ellipse": True [bool],
@@ -75,16 +85,19 @@ def score_plot(
     class Settings(BaseModel):
         show_ellipse: bool = True
         ellipse_conf_level: float = 0.95  # TODO: check constraint
-        title: str = (
-            f"Score plot of component {pc_horiz} vs component {pc_vert}"
-            + f" vs component {pc_depth}"
-            if pc_depth > 0
-            else ""
+        title: str = f"Score plot of component {pc_horiz} vs component {pc_vert}" + (
+            f" vs component {pc_depth}" if pc_depth > 0 else ""
         )
         show_labels: bool = False  # TODO
         show_legend: bool = True
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
+
+        @validator("ellipse_conf_level")
+        def check_ellipse_conf_level(cls, v):
+            if v >= 1:
+                raise ValueError("`ellipse_conf_level` must be < 1.0")
+            return v
 
     if settings:
         setdict = Settings(**settings).dict()
@@ -98,49 +111,101 @@ def score_plot(
         xaxis_title_text=f"PC {pc_horiz}", yaxis_title_text=f"PC {pc_vert}"
     )
 
-    if pc_depth >= 1:
+    highlights: Dict[str, list] = {}
+    default_index = model.x_scores.index
+    if items_to_highlight is not None:
+        highlights = items_to_highlight.copy()
+        default_index = model.x_scores.index
+        for key, items in items_to_highlight.items():
+            highlights[key] = list(set(items) & set(default_index))
+            default_index = (set(default_index) ^ set(highlights[key])) & set(
+                default_index
+            )
 
+    # Ensure it is back to a list
+    default_index = list(default_index)
+
+    # 3D plot
+    if pc_depth >= 1:
         fig.add_trace(
             go.Scatter3d(
-                x=model.x_scores.loc[:, pc_horiz],
-                y=model.x_scores.loc[:, pc_vert],
-                z=model.x_scores.loc[:, pc_depth],
+                x=model.x_scores.loc[default_index, pc_horiz],
+                y=model.x_scores.loc[default_index, pc_vert],
+                z=model.x_scores.loc[default_index, pc_depth],
                 name=name,
                 mode="markers+text" if setdict["show_labels"] else "markers",
                 marker=dict(
                     color="darkblue",
                     symbol="circle",
                 ),
-                text=model.x_scores.index,
             )
         )
+        # Items to highlight, if any
+        for key, index in highlights.items():
+            styling = json.loads(key)
+            fig.add_trace(
+                go.Scatter3d(
+                    x=model.x_scores.loc[index, pc_horiz],
+                    y=model.x_scores.loc[index, pc_vert],
+                    z=model.x_scores.loc[index, pc_depth],
+                    name=name,
+                    mode="markers+text" if setdict["show_labels"] else "markers",
+                    marker=styling,
+                    text=list(index),
+                    textposition="top center",
+                )
+            )
     else:
         # Regular 2D plot
         fig.add_trace(
             go.Scatter(
-                x=model.x_scores.loc[:, pc_horiz],
-                y=model.x_scores.loc[:, pc_vert],
+                x=model.x_scores.loc[default_index, pc_horiz],
+                y=model.x_scores.loc[default_index, pc_vert],
                 name=name,
                 mode="markers+text" if setdict["show_labels"] else "markers",
                 marker=dict(
                     color="darkblue",
                     symbol="circle",
+                    size=7,
                 ),
-                marker_size=7,
-                text=model.x_scores.index,
+                text=default_index,
                 textposition="top center",
             )
         )
-        ellipse = model.ellipse_coordinates(
-            score_horiz=pc_horiz,
-            score_vert=pc_vert,
-            T2_limit_conf_level=setdict["ellipse_conf_level"],
-        )
-        fig.add_hline(y=0, line_color="black")
-        fig.add_vline(x=0, line_color="black")
-        fig.add_trace(
-            go.Scatter(x=ellipse[0], y=ellipse[1], name="Hotelling's T^2 [95%]")
-        )
+        # Items to highlight, if any
+        for key, index in highlights.items():
+            styling = json.loads(key)
+            fig.add_trace(
+                go.Scatter(
+                    x=model.x_scores.loc[index, pc_horiz],
+                    y=model.x_scores.loc[index, pc_vert],
+                    name=name,
+                    mode="markers+text" if setdict["show_labels"] else "markers",
+                    marker=styling,
+                    text=list(index),
+                    textposition="top center",
+                )
+            )
+        if setdict["show_ellipse"]:
+            ellipse = model.ellipse_coordinates(
+                score_horiz=pc_horiz,
+                score_vert=pc_vert,
+                T2_limit_conf_level=setdict["ellipse_conf_level"],
+            )
+            fig.add_hline(y=0, line_color="black")
+            fig.add_vline(x=0, line_color="black")
+            fig.add_trace(
+                go.Scatter(
+                    x=ellipse[0],
+                    y=ellipse[1],
+                    name=f"Hotelling's T^2 [{setdict['ellipse_conf_level']*100:.4g}%]",
+                    mode="lines",
+                    line=dict(
+                        color="red",
+                        width=2,
+                    ),
+                )
+            )
 
     fig.update_layout(
         title_text=setdict["title"],
