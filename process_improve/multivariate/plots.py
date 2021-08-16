@@ -545,7 +545,6 @@ def spe_plot(
         line_color="red",
         annotation_text=name,
         annotation_position="bottom right",
-        showlegend=setdict["show_legend"],
         name=name,
     )
     fig.add_hline(y=0, line_color="black")
@@ -713,7 +712,6 @@ def t2_plot(
         line_color="red",
         annotation_text=name,
         annotation_position="bottom right",
-        showlegend=setdict["show_legend"],
         name=name,
     )
     fig.add_hline(y=0, line_color="black")
