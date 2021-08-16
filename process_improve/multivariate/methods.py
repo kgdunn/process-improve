@@ -274,6 +274,42 @@ class PCA(PCA_sklearn):
             conf_level=conf_level,
         )
 
+    def predict(self, X):
+        """
+        Using the PCA model on new data coming in matrix X.
+        """
+
+        class State(object):
+            """Class object to hold the prediction results together."""
+
+            pass
+
+        state = State()
+        state.N, state.K = X.shape
+        assert (
+            self.K == state.K
+        ), "Prediction data must have same number of columns as training data."
+
+        state.x_scores = X @ self.x_loadings
+
+        # TODO: handle the missing data version here still
+        for a in range(self.A):
+            pass
+            # p = self.x_loadings.iloc[:, [a]]
+            # temp = X @ self.x_loadings.iloc[:, [a]]
+            # X_mcuv -= temp @ p.T
+            # state.x_scores[:, [a]] = temp
+
+        # Scores are calculated, now do the rest
+        state.Hotellings_T2 = np.sum(
+            np.power((state.x_scores / self.scaling_factor_for_scores.values), 2), 1
+        )
+        # Calculate SPE-residuals (sum over rows of the errors)
+        X_mcuv = X.copy()
+        X_mcuv -= state.x_scores @ self.x_loadings.T
+        state.squared_prediction_error = np.sqrt(np.power(X_mcuv, 2).sum(axis=1))
+        return state
+
 
 class PCA_missing_values(BaseEstimator, TransformerMixin):
     """
@@ -767,7 +803,7 @@ class PLS(PLS_sklearn):
         state.N, state.K = X.shape
         assert (
             self.K == state.K
-        ), "Prediction data must same number of columns as training data."
+        ), "Prediction data must have same number of columns as training data."
 
         state.x_scores = X @ self.direct_weights
 

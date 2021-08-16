@@ -447,7 +447,7 @@ def spe_plot(
             "show_labels": False,
                 Adds a label for each observation. Labels are always available in the hover.
 
-            "show_legend": True,
+            "show_legend": False,
                 Shows a clickable legend (allows to turn the limit on/off)
 
             "html_image_height": 500,
@@ -539,11 +539,14 @@ def spe_plot(
         )
 
     limit_SPE_conf_level = model.SPE_limit(conf_level=setdict["conf_level"])
+    name = f'{setdict["conf_level"]*100:.3g}% limit'
     fig.add_hline(
         y=limit_SPE_conf_level,
         line_color="red",
-        annotation_text=f'{setdict["conf_level"]*100:.3g}% limit',
+        annotation_text=name,
         annotation_position="bottom right",
+        showlegend=setdict["show_legend"],
+        name=name,
     )
     fig.add_hline(y=0, line_color="black")
     fig.update_layout(
@@ -625,7 +628,7 @@ def t2_plot(
             "show_labels": False,
                 Adds a label for each observation. Labels are always available in the hover.
 
-            "show_legend": True,
+            "show_legend": False,
                 Shows a clickable legend (allows to turn the limit on/off)
 
             "html_image_height": 500,
@@ -704,11 +707,14 @@ def t2_plot(
         )
 
     limit_HT2_conf_level = model.T2_limit(conf_level=setdict["conf_level"])
+    name = f'{setdict["conf_level"]*100:.3g}% limit'
     fig.add_hline(
         y=limit_HT2_conf_level,
         line_color="red",
-        annotation_text=f'{setdict["conf_level"]*100:.3g}% limit',
+        annotation_text=name,
         annotation_position="bottom right",
+        showlegend=setdict["show_legend"],
+        name=name,
     )
     fig.add_hline(y=0, line_color="black")
     fig.update_layout(
