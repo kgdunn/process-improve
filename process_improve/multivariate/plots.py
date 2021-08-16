@@ -479,7 +479,7 @@ def spe_plot(
         )
         default_marker: Dict = dict(color="darkblue", symbol="circle", size=7)
         show_labels: bool = False
-        show_legend: bool = True
+        show_legend: bool = False
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
 
@@ -654,7 +654,7 @@ def t2_plot(
         )
         default_marker: Dict = dict(color="darkblue", symbol="circle", size=7)
         show_labels: bool = False  # TODO
-        show_legend: bool = True
+        show_legend: bool = False
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
 

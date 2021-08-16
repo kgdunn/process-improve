@@ -89,7 +89,6 @@ release: clean check test
 	git pull
 	python setup.py sdist
 	python setup.py bdist_wheel
-	ls -l dist
 	python3 -m twine upload dist/*
 
 install: clean ## install the package to the active Python's site-packages
