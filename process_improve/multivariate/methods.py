@@ -181,8 +181,8 @@ class PCA(PCA_sklearn):
                 index=component_names,
                 name="Cumulative model's R^2, per component",
             )
-            self.R2X_k_cum = pd.DataFrame(
-                self.R2X_k_cum_,
+            self.R2X_cum = pd.DataFrame(
+                self.R2X_cum_,
                 columns=component_names,
                 index=X.columns,
                 # name ="Per variable R^2, per component"
@@ -206,7 +206,7 @@ class PCA(PCA_sklearn):
                 index=component_names,
                 name="Cumulative model's R^2, per component",
             )
-            self.R2X_k_cum = pd.DataFrame(
+            self.R2X_cum = pd.DataFrame(
                 np.zeros(shape=(self.K, self.A)),
                 columns=component_names,
                 index=X.columns,
@@ -228,8 +228,8 @@ class PCA(PCA_sklearn):
                 # If the user wants to normalize it, then this is a clean base value to start from.
                 self.squared_prediction_error.iloc[:, a] = np.sqrt(row_SSX)
 
-                # TODO: some entries in prior_SSX_col can be zero and leads to nan's in R2X_k_cum
-                self.R2X_k_cum.iloc[:, a] = 1 - col_SSX / prior_SSX_col
+                # TODO: some entries in prior_SSX_col can be zero and leads to nan's in R2X_cum
+                self.R2X_cum.iloc[:, a] = 1 - col_SSX / prior_SSX_col
 
                 # R2 and cumulative R2 value for the whole block
                 self.R2cum.iloc[a] = 1 - sum(row_SSX) / base_variance
@@ -368,7 +368,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         self.x_scores_ = np.zeros((self.N, self.A))
         self.R2_ = np.zeros(shape=(self.A,))
         self.R2cum_ = np.zeros(shape=(self.A,))
-        self.R2X_k_cum_ = np.zeros(shape=(self.K, self.A))
+        self.R2X_cum_ = np.zeros(shape=(self.K, self.A))
         self.squared_prediction_error_ = np.zeros((self.N, self.A))
 
         # Perform MD algorithm here
@@ -474,8 +474,8 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
 
             self.squared_prediction_error_.iloc[:, a] = np.sqrt(row_SSX)
 
-            # TODO: some entries in start_SS_col can be zero and leads to nan's in R2X_k_cum
-            self.R2X_k_cum_.iloc[:, a] = 1 - col_SSX / start_SS_col
+            # TODO: some entries in start_SS_col can be zero and leads to nan's in R2X_cum
+            self.R2X_cum_.iloc[:, a] = 1 - col_SSX / start_SS_col
 
             # R2 and cumulative R2 value for the whole block
             self.R2cum_.iloc[a] = 1 - sum(row_SSX) / base_variance
@@ -704,9 +704,9 @@ class PLS(PLS_sklearn):
         self.Hotellings_T2 = pd.DataFrame(
             np.zeros(shape=(self.N, self.A)),
             columns=component_names,
-            index=X.index,
-            # name="Hotelling's T^2 statistic, per component",
+            index=X.index.copy(),
         )
+        self.Hotellings_T2.index.name = "Hotelling's T^2 statistic, per component (col)"
         self.squared_prediction_error = pd.DataFrame(
             np.zeros((self.N, self.A)),
             columns=component_names,
@@ -715,24 +715,32 @@ class PLS(PLS_sklearn):
         self.R2 = pd.Series(
             np.zeros(shape=(self.A)),
             index=component_names,
-            name="Model's R^2, per component",
+            name="Output R^2, per component (col)",
         )
         self.R2cum = pd.Series(
             np.zeros(shape=(self.A)),
             index=component_names,
-            name="Cumulative model's R^2, per component",
+            name="Output cumulative R^2, per component (col)",
         )
-        self.R2X_k_cum = pd.DataFrame(
+        self.R2X_cum = pd.DataFrame(
             np.zeros(shape=(self.K, self.A)),
-            index=X.columns,
+            index=X.columns.copy(),
             columns=component_names,
-            # name ="Per variable in the X-space: R^2, per component"
         )
-        self.R2Y_m_cum = pd.DataFrame(
+        self.R2X_cum.index.name = "R^2 per variable (row), per component (col)"
+        self.R2Y_cum = pd.DataFrame(
             np.zeros(shape=(self.M, self.A)),
-            index=Y.columns,
+            index=Y.columns.copy(),
             columns=component_names,
-            # name ="Per variable in the Y-space: R^2, per component"
+        )
+        self.R2Y_cum.index.name = "R^2 per variable (row), per component (col)"
+        self.RMSE = pd.DataFrame(
+            np.zeros(shape=(self.M, self.A)),
+            index=Y.columns.copy(),
+            columns=component_names,
+        )
+        self.RMSE.index.name = (
+            "Root mean square error per variable (row), per component (col)"
         )
 
         Xd = X.copy()
@@ -768,11 +776,10 @@ class PLS(PLS_sklearn):
             # If the user wants to normalize it, then this is a clean base value to start from.
             self.squared_prediction_error.iloc[:, a] = np.sqrt(row_SSX)
 
-            # TODO: some entries in prior_SSX_col can be zero and leads to nan's in R2X_k_cum
-            self.R2X_k_cum.iloc[:, a] = 1 - col_SSX / prior_SSX_col
-            self.R2Y_m_cum.iloc[:, a] = col_SSY / prior_SSY_col
-
-        self.y_predicted = y_hat
+            # TODO: some entries in prior_SSX_col can be zero and leads to nan's in R2X_cum
+            self.R2X_cum.iloc[:, a] = 1 - col_SSX / prior_SSX_col
+            self.R2Y_cum.iloc[:, a] = col_SSY / prior_SSY_col
+            self.RMSE.iloc[:, a] = (Yd.values - y_hat).pow(2).mean().pow(0.5)
 
         self.ellipse_coordinates = partial(
             ellipse_coordinates,
@@ -917,8 +924,8 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
 
         self.R2 = np.zeros(shape=(self.A,))
         self.R2cum = np.zeros(shape=(self.A,))
-        self.R2X_k_cum = np.zeros(shape=(self.K, self.A))
-        self.R2Y_m_cum = np.zeros(shape=(self.M, self.A))
+        self.R2X_cum = np.zeros(shape=(self.K, self.A))
+        self.R2Y_cum = np.zeros(shape=(self.M, self.A))
         self.squared_prediction_error = np.zeros((self.N, self.A))
 
         # Perform MD algorithm here

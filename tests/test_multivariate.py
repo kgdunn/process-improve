@@ -1261,7 +1261,7 @@ def test_PLS_SIMCA_LDPE(fixture_PLS_LDPE_example):
         np.abs(
             np.sum(
                 np.abs(
-                    Y_mcuv.inverse_transform(plsmodel.y_predicted)
+                    Y_mcuv.inverse_transform(plsmodel.predictions)
                     - data["expected_Yhat_A6"].values
                 )
             )
@@ -1323,7 +1323,7 @@ def test_PLS_SIMCA_LDPE_missing_data(fixture_PLS_LDPE_example):
         np.abs(
             np.sum(
                 np.abs(
-                    Y_mcuv.inverse_transform(plsmodel.y_predicted)
+                    Y_mcuv.inverse_transform(plsmodel.predictions)
                     - data["expected_Yhat_A6"].values
                 )
             )
