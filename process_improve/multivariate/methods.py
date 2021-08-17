@@ -770,7 +770,7 @@ class PLS(PLS_sklearn):
 
             # TODO: some entries in prior_SSX_col can be zero and leads to nan's in R2X_k_cum
             self.R2X_k_cum.iloc[:, a] = 1 - col_SSX / prior_SSX_col
-            self.R2Y_m_cum.iloc[:, a] = 1 - col_SSY / prior_SSY_col
+            self.R2Y_m_cum.iloc[:, a] = col_SSY / prior_SSY_col
 
         self.y_predicted = y_hat
 

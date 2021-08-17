@@ -343,8 +343,8 @@ def loadings_plot(
             marker=dict(
                 color="darkblue",
                 symbol="circle",
+                size=7,
             ),
-            marker_size=7,
             text=what.index,
             textposition="top center",
         )
@@ -364,8 +364,8 @@ def loadings_plot(
                 marker=dict(
                     color="purple",
                     symbol="star",
+                    size=8,
                 ),
-                marker_size=7,
                 text=extra.index,
                 textposition="bottom center",
             )
