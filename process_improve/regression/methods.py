@@ -65,6 +65,10 @@ def simple_robust_regression(
     nowarn: If True, then no error checking/warnings are issued. The user is committing to do that
     themselves ahead of time.
 
+    TODO: handle the missing values case still. See the `multiple_linear_regression` function,
+    especially for residuals: afterwards there are N residuals expected, even if <N points used
+    during the fitting. Missing values in either x or y will have missing values.
+
     Simple robust regression between an `x` and a `y` using the `repeated_median_slope` method
     to calculate the slope. The intercept is the median intercept, when using that slope and the
     provided `x` and `y` values.
@@ -212,40 +216,41 @@ def multiple_linear_regression(
         "conf_intervals": [np.nan, np.nan],
     }
 
-    #  Data pre-processing: handle both Pandas and NumPy arrays
+    #  Data pre-processing: handle both Pandas and NumPy -> use Pandas internally for X and y
     if isinstance(X, np.ndarray):
-        X = pd.DataFrame(X, copy=True)
+        X_ = pd.DataFrame(X, copy=True)
     else:
-        X = pd.DataFrame(X.values, copy=True)
+        X_ = pd.DataFrame(X.values, copy=True)
 
     if isinstance(y, np.ndarray):
-        y = pd.DataFrame(y.ravel(), copy=True)
+        y_ = pd.DataFrame(y.ravel(), copy=True)
     else:
-        y = pd.DataFrame(y.values, copy=True)
+        y_ = pd.DataFrame(y.values, copy=True)
 
     # Removing missing values:
+    missing_idx = y_.isna().any(axis=1)
     if na_rm:
-        missing_idx = y.isna().any(axis=1) | X.isna().any(axis=1)
-        X = X.loc[~missing_idx, :]
-        y = y.loc[~missing_idx]
+        missing_idx = y_.isna().any(axis=1) | X_.isna().any(axis=1)
+        X_ = X_.loc[~missing_idx, :]
+        y_ = y_.loc[~missing_idx]
 
     # CASE when there is no data, or only 1 data point
-    if (y.size <= 1) or (X.size <= 1):
+    if (y_.size <= 1) or (X_.size <= 1):
         return out
 
     #  Hard checks: to be converted to graceful errors later on
-    out["N"], k = X.shape
-    mean_y = np.mean(y.values)
-    total_ssq = np.sum(np.power(y.values - mean_y, 2))
-    x_vector = X.copy()
+    out["N"], k = X_.shape
+    mean_y = np.mean(y_.values)
+    total_ssq = np.sum(np.power(y_.values - mean_y, 2))
+    x_vector = X_.copy()
     if fit_intercept:
-        X = sm.add_constant(X)
+        X_ = sm.add_constant(X_)
         k = k + 1
 
     assert (
         out["N"] >= k
     ), "N >= K: You need at least as many rows as there are columns to fit a linear regression."
-    assert out["N"] == y.size
+    assert out["N"] == y_.size
 
     if x_vector.shape[1] == 1:
         mean_X = np.mean(x_vector)
@@ -257,7 +262,7 @@ def multiple_linear_regression(
         ).values.ravel()
 
     # Do the work
-    model = sm.OLS(y, X)
+    model = sm.OLS(y_, X_)
     results = model.fit()
 
     #  Report the results:
@@ -278,33 +283,40 @@ def multiple_linear_regression(
     out["fitted_values"] = results._results.fittedvalues
     out["R2"] = results._results.rsquared
     regression_ssq = np.sum(np.power(out["fitted_values"] - mean_y, 2))
-    out[
-        "residuals"
-    ] = results._results.resid  # == y.values.ravel() - out["fitted_values"]
-    residual_ssq = np.sum(out["residuals"] * out["residuals"])
+
+    out["residuals"] = (
+        np.nan * np.ones((1, len(y))).ravel()
+    )  # the original y-shape is used!
+    print(results._results.resid)
+    print(out["residuals"])
+    # residuals are defined as: y.values.ravel() - out["fitted_values"]
+    out["residuals"][~missing_idx] = results._results.resid
+    residual_ssq = np.nansum(out["residuals"] * out["residuals"])
     out["R2_regression_based"] = regression_ssq / total_ssq
     out["R2_residual_based"] = 1 - (residual_ssq / total_ssq)
-    out["SE"] = np.sqrt(results._results.scale)  # np.sqrt(residual_ssq / (len(x) - 2))
+    out["SE"] = np.sqrt(results._results.scale)  # np.sqrt(residual_ssq / (len(x_) - 2))
     out["k"] = k
 
     if x_vector.shape[1] == 1 and fit_intercept:
         # "pi" = prediction interval
         pi_range = np.linspace(
-            np.min(X.values[:, 1]), np.max(X.values[:, 1]), pi_resolution
+            np.min(X_.values[:, 1]), np.max(X_.values[:, 1]), pi_resolution
         )
         pi_y_pred = out["intercept"] + out["coefficients"][0] * pi_range
         if out["SE"] < __eps:
             out["influence"] = out["residuals"] * 0.0
         else:
             out["influence"] = (
-                np.power(out["residuals"] / ((1 - out["leverage"]) * out["SE"]), 2)
+                np.power(
+                    results._results.resid / ((1 - out["leverage"]) * out["SE"]), 2
+                )
                 * out["leverage"]
                 / k
             )
             var_y = (out["SE"] ** 2) * (
                 1
                 + 1 / out["N"]
-                + (pi_range - np.mean(X.values[:, 1])) ** 2 / out["x_ssq"]
+                + (pi_range - np.mean(X_.values[:, 1])) ** 2 / out["x_ssq"]
             )
             std_y = np.sqrt(var_y)
             c_t = t_value(1 - (1 - conflevel) / 2, out["N"] - 2)  # 2 fitted parameters

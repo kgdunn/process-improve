@@ -200,6 +200,21 @@ def test__regression_model_no_intercept(multiple_linear_regression_data):
     assert np.min(out["residuals"]) == approx(-0.008637, abs=1e-6)
 
 
+def test__regression_model_missing_values():
+    X, y = np.array([1, 2, 3, 4, 5]), np.array([2, np.nan, 4, np.nan, 9])
+    out = multiple_linear_regression(X, y, na_rm=True, fit_intercept=True)
+    assert out["intercept"] == approx(-0.25)
+    assert out["coefficients"][0] == approx(1.75)
+    assert out["SE"] == approx(1.225, abs=1e-3)
+    assert out["R2"] == approx(0.9423, abs=1e-4)
+    assert len(out["residuals"]) == 5  # not 3!
+    assert out["residuals"] == approx(
+        [0.5, np.nan, -1.0, np.nan, 0.5], rel=1e-6, nan_ok=True
+    )
+    assert np.isnan(out["residuals"][1])
+    assert np.isnan(out["residuals"][3])
+
+
 def test_input_pandas(multiple_linear_regression_data):
     """
     Pandas and Numpy inputs should be acceptable. Replicate a test used above, but with
