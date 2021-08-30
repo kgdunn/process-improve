@@ -49,7 +49,7 @@ def plot_to_HTML(filename: str, fig: dict):
     )
 
 
-def plot__all_batches_per_tag(
+def plot_all_batches_per_tag(
     df_dict: dict,
     tag: str,
     tag_y2: str = None,
@@ -246,7 +246,7 @@ def plot__all_batches_per_tag(
     return fig
 
 
-def plot__multitags(
+def plot_multitags(
     df_dict: dict,
     batch_list: list = None,
     tag_list: list = None,

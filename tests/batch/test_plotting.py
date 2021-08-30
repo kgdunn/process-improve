@@ -2,8 +2,8 @@ from pytest import approx
 
 from process_improve.batch.plotting import (
     get_rgba_from_triplet,
-    plot__all_batches_per_tag,
-    plot__multitags,
+    plot_all_batches_per_tag,
+    plot_multitags,
 )
 from process_improve.batch.preprocessing import apply_scaling, determine_scaling
 
@@ -26,7 +26,7 @@ def test_plot_colours():
 
 def test_plotting_dryer(dryer_data):
     assert len(dryer_data) == 71
-    fig = plot__all_batches_per_tag(
+    fig = plot_all_batches_per_tag(
         df_dict=dryer_data,
         tag="JacketTemperature",
         time_column="ClockTime",
@@ -38,7 +38,7 @@ def test_plotting_dryer(dryer_data):
 
 def test_plotting_nylon(nylon_data):
     dict_df = nylon_data
-    fig = plot__all_batches_per_tag(
+    fig = plot_all_batches_per_tag(
         df_dict=dict_df,
         tag="Tag09",
         tag_y2="Tag07",
@@ -58,5 +58,5 @@ def test_plotting_tags(nylon_data):
     scale_df = determine_scaling(nylon_data, settings={"robust": False})
     batches_scaled = apply_scaling(nylon_data, scale_df)
 
-    fig = plot__multitags(df_dict=batches_scaled)
+    fig = plot_multitags(df_dict=batches_scaled)
     assert len(fig["data"]) == len(batches_scaled) * batches_scaled[1].shape[1]
