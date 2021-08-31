@@ -286,9 +286,7 @@ def multiple_linear_regression(
 
     out["residuals"] = (
         np.nan * np.ones((1, len(y))).ravel()
-    )  # the original y-shape is used!
-    print(results._results.resid)
-    print(out["residuals"])
+    )  # NOTE: the original y-shape is used, not y_'s shape!
     # residuals are defined as: y.values.ravel() - out["fitted_values"]
     out["residuals"][~missing_idx] = results._results.resid
     residual_ssq = np.nansum(out["residuals"] * out["residuals"])
