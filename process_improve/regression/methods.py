@@ -244,7 +244,9 @@ def multiple_linear_regression(
     total_ssq = np.sum(np.power(y_.values - mean_y, 2))
     x_vector = X_.copy()
     if fit_intercept:
-        X_ = sm.add_constant(X_)
+        # Was this: X_ = sm.add_constant(X_); but this created warnings/noise.
+        X_["__constant__"] = 1.0
+        X_.insert(0, "__constant__", X_.pop("__constant__"))
         k = k + 1
 
     assert (
