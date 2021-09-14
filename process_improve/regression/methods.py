@@ -244,7 +244,9 @@ def multiple_linear_regression(
     total_ssq = np.sum(np.power(y_.values - mean_y, 2))
     x_vector = X_.copy()
     if fit_intercept:
-        X_ = sm.add_constant(X_)
+        # Was this: X_ = sm.add_constant(X_); but this created warnings/noise.
+        X_["__constant__"] = 1.0
+        X_.insert(0, "__constant__", X_.pop("__constant__"))
         k = k + 1
 
     assert (
@@ -286,7 +288,7 @@ def multiple_linear_regression(
 
     out["residuals"] = (
         np.nan * np.ones((1, len(y))).ravel()
-    )  # the original y-shape is used!
+    )  # NOTE: the original y-shape is used, not y_'s shape!
     # residuals are defined as: y.values.ravel() - out["fitted_values"]
     out["residuals"][~missing_idx] = results._results.resid
     residual_ssq = np.nansum(out["residuals"] * out["residuals"])
