@@ -37,6 +37,9 @@ clean-build: ## remove build artifacts
 	# And set up the environment to the latest packages
 	pip install --upgrade pip
 	pip install -U --user -r requirements.txt
+	pre-commit install
+	# Builds the cache, if it doesn't exist already
+	pre-commit
 	pre-commit autoupdate
 
 	# Development tools

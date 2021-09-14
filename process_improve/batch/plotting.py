@@ -327,8 +327,6 @@ def plot_multitags(
 
     settings = default_settings
 
-    assert check_valid_batch_dict(df_dict, no_nan=False)
-
     if fig is None:
         fig = go.Figure()
 
@@ -343,6 +341,10 @@ def plot_multitags(
 
     if time_column in tag_list:
         tag_list.remove(time_column)
+
+    assert check_valid_batch_dict(
+        {k: v for k, v in df_dict.items() if k in batch_list}, no_nan=False
+    )
 
     if settings["ncols"] == 0:
         settings["ncols"] = int(np.ceil(len(tag_list) / int(settings["nrows"])))
@@ -379,6 +381,7 @@ def plot_multitags(
     for batch_id, batch_df in df_dict.items():
         if batch_id not in batch_list:
             continue
+
         # Time axis values
         if time_column in batch_df.columns:
             time_data = batch_df[time_column]

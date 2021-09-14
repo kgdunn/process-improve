@@ -63,7 +63,9 @@ def check_valid_batch_dict(in_dict: dict, no_nan=False) -> bool:
     bool
         True, if it passes the checks.
     """
-    assert len(in_dict) > 1, "At least 1 batch is required in the dataframe dictionary."
+    assert (
+        len(in_dict) >= 1
+    ), "At least 1 batch is required in the dataframe dictionary."
     batch1 = in_dict[list(in_dict.keys())[0]]
     base_columns = set(batch1.columns)
     check = True
