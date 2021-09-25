@@ -2,7 +2,8 @@
 import json
 import math
 import random
-from typing import Any, Dict
+from functools import partial
+from typing import Any, Callable, Dict, List
 
 import numpy as np
 
@@ -246,6 +247,38 @@ def plot_all_batches_per_tag(
     return fig
 
 
+def colours_per_batch_id(
+    batch_ids: list,
+    batches_to_highlight: dict,
+    default_line_width: float,
+    override_default_colour: bool = False,
+    colour_map: Callable = partial(sns.color_palette, "hls"),
+) -> Dict[Any, Dict]:
+    """
+    Returns a colour to use for each trace in the plot. A dictionary: keys are batch ids, and
+    the value is a colour and line width setting for Plotly.
+    """
+    random.seed(13)
+    n_colours = len(batch_ids)
+    colours = (
+        list(colour_map(n_colours))
+        if override_default_colour
+        else [(0.5, 0.5, 0.5)] * n_colours
+    )
+    random.shuffle(colours)
+    colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
+    colour_assignment = {
+        key: dict(width=default_line_width, color=val)
+        for key, val in zip(list(batch_ids), colours)
+    }
+    for key, val in batches_to_highlight.items():
+        colour_assignment.update(
+            {item: json.loads(key) for item in val if item in batch_ids}
+        )
+    return colour_assignment
+
+
+# flake8: noqa: C901
 def plot_multitags(
     df_dict: dict,
     batch_list: list = None,
@@ -311,21 +344,81 @@ def plot_multitags(
         If supplied, uses the existing Plotly figure to draw in.
 
     """
+    font_size = 12
+    margin_dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
+
+    # This will be clumsy, until we have Python 3.9. TODO: use pydantic instead
     # This will be clumsy, until we have Python 3.9. TODO: use pydantic instead
     default_settings: Dict[str, Any] = dict(
+        # Pydantic: int
         nrows=1,
+        # Pydantic: int
         ncols=0,
+        # Pydantic: str
         x_axis_label="Time, grouped per tag",
+        # Pydantic: str
         title="",
+        # Pydantic: bool
         show_legend=True,
+        # Pydantic: >0
         html_image_height=900,
+        # Pydantic: >0
         html_aspect_ratio_w_over_h=16 / 9,
+        # Pydantic: >0
         default_line_width=2,
+        # Pydantic: callable
+        colour_map=sns.husl_palette,
+        # Pydantic: bool
+        animate=False,
+        # Pydantic: str
+        animate_frame_zero_colour="#999999",
+        # Pydantic: dict
+        animate_batches_to_highlight={},
+        # Pydantic: bool
+        animate_show_slider=True,
+        # Pydantic: str
+        animate_slider_prefix="Index: ",
+        # Pydantic: bool
+        # fraction of figure height. Default should be OK, but depends if the
+        # legend is show and length of batch names
+        animate_slider_vertical_offset=-0.3,
+        # Pydantic: > 0
+        animate_line_width=4,  # the animated lines are drawn on top of the historical lines
+        # Pydantic: optional or int
+        animate_n_frames=None,  # takes max frames required to give every time step 1 frame.
+        # Pydantic: int >= 0
+        animate_framerate_milliseconds=0,
     )
     if settings:
         default_settings.update(settings)
 
     settings = default_settings
+
+    batch_ids_to_animate: List = []
+    if settings["animate"]:
+        # override for animations, because we want to see everything in frame zero
+        settings["default_line_width"] = 0.5
+        if (
+            max([len(v) for _, v in settings["animate_batches_to_highlight"].items()])
+            == 0
+        ):
+            assert False, "You must specify 1 or more batches to animate "
+        animation_colour_assignment = colours_per_batch_id(
+            batch_ids=list(df_dict.keys()),
+            batches_to_highlight=settings["animate_batches_to_highlight"],
+            default_line_width=settings["default_line_width"],
+            override_default_colour=False,
+            colour_map=settings["colour_map"],
+        )
+        for _, v in settings["animate_batches_to_highlight"].items():
+            batch_ids_to_animate.extend(v)
+
+    else:
+        # Adjust the other animate settings in such a way that the regular functionality works
+        settings["animate_show_slider"] = False
+        settings["animate_line_width"] = 0
+        settings["animate_n_frames"] = 0
+        settings["animate_batches_to_highlight"] = {}
 
     if fig is None:
         fig = go.Figure()
@@ -342,8 +435,9 @@ def plot_multitags(
     if time_column in tag_list:
         tag_list.remove(time_column)
 
+    # Check that the tag_list is present in all batches.
     assert check_valid_batch_dict(
-        {k: v for k, v in df_dict.items() if k in batch_list}, no_nan=False
+        {k: v[tag_list] for k, v in df_dict.items() if k in batch_list}, no_nan=False
     )
 
     if settings["ncols"] == 0:
@@ -363,21 +457,16 @@ def plot_multitags(
         specs=specs,
     )
 
-    n_colours = len(df_dict)
-    random.seed(13)
-    colours = list(sns.husl_palette(n_colours))
-    random.shuffle(colours)
-    colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
-    colour_assignment = {
-        key: dict(width=settings["default_line_width"], color=val)
-        for key, val in zip(list(df_dict.keys()), colours)
-    }
-    for key, val in batches_to_highlight.items():
-        colour_assignment.update(
-            {item: json.loads(key) for item in val if item in df_dict.keys()}
-        )
-    margin_dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
+    colour_assignment = colours_per_batch_id(
+        batch_ids=list(df_dict.keys()),
+        batches_to_highlight=batches_to_highlight,
+        default_line_width=settings["default_line_width"],
+        override_default_colour=not (settings["animate"]),
+        colour_map=settings["colour_map"],
+    )
 
+    # Initial plot (what is visible before animation starts)
+    longest_time_length: int = 0
     for batch_id, batch_df in df_dict.items():
         if batch_id not in batch_list:
             continue
@@ -387,6 +476,8 @@ def plot_multitags(
             time_data = batch_df[time_column]
         else:
             time_data = list(range(batch_df.shape[0]))
+
+        longest_time_length = max(longest_time_length, len(time_data))
 
         row = col = 1
         for tag in tag_list:
@@ -399,13 +490,116 @@ def plot_multitags(
                 line=colour_assignment[batch_id],
                 legendgroup=batch_id,
                 showlegend=settings["show_legend"] if tag == tag_list[0] else False,
+                xaxis=fig.get_subplot(row, col)[1]["anchor"],
+                yaxis=fig.get_subplot(row, col)[0]["anchor"],
             )
-            fig.add_trace(trace, row=row, col=col)
+            fig.add_trace(trace)
 
             col += 1
             if col > settings["ncols"]:
                 row += 1
                 col = 1
+
+    # Create the slider; will be ignore later if not required
+    # https://plotly.com/python/reference/layout/sliders/
+    slider_baseline_dict = {
+        "active": 0,
+        "yanchor": "top",
+        "xanchor": "left",
+        "font": {"size": font_size},
+        "currentvalue": {
+            "font": {"size": font_size},
+            "prefix": settings["animate_slider_prefix"],
+            "visible": True,
+            "xanchor": "left",
+        },
+        "transition": {"duration": 100, "easing": "cubic-in-out"},
+        "pad": {"b": 0, "t": 0},
+        "lenmode": "fraction",
+        "len": 0.9,
+        "x": 0.05,
+        "y": settings["animate_slider_vertical_offset"],
+        "name": "Slider",
+        "steps": [],
+    }
+    # Create other animation settings. Again, these will be ignored if not needed
+    frames: List = []
+    slider_steps = []
+    frame_settings = dict(
+        frame={"duration": 0, "redraw": False},
+        mode="immediate",
+        transition={"duration": 0},
+    )
+    settings["animate_n_frames"] = (
+        settings["animate_n_frames"]
+        if settings["animate_n_frames"] >= 0
+        else longest_time_length
+    )
+
+    for index in np.linspace(0, longest_time_length, settings["animate_n_frames"]):
+        # TO OPTIMIZE: add hover template only on the last iteration
+        # TO OPTIMIZE: can you add only the incremental new piece of animation?
+
+        index = int(np.floor(index))
+        frame_name = f"{index}"  # this is the link with the slider and the animation in the play button
+        one_frame = generate_one_frame(
+            df_dict,
+            tag_list,
+            fig,
+            up_to_index=index + 1,
+            time_column=time_column,
+            batch_ids_to_animate=batch_ids_to_animate,
+            animation_colour_assignment=animation_colour_assignment,
+            show_legend=True,  # ???
+            add_hovertemplate=False,  # ???
+            max_columns=settings["ncols"],
+        )
+        frames.append(go.Frame(data=one_frame, name=frame_name))
+        slider_dict = dict(
+            args=[
+                [frame_name],
+                frame_settings,
+            ],
+            label=frame_name,
+            method="animate",
+        )
+        slider_steps.append(slider_dict)
+
+    # Buttons: for animations
+    button_play = dict(
+        label="Play",
+        method="animate",
+        args=[
+            None,
+            dict(
+                frame=dict(duration=0, redraw=False),
+                transition=dict(duration=30, easing="quadratic-in-out"),
+                fromcurrent=True,
+                mode="immediate",
+            ),
+        ],
+    )
+    # button_pause = dict(
+    #     label="Pause",
+    #     method="animate",
+    #     args=[
+    #         # https://plotly.com/python/animations/
+    #         # Note the None is in a list!
+    #         [None],  # was [None], but mypy complains. Setting to "None" does not work :(
+    #         dict(
+    #             frame=dict(duration=0, redraw=False),
+    #             transition=dict(duration=0),
+    #             mode="immediate",
+    #         ),
+    #     ],
+    # )
+
+    # OK, pull things together to render the fig
+    slider_baseline_dict["steps"] = slider_steps
+    button_list = []
+    if settings["animate"]:
+        fig.frames = frames
+        button_list.append(button_play)
 
     fig.update_layout(
         title=settings["title"],
@@ -437,6 +631,71 @@ def plot_multitags(
         ),
         width=settings["html_aspect_ratio_w_over_h"] * settings["html_image_height"],
         height=settings["html_image_height"],
+        sliders=[slider_baseline_dict],
+        updatemenus=[
+            dict(
+                type="buttons",
+                showactive=False,
+                y=0,
+                x=1.05,
+                xanchor="left",
+                yanchor="bottom",
+                buttons=button_list,
+            )
+        ],
     )
 
     return fig
+
+
+def generate_one_frame(
+    df_dict: dict,
+    tag_list: list,
+    fig,
+    up_to_index,
+    time_column,
+    batch_ids_to_animate,
+    animation_colour_assignment,
+    show_legend=False,
+    add_hovertemplate=False,
+    max_columns=0,
+) -> List[Dict]:
+    """
+    Returns a list of dictionaries.
+    Each entry in the list is for each subplot; in the order of the subplots.
+    Since each subplot is a tag, we need the `tag_list` as input.
+    """
+    output = []
+    row = col = 1
+    for tag in tag_list:
+
+        for batch_id in batch_ids_to_animate:
+            # These 4 lines are duplicated from the outside function
+            if time_column in df_dict[batch_id].columns:
+                time_data = df_dict[batch_id][time_column]
+            else:
+                time_data = list(range(df_dict[batch_id].shape[0]))
+
+            output.append(
+                go.Scatter(
+                    x=time_data[0:up_to_index],
+                    y=df_dict[batch_id][tag][0:up_to_index],
+                    name=batch_id,
+                    mode="lines",
+                    # hovertemplate="Time: %{x}\ny: %{y}",
+                    line=animation_colour_assignment[batch_id],
+                    legendgroup=batch_id,
+                    showlegend=show_legend,  # settings["show_legend"] if tag == tag_list[0] else False,
+                    xaxis=fig.get_subplot(row, col)[1]["anchor"],
+                    yaxis=fig.get_subplot(row, col)[0]["anchor"],
+                )
+            )
+
+        # One level outdented: if the loop for the tags, not in the loop for
+        # the `batch_ids_to_animate`!
+        col += 1
+        if col > max_columns:
+            row += 1
+            col = 1
+
+    return output
