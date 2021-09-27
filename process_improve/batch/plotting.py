@@ -458,9 +458,10 @@ def plot_multitags(
         batch_ids=list(df_dict.keys()),
         batches_to_highlight=batches_to_highlight,
         default_line_width=settings["default_line_width"],
-        use_default_colour=settings[
-            "animate"
-        ],  # if animating, yes, use grey for all lines
+        # if animating, yes, use grey for all lines; unless `batches_to_highlight` was specified
+        use_default_colour=settings["animate"]
+        if settings["animate"] and (len(batches_to_highlight) == 0)
+        else False,
         colour_map=settings["colour_map"],
     )
 
