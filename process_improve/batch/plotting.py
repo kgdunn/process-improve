@@ -404,7 +404,7 @@ def plot_multitags(
             assert False, "You must specify 1 or more batches to animate "
         animation_colour_assignment = colours_per_batch_id(
             batch_ids=list(df_dict.keys()),
-            batches_to_highlight=dict(),
+            batches_to_highlight=batches_to_highlight or dict(),
             default_line_width=settings["animate_line_width"],
             use_default_colour=False,
             colour_map=settings["colour_map"],
