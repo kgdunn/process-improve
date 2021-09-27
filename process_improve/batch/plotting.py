@@ -251,18 +251,21 @@ def colours_per_batch_id(
     batch_ids: list,
     batches_to_highlight: dict,
     default_line_width: float,
-    override_default_colour: bool = False,
+    use_default_colour: bool = False,
     colour_map: Callable = partial(sns.color_palette, "hls"),
 ) -> Dict[Any, Dict]:
     """
     Returns a colour to use for each trace in the plot. A dictionary: keys are batch ids, and
     the value is a colour and line width setting for Plotly.
+
+    override_default_colour: bool
+        If True, then the default colour is used (grey: 0.5, 0.5, 0.5)
     """
     random.seed(13)
     n_colours = len(batch_ids)
     colours = (
         list(colour_map(n_colours))
-        if override_default_colour
+        if not (use_default_colour)
         else [(0.5, 0.5, 0.5)] * n_colours
     )
     random.shuffle(colours)
@@ -370,10 +373,8 @@ def plot_multitags(
         colour_map=sns.husl_palette,
         # Pydantic: bool
         animate=False,
-        # Pydantic: str
-        animate_frame_zero_colour="#999999",
-        # Pydantic: dict
-        animate_batches_to_highlight={},
+        # Pydantic: list
+        animate_batches_to_highlight=[],
         # Pydantic: bool
         animate_show_slider=True,
         # Pydantic: str
@@ -394,24 +395,18 @@ def plot_multitags(
 
     settings = default_settings
 
-    batch_ids_to_animate: List = []
     if settings["animate"]:
         # override for animations, because we want to see everything in frame zero
         settings["default_line_width"] = 0.5
-        if (
-            max([len(v) for _, v in settings["animate_batches_to_highlight"].items()])
-            == 0
-        ):
+        if len(settings["animate_batches_to_highlight"]) == 0:
             assert False, "You must specify 1 or more batches to animate "
         animation_colour_assignment = colours_per_batch_id(
             batch_ids=list(df_dict.keys()),
-            batches_to_highlight=settings["animate_batches_to_highlight"],
-            default_line_width=settings["default_line_width"],
-            override_default_colour=False,
+            batches_to_highlight=dict(),
+            default_line_width=settings["animate_line_width"],
+            use_default_colour=False,
             colour_map=settings["colour_map"],
         )
-        for _, v in settings["animate_batches_to_highlight"].items():
-            batch_ids_to_animate.extend(v)
 
     else:
         # Adjust the other animate settings in such a way that the regular functionality works
@@ -461,7 +456,9 @@ def plot_multitags(
         batch_ids=list(df_dict.keys()),
         batches_to_highlight=batches_to_highlight,
         default_line_width=settings["default_line_width"],
-        override_default_colour=not (settings["animate"]),
+        use_default_colour=settings[
+            "animate"
+        ],  # if animating, yes, use grey for all lines
         colour_map=settings["colour_map"],
     )
 
@@ -548,12 +545,13 @@ def plot_multitags(
             fig,
             up_to_index=index + 1,
             time_column=time_column,
-            batch_ids_to_animate=batch_ids_to_animate,
+            batch_ids_to_animate=settings["animate_batches_to_highlight"],
             animation_colour_assignment=animation_colour_assignment,
-            show_legend=True,  # ???
+            show_legend=settings["show_legend"],
             add_hovertemplate=False,  # ???
             max_columns=settings["ncols"],
         )
+
         frames.append(go.Frame(data=one_frame, name=frame_name))
         slider_dict = dict(
             args=[
@@ -685,7 +683,7 @@ def generate_one_frame(
                     # hovertemplate="Time: %{x}\ny: %{y}",
                     line=animation_colour_assignment[batch_id],
                     legendgroup=batch_id,
-                    showlegend=show_legend,  # settings["show_legend"] if tag == tag_list[0] else False,
+                    showlegend=show_legend if tag == tag_list[0] else False,
                     xaxis=fig.get_subplot(row, col)[1]["anchor"],
                     yaxis=fig.get_subplot(row, col)[0]["anchor"],
                 )
