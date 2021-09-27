@@ -15,7 +15,7 @@ from plotly.offline import plot as plotoffline
 from .data_input import check_valid_batch_dict
 
 
-def get_rgba_from_triplet(incolour, alpha=1, as_string=False):
+def get_rgba_from_triplet(incolour: list, alpha=1, as_string=False):
     """
     Convert the input colour triplet (list) to a Plotly rgba(r,g,b,a) string if
     `as_string` is True. If `False` it will return the list of 3 integer RGB
@@ -23,8 +23,10 @@ def get_rgba_from_triplet(incolour, alpha=1, as_string=False):
 
     E.g.    [0.9677975592919913, 0.44127456009157356, 0.5358103155058701] -> 'rgba(246,112,136,1)'
     """
-    assert len(incolour) == 3
-    colours = [max(0, int(math.floor(c * 255))) for c in incolour]
+    assert (
+        3 <= len(incolour) <= 4
+    ), "`incolour` must be a list of 3 or 4 values; ignores 4th entry"
+    colours = [max(0, int(math.floor(c * 255))) for c in list(incolour)[0:3]]
     if as_string:
         return f"rgba({colours[0]},{colours[1]},{colours[2]},{float(alpha)})"
     else:
