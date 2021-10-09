@@ -351,6 +351,7 @@ def plot_multitags(
     """
     font_size = 12
     margin_dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
+    hovertemplate = "Time: %{x}\ny: %{y}"
 
     # This will be clumsy, until we have Python 3.9. TODO: use pydantic instead
     # This will be clumsy, until we have Python 3.9. TODO: use pydantic instead
@@ -379,6 +380,8 @@ def plot_multitags(
         animate_batches_to_highlight=[],
         # Pydantic: bool
         animate_show_slider=True,
+        # Pydantic: bool
+        animate_show_pause=True,
         # Pydantic: str
         animate_slider_prefix="Index: ",
         # Pydantic: bool
@@ -402,6 +405,7 @@ def plot_multitags(
     if settings["animate"]:
         # override for animations, because we want to see everything in frame zero
         settings["default_line_width"] = 0.5
+        # Override these settings for animations, because we want to see everything in frame zero
         animation_colour_assignment = colours_per_batch_id(
             batch_ids=list(df_dict.keys()),
             batches_to_highlight=batches_to_highlight or dict(),
@@ -413,9 +417,10 @@ def plot_multitags(
     else:
         # Adjust the other animate settings in such a way that the regular functionality works
         settings["animate_show_slider"] = False
+        settings["animate_show_pause"] = False
         settings["animate_line_width"] = 0
         settings["animate_n_frames"] = 0
-        settings["animate_batches_to_highlight"] = {}
+        settings["animate_batches_to_highlight"] = []
 
     if fig is None:
         fig = go.Figure()
@@ -428,6 +433,11 @@ def plot_multitags(
     if batch_list is None:
         batch_list = list(df_dict.keys())
     batch_list = list(batch_list)
+    if settings["animate"]:
+        for batch_id in settings["animate_batches_to_highlight"]:
+            batch_list.remove(batch_id)
+        # Afterwards, add them back, at the end.
+        batch_list.extend(settings["animate_batches_to_highlight"])
 
     if time_column in tag_list:
         tag_list.remove(time_column)
@@ -467,9 +477,8 @@ def plot_multitags(
 
     # Initial plot (what is visible before animation starts)
     longest_time_length: int = 0
-    for batch_id, batch_df in df_dict.items():
-        if batch_id not in batch_list:
-            continue
+    for batch_id in batch_list:
+        batch_df = df_dict[batch_id]
 
         # Time axis values
         if time_column in batch_df.columns:
@@ -481,15 +490,23 @@ def plot_multitags(
 
         row = col = 1
         for tag in tag_list:
+            showlegend = settings["show_legend"] if tag == tag_list[0] else False
+            # This feels right, but leads to the animated batched taking the places of the
+            # first few non-animated batches in the legend.
+            # Ugh, even without this, they still overwrite them. Sadly.
+            # if batch_id in settings["animate_batches_to_highlight"]:
+            #    showlegend = False  # overridden. If required, we will add it during the animation
+
             trace = go.Scatter(
                 x=time_data,
                 y=batch_df[tag],
                 name=batch_id,
                 mode="lines",
-                hovertemplate="Time: %{x}\ny: %{y}",
+                hovertemplate=hovertemplate,
                 line=colour_assignment[batch_id],
                 legendgroup=batch_id,
-                showlegend=settings["show_legend"] if tag == tag_list[0] else False,
+                # Only add batch_id to legend the first time it is plotted (the first subplot)
+                showlegend=showlegend,
                 xaxis=fig.get_subplot(row, col)[1]["anchor"],
                 yaxis=fig.get_subplot(row, col)[0]["anchor"],
             )
@@ -513,7 +530,10 @@ def plot_multitags(
             "visible": True,
             "xanchor": "left",
         },
-        "transition": {"duration": 100, "easing": "cubic-in-out"},
+        "transition": {
+            "duration": settings["animate_framerate_milliseconds"],
+            "easing": "linear",
+        },
         "pad": {"b": 0, "t": 0},
         "lenmode": "fraction",
         "len": 0.9,
@@ -526,7 +546,7 @@ def plot_multitags(
     frames: List = []
     slider_steps = []
     frame_settings = dict(
-        frame={"duration": 0, "redraw": False},
+        frame={"duration": settings["animate_framerate_milliseconds"], "redraw": True},
         mode="immediate",
         transition={"duration": 0},
     )
@@ -551,7 +571,7 @@ def plot_multitags(
             batch_ids_to_animate=settings["animate_batches_to_highlight"],
             animation_colour_assignment=animation_colour_assignment,
             show_legend=settings["show_legend"],
-            add_hovertemplate=False,  # ???
+            hovertemplate=hovertemplate,
             max_columns=settings["ncols"],
         )
 
@@ -580,27 +600,29 @@ def plot_multitags(
             ),
         ],
     )
-    # button_pause = dict(
-    #     label="Pause",
-    #     method="animate",
-    #     args=[
-    #         # https://plotly.com/python/animations/
-    #         # Note the None is in a list!
-    #         [None],  # was [None], but mypy complains. Setting to "None" does not work :(
-    #         dict(
-    #             frame=dict(duration=0, redraw=False),
-    #             transition=dict(duration=0),
-    #             mode="immediate",
-    #         ),
-    #     ],
-    # )
+    button_pause = dict(
+        label="Pause",
+        method="animate",
+        args=[
+            # https://plotly.com/python/animations/
+            # Note the None is in a list!
+            [[None]],  # TODO: does not work at the moment.
+            dict(
+                frame=dict(duration=0, redraw=False),
+                transition=dict(duration=0),
+                mode="immediate",
+            ),
+        ],
+    )
 
     # OK, pull things together to render the fig
     slider_baseline_dict["steps"] = slider_steps
-    button_list = []
+    button_list: List[Any] = []
     if settings["animate"]:
-        fig.frames = frames
+        fig.update(frames=frames)
         button_list.append(button_play)
+        if settings["animate_show_pause"]:
+            button_list.append(button_pause)
 
     fig.update_layout(
         title=settings["title"],
@@ -632,7 +654,7 @@ def plot_multitags(
         ),
         width=settings["html_aspect_ratio_w_over_h"] * settings["html_image_height"],
         height=settings["html_image_height"],
-        sliders=[slider_baseline_dict],
+        sliders=[slider_baseline_dict] if settings["animate_show_slider"] else [],
         updatemenus=[
             dict(
                 type="buttons",
@@ -655,10 +677,10 @@ def generate_one_frame(
     fig,
     up_to_index,
     time_column,
-    batch_ids_to_animate,
+    batch_ids_to_animate: list,
     animation_colour_assignment,
     show_legend=False,
-    add_hovertemplate=False,
+    hovertemplate: str = "",
     max_columns=0,
 ) -> List[Dict]:
     """
@@ -683,7 +705,7 @@ def generate_one_frame(
                     y=df_dict[batch_id][tag][0:up_to_index],
                     name=batch_id,
                     mode="lines",
-                    # hovertemplate="Time: %{x}\ny: %{y}",
+                    hovertemplate=hovertemplate,
                     line=animation_colour_assignment[batch_id],
                     legendgroup=batch_id,
                     showlegend=show_legend if tag == tag_list[0] else False,
