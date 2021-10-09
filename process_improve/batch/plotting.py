@@ -397,11 +397,11 @@ def plot_multitags(
 
     settings = default_settings
 
+    if len(settings["animate_batches_to_highlight"]) == 0:
+        settings["animate"] = False
     if settings["animate"]:
         # override for animations, because we want to see everything in frame zero
         settings["default_line_width"] = 0.5
-        if len(settings["animate_batches_to_highlight"]) == 0:
-            assert False, "You must specify 1 or more batches to animate "
         animation_colour_assignment = colours_per_batch_id(
             batch_ids=list(df_dict.keys()),
             batches_to_highlight=batches_to_highlight or dict(),

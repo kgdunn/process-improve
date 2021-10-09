@@ -405,7 +405,7 @@ def batch_dtw(
 
     for batch_id, result in tqdm(
         aligned_batches.items(),
-        desc="Iterpolating",
+        desc="Interpolating",
         disable=not (settings["show_progress"]),
     ):
 
