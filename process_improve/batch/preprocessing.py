@@ -335,7 +335,9 @@ def batch_dtw(
         reference_batch in batches
     ), "`reference_batch` was not found in the dict of batches."
 
-    assert check_valid_batch_dict(batches, no_nan=True)
+    assert check_valid_batch_dict(
+        {k: v[columns_to_align] for k, v in batches.items()}, no_nan=True
+    )
 
     scale_df = determine_scaling(
         batches=batches, columns_to_align=columns_to_align, settings=settings
@@ -604,7 +606,7 @@ def find_reference_batch(
         default_settings.update(settings)
     settings = default_settings
 
-    assert check_valid_batch_dict(batches)
+    assert check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()})
 
     # Starts with the average duration batch.
     initial_reference_id = find_average_length(batches, settings)

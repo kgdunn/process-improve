@@ -72,9 +72,10 @@ def check_valid_batch_dict(in_dict: dict, no_nan=False) -> bool:
     for bid, batch in in_dict.items():
         # Check 1
         check = check & (base_columns == set(batch.columns))
-        assert (
-            check
-        ), f"The column names must be the same in all batches. Differs in {bid}."
+        assert check, (
+            f"The column names must be the same in all batches. Differs in {bid}. Base "
+            f"columns = {base_columns}; this batch has: {set(batch.columns)}"
+        )
 
         # Check 2
         check *= batch.select_dtypes(include=[np.number]).shape[1] == batch.shape[1]
