@@ -253,7 +253,3 @@ class Test_API_usage(unittest.TestCase):
         )
         c2_rw = c2.to_realworld()
         self.assertListEqual(c2_rw.to_list(), [2.5, 2.5, 3.0, 3.0])
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -93,9 +93,8 @@ def dict_to_melted(
     in_df: pd.DataFrame, insert_batch_id_column=True, insert_sequence_column=False
 ) -> pd.DataFrame:
     """Reverse of `melted_to_dict`"""
-    out_df = pd.DataFrame()
     batch_id_col = "batch_id"
-
+    all_batches = []
     num_rows = 0
     for idx, (batch_id, batch) in enumerate(in_df.items()):
         if idx == 0:
@@ -113,9 +112,9 @@ def dict_to_melted(
         if insert_sequence_column:
             subset.insert(0, "_sequence_", sequence)
 
-        out_df = out_df.append(subset)
+        all_batches.append(subset)
 
-    return out_df
+    return pd.concat(all_batches)
 
 
 def dict_to_wide(in_df: dict, group_by_batch=False) -> pd.DataFrame:

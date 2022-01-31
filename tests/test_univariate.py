@@ -167,7 +167,7 @@ def test_median_abs_deviation():
 
     x = np.array([[10, 7, 4], [3, 2, 1]])
     assert univariate.median_abs_deviation(x, scale=1) == approx([3.5, 2.5, 1.5])
-    assert univariate.median_abs_deviation(x, axis=None, scale=1) == 2.0
+    assert univariate.median_abs_deviation(x.ravel(), scale=1) == 2.0
 
     from scipy import stats
 
@@ -196,14 +196,7 @@ def test_median_abs_deviation():
         univariate.median_abs_deviation([np.nan, 1, 2], nan_policy="propagate")
     )
 
-    assert np.isnan(
-        univariate.median_abs_deviation(
-            [
-                np.nan,
-            ],
-            axis=None,
-        )
-    )
+    assert np.isnan(univariate.median_abs_deviation([np.nan]))
     assert np.isnan(
         univariate.median_abs_deviation(
             [
@@ -212,10 +205,10 @@ def test_median_abs_deviation():
             axis=0,
         )
     )
-    assert np.isnan(univariate.median_abs_deviation([], axis=None))
+    assert np.isnan(univariate.median_abs_deviation([]))
     assert np.isnan(univariate.median_abs_deviation([], axis=0))
     assert np.isnan(
-        univariate.median_abs_deviation(np.empty((2, 3, 4)) * np.nan, axis=None)
+        univariate.median_abs_deviation((np.empty((2, 3, 4)) * np.nan).ravel())
     )
     assert np.isnan(univariate.median_abs_deviation(np.array([np.nan, np.nan]), axis=0))
 
@@ -345,7 +338,7 @@ def test_compare_to_R_with_without_missing(univariate_summary):
         if k > 0:
             # For the second loop: add a missing value and ensure you get the same results
             # as for the first loop (without missing values)
-            data = data.append({"values": np.nan}, ignore_index=True)
+            data = pd.concat([data, pd.DataFrame(data={"values": [np.nan]})])
 
         out = univariate.summary_stats(data["values"])
         assert out["mean"] == approx(96.84181818181816, abs=1e-8)
@@ -472,9 +465,9 @@ def test_within_between_variance(within_between_sd_data):
     Results are from a spreadsheet template. Unsure of the origin, or accuracy.
     """
     df, _ = within_between_sd_data
-    expected_within_ms = 1.916015 ** 2
-    expected_between_sd = 7.659146 ** 2
-    expected_actual_sd = 5.490761 ** 2
+    expected_within_ms = 1.916015**2
+    expected_between_sd = 7.659146**2
+    expected_actual_sd = 5.490761**2
     dof_within = 14
     dof_between = 13
     dof_total = 27
@@ -511,9 +504,10 @@ def test_within_between_sd_missing_values():
             87.1, NA)
     """
 
-    empty = pd.DataFrame(columns=["value", "index"])
-    empty.append({"index": 1, "value": np.NaN}, ignore_index=True)
-    empty.append({"index": 1, "value": 123456}, ignore_index=True)
+    empty = pd.DataFrame(
+        data=[{"index": 1, "value": np.NaN}, {"index": 2, "value": 123456}],
+        columns=["value", "index"],
+    )
 
     replicate1 = [
         108.06,
@@ -554,9 +548,9 @@ def test_within_between_sd_missing_values():
 
     # within_between_variance_missing_values
     # Results are from a spreadsheet template. Unsure of the origin, or accuracy.
-    expected_within_ms = 2.036406 ** 2
-    expected_between_sd = 7.754816 ** 2
-    expected_actual_sd = 5.669397 ** 2
+    expected_within_ms = 2.036406**2
+    expected_between_sd = 7.754816**2
+    expected_actual_sd = 5.669397**2
     dof_within = 12
     dof_between = 12
     dof_total = 24
@@ -840,10 +834,7 @@ def test_sequence_compare_R(outliers_data):
     assert outliers[0] == 63
     assert np.isnan(
         univariate.median_abs_deviation(
-            [
-                np.nan,
-            ],
-            axis=None,
+            [np.nan],
         )
     )
 

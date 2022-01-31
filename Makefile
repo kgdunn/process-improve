@@ -26,9 +26,13 @@ BROWSER := python -c "$$BROWSER_PYSCRIPT"
 help:
 	@python -c "$$PRINT_HELP_PYSCRIPT" < $(MAKEFILE_LIST)
 
-clean: clean-build clean-pyc clean-test ## remove all build, test, coverage and Python artifacts
+clean: clean-build clean-pyc  ## remove all build, test, coverage and Python artifacts
 
 clean-build: ## remove build artifacts
+	rm -fr .tox/
+	rm -f .coverage
+	rm -fr htmlcov/
+	rm -fr .pytest_cache
 	rm -fr build/
 	rm -fr dist/
 	rm -fr .eggs/
@@ -51,12 +55,6 @@ clean-pyc: ## remove Python file artifacts
 	find . -name '*~' -exec rm -f {} +
 	find . -name '__pycache__' -exec rm -fr {} +
 
-clean-test: ## remove test and coverage artifacts
-	rm -fr .tox/
-	rm -f .coverage
-	rm -fr htmlcov/
-	rm -fr .pytest_cache
-
 check:  # if the first command gives a return, then stage those files, then run pre-commit
 	git update-index --refresh
 	pre-commit run --all-files
@@ -65,15 +63,16 @@ lint: ## check style with flake8
 	flake8 process_improve tests
 
 test: ## run tests quickly with the default Python
-	python -W ignore -m pytest --exitfirst
-
-test-all: ## run tests on every Python version with tox
-	tox
+	clear
+	rm -fr .tox/
+	rm -f .coverage
+	rm -fr htmlcov/
+	rm -fr .pytest_cache
+	python -W ignore -m pytest --exitfirst -v --new-first -r=s -r=a -n auto --cov=. #--pdb
 
 coverage: ## check code coverage quickly with the default Python
-	coverage run --source process_improve -m pytest
-	coverage report -m
-	coverage html
+	coverage html --precision=1 --skip-covered --skip-empty --title="Process Improve Coverage Report"
+	coverage report --precision=1 --skip-covered --skip-empty
 	python -m http.server 8080 --directory htmlcov
 
 docs: ## generate Sphinx HTML documentation, including API docs

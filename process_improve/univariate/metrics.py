@@ -319,7 +319,7 @@ def ttest_difference(
                     "Group B name": groupB_name,
                 }
             )
-            output = output.append(basic_stats, ignore_index=True)
+            output = pd.concat([output, pd.DataFrame(basic_stats, index=[0])])
 
     return output
 
@@ -434,7 +434,7 @@ def ttest_paired_difference(
                     "Group B average": sample_B.mean(),
                 }
             )
-            output = output.append(basic_stats, ignore_index=True)
+            output = pd.concat([output, pd.DataFrame(basic_stats, index=[0])])
 
     return output
 
@@ -517,8 +517,8 @@ def median_abs_deviation(
     x : array_like
         Input array or object that can be converted to an array.
     axis : int or None, optional
-        Axis along which the range is computed. Default is 0. If None, compute
-        the MAD over the entire array.
+        Axis along which the range is computed. Default is 0.
+        Axis == None will not be accepted anymore.
     center : callable, optional
         A function that will return the central value. The default is to use
         np.median. Any user defined function used will need to have the
@@ -542,7 +542,7 @@ def median_abs_deviation(
     Returns
     -------
     mad : scalar or ndarray
-        If ``axis=None``, a scalar is returned. If the input contains
+        If the input contains
         integers or floats of smaller precision than ``np.float64``, then the
         output data-type is ``np.float64``. Otherwise, the output data-type is
         the same as that of the input.
@@ -600,7 +600,7 @@ def median_abs_deviation(
            [ 3,  2,  1]])
     >>> stats.median_abs_deviation(x)
     array([3.5, 2.5, 1.5])
-    >>> stats.median_abs_deviation(x, axis=None)
+    >>> stats.median_abs_deviation(x, axis=None)  <-- syntax of `axis=None` will be depricated
     2.0
 
     Scale normal example:
@@ -611,6 +611,7 @@ def median_abs_deviation(
     >>> stats.median_abs_deviation(x, scale='normal')
     1.9996446978061115
     """
+    assert axis is not None, "axis=None is now depricated. Unraval the array."
     if not callable(center):
         raise TypeError(
             "The argument 'center' must be callable. The given "
@@ -629,8 +630,6 @@ def median_abs_deviation(
 
     # Consistent with `np.var` and `np.std`.
     if not x.size:
-        if axis is None:
-            return np.nan
         nan_shape = tuple(item for i, item in enumerate(x.shape) if i != axis)
         if nan_shape == ():
             # Return nan, not array(nan)
@@ -640,19 +639,13 @@ def median_abs_deviation(
     contains_nan, nan_policy = _contains_nan(x, nan_policy)
 
     if contains_nan:
-        if axis is None:
-            mad = _mad_1d(x.ravel(), center, nan_policy)
-        else:
-            mad = np.apply_along_axis(_mad_1d, axis, x, center, nan_policy)
+        mad = np.apply_along_axis(_mad_1d, axis, x, center, nan_policy)
     else:
-        if axis is None:
-            med = center(x, axis=None)
-            mad = np.median(np.abs(x - med))
-        else:
-            # Wrap the call to center() in expand_dims() so it acts like
-            # keepdims=True was used.
-            med = np.expand_dims(center(x, axis=axis), axis)
-            mad = np.median(np.abs(x - med), axis=axis)
+
+        # Wrap the call to center() in expand_dims() so it acts like
+        # keepdims=True was used.
+        med = np.expand_dims(center(x, axis=axis), axis)
+        mad = np.median(np.abs(x - med), axis=axis)
 
     return mad / scale
 
@@ -805,7 +798,7 @@ def outlier_detection_multiple(
             R_i_idx = R.idxmax()
             g = R.max()
             # Formula from the R-function for the Grubb's calculation
-            t = np.sqrt((g ** 2 * N * (2 - N)) / (g ** 2 * N - (N - 1) ** 2))
+            t = np.sqrt((g**2 * N * (2 - N)) / (g**2 * N - (N - 1) ** 2))
             if t <= 0:
                 p_value = 0
             else:

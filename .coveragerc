@@ -1,0 +1,15 @@
+[run]
+source = .
+branch = True
+omit =
+   *test*
+   setup.py
+
+[report]
+show_missing = True
+# Do not show in the coverage report which files are fully covered
+skip_covered = True
+
+exclude_lines =
+    #Don't complain if tests don't hit defensive assertion code:
+    raise NotImplementedError

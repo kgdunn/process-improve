@@ -1,4 +1,4 @@
-# (c) Kevin Dunn, 2010-2021. MIT License.
+# (c) Kevin Dunn, 2010-2022. MIT License.
 
 import pathlib
 
@@ -319,7 +319,7 @@ def test_PCA_errors_no_variance_to_start():
     model = PCA(n_components=A)
     # with pytest.raises(RuntimeError):
     model.fit(data)
-    assert np.sum(model.x_scores.values, axis=None) == approx(0, abs=epsqrt)
+    assert np.sum(model.x_scores.values) == approx(0, abs=epsqrt)
     assert model.R2cum.sum() == approx(0, abs=epsqrt)
     assert np.isnan(model.R2cum[A - 1])
 
