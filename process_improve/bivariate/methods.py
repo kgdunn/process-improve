@@ -97,7 +97,7 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter=41) -> Union[int, fl
 
             angle = (
                 np.arccos(
-                    (lft_line ** 2 + rgt_line ** 2 - hypotenuse_line ** 2)
+                    (lft_line**2 + rgt_line**2 - hypotenuse_line**2)
                     / (2 * lft_line * rgt_line)
                 )
                 * 180.0
