@@ -1,4 +1,4 @@
-# (c) Kevin Dunn, 2010-2021. MIT License. Based on own private work over the years.
+# (c) Kevin Dunn, 2010-2022. MIT License. Based on own private work over the years.
 
 from .designs_factorial import full_factorial
 from .models import lm, predict, summary

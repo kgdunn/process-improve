@@ -1,4 +1,4 @@
-# (c) Kevin Dunn, 2010-2021. MIT License.
+# (c) Kevin Dunn, 2010-2022. MIT License.
 import webbrowser
 
 import numpy as np
@@ -387,7 +387,7 @@ def contour_plot_bokeh(
 
     # https://stackoverflow.com/questions/33533047/how-to-make-a-contour-plot-in-python-using-bokeh-or-other-libs
 
-    dpi_max = dpi ** 3.5
+    dpi_max = dpi**3.5
     N = min(dpi, np.power(dpi_max, 0.5))
 
     h_grid = np.linspace(xlim[0], xlim[1], num=N)
@@ -623,7 +623,7 @@ def plot_model(
     plotted on the y-axis, and then the plot type is a contour plot.
     """
     pure_factors = model.get_factor_names(level=1)
-    dpi_max = dpi ** 3.5  # should be reasonable for most modern computers
+    dpi_max = dpi**3.5  # should be reasonable for most modern computers
     per_axis_points = min(dpi, np.power(dpi_max, 1 / len(pure_factors)))
 
     # `oneD=True`: the x-variable is a model input, and the y-axis is a response

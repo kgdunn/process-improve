@@ -1,4 +1,4 @@
-# (c) Kevin Dunn, 2010-2021. MIT License. Based on own private work over the years.
+# (c) Kevin Dunn, 2010-2022. MIT License. Based on own private work over the years.
 
 import pandas as pd
 from numpy.random import normal
@@ -30,7 +30,7 @@ def popcorn(t=120, T=None):
 
     Source
     ------
-    Kevin Dunn, Process Improvement using Data, Chapter 5, 2010 to 2021,
+    Kevin Dunn, Process Improvement using Data, Chapter 5, 2010 to 2022,
     https://learnche.org/pid
 
 
@@ -70,7 +70,7 @@ def grocery(p=3.46, h=150, P=None, H=None):
 
     Source
     ------
-    Kevin Dunn, Process Improvement using Data, Chapter 5, 2010 to 2021,
+    Kevin Dunn, Process Improvement using Data, Chapter 5, 2010 to 2022,
     https://learnche.org/pid
 
     """

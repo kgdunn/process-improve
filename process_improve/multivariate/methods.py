@@ -1,4 +1,4 @@
-# (c) Kevin Dunn, 2010-2021. MIT License. Based on own private work over the years.
+# (c) Kevin Dunn, 2010-2022. MIT License. Based on own private work over the years.
 import time
 import warnings
 from functools import partial
@@ -347,7 +347,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
             self.missing_data_settings["md_tol"] < 10
         ), "Tolerance should not be too large"
         assert (
-            self.missing_data_settings["md_tol"] > epsqrt ** 1.95
+            self.missing_data_settings["md_tol"] > epsqrt**1.95
         ), "Tolerance must exceed machine precision"
 
         assert self.missing_data_settings["md_method"] in self.valid_md_methods, (
@@ -882,7 +882,7 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
             self.missing_data_settings["md_tol"] < 10
         ), "Tolerance should not be too large"
         assert (
-            self.missing_data_settings["md_tol"] > epsqrt ** 1.95
+            self.missing_data_settings["md_tol"] > epsqrt**1.95
         ), "Tolerance must exceed machine precision"
 
         assert self.missing_data_settings["md_method"] in self.valid_md_methods, (
@@ -1080,7 +1080,7 @@ def ssq(X: np.ndarray, axis: Optional[int] = None) -> Any:
 
     out = 0.0
     if axis is None:
-        out = np.nansum(X ** 2)
+        out = np.nansum(X**2)
 
     return out
 
@@ -1253,11 +1253,11 @@ def spe_calculation(spe_values: pd.Series, conf_level: float = 0.95) -> float:
 
     # The limit is for the squares (i.e. the sum of the squared errors)
     # I.e. `spe_values` are square-rooted outside this function, so undo that.
-    values = spe_values ** 2
+    values = spe_values**2
     center_spe = values.mean()
     variance_spe = values.var(ddof=1)
     g = variance_spe / (2 * center_spe)
-    h = (2 * (center_spe ** 2)) / variance_spe
+    h = (2 * (center_spe**2)) / variance_spe
     # Report square root again as SPE limit
     return np.sqrt(chi2.ppf(conf_level, h) * g)
 
