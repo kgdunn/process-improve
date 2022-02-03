@@ -255,7 +255,7 @@ def multiple_linear_regression(
     assert out["N"] == y_.size
 
     if x_vector.shape[1] == 1:
-        mean_X = np.mean(x_vector)
+        mean_X = np.mean(x_vector, axis=0)
         out["x_ssq"] = np.sum(np.power(x_vector - mean_X, 2))[0]
 
         # Can be calculated before the model is even fit:
