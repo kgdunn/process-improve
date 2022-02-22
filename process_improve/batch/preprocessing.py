@@ -625,7 +625,8 @@ def find_reference_batch(
     # Does PCA on the wide, unfolded data. A=4
     scaler = MCUVScaler().fit(basewide)
     mcuv = scaler.fit_transform(basewide)
-    n_components = int(np.floor(settings["n_components"]))
+    # You can't fit more components than rows in the matrix.
+    n_components = min(int(np.floor(settings["n_components"])), basewide.shape[0] - 1)
     pca_first = PCA(n_components=n_components).fit(mcuv)
 
     # Excludes all batches with Hotelling's T2 > 90% limit.
