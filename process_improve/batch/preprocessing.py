@@ -398,7 +398,7 @@ def batch_dtw(
     # OK, the weights are found: now use the last iteration's result to get back to original
     # scaling for the trajectories
     weight_history = weight_history[1:, :]
-    aligned_df = pd.DataFrame()
+    aligned_df_collection: List[pd.DataFrame] = []
     new_time_axis = np.arange(
         0,
         settings["interpolate_time_axis_maximum"],
@@ -446,9 +446,10 @@ def batch_dtw(
 
         # Overwrite existing dataframe with this, unscaled, and interpolated dataframe.
         result.synced = synced_interpolated
-        aligned_df = aligned_df.append(synced_interpolated)
+        aligned_df_collection.append(synced_interpolated)
 
     # Make the batch_id label consistent
+    aligned_df = pd.concat(aligned_df_collection)
     aligned_df["batch_id"] = aligned_df["batch_id"].astype(type(batch_id))
 
     last_average_batch = reverse_scaling(dict(avg=average_batch), scale_df)["avg"]
