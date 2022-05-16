@@ -33,9 +33,9 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
         pass
 
     def fit(self, X, y=None):
-        self.center_ = X.mean()
+        self.center_ = pd.DataFrame(X).mean()
         # this is the key difference with "preprocessing.StandardScaler"
-        self.scale_ = X.std(ddof=1)
+        self.scale_ = pd.DataFrame(X).std(ddof=1)
         self.scale_[self.scale_ == 0] = 1.0  # columns with no variance are left as-is.
         return self
 
@@ -43,14 +43,14 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
         check_is_fitted(self, "center_")
         check_is_fitted(self, "scale_")
 
-        X = X.copy()
+        X = pd.DataFrame(X).copy()
         return (X - self.center_) / self.scale_
 
     def inverse_transform(self, X):
         check_is_fitted(self, "center_")
         check_is_fitted(self, "scale_")
 
-        X = X.copy()
+        X = pd.DataFrame(X).copy()
         return X * self.scale_ + self.center_
 
 
@@ -97,6 +97,9 @@ class PCA(PCA_sklearn):
         PCA
             Model object.
         """
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+
         self.N, self.K = X.shape
 
         # Check if number of components is supported against maximum requested

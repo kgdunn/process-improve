@@ -64,6 +64,8 @@ lint: ## check style with flake8
 
 test: ## run tests quickly with the default Python
 	clear
+	rm -fr build/
+	rm -fr dist/
 	rm -fr .tox/
 	rm -f .coverage
 	rm -fr htmlcov/

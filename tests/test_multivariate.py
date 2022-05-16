@@ -122,6 +122,25 @@ def test_PCA_missing_data(fixture_kamyr_data_missing_value):
     ) == approx(0, abs=1e-2)
 
 
+def test_PCA_missing_data_as_numpy(fixture_kamyr_data_missing_value):
+
+    X_mcuv = MCUVScaler().fit_transform(fixture_kamyr_data_missing_value.values)
+
+    # Build the model
+    A = 2
+    pca = PCA(n_components=A)
+    assert pca.missing_data_settings is None
+
+    # Check that default missing data options were used
+    model = pca.fit(X_mcuv)
+    assert isinstance(model.missing_data_settings, dict)
+    assert "md_tol" in model.missing_data_settings
+
+    assert np.linalg.norm(
+        (model.loadings.T @ model.loadings) - np.eye(model.A)
+    ) == approx(0, abs=1e-2)
+
+
 @pytest.fixture
 def fixture_mv_utilities():
     """
