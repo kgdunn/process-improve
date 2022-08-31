@@ -10,6 +10,7 @@ plotly
 numba
 seaborn
 pydantic
+tqdm
 
 # Notebook imports
 ipywidgets

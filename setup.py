@@ -41,6 +41,12 @@ setuptools.setup(
         "sklearn",
         "patsy",
         "scikit-image",
+        "scikit-learn",
+        "plotly",
+        "numba",
+        "seaborn",
+        "pydantic",
+        "tqdm",
     ],
     # Include additional files into the package
     include_package_data=True,
