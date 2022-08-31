@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # (c) Kevin Dunn, 2010-2022. MIT License.
 
 import pathlib

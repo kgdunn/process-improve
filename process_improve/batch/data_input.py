@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Getting data into the required format for use with this library.
 

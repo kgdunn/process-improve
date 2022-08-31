@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import warnings
 from collections import defaultdict
 from typing import Any, DefaultDict, List, Tuple

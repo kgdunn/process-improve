@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Built-in libraries
 import json
 import math

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from pytest import approx
 
 from process_improve.batch.plotting import (

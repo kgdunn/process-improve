@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Class for ControlChart: robust control charts with a balance between CUSUM and Shewhart properties.
 """
