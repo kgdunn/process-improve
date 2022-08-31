@@ -649,7 +649,7 @@ def find_reference_batch(
         }
     )
     metrics = metrics.sort_values(by=["HT2", "SPE"])
-    metrics = metrics.query(f"SPE < {pca_second.SPE_limit(0.5)}")
+    metrics = metrics.query(f"SPE < {pca_second.SPE_limit(conf_level=0.5)}")
     if settings["number_of_reference_batches"] == 1:
         return metrics.index[0]  # returns a single entry from the index
     else:

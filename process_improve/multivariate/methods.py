@@ -263,20 +263,13 @@ class PCA(PCA_sklearn):
         self.T2_plot = partial(t2_plot, model=self)
         self.loadings_plot = partial(loadings_plot, model=self, loadings_type="p")
         self.score_plot = partial(score_plot, model=self)
+        self.SPE_limit = partial(SPE_limit, model=self)
 
         return self
 
     def fit_transform(self, X, y=None):
         self.fit(X)
         assert False, "Still do the transform part"
-
-    def SPE_limit(self, conf_level=0.95) -> float:
-        check_is_fitted(self, "squared_prediction_error")
-
-        return spe_calculation(
-            spe_values=self.squared_prediction_error.iloc[:, self.A - 1],
-            conf_level=conf_level,
-        )
 
     def predict(self, X):
         """
@@ -317,7 +310,7 @@ class PCA(PCA_sklearn):
 
 class PCA_missing_values(BaseEstimator, TransformerMixin):
     """
-    Create our PCA class if there is even a single missing data value in the X input array.
+    Create a PCA class if there are 1 or more missing data values in the X input array.
 
     The default method to impute missing values is the TSR algorithm (`md_method="tsr"`).
 
@@ -326,10 +319,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
     * 'pmp'         Projection to Model Plane
     * 'scp'         Single Component Projection
     * 'nipals'      Same as 'scp': non-linear iterative partial least squares.
-    * 'tsr': TODO
-    * Other options? See papers by Abel Folch-Fortuny and also:
-    https://analyticalsciencejournals.onlinelibrary.wiley.com/doi/abs/10.1002/cem.750
-
+    * 'tsr':        See papers by Abel Folch-Fortuny and also DOI: 10.1002/cem.750
     """
 
     valid_md_methods = ["pmp", "scp", "nipals", "tsr"]
@@ -361,7 +351,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
 
         # Force input to NumPy array:
-        self.data = np.asarray(X)
+        self.data = np.asarray(X.copy())
 
         # Other setups:
         self.n_components = self.A
@@ -381,7 +371,19 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         elif self.missing_data_settings["md_method"].lower() in ["scp", "nipals"]:
             self._fit_nipals_pca(settings=self.missing_data_settings)
         elif self.missing_data_settings["md_method"].lower() in ["tsr"]:
-            self._fit_tsr(settings=self.missing_data_settings)
+            self._fit_tsr_pca(settings=self.missing_data_settings)
+
+        # These fields must be set by the MD algorithm:
+        required_fields = [
+            "extra_info",
+            "x_scores_",
+            "x_loadings",
+            "R2_",
+            "R2cum_",
+            "R2X_cum_",
+            "squared_prediction_error_",
+        ]
+        assert all([getattr(self, attr, None) is not None for attr in required_fields])
 
         # Additional calculations, which can be done after the missing data method is complete.
         self.explained_variance_ = np.diag(self.x_scores_.T @ self.x_scores_) / (
@@ -509,9 +511,13 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
 
         # end looping on A components
 
-    def _fit_tsr(self, settings):
+    def _fit_tsr_pca(self, settings):
+        start_time = time.time()
+        self.extra_info = dict(iterations=0, timing=0)
         delta = 1e100
-        Xd = np.asarray(self.data)
+        Xd = np.asarray(self.data.copy())
+        base_variance = ssq(Xd)
+
         N, K, A = self.N, self.K, self.A
         mmap = np.isnan(Xd)
         # Could impute missing values per row, but leave it at zero, assuming the data are MCUV.
@@ -530,7 +536,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
 
             V = V.T[:, 0:A]  # transpose first
             for n in range(N):
-                # If there are missing values (mis) in the n-th row. Compared to obs-erved values.
+                # If there are missing values (mis) in the n-th row. Compared to observed values.
                 row_mis = mmap[n, :]
                 row_obs = ~row_mis
                 if np.any(row_mis):
@@ -546,9 +552,26 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         # All done: return the results in `self`
         S = np.cov(Xd, rowvar=False, ddof=1)
         _, _, V = np.linalg.svd(S, full_matrices=False)
+        self.extra_info["iterations"] = itern
+        self.extra_info["timing"] = time.time() - start_time
         self.x_loadings = (V[0:A, :]).T  # transpose result to the right shape: K x A
         self.x_scores_ = (Xd - np.mean(Xd, axis=0)) @ self.x_loadings
-        self.data = Xd
+
+        for a in range(A):
+            residuals = (
+                self.x_scores_[:, : a + 1] @ self.x_loadings[:, : a + 1].T - self.data
+            )
+            self.R2cum_[a] = 1 - ssq(residuals, axis=None) / base_variance
+            if a > 0:
+                self.R2_[a] = self.R2cum_[a] - self.R2cum_[a - 1]
+            else:
+                self.R2_[a] = self.R2cum_[a]
+
+            # Per component, what is the SPE? We define SPE as a standard deviation like quantity.
+            # So take the square root of the sum of squares of the residuals.
+            self.squared_prediction_error_[:, a] = np.sqrt(
+                ssq(residuals, axis=1)
+            )  # N x A matrix
 
 
 class PLS(PLS_sklearn):
@@ -934,11 +957,14 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
 
         # Perform MD algorithm here
         if self.missing_data_settings["md_method"].lower() == "pmp":
-            self._fit_pmp_pls(X)
+            assert False, "PMP for PLS not implemented yet"
+            # self._fit_pmp_pls(X)
+
         elif self.missing_data_settings["md_method"].lower() in ["scp", "nipals"]:
             self._fit_nipals_pls(settings=self.missing_data_settings)
         elif self.missing_data_settings["md_method"].lower() in ["tsr"]:
-            self._fit_tsr_pls(settings=self.missing_data_settings)
+            assert False, "TSR for PLS not implemented yet"
+            # self._fit_tsr_pls(settings=self.missing_data_settings)
 
         # Additional calculations, which can be done after the missing data method is complete.
         # self.explained_variance_ = np.diag(self.x_scores.T @ self.x_scores) / (self.N - 1)
@@ -1234,6 +1260,15 @@ def T2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -
     assert n_rows > 0
     A, N = n_components, n_rows
     return A * (N - 1) * (N + 1) / (N * (N - A)) * f.isf((1 - conf_level), A, N - A)
+
+
+def SPE_limit(model, conf_level=0.95) -> float:
+    check_is_fitted(model, "squared_prediction_error")
+
+    return spe_calculation(
+        spe_values=model.squared_prediction_error.iloc[:, model.A - 1],
+        conf_level=conf_level,
+    )
 
 
 def spe_calculation(spe_values: pd.Series, conf_level: float = 0.95) -> float:

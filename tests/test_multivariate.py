@@ -44,8 +44,8 @@ def test_PCA_SPE_limits():
 
         A = 2
         pca = PCA(n_components=A).fit(mcuv)
-        SPE_limit_95 = pca.SPE_limit(0.95)
-        SPE_limit_99 = pca.SPE_limit(0.99)
+        SPE_limit_95 = pca.SPE_limit(conf_level=0.95)
+        SPE_limit_99 = pca.SPE_limit(conf_level=0.99)
 
         outliers_95.append(
             (pca.squared_prediction_error.iloc[:, A - 1] > SPE_limit_95).sum()
@@ -82,7 +82,7 @@ def test_PCA_foods():
     T2_limit_95 = pca.T2_limit(0.95)
     assert T2_limit_95 == approx(6.64469, rel=1e-3)
 
-    pca.SPE_limit(0.95)
+    pca.SPE_limit(conf_level=0.95)
 
     ellipse_x, ellipse_y = pca.ellipse_coordinates(1, 2, 0.95, 100)
     assert ellipse_x[-1] == approx(4.48792, rel=1e-5)
