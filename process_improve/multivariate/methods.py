@@ -367,7 +367,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
 
         # Perform MD algorithm here
         if self.missing_data_settings["md_method"].lower() == "pmp":
-            self._fit_pmp(X)
+            assert False, "The PMP method is not implemented yet"  # self._fit_pmp(X)
         elif self.missing_data_settings["md_method"].lower() in ["scp", "nipals"]:
             self._fit_nipals_pca(settings=self.missing_data_settings)
         elif self.missing_data_settings["md_method"].lower() in ["tsr"]:
@@ -478,17 +478,17 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
             row_SSX = ssq(Xd, axis=1)
             col_SSX = ssq(Xd, axis=0)
 
-            self.squared_prediction_error_.iloc[:, a] = np.sqrt(row_SSX)
+            self.squared_prediction_error_[:, a] = np.sqrt(row_SSX)
 
             # TODO: some entries in start_SS_col can be zero and leads to nan's in R2X_cum
-            self.R2X_cum_.iloc[:, a] = 1 - col_SSX / start_SS_col
+            self.R2X_cum_[:, a] = 1 - col_SSX / start_SS_col
 
             # R2 and cumulative R2 value for the whole block
-            self.R2cum_.iloc[a] = 1 - sum(row_SSX) / base_variance
+            self.R2cum_[a] = 1 - sum(row_SSX) / base_variance
             if a > 0:
-                self.R2_.iloc[a] = self.R2cum_.iloc[a] - self.R2cum_.iloc[a - 1]
+                self.R2_[a] = self.R2cum_[a] - self.R2cum_[a - 1]
             else:
-                self.R2_.iloc[a] = self.R2cum_.iloc[a]
+                self.R2_[a] = self.R2cum_[a]
 
             # VIP value (only calculated for X-blocks); only last column is useful
             # self.VIP_a = np.zeros((self.K, self.A))
@@ -506,8 +506,8 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
                 t_a *= -1.0
 
             # Store the loadings and scores
-            self.x_loadings.iloc[:, a] = p_a.flatten()
-            self.x_scores_.iloc[:, a] = t_a.flatten()
+            self.x_loadings[:, a] = p_a.flatten()
+            self.x_scores_[:, a] = t_a.flatten()
 
         # end looping on A components
 
