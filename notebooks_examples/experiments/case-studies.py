@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) Kevin Dunn, 2010-2022. MIT License. Based on own private work over the years.
+# (c) Kevin Dunn, 2010-2023. MIT License. Based on own private work over the years.
 
 from .designs_factorial import full_factorial
 from .models import lm, predict, summary
@@ -238,7 +238,6 @@ def case_worksheet_5():
 
 
 def api_usage():
-
     A, B, C, D = full_factorial(4, names=["A", "B", "C", "D"])
 
     A = supplement(A, name="Feed rate", units="g/min", lo=5, high=8.0)
@@ -357,9 +356,7 @@ def case_worksheet_9():
     8            20 May 2019 10:44    95.0        82
     9            20 May 2019 10:45    105.0       67
     """
-    d1 = c(
-        24, 48, center=36, range=(24, 48), coded=False, units="hours", name="Duration"
-    )
+    d1 = c(24, 48, center=36, range=(24, 48), coded=False, units="hours", name="Duration")
     D1 = d1.to_coded()
     y1 = c(23, 64, name="Production", units="g/unit sugar")
     expt1 = gather(D=D1, y=y1, title="Starting off")
@@ -488,7 +485,6 @@ def issue20():
 
 
 def case_worksheet_10():
-
     # Price: 0 # 0.25 above and 0.25 $/part below
     p = c(
         0.75,
@@ -644,9 +640,7 @@ def case_worksheet_10():
     # Actual = 7969. Really good matching.
     # UPdate the model and check
     y6 = y4.extend([7969])
-    expt6 = gather(
-        P=P6, T=T6, y=y6, title="After extrapolation, based on quadratic term"
-    )
+    expt6 = gather(P=P6, T=T6, y=y6, title="After extrapolation, based on quadratic term")
     mod_base6 = lm("y ~ P*T + I(P**2) + I(T**2)", data=expt6)
     contour_plot(mod_base6, "P", "T", xlim=(-2, 5))
 

@@ -52,9 +52,7 @@ def determine_scaling(
     for _, batch in batches.items():
         if settings["robust"]:
             # TODO: consider f_iqr feature here. Would that work?
-            rnge = batch[columns_to_align].quantile(0.98) - batch[
-                columns_to_align
-            ].quantile(0.02)
+            rnge = batch[columns_to_align].quantile(0.98) - batch[columns_to_align].quantile(0.02)
         else:
             rnge = batch[columns_to_align].max() - batch[columns_to_align].min()
 
@@ -110,10 +108,8 @@ def apply_scaling(
     out = {}
     for batch_id, batch in batches.items():
         out[batch_id] = batch[columns_to_align].copy()
-        for tag, column in out[batch_id].iteritems():
-            out[batch_id][tag] = (column - scale_df.loc[tag, "Minimum"]) / scale_df.loc[
-                tag, "Range"
-            ]
+        for tag, column in out[batch_id].items():
+            out[batch_id][tag] = (column - scale_df.loc[tag, "Minimum"]) / scale_df.loc[tag, "Range"]
     return out
 
 
@@ -133,10 +129,8 @@ def reverse_scaling(
     out = {}
     for batch_id, batch in batches.items():
         out[batch_id] = batch[columns_to_align].copy()
-        for tag, column in out[batch_id].iteritems():
-            out[batch_id][tag] = (
-                column * scale_df.loc[tag, "Range"] + scale_df.loc[tag, "Minimum"]
-            )
+        for tag, column in out[batch_id].items():
+            out[batch_id][tag] = column * scale_df.loc[tag, "Range"] + scale_df.loc[tag, "Minimum"]
     return out
 
 
@@ -183,7 +177,6 @@ def align_with_path(md_path, batch, initial_row):
 
 
 def dtw_core(test, ref, weight_matrix: np.ndarray):
-
     show_plot = False
     nt = test.shape[0]  # 'test' data; will be align to the 'reference' data
     nr = ref.shape[0]
@@ -242,9 +235,7 @@ def one_iteration_dtw(
     average_batch = refbatch_sc.copy().reset_index(drop=True) * 0.0
     successful_alignments = 0
 
-    for batch_id, batch in tqdm(
-        batches_scaled.items(), disable=not (settings["show_progress"])
-    ):
+    for batch_id, batch in tqdm(batches_scaled.items(), disable=not (settings["show_progress"])):
         try:
             # see Kassidas, page 180
             batch_subset = batch.iloc[:: int(settings["subsample"]), :]
@@ -332,17 +323,11 @@ def batch_dtw(
         default_settings.update(settings)
     settings = default_settings
     assert settings["maximum_iterations"] >= 3, "At least 3 iterations are required"
-    assert (
-        reference_batch in batches
-    ), "`reference_batch` was not found in the dict of batches."
+    assert reference_batch in batches, "`reference_batch` was not found in the dict of batches."
 
-    assert check_valid_batch_dict(
-        {k: v[columns_to_align] for k, v in batches.items()}, no_nan=True
-    )
+    assert check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()}, no_nan=True)
 
-    scale_df = determine_scaling(
-        batches=batches, columns_to_align=columns_to_align, settings=settings
-    )
+    scale_df = determine_scaling(batches=batches, columns_to_align=columns_to_align, settings=settings)
     batches_scaled = apply_scaling(batches, scale_df, columns_to_align)
     refbatch_sc = batches_scaled[reference_batch].iloc[:: int(settings["subsample"]), :]
     weight_vector = np.ones(refbatch_sc.shape[1])
@@ -351,9 +336,7 @@ def batch_dtw(
     average_batch = None
     delta_weight = np.linalg.norm(weight_vector)
     iter = 0
-    while (np.linalg.norm(delta_weight) > settings["tolerance"]) and (
-        iter <= settings["maximum_iterations"]
-    ):
+    while (np.linalg.norm(delta_weight) > settings["tolerance"]) and (iter <= settings["maximum_iterations"]):
         if settings["show_progress"]:
             message = f"Iter = {iter} and norm = {np.linalg.norm(delta_weight)}"
             print(message)
@@ -375,9 +358,7 @@ def batch_dtw(
         # Deviations from the average batch:
         next_weights = np.zeros((1, refbatch_sc.shape[1]))
         for batch_id, result in aligned_batches.items():
-            next_weights += np.nansum(
-                np.power(result.synced - average_batch, 2), axis=0
-            )
+            next_weights += np.nansum(np.power(result.synced - average_batch, 2), axis=0)
             # TODO: use quadratic weights for now, but try sum of the absolute values instead
             #  np.abs(result.synced - average_batch).sum(axis=0)
 
@@ -390,9 +371,7 @@ def batch_dtw(
             # problematic_threshold = dist_df["Distance"].quantile(0.95)
 
         next_weights = 1.0 / np.where(next_weights > epsqrt, next_weights, 10000)
-        weight_vector = (
-            next_weights / np.sum(next_weights) * len(columns_to_align)
-        ).ravel()
+        weight_vector = (next_weights / np.sum(next_weights) * len(columns_to_align)).ravel()
         # If change in delta_weight is small, we terminate early; no need to fine-tune excessively.
         delta_weight = np.diag(weight_matrix) - weight_vector  # old - new
 
@@ -411,7 +390,6 @@ def batch_dtw(
         desc="Interpolating",
         disable=not (settings["show_progress"]),
     ):
-
         initial_row = batches[batch_id].iloc[result.md_path[0, 0], :].copy()
         synced = align_with_path(
             result.md_path,
@@ -421,15 +399,14 @@ def batch_dtw(
         # Resample the trajectories of the aligned data now along this sequence.
         sequence = np.linspace(
             0,
-            settings["interpolate_time_axis_maximum"]
-            - settings["interpolate_time_axis_delta"],
+            settings["interpolate_time_axis_maximum"] - settings["interpolate_time_axis_delta"],
             synced.shape[0],
         )
         assert new_time_axis.min() == sequence.min()
         assert new_time_axis.max() == sequence.max()
 
         synced_interpolated = pd.DataFrame()
-        for column, _ in synced.iteritems():
+        for column, _ in synced.items():
             if column in ["batch_id", "_sequence_"]:
                 continue
 
@@ -504,7 +481,7 @@ def resample_to_reference(
         to_resample = np.arange(0, batch.shape[0])
         to_resample = to_resample / to_resample[-1]
         out_df = {}
-        for column, series in batch.iteritems():
+        for column, series in batch.items():
             if column in columns_to_align:
                 out_df[column] = sp.interpolate.interp1d(
                     to_resample,
@@ -543,23 +520,17 @@ def find_average_length(batches: Dict[str, pd.DataFrame], settings: dict = None)
         default_settings.update(settings)
     settings = default_settings
 
-    batch_lengths = pd.Series(
-        {batch_id: df.shape[0] for batch_id, df in batches.items()}
-    )
+    batch_lengths = pd.Series({batch_id: df.shape[0] for batch_id, df in batches.items()})
     if settings["robust"]:
         # If multiple batches of the median length, return the last one.
         try:
-            return batch_lengths.index[
-                np.where((batch_lengths == batch_lengths.median()).values)[0][-1]
-            ]
+            return batch_lengths.index[np.where((batch_lengths == batch_lengths.median()).values)[0][-1]]
         except IndexError:
             # Very exceptional: if batch_lengths.median() is computed as the average of 2 numbers
             # and therefore the median length batch doesn't actually exist
             return find_average_length(batches, settings=dict(robust=False))
     else:
-        return batch_lengths.index[
-            (batch_lengths - batch_lengths.mean()).abs().argmin()
-        ]
+        return batch_lengths.index[(batch_lengths - batch_lengths.mean()).abs().argmin()]
 
 
 def find_reference_batch(

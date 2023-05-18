@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) Kevin Dunn, 2010-2022. MIT License. Based on own private work over the years.
+# (c) Kevin Dunn, 2010-2023. MIT License. Based on own private work over the years.
 
 import pandas as pd
 

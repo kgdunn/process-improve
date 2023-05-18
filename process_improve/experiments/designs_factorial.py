@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) Kevin Dunn, 2010-2022. MIT License.
+# (c) Kevin Dunn, 2010-2023. MIT License.
 
 """
 Various factorial designs

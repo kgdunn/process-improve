@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) Kevin Dunn, 2010-2022. MIT License. Based on own private work over the years.
+# (c) Kevin Dunn, 2010-2023. MIT License. Based on own private work over the years.
 
 import warnings
 from collections import defaultdict
@@ -149,15 +149,11 @@ class Model(OLS):
         params = self.get_parameters(drop_intercept=drop_intercept)
         for p_name in params.index.values:
             if websafe:
-                aliasing = (
-                    '<span style="font-size: 130%; font-weight: 700">'
-                    f"{p_name}</span>"
-                )
+                aliasing = '<span style="font-size: 130%; font-weight: 700">' f"{p_name}</span>"
             else:
                 aliasing = p_name
             suffix = ""
             for alias in self.aliasing[tuple([p_name])]:
-
                 # Subtract "-1" because the first list entry tracks the sign
                 if (len(alias) - 1) <= aliasing_up_to_level:
                     aliasing += f" {alias[0]} {':'.join(alias[1:])}"
@@ -240,19 +236,11 @@ def lm(
                 # corrcoef = c / stddev[idx, None]
                 # corrcoef = corrcoef / stddev[None, idx]
 
-                candidates = [
-                    i
-                    for i, val in enumerate(np.abs(corrcoef[idx, :]))
-                    if (val > threshold_correlation)
-                ]
+                candidates = [i for i, val in enumerate(np.abs(corrcoef[idx, :])) if (val > threshold_correlation)]
                 signs = [np.sign(j) for j in corrcoef[idx, :]]
             else:
                 # Columns with no variation
-                candidates = [
-                    i
-                    for i, j in enumerate(has_variation)
-                    if (j <= threshold_correlation)
-                ]
+                candidates = [i for i, j in enumerate(has_variation) if (j <= threshold_correlation)]
 
             # Track the correlation signs
             signs = [np.sign(j) for j in dot_product[idx, :]]
@@ -268,7 +256,6 @@ def lm(
                     # It is of course perfectly correlated with itself
                     pass
                 else:
-
                     aliases = [t.name() for t in terms[col].factors]
                     if len(aliases) == 0:
                         aliases = ["Intercept"]
@@ -293,9 +280,7 @@ def lm(
 
     pre_model = smf.ols(model_spec, data=data)
     model_description = ModelDesc.from_formula(model_spec)
-    aliasing, drop_columns = find_aliases(
-        pre_model, model_description, threshold_correlation=alias_threshold
-    )
+    aliasing, drop_columns = find_aliases(pre_model, model_description, threshold_correlation=alias_threshold)
     drop_column_names = [pre_model.data.xnames[i] for i in drop_columns]
 
     post_model = smf.ols(model_spec, data=data, drop_cols=drop_column_names)

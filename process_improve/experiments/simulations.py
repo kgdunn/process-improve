@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) Kevin Dunn, 2010-2022. MIT License. Based on own private work over the years.
+# (c) Kevin Dunn, 2010-2023. MIT License. Based on own private work over the years.
 
 import pandas as pd
 from numpy.random import normal
@@ -31,7 +31,7 @@ def popcorn(t=120, T=None):
 
     Source
     ------
-    Kevin Dunn, Process Improvement using Data, Chapter 5, 2010 to 2022,
+    Kevin Dunn, Process Improvement using Data, Chapter 5, 2010 to 2023,
     https://learnche.org/pid
 
 
@@ -71,7 +71,7 @@ def grocery(p=3.46, h=150, P=None, H=None):
 
     Source
     ------
-    Kevin Dunn, Process Improvement using Data, Chapter 5, 2010 to 2022,
+    Kevin Dunn, Process Improvement using Data, Chapter 5, 2010 to 2023,
     https://learnche.org/pid
 
     """
@@ -81,9 +81,7 @@ def grocery(p=3.46, h=150, P=None, H=None):
         H = h
 
     if (len(P) > 1) | (len(H) > 1):
-        assert (
-            False
-        ), "Running the grocery store experiments in parallel is (intentionally) not allowed."
+        assert False, "Running the grocery store experiments in parallel is (intentionally) not allowed."
 
     if pd.isna(P) or pd.isna(H):
         assert False, "All function inputs must be finite numbers."
@@ -95,14 +93,7 @@ def grocery(p=3.46, h=150, P=None, H=None):
     a_coded = (P - 3.2) / 0.2
     b_coded = (H - 50) / 100
     y = round(
-        (
-            18 * a_coded
-            + 12 * b_coded
-            - 7 * a_coded * a_coded
-            - 6.0 * b_coded * b_coded
-            - 8.5 * a_coded * b_coded
-            + 60
-        )
+        (18 * a_coded + 12 * b_coded - 7 * a_coded * a_coded - 6.0 * b_coded * b_coded - 8.5 * a_coded * b_coded + 60)
         * 10.0
         + normal(0, 1) * 2
     )

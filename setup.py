@@ -7,11 +7,9 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 with open(pathlib.Path(".") / "process_improve" / "__init__.py") as fh:
-    version_number = [
-        line.split("=")[1].strip()
-        for line in fh.read().split("\n")
-        if line.startswith("__version__")
-    ][0].replace('"', "")
+    version_number = [line.split("=")[1].strip() for line in fh.read().split("\n") if line.startswith("__version__")][
+        0
+    ].replace('"', "")
 
 setuptools.setup(
     name="process-improve",
@@ -38,7 +36,7 @@ setuptools.setup(
         "statsmodels",
         "matplotlib",
         "bokeh",
-        "sklearn",
+        "scikit-learn",
         "patsy",
         "scikit-image",
         "scikit-learn",

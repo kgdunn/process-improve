@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) Kevin Dunn, 2010-2022. MIT License.
+# (c) Kevin Dunn, 2010-2023. MIT License.
 
 import pathlib
 
@@ -31,7 +31,6 @@ def test_PCA_SPE_limits():
     outliers_95 = []
     outliers_99 = []
     for k in range(repeats):
-
         # The desired mean values of the sample.
         mu = np.array([0.0, 0.0, 0.0])
 
@@ -47,12 +46,8 @@ def test_PCA_SPE_limits():
         SPE_limit_95 = pca.SPE_limit(conf_level=0.95)
         SPE_limit_99 = pca.SPE_limit(conf_level=0.99)
 
-        outliers_95.append(
-            (pca.squared_prediction_error.iloc[:, A - 1] > SPE_limit_95).sum()
-        )
-        outliers_99.append(
-            (pca.squared_prediction_error.iloc[:, A - 1] > SPE_limit_99).sum()
-        )
+        outliers_95.append((pca.squared_prediction_error.iloc[:, A - 1] > SPE_limit_95).sum())
+        outliers_99.append((pca.squared_prediction_error.iloc[:, A - 1] > SPE_limit_99).sum())
 
     assert np.mean(outliers_95) == approx(0.05 * N, rel=0.1)
     assert np.mean(outliers_99) == approx(0.01 * N, rel=0.1)
@@ -75,9 +70,9 @@ def test_PCA_foods():
     A = 2
     pca = PCA(n_components=A).fit(foods_mcuv)
 
-    assert np.linalg.norm(
-        np.diag(pca.x_scores.T @ pca.x_scores) / (pca.N - 1) - pca.explained_variance_
-    ) == approx(0, abs=epsqrt)
+    assert np.linalg.norm(np.diag(pca.x_scores.T @ pca.x_scores) / (pca.N - 1) - pca.explained_variance_) == approx(
+        0, abs=epsqrt
+    )
 
     T2_limit_95 = pca.T2_limit(0.95)
     assert T2_limit_95 == approx(6.64469, rel=1e-3)
@@ -91,12 +86,7 @@ def test_PCA_foods():
 
 @pytest.fixture
 def fixture_kamyr_data_missing_value():
-    folder = (
-        pathlib.Path(__file__).parents[1]
-        / "process_improve"
-        / "datasets"
-        / "multivariate"
-    )
+    folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "multivariate"
     return pd.read_csv(
         folder / "kamyr.csv",
         index_col=None,
@@ -105,7 +95,6 @@ def fixture_kamyr_data_missing_value():
 
 
 def test_PCA_missing_data(fixture_kamyr_data_missing_value):
-
     X_mcuv = MCUVScaler().fit_transform(fixture_kamyr_data_missing_value)
 
     # Build the model
@@ -118,13 +107,10 @@ def test_PCA_missing_data(fixture_kamyr_data_missing_value):
     assert isinstance(model.missing_data_settings, dict)
     assert "md_tol" in model.missing_data_settings
 
-    assert np.linalg.norm(
-        (model.loadings.T @ model.loadings) - np.eye(model.A)
-    ) == approx(0, abs=1e-2)
+    assert np.linalg.norm((model.loadings.T @ model.loadings) - np.eye(model.A)) == approx(0, abs=1e-2)
 
 
 def test_PCA_missing_data_as_numpy(fixture_kamyr_data_missing_value):
-
     X_mcuv = MCUVScaler().fit_transform(fixture_kamyr_data_missing_value.values)
 
     # Build the model
@@ -137,9 +123,7 @@ def test_PCA_missing_data_as_numpy(fixture_kamyr_data_missing_value):
     assert isinstance(model.missing_data_settings, dict)
     assert "md_tol" in model.missing_data_settings
 
-    assert np.linalg.norm(
-        (model.loadings.T @ model.loadings) - np.eye(model.A)
-    ) == approx(0, abs=1e-2)
+    assert np.linalg.norm((model.loadings.T @ model.loadings) - np.eye(model.A)) == approx(0, abs=1e-2)
 
 
 @pytest.fixture
@@ -215,12 +199,7 @@ def fixture_tablet_spectra_data():
     PC3 -1.134026e-11 2.042206e-10  5.951125e+03 7.815970e-13
     PC4  3.454659e-11 5.821477e-11  7.815970e-13 4.910481e+03
     """
-    folder = (
-        pathlib.Path(__file__).parents[1]
-        / "process_improve"
-        / "datasets"
-        / "multivariate"
-    )
+    folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "multivariate"
     spectra = pd.read_csv(
         folder / "tablet-spectra.csv",
         index_col=0,
@@ -302,16 +281,11 @@ def test_PCA_tablet_spectra(fixture_tablet_spectra_data):
     scores_covar = model.x_scores.T @ model.x_scores
     for i in range(model.A):
         for j in range(model.A):
-
             # Technically not need, but more explict this way.
             if i == j:
-                assert scores_covar.iloc[i, j] == approx(
-                    known_scores_covar[i, j], rel=1e-2
-                )
+                assert scores_covar.iloc[i, j] == approx(known_scores_covar[i, j], rel=1e-2)
             else:
-                assert scores_covar.iloc[i, j] == approx(
-                    known_scores_covar[i, j], abs=1e-4
-                )
+                assert scores_covar.iloc[i, j] == approx(known_scores_covar[i, j], abs=1e-4)
 
                 if i >= 1:
                     assert scores_covar.iloc[j, j] > scores_covar.iloc[i, i]
@@ -321,9 +295,7 @@ def test_PCA_tablet_spectra(fixture_tablet_spectra_data):
     autoscaled_X = scale(center(spectra))
     u, s, v = np.linalg.svd(autoscaled_X)
 
-    loadings_delta = np.linalg.norm(
-        np.abs(v[0 : model.A, :]) - np.abs(model.loadings.T)
-    )
+    loadings_delta = np.linalg.norm(np.abs(v[0 : model.A, :]) - np.abs(model.loadings.T))
     assert loadings_delta == approx(0, abs=1e-8)
 
     # It is not possible, it seems, to get the scores to match the SVD
@@ -359,13 +331,9 @@ def test_PCA_invalid_calls():
 
     data.iloc[0, 0] = np.nan
     with pytest.raises(AssertionError, match="Tolerance must exceed machine precision"):
-        _ = PCA(
-            n_components=A, missing_data_settings=dict(md_method="nipals", md_tol=0)
-        ).fit(data)
+        _ = PCA(n_components=A, missing_data_settings=dict(md_method="nipals", md_tol=0)).fit(data)
 
-    with pytest.raises(
-        AssertionError, match=r"Missing data method is not recognized(.*)"
-    ):
+    with pytest.raises(AssertionError, match=r"Missing data method is not recognized(.*)"):
         _ = PCA(n_components=A, missing_data_settings={"md_method": "SCP"}).fit(data)
 
     # TODO: replace with a check to ensure the data is in a DataFrame.
@@ -418,20 +386,14 @@ def test_PCA_columns_with_no_variance():
 
     # `loadings` is a K by A matrix.  Check sum of loadings in rows with
     # no variance must be zero
-    assert np.sum(np.abs(m.loadings.iloc[cols_with_no_variance, :].values)) == approx(
-        0, abs=1e-14
-    )
+    assert np.sum(np.abs(m.loadings.iloc[cols_with_no_variance, :].values)) == approx(0, abs=1e-14)
     # The loadings must still be orthonormal though:
-    assert np.sum(np.identity(m.A) - m.loadings.values.T @ m.loadings.values) == approx(
-        0, abs=1e-14
-    )
+    assert np.sum(np.identity(m.A) - m.loadings.values.T @ m.loadings.values) == approx(0, abs=1e-14)
 
     # Are scores orthogonal?
     covmatrix = m.x_scores.T @ m.x_scores
     covmatrix - np.diag(np.diag(covmatrix))
-    (np.sum(np.abs(covmatrix - np.diag(np.diag(covmatrix))))).values == approx(
-        0, abs=1e-6
-    )
+    (np.sum(np.abs(covmatrix - np.diag(np.diag(covmatrix))))).values == approx(0, abs=1e-6)
 
 
 @pytest.fixture
@@ -457,9 +419,7 @@ def test_PCA_Wold_scaling(fixture_pca_PCA_Wold_etal_paper):
     Checks the scaling step. Page 40 of the above paper.
     """
 
-    out, scaling = scale(
-        center(fixture_pca_PCA_Wold_etal_paper), extra_output=True, ddof=1
-    )
+    out, scaling = scale(center(fixture_pca_PCA_Wold_etal_paper), extra_output=True, ddof=1)
     assert scaling == approx([1, 1, 0.5, 1])
 
 
@@ -491,12 +451,8 @@ def test_PCA_Wold_model_results(fixture_pca_PCA_Wold_etal_paper):
     X_preproc = scale(center(fixture_pca_PCA_Wold_etal_paper))
     pca_2 = PCA(n_components=2)
     pca_2.fit(X_preproc)
-    assert np.abs(pca_2.loadings.values[:, 0]) == approx(
-        [0.5410, 0.3493, 0.5410, 0.5410], abs=1e-4
-    )
-    assert np.abs(pca_2.loadings.values[:, 1]) == approx(
-        [0.2017, 0.9370, 0.2017, 0.2017], abs=1e-4
-    )
+    assert np.abs(pca_2.loadings.values[:, 0]) == approx([0.5410, 0.3493, 0.5410, 0.5410], abs=1e-4)
+    assert np.abs(pca_2.loadings.values[:, 1]) == approx([0.2017, 0.9370, 0.2017, 0.2017], abs=1e-4)
 
     # Scores. The scaling is off here by a constant factor of 0.8165
     # assert np.all(pca_2.x_scores["1"] == approx([-1.6229, -0.3493, 1.9723], rel=1e-3))
@@ -539,9 +495,7 @@ def test_PLS_invalid_calls():
     K, N, M, A = 4, 3, 2, 5
     dataX = pd.DataFrame(np.random.uniform(low=-1, high=1, size=(N, K)))
     dataY = pd.DataFrame(np.random.uniform(low=-1, high=1, size=(N, M)))
-    with pytest.raises(
-        ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"
-    ):
+    with pytest.raises(ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"):
         _ = PLS(n_components=A, tol=0)
 
     with pytest.raises(ValueError, match="Method 'SVDS' is not known."):
@@ -550,9 +504,7 @@ def test_PLS_invalid_calls():
     with pytest.raises(ValueError, match="Missing data method 'SCP' is not known."):
         _ = PLS(n_components=A, md_method="SCP")
 
-    with pytest.warns(
-        SpecificationWarning, match=r"The requested number of components is (.*)"
-    ):
+    with pytest.warns(SpecificationWarning, match=r"The requested number of components is (.*)"):
         model = PLS(
             n_components=A,
         )
@@ -561,9 +513,7 @@ def test_PLS_invalid_calls():
     from scipy.sparse import csr_matrix
 
     sparse_data = csr_matrix([[1, 2], [0, 3], [4, 5]])
-    with pytest.raises(
-        TypeError, match="This PLS class does not support sparse input."
-    ):
+    with pytest.raises(TypeError, match="This PLS class does not support sparse input."):
         model = PLS(n_components=2)
         model.fit(dataX, sparse_data)
 
@@ -707,9 +657,7 @@ def fixture_PLS_model_SIMCA_1_component():
         )
     )
 
-    data["y"] = pd.DataFrame(
-        np.array([1.12, 1.01, 0.97, 0.83, 0.93, 1.02, 0.91, 0.7, 1.26, 1.05, 0.95])
-    )
+    data["y"] = pd.DataFrame(np.array([1.12, 1.01, 0.97, 0.83, 0.93, 1.02, 0.91, 0.7, 1.26, 1.05, 0.95]))
     data["expected_y_predicted"] = [
         1.17475,
         0.930441,
@@ -792,9 +740,7 @@ def fixture_PLS_model_SIMCA_1_component():
             0.764301,
         ]
     )
-    data["Xavg"] = np.array(
-        [41.38802, 21.03755, 20.03097, 0.3884909, 0.1072455, -1.006582]
-    )
+    data["Xavg"] = np.array([41.38802, 21.03755, 20.03097, 0.3884909, 0.1072455, -1.006582])
     data["Xws"] = 1 / np.array(
         [
             1.259059,
@@ -813,10 +759,9 @@ def fixture_PLS_model_SIMCA_1_component():
 
 
 def test_PLS_compare_sklearn_1_component(fixture_PLS_model_SIMCA_1_component):
-
     data = fixture_PLS_model_SIMCA_1_component
 
-    plsmodel = PLSRegression(n_components=data["A"], scale="True")
+    plsmodel = PLSRegression(n_components=data["A"], scale=True)
     plsmodel.fit(data["X"], data["y"])
 
     # Check the pre-processing: sig figs have been taken as high as possible.
@@ -863,7 +808,6 @@ def test_PLS_compare_sklearn_1_component(fixture_PLS_model_SIMCA_1_component):
 
 
 def test_PLS_compare_model_api(fixture_PLS_model_SIMCA_1_component):
-
     data = fixture_PLS_model_SIMCA_1_component
     plsmodel = PLS(n_components=data["A"])
 
@@ -890,14 +834,10 @@ def test_PLS_compare_model_api(fixture_PLS_model_SIMCA_1_component):
 
     # Check the model's predictions
     state = plsmodel.predict(X_mcuv.transform(data["X"]))
-    assert plsmodel.squared_prediction_error.values.ravel() == approx(
-        state.squared_prediction_error.values, abs=1e-9
-    )
+    assert plsmodel.squared_prediction_error.values.ravel() == approx(state.squared_prediction_error.values, abs=1e-9)
     assert data["t1"] == approx(state.x_scores.values.ravel(), abs=1e-5)
     assert data["Tsq"] == approx(state.Hotellings_T2.values.ravel(), abs=1e-5)
-    assert data["expected_y_predicted"] == approx(
-        Y_mcuv.inverse_transform(state.y_hat).values.ravel(), abs=1e-5
-    )
+    assert data["expected_y_predicted"] == approx(Y_mcuv.inverse_transform(state.y_hat).values.ravel(), abs=1e-5)
 
 
 @pytest.fixture
@@ -1023,12 +963,8 @@ def fixture_PLS_SIMCA_2_components():
         0.04630876,
         -0.552768,
     ]
-    out["loadings_P"] = np.array(
-        [[-0.3799977, -0.7815778], [0.8737038, -0.2803103], [-0.3314019, 0.55731]]
-    )
-    out["loadings_W"] = np.array(  # W
-        [[-0.4839311, -0.7837874], [0.8361799, -0.2829775], [-0.2580969, 0.5528119]]
-    )
+    out["loadings_P"] = np.array([[-0.3799977, -0.7815778], [0.8737038, -0.2803103], [-0.3314019, 0.55731]])
+    out["loadings_W"] = np.array([[-0.4839311, -0.7837874], [0.8361799, -0.2829775], [-0.2580969, 0.5528119]])  # W
     out["loadings_C"] = [1.019404, 0.1058565]
     out["SDt"] = [0.9724739, 1.098932]
 
@@ -1099,7 +1035,6 @@ def fixture_PLS_SIMCA_2_components():
 
 
 def test_PLS_sklearn_2_components(fixture_PLS_SIMCA_2_components):
-
     data = fixture_PLS_SIMCA_2_components
 
     plsmodel = PLSRegression(n_components=data["A"], scale=False)
@@ -1130,22 +1065,16 @@ def test_PLS_compare_API(fixture_PLS_SIMCA_2_components):
     assert np.abs(data["T"]) == approx(np.abs(plsmodel.x_scores), abs=1e-5)
     assert np.abs(data["loadings_P"]) == approx(np.abs(plsmodel.x_loadings), abs=1e-5)
     assert np.abs(data["loadings_W"]) == approx(np.abs(plsmodel.x_weights), abs=1e-5)
-    assert Y_mcuv.inverse_transform(plsmodel.predictions).values == approx(
-        data["expected_y_predicted"], abs=1e-5
-    )
+    assert Y_mcuv.inverse_transform(plsmodel.predictions).values == approx(data["expected_y_predicted"], abs=1e-5)
     assert sum(data["R2Y"]) == approx(plsmodel.R2cum.values[-1], abs=1e-7)
 
     # Check the model's predictions
     state = plsmodel.predict(X_mcuv.transform(data["X"]))
     # TODO: a check on SPE vs Simca-P. Here we are doing a check between the SPE from the
     # model building, to model-using, but not against an external library.
-    assert plsmodel.squared_prediction_error.iloc[:, -1].values == approx(
-        state.squared_prediction_error, abs=1e-10
-    )
+    assert plsmodel.squared_prediction_error.iloc[:, -1].values == approx(state.squared_prediction_error, abs=1e-10)
     assert data["Tsq"] == approx(state.Hotellings_T2, abs=1e-5)
-    assert data["expected_y_predicted"] == approx(
-        Y_mcuv.inverse_transform(state.y_hat).values.ravel(), abs=1e-5
-    )
+    assert data["expected_y_predicted"] == approx(Y_mcuv.inverse_transform(state.y_hat).values.ravel(), abs=1e-5)
     assert np.abs(data["T"]) == approx(np.abs(state.x_scores), abs=1e-5)
 
 
@@ -1188,12 +1117,7 @@ def fixture_PLS_LDPE_example():
     A = 6
     """
     out = {}
-    folder = (
-        pathlib.Path(__file__).parents[1]
-        / "process_improve"
-        / "datasets"
-        / "multivariate"
-    )
+    folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "multivariate"
     values = pd.read_csv(
         folder / "LDPE" / "LDPE.csv",
         index_col=0,
@@ -1215,9 +1139,7 @@ def fixture_PLS_LDPE_example():
         folder / "LDPE" / "Yhat_A6.csv",
         header=None,
     )
-    out["expected_SD_t"] = np.array(
-        [1.872539, 1.440642, 1.216218, 1.141096, 1.059435, 0.9459715]
-    )
+    out["expected_SD_t"] = np.array([1.872539, 1.440642, 1.216218, 1.141096, 1.059435, 0.9459715])
     out["expected_T2_lim_95_A6"] = 15.2017
     out["expected_T2_lim_99_A6"] = 21.2239
     out["X"] = values.iloc[:, :14]
@@ -1247,44 +1169,26 @@ def test_PLS_SIMCA_LDPE(fixture_PLS_LDPE_example):
     assert data["expected_T2_lim_95_A6"] == approx(plsmodel.T2_limit(0.95), rel=1e-1)
     assert data["expected_T2_lim_99_A6"] == approx(plsmodel.T2_limit(0.99), rel=1e-1)
 
+    assert np.mean(np.abs(data["expected_T"].values) - np.abs(plsmodel.x_scores.values)) == approx(0, abs=1e-4)
+    assert np.mean(np.abs(data["expected_P"].values) - np.abs(plsmodel.x_loadings.values)) == approx(0, abs=1e-5)
+    assert np.mean(np.abs(data["expected_W"].values) - np.abs(plsmodel.x_weights.values)) == approx(0, abs=1e-6)
+    assert np.mean(np.abs(data["expected_C"].values) - np.abs(plsmodel.y_loadings.values)) == approx(0, abs=1e-6)
+    assert np.mean(np.abs(data["expected_U"].values) - np.abs(plsmodel.y_scores.values)) == approx(0, abs=1e-5)
     assert np.mean(
-        np.abs(data["expected_T"].values) - np.abs(plsmodel.x_scores.values)
-    ) == approx(0, abs=1e-4)
-    assert np.mean(
-        np.abs(data["expected_P"].values) - np.abs(plsmodel.x_loadings.values)
-    ) == approx(0, abs=1e-5)
-    assert np.mean(
-        np.abs(data["expected_W"].values) - np.abs(plsmodel.x_weights.values)
+        data["expected_Hotellings_T2_A3"].values.ravel() - plsmodel.Hotellings_T2.iloc[:, 2].values.ravel()
     ) == approx(0, abs=1e-6)
     assert np.mean(
-        np.abs(data["expected_C"].values) - np.abs(plsmodel.y_loadings.values)
+        data["expected_Hotellings_T2_A6"].values.ravel() - plsmodel.Hotellings_T2.iloc[:, 5].values.ravel()
     ) == approx(0, abs=1e-6)
-    assert np.mean(
-        np.abs(data["expected_U"].values) - np.abs(plsmodel.y_scores.values)
-    ) == approx(0, abs=1e-5)
-    assert np.mean(
-        data["expected_Hotellings_T2_A3"].values.ravel()
-        - plsmodel.Hotellings_T2.iloc[:, 2].values.ravel()
-    ) == approx(0, abs=1e-6)
-    assert np.mean(
-        data["expected_Hotellings_T2_A6"].values.ravel()
-        - plsmodel.Hotellings_T2.iloc[:, 5].values.ravel()
-    ) == approx(0, abs=1e-6)
-    assert np.mean(
-        data["expected_SD_t"].ravel()
-        - plsmodel.scaling_factor_for_scores.values.ravel()
-    ) == approx(0, abs=1e-5)
+    assert np.mean(data["expected_SD_t"].ravel() - plsmodel.scaling_factor_for_scores.values.ravel()) == approx(
+        0, abs=1e-5
+    )
 
     # Absolute sum of the deviations, accounting for the fact that each column in Y has quite
     # different range/scaling.
     assert np.sum(
         np.abs(
-            np.sum(
-                np.abs(
-                    Y_mcuv.inverse_transform(plsmodel.predictions)
-                    - data["expected_Yhat_A6"].values
-                )
-            )
+            np.sum(np.abs(Y_mcuv.inverse_transform(plsmodel.predictions) - data["expected_Yhat_A6"].values))
             / Y_mcuv.center_
         )
     ) == approx(0, abs=1e-2)
@@ -1309,44 +1213,26 @@ def test_PLS_SIMCA_LDPE_missing_data(fixture_PLS_LDPE_example):
     assert data["expected_T2_lim_95_A6"] == approx(plsmodel.T2_limit(0.95), rel=1e-1)
     assert data["expected_T2_lim_99_A6"] == approx(plsmodel.T2_limit(0.99), rel=1e-1)
 
+    assert np.mean(np.abs(data["expected_T"].values) - np.abs(plsmodel.x_scores.values)) == approx(0, abs=1e-2)
+    assert np.mean(np.abs(data["expected_P"].values) - np.abs(plsmodel.x_loadings.values)) == approx(0, abs=1e-3)
+    assert np.mean(np.abs(data["expected_W"].values) - np.abs(plsmodel.x_weights.values)) == approx(0, abs=1e-3)
+    assert np.mean(np.abs(data["expected_C"].values) - np.abs(plsmodel.y_loadings.values)) == approx(0, abs=1e-3)
+    assert np.mean(np.abs(data["expected_U"].values) - np.abs(plsmodel.y_scores.values)) == approx(0, abs=5e-1)
     assert np.mean(
-        np.abs(data["expected_T"].values) - np.abs(plsmodel.x_scores.values)
-    ) == approx(0, abs=1e-2)
-    assert np.mean(
-        np.abs(data["expected_P"].values) - np.abs(plsmodel.x_loadings.values)
-    ) == approx(0, abs=1e-3)
-    assert np.mean(
-        np.abs(data["expected_W"].values) - np.abs(plsmodel.x_weights.values)
-    ) == approx(0, abs=1e-3)
-    assert np.mean(
-        np.abs(data["expected_C"].values) - np.abs(plsmodel.y_loadings.values)
-    ) == approx(0, abs=1e-3)
-    assert np.mean(
-        np.abs(data["expected_U"].values) - np.abs(plsmodel.y_scores.values)
-    ) == approx(0, abs=5e-1)
-    assert np.mean(
-        data["expected_Hotellings_T2_A3"].values.ravel()
-        - plsmodel.Hotellings_T2.iloc[:, 2].values.ravel()
+        data["expected_Hotellings_T2_A3"].values.ravel() - plsmodel.Hotellings_T2.iloc[:, 2].values.ravel()
     ) == approx(0, abs=1e-6)
     assert np.mean(
-        data["expected_Hotellings_T2_A6"].values.ravel()
-        - plsmodel.Hotellings_T2.iloc[:, 5].values.ravel()
+        data["expected_Hotellings_T2_A6"].values.ravel() - plsmodel.Hotellings_T2.iloc[:, 5].values.ravel()
     ) == approx(0, abs=1e-6)
-    assert np.mean(
-        data["expected_SD_t"].ravel()
-        - plsmodel.scaling_factor_for_scores.values.ravel()
-    ) == approx(0, abs=1e-2)
+    assert np.mean(data["expected_SD_t"].ravel() - plsmodel.scaling_factor_for_scores.values.ravel()) == approx(
+        0, abs=1e-2
+    )
 
     # Absolute sum of the deviations, accounting for the fact that each column in Y has quite
     # different range/scaling.
     assert np.sum(
         np.abs(
-            np.sum(
-                np.abs(
-                    Y_mcuv.inverse_transform(plsmodel.predictions)
-                    - data["expected_Yhat_A6"].values
-                )
-            )
+            np.sum(np.abs(Y_mcuv.inverse_transform(plsmodel.predictions) - data["expected_Yhat_A6"].values))
             / Y_mcuv.center_
         )
     ) == approx(0, abs=0.5)

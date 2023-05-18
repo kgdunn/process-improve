@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) Kevin Dunn, 2010-2022. MIT License.
+# (c) Kevin Dunn, 2010-2023. MIT License.
 import webbrowser
 
 import numpy as np
@@ -48,7 +48,6 @@ def pareto_plot(
     # In the hover over the bars
     aliasing_up_to_level=2,
 ):
-
     # TODO: show full variable names + units on pareto plot for main factors
     #       an interactions
 
@@ -105,9 +104,7 @@ def pareto_plot(
 
     params = model.get_parameters()
     if up_to_level:
-        assert isinstance(up_to_level, int), (
-            "Specify an integer value for " "`up_to_level`."
-        )
+        assert isinstance(up_to_level, int), "Specify an integer value for " "`up_to_level`."
         keep = []
         for k in range(up_to_level):
             keep.extend(model.get_factor_names(level=k + 1))
@@ -123,7 +120,7 @@ def pareto_plot(
     params = params.abs()
     base_parameters = model.get_factor_names(level=1)
     full_names = []
-    for param_name, _ in params.iteritems():
+    for param_name, _ in params.items():
         if param_name in base_parameters:
             fname = model.data.pi_source.get(param_name, param_name)
             full_names.append(fname)
@@ -143,9 +140,7 @@ def pareto_plot(
         ("Magnitude and sign", "@original_magnitude_with_sign"),
     ]
 
-    alias_strings = model.get_aliases(
-        aliasing_up_to_level, drop_intercept=True, websafe=True
-    )
+    alias_strings = model.get_aliases(aliasing_up_to_level, drop_intercept=True, websafe=True)
 
     if len(alias_strings) != 0:
         TOOLTIPS.append(
@@ -309,9 +304,7 @@ def contour_plot(
         for factor in unspecified_factors:
             kwargs[factor] = np.zeros_like(h_grid)
 
-        assert sorted(kwargs.keys()) == sorted(
-            pure_factors
-        ), "Not all factors were specified."
+        assert sorted(kwargs.keys()) == sorted(pure_factors), "Not all factors were specified."
         Z = predict(model, **kwargs)
         Z = Z.values.reshape(N, N)
 
@@ -383,7 +376,6 @@ def contour_plot_bokeh(
     dpi=50,
     other_factors=None,
 ):
-
     # TODO: show labels of contour plot
 
     # https://stackoverflow.com/questions/33533047/how-to-make-a-contour-plot-in-python-using-bokeh-or-other-libs
@@ -418,9 +410,7 @@ def contour_plot_bokeh(
     for factor in unspecified_factors:
         kwargs[factor] = np.zeros_like(h_grid)
 
-    assert sorted(kwargs.keys()) == sorted(pure_factors), (
-        "Not all factors " "were specified."
-    )
+    assert sorted(kwargs.keys()) == sorted(pure_factors), "Not all factors " "were specified."
     Z = predict(model, **kwargs)
     Z = Z.values.reshape(N, N)
     z_min, z_max = Z.min(), Z.max()
@@ -510,7 +500,6 @@ def contour_plot_bokeh(
     # TODO: hover for the data point shows the factor settings for the data point
 
     if show_expt_data:
-
         source = ColumnDataSource(
             data=dict(
                 x=model.data[xlabel],
@@ -652,9 +641,7 @@ def plot_model(
     if not oneD:
         yrange = model.data[y_column].min(), model.data[y_column].max()
         ydelta = yrange[1] - yrange[0]
-        ylim = kwargs.get(
-            "ylim", (yrange[0] - ydelta * 0.05, yrange[1] + ydelta * 0.05)
-        )
+        ylim = kwargs.get("ylim", (yrange[0] - ydelta * 0.05, yrange[1] + ydelta * 0.05))
 
         v_grid = np.linspace(ylim[0], ylim[1], num=per_axis_points)
         H, V = np.meshgrid(h_grid, v_grid)
@@ -685,9 +672,7 @@ def plot_model(
         plotdata[y_column] = Z
         yrange = Z.min(), Z.max()
         ydelta = yrange[1] - yrange[0]
-        ylim = kwargs.get(
-            "ylim", (yrange[0] - ydelta * 0.05, yrange[1] + ydelta * 0.05)
-        )
+        ylim = kwargs.get("ylim", (yrange[0] - ydelta * 0.05, yrange[1] + ydelta * 0.05))
 
     if fig:
         p = fig
@@ -762,7 +747,6 @@ def plot_model(
     p.yaxis.axis_label_text_font_size = "14pt"
     p.yaxis.axis_label_text_font_style = "bold"
     if prior_figure:
-
         # p.xaxis.bounds =
         p.x_range = Range1d(
             min(xlim[0], p.x_range.start, min(model.data[x_column])),

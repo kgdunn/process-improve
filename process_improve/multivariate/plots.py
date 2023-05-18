@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) Kevin Dunn, 2010-2022. MIT License. Based on own private work over the years.
+# (c) Kevin Dunn, 2010-2023. MIT License. Based on own private work over the years.
 
 # Built-in libraries
 import json
@@ -10,18 +10,10 @@ from pydantic import BaseModel, validator
 
 
 def plot_pre_checks(model, pc_horiz, pc_vert, pc_depth) -> bool:
-    assert (
-        0 < pc_horiz <= model.A
-    ), f"The model has {model.A} components. Ensure that 1 <= pc_horiz<={model.A}."
-    assert (
-        0 < pc_vert <= model.A
-    ), f"The model has {model.A} components. Ensure that 1 <= pc_vert<={model.A}."
-    assert (
-        -1 <= pc_depth <= model.A
-    ), f"The model has {model.A} components. Ensure that 1 <= pc_depth<={model.A}."
-    assert (
-        len(set([pc_horiz, pc_vert, pc_depth])) == 3
-    ), "Specify distinct components for each axis"
+    assert 0 < pc_horiz <= model.A, f"The model has {model.A} components. Ensure that 1 <= pc_horiz<={model.A}."
+    assert 0 < pc_vert <= model.A, f"The model has {model.A} components. Ensure that 1 <= pc_vert<={model.A}."
+    assert -1 <= pc_depth <= model.A, f"The model has {model.A} components. Ensure that 1 <= pc_depth<={model.A}."
+    assert len(set([pc_horiz, pc_vert, pc_depth])) == 3, "Specify distinct components for each axis"
 
     return True
 
@@ -110,9 +102,7 @@ def score_plot(
         fig = go.Figure()
 
     name = "X-space scores [T]"
-    fig.update_layout(
-        xaxis_title_text=f"PC {pc_horiz}", yaxis_title_text=f"PC {pc_vert}"
-    )
+    fig.update_layout(xaxis_title_text=f"PC {pc_horiz}", yaxis_title_text=f"PC {pc_vert}")
 
     highlights: Dict[str, list] = {}
     default_index = model.x_scores.index
@@ -120,9 +110,7 @@ def score_plot(
         highlights = items_to_highlight.copy()
         for key, items in items_to_highlight.items():
             highlights[key] = list(set(items) & set(default_index))
-            default_index = (set(default_index) ^ set(highlights[key])) & set(
-                default_index
-            )
+            default_index = (set(default_index) ^ set(highlights[key])) & set(default_index)
 
     # Ensure it is back to a list
     default_index = list(default_index)
@@ -259,9 +247,7 @@ def score_plot(
     return fig
 
 
-def loadings_plot(
-    model, loadings_type="p", pc_horiz=1, pc_vert=2, settings: Dict = None, fig=None
-) -> go.Figure:
+def loadings_plot(model, loadings_type="p", pc_horiz=1, pc_vert=2, settings: Dict = None, fig=None) -> go.Figure:
     """Generates a 2-dimensional loadings for the given latent variable model.
 
     Parameters
@@ -303,10 +289,7 @@ def loadings_plot(
     margin_dict: Dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
 
     class Settings(BaseModel):
-        title: str = (
-            f"Loadings plot [{loadings_type.upper()}] of component {pc_horiz} vs "
-            f"component {pc_vert}"
-        )
+        title: str = f"Loadings plot [{loadings_type.upper()}] of component {pc_horiz} vs " f"component {pc_vert}"
         show_labels: bool = True
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
@@ -372,9 +355,7 @@ def loadings_plot(
             )
         )
 
-    fig.update_layout(
-        xaxis_title_text=f"PC {pc_horiz}", yaxis_title_text=f"PC {pc_vert}"
-    )
+    fig.update_layout(xaxis_title_text=f"PC {pc_horiz}", yaxis_title_text=f"PC {pc_vert}")
     fig.add_hline(y=0, line_color="black")
     fig.add_vline(x=0, line_color="black")
     fig.update_layout(
@@ -506,9 +487,7 @@ def spe_plot(
         highlights = items_to_highlight.copy()
         for key, items in items_to_highlight.items():
             highlights[key] = list(set(items) & set(default_index))
-            default_index = (set(default_index) ^ set(highlights[key])) & set(
-                default_index
-            )
+            default_index = (set(default_index) ^ set(highlights[key])) & set(default_index)
 
     # Ensure it is back to a list
     default_index = list(default_index)
@@ -673,9 +652,7 @@ def t2_plot(
         highlights = items_to_highlight.copy()
         for key, items in items_to_highlight.items():
             highlights[key] = list(set(items) & set(default_index))
-            default_index = (set(default_index) ^ set(highlights[key])) & set(
-                default_index
-            )
+            default_index = (set(default_index) ^ set(highlights[key])) & set(default_index)
 
     # Ensure it is back to a list
     default_index = list(default_index)

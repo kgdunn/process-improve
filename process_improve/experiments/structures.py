@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) Kevin Dunn, 2010-2022. MIT License. Based on own private work over the years.
+# (c) Kevin Dunn, 2010-2023. MIT License. Based on own private work over the years.
 
 import itertools
 from collections import defaultdict
@@ -157,10 +157,7 @@ def create_names(n: int, letters=True, prefix="X", start_at=1, padded=True):
         if padded:
             longest = len(str(start_at + n - 1))
 
-        out = [
-            f'{str(prefix)}{str(i).rjust(longest, "0")}'
-            for i in range(start_at, n + start_at)
-        ]
+        out = [f'{str(prefix)}{str(i).rjust(longest, "0")}' for i in range(start_at, n + start_at)]
 
     return out
 
@@ -241,9 +238,7 @@ def c(*args, **kwargs) -> Column:  # noqa: C901
     default_idx = list(range(1, len(sanitize) + 1))
     index = kwargs.get("index", default_idx)
     if len(index) != len(sanitize):
-        raise IndexError(
-            ('Length of "index" must match the ' "number of numeric inputs.")
-        )
+        raise IndexError(('Length of "index" must match the ' "number of numeric inputs."))
 
     out = Column(data=sanitize, index=index, name=None)
     # Use sensible defaults, if not provided
@@ -260,7 +255,6 @@ def c(*args, **kwargs) -> Column:  # noqa: C901
     out.pi_name = kwargs.get("name", "Unnamed")
     out.name = out.pi_name
     if numeric:
-
         # If any of 'lo', 'hi', 'center', or 'range' are specified, then it
         # is assumed that the variable is NOT coded
         try:
@@ -285,9 +279,7 @@ def c(*args, **kwargs) -> Column:  # noqa: C901
             _ = (e for e in out.pi_range)
         except TypeError:
             assert False, "The `range` input must be an iterable, with " "2 values."
-        assert len(out.pi_range) == 2, (
-            "The `range` variable must be a tuple, " "with 2 values."
-        )
+        assert len(out.pi_range) == 2, "The `range` variable must be a tuple, " "with 2 values."
         out.pi_range = tuple(out.pi_range)
 
         try:

@@ -1,11 +1,12 @@
-# See https://pre-commit.com for more information
-# See https://pre-commit.com/hooks.html for more hooks
 repos:
     - repo: https://github.com/pre-commit/pre-commit-hooks
-      rev: v4.3.0
+      rev: v4.4.0
       hooks:
           - id: trailing-whitespace
+          - id: check-ast
           - id: check-yaml
+          - id: check-toml
+          - id: check-byte-order-marker
           - id: check-case-conflict
           - id: check-docstring-first
           - id: debug-statements
@@ -14,42 +15,54 @@ repos:
             args: [--allow-missing-credentials]
           - id: forbid-new-submodules
           - id: end-of-file-fixer
+          - id: check-executables-have-shebangs
           - id: check-added-large-files
+            args: ["--maxkb=5000"]
           - id: check-merge-conflict
           - id: mixed-line-ending
+          - id: name-tests-test
+            args: ["--django"]
           - id: check-json
-          - id: pretty-format-json
-          - id: fix-encoding-pragma
 
+    # Remove MyPy: conflicts in python 3.9 with pytz
     - repo: https://github.com/pre-commit/mirrors-mypy
-      rev: v0.971
+      rev: v1.3.0
       hooks:
-          - id: mypy
-            args: [--ignore-missing-imports]
+        - id: mypy
+          args: ["--ignore-missing-imports", "--check-untyped-defs"]
 
     - repo: https://github.com/pre-commit/mirrors-isort
       rev: v5.10.1
       hooks:
-          - id: isort
-            args: ["--profile", "black"]
+        - id: isort
+          args: ["--profile", "black"]
 
     - repo: https://github.com/psf/black
-      rev: 22.8.0
+      rev: 23.3.0
       hooks:
-          - id: black
+        - id: black
+          args: ["-l 120"]
 
     - repo: https://github.com/asottile/blacken-docs
-      rev: v1.12.1
+      rev: 1.13.0
       hooks:
-          - id: blacken-docs
-            additional_dependencies: [black==20.8b1]
+        - id: blacken-docs
 
-    - repo: https://gitlab.com/pycqa/flake8
-      rev: "3.9.2"
+    - repo: https://github.com/PyCQA/flake8
+      rev: "6.0.0"
       hooks:
-          - id: flake8
+        - id: flake8
 
     - repo: https://github.com/kynan/nbstripout
       rev: 0.6.0
       hooks:
         - id: nbstripout
+
+
+    - repo: https://github.com/charliermarsh/ruff-pre-commit
+      # Ruff version. To eventually replace flake8?
+      rev: "v0.0.267"
+      hooks:
+        - id: ruff
+          # Respect `exclude` and `extend-exclude` settings.
+          # args: ["--force-exclude", ] <-- apparently already provided somehow? Vai pyproject.toml? Not sure.
