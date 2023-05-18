@@ -99,9 +99,7 @@ class ControlChart(object):
 
         if s is not None:
             self.s = float(s)
-            assert (
-                s > 0.0
-            ), "The given standard deviation cannot be zero, and must be positive."
+            assert s > 0.0, "The given standard deviation cannot be zero, and must be positive."
             assert s < 1e300, "The given standard deviation cannot be this large."
 
         if target is not None:
@@ -184,9 +182,7 @@ class ControlChart(object):
             assert self.ld_1 <= 1.0, "Lambda_1 must be less than or equal to 1.0."
             assert self.ld_2 <= 1.0, "Lambda_2 must be less than or equal to 1.0."
             assert self.ld_s <= 1.0, "Lambda_s must be less than or equal to 1.0."
-            self._holt_winters_warmup_fit(
-                ld_1=self.ld_1, ld_2=self.ld_2, ld_s=self.ld_s
-            )
+            self._holt_winters_warmup_fit(ld_1=self.ld_1, ld_2=self.ld_2, ld_s=self.ld_s)
 
         else:
             # User wants to find an value for ld_1 and ld_2 that best fits the data
@@ -220,9 +216,7 @@ class ControlChart(object):
         # Common code for both branches of if-else above
         future_errors = self.df["error"][self.train_samples]
         S_T_median_error = 1.48 * future_errors.abs().median()  # must handle NaNs!
-        resids = np.power(S_T_median_error, 2) * np.nanmean(
-            rho_func(future_errors / S_T_median_error)
-        )
+        resids = np.power(S_T_median_error, 2) * np.nanmean(rho_func(future_errors / S_T_median_error))
 
         # Ensure no negative square root is taken
         self._tau = np.sqrt(max(0.0, resids))
@@ -233,9 +227,7 @@ class ControlChart(object):
             self._target_calculated_best = self.df["y_star"].median()
 
         if self.s is None:
-            self.s = (
-                self._tau
-            )  # or an alternative: self.df["sigma_hat"] is approximately OK
+            self.s = self._tau  # or an alternative: self.df["sigma_hat"] is approximately OK
 
         # The "delta" emphasizes that it is the deviation from the target.
         self._delta_UCL_3sigma = +3.0 * self._tau
@@ -267,32 +259,22 @@ class ControlChart(object):
             self.warm_up["beta_0"] = 0.0
         else:
             # p 290 of the paper, https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125
-            self.warm_up["beta_0"] = repeated_median_slope(
-                np.arange(self.warm_up["M"]), y_warm_up
-            )
-            self.warm_up["alpha_0"] = np.nanmedian(
-                y_warm_up - self.warm_up["beta_0"] * np.arange(self.warm_up["M"])
-            )
+            self.warm_up["beta_0"] = repeated_median_slope(np.arange(self.warm_up["M"]), y_warm_up)
+            self.warm_up["alpha_0"] = np.nanmedian(y_warm_up - self.warm_up["beta_0"] * np.arange(self.warm_up["M"]))
 
         if isinstance(self.s, float):
             self.warm_up["sigma_0"] = self.s
 
         else:
             # p 290 of the paper, https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125
-            warm_up_residuals = (
-                y_warm_up - self.warm_up["alpha_0"] - self.warm_up["beta_0"]
-            )
+            warm_up_residuals = y_warm_up - self.warm_up["alpha_0"] - self.warm_up["beta_0"]
 
             # Some other method that does not rely on SciPy for 1 function.
-            self.warm_up["sigma_0"] = median_abs_deviation(
-                warm_up_residuals, nan_policy="omit"
-            )
+            self.warm_up["sigma_0"] = median_abs_deviation(warm_up_residuals, nan_policy="omit")
             self.warm_up["residuals"] = warm_up_residuals
 
         df.loc[0, "rho_input"] = (
-            self.warm_up["y_zero_robust"]
-            - self.warm_up["alpha_0"]
-            - self.warm_up["beta_0"]
+            self.warm_up["y_zero_robust"] - self.warm_up["alpha_0"] - self.warm_up["beta_0"]
         ) / self.warm_up["sigma_0"]
         df.loc[0, "psi_input"] = df["rho_input"][0]
         df.loc[0, "y_star"] = self.warm_up["y_zero_robust"]
@@ -312,20 +294,11 @@ class ControlChart(object):
                 error_i = df["error"].iloc[max(i - 10, 0) : i].abs().median()
             rho_i = error_i / df["sigma_hat"][i - 1]
             prior_variance = np.power(df["sigma_hat"][i - 1], 2)
-            sigma_i = np.sqrt(
-                rho(rho_i) * ld_s * prior_variance + (1.0 - ld_s) * prior_variance
-            )
+            sigma_i = np.sqrt(rho(rho_i) * ld_s * prior_variance + (1.0 - ld_s) * prior_variance)
             psi_i = error_i / sigma_i
-            y_star_i = (
-                psi(psi_i) * sigma_i + df["alpha_hat"][i - 1] + df["beta_hat"][i - 1]
-            )
-            alpha_i = ld_1 * y_star_i + (1 - ld_1) * (
-                df["alpha_hat"][i - 1] + df["beta_hat"][i - 1]
-            )
-            beta_i = (
-                ld_2 * (alpha_i - df["alpha_hat"][i - 1])
-                + (1 - ld_2) * df["beta_hat"][i - 1]
-            )
+            y_star_i = psi(psi_i) * sigma_i + df["alpha_hat"][i - 1] + df["beta_hat"][i - 1]
+            alpha_i = ld_1 * y_star_i + (1 - ld_1) * (df["alpha_hat"][i - 1] + df["beta_hat"][i - 1])
+            beta_i = ld_2 * (alpha_i - df["alpha_hat"][i - 1]) + (1 - ld_2) * df["beta_hat"][i - 1]
             df.loc[i] = [
                 df["y"][i],
                 psi_i,

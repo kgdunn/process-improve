@@ -10,10 +10,9 @@ from process_improve.batch.preprocessing import apply_scaling, determine_scaling
 
 
 def test_plot_colours():
-
-    assert get_rgba_from_triplet(
-        [0.9677975592919913, 0.44127456009157356, 0.5358103155058701]
-    ) == approx([246, 112, 136])
+    assert get_rgba_from_triplet([0.9677975592919913, 0.44127456009157356, 0.5358103155058701]) == approx(
+        [246, 112, 136]
+    )
 
     assert (
         get_rgba_from_triplet(

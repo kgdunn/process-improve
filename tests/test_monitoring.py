@@ -22,12 +22,7 @@ class test_validate_against_R_qcc_xbar_one:
     s = chart$std.dev       # 10.43234
     """
 
-    folder = (
-        pathlib.Path(__file__).parents[1]
-        / "process_improve"
-        / "datasets"
-        / "monitoring"
-    )
+    folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "monitoring"
     cc_values = pd.read_csv(folder / "rubber-colour.csv")
     y = cc_values["Colour"]
 
@@ -54,9 +49,7 @@ class test_control_chart:
 
     y = np.array([33, 30, 29, 30, 27, 32, 17])
     # Simulated in R: loc=50, sd=4
-    known_s = np.array(
-        [41.5, 43.0, 51.8, 50.4, 45.6, 49.5, 45.3, 49.0, 41.4, 51.8, 58.4]
-    )
+    known_s = np.array([41.5, 43.0, 51.8, 50.4, 45.6, 49.5, 45.3, 49.0, 41.4, 51.8, 58.4])
 
     cc = ControlChart(
         variant="xbar.no.subgroup",
@@ -134,14 +127,10 @@ class test_holt_winters_control_chart:
     # Checks that the required asserts are raised
 
     cc = ControlChart()
-    with pytest.raises(
-        AssertionError, match="Lambda_1 must be less than or equal to 1.0."
-    ):
+    with pytest.raises(AssertionError, match="Lambda_1 must be less than or equal to 1.0."):
         cc.calculate_limits(y, ld_1=1.2, ld_2=0.5)
 
-    with pytest.raises(
-        AssertionError, match="Lambda_1 must be greater than or equal to zero."
-    ):
+    with pytest.raises(AssertionError, match="Lambda_1 must be greater than or equal to zero."):
         cc.calculate_limits(y, ld_1=-1, ld_2=0.5)
 
     # test_hw_chart_missing_values(self):
@@ -173,18 +162,11 @@ class test_holt_winters_control_chart_BatchYield:
     http://openmv.net/info/batch-yield-and-purity (Kevin Dunn, personal data)
     """
 
-    folder = (
-        pathlib.Path(__file__).parents[1]
-        / "process_improve"
-        / "datasets"
-        / "monitoring"
-    )
+    folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "monitoring"
     cc_values = pd.read_csv(folder / "batch-yield-and-purity.csv")
     subgroupsN = 3
     rounder = int(np.floor(cc_values.shape[0] / 3))
-    subgroups = (
-        cc_values["yield"].values[0 : (rounder * subgroupsN)].reshape(rounder, 3)
-    )
+    subgroups = cc_values["yield"].values[0 : (rounder * subgroupsN)].reshape(rounder, 3)
     y = subgroups.mean(axis=1)
 
     cc = ControlChart()

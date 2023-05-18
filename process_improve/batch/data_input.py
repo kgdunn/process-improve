@@ -64,9 +64,7 @@ def check_valid_batch_dict(in_dict: dict, no_nan=False) -> bool:
     bool
         True, if it passes the checks.
     """
-    assert (
-        len(in_dict) >= 1
-    ), "At least 1 batch is required in the dataframe dictionary."
+    assert len(in_dict) >= 1, "At least 1 batch is required in the dataframe dictionary."
     batch1 = in_dict[list(in_dict.keys())[0]]
     base_columns = set(batch1.columns)
     check = True
@@ -90,9 +88,7 @@ def check_valid_batch_dict(in_dict: dict, no_nan=False) -> bool:
     return bool(check)
 
 
-def dict_to_melted(
-    in_df: pd.DataFrame, insert_batch_id_column=True, insert_sequence_column=False
-) -> pd.DataFrame:
+def dict_to_melted(in_df: pd.DataFrame, insert_batch_id_column=True, insert_sequence_column=False) -> pd.DataFrame:
     """Reverse of `melted_to_dict`"""
     batch_id_col = "batch_id"
     all_batches = []
@@ -101,9 +97,7 @@ def dict_to_melted(
         if idx == 0:
             num_rows = batch.shape[0]
             sequence = np.arange(0, num_rows)
-        assert (
-            num_rows == batch.shape[0]
-        ), "All batches must have the same number of samples"
+        assert num_rows == batch.shape[0], "All batches must have the same number of samples"
 
         subset = batch.copy()
 
@@ -129,9 +123,7 @@ def dict_to_wide(in_df: dict, group_by_batch=False) -> pd.DataFrame:
 
     TODO: `group_by_batch` is not implemented yet.
     """
-    out_df = dict_to_melted(
-        in_df=in_df, insert_batch_id_column=True, insert_sequence_column=True
-    )
+    out_df = dict_to_melted(in_df=in_df, insert_batch_id_column=True, insert_sequence_column=True)
     aligned_wide_df = out_df.pivot(index="batch_id", columns="_sequence_")
     if group_by_batch:
         pass
@@ -148,9 +140,7 @@ def melted_to_dict(in_df: pd.DataFrame, batch_id_col) -> dict:
     is a Pandas dataframe of the batch data for that batch.
     """
     batches = {}
-    assert (
-        batch_id_col in in_df
-    ), "The `batch_id_col` column does not exist in the incoming dataframe."
+    assert batch_id_col in in_df, "The `batch_id_col` column does not exist in the incoming dataframe."
     for batch_id, batch in in_df.groupby(batch_id_col):
         batches[batch_id] = batch
 
@@ -187,9 +177,7 @@ def wide_to_dict():
     pass
 
 
-def melt_df_to_series(
-    in_df: pd.DataFrame, exclude_columns=["batch_id"], name=None
-) -> pd.Series:
+def melt_df_to_series(in_df: pd.DataFrame, exclude_columns=["batch_id"], name=None) -> pd.Series:
     """Returns a Series with a multilevel-index, melted from the DataFrame"""
     out = in_df.drop(exclude_columns, axis=1).T.stack()
     out.name = name

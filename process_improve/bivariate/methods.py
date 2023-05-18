@@ -35,9 +35,7 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter=41) -> Union[int, fl
     start = 5
     # assert divmod(max_iter, 2)[1]  # must be odd number; to ensure we calculate the median later
 
-    def calculate_line_length(
-        x1: float, y1: float, x2: np.ndarray, y2: np.ndarray
-    ) -> Union[float, np.ndarray]:
+    def calculate_line_length(x1: float, y1: float, x2: np.ndarray, y2: np.ndarray) -> Union[float, np.ndarray]:
         """Returns the length of the line between 2 points (x1, y1) and (x2, y2), defined as:
         :math:`\\sqrt{(x2 - x1)^2 + (y2 - y1)^2}`
         """
@@ -54,9 +52,7 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter=41) -> Union[int, fl
 
     # Eliminate missing values in x and y simultaneously.
     x, y = x[~(np.isnan(x) | np.isnan(y))], y[~(np.isnan(x) | np.isnan(y))]
-    assert (
-        len(x) > 10
-    ), "Requires more than 10 values in the vectors (not including missing data)."
+    assert len(x) > 10, "Requires more than 10 values in the vectors (not including missing data)."
     idx_sort = x.argsort()
     x = x[idx_sort]
     y = y[idx_sort]
@@ -97,10 +93,7 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter=41) -> Union[int, fl
             rgt_line_list.append(rgt_line)
 
             angle = (
-                np.arccos(
-                    (lft_line**2 + rgt_line**2 - hypotenuse_line**2)
-                    / (2 * lft_line * rgt_line)
-                )
+                np.arccos((lft_line**2 + rgt_line**2 - hypotenuse_line**2) / (2 * lft_line * rgt_line))
                 * 180.0
                 / np.pi
             )
@@ -115,9 +108,7 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter=41) -> Union[int, fl
 
         intersections = pd.DataFrame(data={"x_int": int_x_list, "y_int": int_y_list})
         intersections.plot.scatter(x="x_int", y="y_int", ax=ax)
-        pd.DataFrame(intersections.median()).T.plot.scatter(
-            x="x_int", y="y_int", color="red", ax=ax
-        )
+        pd.DataFrame(intersections.median()).T.plot.scatter(x="x_int", y="y_int", color="red", ax=ax)
         ax.grid(True)
 
     # Elbow point is taken as the average intersection point which is closest

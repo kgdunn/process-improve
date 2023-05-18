@@ -51,10 +51,7 @@ def elbow_with_synthetic_data():
     break_pt = 5
     intercept_2 = 0.0
     line_2 = np.arange(0, break_pt, delta) * slope_2 + intercept_2
-    line_3 = (
-        np.arange(break_pt, break_pt * 2, delta) * slope_3
-        + (slope_2 - slope_3) * break_pt
-    )
+    line_3 = np.arange(break_pt, break_pt * 2, delta) * slope_3 + (slope_2 - slope_3) * break_pt
     x = np.arange(0, break_pt * 2, delta)
     y = np.concatenate((line_2, line_3))
     break_pt = break_pt

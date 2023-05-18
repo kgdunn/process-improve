@@ -18,9 +18,7 @@ def fit_robust_lm(x: np.ndarray, y: np.ndarray) -> list:
 
     regression.repeated_median_slope
     """
-    rlm_model = sm.RLM(
-        y, np.vstack([np.ones(x.size), x.ravel()]).T, M=sm.robust.norms.HuberT()
-    )
+    rlm_model = sm.RLM(y, np.vstack([np.ones(x.size), x.ravel()]).T, M=sm.robust.norms.HuberT())
     rlm_results = rlm_model.fit()
     return rlm_results.params
 
@@ -57,9 +55,7 @@ def repeated_median_slope(x, y, nowarn=False):
     return np.nanmedian(medians)
 
 
-def simple_robust_regression(
-    x, y, na_rm=None, conflevel=0.95, nowarn=False, pi_resolution=50
-):
+def simple_robust_regression(x, y, na_rm=None, conflevel=0.95, nowarn=False, pi_resolution=50):
     """
     x and y: iterables
     na_rm: None; no effect for robust regression. Here for consistency with the non-robust case.
@@ -87,9 +83,7 @@ def simple_robust_regression(
 
     out = {}
 
-    out["N"] = min(
-        x.size - np.count_nonzero(np.isnan(x)), y.size - np.count_nonzero(np.isnan(y))
-    )
+    out["N"] = min(x.size - np.count_nonzero(np.isnan(x)), y.size - np.count_nonzero(np.isnan(y)))
     out["intercept"] = intercept
     out["coefficients"] = [
         slope,
@@ -118,15 +112,11 @@ def simple_robust_regression(
         out["pi_range"] = np.vstack([pi_range, pi_y_pred, pi_y_pred]).T
 
     else:
-        out["standard_error_intercept"] = SE_b0 = out["SE"] * np.sqrt(
-            (1 / out["N"] + (mean_x) ** 2 / out["x_ssq"])
-        )
+        out["standard_error_intercept"] = SE_b0 = out["SE"] * np.sqrt((1 / out["N"] + (mean_x) ** 2 / out["x_ssq"]))
         out["standard_errors"] = [
             out["SE"] * 1 / np.sqrt(out["x_ssq"]),
         ]
-        var_y = (out["SE"] ** 2) * (
-            1 + 1 / out["N"] + (pi_range - np.mean(x)) ** 2 / out["x_ssq"]
-        )
+        var_y = (out["SE"] ** 2) * (1 + 1 / out["N"] + (pi_range - np.mean(x)) ** 2 / out["x_ssq"])
         std_y = np.sqrt(var_y)
         lower = pi_y_pred - c_t * std_y
         upper = pi_y_pred + c_t * std_y
@@ -149,17 +139,13 @@ def simple_robust_regression(
         out["influence"] = out["residuals"] * 0.0
     else:
         out["influence"] = (
-            np.power(out["residuals"] / ((1 - out["leverage"]) * out["SE"]), 2)
-            * out["leverage"]
-            / out["k"]
+            np.power(out["residuals"] / ((1 - out["leverage"]) * out["SE"]), 2) * out["leverage"] / out["k"]
         )
 
     return out
 
 
-def multiple_linear_regression(
-    X, y, fit_intercept=True, na_rm=True, conflevel=0.95, pi_resolution=50
-):
+def multiple_linear_regression(X, y, fit_intercept=True, na_rm=True, conflevel=0.95, pi_resolution=50):
     """
     Linear regression of the N rows and K columns of matrix `X` onto the single column 'y'.
 
@@ -250,9 +236,7 @@ def multiple_linear_regression(
         X_.insert(0, "__constant__", X_.pop("__constant__"))
         k = k + 1
 
-    assert (
-        out["N"] >= k
-    ), "N >= K: You need at least as many rows as there are columns to fit a linear regression."
+    assert out["N"] >= k, "N >= K: You need at least as many rows as there are columns to fit a linear regression."
     assert out["N"] == y_.size
 
     if x_vector.shape[1] == 1:
@@ -260,9 +244,7 @@ def multiple_linear_regression(
         out["x_ssq"] = np.sum(np.power(x_vector - mean_X, 2))[0]
 
         # Can be calculated before the model is even fit:
-        out["leverage"] = (
-            1 / out["N"] + np.power(x_vector - mean_X, 2) / out["x_ssq"]
-        ).values.ravel()
+        out["leverage"] = (1 / out["N"] + np.power(x_vector - mean_X, 2) / out["x_ssq"]).values.ravel()
 
     # Do the work
     model = sm.OLS(y_, X_)
@@ -287,9 +269,7 @@ def multiple_linear_regression(
     out["R2"] = results._results.rsquared
     regression_ssq = np.sum(np.power(out["fitted_values"] - mean_y, 2))
 
-    out["residuals"] = (
-        np.nan * np.ones((1, len(y))).ravel()
-    )  # NOTE: the original y-shape is used, not y_'s shape!
+    out["residuals"] = np.nan * np.ones((1, len(y))).ravel()  # NOTE: the original y-shape is used, not y_'s shape!
     # residuals are defined as: y.values.ravel() - out["fitted_values"]
     out["residuals"][~missing_idx] = results._results.resid
     residual_ssq = np.nansum(out["residuals"] * out["residuals"])
@@ -300,25 +280,15 @@ def multiple_linear_regression(
 
     if x_vector.shape[1] == 1 and fit_intercept:
         # "pi" = prediction interval
-        pi_range = np.linspace(
-            np.min(X_.values[:, 1]), np.max(X_.values[:, 1]), pi_resolution
-        )
+        pi_range = np.linspace(np.min(X_.values[:, 1]), np.max(X_.values[:, 1]), pi_resolution)
         pi_y_pred = out["intercept"] + out["coefficients"][0] * pi_range
         if out["SE"] < __eps:
             out["influence"] = out["residuals"] * 0.0
         else:
             out["influence"] = (
-                np.power(
-                    results._results.resid / ((1 - out["leverage"]) * out["SE"]), 2
-                )
-                * out["leverage"]
-                / k
+                np.power(results._results.resid / ((1 - out["leverage"]) * out["SE"]), 2) * out["leverage"] / k
             )
-            var_y = (out["SE"] ** 2) * (
-                1
-                + 1 / out["N"]
-                + (pi_range - np.mean(X_.values[:, 1])) ** 2 / out["x_ssq"]
-            )
+            var_y = (out["SE"] ** 2) * (1 + 1 / out["N"] + (pi_range - np.mean(X_.values[:, 1])) ** 2 / out["x_ssq"])
             std_y = np.sqrt(var_y)
             c_t = t_value(1 - (1 - conflevel) / 2, out["N"] - 2)  # 2 fitted parameters
             lower = pi_y_pred - c_t * std_y

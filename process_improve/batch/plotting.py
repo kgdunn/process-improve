@@ -24,9 +24,7 @@ def get_rgba_from_triplet(incolour: list, alpha=1, as_string=False):
 
     E.g.    [0.9677975592919913, 0.44127456009157356, 0.5358103155058701] -> 'rgba(246,112,136,1)'
     """
-    assert (
-        3 <= len(incolour) <= 4
-    ), "`incolour` must be a list of 3 or 4 values; ignores 4th entry"
+    assert 3 <= len(incolour) <= 4, "`incolour` must be a list of 3 or 4 values; ignores 4th entry"
     colours = [max(0, int(math.floor(c * 255))) for c in list(incolour)[0:3]]
     if as_string:
         return f"rgba({colours[0]},{colours[1]},{colours[2]},{float(alpha)})"
@@ -122,14 +120,9 @@ def plot_all_batches_per_tag(
     colours = list(sns.husl_palette(n_colours))
     random.shuffle(colours)
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
-    line_styles = {
-        k: dict(width=default_line_width, color=v)
-        for k, v in zip(unique_items, colours)
-    }
+    line_styles = {k: dict(width=default_line_width, color=v) for k, v in zip(unique_items, colours)}
     for key, val in batches_to_highlight.items():
-        line_styles.update(
-            {item: json.loads(key) for item in val if item in df_dict.keys()}
-        )
+        line_styles.update({item: json.loads(key) for item in val if item in df_dict.keys()})
 
     highlight_list = []
     for key, val in batches_to_highlight.items():
@@ -140,13 +133,9 @@ def plot_all_batches_per_tag(
     fig = go.Figure()
 
     for batch_id, batch_df in df_dict.items():
-        assert (
-            tag in batch_df.columns
-        ), f"Tag '{tag}' not found in the batch with id {batch_id}."
+        assert tag in batch_df.columns, f"Tag '{tag}' not found in the batch with id {batch_id}."
         if tag_y2:
-            assert (
-                tag_y2 in batch_df.columns
-            ), f"Tag '{tag}' not found in the batch with id {batch_id}."
+            assert tag_y2 in batch_df.columns, f"Tag '{tag}' not found in the batch with id {batch_id}."
         if time_column in batch_df.columns:
             time_data = batch_df[time_column]
         else:
@@ -212,16 +201,12 @@ def plot_all_batches_per_tag(
                     )
                 )
 
-    yaxis1_dict = dict(
-        title=tag, gridwidth=2, matches="y1", showticklabels=True, side="left"
-    )
+    yaxis1_dict = dict(title=tag, gridwidth=2, matches="y1", showticklabels=True, side="left")
     if (y1_limits[0] is not None) or (y1_limits[1] is not None):
         yaxis1_dict["autorange"] = False
         yaxis1_dict["range"] = y1_limits
 
-    yaxis2_dict: Dict[str, Any] = dict(
-        title=tag_y2, gridwidth=2, matches="y2", showticklabels=True, side="right"
-    )
+    yaxis2_dict: Dict[str, Any] = dict(title=tag_y2, gridwidth=2, matches="y2", showticklabels=True, side="right")
     if (y2_limits[0] is not None) or (y2_limits[1] is not None):
         yaxis2_dict["autorange"] = False
         yaxis2_dict["range"] = y2_limits
@@ -266,21 +251,12 @@ def colours_per_batch_id(
     """
     random.seed(13)
     n_colours = len(batch_ids)
-    colours = (
-        list(colour_map(n_colours))
-        if not (use_default_colour)
-        else [(0.5, 0.5, 0.5)] * n_colours
-    )
+    colours = list(colour_map(n_colours)) if not (use_default_colour) else [(0.5, 0.5, 0.5)] * n_colours
     random.shuffle(colours)
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
-    colour_assignment = {
-        key: dict(width=default_line_width, color=val)
-        for key, val in zip(list(batch_ids), colours)
-    }
+    colour_assignment = {key: dict(width=default_line_width, color=val) for key, val in zip(list(batch_ids), colours)}
     for key, val in batches_to_highlight.items():
-        colour_assignment.update(
-            {item: json.loads(key) for item in val if item in batch_ids}
-        )
+        colour_assignment.update({item: json.loads(key) for item in val if item in batch_ids})
     return colour_assignment
 
 
@@ -444,9 +420,7 @@ def plot_multitags(
         tag_list.remove(time_column)
 
     # Check that the tag_list is present in all batches.
-    assert check_valid_batch_dict(
-        {k: v[tag_list] for k, v in df_dict.items() if k in batch_list}, no_nan=False
-    )
+    assert check_valid_batch_dict({k: v[tag_list] for k, v in df_dict.items() if k in batch_list}, no_nan=False)
 
     if settings["ncols"] == 0:
         settings["ncols"] = int(np.ceil(len(tag_list) / int(settings["nrows"])))
@@ -470,9 +444,7 @@ def plot_multitags(
         batches_to_highlight=batches_to_highlight,
         default_line_width=settings["default_line_width"],
         # if animating, yes, use grey for all lines; unless `batches_to_highlight` was specified
-        use_default_colour=settings["animate"]
-        if settings["animate"] and (len(batches_to_highlight) == 0)
-        else False,
+        use_default_colour=settings["animate"] if settings["animate"] and (len(batches_to_highlight) == 0) else False,
         colour_map=settings["colour_map"],
     )
 
@@ -552,9 +524,7 @@ def plot_multitags(
         transition={"duration": 0},
     )
     settings["animate_n_frames"] = (
-        settings["animate_n_frames"]
-        if settings["animate_n_frames"] >= 0
-        else longest_time_length
+        settings["animate_n_frames"] if settings["animate_n_frames"] >= 0 else longest_time_length
     )
 
     for index in np.linspace(0, longest_time_length, settings["animate_n_frames"]):
@@ -692,7 +662,6 @@ def generate_one_frame(
     output = []
     row = col = 1
     for tag in tag_list:
-
         for batch_id in batch_ids_to_animate:
             # These 4 lines are duplicated from the outside function
             if time_column in df_dict[batch_id].columns:

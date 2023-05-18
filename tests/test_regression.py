@@ -100,9 +100,7 @@ def multiple_linear_regression_data():
             0.138933218,
         ]
     ).reshape(7, 1)
-    y = np.array(
-        [0.2, 0.195089996, 0.284090012, 0.37808001, 0.46638, 0.561559975, 0.652559996]
-    )
+    y = np.array([0.2, 0.195089996, 0.284090012, 0.37808001, 0.46638, 0.561559975, 0.652559996])
     return X, y
 
 
@@ -209,9 +207,7 @@ def test__regression_model_missing_values():
     assert out["SE"] == approx(1.225, abs=1e-3)
     assert out["R2"] == approx(0.9423, abs=1e-4)
     assert len(out["residuals"]) == 5  # not 3!
-    assert out["residuals"] == approx(
-        [0.5, np.nan, -1.0, np.nan, 0.5], rel=1e-6, nan_ok=True
-    )
+    assert out["residuals"] == approx([0.5, np.nan, -1.0, np.nan, 0.5], rel=1e-6, nan_ok=True)
     assert np.isnan(out["residuals"][1])
     assert np.isnan(out["residuals"][3])
 
@@ -238,9 +234,7 @@ def test_input_transposed_vector(multiple_linear_regression_data):
     y = pd.DataFrame(y)
 
     # There is a difference with a transposed array
-    with pytest.raises(
-        AssertionError, match=r"N >= K: You need at least as many rows .*"
-    ):
+    with pytest.raises(AssertionError, match=r"N >= K: You need at least as many rows .*"):
         _ = multiple_linear_regression(x, y)
 
 
@@ -330,12 +324,8 @@ def test_regression_simple_robust(simple_robust_regression_data):
     assert out["intercept"] == approx(-0.00218, abs=1e-5)
     assert out["coefficients"][0] == approx(4.69038, rel=1e-6)
     assert out["conf_intervals"][0] == approx([4.61316875, 4.76759488], rel=1e-8)
-    assert out["conf_interval_intercept"] == approx(
-        [-0.0145235437, 0.0101581595], rel=1e-8
-    )
-    assert out["residuals"][0:5] == approx(
-        [0.0, 0.000118863, 0.005006413, -0.0035648, -0.000326859], abs=1e-9
-    )
+    assert out["conf_interval_intercept"] == approx([-0.0145235437, 0.0101581595], rel=1e-8)
+    assert out["residuals"][0:5] == approx([0.0, 0.000118863, 0.005006413, -0.0035648, -0.000326859], abs=1e-9)
 
 
 def test_simple_robust_regression_corner_case():

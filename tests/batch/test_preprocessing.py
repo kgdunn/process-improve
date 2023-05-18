@@ -24,21 +24,15 @@ def test_scaling(dryer_data):
         columns_to_align=columns_to_align,
         settings={"robust": False},
     )
-    assert np.array([152.3796, 48.2545, 101.7032, 73.1462, 68.0041]) == approx(
-        scale_df.loc[columns_to_align]["Range"]
-    )
+    assert np.array([152.3796, 48.2545, 101.7032, 73.1462, 68.0041]) == approx(scale_df.loc[columns_to_align]["Range"])
 
-    batches_scaled = apply_scaling(
-        dryer_data, scale_df, columns_to_align=columns_to_align
-    )
+    batches_scaled = apply_scaling(dryer_data, scale_df, columns_to_align=columns_to_align)
     reference_batch = batches_scaled[1]
     assert np.array([0.793227, 0.171115, 1.007772, 0.051198, 0.050173]) == approx(
         reference_batch[columns_to_align].iloc[0], abs=1e-4
     )
     orig = reverse_scaling(batches_scaled, scale_df)
-    assert np.linalg.norm(orig[1] - dryer_data[1][columns_to_align]) == approx(
-        0, abs=1e-10
-    )
+    assert np.linalg.norm(orig[1] - dryer_data[1][columns_to_align]) == approx(0, abs=1e-10)
 
 
 def test_alignment(dryer_data):
@@ -196,8 +190,7 @@ def test_alignment(dryer_data):
     ]
     assert expected_warping_path == approx(b1.warping_path + 1)
     assert [1.0371, 0.1673, 0.9712, 0.6538, 0.2532] == approx(
-        outputs["last_average_batch"].iloc[1, :]
-        / (outputs["scale_df"]["Range"][columns_to_align]),
+        outputs["last_average_batch"].iloc[1, :] / (outputs["scale_df"]["Range"][columns_to_align]),
         abs=1e-4,
     )
     len(outputs["aligned_batch_dfdict"]) == 71

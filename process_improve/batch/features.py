@@ -12,9 +12,7 @@ from ..regression.methods import repeated_median_slope
 # ------------------------------------------
 
 
-def _prepare_data(
-    df: pd.DataFrame, tags=None, batch_col=None, phase_col=None, age_col=None
-):
+def _prepare_data(df: pd.DataFrame, tags=None, batch_col=None, phase_col=None, age_col=None):
     """
     General function, used for all feature extractions.
 
@@ -23,11 +21,7 @@ def _prepare_data(
     """
 
     # Special case: a single series. Convert it to a dataframe
-    if (
-        isinstance(df, pd.Series)
-        and (tags is None)
-        and isinstance(df.index, pd.DatetimeIndex)
-    ):
+    if isinstance(df, pd.Series) and (tags is None) and isinstance(df.index, pd.DatetimeIndex):
         if df.name is None:
             name = "tag"
         else:
@@ -306,9 +300,7 @@ def f_area(data: pd.DataFrame, time_tag, tags=None, batch_col=None, phase_col=No
     See also: f_sum, f_cumsum
     """
     base_name = "area"
-    prepared, tags, output, _ = _prepare_data(
-        data, tags, batch_col, phase_col, age_col=time_tag
-    )
+    prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col, age_col=time_tag)
     f_names = [(tag + "_" + base_name) for tag in tags]
 
     # We will overwrite all entries in this dataframe, one-by-one
@@ -324,11 +316,7 @@ def f_area(data: pd.DataFrame, time_tag, tags=None, batch_col=None, phase_col=No
             # heights on the left and the right, multiplied by delta distance on the horizontal
             # index axis. Area = average(parallel lenghts) * height
             # where height = delta distance on the horizontal axis.
-            area = (
-                (this_batch[tag].iloc[0:-1].values + this_batch[tag].iloc[1:])
-                / 2
-                * half_base_factor
-            ).sum()
+            area = ((this_batch[tag].iloc[0:-1].values + this_batch[tag].iloc[1:]) / 2 * half_base_factor).sum()
             output.loc[batch_id][tag] = area
 
             # TODO: check this out still
@@ -615,11 +603,7 @@ def f_crossing(
 
     f_name = tag + "_" + base_name
 
-    output = prepared.apply(
-        lambda x: cross(
-            x[tag], threshold, direction, only_index=only_index, first_point_only=True
-        )
-    )
+    output = prepared.apply(lambda x: cross(x[tag], threshold, direction, only_index=only_index, first_point_only=True))
 
     return pd.DataFrame(data={f_name: output})
 
@@ -648,15 +632,12 @@ def f_elbow(
     import warnings
 
     base_name = "elbow"
-    prepared, tags, output, _ = _prepare_data(
-        data, tags, batch_col, phase_col, age_col=x_axis_tag
-    )
+    prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col, age_col=x_axis_tag)
     f_names = [(tag + "_" + base_name) for tag in tags]
 
     # We will overwrite all entries in this dataframe, one-by-one
     output = prepared.sum()
     for batch_id, this_batch in prepared:
-
         if x_axis_tag not in this_batch:
             this_batch.reset_index(inplace=True)
         for tag in tags:

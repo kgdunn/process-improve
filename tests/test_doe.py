@@ -126,7 +126,6 @@ class TestStructures(unittest.TestCase):
 
 class TestModels(unittest.TestCase):
     def setUp(self):
-
         A = c(-1, +1, -1, +1)
         B = c(-1, -1, +1, +1)
         C = A * B
@@ -178,10 +177,7 @@ class TestModels(unittest.TestCase):
         self.assertAlmostEqual(beta["B"], -3.25)
         self.assertAlmostEqual(beta["C"], -0.25)
         self.assertAlmostEqual(beta["Intercept"], 30.75)
-        self.assertTrue(
-            self.model_stability_poshalf.get_aliases()
-            == ["A + B:C", "B + A:C", "C + A:B"]
-        )
+        self.assertTrue(self.model_stability_poshalf.get_aliases() == ["A + B:C", "B + A:C", "C + A:B"])
 
         for resid in self.model_stability_poshalf.residuals:
             self.assertAlmostEqual(resid, 0.0)
@@ -191,17 +187,11 @@ class Test_API_usage(unittest.TestCase):
     def setUp(self):
         # TODO: replace unittest -> pytest
         # TODO: use path
-        folder = (
-            pathlib.Path(__file__).parents[1]
-            / "process_improve"
-            / "datasets"
-            / "experiments"
-        )
+        folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "experiments"
         self.df1 = pd.read_csv(folder / "test_doe1.csv")
         self.df1.set_index("Run order", inplace=True)
 
     def test_case_1(self):
-
         index = self.df1.index
         C = c(
             self.df1["C"],
