@@ -779,7 +779,7 @@ def test_rosner_esd_corner_case():
 
 def test_sequence_compare_R(outliers_data):
     """
-    Compares it to an R sequence and the Grubb's test there.
+    Compare it to an R sequence and the Grubb's test there.
     """
     _, sequence = outliers_data
     outliers, reasons_regular = univariate.outlier_detection_multiple(
@@ -809,10 +809,9 @@ def test_sequence_compare_R(outliers_data):
 
 def test_distribution_check():
     """
-    R code for the KS test:
+    R code for the KS test.
 
     > y1 = []
     > ks.test(y1,"pnorm")
     """
     # TODO
-    pass
