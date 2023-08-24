@@ -32,6 +32,9 @@ extend-ignore = [
     "D416",
     "D417",
 
+    "N803", # we don't mind mixed case variable names
+    "N806", # we don't mind mixed case variable names
+
     "RET505", # Unnecessary `else` after `return` statement. Not convinced this is bad style.
 
     # Pandas:

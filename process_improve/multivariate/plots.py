@@ -1,9 +1,7 @@
-# -*- coding: utf-8 -*-
 # (c) Kevin Dunn, 2010-2023. MIT License. Based on own private work over the years.
 
 # Built-in libraries
 import json
-from typing import Dict
 
 import plotly.graph_objects as go
 from pydantic import BaseModel, validator
@@ -23,11 +21,11 @@ def score_plot(
     pc_horiz: int = 1,
     pc_vert: int = 2,
     pc_depth: int = -1,
-    items_to_highlight: Dict[str, list] = None,
-    settings: Dict = None,
+    items_to_highlight: dict[str, list] = None,
+    settings: dict = None,
     fig=None,
 ) -> go.Figure:
-    """Generates a 2-dimensional score plot for the given latent variable model.
+    """Generate a 2-dimensional score plot for the given latent variable model.
 
     Parameters
     ----------
@@ -73,7 +71,7 @@ def score_plot(
         }
     """
     plot_pre_checks(model, pc_horiz, pc_vert, pc_depth)
-    margin_dict: Dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
+    margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
 
     class Settings(BaseModel):
         show_ellipse: bool = True
@@ -87,24 +85,21 @@ def score_plot(
         html_aspect_ratio_w_over_h: float = 16 / 9.0
 
         @validator("ellipse_conf_level")
-        def check_ellipse_conf_level(cls, v):
+        def check_ellipse_conf_level(self, v):
             if v >= 1:
                 raise ValueError("0.0 < `ellipse_conf_level` < 1.0")
             if v <= 0:
                 raise ValueError("0.0 < `ellipse_conf_level` < 1.0")
             return v
 
-    if settings:
-        setdict = Settings(**settings).dict()
-    else:
-        setdict = Settings().dict()
+    setdict = Settings(**settings).dict() if settings else Settings().dict()
     if fig is None:
         fig = go.Figure()
 
     name = "X-space scores [T]"
     fig.update_layout(xaxis_title_text=f"PC {pc_horiz}", yaxis_title_text=f"PC {pc_vert}")
 
-    highlights: Dict[str, list] = {}
+    highlights: dict[str, list] = {}
     default_index = model.x_scores.index
     if items_to_highlight is not None:
         highlights = items_to_highlight.copy()
@@ -247,8 +242,8 @@ def score_plot(
     return fig
 
 
-def loadings_plot(model, loadings_type="p", pc_horiz=1, pc_vert=2, settings: Dict = None, fig=None) -> go.Figure:
-    """Generates a 2-dimensional loadings for the given latent variable model.
+def loadings_plot(model, loadings_type="p", pc_horiz=1, pc_vert=2, settings: dict = None, fig=None) -> go.Figure:
+    """Generate a 2-dimensional loadings for the given latent variable model.
 
     Parameters
     ----------
@@ -286,7 +281,7 @@ def loadings_plot(model, loadings_type="p", pc_horiz=1, pc_vert=2, settings: Dic
         }
     """
     plot_pre_checks(model, pc_horiz, pc_vert, pc_depth=0)
-    margin_dict: Dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
+    margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
 
     class Settings(BaseModel):
         title: str = f"Loadings plot [{loadings_type.upper()}] of component {pc_horiz} vs " f"component {pc_vert}"
@@ -388,11 +383,11 @@ def loadings_plot(model, loadings_type="p", pc_horiz=1, pc_vert=2, settings: Dic
 def spe_plot(
     model,
     with_a=-1,
-    items_to_highlight: Dict[str, list] = None,
-    settings: Dict = None,
+    items_to_highlight: dict[str, list] = None,
+    settings: dict = None,
     fig=None,
 ) -> go.Figure:
-    """Generates a squared-prediction error (SPE) plot for the given latent variable model using
+    """Generate a squared-prediction error (SPE) plot for the given latent variable model using
     `with_a` number of latent variables. The default will use the total number of latent variables
     which have already been fitted.
 
@@ -441,7 +436,7 @@ def spe_plot(
         }
     """
     # TO CONSIDER: allow a setting `as_line`: which connects the points with line segments
-    margin_dict: Dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
+    margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
 
     if with_a < 0:
         # Get the actual name of the last column in the model if negative indexing is used
@@ -459,29 +454,26 @@ def spe_plot(
             f"fitting {with_a} component{'s' if with_a > 1 else ''}"
             f", with the {conf_level*100}% confidence limit"
         )
-        default_marker: Dict = dict(color="darkblue", symbol="circle", size=7)
+        default_marker: dict = dict(color="darkblue", symbol="circle", size=7)
         show_labels: bool = False
         show_legend: bool = False
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
 
         @validator("conf_level")
-        def check_conf_level(cls, v):
+        def check_conf_level(self, v):
             if v >= 1:
                 raise ValueError("0.0 < `conf_level` < 1.0")
             if v <= 0:
                 raise ValueError("0.0 < `conf_level` < 1.0")
             return v
 
-    if settings:
-        setdict = Settings(**settings).dict()
-    else:
-        setdict = Settings().dict()
+    setdict = Settings(**settings).dict() if settings else Settings().dict()
     if fig is None:
         fig = go.Figure()
 
     name = f"SPE values after {with_a} component{'s' if with_a > 1 else ''}"
-    highlights: Dict[str, list] = {}
+    highlights: dict[str, list] = {}
     default_index = model.squared_prediction_error.index
     if items_to_highlight is not None:
         highlights = items_to_highlight.copy()
@@ -566,11 +558,11 @@ def spe_plot(
 def t2_plot(
     model,
     with_a=-1,
-    items_to_highlight: Dict[str, list] = None,
-    settings: Dict = None,
+    items_to_highlight: dict[str, list] = None,
+    settings: dict = None,
     fig=None,
 ) -> go.Figure:
-    """Generates a Hotelling's T2 (T^2) plot for the given latent variable model using
+    """Generate a Hotelling's T2 (T^2) plot for the given latent variable model using
     `with_a` number of latent variables. The default will use the total number of latent variables
     which have already been fitted.
 
@@ -618,7 +610,7 @@ def t2_plot(
         }
     """
     # TO CONSIDER: allow a setting `as_line`: which connects the points with line segments
-    margin_dict: Dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
+    margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
 
     if with_a < 0:
         with_a = model.Hotellings_T2.columns[with_a]
@@ -632,21 +624,18 @@ def t2_plot(
             f"Hotelling's T2 plot after fitting {with_a} component{'s' if with_a > 1 else ''}"
             f", with the {conf_level*100}% confidence limit"
         )
-        default_marker: Dict = dict(color="darkblue", symbol="circle", size=7)
+        default_marker: dict = dict(color="darkblue", symbol="circle", size=7)
         show_labels: bool = False  # TODO
         show_legend: bool = False
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
 
-    if settings:
-        setdict = Settings(**settings).dict()
-    else:
-        setdict = Settings().dict()
+    setdict = Settings(**settings).dict() if settings else Settings().dict()
     if fig is None:
         fig = go.Figure()
 
     name = f"T2 values after {with_a} component{'s' if with_a > 1 else ''}"
-    highlights: Dict[str, list] = {}
+    highlights: dict[str, list] = {}
     default_index = model.Hotellings_T2.index
     if items_to_highlight is not None:
         highlights = items_to_highlight.copy()

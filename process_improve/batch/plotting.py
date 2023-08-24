@@ -1,10 +1,10 @@
-# -*- coding: utf-8 -*-
 # Built-in libraries
 import json
 import math
 import random
+from collections.abc import Callable
 from functools import partial
-from typing import Any, Callable, Dict, List
+from typing import Any
 
 import numpy as np
 
@@ -16,7 +16,7 @@ from plotly.offline import plot as plotoffline
 from .data_input import check_valid_batch_dict
 
 
-def get_rgba_from_triplet(incolour: list, alpha=1, as_string=False):
+def get_rgba_from_triplet(incolour: list, alpha: float = 1, as_string: bool = False):
     """
     Convert the input colour triplet (list) to a Plotly rgba(r,g,b,a) string if
     `as_string` is True. If `False` it will return the list of 3 integer RGB
@@ -56,8 +56,8 @@ def plot_all_batches_per_tag(
     tag: str,
     tag_y2: str = None,
     time_column: str = None,
-    extra_info="",
-    batches_to_highlight={},
+    extra_info: str = "",
+    batches_to_highlight: dict = {},
     x_axis_label: str = "Time [sequence order]",
     highlight_width: int = 5,
     html_image_height: int = 900,
@@ -65,7 +65,7 @@ def plot_all_batches_per_tag(
     y1_limits: tuple = (None, None),
     y2_limits: tuple = (None, None),
 ) -> go.Figure:
-    """Plots a particular `tag` over all batches in the given dataframe `df`.
+    """Plot a particular `tag` over all batches in the given dataframe `df`.
 
     Parameters
     ----------
@@ -120,12 +120,12 @@ def plot_all_batches_per_tag(
     colours = list(sns.husl_palette(n_colours))
     random.shuffle(colours)
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
-    line_styles = {k: dict(width=default_line_width, color=v) for k, v in zip(unique_items, colours)}
+    line_styles = {k: dict(width=default_line_width, color=v) for k, v in zip(unique_items, colours, strict=True)}
     for key, val in batches_to_highlight.items():
-        line_styles.update({item: json.loads(key) for item in val if item in df_dict.keys()})
+        line_styles.update({item: json.loads(key) for item in val if item in df_dict})
 
     highlight_list = []
-    for key, val in batches_to_highlight.items():
+    for val in batches_to_highlight.values():
         highlight_list.extend(val)
 
     highlight_list = list(set(highlight_list))
@@ -136,10 +136,7 @@ def plot_all_batches_per_tag(
         assert tag in batch_df.columns, f"Tag '{tag}' not found in the batch with id {batch_id}."
         if tag_y2:
             assert tag_y2 in batch_df.columns, f"Tag '{tag}' not found in the batch with id {batch_id}."
-        if time_column in batch_df.columns:
-            time_data = batch_df[time_column]
-        else:
-            time_data = list(range(batch_df.shape[0]))
+        time_data = batch_df[time_column] if time_column in batch_df.columns else list(range(batch_df.shape[0]))
 
         if batch_id in highlight_list:
             continue  # come to this later
@@ -171,10 +168,7 @@ def plot_all_batches_per_tag(
     # Add the highlighted batches last: therefore, sadly, we have to do another run-through.
     # Plotly does not yet support z-orders.
     for batch_id, batch_df in df_dict.items():
-        if time_column in batch_df.columns:
-            time_data = batch_df[time_column]
-        else:
-            time_data = list(range(batch_df.shape[0]))
+        time_data = batch_df[time_column] if time_column in batch_df.columns else list(range(batch_df.shape[0]))
 
         if batch_id in highlight_list:
             fig.add_trace(
@@ -206,15 +200,15 @@ def plot_all_batches_per_tag(
         yaxis1_dict["autorange"] = False
         yaxis1_dict["range"] = y1_limits
 
-    yaxis2_dict: Dict[str, Any] = dict(title=tag_y2, gridwidth=2, matches="y2", showticklabels=True, side="right")
+    yaxis2_dict: dict[str, Any] = dict(title=tag_y2, gridwidth=2, matches="y2", showticklabels=True, side="right")
     if (y2_limits[0] is not None) or (y2_limits[1] is not None):
         yaxis2_dict["autorange"] = False
         yaxis2_dict["range"] = y2_limits
 
     fig.update_layout(
         title=f"Plot of: '{tag}'"
-        + (f" on left axis; with '{str(tag_y2)}' on right axis." if tag_y2 else ".")
-        + (f" [{str(extra_info)}]" if extra_info else ""),
+        + (f" on left axis; with '{tag_y2}' on right axis." if tag_y2 else ".")
+        + (f" [{extra_info}]" if extra_info else ""),
         hovermode="closest",
         showlegend=True,
         legend=dict(
@@ -241,9 +235,9 @@ def colours_per_batch_id(
     default_line_width: float,
     use_default_colour: bool = False,
     colour_map: Callable = partial(sns.color_palette, "hls"),
-) -> Dict[Any, Dict]:
+) -> dict[Any, dict]:
     """
-    Returns a colour to use for each trace in the plot. A dictionary: keys are batch ids, and
+    Return a colour to use for each trace in the plot. A dictionary: keys are batch ids, and
     the value is a colour and line width setting for Plotly.
 
     override_default_colour: bool
@@ -254,7 +248,9 @@ def colours_per_batch_id(
     colours = list(colour_map(n_colours)) if not (use_default_colour) else [(0.5, 0.5, 0.5)] * n_colours
     random.shuffle(colours)
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
-    colour_assignment = {key: dict(width=default_line_width, color=val) for key, val in zip(list(batch_ids), colours)}
+    colour_assignment = {
+        key: dict(width=default_line_width, color=val) for key, val in zip(list(batch_ids), colours, strict=True)
+    }
     for key, val in batches_to_highlight.items():
         colour_assignment.update({item: json.loads(key) for item in val if item in batch_ids})
     return colour_assignment
@@ -271,7 +267,7 @@ def plot_multitags(
     fig=None,
 ) -> go.Figure:
     """
-    Plots all the tags for a batch; or a subset of tags, if specified in `tag_list`.
+    Plot all the tags for a batch; or a subset of tags, if specified in `tag_list`.
 
     Parameters
     ----------
@@ -332,7 +328,7 @@ def plot_multitags(
 
     # This will be clumsy, until we have Python 3.9. TODO: use pydantic instead
     # This will be clumsy, until we have Python 3.9. TODO: use pydantic instead
-    default_settings: Dict[str, Any] = dict(
+    default_settings: dict[str, Any] = dict(
         # Pydantic: int
         nrows=1,
         # Pydantic: int
@@ -402,7 +398,7 @@ def plot_multitags(
     if fig is None:
         fig = go.Figure()
 
-    batch1 = df_dict[list(df_dict.keys())[0]]
+    batch1 = df_dict[next(iter(df_dict.keys()))]
     if tag_list is None:
         tag_list = list(batch1.columns)
     tag_list = list(tag_list)  # Force it; sometimes we get non-list inputs
@@ -454,10 +450,7 @@ def plot_multitags(
         batch_df = df_dict[batch_id]
 
         # Time axis values
-        if time_column in batch_df.columns:
-            time_data = batch_df[time_column]
-        else:
-            time_data = list(range(batch_df.shape[0]))
+        time_data = batch_df[time_column] if time_column in batch_df.columns else list(range(batch_df.shape[0]))
 
         longest_time_length = max(longest_time_length, len(time_data))
 
@@ -516,7 +509,7 @@ def plot_multitags(
         "steps": [],
     }
     # Create other animation settings. Again, these will be ignored if not needed
-    frames: List = []
+    frames: list = []
     slider_steps = []
     frame_settings = dict(
         frame={"duration": settings["animate_framerate_milliseconds"], "redraw": True},
@@ -588,7 +581,7 @@ def plot_multitags(
 
     # OK, pull things together to render the fig
     slider_baseline_dict["steps"] = slider_steps
-    button_list: List[Any] = []
+    button_list: list[Any] = []
     if settings["animate"]:
         fig.update(frames=frames)
         button_list.append(button_play)
@@ -653,9 +646,10 @@ def generate_one_frame(
     show_legend=False,
     hovertemplate: str = "",
     max_columns=0,
-) -> List[Dict]:
+) -> list[dict]:
     """
-    Returns a list of dictionaries.
+    Return a list of dictionaries.
+
     Each entry in the list is for each subplot; in the order of the subplots.
     Since each subplot is a tag, we need the `tag_list` as input.
     """

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # (c) Kevin Dunn, 2010-2023. MIT License. Based on own private work over the years.
 import time
 import warnings
@@ -20,8 +19,6 @@ epsqrt = np.sqrt(np.finfo(float).eps)
 
 class SpecificationWarning(UserWarning):
     """Parent warning class."""
-
-    pass
 
 
 class MCUVScaler(BaseEstimator, TransformerMixin):
@@ -47,7 +44,7 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
         X = pd.DataFrame(X).copy()
         return (X - self.center_) / self.scale_
 
-    def inverse_transform(self, X):
+    def inverse_transform(self, X):  # noqa: ANN001
         check_is_fitted(self, "center_")
         check_is_fitted(self, "scale_")
 
@@ -67,7 +64,7 @@ class PCA(PCA_sklearn):
         iterated_power="auto",
         random_state=None,
         # Own extra inputs, for the case when there is missing data
-        missing_data_settings: Optional[dict] = None,
+        missing_data_settings: dict | None = None,
     ):
         super().__init__(
             n_components=n_components,
@@ -84,7 +81,7 @@ class PCA(PCA_sklearn):
 
     def fit(self, X, y=None) -> PCA_sklearn:
         """
-        Fits a principal component analysis (PCA) model to the data.
+        Fit a principal component analysis (PCA) model to the data.
 
         Parameters
         ----------
@@ -99,7 +96,7 @@ class PCA(PCA_sklearn):
             Model object.
         """
         if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
+            X = pd.DataFrame(X)  # noqa: N806
 
         self.N, self.K = X.shape
 
@@ -214,25 +211,25 @@ class PCA(PCA_sklearn):
             )
 
         if not self.has_missing_data:
-            Xd = X.copy()
-            prior_SSX_col = ssq(Xd.values, axis=0)
-            base_variance = np.sum(prior_SSX_col)
+            xd = X.copy()
+            prior_ssx_col = ssq(xd.values, axis=0)
+            base_variance = np.sum(prior_ssx_col)
             for a in range(self.A):
-                Xd -= self.x_scores.iloc[:, [a]] @ self.loadings.iloc[:, [a]].T
+                xd -= self.x_scores.iloc[:, [a]] @ self.loadings.iloc[:, [a]].T
                 # These are the Residual Sums of Squares (RSS); i.e X-X_hat
-                row_SSX = ssq(Xd.values, axis=1)
-                col_SSX = ssq(Xd.values, axis=0)
+                row_ssx = ssq(xd.values, axis=1)
+                col_ssx = ssq(xd.values, axis=0)
 
                 # Don't use a check correction factor. Define SPE simply as the sum of squares of
                 # the errors, then take the square root, so it is interpreted like a standard error.
                 # If the user wants to normalize it, then this is a clean base value to start from.
-                self.squared_prediction_error.iloc[:, a] = np.sqrt(row_SSX)
+                self.squared_prediction_error.iloc[:, a] = np.sqrt(row_ssx)
 
                 # TODO: some entries in prior_SSX_col can be zero and leads to nan's in R2X_cum
-                self.R2X_cum.iloc[:, a] = 1 - col_SSX / prior_SSX_col
+                self.R2X_cum.iloc[:, a] = 1 - col_ssx / prior_ssx_col
 
                 # R2 and cumulative R2 value for the whole block
-                self.R2cum.iloc[a] = 1 - sum(row_SSX) / base_variance
+                self.R2cum.iloc[a] = 1 - sum(row_ssx) / base_variance
                 if a > 0:
                     self.R2.iloc[a] = self.R2cum.iloc[a] - self.R2cum.iloc[a - 1]
                 else:
@@ -262,14 +259,12 @@ class PCA(PCA_sklearn):
 
         return self
 
-    def fit_transform(self, X, y=None):
+    def fit_transform(self, X, y=None):  # noqa: ANN001
         self.fit(X)
         assert False, "Still do the transform part"
 
     def predict(self, X):
-        """
-        Using the PCA model on new data coming in matrix X.
-        """
+        """Use the PCA model on new data coming in matrix X."""
 
         class State(object):
             """Class object to hold the prediction results together."""
@@ -558,7 +553,7 @@ class PLS(PLS_sklearn):
         tol: float = epsqrt,
         copy: bool = True,
         # Own extra inputs, for the case when there is missing data
-        missing_data_settings: Optional[dict] = None,
+        missing_data_settings: dict | None = None,
     ):
         super().__init__(
             n_components=n_components,
@@ -573,7 +568,7 @@ class PLS(PLS_sklearn):
 
     def fit(self, X, Y) -> PLS_sklearn:
         """
-        Fits a projection to latent structures (PLS) or Partial Least Square (PLS) model to the
+        Fit a projection to latent structures (PLS) or Partial Least Square (PLS) model to the
         data.
 
         Parameters
@@ -767,9 +762,7 @@ class PLS(PLS_sklearn):
         return self
 
     def predict(self, X):
-        """
-        Using the PLS model on new data coming in matrix X.
-        """
+        """Use the PLS model on new data coming in matrix X."""
 
         class State(object):
             """Class object to hold the prediction results together."""
@@ -844,7 +837,6 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
 
         assert self.missing_data_settings["md_tol"] < 10, "Tolerance should not be too large"
         assert self.missing_data_settings["md_tol"] > epsqrt**1.95, "Tolerance must exceed machine precision"
-
         assert self.missing_data_settings["md_method"] in self.valid_md_methods, (
             f"Missing data method is not recognized. Must be one of {self.valid_md_methods}.",
         )
@@ -863,10 +855,8 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
 
         if np.any(np.sum(self.Yd, axis=1) == 0):
             raise Warning(
-                (
-                    "Cannot handle the case yet where the entire observation in Y-matrix is "
-                    "missing. Please remove those rows and refit model."
-                )
+                "Cannot handle the case yet where the entire observation in Y-matrix is "
+                "missing. Please remove those rows and refit model."
             )
 
         # Other setups:
@@ -904,9 +894,7 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
         return self
 
     def _fit_nipals_pls(self, settings):
-        """
-        Internal method to fit the PLS model using the NIPALS algorithm.
-        """
+        """Fit the PLS model using the NIPALS algorithm.   (Internal method)"""
         # NIPALS algorithm
         A = self.A
 
@@ -1014,7 +1002,7 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
             # end looping on ``a``
 
 
-def ssq(X: np.ndarray, axis: Optional[int] = None) -> Any:
+def ssq(X: np.ndarray, axis: int | None = None) -> Any:
     """A function than calculates the sum of squares of a 2D matrix
     (not array! and not checked for either: code will simply fail),
     skipping over any NaN (missing) data.
@@ -1043,7 +1031,7 @@ def ssq(X: np.ndarray, axis: Optional[int] = None) -> Any:
 
 
 def terminate_check(t_a_guess: np.ndarray, t_a: np.ndarray, iterations: int, settings: dict) -> bool:
-    """The PCA iterative algorithm is terminated when any one of these conditions is True:
+    """Terminate the PCA iterative algorithm when any one of these conditions is True.
 
     #. scores converge: the norm between two successive iterations
     #. maximum number of iterations is reached
@@ -1051,10 +1039,7 @@ def terminate_check(t_a_guess: np.ndarray, t_a: np.ndarray, iterations: int, set
     score_tol = np.linalg.norm(t_a_guess - t_a, ord=None)
     converged = score_tol < settings["md_tol"]
     max_iter = iterations > settings["md_max_iter"]
-    if np.any([max_iter, converged]):
-        return True
-    else:
-        return False
+    return np.any([max_iter, converged])
 
 
 def quick_regress(Y, x):
@@ -1076,7 +1061,7 @@ def quick_regress(Y, x):
                 b[k] /= denom
         return b
 
-    elif K == Nx:  # Case B: b = (Yx)/(x'x): (NxK)(Kx1) = (Nx1)
+    elif Nx == K:  # Case B: b = (Yx)/(x'x): (NxK)(Kx1) = (Nx1)
         b = np.zeros((Ny, 1))
         for n in np.arange(Ny):
             b[n] = np.sum(x[:, 0] * np.nan_to_num(Y[n, :]))
@@ -1086,8 +1071,11 @@ def quick_regress(Y, x):
                 b[n] /= denom
         return b
 
+    else:
+        raise ValueError("The dimensions of the input arrays are not compatible.")
 
-def center(X, func=np.mean, axis=0, extra_output=False):
+
+def center(X, func=np.mean, axis=0, extra_output=False):  # noqa: ANN001
     """
     Performs centering of data, using a function, `func` (default: np.mean).
     The function, if supplied, but return a vector with as many columns as the matrix X.
@@ -1168,7 +1156,7 @@ def scale(X, func=np.std, axis=0, extra_output=False, **kwargs):
 
 
 def T2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -> float:
-    """Returns the Hotelling's T2 value at the given level of confidence.
+    """Return the Hotelling's T2 value at the given level of confidence.
 
     Parameters
     ----------
@@ -1183,8 +1171,10 @@ def T2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -
     assert conf_level > 0.0
     assert conf_level < 1.0
     assert n_rows > 0
-    A, N = n_components, n_rows
-    return A * (N - 1) * (N + 1) / (N * (N - A)) * f.isf((1 - conf_level), A, N - A)
+    a, n = n_components, n_rows
+    if a == n:
+        return float("inf")
+    return a * (n - 1) * (n + 1) / (n * (n - a)) * f.isf((1 - conf_level), a, n - a)
 
 
 def SPE_limit(model, conf_level=0.95) -> float:
