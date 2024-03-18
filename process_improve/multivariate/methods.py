@@ -144,7 +144,7 @@ class PCA(PCA_sklearn):
         # We have now fitted the model. Apply some convenience shortcuts for the user.
         self.A = self.n_components
         self.N = self.n_samples_
-        self.K = self.n_features_
+        self.K = self.n_features_in_
 
         self.loadings = pd.DataFrame(self.x_loadings.copy())
         self.loadings.index = X.columns
@@ -335,7 +335,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         # Other setups:
         self.n_components = self.A
         self.n_samples_ = self.N
-        self.n_features_ = self.K
+        self.n_features_in_ = self.K
 
         self.x_loadings = np.zeros((self.K, self.A))
         self.x_scores_ = np.zeros((self.N, self.A))
@@ -862,7 +862,7 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
         # Other setups:
         self.n_components = self.A
         self.n_samples_ = self.N
-        self.n_features_ = self.K
+        self.n_features_in_ = self.K
         # self.M ?
 
         self.x_scores_ = np.zeros((self.N, self.A))  # T: N x A
