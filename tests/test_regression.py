@@ -341,6 +341,19 @@ def test_simple_robust_regression_corner_case():
     assert np.isnan(out["conf_intervals"][0][0])
     assert np.isnan(out["conf_intervals"][0][1])
 
+def test_simple_robust_regression_missing_values():
+    """
+    Test y length less than 2 because of nan values
+    """
+
+    x = np.array([1, 2, 3, 4, 5])
+    y = np.array([np.nan,np.nan,np.nan,np.nan,1])
+    out = simple_robust_regression(x, y)
+    assert np.isnan(out["standard_error_intercept"])
+    assert np.isnan(out["standard_errors"][0])
+    assert np.isnan(out["conf_intervals"][0][0])
+    assert np.isnan(out["conf_intervals"][0][1])
+
 
 def test_simple_regression_no_error():
     """
