@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
+from typing import Sequence, Optional
 from ..univariate.metrics import t_value
 
 __eps = np.finfo(np.float32).eps
@@ -55,12 +55,16 @@ def repeated_median_slope(x, y, nowarn=False):
     return np.nanmedian(medians)
 
 
-def simple_robust_regression(x, y, na_rm=None, conflevel=0.95, nowarn=False, pi_resolution=50):
+def simple_robust_regression(x: Sequence[float], y: Sequence[float], na_rm: Optional[bool] = True, conflevel: float = 0.95, nowarn: bool = False, pi_resolution: int = 50) -> dict:
     """
-    x and y: iterables
-    na_rm: None; no effect for robust regression. Here for consistency with the non-robust case.
-    nowarn: If True, then no error checking/warnings are issued. The user is committing to do that
-    themselves ahead of time.
+    Perform the Simple robust regression analysis between `x` and `y` variables.
+
+    Parameters
+    - x, y: Sequences of numerical values.
+    - na_rm: If True, removes all observations with one or more missing values.
+    - conflevel: Confidence level for confidence intervals, default is 0.95.
+    - nowarn: If True, suppresses warnings. Users should ensure data validity beforehand.
+    - pi_resolution: The resolution of prediction intervals, default is 50.
 
     TODO: handle the missing values case still. See the `multiple_linear_regression` function,
     especially for residuals: afterwards there are N residuals expected, even if <N points used
@@ -72,7 +76,60 @@ def simple_robust_regression(x, y, na_rm=None, conflevel=0.95, nowarn=False, pi_
 
     The rest of the classical output from a regression are based on these robust parameter
     estimates.
+
+    Returns a dictionary of outputs with these keys:
+    - coefficients:   a vector of K coefficients, one for each column in ``X``
+    - intercept:      returned if ``fit_intercept==True``
+    - standard_errors:a vector of K standard errors, one for each column in ``X``
+    - standard_error_intercept: standard error for the intercept
+    - R2:             the infamous R^2 values
+    - SE              the model's standard error
+    - fitted_values   the N predicted values, one per row in ``y``
+    - residuals       the N residuals
+    - t_value         the t-values for the standard errors
+    - conf_intervals  the 95% confidence intervals for the model terms: K rows, 2 columns: column 1 is lower, column 2 is upper
+    - pi_range       the prediction intervals, above an below, over the range of data.
     """
+
+    out = {
+        "N": None,
+        "coefficients": [
+            np.nan,
+        ],
+        "intercept": np.nan,
+        "standard_errors": [
+            np.nan,
+        ],
+        "standard_error_intercept": np.nan,
+        "R2": np.nan,
+        "SE": np.nan,
+        "fitted_values": np.nan,
+        "residuals": np.nan,
+        "t_value": np.nan,
+        "conf_intervals": np.array([[np.nan, np.nan]]),
+        "conf_interval_intercept": np.array([np.nan, np.nan]),
+        "pi_range": np.nan,
+        "leverage": np.nan,
+        "k": 1,
+        "influence": np.nan,
+    }
+
+    #  Data pre-processing: handle both Pandas and NumPy -> use Pandas internally for X and y
+    X_ = pd.DataFrame(x, copy=True) if isinstance(x, np.ndarray) else pd.DataFrame(x.values, copy=True)
+
+    y_ = pd.DataFrame(y.ravel(), copy=True) if isinstance(y, np.ndarray) else pd.DataFrame(y.values, copy=True)
+
+    # Removing missing values:
+    missing_idx = y_.isna().any(axis=1)
+    if na_rm:
+        missing_idx = y_.isna().any(axis=1) | X_.isna().any(axis=1)
+        X_ = X_.loc[~missing_idx, :]
+        y_ = y_.loc[~missing_idx]
+
+    # CASE when there is no data, or only 2 data point (repeate median slope needs more than 2)
+    if (y_.size <= 2) or (X_.size <= 2):
+        return out
+
     x_, y_ = x.copy().ravel(), y.copy().ravel()
     x, y = x_[~np.isnan(x_) & ~np.isnan(y_)], y_[~np.isnan(x_) & ~np.isnan(y_)]
 
@@ -105,14 +162,14 @@ def simple_robust_regression(x, y, na_rm=None, conflevel=0.95, nowarn=False, pi_
     pi_range = np.linspace(np.min(x), np.max(x), pi_resolution)
     pi_y_pred = out["intercept"] + out["coefficients"][0] * pi_range
     if out["x_ssq"] < __eps:
-        out["standard_error_intercept"] = SE_b0 = np.NaN
+        out["standard_error_intercept"] = SE_b0 = np.nan
         out["standard_errors"] = [
-            np.NaN,
+            np.nan,
         ]
         out["pi_range"] = np.vstack([pi_range, pi_y_pred, pi_y_pred]).T
 
     else:
-        out["standard_error_intercept"] = SE_b0 = out["SE"] * np.sqrt((1 / out["N"] + (mean_x) ** 2 / out["x_ssq"]))
+        out["standard_error_intercept"] = SE_b0 = out["SE"] * np.sqrt(1 / out["N"] + (mean_x) ** 2 / out["x_ssq"])
         out["standard_errors"] = [
             out["SE"] * 1 / np.sqrt(out["x_ssq"]),
         ]
