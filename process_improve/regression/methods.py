@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
-from typing import Sequence, Optional
 from ..univariate.metrics import t_value
 
 __eps = np.finfo(np.float32).eps
@@ -14,16 +15,14 @@ def fit_robust_lm(x: np.ndarray, y: np.ndarray) -> list:
     intercept. Returns a list: [intercept, slope] of the fit. No extra
     checking on data consistency is done.
 
-    See also:
-
-    regression.repeated_median_slope
+    See also: regression.repeated_median_slope
     """
     rlm_model = sm.RLM(y, np.vstack([np.ones(x.size), x.ravel()]).T, M=sm.robust.norms.HuberT())
     rlm_results = rlm_model.fit()
     return rlm_results.params
 
 
-def repeated_median_slope(x, y, nowarn=False):
+def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) -> float:
     """
     Robust slope calculation.
 
@@ -55,7 +54,14 @@ def repeated_median_slope(x, y, nowarn=False):
     return np.nanmedian(medians)
 
 
-def simple_robust_regression(x: Sequence[float], y: Sequence[float], na_rm: Optional[bool] = True, conflevel: float = 0.95, nowarn: bool = False, pi_resolution: int = 50) -> dict:
+def simple_robust_regression(  # noqa: PLR0913, PLR0915
+    x: np.ndarray | pd.DataFrame | pd.Series,
+    y: np.ndarray | pd.DataFrame | pd.Series,
+    na_rm: bool = True,
+    conflevel: float = 0.95,
+    nowarn: bool = False,
+    pi_resolution: int = 50,
+) -> dict:
     """
     Perform the Simple robust regression analysis between `x` and `y` variables.
 
@@ -78,17 +84,18 @@ def simple_robust_regression(x: Sequence[float], y: Sequence[float], na_rm: Opti
     estimates.
 
     Returns a dictionary of outputs with these keys:
-    - coefficients:   a vector of K coefficients, one for each column in ``X``
-    - intercept:      returned if ``fit_intercept==True``
-    - standard_errors:a vector of K standard errors, one for each column in ``X``
-    - standard_error_intercept: standard error for the intercept
-    - R2:             the infamous R^2 values
-    - SE              the model's standard error
-    - fitted_values   the N predicted values, one per row in ``y``
-    - residuals       the N residuals
-    - t_value         the t-values for the standard errors
-    - conf_intervals  the 95% confidence intervals for the model terms: K rows, 2 columns: column 1 is lower, column 2 is upper
-    - pi_range       the prediction intervals, above an below, over the range of data.
+        coefficients:   a vector of K coefficients, one for each column in ``X``
+        intercept:      returned if ``fit_intercept==True``
+        standard_errors:a vector of K standard errors, one for each column in ``X``
+        standard_error_intercept: standard error for the intercept
+        R2:             the infamous R^2 values
+        SE              the model's standard error
+        fitted_values   the N predicted values, one per row in ``y``
+        residuals       the N residuals
+        t_value         the t-values for the standard errors
+        conf_intervals  the 95% confidence intervals for the model terms: K rows,
+                        2 columns: column 1 is lower, column 2 is upper
+        pi_range       the prediction intervals, above an below, over the range of data.
     """
 
     out = {
@@ -202,7 +209,14 @@ def simple_robust_regression(x: Sequence[float], y: Sequence[float], na_rm: Opti
     return out
 
 
-def multiple_linear_regression(X, y, fit_intercept=True, na_rm=True, conflevel=0.95, pi_resolution=50):
+def multiple_linear_regression(  # noqa: PLR0915, PLR0913
+    X: np.ndarray | pd.DataFrame,
+    y: np.ndarray | pd.DataFrame | pd.Series,
+    fit_intercept: bool = True,
+    na_rm: bool = True,
+    conflevel: float = 0.95,
+    pi_resolution: int = 50,
+) -> dict:
     """
     Linear regression of the N rows and K columns of matrix `X` onto the single column 'y'.
 
@@ -216,26 +230,16 @@ def multiple_linear_regression(X, y, fit_intercept=True, na_rm=True, conflevel=0
     Returns a dictionary of outputs with these keys:
 
         coefficients:   a vector of K coefficients, one for each column in ``X``
-
         intercept:      returned if ``fit_intercept==True``
-
         standard_errors:a vector of K standard errors, one for each column in ``X``
-
         standard_error_intercept: standard error for the intercept
-
         R2:             the infamous R^2 values
-
         SE              the model's standard error
-
         fitted_values   the N predicted values, one per row in ``y``
-
         residuals       the N residuals
-
         t_value         the t-values for the standard errors
-
         conf_intervals  the 95% confidence intervals for the model terms: K rows,
                         2 columns: column 1 is lower, column 2 is upper
-
         pi_range       the prediction intervals, above an below, over the range of data.
 
     TODO: report hatvalues, discrepancy:  for residual detection
@@ -261,15 +265,8 @@ def multiple_linear_regression(X, y, fit_intercept=True, na_rm=True, conflevel=0
     }
 
     #  Data pre-processing: handle both Pandas and NumPy -> use Pandas internally for X and y
-    if isinstance(X, np.ndarray):
-        X_ = pd.DataFrame(X, copy=True)
-    else:
-        X_ = pd.DataFrame(X.values, copy=True)
-
-    if isinstance(y, np.ndarray):
-        y_ = pd.DataFrame(y.ravel(), copy=True)
-    else:
-        y_ = pd.DataFrame(y.values, copy=True)
+    X_ = pd.DataFrame(X, copy=True) if isinstance(X, np.ndarray) else pd.DataFrame(X.values, copy=True)
+    y_ = pd.DataFrame(y.ravel(), copy=True) if isinstance(y, np.ndarray) else pd.DataFrame(y.values, copy=True)
 
     # Removing missing values:
     missing_idx = y_.isna().any(axis=1)
