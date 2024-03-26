@@ -2,7 +2,6 @@
 import numpy as np
 import pandas as pd
 import pytest
-from pytest import approx
 
 from process_improve.regression.methods import (
     multiple_linear_regression,
@@ -126,46 +125,46 @@ def test_regression_model_with_intercept(multiple_linear_regression_data):
     assert out["conf_intervals"].shape == (1, 2)
     assert out["conf_interval_intercept"].shape == (2,)
 
-    assert out["SE"] == approx(0.03206, abs=1e-5)
-    assert out["R2"] == approx(0.9729, rel=1e-5)
-    assert out["intercept"] == approx(0.06641, abs=1e-5)
-    assert out["coefficients"][0] == approx(4.08993, rel=1e-6)
-    assert out["conf_intervals"][0] == approx([3.30512, 4.87474], rel=1e-5)
-    assert out["conf_interval_intercept"] == approx([-0.003253309, 0.1360676], rel=1e-6)
-    assert np.max(out["residuals"]) == approx(0.05241749, rel=1e-7)
-    assert np.min(out["residuals"]) == approx(-0.03366786, rel=1e-7)
+    assert out["SE"] == pytest.approx(0.03206, abs=1e-5)
+    assert out["R2"] == pytest.approx(0.9729, rel=1e-5)
+    assert out["intercept"] == pytest.approx(0.06641, abs=1e-5)
+    assert out["coefficients"][0] == pytest.approx(4.08993, rel=1e-6)
+    assert out["conf_intervals"][0] == pytest.approx([3.30512, 4.87474], rel=1e-5)
+    assert out["conf_interval_intercept"] == pytest.approx([-0.003253309, 0.1360676], rel=1e-6)
+    assert np.max(out["residuals"]) == pytest.approx(0.05241749, rel=1e-7)
+    assert np.min(out["residuals"]) == pytest.approx(-0.03366786, rel=1e-7)
 
     # Residuals:
     #        1         2         3         4         5         6         7
     # 0.052417 -0.033668 -0.025843 -0.013029 -0.005904  0.008101  0.017925
-    assert out["residuals"][0] == approx(0.052417, abs=1e-6)
-    assert out["residuals"][1] == approx(-0.033668, abs=1e-6)
-    assert out["residuals"][5] == approx(0.008101, abs=1e-6)
-    assert out["residuals"][6] == approx(0.017925, abs=1e-6)
+    assert out["residuals"][0] == pytest.approx(0.052417, abs=1e-6)
+    assert out["residuals"][1] == pytest.approx(-0.033668, abs=1e-6)
+    assert out["residuals"][5] == pytest.approx(0.008101, abs=1e-6)
+    assert out["residuals"][6] == pytest.approx(0.017925, abs=1e-6)
 
     # Hat values:
     # 0.4642857 0.2857143 0.1785714 0.1428571 0.1785714 0.2857143 0.4642857
-    assert out["leverage"][0] == approx(0.4642857, abs=1e-6)
-    assert out["leverage"][1] == approx(0.2857143, abs=1e-6)
-    assert out["leverage"][2] == approx(0.1785714, abs=1e-6)
-    assert out["leverage"][3] == approx(0.1428571, abs=1e-6)
+    assert out["leverage"][0] == pytest.approx(0.4642857, abs=1e-6)
+    assert out["leverage"][1] == pytest.approx(0.2857143, abs=1e-6)
+    assert out["leverage"][2] == pytest.approx(0.1785714, abs=1e-6)
+    assert out["leverage"][3] == pytest.approx(0.1428571, abs=1e-6)
 
     # Influence (Cook's D):
     # 2.161740342 0.308710432 0.085960163 0.016051677 0.004486278 0.017871649 0.252805729
-    assert out["influence"][0] == approx(2.161740342, abs=1e-6)
-    assert out["influence"][1] == approx(0.308710432, abs=1e-6)
-    assert out["influence"][2] == approx(0.085960163, abs=1e-6)
-    assert out["influence"][6] == approx(0.252805729, abs=1e-6)
+    assert out["influence"][0] == pytest.approx(2.161740342, abs=1e-6)
+    assert out["influence"][1] == pytest.approx(0.308710432, abs=1e-6)
+    assert out["influence"][2] == pytest.approx(0.085960163, abs=1e-6)
+    assert out["influence"][6] == pytest.approx(0.252805729, abs=1e-6)
 
     # Prediction interval at the extremes
-    assert out["pi_range"][0, 1] == approx(0.04784391, abs=1e-8)
-    assert out["pi_range"][0, 2] == approx(0.2473211, abs=1e-8)
-    assert out["pi_range"][-1, 1] == approx(0.53489603, abs=1e-8)
-    assert out["pi_range"][-1, 2] == approx(0.7343732, abs=1e-7)
+    assert out["pi_range"][0, 1] == pytest.approx(0.04784391, abs=1e-8)
+    assert out["pi_range"][0, 2] == pytest.approx(0.2473211, abs=1e-8)
+    assert out["pi_range"][-1, 1] == pytest.approx(0.53489603, abs=1e-8)
+    assert out["pi_range"][-1, 2] == pytest.approx(0.7343732, abs=1e-7)
 
 
 def test__regression_model_no_intercept(multiple_linear_regression_data):
-    """Can  == approx( reproduce the R output for single rel 1E-9:
+    """Can  == pytest.approx( reproduce the R output for single rel 1E-9:
     > summary(lm(y~x+0))
     Call:
     lm(formula = y ~ x + 0)
@@ -191,23 +190,23 @@ def test__regression_model_no_intercept(multiple_linear_regression_data):
     assert out["conf_intervals"].shape == (1, 2)
     assert np.isnan(out["intercept"])
 
-    assert out["SE"] == approx(0.04343, abs=1e-5)
-    assert out["R2"] == approx(0.991, abs=1e-4)
-    assert out["coefficients"][0] == approx(4.7591, rel=1e-6)
-    assert out["conf_intervals"][0] == approx([4.306636, 5.21157], rel=1e-6)
-    assert np.max(out["residuals"]) == approx(0.105543, abs=1e-6)
-    assert np.min(out["residuals"]) == approx(-0.008637, abs=1e-6)
+    assert out["SE"] == pytest.approx(0.04343, abs=1e-5)
+    assert out["R2"] == pytest.approx(0.991, abs=1e-4)
+    assert out["coefficients"][0] == pytest.approx(4.7591, rel=1e-6)
+    assert out["conf_intervals"][0] == pytest.approx([4.306636, 5.21157], rel=1e-6)
+    assert np.max(out["residuals"]) == pytest.approx(0.105543, abs=1e-6)
+    assert np.min(out["residuals"]) == pytest.approx(-0.008637, abs=1e-6)
 
 
 def test__regression_model_missing_values():
     X, y = np.array([1, 2, 3, 4, 5]), np.array([2, np.nan, 4, np.nan, 9])
     out = multiple_linear_regression(X, y, na_rm=True, fit_intercept=True)
-    assert out["intercept"] == approx(-0.25)
-    assert out["coefficients"][0] == approx(1.75)
-    assert out["SE"] == approx(1.225, abs=1e-3)
-    assert out["R2"] == approx(0.9423, abs=1e-4)
+    assert out["intercept"] == pytest.approx(-0.25)
+    assert out["coefficients"][0] == pytest.approx(1.75)
+    assert out["SE"] == pytest.approx(1.225, abs=1e-3)
+    assert out["R2"] == pytest.approx(0.9423, abs=1e-4)
     assert len(out["residuals"]) == 5  # not 3!
-    assert out["residuals"] == approx([0.5, np.nan, -1.0, np.nan, 0.5], rel=1e-6, nan_ok=True)
+    assert out["residuals"] == pytest.approx([0.5, np.nan, -1.0, np.nan, 0.5], rel=1e-6, nan_ok=True)
     assert np.isnan(out["residuals"][1])
     assert np.isnan(out["residuals"][3])
 
@@ -221,7 +220,7 @@ def test_input_pandas(multiple_linear_regression_data):
     x = pd.DataFrame(X)
     y = pd.DataFrame(y)
     out = multiple_linear_regression(x, y)
-    assert out["SE"] == approx(0.03206, abs=1e-5)
+    assert out["SE"] == pytest.approx(0.03206, abs=1e-5)
 
 
 def test_input_transposed_vector(multiple_linear_regression_data):
@@ -319,13 +318,13 @@ def test_regression_simple_robust(simple_robust_regression_data):
     assert out["conf_interval_intercept"].shape == (2,)
     assert out["conf_intervals"].shape == (1, 2)
 
-    assert out["SE"] == approx(0.003554009, abs=1e-10)
-    assert out["R2"] == approx(0.999919429560, rel=1e-6)
-    assert out["intercept"] == approx(-0.00218, abs=1e-5)
-    assert out["coefficients"][0] == approx(4.69038, rel=1e-6)
-    assert out["conf_intervals"][0] == approx([4.61316875, 4.76759488], rel=1e-8)
-    assert out["conf_interval_intercept"] == approx([-0.0145235437, 0.0101581595], rel=1e-8)
-    assert out["residuals"][0:5] == approx([0.0, 0.000118863, 0.005006413, -0.0035648, -0.000326859], abs=1e-9)
+    assert out["SE"] == pytest.approx(0.003554009, abs=1e-10)
+    assert out["R2"] == pytest.approx(0.999919429560, rel=1e-6)
+    assert out["intercept"] == pytest.approx(-0.00218, abs=1e-5)
+    assert out["coefficients"][0] == pytest.approx(4.69038, rel=1e-6)
+    assert out["conf_intervals"][0] == pytest.approx([4.61316875, 4.76759488], rel=1e-8)
+    assert out["conf_interval_intercept"] == pytest.approx([-0.0145235437, 0.0101581595], rel=1e-8)
+    assert out["residuals"][0:5] == pytest.approx([0.0, 0.000118863, 0.005006413, -0.0035648, -0.000326859], abs=1e-9)
 
 
 def test_simple_robust_regression_corner_case():
@@ -341,13 +340,14 @@ def test_simple_robust_regression_corner_case():
     assert np.isnan(out["conf_intervals"][0][0])
     assert np.isnan(out["conf_intervals"][0][1])
 
+
 def test_simple_robust_regression_missing_values():
     """
     Test y length less than 2 because of nan values
     """
 
     x = np.array([1, 2, 3, 4, 5])
-    y = np.array([np.nan,np.nan,np.nan,np.nan,1])
+    y = np.array([np.nan, np.nan, np.nan, np.nan, 1])
     out = simple_robust_regression(x, y)
     assert np.isnan(out["standard_error_intercept"])
     assert np.isnan(out["standard_errors"][0])
@@ -363,7 +363,7 @@ def test_simple_regression_no_error():
     y = np.array([9, 8, 7, 6, 5])
     robust = simple_robust_regression(x, y)
     regular = multiple_linear_regression(x, y, fit_intercept=True)
-    assert robust["influence"] == approx(regular["influence"])
-    assert robust["influence"] == approx([0] * 5)
-    assert robust["conf_intervals"][0] == approx(regular["conf_intervals"][0])
-    assert robust["coefficients"] == approx(regular["coefficients"])
+    assert robust["influence"] == pytest.approx(regular["influence"])
+    assert robust["influence"] == pytest.approx([0] * 5)
+    assert robust["conf_intervals"][0] == pytest.approx(regular["conf_intervals"][0])
+    assert robust["coefficients"] == pytest.approx(regular["coefficients"])

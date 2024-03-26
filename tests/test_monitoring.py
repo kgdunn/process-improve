@@ -4,7 +4,6 @@ import pathlib
 import numpy as np
 import pandas as pd
 import pytest
-from pytest import approx
 
 from process_improve.monitoring.control_charts import ControlChart
 
@@ -29,17 +28,17 @@ class test_validate_against_R_qcc_xbar_one:
     # Do we get similar results to the "chart <- qcc(data=data$Colour, type="xbar.one")" from R?
     cc = ControlChart(variant="xbar.no.subgroup", style="regular")
     cc.calculate_limits(y)
-    assert cc.target == approx(238.78, abs=1e-2)
+    assert cc.target == pytest.approx(238.78, abs=1e-2)
     # cannot get this more precise, since the R code used in QCC follows a different approach:
     # calculates the std dev from a sequence of differences from point to point.
     assert round(cc.s) == 11
 
     cc = ControlChart(variant="xbar.no.subgroup", style="robust")
     cc.calculate_limits(y)
-    assert cc.target == approx(239.5, abs=1e-1)
+    assert cc.target == pytest.approx(239.5, abs=1e-1)
     # cannot get this more precise, since the R code used in QCC follows a different approach:
     # calculates the std dev from a sequence of differences from point to point.
-    assert cc.s == approx(14.0847, abs=1e-3)
+    assert cc.s == pytest.approx(14.0847, abs=1e-3)
 
 
 class test_control_chart:
@@ -136,23 +135,23 @@ class test_holt_winters_control_chart:
     # test_hw_chart_missing_values(self):
     cc = ControlChart()
     cc.calculate_limits(with_missing, ld_1=0.4, ld_2=0.7)
-    assert cc.target == approx(100.3, abs=1e-1)
-    assert cc.s == approx(6, abs=1)
+    assert cc.target == pytest.approx(100.3, abs=1e-1)
+    assert cc.s == pytest.approx(6, abs=1)
 
     # test_hw_short_length:
     # Ensures that short length sequences are also handled well.
 
     cc = ControlChart()
     cc.calculate_limits(short_length, ld_1=0.2, ld_2=0.5)
-    assert cc.target == approx((86.115 + 91.615) / 2.0, abs=1e-3)
-    assert cc.s == approx(np.std([86.115, 91.615], ddof=1))
+    assert cc.target == pytest.approx((86.115 + 91.615) / 2.0, abs=1e-3)
+    assert cc.s == pytest.approx(np.std([86.115, 91.615], ddof=1))
 
     # test_hw_medium_length
     # Ensures that short length sequences are also handled well.
     cc = ControlChart()
     cc.calculate_limits(medium_length, ld_1=0.2, ld_2=0.5)
-    assert cc.target == approx(93.945, abs=1e-3)
-    assert cc.s == approx(4.493, abs=1e-3)
+    assert cc.target == pytest.approx(93.945, abs=1e-3)
+    assert cc.s == pytest.approx(4.493, abs=1e-3)
     assert len(cc.idx_outside_3S) == 0
 
 
@@ -171,5 +170,5 @@ class test_holt_winters_control_chart_BatchYield:
 
     cc = ControlChart()
     cc.calculate_limits(y)  # ld_1=0.5, ld_2=0.5
-    assert cc.target == approx(75.1, abs=1e-1)
-    assert cc.s == approx(4.16, abs=1e-3)
+    assert cc.target == pytest.approx(75.1, abs=1e-1)
+    assert cc.s == pytest.approx(4.16, abs=1e-3)

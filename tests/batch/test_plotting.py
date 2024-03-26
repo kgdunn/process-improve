@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from pytest import approx
+import pytest
 
 from process_improve.batch.plotting import (
     get_rgba_from_triplet,
@@ -10,7 +10,7 @@ from process_improve.batch.preprocessing import apply_scaling, determine_scaling
 
 
 def test_plot_colours():
-    assert get_rgba_from_triplet([0.9677975592919913, 0.44127456009157356, 0.5358103155058701]) == approx(
+    assert get_rgba_from_triplet([0.9677975592919913, 0.44127456009157356, 0.5358103155058701]) == pytest.approx(
         [246, 112, 136]
     )
 

@@ -2,7 +2,6 @@
 import numpy as np
 import pandas as pd
 import pytest
-from pytest import approx
 
 import process_improve.univariate.metrics as univariate
 
@@ -15,10 +14,10 @@ class test_t_values:
 
     assert univariate.t_value(0, 1) == np.NINF
     assert univariate.t_value(1, 2) == np.inf
-    assert univariate.t_value(0.5, 3) == approx(0, rel=1e-16)
+    assert univariate.t_value(0.5, 3) == pytest.approx(0, rel=1e-16)
 
     # Tested in R:  qt(0.9, 5) ->  1.475884
-    assert univariate.t_value(0.9, 5) == approx(1.475884, rel=1e-6)
+    assert univariate.t_value(0.9, 5) == pytest.approx(1.475884, rel=1e-6)
 
 
 class test_t_values_cdf:
@@ -32,9 +31,9 @@ class test_t_values_cdf:
     assert univariate.t_value_cdf(np.inf, 3) == 1
 
     # Tested in R:  pt(0.9, 5) ->  0.7953144
-    assert univariate.t_value_cdf(0.9, 5) == approx(0.7953144, rel=1e-8)
+    assert univariate.t_value_cdf(0.9, 5) == pytest.approx(0.7953144, rel=1e-8)
     # Tested in R:  pt(0.5, 1) ->  0.6475836
-    assert univariate.t_value_cdf(0.5, 1) == approx(0.6475836, rel=1e-7)
+    assert univariate.t_value_cdf(0.5, 1) == pytest.approx(0.6475836, rel=1e-7)
 
 
 def test_normality_check():
@@ -82,10 +81,10 @@ def test_normality_check():
     ]
 
     # Data actually are from a  normal distribution:
-    assert univariate.normality_check(x) == approx(0.4352, abs=1e-3)
+    assert univariate.normality_check(x) == pytest.approx(0.4352, abs=1e-3)
 
     # Data actually are from a uniform distribution:
-    assert univariate.normality_check(y) == approx(0.1117, abs=1e-3)
+    assert univariate.normality_check(y) == pytest.approx(0.1117, abs=1e-3)
 
 
 def test_univariate_robust_scale():
@@ -119,13 +118,13 @@ def test_univariate_robust_scale():
     # follow the formula presented in the original paper.
     # Since we aim to be using this on medium/larger data sets, it should not matter.
 
-    assert univariate.Sn(list(range(3))) == approx(2.207503, rel=1e-6)
-    assert univariate.Sn(list(range(5))) == approx(1.611203, rel=1e-6)
-    assert univariate.Sn(list(range(7))) == approx(2.85747, rel=1e-6)
-    assert univariate.Sn([0, 10, 20, 3, 4, 50, 6]) == approx(8.572409, rel=1e-7)
-    assert univariate.Sn(list(range(1, 12))) == approx(3.896614, rel=1e-6)
-    assert univariate.Sn(list(range(1, 19))) == approx(5.3667, rel=1e-6)
-    assert univariate.Sn(list(range(1, 20))) == approx(6.259503, rel=1e-6)
+    assert univariate.Sn(list(range(3))) == pytest.approx(2.207503, rel=1e-6)
+    assert univariate.Sn(list(range(5))) == pytest.approx(1.611203, rel=1e-6)
+    assert univariate.Sn(list(range(7))) == pytest.approx(2.85747, rel=1e-6)
+    assert univariate.Sn([0, 10, 20, 3, 4, 50, 6]) == pytest.approx(8.572409, rel=1e-7)
+    assert univariate.Sn(list(range(1, 12))) == pytest.approx(3.896614, rel=1e-6)
+    assert univariate.Sn(list(range(1, 19))) == pytest.approx(5.3667, rel=1e-6)
+    assert univariate.Sn(list(range(1, 20))) == pytest.approx(6.259503, rel=1e-6)
     # Corner cases:
     assert np.isnan(univariate.Sn([]))
     assert univariate.Sn([13]) == 0.0
@@ -165,14 +164,14 @@ def test_summary_stats_corner_case_with_robust_scale():
 
 def test_median_abs_deviation():
     x = np.array([[10, 7, 4], [3, 2, 1]])
-    assert univariate.median_abs_deviation(x, scale=1) == approx([3.5, 2.5, 1.5])
+    assert univariate.median_abs_deviation(x, scale=1) == pytest.approx([3.5, 2.5, 1.5])
     assert univariate.median_abs_deviation(x.ravel(), scale=1) == 2.0
 
     from scipy import stats
 
     x = stats.norm.rvs(size=1000000, scale=2, random_state=123456)
-    assert univariate.median_abs_deviation(x, scale=1) == approx(1.3487398527041636, rel=1e-12)
-    assert univariate.median_abs_deviation(x) == approx(1.9996446978061115, rel=1e-12)
+    assert univariate.median_abs_deviation(x, scale=1) == pytest.approx(1.3487398527041636, rel=1e-12)
+    assert univariate.median_abs_deviation(x) == pytest.approx(1.9996446978061115, rel=1e-12)
 
     with pytest.raises(TypeError, match=r"The argument 'center' must .*"):
         _ = univariate.median_abs_deviation(x, center=0.0)
@@ -237,13 +236,13 @@ def test_t_test_differences():
     # Note: in R, the test for t.test(A, B), checking A minus B.
     # We define our test as group B minus group A. Therefore we have to flip our signs,
     # and high/low values of the confidence interval
-    assert row["Group A average"][0] == approx(8.216667, rel=1e-5)
-    assert row["Group B average"][0] == approx(6.040833, rel=1e-5)
-    assert row["z value"][0] == approx(-2.9906, rel=1e-4)
-    assert row["p value"][0] == approx(0.00674, rel=1e-3)
-    assert row["ConfInt: Lo"][0] == approx(-3.6846919, rel=1e-4)
-    assert row["ConfInt: Hi"][0] == approx(-0.6669748, rel=1e-4)
-    assert row["Degrees of freedom"][0] == approx(22, rel=1e-8)
+    assert row["Group A average"][0] == pytest.approx(8.216667, rel=1e-5)
+    assert row["Group B average"][0] == pytest.approx(6.040833, rel=1e-5)
+    assert row["z value"][0] == pytest.approx(-2.9906, rel=1e-4)
+    assert row["p value"][0] == pytest.approx(0.00674, rel=1e-3)
+    assert row["ConfInt: Lo"][0] == pytest.approx(-3.6846919, rel=1e-4)
+    assert row["ConfInt: Hi"][0] == pytest.approx(-0.6669748, rel=1e-4)
+    assert row["Degrees of freedom"][0] == pytest.approx(22, rel=1e-8)
 
 
 def test_t_paried_test_differences():
@@ -276,13 +275,13 @@ def test_t_paried_test_differences():
 
     # Assert against the R values in the above validation script.
     # Note: in R, the test for t.test(A, B), checking A minus B.
-    assert row["Group A average"][0] == approx(8.216667, rel=1e-7)
-    assert row["Group B average"][0] == approx(6.040833, rel=1e-7)
-    assert row["Differences mean"][0] == approx(2.175833, rel=1e-6)
-    assert row["z value"][0] == approx(2.8139, rel=1e-4)
-    assert row["p value"][0] == approx(0.01685, rel=1e-4)
-    assert row["ConfInt: Lo"][0] == approx(0.4739104, rel=1e-7)
-    assert row["ConfInt: Hi"][0] == approx(3.8777563, rel=1e-7)
+    assert row["Group A average"][0] == pytest.approx(8.216667, rel=1e-7)
+    assert row["Group B average"][0] == pytest.approx(6.040833, rel=1e-7)
+    assert row["Differences mean"][0] == pytest.approx(2.175833, rel=1e-6)
+    assert row["z value"][0] == pytest.approx(2.8139, rel=1e-4)
+    assert row["p value"][0] == pytest.approx(0.01685, rel=1e-4)
+    assert row["ConfInt: Lo"][0] == pytest.approx(0.4739104, rel=1e-7)
+    assert row["ConfInt: Hi"][0] == pytest.approx(3.8777563, rel=1e-7)
     assert row["Degrees of freedom"][0] == 11
 
 
@@ -330,29 +329,29 @@ def test_compare_to_R_with_without_missing(univariate_summary):
             data = pd.concat([data, pd.DataFrame(data={"values": [np.nan]})])
 
         out = univariate.summary_stats(data["values"])
-        assert out["mean"] == approx(96.84181818181816, abs=1e-8)
-        assert out["std_ddof1"] == approx(5.566925216278406, abs=1e-8)
-        assert out["rsd_classical"] == approx(0.05748472427301, abs=1e-8)
-        assert out["median"] == approx(97.58, abs=1e-8)
-        assert out["center"] == approx(97.58, abs=1e-8)  # center = median by default
-        assert out["iqr"] == approx(6.045, abs=1e-8)
-        assert out["spread"] == approx(6.28653702970298, abs=1e-8)  # spread = Sn (changed in 0.5)
-        assert out["rsd"] == approx(0.06442444178831, abs=1e-8)
+        assert out["mean"] == pytest.approx(96.84181818181816, abs=1e-8)
+        assert out["std_ddof1"] == pytest.approx(5.566925216278406, abs=1e-8)
+        assert out["rsd_classical"] == pytest.approx(0.05748472427301, abs=1e-8)
+        assert out["median"] == pytest.approx(97.58, abs=1e-8)
+        assert out["center"] == pytest.approx(97.58, abs=1e-8)  # center = median by default
+        assert out["iqr"] == pytest.approx(6.045, abs=1e-8)
+        assert out["spread"] == pytest.approx(6.28653702970298, abs=1e-8)  # spread = Sn (changed in 0.5)
+        assert out["rsd"] == pytest.approx(0.06442444178831, abs=1e-8)
         assert out["min"] == 88.71
         assert out["max"] == 108
         assert out["N_non_missing"] == 11
 
         # Note: there are differences in how Numpy and R interpolate the results
-        assert out["percentile_05"] == approx(89.115, rel=1e-6)
-        assert out["percentile_25"] == approx(93.55, rel=1e-6)
-        assert out["percentile_75"] == approx(99.595, rel=1e-6)
-        assert out["percentile_95"] == approx(104.805, rel=1e-6)
+        assert out["percentile_05"] == pytest.approx(89.115, rel=1e-6)
+        assert out["percentile_25"] == pytest.approx(93.55, rel=1e-6)
+        assert out["percentile_75"] == pytest.approx(99.595, rel=1e-6)
+        assert out["percentile_95"] == pytest.approx(104.805, rel=1e-6)
 
 
 def test_as_numpy_array(univariate_summary):
     out = univariate.summary_stats(univariate_summary["values"].values)
-    assert out["mean"] == approx(96.84181818181816, abs=1e-8)
-    assert out["std_ddof1"] == approx(5.566925216278406, abs=1e-8)
+    assert out["mean"] == pytest.approx(96.84181818181816, abs=1e-8)
+    assert out["std_ddof1"] == pytest.approx(5.566925216278406, abs=1e-8)
 
 
 def test__raises_error():
@@ -387,8 +386,8 @@ def test_confidence_interval():
     expected_UB = 10.037445
 
     out = univariate.confidence_interval(data - 90, "values", conflevel=0.95, style="regular")
-    assert out[0] == approx(expected_LB, abs=1e-4)
-    assert out[1] == approx(expected_UB, abs=1e-4)
+    assert out[0] == pytest.approx(expected_LB, abs=1e-4)
+    assert out[1] == pytest.approx(expected_UB, abs=1e-4)
     out = univariate.confidence_interval(data - 90, "values", conflevel=0.95, style="robust")
     # TODO: complete the test for the robust case
 
@@ -454,11 +453,11 @@ def test_within_between_variance(within_between_sd_data):
     dof_total = 27
 
     out = univariate.within_between_standard_deviation(df, "value", "index")
-    assert out["total_ms"] == approx(expected_actual_sd, rel=1e-5)
+    assert out["total_ms"] == pytest.approx(expected_actual_sd, rel=1e-5)
     assert out["total_dof"] == dof_total
-    assert out["within_ms"] == approx(expected_within_ms, rel=1e-5)
+    assert out["within_ms"] == pytest.approx(expected_within_ms, rel=1e-5)
     assert out["within_dof"] == dof_within
-    assert out["between_ms"] == approx(expected_between_sd, rel=1e-5)
+    assert out["between_ms"] == pytest.approx(expected_between_sd, rel=1e-5)
     assert out["between_dof"] == dof_between
 
 
@@ -537,11 +536,11 @@ def test_within_between_sd_missing_values():
     dof_total = 24
 
     out = univariate.within_between_standard_deviation(df, "value", "index")
-    assert out["total_ms"] == approx(expected_actual_sd, abs=1e-4)
+    assert out["total_ms"] == pytest.approx(expected_actual_sd, abs=1e-4)
     assert out["total_dof"] == dof_total
-    assert out["within_ms"] == approx(expected_within_ms, abs=1e-4)
+    assert out["within_ms"] == pytest.approx(expected_within_ms, abs=1e-4)
     assert out["within_dof"] == dof_within
-    assert out["between_ms"] == approx(expected_between_sd, abs=1e-4)
+    assert out["between_ms"] == pytest.approx(expected_between_sd, abs=1e-4)
     assert out["between_dof"] == dof_between
 
     # test__empty_case
@@ -713,8 +712,8 @@ def test_rosner_nonrobust_esd(outliers_data):
 
     # Compare values in the explanation from NIST:
     # https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h3.htm
-    assert reasons["lambda"] == approx([3.158, 3.151, 3.143, 3.136, 3.128, 3.120, 3.111], rel=1e-3)
-    assert reasons["R_i"] == approx([3.118, 2.942, 3.179, 2.810, 2.815, 2.848, 2.279], rel=1e-3)
+    assert reasons["lambda"] == pytest.approx([3.158, 3.151, 3.143, 3.136, 3.128, 3.120, 3.111], rel=1e-3)
+    assert reasons["R_i"] == pytest.approx([3.118, 2.942, 3.179, 2.810, 2.815, 2.848, 2.279], rel=1e-3)
 
 
 def test_rosner_esd_kwargs(outliers_data):
@@ -789,7 +788,7 @@ def test_sequence_compare_R(outliers_data):
         robust_variant=False,
         alpha=0.05,
     )
-    assert reasons_regular["p-value"][0] == approx(0.02066273, rel=1e-7)
+    assert reasons_regular["p-value"][0] == pytest.approx(0.02066273, rel=1e-7)
 
     # Now with the robust version, to check NaN handling.
     outliers, reasons_robust = univariate.outlier_detection_multiple(
