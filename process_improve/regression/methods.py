@@ -107,7 +107,7 @@ def simple_robust_regression(x: Sequence[float], y: Sequence[float], na_rm: Opti
         "residuals": np.nan,
         "t_value": np.nan,
         "conf_intervals": np.array([[np.nan, np.nan]]),
-        "conf_interval_intercept": [np.nan, np.nan],
+        "conf_interval_intercept": np.array([np.nan, np.nan]),
         "pi_range": np.nan,
         "leverage": np.nan,
         "k": 1,
@@ -126,8 +126,8 @@ def simple_robust_regression(x: Sequence[float], y: Sequence[float], na_rm: Opti
         X_ = X_.loc[~missing_idx, :]
         y_ = y_.loc[~missing_idx]
 
-    # CASE when there is no data, or only 1 data point
-    if (y_.size <= 1) or (X_.size <= 1):
+    # CASE when there is no data, or only 2 data point (repeate median slope needs more than 2)
+    if (y_.size <= 2) or (X_.size <= 2):
         return out
 
     x_, y_ = x.copy().ravel(), y.copy().ravel()
