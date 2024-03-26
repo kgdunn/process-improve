@@ -75,6 +75,13 @@ extend-ignore = [
 
     # Don't require that Exceptions have string literals
     "EM101", # Ugly redundant code otherwise
+
+    # Issues and TODO
+    "TD002",  # Not necessary that every todo has a username,
+    "TD003",  # Not necessary that every todo has an issuelink
+    "TD004",  # Not necessary that every todo has a colon
+    "TD005",  # Not necessary that every todo has a description
+    "FIX002", # Not necessary that every fixme has to be removed
 ]
 
 # Exclude a variety of commonly ignored directories.
