@@ -2,10 +2,11 @@
 import time
 import warnings
 from functools import partial
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
+import pytest
 from scipy.stats import chi2, f
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.cross_decomposition import PLSRegression as PLS_sklearn
@@ -31,20 +32,23 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
         pass
 
     def fit(self, X, y=None):
+        """Get the centering and scaling object constants."""
         self.center_ = pd.DataFrame(X).mean()
         # this is the key difference with "preprocessing.StandardScaler"
         self.scale_ = pd.DataFrame(X).std(ddof=1)
         self.scale_[self.scale_ == 0] = 1.0  # columns with no variance are left as-is.
         return self
 
-    def transform(self, X):
+    def transform(self, X) -> pd.DataFrame:
+        """Do work of the transformation."""
         check_is_fitted(self, "center_")
         check_is_fitted(self, "scale_")
 
         X = pd.DataFrame(X).copy()
         return (X - self.center_) / self.scale_
 
-    def inverse_transform(self, X):  # noqa: ANN001
+    def inverse_transform(self, X) -> pd.DataFrame:
+        """Do the inverse transformation."""
         check_is_fitted(self, "center_")
         check_is_fitted(self, "scale_")
 
@@ -53,15 +57,15 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
 
 
 class PCA(PCA_sklearn):
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         n_components=None,
         *,
-        copy=True,
-        whiten=False,
-        svd_solver="auto",
-        tol=0.0,
-        iterated_power="auto",
+        copy: bool = True,
+        whiten: bool = False,
+        svd_solver: str = "auto",
+        tol: float = 0.0,
+        iterated_power: str = "auto",
         random_state=None,
         # Own extra inputs, for the case when there is missing data
         missing_data_settings: dict | None = None,
@@ -79,7 +83,7 @@ class PCA(PCA_sklearn):
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = False
 
-    def fit(self, X, y=None) -> PCA_sklearn:
+    def fit(self, X, y=None) -> PCA_sklearn:  # noqa: PLR0915
         """
         Fit a principal component analysis (PCA) model to the data.
 
@@ -96,7 +100,7 @@ class PCA(PCA_sklearn):
             Model object.
         """
         if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)  # noqa: N806
+            X = pd.DataFrame(X)
 
         self.N, self.K = X.shape
 
@@ -104,7 +108,7 @@ class PCA(PCA_sklearn):
         min_dim = int(min(self.N, self.K))
         self.A: int = min_dim if self.n_components is None else int(self.n_components)
 
-        if self.A > min_dim:
+        if min_dim < self.A:
             warn = (
                 "The requested number of components is more than can be "
                 "computed from data. The maximum number of components is "
@@ -144,7 +148,7 @@ class PCA(PCA_sklearn):
         # We have now fitted the model. Apply some convenience shortcuts for the user.
         self.A = self.n_components
         self.N = self.n_samples_
-        self.K = self.n_features_
+        self.K = self.n_features_in_
 
         self.loadings = pd.DataFrame(self.x_loadings.copy())
         self.loadings.index = X.columns
@@ -259,9 +263,9 @@ class PCA(PCA_sklearn):
 
         return self
 
-    def fit_transform(self, X, y=None):  # noqa: ANN001
+    def fit_transform(self, X, y=None):
         self.fit(X)
-        assert False, "Still do the transform part"
+        pytest.fail("Still do the transform part")
 
     def predict(self, X):
         """Use the PCA model on new data coming in matrix X."""
@@ -278,7 +282,7 @@ class PCA(PCA_sklearn):
         state.x_scores = X @ self.x_loadings
 
         # TODO: handle the missing data version here still
-        for a in range(self.A):
+        for _ in range(self.A):
             pass
             # p = self.x_loadings.iloc[:, [a]]
             # temp = X @ self.x_loadings.iloc[:, [a]]
@@ -335,7 +339,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         # Other setups:
         self.n_components = self.A
         self.n_samples_ = self.N
-        self.n_features_ = self.K
+        self.n_features_in_ = self.K
 
         self.x_loadings = np.zeros((self.K, self.A))
         self.x_scores_ = np.zeros((self.N, self.A))
@@ -371,19 +375,15 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
     def transform(self, X):
         check_is_fitted(self, "blah")
 
-        X = X.copy()
-        return X
+        return X.copy()
 
     def inverse_transform(self, X):
         check_is_fitted(self, "blah")
 
-        X = X.copy()
-        return X
+        return X.copy()
 
     def _fit_nipals_pca(self, settings):
-        """
-        Internal method to fit the PCA model using the NIPALS algorithm.
-        """
+        """Fit the PCA model using the NIPALS algorithm (internal method)."""
         # NIPALS algorithm
         K, A = self.K, self.A
 
@@ -566,10 +566,9 @@ class PLS(PLS_sklearn):
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = False
 
-    def fit(self, X, Y) -> PLS_sklearn:
+    def fit(self, X, Y) -> PLS_sklearn:  # noqa: PLR0915
         """
-        Fit a projection to latent structures (PLS) or Partial Least Square (PLS) model to the
-        data.
+        Fit a projection to latent structures (PLS) or Partial Least Square (PLS) model to the data.
 
         Parameters
         ----------
@@ -587,20 +586,19 @@ class PLS(PLS_sklearn):
 
         References
         ----------
-
         Abdi, "Partial least squares regression and projection on latent structure
         regression (PLS Regression)", 2010, DOI: 10.1002/wics.51
         """
         self.N, self.K = X.shape
         self.Ny, self.M = Y.shape
-        assert self.Ny == self.N, (
-            f"The X and Y arrays must have the same number of rows: X has {self.N} and " f"Y has {self.Ny}."
-        )
+        assert (
+            self.Ny == self.N
+        ), f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
 
         # Check if number of components is supported against maximum requested
         min_dim = min(self.N, self.K)
         self.A = min_dim if self.n_components is None else int(self.n_components)
-        if self.A > min_dim:
+        if min_dim < self.A:
             warn = (
                 "The requested number of components is more than can be "
                 "computed from data. The maximum number of components is "
@@ -862,7 +860,7 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
         # Other setups:
         self.n_components = self.A
         self.n_samples_ = self.N
-        self.n_features_ = self.K
+        self.n_features_in_ = self.K
         # self.M ?
 
         self.x_scores_ = np.zeros((self.N, self.A))  # T: N x A
@@ -894,7 +892,11 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
         return self
 
     def _fit_nipals_pls(self, settings):
-        """Fit the PLS model using the NIPALS algorithm.   (Internal method)"""
+        """
+        Fit the PLS model using the NIPALS algorithm.
+
+        (Internal method)
+        """
         # NIPALS algorithm
         A = self.A
 
@@ -1003,10 +1005,8 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
 
 
 def ssq(X: np.ndarray, axis: int | None = None) -> Any:
-    """A function than calculates the sum of squares of a 2D matrix
-    (not array! and not checked for either: code will simply fail),
+    """Calculate the sum of squares of a 2D matrix (not array! and not checked for either: code will simply fail),
     skipping over any NaN (missing) data.
-
     """
     N, K = X.shape
     if axis == 0:
@@ -1077,7 +1077,7 @@ def quick_regress(Y, x):
 
 def center(X, func=np.mean, axis=0, extra_output=False):  # noqa: ANN001
     """
-    Performs centering of data, using a function, `func` (default: np.mean).
+    Perform centering of data, using a function, `func` (default: np.mean).
     The function, if supplied, but return a vector with as many columns as the matrix X.
 
     `axis` [optional; default=0] {integer or None}
@@ -1187,7 +1187,7 @@ def SPE_limit(model, conf_level=0.95) -> float:
 
 
 def spe_calculation(spe_values: pd.Series, conf_level: float = 0.95) -> float:
-    """Returns a limit for SPE (squared prediction error) at the given level of confidence.
+    """Return a limit for SPE (squared prediction error) at the given level of confidence.
 
     Parameters
     ----------

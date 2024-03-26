@@ -242,7 +242,9 @@ def score_plot(
     return fig
 
 
-def loadings_plot(model, loadings_type="p", pc_horiz=1, pc_vert=2, settings: dict = None, fig=None) -> go.Figure:
+def loadings_plot(
+    model, loadings_type="p", pc_horiz: int = 1, pc_vert: int = 2, settings: dict = None, fig=None
+) -> go.Figure:
     """Generate a 2-dimensional loadings for the given latent variable model.
 
     Parameters
@@ -289,10 +291,7 @@ def loadings_plot(model, loadings_type="p", pc_horiz=1, pc_vert=2, settings: dic
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
 
-    if settings:
-        setdict = Settings(**settings).dict()
-    else:
-        setdict = Settings().dict()
+    setdict = Settings(**settings).dict() if settings else Settings().dict()
     if fig is None:
         fig = go.Figure()
 
