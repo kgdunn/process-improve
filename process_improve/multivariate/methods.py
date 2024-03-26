@@ -1,4 +1,6 @@
 # (c) Kevin Dunn, 2010-2023. MIT License. Based on own private work over the years.
+from __future__ import annotations
+
 import time
 import warnings
 from functools import partial
@@ -273,8 +275,6 @@ class PCA(PCA_sklearn):
         class State(object):
             """Class object to hold the prediction results together."""
 
-            pass
-
         state = State()
         state.N, state.K = X.shape
         assert self.K == state.K, "Prediction data must have same number of columns as training data."
@@ -350,7 +350,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
 
         # Perform MD algorithm here
         if self.missing_data_settings["md_method"].lower() == "pmp":
-            assert False, "The PMP method is not implemented yet"  # self._fit_pmp(X)
+            pytest.fail("The PMP method is not implemented yet")  # self._fit_pmp(X)
         elif self.missing_data_settings["md_method"].lower() in ["scp", "nipals"]:
             self._fit_nipals_pca(settings=self.missing_data_settings)
         elif self.missing_data_settings["md_method"].lower() in ["tsr"]:
@@ -366,7 +366,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
             "R2X_cum_",
             "squared_prediction_error_",
         ]
-        assert all([getattr(self, attr, None) is not None for attr in required_fields])
+        assert all(getattr(self, attr, None) is not None for attr in required_fields)
 
         # Additional calculations, which can be done after the missing data method is complete.
         self.explained_variance_ = np.diag(self.x_scores_.T @ self.x_scores_) / (self.N - 1)
@@ -544,7 +544,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
 
 
 class PLS(PLS_sklearn):
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         n_components: int = 2,
         *,
@@ -765,8 +765,6 @@ class PLS(PLS_sklearn):
         class State(object):
             """Class object to hold the prediction results together."""
 
-            pass
-
         state = State()
         state.N, state.K = X.shape
         assert self.K == state.K, "Prediction data must have same number of columns as training data."
@@ -878,14 +876,12 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
 
         # Perform MD algorithm here
         if self.missing_data_settings["md_method"].lower() == "pmp":
-            assert False, "PMP for PLS not implemented yet"
-            # self._fit_pmp_pls(X)
+            pytest.fail("PMP for PLS not implemented yet")  # self._fit_pmp_pls(X)
 
         elif self.missing_data_settings["md_method"].lower() in ["scp", "nipals"]:
             self._fit_nipals_pls(settings=self.missing_data_settings)
         elif self.missing_data_settings["md_method"].lower() in ["tsr"]:
-            assert False, "TSR for PLS not implemented yet"
-            # self._fit_tsr_pls(settings=self.missing_data_settings)
+            pytest.fail("TSR for PLS not implemented yet")  # self._fit_tsr_pls(settings=self.missing_data_settings)
 
         # Additional calculations, which can be done after the missing data method is complete.
         # self.explained_variance_ = np.diag(self.x_scores.T @ self.x_scores) / (self.N - 1)
@@ -1216,7 +1212,7 @@ def spe_calculation(spe_values: pd.Series, conf_level: float = 0.95) -> float:
     return np.sqrt(chi2.ppf(conf_level, h) * g)
 
 
-def ellipse_coordinates(
+def ellipse_coordinates(  # noqa: PLR0913
     score_horiz: int,
     score_vert: int,
     T2_limit_conf_level: float = 0.95,

@@ -1,5 +1,5 @@
 pandas
-numpy<1.25
+numpy
 matplotlib
 statsmodels
 bokeh
