@@ -1,4 +1,4 @@
-# (c) Kevin Dunn, 2010-2023. MIT License. Based on own private work over the years.
+# (c) Kevin Dunn, 2010-2024. MIT License. Based on own private work over the years.
 
 # Built-in libraries
 import json
