@@ -14,7 +14,9 @@ tqdm
 
 # Notebook imports
 ipywidgets
+nbformat
 
+# Dev environment
 flake8
 tox
 coverage
