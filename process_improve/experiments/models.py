@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # (c) Kevin Dunn, 2010-2023. MIT License. Based on own private work over the years.
 
 import warnings

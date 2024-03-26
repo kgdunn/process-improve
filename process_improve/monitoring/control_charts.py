@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Class for ControlChart: robust control charts with a balance between CUSUM and Shewhart properties."""
 
 import numpy as np
@@ -120,7 +119,7 @@ class ControlChart(object):
             return
 
         # Check if there are enough training samples:
-        if self.N < 2 * self.warm_up["M"]:
+        if 2 * self.warm_up["M"] > self.N:
             self.train_samples = list(np.arange(0, self.N))
         else:
             self.train_samples = list(np.arange(self.warm_up["M"], self.N))

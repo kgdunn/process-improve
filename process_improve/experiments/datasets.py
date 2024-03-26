@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # (c) Kevin Dunn, 2010-2023. MIT License. Based on own private work over the years.
 
 import pandas as pd
@@ -24,7 +23,6 @@ def distillateflow():
     -------
 
     """
-    pass
 
 
 def pollutant():
@@ -94,8 +92,6 @@ def oildoe():
 
 
     """
-    pass
-
 
 def golf():
     """
@@ -131,7 +127,6 @@ def golf():
     Example
     -------
     """
-    pass
 
 
 def boilingpot():
@@ -174,8 +169,6 @@ def boilingpot():
     Example
     -------
     """
-    pass
-
 
 def solar():
     """
@@ -221,8 +214,6 @@ def solar():
     -------
 
     """
-    pass
-
 
 def data(dataset: str) -> pd.DataFrame:
     """Return the ``dataset`` given by the string name."""

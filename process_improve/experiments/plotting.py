@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # (c) Kevin Dunn, 2010-2023. MIT License.
 import webbrowser
 
@@ -206,9 +205,6 @@ def pareto_plot(
         return p
 
 
-paretoPlot = pareto_plot
-
-
 def contour_plot(
     model,
     xlabel=None,
@@ -349,7 +345,6 @@ contourPlot = contour_plot
 
 def interaction_plot():
     """Interaction plot"""
-    pass
 
 
 def contour_plot_bokeh(

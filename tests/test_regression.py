@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import numpy as np
 import pandas as pd
 import pytest
@@ -37,9 +36,7 @@ def test__repeated_median(repeated_median):
 
 
 def test__repeated_median_catch_division_by_zero(repeated_median):
-    """
-    Ensures division by zero does not crash the algorithm
-    """
+    """Ensure division by zero does not crash the algorithm."""
     *_, divzero_x, divzero_y = repeated_median
     assert repeated_median_slope(divzero_x, divzero_y) == 1.0
 
@@ -47,7 +44,8 @@ def test__repeated_median_catch_division_by_zero(repeated_median):
 @pytest.fixture()
 def multiple_linear_regression_data():
     """
-    Verifies the linear regression calculation matches the output from R.
+    Verify the linear regression calculation matches the output from R.
+
     > x = c(0.019847603, 0.039695205, 0.059542808, 0.07939041, 0.099238013,
             0.119085616, 0.138933218)
     > y = c(0.2, 0.195089996, 0.284090012, 0.37808001, 0.46638, 0.561559975,
@@ -63,7 +61,7 @@ def multiple_linear_regression_data():
     (Intercept)  0.06641    0.02710   2.451   0.0579 .
     x            4.08993    0.30530  13.396 4.15e-05 ***
     ---
-    Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+    Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
     Residual standard error: 0.03206 on 5 degrees of freedom
     Multiple R-squared:  0.9729, Adjusted R-squared:  0.9675
     F-statistic: 179.5 on 1 and 5 DF,  p-value: 4.148e-05
@@ -109,7 +107,6 @@ def test_inconsistent_sizes(multiple_linear_regression_data):
     # TODO: X = 5 x 4, y = 5 x 1:  n=5, k=5: should work
     # TODO: X = 5 x 5, y = 5 x 1:  n=5, k=5+1 (with intercept): should fail
     X, y = multiple_linear_regression_data
-    pass
 
 
 def test_regression_model_with_intercept(multiple_linear_regression_data):
@@ -238,9 +235,7 @@ def test_input_transposed_vector(multiple_linear_regression_data):
 
 
 def test_input_one_data_point():
-    """
-    Cannot work: fit a line with 1 datapoint
-    """
+    """Cannot work: fit a line with 1 datapoint"""
     x = np.array([2])
     y = np.array([-5])
     out = multiple_linear_regression(x, y)
@@ -328,9 +323,7 @@ def test_regression_simple_robust(simple_robust_regression_data):
 
 
 def test_simple_robust_regression_corner_case():
-    """
-    Tests some corner cases.
-    """
+    """Tests some corner cases."""
     # No variation in x-space
     x = np.array([4, 4, 4, 4, 4])
     y = np.array([1, 2, 3, 4, 5])
@@ -342,9 +335,7 @@ def test_simple_robust_regression_corner_case():
 
 
 def test_simple_robust_regression_missing_values():
-    """
-    Test y length less than 2 because of nan values
-    """
+    """Test y length less than 2 because of nan values"""
 
     x = np.array([1, 2, 3, 4, 5])
     y = np.array([np.nan, np.nan, np.nan, np.nan, 1])
@@ -356,9 +347,7 @@ def test_simple_robust_regression_missing_values():
 
 
 def test_simple_regression_no_error():
-    """
-    Tests cases where there is perfect fit
-    """
+    """Tests cases where there is perfect fit"""
     x = np.array([1, 2, 3, 4, 5])
     y = np.array([9, 8, 7, 6, 5])
     robust = simple_robust_regression(x, y)

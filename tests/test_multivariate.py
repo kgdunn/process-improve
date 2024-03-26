@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # (c) Kevin Dunn, 2010-2023. MIT License.
 
 import pathlib
@@ -21,7 +20,7 @@ from process_improve.multivariate.methods import (
 )
 
 
-def test_PCA_SPE_limits():
+def test_pca_spe_limits():
     """Simulate data and see if SPE limit cuts off at 5%."""
     N = 1000
     repeats = 50
@@ -105,7 +104,7 @@ def test_PCA_missing_data(fixture_kamyr_data_missing_value):
     assert np.linalg.norm((model.loadings.T @ model.loadings) - np.eye(model.A)) == pytest.approx(0, abs=1e-2)
 
 
-def test_PCA_missing_data_as_numpy(fixture_kamyr_data_missing_value):
+def test_pca_missing_data_as_numpy(fixture_kamyr_data_missing_value):
     X_mcuv = MCUVScaler().fit_transform(fixture_kamyr_data_missing_value.values)
 
     # Build the model
@@ -143,21 +142,21 @@ def fixture_mv_utilities():
 
 def test_ssq(fixture_mv_utilities):
     x, _ = fixture_mv_utilities
-    assert (1 + 2 * 2 + 3 * 3 + 4 * 4 + 5 * 5 + 6 * 6) == pytest.approx(ssq(x), abs=1e-9)
+    assert pytest.approx(ssq(x), abs=1e-9) == (1 + 2 * 2 + 3 * 3 + 4 * 4 + 5 * 5 + 6 * 6)
 
 
 def test_quick_regress(fixture_mv_utilities):
     x, Y = fixture_mv_utilities
     out = quick_regress(Y, x).ravel()
-    assert 1 == pytest.approx(out[0], abs=1e-9)
-    assert 0.61538462 == pytest.approx(out[1], abs=1e-8)
-    assert 0 == pytest.approx(out[2], abs=1e-9)
+    assert pytest.approx(out[0], abs=1e-9) == 1
+    assert pytest.approx(out[1], abs=1e-8) == 0.61538462
+    assert pytest.approx(out[2], abs=1e-9) == 0
 
     # Checked against R: summary(lm(c(1,1,1,1,1,1) ~ seq(6) + 0))
-    assert 0.23077 == pytest.approx(out[3], abs=1e-6)
+    assert pytest.approx(out[3], abs=1e-6) == 0.23077
 
     # Checked against what is expected: (1 + 3^2 + 5^2)/(1 + 3^2 + 5^2)
-    assert 1.0 == pytest.approx(out[4], abs=1e-14)
+    assert pytest.approx(out[4], abs=1e-14) == 1.0
 
 
 @pytest.fixture()
@@ -218,7 +217,7 @@ def test_MCUV_centering(fixture_tablet_spectra_data):
 
     spectra, _ = fixture_tablet_spectra_data
     X_mcuv = MCUVScaler().fit_transform(spectra)
-    assert 0.0 == pytest.approx(np.max(np.abs(X_mcuv.mean(axis=0))), rel=1e-9)
+    assert pytest.approx(np.max(np.abs(X_mcuv.mean(axis=0))), rel=1e-9) == 0.0
 
 
 def test_MCUV_scaling(fixture_tablet_spectra_data):
@@ -227,13 +226,13 @@ def test_MCUV_scaling(fixture_tablet_spectra_data):
     spectra, _ = fixture_tablet_spectra_data
     X_mcuv = MCUVScaler().fit_transform(spectra)
 
-    assert 1 == pytest.approx(np.min(np.abs(X_mcuv.std(axis=0))), 1e-10)
-    assert 1 == pytest.approx(X_mcuv.std(), 1e-10)
+    assert pytest.approx(np.min(np.abs(X_mcuv.std(axis=0))), 1e-10) == 1
+    assert pytest.approx(X_mcuv.std(), 1e-10) == 1
 
 
-def test_PCA_tablet_spectra(fixture_tablet_spectra_data):
+def test_pca_tablet_spectra(fixture_tablet_spectra_data):
     r"""
-    PCA characteristics:
+    Check PCA characteristics.
 
     1. model's loadings must be orthogonal if there are no missing data.
         P.T * P = I
@@ -263,7 +262,7 @@ def test_PCA_tablet_spectra(fixture_tablet_spectra_data):
 
     # P'P = identity matrix of size A x A
     orthogonal_check = model.loadings.T @ model.loadings
-    assert 0.0 == pytest.approx(np.linalg.norm(orthogonal_check - np.eye(model.A)), rel=1e-9)
+    assert pytest.approx(np.linalg.norm(orthogonal_check - np.eye(model.A)), rel=1e-9) == 0.0
 
     # Check the R2 value against the R software output
     assert model.R2cum[1] == pytest.approx(0.7368, rel=1e-3)
@@ -295,7 +294,7 @@ def test_PCA_tablet_spectra(fixture_tablet_spectra_data):
     # scores. Numerical error?
 
 
-def test_PCA_errors_no_variance_to_start():
+def test_pca_errors_no_variance_to_start():
     """Arrays with no variance should seem to work, but should have no variability explained."""
     K, N, A = 17, 12, 5
     data = pd.DataFrame(np.zeros((N, K)))
@@ -463,7 +462,6 @@ def test_PLS_properties_TODO():
     W.T * R: ones on diagonal, zeros below diagonal
     R.T * P = ID
     """
-    pass
 
 
 @pytest.mark.skip(reason="API still has to be improved to handle this case")
@@ -1177,7 +1175,7 @@ def test_pls_simca_ldpe(fixture_PLS_LDPE_example):
     ) == pytest.approx(0, abs=1e-2)
 
 
-def test_PLS_SIMCA_LDPE_missing_data(fixture_PLS_LDPE_example):
+def test_pls_simca_ldpe_missing_data(fixture_PLS_LDPE_example):
     """Unit test for LDPE case study.
     From visual inspection, observation 12 has low influence in the model.
     Set 1 value in this observation to missing and check that the results are similar to the

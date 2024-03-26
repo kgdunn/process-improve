@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Bivariate statistical tools:
 
@@ -93,9 +92,7 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter=41) -> Union[int, fl
             rgt_line_list.append(rgt_line)
 
             angle = (
-                np.arccos((lft_line**2 + rgt_line**2 - hypotenuse_line**2) / (2 * lft_line * rgt_line))
-                * 180.0
-                / np.pi
+                np.arccos((lft_line**2 + rgt_line**2 - hypotenuse_line**2) / (2 * lft_line * rgt_line)) * 180.0 / np.pi
             )
             angle_list.append(angle)
 

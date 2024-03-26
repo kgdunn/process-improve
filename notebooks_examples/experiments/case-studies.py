@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # (c) Kevin Dunn, 2010-2023. MIT License. Based on own private work over the years.
 
 from .designs_factorial import full_factorial
@@ -78,7 +77,6 @@ def case_3D():
     mod_res4 = lm("y ~ A*C*E*G", expt)
     pareto_plot(mod_res4)
     """
-    pass
 
 
 def case_w2():

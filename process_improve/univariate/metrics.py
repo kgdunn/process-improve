@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import warnings
 from collections import defaultdict
 from typing import Any, DefaultDict, List, Tuple
@@ -168,9 +167,7 @@ def Sn(x, constant=1.1926):
 
 
 def _contains_nan(a, nan_policy="propagate"):
-    """
-    From scipy.stats.stats
-    """
+    """From scipy.stats.stats"""
     policies = ["propagate", "raise", "omit"]
     if nan_policy not in policies:
         raise ValueError("nan_policy must be one of {%s}" % ", ".join("'%s'" % s for s in policies))
@@ -190,7 +187,7 @@ def _contains_nan(a, nan_policy="propagate"):
             contains_nan = False
             nan_policy = "omit"
             warnings.warn(
-                "The input array could not be properly checked for nan " "values. nan values will be ignored.",
+                "The input array could not be properly checked for nan values. nan values will be ignored.",
                 RuntimeWarning,
             )
 
@@ -584,7 +581,7 @@ def median_abs_deviation(x, axis=0, center=np.median, scale="normal", nan_policy
     """
     assert axis is not None, "axis=None is now depricated. Unraval the array."
     if not callable(center):
-        raise TypeError("The argument 'center' must be callable. The given " f"value {repr(center)} is not callable.")
+        raise TypeError(f"The argument 'center' must be callable. The given value {repr(center)} is not callable.")
 
     # An error may be raised here, so fail-fast, before doing lengthy
     # computations, even though `scale` is not used until later
@@ -777,9 +774,7 @@ def outlier_detection_multiple(
         try:
             cutoff_i = np.where(
                 np.array(extra_out["R_i"]) - np.array(extra_out["lambda"]) >= 0,
-            )[
-                0
-            ][0]
+            )[0][0]
         except IndexError:
             cutoff_i = -1
 

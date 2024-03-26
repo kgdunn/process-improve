@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import numpy as np
 import pytest
 
@@ -18,9 +17,7 @@ def straight_line():
 
 
 def test__validate_nan_output(straight_line):
-    """
-    Is the elbow where we expect it? For clean, perfect data.
-    """
+    """Is the elbow where we expect it? For clean, perfect data."""
     x, y0, y1, y2 = straight_line
     # Horizontal line
     elbow = find_elbow_point(x, y0)
@@ -60,9 +57,7 @@ def elbow_with_synthetic_data():
 
 
 def test__validate_with_synthetic_data(elbow_with_synthetic_data):
-    """
-    Is the elbow where we expect it? For clean, perfect data.
-    """
+    """Is the elbow where we expect it? For clean, perfect data."""
     x, y, break_pt = elbow_with_synthetic_data
     expected_elbow = np.argmin(np.abs(x - break_pt))
     assert expected_elbow == find_elbow_point(x, y)
