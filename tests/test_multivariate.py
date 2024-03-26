@@ -22,9 +22,7 @@ from process_improve.multivariate.methods import (
 
 
 def test_PCA_SPE_limits():
-    """
-    Simulate data and see if SPE limit cuts off at 5%.
-    """
+    """Simulate data and see if SPE limit cuts off at 5%."""
     N = 1000
     repeats = 50
     outliers_95 = []
@@ -53,9 +51,7 @@ def test_PCA_SPE_limits():
 
 
 def test_PCA_foods():
-    """
-    Arrays with no variance should not be able to have variance extracted.
-    """
+    """Arrays with no variance should not be able to have variance extracted."""
 
     foods = pd.read_csv("https://openmv.net/file/food-texture.csv").drop(
         [
@@ -83,7 +79,7 @@ def test_PCA_foods():
     assert ellipse_y[-1] == pytest.approx(0, rel=1e-7)
 
 
-@pytest.fixture
+@pytest.fixture()
 def fixture_kamyr_data_missing_value():
     folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "multivariate"
     return pd.read_csv(
@@ -125,7 +121,7 @@ def test_PCA_missing_data_as_numpy(fixture_kamyr_data_missing_value):
     assert np.linalg.norm((model.loadings.T @ model.loadings) - np.eye(model.A)) == pytest.approx(0, abs=1e-2)
 
 
-@pytest.fixture
+@pytest.fixture()
 def fixture_mv_utilities():
     """
     Multivariate methods depend on an internal regression and Sum of Squares
@@ -138,7 +134,7 @@ def fixture_mv_utilities():
             [6, 5, 4, 3, 2, 1],
             [0, 0, 0, 0, 0, 0],
             [1, 1, 1, 1, 1, 1],
-            [1, np.NaN, 3, np.NaN, 5, np.NaN],
+            [1, np.nan, 3, np.nan, 5, np.nan],
         ]
     )
     Y = Y.T
@@ -164,7 +160,7 @@ def test_quick_regress(fixture_mv_utilities):
     assert 1.0 == pytest.approx(out[4], abs=1e-14)
 
 
-@pytest.fixture
+@pytest.fixture()
 def fixture_tablet_spectra_data():
     """
     Verifies the PCA model for the case of no missing data.
@@ -218,9 +214,7 @@ def fixture_tablet_spectra_data():
 
 
 def test_MCUV_centering(fixture_tablet_spectra_data):
-    """
-    Mean centering of the testing data.
-    """
+    """Mean centering of the testing data."""
 
     spectra, _ = fixture_tablet_spectra_data
     X_mcuv = MCUVScaler().fit_transform(spectra)
@@ -302,9 +296,7 @@ def test_PCA_tablet_spectra(fixture_tablet_spectra_data):
 
 
 def test_PCA_errors_no_variance_to_start():
-    """
-    Arrays with no variance should seem to work, but should have no variability explained.
-    """
+    """Arrays with no variance should seem to work, but should have no variability explained."""
     K, N, A = 17, 12, 5
     data = pd.DataFrame(np.zeros((N, K)))
     model = PCA(n_components=A)
@@ -316,9 +308,7 @@ def test_PCA_errors_no_variance_to_start():
 
 
 def test_PCA_invalid_calls():
-    """
-    Tests various invalid calls, and corresponding error messages.
-    """
+    """Tests various invalid calls, and corresponding error messages."""
     K, N, A = 4, 3, 5
     data = pd.DataFrame(np.random.uniform(low=-1, high=1, size=(N, K)))
     with pytest.warns(
@@ -344,9 +334,7 @@ def test_PCA_invalid_calls():
 
 
 def test_PCA_no_more_variance():
-    """
-    Create a rank 2 matrix and it should fail on the 3rd component.
-    """
+    """Create a rank 2 matrix and it should fail on the 3rd component."""
 
     K = 17
     N = 12
@@ -365,9 +353,7 @@ def test_PCA_no_more_variance():
 
 
 def test_PCA_columns_with_no_variance():
-    """
-    Create a column with no variance. That column's loadings should be 0.
-    """
+    """Create a column with no variance. That column's loadings should be 0."""
     K = 14
     N = 29
     A = 4
@@ -395,7 +381,7 @@ def test_PCA_columns_with_no_variance():
     (np.sum(np.abs(covmatrix - np.diag(np.diag(covmatrix))))).values == pytest.approx(0, abs=1e-6)
 
 
-@pytest.fixture
+@pytest.fixture()
 def fixture_pca_PCA_Wold_etal_paper():
     """
     From the PCA paper by Wold, Esbensen and Geladi, 1987
@@ -406,26 +392,20 @@ def fixture_pca_PCA_Wold_etal_paper():
 
 
 def test_PCA_Wold_centering(fixture_pca_PCA_Wold_etal_paper):
-    """
-    Checks the centering step
-    """
+    """Checks the centering step"""
     out, centering = center(fixture_pca_PCA_Wold_etal_paper, extra_output=True)
     assert centering == pytest.approx([4, 4, 4, 3], rel=1e-8)
 
 
 def test_PCA_Wold_scaling(fixture_pca_PCA_Wold_etal_paper):
-    """
-    Checks the scaling step. Page 40 of the above paper.
-    """
+    """Checks the scaling step. Page 40 of the above paper."""
 
     out, scaling = scale(center(fixture_pca_PCA_Wold_etal_paper), extra_output=True, ddof=1)
     assert scaling == pytest.approx([1, 1, 0.5, 1])
 
 
 def test_PCA_Wold_model_results(fixture_pca_PCA_Wold_etal_paper):
-    """
-    Checks if the PCA model matches the results in the paper.
-    """
+    """Check if the PCA model matches the results in the paper."""
 
     X_preproc = scale(center(fixture_pca_PCA_Wold_etal_paper))
     pca_1 = PCA(n_components=1)
@@ -488,9 +468,7 @@ def test_PLS_properties_TODO():
 
 @pytest.mark.skip(reason="API still has to be improved to handle this case")
 def test_PLS_invalid_calls():
-    """
-    Tests various invalid calls, and corresponding error messages.
-    """
+    """Tests various invalid calls, and corresponding error messages."""
     K, N, M, A = 4, 3, 2, 5
     dataX = pd.DataFrame(np.random.uniform(low=-1, high=1, size=(N, K)))
     dataY = pd.DataFrame(np.random.uniform(low=-1, high=1, size=(N, M)))
@@ -517,8 +495,8 @@ def test_PLS_invalid_calls():
         model.fit(dataX, sparse_data)
 
 
-@pytest.fixture
-def fixture_PLS_model_SIMCA_1_component():
+@pytest.fixture()
+def fixture_pls_model_simca_1_component():
     """
     Simple model tested against Simca-P, version 14.1.
     Testing on 28 June 2020.
@@ -757,8 +735,8 @@ def fixture_PLS_model_SIMCA_1_component():
     return data
 
 
-def test_PLS_compare_sklearn_1_component(fixture_PLS_model_SIMCA_1_component):
-    data = fixture_PLS_model_SIMCA_1_component
+def test_PLS_compare_sklearn_1_component(fixture_pls_model_simca_1_component):
+    data = fixture_pls_model_simca_1_component
 
     plsmodel = PLSRegression(n_components=data["A"], scale=True)
     plsmodel.fit(data["X"], data["y"])
@@ -806,8 +784,8 @@ def test_PLS_compare_sklearn_1_component(fixture_PLS_model_SIMCA_1_component):
     # assert R2_y == pytest.approx(data["R2Y"], abs=1e-6)
 
 
-def test_PLS_compare_model_api(fixture_PLS_model_SIMCA_1_component):
-    data = fixture_PLS_model_SIMCA_1_component
+def test_PLS_compare_model_api(fixture_pls_model_simca_1_component):
+    data = fixture_pls_model_simca_1_component
     plsmodel = PLS(n_components=data["A"])
 
     X_mcuv = MCUVScaler().fit(data["X"])
@@ -841,8 +819,8 @@ def test_PLS_compare_model_api(fixture_PLS_model_SIMCA_1_component):
     assert data["expected_y_predicted"] == pytest.approx(Y_mcuv.inverse_transform(state.y_hat).values.ravel(), abs=1e-5)
 
 
-@pytest.fixture
-def fixture_PLS_SIMCA_2_components():
+@pytest.fixture()
+def fixture_pls_simca_2_components():
     """
     Simple model tested against Simca-P, version 14.1.
     Testing on 02 July 2020.
@@ -1035,8 +1013,8 @@ def fixture_PLS_SIMCA_2_components():
     return out
 
 
-def test_PLS_sklearn_2_components(fixture_PLS_SIMCA_2_components):
-    data = fixture_PLS_SIMCA_2_components
+def test_pls_sklearn_2_components(fixture_pls_simca_2_components):
+    data = fixture_pls_simca_2_components
 
     plsmodel = PLSRegression(n_components=data["A"], scale=False)
 
@@ -1052,8 +1030,8 @@ def test_PLS_sklearn_2_components(fixture_PLS_SIMCA_2_components):
     assert np.abs(data["loadings_W"]) == pytest.approx(np.abs(plsmodel.x_weights_), abs=1e-5)
 
 
-def test_PLS_compare_API(fixture_PLS_SIMCA_2_components):
-    data = fixture_PLS_SIMCA_2_components
+def test_pls_compare_api(fixture_pls_simca_2_components):
+    data = fixture_pls_simca_2_components
 
     plsmodel = PLS(n_components=data["A"])
 
@@ -1083,7 +1061,7 @@ def test_PLS_compare_API(fixture_PLS_SIMCA_2_components):
     assert np.abs(data["T"]) == pytest.approx(np.abs(state.x_scores), abs=1e-5)
 
 
-@pytest.fixture
+@pytest.fixture()
 def fixture_PLS_LDPE_example():
     """
     No missing data.
@@ -1155,7 +1133,7 @@ def fixture_PLS_LDPE_example():
     return out
 
 
-def test_PLS_SIMCA_LDPE(fixture_PLS_LDPE_example):
+def test_pls_simca_ldpe(fixture_PLS_LDPE_example):
     """Unit test for LDPE case study.
 
     Parameters
@@ -1208,7 +1186,7 @@ def test_PLS_SIMCA_LDPE_missing_data(fixture_PLS_LDPE_example):
 
     """
     data = fixture_PLS_LDPE_example
-    data["X"].iloc[11, 0] = np.NaN
+    data["X"].iloc[11, 0] = np.nan
     plsmodel = PLS(n_components=data["A"], missing_data_settings=dict(md_method="scp"))
 
     X_mcuv = MCUVScaler().fit(data["X"])

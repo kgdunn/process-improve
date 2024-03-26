@@ -10,7 +10,7 @@ from process_improve.regression.methods import (
 )
 
 
-@pytest.fixture
+@pytest.fixture()
 def repeated_median():
     x = np.array([0, 1, 2, 3])
     y = np.array([5, 1, 6, 72])
@@ -44,7 +44,7 @@ def test__repeated_median_catch_division_by_zero(repeated_median):
     assert repeated_median_slope(divzero_x, divzero_y) == 1.0
 
 
-@pytest.fixture
+@pytest.fixture()
 def multiple_linear_regression_data():
     """
     Verifies the linear regression calculation matches the output from R.
@@ -249,7 +249,7 @@ def test_input_one_data_point():
     assert np.isnan(out["residuals"])
 
 
-@pytest.fixture
+@pytest.fixture()
 def simple_robust_regression_data():
     """
     Check the simple robust regression model. Validated against a data set where the values

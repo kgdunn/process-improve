@@ -20,9 +20,7 @@ from .models import predict
 
 
 def get_plot_title(main, model, prefix=""):
-    """
-    Constructs a sensible plot title from the ``model``.
-    """
+    """Construct a sensible plot title from the ``model``."""
     if main is not None:
         main = prefix
         title = model.get_title()
@@ -104,7 +102,7 @@ def pareto_plot(
 
     params = model.get_parameters()
     if up_to_level:
-        assert isinstance(up_to_level, int), "Specify an integer value for " "`up_to_level`."
+        assert isinstance(up_to_level, int), "Specify an integer value for `up_to_level`."
         keep = []
         for k in range(up_to_level):
             keep.extend(model.get_factor_names(level=k + 1))
@@ -283,15 +281,9 @@ def contour_plot(
         h_grid, v_grid = H.ravel(), V.ravel()
 
         pure_factors = model.get_factor_names(level=1)
-        if xlabel is None:
-            xlabel = pure_factors[0]
-        else:
-            xlabel = str(xlabel)
+        xlabel = pure_factors[0] if xlabel is None else str(xlabel)
 
-        if ylabel is None:
-            ylabel = pure_factors[1]
-        else:
-            ylabel = str(ylabel)
+        ylabel = pure_factors[1] if ylabel is None else str(ylabel)
 
         kwargs = {xlabel: h_grid, ylabel: v_grid}
         if other_factors is not None and isinstance(other_factors, dict):
@@ -356,9 +348,7 @@ contourPlot = contour_plot
 
 
 def interaction_plot():
-    """
-    Interaction plot
-    """
+    """Interaction plot"""
     pass
 
 
@@ -389,15 +379,9 @@ def contour_plot_bokeh(
     h_grid, v_grid = H.ravel(), V.ravel()
 
     pure_factors = model.get_factor_names(level=1)
-    if xlabel is None:
-        xlabel = pure_factors[0]
-    else:
-        xlabel = str(xlabel)
+    xlabel = pure_factors[0] if xlabel is None else str(xlabel)
 
-    if ylabel is None:
-        ylabel = pure_factors[1]
-    else:
-        ylabel = str(ylabel)
+    ylabel = pure_factors[1] if ylabel is None else str(ylabel)
 
     kwargs = {xlabel: h_grid, ylabel: v_grid}
     if other_factors is not None and isinstance(other_factors, dict):
@@ -410,7 +394,7 @@ def contour_plot_bokeh(
     for factor in unspecified_factors:
         kwargs[factor] = np.zeros_like(h_grid)
 
-    assert sorted(kwargs.keys()) == sorted(pure_factors), "Not all factors " "were specified."
+    assert sorted(kwargs.keys()) == sorted(pure_factors), "Not all factors were specified."
     Z = predict(model, **kwargs)
     Z = Z.values.reshape(N, N)
     z_min, z_max = Z.min(), Z.max()

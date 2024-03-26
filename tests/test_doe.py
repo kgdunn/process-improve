@@ -10,9 +10,7 @@ from process_improve.experiments.structures import c, create_names, gather
 
 
 class TestStructures(unittest.TestCase):
-    """
-    Test the data structures.
-    """
+    """Test the data structures."""
 
     def setUp(self):
         self.A = [-1, +1, -1, +1, 0, +1]
@@ -166,9 +164,7 @@ class TestModels(unittest.TestCase):
         """
 
     def test_half_fraction(self):
-        """
-        Testing attributes for the half-fraction model.
-        """
+        """Testing attributes for the half-fraction model."""
         self.assertTrue(self.model_stability_poshalf.nobs == 4)
         self.assertTrue(self.model_stability_poshalf.df_resid == 0)
         beta = self.model_stability_poshalf.get_parameters(drop_intercept=False)
@@ -188,8 +184,7 @@ class Test_API_usage(unittest.TestCase):
         # TODO: replace unittest -> pytest
         # TODO: use path
         folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "experiments"
-        self.df1 = pd.read_csv(folder / "test_doe1.csv")
-        self.df1.set_index("Run order", inplace=True)
+        self.df1 = pd.read_csv(folder / "test_doe1.csv").set_index("Run order")
 
     def test_case_1(self):
         index = self.df1.index
@@ -228,9 +223,7 @@ class Test_API_usage(unittest.TestCase):
         self.assertEqual(len(model5.aliasing), 2)
 
     def test_realworld_coded(self):
-        """
-        Test conversion between real-world and coded units.
-        """
+        """Test conversion between real-world and coded units."""
         c1 = c(2.5, 3, 2.5, 3, center=2.75, range=[2.5, 3], name="cement")
         c1_coded = c1.to_coded()
         self.assertListEqual(c1_coded.to_list(), [-1.0, 1.0, -1.0, 1.0])

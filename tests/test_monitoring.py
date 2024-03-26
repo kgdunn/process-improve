@@ -42,9 +42,7 @@ class test_validate_against_R_qcc_xbar_one:
 
 
 class test_control_chart:
-    """
-    Generic control chart tests.
-    """
+    """Generic control chart tests."""
 
     y = np.array([33, 30, 29, 30, 27, 32, 17])
     # Simulated in R: loc=50, sd=4
@@ -66,9 +64,7 @@ class test_control_chart:
 
 
 class test_holt_winters_control_chart:
-    """
-    Testing the Holt-Winters control chart settings.
-    """
+    """Testing the Holt-Winters control chart settings."""
 
     y = np.array([10.09, 9.08, 3.14, 7.00, 11.47, 11.95, 3.96, 8.18, 1.87, 8.72])
 
@@ -106,7 +102,7 @@ class test_holt_winters_control_chart:
             101.613,
             98.118,
             95.161,
-            np.NaN,
+            np.nan,
             95.968,
             96.505,
             101.075,

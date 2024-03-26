@@ -1135,7 +1135,7 @@ def scale(X, func=np.std, axis=0, extra_output=False, **kwargs):
     # options = {}
     # options["markers"] = None
     # options["variance_tolerance"] = epsqrt
-    # options["low_variance_replacement"] = np.NaN
+    # options["low_variance_replacement"] = np.nan
 
     vector = pd.DataFrame(X).apply(func, axis=axis, **kwargs).values
     # if options["markers"] is None:

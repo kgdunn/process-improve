@@ -7,7 +7,7 @@ import pytest
 from process_improve.batch.data_input import melted_to_dict, melted_to_wide
 
 
-@pytest.fixture
+@pytest.fixture()
 def nylon_raw_melteddata():
     nylon_raw = pd.read_csv(pathlib.Path(__file__).parents[2] / "process_improve" / "datasets" / "batch" / "nylon.csv")
     return nylon_raw

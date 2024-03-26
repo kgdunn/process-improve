@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-Class for ControlChart: robust control charts with a balance between CUSUM and Shewhart properties.
-"""
+"""Class for ControlChart: robust control charts with a balance between CUSUM and Shewhart properties."""
 
 import numpy as np
 import pandas as pd
@@ -31,9 +29,7 @@ def psi(x, k=2.0):
 
 
 class ControlChart(object):
-    """
-    Creates control chart instance objects.
-    """
+    """Create control chart instance objects."""
 
     def __init__(self, style="robust", variant="HW"):
         """

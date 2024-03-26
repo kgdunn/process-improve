@@ -82,9 +82,7 @@ def case_3D():
 
 
 def case_w2():
-    """
-    Teaching case week 2: https://yint.org/w2
-    """
+    """Teaching case week 2: https://yint.org/w2"""
     # T = time used for baking:
     #      (-1) corresponds to 80 minutes and (+1) corresponds to 100 minutes
     T = c(-1, +1, -1, +1, lo=80, hi=100)
@@ -114,9 +112,7 @@ def case_w2():
 
 
 def case_w4_1():
-    """
-    Teaching case week 4: https://yint.org/w4
-    """
+    """Teaching case week 4: https://yint.org/w4"""
     # S = Free shipping if order amount is €30 or more [-1],
     # or if order amount is over €50 [+1]
     S = c(-1, +1, -1, +1, -1, +1, -1, +1, name="Free shipping amount")
@@ -135,9 +131,7 @@ def case_w4_1():
 
 
 def case_w4_2():
-    """
-    Teaching case week 4: https://yint.org/w4
-    """
+    """Teaching case week 4: https://yint.org/w4"""
     # S = Free shipping if order amount is €30 or more [-1], or if
     # order amount is over €50 [+1]. Notice that a mistake was made
     # with the last experiment: order minimum for free shipping was €60 [+1].
@@ -284,9 +278,7 @@ def api_usage():
 
 
 def case_worksheet_6():
-    """
-    Half-fraction
-    """
+    """Half-fraction"""
     # The half-fraction, when C = A*B
     A = c(-1, +1, -1, +1)
     B = c(-1, -1, +1, +1)
@@ -313,9 +305,7 @@ def case_worksheet_6():
 
 
 def case_worksheet_8():
-    """
-    Highly-fractionated factorial
-    """
+    """Highly-fractionated factorial"""
     A, B, C = full_factorial(3, names=["A", "B", "C"])
 
     # These 4 factors are generated, using the trade-off table relationships

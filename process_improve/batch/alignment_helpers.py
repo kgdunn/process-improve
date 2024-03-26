@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-Functions in this files will ONLY use NumPy, and are therefore candidates for speed up with Numba.
+"""Functions in this files will ONLY use NumPy, and are therefore candidates for speed up with Numba.
 """
 
 import numpy as np
@@ -22,7 +21,7 @@ def distance_matrix(test: np.ndarray, ref: np.ndarray, weight_matrix: np.ndarray
         dist[:, idx] = np.diag((row - ref) @ weight_matrix @ ((row - ref).T))
 
     # TODO: Sakoe-Chiba constraints could still be added
-    D = np.zeros((nr, nt)) * np.NaN
+    D = np.zeros((nr, nt)) * np.nan
     D[0, 0] = dist[0, 0]
     for idx in np.arange(1, nt):
         D[0, idx] = dist[0, idx] + D[0, idx - 1]

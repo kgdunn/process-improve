@@ -45,14 +45,13 @@ def t_value(p, v):
 
 def t_value_cdf(z, v):
     r"""
-    Returns the value on the y-axis if you plot the cumulative t-distribution with a fractional
+    Return the value on the y-axis if you plot the cumulative t-distribution with a fractional
     area of `p` (p is therefore a fractional value between 0 and 1 on the y-axis) and `v` is the
     degrees of freedom.
 
 
     Examples
     --------
-
     Since the cumulative distribution passes symmetrically through the x-axis at 0.0 for any
     number of degrees of freedom
 
@@ -78,7 +77,7 @@ def t_value_cdf(z, v):
 
 def normality_check(x):
     """
-    The p-value of the hypothesis that the data are from a normal distribution.
+    Check the p-value of the hypothesis that the data are from a normal distribution.
 
     If the p-value is less than the chosen alpha level (e.g. 0.05 or 0.025), then there is
     evidence that the data tested are NOT normally distributed.
@@ -88,9 +87,7 @@ def normality_check(x):
     NOTE: it does not mean that the data are normally distributed, just that we have nothing better
     to say about it. See the `Shapiro-Wilk test`_.
 
-    Implementation
-
-    Uses the Shapiro Wilk test directly taken from `scipy.stats.shapiro`_.
+    Implementation: Uses the Shapiro Wilk test directly taken from `scipy.stats.shapiro`_.
 
     .. _Shapiro-Wilk test:
         https://en.wikipedia.org/wiki/Shapiro-Wilk_test
@@ -104,15 +101,13 @@ def normality_check(x):
 
 def Sn(x, constant=1.1926):
     """
-    Computes a robust scale estimator. The Sn metric is an efficient alternative to MAD.
+    Compute a robust scale estimator. The Sn metric is an efficient alternative to MAD.
 
     Args:
         x (iterable): A vector of values
 
     Outputs:
         a scalar value, the Sn estimate of spread
-
-
 
     The `constant` gives values which are consistent with iid values from a Gaussian distribution
     and no outliers.
@@ -128,10 +123,8 @@ def Sn(x, constant=1.1926):
     *   The MAD statistic also has an implicit assumption of symmetry. That is, it measures the
         distance from a measure of central location (the median).
 
-
     References
     ----------
-
     .. [1] https://cran.r-project.org/web/packages/robustbase/
     .. [2] Rousseeuw, Peter J.; Croux, Christophe (December 1993),
         "Alternatives to the Median Absolute Deviation", Journal of the American Statistical
@@ -779,7 +772,7 @@ def outlier_detection_multiple(
 
             if variation > __eps:
                 # The variation, if zero or small, will fail to drop this index
-                x.drop(R_i_idx, inplace=True)
+                x = x.drop(R_i_idx)
 
         try:
             cutoff_i = np.where(
@@ -808,7 +801,6 @@ def within_between_standard_deviation(df, measured: str, repeat: str) -> dict:
     standard deviation.
 
     Example
-
     Two measurements on day 1 ``[101, 102]`` and two measurements on day 2 ``[94, 95]``. The
     between-day variation can already be expected to be much greater than the within-day variation.
 
@@ -829,7 +821,6 @@ def within_between_standard_deviation(df, measured: str, repeat: str) -> dict:
      'between_dof':    1}
 
     Note
-
     * SSQ = sum of squares
     * DOF= degrees of freedom
     * MS = mean square = (sum of squares) / (degrees of freedom) = SSQ / DOF = variance
@@ -843,7 +834,7 @@ def within_between_standard_deviation(df, measured: str, repeat: str) -> dict:
     # the average of those variances, pooled, you get an estimate of the within-group variance.
     within_ms = 0.0
     within_dof = 0
-    for idx, group in df.groupby(repeat):
+    for _, group in df.groupby(repeat):
         dof_group_i = max(0, group[measured].count() - 1)
         within_dof += dof_group_i
         # handling missing data makes for messier code
@@ -857,10 +848,7 @@ def within_between_standard_deviation(df, measured: str, repeat: str) -> dict:
     # Between groups: the ANOVA relationship is such that SSQ(total) = SSQ(between) + SSQ(within).
     # Therefore the between-group statistics are found by differencing
     between_dof = max(0, total_dof - within_dof)
-    if between_dof == 0:
-        between_ms = 0
-    else:
-        between_ms = max(0.0, (total_ms * total_dof - within_ms * within_dof) / between_dof)
+    between_ms = 0 if between_dof == 0 else max(0.0, (total_ms * total_dof - within_ms * within_dof) / between_dof)
 
     return {
         "total_ms": total_ms,

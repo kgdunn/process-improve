@@ -10,7 +10,7 @@ from process_improve.batch import features
 
 @pytest.fixture(scope="module")
 def batch_data():
-    """Returns a small example of a batch data set."""
+    """Return a small example of a batch data set."""
     folder = pathlib.Path(__file__).parents[2] / "process_improve" / "datasets" / "batch"
     return pd.read_csv(
         folder / "batch-fake-data.csv",

@@ -5,7 +5,7 @@ import pytest
 from process_improve.bivariate.methods import find_elbow_point
 
 
-@pytest.fixture
+@pytest.fixture()
 def straight_line():
     slope = 2.5
     intercept = -13
@@ -35,7 +35,7 @@ def test__validate_nan_output(straight_line):
     assert np.isnan(elbow)
 
 
-@pytest.fixture
+@pytest.fixture()
 def elbow_with_synthetic_data():
     """
     Creates simulated data to test against.

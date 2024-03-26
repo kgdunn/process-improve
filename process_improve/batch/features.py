@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+from __future__ import annotations
 from typing import Optional
 
 import numpy as np
@@ -22,10 +22,7 @@ def _prepare_data(df: pd.DataFrame, tags=None, batch_col=None, phase_col=None, a
 
     # Special case: a single series. Convert it to a dataframe
     if isinstance(df, pd.Series) and (tags is None) and isinstance(df.index, pd.DatetimeIndex):
-        if df.name is None:
-            name = "tag"
-        else:
-            name = df.name
+        name = "tag" if df.name is None else df.name
 
         tags = [name]
         df = pd.DataFrame(df, columns=tags)
@@ -80,9 +77,7 @@ def _prepare_data(df: pd.DataFrame, tags=None, batch_col=None, phase_col=None, a
         # use a duplicate of the dataframe, and then the index from the
         # time axis to do their calculations.
 
-        df_out = df[tags].copy()
-        df_out.set_index(age_col, inplace=True)
-        df_out.sort_index(inplace=True)
+        df_out = df[tags].copy().set_index(age_col).sort_index()
         tags.remove(age_col)
         grouped_data = df_out.groupby([batch_col, phase_col], as_index=True)
 
@@ -483,7 +478,7 @@ def f_slope(
     output = prepared.sum()
     for batch_id, this_batch in prepared:
         if x_axis_tag not in this_batch:
-            this_batch.reset_index(inplace=True)
+            this_batch = this_batch.reset_index()
         for tag in tags:
             X = this_batch[x_axis_tag]
             output.loc[batch_id][tag] = repeated_median_slope(X, this_batch[tag])
@@ -585,10 +580,7 @@ def f_crossing(
     found.
 
     """
-    if suffix is None:
-        base_name = f"cross-{int(threshold)}"
-    else:
-        base_name = str(suffix)
+    base_name = f"cross-{int(threshold)}" if suffix is None else str(suffix)
 
     assert isinstance(tag, str)
     assert tag in data, f"Desired tag ['{tag}'] not found in the dataframe."
@@ -639,7 +631,7 @@ def f_elbow(
     output = prepared.sum()
     for batch_id, this_batch in prepared:
         if x_axis_tag not in this_batch:
-            this_batch.reset_index(inplace=True)
+            this_batch = this_batch.reset_index()
         for tag in tags:
             subset = this_batch[[x_axis_tag, tag]]
             subset = subset.dropna()

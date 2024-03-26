@@ -225,6 +225,4 @@ def solar():
 
 
 def data(dataset: str) -> pd.DataFrame:
-    """
-    Returns the ``dataset`` given by the string name.
-    """
+    """Return the ``dataset`` given by the string name."""

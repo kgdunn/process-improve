@@ -12,7 +12,7 @@ class test_t_values:
     of freedom), against the values from R.
     """
 
-    assert univariate.t_value(0, 1) == np.NINF
+    assert univariate.t_value(0, 1) == -np.inf
     assert univariate.t_value(1, 2) == np.inf
     assert univariate.t_value(0.5, 3) == pytest.approx(0, rel=1e-16)
 
@@ -27,7 +27,7 @@ class test_t_values_cdf:
     """
 
     assert univariate.t_value_cdf(0, 1) == 0.5
-    assert univariate.t_value_cdf(np.NINF, 2) == 0
+    assert univariate.t_value_cdf(-np.inf, 2) == 0
     assert univariate.t_value_cdf(np.inf, 3) == 1
 
     # Tested in R:  pt(0.9, 5) ->  0.7953144
@@ -225,9 +225,7 @@ def test_t_test_differences():
     sam = [8.80, 6.60, 7.26, 9.32, 5.88, 8.44, 11.39, 6.82, 9.32, 5.63, 9.65, 9.49]
     jen = [5.37, 4.83, 7.87, 3.30, 8.26, 7.87, 8.26, 6.13, 6.13, 5.63, 2.96, 5.88]
     mik = [5.80, 9.00, 5.60, 8.40, 8.60, None, None, None, None, None, None, None]
-    temp = pd.DataFrame(data={"Sam": sam, "Jen": jen, "Mik": mik})
-    temp.reset_index(inplace=True)
-    temp = temp.melt(id_vars="index")
+    temp = pd.DataFrame(data={"Sam": sam, "Jen": jen, "Mik": mik}).reset_index().melt(id_vars="index")
     df = temp.drop("index", axis=1).dropna().rename(columns={"variable": "Person"})
     output = univariate.ttest_difference(df, grouper_column="Person", values_column="value", conflevel=0.95)
     row = output[output["Group A name"].eq("Sam") & output["Group B name"].eq("Jen")]
@@ -266,9 +264,7 @@ def test_t_paried_test_differences():
     """
     sam = [8.80, 6.60, 7.26, 9.32, 5.88, 8.44, 11.39, 6.82, 9.32, 5.63, 9.65, 9.49]
     jen = [5.37, 4.83, 7.87, 3.30, 8.26, 7.87, 8.26, 6.13, 6.13, 5.63, 2.96, 5.88]
-    temp = pd.DataFrame(data={"Sam": sam, "Jen": jen})
-    temp.reset_index(inplace=True)
-    temp = temp.melt(id_vars="index")
+    temp = pd.DataFrame(data={"Sam": sam, "Jen": jen}).reset_index().melt(id_vars="index")
     df = temp.drop("index", axis=1).dropna().rename(columns={"variable": "Person"})
     output = univariate.ttest_paired_difference(df, grouper_column="Person", values_column="value", conflevel=0.95)
     row = output[output["Group A name"].eq("Sam") & output["Group B name"].eq("Jen")]
@@ -285,7 +281,7 @@ def test_t_paried_test_differences():
     assert row["Degrees of freedom"][0] == 11
 
 
-@pytest.fixture
+@pytest.fixture()
 def univariate_summary():
     """
     A univariate case study
@@ -392,7 +388,7 @@ def test_confidence_interval():
     # TODO: complete the test for the robust case
 
 
-@pytest.fixture
+@pytest.fixture()
 def within_between_sd_data():
     """
     r1 <- c(108.06, 89.52, 95.16, 101.61, 99.19, 100, 93.55, 97.58, 93.55, 98.39, 96.77, 89.92,
@@ -432,18 +428,14 @@ def within_between_sd_data():
         87.1,
         93.55,
     ]
-    temp = pd.DataFrame(data={"e1": replicate1, "e2": replicate2})
-    temp.reset_index(inplace=True)
-    temp = temp.melt(id_vars="index")
+    temp = pd.DataFrame(data={"e1": replicate1, "e2": replicate2}).reset_index().melt(id_vars="index")
     df = temp.drop("variable", axis=1)
     empty = pd.DataFrame(columns=["value", "index"])
     return df, empty
 
 
 def test_within_between_variance(within_between_sd_data):
-    """
-    Results are from a spreadsheet template. Unsure of the origin, or accuracy.
-    """
+    """Results are from a spreadsheet template. Unsure of the origin, or accuracy."""
     df, _ = within_between_sd_data
     expected_within_ms = 1.916015**2
     expected_between_sd = 7.659146**2
@@ -462,9 +454,7 @@ def test_within_between_variance(within_between_sd_data):
 
 
 def test_empty_case(within_between_sd_data):
-    """
-    What happens if there are no data? Everything should be zero.
-    """
+    """What happens if there are no data? Everything should be zero."""
     _, empty = within_between_sd_data
     out = univariate.within_between_standard_deviation(empty, "value", "index")
     assert out["total_ms"] == 0
@@ -485,7 +475,7 @@ def test_within_between_sd_missing_values():
     """
 
     empty = pd.DataFrame(
-        data=[{"index": 1, "value": np.NaN}, {"index": 2, "value": 123456}],
+        data=[{"index": 1, "value": np.nan}, {"index": 2, "value": 123456}],
         columns=["value", "index"],
     )
 
@@ -521,10 +511,12 @@ def test_within_between_sd_missing_values():
         87.1,
         np.nan,
     ]
-    temp = pd.DataFrame(data={"e1": replicate1, "e2": replicate2})
-    temp.reset_index(inplace=True)
-    temp = temp.melt(id_vars="index")
-    df = temp.drop("variable", axis=1)
+    df = (
+        pd.DataFrame(data={"e1": replicate1, "e2": replicate2})
+        .reset_index()
+        .melt(id_vars="index")
+        .drop("variable", axis=1)
+    )
 
     # within_between_variance_missing_values
     # Results are from a spreadsheet template. Unsure of the origin, or accuracy.
@@ -554,7 +546,7 @@ def test_within_between_sd_missing_values():
     assert out["between_dof"] == 0
 
 
-@pytest.fixture
+@pytest.fixture()
 def outliers_data():
     # Rosner data set: https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h3.htm
     rosner = [
@@ -717,9 +709,7 @@ def test_rosner_nonrobust_esd(outliers_data):
 
 
 def test_rosner_esd_kwargs(outliers_data):
-    """
-    In this example it picks up fewer outliers.
-    """
+    """In this example it picks up fewer outliers."""
     rosner, _ = outliers_data
     outliers, _ = univariate.outlier_detection_multiple(
         rosner,
@@ -777,9 +767,7 @@ def test_rosner_esd_corner_case():
 
 
 def test_sequence_compare_R(outliers_data):
-    """
-    Compare it to an R sequence and the Grubb's test there.
-    """
+    """Compare it to an R sequence and the Grubb's test there."""
     _, sequence = outliers_data
     outliers, reasons_regular = univariate.outlier_detection_multiple(
         sequence,

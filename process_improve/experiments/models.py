@@ -13,9 +13,7 @@ from statsmodels.regression.linear_model import OLS
 
 
 def forg(x, prec=3):
-    """
-    Yanked from the code for Statsmodels / iolib / summary.py and adjusted.
-    """
+    """Yanked from the code for Statsmodels / iolib / summary.py and adjusted."""
     if prec == 3:
         # for 3 decimals
         if (abs(x) >= 1e4) or (abs(x) < 1e-4):
@@ -32,8 +30,7 @@ def forg(x, prec=3):
 
 
 class Model(OLS):
-    """
-    Just a thin wrapper around the OLS class from Statsmodels."""
+    """Just a thin wrapper around the OLS class from Statsmodels."""
 
     def __init__(self, OLS_instance, model_spec, aliasing=None, name=None):
         self._OLS = OLS_instance
@@ -58,9 +55,7 @@ class Model(OLS):
         return spec.describe()
 
     def summary(self, alpha=0.05, print_to_screen=True):
-        """
-        Side effect: prints to the screen.
-        """
+        """Side effect: prints to the screen."""
         # Taken from statsmodels.regression.linear_model.py
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -97,16 +92,16 @@ class Model(OLS):
         params = self._OLS.params.copy()
         try:
             if drop_intercept:
-                params.drop("Intercept", inplace=True)
+                params = params.drop("Intercept")
         except KeyError:
             pass
 
-        params.dropna(inplace=True)
-        return params
+        return params.dropna()
 
     def get_factor_names(self, level=1):
         """
-        Gets the factors in a model which correspond to a certain level:
+        Get the factors in a model which correspond to a certain level.
+
         1 : pure factors
         2 : 2-factor interactions and quadratic terms
         3 : 3-factor interactions and cubic terms
@@ -120,7 +115,7 @@ class Model(OLS):
         return spec.lhs_termlist[0].name()
 
     def get_title(self) -> str:
-        """Gets the model's title, if it has one. Always returns a string."""
+        """Get the model's title, if it has one. Always returns a string."""
         return self.data.get_title()
 
     def get_aliases(
@@ -149,7 +144,7 @@ class Model(OLS):
         params = self.get_parameters(drop_intercept=drop_intercept)
         for p_name in params.index.values:
             if websafe:
-                aliasing = '<span style="font-size: 130%; font-weight: 700">' f"{p_name}</span>"
+                aliasing = f'<span style="font-size: 130%; font-weight: 700">{p_name}</span>'
             else:
                 aliasing = p_name
             suffix = ""
@@ -174,9 +169,7 @@ class Model(OLS):
 
 
 def predict(model, **kwargs):
-    """
-    Make predictions from the model
-    """
+    """Make predictions from the model"""
     return model._OLS.predict(exog=dict(kwargs))
 
 
@@ -186,9 +179,7 @@ def lm(
     name: Optional[str] = None,
     alias_threshold: Optional[float] = 0.995,
 ) -> Model:
-    """
-    Create a linear model.
-    """
+    """Create a linear model."""
 
     def find_aliases(model, model_desc, threshold_correlation=0.995):
         """

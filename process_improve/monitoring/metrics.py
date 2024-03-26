@@ -8,7 +8,7 @@ from ..univariate.metrics import Sn
 def calculate_Cpk(
     df: pd.DataFrame,
     which_column: str,
-    specifications=(np.NaN, np.NaN),
+    specifications=(np.nan, np.nan),
     trim_percentile: float = 2.5,
 ) -> float:
     """

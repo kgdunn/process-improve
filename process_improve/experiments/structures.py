@@ -10,9 +10,7 @@ import pandas as pd
 
 
 class Column(pd.Series):
-    """
-    Creates a column. Can be used as a factor, or a response vector.
-    """
+    """Create a column. Can be used as a factor, or a response vector."""
 
     # https://pandas.pydata.org/pandas-docs/stable/development/extending.html
     # Temporary properties
@@ -37,9 +35,7 @@ class Column(pd.Series):
         return Column
 
     def to_coded(self, center=None, range=None):
-        """
-        Converts the column vector to coded units.
-        """
+        """Convert the column vector to coded units."""
         out = self.copy(deep=True)
         if self.pi_is_coded:
             return out
@@ -57,9 +53,7 @@ class Column(pd.Series):
         return out
 
     def to_realworld(self, center=None, range=None):
-        """
-        Converts the column vector to real-world units.
-        """
+        """Convert the column vector to real-world units."""
         out = self.copy(deep=True)
         if not self.pi_is_coded:
             return out
@@ -81,9 +75,7 @@ class Column(pd.Series):
         return out
 
     def extend(self, values):
-        """
-        Extends the column with the list of new values.
-        """
+        """Extend the column with the list of new values."""
         assert isinstance(values, list), "The 'values' must be in a list [...]"
         prior_n = self.index[-1]
         index = list(range(prior_n + 1, prior_n + len(values) + 1))
@@ -118,7 +110,7 @@ class Expt(pd.DataFrame):
 
     def __repr__(self):
         title = f"Name: {self.pi_title}"
-        dimensions = f"Size: {self.shape[0]} experiments; " f"{self.shape[1]} columns."
+        dimensions = f"Size: {self.shape[0]} experiments; {self.shape[1]} columns."
         return "\n".join([pd.DataFrame.__repr__(self), title, dimensions])
 
     def get_title(self):
@@ -238,7 +230,7 @@ def c(*args, **kwargs) -> Column:  # noqa: C901
     default_idx = list(range(1, len(sanitize) + 1))
     index = kwargs.get("index", default_idx)
     if len(index) != len(sanitize):
-        raise IndexError(('Length of "index" must match the ' "number of numeric inputs."))
+        raise IndexError('Length of "index" must match the number of numeric inputs.')
 
     out = Column(data=sanitize, index=index, name=None)
     # Use sensible defaults, if not provided
@@ -278,8 +270,8 @@ def c(*args, **kwargs) -> Column:  # noqa: C901
         try:
             _ = (e for e in out.pi_range)
         except TypeError:
-            assert False, "The `range` input must be an iterable, with " "2 values."
-        assert len(out.pi_range) == 2, "The `range` variable must be a tuple, " "with 2 values."
+            assert False, "The `range` input must be an iterable, with 2 values."
+        assert len(out.pi_range) == 2, "The `range` variable must be a tuple, with 2 values."
         out.pi_range = tuple(out.pi_range)
 
         try:
@@ -319,9 +311,7 @@ def c(*args, **kwargs) -> Column:  # noqa: C901
 
 
 def expand_grid(**kwargs):
-    """
-    Create the expanded grid here.
-    """
+    """Create the expanded grid here."""
     n_col = len(kwargs)
     itrs = [v.values for v in kwargs.values()]
     product = list(itertools.product(*itrs))
@@ -385,7 +375,7 @@ def gather(*args, title=None, **kwargs) -> Expt:
         out.index = index[0]
 
     # Drop any missing values:
-    out.dropna(axis=0, how="any", inplace=True)
+    out = out.dropna(axis=0, how="any")
 
     # Set the title, if one was provided
     out.pi_title = title
