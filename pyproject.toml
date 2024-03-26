@@ -1,6 +1,8 @@
 [tool.ruff]
 line-length = 120
 
+[tool.ruff.lint]
+
 # Enable ALL Pyflakes codes by default.
 select = ["ALL"]
 extend-ignore = [
@@ -89,8 +91,8 @@ exclude = [
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 
-[tool.ruff.flake8-quotes]
+[tool.ruff.lint.flake8-quotes]
 docstring-quotes = "double"
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-third-party=["pytest", "pandas"]

@@ -1,6 +1,6 @@
 repos:
     - repo: https://github.com/pre-commit/pre-commit-hooks
-      rev: v4.4.0
+      rev: v4.5.0
       hooks:
           - id: trailing-whitespace
           - id: check-ast
@@ -26,7 +26,7 @@ repos:
 
     # Remove MyPy: conflicts in python 3.9 with pytz
     - repo: https://github.com/pre-commit/mirrors-mypy
-      rev: v1.5.1
+      rev: v1.8.0
       hooks:
         - id: mypy
           args: ["--ignore-missing-imports", "--check-untyped-defs"]
@@ -38,7 +38,7 @@ repos:
           args: ["--profile", "black"]
 
     - repo: https://github.com/psf/black
-      rev: 23.7.0
+      rev: 24.2.0
       hooks:
         - id: black
           args: ["-l 120"]
@@ -49,19 +49,19 @@ repos:
         - id: blacken-docs
 
     - repo: https://github.com/PyCQA/flake8
-      rev: "6.1.0"
+      rev: "7.0.0"
       hooks:
         - id: flake8
 
     - repo: https://github.com/kynan/nbstripout
-      rev: 0.6.1
+      rev: 0.7.1
       hooks:
         - id: nbstripout
 
 
     - repo: https://github.com/charliermarsh/ruff-pre-commit
       # Ruff version. To eventually replace flake8?
-      rev: "v0.0.285"
+      rev: "v0.2.1"
       hooks:
         - id: ruff
           # Respect `exclude` and `extend-exclude` settings.

@@ -1,15 +1,14 @@
-# -*- coding: utf-8 -*-
-import pathlib
+from pathlib import Path
 
 import setuptools
 
-with open("README.md", "r") as fh:
+with Path("README.md").open() as fh:
     long_description = fh.read()
 
-with open(pathlib.Path(".") / "process_improve" / "__init__.py") as fh:
-    version_number = [line.split("=")[1].strip() for line in fh.read().split("\n") if line.startswith("__version__")][
-        0
-    ].replace('"', "")
+with (Path() / "process_improve" / "__init__.py").open() as fh:
+    version_number = next(
+        line.split("=")[1].strip() for line in fh.read().split("\n") if line.startswith("__version__")
+    ).replace('"', "")
 
 setuptools.setup(
     name="process-improve",
