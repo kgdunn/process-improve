@@ -61,7 +61,7 @@ repos:
 
     - repo: https://github.com/charliermarsh/ruff-pre-commit
       # Ruff version. To eventually replace flake8?
-      rev: "v0.3.7"
+      rev: "v0.4.1"
       hooks:
         - id: ruff
           # Respect `exclude` and `extend-exclude` settings.
