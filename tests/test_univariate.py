@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -543,6 +545,34 @@ def test_within_between_sd_missing_values():
     assert out["between_ms"] == 0
     assert out["total_dof"] == 0
     assert out["between_dof"] == 0
+
+
+@pytest.fixture()
+def outliers_data_measurement() -> list[float]:
+    """From an actual use-case."""
+    return [
+        10769.166,
+        10043.447,
+        10171.783,
+        10751.362,
+        10684.675,
+        10772.250,
+        10830.804,
+    ]
+
+
+def test_edge_case_outliers(outliers_data_measurement) -> None:
+    """Test an actual edge case that did not return p-values."""
+    max_outliers = len(outliers_data_measurement) - 5
+    outliers, reasons = univariate.outlier_detection_multiple(
+        outliers_data_measurement, algoritm="esd", max_outliers_detected=max_outliers, alpha=0.05
+    )
+
+    assert len(outliers) == 1
+    assert reasons["lambda"][0] == pytest.approx(2.0199685076)
+    assert reasons["R_i"][0] == pytest.approx(7.16003736)
+    assert reasons["p-value"][0] == 0
+    assert reasons["p-value"][1] == 0
 
 
 @pytest.fixture()

@@ -757,11 +757,8 @@ def outlier_detection_multiple(
             R_i_idx = R.idxmax()
             g = R.max()
             # Formula from the R-function for the Grubb's calculation
-            t = np.sqrt((g**2 * N * (2 - N)) / (g**2 * N - (N - 1) ** 2))
-            if t <= 0:
-                p_value = 0
-            else:
-                p_value = min(N * (1 - t_value_cdf(t, N - 2)), 1)
+            s = g**2 * N * (2 - N) / (g**2 * N - (N - 1) ** 2)
+            p_value = 0 if s <= 0 else min(N * (1 - t_value_cdf(np.sqrt(s), N - 2)), 1)
 
             extra_out["R_i_idx"].append(R_i_idx)
             extra_out["R_i"].append(R.max())
