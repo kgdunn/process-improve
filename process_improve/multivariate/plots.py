@@ -1,29 +1,33 @@
 # (c) Kevin Dunn, 2010-2024. MIT License. Based on own private work over the years.
 
 # Built-in libraries
+from __future__ import annotations
+
 import json
 
 import plotly.graph_objects as go
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
+from sklearn.base import BaseEstimator
 
 
-def plot_pre_checks(model, pc_horiz, pc_vert, pc_depth) -> bool:
+def plot_pre_checks(model: BaseEstimator, pc_horiz: int, pc_vert: int, pc_depth: int) -> bool:
+    """Check the inputs for the plot functions are valid."""
     assert 0 < pc_horiz <= model.A, f"The model has {model.A} components. Ensure that 1 <= pc_horiz<={model.A}."
     assert 0 < pc_vert <= model.A, f"The model has {model.A} components. Ensure that 1 <= pc_vert<={model.A}."
     assert -1 <= pc_depth <= model.A, f"The model has {model.A} components. Ensure that 1 <= pc_depth<={model.A}."
-    assert len(set([pc_horiz, pc_vert, pc_depth])) == 3, "Specify distinct components for each axis"
+    assert len({pc_horiz, pc_vert, pc_depth}) == 3, "Specify distinct components for each axis"
 
     return True
 
 
-def score_plot(
-    model,
+def score_plot(  # noqa: C901, PLR0913
+    model: BaseEstimator,
     pc_horiz: int = 1,
     pc_vert: int = 2,
     pc_depth: int = -1,
-    items_to_highlight: dict[str, list] = None,
-    settings: dict = None,
-    fig=None,
+    items_to_highlight: dict[str, list] | None = None,
+    settings: dict | None = None,
+    fig: go.Figure | None = None,
 ) -> go.Figure:
     """Generate a 2-dimensional score plot for the given latent variable model.
 
@@ -75,24 +79,27 @@ def score_plot(
 
     class Settings(BaseModel):
         show_ellipse: bool = True
-        ellipse_conf_level: float = 0.95  # TODO: check constraint
-        title: str = f"Score plot of component {pc_horiz} vs component {pc_vert}" + (
-            f" vs component {pc_depth}" if pc_depth > 0 else ""
+        ellipse_conf_level: float = 0.95
+
+        @field_validator("ellipse_conf_level")
+        @classmethod
+        def check_ellipse_conf_level(cls, val: float) -> float:
+            """Check confidence value is in range."""
+            if val >= 1:
+                raise ValueError("0.0 < `ellipse_conf_level` < 1.0")
+            if val <= 0:
+                raise ValueError("0.0 < `ellipse_conf_level` < 1.0")
+            return val
+
+        title: str = (
+            f"Score plot of component {pc_horiz} vs component {pc_vert} vs component {pc_depth}" if pc_depth > 0 else ""
         )
         show_labels: bool = False  # TODO
         show_legend: bool = True
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
 
-        @validator("ellipse_conf_level")
-        def check_ellipse_conf_level(self, v):
-            if v >= 1:
-                raise ValueError("0.0 < `ellipse_conf_level` < 1.0")
-            if v <= 0:
-                raise ValueError("0.0 < `ellipse_conf_level` < 1.0")
-            return v
-
-    setdict = Settings(**settings).dict() if settings else Settings().dict()
+    setdict = Settings(**settings).model_dump() if settings else Settings().dict()
     if fig is None:
         fig = go.Figure()
 
@@ -185,7 +192,7 @@ def score_plot(
                 go.Scatter(
                     x=ellipse[0],
                     y=ellipse[1],
-                    name=f"Hotelling's T^2 [{setdict['ellipse_conf_level']*100:.4g}%]",
+                    name=f"Hotelling's T^2 [{setdict['ellipse_conf_level'] * 100:.4g}%]",
                     mode="lines",
                     line=dict(
                         color="red",
@@ -242,8 +249,13 @@ def score_plot(
     return fig
 
 
-def loadings_plot(
-    model, loadings_type="p", pc_horiz: int = 1, pc_vert: int = 2, settings: dict = None, fig=None
+def loadings_plot(  # noqa: PLR0913
+    model: BaseEstimator,
+    loadings_type: str = "p",
+    pc_horiz: int = 1,
+    pc_vert: int = 2,
+    settings: dict | None = None,
+    fig: go.Figure | None = None,
 ) -> go.Figure:
     """Generate a 2-dimensional loadings for the given latent variable model.
 
@@ -286,7 +298,7 @@ def loadings_plot(
     margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
 
     class Settings(BaseModel):
-        title: str = f"Loadings plot [{loadings_type.upper()}] of component {pc_horiz} vs " f"component {pc_vert}"
+        title: str = f"Loadings plot [{loadings_type.upper()}] of component {pc_horiz} vs component {pc_vert}"
         show_labels: bool = True
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
@@ -380,11 +392,11 @@ def loadings_plot(
 
 
 def spe_plot(
-    model,
-    with_a=-1,
-    items_to_highlight: dict[str, list] = None,
-    settings: dict = None,
-    fig=None,
+    model: BaseEstimator,
+    with_a: int = -1,
+    items_to_highlight: dict[str, list] | None = None,
+    settings: dict | None = None,
+    fig: go.Figure | None = None,
 ) -> go.Figure:
     """Generate a squared-prediction error (SPE) plot for the given latent variable model using
     `with_a` number of latent variables. The default will use the total number of latent variables
@@ -441,17 +453,28 @@ def spe_plot(
         # Get the actual name of the last column in the model if negative indexing is used
         with_a = model.squared_prediction_error.columns[with_a]
     elif with_a == 0:
-        assert False, "`with_a` must be >= 1, or specified with negative indexing"
+        raise AssertionError("`with_a` must be >= 1, or specified with negative indexing")
 
     assert with_a <= model.A, "`with_a` must be <= the number of components fitted"
 
     class Settings(BaseModel):
         show_limit: bool = True
-        conf_level: float = 0.95  # TODO: check constraint < 1
+        conf_level: float = 0.95
+
+        @field_validator("conf_level")
+        @classmethod
+        def check_conf_level(cls, val: float) -> float:
+            """Check confidence value is in range."""
+            if val >= 1:
+                raise ValueError("0.0 < `conf_level` < 1.0")
+            if val <= 0:
+                raise ValueError("0.0 < `conf_level` < 1.0")
+            return val
+
         title: str = (
             "Squared prediction error plot after "
             f"fitting {with_a} component{'s' if with_a > 1 else ''}"
-            f", with the {conf_level*100}% confidence limit"
+            f", with the {conf_level * 100}% confidence limit"
         )
         default_marker: dict = dict(color="darkblue", symbol="circle", size=7)
         show_labels: bool = False
@@ -459,15 +482,7 @@ def spe_plot(
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
 
-        @validator("conf_level")
-        def check_conf_level(self, v):
-            if v >= 1:
-                raise ValueError("0.0 < `conf_level` < 1.0")
-            if v <= 0:
-                raise ValueError("0.0 < `conf_level` < 1.0")
-            return v
-
-    setdict = Settings(**settings).dict() if settings else Settings().dict()
+    setdict = Settings(**settings).model_dump() if settings else Settings().dict()
     if fig is None:
         fig = go.Figure()
 
@@ -510,7 +525,7 @@ def spe_plot(
         )
 
     limit_SPE_conf_level = model.SPE_limit(conf_level=setdict["conf_level"])
-    name = f'{setdict["conf_level"]*100:.3g}% limit'
+    name = f'{setdict["conf_level"] * 100:.3g}% limit'
     fig.add_hline(
         y=limit_SPE_conf_level,
         line_color="red",
@@ -555,11 +570,11 @@ def spe_plot(
 
 
 def t2_plot(
-    model,
-    with_a=-1,
-    items_to_highlight: dict[str, list] = None,
-    settings: dict = None,
-    fig=None,
+    model: BaseEstimator,
+    with_a: int = -1,
+    items_to_highlight: dict[str, list] | None = None,
+    settings: dict | None = None,
+    fig: go.Figure | None = None,
 ) -> go.Figure:
     """Generate a Hotelling's T2 (T^2) plot for the given latent variable model using
     `with_a` number of latent variables. The default will use the total number of latent variables
@@ -621,7 +636,7 @@ def t2_plot(
         conf_level: float = 0.95  # TODO: check constraint < 1
         title: str = (
             f"Hotelling's T2 plot after fitting {with_a} component{'s' if with_a > 1 else ''}"
-            f", with the {conf_level*100}% confidence limit"
+            f", with the {conf_level * 100}% confidence limit"
         )
         default_marker: dict = dict(color="darkblue", symbol="circle", size=7)
         show_labels: bool = False  # TODO
@@ -672,7 +687,7 @@ def t2_plot(
         )
 
     limit_HT2_conf_level = model.T2_limit(conf_level=setdict["conf_level"])
-    name = f'{setdict["conf_level"]*100:.3g}% limit'
+    name = f'{setdict["conf_level"] * 100:.3g}% limit'
     fig.add_hline(
         y=limit_HT2_conf_level,
         line_color="red",

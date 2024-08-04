@@ -82,6 +82,10 @@ extend-ignore = [
     "TD004",  # Not necessary that every todo has a colon
     "TD005",  # Not necessary that every todo has a description
     "FIX002", # Not necessary that every fixme has to be removed
+
+    # OK to use f-strings in errors as far as we are concerned here
+    "TRY003",
+    "EM102",
 ]
 
 # Exclude a variety of commonly ignored directories.
