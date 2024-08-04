@@ -1,6 +1,6 @@
 import warnings
 from collections import defaultdict
-from typing import Any, DefaultDict, List, Tuple
+from typing import Any, DefaultDict
 
 import numpy as np
 import pandas as pd
@@ -9,9 +9,9 @@ from scipy.stats import shapiro, t
 __eps = np.finfo(np.float32).eps
 
 
-def t_value(p, v):
+def t_value(p, v) -> float:
     r"""
-    Returns the value on the x-axis if you plot the cumulative t-distribution with a fractional
+    Return the value on the x-axis if you plot the cumulative t-distribution with a fractional
     area of `p` (p is therefore a fractional value between 0 and 1 on the y-axis) and `v` is the
     degrees of freedom.
 
@@ -42,7 +42,7 @@ def t_value(p, v):
     return t.ppf(p, df=v)
 
 
-def t_value_cdf(z, v):
+def t_value_cdf(z, v) -> float:
     r"""
     Return the value on the y-axis if you plot the cumulative t-distribution with a fractional
     area of `p` (p is therefore a fractional value between 0 and 1 on the y-axis) and `v` is the
@@ -127,7 +127,7 @@ def Sn(x, constant=1.1926):
     .. [1] https://cran.r-project.org/web/packages/robustbase/
     .. [2] Rousseeuw, Peter J.; Croux, Christophe (December 1993),
         "Alternatives to the Median Absolute Deviation", Journal of the American Statistical
-        Association, American Statistical Association, 88 (424): 1273–1283,
+        Association, American Statistical Association, 88 (424): 1273-1283,
         https://dx.doi.org/10.2307/2291267
 
     """
@@ -167,7 +167,7 @@ def Sn(x, constant=1.1926):
 
 
 def _contains_nan(a, nan_policy="propagate"):
-    """From scipy.stats.stats"""
+    """From scipy.stats.stats."""
     policies = ["propagate", "raise", "omit"]
     if nan_policy not in policies:
         raise ValueError("nan_policy must be one of {%s}" % ", ".join("'%s'" % s for s in policies))
@@ -248,7 +248,7 @@ def ttest_difference_calculate(sample_A, sample_B, conflevel=0.995) -> dict:
 
 def ttest_difference(df: pd.DataFrame, grouper_column: str, values_column: str, conflevel=0.995):
     """
-    Calculates the t-test for differences between two or more groups and returns a confidence
+    Calculate the t-test for differences between two or more groups and returns a confidence
     interval for the difference. The test is for UNPAIRED differences.
 
     The dataframe `df` contains a `grouper_column` with 2 or more unique values (e.g. 'A' and 'B').
@@ -352,7 +352,7 @@ def ttest_paired_difference_calculate(differences, conflevel=0.995) -> dict:
 
 def ttest_paired_difference(df: pd.DataFrame, grouper_column: str, values_column: str, conflevel=0.995):
     """
-    Calculates the t-test for paired differences between two or more groups and returns a
+    Calculate the t-test for paired differences between two or more groups and returns a
     confidence interval for the difference. The test is for PAIRED differences.
     The differences is always defined as the A values minus the B values: after - before, or A - B.
 
@@ -413,7 +413,7 @@ def ttest_paired_difference(df: pd.DataFrame, grouper_column: str, values_column
 
 def confidence_interval(df: pd.DataFrame, column_name: str, conflevel=0.95, style="robust") -> tuple:
     """
-    Calculates the confidence interval, returned as a tuple, for the `column_name` (str) in the
+    Calculate the confidence interval, returned as a tuple, for the `column_name` (str) in the
     dataframe `df`, for a given confidence level `conflevel` (default: 0.95).
 
     `style`: ['robust'; 'regular']: indicates which style of estimates to use for the center and
@@ -616,7 +616,7 @@ def median_abs_deviation(x, axis=0, center=np.median, scale="normal", nan_policy
 
 def summary_stats(x, method="robust") -> dict:
     """
-    Returns summary statistics of the numeric values in vector `x`.
+    Return summary statistics of the numeric values in vector `x`.
 
     Arguments:
 
@@ -672,20 +672,18 @@ def summary_stats(x, method="robust") -> dict:
 
 
 def outlier_detection_multiple(
-    x, algorithm="esd", max_outliers_detected=1, **kwargs
-) -> Tuple[List[int], DefaultDict[Any, Any]]:
+    x, algorithm: str = "esd", max_outliers_detected: int = 1, **kwargs
+) -> tuple[list[int], DefaultDict[Any, Any]]:
     """
-    Returns a list of indexes of points in the vector `x` which are likely outliers.
+    Return a list of indexes of points in the vector `x` which are likely outliers.
 
     A second output (can be ignored) contains the details of the values used to make the decision.
 
     Arguments:
-
         x {list, sequence, NumPy vector/array} -- [A sequence, list or vector which can be
         unravelled.]
 
     Keyword Arguments:
-
         algorithm -- Two algorithms are possible to detect outliers: (default: "esd")
 
             'esd': Generalized ESD Test for Outliers.
@@ -771,7 +769,9 @@ def outlier_detection_multiple(
         try:
             cutoff_i = np.where(
                 np.array(extra_out["R_i"]) - np.array(extra_out["lambda"]) >= 0,
-            )[0][0]
+            )[
+                0
+            ][0]
         except IndexError:
             cutoff_i = -1
 

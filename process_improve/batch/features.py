@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from typing import Optional
 
 import numpy as np
@@ -12,7 +13,7 @@ from ..regression.methods import repeated_median_slope
 # ------------------------------------------
 
 
-def _prepare_data(df: pd.DataFrame, tags=None, batch_col=None, phase_col=None, age_col=None):
+def _prepare_data(df: pd.DataFrame, tags=None, batch_col=None, phase_col=None, age_col=None):  # noqa: C901, PLR0912
     """
     General function, used for all feature extractions.
 

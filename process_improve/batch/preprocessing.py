@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Union
+from __future__ import annotations
 
 import numpy as np
 import pandas as pd
@@ -14,16 +14,16 @@ epsqrt = np.sqrt(np.finfo(float).eps)
 
 
 def determine_scaling(
-    batches: Dict[str, pd.DataFrame],
-    columns_to_align: List = None,
-    settings: dict = None,
+    batches: dict[str, pd.DataFrame],
+    columns_to_align: list | None = None,
+    settings: dict | None = None,
 ) -> pd.DataFrame:
     """
     Scales the batch data according to the variable ranges.
 
     Parameters
     ----------
-    dict_df : Dict[str, pd.DataFrame]
+    dict_df : dict[str, pd.DataFrame]
         Batch data, in the standard format.
 
     Returns
@@ -44,11 +44,11 @@ def determine_scaling(
 
     settings = default_settings
     if columns_to_align is None:
-        columns_to_align = batches[list(batches.keys())[0]].columns
+        columns_to_align = batches[next(iter(batches.keys()))].columns
 
     collector_rnge = []
     collector_mins = []
-    for _, batch in batches.items():
+    for batch in batches.values():
         if settings["robust"]:
             # TODO: consider f_iqr feature here. Would that work?
             rnge = batch[columns_to_align].quantile(0.98) - batch[columns_to_align].quantile(0.02)
@@ -77,15 +77,15 @@ def determine_scaling(
 
 
 def apply_scaling(
-    batches: Dict[str, pd.DataFrame],
+    batches: dict[str, pd.DataFrame],
     scale_df: pd.DataFrame,
-    columns_to_align: List = None,
+    columns_to_align: list | None = None,
 ) -> dict:
     """Scales the batches according to the information in the scaling dataframe.
 
     Parameters
     ----------
-    batches : Dict[str, pd.DataFrame]
+    batches : dict[str, pd.DataFrame]
         The batches, in standard format.
     scale_df : pd.DataFrame
         The scaling dataframe, from `determine_scaling`
@@ -98,7 +98,7 @@ def apply_scaling(
     # TODO: handle the case of DataFrames still
     if columns_to_align is None:
         if isinstance(batches, dict):
-            batch1 = batches[list(batches.keys())[0]]
+            batch1 = batches[next(iter(batches.keys()))]
             columns_to_align = batch1.columns
         elif isinstance(batches, pd.DataFrame):
             columns_to_align = batches.columns
@@ -113,14 +113,14 @@ def apply_scaling(
 
 
 def reverse_scaling(
-    batches: Dict[str, pd.DataFrame],
+    batches: dict[str, pd.DataFrame],
     scale_df: pd.DataFrame,
-    columns_to_align: List = None,
+    columns_to_align: list | None = None,
 ):
     # TODO: handle the case of DataFrames still
     if columns_to_align is None:
         if isinstance(batches, dict):
-            columns_to_align = batches[list(batches.keys())[0]].columns
+            columns_to_align = batches[next(iter(batches.keys()))].columns
         elif isinstance(batches, pd.DataFrame):
             columns_to_align = batches.columns
         else:
@@ -136,7 +136,7 @@ def reverse_scaling(
 class DTWresult:
     """Result class."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         synced: np.ndarray,
         penalty_matrix: np.ndarray,
@@ -153,7 +153,7 @@ class DTWresult:
         self.normalized_distance = normalized_distance
 
 
-def align_with_path(md_path, batch, initial_row):
+def align_with_path(md_path, batch, initial_row) -> pd.DataFrame:
     row = 0
     nr = md_path[:, 0].max() + 1  # to account for the zero-based indexing
     synced = pd.DataFrame(np.zeros((nr, batch.shape[1])), columns=batch.columns)
@@ -170,9 +170,7 @@ def align_with_path(md_path, batch, initial_row):
             temp = np.vstack((temp, batch.iloc[md_path[idx, 1], :]))
             synced.iloc[row, :] = np.nanmean(temp, axis=0)
 
-    return pd.DataFrame(
-        synced,
-    )
+    return pd.DataFrame(synced)
 
 
 def dtw_core(test, ref, weight_matrix: np.ndarray):
@@ -222,7 +220,7 @@ def one_iteration_dtw(
     batches_scaled: dict,
     refbatch_sc: pd.DataFrame,
     weight_matrix: np.ndarray,
-    settings: dict = None,
+    settings: dict | None = None,
 ):
     default_settings = {"show_progress": True, "subsample": 1}
     if settings:
@@ -250,7 +248,7 @@ def one_iteration_dtw(
                 }
             )
 
-        except ValueError:
+        except ValueError:  # noqa: PERF203
             assert False, f"Failed on batch {batch_id}"
 
     average_batch /= successful_alignments
@@ -258,11 +256,11 @@ def one_iteration_dtw(
     return aligned_batches, average_batch
 
 
-def batch_dtw(
-    batches: Dict[str, pd.DataFrame],
+def batch_dtw(  # noqa: PLR0915
+    batches: dict[str, pd.DataFrame],
     columns_to_align: list,
     reference_batch: str,
-    settings: dict = None,
+    settings: dict | None = None,
 ) -> dict:
     """
     Synchronize, via iterative DTW, with weighting.
@@ -271,7 +269,7 @@ def batch_dtw(
 
     Parameters
     ----------
-    batches : Dict[str, pd.DataFrame]
+    batches : dict[str, pd.DataFrame]
         Batch data, in the standard format.
     columns_to_align : list
         Which columns to use during the alignment process. The others are aligned, but
@@ -308,7 +306,7 @@ def batch_dtw(
     j = index for the tags
     k = index into the rows of each batch, the samples: 0 ... k ... K_i
     """
-    default_settings: Dict[str, Any] = dict(
+    default_settings: dict = dict(
         maximum_iterations=25,  # maximum iterations (stops here, even if not converged)
         tolerance=0.1,  # convergence tolerance
         robust=True,  # use robust scaling
@@ -334,17 +332,16 @@ def batch_dtw(
     weight_history = np.zeros_like(weight_vector) * np.nan
     average_batch = None
     delta_weight = np.linalg.norm(weight_vector)
-    iter = 0
-    while (np.linalg.norm(delta_weight) > settings["tolerance"]) and (iter <= settings["maximum_iterations"]):
+    iter_step = 0
+    while (np.linalg.norm(delta_weight) > settings["tolerance"]) and (iter_step <= settings["maximum_iterations"]):
         if settings["show_progress"]:
-            message = f"Iter = {iter} and norm = {np.linalg.norm(delta_weight)}"
-            print(message)
+            print(f"Iter = {iter_step} and norm = {np.linalg.norm(delta_weight)}")
 
-        iter += 1
+        iter_step += 1
         weight_matrix = np.diag(weight_vector)
         weight_history = np.vstack((weight_history, weight_vector.copy()))
 
-        if iter > 3:
+        if iter_step > 3:
             refbatch_sc = average_batch
 
         aligned_batches, average_batch = one_iteration_dtw(
@@ -356,7 +353,7 @@ def batch_dtw(
 
         # Deviations from the average batch:
         next_weights = np.zeros((1, refbatch_sc.shape[1]))
-        for batch_id, result in aligned_batches.items():
+        for result in aligned_batches.values():
             next_weights += np.nansum(np.power(result.synced - average_batch, 2), axis=0)
             # TODO: use quadratic weights for now, but try sum of the absolute values instead
             #  np.abs(result.synced - average_batch).sum(axis=0)
@@ -377,7 +374,7 @@ def batch_dtw(
     # OK, the weights are found: now use the last iteration's result to get back to original
     # scaling for the trajectories
     weight_history = weight_history[1:, :]
-    aligned_df_collection: List[pd.DataFrame] = []
+    aligned_df_collection: list[pd.DataFrame] = []
     new_time_axis = np.arange(
         0,
         settings["interpolate_time_axis_maximum"],
@@ -405,7 +402,7 @@ def batch_dtw(
         assert new_time_axis.max() == sequence.max()
 
         synced_interpolated = pd.DataFrame()
-        for column, _ in synced.items():
+        for column in synced:
             if column in ["batch_id", "_sequence_"]:
                 continue
 
@@ -442,17 +439,17 @@ def batch_dtw(
 
 
 def resample_to_reference(
-    batches: Dict[str, pd.DataFrame],
+    batches: dict[str, pd.DataFrame],
     columns_to_align: list,
     reference_batch: str,
-    settings: dict = None,
+    settings: dict | None = None,
 ) -> dict:
     """Resamples all `batches` (only the `columns_to_align`) to the duration of batch with
     identifier `reference`.
 
     Parameters
     ----------
-    batches : Dict[str, pd.DataFrame]
+    batches : dict[str, pd.DataFrame]
         Batch data, in the standard format.
     columns_to_align : list
         Which columns to use. Others are ignored.
@@ -494,13 +491,13 @@ def resample_to_reference(
     return out
 
 
-def find_average_length(batches: Dict[str, pd.DataFrame], settings: dict = None):
+def find_average_length(batches: dict[str, pd.DataFrame], settings: dict | None = None):
     """
     Find the batch in `batches` with the average length.
 
     Parameters
     ----------
-    batches : Dict[str, pd.DataFrame]
+    batches : dict[str, pd.DataFrame]
         Batch data, in the standard format.
     settings : dict
         Default settings are = {
@@ -533,9 +530,9 @@ def find_average_length(batches: Dict[str, pd.DataFrame], settings: dict = None)
 
 
 def find_reference_batch(
-    batches: Dict[str, pd.DataFrame],
+    batches: dict[str, pd.DataFrame],
     columns_to_align: list,
-    settings: Dict[str, Any] = None,
+    settings: dict | None = None,
 ):
     """
     Find a reference batch. Assumes NO missing data.
@@ -549,7 +546,7 @@ def find_reference_batch(
 
     Parameters
     ----------
-    batches : Dict[str, pd.DataFrame]
+    batches : dict[str, pd.DataFrame]
         Batch data, in the standard format.
     columns_to_align : list
         Which columns to use. Others are ignored.
@@ -567,7 +564,7 @@ def find_reference_batch(
     One of the dictionary keys from `batches`.
 
     """
-    default_settings: Dict[str, Union[int, float, str, bool]] = {
+    default_settings: dict[str, int | float | str | bool] = {
         "robust": True,  # use robust scaling
         "subsample": 1,  # use every sample
         "method": "pca_most_average",
@@ -577,6 +574,8 @@ def find_reference_batch(
     if isinstance(settings, dict):
         default_settings.update(settings)
     settings = default_settings
+
+    assert isinstance(columns_to_align, list), "`columns_to_align` must be a list of column names."
 
     assert check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()})
 
@@ -619,8 +618,13 @@ def find_reference_batch(
         }
     )
     metrics = metrics.sort_values(by=["HT2", "SPE"])
-    metrics = metrics.query(f"SPE < {pca_second.SPE_limit(conf_level=0.5)}")
+    start_cutoff = 0.5
+    spe_metrics = metrics.query(f"SPE < {pca_second.SPE_limit(conf_level=0.5)}")
+    while spe_metrics.shape[0] < int(settings["number_of_reference_batches"]):
+        spe_metrics = metrics.query(f"SPE < {pca_second.SPE_limit(conf_level=start_cutoff)}")
+        start_cutoff += 0.05
+
     if settings["number_of_reference_batches"] == 1:
-        return metrics.index[0]  # returns a single entry from the index
+        return spe_metrics.index[0]  # returns a single entry from the index
     else:
-        return metrics.index[0 : int(settings["number_of_reference_batches"])].to_list()
+        return spe_metrics.index[0 : int(settings["number_of_reference_batches"])].to_list()

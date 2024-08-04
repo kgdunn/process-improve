@@ -93,6 +93,7 @@ def oildoe():
 
     """
 
+
 def golf():
     """
     Full factorial experiments to maximize a golfer's driving distance.
@@ -170,6 +171,7 @@ def boilingpot():
     -------
     """
 
+
 def solar():
     """
     Solar panel example from Box, Hunter and Hunter, 2nd edition, Chapter 5,
@@ -214,6 +216,7 @@ def solar():
     -------
 
     """
+
 
 def data(dataset: str) -> pd.DataFrame:
     """Return the ``dataset`` given by the string name."""
