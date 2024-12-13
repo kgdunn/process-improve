@@ -141,7 +141,7 @@ class ControlChart(object):
 
         # After whichever fit is completed, check which are outside +/- 3S:
         idx_bool = (self.df["y"] - self.target).abs() > 3.0 * self.s
-        self.idx_outside_3S = np.nonzero(idx_bool.ravel())[0].tolist()
+        self.idx_outside_3S = np.nonzero(idx_bool.to_numpy())[0].tolist()
 
     def _xbar_no_subgroup_fit(self):
         """
