@@ -298,7 +298,7 @@ def multiple_linear_regression(  # noqa: PLR0915, PLR0913
         out["x_ssq"] = np.sum(np.power(x_vector - mean_X, 2))[0]
 
         # Can be calculated before the model is even fit:
-        out["leverage"] = (1 / out["N"] + np.power(x_vector - mean_X, 2) / out["x_ssq"]).values.ravel()
+        out["leverage"] = (1 / out["N"] + np.power(x_vector - mean_X, 2) / out["x_ssq"]).to_numpy().ravel()
 
     # Do the work
     model = sm.OLS(y_, X_)
