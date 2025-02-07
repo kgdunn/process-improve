@@ -1,3 +1,38 @@
+
+[project]
+name = "process-improve"
+version = "0.9.78"
+description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
+readme = "README.md"
+license = {text = "MIT license"}
+requires-python = ">=3.11"
+keywords = ["Designed Experiments", "Latent Variables", "PCA", "PLS", "Multivariate Data Analysis", "Batch data analysis"]
+authors = [
+    { name = "Kevin Dunn", email = "kgdunn@gmail.com" },
+]
+dependencies = [
+    "bokeh>=3.6.3",
+    "matplotlib>=3.10.0",
+    "neomodel>=5.4.2",
+    "numba>=0.61.0",
+    "numpy>=2.1.3",
+    "pandas>=2.2.3",
+    "patsy>=1.0.1",
+    "plotly>=6.0.0",
+    "pydantic>=2.10.6",
+    "scikit-image>=0.25.1",
+    "scikit-learn>=1.6.1",
+    "seaborn>=0.13.2",
+    "statsmodels>=0.14.4",
+    "tqdm>=4.67.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/kgdunn/process_improve"
+Repository = "https://github.com/kgdunn/process_improve"
+Issues = "https://github.com/kgdunn/process_improve/issues"
+
+
 [tool.ruff]
 line-length = 120
 
@@ -107,3 +142,17 @@ docstring-quotes = "double"
 
 [tool.ruff.lint.isort]
 known-third-party=["pytest", "pandas"]
+
+[tool.uv]
+dev-dependencies = [
+    "coverage>=7.6.10",
+    "flake8>=7.1.1",
+    "pre-commit>=4.1.0",
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+    "pytest-runner>=6.0.1",
+    "pytest-xdist>=3.6.1",
+    "sphinx>=8.1.3",
+    "tox>=4.24.1",
+    "twine>=6.1.0",
+]

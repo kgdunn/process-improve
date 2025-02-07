@@ -1,4 +1,4 @@
-# (c) Kevin Dunn, 2010-2024. MIT License.
+# (c) Kevin Dunn, 2010-2025. MIT License.
 
 """Various factorial designs"""
 

@@ -23,12 +23,21 @@ export PRINT_HELP_PYSCRIPT
 
 BROWSER := python -c "$$BROWSER_PYSCRIPT"
 
-help:
-	@python -c "$$PRINT_HELP_PYSCRIPT" < $(MAKEFILE_LIST)
+help:        ## Help in the makefile
+	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
-clean: clean-build clean-pyc  ## remove all build, test, coverage and Python artifacts
-
-clean-build: ## remove build artifacts
+clean: 		## Remove build artifacts and set up environment
+	find . -name '*.pyc' -exec rm -f {} +
+	find . -name '*.pyo' -exec rm -f {} +
+	find . -name '*~' -exec rm -f {} +
+	find . -name '__pycache__' -exec rm -fr {} +
+	find . -name '*.egg-info' -exec rm -fr {} +
+	find . -name '*.egg' -exec rm -f {} +
+	rm -f uv.lock
+	rm -rf .venv/
+	rm -rf lib/
+	rm -rf lib64/
+	rm -rf bin/
 	rm -fr .tox/
 	rm -f .coverage
 	rm -fr htmlcov/
@@ -36,24 +45,20 @@ clean-build: ## remove build artifacts
 	rm -fr build/
 	rm -fr dist/
 	rm -fr .eggs/
-	find . -name '*.egg-info' -exec rm -fr {} +
-	find . -name '*.egg' -exec rm -f {} +
-	# And set up the environment to the latest packages
-	pip install --upgrade pip
-	pip install -U --user -r requirements.txt
-	pre-commit install
-	# Builds the cache, if it doesn't exist already
-	pre-commit
-	pre-commit autoupdate
+	rm -fr .ruff_cache/
+	rm -fr .mypy_cache/
 
-	# Development tools
-	pip install -U --user rope
+	curl -LsSf https://astral.sh/uv/install.sh | sh
+	uv python install 3.11
+	uv venv
+	uv lock
 
-clean-pyc: ## remove Python file artifacts
-	find . -name '*.pyc' -exec rm -f {} +
-	find . -name '*.pyo' -exec rm -f {} +
-	find . -name '*~' -exec rm -f {} +
-	find . -name '__pycache__' -exec rm -fr {} +
+	uv add pandas numpy matplotlib statsmodels bokeh scikit-image scikit-learn patsy plotly numba seaborn pydantic tqdm neomodel
+	uv add --dev flake8 tox coverage Sphinx twine pytest pytest-runner pytest-cov pytest-xdist pre-commit
+
+	uvx pre-commit install
+	uvx pre-commit
+	uvx pre-commit autoupdate
 
 check:  # if the first command gives a return, then stage those files, then run pre-commit
 	git update-index --refresh
@@ -91,9 +96,8 @@ servedocs: docs ## compile the docs watching for changes
 
 release: clean check test  ## release to PyPI
 	git pull
-	python setup.py sdist
-	python setup.py bdist_wheel
-	python3 -m twine upload dist/*
+	uv build
+	uv publish
 
 install: clean ## install the package to the active Python's site-packages
 	python setup.py install

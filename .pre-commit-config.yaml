@@ -1,6 +1,6 @@
 repos:
     - repo: https://github.com/pre-commit/pre-commit-hooks
-      rev: v4.6.0
+      rev: v5.0.0
       hooks:
           - id: trailing-whitespace
           - id: check-ast
@@ -22,11 +22,10 @@ repos:
           - id: mixed-line-ending
           - id: name-tests-test
             args: ["--django"]
-          - id: check-json
 
     # Remove MyPy: conflicts in python 3.9 with pytz
     - repo: https://github.com/pre-commit/mirrors-mypy
-      rev: v1.11.2
+      rev: v1.15.0
       hooks:
         - id: mypy
           args: ["--ignore-missing-imports", "--check-untyped-defs"]
@@ -38,13 +37,13 @@ repos:
           args: ["--profile", "black"]
 
     - repo: https://github.com/psf/black
-      rev: 24.8.0
+      rev: 25.1.0
       hooks:
         - id: black
-          args: ["-l 120"]
+          args: [ "--line-length", "120"]
 
     - repo: https://github.com/asottile/blacken-docs
-      rev: 1.18.0
+      rev: 1.19.1
       hooks:
         - id: blacken-docs
 
@@ -54,15 +53,13 @@ repos:
         - id: flake8
 
     - repo: https://github.com/kynan/nbstripout
-      rev: 0.7.1
+      rev: 0.8.1
       hooks:
         - id: nbstripout
 
 
     - repo: https://github.com/charliermarsh/ruff-pre-commit
       # Ruff version. To eventually replace flake8?
-      rev: "v0.6.4"
+      rev: "v0.9.5"
       hooks:
         - id: ruff
-          # Respect `exclude` and `extend-exclude` settings.
-          # args: ["--force-exclude", ] <-- apparently already provided somehow? Vai pyproject.toml? Not sure.
