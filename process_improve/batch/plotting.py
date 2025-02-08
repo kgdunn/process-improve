@@ -120,7 +120,7 @@ def plot_all_batches_per_tag(
     colours = list(sns.husl_palette(n_colours))
     random.shuffle(colours)
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
-    line_styles = {k: dict(width=default_line_width, color=v) for k, v in zip(unique_items, colours, strict=True)}
+    line_styles = {k: dict(width=default_line_width, color=v) for k, v in zip(unique_items, colours)}
     for key, val in batches_to_highlight.items():
         line_styles.update({item: json.loads(key) for item in val if item in df_dict})
 
@@ -248,9 +248,7 @@ def colours_per_batch_id(
     colours = list(colour_map(n_colours)) if not (use_default_colour) else [(0.5, 0.5, 0.5)] * n_colours
     random.shuffle(colours)
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
-    colour_assignment = {
-        key: dict(width=default_line_width, color=val) for key, val in zip(list(batch_ids), colours, strict=True)
-    }
+    colour_assignment = {key: dict(width=default_line_width, color=val) for key, val in zip(list(batch_ids), colours)}
     for key, val in batches_to_highlight.items():
         colour_assignment.update({item: json.loads(key) for item in val if item in batch_ids})
     return colour_assignment
