@@ -48,7 +48,7 @@ repos:
         - id: blacken-docs
 
     - repo: https://github.com/PyCQA/flake8
-      rev: "7.1.1"
+      rev: "7.1.2"
       hooks:
         - id: flake8
 
@@ -60,6 +60,6 @@ repos:
 
     - repo: https://github.com/charliermarsh/ruff-pre-commit
       # Ruff version. To eventually replace flake8?
-      rev: "v0.9.5"
+      rev: "v0.9.7"
       hooks:
         - id: ruff
