@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import time
 import warnings
+from collections.abc import Callable
 from functools import partial
-from typing import Any
+from typing import TypeAlias
 
 import numpy as np
 import pandas as pd
@@ -16,6 +17,8 @@ from sklearn.decomposition import PCA as PCA_sklearn
 from sklearn.utils.validation import check_is_fitted
 
 from .plots import loadings_plot, score_plot, spe_plot, t2_plot
+
+DataMatrix: TypeAlias = np.ndarray | pd.DataFrame
 
 epsqrt = np.sqrt(np.finfo(float).eps)
 
@@ -33,7 +36,7 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
     def __init__(self):
         pass
 
-    def fit(self, X, y=None):
+    def fit(self, X: DataMatrix) -> MCUVScaler:
         """Get the centering and scaling object constants."""
         self.center_ = pd.DataFrame(X).mean()
         # this is the key difference with "preprocessing.StandardScaler"
@@ -41,7 +44,7 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
         self.scale_[self.scale_ == 0] = 1.0  # columns with no variance are left as-is.
         return self
 
-    def transform(self, X) -> pd.DataFrame:
+    def transform(self, X: DataMatrix) -> pd.DataFrame:
         """Do work of the transformation."""
         check_is_fitted(self, "center_")
         check_is_fitted(self, "scale_")
@@ -49,7 +52,7 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
         X = pd.DataFrame(X).copy()
         return (X - self.center_) / self.scale_
 
-    def inverse_transform(self, X) -> pd.DataFrame:
+    def inverse_transform(self, X: DataMatrix) -> pd.DataFrame:
         """Do the inverse transformation."""
         check_is_fitted(self, "center_")
         check_is_fitted(self, "scale_")
@@ -61,14 +64,14 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
 class PCA(PCA_sklearn):
     def __init__(  # noqa: PLR0913
         self,
-        n_components=None,
+        n_components: int,
         *,
         copy: bool = True,
         whiten: bool = False,
         svd_solver: str = "auto",
         tol: float = 0.0,
         iterated_power: str = "auto",
-        random_state=None,
+        random_state: int | None = None,
         # Own extra inputs, for the case when there is missing data
         missing_data_settings: dict | None = None,
     ):
@@ -85,7 +88,7 @@ class PCA(PCA_sklearn):
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = False
 
-    def fit(self, X, y=None) -> PCA_sklearn:  # noqa: PLR0915
+    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA_sklearn:  # noqa: ARG002, PLR0915
         """
         Fit a principal component analysis (PCA) model to the data.
 
@@ -117,7 +120,7 @@ class PCA(PCA_sklearn):
                 f"the minimum of either the number of rows ({self.N}) or "
                 f"the number of columns ({self.K})."
             )
-            warnings.warn(warn, SpecificationWarning)
+            warnings.warn(warn, SpecificationWarning, stacklevel=2)
             self.A = self.n_components = min_dim
 
         if np.any(X.isna()):
@@ -265,15 +268,23 @@ class PCA(PCA_sklearn):
 
         return self
 
-    def fit_transform(self, X, y=None):
+    def fit_transform(self, X: DataMatrix, y: DataMatrix | None = None) -> None:  # noqa: ARG002
+        """Fit the PCA model and transform the data."""
         self.fit(X)
         pytest.fail("Still do the transform part")
 
-    def predict(self, X):
+    def predict(self, X: DataMatrix):
         """Use the PCA model on new data coming in matrix X."""
 
-        class State(object):
-            """Class object to hold the prediction results together."""
+        class State:
+            """Class to hold the prediction results together."""
+
+            def __init__(self):
+                self.N = None
+                self.K = None
+                self.x_scores = None
+                self.hotellings_t2 = None
+                self.squared_prediction_error = None
 
         state = State()
         state.N, state.K = X.shape
@@ -290,7 +301,7 @@ class PCA(PCA_sklearn):
             # state.x_scores[:, [a]] = temp
 
         # Scores are calculated, now do the rest
-        state.Hotellings_T2 = np.sum(np.power((state.x_scores / self.scaling_factor_for_scores.values), 2), 1)
+        state.hotellings_t2 = np.sum(np.power((state.x_scores / self.scaling_factor_for_scores.values), 2), 1)
         # Calculate SPE-residuals (sum over rows of the errors)
         X_mcuv = X.copy()
         X_mcuv -= state.x_scores @ self.x_loadings.T
@@ -298,7 +309,7 @@ class PCA(PCA_sklearn):
         return state
 
 
-class PCA_missing_values(BaseEstimator, TransformerMixin):
+class PCA_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
     """
     Create a PCA class if there are 1 or more missing data values in the X input array.
 
@@ -316,9 +327,8 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
 
     def __init__(
         self,
-        n_components=None,
-        copy: bool = True,
-        missing_data_settings=dict,
+        n_components: int,
+        missing_data_settings: dict,
     ):
         self.n_components = n_components
         self.missing_data_settings = missing_data_settings
@@ -332,7 +342,8 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
             f"Missing data method is not recognized. Must be one of {self.valid_md_methods}.",
         )
 
-    def fit(self, X, y=None):
+    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA_missing_values:  # noqa: ARG002
+        """Fit the PCA model with missing data."""
         # Force input to NumPy array:
         self.data = np.asarray(X.copy())
 
@@ -372,17 +383,19 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         self.explained_variance_ = np.diag(self.x_scores_.T @ self.x_scores_) / (self.N - 1)
         return self
 
-    def transform(self, X):
+    def transform(self, X: DataMatrix) -> DataMatrix:
+        """Transform the data."""
         check_is_fitted(self, "blah")
 
         return X.copy()
 
-    def inverse_transform(self, X):
+    def inverse_transform(self, X: DataMatrix) -> DataMatrix:
+        """Inverse transform the data."""
         check_is_fitted(self, "blah")
 
         return X.copy()
 
-    def _fit_nipals_pca(self, settings):
+    def _fit_nipals_pca(self, settings: dict) -> None:
         """Fit the PCA model using the NIPALS algorithm (internal method)."""
         # NIPALS algorithm
         K, A = self.K, self.A
@@ -484,7 +497,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
 
         # end looping on A components
 
-    def _fit_tsr_pca(self, settings):
+    def _fit_tsr_pca(self, settings: dict) -> None:
         start_time = time.time()
         self.extra_info = dict(iterations=0, timing=0)
         delta = 1e100
@@ -546,7 +559,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
 class PLS(PLS_sklearn):
     def __init__(  # noqa: PLR0913
         self,
-        n_components: int = 2,
+        n_components: int,
         *,
         scale: bool = True,
         max_iter: int = 1000,
@@ -566,7 +579,7 @@ class PLS(PLS_sklearn):
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = False
 
-    def fit(self, X, Y) -> PLS_sklearn:  # noqa: PLR0915
+    def fit(self, X: DataMatrix, Y: DataMatrix) -> PLS_sklearn:  # noqa: PLR0915
         """
         Fit a projection to latent structures (PLS) or Partial Least Square (PLS) model to the data.
 
@@ -605,7 +618,7 @@ class PLS(PLS_sklearn):
                 f"the minimum of either the number of rows ({self.N}) or "
                 f"the number of columns ({self.K})."
             )
-            warnings.warn(warn, SpecificationWarning)
+            warnings.warn(warn, SpecificationWarning, stacklevel=2)
             self.A = self.n_components = min_dim
 
         if np.any(Y.isna()) or np.any(X.isna()):
@@ -759,11 +772,19 @@ class PLS(PLS_sklearn):
 
         return self
 
-    def predict(self, X):
+    def predict(self, X: DataMatrix):
         """Use the PLS model on new data coming in matrix X."""
 
-        class State(object):
-            """Class object to hold the prediction results together."""
+        class State:
+            """Class to hold the prediction results together."""
+
+            def __init__(self):
+                self.N = None
+                self.K = None
+                self.x_scores = None
+                self.hotellings_t2 = None
+                self.squared_prediction_error = None
+                self.y_hat = None
 
         state = State()
         state.N, state.K = X.shape
@@ -772,7 +793,7 @@ class PLS(PLS_sklearn):
         state.x_scores = X @ self.direct_weights
 
         # TODO: handle the missing data version here still
-        for a in range(self.A):
+        for _ in range(self.A):
             pass
             # p = self.x_loadings.iloc[:, [a]]
             # w = self.x_weights.iloc[:, [a]]
@@ -781,7 +802,7 @@ class PLS(PLS_sklearn):
             # state.x_scores[:, [a]] = temp
 
         # Scores are calculated, now do the rest
-        state.Hotellings_T2 = np.sum(np.power((state.x_scores / self.scaling_factor_for_scores.values), 2), 1)
+        state.hotellings_t2 = np.sum(np.power((state.x_scores / self.scaling_factor_for_scores.values), 2), 1)
         # Calculate SPE-residuals (sum over rows of the errors)
         X_mcuv = X.copy()
         X_mcuv -= state.x_scores @ self.x_loadings.T
@@ -791,7 +812,8 @@ class PLS(PLS_sklearn):
 
         return state
 
-    def SPE_limit(self, conf_level=0.95) -> float:
+    def SPE_limit(self, conf_level: float = 0.95) -> float:  # noqa: N802
+        """Calculate the SPE limit for the model."""
         check_is_fitted(self, "squared_prediction_error")
 
         return spe_calculation(
@@ -800,7 +822,7 @@ class PLS(PLS_sklearn):
         )
 
 
-class PLS_missing_values(BaseEstimator, TransformerMixin):
+class PLS_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
     """
     Create our PLS class if there is even a single missing data value in the X input array.
 
@@ -822,9 +844,8 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
 
     def __init__(
         self,
-        n_components=None,
-        copy: bool = True,
-        missing_data_settings=dict,
+        n_components: int,
+        missing_data_settings: dict,
     ):
         self.n_components = n_components
         self.missing_data_settings = missing_data_settings
@@ -837,7 +858,7 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
             f"Missing data method is not recognized. Must be one of {self.valid_md_methods}.",
         )
 
-    def fit(self, X, Y):
+    def fit(self, X: DataMatrix, Y: DataMatrix) -> DataMatrix:
         """
         Fits a PLS latent variable model between `X` and `Y` data arrays, accounting for missing
         values (nan's) in either or both arrays.
@@ -887,7 +908,7 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
         # self.explained_variance_ = np.diag(self.x_scores.T @ self.x_scores) / (self.N - 1)
         return self
 
-    def _fit_nipals_pls(self, settings):
+    def _fit_nipals_pls(self, settings: dict) -> None:
         """
         Fit the PLS model using the NIPALS algorithm.
 
@@ -964,7 +985,7 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
             self.extra_info["iterations"][a] = itern
 
             if itern > settings["md_max_iter"]:
-                Warning("PLS missing data [SCP method]: maximum number of iterations reached!")
+                raise Warning("PLS missing data [SCP method]: maximum number of iterations reached!")
 
             # Loop terminated!
             # 6: Now deflate the X-matrix.  To do that we need to calculate loadings for the
@@ -1000,7 +1021,36 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
             # end looping on ``a``
 
 
-def ssq(X: np.ndarray, axis: int | None = None) -> Any:
+class TPLS(BaseEstimator, TransformerMixin):
+    def __init__(
+        self,
+        n_components: int,
+        copy: bool = True,
+        settings: dict | None = None,
+    ):
+        self.n_components = n_components
+        self.copy = copy
+        self.settings = settings or {}
+        assert self.settings.get("convergance_tolerance", 0.0001) < 10, "Tolerance should not be too large"
+        assert (
+            self.settings.get("convergance_tolerance", 0.0001) > epsqrt**1.95
+        ), "Tolerance must exceed machine precision"
+
+    # def fit(self, X, y=None):
+    #     pass
+
+    # def transform(self, X):
+    #     pass
+
+    # def inverse_transform(self, X):
+    #     pass
+
+    # def _fit_nipals(self, settings):
+    #     """Fit the model using the NIPALS algorithm."""
+    #     pass
+
+
+def ssq(X: np.ndarray, axis: int | None = None) -> float | np.ndarray:
     """Calculate the sum of squares of a 2D matrix (not array! and not checked for either: code will simply fail),
     skipping over any NaN (missing) data.
     """
@@ -1035,10 +1085,10 @@ def terminate_check(t_a_guess: np.ndarray, t_a: np.ndarray, iterations: int, set
     score_tol = np.linalg.norm(t_a_guess - t_a, ord=None)
     converged = score_tol < settings["md_tol"]
     max_iter = iterations > settings["md_max_iter"]
-    return np.any([max_iter, converged])
+    return bool(np.any([max_iter, converged]))
 
 
-def quick_regress(Y, x):
+def quick_regress(Y: np.ndarray, x: np.ndarray) -> np.ndarray:
     """
     Regress vector `x` onto the columns in matrix ``Y`` one at a time.
     Return the vector of regression coefficients, one for each column in `Y`.
@@ -1071,7 +1121,7 @@ def quick_regress(Y, x):
         raise ValueError("The dimensions of the input arrays are not compatible.")
 
 
-def center(X, func=np.mean, axis=0, extra_output=False):  # noqa: ANN001
+def center(X, func: Callable = np.mean, axis: int = 0, extra_output: bool = False) -> DataMatrix:  # noqa: ANN001
     """
     Perform centering of data, using a function, `func` (default: np.mean).
     The function, if supplied, but return a vector with as many columns as the matrix X.
@@ -1092,7 +1142,7 @@ def center(X, func=np.mean, axis=0, extra_output=False):  # noqa: ANN001
         return np.subtract(X, vector)
 
 
-def scale(X, func=np.std, axis=0, extra_output=False, **kwargs):
+def scale(X: DataMatrix, func: Callable = np.std, axis: int = 0, extra_output: bool = False, **kwargs) -> DataMatrix:
     """
     Scales the data (does NOT do any centering); scales to unit variance by
     default.
@@ -1107,7 +1157,7 @@ def scale(X, func=np.std, axis=0, extra_output=False, **kwargs):
         skipping over any missing data, and dividing by N-1, where N = number
         of values which are present, i.e. not counting missing values.
 
-    `axis` [optional; default=0] {integer or None}
+    `axis` [optional; default=0] {integer}
         Transformations are applied on slices of data.  This specifies the
         axis along which the transformation will be applied.
 
@@ -1151,7 +1201,7 @@ def scale(X, func=np.std, axis=0, extra_output=False, **kwargs):
         return np.multiply(X, vector)
 
 
-def T2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -> float:
+def T2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -> float:  # noqa: N802
     """Return the Hotelling's T2 value at the given level of confidence.
 
     Parameters
@@ -1173,7 +1223,19 @@ def T2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -
     return a * (n - 1) * (n + 1) / (n * (n - a)) * f.isf((1 - conf_level), a, n - a)
 
 
-def SPE_limit(model, conf_level=0.95) -> float:
+def SPE_limit(model: BaseEstimator, conf_level: float = 0.95) -> float:  # noqa: N802
+    """Return the squared prediction error limit at the given level of confidence.
+
+    Parameters
+    ----------
+    conf_level : float, optional
+        Fractional confidence limit, less that 1.00; by default 0.95
+
+    Returns
+    -------
+    float
+        The squared prediction error limit at the given level of confidence.
+    """
     check_is_fitted(model, "squared_prediction_error")
 
     return spe_calculation(
@@ -1218,7 +1280,7 @@ def ellipse_coordinates(  # noqa: PLR0913
     T2_limit_conf_level: float = 0.95,
     n_points: int = 100,
     n_components: int = 0,
-    scaling_factor_for_scores=None,
+    scaling_factor_for_scores: pd.Series | None = None,
     n_rows: int = 0,
 ) -> tuple:
     """Get the (score_horiz, score_vert) coordinate pairs that form the T2 ellipse when

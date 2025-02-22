@@ -473,6 +473,7 @@ def test_PLS_invalid_calls():
     with pytest.raises(ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"):
         _ = PLS(n_components=A, tol=0)
 
+    # FIXME: the `method` input parameter does not exist anymore
     with pytest.raises(ValueError, match="Method 'SVDS' is not known."):
         _ = PLS(n_components=A, method="SVDS")
 
@@ -813,7 +814,7 @@ def test_PLS_compare_model_api(fixture_pls_model_simca_1_component):
         state.squared_prediction_error.values, abs=1e-9
     )
     assert data["t1"] == pytest.approx(state.x_scores.values.ravel(), abs=1e-5)
-    assert data["Tsq"] == pytest.approx(state.Hotellings_T2.values.ravel(), abs=1e-5)
+    assert data["Tsq"] == pytest.approx(state.hotellings_t2.values.ravel(), abs=1e-5)
     assert data["expected_y_predicted"] == pytest.approx(Y_mcuv.inverse_transform(state.y_hat).values.ravel(), abs=1e-5)
 
 
@@ -1054,7 +1055,7 @@ def test_pls_compare_api(fixture_pls_simca_2_components):
     assert plsmodel.squared_prediction_error.iloc[:, -1].values == pytest.approx(
         state.squared_prediction_error, abs=1e-10
     )
-    assert data["Tsq"] == pytest.approx(state.Hotellings_T2, abs=1e-5)
+    assert data["Tsq"] == pytest.approx(state.hotellings_t2, abs=1e-5)
     assert data["expected_y_predicted"] == pytest.approx(Y_mcuv.inverse_transform(state.y_hat).values.ravel(), abs=1e-5)
     assert np.abs(data["T"]) == pytest.approx(np.abs(state.x_scores), abs=1e-5)
 
