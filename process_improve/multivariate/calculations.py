@@ -278,7 +278,7 @@ class TPLSpreprocess(TransformerMixin, BaseEstimator):
         """
 
         return check_array(
-            df, accept_sparse=False, force_all_finite=True, ensure_2d=True, allow_nd=False, ensure_min_samples=1
+            df, accept_sparse=False, ensure_all_finite="allow-nan", ensure_2d=True, allow_nd=False, ensure_min_samples=1
         )
 
     @_fit_context(prefer_skip_nested_validation=True)
@@ -363,22 +363,48 @@ class TPLSpreprocess(TransformerMixin, BaseEstimator):
         return {"stateless": True}
 
 
-n_props_a, n_props_b = 6, 4
-n_materials_a, n_materials_b = 12, 8
-rng = np.random.default_rng()
+# -------
 properties = {
-    "Group A": pd.DataFrame(rng.standard_normal((n_materials_a, n_props_a))),
-    "Group B": pd.DataFrame(rng.standard_normal((n_materials_b, n_props_b))),
+    "Group 1": pd.read_csv(
+        "process_improve/datasets/multivariate/tpls-pyphi/properties_Group1.csv", sep=",", index_col=0, header=0
+    ),
+    "Group 2": pd.read_csv(
+        "process_improve/datasets/multivariate/tpls-pyphi/properties_Group2.csv", sep=",", index_col=0, header=0
+    ),
+    "Group 3": pd.read_csv(
+        "process_improve/datasets/multivariate/tpls-pyphi/properties_Group3.csv", sep=",", index_col=0, header=0
+    ),
+    "Group 4": pd.read_csv(
+        "process_improve/datasets/multivariate/tpls-pyphi/properties_Group4.csv", sep=",", index_col=0, header=0
+    ),
+    "Group 5": pd.read_csv(
+        "process_improve/datasets/multivariate/tpls-pyphi/properties_Group5.csv", sep=",", index_col=0, header=0
+    ),
 }
-n_formulas = 40
-n_outputs = 3
-n_conditions = 2
 formulas = {
-    "Group A": pd.DataFrame(rng.standard_normal((n_formulas, n_materials_a))),
-    "Group B": pd.DataFrame(rng.standard_normal((n_formulas, n_materials_b))),
+    "Group 1": pd.read_csv(
+        "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group1.csv", sep=",", index_col=0, header=0
+    ),
+    "Group 2": pd.read_csv(
+        "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group2.csv", sep=",", index_col=0, header=0
+    ),
+    "Group 3": pd.read_csv(
+        "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group3.csv", sep=",", index_col=0, header=0
+    ),
+    "Group 4": pd.read_csv(
+        "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group4.csv", sep=",", index_col=0, header=0
+    ),
+    "Group 5": pd.read_csv(
+        "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group5.csv", sep=",", index_col=0, header=0
+    ),
 }
-process_conditions = pd.DataFrame(rng.standard_normal((n_formulas, n_conditions)))
-quality_indicators = pd.DataFrame(rng.standard_normal((n_formulas, n_outputs)))
+process_conditions = pd.read_csv(
+    "process_improve/datasets/multivariate/tpls-pyphi/process_conditions.csv", sep=",", index_col=0, header=0
+)
+
+quality_indicators = pd.read_csv(
+    "process_improve/datasets/multivariate/tpls-pyphi/quality_indicators.csv", sep=",", index_col=0, header=0
+)
 all_data = {"Z": process_conditions, "D": properties, "F": formulas}
 estimator = TPLSpreprocess()
 estimator.fit(all_data, y=quality_indicators)
