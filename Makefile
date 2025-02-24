@@ -53,9 +53,9 @@ clean: 		## Remove build artifacts and set up environment
 	uv venv
 	uv lock
 
-	uv add pandas numpy matplotlib statsmodels bokeh scikit-image scikit-learn patsy plotly numba seaborn pydantic tqdm
+	uv add pandas openpyxl numpy matplotlib statsmodels bokeh scikit-image scikit-learn patsy plotly numba seaborn pydantic tqdm
 	uv add --dev flake8 tox coverage Sphinx twine pytest pytest-runner pytest-cov pytest-xdist pre-commit black isort
-	uv add --dev pandas-stubs matplotlib-stubs plotly-stubs tqdm-stubs
+	uv add --dev pandas-stubs matplotlib-stubs plotly-stubs tqdm-stubs mypy
 
 	uvx pre-commit install
 	uvx pre-commit
