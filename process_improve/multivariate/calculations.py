@@ -8,30 +8,40 @@ from sklearn.utils.validation import check_array, check_is_fitted
 epsqrt = np.sqrt(np.finfo(float).eps)
 
 
-def nan_to_zeros(in_array: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def nan_to_zeros(in_array: np.ndarray) -> np.ndarray:
     """Convert NaN to zero and return a NaN map."""
 
     nan_map = np.isnan(in_array)
     in_array[nan_map] = 0
-    return in_array, nan_map
+    return in_array
 
 
-def regress_y_space_on_x(y_space: np.ndarray, x_space: np.ndarray, y_space_nan_map: np.ndarray) -> np.ndarray:
+def regress_a_space_on_b_row(a_space: np.ndarray, b_row: np.ndarray, a_space_present_map: np.ndarray) -> np.ndarray:
     """
-    Project the rows of `y_space` onto the vector `x_space`. Neither of these two inputs may have missing values.
+    Project each row of `a_space` onto row vector `b_row`, to return a regression coefficient for every row in A.
 
-    The `y_space_nan_map` has `True` entries where `y_space` originally had NaN values. The `x_space` may never have
-    missing values.
+    NOTE: Neither of these two inputs may have missing values. It is assumed you have replaced missing values by zero,
+          and have a map of where the missing values were (more correctly, where the non-missing values are is given
+          by `a_space_present_map`).
 
-    y_space = [n_rows x j_cols]
-    x_space = [j_cols x 1]
-    Returns   [n_rows x 1]
+    NOTE: No checks are done on the incoming data to ensure consistency. That is the caller's responsibility. This
+          function is called thousands of times, so that overhead is not acceptable.
+
+    The `a_space_present_map` has `False` entries where `a_space` originally had NaN values.
+    The `b_row` may never have missing values, and no map is provided for it. These row vectors are latent variable
+    vectors, and therefore never have missing values.
+
+    a_space             = [n_rows x j_cols]
+    b_row               = [1      x j_cols]    # in other words, a row vector of `j_cols` entries
+    a_space_present_map = [n_rows x j_cols]
+
+    Returns               [n_rows x 1] = a_space * b_row^T  / ( b_row * b_row^T)
+                                         (n x j) * (j x 1)  /  (1 x j)* (j x 1)  = n x 1
     """
-
-    b_mat = np.tile(x_space.T, (y_space.shape[0], 1))  # tiles, row-by-row the `x_space` row vector, to create `n_rows`
-    denominator = np.sum((b_mat * ~y_space_nan_map) ** 2, axis=1).astype("float")
+    denom = np.tile(b_row, (a_space.shape[0], 1))  # tiles, row-by-row the `b_row` row vector, to create `n_rows`
+    denominator = np.sum((denom * a_space_present_map) ** 2, axis=1).astype("float")
     denominator[denominator == 0] = np.nan
-    return np.array((np.sum(y_space * b_mat, axis=1)) / denominator).reshape(-1, 1)
+    return np.array((np.sum(a_space * denom, axis=1)) / denominator).reshape(-1, 1)
 
 
 # ------- Tests -------
@@ -40,14 +50,13 @@ def regress_y_space_on_x(y_space: np.ndarray, x_space: np.ndarray, y_space_nan_m
 def test_nan_to_zeros() -> None:
     """Test the `nan_to_zeros` function."""
     in_array = np.array([[1, 2, np.nan], [4, 5, 6], [float("nan"), 8, 9]])
-    out_array, nan_map = nan_to_zeros(in_array)
+    out_array = nan_to_zeros(in_array)
     assert np.allclose(out_array, np.array([[1, 2, 0], [4, 5, 6], [0, 8, 9]]))
-    assert np.allclose(nan_map, np.array([[0, 0, 1], [0, 0, 0], [1, 0, 0]]))
 
 
 def test_regress_y_space_on_x() -> None:
     """Test the `regress_y_space_on_x` function."""
-    x_space = np.array([1, 2, 3, 4])
+    x_space = np.array([[1, 2, 3, 4]])
     y_space = np.array(
         [
             [1, 2, 3, 4],
@@ -58,9 +67,9 @@ def test_regress_y_space_on_x() -> None:
             [6, 4, 2, 0],
         ]
     )
-
-    y_space_filled, y_space_nan_map = nan_to_zeros(y_space)
-    regression_vector = regress_y_space_on_x(y_space_filled, x_space, y_space_nan_map)
+    present_map = np.logical_not(np.isnan(y_space))
+    y_space_filled = nan_to_zeros(y_space)
+    regression_vector = regress_a_space_on_b_row(y_space_filled, x_space, present_map)
     assert np.allclose(regression_vector, np.array([[1, 1, 1, 1, float("nan"), 2 / 3]]).T, equal_nan=True)
 
 
@@ -94,7 +103,7 @@ class TPLSpreprocess(TransformerMixin, BaseEstimator):
     >>>     "Group A": pd.DataFrame(rng.standard_normal((n_formulas, n_materials_a))),
     >>>     "Group B": pd.DataFrame(rng.standard_normal((n_formulas, n_materials_b))),
     >>> }
-    >>> process_conditions = pd.DataFrame(rng.standard_normal((n_formulas, n_conditions)))
+    >>> process_conditions = {"Conditions": pd.DataFrame(rng.standard_normal((n_formulas, n_conditions)))}
     >>> quality_indicators = pd.DataFrame(rng.standard_normal((n_formulas, n_outputs)))
     >>> all_data = {"Z": process_conditions, "D": properties, "F": formulas}
     >>> estimator = TPLSpreprocess()
@@ -104,7 +113,7 @@ class TPLSpreprocess(TransformerMixin, BaseEstimator):
     _parameter_constraints: typing.ClassVar = {}
 
     def __init__(self):
-        pass
+        super().__init__()
 
     def _learn_center_and_scaling_parameters(self, y: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
         """
@@ -194,6 +203,7 @@ class TPLSpreprocess(TransformerMixin, BaseEstimator):
                 self._learn_center_and_scaling_parameters(X["F"][key])
             )
 
+        self.is_fitted_ = True
         return self
 
     def transform(self, X: dict[str, dict[str, pd.DataFrame]]) -> dict[str, dict[str, pd.DataFrame]]:
@@ -228,13 +238,6 @@ class TPLSpreprocess(TransformerMixin, BaseEstimator):
             pd.DataFrame(X["Y"]["Quality"]) - self.preproc_["Y"]["Quality"]["center"]
         ) / self.preproc_["Y"]["Quality"]["scale"]
         return X_transformed
-
-    def _more_tags(self) -> dict:
-        # This is a quick example to show the tags API:\
-        # https://scikit-learn.org/dev/developers/develop.html#estimator-tags
-        # Here, our transformer does not do any operation in `fit` and only validate
-        # the parameters. Thus, it is stateless.
-        return {"stateless": True}
 
 
 # -------
@@ -426,50 +429,100 @@ def test_tpls_preprocessing() -> None:
 test_tpls_preprocessing()
 
 
+def internal_pls_nipals_fit_one_pc(
+    x_space: np.ndarray,
+    y_space: np.ndarray,
+    x_present_map: np.ndarray,
+    y_present_map: np.ndarray,
+) -> dict[str, np.ndarray]:
+    """Fit a PLS model using the NIPALS algorithm."""
+    max_iter: int = 500
+
+    is_converged = False
+    n_iter = 0
+    u_i = y_space[:, [0]]
+    while not is_converged:
+        # Step 1. w_i = X'u / u'u. Regress the columns of X on u_i, and store the slope coeff in vectors w_i.
+        w_i = regress_a_space_on_b_row(x_space.T, u_i.T, x_present_map.T)
+
+        # Step 2. Normalize w to unit length.
+        w_i = w_i / np.linalg.norm(w_i)
+
+        # Step 3. t_i = Xw / w'w. Regress rows of X on w_i, and store slope coefficients in t_i.
+        t_i = regress_a_space_on_b_row(x_space, w_i.T, x_present_map)
+
+        # Step 4. q_i = Y't / t't. Regress columns of Y on t_i, and store slope coefficients in q_i.
+        q_i = regress_a_space_on_b_row(y_space.T, t_i.T, y_present_map.T)
+
+        # Step 5. u_new = Yq / q'q. Regress rows of Y on q_i, and store slope coefficients in u_new
+        u_new = regress_a_space_on_b_row(y_space, q_i.T, y_present_map)
+
+        if (abs(np.linalg.norm(u_i - u_new)) / np.linalg.norm(u_i)) < epsqrt:
+            is_converged = True
+        if n_iter > max_iter:
+            is_converged = True
+
+        n_iter += 1
+        u_i = u_new
+
+    # We have converged. Keep sign consistency. Fairly arbitrary rule, but ensures we report results consistently.
+    if np.var(t_i[t_i < 0]) > np.var(t_i[t_i >= 0]):
+        t_i = -t_i
+        u_new = -u_new
+        w_i = -w_i
+        q_i = -q_i
+
+    return dict(t_i=t_i, u_i=u_i, w_i=w_i, q_i=q_i)
+
+
 class TPLS(BaseEstimator):
     """
-    TPLS algorithm.
+    TPLS algorithm for T-shaped data structures.
 
     Source: Garcia-Munoz, https://doi.org/10.1016/j.chemolab.2014.02.006, Chem.Intell.Lab.Sys. v133, p 49 to 62, 2014.
-    Change of notation from the original paper:
 
-    Paper           This code     Code input variable     Internal Numpy variable name (holds only NumPy values)
-    =====           ========      ===================     ============================
-    X^T             D             d_dataframes            d_mats
+    We change the notation from the original paper to avoid confusion with a generic "X" matrix, and match symbols
+    that are more natural for our use.
+
+    Paper           This code     Internal Numpy variable name (holds only NumPy values)
+    =====           ========      ============================
+    X^T             D             d_mats                            Database
     X               D^T
-    R               F             f_dataframes            f_mats
-    Z               Z             z_matrix                z_mat
-    Y               Y             y_matrix                y_mat
+    R               F             f_mats                            Formula
+    Z               Z             z_mat                             (Upstream) conditions
+    Y               Y             y_mat                             Quality indicators
 
-    Matrices in F, Z and Y must all have the same number of rows.
-    Columns in F must be the same as the rows in D.
+    Notes
+    1. Matrices in F, Z and Y must all have the same number of rows.
+    2. Columns in F must be the same as the rows in D.
+    3. Conditions in Z may be missing (turning it into an L-shaped data structure).
 
     Parameters
     ----------
     n_components : int
         A parameter used to specify the number of components.
 
-    ---- Inputs ----
+    Data structures in input `X` (a dictionary with 4 keys, as listed below)
+    ------------------------------------------------------------------------
 
-    D [d_dataframes] Database (dict) of dataframes, containing physical properties.
+    D. Database of dataframes, containing properties.
 
         D = { "Group A": dataframe of properties of group A materials. (columns contain properties, rows are materials),
               "Group B": dataframe of properties of group B materials. (columns contain properties, rows are materials),
               ...
             }
 
-    F [f_dataframes] Formula matrices/ratio of materials, corresponding to the *rows* of D
-                     (or columns of D after transposing):
+    F. Formula matrices/ratio of materials, corresponding to the *rows* of D (or columns of D after transposing):
 
         F = { "GroupA": dataframe of formula for group A used in each blend (one formula per row, columns are materials)
               "GroupB": dataframe of formula for group B used in each blend (one formula per row, columns are materials)
               ...
             }
 
-    Z [z_matrix] Process conditions. One row per formula/blend; one column per condition.
+    Z. Process conditions. One row per formula/blend; one column per condition.
 
-    Y [y_matrix] Product characteristics (quality space; key performance indicators).
-                 One row per formula/blend; one column per quality indicator.
+    Y. Product characteristics (quality space; key performance indicators). One row per formula/blend;
+       one column per quality indicator.
 
 
     Attributes
@@ -481,44 +534,166 @@ class TPLS(BaseEstimator):
     -------
     >>> from ___ import TPLS
     >>> import numpy as np
-    >>> all_data = {"Z": ... , "D": ... , "F": ..., "Y": ...}
+    >>> all_data = {"Z": ... , "D": ... , "F": ..., "Y": ...}  # see the example in the `TPLSpreprocess` class.
     >>> estimator = TPLS(n_components=2)
     >>> estimator.fit(all_data)
-
-    # d_mats_ = {group_name: d_mat.values.astype(float) for group_name, d_mat in d_dataframes.items()}
-    # f_mats_ = {group_name: f_mat.values.astype(float) for group_name, f_mat in f_dataframes.items()}
-    # z_mat_ = z_matrix.values.astype(float)
-    # y_mat_ = y_matrix.values.astype(float)
-
     """
 
-    # # This is a dictionary allowing to define the type of parameters.
-    # # It used to validate parameter within the `_fit_context` decorator.
-    # _parameter_constraints: typing.ClassVar = {
-    #     "n_components": [int],
-    # }
+    # This is a dictionary allowing to define the type of parameters.
+    # It used to validate parameter within the `_fit_context` decorator.
+    _parameter_constraints: typing.ClassVar = {
+        "n_components": [int],
+    }
 
-    # def __init__(self, n_components: int):
-    #     self.n_components = n_components
+    def __init__(self, n_components: int):
+        assert n_components > 0, "Number of components must be positive."
+        self.n_components = n_components
+        self.tolerance_ = np.sqrt(np.finfo(float).eps)
+        self.max_iterations_ = 500
+        self.fitting_statistics_: dict[str, list] = {"iterations": [], "convergance_tolerance": []}
 
-    # @_fit_context(prefer_skip_nested_validation=True)
-    # def fit(self, X: dict[str, dict[str, pd.DataFrame] | pd.DataFrame], y: None = None) -> "TPLS":
-    #     """Fit the model.
+    @_fit_context(prefer_skip_nested_validation=True)
+    def fit(self, X: dict[str, dict[str, pd.DataFrame]], y: None = None) -> "TPLS":  # noqa: ARG002
+        """Fit the model.
 
-    #     Parameters
-    #     ----------
-    #     X : {array-like, sparse matrix}, shape (n_samples, n_features)
-    #         The training input samples.
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            The training input samples.
 
-    #     Returns
-    #     -------
-    #     self : object
-    #         Returns self.
-    #     """
-    #     X, y = self._validate_data(X, y, accept_sparse=False)
-    #     self.is_fitted_ = True
-    #     # `fit` should always return `self`
-    #     return self
+        Returns
+        -------
+        self : object
+            Returns self.
+        """
+        # Note: we assume the data have been pre-processed by the `TPLSpreprocess` class; so no data checks performed.
+        assert isinstance(X, dict), "The input data must be a dictionary."
+        assert set(X.keys()) == {"D", "F", "Z", "Y"}, "The input dictionary must have keys: D, F, Z, Y."
+
+        group_keys = [str(key) for key in X["D"]]
+        d_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["D"][key].values) for key in group_keys}
+        # `key in X["D"]` is intentional in the line below, to ensure the keys in F are the same as in D.
+        f_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["F"][key].values) for key in group_keys}
+        z_mat: np.ndarray = nan_to_zeros(X["Z"]["Conditions"].values)
+        y_mat: np.ndarray = nan_to_zeros(X["Y"]["Quality"].values)
+
+        self.d_mats = d_mats
+        self.f_mats = f_mats
+        self.z_mat = z_mat
+        self.y_mat = y_mat
+
+        # Create the missing value maps, except we store the opposite, i.e., not missing, since these are more useful.
+        # We refer to these as `pmaps` in the code (present maps, as opposed to `mmap` or missing maps).
+        self.not_na_d = {key: ~np.isnan(X["D"][key].values) for key in d_mats}
+        self.not_na_f = {key: ~np.isnan(X["F"][key].values) for key in f_mats}
+        self.not_na_z = ~np.isnan(X["Z"]["Conditions"].values)
+        self.not_na_y = ~np.isnan(X["Y"]["Quality"].values)
+
+        self._fit_iterative_regressions()
+        self.is_fitted_ = True
+
+        return self
+
+    def has_converged(
+        self,
+        starting_vector: np.ndarray,
+        revised_vector: np.ndarray,
+        iterations: int,
+    ) -> bool:
+        """
+        Terminate the iterative algorithm when any one of these conditions is True.
+
+        #. scores converge: the norm between two successive iterations is smaller than a tolerance
+        #. maximum number of iterations is reached
+        """
+        delta_gap = float(
+            np.linalg.norm(starting_vector - revised_vector, ord=None) / np.linalg.norm(starting_vector, ord=None)
+        )
+        converged = delta_gap < self.tolerance_
+        max_iter = iterations >= self.max_iterations_
+        return bool(np.any([max_iter, converged]))
+
+    def _fit_iterative_regressions(self) -> None:
+        """Fit the model via iterative regressions and store the model coefficients in the class instance."""
+
+        # Formula matrix: assemble all not-na maps from blocks in F: make a single matrix.
+        pmap_f = np.concatenate(list(self.not_na_f.values()), axis=1)
+
+        for _pc_a in range(self.n_components):
+            n_iter = 0
+            # Follow the steps in the paper on page 54
+            # Step 1: Select any column in Y as initial guess (they have all be scaled anyway)
+            u_prior = np.zeros_like(self.y_mat[:, [0]])
+            u_i = self.y_mat[:, [0]]
+
+            while not self.has_converged(starting_vector=u_prior, revised_vector=u_i, iterations=n_iter):
+                n_iter += 1
+                u_prior = u_i.copy()
+                # Step 2. h_i = F_i' u / u'u. Regress the columns of F on u_i, and store the slope coeff in vectors h_i
+                h_i = {
+                    key: regress_a_space_on_b_row(df_f.T, u_i.T, pmap_f.T)
+                    for key, df_f, pmap_f in zip(
+                        self.f_mats.keys(), self.f_mats.values(), self.not_na_f.values(), strict=True
+                    )
+                }
+
+                # Step 3. s_i = D_i' h_i / h_i'h_i. Regress the rows of D_i on h_i, and store slope coeff in vectors s_i
+                s_i = {
+                    key: regress_a_space_on_b_row(df_d.T, h_i[key].T, pmap_d.T)
+                    for key, df_d, pmap_d in zip(
+                        self.d_mats.keys(), self.d_mats.values(), self.not_na_d.values(), strict=True
+                    )
+                }
+                # Step 4: combine the entries in s_i to form a joint `s` and normalize it to unit length.
+                joint_s_normalized = np.linalg.norm(np.concatenate(list(s_i.values())))
+                s_i = {key: s / joint_s_normalized for key, s in s_i.items()}
+
+                # Step 5: r_i = D_i s_i / s_i's_i. Regress columns of D_i on s_i, and store slope coefficients in r_i.
+                r_i = {
+                    key: regress_a_space_on_b_row(df_d, s_i[key].T, self.not_na_d[key])
+                    for key, df_d in zip(self.d_mats.keys(), self.d_mats.values(), strict=True)
+                }
+
+                # Step 6: Combine the entries in r_i to form a joint r (which is the name of the method in the paper).
+                #         Horizontally concatenate all matrices in F_i to form a joint F matrix.
+                #         Regress rows of the joint F matrix onto the joint r vector. Store coeff in block scores, t_f
+                joint_r = np.concatenate(list(r_i.values()))
+                joint_f = np.concatenate(list(self.f_mats.values()), axis=1)
+                t_f = regress_a_space_on_b_row(joint_f, joint_r.T, pmap_f)
+
+                # Step 7: if there is a Condition matrix (non-empty Z block), regress columns of this on the initial u_i
+                if self.z_mat.size > 0:
+                    w_i = regress_a_space_on_b_row(self.z_mat.T, u_i.T, self.not_na_z.T)
+
+                    # Step 8: Normalize joint w to unit length.
+                    w_i /= np.linalg.norm(w_i)
+
+                    # Step 9: regress rows of Z on w_i, and store slope coefficients in t_z. There is an error in the
+                    #        paper here, but in figure 4 it is clear what should be happening.
+                    t_z = regress_a_space_on_b_row(self.z_mat, w_i.T, self.not_na_z)
+                else:
+                    t_z = np.zeros((self.z_mat.shape[0], 0))  # empty matrix: in other words, no Z block
+
+                t_combined = np.concatenate([t_f, t_z], axis=1)
+
+                # Step 10: Build an inner PLS model: using the t_combined as the X matrix, and the Y (quality space)
+                #          as the Y matrix.
+                inner_pls = internal_pls_nipals_fit_one_pc(
+                    x_space=t_combined,
+                    y_space=self.y_mat,
+                    x_present_map=np.ones(t_combined.shape).astype(bool),
+                    y_present_map=self.not_na_y,
+                )
+
+                # t_i = inner_pls["t_i"]
+                u_i = inner_pls["u_i"]
+                # wt_i = inner_pls["w_i"]
+                # q_i = inner_pls["q_i"]
+
+            # Converged. Now store information.
+            delta_gap = float(np.linalg.norm(u_prior - u_i, ord=None) / np.linalg.norm(u_prior, ord=None))
+            self.fitting_statistics_["iterations"].append(n_iter)
+            self.fitting_statistics_["convergance_tolerance"].append(delta_gap)
 
     # def predict(self, X: dict[str, dict[str, pd.DataFrame] | pd.DataFrame]) -> dict:
     #     """Model inference on new data.
@@ -539,3 +714,11 @@ class TPLS(BaseEstimator):
     #     # `feature_names_in_` but only check that the shape is consistent.
     #     X = self._validate_data(X, accept_sparse=True, reset=False)
     #     return {}
+
+
+estimator = TPLSpreprocess()
+transformed_data = estimator.fit_transform(load_tpls_example())
+
+estimator = TPLS(n_components=2)
+estimator.fit(transformed_data)
+# estimator.predict(transformed_data)
