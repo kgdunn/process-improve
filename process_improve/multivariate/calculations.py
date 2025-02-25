@@ -489,8 +489,8 @@ class TPLS(BaseEstimator):
     X^T             D             d_mats                            Database
     X               D^T
     R               F             f_mats                            Formula
-    Z               Z             z_mat                             (Upstream) conditions
-    Y               Y             y_mat                             Quality indicators
+    Z               Z             z_mats                            (Upstream) conditions
+    Y               Y             y_mats                            Quality indicators
 
     Notes
     1. Matrices in F, Z and Y must all have the same number of rows.
@@ -574,20 +574,20 @@ class TPLS(BaseEstimator):
         d_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["D"][key].values) for key in group_keys}
         # `key in X["D"]` is intentional in the line below, to ensure the keys in F are the same as in D.
         f_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["F"][key].values) for key in group_keys}
-        z_mat: np.ndarray = nan_to_zeros(X["Z"]["Conditions"].values)
-        y_mat: np.ndarray = nan_to_zeros(X["Y"]["Quality"].values)
+        z_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["Z"][key].values) for key in X["Z"]}  # only 1 key in Z
+        y_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["Y"][key].values) for key in X["Y"]}  # only 1 key in Y
 
         self.d_mats = d_mats
         self.f_mats = f_mats
-        self.z_mat = z_mat
-        self.y_mat = y_mat
+        self.z_mats = z_mats
+        self.y_mats = y_mats  # corrected to assign y_mats
 
         # Create the missing value maps, except we store the opposite, i.e., not missing, since these are more useful.
         # We refer to these as `pmaps` in the code (present maps, as opposed to `mmap` or missing maps).
         self.not_na_d = {key: ~np.isnan(X["D"][key].values) for key in d_mats}
         self.not_na_f = {key: ~np.isnan(X["F"][key].values) for key in f_mats}
-        self.not_na_z = ~np.isnan(X["Z"]["Conditions"].values)
-        self.not_na_y = ~np.isnan(X["Y"]["Quality"].values)
+        self.not_na_z = {key: ~np.isnan(X["Z"][key].values) for key in z_mats}
+        self.not_na_y = {key: ~np.isnan(X["Y"][key].values) for key in y_mats}
 
         self._fit_iterative_regressions()
         self.is_fitted_ = True
@@ -623,8 +623,8 @@ class TPLS(BaseEstimator):
             n_iter = 0
             # Follow the steps in the paper on page 54
             # Step 1: Select any column in Y as initial guess (they have all be scaled anyway)
-            u_prior = np.zeros_like(self.y_mat[:, [0]])
-            u_i = self.y_mat[:, [0]]
+            u_prior = np.zeros_like(list(self.y_mats.values())[0][:, [0]])
+            u_i = list(self.y_mats.values())[0][:, [0]]
 
             while not self.has_converged(starting_vector=u_prior, revised_vector=u_i, iterations=n_iter):
                 n_iter += 1
@@ -662,38 +662,90 @@ class TPLS(BaseEstimator):
                 t_f = regress_a_space_on_b_row(joint_f, joint_r.T, pmap_f)
 
                 # Step 7: if there is a Condition matrix (non-empty Z block), regress columns of this on the initial u_i
-                if self.z_mat.size > 0:
-                    w_i = regress_a_space_on_b_row(self.z_mat.T, u_i.T, self.not_na_z.T)
+                if len(self.z_mats) > 0:
+                    w_i = {
+                        key: regress_a_space_on_b_row(df_z.T, u_i.T, self.not_na_z[key].T)
+                        for key, df_z in zip(self.z_mats.keys(), self.z_mats.values(), strict=True)
+                    }
 
                     # Step 8: Normalize joint w to unit length.
-                    w_i /= np.linalg.norm(w_i)
+                    w_i_normalized = {key: w / np.linalg.norm(w) for key, w in w_i.items()}
 
                     # Step 9: regress rows of Z on w_i, and store slope coefficients in t_z. There is an error in the
                     #        paper here, but in figure 4 it is clear what should be happening.
-                    t_z = regress_a_space_on_b_row(self.z_mat, w_i.T, self.not_na_z)
-                else:
-                    t_z = np.zeros((self.z_mat.shape[0], 0))  # empty matrix: in other words, no Z block
+                    t_zb = {
+                        key: regress_a_space_on_b_row(df_z, w_i_normalized[key].T, self.not_na_z[key])
+                        for key, df_z in zip(self.z_mats.keys(), self.z_mats.values(), strict=True)
+                    }
+                    t_z = np.concatenate(list(t_zb.values()), axis=1)
 
+                else:
+                    t_z = np.zeros((t_f.shape[0], 0))  # empty matrix: in other words, no Z block
+
+                # Step 10: Combine t_f and t_z to form a joint t matrix.
                 t_combined = np.concatenate([t_f, t_z], axis=1)
 
-                # Step 10: Build an inner PLS model: using the t_combined as the X matrix, and the Y (quality space)
+                # Step 11: Build an inner PLS model: using the t_combined as the X matrix, and the Y (quality space)
                 #          as the Y matrix.
                 inner_pls = internal_pls_nipals_fit_one_pc(
                     x_space=t_combined,
-                    y_space=self.y_mat,
+                    y_space=np.array(list(self.y_mats.values())[0]),
                     x_present_map=np.ones(t_combined.shape).astype(bool),
-                    y_present_map=self.not_na_y,
+                    y_present_map=np.array(list(self.not_na_y.values())[0]),
                 )
-
-                # t_i = inner_pls["t_i"]
                 u_i = inner_pls["u_i"]
+                t_i = inner_pls["t_i"]
                 # wt_i = inner_pls["w_i"]
-                # q_i = inner_pls["q_i"]
+                q_i = inner_pls["q_i"]
 
-            # Converged. Now store information.
+            # Step 12. Converged. Now store information.
             delta_gap = float(np.linalg.norm(u_prior - u_i, ord=None) / np.linalg.norm(u_prior, ord=None))
             self.fitting_statistics_["iterations"].append(n_iter)
             self.fitting_statistics_["convergance_tolerance"].append(delta_gap)
+
+            # Calculate and store the deflation vectors. See equation 7 on page 55.
+            #
+            # Step 13. p_i = F_i' t_i / t_i't_i. Regress the columns of F_i on t_i; store slope coeff in vectors p_i.
+            # Note: the "t" vector is the t_i vector from the inner PLS model, marked as "Tt" in figure 4 of the paper.
+            pf_i = {
+                key: regress_a_space_on_b_row(df_f.T, t_i.T, pmap_f.T)
+                for key, df_f, pmap_f in zip(
+                    self.f_mats.keys(), self.f_mats.values(), self.not_na_f.values(), strict=True
+                )
+            }
+            # Step 13: Deflate the Z matrix with a loadings vector, pz
+            pz_i = {
+                key: regress_a_space_on_b_row(df_z.T, t_i.T, pmap_z.T)
+                for key, df_z, pmap_z in zip(
+                    self.z_mats.keys(), self.z_mats.values(), self.not_na_z.values(), strict=True
+                )
+            }
+
+            # Step 13: v_i = D_i' r_i / r_i'r_i. Regress the rows of D_i (properties) on r_i; store slopes in v_i.
+            v_i = {
+                key: regress_a_space_on_b_row(df_d.T, r_i[key].T, pmap_d.T)
+                for key, df_d, pmap_d in zip(
+                    self.d_mats.keys(), self.d_mats.values(), self.not_na_d.values(), strict=True
+                )
+            }
+
+
+            START HERE AGAIN
+            # Step 14. Do the actual deflation.
+            for key in self.d_mats:
+                # Two sets of matrices to deflate: properties D and formulas F.
+                #self.d_mats[key] -= (r_i[key] @ v_i[key].T) * self.not_na_d[key]
+
+                # Step to deflate F matrix
+                self.f_mats[key] -= (t_i @ pf_i[key].T) * self.not_na_f[key]
+
+
+            for key in self.z_mats:
+                self.z_mats[key] -= (pz_i[key] @ w_i_normalized[key]) * self.not_na_z[key]
+
+            for key in self.y_mats:
+                self.y_mats[key] -= (t_i @ q_i) * self.not_na_y[key]
+
 
     # def predict(self, X: dict[str, dict[str, pd.DataFrame] | pd.DataFrame]) -> dict:
     #     """Model inference on new data.
@@ -722,3 +774,70 @@ transformed_data = estimator.fit_transform(load_tpls_example())
 estimator = TPLS(n_components=2)
 estimator.fit(transformed_data)
 # estimator.predict(transformed_data)
+
+
+def test_tpls_model_fitting() -> None:
+    """Test the fitting process of the TPLS model to ensure it functions as expected."""
+    estimator = TPLSpreprocess()
+    transformed_data = estimator.fit_transform(load_tpls_example())
+    n_components = 3
+    estimator = TPLS(n_components=n_components)
+    estimator.fit(transformed_data)
+    # assert len(estimator.fitting_statistics_["iterations"]) == [10, 8, 27]
+    # assert len(estimator.fitting_statistics_["convergance_tolerance"]) == [1, 2, 3]
+
+    # assert speY_lim95 == 13.64726477217
+    # assert speZ_lim95 == 12.4194708784079
+    # assert T2[0:4] == [
+    #     2.51977572,
+    #     2.96430904,
+    #     2.90972389,
+    #     4.52220244,
+    #     5.08398872,
+    # ]
+
+    # assert T2_lim99 == 12.504355909323642
+    # assert T2_lim95 == 8.540762689459
+    # # ["speX"]["Group 5"] == all zeros
+    # assert ["speX"]["Group 3"] == [
+    #     0.3406894831640213,
+    #     0.044638334379333455,
+    #     1.0657572477657882,
+    #     0.05119160460432004,
+    #     0.09905322804965565,
+    #     0.05119160460432004,
+    #     0.08187595280818297,
+    #     0.255684525938675,
+    #     0.255684525938675,
+    #     0.6717294145551551,
+    #     0.6717294145551551,
+    #     0.1572203998509645,
+    #     0.07587343697961875,
+    #     0.10564880243978084,
+    #     0.044638334379333455,
+    #     0.1572203998509645,
+    #     0.28550387731283433,
+    #     0.7042886720057904,
+    #     0.341878106545768,
+    #     0.3751050324055338,
+    #     0.3406894831640213,
+    #     0.3751050324055338,
+    # ]
+
+    # assert speX_lim99 == [1.8825991434391316, 0.621101338945198, 1.2349010446786568, 2.1471656812020314, 0]
+
+    # assert speY[0:4] == [5.60884167, 2.79520778, 1.61201577, 3.44436535]
+    # assert speR["Group 1"] == [167.44354056, 132.23399455, 201.50643669, 198.14628337]
+    # assert speR["Group 2"] == [48.02191422, 100.16264439, 47.73820238, 1.7668637]
+    # assert speR["Group 3"] == [30.96973174, 31.45714235, 30.79004185, 4.45674311]
+    # assert speR["Group 4"] == [31.25128561, 31.83840754, 31.03634115, 28.89802456]
+    # assert speR["Group 5"] == [30.73602305, 31.60159978, 30.49536591, 97.95906999]
+
+    # assert speR_lim99 == [
+    #     261.7356580744748,
+    #     79.36465502727141,
+    #     82.83811194447107,
+    #     76.97092754060112,
+    #     61.467202764242906,
+    # ]
+    # assert speZ[-4:] == [2.79721437, 2.00803271, 10.77913002, 3.26386299]
