@@ -243,21 +243,26 @@ class TPLSpreprocess(TransformerMixin, BaseEstimator):
             for key in X[block]:
                 assert isinstance(X[block][key], pd.DataFrame), f"The 'X[{block}][{key}]' entries must be a DataFrame."
 
-        self.validate_df(X["Y"]["Quality"])
-        self.validate_df(X["Z"]["Conditions"])
+        for key in X["Y"]:
+            self.validate_df(X["Y"][key])
+        for key in X["Z"]:
+            self.validate_df(X["Z"][key])
         for key in X["D"]:
             self.validate_df(X["D"][key])
+            assert key in X["F"], f"Block/group name '{key}' in D must also be present in F."
             self.validate_df(X["F"][key])  # this also ensures the keys in F are the same as in D
 
         # Learn the centering and scaling parameters
-        self.preproc_["Y"]["Quality"] = {}
-        self.preproc_["Y"]["Quality"]["center"], self.preproc_["Y"]["Quality"]["scale"] = (
-            self._learn_center_and_scaling_parameters(X["Y"]["Quality"])
-        )
-        self.preproc_["Z"]["Conditions"] = {}
-        self.preproc_["Z"]["Conditions"]["center"], self.preproc_["Z"]["Conditions"]["scale"] = (
-            self._learn_center_and_scaling_parameters(X["Z"]["Conditions"])
-        )
+        for key in X["Y"]:
+            self.preproc_["Y"][key] = {}
+            self.preproc_["Y"][key]["center"], self.preproc_["Y"][key]["scale"] = (
+                self._learn_center_and_scaling_parameters(X["Y"][key])
+            )
+        for key in X["Z"]:
+            self.preproc_["Z"][key] = {}
+            self.preproc_["Z"][key]["center"], self.preproc_["Z"][key]["scale"] = (
+                self._learn_center_and_scaling_parameters(X["Z"][key])
+            )
         for key, df_d in X["D"].items():
             self.preproc_["D"][key] = {}
             self.preproc_["F"][key] = {}
@@ -283,27 +288,30 @@ class TPLSpreprocess(TransformerMixin, BaseEstimator):
 
         Returns
         -------
-        X_transformed : dict[str, dict[str, pd.DataFrame]]
+        x_transformed : dict[str, dict[str, pd.DataFrame]]
             The transformed input data, containing element-wise transformations applied to the values in the dataframes.
         """
         check_is_fitted(self)
-        X_transformed: dict[str, dict[str, pd.DataFrame]] = {"D": {}, "F": {}, "Z": {}, "Y": {}}
+        x_transformed: dict[str, dict[str, pd.DataFrame]] = {"D": {}, "F": {}, "Z": {}, "Y": {}}
         for key, df_d in X["D"].items():
-            X_transformed["D"][key] = (
+            x_transformed["D"][key] = (
                 (df_d - self.preproc_["D"][key]["center"])
                 / self.preproc_["D"][key]["scale"]
                 / self.preproc_["D"][key]["block"][0]  # scalar!
             )
-            X_transformed["F"][key] = (X["F"][key] - self.preproc_["F"][key]["center"]) / self.preproc_["F"][key][
+            x_transformed["F"][key] = (X["F"][key] - self.preproc_["F"][key]["center"]) / self.preproc_["F"][key][
                 "scale"
             ]
-        X_transformed["Z"]["Conditions"] = (
-            pd.DataFrame(X["Z"]["Conditions"]) - self.preproc_["Z"]["Conditions"]["center"]
-        ) / self.preproc_["Z"]["Conditions"]["scale"]
-        X_transformed["Y"]["Quality"] = (
-            pd.DataFrame(X["Y"]["Quality"]) - self.preproc_["Y"]["Quality"]["center"]
-        ) / self.preproc_["Y"]["Quality"]["scale"]
-        return X_transformed
+        for key in X["Z"]:
+            x_transformed["Z"][key] = (X["Z"][key] - self.preproc_["Z"][key]["center"]) / self.preproc_["Z"][key][
+                "scale"
+            ]
+        for key in X["Y"]:
+            x_transformed["Y"][key] = (X["Y"][key] - self.preproc_["Y"][key]["center"]) / self.preproc_["Y"][key][
+                "scale"
+            ]
+
+        return x_transformed
 
 
 # -------
