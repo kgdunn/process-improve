@@ -1,11 +1,77 @@
+import time
 import typing
+from collections.abc import Callable
+from functools import partial
 
 import numpy as np
 import pandas as pd
+import pytest
+from scipy.stats import chi2, f
 from sklearn.base import BaseEstimator, TransformerMixin, _fit_context
 from sklearn.utils.validation import check_array, check_is_fitted
 
 epsqrt = np.sqrt(np.finfo(float).eps)
+
+# DELETE THESE
+
+
+def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -> float:
+    """Return the Hotelling's T2 value at the given level of confidence.
+
+    Parameters
+    ----------
+    conf_level : float, optional
+        Fractional confidence limit, less that 1.00; by default 0.95
+
+    Returns
+    -------
+    float
+        The Hotelling's T2 limit at the given level of confidence.
+    """
+    assert 0.0 < conf_level < 1.0
+    assert n_rows > 0
+    if n_components == n_rows:
+        return float("inf")
+    return (
+        n_components
+        * (n_rows - 1)
+        * (n_rows + 1)
+        / (n_rows * (n_rows - n_components))
+        * f.isf((1 - conf_level), n_components, n_rows - n_components)
+    )
+
+
+def spe_calculation(spe_values: pd.Series | np.ndarray, conf_level: float = 0.95) -> float:
+    """Return a limit for SPE (squared prediction error) at the given level of confidence.
+
+    Parameters
+    ----------
+    spe_values : pd.Series
+        The SPE values from the last component in the multivariate model.
+    conf_level : [float], optional
+        The confidence level, by default 0.95, i.e. the 95% confidence level.
+
+    Returns
+    -------
+    float
+        The limit, above which we judge observations in the model to have a different correlation
+        structure than those values which were used to build the model.
+    """
+    assert conf_level > 0.0, "conf_level must be a value between (0.0, 1.0)"
+    assert conf_level < 1.0, "conf_level must be a value between (0.0, 1.0)"
+
+    # The limit is for the squares (i.e. the sum of the squared errors)
+    # I.e. `spe_values` are square-rooted outside this function, so undo that.
+    values = spe_values**2
+    center_spe = values.mean()
+    variance_spe = values.var(ddof=1)
+    g = variance_spe / (2 * center_spe)
+    h = (2 * (center_spe**2)) / variance_spe
+    # Report square root again as SPE limit
+    return np.sqrt(chi2.ppf(conf_level, h) * g)
+
+
+# --------------
 
 
 def nan_to_zeros(in_array: np.ndarray) -> np.ndarray:
@@ -550,7 +616,8 @@ class TPLS(BaseEstimator):
         self.n_components = n_components
         self.tolerance_ = np.sqrt(np.finfo(float).eps)
         self.max_iterations_ = 500
-        self.fitting_statistics_: dict[str, list] = {"iterations": [], "convergance_tolerance": []}
+        self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
+        self.required_blocks_ = {"D", "F", "Z", "Y"}
 
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X: dict[str, dict[str, pd.DataFrame]], y: None = None) -> "TPLS":  # noqa: ARG002
@@ -567,8 +634,9 @@ class TPLS(BaseEstimator):
             Returns self.
         """
         # Note: we assume the data have been pre-processed by the `TPLSpreprocess` class; so no data checks performed.
+
         assert isinstance(X, dict), "The input data must be a dictionary."
-        assert set(X.keys()) == {"D", "F", "Z", "Y"}, "The input dictionary must have keys: D, F, Z, Y."
+        assert set(X.keys()) == self.required_blocks_, "The input dictionary must have keys: D, F, Z, Y."
 
         group_keys = [str(key) for key in X["D"]]
         d_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["D"][key].values) for key in group_keys}
@@ -576,6 +644,10 @@ class TPLS(BaseEstimator):
         f_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["F"][key].values) for key in group_keys}
         z_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["Z"][key].values) for key in X["Z"]}  # only 1 key in Z
         y_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["Y"][key].values) for key in X["Y"]}  # only 1 key in Y
+        self.observation_names = X["F"][group_keys[0]].index
+        self.property_names = {
+            key: X["D"][key].index.to_list() for key in group_keys
+        }  # corrected to iterate over all group_keys
 
         self.d_mats = d_mats
         self.f_mats = f_mats
@@ -589,17 +661,34 @@ class TPLS(BaseEstimator):
         self.not_na_z = {key: ~np.isnan(X["Z"][key].values) for key in z_mats}
         self.not_na_y = {key: ~np.isnan(X["Y"][key].values) for key in y_mats}
 
+        # Empty model coefficients
+
+        # Model performance
+        # -----------------
+        # 1. Prediction matrices (hat matrices: for example X^)
+        self.hat: dict[str, dict[str, np.ndarray]] = {key: {} for key in self.required_blocks_}
+        # tss: dict[str, dict[str, np.ndarray]] = {}  # total sum of squares
+        # r2_b: dict[str, dict[str, np.ndarray]] = {}  # R2 per block
+        # r2_col: dict[str, dict[str, np.ndarray]] = {}  # R2 per variable (column)
+
+        # Model parameters
+        # ----------------
+        self.t_scores: pd.DataFrame = pd.DataFrame(index=self.observation_names)
+        # self.u_scores: pd.DataFrame = pd.DataFrame()
+        # self.w_scores: pd.DataFrame = pd.DataFrame()
+        # self.q_scores: pd.DataFrame = pd.DataFrame()  # corrected from {}
+        self.spe: dict[str, dict[str, pd.DataFrame]] = {key: {} for key in self.required_blocks_}
+        self.spe_limit: dict[str, dict[str, Callable]] = {key: {} for key in self.required_blocks_}
+        self.hotellings_t2: pd.DataFrame = pd.DataFrame()
+        self.hotellings_t2_limit: Callable = hotellings_t2_limit
+
+        self.is_fitted_ = False
         self._fit_iterative_regressions()
         self.is_fitted_ = True
 
         return self
 
-    def has_converged(
-        self,
-        starting_vector: np.ndarray,
-        revised_vector: np.ndarray,
-        iterations: int,
-    ) -> bool:
+    def has_converged(self, starting_vector: np.ndarray, revised_vector: np.ndarray, iterations: int) -> bool:
         """
         Terminate the iterative algorithm when any one of these conditions is True.
 
@@ -613,25 +702,141 @@ class TPLS(BaseEstimator):
         max_iter = iterations >= self.max_iterations_
         return bool(np.any([max_iter, converged]))
 
+    def _store_model_coefficients(self, pc_a: int, t_super_i: np.ndarray) -> None:
+        """Store the model coefficients for later use."""
+        self.t_scores = self.t_scores.join(pd.DataFrame(t_super_i, index=self.observation_names, columns=[f"PC{pc_a}"]))
+
+    def _calculate_and_store_deflation_matrices(
+        self,
+        t_super_i: np.ndarray,
+        q_super_i: np.ndarray,
+        r_i: dict[str, np.ndarray],
+    ) -> None:
+        """
+        Calculate and store the deflation matrices for the TPLS model.
+
+        Deflate the matrices stored in the instance object.
+
+        Returns the prediction matrices in a dictionary.
+        """
+        #
+        # Step 13. p_i = F_i' t_i / t_i't_i. Regress the columns of F_i on t_i; store slope coeff in vectors p_i.
+        # Note: the "t" vector is the t_i vector from the inner PLS model, marked as "Tt" in figure 4 of the paper.
+        # It is the score column from the super score matrix regression onto Y.
+        pf_i = {
+            key: regress_a_space_on_b_row(df_f.T, t_super_i.T, pmap_f.T)
+            for key, df_f, pmap_f in zip(self.f_mats.keys(), self.f_mats.values(), self.not_na_f.values(), strict=True)
+        }
+        # Step 13: Deflate the Z matrix with a loadings vector, pz_b (_b is for block)
+        pz_b = {
+            key: regress_a_space_on_b_row(df_z.T, t_super_i.T, pmap_z.T)
+            for key, df_z, pmap_z in zip(self.z_mats.keys(), self.z_mats.values(), self.not_na_z.values(), strict=True)
+        }
+
+        # Step 13: v_i = D_i' r_i / r_i'r_i. Regress the rows of D_i (properties) on r_i; store slopes in v_i.
+        v_i = {
+            key: regress_a_space_on_b_row(df_d.T, r_i[key].T, pmap_d.T)
+            for key, df_d, pmap_d in zip(self.d_mats.keys(), self.d_mats.values(), self.not_na_d.values(), strict=True)
+        }
+
+        # Step 14. Do the actual deflation.
+        for key in self.d_mats:
+            # Two sets of matrices to deflate: properties D and formulas F.
+            self.hat["D"][key] = r_i[key] @ v_i[key].T
+            self.d_mats[key] -= self.hat["D"][key] * self.not_na_d[key]
+
+            # Step to deflate F matrix
+            self.hat["F"][key] = t_super_i @ pf_i[key].T
+            self.f_mats[key] -= self.hat["F"][key] * self.not_na_f[key]
+
+        for key in self.z_mats:
+            self.hat["Z"][key] = t_super_i @ pz_b[key].T
+            self.z_mats[key] -= self.hat["Z"][key] * self.not_na_z[key]
+
+        for key in self.y_mats:
+            self.hat["Y"][key] = t_super_i @ q_super_i.T
+            self.y_mats[key] -= self.hat["Y"][key] * self.not_na_y[key]
+
+    def _update_performance_statistics(self) -> None:
+        """Calculate and store the performance statistics of the model, such as R2, TSS, etc."""
+
+    def _calculate_model_statistics_and_limits(self) -> None:
+        """Calculate and store the model limits.
+
+        Limits calculated:
+        1. Hotelling's T2 limits
+        2. Squared prediction error limits
+        """
+
+        # Calculate the Hotelling's T2 values, and limits
+        variance_matrix = self.t_scores.T @ self.t_scores / self.t_scores.shape[0]
+        self.hotellings_t2 = np.sum((self.t_scores.values @ np.linalg.inv(variance_matrix)) * self.t_scores, axis=1)
+        self.hotellings_t2_limit = partial(
+            hotellings_t2_limit, n_components=self.n_components, n_rows=self.hotellings_t2.shape[0]
+        )
+
+        # Squared prediction error limits. This is a measure of the prediction error = difference between the actual
+        # and predicted values. Since the matrices are deflated by the predictive part of the model already, the
+        # data in these matrices is already the prediction error. Calculate the **squared** portion, and store it.
+        column_name = [f"SPE with A={self.n_components}"]
+        self.spe["Y"] = {
+            key: pd.DataFrame(
+                np.sqrt(np.sum(np.square(self.y_mats[key]), axis=1, keepdims=True)),
+                index=self.observation_names,
+                columns=column_name,
+            )
+            for key in self.y_mats
+        }
+        self.spe_limit["Y"] = {key: partial(spe_calculation, self.spe["Y"][key].values) for key in self.y_mats}
+        self.spe["Z"] = {
+            key: pd.DataFrame(
+                np.sqrt(np.sum(np.square(self.z_mats[key]), axis=1, keepdims=True)),
+                index=self.observation_names,
+                columns=column_name,
+            )
+            for key in self.z_mats
+        }
+        self.spe_limit["Z"] = {key: partial(spe_calculation, self.spe["Z"][key].values) for key in self.z_mats}
+        self.spe["D"] = {
+            key: pd.DataFrame(
+                np.sqrt(np.sum(np.square(self.d_mats[key]), axis=1, keepdims=True)),
+                index=self.property_names[key],
+                columns=column_name,
+            )
+            for key in self.d_mats
+        }
+        self.spe_limit["D"] = {key: partial(spe_calculation, self.spe["D"][key].values) for key in self.d_mats}
+        self.spe["F"] = {
+            key: pd.DataFrame(
+                np.sqrt(np.sum(np.square(self.f_mats[key]), axis=1, keepdims=True)),
+                index=self.observation_names,
+                columns=column_name,
+            )
+            for key in self.f_mats
+        }
+        self.spe_limit["F"] = {key: partial(spe_calculation, self.spe["F"][key].values) for key in self.f_mats}
+
     def _fit_iterative_regressions(self) -> None:
         """Fit the model via iterative regressions and store the model coefficients in the class instance."""
 
         # Formula matrix: assemble all not-na maps from blocks in F: make a single matrix.
         pmap_f = np.concatenate(list(self.not_na_f.values()), axis=1)
 
-        for _pc_a in range(self.n_components):
+        # Follow the steps in the paper on page 54
+        for pc_a in range(self.n_components):
             n_iter = 0
-            # Follow the steps in the paper on page 54
-            # Step 1: Select any column in Y as initial guess (they have all be scaled anyway)
-            u_prior = np.zeros_like(list(self.y_mats.values())[0][:, [0]])
-            u_i = list(self.y_mats.values())[0][:, [0]]
+            milliseconds_start = time.time()
 
-            while not self.has_converged(starting_vector=u_prior, revised_vector=u_i, iterations=n_iter):
+            # Step 1: Select any column in Y as initial guess (they have all be scaled anyway, so it doesn't matter)
+            u_super_i = next(iter(self.y_mats.values()))[:, [0]]
+            u_prior = u_super_i + 1
+
+            while not self.has_converged(starting_vector=u_prior, revised_vector=u_super_i, iterations=n_iter):
                 n_iter += 1
-                u_prior = u_i.copy()
+                u_prior = u_super_i.copy()
                 # Step 2. h_i = F_i' u / u'u. Regress the columns of F on u_i, and store the slope coeff in vectors h_i
                 h_i = {
-                    key: regress_a_space_on_b_row(df_f.T, u_i.T, pmap_f.T)
+                    key: regress_a_space_on_b_row(df_f.T, u_super_i.T, pmap_f.T)
                     for key, df_f, pmap_f in zip(
                         self.f_mats.keys(), self.f_mats.values(), self.not_na_f.values(), strict=True
                     )
@@ -661,14 +866,16 @@ class TPLS(BaseEstimator):
                 joint_f = np.concatenate(list(self.f_mats.values()), axis=1)
                 t_f = regress_a_space_on_b_row(joint_f, joint_r.T, pmap_f)
 
-                # Step 7: if there is a Condition matrix (non-empty Z block), regress columns of this on the initial u_i
+                # If there is a Condition matrix (non-empty Z block)
                 if len(self.z_mats) > 0:
+                    # Step 7: w_i = Z_i' u / u'u. Regress the columns of Z on u_i, and store the slope coefficients
+                    #         in vectors w_i.
                     w_i = {
-                        key: regress_a_space_on_b_row(df_z.T, u_i.T, self.not_na_z[key].T)
+                        key: regress_a_space_on_b_row(df_z.T, u_super_i.T, self.not_na_z[key].T)
                         for key, df_z in zip(self.z_mats.keys(), self.z_mats.values(), strict=True)
                     }
 
-                    # Step 8: Normalize joint w to unit length.
+                    # Step 8: Normalize joint w to unit length. See MB-PLS by Westerhuis et al. 1998. This is normal.
                     w_i_normalized = {key: w / np.linalg.norm(w) for key, w in w_i.items()}
 
                     # Step 9: regress rows of Z on w_i, and store slope coefficients in t_z. There is an error in the
@@ -680,6 +887,7 @@ class TPLS(BaseEstimator):
                     t_z = np.concatenate(list(t_zb.values()), axis=1)
 
                 else:
+                    # Step 7: No Z block. Take an empty matrix across to the the superblock.
                     t_z = np.zeros((t_f.shape[0], 0))  # empty matrix: in other words, no Z block
 
                 # Step 10: Combine t_f and t_z to form a joint t matrix.
@@ -689,63 +897,40 @@ class TPLS(BaseEstimator):
                 #          as the Y matrix.
                 inner_pls = internal_pls_nipals_fit_one_pc(
                     x_space=t_combined,
-                    y_space=np.array(list(self.y_mats.values())[0]),
+                    y_space=np.array(next(iter(self.y_mats.values()))),
                     x_present_map=np.ones(t_combined.shape).astype(bool),
-                    y_present_map=np.array(list(self.not_na_y.values())[0]),
+                    y_present_map=np.array(next(iter(self.not_na_y.values()))),
                 )
-                u_i = inner_pls["u_i"]
-                t_i = inner_pls["t_i"]
+                u_super_i = inner_pls["u_i"]  # only used for convergence check; not stored or used further
+                t_super_i = inner_pls["t_i"]
+                q_super_i = inner_pls["q_i"]
                 # wt_i = inner_pls["w_i"]
-                q_i = inner_pls["q_i"]
 
-            # Step 12. Converged. Now store information.
-            delta_gap = float(np.linalg.norm(u_prior - u_i, ord=None) / np.linalg.norm(u_prior, ord=None))
-            self.fitting_statistics_["iterations"].append(n_iter)
-            self.fitting_statistics_["convergance_tolerance"].append(delta_gap)
+            # After convergance. Step 12: Now store information.
+            delta_gap = float(np.linalg.norm(u_prior - u_super_i, ord=None) / np.linalg.norm(u_prior, ord=None))
+            self.fitting_statistics["iterations"].append(n_iter)
+            self.fitting_statistics["convergance_tolerance"].append(delta_gap)
+            self.fitting_statistics["milliseconds"].append((time.time() - milliseconds_start) * 1000)
+
+            # Store model coefficients
+
+            # self.p_f_blocks
+            # self.h_f_blocks
+            # self.p_z_blocks
+            # self.s_d_blocks
+            # self.v_d_blocks
+            # self.q_y_blocks
+
+            self._store_model_coefficients(pc_a + 1, t_super_i=t_super_i)  # , q_super_i=q_super_i, r_i=r_i)
 
             # Calculate and store the deflation vectors. See equation 7 on page 55.
-            #
-            # Step 13. p_i = F_i' t_i / t_i't_i. Regress the columns of F_i on t_i; store slope coeff in vectors p_i.
-            # Note: the "t" vector is the t_i vector from the inner PLS model, marked as "Tt" in figure 4 of the paper.
-            pf_i = {
-                key: regress_a_space_on_b_row(df_f.T, t_i.T, pmap_f.T)
-                for key, df_f, pmap_f in zip(
-                    self.f_mats.keys(), self.f_mats.values(), self.not_na_f.values(), strict=True
-                )
-            }
-            # Step 13: Deflate the Z matrix with a loadings vector, pz
-            pz_i = {
-                key: regress_a_space_on_b_row(df_z.T, t_i.T, pmap_z.T)
-                for key, df_z, pmap_z in zip(
-                    self.z_mats.keys(), self.z_mats.values(), self.not_na_z.values(), strict=True
-                )
-            }
+            self._calculate_and_store_deflation_matrices(t_super_i=t_super_i, q_super_i=q_super_i, r_i=r_i)
 
-            # Step 13: v_i = D_i' r_i / r_i'r_i. Regress the rows of D_i (properties) on r_i; store slopes in v_i.
-            v_i = {
-                key: regress_a_space_on_b_row(df_d.T, r_i[key].T, pmap_d.T)
-                for key, df_d, pmap_d in zip(
-                    self.d_mats.keys(), self.d_mats.values(), self.not_na_d.values(), strict=True
-                )
-            }
+            # Update performance statistics
+            self._update_performance_statistics()
 
-
-            START HERE AGAIN
-            # Step 14. Do the actual deflation.
-            for key in self.d_mats:
-                # Two sets of matrices to deflate: properties D and formulas F.
-                #self.d_mats[key] -= (r_i[key] @ v_i[key].T) * self.not_na_d[key]
-
-                # Step to deflate F matrix
-                self.f_mats[key] -= (t_i @ pf_i[key].T) * self.not_na_f[key]
-
-
-            for key in self.z_mats:
-                self.z_mats[key] -= (pz_i[key] @ w_i_normalized[key]) * self.not_na_z[key]
-
-            for key in self.y_mats:
-                self.y_mats[key] -= (t_i @ q_i) * self.not_na_y[key]
-
+        # Step 15: Calculate the final model limit
+        self._calculate_model_statistics_and_limits()
 
     # def predict(self, X: dict[str, dict[str, pd.DataFrame] | pd.DataFrame]) -> dict:
     #     """Model inference on new data.
@@ -771,73 +956,72 @@ class TPLS(BaseEstimator):
 estimator = TPLSpreprocess()
 transformed_data = estimator.fit_transform(load_tpls_example())
 
-estimator = TPLS(n_components=2)
+estimator = TPLS(n_components=3)
 estimator.fit(transformed_data)
 # estimator.predict(transformed_data)
 
 
 def test_tpls_model_fitting() -> None:
     """Test the fitting process of the TPLS model to ensure it functions as expected."""
-    estimator = TPLSpreprocess()
-    transformed_data = estimator.fit_transform(load_tpls_example())
+
+    transformed_data = TPLSpreprocess().fit_transform(load_tpls_example())
     n_components = 3
-    estimator = TPLS(n_components=n_components)
-    estimator.fit(transformed_data)
-    # assert len(estimator.fitting_statistics_["iterations"]) == [10, 8, 27]
-    # assert len(estimator.fitting_statistics_["convergance_tolerance"]) == [1, 2, 3]
+    tpls_test = TPLS(n_components=n_components)
+    tpls_test.fit(transformed_data)
 
-    # assert speY_lim95 == 13.64726477217
-    # assert speZ_lim95 == 12.4194708784079
-    # assert T2[0:4] == [
-    #     2.51977572,
-    #     2.96430904,
-    #     2.90972389,
-    #     4.52220244,
-    #     5.08398872,
-    # ]
+    # Ensure model is fitted appropriately, with the expected number of iterations
+    assert tpls_test.fitting_statistics["iterations"] == [11, 8, 26]
+    assert all(tol < epsqrt for tol in tpls_test.fitting_statistics["convergance_tolerance"])
 
-    # assert T2_lim99 == 12.504355909323642
-    # assert T2_lim95 == 8.540762689459
-    # # ["speX"]["Group 5"] == all zeros
-    # assert ["speX"]["Group 3"] == [
-    #     0.3406894831640213,
-    #     0.044638334379333455,
-    #     1.0657572477657882,
-    #     0.05119160460432004,
-    #     0.09905322804965565,
-    #     0.05119160460432004,
-    #     0.08187595280818297,
-    #     0.255684525938675,
-    #     0.255684525938675,
-    #     0.6717294145551551,
-    #     0.6717294145551551,
-    #     0.1572203998509645,
-    #     0.07587343697961875,
-    #     0.10564880243978084,
-    #     0.044638334379333455,
-    #     0.1572203998509645,
-    #     0.28550387731283433,
-    #     0.7042886720057904,
-    #     0.341878106545768,
-    #     0.3751050324055338,
-    #     0.3406894831640213,
-    #     0.3751050324055338,
-    # ]
+    # Model parameters tested
+    assert np.allclose(tpls_test.hotellings_t2.iloc[0:5], [2.51977572, 2.96430904, 2.90972389, 4.52220244, 5.08398872])
 
-    # assert speX_lim99 == [1.8825991434391316, 0.621101338945198, 1.2349010446786568, 2.1471656812020314, 0]
+    # Model l imits tested
+    assert tpls_test.hotellings_t2_limit(0.95) == pytest.approx(8.318089340, rel=1e-6)
+    assert tpls_test.hotellings_t2_limit(0.99) == pytest.approx(12.288844, rel=1e-6)
 
-    # assert speY[0:4] == [5.60884167, 2.79520778, 1.61201577, 3.44436535]
-    # assert speR["Group 1"] == [167.44354056, 132.23399455, 201.50643669, 198.14628337]
-    # assert speR["Group 2"] == [48.02191422, 100.16264439, 47.73820238, 1.7668637]
-    # assert speR["Group 3"] == [30.96973174, 31.45714235, 30.79004185, 4.45674311]
-    # assert speR["Group 4"] == [31.25128561, 31.83840754, 31.03634115, 28.89802456]
-    # assert speR["Group 5"] == [30.73602305, 31.60159978, 30.49536591, 97.95906999]
+    assert np.square(tpls_test.spe["Y"]["Quality"].iloc[0:4].values) == pytest.approx(
+        [5.60884167, 2.79520778, 1.61201577, 3.44436535], rel=1e-8
+    )
+    # Test the last 4 observations
+    assert np.square(tpls_test.spe["Z"]["Conditions"].iloc[-4:].values) == pytest.approx(
+        [2.79721437, 2.00803271, 10.77913002, 3.26386299], rel=1e-8
+    )
 
-    # assert speR_lim99 == [
-    #     261.7356580744748,
-    #     79.36465502727141,
-    #     82.83811194447107,
-    #     76.97092754060112,
-    #     61.467202764242906,
-    # ]
-    # assert speZ[-4:] == [2.79721437, 2.00803271, 10.77913002, 3.26386299]
+    assert np.square(tpls_test.spe["F"]["Group 1"].iloc[0:4].values) == pytest.approx(
+        [167.44354056, 132.23399455, 201.50643669, 198.14628337], rel=1e-8
+    )
+    assert np.square(tpls_test.spe["F"]["Group 2"].iloc[0:4].values) == pytest.approx(
+        [48.02191422, 100.16264439, 47.73820238, 1.7668637], rel=1e-8
+    )
+    assert np.square(tpls_test.spe["F"]["Group 3"].iloc[0:4].values) == pytest.approx(
+        [30.96973174, 31.45714235, 30.79004185, 4.45674311], rel=1e-8
+    )
+    assert np.square(tpls_test.spe["F"]["Group 4"].iloc[0:4].values) == pytest.approx(
+        [31.25128561, 31.83840754, 31.03634115, 28.89802456], rel=1e-8
+    )
+    assert np.square(tpls_test.spe["F"]["Group 5"].iloc[0:4].values) == pytest.approx(
+        [30.73602305, 31.60159978, 30.49536591, 97.95906999], rel=1e-8
+    )
+    assert np.square(tpls_test.spe["D"]["Group 3"].iloc[0:4].values) == pytest.approx(
+        [0.340689483, 0.04463833, 1.06575724, 0.0511916], rel=1e-7
+    )
+    # Is this is all zero because there are only 3 columns of data, and we fit 3 components?
+    assert np.square(tpls_test.spe["D"]["Group 5"].iloc[0:4].values) == pytest.approx([0, 0, 0, 0], rel=1e-8)
+
+    # Test case uses a different method to calculate the chi2 value, so we use a different tolerance
+    assert tpls_test.spe_limit["Y"]["Quality"](0.95) == pytest.approx(3.7078381486450, rel=1e-8)
+    assert tpls_test.spe_limit["Y"]["Quality"](0.99) == pytest.approx(4.6381115504, rel=1e-8)
+    assert tpls_test.spe_limit["D"]["Group 1"](0.95) == pytest.approx(1.10682253690, rel=1e-8)
+    assert tpls_test.spe_limit["D"]["Group 2"](0.95) == pytest.approx(0.67468300994, rel=1e-8)
+    assert tpls_test.spe_limit["D"]["Group 3"](0.95) == pytest.approx(0.91134417, rel=1e-8)
+    assert tpls_test.spe_limit["D"]["Group 4"](0.95) == pytest.approx(1.0866787434, rel=1e-8)
+    assert tpls_test.spe_limit["D"]["Group 5"](0.95) == pytest.approx(0, rel=1e-8)
+    assert tpls_test.spe_limit["F"]["Group 1"](0.99) == pytest.approx(16.180926707, rel=1e-8)
+    assert tpls_test.spe_limit["F"]["Group 2"](0.99) == pytest.approx(8.4753865788, rel=1e-8)
+    assert tpls_test.spe_limit["F"]["Group 3"](0.99) == pytest.approx(9.1176685583, rel=1e-8)
+    assert tpls_test.spe_limit["F"]["Group 4"](0.99) == pytest.approx(8.7773163687, rel=1e-8)
+    assert tpls_test.spe_limit["F"]["Group 5"](0.99) == pytest.approx(7.8446720428, rel=1e-8)
+
+
+test_tpls_model_fitting()
