@@ -5,6 +5,7 @@ from functools import partial
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import pytest
 from scipy.stats import chi2, f
 from sklearn.base import BaseEstimator, TransformerMixin, _fit_context
@@ -63,8 +64,8 @@ def spe_calculation(spe_values: pd.Series | np.ndarray, conf_level: float = 0.95
     # The limit is for the squares (i.e. the sum of the squared errors)
     # I.e. `spe_values` are square-rooted outside this function, so undo that.
     values = spe_values**2
-    center_spe = values.mean()
-    variance_spe = values.var(ddof=1)
+    center_spe = values.mean().astype("float")
+    variance_spe = values.var(ddof=1).astype("float")
     g = variance_spe / (2 * center_spe)
     h = (2 * (center_spe**2)) / variance_spe
     # Report square root again as SPE limit
@@ -549,6 +550,33 @@ def internal_pls_nipals_fit_one_pc(
     return dict(t_i=t_i, u_i=u_i, w_i=w_i, q_i=q_i)
 
 
+# class Plot:
+# def __init__(self):
+#     pass
+
+
+class Plot:
+    """Make plots of estimators."""
+
+    # _common_kinds = ("line", "bar", "barh", "kde", "density", "area", "hist", "box")
+    # _series_kinds = ("pie",)
+    # _dataframe_kinds = ("scatter", "hexbin")
+    # _kind_aliases = {"density": "kde"}
+    # _all_kinds = _common_kinds + _series_kinds + _dataframe_kinds
+
+    def __init__(self, parent) -> None:
+        self._parent = parent
+
+    # def __call__(self, *args, **kwargs):
+    #    plot_backend = do_stuff(kwargs.pop("backend", None))
+
+    def scores(self, pc_horiz: int = 1, pc_vert: int = 2, **kwargs) -> go.Figure:
+        """Generate a scores plot."""
+        print(f"generate scores plot with {pc_horiz} horizontal and {pc_vert}")  # noqa: T201
+
+        return go.Figure()
+
+
 class TPLS(BaseEstimator):
     """
     TPLS algorithm for T-shaped data structures.
@@ -626,6 +654,7 @@ class TPLS(BaseEstimator):
         self.max_iterations_ = 500
         self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
         self.required_blocks_ = {"D", "F", "Z", "Y"}
+        self.plot = Plot(self)
 
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X: dict[str, dict[str, pd.DataFrame]], y: None = None) -> "TPLS":  # noqa: ARG002
@@ -696,7 +725,7 @@ class TPLS(BaseEstimator):
 
         return self
 
-    def has_converged(self, starting_vector: np.ndarray, revised_vector: np.ndarray, iterations: int) -> bool:
+    def _has_converged(self, starting_vector: np.ndarray, revised_vector: np.ndarray, iterations: int) -> bool:
         """
         Terminate the iterative algorithm when any one of these conditions is True.
 
@@ -839,7 +868,7 @@ class TPLS(BaseEstimator):
             u_super_i = next(iter(self.y_mats.values()))[:, [0]]
             u_prior = u_super_i + 1
 
-            while not self.has_converged(starting_vector=u_prior, revised_vector=u_super_i, iterations=n_iter):
+            while not self._has_converged(starting_vector=u_prior, revised_vector=u_super_i, iterations=n_iter):
                 n_iter += 1
                 u_prior = u_super_i.copy()
                 # Step 2. h_i = F_i' u / u'u. Regress the columns of F on u_i, and store the slope coeff in vectors h_i
@@ -964,9 +993,30 @@ class TPLS(BaseEstimator):
 estimator = TPLSpreprocess()
 transformed_data = estimator.fit_transform(load_tpls_example())
 
-estimator = TPLS(n_components=3)
-estimator.fit(transformed_data)
-# estimator.predict(transformed_data)
+fitted = TPLS(n_components=3)
+fitted.fit(transformed_data)
+plot_settings = dict(plotwidth=1000, title="Z Space")
+fitted.plot.scores(pc_horiz=1, pc_vert=2, **plot_settings)
+# fitted.plot.loadings("Z")
+# fitted.plot.loadings("F")
+# fitted.plot.loadings("D")
+# fitted.plot.loadings("D", "Y")
+# fitted.plot.vip()
+# fitted.plot.r2()
+
+
+# Predict a new blend
+# rnew = {
+#     "MAT1": [("A0129", 0.557949425), ("A0130", 0.442050575)],
+#     "MAT2": [("Lac0003", 1)],
+#     "MAT3": [("TLC018", 1)],
+#     "MAT4": [("M0012", 1)],
+#     "MAT5": [("CS0017", 1)],
+# }
+# znew = process[process["LotID"] == "L001"]
+# znew = znew.values.reshape(-1)[1:].astype(float)
+# # preds = phi.tpls_pred(rnew, znew, tplsobj)
+# fitted.predict(transformed_data)
 
 
 def test_tpls_model_fitting() -> None:
