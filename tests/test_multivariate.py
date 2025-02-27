@@ -10,23 +10,53 @@ from sklearn.cross_decomposition import PLSRegression
 from process_improve.multivariate.methods import (
     PCA,
     PLS,
+    TPLS,
     MCUVScaler,
     SpecificationWarning,
+    TPLSpreprocess,
     center,
     epsqrt,
+    nan_to_zeros,
     quick_regress,
+    regress_a_space_on_b_row,
     scale,
     ssq,
 )
 
 
-def test_pca_spe_limits():
+def test_nan_to_zeros() -> None:
+    """Test the `nan_to_zeros` function."""
+    in_array = np.array([[1, 2, np.nan], [4, 5, 6], [float("nan"), 8, 9]])
+    out_array = nan_to_zeros(in_array)
+    assert np.allclose(out_array, np.array([[1, 2, 0], [4, 5, 6], [0, 8, 9]]))
+
+
+def test_regress_y_space_on_x() -> None:
+    """Test the `regress_y_space_on_x` function."""
+    x_space = np.array([[1, 2, 3, 4]])
+    y_space = np.array(
+        [
+            [1, 2, 3, 4],
+            [1, 2, float("NaN"), 4],
+            [float("NaN"), float("NaN"), 3, float("NaN")],
+            [float("NaN"), float("NaN"), float("NaN"), 4],
+            [float("NaN"), float("NaN"), float("NaN"), float("NaN")],
+            [6, 4, 2, 0],
+        ]
+    )
+    present_map = np.logical_not(np.isnan(y_space))
+    y_space_filled = nan_to_zeros(y_space)
+    regression_vector = regress_a_space_on_b_row(y_space_filled, x_space, present_map)
+    assert np.allclose(regression_vector, np.array([[1, 1, 1, 1, float("nan"), 2 / 3]]).T, equal_nan=True)
+
+
+def test_pca_spe_limits() -> None:
     """Simulate data and see if SPE limit cuts off at 5%."""
     N = 1000
     repeats = 50
     outliers_95 = []
     outliers_99 = []
-    for k in range(repeats):
+    for _ in range(repeats):
         # The desired mean values of the sample.
         mu = np.array([0.0, 0.0, 0.0])
 
@@ -49,7 +79,7 @@ def test_pca_spe_limits():
     assert np.mean(outliers_99) == pytest.approx(0.01 * N, rel=0.1)
 
 
-def test_PCA_foods():
+def test_pca_foods() -> None:
     """Arrays with no variance should not be able to have variance extracted."""
 
     foods = pd.read_csv("https://openmv.net/file/food-texture.csv").drop(
@@ -78,8 +108,9 @@ def test_PCA_foods():
     assert ellipse_y[-1] == pytest.approx(0, rel=1e-7)
 
 
-@pytest.fixture()
+@pytest.fixture
 def fixture_kamyr_data_missing_value():
+    """Load the fixture."""
     folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "multivariate"
     return pd.read_csv(
         folder / "kamyr.csv",
@@ -88,7 +119,8 @@ def fixture_kamyr_data_missing_value():
     )
 
 
-def test_PCA_missing_data(fixture_kamyr_data_missing_value):
+def test_pca_missing_data(fixture_kamyr_data_missing_value) -> None:
+    """Testing PCA with the Kamyr data set."""
     X_mcuv = MCUVScaler().fit_transform(fixture_kamyr_data_missing_value)
 
     # Build the model
@@ -104,7 +136,8 @@ def test_PCA_missing_data(fixture_kamyr_data_missing_value):
     assert np.linalg.norm((model.loadings.T @ model.loadings) - np.eye(model.A)) == pytest.approx(0, abs=1e-2)
 
 
-def test_pca_missing_data_as_numpy(fixture_kamyr_data_missing_value):
+def test_pca_missing_data_as_numpy(fixture_kamyr_data_missing_value) -> None:
+    """Test the PCA model with missing data."""
     X_mcuv = MCUVScaler().fit_transform(fixture_kamyr_data_missing_value.values)
 
     # Build the model
@@ -120,7 +153,7 @@ def test_pca_missing_data_as_numpy(fixture_kamyr_data_missing_value):
     assert np.linalg.norm((model.loadings.T @ model.loadings) - np.eye(model.A)) == pytest.approx(0, abs=1e-2)
 
 
-@pytest.fixture()
+@pytest.fixture
 def fixture_mv_utilities():
     """
     Multivariate methods depend on an internal regression and Sum of Squares
@@ -140,12 +173,14 @@ def fixture_mv_utilities():
     return x, Y
 
 
-def test_ssq(fixture_mv_utilities):
+def test_ssq(fixture_mv_utilities) -> None:
+    """Test the sum-of-squares calculation."""
     x, _ = fixture_mv_utilities
     assert pytest.approx(ssq(x), abs=1e-9) == (1 + 2 * 2 + 3 * 3 + 4 * 4 + 5 * 5 + 6 * 6)
 
 
-def test_quick_regress(fixture_mv_utilities):
+def test_quick_regress(fixture_mv_utilities) -> None:
+    """Test the quick_regress function."""
     x, Y = fixture_mv_utilities
     out = quick_regress(Y, x).ravel()
     assert pytest.approx(out[0], abs=1e-9) == 1
@@ -159,10 +194,10 @@ def test_quick_regress(fixture_mv_utilities):
     assert pytest.approx(out[4], abs=1e-14) == 1.0
 
 
-@pytest.fixture()
+@pytest.fixture
 def fixture_tablet_spectra_data():
-    """
-    Verifies the PCA model for the case of no missing data.
+    """Verify the PCA model for the case of no missing data.
+
     # R code:
     # -------
     # Read large data file
@@ -212,7 +247,7 @@ def fixture_tablet_spectra_data():
     return spectra, known_scores_covar
 
 
-def test_MCUV_centering(fixture_tablet_spectra_data):
+def test_mcuv_centering(fixture_tablet_spectra_data) -> None:
     """Mean centering of the testing data."""
 
     spectra, _ = fixture_tablet_spectra_data
@@ -220,7 +255,7 @@ def test_MCUV_centering(fixture_tablet_spectra_data):
     assert pytest.approx(np.max(np.abs(X_mcuv.mean(axis=0))), rel=1e-9) == 0.0
 
 
-def test_MCUV_scaling(fixture_tablet_spectra_data):
+def test_mcuv_scaling(fixture_tablet_spectra_data) -> None:
     """Scaling by standard deviation."""
 
     spectra, _ = fixture_tablet_spectra_data
@@ -230,7 +265,7 @@ def test_MCUV_scaling(fixture_tablet_spectra_data):
     assert pytest.approx(X_mcuv.std(), 1e-10) == 1
 
 
-def test_pca_tablet_spectra(fixture_tablet_spectra_data):
+def test_pca_tablet_spectra(fixture_tablet_spectra_data) -> None:
     r"""
     Check PCA characteristics.
 
@@ -294,7 +329,7 @@ def test_pca_tablet_spectra(fixture_tablet_spectra_data):
     # scores. Numerical error?
 
 
-def test_pca_errors_no_variance_to_start():
+def test_pca_errors_no_variance_to_start() -> None:
     """Arrays with no variance should seem to work, but should have no variability explained."""
     K, N, A = 17, 12, 5
     data = pd.DataFrame(np.zeros((N, K)))
@@ -306,7 +341,7 @@ def test_pca_errors_no_variance_to_start():
     assert np.isnan(model.R2cum[A - 1])
 
 
-def test_PCA_invalid_calls():
+def test_pca_invalid_calls() -> None:
     """Tests various invalid calls, and corresponding error messages."""
     K, N, A = 4, 3, 5
     data = pd.DataFrame(np.random.uniform(low=-1, high=1, size=(N, K)))
@@ -332,7 +367,7 @@ def test_PCA_invalid_calls():
     #     model.fit(sparse_data)
 
 
-def test_PCA_no_more_variance():
+def test_pca_no_more_variance() -> None:
     """Create a rank 2 matrix and it should fail on the 3rd component."""
 
     K = 17
@@ -351,7 +386,7 @@ def test_PCA_no_more_variance():
     # TODO: check that the m.R2[2] (3rd PC is zero.)
 
 
-def test_PCA_columns_with_no_variance():
+def test_pca_columns_with_no_variance() -> None:
     """Create a column with no variance. That column's loadings should be 0."""
     K = 14
     N = 29
@@ -377,36 +412,37 @@ def test_PCA_columns_with_no_variance():
     # Are scores orthogonal?
     covmatrix = m.x_scores.T @ m.x_scores
     covmatrix - np.diag(np.diag(covmatrix))
-    (np.sum(np.abs(covmatrix - np.diag(np.diag(covmatrix))))).values == pytest.approx(0, abs=1e-6)
+    assert (np.sum(np.abs(covmatrix - np.diag(np.diag(covmatrix))))).values == pytest.approx(0, abs=1e-6)
 
 
-@pytest.fixture()
-def fixture_pca_PCA_Wold_etal_paper():
+@pytest.fixture
+def fixture_pca_pca_wold_etal_paper() -> pd.DataFrame:
     """
-    From the PCA paper by Wold, Esbensen and Geladi, 1987
+    Return data from the PCA paper by Wold, Esbensen and Geladi, 1987.
+
     Principal Component Analysis, Chemometrics and Intelligent Laboratory
     Systems, v 2, p37-52; http://dx.doi.org/10.1016/0169-7439(87)80084-9
     """
     return pd.DataFrame(np.array([[3, 4, 2, 2], [4, 3, 4, 3], [5.0, 5, 6, 4]]))
 
 
-def test_PCA_Wold_centering(fixture_pca_PCA_Wold_etal_paper):
+def test_pca_wold_centering(fixture_pca_pca_wold_etal_paper: pd.DataFrame) -> None:
     """Checks the centering step"""
-    out, centering = center(fixture_pca_PCA_Wold_etal_paper, extra_output=True)
+    _, centering = center(fixture_pca_pca_wold_etal_paper, extra_output=True)
     assert centering == pytest.approx([4, 4, 4, 3], rel=1e-8)
 
 
-def test_PCA_Wold_scaling(fixture_pca_PCA_Wold_etal_paper):
+def test_pca_wold_scaling(fixture_pca_pca_wold_etal_paper: pd.DataFrame) -> None:
     """Checks the scaling step. Page 40 of the above paper."""
 
-    out, scaling = scale(center(fixture_pca_PCA_Wold_etal_paper), extra_output=True, ddof=1)
+    _, scaling = scale(center(fixture_pca_pca_wold_etal_paper), extra_output=True, ddof=1)
     assert scaling == pytest.approx([1, 1, 0.5, 1])
 
 
-def test_PCA_Wold_model_results(fixture_pca_PCA_Wold_etal_paper):
+def test_pca_wold_model_results(fixture_pca_pca_wold_etal_paper: pd.DataFrame) -> None:
     """Check if the PCA model matches the results in the paper."""
 
-    X_preproc = scale(center(fixture_pca_PCA_Wold_etal_paper))
+    X_preproc = scale(center(fixture_pca_pca_wold_etal_paper))
     pca_1 = PCA(n_components=1)
     pca_1.fit(X_preproc.copy())
 
@@ -426,7 +462,7 @@ def test_PCA_Wold_model_results(fixture_pca_PCA_Wold_etal_paper):
     # # With 2 components, the loadings are, page 40
     # P.T = [ 0.5410, 0.3493,  0.5410,  0.5410],
     #      [-0.2017, 0.9370, -0.2017, -0.2017]
-    X_preproc = scale(center(fixture_pca_PCA_Wold_etal_paper))
+    X_preproc = scale(center(fixture_pca_pca_wold_etal_paper))
     pca_2 = PCA(n_components=2)
     pca_2.fit(X_preproc)
     assert np.abs(pca_2.loadings.values[:, 0]) == pytest.approx([0.5410, 0.3493, 0.5410, 0.5410], abs=1e-4)
@@ -453,8 +489,10 @@ def test_PCA_Wold_model_results(fixture_pca_PCA_Wold_etal_paper):
     # [-2.0511, -1.3698]])
 
 
-def test_PLS_properties_TODO():
+def test_pls_properties_TODO() -> None:
     """
+    Complete this later.
+
     TODO:
     diag(T.T * T) related to S
     W.T * W = I for PLS only
@@ -465,7 +503,7 @@ def test_PLS_properties_TODO():
 
 
 @pytest.mark.skip(reason="API still has to be improved to handle this case")
-def test_PLS_invalid_calls():
+def test_pls_invalid_calls() -> None:
     """Tests various invalid calls, and corresponding error messages."""
     K, N, M, A = 4, 3, 2, 5
     dataX = pd.DataFrame(np.random.uniform(low=-1, high=1, size=(N, K)))
@@ -494,10 +532,11 @@ def test_PLS_invalid_calls():
         model.fit(dataX, sparse_data)
 
 
-@pytest.fixture()
-def fixture_pls_model_simca_1_component():
+@pytest.fixture
+def fixture_pls_model_simca_1_component() -> dict:
     """
-    Simple model tested against Simca-P, version 14.1.
+    Test simple model against Simca-P, version 14.1.
+
     Testing on 28 June 2020.
 
     When X and y are mean centered and scaled, the model should provide the loadings as listed here
@@ -734,7 +773,8 @@ def fixture_pls_model_simca_1_component():
     return data
 
 
-def test_PLS_compare_sklearn_1_component(fixture_pls_model_simca_1_component):
+def test_pls_compare_sklearn_1_component(fixture_pls_model_simca_1_component: dict) -> None:
+    """Test PLS with 1 component."""
     data = fixture_pls_model_simca_1_component
 
     plsmodel = PLSRegression(n_components=data["A"], scale=True)
@@ -783,7 +823,8 @@ def test_PLS_compare_sklearn_1_component(fixture_pls_model_simca_1_component):
     # assert R2_y == pytest.approx(data["R2Y"], abs=1e-6)
 
 
-def test_PLS_compare_model_api(fixture_pls_model_simca_1_component):
+def test_pls_compare_model_api(fixture_pls_model_simca_1_component: dict) -> None:
+    """Test two variants of the PLS model."""
     data = fixture_pls_model_simca_1_component
     plsmodel = PLS(n_components=data["A"])
 
@@ -818,10 +859,11 @@ def test_PLS_compare_model_api(fixture_pls_model_simca_1_component):
     assert data["expected_y_predicted"] == pytest.approx(Y_mcuv.inverse_transform(state.y_hat).values.ravel(), abs=1e-5)
 
 
-@pytest.fixture()
-def fixture_pls_simca_2_components():
+@pytest.fixture
+def fixture_pls_simca_2_components() -> dict:
     """
-    Simple model tested against Simca-P, version 14.1.
+    Test simple model against Simca-P, version 14.1.
+
     Testing on 02 July 2020.
     No missing data
 
@@ -1012,7 +1054,8 @@ def fixture_pls_simca_2_components():
     return out
 
 
-def test_pls_sklearn_2_components(fixture_pls_simca_2_components):
+def test_pls_sklearn_2_components(fixture_pls_simca_2_components: dict) -> None:
+    """Test the Scikit model against the Simca-P model."""
     data = fixture_pls_simca_2_components
 
     plsmodel = PLSRegression(n_components=data["A"], scale=False)
@@ -1029,7 +1072,8 @@ def test_pls_sklearn_2_components(fixture_pls_simca_2_components):
     assert np.abs(data["loadings_W"]) == pytest.approx(np.abs(plsmodel.x_weights_), abs=1e-5)
 
 
-def test_pls_compare_api(fixture_pls_simca_2_components):
+def test_pls_compare_api(fixture_pls_simca_2_components: dict) -> None:
+    """Test PLS comparison between two different methods."""
     data = fixture_pls_simca_2_components
 
     plsmodel = PLS(n_components=data["A"])
@@ -1060,10 +1104,11 @@ def test_pls_compare_api(fixture_pls_simca_2_components):
     assert np.abs(data["T"]) == pytest.approx(np.abs(state.x_scores), abs=1e-5)
 
 
-@pytest.fixture()
-def fixture_PLS_LDPE_example():
+@pytest.fixture
+def fixture_pls_ldpe_example() -> dict:
     """
-    No missing data.
+    Test PLS example with no missing data.
+
     Source: https://openmv.net/info/ldpe
 
     Data from a low-density polyethylene production process.
@@ -1132,7 +1177,7 @@ def fixture_PLS_LDPE_example():
     return out
 
 
-def test_pls_simca_ldpe(fixture_PLS_LDPE_example):
+def test_pls_simca_ldpe(fixture_pls_ldpe_example: dict) -> None:
     """Unit test for LDPE case study.
 
     Parameters
@@ -1140,7 +1185,7 @@ def test_pls_simca_ldpe(fixture_PLS_LDPE_example):
     PLS_model_SIMCA_LDPE_example : dict
         Dictionary of raw data and expected outputs from the PLS model.
     """
-    data = fixture_PLS_LDPE_example
+    data = fixture_pls_ldpe_example
     plsmodel = PLS(n_components=data["A"])
 
     X_mcuv = MCUVScaler().fit(data["X"])
@@ -1176,7 +1221,7 @@ def test_pls_simca_ldpe(fixture_PLS_LDPE_example):
     ) == pytest.approx(0, abs=1e-2)
 
 
-def test_pls_simca_ldpe_missing_data(fixture_PLS_LDPE_example):
+def test_pls_simca_ldpe_missing_data(fixture_pls_ldpe_example: dict) -> None:
     """Unit test for LDPE case study.
     From visual inspection, observation 12 has low influence in the model.
     Set 1 value in this observation to missing and check that the results are similar to the
@@ -1184,7 +1229,7 @@ def test_pls_simca_ldpe_missing_data(fixture_PLS_LDPE_example):
     the only differences are that the tolerances are slightly relaxed.
 
     """
-    data = fixture_PLS_LDPE_example
+    data = fixture_pls_ldpe_example
     data["X"].iloc[11, 0] = np.nan
     plsmodel = PLS(n_components=data["A"], missing_data_settings=dict(md_method="scp"))
 
@@ -1218,3 +1263,247 @@ def test_pls_simca_ldpe_missing_data(fixture_PLS_LDPE_example):
             / Y_mcuv.center_
         )
     ) == pytest.approx(0, abs=0.5)
+
+
+# ---- TPLS models ----
+@pytest.fixture
+def fixture_tpls_example() -> dict[str, dict[str, pd.DataFrame]]:
+    """
+    Load example data for TPLS model.
+
+    Data from: https://github.com/salvadorgarciamunoz/pyphi/tree/master/examples/JRPLS%20and%20TPLS
+    """
+    properties = {
+        "Group 1": pd.read_csv(
+            "process_improve/datasets/multivariate/tpls-pyphi/properties_Group1.csv", sep=",", index_col=0, header=0
+        ),
+        "Group 2": pd.read_csv(
+            "process_improve/datasets/multivariate/tpls-pyphi/properties_Group2.csv", sep=",", index_col=0, header=0
+        ),
+        "Group 3": pd.read_csv(
+            "process_improve/datasets/multivariate/tpls-pyphi/properties_Group3.csv", sep=",", index_col=0, header=0
+        ),
+        "Group 4": pd.read_csv(
+            "process_improve/datasets/multivariate/tpls-pyphi/properties_Group4.csv", sep=",", index_col=0, header=0
+        ),
+        "Group 5": pd.read_csv(
+            "process_improve/datasets/multivariate/tpls-pyphi/properties_Group5.csv", sep=",", index_col=0, header=0
+        ),
+    }
+    formulas = {
+        "Group 1": pd.read_csv(
+            "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group1.csv", sep=",", index_col=0, header=0
+        ),
+        "Group 2": pd.read_csv(
+            "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group2.csv", sep=",", index_col=0, header=0
+        ),
+        "Group 3": pd.read_csv(
+            "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group3.csv", sep=",", index_col=0, header=0
+        ),
+        "Group 4": pd.read_csv(
+            "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group4.csv", sep=",", index_col=0, header=0
+        ),
+        "Group 5": pd.read_csv(
+            "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group5.csv", sep=",", index_col=0, header=0
+        ),
+    }
+    process_conditions: dict[str, pd.DataFrame] = {
+        "Conditions": pd.read_csv(
+            "process_improve/datasets/multivariate/tpls-pyphi/process_conditions.csv", sep=",", index_col=0, header=0
+        )
+    }
+
+    quality_indicators: dict[str, pd.DataFrame] = {
+        "Quality": pd.read_csv(
+            "process_improve/datasets/multivariate/tpls-pyphi/quality_indicators.csv", sep=",", index_col=0, header=0
+        )
+    }
+    return {
+        "Z": process_conditions,
+        "D": properties,
+        "F": formulas,
+        "Y": quality_indicators,
+    }
+
+
+def test_tpls_preprocessing(fixture_tpls_example: dict) -> None:
+    """
+    Test the `TPLSpreprocess` class using the example data.
+
+    Test the centering and scaling of the dataframes in D, Z, F, and Y.
+
+    """
+    tpls_example = fixture_tpls_example
+    estimator = TPLSpreprocess()
+    testing_df_dict = estimator.fit_transform(tpls_example)
+    assert np.allclose(testing_df_dict["Z"]["Conditions"].mean(), 0.0)
+    assert np.allclose(testing_df_dict["Z"]["Conditions"].std(), 1.0)
+    assert np.allclose(testing_df_dict["Y"]["Quality"].mean(), 0.0)
+    assert np.allclose(testing_df_dict["Y"]["Quality"].std(), 1.0)
+    for key in tpls_example["D"]:
+        assert np.allclose(testing_df_dict["D"][key].mean(), 0.0)
+        assert np.allclose(testing_df_dict["D"][key].std(), 1 / estimator.preproc_["D"][key]["block"])
+        assert np.allclose(testing_df_dict["F"][key].mean(), 0.0)
+        assert np.allclose(testing_df_dict["F"][key].std(), 1.0)
+
+    # Test the coefficients in the centering and scaling .preproc_ structure
+    # Group 1, for D matrix:
+    known_truth_d1m = np.array([99.85432099, 73.67901235, 3.07469136, 0.13950617, 2.09876543, 12.53703704, 41.58641975])
+    known_truth_d1s = np.array([0.36883209, 1.80631852, 0.69231018, 0.09610943, 0.29927192, 1.99109474, 4.82828759])
+    assert np.allclose(estimator.preproc_["D"]["Group 1"]["center"], known_truth_d1m)
+    assert np.allclose(estimator.preproc_["D"]["Group 1"]["scale"], known_truth_d1s)
+    assert np.allclose(estimator.preproc_["D"]["Group 1"]["center"], tpls_example["D"]["Group 1"].mean())
+    assert np.allclose(estimator.preproc_["D"]["Group 1"]["scale"], tpls_example["D"]["Group 1"].std())
+
+    # Group 4 in D has missing values. Test these.
+    known_truth_d4m = np.array(
+        [
+            9.99055556e-01,
+            1.15555556e-01,
+            2.69444444e-01,
+            2.14210526e01,
+            1.07000000e01,
+            2.04894737e02,
+            5.82947368e01,
+            9.86000000e01,
+            4.88947368e00,
+            3.43684211e00,
+            7.03684211e00,
+        ]
+    )
+    known_truth_d4s = np.array(
+        [
+            8.02365783e-04,
+            7.04792186e-03,
+            1.73110717e-02,
+            3.64105890e00,
+            2.11213425e00,
+            2.18313579e00,
+            6.27211409e00,
+            1.84149698e00,
+            6.57836255e-02,
+            1.77045275e-01,
+            3.68496233e-01,
+        ]
+    )
+    assert np.allclose(estimator.preproc_["D"]["Group 4"]["center"], known_truth_d4m)
+    assert np.allclose(estimator.preproc_["D"]["Group 4"]["scale"], known_truth_d4s)
+    assert np.allclose(estimator.preproc_["D"]["Group 4"]["center"], tpls_example["D"]["Group 4"].mean())
+    assert np.allclose(estimator.preproc_["D"]["Group 4"]["scale"], tpls_example["D"]["Group 4"].std())
+
+    # Test the formula block, group 2:
+    known_truth_f2m = np.array(
+        [0.13333333, 0.0020127, 0.01904762, 0.00952381, 0.13282593, 0.1889709, 0.1047619, 0.17035596, 0.23916785]
+    )
+    known_truth_f2s = np.array(
+        [0.34156503, 0.02062402, 0.13734798, 0.09759001, 0.33676188, 0.39173332, 0.3077152, 0.37647422, 0.4274989]
+    )
+    assert np.allclose(estimator.preproc_["F"]["Group 2"]["center"], known_truth_f2m)
+    assert np.allclose(estimator.preproc_["F"]["Group 2"]["scale"], known_truth_f2s)
+    assert np.allclose(estimator.preproc_["F"]["Group 2"]["center"], tpls_example["F"]["Group 2"].mean())
+    assert np.allclose(estimator.preproc_["F"]["Group 2"]["scale"], tpls_example["F"]["Group 2"].std())
+
+    # Test the `Conditions` (Z) block:
+    known_truth_zm = np.array(
+        [
+            8.63809524e00,
+            2.27764762e01,
+            7.21470000e01,
+            2.13978571e01,
+            7.17852381e01,
+            2.06402381e01,
+            7.10553333e01,
+            1.35438095e05,
+            8.19047619e-01,
+            1.80952381e-01,
+        ]
+    )
+    known_truth_zs = np.array(
+        [
+            3.56835399e00,
+            6.95963475e00,
+            6.53039712e-01,
+            6.27483262e00,
+            1.29077224e00,
+            3.59658120e00,
+            1.45728018e00,
+            1.89215897e03,
+            3.86825154e-01,
+            3.86825154e-01,
+        ]
+    )
+    assert np.allclose(estimator.preproc_["Z"]["Conditions"]["center"], known_truth_zm)
+    assert np.allclose(estimator.preproc_["Z"]["Conditions"]["scale"], known_truth_zs)
+    assert np.allclose(estimator.preproc_["Z"]["Conditions"]["center"], tpls_example["Z"]["Conditions"].mean())
+    assert np.allclose(estimator.preproc_["Z"]["Conditions"]["scale"], tpls_example["Z"]["Conditions"].std())
+
+    # Test the `Quality` (Y) block:
+    known_truth_ym = np.array([30.96834605, 3.328312, 57.01620571, 3.6485004, 79.34224822, 3.06157598])
+    known_truth_ys = np.array([3.46989807, 0.96879553, 4.9740008, 1.47585478, 3.8676095, 1.18600054])
+    assert np.allclose(estimator.preproc_["Y"]["Quality"]["center"], known_truth_ym)
+    assert np.allclose(estimator.preproc_["Y"]["Quality"]["scale"], known_truth_ys)
+    assert np.allclose(estimator.preproc_["Y"]["Quality"]["center"], tpls_example["Y"]["Quality"].mean())
+    assert np.allclose(estimator.preproc_["Y"]["Quality"]["scale"], tpls_example["Y"]["Quality"].std())
+
+
+def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
+    """Test the fitting process of the TPLS model to ensure it functions as expected."""
+
+    transformed_data = TPLSpreprocess().fit_transform(fixture_tpls_example)
+    n_components = 3
+    tpls_test = TPLS(n_components=n_components)
+    tpls_test.fit(transformed_data)
+
+    # Ensure model is fitted appropriately, with the expected number of iterations
+    assert tpls_test.fitting_statistics["iterations"] == [11, 8, 26]
+    assert all(tol < epsqrt for tol in tpls_test.fitting_statistics["convergance_tolerance"])
+
+    # Model parameters tested
+    assert np.allclose(tpls_test.hotellings_t2.iloc[0:5], [2.51977572, 2.96430904, 2.90972389, 4.52220244, 5.08398872])
+
+    # Model l imits tested
+    assert tpls_test.hotellings_t2_limit(0.95) == pytest.approx(8.318089340, rel=1e-6)
+    assert tpls_test.hotellings_t2_limit(0.99) == pytest.approx(12.288844, rel=1e-6)
+
+    assert np.square(tpls_test.spe["Y"]["Quality"].iloc[0:4].values) == pytest.approx(
+        [5.60884167, 2.79520778, 1.61201577, 3.44436535], rel=1e-8
+    )
+    # Test the last 4 observations
+    assert np.square(tpls_test.spe["Z"]["Conditions"].iloc[-4:].values) == pytest.approx(
+        [2.79721437, 2.00803271, 10.77913002, 3.26386299], rel=1e-8
+    )
+
+    assert np.square(tpls_test.spe["F"]["Group 1"].iloc[0:4].values) == pytest.approx(
+        [167.44354056, 132.23399455, 201.50643669, 198.14628337], rel=1e-8
+    )
+    assert np.square(tpls_test.spe["F"]["Group 2"].iloc[0:4].values) == pytest.approx(
+        [48.02191422, 100.16264439, 47.73820238, 1.7668637], rel=1e-8
+    )
+    assert np.square(tpls_test.spe["F"]["Group 3"].iloc[0:4].values) == pytest.approx(
+        [30.96973174, 31.45714235, 30.79004185, 4.45674311], rel=1e-8
+    )
+    assert np.square(tpls_test.spe["F"]["Group 4"].iloc[0:4].values) == pytest.approx(
+        [31.25128561, 31.83840754, 31.03634115, 28.89802456], rel=1e-8
+    )
+    assert np.square(tpls_test.spe["F"]["Group 5"].iloc[0:4].values) == pytest.approx(
+        [30.73602305, 31.60159978, 30.49536591, 97.95906999], rel=1e-8
+    )
+    assert np.square(tpls_test.spe["D"]["Group 3"].iloc[0:4].values) == pytest.approx(
+        [0.340689483, 0.04463833, 1.06575724, 0.0511916], rel=1e-7
+    )
+    # Is this is all zero because there are only 3 columns of data, and we fit 3 components?
+    assert np.square(tpls_test.spe["D"]["Group 5"].iloc[0:4].values) == pytest.approx([0, 0, 0, 0], rel=1e-8)
+
+    # Test case uses a different method to calculate the chi2 value, so we use a different tolerance
+    assert tpls_test.spe_limit["Y"]["Quality"](0.95) == pytest.approx(3.7078381486450, rel=1e-8)
+    assert tpls_test.spe_limit["Y"]["Quality"](0.99) == pytest.approx(4.6381115504, rel=1e-8)
+    assert tpls_test.spe_limit["D"]["Group 1"](0.95) == pytest.approx(1.10682253690, rel=1e-8)
+    assert tpls_test.spe_limit["D"]["Group 2"](0.95) == pytest.approx(0.67468300994, rel=1e-8)
+    assert tpls_test.spe_limit["D"]["Group 3"](0.95) == pytest.approx(0.91134417, rel=1e-8)
+    assert tpls_test.spe_limit["D"]["Group 4"](0.95) == pytest.approx(1.0866787434, rel=1e-8)
+    assert tpls_test.spe_limit["D"]["Group 5"](0.95) == pytest.approx(0, rel=1e-8)
+    assert tpls_test.spe_limit["F"]["Group 1"](0.99) == pytest.approx(16.180926707, rel=1e-8)
+    assert tpls_test.spe_limit["F"]["Group 2"](0.99) == pytest.approx(8.4753865788, rel=1e-8)
+    assert tpls_test.spe_limit["F"]["Group 3"](0.99) == pytest.approx(9.1176685583, rel=1e-8)
+    assert tpls_test.spe_limit["F"]["Group 4"](0.99) == pytest.approx(8.7773163687, rel=1e-8)
+    assert tpls_test.spe_limit["F"]["Group 5"](0.99) == pytest.approx(7.8446720428, rel=1e-8)
