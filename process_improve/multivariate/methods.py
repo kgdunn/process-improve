@@ -2,20 +2,24 @@
 from __future__ import annotations
 
 import time
+import typing
 import warnings
+from collections.abc import Callable
 from functools import partial
-from typing import Any
+from typing import TypeAlias
 
 import numpy as np
 import pandas as pd
 import pytest
 from scipy.stats import chi2, f
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin, _fit_context
 from sklearn.cross_decomposition import PLSRegression as PLS_sklearn
 from sklearn.decomposition import PCA as PCA_sklearn
-from sklearn.utils.validation import check_is_fitted
+from sklearn.utils.validation import check_array, check_is_fitted
 
 from .plots import loadings_plot, score_plot, spe_plot, t2_plot
+
+DataMatrix: TypeAlias = np.ndarray | pd.DataFrame
 
 epsqrt = np.sqrt(np.finfo(float).eps)
 
@@ -33,7 +37,7 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
     def __init__(self):
         pass
 
-    def fit(self, X, y=None):
+    def fit(self, X: DataMatrix) -> MCUVScaler:
         """Get the centering and scaling object constants."""
         self.center_ = pd.DataFrame(X).mean()
         # this is the key difference with "preprocessing.StandardScaler"
@@ -41,7 +45,7 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
         self.scale_[self.scale_ == 0] = 1.0  # columns with no variance are left as-is.
         return self
 
-    def transform(self, X) -> pd.DataFrame:
+    def transform(self, X: DataMatrix) -> pd.DataFrame:
         """Do work of the transformation."""
         check_is_fitted(self, "center_")
         check_is_fitted(self, "scale_")
@@ -49,7 +53,7 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
         X = pd.DataFrame(X).copy()
         return (X - self.center_) / self.scale_
 
-    def inverse_transform(self, X) -> pd.DataFrame:
+    def inverse_transform(self, X: DataMatrix) -> pd.DataFrame:
         """Do the inverse transformation."""
         check_is_fitted(self, "center_")
         check_is_fitted(self, "scale_")
@@ -61,14 +65,14 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
 class PCA(PCA_sklearn):
     def __init__(  # noqa: PLR0913
         self,
-        n_components=None,
+        n_components: int,
         *,
         copy: bool = True,
         whiten: bool = False,
         svd_solver: str = "auto",
         tol: float = 0.0,
         iterated_power: str = "auto",
-        random_state=None,
+        random_state: int | None = None,
         # Own extra inputs, for the case when there is missing data
         missing_data_settings: dict | None = None,
     ):
@@ -85,7 +89,7 @@ class PCA(PCA_sklearn):
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = False
 
-    def fit(self, X, y=None) -> PCA_sklearn:  # noqa: PLR0915
+    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA_sklearn:  # noqa: ARG002, PLR0915
         """
         Fit a principal component analysis (PCA) model to the data.
 
@@ -117,7 +121,7 @@ class PCA(PCA_sklearn):
                 f"the minimum of either the number of rows ({self.N}) or "
                 f"the number of columns ({self.K})."
             )
-            warnings.warn(warn, SpecificationWarning)
+            warnings.warn(warn, SpecificationWarning, stacklevel=2)
             self.A = self.n_components = min_dim
 
         if np.any(X.isna()):
@@ -265,15 +269,23 @@ class PCA(PCA_sklearn):
 
         return self
 
-    def fit_transform(self, X, y=None):
+    def fit_transform(self, X: DataMatrix, y: DataMatrix | None = None) -> None:  # noqa: ARG002
+        """Fit the PCA model and transform the data."""
         self.fit(X)
         pytest.fail("Still do the transform part")
 
-    def predict(self, X):
+    def predict(self, X: DataMatrix):
         """Use the PCA model on new data coming in matrix X."""
 
-        class State(object):
-            """Class object to hold the prediction results together."""
+        class State:
+            """Class to hold the prediction results together."""
+
+            def __init__(self):
+                self.N = None
+                self.K = None
+                self.x_scores = None
+                self.hotellings_t2 = None
+                self.squared_prediction_error = None
 
         state = State()
         state.N, state.K = X.shape
@@ -290,7 +302,7 @@ class PCA(PCA_sklearn):
             # state.x_scores[:, [a]] = temp
 
         # Scores are calculated, now do the rest
-        state.Hotellings_T2 = np.sum(np.power((state.x_scores / self.scaling_factor_for_scores.values), 2), 1)
+        state.hotellings_t2 = np.sum(np.power((state.x_scores / self.scaling_factor_for_scores.values), 2), 1)
         # Calculate SPE-residuals (sum over rows of the errors)
         X_mcuv = X.copy()
         X_mcuv -= state.x_scores @ self.x_loadings.T
@@ -298,7 +310,7 @@ class PCA(PCA_sklearn):
         return state
 
 
-class PCA_missing_values(BaseEstimator, TransformerMixin):
+class PCA_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
     """
     Create a PCA class if there are 1 or more missing data values in the X input array.
 
@@ -316,9 +328,8 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
 
     def __init__(
         self,
-        n_components=None,
-        copy: bool = True,
-        missing_data_settings=dict,
+        n_components: int,
+        missing_data_settings: dict,
     ):
         self.n_components = n_components
         self.missing_data_settings = missing_data_settings
@@ -332,7 +343,8 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
             f"Missing data method is not recognized. Must be one of {self.valid_md_methods}.",
         )
 
-    def fit(self, X, y=None):
+    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA_missing_values:  # noqa: ARG002
+        """Fit the PCA model with missing data."""
         # Force input to NumPy array:
         self.data = np.asarray(X.copy())
 
@@ -372,17 +384,19 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
         self.explained_variance_ = np.diag(self.x_scores_.T @ self.x_scores_) / (self.N - 1)
         return self
 
-    def transform(self, X):
+    def transform(self, X: DataMatrix) -> DataMatrix:
+        """Transform the data."""
         check_is_fitted(self, "blah")
 
         return X.copy()
 
-    def inverse_transform(self, X):
+    def inverse_transform(self, X: DataMatrix) -> DataMatrix:
+        """Inverse transform the data."""
         check_is_fitted(self, "blah")
 
         return X.copy()
 
-    def _fit_nipals_pca(self, settings):
+    def _fit_nipals_pca(self, settings: dict) -> None:
         """Fit the PCA model using the NIPALS algorithm (internal method)."""
         # NIPALS algorithm
         K, A = self.K, self.A
@@ -484,7 +498,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
 
         # end looping on A components
 
-    def _fit_tsr_pca(self, settings):
+    def _fit_tsr_pca(self, settings: dict) -> None:
         start_time = time.time()
         self.extra_info = dict(iterations=0, timing=0)
         delta = 1e100
@@ -546,7 +560,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):
 class PLS(PLS_sklearn):
     def __init__(  # noqa: PLR0913
         self,
-        n_components: int = 2,
+        n_components: int,
         *,
         scale: bool = True,
         max_iter: int = 1000,
@@ -566,7 +580,7 @@ class PLS(PLS_sklearn):
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = False
 
-    def fit(self, X, Y) -> PLS_sklearn:  # noqa: PLR0915
+    def fit(self, X: DataMatrix, Y: DataMatrix) -> PLS_sklearn:  # noqa: PLR0915
         """
         Fit a projection to latent structures (PLS) or Partial Least Square (PLS) model to the data.
 
@@ -605,7 +619,7 @@ class PLS(PLS_sklearn):
                 f"the minimum of either the number of rows ({self.N}) or "
                 f"the number of columns ({self.K})."
             )
-            warnings.warn(warn, SpecificationWarning)
+            warnings.warn(warn, SpecificationWarning, stacklevel=2)
             self.A = self.n_components = min_dim
 
         if np.any(Y.isna()) or np.any(X.isna()):
@@ -759,11 +773,19 @@ class PLS(PLS_sklearn):
 
         return self
 
-    def predict(self, X):
+    def predict(self, X: DataMatrix):
         """Use the PLS model on new data coming in matrix X."""
 
-        class State(object):
-            """Class object to hold the prediction results together."""
+        class State:
+            """Class to hold the prediction results together."""
+
+            def __init__(self):
+                self.N = None
+                self.K = None
+                self.x_scores = None
+                self.hotellings_t2 = None
+                self.squared_prediction_error = None
+                self.y_hat = None
 
         state = State()
         state.N, state.K = X.shape
@@ -772,7 +794,7 @@ class PLS(PLS_sklearn):
         state.x_scores = X @ self.direct_weights
 
         # TODO: handle the missing data version here still
-        for a in range(self.A):
+        for _ in range(self.A):
             pass
             # p = self.x_loadings.iloc[:, [a]]
             # w = self.x_weights.iloc[:, [a]]
@@ -781,7 +803,7 @@ class PLS(PLS_sklearn):
             # state.x_scores[:, [a]] = temp
 
         # Scores are calculated, now do the rest
-        state.Hotellings_T2 = np.sum(np.power((state.x_scores / self.scaling_factor_for_scores.values), 2), 1)
+        state.hotellings_t2 = np.sum(np.power((state.x_scores / self.scaling_factor_for_scores.values), 2), 1)
         # Calculate SPE-residuals (sum over rows of the errors)
         X_mcuv = X.copy()
         X_mcuv -= state.x_scores @ self.x_loadings.T
@@ -791,7 +813,8 @@ class PLS(PLS_sklearn):
 
         return state
 
-    def SPE_limit(self, conf_level=0.95) -> float:
+    def SPE_limit(self, conf_level: float = 0.95) -> float:  # noqa: N802
+        """Calculate the SPE limit for the model."""
         check_is_fitted(self, "squared_prediction_error")
 
         return spe_calculation(
@@ -800,7 +823,7 @@ class PLS(PLS_sklearn):
         )
 
 
-class PLS_missing_values(BaseEstimator, TransformerMixin):
+class PLS_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
     """
     Create our PLS class if there is even a single missing data value in the X input array.
 
@@ -822,9 +845,8 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
 
     def __init__(
         self,
-        n_components=None,
-        copy: bool = True,
-        missing_data_settings=dict,
+        n_components: int,
+        missing_data_settings: dict,
     ):
         self.n_components = n_components
         self.missing_data_settings = missing_data_settings
@@ -837,7 +859,7 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
             f"Missing data method is not recognized. Must be one of {self.valid_md_methods}.",
         )
 
-    def fit(self, X, Y):
+    def fit(self, X: DataMatrix, Y: DataMatrix) -> DataMatrix:
         """
         Fits a PLS latent variable model between `X` and `Y` data arrays, accounting for missing
         values (nan's) in either or both arrays.
@@ -887,7 +909,7 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
         # self.explained_variance_ = np.diag(self.x_scores.T @ self.x_scores) / (self.N - 1)
         return self
 
-    def _fit_nipals_pls(self, settings):
+    def _fit_nipals_pls(self, settings: dict) -> None:
         """
         Fit the PLS model using the NIPALS algorithm.
 
@@ -964,7 +986,7 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
             self.extra_info["iterations"][a] = itern
 
             if itern > settings["md_max_iter"]:
-                Warning("PLS missing data [SCP method]: maximum number of iterations reached!")
+                raise Warning("PLS missing data [SCP method]: maximum number of iterations reached!")
 
             # Loop terminated!
             # 6: Now deflate the X-matrix.  To do that we need to calculate loadings for the
@@ -1000,7 +1022,43 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):
             # end looping on ``a``
 
 
-def ssq(X: np.ndarray, axis: int | None = None) -> Any:
+def nan_to_zeros(in_array: np.ndarray) -> np.ndarray:
+    """Convert NaN to zero and return a NaN map."""
+
+    nan_map = np.isnan(in_array)
+    in_array[nan_map] = 0
+    return in_array
+
+
+def regress_a_space_on_b_row(a_space: np.ndarray, b_row: np.ndarray, a_space_present_map: np.ndarray) -> np.ndarray:
+    """
+    Project each row of `a_space` onto row vector `b_row`, to return a regression coefficient for every row in A.
+
+    NOTE: Neither of these two inputs may have missing values. It is assumed you have replaced missing values by zero,
+          and have a map of where the missing values were (more correctly, where the non-missing values are is given
+          by `a_space_present_map`).
+
+    NOTE: No checks are done on the incoming data to ensure consistency. That is the caller's responsibility. This
+          function is called thousands of times, so that overhead is not acceptable.
+
+    The `a_space_present_map` has `False` entries where `a_space` originally had NaN values.
+    The `b_row` may never have missing values, and no map is provided for it. These row vectors are latent variable
+    vectors, and therefore never have missing values.
+
+    a_space             = [n_rows x j_cols]
+    b_row               = [1      x j_cols]    # in other words, a row vector of `j_cols` entries
+    a_space_present_map = [n_rows x j_cols]
+
+    Returns               [n_rows x 1] = a_space * b_row^T  / ( b_row * b_row^T)
+                                         (n x j) * (j x 1)  /  (1 x j)* (j x 1)  = n x 1
+    """
+    denom = np.tile(b_row, (a_space.shape[0], 1))  # tiles, row-by-row the `b_row` row vector, to create `n_rows`
+    denominator = np.sum((denom * a_space_present_map) ** 2, axis=1).astype("float")
+    denominator[denominator == 0] = np.nan
+    return np.array((np.sum(a_space * denom, axis=1)) / denominator).reshape(-1, 1)
+
+
+def ssq(X: np.ndarray, axis: int | None = None) -> float | np.ndarray:
     """Calculate the sum of squares of a 2D matrix (not array! and not checked for either: code will simply fail),
     skipping over any NaN (missing) data.
     """
@@ -1035,10 +1093,10 @@ def terminate_check(t_a_guess: np.ndarray, t_a: np.ndarray, iterations: int, set
     score_tol = np.linalg.norm(t_a_guess - t_a, ord=None)
     converged = score_tol < settings["md_tol"]
     max_iter = iterations > settings["md_max_iter"]
-    return np.any([max_iter, converged])
+    return bool(np.any([max_iter, converged]))
 
 
-def quick_regress(Y, x):
+def quick_regress(Y: np.ndarray, x: np.ndarray) -> np.ndarray:
     """
     Regress vector `x` onto the columns in matrix ``Y`` one at a time.
     Return the vector of regression coefficients, one for each column in `Y`.
@@ -1071,7 +1129,7 @@ def quick_regress(Y, x):
         raise ValueError("The dimensions of the input arrays are not compatible.")
 
 
-def center(X, func=np.mean, axis=0, extra_output=False):  # noqa: ANN001
+def center(X, func: Callable = np.mean, axis: int = 0, extra_output: bool = False) -> DataMatrix:  # noqa: ANN001
     """
     Perform centering of data, using a function, `func` (default: np.mean).
     The function, if supplied, but return a vector with as many columns as the matrix X.
@@ -1092,7 +1150,7 @@ def center(X, func=np.mean, axis=0, extra_output=False):  # noqa: ANN001
         return np.subtract(X, vector)
 
 
-def scale(X, func=np.std, axis=0, extra_output=False, **kwargs):
+def scale(X: DataMatrix, func: Callable = np.std, axis: int = 0, extra_output: bool = False, **kwargs) -> DataMatrix:
     """
     Scales the data (does NOT do any centering); scales to unit variance by
     default.
@@ -1107,7 +1165,7 @@ def scale(X, func=np.std, axis=0, extra_output=False, **kwargs):
         skipping over any missing data, and dividing by N-1, where N = number
         of values which are present, i.e. not counting missing values.
 
-    `axis` [optional; default=0] {integer or None}
+    `axis` [optional; default=0] {integer}
         Transformations are applied on slices of data.  This specifies the
         axis along which the transformation will be applied.
 
@@ -1151,7 +1209,23 @@ def scale(X, func=np.std, axis=0, extra_output=False, **kwargs):
         return np.multiply(X, vector)
 
 
-def T2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -> float:
+def deprecated(func):
+    """Mark function as deprecated."""
+
+    def wrapper(*args, **kwargs):
+        """Wrap this function."""
+        warnings.warn(
+            f"{func.__name__} is deprecated and will be removed in a future version.",
+            category=DeprecationWarning,
+            stacklevel=2,
+        )
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+@deprecated
+def T2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -> float:  # noqa: N802
     """Return the Hotelling's T2 value at the given level of confidence.
 
     Parameters
@@ -1173,7 +1247,45 @@ def T2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -
     return a * (n - 1) * (n + 1) / (n * (n - a)) * f.isf((1 - conf_level), a, n - a)
 
 
-def SPE_limit(model, conf_level=0.95) -> float:
+def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -> float:
+    """Return the Hotelling's T2 value at the given level of confidence.
+
+    Parameters
+    ----------
+    conf_level : float, optional
+        Fractional confidence limit, less that 1.00; by default 0.95
+
+    Returns
+    -------
+    float
+        The Hotelling's T2 limit at the given level of confidence.
+    """
+    assert 0.0 < conf_level < 1.0
+    assert n_rows > 0
+    if n_components == n_rows:
+        return float("inf")
+    return (
+        n_components
+        * (n_rows - 1)
+        * (n_rows + 1)
+        / (n_rows * (n_rows - n_components))
+        * f.isf((1 - conf_level), n_components, n_rows - n_components)
+    )
+
+
+def SPE_limit(model: BaseEstimator, conf_level: float = 0.95) -> float:  # noqa: N802
+    """Return the squared prediction error limit at the given level of confidence.
+
+    Parameters
+    ----------
+    conf_level : float, optional
+        Fractional confidence limit, less that 1.00; by default 0.95
+
+    Returns
+    -------
+    float
+        The squared prediction error limit at the given level of confidence.
+    """
     check_is_fitted(model, "squared_prediction_error")
 
     return spe_calculation(
@@ -1182,7 +1294,7 @@ def SPE_limit(model, conf_level=0.95) -> float:
     )
 
 
-def spe_calculation(spe_values: pd.Series, conf_level: float = 0.95) -> float:
+def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
     """Return a limit for SPE (squared prediction error) at the given level of confidence.
 
     Parameters
@@ -1204,8 +1316,8 @@ def spe_calculation(spe_values: pd.Series, conf_level: float = 0.95) -> float:
     # The limit is for the squares (i.e. the sum of the squared errors)
     # I.e. `spe_values` are square-rooted outside this function, so undo that.
     values = spe_values**2
-    center_spe = values.mean()
-    variance_spe = values.var(ddof=1)
+    center_spe = float(values.mean())
+    variance_spe = float(values.var(ddof=1))
     g = variance_spe / (2 * center_spe)
     h = (2 * (center_spe**2)) / variance_spe
     # Report square root again as SPE limit
@@ -1218,7 +1330,7 @@ def ellipse_coordinates(  # noqa: PLR0913
     T2_limit_conf_level: float = 0.95,
     n_points: int = 100,
     n_components: int = 0,
-    scaling_factor_for_scores=None,
+    scaling_factor_for_scores: pd.Series | None = None,
     n_rows: int = 0,
 ) -> tuple:
     """Get the (score_horiz, score_vert) coordinate pairs that form the T2 ellipse when
@@ -1278,6 +1390,52 @@ def ellipse_coordinates(  # noqa: PLR0913
     return x, y
 
 
+def internal_pls_nipals_fit_one_pc(
+    x_space: np.ndarray,
+    y_space: np.ndarray,
+    x_present_map: np.ndarray,
+    y_present_map: np.ndarray,
+) -> dict[str, np.ndarray]:
+    """Fit a PLS model using the NIPALS algorithm."""
+    max_iter: int = 500
+
+    is_converged = False
+    n_iter = 0
+    u_i = y_space[:, [0]]
+    while not is_converged:
+        # Step 1. w_i = X'u / u'u. Regress the columns of X on u_i, and store the slope coeff in vectors w_i.
+        w_i = regress_a_space_on_b_row(x_space.T, u_i.T, x_present_map.T)
+
+        # Step 2. Normalize w to unit length.
+        w_i = w_i / np.linalg.norm(w_i)
+
+        # Step 3. t_i = Xw / w'w. Regress rows of X on w_i, and store slope coefficients in t_i.
+        t_i = regress_a_space_on_b_row(x_space, w_i.T, x_present_map)
+
+        # Step 4. q_i = Y't / t't. Regress columns of Y on t_i, and store slope coefficients in q_i.
+        q_i = regress_a_space_on_b_row(y_space.T, t_i.T, y_present_map.T)
+
+        # Step 5. u_new = Yq / q'q. Regress rows of Y on q_i, and store slope coefficients in u_new
+        u_new = regress_a_space_on_b_row(y_space, q_i.T, y_present_map)
+
+        if (abs(np.linalg.norm(u_i - u_new)) / np.linalg.norm(u_i)) < epsqrt:
+            is_converged = True
+        if n_iter > max_iter:
+            is_converged = True
+
+        n_iter += 1
+        u_i = u_new
+
+    # We have converged. Keep sign consistency. Fairly arbitrary rule, but ensures we report results consistently.
+    if np.var(t_i[t_i < 0]) > np.var(t_i[t_i >= 0]):
+        t_i = -t_i
+        u_new = -u_new
+        w_i = -w_i
+        q_i = -q_i
+
+    return dict(t_i=t_i, u_i=u_i, w_i=w_i, q_i=q_i)
+
+
 # def _apply_pca(self, new=None):
 #     """
 #     Project new observations, ``new``, onto the existing latent variable
@@ -1331,3 +1489,590 @@ def ellipse_coordinates(  # noqa: PLR0913
 #         result.Yhat[j, :] = Yhat_MCUV / (LVM.PPY[1][1] + 0.0) + LVM.PPY[0][1]
 
 #     return result
+
+
+class TPLSpreprocess(TransformerMixin, BaseEstimator):
+    """
+
+    Pre-process the dataframes for TPLS models.
+
+
+    Example
+    -------
+    >>> import numpy as np
+    >>> import pandas as pd
+    >>> rng = np.random.default_rng()
+    >>>
+    >>> n_props_a, n_props_b = 6, 4
+    >>> n_materials_a, n_materials_b = 12, 8
+    >>> n_formulas = 40
+    >>> n_outputs = 3
+    >>> n_conditions = 2
+    >>>
+    >>> properties = {
+    >>>     "Group A": pd.DataFrame(rng.standard_normal((n_materials_a, n_props_a))),
+    >>>     "Group B": pd.DataFrame(rng.standard_normal((n_materials_b, n_props_b))),
+    >>> }
+    >>> formulas = {
+    >>>     "Group A": pd.DataFrame(rng.standard_normal((n_formulas, n_materials_a))),
+    >>>     "Group B": pd.DataFrame(rng.standard_normal((n_formulas, n_materials_b))),
+    >>> }
+    >>> process_conditions = {"Conditions": pd.DataFrame(rng.standard_normal((n_formulas, n_conditions)))}
+    >>> quality_indicators = pd.DataFrame(rng.standard_normal((n_formulas, n_outputs)))
+    >>> all_data = {"Z": process_conditions, "D": properties, "F": formulas}
+    >>> estimator = TPLSpreprocess()
+    >>> estimator.fit(all_data, y=quality_indicators)
+    """
+
+    _parameter_constraints: typing.ClassVar = {}
+
+    def __init__(self):
+        super().__init__()
+
+    def _learn_center_and_scaling_parameters(self, y: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+        """
+        Learn the centering and scaling parameters for the output space.
+
+        Parameters
+        ----------
+        y : pd.DataFrame
+            The output space.
+
+        Returns
+        -------
+        centering : pd.Series
+            The centering parameters.
+
+        scaling : pd.Series
+            The scaling parameters.
+        """
+        centering = y.mean()
+        scaling = y.std(ddof=1)
+        scaling[scaling < epsqrt] = 1.0  # columns with little/no variance are left as-is.
+        return centering, scaling
+
+    def validate_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Validate a single dataframe using `check_array` from scikit-learn.
+
+        Parameters
+        ----------
+        df : {pd.DataFrame}
+
+        Returns
+        -------
+        y : {pd.DataFrame}
+            Returns the input dataframe.
+        """
+
+        return check_array(
+            df, accept_sparse=False, ensure_all_finite="allow-nan", ensure_2d=True, allow_nd=False, ensure_min_samples=1
+        )
+
+    @_fit_context(prefer_skip_nested_validation=True)
+    def fit(self, X: dict[str, dict[str, pd.DataFrame]], y: None = None) -> "TPLSpreprocess":  # noqa: ARG002
+        """
+        Fit/learn the preprocessing parameters from the training data.
+
+        Parameters
+        ----------
+        X : {dictionary of dataframes}, keys that must be present: "D", "F", "Z", and "Y"
+            The training input samples. See documentation in the class definition for more information on each matrix.
+
+        Returns
+        -------
+        self : object
+            Returns self.
+        """
+        expected_blocks = {"D", "F", "Z", "Y"}
+        assert set(X.keys()) == expected_blocks, f"Expected keys: {expected_blocks}, got: {set(X.keys())}"
+        self.preproc_: dict[str, dict[str, dict[str, pd.Series]]] = {key: {} for key in expected_blocks}
+        for block in expected_blocks:
+            for key in X[block]:
+                assert isinstance(X[block][key], pd.DataFrame), f"The 'X[{block}][{key}]' entries must be a DataFrame."
+
+        for key in X["Y"]:
+            self.validate_df(X["Y"][key])
+        for key in X["Z"]:
+            self.validate_df(X["Z"][key])
+        for key in X["D"]:
+            self.validate_df(X["D"][key])
+            assert key in X["F"], f"Block/group name '{key}' in D must also be present in F."
+            self.validate_df(X["F"][key])  # this also ensures the keys in F are the same as in D
+
+        # Learn the centering and scaling parameters
+        for key in X["Y"]:
+            self.preproc_["Y"][key] = {}
+            self.preproc_["Y"][key]["center"], self.preproc_["Y"][key]["scale"] = (
+                self._learn_center_and_scaling_parameters(X["Y"][key])
+            )
+        for key in X["Z"]:
+            self.preproc_["Z"][key] = {}
+            self.preproc_["Z"][key]["center"], self.preproc_["Z"][key]["scale"] = (
+                self._learn_center_and_scaling_parameters(X["Z"][key])
+            )
+        for key, df_d in X["D"].items():
+            self.preproc_["D"][key] = {}
+            self.preproc_["F"][key] = {}
+            self.preproc_["D"][key]["center"], self.preproc_["D"][key]["scale"] = (
+                self._learn_center_and_scaling_parameters(df_d)
+            )
+            self.preproc_["D"][key]["block"] = pd.Series([np.sqrt(df_d.shape[1])])
+            self.preproc_["F"][key]["center"], self.preproc_["F"][key]["scale"] = (
+                self._learn_center_and_scaling_parameters(X["F"][key])
+            )
+
+        self.is_fitted_ = True
+        return self
+
+    def transform(self, X: dict[str, dict[str, pd.DataFrame]]) -> dict[str, dict[str, pd.DataFrame]]:
+        """
+        Apply the centering and scaling transformation to the input data.
+
+        Parameters
+        ----------
+        X : {dictionary of dataframes}, keys that must be present: "D", "F", "Z", and "Y"
+            The input data to be transformed
+
+        Returns
+        -------
+        x_transformed : dict[str, dict[str, pd.DataFrame]]
+            The transformed input data, containing element-wise transformations applied to the values in the dataframes.
+        """
+        check_is_fitted(self)
+        x_transformed: dict[str, dict[str, pd.DataFrame]] = {"D": {}, "F": {}, "Z": {}, "Y": {}}
+        for key, df_d in X["D"].items():
+            x_transformed["D"][key] = (
+                (df_d - self.preproc_["D"][key]["center"])
+                / self.preproc_["D"][key]["scale"]
+                / self.preproc_["D"][key]["block"][0]  # scalar!
+            )
+            x_transformed["F"][key] = (X["F"][key] - self.preproc_["F"][key]["center"]) / self.preproc_["F"][key][
+                "scale"
+            ]
+        for key in X["Z"]:
+            x_transformed["Z"][key] = (X["Z"][key] - self.preproc_["Z"][key]["center"]) / self.preproc_["Z"][key][
+                "scale"
+            ]
+        for key in X["Y"]:
+            x_transformed["Y"][key] = (X["Y"][key] - self.preproc_["Y"][key]["center"]) / self.preproc_["Y"][key][
+                "scale"
+            ]
+
+        return x_transformed
+
+
+class TPLS(BaseEstimator):
+    """
+    TPLS algorithm for T-shaped data structures.
+
+    Source: Garcia-Munoz, https://doi.org/10.1016/j.chemolab.2014.02.006, Chem.Intell.Lab.Sys. v133, p 49 to 62, 2014.
+
+    We change the notation from the original paper to avoid confusion with a generic "X" matrix, and match symbols
+    that are more natural for our use.
+
+    Paper           This code     Internal Numpy variable name (holds only NumPy values)
+    =====           ========      ============================
+    X^T             D             d_mats                            Database
+    X               D^T
+    R               F             f_mats                            Formula
+    Z               Z             z_mats                            (Upstream) conditions
+    Y               Y             y_mats                            Quality indicators
+
+    Notes
+    1. Matrices in F, Z and Y must all have the same number of rows.
+    2. Columns in F must be the same as the rows in D.
+    3. Conditions in Z may be missing (turning it into an L-shaped data structure).
+
+    Parameters
+    ----------
+    n_components : int
+        A parameter used to specify the number of components.
+
+    Data structures in input `X` (a dictionary with 4 keys, as listed below)
+    ------------------------------------------------------------------------
+
+    D. Database of dataframes, containing properties.
+
+        D = { "Group A": dataframe of properties of group A materials. (columns contain properties, rows are materials),
+              "Group B": dataframe of properties of group B materials. (columns contain properties, rows are materials),
+              ...
+            }
+
+    F. Formula matrices/ratio of materials, corresponding to the *rows* of D (or columns of D after transposing):
+
+        F = { "GroupA": dataframe of formula for group A used in each blend (one formula per row, columns are materials)
+              "GroupB": dataframe of formula for group B used in each blend (one formula per row, columns are materials)
+              ...
+            }
+
+    Z. Process conditions. One row per formula/blend; one column per condition.
+
+    Y. Product characteristics (quality space; key performance indicators). One row per formula/blend;
+       one column per quality indicator.
+
+
+    Attributes
+    ----------
+    is_fitted_ : bool
+        A boolean indicating whether the estimator has been fitted.
+
+    Example
+    -------
+    >>> from ___ import TPLS
+    >>> import numpy as np
+    >>> all_data = {"Z": ... , "D": ... , "F": ..., "Y": ...}  # see the example in the `TPLSpreprocess` class.
+    >>> estimator = TPLS(n_components=2)
+    >>> estimator.fit(all_data)
+    """
+
+    # This is a dictionary allowing to define the type of parameters.
+    # It used to validate parameter within the `_fit_context` decorator.
+    _parameter_constraints: typing.ClassVar = {
+        "n_components": [int],
+    }
+
+    def __init__(self, n_components: int):
+        assert n_components > 0, "Number of components must be positive."
+        self.n_components = n_components
+        self.n_substances = 0
+        self.tolerance_ = np.sqrt(np.finfo(float).eps)
+        self.max_iterations_ = 500
+        self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
+        self.required_blocks_ = {"D", "F", "Z", "Y"}
+        # self.plot = Plot(self)
+
+    @_fit_context(prefer_skip_nested_validation=True)
+    def fit(self, X: dict[str, dict[str, pd.DataFrame]], y: None = None) -> "TPLS":  # noqa: ARG002
+        """Fit the model.
+
+        Parameters
+        ----------
+        X : {array-like, sparse matrix}, shape (n_samples, n_features)
+            The training input samples.
+
+        Returns
+        -------
+        self : object
+            Returns self.
+        """
+        # Note: we assume the data have been pre-processed by the `TPLSpreprocess` class; so no data checks performed.
+
+        assert isinstance(X, dict), "The input data must be a dictionary."
+        assert set(X.keys()) == self.required_blocks_, "The input dictionary must have keys: D, F, Z, Y."
+
+        group_keys = [str(key) for key in X["D"]]
+        assert set(X["F"]) == set(group_keys), "The keys in F must match the keys in D."
+        d_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["D"][key].values) for key in group_keys}
+        f_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["F"][key].values) for key in group_keys}
+        z_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["Z"][key].values) for key in X["Z"]}  # only 1 key in Z
+        y_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["Y"][key].values) for key in X["Y"]}  # only 1 key in Y
+        self.observation_names = X["F"][group_keys[0]].index
+        # corrected to iterate over all group_keys
+        self.property_names = {key: X["D"][key].index.to_list() for key in group_keys}
+
+        self.d_mats = d_mats
+        self.f_mats = f_mats
+        self.z_mats = z_mats
+        self.y_mats = y_mats  # corrected to assign y_mats
+
+        # Create the missing value maps, except we store the opposite, i.e., not missing, since these are more useful.
+        # We refer to these as `pmaps` in the code (present maps, as opposed to `mmap` or missing maps).
+        self.not_na_d = {key: ~np.isnan(X["D"][key].values) for key in d_mats}
+        self.not_na_f = {key: ~np.isnan(X["F"][key].values) for key in f_mats}
+        self.not_na_z = {key: ~np.isnan(X["Z"][key].values) for key in z_mats}
+        self.not_na_y = {key: ~np.isnan(X["Y"][key].values) for key in y_mats}
+
+        # Empty model coefficients
+        self.n_substances = sum(self.f_mats[key].shape[1] for key in group_keys)
+        self.n_conditions = sum(self.z_mats[key].shape[1] for key in self.z_mats)
+        self.n_outputs = sum(self.y_mats[key].shape[1] for key in self.y_mats)
+
+        # Model performance
+        # -----------------
+        # 1. Prediction matrices (hat matrices: for example X^)
+        self.hat: dict[str, dict[str, np.ndarray]] = {key: {} for key in self.required_blocks_}
+        # tss: dict[str, dict[str, np.ndarray]] = {}  # total sum of squares
+        # r2_b: dict[str, dict[str, np.ndarray]] = {}  # R2 per block
+        # r2_col: dict[str, dict[str, np.ndarray]] = {}  # R2 per variable (column)
+
+        # Model parameters
+        # ----------------
+        self.t_scores: pd.DataFrame = pd.DataFrame(index=self.observation_names)
+        # self.u_scores: pd.DataFrame = pd.DataFrame()
+        # self.w_scores: pd.DataFrame = pd.DataFrame()
+        # self.q_scores: pd.DataFrame = pd.DataFrame()  # corrected from {}
+        self.spe: dict[str, dict[str, pd.DataFrame]] = {key: {} for key in self.required_blocks_}
+        self.spe_limit: dict[str, dict[str, Callable]] = {key: {} for key in self.required_blocks_}
+        self.hotellings_t2: pd.DataFrame = pd.DataFrame()
+        self.hotellings_t2_limit: Callable = hotellings_t2_limit
+
+        self.is_fitted_ = False
+        self._fit_iterative_regressions()
+        self.is_fitted_ = True
+
+        return self
+
+    def _has_converged(self, starting_vector: np.ndarray, revised_vector: np.ndarray, iterations: int) -> bool:
+        """
+        Terminate the iterative algorithm when any one of these conditions is True.
+
+        #. scores converge: the norm between two successive iterations is smaller than a tolerance
+        #. maximum number of iterations is reached
+        """
+        delta_gap = float(
+            np.linalg.norm(starting_vector - revised_vector, ord=None) / np.linalg.norm(starting_vector, ord=None)
+        )
+        converged = delta_gap < self.tolerance_
+        max_iter = iterations >= self.max_iterations_
+        return bool(np.any([max_iter, converged]))
+
+    def _store_model_coefficients(self, pc_a: int, t_super_i: np.ndarray) -> None:
+        """Store the model coefficients for later use."""
+        self.t_scores = self.t_scores.join(pd.DataFrame(t_super_i, index=self.observation_names, columns=[f"PC{pc_a}"]))
+
+    def _calculate_and_store_deflation_matrices(
+        self,
+        t_super_i: np.ndarray,
+        q_super_i: np.ndarray,
+        r_i: dict[str, np.ndarray],
+    ) -> None:
+        """
+        Calculate and store the deflation matrices for the TPLS model.
+
+        Deflate the matrices stored in the instance object.
+
+        Returns the prediction matrices in a dictionary.
+        """
+        #
+        # Step 13. p_i = F_i' t_i / t_i't_i. Regress the columns of F_i on t_i; store slope coeff in vectors p_i.
+        # Note: the "t" vector is the t_i vector from the inner PLS model, marked as "Tt" in figure 4 of the paper.
+        # It is the score column from the super score matrix regression onto Y.
+        pf_i = {
+            key: regress_a_space_on_b_row(df_f.T, t_super_i.T, pmap_f.T)
+            for key, df_f, pmap_f in zip(self.f_mats.keys(), self.f_mats.values(), self.not_na_f.values(), strict=True)
+        }
+        # Step 13: Deflate the Z matrix with a loadings vector, pz_b (_b is for block)
+        pz_b = {
+            key: regress_a_space_on_b_row(df_z.T, t_super_i.T, pmap_z.T)
+            for key, df_z, pmap_z in zip(self.z_mats.keys(), self.z_mats.values(), self.not_na_z.values(), strict=True)
+        }
+
+        # Step 13: v_i = D_i' r_i / r_i'r_i. Regress the rows of D_i (properties) on r_i; store slopes in v_i.
+        v_i = {
+            key: regress_a_space_on_b_row(df_d.T, r_i[key].T, pmap_d.T)
+            for key, df_d, pmap_d in zip(self.d_mats.keys(), self.d_mats.values(), self.not_na_d.values(), strict=True)
+        }
+
+        # Step 14. Do the actual deflation.
+        for key in self.d_mats:
+            # Two sets of matrices to deflate: properties D and formulas F.
+            self.hat["D"][key] = r_i[key] @ v_i[key].T
+            self.d_mats[key] -= self.hat["D"][key] * self.not_na_d[key]
+
+            # Step to deflate F matrix
+            self.hat["F"][key] = t_super_i @ pf_i[key].T
+            self.f_mats[key] -= self.hat["F"][key] * self.not_na_f[key]
+
+        for key in self.z_mats:
+            self.hat["Z"][key] = t_super_i @ pz_b[key].T
+            self.z_mats[key] -= self.hat["Z"][key] * self.not_na_z[key]
+
+        for key in self.y_mats:
+            self.hat["Y"][key] = t_super_i @ q_super_i.T
+            self.y_mats[key] -= self.hat["Y"][key] * self.not_na_y[key]
+
+    def _update_performance_statistics(self) -> None:
+        """Calculate and store the performance statistics of the model, such as R2, TSS, etc."""
+
+    def _calculate_model_statistics_and_limits(self) -> None:
+        """Calculate and store the model limits.
+
+        Limits calculated:
+        1. Hotelling's T2 limits
+        2. Squared prediction error limits
+        """
+
+        # Calculate the Hotelling's T2 values, and limits
+        variance_matrix = self.t_scores.T @ self.t_scores / self.t_scores.shape[0]
+        self.hotellings_t2 = np.sum((self.t_scores.values @ np.linalg.inv(variance_matrix)) * self.t_scores, axis=1)
+        self.hotellings_t2_limit = partial(
+            hotellings_t2_limit, n_components=self.n_components, n_rows=self.hotellings_t2.shape[0]
+        )
+
+        # Squared prediction error limits. This is a measure of the prediction error = difference between the actual
+        # and predicted values. Since the matrices are deflated by the predictive part of the model already, the
+        # data in these matrices is already the prediction error. Calculate the **squared** portion, and store it.
+        column_name = [f"SPE with A={self.n_components}"]
+        self.spe["Y"] = {
+            key: pd.DataFrame(
+                np.sqrt(np.sum(np.square(self.y_mats[key]), axis=1, keepdims=True)),
+                index=self.observation_names,
+                columns=column_name,
+            )
+            for key in self.y_mats
+        }
+        self.spe_limit["Y"] = {key: partial(spe_calculation, self.spe["Y"][key].values) for key in self.y_mats}
+        self.spe["Z"] = {
+            key: pd.DataFrame(
+                np.sqrt(np.sum(np.square(self.z_mats[key]), axis=1, keepdims=True)),
+                index=self.observation_names,
+                columns=column_name,
+            )
+            for key in self.z_mats
+        }
+        self.spe_limit["Z"] = {key: partial(spe_calculation, self.spe["Z"][key].values) for key in self.z_mats}
+        self.spe["D"] = {
+            key: pd.DataFrame(
+                np.sqrt(np.sum(np.square(self.d_mats[key]), axis=1, keepdims=True)),
+                index=self.property_names[key],
+                columns=column_name,
+            )
+            for key in self.d_mats
+        }
+        self.spe_limit["D"] = {key: partial(spe_calculation, self.spe["D"][key].values) for key in self.d_mats}
+        self.spe["F"] = {
+            key: pd.DataFrame(
+                np.sqrt(np.sum(np.square(self.f_mats[key]), axis=1, keepdims=True)),
+                index=self.observation_names,
+                columns=column_name,
+            )
+            for key in self.f_mats
+        }
+        self.spe_limit["F"] = {key: partial(spe_calculation, self.spe["F"][key].values) for key in self.f_mats}
+
+    def _fit_iterative_regressions(self) -> None:
+        """Fit the model via iterative regressions and store the model coefficients in the class instance."""
+
+        # Formula matrix: assemble all not-na maps from blocks in F: make a single matrix.
+        pmap_f = np.concatenate(list(self.not_na_f.values()), axis=1)
+
+        # Follow the steps in the paper on page 54
+        for pc_a in range(self.n_components):
+            n_iter = 0
+            milliseconds_start = time.time()
+
+            # Step 1: Select any column in Y as initial guess (they have all be scaled anyway, so it doesn't matter)
+            u_super_i = next(iter(self.y_mats.values()))[:, [0]]
+            u_prior = u_super_i + 1
+
+            while not self._has_converged(starting_vector=u_prior, revised_vector=u_super_i, iterations=n_iter):
+                n_iter += 1
+                u_prior = u_super_i.copy()
+                # Step 2. h_i = F_i' u / u'u. Regress the columns of F on u_i, and store the slope coeff in vectors h_i
+                h_i = {
+                    key: regress_a_space_on_b_row(df_f.T, u_super_i.T, pmap_f.T)
+                    for key, df_f, pmap_f in zip(
+                        self.f_mats.keys(), self.f_mats.values(), self.not_na_f.values(), strict=True
+                    )
+                }
+
+                # Step 3. s_i = D_i' h_i / h_i'h_i. Regress the rows of D_i on h_i, and store slope coeff in vectors s_i
+                s_i = {
+                    key: regress_a_space_on_b_row(df_d.T, h_i[key].T, pmap_d.T)
+                    for key, df_d, pmap_d in zip(
+                        self.d_mats.keys(), self.d_mats.values(), self.not_na_d.values(), strict=True
+                    )
+                }
+                # Step 4: combine the entries in s_i to form a joint `s` and normalize it to unit length.
+                joint_s_normalized = np.linalg.norm(np.concatenate(list(s_i.values())))
+                s_i = {key: s / joint_s_normalized for key, s in s_i.items()}
+
+                # Step 5: r_i = D_i s_i / s_i's_i. Regress columns of D_i on s_i, and store slope coefficients in r_i.
+                r_i = {
+                    key: regress_a_space_on_b_row(df_d, s_i[key].T, self.not_na_d[key])
+                    for key, df_d in zip(self.d_mats.keys(), self.d_mats.values(), strict=True)
+                }
+
+                # Step 6: Combine the entries in r_i to form a joint r (which is the name of the method in the paper).
+                #         Horizontally concatenate all matrices in F_i to form a joint F matrix.
+                #         Regress rows of the joint F matrix onto the joint r vector. Store coeff in block scores, t_f
+                joint_r = np.concatenate(list(r_i.values()))
+                joint_f = np.concatenate(list(self.f_mats.values()), axis=1)
+                t_f = regress_a_space_on_b_row(joint_f, joint_r.T, pmap_f)
+
+                # If there is a Condition matrix (non-empty Z block)
+                if self.n_conditions > 0:
+                    # Step 7: w_i = Z_i' u / u'u. Regress the columns of Z on u_i, and store the slope coefficients
+                    #         in vectors w_i.
+                    w_i = {
+                        key: regress_a_space_on_b_row(df_z.T, u_super_i.T, self.not_na_z[key].T)
+                        for key, df_z in zip(self.z_mats.keys(), self.z_mats.values(), strict=True)
+                    }
+
+                    # Step 8: Normalize joint w to unit length. See MB-PLS by Westerhuis et al. 1998. This is normal.
+                    w_i_normalized = {key: w / np.linalg.norm(w) for key, w in w_i.items()}
+
+                    # Step 9: regress rows of Z on w_i, and store slope coefficients in t_z. There is an error in the
+                    #        paper here, but in figure 4 it is clear what should be happening.
+                    t_zb = {
+                        key: regress_a_space_on_b_row(df_z, w_i_normalized[key].T, self.not_na_z[key])
+                        for key, df_z in zip(self.z_mats.keys(), self.z_mats.values(), strict=True)
+                    }
+                    t_z = np.concatenate(list(t_zb.values()), axis=1)
+
+                else:
+                    # Step 7: No Z block. Take an empty matrix across to the the superblock.
+                    t_z = np.zeros((t_f.shape[0], 0))  # empty matrix: in other words, no Z block
+
+                # Step 10: Combine t_f and t_z to form a joint t matrix.
+                t_combined = np.concatenate([t_f, t_z], axis=1)
+
+                # Step 11: Build an inner PLS model: using the t_combined as the X matrix, and the Y (quality space)
+                #          as the Y matrix.
+                inner_pls = internal_pls_nipals_fit_one_pc(
+                    x_space=t_combined,
+                    y_space=np.array(next(iter(self.y_mats.values()))),
+                    x_present_map=np.ones(t_combined.shape).astype(bool),
+                    y_present_map=np.array(next(iter(self.not_na_y.values()))),
+                )
+                u_super_i = inner_pls["u_i"]  # only used for convergence check; not stored or used further
+                t_super_i = inner_pls["t_i"]
+                q_super_i = inner_pls["q_i"]
+                # wt_i = inner_pls["w_i"]
+
+            # After convergance. Step 12: Now store information.
+            delta_gap = float(np.linalg.norm(u_prior - u_super_i, ord=None) / np.linalg.norm(u_prior, ord=None))
+            self.fitting_statistics["iterations"].append(n_iter)
+            self.fitting_statistics["convergance_tolerance"].append(delta_gap)
+            self.fitting_statistics["milliseconds"].append((time.time() - milliseconds_start) * 1000)
+
+            # Store model coefficients
+
+            # self.p_f_blocks
+            # self.h_f_blocks
+            # self.p_z_blocks
+            # self.s_d_blocks
+            # self.v_d_blocks
+            # self.q_y_blocks
+
+            self._store_model_coefficients(pc_a + 1, t_super_i=t_super_i)  # , q_super_i=q_super_i, r_i=r_i)
+
+            # Calculate and store the deflation vectors. See equation 7 on page 55.
+            self._calculate_and_store_deflation_matrices(t_super_i=t_super_i, q_super_i=q_super_i, r_i=r_i)
+
+            # Update performance statistics
+            self._update_performance_statistics()
+
+        # Step 15: Calculate the final model limit
+        self._calculate_model_statistics_and_limits()
+
+    # def predict(self, X: dict[str, dict[str, pd.DataFrame] | pd.DataFrame]) -> dict:
+    #     """Model inference on new data.
+
+    #     Parameters
+    #     ----------
+    #     X : {array-like, sparse matrix}, shape (n_samples, n_features)
+    #         The training input samples.
+
+    #     Returns
+    #     -------
+    #     y : ndarray, shape (n_samples,)
+    #         Returns an array of ones.
+    #     """
+    #     # Check if fit had been called
+    #     check_is_fitted(self)
+    #     # We need to set reset=False because we don't want to overwrite `n_features_in_`
+    #     # `feature_names_in_` but only check that the shape is consistent.
+    #     X = self._validate_data(X, accept_sparse=True, reset=False)
+    #     return {}
