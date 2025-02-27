@@ -42,7 +42,7 @@ def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows:
     )
 
 
-def spe_calculation(spe_values: pd.Series | np.ndarray, conf_level: float = 0.95) -> float:
+def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
     """Return a limit for SPE (squared prediction error) at the given level of confidence.
 
     Parameters
@@ -64,8 +64,8 @@ def spe_calculation(spe_values: pd.Series | np.ndarray, conf_level: float = 0.95
     # The limit is for the squares (i.e. the sum of the squared errors)
     # I.e. `spe_values` are square-rooted outside this function, so undo that.
     values = spe_values**2
-    center_spe = values.mean().astype("float")
-    variance_spe = values.var(ddof=1).astype("float")
+    center_spe = float(values.mean())
+    variance_spe = float(values.var(ddof=1))
     g = variance_spe / (2 * center_spe)
     h = (2 * (center_spe**2)) / variance_spe
     # Report square root again as SPE limit
@@ -564,13 +564,13 @@ class Plot:
     # _kind_aliases = {"density": "kde"}
     # _all_kinds = _common_kinds + _series_kinds + _dataframe_kinds
 
-    def __init__(self, parent) -> None:
+    def __init__(self, parent: BaseEstimator) -> None:
         self._parent = parent
 
     # def __call__(self, *args, **kwargs):
     #    plot_backend = do_stuff(kwargs.pop("backend", None))
 
-    def scores(self, pc_horiz: int = 1, pc_vert: int = 2, **kwargs) -> go.Figure:
+    def scores(self, pc_horiz: int = 1, pc_vert: int = 2, **kwargs) -> go.Figure:  # noqa: ARG002
         """Generate a scores plot."""
         print(f"generate scores plot with {pc_horiz} horizontal and {pc_vert}")  # noqa: T201
 
@@ -650,6 +650,7 @@ class TPLS(BaseEstimator):
     def __init__(self, n_components: int):
         assert n_components > 0, "Number of components must be positive."
         self.n_components = n_components
+        self.n_substances = 0
         self.tolerance_ = np.sqrt(np.finfo(float).eps)
         self.max_iterations_ = 500
         self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
@@ -676,15 +677,14 @@ class TPLS(BaseEstimator):
         assert set(X.keys()) == self.required_blocks_, "The input dictionary must have keys: D, F, Z, Y."
 
         group_keys = [str(key) for key in X["D"]]
+        assert set(X["F"]) == set(group_keys), "The keys in F must match the keys in D."
         d_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["D"][key].values) for key in group_keys}
-        # `key in X["D"]` is intentional in the line below, to ensure the keys in F are the same as in D.
         f_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["F"][key].values) for key in group_keys}
         z_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["Z"][key].values) for key in X["Z"]}  # only 1 key in Z
         y_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["Y"][key].values) for key in X["Y"]}  # only 1 key in Y
         self.observation_names = X["F"][group_keys[0]].index
-        self.property_names = {
-            key: X["D"][key].index.to_list() for key in group_keys
-        }  # corrected to iterate over all group_keys
+        # corrected to iterate over all group_keys
+        self.property_names = {key: X["D"][key].index.to_list() for key in group_keys}
 
         self.d_mats = d_mats
         self.f_mats = f_mats
@@ -699,6 +699,9 @@ class TPLS(BaseEstimator):
         self.not_na_y = {key: ~np.isnan(X["Y"][key].values) for key in y_mats}
 
         # Empty model coefficients
+        self.n_substances = sum(self.f_mats[key].shape[1] for key in group_keys)
+        self.n_conditions = sum(self.z_mats[key].shape[1] for key in self.z_mats)
+        self.n_outputs = sum(self.y_mats[key].shape[1] for key in self.y_mats)
 
         # Model performance
         # -----------------
@@ -904,7 +907,7 @@ class TPLS(BaseEstimator):
                 t_f = regress_a_space_on_b_row(joint_f, joint_r.T, pmap_f)
 
                 # If there is a Condition matrix (non-empty Z block)
-                if len(self.z_mats) > 0:
+                if self.n_conditions > 0:
                     # Step 7: w_i = Z_i' u / u'u. Regress the columns of Z on u_i, and store the slope coefficients
                     #         in vectors w_i.
                     w_i = {

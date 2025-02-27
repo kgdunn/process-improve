@@ -1021,35 +1021,6 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
             # end looping on ``a``
 
 
-class TPLS(BaseEstimator, TransformerMixin):
-    def __init__(
-        self,
-        n_components: int,
-        copy: bool = True,
-        settings: dict | None = None,
-    ):
-        self.n_components = n_components
-        self.copy = copy
-        self.settings = settings or {}
-        assert self.settings.get("convergance_tolerance", 0.0001) < 10, "Tolerance should not be too large"
-        assert (
-            self.settings.get("convergance_tolerance", 0.0001) > epsqrt**1.95
-        ), "Tolerance must exceed machine precision"
-
-    # def fit(self, X, y=None):
-    #     pass
-
-    # def transform(self, X):
-    #     pass
-
-    # def inverse_transform(self, X):
-    #     pass
-
-    # def _fit_nipals(self, settings):
-    #     """Fit the model using the NIPALS algorithm."""
-    #     pass
-
-
 def ssq(X: np.ndarray, axis: int | None = None) -> float | np.ndarray:
     """Calculate the sum of squares of a 2D matrix (not array! and not checked for either: code will simply fail),
     skipping over any NaN (missing) data.
