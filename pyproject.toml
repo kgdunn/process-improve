@@ -163,3 +163,7 @@ dev-dependencies = [
     "tqdm-stubs>=0.2.1",
     "twine>=6.1.0",
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
