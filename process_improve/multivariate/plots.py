@@ -12,9 +12,16 @@ from sklearn.base import BaseEstimator
 
 def plot_pre_checks(model: BaseEstimator, pc_horiz: int, pc_vert: int, pc_depth: int) -> bool:
     """Check the inputs for the plot functions are valid."""
-    assert 0 < pc_horiz <= model.A, f"The model has {model.A} components. Ensure that 1 <= pc_horiz<={model.A}."
-    assert 0 < pc_vert <= model.A, f"The model has {model.A} components. Ensure that 1 <= pc_vert<={model.A}."
-    assert -1 <= pc_depth <= model.A, f"The model has {model.A} components. Ensure that 1 <= pc_depth<={model.A}."
+    n_components = model.A if hasattr(model, "A") else model._parent.n_components
+    assert 0 < pc_horiz <= n_components, (
+        f"The model has {n_components} components. Ensure that 1 <= pc_horiz<={n_components}."
+    )
+    assert 0 < pc_vert <= n_components, (
+        f"The model has {n_components} components. Ensure that 1 <= pc_vert<={n_components}."
+    )
+    assert -1 <= pc_depth <= n_components, (
+        f"The model has {n_components} components. Ensure that 1 <= pc_depth<={n_components}."
+    )
     assert len({pc_horiz, pc_vert, pc_depth}) == 3, "Specify distinct components for each axis"
 
     return True
@@ -76,6 +83,10 @@ def score_plot(  # noqa: C901, PLR0913
     """
     plot_pre_checks(model, pc_horiz, pc_vert, pc_depth)
     margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
+    data_to_plot = model.x_scores if hasattr(model, "x_scores") else model._parent.t_scores
+    ellipse_coordinates = (
+        model.ellipse_coordinates if hasattr(model, "ellipse_coordinates") else model._parent.ellipse_coordinates
+    )
 
     class Settings(BaseModel):
         show_ellipse: bool = True
@@ -99,15 +110,15 @@ def score_plot(  # noqa: C901, PLR0913
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
 
-    setdict = Settings(**settings).model_dump() if settings else Settings().dict()
+    setdict = Settings(**settings).model_dump() if settings else Settings().model_dump()
     if fig is None:
         fig = go.Figure()
 
-    name = "X-space scores [T]"
+    name = "Scores [T]"
     fig.update_layout(xaxis_title_text=f"PC {pc_horiz}", yaxis_title_text=f"PC {pc_vert}")
 
     highlights: dict[str, list] = {}
-    default_index = model.x_scores.index
+    default_index = data_to_plot.index
     if items_to_highlight is not None:
         highlights = items_to_highlight.copy()
         for key, items in items_to_highlight.items():
@@ -121,9 +132,9 @@ def score_plot(  # noqa: C901, PLR0913
     if pc_depth >= 1:
         fig.add_trace(
             go.Scatter3d(
-                x=model.x_scores.loc[default_index, pc_horiz],
-                y=model.x_scores.loc[default_index, pc_vert],
-                z=model.x_scores.loc[default_index, pc_depth],
+                x=data_to_plot.loc[default_index, pc_horiz],
+                y=data_to_plot.loc[default_index, pc_vert],
+                z=data_to_plot.loc[default_index, pc_depth],
                 name=name,
                 mode="markers+text" if setdict["show_labels"] else "markers",
                 marker=dict(
@@ -139,9 +150,9 @@ def score_plot(  # noqa: C901, PLR0913
             styling = json.loads(key)
             fig.add_trace(
                 go.Scatter3d(
-                    x=model.x_scores.loc[index, pc_horiz],
-                    y=model.x_scores.loc[index, pc_vert],
-                    z=model.x_scores.loc[index, pc_depth],
+                    x=data_to_plot.loc[index, pc_horiz],
+                    y=data_to_plot.loc[index, pc_vert],
+                    z=data_to_plot.loc[index, pc_depth],
                     name=name,
                     mode="markers+text" if setdict["show_labels"] else "markers",
                     marker=styling,
@@ -153,8 +164,8 @@ def score_plot(  # noqa: C901, PLR0913
         # Regular 2D plot
         fig.add_trace(
             go.Scatter(
-                x=model.x_scores.loc[default_index, pc_horiz],
-                y=model.x_scores.loc[default_index, pc_vert],
+                x=data_to_plot.loc[default_index, pc_horiz],
+                y=data_to_plot.loc[default_index, pc_vert],
                 name=name,
                 mode="markers+text" if setdict["show_labels"] else "markers",
                 marker=dict(
@@ -171,8 +182,8 @@ def score_plot(  # noqa: C901, PLR0913
             styling = json.loads(key)
             fig.add_trace(
                 go.Scatter(
-                    x=model.x_scores.loc[index, pc_horiz],
-                    y=model.x_scores.loc[index, pc_vert],
+                    x=data_to_plot.loc[index, pc_horiz],
+                    y=data_to_plot.loc[index, pc_vert],
                     name=name,
                     mode="markers+text" if setdict["show_labels"] else "markers",
                     marker=styling,
@@ -181,7 +192,7 @@ def score_plot(  # noqa: C901, PLR0913
                 )
             )
         if setdict["show_ellipse"]:
-            ellipse = model.ellipse_coordinates(
+            ellipse = ellipse_coordinates(
                 score_horiz=pc_horiz,
                 score_vert=pc_vert,
                 conf_level=setdict["ellipse_conf_level"],

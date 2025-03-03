@@ -10,6 +10,7 @@ from typing import TypeAlias
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import pytest
 from scipy.stats import chi2, f
 from sklearn.base import BaseEstimator, TransformerMixin, _fit_context
@@ -606,9 +607,9 @@ class PLS(PLS_sklearn):
         """
         self.N, self.K = X.shape
         self.Ny, self.M = Y.shape
-        assert (
-            self.Ny == self.N
-        ), f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
+        assert self.Ny == self.N, (
+            f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
+        )
 
         # Check if number of components is supported against maximum requested
         min_dim = min(self.N, self.K)
@@ -1210,21 +1211,6 @@ def scale(X: DataMatrix, func: Callable = np.std, axis: int = 0, extra_output: b
         return np.multiply(X, vector)
 
 
-def deprecated(func):
-    """Mark function as deprecated."""
-
-    def wrapper(*args, **kwargs):
-        """Wrap this function."""
-        warnings.warn(
-            f"{func.__name__} is deprecated and will be removed in a future version.",
-            category=DeprecationWarning,
-            stacklevel=2,
-        )
-        return func(*args, **kwargs)
-
-    return wrapper
-
-
 def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -> float:
     """Return the Hotelling's T2 value at the given level of confidence.
 
@@ -1310,7 +1296,7 @@ def ellipse_coordinates(  # noqa: PLR0913
     n_components: int = 0,
     scaling_factor_for_scores: pd.Series | None = None,
     n_rows: int = 0,
-) -> tuple:
+) -> tuple[np.ndarray, np.ndarray]:
     """Get the (score_horiz, score_vert) coordinate pairs that form the T2 ellipse when
         plotting the score `score_horiz` on the horizontal axis and `score_vert` on the
         vertical axis.
@@ -1715,10 +1701,10 @@ class TPLS(BaseEstimator):
         self.max_iterations_ = 500
         self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
         self.required_blocks_ = {"D", "F", "Z", "Y"}
-        # self.plot = Plot(self)
+        self.plot = Plot(self)
 
     @_fit_context(prefer_skip_nested_validation=True)
-    def fit(self, X: dict[str, dict[str, pd.DataFrame]], y: None = None) -> "TPLS":  # noqa: ARG002
+    def fit(self, X: dict[str, dict[str, pd.DataFrame]], y: None = None) -> TPLS:  # noqa: ARG002
         """Fit the model.
 
         Parameters
@@ -1782,6 +1768,9 @@ class TPLS(BaseEstimator):
         self.hotellings_t2: pd.DataFrame = pd.DataFrame()
         self.hotellings_t2_limit: Callable = hotellings_t2_limit
 
+        self.scaling_factor_for_scores = pd.Series()
+        self.ellipse_coordinates: Callable = ellipse_coordinates
+
         self.is_fitted_ = False
         self._fit_iterative_regressions()
         self.is_fitted_ = True
@@ -1804,7 +1793,7 @@ class TPLS(BaseEstimator):
 
     def _store_model_coefficients(self, pc_a: int, t_super_i: np.ndarray) -> None:
         """Store the model coefficients for later use."""
-        self.t_scores = self.t_scores.join(pd.DataFrame(t_super_i, index=self.observation_names, columns=[f"PC{pc_a}"]))
+        self.t_scores = self.t_scores.join(pd.DataFrame(t_super_i, index=self.observation_names, columns=[pc_a]))
 
     def _calculate_and_store_deflation_matrices(
         self,
@@ -1869,10 +1858,21 @@ class TPLS(BaseEstimator):
         """
 
         # Calculate the Hotelling's T2 values, and limits
-        variance_matrix = self.t_scores.T @ self.t_scores / self.t_scores.shape[0]
+        variance_matrix = self.t_scores.T @ self.t_scores / self.t_scores.shape[0]  # could do ddof correction
         self.hotellings_t2 = np.sum((self.t_scores.values @ np.linalg.inv(variance_matrix)) * self.t_scores, axis=1)
         self.hotellings_t2_limit = partial(
             hotellings_t2_limit, n_components=self.n_components, n_rows=self.hotellings_t2.shape[0]
+        )
+        self.scaling_factor_for_scores = pd.Series(
+            np.sqrt(np.diag(variance_matrix)),
+            index=[a + 1 for a in range(self.n_components)],
+            name="Standard deviation per score",
+        )
+        self.ellipse_coordinates = partial(
+            ellipse_coordinates,
+            n_components=self.n_components,
+            scaling_factor_for_scores=self.scaling_factor_for_scores,
+            n_rows=self.t_scores.shape[0],
         )
 
         # Squared prediction error limits. This is a measure of the prediction error = difference between the actual
@@ -2051,3 +2051,19 @@ class TPLS(BaseEstimator):
     #     # `feature_names_in_` but only check that the shape is consistent.
     #     X = self._validate_data(X, accept_sparse=True, reset=False)
     #     return {}
+
+
+class Plot:
+    """Create plots of estimators."""
+
+    def __init__(self, parent: BaseEstimator) -> None:
+        self._parent = parent
+
+    def scores(self, pc_horiz: int = 1, pc_vert: int = 2, **kwargs) -> go.Figure:
+        """Generate a score plot."""
+        return score_plot(self, pc_horiz=pc_horiz, pc_vert=pc_vert, **kwargs)
+        # pc_depth: int = -1,
+        # items_to_highlight: dict[str, list] | None = None,
+        # settings: dict | None = None,
+        # fig: go.Figure | None = None,
+        # )

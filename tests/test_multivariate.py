@@ -1506,3 +1506,10 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     assert tpls_test.spe_limit["F"]["Group 3"](0.99) == pytest.approx(9.1176685583, rel=1e-8)
     assert tpls_test.spe_limit["F"]["Group 4"](0.99) == pytest.approx(8.7773163687, rel=1e-8)
     assert tpls_test.spe_limit["F"]["Group 5"](0.99) == pytest.approx(7.8446720428, rel=1e-8)
+
+    # TODO: perform various assertions on the model's Plotly plots
+    fig = tpls_test.plot.scores()
+    assert fig is not None
+
+    # fig = tpls_test.plot.loadings()
+    # assert fig is not None
