@@ -41,7 +41,7 @@ scaler = MCUVScaler().fit(df)
 mcuv = scaler.fit_transform(df)
 A = 3
 pca = PCA(n_components=A, missing_data_settings=dict(md_method="scp")).fit(mcuv)
-SPE_limit_95 = pca.SPE_limit(conf_level=0.95)
+spe_limit_95 = pca.spe_limit(conf_level=0.95)
 print(pca.x_scores)
 print(pca.x_loadings)
 print(pca.pca.squared_prediction_error)  # use the last column, for the last PCA component

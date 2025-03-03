@@ -601,8 +601,8 @@ def find_reference_batch(
     pca_first = PCA(n_components=n_components).fit(mcuv)
 
     # Excludes all batches with Hotelling's T2 > 90% limit.
-    T2_limit_90 = pca_first.T2_limit(0.90)
-    to_keep = pca_first.Hotellings_T2.iloc[:, -1] < T2_limit_90
+    hotellings_t2_limit_90 = pca_first.hotellings_t2_limit(0.90)
+    to_keep = pca_first.hotellings_t2.iloc[:, -1] < hotellings_t2_limit_90
 
     # Refits PCA with A=4 on a subset of the batches, to avoid biasing the PCA model too much.
     basewide = basewide.loc[to_keep, :]
@@ -613,15 +613,15 @@ def find_reference_batch(
     # Finds batch with scores; and ensures this batch has SPE < 50% of the model limit.
     metrics = pd.DataFrame(
         {
-            "HT2": pca_second.Hotellings_T2.iloc[:, -1],
+            "HT2": pca_second.hotellings_t2.iloc[:, -1],
             "SPE": pca_second.squared_prediction_error.iloc[:, -1],
         }
     )
     metrics = metrics.sort_values(by=["HT2", "SPE"])
     start_cutoff = 0.5
-    spe_metrics = metrics.query(f"SPE < {pca_second.SPE_limit(conf_level=0.5)}")
+    spe_metrics = metrics.query(f"SPE < {pca_second.spe_limit(conf_level=0.5)}")
     while spe_metrics.shape[0] < int(settings["number_of_reference_batches"]):
-        spe_metrics = metrics.query(f"SPE < {pca_second.SPE_limit(conf_level=start_cutoff)}")
+        spe_metrics = metrics.query(f"SPE < {pca_second.spe_limit(conf_level=start_cutoff)}")
         start_cutoff += 0.05
 
     if settings["number_of_reference_batches"] == 1:

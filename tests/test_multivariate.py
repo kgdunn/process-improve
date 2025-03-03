@@ -69,11 +69,11 @@ def test_pca_spe_limits() -> None:
 
         A = 2
         pca = PCA(n_components=A).fit(mcuv)
-        SPE_limit_95 = pca.SPE_limit(conf_level=0.95)
-        SPE_limit_99 = pca.SPE_limit(conf_level=0.99)
+        spe_limit_95 = pca.spe_limit(conf_level=0.95)
+        spe_limit_99 = pca.spe_limit(conf_level=0.99)
 
-        outliers_95.append((pca.squared_prediction_error.iloc[:, A - 1] > SPE_limit_95).sum())
-        outliers_99.append((pca.squared_prediction_error.iloc[:, A - 1] > SPE_limit_99).sum())
+        outliers_95.append((pca.squared_prediction_error.iloc[:, A - 1] > spe_limit_95).sum())
+        outliers_99.append((pca.squared_prediction_error.iloc[:, A - 1] > spe_limit_99).sum())
 
     assert np.mean(outliers_95) == pytest.approx(0.05 * N, rel=0.1)
     assert np.mean(outliers_99) == pytest.approx(0.01 * N, rel=0.1)
@@ -98,12 +98,12 @@ def test_pca_foods() -> None:
         np.diag(pca.x_scores.T @ pca.x_scores) / (pca.N - 1) - pca.explained_variance_
     ) == pytest.approx(0, abs=epsqrt)
 
-    T2_limit_95 = pca.T2_limit(0.95)
-    assert T2_limit_95 == pytest.approx(6.64469, rel=1e-3)
+    hotellings_t2_limit_95 = pca.hotellings_t2_limit(0.95)
+    assert hotellings_t2_limit_95 == pytest.approx(6.64469, rel=1e-3)
 
-    pca.SPE_limit(conf_level=0.95)
+    pca.spe_limit(conf_level=0.95)
 
-    ellipse_x, ellipse_y = pca.ellipse_coordinates(1, 2, 0.95, 100)
+    ellipse_x, ellipse_y = pca.ellipse_coordinates(score_horiz=1, score_vert=2, conf_level=0.95, n_points=100)
     assert ellipse_x[-1] == pytest.approx(4.48792, rel=1e-5)
     assert ellipse_y[-1] == pytest.approx(0, rel=1e-7)
 
@@ -427,7 +427,7 @@ def fixture_pca_pca_wold_etal_paper() -> pd.DataFrame:
 
 
 def test_pca_wold_centering(fixture_pca_pca_wold_etal_paper: pd.DataFrame) -> None:
-    """Checks the centering step"""
+    """Checks the centering step."""
     _, centering = center(fixture_pca_pca_wold_etal_paper, extra_output=True)
     assert centering == pytest.approx([4, 4, 4, 3], rel=1e-8)
 
@@ -511,7 +511,7 @@ def test_pls_invalid_calls() -> None:
     with pytest.raises(ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"):
         _ = PLS(n_components=A, tol=0)
 
-    # FIXME: the `method` input parameter does not exist anymore
+    # The `method` input parameter does not exist anymore
     with pytest.raises(ValueError, match="Method 'SVDS' is not known."):
         _ = PLS(n_components=A, method="SVDS")
 
@@ -528,8 +528,7 @@ def test_pls_invalid_calls() -> None:
 
     sparse_data = csr_matrix([[1, 2], [0, 3], [4, 5]])
     with pytest.raises(TypeError, match="This PLS class does not support sparse input."):
-        model = PLS(n_components=2)
-        model.fit(dataX, sparse_data)
+        PLS(n_components=2).fit(dataX, sparse_data)
 
 
 @pytest.fixture
@@ -1154,21 +1153,21 @@ def fixture_pls_ldpe_example() -> dict:
     out["expected_W"] = pd.read_csv(folder / "LDPE" / "W.csv", header=None)
     out["expected_C"] = pd.read_csv(folder / "LDPE" / "C.csv", header=None)
     out["expected_U"] = pd.read_csv(folder / "LDPE" / "U.csv", header=None)
-    out["expected_Hotellings_T2_A3"] = pd.read_csv(
+    out["expected_hotellings_t2_a3"] = pd.read_csv(
         folder / "LDPE" / "Hotellings_T2_A3.csv",
         header=None,
     )
-    out["expected_Hotellings_T2_A6"] = pd.read_csv(
+    out["expected_hotellings_t2_a6"] = pd.read_csv(
         folder / "LDPE" / "Hotellings_T2_A6.csv",
         header=None,
     )
-    out["expected_Yhat_A6"] = pd.read_csv(
+    out["expected_yhat_a6"] = pd.read_csv(
         folder / "LDPE" / "Yhat_A6.csv",
         header=None,
     )
-    out["expected_SD_t"] = np.array([1.872539, 1.440642, 1.216218, 1.141096, 1.059435, 0.9459715])
-    out["expected_T2_lim_95_A6"] = 15.2017
-    out["expected_T2_lim_99_A6"] = 21.2239
+    out["expected_sd_t"] = np.array([1.872539, 1.440642, 1.216218, 1.141096, 1.059435, 0.9459715])
+    out["expected_t2_lim_95_a6"] = 15.2017
+    out["expected_t2_lim_99_a6"] = 21.2239
     out["X"] = values.iloc[:, :14]
     out["Y"] = values.iloc[:, 14:]
     assert out["X"].shape == pytest.approx([54, 14])
@@ -1193,8 +1192,8 @@ def test_pls_simca_ldpe(fixture_pls_ldpe_example: dict) -> None:
     plsmodel.fit(X_mcuv.transform(data["X"]), Y_mcuv.transform(data["Y"]))
 
     # Can only get these to very loosely match
-    assert data["expected_T2_lim_95_A6"] == pytest.approx(plsmodel.T2_limit(0.95), rel=1e-1)
-    assert data["expected_T2_lim_99_A6"] == pytest.approx(plsmodel.T2_limit(0.99), rel=1e-1)
+    assert data["expected_t2_lim_95_a6"] == pytest.approx(plsmodel.hotellings_t2_limit(0.95), rel=1e-1)
+    assert data["expected_t2_lim_99_a6"] == pytest.approx(plsmodel.hotellings_t2_limit(0.99), rel=1e-1)
 
     assert np.mean(np.abs(data["expected_T"].values) - np.abs(plsmodel.x_scores.values)) == pytest.approx(0, abs=1e-4)
     assert np.mean(np.abs(data["expected_P"].values) - np.abs(plsmodel.x_loadings.values)) == pytest.approx(0, abs=1e-5)
@@ -1202,12 +1201,12 @@ def test_pls_simca_ldpe(fixture_pls_ldpe_example: dict) -> None:
     assert np.mean(np.abs(data["expected_C"].values) - np.abs(plsmodel.y_loadings.values)) == pytest.approx(0, abs=1e-6)
     assert np.mean(np.abs(data["expected_U"].values) - np.abs(plsmodel.y_scores.values)) == pytest.approx(0, abs=1e-5)
     assert np.mean(
-        data["expected_Hotellings_T2_A3"].values.ravel() - plsmodel.Hotellings_T2.iloc[:, 2].values.ravel()
+        data["expected_hotellings_t2_a3"].values.ravel() - plsmodel.hotellings_t2.iloc[:, 2].values.ravel()
     ) == pytest.approx(0, abs=1e-6)
     assert np.mean(
-        data["expected_Hotellings_T2_A6"].values.ravel() - plsmodel.Hotellings_T2.iloc[:, 5].values.ravel()
+        data["expected_hotellings_t2_a6"].values.ravel() - plsmodel.hotellings_t2.iloc[:, 5].values.ravel()
     ) == pytest.approx(0, abs=1e-6)
-    assert np.mean(data["expected_SD_t"].ravel() - plsmodel.scaling_factor_for_scores.values.ravel()) == pytest.approx(
+    assert np.mean(data["expected_sd_t"].ravel() - plsmodel.scaling_factor_for_scores.values.ravel()) == pytest.approx(
         0, abs=1e-5
     )
 
@@ -1215,7 +1214,7 @@ def test_pls_simca_ldpe(fixture_pls_ldpe_example: dict) -> None:
     # different range/scaling.
     assert np.sum(
         np.abs(
-            np.sum(np.abs(Y_mcuv.inverse_transform(plsmodel.predictions) - data["expected_Yhat_A6"].values))
+            np.sum(np.abs(Y_mcuv.inverse_transform(plsmodel.predictions) - data["expected_yhat_a6"].values))
             / Y_mcuv.center_
         )
     ) == pytest.approx(0, abs=1e-2)
@@ -1237,8 +1236,8 @@ def test_pls_simca_ldpe_missing_data(fixture_pls_ldpe_example: dict) -> None:
     Y_mcuv = MCUVScaler().fit(data["Y"])
     plsmodel = plsmodel.fit(X_mcuv.transform(data["X"]), Y_mcuv.transform(data["Y"]))
     # Can only get these to very loosely match
-    assert data["expected_T2_lim_95_A6"] == pytest.approx(plsmodel.T2_limit(0.95), rel=1e-1)
-    assert data["expected_T2_lim_99_A6"] == pytest.approx(plsmodel.T2_limit(0.99), rel=1e-1)
+    assert data["expected_t2_lim_95_a6"] == pytest.approx(plsmodel.hotellings_t2_limit(0.95), rel=1e-1)
+    assert data["expected_t2_lim_99_a6"] == pytest.approx(plsmodel.hotellings_t2_limit(0.99), rel=1e-1)
 
     assert np.mean(np.abs(data["expected_T"].values) - np.abs(plsmodel.x_scores.values)) == pytest.approx(0, abs=1e-2)
     assert np.mean(np.abs(data["expected_P"].values) - np.abs(plsmodel.x_loadings.values)) == pytest.approx(0, abs=1e-3)
@@ -1246,12 +1245,12 @@ def test_pls_simca_ldpe_missing_data(fixture_pls_ldpe_example: dict) -> None:
     assert np.mean(np.abs(data["expected_C"].values) - np.abs(plsmodel.y_loadings.values)) == pytest.approx(0, abs=1e-3)
     assert np.mean(np.abs(data["expected_U"].values) - np.abs(plsmodel.y_scores.values)) == pytest.approx(0, abs=5e-1)
     assert np.mean(
-        data["expected_Hotellings_T2_A3"].values.ravel() - plsmodel.Hotellings_T2.iloc[:, 2].values.ravel()
+        data["expected_hotellings_t2_a3"].values.ravel() - plsmodel.hotellings_t2.iloc[:, 2].values.ravel()
     ) == pytest.approx(0, abs=1e-6)
     assert np.mean(
-        data["expected_Hotellings_T2_A6"].values.ravel() - plsmodel.Hotellings_T2.iloc[:, 5].values.ravel()
+        data["expected_hotellings_t2_a6"].values.ravel() - plsmodel.hotellings_t2.iloc[:, 5].values.ravel()
     ) == pytest.approx(0, abs=1e-6)
-    assert np.mean(data["expected_SD_t"].ravel() - plsmodel.scaling_factor_for_scores.values.ravel()) == pytest.approx(
+    assert np.mean(data["expected_sd_t"].ravel() - plsmodel.scaling_factor_for_scores.values.ravel()) == pytest.approx(
         0, abs=1e-2
     )
 
@@ -1259,7 +1258,7 @@ def test_pls_simca_ldpe_missing_data(fixture_pls_ldpe_example: dict) -> None:
     # different range/scaling.
     assert np.sum(
         np.abs(
-            np.sum(np.abs(Y_mcuv.inverse_transform(plsmodel.predictions) - data["expected_Yhat_A6"].values))
+            np.sum(np.abs(Y_mcuv.inverse_transform(plsmodel.predictions) - data["expected_yhat_a6"].values))
             / Y_mcuv.center_
         )
     ) == pytest.approx(0, abs=0.5)

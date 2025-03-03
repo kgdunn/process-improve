@@ -167,7 +167,7 @@ class PCA(PCA_sklearn):
             index=component_names,
             name="Standard deviation per score",
         )
-        self.Hotellings_T2 = pd.DataFrame(
+        self.hotellings_t2 = pd.DataFrame(
             np.zeros(shape=(self.N, self.A)),
             columns=component_names,
             index=X.index,
@@ -247,8 +247,8 @@ class PCA(PCA_sklearn):
         # end: has no missing data
 
         for a in range(self.A):
-            self.Hotellings_T2.iloc[:, a] = (
-                self.Hotellings_T2.iloc[:, max(0, a - 1)]
+            self.hotellings_t2.iloc[:, a] = (
+                self.hotellings_t2.iloc[:, max(0, a - 1)]
                 + (self.x_scores.iloc[:, a] / self.scaling_factor_for_scores.iloc[a]) ** 2
             )
 
@@ -260,12 +260,13 @@ class PCA(PCA_sklearn):
             scaling_factor_for_scores=self.scaling_factor_for_scores,
             n_rows=self.N,
         )
-        self.T2_limit = partial(T2_limit, n_components=self.n_components, n_rows=self.N)
-        self.SPE_plot = partial(spe_plot, model=self)
-        self.T2_plot = partial(t2_plot, model=self)
+
+        self.hotellings_t2_limit = partial(hotellings_t2_limit, n_components=self.n_components, n_rows=self.N)
+        self.spe_plot = partial(spe_plot, model=self)
+        self.t2_plot = partial(t2_plot, model=self)
         self.loadings_plot = partial(loadings_plot, model=self, loadings_type="p")
         self.score_plot = partial(score_plot, model=self)
-        self.SPE_limit = partial(SPE_limit, model=self)
+        self.spe_limit = partial(spe_limit, model=self)
 
         return self
 
@@ -684,12 +685,12 @@ class PLS(PLS_sklearn):
             index=component_names,
             name="Standard deviation per score",
         )
-        self.Hotellings_T2 = pd.DataFrame(
+        self.hotellings_t2 = pd.DataFrame(
             np.zeros(shape=(self.N, self.A)),
             columns=component_names,
             index=X.index.copy(),
         )
-        self.Hotellings_T2.index.name = "Hotelling's T^2 statistic, per component (col)"
+        self.hotellings_t2.index.name = "Hotelling's T^2 statistic, per component (col)"
         self.squared_prediction_error = pd.DataFrame(
             np.zeros((self.N, self.A)),
             columns=component_names,
@@ -730,8 +731,8 @@ class PLS(PLS_sklearn):
         prior_SSY_col = ssq(Yd.values, axis=0)
         base_variance_Y = np.sum(prior_SSY_col)
         for a in range(self.A):
-            self.Hotellings_T2.iloc[:, a] = (
-                self.Hotellings_T2.iloc[:, max(0, a - 1)]
+            self.hotellings_t2.iloc[:, a] = (
+                self.hotellings_t2.iloc[:, max(0, a - 1)]
                 + (self.x_scores.iloc[:, a] / self.scaling_factor_for_scores.iloc[a]) ** 2
             )
             Xd -= self.x_scores.iloc[:, [a]] @ self.x_loadings.iloc[:, [a]].T
@@ -765,9 +766,9 @@ class PLS(PLS_sklearn):
             n_rows=self.N,
         )
 
-        self.T2_limit = partial(T2_limit, n_components=self.n_components, n_rows=self.N)
-        self.SPE_plot = partial(spe_plot, model=self)
-        self.T2_plot = partial(t2_plot, model=self)
+        self.hotellings_t2_limit = partial(hotellings_t2_limit, n_components=self.n_components, n_rows=self.N)
+        self.spe_plot = partial(spe_plot, model=self)
+        self.t2_plot = partial(t2_plot, model=self)
         self.loadings_plot = partial(loadings_plot, model=self)
         self.score_plot = partial(score_plot, model=self)
 
@@ -1224,29 +1225,6 @@ def deprecated(func):
     return wrapper
 
 
-@deprecated
-def T2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -> float:  # noqa: N802
-    """Return the Hotelling's T2 value at the given level of confidence.
-
-    Parameters
-    ----------
-    conf_level : float, optional
-        Fractional confidence limit, less that 1.00; by default 0.95
-
-    Returns
-    -------
-    float
-        The Hotelling's T2 limit at the given level of confidence.
-    """
-    assert conf_level > 0.0
-    assert conf_level < 1.0
-    assert n_rows > 0
-    a, n = n_components, n_rows
-    if a == n:
-        return float("inf")
-    return a * (n - 1) * (n + 1) / (n * (n - a)) * f.isf((1 - conf_level), a, n - a)
-
-
 def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows: int = 0) -> float:
     """Return the Hotelling's T2 value at the given level of confidence.
 
@@ -1273,7 +1251,7 @@ def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows:
     )
 
 
-def SPE_limit(model: BaseEstimator, conf_level: float = 0.95) -> float:  # noqa: N802
+def spe_limit(model: BaseEstimator, conf_level: float = 0.95) -> float:
     """Return the squared prediction error limit at the given level of confidence.
 
     Parameters
@@ -1327,7 +1305,7 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
 def ellipse_coordinates(  # noqa: PLR0913
     score_horiz: int,
     score_vert: int,
-    T2_limit_conf_level: float = 0.95,
+    conf_level: float = 0.95,
     n_points: int = 100,
     n_components: int = 0,
     scaling_factor_for_scores: pd.Series | None = None,
@@ -1346,7 +1324,7 @@ def ellipse_coordinates(  # noqa: PLR0913
         [description]
     score_vert : int
         [description]
-    T2_limit_conf_level : float
+    conf_level : float
         The `conf_level` confidence value: e.g. 0.95 is for the 95% confidence limit.
     n_points : int, optional
         Number of points to use in the ellipse; by default 100.
@@ -1361,32 +1339,29 @@ def ellipse_coordinates(  # noqa: PLR0913
 
     Equation of ellipse in *canonical* form (http://en.wikipedia.org/wiki/Ellipse)
 
-        (t_horiz/s_h)^2 + (t_vert/s_v)^2  =  T2_limit_alpha
+        (t_horiz/s_h)^2 + (t_vert/s_v)^2  =  hotellings_t2_limit_alpha
         s_horiz = stddev(T_horiz)
         s_vert  = stddev(T_vert)
-        T2_limit_alpha = T2 confidence limit at a given alpha value
+        hotellings_t2_limit_alpha = T2 confidence limit at a given alpha value
 
     Equation of ellipse, *parametric* form (http://en.wikipedia.org/wiki/Ellipse):
 
-        t_horiz = sqrt(T2_limit_alpha)*s_h*cos(t)
-        t_vert  = sqrt(T2_limit_alpha)*s_v*sin(t)
+        t_horiz = sqrt(hotellings_t2_limit_alpha)*s_h*cos(t)
+        t_vert  = sqrt(hotellings_t2_limit_alpha)*s_v*sin(t)
 
         where t ranges between 0 and 2*pi.
     """
-    assert score_horiz >= 1
-    assert score_vert >= 1
-    assert score_horiz <= n_components
-    assert score_vert <= n_components
-    assert T2_limit_conf_level > 0
-    assert T2_limit_conf_level < 1
+    assert 1 <= score_horiz <= n_components
+    assert 1 <= score_vert <= n_components
+    assert 0 < conf_level < 1
     assert n_rows > 0
     s_h = scaling_factor_for_scores.iloc[score_horiz - 1]
     s_v = scaling_factor_for_scores.iloc[score_vert - 1]
-    T2_limit_specific = np.sqrt(T2_limit(T2_limit_conf_level, n_components=n_components, n_rows=n_rows))
+    t2_limit_specific = np.sqrt(hotellings_t2_limit(conf_level, n_components=n_components, n_rows=n_rows))
     dt = 2 * np.pi / (n_points - 1)
     steps = np.linspace(0, n_points - 1, n_points)
-    x = np.cos(steps * dt) * T2_limit_specific * s_h
-    y = np.sin(steps * dt) * T2_limit_specific * s_v
+    x = np.cos(steps * dt) * t2_limit_specific * s_h
+    y = np.sin(steps * dt) * t2_limit_specific * s_v
     return x, y
 
 

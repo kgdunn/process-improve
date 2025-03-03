@@ -184,7 +184,7 @@ def score_plot(  # noqa: C901, PLR0913
             ellipse = model.ellipse_coordinates(
                 score_horiz=pc_horiz,
                 score_vert=pc_vert,
-                T2_limit_conf_level=setdict["ellipse_conf_level"],
+                conf_level=setdict["ellipse_conf_level"],
             )
             fig.add_hline(y=0, line_color="black")
             fig.add_vline(x=0, line_color="black")
@@ -524,8 +524,8 @@ def spe_plot(
             )
         )
 
-    limit_SPE_conf_level = model.SPE_limit(conf_level=setdict["conf_level"])
-    name = f'{setdict["conf_level"] * 100:.3g}% limit'
+    limit_SPE_conf_level = model.spe_limit(conf_level=setdict["conf_level"])
+    name = f"{setdict['conf_level'] * 100:.3g}% limit"
     fig.add_hline(
         y=limit_SPE_conf_level,
         line_color="red",
@@ -627,7 +627,7 @@ def t2_plot(
     margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
 
     if with_a < 0:
-        with_a = model.Hotellings_T2.columns[with_a]
+        with_a = model.hotellings_t2.columns[with_a]
 
     # TODO: check `with_a`: what should it plot if `with_a` is zero, or > A?
 
@@ -650,7 +650,7 @@ def t2_plot(
 
     name = f"T2 values after {with_a} component{'s' if with_a > 1 else ''}"
     highlights: dict[str, list] = {}
-    default_index = model.Hotellings_T2.index
+    default_index = model.hotellings_t2.index
     if items_to_highlight is not None:
         highlights = items_to_highlight.copy()
         for key, items in items_to_highlight.items():
@@ -662,7 +662,7 @@ def t2_plot(
     fig.add_trace(
         go.Scatter(
             x=default_index,
-            y=model.Hotellings_T2.loc[default_index, with_a],
+            y=model.hotellings_t2.loc[default_index, with_a],
             name=name,
             mode="markers+text" if setdict["show_labels"] else "markers",
             marker=setdict["default_marker"],
@@ -677,7 +677,7 @@ def t2_plot(
         fig.add_trace(
             go.Scatter(
                 x=index,
-                y=model.Hotellings_T2.loc[index, with_a],
+                y=model.hotellings_t2.loc[index, with_a],
                 name=name,
                 mode="markers+text" if setdict["show_labels"] else "markers",
                 marker=styling,
@@ -686,8 +686,8 @@ def t2_plot(
             )
         )
 
-    limit_HT2_conf_level = model.T2_limit(conf_level=setdict["conf_level"])
-    name = f'{setdict["conf_level"] * 100:.3g}% limit'
+    limit_HT2_conf_level = model.hotellings_t2_limit(conf_level=setdict["conf_level"])
+    name = f"{setdict['conf_level'] * 100:.3g}% limit"
     fig.add_hline(
         y=limit_HT2_conf_level,
         line_color="red",

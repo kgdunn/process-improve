@@ -12,7 +12,6 @@ Plots should accept a pc_depth argument, then a 3D plot is made instead
 
 PLS has no SPE limit
 
-
 R2* attributes from MV models are not filled in.
 
 Printing model object gives: 'PCA_missing_values' object has no attribute 'copy'
@@ -96,9 +95,6 @@ Show figure 4 and emph that the full 111 expats were not needed. Only 17.
 
 -----
 
-
----
-Raincloud plot
 ---
 Don't force dict keys to be string!!
 
