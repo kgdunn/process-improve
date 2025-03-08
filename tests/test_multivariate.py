@@ -1472,16 +1472,8 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     # OK, now use these to make predictions
     predictions = tpls_test.predict(new_observation)
 
-    #     rnew = {
-
-    #     "MAT1": [("A0129", 0.557949425), ("A0130", 0.442050575)],
-    #     "MAT2": [("Lac0003", 1)],
-    #     "MAT3": [("TLC018", 1)],
-    #     "MAT4": [("M0012", 1)],
-    #     "MAT5": [("CS0017", 1)],
-    # }
-    # znew = process[process["LotID"] == "L001"]
-    # znew = znew.values.reshape(-1)[1:].astype(float)
+    # NEXT: do predictions for a selected subset of samples, and
+    # NEXT: do predictions for the entire data set
 
     from sklearn.model_selection import cross_val_score
 

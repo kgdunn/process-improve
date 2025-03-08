@@ -607,9 +607,9 @@ class PLS(PLS_sklearn):
         """
         self.N, self.K = X.shape
         self.Ny, self.M = Y.shape
-        assert self.Ny == self.N, (
-            f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
-        )
+        assert (
+            self.Ny == self.N
+        ), f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
 
         # Check if number of components is supported against maximum requested
         min_dim = min(self.N, self.K)
@@ -1728,14 +1728,12 @@ class TPLS(BaseEstimator):
         assert set(X["F"]) == set(group_keys), "The keys in F must match the keys in D."
         d_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["D"][key].values.copy()) for key in group_keys}
         f_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["F"][key].values.copy()) for key in group_keys}
-        z_mats: dict[str, np.ndarray] = {
-            key: nan_to_zeros(X["Z"][key].values.copy()) for key in X["Z"]
-        }  # only 1 key in Z
-        y_mats: dict[str, np.ndarray] = {
-            key: nan_to_zeros(X["Y"][key].values.copy()) for key in X["Y"]
-        }  # only 1 key in Y
+        z_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["Z"][key].values.copy()) for key in X["Z"]}
+        y_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["Y"][key].values.copy()) for key in X["Y"]}
         self.observation_names = X["F"][group_keys[0]].index
         self.property_names = {key: X["D"][key].index.to_list() for key in group_keys}
+        self.condition_names = {key: X["Z"][key].columns.to_list() for key in X["Z"]}
+        self.quality_names = {key: X["Y"][key].columns.to_list() for key in X["Y"]}
 
         self.d_mats = d_mats
         self.f_mats = f_mats
@@ -1765,6 +1763,9 @@ class TPLS(BaseEstimator):
         # Model parameters
         # ----------------
         self.t_scores: pd.DataFrame = pd.DataFrame(index=self.observation_names)
+        self.r_scores: dict[str, pd.DataFrame] = {
+            key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
+        }
         # self.u_scores: pd.DataFrame = pd.DataFrame()
         # self.w_scores: pd.DataFrame = pd.DataFrame()
         # self.q_scores: pd.DataFrame = pd.DataFrame()  # corrected from {}
@@ -1796,9 +1797,13 @@ class TPLS(BaseEstimator):
         max_iter = iterations >= self.max_iterations_
         return bool(np.any([max_iter, converged]))
 
-    def _store_model_coefficients(self, pc_a: int, t_super_i: np.ndarray) -> None:
+    def _store_model_coefficients(self, pc_a: int, t_super_i: np.ndarray, r_i: dict[str, np.ndarray]) -> None:
         """Store the model coefficients for later use."""
         self.t_scores = self.t_scores.join(pd.DataFrame(t_super_i, index=self.observation_names, columns=[pc_a]))
+        self.r_scores = {
+            key: self.r_scores[key].join(pd.DataFrame(r_i[key], index=self.property_names[key], columns=[pc_a]))
+            for key in r_i
+        }
 
     def _calculate_and_store_deflation_matrices(
         self,
@@ -2026,7 +2031,7 @@ class TPLS(BaseEstimator):
             # self.v_d_blocks
             # self.q_y_blocks
 
-            self._store_model_coefficients(pc_a + 1, t_super_i=t_super_i)  # , q_super_i=q_super_i, r_i=r_i)
+            self._store_model_coefficients(pc_a + 1, t_super_i=t_super_i, r_i=r_i)  # , q_super_i=q_super_i, )
 
             # Calculate and store the deflation vectors. See equation 7 on page 55.
             self._calculate_and_store_deflation_matrices(t_super_i=t_super_i, q_super_i=q_super_i, r_i=r_i)
@@ -2038,7 +2043,22 @@ class TPLS(BaseEstimator):
         self._calculate_model_statistics_and_limits()
 
     def predict(self, X: dict[str, dict[str, pd.DataFrame] | pd.DataFrame]) -> dict:
-        """Model inference on new data.
+        """
+        Model inference on new already pre-processed data.
+
+        Fit and learn the pre-processing parameters. Then pre-process the new data before calling this function.
+
+        Example
+        -------
+
+        # Training:
+        preproc = TPLSpreprocess().fit(training_data)
+        estimator = TPLS(n_components=2).fit(training_data)
+
+        # Testing/inference:
+        new_data = {"Z": ..., "F": ...}  # you need at least the Z and F blocks for a new prediction
+        new_data_pp = preproc.transform(new_data)
+        predictions = estimator.predict(new_data_pp)
 
         Parameters
         ----------
@@ -2050,8 +2070,37 @@ class TPLS(BaseEstimator):
         y : ndarray, shape (n_samples,)
             Returns an array of predictions.
         """
-        # Check if fit had been called
-        check_is_fitted(self)
+        check_is_fitted(self)  # Check if fit had been called
+
+        # Check consistency on the data: the columns names in the new data must match the columns names in the training
+        # data.
+        for key in X["F"]:
+            assert set(X["F"][key].columns) == set(
+                self.property_names[key]
+            ), f"Columns in block F, group [{key}] must match training data column names"
+        for key in X["Z"]:
+            assert set(X["Z"][key].columns) == set(
+                self.condition_names[key]
+            ), f"Columns names in block Z, group [{key}] must match training data column names."
+
+        for pc_a in range(self.n_components):
+            # Regress the row of each new formula block on the r_scores, to get the t-score for that pc_a component.
+            # Add up the t-score as you go block by block.
+            t_super_i = 0
+            denom = 0
+            for key in X["F"]:
+                # TODO: handle missing values
+                t_super_i += X["F"][key].values @ (denom_key := self.r_scores[key].iloc[:, pc_a].values.reshape(-1, 1))
+                denom += ssq(denom_key)
+            t_super_i /= denom
+
+            # Multiple by loadings_p
+            # Deflate to get the new F matrix for the next iteration
+
+        # Collect A of these values.
+        # Multiply by Q matrix to get Y-hat
+        # Calculate the SPE and T2 values: for all the spaces
+        # return this in a dict structure
 
         return {}
 
