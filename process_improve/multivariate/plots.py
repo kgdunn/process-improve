@@ -260,7 +260,7 @@ def score_plot(  # noqa: C901, PLR0913
     return fig
 
 
-def loadings_plot(  # noqa: PLR0913
+def loading_plot(  # noqa: PLR0913
     model: BaseEstimator,
     loadings_type: str = "p",
     pc_horiz: int = 1,

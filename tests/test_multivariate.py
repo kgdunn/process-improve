@@ -1265,7 +1265,7 @@ def test_pls_simca_ldpe_missing_data(fixture_pls_ldpe_example: dict) -> None:
 
 
 # ---- TPLS models ----
-@pytest.fixture
+# @pytest.fixture
 def fixture_tpls_example() -> dict[str, dict[str, pd.DataFrame]]:
     """
     Load example data for TPLS model.
@@ -1448,10 +1448,44 @@ def test_tpls_preprocessing(fixture_tpls_example: dict) -> None:
 def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     """Test the fitting process of the TPLS model to ensure it functions as expected."""
 
-    transformed_data = TPLSpreprocess().fit_transform(fixture_tpls_example)
+    preproc = TPLSpreprocess().fit(fixture_tpls_example)
+    transformed_data = preproc.transform(fixture_tpls_example)
     n_components = 3
     tpls_test = TPLS(n_components=n_components)
     tpls_test.fit(transformed_data)
+
+    # Test the model's predictions. Use the first sample of the data as a testing data point.
+    testing_sample = "L001"
+    new_observation_raw = {
+        "Z": {"Conditions": fixture_tpls_example["Z"]["Conditions"].loc[[testing_sample]]},
+        "F": {key: val.loc[[testing_sample]] for key, val in fixture_tpls_example["F"].items()},
+    }
+    new_observation = preproc.transform(new_observation_raw)
+    assert len(new_observation["D"]) == 0
+    assert len(new_observation["Y"]) == 0
+
+    # Assert that these match the training data after it was preprocessed:
+    assert np.allclose(new_observation["Z"]["Conditions"], transformed_data["Z"]["Conditions"].loc[[testing_sample]])
+    for key in new_observation["F"]:
+        assert np.allclose(new_observation["F"][key], transformed_data["F"][key].loc[[testing_sample]])
+
+    # OK, now use these to make predictions
+    predictions = tpls_test.predict(new_observation)
+
+    #     rnew = {
+
+    #     "MAT1": [("A0129", 0.557949425), ("A0130", 0.442050575)],
+    #     "MAT2": [("Lac0003", 1)],
+    #     "MAT3": [("TLC018", 1)],
+    #     "MAT4": [("M0012", 1)],
+    #     "MAT5": [("CS0017", 1)],
+    # }
+    # znew = process[process["LotID"] == "L001"]
+    # znew = znew.values.reshape(-1)[1:].astype(float)
+
+    from sklearn.model_selection import cross_val_score
+
+    scores = cross_val_score(tpls_test, transformed_data, None, cv=5)
 
     # Ensure model is fitted appropriately, with the expected number of iterations
     assert tpls_test.fitting_statistics["iterations"] == [11, 8, 26]
@@ -1508,8 +1542,8 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     assert tpls_test.spe_limit["F"]["Group 5"](0.99) == pytest.approx(7.8446720428, rel=1e-8)
 
     # TODO: perform various assertions on the model's Plotly plots
-    fig = tpls_test.plot.scores()
-    assert fig is not None
+    assert tpls_test.plot.scores() is not None
+    assert tpls_test.plot.loadings() is not None
 
-    # fig = tpls_test.plot.loadings()
-    # assert fig is not None
+
+test_tpls_model_fitting(fixture_tpls_example())

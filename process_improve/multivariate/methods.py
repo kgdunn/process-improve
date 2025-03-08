@@ -18,7 +18,7 @@ from sklearn.cross_decomposition import PLSRegression as PLS_sklearn
 from sklearn.decomposition import PCA as PCA_sklearn
 from sklearn.utils.validation import check_array, check_is_fitted
 
-from .plots import loadings_plot, score_plot, spe_plot, t2_plot
+from .plots import loading_plot, score_plot, spe_plot, t2_plot
 
 DataMatrix: TypeAlias = np.ndarray | pd.DataFrame
 
@@ -265,7 +265,7 @@ class PCA(PCA_sklearn):
         self.hotellings_t2_limit = partial(hotellings_t2_limit, n_components=self.n_components, n_rows=self.N)
         self.spe_plot = partial(spe_plot, model=self)
         self.t2_plot = partial(t2_plot, model=self)
-        self.loadings_plot = partial(loadings_plot, model=self, loadings_type="p")
+        self.loading_plot = partial(loading_plot, model=self, loadings_type="p")
         self.score_plot = partial(score_plot, model=self)
         self.spe_limit = partial(spe_limit, model=self)
 
@@ -326,7 +326,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
     * 'tsr':        See papers by Abel Folch-Fortuny and also DOI: 10.1002/cem.750
     """
 
-    valid_md_methods = ["pmp", "scp", "nipals", "tsr"]
+    valid_md_methods: typing.ClassVar[list[str]] = ["pmp", "scp", "nipals", "tsr"]
 
     def __init__(
         self,
@@ -770,7 +770,7 @@ class PLS(PLS_sklearn):
         self.hotellings_t2_limit = partial(hotellings_t2_limit, n_components=self.n_components, n_rows=self.N)
         self.spe_plot = partial(spe_plot, model=self)
         self.t2_plot = partial(t2_plot, model=self)
-        self.loadings_plot = partial(loadings_plot, model=self)
+        self.loading_plot = partial(loading_plot, model=self)
         self.score_plot = partial(score_plot, model=self)
 
         return self
@@ -1531,7 +1531,7 @@ class TPLSpreprocess(TransformerMixin, BaseEstimator):
         )
 
     @_fit_context(prefer_skip_nested_validation=True)
-    def fit(self, X: dict[str, dict[str, pd.DataFrame]], y: None = None) -> "TPLSpreprocess":  # noqa: ARG002
+    def fit(self, X: dict[str, dict[str, pd.DataFrame]], y: None = None) -> TPLSpreprocess:  # noqa: ARG002
         """
         Fit/learn the preprocessing parameters from the training data.
 
@@ -1592,7 +1592,7 @@ class TPLSpreprocess(TransformerMixin, BaseEstimator):
 
         Parameters
         ----------
-        X : {dictionary of dataframes}, keys that must be present: "D", "F", "Z", and "Y"
+        X : {dictionary of dataframes}, keys that must be present: "Z" and "F" for testing data; else also "Z" and "Y".
             The input data to be transformed
 
         Returns
@@ -1602,23 +1602,25 @@ class TPLSpreprocess(TransformerMixin, BaseEstimator):
         """
         check_is_fitted(self)
         x_transformed: dict[str, dict[str, pd.DataFrame]] = {"D": {}, "F": {}, "Z": {}, "Y": {}}
-        for key, df_d in X["D"].items():
-            x_transformed["D"][key] = (
-                (df_d - self.preproc_["D"][key]["center"])
-                / self.preproc_["D"][key]["scale"]
-                / self.preproc_["D"][key]["block"][0]  # scalar!
-            )
+        for key in X["F"]:
             x_transformed["F"][key] = (X["F"][key] - self.preproc_["F"][key]["center"]) / self.preproc_["F"][key][
                 "scale"
             ]
+            if "D" in X:
+                x_transformed["D"][key] = (
+                    (X["D"][key] - self.preproc_["D"][key]["center"])
+                    / self.preproc_["D"][key]["scale"]
+                    / self.preproc_["D"][key]["block"][0]  # scalar!
+                )
         for key in X["Z"]:
             x_transformed["Z"][key] = (X["Z"][key] - self.preproc_["Z"][key]["center"]) / self.preproc_["Z"][key][
                 "scale"
             ]
-        for key in X["Y"]:
-            x_transformed["Y"][key] = (X["Y"][key] - self.preproc_["Y"][key]["center"]) / self.preproc_["Y"][key][
-                "scale"
-            ]
+        if "Y" in X:
+            for key in X["Y"]:
+                x_transformed["Y"][key] = (X["Y"][key] - self.preproc_["Y"][key]["center"]) / self.preproc_["Y"][key][
+                    "scale"
+                ]
 
         return x_transformed
 
@@ -1724,18 +1726,21 @@ class TPLS(BaseEstimator):
 
         group_keys = [str(key) for key in X["D"]]
         assert set(X["F"]) == set(group_keys), "The keys in F must match the keys in D."
-        d_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["D"][key].values) for key in group_keys}
-        f_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["F"][key].values) for key in group_keys}
-        z_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["Z"][key].values) for key in X["Z"]}  # only 1 key in Z
-        y_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["Y"][key].values) for key in X["Y"]}  # only 1 key in Y
+        d_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["D"][key].values.copy()) for key in group_keys}
+        f_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["F"][key].values.copy()) for key in group_keys}
+        z_mats: dict[str, np.ndarray] = {
+            key: nan_to_zeros(X["Z"][key].values.copy()) for key in X["Z"]
+        }  # only 1 key in Z
+        y_mats: dict[str, np.ndarray] = {
+            key: nan_to_zeros(X["Y"][key].values.copy()) for key in X["Y"]
+        }  # only 1 key in Y
         self.observation_names = X["F"][group_keys[0]].index
-        # corrected to iterate over all group_keys
         self.property_names = {key: X["D"][key].index.to_list() for key in group_keys}
 
         self.d_mats = d_mats
         self.f_mats = f_mats
         self.z_mats = z_mats
-        self.y_mats = y_mats  # corrected to assign y_mats
+        self.y_mats = y_mats  # correct to assign y_mats
 
         # Create the missing value maps, except we store the opposite, i.e., not missing, since these are more useful.
         # We refer to these as `pmaps` in the code (present maps, as opposed to `mmap` or missing maps).
@@ -2032,25 +2037,23 @@ class TPLS(BaseEstimator):
         # Step 15: Calculate the final model limit
         self._calculate_model_statistics_and_limits()
 
-    # def predict(self, X: dict[str, dict[str, pd.DataFrame] | pd.DataFrame]) -> dict:
-    #     """Model inference on new data.
+    def predict(self, X: dict[str, dict[str, pd.DataFrame] | pd.DataFrame]) -> dict:
+        """Model inference on new data.
 
-    #     Parameters
-    #     ----------
-    #     X : {array-like, sparse matrix}, shape (n_samples, n_features)
-    #         The training input samples.
+        Parameters
+        ----------
+        X : dict[str, dict[str, pd.DataFrame] | pd.DataFrame])
+            The input samples.
 
-    #     Returns
-    #     -------
-    #     y : ndarray, shape (n_samples,)
-    #         Returns an array of ones.
-    #     """
-    #     # Check if fit had been called
-    #     check_is_fitted(self)
-    #     # We need to set reset=False because we don't want to overwrite `n_features_in_`
-    #     # `feature_names_in_` but only check that the shape is consistent.
-    #     X = self._validate_data(X, accept_sparse=True, reset=False)
-    #     return {}
+        Returns
+        -------
+        y : ndarray, shape (n_samples,)
+            Returns an array of predictions.
+        """
+        # Check if fit had been called
+        check_is_fitted(self)
+
+        return {}
 
 
 class Plot:
@@ -2062,8 +2065,7 @@ class Plot:
     def scores(self, pc_horiz: int = 1, pc_vert: int = 2, **kwargs) -> go.Figure:
         """Generate a score plot."""
         return score_plot(self, pc_horiz=pc_horiz, pc_vert=pc_vert, **kwargs)
-        # pc_depth: int = -1,
-        # items_to_highlight: dict[str, list] | None = None,
-        # settings: dict | None = None,
-        # fig: go.Figure | None = None,
-        # )
+
+    def loadings(self, pc_horiz: int = 1, pc_vert: int = 2, **kwargs) -> go.Figure:
+        """Generate a loading plot."""
+        return loading_plot(self, pc_horiz=pc_horiz, pc_vert=pc_vert, **kwargs)
