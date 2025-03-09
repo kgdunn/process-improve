@@ -1455,22 +1455,22 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     tpls_test.fit(transformed_data)
 
     # Test the model's predictions. Use the first sample of the data as a testing data point.
-    testing_sample = "L001"
+    testing_samples = ["L001", "L002", "L003"]
     new_observation_raw = {
-        "Z": {"Conditions": fixture_tpls_example["Z"]["Conditions"].loc[[testing_sample]]},
-        "F": {key: val.loc[[testing_sample]] for key, val in fixture_tpls_example["F"].items()},
+        "Z": {"Conditions": fixture_tpls_example["Z"]["Conditions"].loc[testing_samples]},
+        "F": {key: val.loc[testing_samples] for key, val in fixture_tpls_example["F"].items()},
     }
-    new_observation = preproc.transform(new_observation_raw)
-    assert len(new_observation["D"]) == 0
-    assert len(new_observation["Y"]) == 0
+    new_observations = preproc.transform(new_observation_raw)
+    assert len(new_observations["D"]) == 0
+    assert len(new_observations["Y"]) == 0
 
     # Assert that these match the training data after it was preprocessed:
-    assert np.allclose(new_observation["Z"]["Conditions"], transformed_data["Z"]["Conditions"].loc[[testing_sample]])
-    for key in new_observation["F"]:
-        assert np.allclose(new_observation["F"][key], transformed_data["F"][key].loc[[testing_sample]])
+    assert np.allclose(new_observations["Z"]["Conditions"], transformed_data["Z"]["Conditions"].loc[testing_samples])
+    for key in new_observations["F"]:
+        assert np.allclose(new_observations["F"][key], transformed_data["F"][key].loc[testing_samples])
 
     # OK, now use these to make predictions
-    predictions = tpls_test.predict(new_observation)
+    predictions = tpls_test.predict(new_observations)
 
     # NEXT: do predictions for a selected subset of samples, and
     # NEXT: do predictions for the entire data set
