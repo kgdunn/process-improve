@@ -1754,21 +1754,13 @@ class TPLS(BaseEstimator):
         self.n_conditions = sum(self.z_mats[key].shape[1] for key in self.z_mats)
         self.n_outputs = sum(self.y_mats[key].shape[1] for key in self.y_mats)
 
-        # Model performance
-        # -----------------
-        # 1. Prediction matrices (hat matrices: for example X^)
-        self.hat: dict[str, dict[str, np.ndarray]] = {key: {} for key in self.required_blocks_}
-        # tss: dict[str, dict[str, np.ndarray]] = {}  # total sum of squares
-        # r2_b: dict[str, dict[str, np.ndarray]] = {}  # R2 per block
-        # r2_col: dict[str, dict[str, np.ndarray]] = {}  # R2 per variable (column)
-
         # Model parameters. Naming convention: x_i_j
         # x = block letter (P, W, R, T, etc)
         # i = block type: `scores` [for the observations (rows)] or `loadings` [for the variables (columns)]
         # j = block name [z, f, d, y, super]
         # ----------------
-        self.t_scores: pd.DataFrame = pd.DataFrame(index=self.observation_names)
-        self.r_loadings: dict[str, pd.DataFrame] = {
+        self.t_scores_super: pd.DataFrame = pd.DataFrame(index=self.observation_names)
+        self.r_loadings_f: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
         }
         self.w_loadings_z: dict[str, pd.DataFrame] = {
@@ -1781,10 +1773,17 @@ class TPLS(BaseEstimator):
         self.p_loadings_z: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=self.condition_names[key]) for key in z_mats
         }
-        # TODO
-        # self.u_scores: pd.DataFrame = pd.DataFrame()
-        # self.q_scores: pd.DataFrame = pd.DataFrame()  # corrected from {}
+        self.q_loadings_y: dict[str, pd.DataFrame] = {
+            key: pd.DataFrame(index=self.quality_names[key]) for key in y_mats
+        }
 
+        # Model performance
+        # -----------------
+        # 1. Prediction matrices (hat matrices: for example X^)
+        self.hat: dict[str, dict[str, np.ndarray]] = {key: {} for key in self.required_blocks_}
+        # tss: dict[str, dict[str, np.ndarray]] = {}  # total sum of squares
+        # r2_b: dict[str, dict[str, np.ndarray]] = {}  # R2 per block
+        # r2_col: dict[str, dict[str, np.ndarray]] = {}  # R2 per variable (column)
         self.spe: dict[str, dict[str, pd.DataFrame]] = {key: {} for key in self.required_blocks_}
         self.spe_limit: dict[str, dict[str, Callable]] = {key: {} for key in self.required_blocks_}
         self.hotellings_t2: pd.DataFrame = pd.DataFrame()
@@ -1823,11 +1822,13 @@ class TPLS(BaseEstimator):
     ) -> None:
         """Store the model coefficients for later use."""
 
-        self.t_scores = self.t_scores.join(pd.DataFrame(t_super_i, index=self.observation_names, columns=[pc_a]))
+        self.t_scores_super = self.t_scores_super.join(
+            pd.DataFrame(t_super_i, index=self.observation_names, columns=[pc_a])
+        )
 
         # These are loadings really, not scores, for each group in the F block.
-        self.r_loadings = {
-            key: self.r_loadings[key].join(pd.DataFrame(r_i[key], index=self.property_names[key], columns=[pc_a]))
+        self.r_loadings_f = {
+            key: self.r_loadings_f[key].join(pd.DataFrame(r_i[key], index=self.property_names[key], columns=[pc_a]))
             for key in r_i
         }
 
@@ -1894,6 +1895,10 @@ class TPLS(BaseEstimator):
             self.d_mats[key] -= self.hat["D"][key] * self.not_na_d[key]
 
         # Deflate the Y-space as well
+        self.q_loadings_y = {
+            key: self.q_loadings_y[key].join(pd.DataFrame(q_super_i, index=self.quality_names[key], columns=[pc_a]))
+            for key in self.y_mats
+        }
         for key in self.y_mats:
             self.hat["Y"][key] = t_super_i @ q_super_i.T
             self.y_mats[key] -= self.hat["Y"][key] * self.not_na_y[key]
@@ -1909,9 +1914,11 @@ class TPLS(BaseEstimator):
         2. Squared prediction error limits
         """
 
-        # Calculate the Hotelling's T2 values, and limits
-        variance_matrix = self.t_scores.T @ self.t_scores / self.t_scores.shape[0]  # could do ddof correction
-        self.hotellings_t2 = np.sum((self.t_scores.values @ np.linalg.inv(variance_matrix)) * self.t_scores, axis=1)
+        # Calculate the Hotelling's T2 values, and limits. Could do a ddof correction (n-1) for the variance matrix.
+        variance_matrix = self.t_scores_super.T @ self.t_scores_super / self.t_scores_super.shape[0]
+        self.hotellings_t2 = np.sum(
+            (self.t_scores_super.values @ np.linalg.inv(variance_matrix)) * self.t_scores_super, axis=1
+        )
         self.hotellings_t2_limit = partial(
             hotellings_t2_limit, n_components=self.n_components, n_rows=self.hotellings_t2.shape[0]
         )
@@ -1924,7 +1931,7 @@ class TPLS(BaseEstimator):
             ellipse_coordinates,
             n_components=self.n_components,
             scaling_factor_for_scores=self.scaling_factor_for_scores,
-            n_rows=self.t_scores.shape[0],
+            n_rows=self.t_scores_super.shape[0],
         )
 
         # Squared prediction error limits. This is a measure of the prediction error = difference between the actual
@@ -2066,14 +2073,12 @@ class TPLS(BaseEstimator):
             self.fitting_statistics["milliseconds"].append((time.time() - milliseconds_start) * 1000)
 
             # Store model coefficients
-            # self.p_loadings_f
-            # self.p_z_blocks <-- are there deflation loadings for the Z?
+            self.p_loadings_f
 
             # self.h_f_blocks
 
             # self.s_d_blocks
             # self.v_d_blocks
-            # self.q_y_blocks
 
             self._store_model_coefficients(pc_a + 1, t_super_i=t_super_i, r_i=r_i, w_i_z=w_i_z, w_super_i=w_super_i)
 
@@ -2130,8 +2135,15 @@ class TPLS(BaseEstimator):
         spe_z: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=x_z[key].index, columns=range(1, self.n_components + 1)) for key in x_z
         }
-        hotellings_t2 = pd.DataFrame(index=names_observations, columns=range(1, self.n_components + 1))
-        y_predicted = pd.DataFrame(index=names_observations, columns=self.quality_names)
+
+        super_scores = pd.DataFrame(index=names_observations, columns=range(1, self.n_components + 1), dtype=float)
+        # Hotelling's T2 values, after so many components. In other words, in column 3, it is the Hotelling's T2
+        # computed with 3 components.
+        hotellings_t2 = pd.DataFrame(index=names_observations, columns=range(1, self.n_components + 1), dtype=float)
+        y_predicted: dict[str, pd.DataFrame] = {
+            key: pd.DataFrame(index=names_observations, columns=self.quality_names[key], dtype=float)
+            for key in self.y_mats
+        }
 
         for key, df_f in x_f.items():
             assert df_f.shape[0] == num_obs, "All formula blocks must have the same number of rows."
@@ -2146,12 +2158,12 @@ class TPLS(BaseEstimator):
             ), f"Columns names in block Z, group [{key}] must match training data column names."
 
         for pc_a in range(self.n_components):
-            # Regress the row of each new formula block on the r_loadings (more like loadings), to get the t-score for
-            # that pc_a component. Add up the t-score as you go block by block.
+            # Regress the row of each new formula block on the r_loadings_f, to get the t-score for that pc_a component.
+            # Add up the t-score as you go block by block.
             score_f_a = np.zeros(num_obs)
             denominators = np.zeros(num_obs)
             for key, df_x_f in x_f.items():  # Updated to include .items()
-                b_row = np.array(self.r_loadings[key].iloc[:, pc_a].values)
+                b_row = np.array(self.r_loadings_f[key].iloc[:, pc_a].values)
                 # Tile row-by-row to create `n_rows`, and maps missing entries to zero, so they have no effect
                 denom = np.tile(b_row, (num_obs, 1)) * not_na_f[key]
                 score_f_a += np.array(np.sum(df_x_f.values * denom, axis=1))  # numerator portion
@@ -2176,34 +2188,48 @@ class TPLS(BaseEstimator):
 
             # Multiply the individual block scores by the super-weights, to get the super-scores.
             # After transposing below, rows are the observations, and columns are the blocks: [Z, F]
-            super_scores = np.vstack([score_z_a, score_f_a]).T @ np.asarray(
+            super_score_a = np.vstack([score_z_a, score_f_a]).T @ np.asarray(
                 self.w_loadings_super.iloc[:, pc_a].values
             ).reshape(-1, 1)
 
-            # Deflate ach block (key) in x_f matrices with the super_scores, to get values for the next iteration,
+            # Deflate each block (key) in x_f matrices with the super_scores, to get values for the next iteration,
             # and to compute SPE.
             explained_f = {
-                key: super_scores @ np.asarray(self.p_loadings_f[key].iloc[:, pc_a].values).reshape(1, -1)
+                key: super_score_a @ np.asarray(self.p_loadings_f[key].iloc[:, pc_a].values).reshape(1, -1)
                 for key in x_f
             }
-            for key, df_x_f in x_f.items():  # Updated to include .items()
+            for key, df_x_f in x_f.items():
                 x_f[key] -= explained_f[key]
                 spe_f[key].iloc[:, pc_a] = np.sqrt(np.sum(np.square(df_x_f), axis=1))
 
             explained_z = {
-                key: super_scores @ np.asarray(self.p_loadings_z[key].iloc[:, pc_a].values).reshape(1, -1)
+                key: super_score_a @ np.asarray(self.p_loadings_z[key].iloc[:, pc_a].values).reshape(1, -1)
                 for key in x_z
             }
-            for key, df_x_z in x_z.items():  # Updated to include .items()
+            for key, df_x_z in x_z.items():
                 x_z[key] -= explained_z[key]
                 spe_z[key].iloc[:, pc_a] = np.sqrt(np.sum(np.square(df_x_z), axis=1))
 
-        # After the loop has repeated `self.n_components` times:
+            # Store values for the final output
+            super_scores.iloc[:, pc_a] = super_score_a.flatten()
+            hotellings_t2.iloc[:, pc_a] = np.sum(super_score_a**2, axis=1)
 
-        # Multiply by Q matrix to get Y-hat
+        # After the loop has repeated `self.n_components` times: calculate the predictions using the full set of super
+        # scores and the q-loadings for the Y-space.
+        for key in self.y_mats:
+            y_predicted[key].iloc[:, :] = super_scores.values @ self.q_loadings_y[key].values.T
+
         # Calculate the T2 values: for all the spaces
+        hotellings_t2.iloc[:, :] = (
+            # Last item in the statement here is not super_scores.values !! we want the result back as a DataFrame
+            super_scores.values
+            @ np.diag(np.power(1 / self.scaling_factor_for_scores.values, 2), 0)
+            * super_scores
+        ).cumsum(axis="columns")
 
-        return dict(y_predicted=y_predicted, spe_z=spe_z, spe_f=spe_f, T2=hotellings_t2)
+        return dict(
+            y_predicted=y_predicted, super_scores=super_scores, spe_z=spe_z, spe_f=spe_f, hotellings_t2=hotellings_t2
+        )
 
 
 class Plot:
@@ -2216,6 +2242,6 @@ class Plot:
         """Generate a score plot."""
         return score_plot(self, pc_horiz=pc_horiz, pc_vert=pc_vert, **kwargs)
 
-    # def loadings(self, pc_horiz: int = 1, pc_vert: int = 2, **kwargs) -> go.Figure:
-    #    """Generate a loading plot."""
-    #    return loading_plot(self, pc_horiz=pc_horiz, pc_vert=pc_vert, **kwargs)
+    def loadings(self, pc_horiz: int = 1, pc_vert: int = 2, **kwargs) -> go.Figure:
+        """Generate a loading plot."""
+        return loading_plot(self, pc_horiz=pc_horiz, pc_vert=pc_vert, **kwargs)

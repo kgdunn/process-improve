@@ -83,7 +83,7 @@ def score_plot(  # noqa: C901, PLR0913
     """
     plot_pre_checks(model, pc_horiz, pc_vert, pc_depth)
     margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
-    data_to_plot = model.x_scores if hasattr(model, "x_scores") else model._parent.t_scores
+    data_to_plot = model.x_scores if hasattr(model, "x_scores") else model._parent.t_scores_super
     ellipse_coordinates = (
         model.ellipse_coordinates if hasattr(model, "ellipse_coordinates") else model._parent.ellipse_coordinates
     )
