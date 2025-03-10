@@ -609,9 +609,9 @@ class PLS(PLS_sklearn):
         self.K: int = X.shape[1]
         self.Ny: int = Y.shape[0]
         self.M: int = Y.shape[1]
-        assert self.Ny == self.N, (
-            f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
-        )
+        assert (
+            self.Ny == self.N
+        ), f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
 
         # Check if number of components is supported against maximum requested
         min_dim = min(self.N, self.K)
@@ -2105,15 +2105,15 @@ class TPLS(BaseEstimator):
         num_obs = X["F"][next(iter(X["F"]))].shape[0]
         for key in X["F"]:
             assert X["F"][key].shape[0] == num_obs, "All formula blocks must have the same number of rows."
-            assert set(X["F"][key].columns) == set(self.property_names[key]), (
-                f"Columns in block F, group [{key}] must match training data column names"
-            )
+            assert set(X["F"][key].columns) == set(
+                self.property_names[key]
+            ), f"Columns in block F, group [{key}] must match training data column names"
 
         for key in X["Z"]:
             assert X["Z"][key].shape[0] == num_obs, "All condition blocks must have the same number of rows."
-            assert set(X["Z"][key].columns) == set(self.condition_names[key]), (
-                f"Columns names in block Z, group [{key}] must match training data column names."
-            )
+            assert set(X["Z"][key].columns) == set(
+                self.condition_names[key]
+            ), f"Columns names in block Z, group [{key}] must match training data column names."
 
         for pc_a in range(self.n_components):
             # Regress the row of each new formula block on the r_loadings (more like loadings), to get the t-score for
@@ -2170,6 +2170,6 @@ class Plot:
         """Generate a score plot."""
         return score_plot(self, pc_horiz=pc_horiz, pc_vert=pc_vert, **kwargs)
 
-    def loadings(self, pc_horiz: int = 1, pc_vert: int = 2, **kwargs) -> go.Figure:
-        """Generate a loading plot."""
-        return loading_plot(self, pc_horiz=pc_horiz, pc_vert=pc_vert, **kwargs)
+    # def loadings(self, pc_horiz: int = 1, pc_vert: int = 2, **kwargs) -> go.Figure:
+    #    """Generate a loading plot."""
+    #    return loading_plot(self, pc_horiz=pc_horiz, pc_vert=pc_vert, **kwargs)

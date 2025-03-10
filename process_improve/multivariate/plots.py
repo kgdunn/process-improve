@@ -13,15 +13,15 @@ from sklearn.base import BaseEstimator
 def plot_pre_checks(model: BaseEstimator, pc_horiz: int, pc_vert: int, pc_depth: int) -> bool:
     """Check the inputs for the plot functions are valid."""
     n_components = model.A if hasattr(model, "A") else model._parent.n_components
-    assert 0 < pc_horiz <= n_components, (
-        f"The model has {n_components} components. Ensure that 1 <= pc_horiz<={n_components}."
-    )
-    assert 0 < pc_vert <= n_components, (
-        f"The model has {n_components} components. Ensure that 1 <= pc_vert<={n_components}."
-    )
-    assert -1 <= pc_depth <= n_components, (
-        f"The model has {n_components} components. Ensure that 1 <= pc_depth<={n_components}."
-    )
+    assert (
+        0 < pc_horiz <= n_components
+    ), f"The model has {n_components} components. Ensure that 1 <= pc_horiz<={n_components}."
+    assert (
+        0 < pc_vert <= n_components
+    ), f"The model has {n_components} components. Ensure that 1 <= pc_vert<={n_components}."
+    assert (
+        -1 <= pc_depth <= n_components
+    ), f"The model has {n_components} components. Ensure that 1 <= pc_depth<={n_components}."
     assert len({pc_horiz, pc_vert, pc_depth}) == 3, "Specify distinct components for each axis"
 
     return True
@@ -314,16 +314,16 @@ def loading_plot(  # noqa: PLR0913
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
 
-    setdict = Settings(**settings).dict() if settings else Settings().dict()
+    setdict = Settings(**settings).model_dump() if settings else Settings().model_dump()
     if fig is None:
         fig = go.Figure()
 
-    what = model.x_loadings  # PCA default
+    what = model.loadings  # PCA default
     if hasattr(model, "direct_weights"):
         what = model.direct_weights  # PLS default
     extra = None
     if loadings_type.lower() == "p":
-        what = model.x_loadings
+        what = model.loadings
     if loadings_type.lower() == "w":
         what = model.x_weights
     elif loadings_type.lower() == "w*":
