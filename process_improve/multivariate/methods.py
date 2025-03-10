@@ -1762,18 +1762,28 @@ class TPLS(BaseEstimator):
         # r2_b: dict[str, dict[str, np.ndarray]] = {}  # R2 per block
         # r2_col: dict[str, dict[str, np.ndarray]] = {}  # R2 per variable (column)
 
-        # Model parameters
+        # Model parameters. Naming convention: x_i_j
+        # x = block letter (P, W, R, T, etc)
+        # i = block type: `scores` [for the observations (rows)] or `loadings` [for the variables (columns)]
+        # j = block name [z, f, d, y, super]
         # ----------------
         self.t_scores: pd.DataFrame = pd.DataFrame(index=self.observation_names)
         self.r_loadings: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
         }
-        # self.u_scores: pd.DataFrame = pd.DataFrame()
         self.w_loadings_z: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=self.condition_names[key]) for key in z_mats
         }
-        # self.q_scores: pd.DataFrame = pd.DataFrame()  # corrected from {}
         self.w_loadings_super = pd.DataFrame(index=["Z", "F"])
+        self.p_loadings_f: dict[str, pd.DataFrame] = {
+            key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
+        }
+        self.p_loadings_z: dict[str, pd.DataFrame] = {
+            key: pd.DataFrame(index=self.condition_names[key]) for key in z_mats
+        }
+        # TODO
+        # self.u_scores: pd.DataFrame = pd.DataFrame()
+        # self.q_scores: pd.DataFrame = pd.DataFrame()  # corrected from {}
 
         self.spe: dict[str, dict[str, pd.DataFrame]] = {key: {} for key in self.required_blocks_}
         self.spe_limit: dict[str, dict[str, Callable]] = {key: {} for key in self.required_blocks_}
@@ -1831,6 +1841,7 @@ class TPLS(BaseEstimator):
 
     def _calculate_and_store_deflation_matrices(
         self,
+        pc_a: int,
         t_super_i: np.ndarray,
         q_super_i: np.ndarray,
         r_i: dict[str, np.ndarray],
@@ -1842,7 +1853,19 @@ class TPLS(BaseEstimator):
 
         Returns the prediction matrices in a dictionary.
         """
-        #
+        # Step 13: Deflate the Z matrix with a loadings vector, pz_b (_b is for block)
+        pz_b = {
+            key: regress_a_space_on_b_row(df_z.T, t_super_i.T, pmap_z.T)
+            for key, df_z, pmap_z in zip(self.z_mats.keys(), self.z_mats.values(), self.not_na_z.values(), strict=True)
+        }
+        for key in self.z_mats:
+            self.hat["Z"][key] = t_super_i @ pz_b[key].T
+            self.z_mats[key] -= self.hat["Z"][key] * self.not_na_z[key]
+        self.p_loadings_z = {
+            key: self.p_loadings_z[key].join(pd.DataFrame(pz_b[key], index=self.condition_names[key], columns=[pc_a]))
+            for key in pz_b
+        }
+
         # Step 13. p_i = F_i' t_i / t_i't_i. Regress the columns of F_i on t_i; store slope coeff in vectors p_i.
         # Note: the "t" vector is the t_i vector from the inner PLS model, marked as "Tt" in figure 4 of the paper.
         # It is the score column from the super score matrix regression onto Y.
@@ -1850,12 +1873,10 @@ class TPLS(BaseEstimator):
             key: regress_a_space_on_b_row(df_f.T, t_super_i.T, pmap_f.T)
             for key, df_f, pmap_f in zip(self.f_mats.keys(), self.f_mats.values(), self.not_na_f.values(), strict=True)
         }
-        # Step 13: Deflate the Z matrix with a loadings vector, pz_b (_b is for block)
-        pz_b = {
-            key: regress_a_space_on_b_row(df_z.T, t_super_i.T, pmap_z.T)
-            for key, df_z, pmap_z in zip(self.z_mats.keys(), self.z_mats.values(), self.not_na_z.values(), strict=True)
+        self.p_loadings_f = {
+            key: self.p_loadings_f[key].join(pd.DataFrame(pf_i[key], index=self.property_names[key], columns=[pc_a]))
+            for key in pf_i
         }
-
         # Step 13: v_i = D_i' r_i / r_i'r_i. Regress the rows of D_i (properties) on r_i; store slopes in v_i.
         v_i = {
             key: regress_a_space_on_b_row(df_d.T, r_i[key].T, pmap_d.T)
@@ -1864,18 +1885,15 @@ class TPLS(BaseEstimator):
 
         # Step 14. Do the actual deflation.
         for key in self.d_mats:
-            # Two sets of matrices to deflate: properties D and formulas F.
-            self.hat["D"][key] = r_i[key] @ v_i[key].T
-            self.d_mats[key] -= self.hat["D"][key] * self.not_na_d[key]
-
             # Step to deflate F matrix
             self.hat["F"][key] = t_super_i @ pf_i[key].T
             self.f_mats[key] -= self.hat["F"][key] * self.not_na_f[key]
 
-        for key in self.z_mats:
-            self.hat["Z"][key] = t_super_i @ pz_b[key].T
-            self.z_mats[key] -= self.hat["Z"][key] * self.not_na_z[key]
+            # Two sets of matrices to deflate: properties D and formulas F.
+            self.hat["D"][key] = r_i[key] @ v_i[key].T
+            self.d_mats[key] -= self.hat["D"][key] * self.not_na_d[key]
 
+        # Deflate the Y-space as well
         for key in self.y_mats:
             self.hat["Y"][key] = t_super_i @ q_super_i.T
             self.y_mats[key] -= self.hat["Y"][key] * self.not_na_y[key]
@@ -2048,10 +2066,11 @@ class TPLS(BaseEstimator):
             self.fitting_statistics["milliseconds"].append((time.time() - milliseconds_start) * 1000)
 
             # Store model coefficients
+            # self.p_loadings_f
+            # self.p_z_blocks <-- are there deflation loadings for the Z?
 
-            # self.p_f_blocks
             # self.h_f_blocks
-            # self.p_z_blocks
+
             # self.s_d_blocks
             # self.v_d_blocks
             # self.q_y_blocks
@@ -2059,7 +2078,7 @@ class TPLS(BaseEstimator):
             self._store_model_coefficients(pc_a + 1, t_super_i=t_super_i, r_i=r_i, w_i_z=w_i_z, w_super_i=w_super_i)
 
             # Calculate and store the deflation vectors. See equation 7 on page 55.
-            self._calculate_and_store_deflation_matrices(t_super_i=t_super_i, q_super_i=q_super_i, r_i=r_i)
+            self._calculate_and_store_deflation_matrices(pc_a + 1, t_super_i=t_super_i, q_super_i=q_super_i, r_i=r_i)
 
             # Update performance statistics
             self._update_performance_statistics()
@@ -2099,19 +2118,20 @@ class TPLS(BaseEstimator):
 
         # Check consistency on the data: the columns names in the new data must match the columns names in the training
         # data.
-
         not_na_f = {key: ~np.isnan(X["F"][key].values) for key in X["F"]}
         not_na_z = {key: ~np.isnan(X["Z"][key].values) for key in X["Z"]}
         num_obs = X["F"][next(iter(X["F"]))].shape[0]
-        for key in X["F"]:
-            assert X["F"][key].shape[0] == num_obs, "All formula blocks must have the same number of rows."
-            assert set(X["F"][key].columns) == set(
+        x_f: dict[str, pd.DataFrame] = {key: X["F"][key].copy() for key in X["F"]}
+        x_z: dict[str, pd.DataFrame] = {key: X["Z"][key].copy() for key in X["Z"]}
+        for key, df_f in x_f.items():
+            assert df_f.shape[0] == num_obs, "All formula blocks must have the same number of rows."
+            assert set(df_f.columns) == set(
                 self.property_names[key]
             ), f"Columns in block F, group [{key}] must match training data column names"
 
-        for key in X["Z"]:
-            assert X["Z"][key].shape[0] == num_obs, "All condition blocks must have the same number of rows."
-            assert set(X["Z"][key].columns) == set(
+        for key, df_z in x_z.items():
+            assert df_z.shape[0] == num_obs, "All condition blocks must have the same number of rows."
+            assert set(df_z.columns) == set(
                 self.condition_names[key]
             ), f"Columns names in block Z, group [{key}] must match training data column names."
 
@@ -2146,13 +2166,28 @@ class TPLS(BaseEstimator):
 
             # Multiple the individual block scores by the super-weights, to get the super-scores.
             # After transposing below, rows are the observations, and columns are the blocks: [Z, F]
-            super_scores = np.vstack([score_z_a, score_f_a]).T @ self.w_loadings_super.iloc[:, pc_a].values.reshape(
-                -1, 1
-            )
+            super_scores = np.vstack([score_z_a, score_f_a]).T @ np.asarray(
+                self.w_loadings_super.iloc[:, pc_a].values
+            ).reshape(-1, 1)
 
-            # Deflate to get the new F matrix for the next iteration
+            # Deflate ach block (key) in x_f matrices with the super_scores, to get values for the next iteration,
+            # and to compute SPE.
+            explained_f = {
+                key: super_scores @ np.asarray(self.p_loadings_f[key].iloc[:, pc_a].values).reshape(1, -1)
+                for key in X["F"]
+            }
+            for key in X["F"]:
+                x_f[key] -= explained_f[key]
 
-        # Collect A of these values.
+            explained_z = {
+                key: super_scores @ np.asarray(self.p_loadings_z[key].iloc[:, pc_a].values).reshape(1, -1)
+                for key in X["Z"]
+            }
+            for key in X["Z"]:
+                x_z[key] -= explained_z[key]
+
+        # After the loop has repeated `self.n_components` times:
+
         # Multiply by Q matrix to get Y-hat
         # Calculate the SPE and T2 values: for all the spaces
         # return this in a dict structure
