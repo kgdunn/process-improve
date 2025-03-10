@@ -1916,7 +1916,7 @@ class TPLS(BaseEstimator):
 
         # Calculate the Hotelling's T2 values, and limits. Could do a ddof correction (n-1) for the variance matrix.
         variance_matrix = self.t_scores_super.T @ self.t_scores_super / self.t_scores_super.shape[0]
-        self.hotellings_t2 = np.sum(
+        self.hotellings_t2[:, :] = np.sum(
             (self.t_scores_super.values @ np.linalg.inv(variance_matrix)) * self.t_scores_super, axis=1
         )
         self.hotellings_t2_limit = partial(
