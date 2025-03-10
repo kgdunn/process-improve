@@ -2120,9 +2120,19 @@ class TPLS(BaseEstimator):
         # data.
         not_na_f = {key: ~np.isnan(X["F"][key].values) for key in X["F"]}
         not_na_z = {key: ~np.isnan(X["Z"][key].values) for key in X["Z"]}
-        num_obs = X["F"][next(iter(X["F"]))].shape[0]
+        names_observations = X["F"][next(iter(X["F"]))].index
+        num_obs = names_observations.shape[0]
         x_f: dict[str, pd.DataFrame] = {key: X["F"][key].copy() for key in X["F"]}
         x_z: dict[str, pd.DataFrame] = {key: X["Z"][key].copy() for key in X["Z"]}
+        spe_f: dict[str, pd.DataFrame] = {
+            key: pd.DataFrame(index=x_f[key].index, columns=range(1, self.n_components + 1)) for key in x_f
+        }
+        spe_z: dict[str, pd.DataFrame] = {
+            key: pd.DataFrame(index=x_z[key].index, columns=range(1, self.n_components + 1)) for key in x_z
+        }
+        hotellings_t2 = pd.DataFrame(index=names_observations, columns=range(1, self.n_components + 1))
+        y_predicted = pd.DataFrame(index=names_observations, columns=self.quality_names)
+
         for key, df_f in x_f.items():
             assert df_f.shape[0] == num_obs, "All formula blocks must have the same number of rows."
             assert set(df_f.columns) == set(
@@ -2140,11 +2150,11 @@ class TPLS(BaseEstimator):
             # that pc_a component. Add up the t-score as you go block by block.
             score_f_a = np.zeros(num_obs)
             denominators = np.zeros(num_obs)
-            for key in X["F"]:
+            for key, df_x_f in x_f.items():  # Updated to include .items()
                 b_row = np.array(self.r_loadings[key].iloc[:, pc_a].values)
                 # Tile row-by-row to create `n_rows`, and maps missing entries to zero, so they have no effect
                 denom = np.tile(b_row, (num_obs, 1)) * not_na_f[key]
-                score_f_a += np.array(np.sum(X["F"][key].values * denom, axis=1))  # numerator portion
+                score_f_a += np.array(np.sum(df_x_f.values * denom, axis=1))  # numerator portion
                 denominators += np.sum((denom * not_na_f[key]) ** 2, axis=1)
 
             denominators[denominators == 0] = np.nan  # Guard should not be needed; should never be zeros in here.
@@ -2155,16 +2165,16 @@ class TPLS(BaseEstimator):
             # are missing values, then that correction is needed, to avoid dividing by a larger value than is fair.
             score_z_a = np.zeros(num_obs)
             denominators = np.zeros(num_obs)
-            for key in X["Z"]:
+            for key, df_x_z in x_z.items():  # Updated to include .items()
                 b_row = np.array(self.w_loadings_z[key].iloc[:, pc_a].values)
                 denom = np.tile(b_row, (num_obs, 1)) * not_na_z[key]
-                score_z_a += np.array(np.sum(X["Z"][key].values * denom, axis=1))
+                score_z_a += np.array(np.sum(df_x_z.values * denom, axis=1))
                 denominators += np.sum((denom * not_na_z[key]) ** 2, axis=1)
 
             denominators[denominators == 0] = np.nan  # Guard should not be needed; should never be zeros in here.
             score_z_a /= denominators
 
-            # Multiple the individual block scores by the super-weights, to get the super-scores.
+            # Multiply the individual block scores by the super-weights, to get the super-scores.
             # After transposing below, rows are the observations, and columns are the blocks: [Z, F]
             super_scores = np.vstack([score_z_a, score_f_a]).T @ np.asarray(
                 self.w_loadings_super.iloc[:, pc_a].values
@@ -2174,25 +2184,26 @@ class TPLS(BaseEstimator):
             # and to compute SPE.
             explained_f = {
                 key: super_scores @ np.asarray(self.p_loadings_f[key].iloc[:, pc_a].values).reshape(1, -1)
-                for key in X["F"]
+                for key in x_f
             }
-            for key in X["F"]:
+            for key, df_x_f in x_f.items():  # Updated to include .items()
                 x_f[key] -= explained_f[key]
+                spe_f[key].iloc[:, pc_a] = np.sqrt(np.sum(np.square(df_x_f), axis=1))
 
             explained_z = {
                 key: super_scores @ np.asarray(self.p_loadings_z[key].iloc[:, pc_a].values).reshape(1, -1)
-                for key in X["Z"]
+                for key in x_z
             }
-            for key in X["Z"]:
+            for key, df_x_z in x_z.items():  # Updated to include .items()
                 x_z[key] -= explained_z[key]
+                spe_z[key].iloc[:, pc_a] = np.sqrt(np.sum(np.square(df_x_z), axis=1))
 
         # After the loop has repeated `self.n_components` times:
 
         # Multiply by Q matrix to get Y-hat
-        # Calculate the SPE and T2 values: for all the spaces
-        # return this in a dict structure
+        # Calculate the T2 values: for all the spaces
 
-        return {"Y": pd.DataFrame(), "SPE_Z": pd.DataFrame(), "SPE_F": pd.DataFrame(), "T2": pd.DataFrame()}
+        return dict(y_predicted=y_predicted, spe_z=spe_z, spe_f=spe_f, T2=hotellings_t2)
 
 
 class Plot:

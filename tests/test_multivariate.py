@@ -1265,7 +1265,7 @@ def test_pls_simca_ldpe_missing_data(fixture_pls_ldpe_example: dict) -> None:
 
 
 # ---- TPLS models ----
-@pytest.fixture
+# @pytest.fixture
 def fixture_tpls_example() -> dict[str, dict[str, pd.DataFrame]]:
     """
     Load example data for TPLS model.
@@ -1472,6 +1472,9 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     # OK, now use these to make predictions
     predictions = tpls_test.predict(new_observations)
 
+    # Test that the SPE_f values are array([12.9399977 ,  6.92978457,  5.56504553,  5.59028493,  5.54400785])
+    # assert np.allclose(predictions.spe["F"]["Group 1"].values, [12.9399977, 6.92978457, 5.56504553])
+
     # NEXT: do predictions for a selected subset of samples, and
     # NEXT: do predictions for the entire data set
 
@@ -1537,4 +1540,4 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     # assert tpls_test.plot.loadings() is not None
 
 
-# test_tpls_model_fitting(fixture_tpls_example())
+test_tpls_model_fitting(fixture_tpls_example())
