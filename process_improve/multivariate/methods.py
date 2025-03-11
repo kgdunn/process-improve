@@ -1030,7 +1030,7 @@ def nan_to_zeros(in_array: np.ndarray) -> np.ndarray:
     """Convert NaN to zero and return a NaN map."""
 
     nan_map = np.isnan(in_array)
-    in_array[nan_map] = 0
+    in_array[nan_map] = 0.0
     return in_array
 
 
@@ -1454,182 +1454,9 @@ def internal_pls_nipals_fit_one_pc(
 #     return result
 
 
-class TPLSpreprocess(TransformerMixin, BaseEstimator):
-    """
-
-    Pre-process the dataframes for TPLS models.
-
-
-    Example
-    -------
-    >>> import numpy as np
-    >>> import pandas as pd
-    >>> rng = np.random.default_rng()
-    >>>
-    >>> n_props_a, n_props_b = 6, 4
-    >>> n_materials_a, n_materials_b = 12, 8
-    >>> n_formulas = 40
-    >>> n_outputs = 3
-    >>> n_conditions = 2
-    >>>
-    >>> properties = {
-    >>>     "Group A": pd.DataFrame(rng.standard_normal((n_materials_a, n_props_a))),
-    >>>     "Group B": pd.DataFrame(rng.standard_normal((n_materials_b, n_props_b))),
-    >>> }
-    >>> formulas = {
-    >>>     "Group A": pd.DataFrame(rng.standard_normal((n_formulas, n_materials_a))),
-    >>>     "Group B": pd.DataFrame(rng.standard_normal((n_formulas, n_materials_b))),
-    >>> }
-    >>> process_conditions = {"Conditions": pd.DataFrame(rng.standard_normal((n_formulas, n_conditions)))}
-    >>> quality_indicators = pd.DataFrame(rng.standard_normal((n_formulas, n_outputs)))
-    >>> all_data = {"Z": process_conditions, "D": properties, "F": formulas}
-    >>> estimator = TPLSpreprocess()
-    >>> estimator.fit(all_data, y=quality_indicators)
-    """
-
-    _parameter_constraints: typing.ClassVar = {}
-
-    def __init__(self):
-        super().__init__()
-
-    def _learn_center_and_scaling_parameters(self, y: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
-        """
-        Learn the centering and scaling parameters for the output space.
-
-        Parameters
-        ----------
-        y : pd.DataFrame
-            The output space.
-
-        Returns
-        -------
-        centering : pd.Series
-            The centering parameters.
-
-        scaling : pd.Series
-            The scaling parameters.
-        """
-        centering = y.mean()
-        scaling = y.std(ddof=1)
-        scaling[scaling < epsqrt] = 1.0  # columns with little/no variance are left as-is.
-        return centering, scaling
-
-    def validate_df(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Validate a single dataframe using `check_array` from scikit-learn.
-
-        Parameters
-        ----------
-        df : {pd.DataFrame}
-
-        Returns
-        -------
-        y : {pd.DataFrame}
-            Returns the input dataframe.
-        """
-
-        return check_array(
-            df, accept_sparse=False, ensure_all_finite="allow-nan", ensure_2d=True, allow_nd=False, ensure_min_samples=1
-        )
-
-    @_fit_context(prefer_skip_nested_validation=True)
-    def fit(self, X: dict[str, dict[str, pd.DataFrame]], y: None = None) -> TPLSpreprocess:  # noqa: ARG002
-        """
-        Fit/learn the preprocessing parameters from the training data.
-
-        Parameters
-        ----------
-        X : {dictionary of dataframes}, keys that must be present: "D", "F", "Z", and "Y"
-            The training input samples. See documentation in the class definition for more information on each matrix.
-
-        Returns
-        -------
-        self : object
-            Returns self.
-        """
-        expected_blocks = {"D", "F", "Z", "Y"}
-        assert set(X.keys()) == expected_blocks, f"Expected keys: {expected_blocks}, got: {set(X.keys())}"
-        self.preproc_: dict[str, dict[str, dict[str, pd.Series]]] = {key: {} for key in expected_blocks}
-        for block in expected_blocks:
-            for key in X[block]:
-                assert isinstance(X[block][key], pd.DataFrame), f"The 'X[{block}][{key}]' entries must be a DataFrame."
-
-        for key in X["Y"]:
-            self.validate_df(X["Y"][key])
-        for key in X["Z"]:
-            self.validate_df(X["Z"][key])
-        for key in X["D"]:
-            self.validate_df(X["D"][key])
-            assert key in X["F"], f"Block/group name '{key}' in D must also be present in F."
-            self.validate_df(X["F"][key])  # this also ensures the keys in F are the same as in D
-
-        # Learn the centering and scaling parameters
-        for key in X["Y"]:
-            self.preproc_["Y"][key] = {}
-            self.preproc_["Y"][key]["center"], self.preproc_["Y"][key]["scale"] = (
-                self._learn_center_and_scaling_parameters(X["Y"][key])
-            )
-        for key in X["Z"]:
-            self.preproc_["Z"][key] = {}
-            self.preproc_["Z"][key]["center"], self.preproc_["Z"][key]["scale"] = (
-                self._learn_center_and_scaling_parameters(X["Z"][key])
-            )
-        for key, df_d in X["D"].items():
-            self.preproc_["D"][key] = {}
-            self.preproc_["F"][key] = {}
-            self.preproc_["D"][key]["center"], self.preproc_["D"][key]["scale"] = (
-                self._learn_center_and_scaling_parameters(df_d)
-            )
-            self.preproc_["D"][key]["block"] = pd.Series([np.sqrt(df_d.shape[1])])
-            self.preproc_["F"][key]["center"], self.preproc_["F"][key]["scale"] = (
-                self._learn_center_and_scaling_parameters(X["F"][key])
-            )
-
-        self.is_fitted_ = True
-        return self
-
-    def transform(self, X: dict[str, dict[str, pd.DataFrame]]) -> dict[str, dict[str, pd.DataFrame]]:
-        """
-        Apply the centering and scaling transformation to the input data.
-
-        Parameters
-        ----------
-        X : {dictionary of dataframes}, keys that must be present: "Z" and "F" for testing data; else also "Z" and "Y".
-            The input data to be transformed
-
-        Returns
-        -------
-        x_transformed : dict[str, dict[str, pd.DataFrame]]
-            The transformed input data, containing element-wise transformations applied to the values in the dataframes.
-        """
-        check_is_fitted(self)
-        x_transformed: dict[str, dict[str, pd.DataFrame]] = {"D": {}, "F": {}, "Z": {}, "Y": {}}
-        for key in X["F"]:
-            x_transformed["F"][key] = (X["F"][key] - self.preproc_["F"][key]["center"]) / self.preproc_["F"][key][
-                "scale"
-            ]
-            if "D" in X:
-                x_transformed["D"][key] = (
-                    (X["D"][key] - self.preproc_["D"][key]["center"])
-                    / self.preproc_["D"][key]["scale"]
-                    / self.preproc_["D"][key]["block"][0]  # scalar!
-                )
-        for key in X["Z"]:
-            x_transformed["Z"][key] = (X["Z"][key] - self.preproc_["Z"][key]["center"]) / self.preproc_["Z"][key][
-                "scale"
-            ]
-        if "Y" in X:
-            for key in X["Y"]:
-                x_transformed["Y"][key] = (X["Y"][key] - self.preproc_["Y"][key]["center"]) / self.preproc_["Y"][key][
-                    "scale"
-                ]
-
-        return x_transformed
-
-
 class TPLS(BaseEstimator):
     """
-    TPLS algorithm for T-shaped data structures.
+    TPLS algorithm for T-shaped data structures, including standard pre-processing of the data.
 
     Source: Garcia-Munoz, https://doi.org/10.1016/j.chemolab.2014.02.006, Chem.Intell.Lab.Sys. v133, p 49 to 62, 2014.
 
@@ -1682,12 +1509,31 @@ class TPLS(BaseEstimator):
     is_fitted_ : bool
         A boolean indicating whether the estimator has been fitted.
 
+
     Example
     -------
-    >>> from ___ import TPLS
     >>> import numpy as np
-    >>> all_data = {"Z": ... , "D": ... , "F": ..., "Y": ...}  # see the example in the `TPLSpreprocess` class.
-    >>> estimator = TPLS(n_components=2)
+    >>> import pandas as pd
+    >>> rng = np.random.default_rng()
+    >>>
+    >>> n_props_a, n_props_b = 6, 4            # Two groups of properties: A and B.
+    >>> n_materials_a, n_materials_b = 12, 8   # Number of materials in each group.
+    >>> n_formulas = 40                        # Number of formulas in matrix F.
+    >>> n_outputs = 3
+    >>> n_conditions = 2
+    >>>
+    >>> properties = {
+    >>>     "Group A": pd.DataFrame(rng.standard_normal((n_materials_a, n_props_a))),
+    >>>     "Group B": pd.DataFrame(rng.standard_normal((n_materials_b, n_props_b))),
+    >>> }
+    >>> formulas = {
+    >>>     "Group A": pd.DataFrame(rng.standard_normal((n_formulas, n_materials_a))),
+    >>>     "Group B": pd.DataFrame(rng.standard_normal((n_formulas, n_materials_b))),
+    >>> }
+    >>> process_conditions = {"Conditions": pd.DataFrame(rng.standard_normal((n_formulas, n_conditions)))}
+    >>> quality_indicators = {"Quality":    pd.DataFrame(rng.standard_normal((n_formulas, n_outputs)))
+    >>> all_data = {"Z": process_conditions, "D": properties, "F": formulas, "Y": quality_indicators}
+    >>> estimator = TPLS()
     >>> estimator.fit(all_data)
     """
 
@@ -1698,6 +1544,7 @@ class TPLS(BaseEstimator):
     }
 
     def __init__(self, n_components: int):
+        super().__init__()
         assert n_components > 0, "Number of components must be positive."
         self.n_components = n_components
         self.n_substances = 0
@@ -1709,45 +1556,76 @@ class TPLS(BaseEstimator):
 
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X: dict[str, dict[str, pd.DataFrame]], y: None = None) -> TPLS:  # noqa: ARG002
-        """Fit the model.
+        """Fit the preprocessing parameters and also the latent variable model from the training data.
 
         Parameters
         ----------
-        X : {array-like, sparse matrix}, shape (n_samples, n_features)
-            The training input samples.
+        X : {dictionary of dataframes}, keys that must be present: "D", "F", "Z", and "Y"
+            The training input samples. See documentation in the class definition for more information on each matrix.
 
         Returns
         -------
         self : object
             Returns self.
         """
-        # Note: we assume the data have been pre-processed by the `TPLSpreprocess` class; so no data checks performed.
-
-        assert isinstance(X, dict), "The input data must be a dictionary."
-        assert set(X.keys()) == self.required_blocks_, "The input dictionary must have keys: D, F, Z, Y."
-
+        self.is_fitted_ = False
+        self._input_data_checks(X)
         group_keys = [str(key) for key in X["D"]]
-        assert set(X["F"]) == set(group_keys), "The keys in F must match the keys in D."
-        d_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["D"][key].values.copy()) for key in group_keys}
-        f_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["F"][key].values.copy()) for key in group_keys}
-        z_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["Z"][key].values.copy()) for key in X["Z"]}
-        y_mats: dict[str, np.ndarray] = {key: nan_to_zeros(X["Y"][key].values.copy()) for key in X["Y"]}
+
+        # Storage for pre-processing and the raw matrices
+        self.preproc_: dict[str, dict[str, dict[str, pd.Series]]] = {key: {} for key in self.required_blocks_}
+        self.d_mats: dict[str, np.ndarray] = {key: X["D"][key].values.copy() for key in group_keys}
+        self.f_mats: dict[str, np.ndarray] = {key: X["F"][key].values.copy() for key in group_keys}
+        self.z_mats: dict[str, np.ndarray] = {key: X["Z"][key].values.copy() for key in X["Z"]}
+        self.y_mats: dict[str, np.ndarray] = {key: X["Y"][key].values.copy() for key in X["Y"]}
+
+        # Learn the centering and scaling parameters
+        for key in X["Y"]:
+            self.preproc_["Y"][key] = {}
+            self.preproc_["Y"][key]["center"], self.preproc_["Y"][key]["scale"] = (
+                self._learn_center_and_scaling_parameters(X["Y"][key])
+            )
+        for key in X["Z"]:
+            self.preproc_["Z"][key] = {}
+            self.preproc_["Z"][key]["center"], self.preproc_["Z"][key]["scale"] = (
+                self._learn_center_and_scaling_parameters(X["Z"][key])
+            )
+        for key, df_d in X["D"].items():
+            self.preproc_["D"][key] = {}
+            self.preproc_["D"][key]["center"], self.preproc_["D"][key]["scale"] = (
+                self._learn_center_and_scaling_parameters(df_d)
+            )
+            self.preproc_["D"][key]["block"] = pd.Series([np.sqrt(df_d.shape[1])])
+            #
+            # Also do the same for the formula matrix
+            self.preproc_["F"][key] = {}
+            self.preproc_["F"][key]["center"], self.preproc_["F"][key]["scale"] = (
+                self._learn_center_and_scaling_parameters(X["F"][key])
+            )
+
+        # Then implement the preprocessing on the raw data
+        self._preprocess_data()
+
+        # Then set missing data values to zeros (not because we are ignoring the values), but because we will use
+        # the missing value maps to identify where the missing values are and therefore ignore them. But set to zero,
+        # so these values have no influence on the calculations.
+        self.d_mats = {key: nan_to_zeros(self.d_mats[key]) for key in group_keys}
+        self.f_mats = {key: nan_to_zeros(self.f_mats[key]) for key in group_keys}
+        self.z_mats = {key: nan_to_zeros(self.z_mats[key]) for key in X["Z"]}
+        self.y_mats = {key: nan_to_zeros(self.y_mats[key]) for key in X["Y"]}
+
+        # Storage for the model objects. Make a copy only of the Numpy values to use in the Estimator.
         self.observation_names = X["F"][group_keys[0]].index
         self.property_names = {key: X["D"][key].index.to_list() for key in group_keys}
         self.condition_names = {key: X["Z"][key].columns.to_list() for key in X["Z"]}
         self.quality_names = {key: X["Y"][key].columns.to_list() for key in X["Y"]}
 
-        self.d_mats = d_mats
-        self.f_mats = f_mats
-        self.z_mats = z_mats
-        self.y_mats = y_mats  # correct to assign y_mats
-
         # Create the missing value maps, except we store the opposite, i.e., not missing, since these are more useful.
         # We refer to these as `pmaps` in the code (present maps, as opposed to `mmap` or missing maps).
-        self.not_na_d = {key: ~np.isnan(X["D"][key].values) for key in d_mats}
-        self.not_na_f = {key: ~np.isnan(X["F"][key].values) for key in f_mats}
-        self.not_na_z = {key: ~np.isnan(X["Z"][key].values) for key in z_mats}
-        self.not_na_y = {key: ~np.isnan(X["Y"][key].values) for key in y_mats}
+        self.not_na_d = {key: ~np.isnan(X["D"][key].values) for key in self.d_mats}
+        self.not_na_f = {key: ~np.isnan(X["F"][key].values) for key in self.f_mats}
+        self.not_na_z = {key: ~np.isnan(X["Z"][key].values) for key in self.z_mats}
+        self.not_na_y = {key: ~np.isnan(X["Y"][key].values) for key in self.y_mats}
 
         # Empty model coefficients
         self.n_substances = sum(self.f_mats[key].shape[1] for key in group_keys)
@@ -1764,17 +1642,17 @@ class TPLS(BaseEstimator):
             key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
         }
         self.w_loadings_z: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=self.condition_names[key]) for key in z_mats
+            key: pd.DataFrame(index=self.condition_names[key]) for key in self.z_mats
         }
         self.w_loadings_super = pd.DataFrame(index=["Z", "F"])
         self.p_loadings_f: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
         }
         self.p_loadings_z: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=self.condition_names[key]) for key in z_mats
+            key: pd.DataFrame(index=self.condition_names[key]) for key in self.z_mats
         }
         self.q_loadings_y: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=self.quality_names[key]) for key in y_mats
+            key: pd.DataFrame(index=self.quality_names[key]) for key in self.y_mats
         }
 
         # Model performance
@@ -1788,15 +1666,217 @@ class TPLS(BaseEstimator):
         self.spe_limit: dict[str, dict[str, Callable]] = {key: {} for key in self.required_blocks_}
         self.hotellings_t2: pd.DataFrame = pd.DataFrame()
         self.hotellings_t2_limit: Callable = hotellings_t2_limit
-
         self.scaling_factor_for_scores = pd.Series()
         self.ellipse_coordinates: Callable = ellipse_coordinates
-
-        self.is_fitted_ = False
         self._fit_iterative_regressions()
         self.is_fitted_ = True
-
         return self
+
+    def predict(self, X: dict[str, dict[str, pd.DataFrame]]) -> dict:  # noqa: C901
+        """
+        Model inference on new data.
+
+        This will pre-process the new data and apply those subsequently to the latent variable model.
+
+        Example
+        -------
+
+        # Training phase:
+        estimator = TPLS(n_components=2).fit(training_data)
+
+        # Testing/inference phase:
+        new_data = {"Z": ..., "F": ...}  # you need at least the Z and F blocks for a new prediction
+        predictions = estimator.predict(new_data_pp)
+
+        Parameters
+        ----------
+        X : dict[str, dict[str, pd.DataFrame]])
+            The input samples.
+
+        Returns
+        -------
+        y : dict
+            Returns an array of prediction objects. More details to come here later. Please ask.
+        """
+        check_is_fitted(self)  # Check if fit had been called
+
+        # TODO: Check consistency on the data: the columns names in the new data must match the columns names in the
+        # training data.
+        x_f: dict[str, pd.DataFrame] = {key: X["F"][key].copy() for key in X["F"]}
+        x_z: dict[str, pd.DataFrame] = {key: X["Z"][key].copy() for key in X["Z"]}
+
+        for key, df_f in x_f.items():
+            x_f[key] = (df_f - self.preproc_["F"][key]["center"]) / self.preproc_["F"][key]["scale"]
+
+        for key, df_z in x_z.items():
+            x_z[key] = (df_z - self.preproc_["Z"][key]["center"]) / self.preproc_["Z"][key]["scale"]
+
+        # if "D" in X and "Y" in X:
+        #     return "Early return with only the pre-processed data"
+        assert "D" not in X, "The D block is not yet supported in the prediction phase."
+        assert "Y" not in X, "The Y block is not yet supported in the prediction phase."
+
+        not_na_f = {key: ~np.isnan(X["F"][key].values) for key in X["F"]}
+        not_na_z = {key: ~np.isnan(X["Z"][key].values) for key in X["Z"]}
+        names_observations = X["F"][next(iter(X["F"]))].index
+        num_obs = names_observations.shape[0]
+        spe_f: dict[str, pd.DataFrame] = {
+            key: pd.DataFrame(index=x_f[key].index, columns=range(1, self.n_components + 1)) for key in x_f
+        }
+        spe_z: dict[str, pd.DataFrame] = {
+            key: pd.DataFrame(index=x_z[key].index, columns=range(1, self.n_components + 1)) for key in x_z
+        }
+
+        super_scores = pd.DataFrame(index=names_observations, columns=range(1, self.n_components + 1), dtype=float)
+        # Hotelling's T2 values, after so many components. In other words, in column 3, it is the Hotelling's T2
+        # computed with 3 components.
+        hotellings_t2 = pd.DataFrame(index=names_observations, columns=range(1, self.n_components + 1), dtype=float)
+        y_predicted: dict[str, pd.DataFrame] = {
+            key: pd.DataFrame(index=names_observations, columns=self.quality_names[key], dtype=float)
+            for key in self.y_mats
+        }
+
+        for key, df_f in x_f.items():
+            assert df_f.shape[0] == num_obs, "All formula blocks must have the same number of rows."
+            assert set(df_f.columns) == set(
+                self.property_names[key]
+            ), f"Columns in block F, group [{key}] must match training data column names"
+
+        for key, df_z in x_z.items():
+            assert df_z.shape[0] == num_obs, "All condition blocks must have the same number of rows."
+            assert set(df_z.columns) == set(
+                self.condition_names[key]
+            ), f"Columns names in block Z, group [{key}] must match training data column names."
+
+        for pc_a in range(self.n_components):
+            # Regress the row of each new formula block on the r_loadings_f, to get the t-score for that pc_a component.
+            # Add up the t-score as you go block by block.
+            score_f_a = np.zeros(num_obs)
+            denominators = np.zeros(num_obs)
+            for key, df_x_f in x_f.items():  # Updated to include .items()
+                b_row = np.array(self.r_loadings_f[key].iloc[:, pc_a].values)
+                # Tile row-by-row to create `n_rows`, and maps missing entries to zero, so they have no effect
+                denom = np.tile(b_row, (num_obs, 1)) * not_na_f[key]
+                score_f_a += np.array(np.sum(df_x_f.values * denom, axis=1))  # numerator portion
+                denominators += np.sum((denom * not_na_f[key]) ** 2, axis=1)
+
+            denominators[denominators == 0] = np.nan  # Guard should not be needed; should never be zeros in here.
+            score_f_a /= denominators
+
+            # Repeat for the Z-space: regress the row of each new Z block on the w-loadings, to get the
+            # t-score for that pc_a. It seems redundant to divide by w'w, since w is already normalized, but if there
+            # are missing values, then that correction is needed, to avoid dividing by a larger value than is fair.
+            score_z_a = np.zeros(num_obs)
+            denominators = np.zeros(num_obs)
+            for key, df_x_z in x_z.items():  # Updated to include .items()
+                b_row = np.array(self.w_loadings_z[key].iloc[:, pc_a].values)
+                denom = np.tile(b_row, (num_obs, 1)) * not_na_z[key]
+                score_z_a += np.array(np.sum(df_x_z.values * denom, axis=1))
+                denominators += np.sum((denom * not_na_z[key]) ** 2, axis=1)
+
+            denominators[denominators == 0] = np.nan  # Guard should not be needed; should never be zeros in here.
+            score_z_a /= denominators
+
+            # Multiply the individual block scores by the super-weights, to get the super-scores.
+            # After transposing below, rows are the observations, and columns are the blocks: [Z, F]
+            super_score_a = np.vstack([score_z_a, score_f_a]).T @ np.asarray(
+                self.w_loadings_super.iloc[:, pc_a].values
+            ).reshape(-1, 1)
+
+            # Deflate each block (key) in x_f matrices with the super_scores, to get values for the next iteration,
+            # and to compute SPE.
+            explained_f = {
+                key: super_score_a @ np.asarray(self.p_loadings_f[key].iloc[:, pc_a].values).reshape(1, -1)
+                for key in x_f
+            }
+            for key, df_x_f in x_f.items():
+                x_f[key] -= explained_f[key]
+                spe_f[key].iloc[:, pc_a] = np.sqrt(np.sum(np.square(df_x_f), axis=1))
+
+            explained_z = {
+                key: super_score_a @ np.asarray(self.p_loadings_z[key].iloc[:, pc_a].values).reshape(1, -1)
+                for key in x_z
+            }
+            for key, df_x_z in x_z.items():
+                x_z[key] -= explained_z[key]
+                spe_z[key].iloc[:, pc_a] = np.sqrt(np.sum(np.square(df_x_z), axis=1))
+
+            # Store values for the final output
+            super_scores.iloc[:, pc_a] = super_score_a.flatten()
+            hotellings_t2.iloc[:, pc_a] = np.sum(super_score_a**2, axis=1)
+
+        # After the loop has repeated `self.n_components` times: calculate the predictions using the full set of super
+        # scores and the q-loadings for the Y-space.
+        for key in self.y_mats:
+            y_predicted[key].iloc[:, :] = super_scores.values @ self.q_loadings_y[key].values.T
+
+        # Calculate the T2 values: for all the spaces
+        hotellings_t2.iloc[:, :] = (
+            # Last item in the statement here is not super_scores.values !! we want the result back as a DataFrame
+            super_scores.values
+            @ np.diag(np.power(1 / self.scaling_factor_for_scores.values, 2), 0)
+            * super_scores
+        ).cumsum(axis="columns")
+
+        return dict(
+            y_predicted=y_predicted, super_scores=super_scores, spe_z=spe_z, spe_f=spe_f, hotellings_t2=hotellings_t2
+        )
+
+    def _input_data_checks(self, X: dict[str, dict[str, pd.DataFrame]]) -> None:
+        """Check the incoming data."""
+        assert isinstance(X, dict), "The input data must be a dictionary."
+        assert set(X.keys()) == self.required_blocks_, f"Expected keys: {self.required_blocks_}, got: {set(X.keys())}"
+        group_keys = [str(key) for key in X["D"]]
+        assert set(X["F"]) == set(group_keys), "The keys in F must match the keys in D."
+
+        for key in X["Y"]:
+            self._validate_df(X["Y"][key])
+        for key in X["Z"]:
+            self._validate_df(X["Z"][key])
+        for key in X["D"]:
+            self._validate_df(X["D"][key])
+            assert key in X["F"], f"Block/group name '{key}' in D must also be present in F."
+            self._validate_df(X["F"][key])  # this also ensures the keys in F are the same as in D
+
+    def _learn_center_and_scaling_parameters(self, y: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+        """
+        Learn the centering and scaling parameters for the output space.
+
+        Parameters
+        ----------
+        y : pd.DataFrame
+            The output space.
+
+        Returns
+        -------
+        centering : pd.Series
+            The centering parameters.
+
+        scaling : pd.Series
+            The scaling parameters.
+        """
+        centering = y.mean(axis="rows")
+        scaling = y.std(ddof=1, axis="rows")
+        scaling[scaling < self.tolerance_] = 1.0  # columns with little/no variance are left as-is.
+        return centering, scaling
+
+    def _validate_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Validate a single dataframe using `check_array` from scikit-learn.
+
+        Parameters
+        ----------
+        df : {pd.DataFrame}
+
+        Returns
+        -------
+        y : {pd.DataFrame}
+            Returns the input dataframe.
+        """
+
+        return check_array(
+            df, accept_sparse=False, ensure_all_finite="allow-nan", ensure_2d=True, allow_nd=False, ensure_min_samples=1
+        )
 
     def _has_converged(self, starting_vector: np.ndarray, revised_vector: np.ndarray, iterations: int) -> bool:
         """
@@ -1975,6 +2055,44 @@ class TPLS(BaseEstimator):
         }
         self.spe_limit["F"] = {key: partial(spe_calculation, self.spe["F"][key].values) for key in self.f_mats}
 
+    def _preprocess_data(self) -> None:
+        """Pre-process the training data."""
+
+        for key in self.f_mats:
+            self.f_mats[key] = (self.f_mats[key] - self.preproc_["F"][key]["center"].values[None, :]) / self.preproc_[
+                "F"
+            ][key]["scale"].values[None, :]
+            self.d_mats[key] = (
+                (self.d_mats[key] - self.preproc_["D"][key]["center"].values[None, :])
+                / self.preproc_["D"][key]["scale"].values[None, :]
+                / self.preproc_["D"][key]["block"][0]  # scalar!
+            )
+        for key in self.z_mats:
+            self.z_mats[key] = (self.z_mats[key] - self.preproc_["Z"][key]["center"].values[None, :]) / self.preproc_[
+                "Z"
+            ][key]["scale"].values[None, :]
+
+        for key in self.y_mats:
+            self.y_mats[key] = (self.y_mats[key] - self.preproc_["Y"][key]["center"].values[None, :]) / self.preproc_[
+                "Y"
+            ][key]["scale"].values[None, :]
+
+        # Test that all blocks and groups within a block have a mean of 0 and a standard deviation of 1.
+        assert all(pytest.approx(np.nanmean(self.z_mats[key], axis=0)) == 0 for key in self.z_mats)
+        assert all(pytest.approx(np.nanstd(self.z_mats[key], axis=0, ddof=1)) == 1 for key in self.z_mats)
+
+        assert all(pytest.approx(np.nanmean(self.f_mats[key], axis=0)) == 0 for key in self.f_mats)
+        assert all(pytest.approx(np.nanstd(self.f_mats[key], axis=0, ddof=1)) == 1 for key in self.f_mats)
+
+        assert all(pytest.approx(np.nanmean(self.y_mats[key], axis=0)) == 0 for key in self.y_mats)
+        assert all(pytest.approx(np.nanstd(self.y_mats[key], axis=0, ddof=1)) == 1 for key in self.y_mats)
+
+        assert all(pytest.approx(np.nanmean(self.d_mats[key], axis=0)) == 0 for key in self.d_mats)
+        assert all(
+            pytest.approx(np.nanstd(self.d_mats[key], axis=0, ddof=1) * self.preproc_["D"][key]["block"].values[0]) == 1
+            for key in self.d_mats
+        )
+
     def _fit_iterative_regressions(self) -> None:
         """Fit the model via iterative regressions and store the model coefficients in the class instance."""
 
@@ -2073,13 +2191,6 @@ class TPLS(BaseEstimator):
             self.fitting_statistics["milliseconds"].append((time.time() - milliseconds_start) * 1000)
 
             # Store model coefficients
-            self.p_loadings_f
-
-            # self.h_f_blocks
-
-            # self.s_d_blocks
-            # self.v_d_blocks
-
             self._store_model_coefficients(pc_a + 1, t_super_i=t_super_i, r_i=r_i, w_i_z=w_i_z, w_super_i=w_super_i)
 
             # Calculate and store the deflation vectors. See equation 7 on page 55.
@@ -2090,146 +2201,6 @@ class TPLS(BaseEstimator):
 
         # Step 15: Calculate the final model limit
         self._calculate_model_statistics_and_limits()
-
-    def predict(self, X: dict[str, dict[str, pd.DataFrame]]) -> dict:
-        """
-        Model inference on new already pre-processed data.
-
-        Fit and learn the pre-processing parameters. Then pre-process the new data before calling this function.
-
-        Example
-        -------
-
-        # Training:
-        preproc = TPLSpreprocess().fit(training_data)
-        estimator = TPLS(n_components=2).fit(training_data)
-
-        # Testing/inference:
-        new_data = {"Z": ..., "F": ...}  # you need at least the Z and F blocks for a new prediction
-        new_data_pp = preproc.transform(new_data)
-        predictions = estimator.predict(new_data_pp)
-
-        Parameters
-        ----------
-        X : dict[str, dict[str, pd.DataFrame]])
-            The input samples.
-
-        Returns
-        -------
-        y : ndarray, shape (n_samples,)
-            Returns an array of predictions.
-        """
-        check_is_fitted(self)  # Check if fit had been called
-
-        # Check consistency on the data: the columns names in the new data must match the columns names in the training
-        # data.
-        not_na_f = {key: ~np.isnan(X["F"][key].values) for key in X["F"]}
-        not_na_z = {key: ~np.isnan(X["Z"][key].values) for key in X["Z"]}
-        names_observations = X["F"][next(iter(X["F"]))].index
-        num_obs = names_observations.shape[0]
-        x_f: dict[str, pd.DataFrame] = {key: X["F"][key].copy() for key in X["F"]}
-        x_z: dict[str, pd.DataFrame] = {key: X["Z"][key].copy() for key in X["Z"]}
-        spe_f: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=x_f[key].index, columns=range(1, self.n_components + 1)) for key in x_f
-        }
-        spe_z: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=x_z[key].index, columns=range(1, self.n_components + 1)) for key in x_z
-        }
-
-        super_scores = pd.DataFrame(index=names_observations, columns=range(1, self.n_components + 1), dtype=float)
-        # Hotelling's T2 values, after so many components. In other words, in column 3, it is the Hotelling's T2
-        # computed with 3 components.
-        hotellings_t2 = pd.DataFrame(index=names_observations, columns=range(1, self.n_components + 1), dtype=float)
-        y_predicted: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=names_observations, columns=self.quality_names[key], dtype=float)
-            for key in self.y_mats
-        }
-
-        for key, df_f in x_f.items():
-            assert df_f.shape[0] == num_obs, "All formula blocks must have the same number of rows."
-            assert set(df_f.columns) == set(
-                self.property_names[key]
-            ), f"Columns in block F, group [{key}] must match training data column names"
-
-        for key, df_z in x_z.items():
-            assert df_z.shape[0] == num_obs, "All condition blocks must have the same number of rows."
-            assert set(df_z.columns) == set(
-                self.condition_names[key]
-            ), f"Columns names in block Z, group [{key}] must match training data column names."
-
-        for pc_a in range(self.n_components):
-            # Regress the row of each new formula block on the r_loadings_f, to get the t-score for that pc_a component.
-            # Add up the t-score as you go block by block.
-            score_f_a = np.zeros(num_obs)
-            denominators = np.zeros(num_obs)
-            for key, df_x_f in x_f.items():  # Updated to include .items()
-                b_row = np.array(self.r_loadings_f[key].iloc[:, pc_a].values)
-                # Tile row-by-row to create `n_rows`, and maps missing entries to zero, so they have no effect
-                denom = np.tile(b_row, (num_obs, 1)) * not_na_f[key]
-                score_f_a += np.array(np.sum(df_x_f.values * denom, axis=1))  # numerator portion
-                denominators += np.sum((denom * not_na_f[key]) ** 2, axis=1)
-
-            denominators[denominators == 0] = np.nan  # Guard should not be needed; should never be zeros in here.
-            score_f_a /= denominators
-
-            # Repeat for the Z-space: regress the row of each new Z block on the w-loadings, to get the
-            # t-score for that pc_a. It seems redundant to divide by w'w, since w is already normalized, but if there
-            # are missing values, then that correction is needed, to avoid dividing by a larger value than is fair.
-            score_z_a = np.zeros(num_obs)
-            denominators = np.zeros(num_obs)
-            for key, df_x_z in x_z.items():  # Updated to include .items()
-                b_row = np.array(self.w_loadings_z[key].iloc[:, pc_a].values)
-                denom = np.tile(b_row, (num_obs, 1)) * not_na_z[key]
-                score_z_a += np.array(np.sum(df_x_z.values * denom, axis=1))
-                denominators += np.sum((denom * not_na_z[key]) ** 2, axis=1)
-
-            denominators[denominators == 0] = np.nan  # Guard should not be needed; should never be zeros in here.
-            score_z_a /= denominators
-
-            # Multiply the individual block scores by the super-weights, to get the super-scores.
-            # After transposing below, rows are the observations, and columns are the blocks: [Z, F]
-            super_score_a = np.vstack([score_z_a, score_f_a]).T @ np.asarray(
-                self.w_loadings_super.iloc[:, pc_a].values
-            ).reshape(-1, 1)
-
-            # Deflate each block (key) in x_f matrices with the super_scores, to get values for the next iteration,
-            # and to compute SPE.
-            explained_f = {
-                key: super_score_a @ np.asarray(self.p_loadings_f[key].iloc[:, pc_a].values).reshape(1, -1)
-                for key in x_f
-            }
-            for key, df_x_f in x_f.items():
-                x_f[key] -= explained_f[key]
-                spe_f[key].iloc[:, pc_a] = np.sqrt(np.sum(np.square(df_x_f), axis=1))
-
-            explained_z = {
-                key: super_score_a @ np.asarray(self.p_loadings_z[key].iloc[:, pc_a].values).reshape(1, -1)
-                for key in x_z
-            }
-            for key, df_x_z in x_z.items():
-                x_z[key] -= explained_z[key]
-                spe_z[key].iloc[:, pc_a] = np.sqrt(np.sum(np.square(df_x_z), axis=1))
-
-            # Store values for the final output
-            super_scores.iloc[:, pc_a] = super_score_a.flatten()
-            hotellings_t2.iloc[:, pc_a] = np.sum(super_score_a**2, axis=1)
-
-        # After the loop has repeated `self.n_components` times: calculate the predictions using the full set of super
-        # scores and the q-loadings for the Y-space.
-        for key in self.y_mats:
-            y_predicted[key].iloc[:, :] = super_scores.values @ self.q_loadings_y[key].values.T
-
-        # Calculate the T2 values: for all the spaces
-        hotellings_t2.iloc[:, :] = (
-            # Last item in the statement here is not super_scores.values !! we want the result back as a DataFrame
-            super_scores.values
-            @ np.diag(np.power(1 / self.scaling_factor_for_scores.values, 2), 0)
-            * super_scores
-        ).cumsum(axis="columns")
-
-        return dict(
-            y_predicted=y_predicted, super_scores=super_scores, spe_z=spe_z, spe_f=spe_f, hotellings_t2=hotellings_t2
-        )
 
 
 class Plot:

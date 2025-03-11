@@ -13,7 +13,6 @@ from process_improve.multivariate.methods import (
     TPLS,
     MCUVScaler,
     SpecificationWarning,
-    TPLSpreprocess,
     center,
     epsqrt,
     nan_to_zeros,
@@ -1368,36 +1367,26 @@ def fixture_tpls_example() -> dict[str, dict[str, pd.DataFrame]]:
     }
 
 
-def test_tpls_preprocessing(fixture_tpls_example: dict) -> None:
+def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:  # noqa: PLR0915
     """
-    Test the `TPLSpreprocess` class using the example data.
+    Test the fitting process of the TPLS model to ensure it functions as expected.
 
-    Test the centering and scaling of the dataframes in D, Z, F, and Y.
-
+    Tests here include tests for pre-processing and model fitting.
     """
-    tpls_example = fixture_tpls_example
-    estimator = TPLSpreprocess()
-    testing_df_dict = estimator.fit_transform(tpls_example)
-    assert pytest.approx(testing_df_dict["Z"]["Conditions"].mean()) == 0.0
-    assert pytest.approx(testing_df_dict["Z"]["Conditions"].std()) == 1.0
-    assert pytest.approx(testing_df_dict["Y"]["Quality"].mean()) == 0.0
-    assert pytest.approx(testing_df_dict["Y"]["Quality"].std()) == 1.0
-    for key in tpls_example["D"]:
-        assert pytest.approx(testing_df_dict["D"][key].mean()) == 0.0
-        assert pytest.approx(testing_df_dict["D"][key].std()) == 1 / estimator.preproc_["D"][key]["block"].values[0]
-        assert pytest.approx(testing_df_dict["F"][key].mean()) == 0.0
-        assert pytest.approx(testing_df_dict["F"][key].std()) == 1.0
 
-    # Test the coefficients in the centering and scaling .preproc_ structure
-    # Group 1, for D matrix:
+    n_components = 3
+    tpls_test = TPLS(n_components=n_components)
+    tpls_test.fit(fixture_tpls_example)
+
+    # Test the coefficients in the centering and scaling self.preproc_ structure. Group 1, for D matrix pre-processing:
     known_truth_d1m = np.array([99.85432099, 73.67901235, 3.07469136, 0.13950617, 2.09876543, 12.53703704, 41.58641975])
     known_truth_d1s = np.array([0.36883209, 1.80631852, 0.69231018, 0.09610943, 0.29927192, 1.99109474, 4.82828759])
-    assert pytest.approx(estimator.preproc_["D"]["Group 1"]["center"]) == known_truth_d1m
-    assert pytest.approx(estimator.preproc_["D"]["Group 1"]["scale"]) == known_truth_d1s
-    assert pytest.approx(estimator.preproc_["D"]["Group 1"]["center"]) == tpls_example["D"]["Group 1"].mean()
-    assert pytest.approx(estimator.preproc_["D"]["Group 1"]["scale"]) == tpls_example["D"]["Group 1"].std()
+    assert pytest.approx(tpls_test.preproc_["D"]["Group 1"]["center"]) == known_truth_d1m
+    assert pytest.approx(tpls_test.preproc_["D"]["Group 1"]["scale"]) == known_truth_d1s
+    assert pytest.approx(tpls_test.preproc_["D"]["Group 1"]["center"]) == fixture_tpls_example["D"]["Group 1"].mean()
+    assert pytest.approx(tpls_test.preproc_["D"]["Group 1"]["scale"]) == fixture_tpls_example["D"]["Group 1"].std()
 
-    # Group 4 in D has missing values. Test these.
+    # Group 4 in D has missing values pre-processing. Test these.
     known_truth_d4m = np.array(
         [
             9.99055556e-01,
@@ -1428,22 +1417,22 @@ def test_tpls_preprocessing(fixture_tpls_example: dict) -> None:
             3.68496233e-01,
         ]
     )
-    assert pytest.approx(estimator.preproc_["D"]["Group 4"]["center"]) == known_truth_d4m
-    assert pytest.approx(estimator.preproc_["D"]["Group 4"]["scale"]) == known_truth_d4s
-    assert pytest.approx(estimator.preproc_["D"]["Group 4"]["center"]) == tpls_example["D"]["Group 4"].mean()
-    assert pytest.approx(estimator.preproc_["D"]["Group 4"]["scale"]) == tpls_example["D"]["Group 4"].std()
+    assert pytest.approx(tpls_test.preproc_["D"]["Group 4"]["center"]) == known_truth_d4m
+    assert pytest.approx(tpls_test.preproc_["D"]["Group 4"]["scale"]) == known_truth_d4s
+    assert pytest.approx(tpls_test.preproc_["D"]["Group 4"]["center"]) == fixture_tpls_example["D"]["Group 4"].mean()
+    assert pytest.approx(tpls_test.preproc_["D"]["Group 4"]["scale"]) == fixture_tpls_example["D"]["Group 4"].std()
 
-    # Test the formula block, group 2:
+    # Test the formula block, group 2 pre-processing
     known_truth_f2m = np.array(
         [0.13333333, 0.0020127, 0.01904762, 0.00952381, 0.13282593, 0.1889709, 0.1047619, 0.17035596, 0.23916785]
     )
     known_truth_f2s = np.array(
         [0.34156503, 0.02062402, 0.13734798, 0.09759001, 0.33676188, 0.39173332, 0.3077152, 0.37647422, 0.4274989]
     )
-    assert pytest.approx(estimator.preproc_["F"]["Group 2"]["center"]) == known_truth_f2m
-    assert pytest.approx(estimator.preproc_["F"]["Group 2"]["scale"]) == known_truth_f2s
-    assert pytest.approx(estimator.preproc_["F"]["Group 2"]["center"]) == tpls_example["F"]["Group 2"].mean()
-    assert pytest.approx(estimator.preproc_["F"]["Group 2"]["scale"]) == tpls_example["F"]["Group 2"].std()
+    assert pytest.approx(tpls_test.preproc_["F"]["Group 2"]["center"]) == known_truth_f2m
+    assert pytest.approx(tpls_test.preproc_["F"]["Group 2"]["scale"]) == known_truth_f2s
+    assert pytest.approx(tpls_test.preproc_["F"]["Group 2"]["center"]) == fixture_tpls_example["F"]["Group 2"].mean()
+    assert pytest.approx(tpls_test.preproc_["F"]["Group 2"]["scale"]) == fixture_tpls_example["F"]["Group 2"].std()
 
     # Test the `Conditions` (Z) block:
     known_truth_zm = np.array(
@@ -1474,28 +1463,22 @@ def test_tpls_preprocessing(fixture_tpls_example: dict) -> None:
             3.86825154e-01,
         ]
     )
-    assert pytest.approx(estimator.preproc_["Z"]["Conditions"]["center"]) == known_truth_zm
-    assert pytest.approx(estimator.preproc_["Z"]["Conditions"]["scale"]) == known_truth_zs
-    assert pytest.approx(estimator.preproc_["Z"]["Conditions"]["center"]) == tpls_example["Z"]["Conditions"].mean()
-    assert pytest.approx(estimator.preproc_["Z"]["Conditions"]["scale"]) == tpls_example["Z"]["Conditions"].std()
+    assert pytest.approx(tpls_test.preproc_["Z"]["Conditions"]["center"]) == known_truth_zm
+    assert pytest.approx(tpls_test.preproc_["Z"]["Conditions"]["scale"]) == known_truth_zs
+    assert (
+        pytest.approx(tpls_test.preproc_["Z"]["Conditions"]["center"]) == fixture_tpls_example["Z"]["Conditions"].mean()
+    )
+    assert (
+        pytest.approx(tpls_test.preproc_["Z"]["Conditions"]["scale"]) == fixture_tpls_example["Z"]["Conditions"].std()
+    )
 
-    # Test the `Quality` (Y) block:
+    # Test the `Quality` (Y) block pre-processing
     known_truth_ym = np.array([30.96834605, 3.328312, 57.01620571, 3.6485004, 79.34224822, 3.06157598])
     known_truth_ys = np.array([3.46989807, 0.96879553, 4.9740008, 1.47585478, 3.8676095, 1.18600054])
-    assert pytest.approx(estimator.preproc_["Y"]["Quality"]["center"]) == known_truth_ym
-    assert pytest.approx(estimator.preproc_["Y"]["Quality"]["scale"]) == known_truth_ys
-    assert pytest.approx(estimator.preproc_["Y"]["Quality"]["center"]) == tpls_example["Y"]["Quality"].mean()
-    assert pytest.approx(estimator.preproc_["Y"]["Quality"]["scale"]) == tpls_example["Y"]["Quality"].std()
-
-
-def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
-    """Test the fitting process of the TPLS model to ensure it functions as expected."""
-
-    preproc = TPLSpreprocess().fit(fixture_tpls_example)
-    transformed_data = preproc.transform(fixture_tpls_example)
-    n_components = 3
-    tpls_test = TPLS(n_components=n_components)
-    tpls_test.fit(transformed_data)
+    assert pytest.approx(tpls_test.preproc_["Y"]["Quality"]["center"]) == known_truth_ym
+    assert pytest.approx(tpls_test.preproc_["Y"]["Quality"]["scale"]) == known_truth_ys
+    assert pytest.approx(tpls_test.preproc_["Y"]["Quality"]["center"]) == fixture_tpls_example["Y"]["Quality"].mean()
+    assert pytest.approx(tpls_test.preproc_["Y"]["Quality"]["scale"]) == fixture_tpls_example["Y"]["Quality"].std()
 
     # Test the model's predictions. Use the first few samples of the data as a testing data point.
     testing_samples = ["L001", "L002", "L003", "L004"]
@@ -1503,22 +1486,11 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
         "Z": {"Conditions": fixture_tpls_example["Z"]["Conditions"].loc[testing_samples]},
         "F": {key: val.loc[testing_samples] for key, val in fixture_tpls_example["F"].items()},
     }
-    new_observations = preproc.transform(new_observation_raw)
-    assert len(new_observations["D"]) == 0
-    assert len(new_observations["Y"]) == 0
-
-    # Assert that these match the training data after it was preprocessed:
-    assert (
-        pytest.approx(new_observations["Z"]["Conditions"]) == transformed_data["Z"]["Conditions"].loc[testing_samples]
-    )
-    for key in new_observations["F"]:
-        assert pytest.approx(new_observations["F"][key]) == transformed_data["F"][key].loc[testing_samples]
 
     # OK, now use these to make predictions
-    predictions = tpls_test.predict(new_observations)
+    predictions = tpls_test.predict(new_observation_raw)
     expected_keys = ["y_predicted", "super_scores", "hotellings_t2", "spe_z", "spe_f"]
-    for key in expected_keys:
-        assert key in predictions
+    assert set(expected_keys) == set(predictions.keys())
 
     # Test that the SPE_z values:
     assert pytest.approx([predictions["spe_z"][key].values[0, -1] for key in predictions["spe_z"]]) == [1.87201925670]
@@ -1544,13 +1516,15 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     assert all(tol < epsqrt for tol in tpls_test.fitting_statistics["convergance_tolerance"])
 
     # Model parameters tested
-    assert pytest.approx(tpls_test.hotellings_t2.iloc[0:5].values.ravel()) == np.array([
-        2.51977572,
-        2.96430904,
-        2.90972389,
-        4.52220244,
-        5.08398872,
-    ])
+    assert pytest.approx(tpls_test.hotellings_t2.iloc[0:5].values.ravel()) == np.array(
+        [
+            2.51977572,
+            2.96430904,
+            2.90972389,
+            4.52220244,
+            5.08398872,
+        ]
+    )
 
     # Model limits tested
     assert tpls_test.hotellings_t2_limit(0.95) == pytest.approx(8.318089340, rel=1e-6)
@@ -1563,7 +1537,6 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     assert np.square(tpls_test.spe["Z"]["Conditions"].iloc[-4:].values) == pytest.approx(
         [2.79721437, 2.00803271, 10.77913002, 3.26386299], rel=1e-8
     )
-
     assert np.square(tpls_test.spe["F"]["Group 1"].iloc[0:4].values) == pytest.approx(
         [167.44354056, 132.23399455, 201.50643669, 198.14628337], rel=1e-8
     )
@@ -1602,7 +1575,3 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     # TODO: perform various assertions on the model's Plotly plots
     assert tpls_test.plot.scores() is not None
     # assert tpls_test.plot.loadings() is not None
-
-
-# test_tpls_model_fitting(fixture_tpls_example())
-# test_pca_tablet_spectra(fixture_tablet_spectra_data())

@@ -1,7 +1,7 @@
 
 [project]
 name = "process-improve"
-version = "0.9.81"
+version = "0.9.83"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = {text = "MIT license"}
@@ -47,7 +47,6 @@ extend-ignore = [
     "ARG001", # Unusued argument
 
     # Annotations not required
-    "ANN101", # Missing type annotation for `self` in method
     "ANN002", # Missing type annotation for `*args`
     "ANN003", # Missing type annotation for `**kwargs`
     "ANN204", # Missing return type annotation for special method `__init__`
@@ -101,9 +100,9 @@ extend-ignore = [
     "COM812", # Trailing comma is not always needed - doesn't lead to more readable code.
 
     # Ignore certain flake8-type-checking (TCH) codes.
-    "TCH001", # Don't agree that this is a bad style. It leads to overly verbose code.
-    "TCH002", # Don't agree that this is a bad style. It leads to overly verbose code.
-    "TCH003", # Don't agree that this is a bad style. It leads to overly verbose code.
+    "TC001", # Don't agree that this is a bad style. It leads to overly verbose code.
+    "TC002", # Don't agree that this is a bad style. It leads to overly verbose code.
+    "TC003", # Don't agree that this is a bad style. It leads to overly verbose code.
 
     # Access private functions.
     "SLF001", # Sometimes we  need to access private functions
