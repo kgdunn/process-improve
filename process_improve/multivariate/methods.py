@@ -609,9 +609,9 @@ class PLS(PLS_sklearn):
         self.K: int = X.shape[1]
         self.Ny: int = Y.shape[0]
         self.M: int = Y.shape[1]
-        assert (
-            self.Ny == self.N
-        ), f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
+        assert self.Ny == self.N, (
+            f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
+        )
 
         # Check if number of components is supported against maximum requested
         min_dim = min(self.N, self.K)
@@ -1551,7 +1551,7 @@ class TPLS(BaseEstimator):
         self.tolerance_ = np.sqrt(np.finfo(float).eps)
         self.max_iterations_ = 500
         self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
-        self.required_blocks_ = {"D", "F", "Z", "Y"}
+        self.required_blocks_ = {"D", "F", "Y", "Z"}  # "Z" block is optional; an empty one is added if not provided
         self.plot = Plot(self)
 
     @_fit_context(prefer_skip_nested_validation=True)
@@ -1569,6 +1569,8 @@ class TPLS(BaseEstimator):
             Returns self.
         """
         self.is_fitted_ = False
+        if "Z" not in X:
+            X["Z"] = {}
         self._input_data_checks(X)
         group_keys = [str(key) for key in X["D"]]
 
@@ -1644,7 +1646,7 @@ class TPLS(BaseEstimator):
         self.w_loadings_z: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=self.condition_names[key]) for key in self.z_mats
         }
-        self.w_loadings_super = pd.DataFrame(index=["Z", "F"])
+        self.w_loadings_super = pd.DataFrame(index=["Z", "F"] if self.n_conditions > 0 else ["F"])
         self.p_loadings_f: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
         }
@@ -1672,7 +1674,7 @@ class TPLS(BaseEstimator):
         self.is_fitted_ = True
         return self
 
-    def predict(self, X: dict[str, dict[str, pd.DataFrame]]) -> dict:  # noqa: C901
+    def predict(self, X: dict[str, dict[str, pd.DataFrame]]) -> dict:  # noqa: C901, PLR0915
         """
         Model inference on new data.
 
@@ -1699,6 +1701,10 @@ class TPLS(BaseEstimator):
             Returns an array of prediction objects. More details to come here later. Please ask.
         """
         check_is_fitted(self)  # Check if fit had been called
+        assert "D" not in X, "The D block is not yet supported in the prediction phase."
+        assert "Y" not in X, "The Y block is not yet supported in the prediction phase."
+        if "Z" not in X:
+            X["Z"] = {}
 
         # TODO: Check consistency on the data: the columns names in the new data must match the columns names in the
         # training data.
@@ -1710,11 +1716,6 @@ class TPLS(BaseEstimator):
 
         for key, df_z in x_z.items():
             x_z[key] = (df_z - self.preproc_["Z"][key]["center"]) / self.preproc_["Z"][key]["scale"]
-
-        # if "D" in X and "Y" in X:
-        #     return "Early return with only the pre-processed data"
-        assert "D" not in X, "The D block is not yet supported in the prediction phase."
-        assert "Y" not in X, "The Y block is not yet supported in the prediction phase."
 
         not_na_f = {key: ~np.isnan(X["F"][key].values) for key in X["F"]}
         not_na_z = {key: ~np.isnan(X["Z"][key].values) for key in X["Z"]}
@@ -1731,6 +1732,7 @@ class TPLS(BaseEstimator):
         # Hotelling's T2 values, after so many components. In other words, in column 3, it is the Hotelling's T2
         # computed with 3 components.
         hotellings_t2 = pd.DataFrame(index=names_observations, columns=range(1, self.n_components + 1), dtype=float)
+        # Predictions are returned in un-scaled form, so they are in the same units as the training data.
         y_predicted: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=names_observations, columns=self.quality_names[key], dtype=float)
             for key in self.y_mats
@@ -1738,22 +1740,22 @@ class TPLS(BaseEstimator):
 
         for key, df_f in x_f.items():
             assert df_f.shape[0] == num_obs, "All formula blocks must have the same number of rows."
-            assert set(df_f.columns) == set(
-                self.property_names[key]
-            ), f"Columns in block F, group [{key}] must match training data column names"
+            assert set(df_f.columns) == set(self.property_names[key]), (
+                f"Columns in block F, group [{key}] must match training data column names"
+            )
 
         for key, df_z in x_z.items():
             assert df_z.shape[0] == num_obs, "All condition blocks must have the same number of rows."
-            assert set(df_z.columns) == set(
-                self.condition_names[key]
-            ), f"Columns names in block Z, group [{key}] must match training data column names."
+            assert set(df_z.columns) == set(self.condition_names[key]), (
+                f"Columns names in block Z, group [{key}] must match training data column names."
+            )
 
         for pc_a in range(self.n_components):
             # Regress the row of each new formula block on the r_loadings_f, to get the t-score for that pc_a component.
             # Add up the t-score as you go block by block.
             score_f_a = np.zeros(num_obs)
             denominators = np.zeros(num_obs)
-            for key, df_x_f in x_f.items():  # Updated to include .items()
+            for key, df_x_f in x_f.items():
                 b_row = np.array(self.r_loadings_f[key].iloc[:, pc_a].values)
                 # Tile row-by-row to create `n_rows`, and maps missing entries to zero, so they have no effect
                 denom = np.tile(b_row, (num_obs, 1)) * not_na_f[key]
@@ -1766,22 +1768,22 @@ class TPLS(BaseEstimator):
             # Repeat for the Z-space: regress the row of each new Z block on the w-loadings, to get the
             # t-score for that pc_a. It seems redundant to divide by w'w, since w is already normalized, but if there
             # are missing values, then that correction is needed, to avoid dividing by a larger value than is fair.
-            score_z_a = np.zeros(num_obs)
-            denominators = np.zeros(num_obs)
-            for key, df_x_z in x_z.items():  # Updated to include .items()
-                b_row = np.array(self.w_loadings_z[key].iloc[:, pc_a].values)
-                denom = np.tile(b_row, (num_obs, 1)) * not_na_z[key]
-                score_z_a += np.array(np.sum(df_x_z.values * denom, axis=1))
-                denominators += np.sum((denom * not_na_z[key]) ** 2, axis=1)
+            if self.n_conditions > 0:
+                score_z_a = np.zeros(num_obs)
+                denominators = np.zeros(num_obs)
+                for key, df_x_z in x_z.items():
+                    b_row = np.array(self.w_loadings_z[key].iloc[:, pc_a].values)
+                    denom = np.tile(b_row, (num_obs, 1)) * not_na_z[key]
+                    score_z_a += np.array(np.sum(df_x_z.values * denom, axis=1))
+                    denominators += np.sum((denom * not_na_z[key]) ** 2, axis=1)
 
-            denominators[denominators == 0] = np.nan  # Guard should not be needed; should never be zeros in here.
-            score_z_a /= denominators
-
-            # Multiply the individual block scores by the super-weights, to get the super-scores.
-            # After transposing below, rows are the observations, and columns are the blocks: [Z, F]
-            super_score_a = np.vstack([score_z_a, score_f_a]).T @ np.asarray(
-                self.w_loadings_super.iloc[:, pc_a].values
-            ).reshape(-1, 1)
+                # Multiply the individual block scores by the super-weights, to get the super-scores.
+                # After transposing below, rows are the observations, and columns are the blocks: [Z, F]
+                super_score_a = np.vstack([score_z_a, score_f_a]).T @ np.asarray(
+                    self.w_loadings_super.iloc[:, pc_a].values
+                ).reshape(-1, 1)
+            else:
+                super_score_a = score_f_a.reshape(-1, 1)  # The w_loadings_super are just "1" in this case
 
             # Deflate each block (key) in x_f matrices with the super_scores, to get values for the next iteration,
             # and to compute SPE.
@@ -1808,14 +1810,14 @@ class TPLS(BaseEstimator):
         # After the loop has repeated `self.n_components` times: calculate the predictions using the full set of super
         # scores and the q-loadings for the Y-space.
         for key in self.y_mats:
-            y_predicted[key].iloc[:, :] = super_scores.values @ self.q_loadings_y[key].values.T
+            y_predicted[key].iloc[:, :] = (super_scores.values @ self.q_loadings_y[key].values.T) * self.preproc_["Y"][
+                key
+            ]["scale"].values[None, :] + self.preproc_["Y"][key]["center"].values[None, :]
 
         # Calculate the T2 values: for all the spaces
         hotellings_t2.iloc[:, :] = (
             # Last item in the statement here is not super_scores.values !! we want the result back as a DataFrame
-            super_scores.values
-            @ np.diag(np.power(1 / self.scaling_factor_for_scores.values, 2), 0)
-            * super_scores
+            super_scores.values @ np.diag(np.power(1 / self.scaling_factor_for_scores.values, 2), 0) * super_scores
         ).cumsum(axis="columns")
 
         return dict(
@@ -1855,8 +1857,8 @@ class TPLS(BaseEstimator):
         scaling : pd.Series
             The scaling parameters.
         """
-        centering = y.mean(axis="rows")
-        scaling = y.std(ddof=1, axis="rows")
+        centering = y.mean(axis="index")
+        scaling = y.std(ddof=1, axis="index")
         scaling[scaling < self.tolerance_] = 1.0  # columns with little/no variance are left as-is.
         return centering, scaling
 
@@ -1918,7 +1920,9 @@ class TPLS(BaseEstimator):
             for key in w_i_z
         }
 
-        self.w_loadings_super = self.w_loadings_super.join(pd.DataFrame(w_super_i, index=["Z", "F"], columns=[pc_a]))
+        self.w_loadings_super = self.w_loadings_super.join(
+            pd.DataFrame(w_super_i, index=["Z", "F"] if self.n_conditions > 0 else ["F"], columns=[pc_a])
+        )
 
     def _calculate_and_store_deflation_matrices(
         self,
@@ -2165,6 +2169,7 @@ class TPLS(BaseEstimator):
 
                 else:
                     # Step 7: No Z block. Take an empty matrix across to the the superblock.
+                    w_i_z = {}
                     t_z = np.zeros((t_f.shape[0], 0))  # empty matrix: in other words, no Z block
 
                 # Step 10: Combine t_z and t_f to form a joint t matrix.

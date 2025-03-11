@@ -1492,6 +1492,11 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:  # noqa: PLR091
     expected_keys = ["y_predicted", "super_scores", "hotellings_t2", "spe_z", "spe_f"]
     assert set(expected_keys) == set(predictions.keys())
 
+    # Test the predicted values are what were expected:
+    assert pytest.approx(predictions["y_predicted"]["Quality"].iloc[0, :]) == np.array(
+        [33.09434113, 3.15224246, 58.76423934, 3.29991258, 79.90201127, 2.67042528]
+    )
+
     # Test that the SPE_z values:
     assert pytest.approx([predictions["spe_z"][key].values[0, -1] for key in predictions["spe_z"]]) == [1.87201925670]
 
@@ -1575,3 +1580,20 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:  # noqa: PLR091
     # TODO: perform various assertions on the model's Plotly plots
     assert tpls_test.plot.scores() is not None
     # assert tpls_test.plot.loadings() is not None
+
+    # Test building the model without the "Z" block.
+    fixture_tpls_example.pop("Z")
+    n_components = 3
+    tpls_test_no_z = TPLS(n_components=n_components).fit(fixture_tpls_example)
+    # Test the model's predictions. Use the first few samples of the data as a testing data point.
+    testing_samples = ["L001", "L002", "L003", "L004"]
+    new_observation_raw = {
+        "F": {key: val.loc[testing_samples] for key, val in fixture_tpls_example["F"].items()},
+    }
+
+    # OK, now use these to make predictions
+    predictions = tpls_test_no_z.predict(new_observation_raw)
+    expected_keys = ["y_predicted", "super_scores", "hotellings_t2", "spe_z", "spe_f"]
+    assert set(expected_keys) == set(predictions.keys())
+    assert predictions["spe_z"] == {}
+    assert predictions["spe_f"] is not None
