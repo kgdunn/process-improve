@@ -13,9 +13,10 @@ import pandas as pd
 import plotly.graph_objects as go
 import pytest
 from scipy.stats import chi2, f
-from sklearn.base import BaseEstimator, TransformerMixin, _fit_context
+from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, _fit_context
 from sklearn.cross_decomposition import PLSRegression as PLS_sklearn
 from sklearn.decomposition import PCA as PCA_sklearn
+from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
 
 from .plots import loading_plot, score_plot, spe_plot, t2_plot
@@ -609,9 +610,9 @@ class PLS(PLS_sklearn):
         self.K: int = X.shape[1]
         self.Ny: int = Y.shape[0]
         self.M: int = Y.shape[1]
-        assert self.Ny == self.N, (
-            f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
-        )
+        assert (
+            self.Ny == self.N
+        ), f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
 
         # Check if number of components is supported against maximum requested
         min_dim = min(self.N, self.K)
@@ -1454,7 +1455,7 @@ def internal_pls_nipals_fit_one_pc(
 #     return result
 
 
-class TPLS(BaseEstimator):
+class TPLS(RegressorMixin, BaseEstimator):
     """
     TPLS algorithm for T-shaped data structures, including standard pre-processing of the data.
 
@@ -1555,7 +1556,7 @@ class TPLS(BaseEstimator):
         self.plot = Plot(self)
 
     @_fit_context(prefer_skip_nested_validation=True)
-    def fit(self, X: dict[str, dict[str, pd.DataFrame]], y: None = None) -> TPLS:  # noqa: ARG002
+    def fit(self, X: dict[str, dict[str, pd.DataFrame]], y: None = None) -> TPLS:  # noqa: ARG002, PLR0915
         """Fit the preprocessing parameters and also the latent variable model from the training data.
 
         Parameters
@@ -1569,6 +1570,7 @@ class TPLS(BaseEstimator):
             Returns self.
         """
         self.is_fitted_ = False
+        assert isinstance(X, dict)
         if "Z" not in X:
             X["Z"] = {}
         self._input_data_checks(X)
@@ -1674,7 +1676,7 @@ class TPLS(BaseEstimator):
         self.is_fitted_ = True
         return self
 
-    def predict(self, X: dict[str, dict[str, pd.DataFrame]]) -> dict:  # noqa: C901, PLR0915
+    def predict(self, X: dict[str, dict[str, pd.DataFrame]]) -> Bunch:  # noqa: C901, PLR0915, PLR0912
         """
         Model inference on new data.
 
@@ -1740,15 +1742,15 @@ class TPLS(BaseEstimator):
 
         for key, df_f in x_f.items():
             assert df_f.shape[0] == num_obs, "All formula blocks must have the same number of rows."
-            assert set(df_f.columns) == set(self.property_names[key]), (
-                f"Columns in block F, group [{key}] must match training data column names"
-            )
+            assert set(df_f.columns) == set(
+                self.property_names[key]
+            ), f"Columns in block F, group [{key}] must match training data column names"
 
         for key, df_z in x_z.items():
             assert df_z.shape[0] == num_obs, "All condition blocks must have the same number of rows."
-            assert set(df_z.columns) == set(self.condition_names[key]), (
-                f"Columns names in block Z, group [{key}] must match training data column names."
-            )
+            assert set(df_z.columns) == set(
+                self.condition_names[key]
+            ), f"Columns names in block Z, group [{key}] must match training data column names."
 
         for pc_a in range(self.n_components):
             # Regress the row of each new formula block on the r_loadings_f, to get the t-score for that pc_a component.
@@ -1817,12 +1819,26 @@ class TPLS(BaseEstimator):
         # Calculate the T2 values: for all the spaces
         hotellings_t2.iloc[:, :] = (
             # Last item in the statement here is not super_scores.values !! we want the result back as a DataFrame
-            super_scores.values @ np.diag(np.power(1 / self.scaling_factor_for_scores.values, 2), 0) * super_scores
+            super_scores.values
+            @ np.diag(np.power(1 / self.scaling_factor_for_scores.values, 2), 0)
+            * super_scores
         ).cumsum(axis="columns")
 
-        return dict(
+        return Bunch(
             y_predicted=y_predicted, super_scores=super_scores, spe_z=spe_z, spe_f=spe_f, hotellings_t2=hotellings_t2
         )
+
+    def organize_data_as_single_matrix(self, X: dict[str, dict[str, pd.DataFrame]]) -> tuple[dict, dict]:
+        """Organize the data blocks from Z and F as a single matrix, storing markers for the block partitions.
+
+        For cross-validation and optimization of the model, the model needs to be re-partitioned into a single block,
+        to satisfy tooling such as scikit-learn's `cross_validate` function.
+
+        This function concatenates the data blocks from the Z and F matrices into a single matrix, with markers for the
+        blocks, and returns the indices for the block partitions. These indices need to be passed into the
+        cross-validation function, or the optimization function.
+        """
+        return {}, {}
 
     def _input_data_checks(self, X: dict[str, dict[str, pd.DataFrame]]) -> None:
         """Check the incoming data."""

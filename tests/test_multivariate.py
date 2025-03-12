@@ -5,6 +5,7 @@ import pathlib
 import numpy as np
 import pandas as pd
 import pytest
+import sklearn
 from sklearn.cross_decomposition import PLSRegression
 
 from process_improve.multivariate.methods import (
@@ -1367,7 +1368,7 @@ def fixture_tpls_example() -> dict[str, dict[str, pd.DataFrame]]:
     }
 
 
-def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:  # noqa: PLR0915
+def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     """
     Test the fitting process of the TPLS model to ensure it functions as expected.
 
@@ -1480,6 +1481,25 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:  # noqa: PLR091
     assert pytest.approx(tpls_test.preproc_["Y"]["Quality"]["center"]) == fixture_tpls_example["Y"]["Quality"].mean()
     assert pytest.approx(tpls_test.preproc_["Y"]["Quality"]["scale"]) == fixture_tpls_example["Y"]["Quality"].std()
 
+
+def test_tpls_model_plots(fixture_tpls_example: dict) -> None:
+    """Test the plotting functionality of the TPLS model."""
+
+    n_components = 3
+    tpls_test = TPLS(n_components=n_components)
+    tpls_test.fit(fixture_tpls_example)
+
+    # TODO: perform various assertions on the model's Plotly plots
+    assert tpls_test.plot.scores() is not None
+    # assert tpls_test.plot.loadings() is not None
+
+
+def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:
+    """Test the prediction process of the TPLS model to ensure it functions as expected."""
+    n_components = 3
+    tpls_test = TPLS(n_components=n_components)
+    tpls_test.fit(fixture_tpls_example)
+
     # Test the model's predictions. Use the first few samples of the data as a testing data point.
     testing_samples = ["L001", "L002", "L003", "L004"]
     new_observation_raw = {
@@ -1577,10 +1597,6 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:  # noqa: PLR091
     assert tpls_test.spe_limit["F"]["Group 4"](0.99) == pytest.approx(8.7773163687, rel=1e-8)
     assert tpls_test.spe_limit["F"]["Group 5"](0.99) == pytest.approx(7.8446720428, rel=1e-8)
 
-    # TODO: perform various assertions on the model's Plotly plots
-    assert tpls_test.plot.scores() is not None
-    # assert tpls_test.plot.loadings() is not None
-
     # Test building the model without the "Z" block.
     fixture_tpls_example.pop("Z")
     n_components = 3
@@ -1597,3 +1613,32 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:  # noqa: PLR091
     assert set(expected_keys) == set(predictions.keys())
     assert predictions["spe_z"] == {}
     assert predictions["spe_f"] is not None
+    assert predictions.spe_f is not None  # test the `Bunch` functionality
+
+
+def test_tpls_model_scores_cross_validation(fixture_tpls_example: dict) -> None:
+    """Test the prediction process of the TPLS model to ensure it functions as expected."""
+    n_components = 3
+    tpls_test = TPLS(n_components=n_components)
+    tpls_test.fit(fixture_tpls_example)
+
+    data_for_cross_validation, d_matrix = tpls_test.organize_data_as_single_matrix(fixture_tpls_example)
+
+    # from sklearn.model_selection import cross_validate
+
+    # with sklearn.config_context(skip_parameter_validation=True):
+    #     cv_results = cross_validate(
+    #         estimator=tpls_test,
+    #         X=data_for_cross_validation,
+    #         y=fixture_tpls_example["Y"],
+    #         cv=5,
+    #         # scoring={"score": scorer},
+    #         n_jobs=-1,
+    #         return_train_score=True,
+    #         # verbose=verbose,
+    #         params={"d_matrix": d_matrix},
+    #         # error_score=error_score,
+    #     )
+
+
+# test_tpls_model_scores_cross_validation(fixture_tpls_example())
