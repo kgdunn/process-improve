@@ -1661,8 +1661,17 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Model performance
         # -----------------
-        # 1. Prediction matrices (hat matrices: for example X^)
-        self.hat: dict[str, dict[str, np.ndarray]] = {key: {} for key in self.required_blocks_}
+        # 1. Prediction matrices (hat matrices for Y-space) in pre-processed space
+        self.hat_: dict[str, pd.DataFrame] = {
+            key: pd.DataFrame(index=self.observation_names, columns=self.quality_names[key], dtype=float).fillna(0)
+            for key in self.y_mats
+        }
+        # 2. Prediction matrix for the Y-space only, and then scaled back to the original space
+        self.hat: dict[str, pd.DataFrame] = {
+            key: pd.DataFrame(index=self.observation_names, columns=self.quality_names[key], dtype=float).fillna(0)
+            for key in self.y_mats
+        }
+
         # tss: dict[str, dict[str, np.ndarray]] = {}  # total sum of squares
         # r2_b: dict[str, dict[str, np.ndarray]] = {}  # R2 per block
         # r2_col: dict[str, dict[str, np.ndarray]] = {}  # R2 per variable (column)
@@ -1960,8 +1969,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             for key, df_z, pmap_z in zip(self.z_mats.keys(), self.z_mats.values(), self.not_na_z.values(), strict=True)
         }
         for key in self.z_mats:
-            self.hat["Z"][key] = t_super_i @ pz_b[key].T
-            self.z_mats[key] -= self.hat["Z"][key] * self.not_na_z[key]
+            self.z_mats[key] -= (t_super_i @ pz_b[key].T) * self.not_na_z[key]
         self.p_loadings_z = {
             key: self.p_loadings_z[key].join(pd.DataFrame(pz_b[key], index=self.condition_names[key], columns=[pc_a]))
             for key in pz_b
@@ -1987,12 +1995,10 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Step 14. Do the actual deflation.
         for key in self.d_mats:
             # Step to deflate F matrix
-            self.hat["F"][key] = t_super_i @ pf_i[key].T
-            self.f_mats[key] -= self.hat["F"][key] * self.not_na_f[key]
+            self.f_mats[key] -= (t_super_i @ pf_i[key].T) * self.not_na_f[key]
 
             # Two sets of matrices to deflate: properties D and formulas F.
-            self.hat["D"][key] = r_i[key] @ v_i[key].T
-            self.d_mats[key] -= self.hat["D"][key] * self.not_na_d[key]
+            self.d_mats[key] -= (r_i[key] @ v_i[key].T) * self.not_na_d[key]
 
         # Deflate the Y-space as well
         self.q_loadings_y = {
@@ -2000,8 +2006,8 @@ class TPLS(RegressorMixin, BaseEstimator):
             for key in self.y_mats
         }
         for key in self.y_mats:
-            self.hat["Y"][key] = t_super_i @ q_super_i.T
-            self.y_mats[key] -= self.hat["Y"][key] * self.not_na_y[key]
+            self.hat_[key] += t_super_i @ q_super_i.T
+            self.y_mats[key] -= (t_super_i @ q_super_i.T) * self.not_na_y[key]
 
     def _update_performance_statistics(self) -> None:
         """Calculate and store the performance statistics of the model, such as R2, TSS, etc."""
@@ -2012,6 +2018,9 @@ class TPLS(RegressorMixin, BaseEstimator):
         Limits calculated:
         1. Hotelling's T2 limits
         2. Squared prediction error limits
+
+        Other calculations:
+        1. The model's Y-space predictions are scaled back to the original space.
         """
 
         # Calculate the Hotelling's T2 values, and limits. Could do a ddof correction (n-1) for the variance matrix.
@@ -2074,6 +2083,13 @@ class TPLS(RegressorMixin, BaseEstimator):
             for key in self.f_mats
         }
         self.spe_limit["F"] = {key: partial(spe_calculation, self.spe["F"][key].values) for key in self.f_mats}
+
+        # Y-space predictions
+        for key in self.y_mats:
+            # The Y-space predictions are already in the pre-processed space, so we need to scale them back to the
+            self.hat[key] = pd.DataFrame(self.hat_[key], index=self.observation_names, columns=self.quality_names[key])
+            self.hat[key] = self.hat[key].multiply(self.preproc_["Y"][key]["scale"].values[None, :], axis=1)
+            self.hat[key] += self.preproc_["Y"][key]["center"].values[None, :]
 
     def _preprocess_data(self) -> None:
         """Pre-process the training data."""

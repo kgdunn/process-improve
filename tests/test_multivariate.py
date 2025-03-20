@@ -1516,6 +1516,10 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:
     assert pytest.approx(predictions["y_predicted"]["Quality"].iloc[0, :]) == np.array(
         [33.09434113, 3.15224246, 58.76423934, 3.29991258, 79.90201127, 2.67042528]
     )
+    # Compare the predictions to what is stored in the training data
+    assert pytest.approx(predictions["y_predicted"]["Quality"].iloc[0, :]) == np.array(
+        tpls_test.hat["Quality"].iloc[0, :].values
+    )
 
     # Test that the SPE_z values:
     assert pytest.approx([predictions["spe_z"][key].values[0, -1] for key in predictions["spe_z"]]) == [1.87201925670]
@@ -1641,4 +1645,4 @@ def test_tpls_model_scores_cross_validation(fixture_tpls_example: dict) -> None:
     #     )
 
 
-# test_tpls_model_scores_cross_validation(fixture_tpls_example())
+# test_tpls_model_predictions(fixture_tpls_example())
