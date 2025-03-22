@@ -60,6 +60,6 @@ repos:
 
     - repo: https://github.com/charliermarsh/ruff-pre-commit
       # Ruff version. To eventually replace flake8?
-      rev: "v0.11.1"
+      rev: "v0.11.2"
       hooks:
         - id: ruff
