@@ -1532,9 +1532,9 @@ class TPLS(RegressorMixin, BaseEstimator):
     >>>     "Group B": pd.DataFrame(rng.standard_normal((n_formulas, n_materials_b))),
     >>> }
     >>> process_conditions = {"Conditions": pd.DataFrame(rng.standard_normal((n_formulas, n_conditions)))}
-    >>> quality_indicators = {"Quality":    pd.DataFrame(rng.standard_normal((n_formulas, n_outputs)))
+    >>> quality_indicators = {"Quality":    pd.DataFrame(rng.standard_normal((n_formulas, n_outputs)))}
     >>> all_data = {"Z": process_conditions, "D": properties, "F": formulas, "Y": quality_indicators}
-    >>> estimator = TPLS()
+    >>> estimator = TPLS(n_components=4)
     >>> estimator.fit(all_data)
     """
 
