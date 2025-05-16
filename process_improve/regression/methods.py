@@ -137,7 +137,8 @@ def simple_robust_regression(  # noqa: PLR0913, PLR0915
     if (y_.size <= 2) or (X_.size <= 2):
         return out
 
-    x_, y_ = x.copy().ravel(), y.copy().ravel()
+    x_ = x.copy().ravel() if isinstance(x, np.ndarray) else x.copy().to_numpy()
+    y_ = y.copy().ravel() if isinstance(y, np.ndarray) else y.copy().to_numpy()
     x, y = x_[~np.isnan(x_) & ~np.isnan(y_)], y_[~np.isnan(x_) & ~np.isnan(y_)]
 
     slope = repeated_median_slope(x, y, nowarn=nowarn)
