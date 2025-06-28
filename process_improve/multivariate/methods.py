@@ -1578,6 +1578,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Storage for pre-processing and the raw matrices
         self.preproc_: dict[str, dict[str, dict[str, pd.Series]]] = {key: {} for key in self.required_blocks_}
+        self.variances_: dict[str, dict[str, dict[str, pd.Series]]] = {key: {} for key in self.required_blocks_}
         self.d_mats: dict[str, np.ndarray] = {key: X["D"][key].values.copy() for key in group_keys}
         self.f_mats: dict[str, np.ndarray] = {key: X["F"][key].values.copy() for key in group_keys}
         self.z_mats: dict[str, np.ndarray] = {key: X["Z"][key].values.copy() for key in X["Z"]}
@@ -1609,6 +1610,17 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Then implement the preprocessing on the raw data
         self._preprocess_data()
+
+        # TODO: store variance of each block at this moment, before setting NaN -> Zero
+        # Variance values for each column in each block; used to calculate R2 and R2 sum.
+        # You can sum the variance values from all columns to get the total variance for each block.
+        # The variance is calculated in the pre-processed space, so it is not affected by the centering and scaling.
+        self.variances_ = {
+            "D": {key: np.nanvar(self.d_mats[key], axis=0, ddof=1) for key in group_keys},
+            "F": {key: np.nanvar(self.f_mats[key], axis=0, ddof=1) for key in group_keys},
+            "Z": {key: np.nanvar(self.z_mats[key], axis=0, ddof=1) for key in X["Z"]},
+            "Y": {key: np.nanvar(self.y_mats[key], axis=0, ddof=1) for key in X["Y"]},
+        }
 
         # Then set missing data values to zeros (not because we are ignoring the values), but because we will use
         # the missing value maps to identify where the missing values are and therefore ignore them. But set to zero,
@@ -1672,20 +1684,21 @@ class TPLS(RegressorMixin, BaseEstimator):
             for key in self.y_mats
         }
 
-        # tss: dict[str, dict[str, np.ndarray]] = {}  # total sum of squares
-        # r2_b: dict[str, dict[str, np.ndarray]] = {}  # R2 per block
-        # r2_col: dict[str, dict[str, np.ndarray]] = {}  # R2 per variable (column)
+        # 3. Squared prediction error (SPE) for each observation, per component
         self.spe: dict[str, dict[str, pd.DataFrame]] = {key: {} for key in self.required_blocks_}
         self.spe_limit: dict[str, dict[str, Callable]] = {key: {} for key in self.required_blocks_}
+
+        # 4. Hotelling's T2 values for each observation, per component
         self.hotellings_t2: pd.DataFrame = pd.DataFrame()
         self.hotellings_t2_limit: Callable = hotellings_t2_limit
         self.scaling_factor_for_scores = pd.Series()
         self.ellipse_coordinates: Callable = ellipse_coordinates
+
         self._fit_iterative_regressions()
         self.is_fitted_ = True
         return self
 
-    def predict(self, X: dict[str, dict[str, pd.DataFrame]]) -> Bunch:  # noqa: C901, PLR0915, PLR0912
+    def predict(self, X: dict[str, dict[str, pd.DataFrame]]) -> Bunch:  # noqa: C901, PLR0912
         """
         Model inference on new data.
 
@@ -1712,8 +1725,10 @@ class TPLS(RegressorMixin, BaseEstimator):
             Returns an array of prediction objects. More details to come here later. Please ask.
         """
         check_is_fitted(self)  # Check if fit had been called
-        assert "D" not in X, "The D block is not yet supported in the prediction phase."
-        assert "Y" not in X, "The Y block is not yet supported in the prediction phase."
+
+        # Ignore any D matrix that is provided, since it is not used in the prediction phase.
+        # assert "D" not in X, "The D block is not yet supported in the prediction phase."
+        # assert "Y" not in X, "The Y block is not yet supported in the prediction phase."
         if "Z" not in X:
             X["Z"] = {}
 
@@ -1836,18 +1851,6 @@ class TPLS(RegressorMixin, BaseEstimator):
         return Bunch(
             y_predicted=y_predicted, super_scores=super_scores, spe_z=spe_z, spe_f=spe_f, hotellings_t2=hotellings_t2
         )
-
-    def organize_data_as_single_matrix(self, X: dict[str, dict[str, pd.DataFrame]]) -> tuple[dict, dict]:
-        """Organize the data blocks from Z and F as a single matrix, storing markers for the block partitions.
-
-        For cross-validation and optimization of the model, the model needs to be re-partitioned into a single block,
-        to satisfy tooling such as scikit-learn's `cross_validate` function.
-
-        This function concatenates the data blocks from the Z and F matrices into a single matrix, with markers for the
-        blocks, and returns the indices for the block partitions. These indices need to be passed into the
-        cross-validation function, or the optimization function.
-        """
-        return {}, {}
 
     def _input_data_checks(self, X: dict[str, dict[str, pd.DataFrame]]) -> None:
         """Check the incoming data."""
@@ -2114,18 +2117,39 @@ class TPLS(RegressorMixin, BaseEstimator):
             ][key]["scale"].values[None, :]
 
         # Test that all blocks and groups within a block have a mean of 0 and a standard deviation of 1.
+        # Note the extra complexity with np.where: this skips checking columns that have perfectly zero stddev.
         assert all(pytest.approx(np.nanmean(self.z_mats[key], axis=0)) == 0 for key in self.z_mats)
-        assert all(pytest.approx(np.nanstd(self.z_mats[key], axis=0, ddof=1)) == 1 for key in self.z_mats)
+        assert all(
+            pytest.approx(np.where((in_array := np.nanstd(self.z_mats[key], axis=0, ddof=1)) == 0, 1, in_array)) == 1
+            for key in self.z_mats
+        )
 
         assert all(pytest.approx(np.nanmean(self.f_mats[key], axis=0)) == 0 for key in self.f_mats)
-        assert all(pytest.approx(np.nanstd(self.f_mats[key], axis=0, ddof=1)) == 1 for key in self.f_mats)
+        assert all(
+            pytest.approx(np.where((in_array := np.nanstd(self.f_mats[key], axis=0, ddof=1)) == 0, 1, in_array)) == 1
+            for key in self.f_mats
+        )
 
         assert all(pytest.approx(np.nanmean(self.y_mats[key], axis=0)) == 0 for key in self.y_mats)
-        assert all(pytest.approx(np.nanstd(self.y_mats[key], axis=0, ddof=1)) == 1 for key in self.y_mats)
+        assert all(
+            pytest.approx(np.where((in_array := np.nanstd(self.y_mats[key], axis=0, ddof=1)) == 0, 1, in_array)) == 1
+            for key in self.y_mats
+        )
 
         assert all(pytest.approx(np.nanmean(self.d_mats[key], axis=0)) == 0 for key in self.d_mats)
         assert all(
-            pytest.approx(np.nanstd(self.d_mats[key], axis=0, ddof=1) * self.preproc_["D"][key]["block"].values[0]) == 1
+            pytest.approx(
+                np.where(
+                    (
+                        in_array := np.nanstd(self.d_mats[key], axis=0, ddof=1)
+                        * self.preproc_["D"][key]["block"].values[0]
+                    )
+                    == 0,
+                    1,
+                    in_array,
+                )
+            )
+            == 1
             for key in self.d_mats
         )
 
@@ -2238,6 +2262,77 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Step 15: Calculate the final model limit
         self._calculate_model_statistics_and_limits()
+
+    # def r2_score(
+    #     self, X: dict[str, dict[str, pd.DataFrame]], y: dict[str, pd.DataFrame], sample_weight: np.ndarray|None = None
+    # ) -> float:
+    #     """Calculate the R^2 score for the model."""
+
+    #     y_pred = self.predict(X)
+    #     return r2_score(y, y_pred, sample_weight=sample_weight)
+
+    # def _calculate_r2_score(
+    #     self, y_true: dict[str, pd.DataFrame], y_pred: dict[str, pd.DataFrame], sample_weight: np.ndarray|None = None
+    # ) -> float:
+    #     """Calculate R^2 score across all Y blocks."""
+    #     total_ss_res = 0.0
+    #     total_ss_tot = 1e-10
+
+    # for key in y_true.keys():
+    #     y_true_values = y_true[key].values
+    #     y_pred_values = y_pred[key].values
+
+    #     # Handle sample weights
+    #     if sample_weight is not None:
+    #         weights = sample_weight.reshape(-1, 1)
+    #         # Residual sum of squares (weighted)
+    #         ss_res = np.sum(weights * (y_true_values - y_pred_values) ** 2)
+    #         # Total sum of squares (weighted)
+    #         y_mean_weighted = np.average(y_true_values, weights=sample_weight.flatten(), axis=0)
+    #         ss_tot = np.sum(weights * (y_true_values - y_mean_weighted) ** 2)
+    #     else:
+    #         # Residual sum of squares
+    #         ss_res = np.sum((y_true_values - y_pred_values) ** 2)
+    #         # Total sum of squares
+    #         y_mean = np.mean(y_true_values, axis=0)
+    #         ss_tot = np.sum((y_true_values - y_mean) ** 2)
+
+    #     total_ss_res += ss_res
+    #     total_ss_tot += ss_tot
+
+    # # Calculate R² = 1 - (SS_res / SS_tot)
+    # if total_ss_tot == 0:
+    #     return 0.0 if total_ss_res == 0 else float("-inf")
+
+    #    return 1.0 - (total_ss_res / total_ss_tot)
+
+    # def _calculate_rmse_score(
+    #     self, y_true: dict[str, pd.DataFrame], y_pred: dict[str, pd.DataFrame], sample_weight: np.ndarray|None = None
+    # ) -> float:
+    #     """Calculate Root Mean Square Error across all Y blocks."""
+    #     # TODO: Implement RMSE calculation
+    #     # RMSE = sqrt(mean((y_true - y_pred)^2))
+    #     # For multioutput: can use weighted average or return negative RMSE (lower is better)
+    #     raise NotImplementedError("RMSE scoring not yet implemented")
+
+    # def _calculate_mae_score(
+    #     self, y_true: dict[str, pd.DataFrame], y_pred: dict[str, pd.DataFrame], sample_weight: np.ndarray|None = None
+    # ) -> float:
+    #     """Calculate Mean Absolute Error across all Y blocks."""
+    #     # TODO: Implement MAE calculation
+    #     # MAE = mean(|y_true - y_pred|)
+    #     # For multioutput: can use weighted average or return negative MAE (lower is better)
+    #     raise NotImplementedError("MAE scoring not yet implemented")
+
+    # def _calculate_mape_score(
+    #     self, y_true: dict[str, pd.DataFrame], y_pred: dict[str, pd.DataFrame], sample_weight: np.ndarray|None = None
+    # ) -> float:
+    #     """Calculate Mean Absolute Percentage Error across all Y blocks."""
+    #     # TODO: Implement MAPE calculation
+    #     # MAPE = mean(|y_true - y_pred| / |y_true|) * 100
+    #     # Handle division by zero for y_true values close to 0
+    #     # For multioutput: can use weighted average or return negative MAPE (lower is better)
+    #     raise NotImplementedError("MAPE scoring not yet implemented")
 
 
 class Plot:

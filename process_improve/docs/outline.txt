@@ -1,6 +1,16 @@
 
 
-From specification ->
-Gather data ->
-Modelling ->
-Visualization/reporting
+
+Scoring function: R2
+--------------------
+
+The R2 scoring function is a statistical measure that represents the proportion of variance for a dependent variable \
+that is explained by an independent variable or variables in a regression model.
+
+For multivariate regression, the R2 score is calculated across all blocks of Y values. The general formula for R2 is:
+
+R2 = 1 - (SS_res / SS_tot) = (SS_tot - SS_res) / SS_tot = what you were able to explain, divided by what you started with.
+
+Where:
+* SS_res is the sum of squares of residuals (the difference between the observed and predicted values).
+* SS_tot is the total sum of squares (the variance of the observed values).
