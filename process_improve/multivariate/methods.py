@@ -1455,6 +1455,42 @@ def internal_pls_nipals_fit_one_pc(
 #     return result
 
 
+class DataFrameDict:
+    def __init__(self, datadict: dict):
+        """
+        Initialize a DataFrameDict to handle partitionable and static dataframes.
+
+        data_dict: Dictionary of dataframes
+        """
+        self.datadict = datadict
+        self.partitionable_keys = ["Z", "F", "Y"]
+        self.static_keys = ["D"]
+
+        first_entry = next(iter(datadict["F"].keys()))
+        self.n_samples = datadict["F"][first_entry].shape[0]
+
+        # Validate that all partitionable dataframes have the same length
+        # lengths = [len(data_dict[key]) for key in self.partitionable_keys]
+        # if len(set(lengths)) > 1:
+        #     raise ValueError("All partitionable dataframes must have the same length")
+        # self.n_samples = lengths[0] if lengths else 0
+
+    def __getitem__(self, indices):
+        """Return a new DataFrameDict with partitioned data."""
+        datadict = {}
+
+        for key, df_block in self.datadict.items():
+            if key in self.partitionable_keys:
+                datadict[key] = {key: df_block[key].iloc[indices] for key in df_block}
+            else:
+                datadict[key] = df_block
+
+        return datadict
+
+    def __len__(self):
+        return self.n_samples
+
+
 class TPLS(RegressorMixin, BaseEstimator):
     """
     TPLS algorithm for T-shaped data structures, including standard pre-processing of the data.
@@ -1549,6 +1585,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         assert n_components > 0, "Number of components must be positive."
         self.n_components = n_components
         self.n_substances = 0
+        self.n_samples = 0
         self.tolerance_ = np.sqrt(np.finfo(float).eps)
         self.max_iterations_ = 500
         self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
@@ -1570,7 +1607,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             Returns self.
         """
         self.is_fitted_ = False
-        assert isinstance(X, dict)
+        # assert isinstance(X, dict)
         if "Z" not in X:
             X["Z"] = {}
         self._input_data_checks(X)
@@ -1578,11 +1615,17 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Storage for pre-processing and the raw matrices
         self.preproc_: dict[str, dict[str, dict[str, pd.Series]]] = {key: {} for key in self.required_blocks_}
-        self.variances_: dict[str, dict[str, dict[str, pd.Series]]] = {key: {} for key in self.required_blocks_}
+        self.sums_of_squares_: dict[str, dict[str, dict[str, pd.Series]]] = {key: {} for key in self.required_blocks_}
         self.d_mats: dict[str, np.ndarray] = {key: X["D"][key].values.copy() for key in group_keys}
         self.f_mats: dict[str, np.ndarray] = {key: X["F"][key].values.copy() for key in group_keys}
         self.z_mats: dict[str, np.ndarray] = {key: X["Z"][key].values.copy() for key in X["Z"]}
         self.y_mats: dict[str, np.ndarray] = {key: X["Y"][key].values.copy() for key in X["Y"]}
+
+        # Empty model coefficients
+        self.n_substances = sum(self.f_mats[key].shape[1] for key in group_keys)
+        self.n_conditions = sum(self.z_mats[key].shape[1] for key in self.z_mats)
+        self.n_outputs = sum(self.y_mats[key].shape[1] for key in self.y_mats)
+        self.n_samples = self.f_mats[group_keys[0]].shape[0]
 
         # Learn the centering and scaling parameters
         for key in X["Y"]:
@@ -1611,16 +1654,18 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Then implement the preprocessing on the raw data
         self._preprocess_data()
 
-        # TODO: store variance of each block at this moment, before setting NaN -> Zero
-        # Variance values for each column in each block; used to calculate R2 and R2 sum.
-        # You can sum the variance values from all columns to get the total variance for each block.
-        # The variance is calculated in the pre-processed space, so it is not affected by the centering and scaling.
-        self.variances_ = {
-            "D": {key: np.nanvar(self.d_mats[key], axis=0, ddof=1) for key in group_keys},
-            "F": {key: np.nanvar(self.f_mats[key], axis=0, ddof=1) for key in group_keys},
-            "Z": {key: np.nanvar(self.z_mats[key], axis=0, ddof=1) for key in X["Z"]},
-            "Y": {key: np.nanvar(self.y_mats[key], axis=0, ddof=1) for key in X["Y"]},
-        }
+        # Sum of square values for each column in each block (dicts) per component (elements in the list)
+        # The first entry is after centering and scale (baseline variance) but before fitting any components.
+        # The second entry is after fitting one component, and so on. Strictly speaking these are sums of squares
+        # You can sum the sums-of-squares values for all columns to get the total variance for each block.
+        self.sums_of_squares_: list[dict] = [
+            {
+                # "D": {key: np.nanvar(self.d_mats[key], axis=1, ddof=0) for key in group_keys},
+                "F": {key: np.nanvar(self.f_mats[key], axis=0, ddof=0) * self.n_samples for key in group_keys},
+                "Z": {key: np.nanvar(self.z_mats[key], axis=0, ddof=0) * self.n_samples for key in X["Z"]},
+                "Y": {key: np.nanvar(self.y_mats[key], axis=0, ddof=0) * self.n_samples for key in X["Y"]},
+            }
+        ]
 
         # Then set missing data values to zeros (not because we are ignoring the values), but because we will use
         # the missing value maps to identify where the missing values are and therefore ignore them. But set to zero,
@@ -1642,11 +1687,6 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.not_na_f = {key: ~np.isnan(X["F"][key].values) for key in self.f_mats}
         self.not_na_z = {key: ~np.isnan(X["Z"][key].values) for key in self.z_mats}
         self.not_na_y = {key: ~np.isnan(X["Y"][key].values) for key in self.y_mats}
-
-        # Empty model coefficients
-        self.n_substances = sum(self.f_mats[key].shape[1] for key in group_keys)
-        self.n_conditions = sum(self.z_mats[key].shape[1] for key in self.z_mats)
-        self.n_outputs = sum(self.y_mats[key].shape[1] for key in self.y_mats)
 
         # Model parameters. Naming convention: x_i_j
         # x = block letter (P, W, R, T, etc)
@@ -2014,6 +2054,13 @@ class TPLS(RegressorMixin, BaseEstimator):
 
     def _update_performance_statistics(self) -> None:
         """Calculate and store the performance statistics of the model, such as R2, TSS, etc."""
+        calc_ssq = {
+            # "D": {key: np.nanvar(self.d_mats[key], axis=1, ddof=0) for key in group_keys},
+            "F": {key: np.nanvar(self.f_mats[key], axis=0, ddof=0) * self.n_samples for key in self.f_mats},
+            "Z": {key: np.nanvar(self.z_mats[key], axis=0, ddof=0) * self.n_samples for key in self.z_mats},
+            "Y": {key: np.nanvar(self.y_mats[key], axis=0, ddof=0) * self.n_samples for key in self.y_mats},
+        }
+        self.sums_of_squares_.append(calc_ssq)
 
     def _calculate_model_statistics_and_limits(self) -> None:
         """Calculate and store the model limits.
@@ -2262,6 +2309,42 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Step 15: Calculate the final model limit
         self._calculate_model_statistics_and_limits()
+
+    def display_results(self, show_cumulative_stats: bool = True) -> str:
+        """Display the results of the model fitting."""
+
+        ssq_z_start = sum([ssq.sum() for key, ssq in self.sums_of_squares_[0]["Z"].items()])
+        ssq_f_start = sum([ssq.sum() for key, ssq in self.sums_of_squares_[0]["F"].items()])
+        ssq_y_start = sum([ssq.sum() for key, ssq in self.sums_of_squares_[0]["Y"].items()])
+
+        output = ""
+        output += f"Model fitted with A={self.n_components} components.\n"
+        output += f"Fitting statistics: {self.fitting_statistics}\n"
+        output += f"Hotelling's T2 limits: {self.hotellings_t2_limit():.4g}\n"
+        # output += f"SPE limits: {self.spe_limit['Y'](self.spe['Y'])}\n"
+        output += "--------------------------------------------------------------\n"
+        if show_cumulative_stats:
+            header = "LV #   sum(R2Z)    sum(R2F)   sum(R2Y)"
+        else:
+            header = "LV #   R2Z         R2F        R2Y"
+        output += header + "\n"
+        for a in range(1, self.n_components + 1):
+            ssq_z_a = sum([ssq.sum() for key, ssq in self.sums_of_squares_[a]["Z"].items()])
+            ssq_f_a = sum([ssq.sum() for key, ssq in self.sums_of_squares_[a]["F"].items()])
+            ssq_y_a = sum([ssq.sum() for key, ssq in self.sums_of_squares_[a]["Y"].items()])
+
+            if show_cumulative_stats:
+                ssq_z = 100 - ssq_z_a / ssq_z_start * 100
+                ssq_f = 100 - ssq_f_a / ssq_f_start * 100
+                ssq_y = 100 - ssq_y_a / ssq_y_start * 100
+            else:
+                ssq_z = ssq_z_a / ssq_z_start * 100
+                ssq_f = ssq_f_a / ssq_f_start * 100
+                ssq_y = ssq_y_a / ssq_y_start * 100
+
+            line = f"LV {a}   {ssq_z:.1f}        {ssq_f:.1f}        {ssq_y:.1f}"
+            output += line + "\n"
+        return output
 
     # def r2_score(
     #     self, X: dict[str, dict[str, pd.DataFrame]], y: dict[str, pd.DataFrame], sample_weight: np.ndarray|None = None
