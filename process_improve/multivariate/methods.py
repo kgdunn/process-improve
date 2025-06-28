@@ -1615,7 +1615,9 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Storage for pre-processing and the raw matrices
         self.preproc_: dict[str, dict[str, dict[str, pd.Series]]] = {key: {} for key in self.required_blocks_}
-        self.sums_of_squares_: dict[str, dict[str, dict[str, pd.Series]]] = {key: {} for key in self.required_blocks_}
+        self.sums_of_squares_: list[dict[str, dict[str, dict[str, pd.Series]]]] = [
+            {key: {} for key in self.required_blocks_}
+        ]
         self.d_mats: dict[str, np.ndarray] = {key: X["D"][key].values.copy() for key in group_keys}
         self.f_mats: dict[str, np.ndarray] = {key: X["F"][key].values.copy() for key in group_keys}
         self.z_mats: dict[str, np.ndarray] = {key: X["Z"][key].values.copy() for key in X["Z"]}
@@ -1658,7 +1660,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         # The first entry is after centering and scale (baseline variance) but before fitting any components.
         # The second entry is after fitting one component, and so on. Strictly speaking these are sums of squares
         # You can sum the sums-of-squares values for all columns to get the total variance for each block.
-        self.sums_of_squares_: list[dict] = [
+        self.sums_of_squares_ = [
             {
                 # "D": {key: np.nanvar(self.d_mats[key], axis=1, ddof=0) for key in group_keys},
                 "F": {key: np.nanvar(self.f_mats[key], axis=0, ddof=0) * self.n_samples for key in group_keys},
@@ -2316,18 +2318,29 @@ class TPLS(RegressorMixin, BaseEstimator):
         ssq_z_start = sum([ssq.sum() for key, ssq in self.sums_of_squares_[0]["Z"].items()])
         ssq_f_start = sum([ssq.sum() for key, ssq in self.sums_of_squares_[0]["F"].items()])
         ssq_y_start = sum([ssq.sum() for key, ssq in self.sums_of_squares_[0]["Y"].items()])
+        itertime = ", ".join(
+            [
+                f"{iter} [{int(time)} ms]"
+                for iter, time in zip(self.fitting_statistics["iterations"], self.fitting_statistics["milliseconds"])
+            ]
+        )
+        ms_per_iter = round(
+            sum(self.fitting_statistics["milliseconds"]) / sum(self.fitting_statistics["iterations"]), 1
+        )
 
         output = ""
-        output += f"Model fitted with A={self.n_components} components.\n"
-        output += f"Fitting statistics: {self.fitting_statistics}\n"
-        output += f"Hotelling's T2 limits: {self.hotellings_t2_limit():.4g}\n"
+        output += f"Iterations & timing: {itertime} with {ms_per_iter} ms/iter\n"
+        output += f"Hotelling's T2 limit: {self.hotellings_t2_limit():.4g}\n"
         # output += f"SPE limits: {self.spe_limit['Y'](self.spe['Y'])}\n"
-        output += "--------------------------------------------------------------\n"
+        output += "------ ----------- ---------- ----------\n"
         if show_cumulative_stats:
-            header = "LV #   sum(R2Z)    sum(R2F)   sum(R2Y)"
+            header = "LV #      sum(R2Z)   sum(R2F)   sum(R2Y)"
         else:
-            header = "LV #   R2Z         R2F        R2Y"
-        output += header + "\n"
+            header = "LV #           R2Z        R2F        R2Y"
+        output += header + "\n------ ----------- ---------- ----------\n"
+        ssq_z_a_prior = ssq_z_start
+        ssq_f_a_prior = ssq_f_start
+        ssq_y_a_prior = ssq_y_start
         for a in range(1, self.n_components + 1):
             ssq_z_a = sum([ssq.sum() for key, ssq in self.sums_of_squares_[a]["Z"].items()])
             ssq_f_a = sum([ssq.sum() for key, ssq in self.sums_of_squares_[a]["F"].items()])
@@ -2338,12 +2351,18 @@ class TPLS(RegressorMixin, BaseEstimator):
                 ssq_f = 100 - ssq_f_a / ssq_f_start * 100
                 ssq_y = 100 - ssq_y_a / ssq_y_start * 100
             else:
-                ssq_z = ssq_z_a / ssq_z_start * 100
-                ssq_f = ssq_f_a / ssq_f_start * 100
-                ssq_y = ssq_y_a / ssq_y_start * 100
+                ssq_z = (ssq_z_a_prior - ssq_z_a) / ssq_z_start * 100
+                ssq_f = (ssq_f_a_prior - ssq_f_a) / ssq_f_start * 100
+                ssq_y = (ssq_y_a_prior - ssq_y_a) / ssq_y_start * 100
+                ssq_z_a_prior = ssq_z_a
+                ssq_f_a_prior = ssq_f_a
+                ssq_y_a_prior = ssq_y_a
 
-            line = f"LV {a}   {ssq_z:.1f}        {ssq_f:.1f}        {ssq_y:.1f}"
+            line = f"LV {a:<2}   {ssq_z:>10.1f} {ssq_f:>10.1f} {ssq_y:>10.1f}"
             output += line + "\n"
+
+        output += "------ ----------- ---------- ----------\n"
+
         return output
 
     # def r2_score(
