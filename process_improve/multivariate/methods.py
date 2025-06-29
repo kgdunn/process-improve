@@ -1475,7 +1475,7 @@ class DataFrameDict:
         #     raise ValueError("All partitionable dataframes must have the same length")
         # self.n_samples = lengths[0] if lengths else 0
 
-    def __getitem__(self, indices):
+    def __getitem__(self, indices: int | list[int]) -> dict:
         """Return a new DataFrameDict with partitioned data."""
         datadict = {}
 
@@ -1580,14 +1580,14 @@ class TPLS(RegressorMixin, BaseEstimator):
         "n_components": [int],
     }
 
-    def __init__(self, n_components: int):
+    def __init__(self, n_components: int, max_iterations: int = 500):
         super().__init__()
         assert n_components > 0, "Number of components must be positive."
         self.n_components = n_components
         self.n_substances = 0
         self.n_samples = 0
         self.tolerance_ = np.sqrt(np.finfo(float).eps)
-        self.max_iterations_ = 500
+        self.max_iterations = max_iterations
         self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
         self.required_blocks_ = {"D", "F", "Y", "Z"}  # "Z" block is optional; an empty one is added if not provided
         self.plot = Plot(self)
@@ -1961,7 +1961,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             np.linalg.norm(starting_vector - revised_vector, ord=None) / np.linalg.norm(starting_vector, ord=None)
         )
         converged = delta_gap < self.tolerance_
-        max_iter = iterations >= self.max_iterations_
+        max_iter = iterations >= self.max_iterations
         return bool(np.any([max_iter, converged]))
 
     def _store_model_coefficients(
@@ -2315,7 +2315,9 @@ class TPLS(RegressorMixin, BaseEstimator):
     def display_results(self, show_cumulative_stats: bool = True) -> str:
         """Display the results of the model fitting."""
 
-        ssq_z_start = sum([ssq.sum() for key, ssq in self.sums_of_squares_[0]["Z"].items()])
+        ssq_z_start = (
+            sum([ssq.sum() for key, ssq in self.sums_of_squares_[0]["Z"].items()]) if self.n_conditions > 0 else 1.0
+        )
         ssq_f_start = sum([ssq.sum() for key, ssq in self.sums_of_squares_[0]["F"].items()])
         ssq_y_start = sum([ssq.sum() for key, ssq in self.sums_of_squares_[0]["Y"].items()])
         output = f"Hotelling's T2 limit: {self.hotellings_t2_limit():.4g}\n"
@@ -2347,11 +2349,16 @@ class TPLS(RegressorMixin, BaseEstimator):
                 ssq_f_a_prior = ssq_f_a
                 ssq_y_a_prior = ssq_y_a
 
+            ssq_z = f"{ssq_z:>10.1f}" if self.n_conditions > 0 else "         -"
+
             # Calculate time per iteration for this component
             time_ms = self.fitting_statistics["milliseconds"][a - 1]
             iterations = self.fitting_statistics["iterations"][a - 1]
             time_iter = f"{time_ms:>5.1f} [{iterations:>3d}]"
-            line = f"LV {a:<2}   {ssq_z:>10.1f} {ssq_f:>10.1f} {ssq_y:>10.1f} |{time_iter:>13}"
+
+            line = f"LV {a:<2}   {ssq_z} {ssq_f:>10.1f} {ssq_y:>10.1f} |{time_iter:>13}"
+            if self.fitting_statistics["iterations"][a - 1] >= self.max_iterations:
+                line += "** (max iter reached)"
             output += line + "\n"
 
         output += sep
