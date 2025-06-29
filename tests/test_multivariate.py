@@ -1379,7 +1379,6 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     n_components = 3
     tpls_test = TPLS(n_components=n_components)
     tpls_test.fit(fixture_tpls_example)
-    tpls_test.display_results()
 
     # Test the coefficients in the centering and scaling self.preproc_ structure. Group 1, for D matrix pre-processing:
     known_truth_d1m = np.array([99.85432099, 73.67901235, 3.07469136, 0.13950617, 2.09876543, 12.53703704, 41.58641975])
@@ -1482,6 +1481,26 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     assert pytest.approx(tpls_test.preproc_["Y"]["Quality"]["scale"]) == known_truth_ys
     assert pytest.approx(tpls_test.preproc_["Y"]["Quality"]["center"]) == fixture_tpls_example["Y"]["Quality"].mean()
     assert pytest.approx(tpls_test.preproc_["Y"]["Quality"]["scale"]) == fixture_tpls_example["Y"]["Quality"].std()
+
+    # Test various R2 values for columns in blocks
+    # For the last component, for the Z block:
+    assert pytest.approx(tpls_test.r2_[-1]["Z"]["Conditions"].round(1)) == np.array(
+        [41.1, 0.0, 0.4, 26.2, 4.9, 0.1, 2.8, 0.1, 1.5, 1.5]
+    ).astype(np.float64)
+    # For the F-block
+    assert pytest.approx(tpls_test.r2_[-1]["F"]["Group 2"].round(1)) == np.array(
+        [4.7, 0.0, 1.1, 0.0, 4.7, 2.5, 0.0, 0.3, 5.2]
+    ).astype(np.float64)
+    # For the Y-block after 1 component, 2 components, and 3 components:
+    assert pytest.approx(tpls_test.r2_[1]["Y"]["Quality"].round(1)) == np.array(
+        [0.5, 7.9, 28.8, 32.9, 33.2, 15.3]
+    ).astype(np.float64)
+    assert pytest.approx(tpls_test.r2_[2]["Y"]["Quality"].round(1)) == np.array([13.5, 0.0, 3.9, 2.3, 0.7, 5.1]).astype(
+        np.float64
+    )
+    assert pytest.approx(tpls_test.r2_[-1]["Y"]["Quality"].round(1)) == np.array([1.7, 7.3, 1.8, 0.0, 0.5, 0.0]).astype(
+        np.float64
+    )
 
 
 def test_tpls_model_plots(fixture_tpls_example: dict) -> None:
@@ -1707,24 +1726,14 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
 # n_components = 10
 # tpls_test = TPLS(n_components=n_components)
 # tpls_example_data = fixture_tpls_example()
+
+
 # test_tpls_model_fitting(tpls_example_data)
 
+# tpls_example_data.pop("Z")  # Remove the Z block for this test
 # tpls_test = TPLS(n_components=n_components)
 # tpls_test.fit(tpls_example_data)
 # print(tpls_test.display_results(True))
-
-
-# # LV #     R2X       sum(R2X)   R2R       sum(R2R)
-# # LV #1:   0.373     0.373      0.050     0.050
-# # LV #2:   0.208     0.580      0.035     0.085
-# # LV #3:   0.167     0.747      0.015     0.099
-# # LV #4:   0.117     0.865      0.017     0.117
-
-# # LV #      sum(R2F)
-# # LV 1       2.4
-# # LV 2       4.3
-# # LV 3       5.4
-# # LV 4       6.7
 
 
 # scores = manual_cross_validation(
