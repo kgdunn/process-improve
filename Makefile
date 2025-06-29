@@ -52,7 +52,7 @@ clean: 		## Remove build artifacts and set up environment
 	uv python install 3.11
 	uv venv
 	uv lock
-
+	uv add "scipy<=1.15.3"
 	uv add pandas openpyxl numpy matplotlib statsmodels bokeh scikit-image scikit-learn patsy plotly numba seaborn pydantic tqdm
 	uv add --dev flake8 tox coverage Sphinx twine pytest pytest-runner pytest-cov pytest-xdist pre-commit black isort
 	uv add --dev pandas-stubs matplotlib-stubs plotly-stubs tqdm-stubs mypy

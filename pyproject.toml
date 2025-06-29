@@ -21,6 +21,7 @@ dependencies = [
     "pydantic>=2.10.6",
     "scikit-image>=0.25.2",
     "scikit-learn>=1.6.1",
+    "scipy<=1.15.3",
     "seaborn>=0.13.2",
     "statsmodels>=0.14.4",
     "tqdm>=4.67.1",
