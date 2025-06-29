@@ -25,7 +25,7 @@ repos:
 
     # Remove MyPy: conflicts in python 3.9 with pytz
     - repo: https://github.com/pre-commit/mirrors-mypy
-      rev: v1.15.0
+      rev: v1.16.1
       hooks:
         - id: mypy
           args: ["--ignore-missing-imports", "--check-untyped-defs"]
@@ -48,7 +48,7 @@ repos:
         - id: blacken-docs
 
     - repo: https://github.com/PyCQA/flake8
-      rev: "7.1.2"
+      rev: "7.3.0"
       hooks:
         - id: flake8
 
@@ -60,6 +60,6 @@ repos:
 
     - repo: https://github.com/charliermarsh/ruff-pre-commit
       # Ruff version. To eventually replace flake8?
-      rev: "v0.11.2"
+      rev: "v0.12.1"
       hooks:
         - id: ruff
