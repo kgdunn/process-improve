@@ -4,9 +4,12 @@ import pathlib
 
 import numpy as np
 import pandas as pd
+import plotly.io as pio
 import pytest
 import sklearn
 from sklearn.cross_decomposition import PLSRegression
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.model_selection import KFold, cross_validate
 
 from process_improve.multivariate.methods import (
     PCA,
@@ -23,6 +26,11 @@ from process_improve.multivariate.methods import (
     scale,
     ssq,
 )
+
+pd.options.plotting.backend = "plotly"
+pd.options.display.max_columns = 20
+pd.options.display.width = 200
+pio.renderers.default = "browser"
 
 
 def test_nan_to_zeros() -> None:
@@ -1309,7 +1317,7 @@ def test_pls_simca_ldpe_missing_data(
 
 
 # ---- TPLS models ----
-@pytest.fixture
+# @pytest.fixture
 def fixture_tpls_example() -> dict[str, dict[str, pd.DataFrame]]:
     """
     Load example data for TPLS model.
@@ -1641,108 +1649,73 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     assert predictions.spe_f is not None  # test the `Bunch` functionality
 
 
-# def test_tpls_model_scores_cross_validation(fixture_tpls_example: dict) -> None:
-#     """Test the prediction process of the TPLS model to ensure it functions as expected."""
-#     n_components = 3
-#     tpls_test = TPLS(n_components=n_components)
-#     tpls_test.fit(fixture_tpls_example)
+def test_pls_cross_validation(fixture_tpls_example: dict) -> None:
+    """Test the prediction process of the TPLS model to ensure it functions as expected."""
+    n_components = 3
+    tpls_for_cross_validation = TPLS(n_components=n_components)
+    data_for_model = DataFrameDict(fixture_tpls_example)
 
-#     data_for_cross_validation, d_matrix = tpls_test.organize_data_as_single_matrix(fixture_tpls_example)
+    # Perform cross-validation
 
-# from sklearn.model_selection import cross_validate
+    # with sklearn.config_context(skip_parameter_validation=True):
+    cv_results = cross_validate(
+        estimator=tpls_for_cross_validation,
+        X=data_for_model,
+        # y=data_for_model["Y"],
+        cv=5,
+        # scoring={"score": scorer},
+        n_jobs=-1,
+        return_train_score=True,
+        params={"d_matrix": data_for_model["D"]},
+        # verbose=verbose,
+        #
+    )
 
-# with sklearn.config_context(skip_parameter_validation=True):
-#     cv_results = cross_validate(
-#         estimator=tpls_test,
-#         X=data_for_cross_validation,
-#         y=fixture_tpls_example["Y"],
-#         cv=5,
-#         # scoring={"score": scorer},
-#         n_jobs=-1,
-#         return_train_score=True,
-#         # verbose=verbose,
-#         params={"d_matrix": d_matrix},
-#         # error_score=error_score,
-#     )
-
-
-# import numpy as np
-# from sklearn.metrics import mean_squared_error, r2_score
-# from sklearn.model_selection import KFold
-
-# import plotly.io as pio
-
-# pd.options.plotting.backend = "plotly"
-# pd.options.display.max_columns = 20
-# pd.options.display.width = 200
-# pio.renderers.default = "browser"
+    assert "test_score" in cv_results
+    assert "train_score" in cv_results
+    assert len(cv_results["test_score"]) == 5  # 5 folds
+    assert len(cv_results["train_score"]) == 5  # 5 folds
 
 
-# def manual_cross_validation(
-#     tpls_model: TPLS, full_datadict: dict, partition_keys: list, cv: int = 5, scoring: str = "r2"
-# ):
-#     """Perform manual cross-validation for a TPLS model."""
-#     kfold = KFold(n_splits=cv, shuffle=True)
+def manual_cross_validation(tpls_model: TPLS, full_datadict: dict, cv: int = 5, scoring: str = "r2"):
+    """Perform manual cross-validation for a TPLS model."""
+    kfold = KFold(n_splits=cv, shuffle=True)
+    n_samples = len(full_datadict)
+    scores = []
 
-#     # Get the main data length for splitting
-#     main_key = next(iter(partition_keys))
-#     first_entry = next(iter(full_datadict[main_key].keys()))
-#     n_samples = full_datadict[main_key][first_entry].shape[0]
+    for train_idx, test_idx in kfold.split(range(n_samples)):
+        training_datadict = {}
+        testing_datadict = {}
 
-#     scores = []
+        training_datadict = full_datadict[train_idx]
+        testing_datadict = full_datadict[test_idx]
 
-#     for train_idx, test_idx in kfold.split(range(n_samples)):
-#         training_datadict = {}
-#         testing_datadict = {}
+        # Fit and predict
+        tpls_model.fit(training_datadict)
+        tpls_model.display_results()
+        inference = tpls_model.predict(testing_datadict)
 
-#         for key, df_block in full_datadict.items():
-#             if key in partition_keys:
-#                 training_datadict[key] = {key: df_block[key].iloc[train_idx] for key in df_block}
-#                 testing_datadict[key] = {key: df_block[key].iloc[test_idx] for key in df_block}
-#             else:
-#                 # Static data - use full DataFrame
-#                 training_datadict[key] = df_block
-#                 testing_datadict[key] = df_block
+        # Calculate score
+        if scoring == "r2":
+            score = r2_score(testing_datadict["Y"]["Quality"], inference.y_predicted["Quality"])
+        elif scoring == "mse":
+            score = -mean_squared_error(testing_datadict["Y"]["Quality"], inference.y_predicted["Quality"])
+        else:
+            score = tpls_model.score(testing_datadict, inference.y_predicted["Quality"])
 
-#         y_test = {key: full_datadict["Y"][key].iloc[test_idx] for key in full_datadict["Y"]}
+        scores.append(score)
 
-#         # Fit and predict
-#         tpls_model.fit(training_datadict)
-#         inference = tpls_model.predict(testing_datadict)
-
-#         # Calculate score
-#         if scoring == "r2":
-#             score = r2_score(y_test["Quality"], inference.y_predicted["Quality"])
-#         elif scoring == "mse":
-#             score = -mean_squared_error(y_test["Quality"], inference.y_predicted["Quality"])  # Negative for consistn.
-#         else:
-#             score = tpls_model.score(testing_datadict, inference.y_predicted["Quality"])
-
-#         scores.append(score)
-
-#     return np.array(scores)
+    return np.array(scores)
 
 
-# n_components = 10
-# tpls_test = TPLS(n_components=n_components)
-# tpls_example_data = fixture_tpls_example()
+n_components = 3
+source_data = fixture_tpls_example()
+tpls_for_cross_validation = TPLS(n_components=n_components, d_matrix=source_data["D"])
+data_for_model = DataFrameDict(source_data)
 
-
-# test_tpls_model_fitting(tpls_example_data)
-
-# tpls_example_data.pop("Z")  # Remove the Z block for this test
-# tpls_test = TPLS(n_components=n_components)
-# tpls_test.fit(tpls_example_data)
-# print(tpls_test.display_results(True))
-
-
-# scores = manual_cross_validation(
-#     tpls_model=tpls_test,
-#     full_datadict=tpls_example_data,
-#     partition_keys=["Z", "F", "Y"],  # Keys that need to be split
-#     cv=5,
-#     scoring="mse",
-# )
-
-# print(f"CV Scores: {scores}")
-# print(f"Mean CV Score: {scores.mean():.3f} (+/- {scores.std() * 2:.3f})")
+scores = manual_cross_validation(
+    tpls_model=tpls_for_cross_validation,
+    full_datadict=data_for_model,
+    cv=5,
+    scoring="r2",
+)

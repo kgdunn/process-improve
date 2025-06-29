@@ -1475,13 +1475,17 @@ class DataFrameDict:
         #     raise ValueError("All partitionable dataframes must have the same length")
         # self.n_samples = lengths[0] if lengths else 0
 
-    def __getitem__(self, indices: int | list[int]) -> dict:
+    def __getitem__(self, lookup: int | list[int] | list[np.int64] | str) -> dict:
         """Return a new DataFrameDict with partitioned data."""
+
+        if isinstance(lookup, str):
+            return self.datadict[lookup]
+
         datadict = {}
 
         for key, df_block in self.datadict.items():
             if key in self.partitionable_keys:
-                datadict[key] = {key: df_block[key].iloc[indices] for key in df_block}
+                datadict[key] = {key: df_block[key].iloc[lookup] for key in df_block}
             else:
                 datadict[key] = df_block
 
@@ -1579,17 +1583,28 @@ class TPLS(RegressorMixin, BaseEstimator):
     # It used to validate parameter within the `_fit_context` decorator.
     _parameter_constraints: typing.ClassVar = {
         "n_components": [int],
+        "max_iterations": [int],
+        "d_matrix": [dict, None],
     }
 
-    def __init__(self, n_components: int, max_iterations: int = 500):
+    def __init__(
+        self,
+        n_components: int,
+        d_matrix: dict,
+        max_iterations: int = 500,
+    ):
         super().__init__()
         assert n_components > 0, "Number of components must be positive."
         self.n_components = n_components
+
+        self.d_matrix = d_matrix  # This is required input dict containing the properties for each group.
+        assert isinstance(self.d_matrix, dict), "d_matrix must be a dictionary of dataframes."
+        assert all(isinstance(df, pd.DataFrame) for df in self.d_matrix.values()), "d_matrix must contain dataframes."
+        self.max_iterations = max_iterations
+        assert self.max_iterations > 0, "Maximum number of iterations must be positive."
         self.n_substances = 0
         self.n_samples = 0
         self.tolerance_ = np.sqrt(np.finfo(float).eps)
-        self.max_iterations = max_iterations
-        self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
         self.required_blocks_ = {"D", "F", "Y", "Z"}  # "Z" block is optional; an empty one is added if not provided
         self.plot = Plot(self)
 
@@ -1615,6 +1630,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         group_keys = [str(key) for key in X["D"]]
 
         # Storage for pre-processing and the raw matrices
+        self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
         self.preproc_: dict[str, dict[str, dict[str, pd.Series]]] = {key: {} for key in self.required_blocks_}
         self.sums_of_squares_: list[dict[str, dict[str, np.ndarray]]] = [{key: {} for key in self.required_blocks_}]
         self.r2_: list[dict[str, dict[str, np.ndarray]]] = [{key: {} for key in self.required_blocks_}]
@@ -2341,7 +2357,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Step 15: Calculate the final model limit
         self._calculate_model_statistics_and_limits()
 
-    def display_results(self, show_cumulative_stats: bool = True) -> str:
+    def display_results(self, immediate_print: bool = True, show_cumulative_stats: bool = True) -> str:
         """Display the results of the model fitting."""
 
         output = f"Hotelling's T2 limit: {self.hotellings_t2_limit():.4g}\n"
@@ -2357,9 +2373,9 @@ class TPLS(RegressorMixin, BaseEstimator):
         r2_f_a_prior = np.mean([r2val.mean() for r2val in self.r2_[0]["F"].values()])
         r2_y_a_prior = np.mean([r2val.mean() for r2val in self.r2_[0]["Y"].values()])
         for a in range(1, self.n_components + 1):
-            r2_z_a = np.mean([r2val.mean() for r2val in self.r2_[a]["Z"].values()]) if self.n_conditions > 0 else 0
-            r2_f_a = np.mean([r2val.mean() for r2val in self.r2_[a]["F"].values()])
-            r2_y_a = np.mean([r2val.mean() for r2val in self.r2_[a]["Y"].values()])
+            r2_z_a = np.mean([np.nanmean(r2val) for r2val in self.r2_[a]["Z"].values()]) if self.n_conditions > 0 else 0
+            r2_f_a = np.mean([np.nanmean(r2val) for r2val in self.r2_[a]["F"].values()])
+            r2_y_a = np.mean([np.nanmean(r2val) for r2val in self.r2_[a]["Y"].values()])
             if show_cumulative_stats:
                 r2_z_a += r2_z_a_prior
                 r2_f_a += r2_f_a_prior
@@ -2386,6 +2402,9 @@ class TPLS(RegressorMixin, BaseEstimator):
         )
         output += f"Timing: {ms_per_iter} ms/iter; {sum(self.fitting_statistics['iterations'])} iterations required\n"
         output += f"Average tolerance: {np.mean(self.fitting_statistics['convergance_tolerance']):.4g}\n"
+
+        if immediate_print:
+            print(output)
 
         return output
 
