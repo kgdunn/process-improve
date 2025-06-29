@@ -6,11 +6,41 @@
     "configurations": [
         {
             "name": "Python: Current File",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": false,
+            "stopOnEntry": false,
+            "showReturnValue": true,
+            "env": {
+                "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "5"
+            }
+        },
+        {
+            "name": "Python: Debug Tests",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["${workspaceFolder}/tests", "-v", "--tb=short"],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "stopOnEntry": false,
+            "showReturnValue": true,
+            "env": {
+                "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "5"
+            }
+        },
+        {
+            "name": "Python: Debug Current Test",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["${file}", "-v", "--tb=short"],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "stopOnEntry": false,
+            "showReturnValue": true,
             "env": {
                 "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "5"
             }
