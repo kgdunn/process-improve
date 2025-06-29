@@ -12,6 +12,7 @@ from process_improve.multivariate.methods import (
     PCA,
     PLS,
     TPLS,
+    DataFrameDict,
     MCUVScaler,
     SpecificationWarning,
     center,
@@ -1316,47 +1317,47 @@ def fixture_tpls_example() -> dict[str, dict[str, pd.DataFrame]]:
     Data from: https://github.com/salvadorgarciamunoz/pyphi/tree/master/examples/JRPLS%20and%20TPLS
     """
     properties = {
-        "Group 1": pd.read_csv(
+        "Group 1": pd.read_csv(  # 162 x 7
             "process_improve/datasets/multivariate/tpls-pyphi/properties_Group1.csv", sep=",", index_col=0, header=0
         ),
-        "Group 2": pd.read_csv(
+        "Group 2": pd.read_csv(  # 9 x 6
             "process_improve/datasets/multivariate/tpls-pyphi/properties_Group2.csv", sep=",", index_col=0, header=0
         ),
-        "Group 3": pd.read_csv(
+        "Group 3": pd.read_csv(  # 22 x 6
             "process_improve/datasets/multivariate/tpls-pyphi/properties_Group3.csv", sep=",", index_col=0, header=0
         ),
-        "Group 4": pd.read_csv(
+        "Group 4": pd.read_csv(  # 19 x 11
             "process_improve/datasets/multivariate/tpls-pyphi/properties_Group4.csv", sep=",", index_col=0, header=0
         ),
-        "Group 5": pd.read_csv(
+        "Group 5": pd.read_csv(  # 18 x 3
             "process_improve/datasets/multivariate/tpls-pyphi/properties_Group5.csv", sep=",", index_col=0, header=0
         ),
     }
     formulas = {
-        "Group 1": pd.read_csv(
+        "Group 1": pd.read_csv(  # 105 x 162
             "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group1.csv", sep=",", index_col=0, header=0
         ),
-        "Group 2": pd.read_csv(
+        "Group 2": pd.read_csv(  # 105 x 9
             "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group2.csv", sep=",", index_col=0, header=0
         ),
-        "Group 3": pd.read_csv(
+        "Group 3": pd.read_csv(  # 105 x 22
             "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group3.csv", sep=",", index_col=0, header=0
         ),
-        "Group 4": pd.read_csv(
+        "Group 4": pd.read_csv(  # 105 x 19
             "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group4.csv", sep=",", index_col=0, header=0
         ),
-        "Group 5": pd.read_csv(
+        "Group 5": pd.read_csv(  # 105 x 18
             "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group5.csv", sep=",", index_col=0, header=0
         ),
     }
     process_conditions: dict[str, pd.DataFrame] = {
-        "Conditions": pd.read_csv(
+        "Conditions": pd.read_csv(  # 105 x 10
             "process_improve/datasets/multivariate/tpls-pyphi/process_conditions.csv", sep=",", index_col=0, header=0
         )
     }
 
     quality_indicators: dict[str, pd.DataFrame] = {
-        "Quality": pd.read_csv(
+        "Quality": pd.read_csv(  # 105 x 6
             "process_improve/datasets/multivariate/tpls-pyphi/quality_indicators.csv", sep=",", index_col=0, header=0
         )
     }
@@ -1378,6 +1379,7 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     n_components = 3
     tpls_test = TPLS(n_components=n_components)
     tpls_test.fit(fixture_tpls_example)
+    tpls_test.display_results()
 
     # Test the coefficients in the centering and scaling self.preproc_ structure. Group 1, for D matrix pre-processing:
     known_truth_d1m = np.array([99.85432099, 73.67901235, 3.07469136, 0.13950617, 2.09876543, 12.53703704, 41.58641975])
@@ -1494,7 +1496,7 @@ def test_tpls_model_plots(fixture_tpls_example: dict) -> None:
     # assert tpls_test.plot.loadings() is not None
 
 
-def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:
+def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PLR0915
     """Test the prediction process of the TPLS model to ensure it functions as expected."""
     n_components = 3
     tpls_test = TPLS(n_components=n_components)
@@ -1620,29 +1622,118 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:
     assert predictions.spe_f is not None  # test the `Bunch` functionality
 
 
-def test_tpls_model_scores_cross_validation(fixture_tpls_example: dict) -> None:
-    """Test the prediction process of the TPLS model to ensure it functions as expected."""
-    n_components = 3
-    tpls_test = TPLS(n_components=n_components)
-    tpls_test.fit(fixture_tpls_example)
+# def test_tpls_model_scores_cross_validation(fixture_tpls_example: dict) -> None:
+#     """Test the prediction process of the TPLS model to ensure it functions as expected."""
+#     n_components = 3
+#     tpls_test = TPLS(n_components=n_components)
+#     tpls_test.fit(fixture_tpls_example)
 
-    data_for_cross_validation, d_matrix = tpls_test.organize_data_as_single_matrix(fixture_tpls_example)
+#     data_for_cross_validation, d_matrix = tpls_test.organize_data_as_single_matrix(fixture_tpls_example)
 
-    # from sklearn.model_selection import cross_validate
+# from sklearn.model_selection import cross_validate
 
-    # with sklearn.config_context(skip_parameter_validation=True):
-    #     cv_results = cross_validate(
-    #         estimator=tpls_test,
-    #         X=data_for_cross_validation,
-    #         y=fixture_tpls_example["Y"],
-    #         cv=5,
-    #         # scoring={"score": scorer},
-    #         n_jobs=-1,
-    #         return_train_score=True,
-    #         # verbose=verbose,
-    #         params={"d_matrix": d_matrix},
-    #         # error_score=error_score,
-    #     )
+# with sklearn.config_context(skip_parameter_validation=True):
+#     cv_results = cross_validate(
+#         estimator=tpls_test,
+#         X=data_for_cross_validation,
+#         y=fixture_tpls_example["Y"],
+#         cv=5,
+#         # scoring={"score": scorer},
+#         n_jobs=-1,
+#         return_train_score=True,
+#         # verbose=verbose,
+#         params={"d_matrix": d_matrix},
+#         # error_score=error_score,
+#     )
 
 
-# test_tpls_model_predictions(fixture_tpls_example())
+# import numpy as np
+# from sklearn.metrics import mean_squared_error, r2_score
+# from sklearn.model_selection import KFold
+
+# import plotly.io as pio
+
+# pd.options.plotting.backend = "plotly"
+# pd.options.display.max_columns = 20
+# pd.options.display.width = 200
+# pio.renderers.default = "browser"
+
+
+# def manual_cross_validation(
+#     tpls_model: TPLS, full_datadict: dict, partition_keys: list, cv: int = 5, scoring: str = "r2"
+# ):
+#     """Perform manual cross-validation for a TPLS model."""
+#     kfold = KFold(n_splits=cv, shuffle=True)
+
+#     # Get the main data length for splitting
+#     main_key = next(iter(partition_keys))
+#     first_entry = next(iter(full_datadict[main_key].keys()))
+#     n_samples = full_datadict[main_key][first_entry].shape[0]
+
+#     scores = []
+
+#     for train_idx, test_idx in kfold.split(range(n_samples)):
+#         training_datadict = {}
+#         testing_datadict = {}
+
+#         for key, df_block in full_datadict.items():
+#             if key in partition_keys:
+#                 training_datadict[key] = {key: df_block[key].iloc[train_idx] for key in df_block}
+#                 testing_datadict[key] = {key: df_block[key].iloc[test_idx] for key in df_block}
+#             else:
+#                 # Static data - use full DataFrame
+#                 training_datadict[key] = df_block
+#                 testing_datadict[key] = df_block
+
+#         y_test = {key: full_datadict["Y"][key].iloc[test_idx] for key in full_datadict["Y"]}
+
+#         # Fit and predict
+#         tpls_model.fit(training_datadict)
+#         inference = tpls_model.predict(testing_datadict)
+
+#         # Calculate score
+#         if scoring == "r2":
+#             score = r2_score(y_test["Quality"], inference.y_predicted["Quality"])
+#         elif scoring == "mse":
+#             score = -mean_squared_error(y_test["Quality"], inference.y_predicted["Quality"])  # Negative for consistn.
+#         else:
+#             score = tpls_model.score(testing_datadict, inference.y_predicted["Quality"])
+
+#         scores.append(score)
+
+#     return np.array(scores)
+
+
+# n_components = 10
+# tpls_test = TPLS(n_components=n_components)
+# tpls_example_data = fixture_tpls_example()
+# test_tpls_model_fitting(tpls_example_data)
+
+# tpls_test = TPLS(n_components=n_components)
+# tpls_test.fit(tpls_example_data)
+# print(tpls_test.display_results(True))
+
+
+# # LV #     R2X       sum(R2X)   R2R       sum(R2R)
+# # LV #1:   0.373     0.373      0.050     0.050
+# # LV #2:   0.208     0.580      0.035     0.085
+# # LV #3:   0.167     0.747      0.015     0.099
+# # LV #4:   0.117     0.865      0.017     0.117
+
+# # LV #      sum(R2F)
+# # LV 1       2.4
+# # LV 2       4.3
+# # LV 3       5.4
+# # LV 4       6.7
+
+
+# scores = manual_cross_validation(
+#     tpls_model=tpls_test,
+#     full_datadict=tpls_example_data,
+#     partition_keys=["Z", "F", "Y"],  # Keys that need to be split
+#     cv=5,
+#     scoring="mse",
+# )
+
+# print(f"CV Scores: {scores}")
+# print(f"Mean CV Score: {scores.mean():.3f} (+/- {scores.std() * 2:.3f})")

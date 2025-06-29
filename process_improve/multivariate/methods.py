@@ -2318,26 +2318,15 @@ class TPLS(RegressorMixin, BaseEstimator):
         ssq_z_start = sum([ssq.sum() for key, ssq in self.sums_of_squares_[0]["Z"].items()])
         ssq_f_start = sum([ssq.sum() for key, ssq in self.sums_of_squares_[0]["F"].items()])
         ssq_y_start = sum([ssq.sum() for key, ssq in self.sums_of_squares_[0]["Y"].items()])
-        itertime = ", ".join(
-            [
-                f"{iter} [{int(time)} ms]"
-                for iter, time in zip(self.fitting_statistics["iterations"], self.fitting_statistics["milliseconds"])
-            ]
-        )
-        ms_per_iter = round(
-            sum(self.fitting_statistics["milliseconds"]) / sum(self.fitting_statistics["iterations"]), 1
-        )
-
-        output = ""
-        output += f"Iterations & timing: {itertime} with {ms_per_iter} ms/iter\n"
-        output += f"Hotelling's T2 limit: {self.hotellings_t2_limit():.4g}\n"
+        output = f"Hotelling's T2 limit: {self.hotellings_t2_limit():.4g}\n"
         # output += f"SPE limits: {self.spe_limit['Y'](self.spe['Y'])}\n"
-        output += "------ ----------- ---------- ----------\n"
+        sep = "------ ----------- ---------- ----------  -------------\n"
+        output += sep
         if show_cumulative_stats:
-            header = "LV #      sum(R2Z)   sum(R2F)   sum(R2Y)"
+            header = "LV #      sum(R2Z)   sum(R2F)   sum(R2Y) |    ms [iter]"
         else:
-            header = "LV #           R2Z        R2F        R2Y"
-        output += header + "\n------ ----------- ---------- ----------\n"
+            header = "LV #           R2Z        R2F        R2Y |    ms [iter]"
+        output += header + "\n" + sep
         ssq_z_a_prior = ssq_z_start
         ssq_f_a_prior = ssq_f_start
         ssq_y_a_prior = ssq_y_start
@@ -2358,11 +2347,19 @@ class TPLS(RegressorMixin, BaseEstimator):
                 ssq_f_a_prior = ssq_f_a
                 ssq_y_a_prior = ssq_y_a
 
-            line = f"LV {a:<2}   {ssq_z:>10.1f} {ssq_f:>10.1f} {ssq_y:>10.1f}"
+            # Calculate time per iteration for this component
+            time_ms = self.fitting_statistics["milliseconds"][a - 1]
+            iterations = self.fitting_statistics["iterations"][a - 1]
+            time_iter = f"{time_ms:>5.1f} [{iterations:>3d}]"
+            line = f"LV {a:<2}   {ssq_z:>10.1f} {ssq_f:>10.1f} {ssq_y:>10.1f} |{time_iter:>13}"
             output += line + "\n"
 
-        output += "------ ----------- ---------- ----------\n"
-
+        output += sep
+        ms_per_iter = round(
+            sum(self.fitting_statistics["milliseconds"]) / sum(self.fitting_statistics["iterations"]), 2
+        )
+        output += f"Timing: {ms_per_iter} ms/iter; {sum(self.fitting_statistics['iterations'])} iterations required\n"
+        output += f"Average tolerance: {np.mean(self.fitting_statistics['convergance_tolerance']):.4g}\n"
         return output
 
     # def r2_score(
