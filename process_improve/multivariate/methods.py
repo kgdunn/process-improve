@@ -1616,10 +1616,8 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Storage for pre-processing and the raw matrices
         self.preproc_: dict[str, dict[str, dict[str, pd.Series]]] = {key: {} for key in self.required_blocks_}
-        self.sums_of_squares_: list[dict[str, dict[str, dict[str, np.ndarray]]]] = [
-            {key: {} for key in self.required_blocks_}
-        ]
-        self.r2_: list[dict[str, dict[str, dict[str, np.ndarray]]]] = [{key: {} for key in self.required_blocks_}]
+        self.sums_of_squares_: list[dict[str, dict[str, np.ndarray]]] = [{key: {} for key in self.required_blocks_}]
+        self.r2_: list[dict[str, dict[str, np.ndarray]]] = [{key: {} for key in self.required_blocks_}]
 
         self.d_mats: dict[str, np.ndarray] = {key: X["D"][key].values.copy() for key in group_keys}
         self.f_mats: dict[str, np.ndarray] = {key: X["F"][key].values.copy() for key in group_keys}
@@ -1665,10 +1663,18 @@ class TPLS(RegressorMixin, BaseEstimator):
         # You can sum the sums-of-squares values for all columns to get the total variance for each block.
         self.sums_of_squares_ = [
             {
-                # "D": {key: np.nanvar(self.d_mats[key], axis=1, ddof=0) for key in group_keys},
+                "D": {},
                 "F": {key: np.nanvar(self.f_mats[key], axis=0, ddof=0) * self.n_samples for key in group_keys},
                 "Z": {key: np.nanvar(self.z_mats[key], axis=0, ddof=0) * self.n_samples for key in X["Z"]},
                 "Y": {key: np.nanvar(self.y_mats[key], axis=0, ddof=0) * self.n_samples for key in X["Y"]},
+            }
+        ]
+        self.r2_ = [
+            {
+                "D": {},
+                "F": {key: np.zeros(self.f_mats[key].shape[1]) for key in self.f_mats},
+                "Z": {key: np.zeros(self.z_mats[key].shape[1]) for key in self.z_mats},
+                "Y": {key: np.zeros(self.y_mats[key].shape[1]) for key in self.y_mats},
             }
         ]
 
@@ -2338,48 +2344,38 @@ class TPLS(RegressorMixin, BaseEstimator):
     def display_results(self, show_cumulative_stats: bool = True) -> str:
         """Display the results of the model fitting."""
 
-        ssq_z_start = (
-            sum([ssq.sum() for key, ssq in self.sums_of_squares_[0]["Z"].items()]) if self.n_conditions > 0 else 1.0
-        )
-        ssq_f_start = sum([ssq.sum() for key, ssq in self.sums_of_squares_[0]["F"].items()])
-        ssq_y_start = sum([ssq.sum() for key, ssq in self.sums_of_squares_[0]["Y"].items()])
         output = f"Hotelling's T2 limit: {self.hotellings_t2_limit():.4g}\n"
         # output += f"SPE limits: {self.spe_limit['Y'](self.spe['Y'])}\n"
-        sep = "------ ----------- ---------- ----------  -------------\n"
+        sep = "------ ---------- ---------- ----------  -------------\n"
         output += sep
         if show_cumulative_stats:
-            header = "LV #      sum(R2Z)   sum(R2F)   sum(R2Y) |    ms [iter]"
+            header = "LV #   sum(R2: Z) sum(R2: F) sum(R2: Y) |    ms [iter]"
         else:
-            header = "LV #           R2Z        R2F        R2Y |    ms [iter]"
+            header = "LV #        R2: Z      R2: F      R2: Y |    ms [iter]"
         output += header + "\n" + sep
-        ssq_z_a_prior = ssq_z_start
-        ssq_f_a_prior = ssq_f_start
-        ssq_y_a_prior = ssq_y_start
+        r2_z_a_prior = np.mean([r2val.mean() for r2val in self.r2_[0]["Z"].values()]) if self.n_conditions > 0 else 0
+        r2_f_a_prior = np.mean([r2val.mean() for r2val in self.r2_[0]["F"].values()])
+        r2_y_a_prior = np.mean([r2val.mean() for r2val in self.r2_[0]["Y"].values()])
         for a in range(1, self.n_components + 1):
-            ssq_z_a = sum([ssq.sum() for key, ssq in self.sums_of_squares_[a]["Z"].items()])
-            ssq_f_a = sum([ssq.sum() for key, ssq in self.sums_of_squares_[a]["F"].items()])
-            ssq_y_a = sum([ssq.sum() for key, ssq in self.sums_of_squares_[a]["Y"].items()])
-
+            r2_z_a = np.mean([r2val.mean() for r2val in self.r2_[a]["Z"].values()]) if self.n_conditions > 0 else 0
+            r2_f_a = np.mean([r2val.mean() for r2val in self.r2_[a]["F"].values()])
+            r2_y_a = np.mean([r2val.mean() for r2val in self.r2_[a]["Y"].values()])
             if show_cumulative_stats:
-                ssq_z = 100 - ssq_z_a / ssq_z_start * 100
-                ssq_f = 100 - ssq_f_a / ssq_f_start * 100
-                ssq_y = 100 - ssq_y_a / ssq_y_start * 100
-            else:
-                ssq_z = (ssq_z_a_prior - ssq_z_a) / ssq_z_start * 100
-                ssq_f = (ssq_f_a_prior - ssq_f_a) / ssq_f_start * 100
-                ssq_y = (ssq_y_a_prior - ssq_y_a) / ssq_y_start * 100
-                ssq_z_a_prior = ssq_z_a
-                ssq_f_a_prior = ssq_f_a
-                ssq_y_a_prior = ssq_y_a
+                r2_z_a += r2_z_a_prior
+                r2_f_a += r2_f_a_prior
+                r2_y_a += r2_y_a_prior
 
-            ssq_z = f"{ssq_z:>10.1f}" if self.n_conditions > 0 else "         -"
+            r2_z_a_prior = r2_z_a
+            r2_f_a_prior = r2_f_a
+            r2_y_a_prior = r2_y_a
+            r2_z_a = f"{r2_z_a:>9.1f}" if self.n_conditions > 0 else "        -"
 
             # Calculate time per iteration for this component
             time_ms = self.fitting_statistics["milliseconds"][a - 1]
             iterations = self.fitting_statistics["iterations"][a - 1]
             time_iter = f"{time_ms:>5.1f} [{iterations:>3d}]"
 
-            line = f"LV {a:<2}   {ssq_z} {ssq_f:>10.1f} {ssq_y:>10.1f} |{time_iter:>13}"
+            line = f"LV {a:<2}   {r2_z_a} {r2_f_a:>10.1f} {r2_y_a:>10.1f} |{time_iter:>13}"
             if self.fitting_statistics["iterations"][a - 1] >= self.max_iterations:
                 line += "** (max iter reached)"
             output += line + "\n"
@@ -2390,6 +2386,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         )
         output += f"Timing: {ms_per_iter} ms/iter; {sum(self.fitting_statistics['iterations'])} iterations required\n"
         output += f"Average tolerance: {np.mean(self.fitting_statistics['convergance_tolerance']):.4g}\n"
+
         return output
 
     # def r2_score(
