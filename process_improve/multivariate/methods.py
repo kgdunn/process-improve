@@ -1488,6 +1488,7 @@ class DataFrameDict:
         return datadict
 
     def __len__(self):
+        """Return the number of samples in the DataFrameDict."""
         return self.n_samples
 
 
@@ -1615,9 +1616,11 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Storage for pre-processing and the raw matrices
         self.preproc_: dict[str, dict[str, dict[str, pd.Series]]] = {key: {} for key in self.required_blocks_}
-        self.sums_of_squares_: list[dict[str, dict[str, dict[str, pd.Series]]]] = [
+        self.sums_of_squares_: list[dict[str, dict[str, dict[str, np.ndarray]]]] = [
             {key: {} for key in self.required_blocks_}
         ]
+        self.r2_: list[dict[str, dict[str, dict[str, np.ndarray]]]] = [{key: {} for key in self.required_blocks_}]
+
         self.d_mats: dict[str, np.ndarray] = {key: X["D"][key].values.copy() for key in group_keys}
         self.f_mats: dict[str, np.ndarray] = {key: X["F"][key].values.copy() for key in group_keys}
         self.z_mats: dict[str, np.ndarray] = {key: X["Z"][key].values.copy() for key in X["Z"]}
@@ -2055,14 +2058,34 @@ class TPLS(RegressorMixin, BaseEstimator):
             self.y_mats[key] -= (t_super_i @ q_super_i.T) * self.not_na_y[key]
 
     def _update_performance_statistics(self) -> None:
-        """Calculate and store the performance statistics of the model, such as R2, TSS, etc."""
+        """Calculate and store the performance statistics of the model, such as SSQ, R2, etc."""
+        # Calculate the sums of squares for each block, per column.
+        # Note: the `ddof=0` is used to calculate the population variance, which is proportional to the SSQ.
         calc_ssq = {
-            # "D": {key: np.nanvar(self.d_mats[key], axis=1, ddof=0) for key in group_keys},
+            "D": {},
             "F": {key: np.nanvar(self.f_mats[key], axis=0, ddof=0) * self.n_samples for key in self.f_mats},
             "Z": {key: np.nanvar(self.z_mats[key], axis=0, ddof=0) * self.n_samples for key in self.z_mats},
             "Y": {key: np.nanvar(self.y_mats[key], axis=0, ddof=0) * self.n_samples for key in self.y_mats},
         }
         self.sums_of_squares_.append(calc_ssq)
+
+        # Calculate the incremental (not cumulative!) R2 values for each block, per column:
+        # Cumulative R2 values can be found by summation.
+        ssq_prior_pc = self.sums_of_squares_[-2]
+        ssq_start_0 = self.sums_of_squares_[0]
+        calc_r2 = {
+            "D": {},
+            "F": {
+                key: (ssq_prior_pc["F"][key] - calc_ssq["F"][key]) / ssq_start_0["F"][key] * 100 for key in self.f_mats
+            },
+            "Z": {
+                key: (ssq_prior_pc["Z"][key] - calc_ssq["Z"][key]) / ssq_start_0["Z"][key] * 100 for key in self.z_mats
+            },
+            "Y": {
+                key: (ssq_prior_pc["Y"][key] - calc_ssq["Y"][key]) / ssq_start_0["Y"][key] * 100 for key in self.y_mats
+            },
+        }
+        self.r2_.append(calc_r2)
 
     def _calculate_model_statistics_and_limits(self) -> None:
         """Calculate and store the model limits.
