@@ -171,3 +171,11 @@ line-length = 120
 # skip-string-normalization = true
 # Prevent Black from being too aggressive with parentheses
 # magic-trailing-comma = false
+
+[tool.mypy]
+ignore_missing_imports = true
+disallow_untyped_defs = false
+# Disable import-untyped warnings
+warn_unused_ignores = false
+# Specifically disable import-untyped errors
+disable_error_code = ["import-untyped"]
