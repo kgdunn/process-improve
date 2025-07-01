@@ -6,10 +6,10 @@ import numpy as np
 import pandas as pd
 import plotly.io as pio
 import pytest
-import sklearn
+from scipy.sparse import csr_matrix
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.model_selection import KFold, cross_validate
+from sklearn.model_selection import KFold
 
 from process_improve.multivariate.methods import (
     PCA,
@@ -537,8 +537,6 @@ def test_pls_invalid_calls() -> None:
             n_components=A,
         )
         model.fit(data_x, data_y)
-
-    from scipy.sparse import csr_matrix
 
     sparse_data = csr_matrix([[1, 2], [0, 3], [4, 5]])
     with pytest.raises(TypeError, match="This PLS class does not support sparse input."):
@@ -1495,6 +1493,10 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     # For the last component, for the Z block:
     assert pytest.approx(tpls_test.r2_[-1]["Z"]["Conditions"].round(1)) == np.array(
         [41.1, 0.0, 0.4, 26.2, 4.9, 0.1, 2.8, 0.1, 1.5, 1.5]
+    ).astype(np.float64)
+    # For the D-block
+    assert pytest.approx(tpls_test.r2_[-1]["D"]["Group 1"].round(1)) == np.array(
+        [28.5, 5.4, 43.7, 0.1, 2.1, 14.3, 13.8]
     ).astype(np.float64)
     # For the F-block
     assert pytest.approx(tpls_test.r2_[-1]["F"]["Group 2"].round(1)) == np.array(
