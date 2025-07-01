@@ -80,6 +80,8 @@ test: ## run tests quickly with the default Python
 	rm -fr .pytest_cache
 	python -W ignore -m pytest --exitfirst -v --new-first -r=s -r=a -n auto --cov=. #--pdb
 
+# TODO: single test: ['-p', 'vscode_pytest', '--rootdir=/rootdir', '--capture=no', '/rootdir/tests/test_file.py::test_func']
+
 coverage: ## check code coverage quickly with the default Python
 	coverage html --precision=1 --skip-covered --skip-empty --title="Process Improve Coverage Report"
 	coverage report --precision=1 --skip-covered --skip-empty

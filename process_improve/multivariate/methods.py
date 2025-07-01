@@ -1606,6 +1606,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.n_samples = 0
         self.tolerance_ = np.sqrt(np.finfo(float).eps)
         self.required_blocks_ = {"D", "F", "Y", "Z"}  # "Z" block is optional; an empty one is added if not provided
+        self.required_inputs_ = {"F", "Y", "Z"}
         self.plot = Plot(self)
 
     @_fit_context(prefer_skip_nested_validation=True)
@@ -1623,11 +1624,11 @@ class TPLS(RegressorMixin, BaseEstimator):
             Returns self.
         """
         self.is_fitted_ = False
-        # assert isinstance(X, dict)
+        assert isinstance(X, dict)
         if "Z" not in X:
             X["Z"] = {}
         self._input_data_checks(X)
-        group_keys = [str(key) for key in X["D"]]
+        group_keys = [str(key) for key in self.d_matrix]
 
         # Storage for pre-processing and the raw matrices
         self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
@@ -1635,7 +1636,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.sums_of_squares_: list[dict[str, dict[str, np.ndarray]]] = [{key: {} for key in self.required_blocks_}]
         self.r2_: list[dict[str, dict[str, np.ndarray]]] = [{key: {} for key in self.required_blocks_}]
 
-        self.d_mats: dict[str, np.ndarray] = {key: X["D"][key].values.copy() for key in group_keys}
+        self.d_mats: dict[str, np.ndarray] = {key: self.d_matrix[key].values.copy() for key in group_keys}
         self.f_mats: dict[str, np.ndarray] = {key: X["F"][key].values.copy() for key in group_keys}
         self.z_mats: dict[str, np.ndarray] = {key: X["Z"][key].values.copy() for key in X["Z"]}
         self.y_mats: dict[str, np.ndarray] = {key: X["Y"][key].values.copy() for key in X["Y"]}
@@ -1657,7 +1658,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             self.preproc_["Z"][key]["center"], self.preproc_["Z"][key]["scale"] = (
                 self._learn_center_and_scaling_parameters(X["Z"][key])
             )
-        for key, df_d in X["D"].items():
+        for key, df_d in self.d_matrix.items():
             self.preproc_["D"][key] = {}
             self.preproc_["D"][key]["center"], self.preproc_["D"][key]["scale"] = (
                 self._learn_center_and_scaling_parameters(df_d)
@@ -1704,13 +1705,13 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Storage for the model objects. Make a copy only of the Numpy values to use in the Estimator.
         self.observation_names = X["F"][group_keys[0]].index
-        self.property_names = {key: X["D"][key].index.to_list() for key in group_keys}
+        self.property_names = {key: self.d_matrix[key].index.to_list() for key in group_keys}
         self.condition_names = {key: X["Z"][key].columns.to_list() for key in X["Z"]}
         self.quality_names = {key: X["Y"][key].columns.to_list() for key in X["Y"]}
 
         # Create the missing value maps, except we store the opposite, i.e., not missing, since these are more useful.
         # We refer to these as `pmaps` in the code (present maps, as opposed to `mmap` or missing maps).
-        self.not_na_d = {key: ~np.isnan(X["D"][key].values) for key in self.d_mats}
+        self.not_na_d = {key: ~np.isnan(self.d_matrix[key].values) for key in self.d_mats}
         self.not_na_f = {key: ~np.isnan(X["F"][key].values) for key in self.f_mats}
         self.not_na_z = {key: ~np.isnan(X["Z"][key].values) for key in self.z_mats}
         self.not_na_y = {key: ~np.isnan(X["Y"][key].values) for key in self.y_mats}
@@ -1922,16 +1923,16 @@ class TPLS(RegressorMixin, BaseEstimator):
     def _input_data_checks(self, X: dict[str, dict[str, pd.DataFrame]]) -> None:
         """Check the incoming data."""
         assert isinstance(X, dict), "The input data must be a dictionary."
-        assert set(X.keys()) == self.required_blocks_, f"Expected keys: {self.required_blocks_}, got: {set(X.keys())}"
-        group_keys = [str(key) for key in X["D"]]
+        assert set(X.keys()) == self.required_inputs_, f"Expected keys: {self.required_inputs_}, got: {set(X.keys())}"
+        group_keys = [str(key) for key in self.d_matrix]
         assert set(X["F"]) == set(group_keys), "The keys in F must match the keys in D."
 
         for key in X["Y"]:
             self._validate_df(X["Y"][key])
         for key in X["Z"]:
             self._validate_df(X["Z"][key])
-        for key in X["D"]:
-            self._validate_df(X["D"][key])
+        for key in self.d_matrix:
+            self._validate_df(self.d_matrix[key])
             assert key in X["F"], f"Block/group name '{key}' in D must also be present in F."
             self._validate_df(X["F"][key])  # this also ensures the keys in F are the same as in D
 
