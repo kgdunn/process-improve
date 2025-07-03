@@ -1456,24 +1456,32 @@ def internal_pls_nipals_fit_one_pc(
 
 
 class DataFrameDict:
-    def __init__(self, datadict: dict):
+    def __init__(self, datadict: dict[str, dict[str, pd.DataFrame]]):
         """
         Initialize a DataFrameDict to handle partitionable and static dataframes.
 
-        data_dict: Dictionary of dataframes
+        datadict: Dictionary with 3 keys, one for each block: Z, F and Y.
+                  Each block is itself a dictionary of dataframes.
+
+                  dict[str, dict[str, pd.DataFrame]]
+
         """
-        self.datadict = datadict
-        self.partitionable_keys = ["Z", "F", "Y"]
-        self.static_keys = ["D"]
+        self.datadict: dict[str, dict[str, pd.DataFrame]] = datadict
+        self.partitionable_blocks: list[str] = ["Z", "F", "Y"]
+        first_group = next(iter(datadict["F"].keys()))
+        self.n_samples = datadict["F"][first_group].shape[0]
+        self.shape = (self.n_samples, len(datadict))
 
-        first_entry = next(iter(datadict["F"].keys()))
-        self.n_samples = datadict["F"][first_entry].shape[0]
-
-        # Validate that all partitionable dataframes have the same length
-        # lengths = [len(data_dict[key]) for key in self.partitionable_keys]
-        # if len(set(lengths)) > 1:
-        #     raise ValueError("All partitionable dataframes must have the same length")
-        # self.n_samples = lengths[0] if lengths else 0
+        # Some basic checks: each dataframe inside each block has the same number of rows
+        for block in self.partitionable_blocks:
+            for group, df in datadict[block].items():
+                if not isinstance(df, pd.DataFrame):
+                    raise TypeError(f"Expected a DataFrame for block {block}, group {group}.")
+                if df.shape[0] != self.n_samples:
+                    raise ValueError(
+                        f"DataFrames in block {block} must have the same number of rows ({self.n_samples}). "
+                        f"Group {group} has {df.shape[0]} rows."
+                    )
 
     def __getitem__(self, lookup: int | list[int] | list[np.int64] | str) -> dict:
         """Return a new DataFrameDict with partitioned data."""
@@ -1482,12 +1490,23 @@ class DataFrameDict:
             return self.datadict[lookup]
 
         datadict = {}
-
-        for key, df_block in self.datadict.items():
-            if key in self.partitionable_keys:
-                datadict[key] = {key: df_block[key].iloc[lookup] for key in df_block}
-            else:
-                datadict[key] = df_block
+        for block in self.partitionable_blocks:
+            datadict[block] = {}
+            for group, df in self.datadict[block].items():
+                if isinstance(lookup, (int, np.integer)):
+                    assert False
+                    datadict[block][group] = df.iloc[[lookup]]
+                elif isinstance(lookup, list):
+                    assert False
+                    datadict[block][group] = df.iloc[lookup]
+                elif isinstance(lookup, tuple):
+                    assert lookup[1] == Ellipsis
+                    datadict[block][group] = df.iloc[[int(item) for item in lookup[0]]]
+                elif isinstance(lookup, np.ndarray):
+                    assert False
+                    datadict[block][group] = df.iloc[lookup.tolist()]
+                else:
+                    raise TypeError("Lookup must be an int, list of ints, or a string.")
 
         return datadict
 
@@ -2412,7 +2431,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         output += f"Average tolerance: {np.mean(self.fitting_statistics['convergance_tolerance']):.4g}\n"
 
         if immediate_print:
-            print(output) # noqa: T201
+            print(output)  # noqa: T201
 
         return output
 

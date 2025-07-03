@@ -1315,7 +1315,7 @@ def test_pls_simca_ldpe_missing_data(
 
 
 # ---- TPLS models ----
-@pytest.fixture
+# @pytest.fixture
 def fixture_tpls_example() -> dict[str, dict[str, pd.DataFrame]]:
     """
     Load example data for TPLS model.
@@ -1653,32 +1653,35 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     assert predictions.spe_f is not None  # test the `Bunch` functionality
 
 
-# def test_pls_cross_validation(fixture_tpls_example: dict) -> None:
-#     """Test the prediction process of the TPLS model to ensure it functions as expected."""
-#     n_components = 3
-#     tpls_for_cross_validation = TPLS(n_components=n_components, d_matrix=fixture_tpls_example.pop("D"))
-#     data_for_model = DataFrameDict(fixture_tpls_example)
+def test_tpls_cross_validation(fixture_tpls_example: dict) -> None:
+    """Test the prediction process of the TPLS model to ensure it functions as expected."""
+    n_components = 3
+    full_model = TPLS(n_components=n_components, d_matrix=fixture_tpls_example.pop("D"))
 
-#     # Perform cross-validation
+    # Perform cross-validation
 
-#     # with sklearn.config_context(skip_parameter_validation=True):
-#     cv_results = cross_validate(
-#         estimator=tpls_for_cross_validation,
-#         X=data_for_model,
-#         # y=data_for_model["Y"],
-#         cv=5,
-#         # scoring={"score": scorer},
-#         n_jobs=-1,
-#         return_train_score=True,
-#         params={"d_matrix": data_for_model["D"]},
-#         # verbose=verbose,
-#         #
-#     )
+    # with sklearn.config_context(skip_parameter_validation=True):
+    from sklearn.model_selection import cross_val_score
 
-#     assert "test_score" in cv_results
-#     assert "train_score" in cv_results
-#     assert len(cv_results["test_score"]) == 5  # 5 folds
-#     assert len(cv_results["train_score"]) == 5  # 5 folds
+    cv_results = cross_validate(
+        estimator=full_model,
+        X=DataFrameDict(fixture_tpls_example),
+        cv=5,
+        # scoring={"score": scorer},
+        n_jobs=-1,
+        return_train_score=True,
+        # params={"d_matrix": data_for_model["D"]},
+        # verbose=verbose,
+        #
+    )
+
+    # assert "test_score" in cv_results
+    # assert "train_score" in cv_results
+    # assert len(cv_results["test_score"]) == 5  # 5 folds
+    # assert len(cv_results["train_score"]) == 5  # 5 folds
+
+    #
+    # cv_scores = cross_val_score(tpls_for_cross_validation, X, y, cv=5, scoring='neg_mean_squared_error')
 
 
 def manual_cross_validation(tpls_model: TPLS, full_datadict: dict, cv: int = 5, scoring: str = "r2"):
@@ -1712,15 +1715,22 @@ def manual_cross_validation(tpls_model: TPLS, full_datadict: dict, cv: int = 5, 
     return np.array(scores)
 
 
-# n_components = 3
-# source_data = fixture_tpls_example()
-# d_matrix = fixture_tpls_example.pop("D")
-# tpls_for_cross_validation = TPLS(n_components=n_components, d_matrix=d_matrix)
-# data_for_model = DataFrameDict(source_data)
+n_components = 3
+data = fixture_tpls_example()
+full_model = TPLS(n_components=n_components, d_matrix=data.pop("D"))
 
-# scores = manual_cross_validation(
-#     tpls_model=tpls_for_cross_validation,
-#     full_datadict=data_for_model,
-#     cv=5,
-#     scoring="r2",
-# )
+
+# with sklearn.config_context(skip_parameter_validation=True):
+from sklearn.model_selection import cross_val_score
+
+cv_results = cross_val_score(
+    estimator=full_model,
+    X=DataFrameDict(data),
+    cv=5,
+    # scoring={"score": scorer},
+    n_jobs=None,
+    # return_train_score=True,
+    # params={"d_matrix": data_for_model["D"]},
+    # verbose=verbose,
+    #
+)
