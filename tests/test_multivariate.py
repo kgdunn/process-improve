@@ -9,7 +9,7 @@ import pytest
 from scipy.sparse import csr_matrix
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, cross_val_score
 
 from process_improve.multivariate.methods import (
     PCA,
@@ -361,8 +361,8 @@ def test_pca_invalid_calls() -> None:
         match=r"The requested number of components is more than can be computed from data(.*)",
     ):
         model = PCA(n_components=A)
-        model.fit(data)
 
+    model.fit(data)
     data.iloc[0, 0] = np.nan
     with pytest.raises(AssertionError, match="Tolerance must exceed machine precision"):
         _ = PCA(n_components=A, missing_data_settings=dict(md_method="nipals", md_tol=0)).fit(data)
@@ -502,7 +502,7 @@ def test_pca_wold_model_results(fixture_pca_pca_wold_etal_paper: pd.DataFrame) -
     # [-2.0511, -1.3698]])
 
 
-def test_pls_properties_TODO() -> None:
+def test_pls_properties_todo() -> None:
     """
     Complete this later.
 
@@ -536,8 +536,8 @@ def test_pls_invalid_calls() -> None:
         model = PLS(
             n_components=A,
         )
-        model.fit(data_x, data_y)
 
+    model.fit(data_x, data_y)
     sparse_data = csr_matrix([[1, 2], [0, 3], [4, 5]])
     with pytest.raises(TypeError, match="This PLS class does not support sparse input."):
         PLS(n_components=2).fit(data_x, sparse_data)
@@ -1315,7 +1315,7 @@ def test_pls_simca_ldpe_missing_data(
 
 
 # ---- TPLS models ----
-# @pytest.fixture
+@pytest.fixture
 def fixture_tpls_example() -> dict[str, dict[str, pd.DataFrame]]:
     """
     Load example data for TPLS model.
@@ -1385,7 +1385,7 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     n_components = 3
     d_matrix = fixture_tpls_example.pop("D")
     tpls_test = TPLS(n_components=n_components, d_matrix=d_matrix)
-    tpls_test.fit(fixture_tpls_example)
+    tpls_test.fit(DataFrameDict(fixture_tpls_example))
 
     # Test the coefficients in the centering and scaling self.preproc_ structure. Group 1, for D matrix pre-processing:
     known_truth_d1m = np.array([99.85432099, 73.67901235, 3.07469136, 0.13950617, 2.09876543, 12.53703704, 41.58641975])
@@ -1519,7 +1519,7 @@ def test_tpls_model_plots(fixture_tpls_example: dict) -> None:
 
     n_components = 3
     tpls_test = TPLS(n_components=n_components, d_matrix=fixture_tpls_example.pop("D"))
-    tpls_test.fit(fixture_tpls_example)
+    tpls_test.fit(DataFrameDict(fixture_tpls_example))
 
     # TODO: perform various assertions on the model's Plotly plots
     assert tpls_test.plot.scores() is not None
@@ -1531,7 +1531,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     n_components = 3
     d_matrix = fixture_tpls_example.pop("D")
     tpls_test = TPLS(n_components=n_components, d_matrix=d_matrix)
-    tpls_test.fit(fixture_tpls_example)
+    tpls_test.fit(DataFrameDict(fixture_tpls_example))
 
     # Test the model's predictions. Use the first few samples of the data as a testing data point.
     testing_samples = ["L001", "L002", "L003", "L004"]
@@ -1541,7 +1541,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     }
 
     # OK, now use these to make predictions
-    predictions = tpls_test.predict(new_observation_raw)
+    predictions = tpls_test.predict(DataFrameDict(new_observation_raw))
     expected_keys = ["y_predicted", "super_scores", "hotellings_t2", "spe_z", "spe_f"]
     assert set(expected_keys) == set(predictions.keys())
 
@@ -1637,15 +1637,17 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     # Test building the model without the "Z" block.
     fixture_tpls_example.pop("Z")
     n_components = 3
-    tpls_test_no_z = TPLS(n_components=n_components, d_matrix=d_matrix).fit(fixture_tpls_example)
+    tpls_test_no_z = TPLS(n_components=n_components, d_matrix=d_matrix).fit(DataFrameDict(fixture_tpls_example))
     # Test the model's predictions. Use the first few samples of the data as a testing data point.
     testing_samples = ["L001", "L002", "L003", "L004"]
-    new_observation_raw = {
-        "F": {key: val.loc[testing_samples] for key, val in fixture_tpls_example["F"].items()},
-    }
+    new_observation_raw_no_z = DataFrameDict(
+        {
+            "F": {key: val.loc[testing_samples] for key, val in fixture_tpls_example["F"].items()},
+        }
+    )
 
     # OK, now use these to make predictions
-    predictions = tpls_test_no_z.predict(new_observation_raw)
+    predictions = tpls_test_no_z.predict(new_observation_raw_no_z)
     expected_keys = ["y_predicted", "super_scores", "hotellings_t2", "spe_z", "spe_f"]
     assert set(expected_keys) == set(predictions.keys())
     assert predictions["spe_z"] == {}
@@ -1657,34 +1659,17 @@ def test_tpls_cross_validation(fixture_tpls_example: dict) -> None:
     """Test the prediction process of the TPLS model to ensure it functions as expected."""
     n_components = 3
     full_model = TPLS(n_components=n_components, d_matrix=fixture_tpls_example.pop("D"))
-
-    # Perform cross-validation
-
-    # with sklearn.config_context(skip_parameter_validation=True):
-    from sklearn.model_selection import cross_val_score
-
-    cv_results = cross_validate(
+    _ = cross_val_score(
         estimator=full_model,
         X=DataFrameDict(fixture_tpls_example),
         cv=5,
-        # scoring={"score": scorer},
-        n_jobs=-1,
-        return_train_score=True,
-        # params={"d_matrix": data_for_model["D"]},
-        # verbose=verbose,
-        #
+        scoring="r2",
+        n_jobs=1,
     )
-
-    # assert "test_score" in cv_results
-    # assert "train_score" in cv_results
-    # assert len(cv_results["test_score"]) == 5  # 5 folds
-    # assert len(cv_results["train_score"]) == 5  # 5 folds
-
-    #
-    # cv_scores = cross_val_score(tpls_for_cross_validation, X, y, cv=5, scoring='neg_mean_squared_error')
+    # TODO: tests on the output
 
 
-def manual_cross_validation(tpls_model: TPLS, full_datadict: dict, cv: int = 5, scoring: str = "r2"):
+def manual_cross_validation(tpls_model: TPLS, full_datadict: dict, cv: int = 5, scoring: str = "r2") -> np.ndarray:
     """Perform manual cross-validation for a TPLS model."""
     kfold = KFold(n_splits=cv, shuffle=True)
     n_samples = len(full_datadict)
@@ -1715,22 +1700,17 @@ def manual_cross_validation(tpls_model: TPLS, full_datadict: dict, cv: int = 5, 
     return np.array(scores)
 
 
-n_components = 3
-data = fixture_tpls_example()
-full_model = TPLS(n_components=n_components, d_matrix=data.pop("D"))
-
-
-# with sklearn.config_context(skip_parameter_validation=True):
-from sklearn.model_selection import cross_val_score
-
-cv_results = cross_val_score(
-    estimator=full_model,
-    X=DataFrameDict(data),
-    cv=5,
-    # scoring={"score": scorer},
-    n_jobs=None,
-    # return_train_score=True,
-    # params={"d_matrix": data_for_model["D"]},
-    # verbose=verbose,
-    #
-)
+# n_components = 3
+# data = fixture_tpls_example()
+# full_model = TPLS(n_components=n_components, d_matrix=data.pop("D"))
+# cv_results = cross_val_score(
+#     estimator=full_model,
+#     X=DataFrameDict(data),
+#     cv=10,
+#     # scoring={"score": scorer},
+#     n_jobs=-1,
+#     verbose=1,
+# )
+# print(cv_results)
+# fixture_tpls_example = fixture_tpls_example()
+# test_tpls_model_predictions(fixture_tpls_example)

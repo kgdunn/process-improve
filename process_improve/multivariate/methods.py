@@ -4,7 +4,7 @@ from __future__ import annotations
 import time
 import typing
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, KeysView
 from functools import partial
 from typing import TypeAlias
 
@@ -16,6 +16,7 @@ from scipy.stats import chi2, f
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, _fit_context
 from sklearn.cross_decomposition import PLSRegression as PLS_sklearn
 from sklearn.decomposition import PCA as PCA_sklearn
+from sklearn.metrics import r2_score
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
 
@@ -846,7 +847,7 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
 
     """
 
-    valid_md_methods = ["pmp", "scp", "nipals", "tsr"]
+    valid_md_methods: typing.ClassVar[list[str]] = ["pmp", "scp", "nipals", "tsr"]
 
     def __init__(
         self,
@@ -1455,26 +1456,26 @@ def internal_pls_nipals_fit_one_pc(
 #     return result
 
 
-class DataFrameDict:
+class DataFrameDict(dict):
     def __init__(self, datadict: dict[str, dict[str, pd.DataFrame]]):
         """
         Initialize a DataFrameDict to handle partitionable and static dataframes.
 
         datadict: Dictionary with 3 keys, one for each block: Z, F and Y.
-                  Each block is itself a dictionary of dataframes.
-
-                  dict[str, dict[str, pd.DataFrame]]
-
+                  Each block is itself a dictionary of dataframes: dict[str, dict[str, pd.DataFrame]]
         """
-        self.datadict: dict[str, dict[str, pd.DataFrame]] = datadict
+
         self.partitionable_blocks: list[str] = ["Z", "F", "Y"]
-        first_group = next(iter(datadict["F"].keys()))
-        self.n_samples = datadict["F"][first_group].shape[0]
-        self.shape = (self.n_samples, len(datadict))
+        self.datadict: dict[str, dict[str, pd.DataFrame]] = {}
+        for block in self.partitionable_blocks:
+            self.datadict[block] = datadict.get(block, {})
+        first_group = next(iter(self.datadict["F"].keys()))
+        self.n_samples = self.datadict["F"][first_group].shape[0]
+        self.shape = (self.n_samples, len(self.datadict))
 
         # Some basic checks: each dataframe inside each block has the same number of rows
-        for block in self.partitionable_blocks:
-            for group, df in datadict[block].items():
+        for block in set(self.partitionable_blocks) & set(self.datadict.keys()):
+            for group, df in self.datadict[block].items():
                 if not isinstance(df, pd.DataFrame):
                     raise TypeError(f"Expected a DataFrame for block {block}, group {group}.")
                 if df.shape[0] != self.n_samples:
@@ -1483,32 +1484,47 @@ class DataFrameDict:
                         f"Group {group} has {df.shape[0]} rows."
                     )
 
-    def __getitem__(self, lookup: int | list[int] | list[np.int64] | str) -> dict:
+    def keys(self) -> KeysView[str]:
+        """Return the keys of the DataFrameDict."""
+        return self.datadict.keys()
+
+    def __setitem__(self, key: str, value: pd.DataFrame | dict) -> None:
+        """Set a DataFrame for a specific key in the DataFrameDict."""
+        if key not in self.partitionable_blocks:
+            raise KeyError(f"Key {key} is not a valid partitionable block. Valid keys are: {self.partitionable_blocks}")
+
+        if not isinstance(value, pd.DataFrame):
+            raise TypeError(f"Expected a DataFrame for key {key}, got {type(value)}.")
+        if value.shape[0] != self.n_samples:
+            raise ValueError(
+                f"DataFrames in block {key} must have the same number of rows ({self.n_samples}). "
+                f"Provided DataFrame has {value.shape[0]} rows."
+            )
+        self.datadict[key] = value
+
+    def __getitem__(self, lookup: int | list[int] | list[np.int64] | str) -> DataFrameDict | dict[str, pd.DataFrame]:
         """Return a new DataFrameDict with partitioned data."""
 
         if isinstance(lookup, str):
-            return self.datadict[lookup]
+            return self.datadict[lookup]  # returns the `dict[str, pd.DataFrame]` version of the function
 
-        datadict = {}
+        datadict: dict[str, dict[str, pd.DataFrame]] = {}
         for block in self.partitionable_blocks:
             datadict[block] = {}
             for group, df in self.datadict[block].items():
                 if isinstance(lookup, (int, np.integer)):
-                    assert False
                     datadict[block][group] = df.iloc[[lookup]]
-                elif isinstance(lookup, list):
-                    assert False
-                    datadict[block][group] = df.iloc[lookup]
-                elif isinstance(lookup, tuple):
+                if isinstance(lookup, list):
+                    raise TypeError("datadict[block][group] = df.iloc[lookup] <-- test still")
+                if isinstance(lookup, np.ndarray):
+                    raise TypeError("datadict[block][group] = df.iloc[lookup.tolist()] <-- test still")
+                if isinstance(lookup, tuple):
                     assert lookup[1] == Ellipsis
                     datadict[block][group] = df.iloc[[int(item) for item in lookup[0]]]
-                elif isinstance(lookup, np.ndarray):
-                    assert False
-                    datadict[block][group] = df.iloc[lookup.tolist()]
                 else:
-                    raise TypeError("Lookup must be an int, list of ints, or a string.")
+                    raise TypeError(f"Lookup must be an int, list of ints, or a string. Got {lookup}; {type(lookup)}")
 
-        return datadict
+        return DataFrameDict(datadict)
 
     def __len__(self):
         """Return the number of samples in the DataFrameDict."""
@@ -1629,7 +1645,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.plot = Plot(self)
 
     @_fit_context(prefer_skip_nested_validation=True)
-    def fit(self, X: dict[str, dict[str, pd.DataFrame]], y: None = None) -> TPLS:  # noqa: ARG002, PLR0915
+    def fit(self, X: DataFrameDict, y: None = None) -> TPLS:  # noqa: ARG002, PLR0915
         """Fit the preprocessing parameters and also the latent variable model from the training data.
 
         Parameters
@@ -1643,9 +1659,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             Returns self.
         """
         self.is_fitted_ = False
-        assert isinstance(X, dict)
-        if "Z" not in X:
-            X["Z"] = {}
+        assert isinstance(X, DataFrameDict)
         self._input_data_checks(X)
         group_keys = [str(key) for key in self.d_matrix]
 
@@ -1771,7 +1785,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             for key in self.y_mats
         }
 
-        # 3. Squared prediction error (SPE) for each observation, per component
+        # 3. Squared prediction error (SPE) for each observation, per component, per block
         self.spe: dict[str, dict[str, pd.DataFrame]] = {key: {} for key in self.required_blocks_}
         self.spe_limit: dict[str, dict[str, Callable]] = {key: {} for key in self.required_blocks_}
 
@@ -1785,7 +1799,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.is_fitted_ = True
         return self
 
-    def predict(self, X: dict[str, dict[str, pd.DataFrame]]) -> Bunch:  # noqa: C901, PLR0912
+    def predict(self, X: DataFrameDict) -> Bunch:  # noqa: C901
         """
         Model inference on new data.
 
@@ -1798,12 +1812,12 @@ class TPLS(RegressorMixin, BaseEstimator):
         estimator = TPLS(n_components=2).fit(training_data)
 
         # Testing/inference phase:
-        new_data = {"Z": ..., "F": ...}  # you need at least the Z and F blocks for a new prediction
+        new_data = {"Z": ..., "F": ...}  # you need at least the F block for a new prediction. "Z" is optional.
         predictions = estimator.predict(new_data_pp)
 
         Parameters
         ----------
-        X : dict[str, dict[str, pd.DataFrame]])
+        X : DataFrameDict
             The input samples.
 
         Returns
@@ -1812,12 +1826,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             Returns an array of prediction objects. More details to come here later. Please ask.
         """
         check_is_fitted(self)  # Check if fit had been called
-
-        # Ignore any D matrix that is provided, since it is not used in the prediction phase.
-        # assert "D" not in X, "The D block is not yet supported in the prediction phase."
-        # assert "Y" not in X, "The Y block is not yet supported in the prediction phase."
-        if "Z" not in X:
-            X["Z"] = {}
+        assert isinstance(X, DataFrameDict), "The input 'X' must be a DataFrameDict object."
 
         # TODO: Check consistency on the data: the columns names in the new data must match the columns names in the
         # training data.
@@ -1939,9 +1948,92 @@ class TPLS(RegressorMixin, BaseEstimator):
             y_predicted=y_predicted, super_scores=super_scores, spe_z=spe_z, spe_f=spe_f, hotellings_t2=hotellings_t2
         )
 
-    def _input_data_checks(self, X: dict[str, dict[str, pd.DataFrame]]) -> None:
+    def display_results(self, immediate_print: bool = True, show_cumulative_stats: bool = True) -> str:
+        """Display the results of the model fitting."""
+
+        output = f"Hotelling's T2 limit: {self.hotellings_t2_limit():.4g}\n"
+        # output += f"SPE limits: {self.spe_limit['Y'](self.spe['Y'])}\n"
+        sep = "------ ---------- ---------- ---------- ----------  -------------\n"
+        output += sep
+        if show_cumulative_stats:
+            header = "LV #   sum(R2: D) sum(R2: Z) sum(R2: F) sum(R2: Y) |    ms [iter]"
+        else:
+            header = "LV #        R2: D      R2: Z      R2: F      R2: Y |    ms [iter]"
+
+        output += header + "\n" + sep
+        r2_d_a_prior = np.mean([r2val.mean() for r2val in self.r2_[0]["D"].values()])
+        r2_z_a_prior = np.mean([r2val.mean() for r2val in self.r2_[0]["Z"].values()]) if self.n_conditions > 0 else 0
+        r2_f_a_prior = np.mean([r2val.mean() for r2val in self.r2_[0]["F"].values()])
+        r2_y_a_prior = np.mean([r2val.mean() for r2val in self.r2_[0]["Y"].values()])
+        for a in range(1, self.n_components + 1):
+            r2_d_a = np.mean([np.nanmean(r2val) for r2val in self.r2_[a]["D"].values()])
+            r2_z_a = np.mean([np.nanmean(r2val) for r2val in self.r2_[a]["Z"].values()]) if self.n_conditions > 0 else 0
+            r2_f_a = np.mean([np.nanmean(r2val) for r2val in self.r2_[a]["F"].values()])
+            r2_y_a = np.mean([np.nanmean(r2val) for r2val in self.r2_[a]["Y"].values()])
+            if show_cumulative_stats:
+                r2_d_a += r2_d_a_prior
+                r2_z_a += r2_z_a_prior
+                r2_f_a += r2_f_a_prior
+                r2_y_a += r2_y_a_prior
+
+            r2_d_a_prior = r2_d_a
+            r2_z_a_prior = r2_z_a
+            r2_f_a_prior = r2_f_a
+            r2_y_a_prior = r2_y_a
+            r2_z_a = f"{r2_z_a:>10.1f}" if self.n_conditions > 0 else "        -"
+
+            # Calculate time per iteration for this component
+            time_ms = self.fitting_statistics["milliseconds"][a - 1]
+            iterations = self.fitting_statistics["iterations"][a - 1]
+            time_iter = f"{time_ms:>5.0f} [{iterations:>3d}]"
+
+            line = f"LV {a:<2}  {r2_d_a:>10.1f} {r2_z_a} {r2_f_a:>10.1f} {r2_y_a:>10.1f} |{time_iter:>13}"
+            if self.fitting_statistics["iterations"][a - 1] >= self.max_iterations:
+                line += "** (max iter reached)"
+            output += line + "\n"
+
+        output += sep
+        ms_per_iter = round(
+            sum(self.fitting_statistics["milliseconds"]) / sum(self.fitting_statistics["iterations"]), 2
+        )
+        output += f"Timing: {ms_per_iter} ms/iter; {sum(self.fitting_statistics['iterations'])} iterations required\n"
+        output += f"Average tolerance: {np.mean(self.fitting_statistics['convergance_tolerance']):.4g}\n"
+
+        if immediate_print:
+            print(output)  # noqa: T201
+
+        return output
+
+    def score(self, X: DataFrameDict, y: None = None, sample_weight: None | np.ndarray = None) -> float:  # noqa: ARG002
+        """Return r2_score` on test data.
+
+        See RegressorMixin.score for more details.
+
+        Parameters
+        ----------
+        X : DataFrameDict
+            Test samples.
+
+        y : Not used. In the `X` input, there is a already a "Y" block. This will be the Y-data.
+
+        sample_weight : Not used.
+
+        Returns
+        -------
+        score : float
+            :math:`R^2` of ``self.predict(X)``.
+        """
+        predictions = self.predict(X)
+        y_pred = predictions.y_predicted
+        y_actual = X["Y"]
+        r2_key = 0.0
+        for _idx, key in enumerate(y_actual):
+            r2_key += r2_score(y_true=y_actual[key], y_pred=y_pred[key], sample_weight=sample_weight)
+        return r2_key / (_idx + 1)
+
+    def _input_data_checks(self, X: DataFrameDict) -> None:
         """Check the incoming data."""
-        assert isinstance(X, dict), "The input data must be a dictionary."
+        assert isinstance(X, DataFrameDict), "The input data must be a DataFrameDict."
         assert set(X.keys()) == self.required_inputs_, f"Expected keys: {self.required_inputs_}, got: {set(X.keys())}"
         group_keys = [str(key) for key in self.d_matrix]
         assert set(X["F"]) == set(group_keys), "The keys in F must match the keys in D."
@@ -2379,70 +2471,6 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Step 15: Calculate the final model limit
         self._calculate_model_statistics_and_limits()
 
-    def display_results(self, immediate_print: bool = True, show_cumulative_stats: bool = True) -> str:
-        """Display the results of the model fitting."""
-
-        output = f"Hotelling's T2 limit: {self.hotellings_t2_limit():.4g}\n"
-        # output += f"SPE limits: {self.spe_limit['Y'](self.spe['Y'])}\n"
-        sep = "------ ---------- ---------- ---------- ----------  -------------\n"
-        output += sep
-        if show_cumulative_stats:
-            header = "LV #   sum(R2: D) sum(R2: Z) sum(R2: F) sum(R2: Y) |    ms [iter]"
-        else:
-            header = "LV #        R2: D      R2: Z      R2: F      R2: Y |    ms [iter]"
-
-        output += header + "\n" + sep
-        r2_d_a_prior = np.mean([r2val.mean() for r2val in self.r2_[0]["D"].values()])
-        r2_z_a_prior = np.mean([r2val.mean() for r2val in self.r2_[0]["Z"].values()]) if self.n_conditions > 0 else 0
-        r2_f_a_prior = np.mean([r2val.mean() for r2val in self.r2_[0]["F"].values()])
-        r2_y_a_prior = np.mean([r2val.mean() for r2val in self.r2_[0]["Y"].values()])
-        for a in range(1, self.n_components + 1):
-            r2_d_a = np.mean([np.nanmean(r2val) for r2val in self.r2_[a]["D"].values()])
-            r2_z_a = np.mean([np.nanmean(r2val) for r2val in self.r2_[a]["Z"].values()]) if self.n_conditions > 0 else 0
-            r2_f_a = np.mean([np.nanmean(r2val) for r2val in self.r2_[a]["F"].values()])
-            r2_y_a = np.mean([np.nanmean(r2val) for r2val in self.r2_[a]["Y"].values()])
-            if show_cumulative_stats:
-                r2_d_a += r2_d_a_prior
-                r2_z_a += r2_z_a_prior
-                r2_f_a += r2_f_a_prior
-                r2_y_a += r2_y_a_prior
-
-            r2_d_a_prior = r2_d_a
-            r2_z_a_prior = r2_z_a
-            r2_f_a_prior = r2_f_a
-            r2_y_a_prior = r2_y_a
-            r2_z_a = f"{r2_z_a:>10.1f}" if self.n_conditions > 0 else "        -"
-
-            # Calculate time per iteration for this component
-            time_ms = self.fitting_statistics["milliseconds"][a - 1]
-            iterations = self.fitting_statistics["iterations"][a - 1]
-            time_iter = f"{time_ms:>5.0f} [{iterations:>3d}]"
-
-            line = f"LV {a:<2}  {r2_d_a:>10.1f} {r2_z_a} {r2_f_a:>10.1f} {r2_y_a:>10.1f} |{time_iter:>13}"
-            if self.fitting_statistics["iterations"][a - 1] >= self.max_iterations:
-                line += "** (max iter reached)"
-            output += line + "\n"
-
-        output += sep
-        ms_per_iter = round(
-            sum(self.fitting_statistics["milliseconds"]) / sum(self.fitting_statistics["iterations"]), 2
-        )
-        output += f"Timing: {ms_per_iter} ms/iter; {sum(self.fitting_statistics['iterations'])} iterations required\n"
-        output += f"Average tolerance: {np.mean(self.fitting_statistics['convergance_tolerance']):.4g}\n"
-
-        if immediate_print:
-            print(output)  # noqa: T201
-
-        return output
-
-    # def r2_score(
-    #     self, X: dict[str, dict[str, pd.DataFrame]], y: dict[str, pd.DataFrame], sample_weight: np.ndarray|None = None
-    # ) -> float:
-    #     """Calculate the R^2 score for the model."""
-
-    #     y_pred = self.predict(X)
-    #     return r2_score(y, y_pred, sample_weight=sample_weight)
-
     # def _calculate_r2_score(
     #     self, y_true: dict[str, pd.DataFrame], y_pred: dict[str, pd.DataFrame], sample_weight: np.ndarray|None = None
     # ) -> float:
@@ -2477,34 +2505,6 @@ class TPLS(RegressorMixin, BaseEstimator):
     #     return 0.0 if total_ss_res == 0 else float("-inf")
 
     #    return 1.0 - (total_ss_res / total_ss_tot)
-
-    # def _calculate_rmse_score(
-    #     self, y_true: dict[str, pd.DataFrame], y_pred: dict[str, pd.DataFrame], sample_weight: np.ndarray|None = None
-    # ) -> float:
-    #     """Calculate Root Mean Square Error across all Y blocks."""
-    #     # TODO: Implement RMSE calculation
-    #     # RMSE = sqrt(mean((y_true - y_pred)^2))
-    #     # For multioutput: can use weighted average or return negative RMSE (lower is better)
-    #     raise NotImplementedError("RMSE scoring not yet implemented")
-
-    # def _calculate_mae_score(
-    #     self, y_true: dict[str, pd.DataFrame], y_pred: dict[str, pd.DataFrame], sample_weight: np.ndarray|None = None
-    # ) -> float:
-    #     """Calculate Mean Absolute Error across all Y blocks."""
-    #     # TODO: Implement MAE calculation
-    #     # MAE = mean(|y_true - y_pred|)
-    #     # For multioutput: can use weighted average or return negative MAE (lower is better)
-    #     raise NotImplementedError("MAE scoring not yet implemented")
-
-    # def _calculate_mape_score(
-    #     self, y_true: dict[str, pd.DataFrame], y_pred: dict[str, pd.DataFrame], sample_weight: np.ndarray|None = None
-    # ) -> float:
-    #     """Calculate Mean Absolute Percentage Error across all Y blocks."""
-    #     # TODO: Implement MAPE calculation
-    #     # MAPE = mean(|y_true - y_pred| / |y_true|) * 100
-    #     # Handle division by zero for y_true values close to 0
-    #     # For multioutput: can use weighted average or return negative MAPE (lower is better)
-    #     raise NotImplementedError("MAPE scoring not yet implemented")
 
 
 class Plot:
