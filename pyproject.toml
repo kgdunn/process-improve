@@ -1,6 +1,6 @@
 [project]
 name = "process-improve"
-version = "0.9.88"
+version = "0.9.89"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = {text = "MIT license"}
