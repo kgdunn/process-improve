@@ -356,13 +356,12 @@ def test_pca_invalid_calls() -> None:
     K, N, A = 4, 3, 5
     rng = np.random.default_rng()
     data = pd.DataFrame(rng.uniform(low=-1, high=1, size=(N, K)))
+    model = PCA(n_components=A)
     with pytest.warns(
         SpecificationWarning,
         match=r"The requested number of components is more than can be computed from data(.*)",
     ):
-        model = PCA(n_components=A)
-
-    model.fit(data)
+        model.fit(data)
     data.iloc[0, 0] = np.nan
     with pytest.raises(AssertionError, match="Tolerance must exceed machine precision"):
         _ = PCA(n_components=A, missing_data_settings=dict(md_method="nipals", md_tol=0)).fit(data)
@@ -532,12 +531,10 @@ def test_pls_invalid_calls() -> None:
     with pytest.raises(ValueError, match="Missing data method 'SCP' is not known."):
         _ = PLS(n_components=A, md_method="SCP")
 
+    model = PLS(n_components=A)
     with pytest.warns(SpecificationWarning, match=r"The requested number of components is (.*)"):
-        model = PLS(
-            n_components=A,
-        )
+        model.fit(data_x, data_y)
 
-    model.fit(data_x, data_y)
     sparse_data = csr_matrix([[1, 2], [0, 3], [4, 5]])
     with pytest.raises(TypeError, match="This PLS class does not support sparse input."):
         PLS(n_components=2).fit(data_x, sparse_data)
