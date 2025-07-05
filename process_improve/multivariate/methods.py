@@ -1477,7 +1477,7 @@ class DataFrameDict(dict):
         for block in set(self.partitionable_blocks) & set(self.datadict.keys()):
             for group, df in self.datadict[block].items():
                 if not isinstance(df, pd.DataFrame):
-                    raise TypeError(f"Expected a DataFrame for block {block}, group {group}.")
+                    raise TypeError(f"Expected a DataFrame for block {block}, group '{group}'; got instead{type(df)}.")
                 if df.shape[0] != self.n_samples:
                     raise ValueError(
                         f"DataFrames in block {block} must have the same number of rows ({self.n_samples}). "
@@ -1533,7 +1533,7 @@ class DataFrameDict(dict):
 
 class TPLS(RegressorMixin, BaseEstimator):
     """
-    TPLS algorithm for T-shaped data structures, including standard pre-processing of the data.
+    TPLS algorithm for T-shaped data structures (we also include standard pre-processing of the data inside this class).
 
     Source: Garcia-Munoz, https://doi.org/10.1016/j.chemolab.2014.02.006, Chem.Intell.Lab.Sys. v133, p 49 to 62, 2014.
 
@@ -1542,15 +1542,16 @@ class TPLS(RegressorMixin, BaseEstimator):
 
     Paper           This code     Internal Numpy variable name (holds only NumPy values)
     =====           ========      ============================
-    X^T             D             d_mats                            Database
-    X               D^T
+    X^T             D             d_matrix (external);              Database of properties
+                                  d_mats   (internal)               (we use a copy, d_mats, internally)
+    X               D^T           --                                -- (we do not use the transposed version of D)
     R               F             f_mats                            Formula
-    Z               Z             z_mats                            (Upstream) conditions
+    Z               Z             z_mats                            Conditions
     Y               Y             y_mats                            Quality indicators
 
     Notes
     1. Matrices in F, Z and Y must all have the same number of rows.
-    2. Columns in F must be the same as the rows in D.
+    2. Columns in F must be the same as the **rows** in D.
     3. Conditions in Z may be missing (turning it into an L-shaped data structure).
 
     Parameters
@@ -1558,10 +1559,19 @@ class TPLS(RegressorMixin, BaseEstimator):
     n_components : int
         A parameter used to specify the number of components.
 
+    d_matrix : dict[str, dict[str, pd.DataFrame]]
+        A dictionary containing the properties of each group of materials.
+        The keys are the group names, and the values are dataframes with properties as columns and materials as rows.
+        This "D" matrix is provided once when constructing the model, and reused for fitting, prediction and
+        cross-validation.
+
+    max_iterations: int, optional
+        The maximum number of iterations for the TPLS algorithm. Default is 500.
+
     Data structures in input `X` (a dictionary with 4 keys, as listed below)
     ------------------------------------------------------------------------
 
-    D. Database of dataframes, containing properties.
+    D. Database of dataframes, containing properties in the columns, while each row is a material.
 
         D = { "Group A": dataframe of properties of group A materials. (columns contain properties, rows are materials),
               "Group B": dataframe of properties of group B materials. (columns contain properties, rows are materials),
@@ -1580,11 +1590,13 @@ class TPLS(RegressorMixin, BaseEstimator):
     Y. Product characteristics (quality space; key performance indicators). One row per formula/blend;
        one column per quality indicator.
 
-
     Attributes
     ----------
-    is_fitted_ : bool
-        A boolean indicating whether the estimator has been fitted.
+    n_samples : int
+        The number of samples (rows) in the training data
+
+    n_substances : int
+        The number of substances (columns) in the training data, i.e. the number of materials in the F matrix.
 
 
     Example
@@ -1948,7 +1960,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             y_predicted=y_predicted, super_scores=super_scores, spe_z=spe_z, spe_f=spe_f, hotellings_t2=hotellings_t2
         )
 
-    def display_results(self, immediate_print: bool = True, show_cumulative_stats: bool = True) -> str:
+    def display_results(self, show_cumulative_stats: bool = True) -> str:
         """Display the results of the model fitting."""
 
         output = f"Hotelling's T2 limit: {self.hotellings_t2_limit():.4g}\n"
@@ -1999,9 +2011,6 @@ class TPLS(RegressorMixin, BaseEstimator):
         output += f"Timing: {ms_per_iter} ms/iter; {sum(self.fitting_statistics['iterations'])} iterations required\n"
         output += f"Average tolerance: {np.mean(self.fitting_statistics['convergance_tolerance']):.4g}\n"
 
-        if immediate_print:
-            print(output)  # noqa: T201
-
         return output
 
     def score(self, X: DataFrameDict, y: None = None, sample_weight: None | np.ndarray = None) -> float:  # noqa: ARG002
@@ -2030,6 +2039,33 @@ class TPLS(RegressorMixin, BaseEstimator):
         for _idx, key in enumerate(y_actual):
             r2_key += r2_score(y_true=y_actual[key], y_pred=y_pred[key], sample_weight=sample_weight)
         return r2_key / (_idx + 1)
+
+    def help(self) -> str:
+        """Help for the TPLS Estimator.
+
+        Data orgnazation:
+
+        Build model:        tpls = TPLS(n_components=2, d_matrix=d_matrix).fit(X)
+
+        Predict new data:   tpls.predict(X_new)
+
+        Statistical outputs:
+
+        .display_results()
+                Display the results of the model fitting, including R2 values and timing information.
+
+        .hotellings_t2_limit()
+                Returns the Hotelling's T2 limit for the model.
+
+        .spe_limit["Y"](spe["Y"])
+                Returns the SPE limit for the Y block.
+
+
+
+        """
+
+        # Return this function's docstring as the help text.
+        return self.__doc__ + "\n\n" + self.help.__doc__
 
     def _input_data_checks(self, X: DataFrameDict) -> None:
         """Check the incoming data."""
@@ -2065,7 +2101,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             The scaling parameters.
         """
         centering = y.mean(axis="index")
-        scaling = y.std(ddof=1, axis="index")
+        scaling = y.std(ddof=1, axis="index") if y.shape[0] > 1 else pd.Series(1.0, index=y.columns)
         scaling[scaling < self.tolerance_] = 1.0  # columns with little/no variance are left as-is.
         return centering, scaling
 
@@ -2082,6 +2118,12 @@ class TPLS(RegressorMixin, BaseEstimator):
         y : {pd.DataFrame}
             Returns the input dataframe.
         """
+        # Ensure all columns are dtype "float64" or "int64"
+        if not all(good_cols := [isinstance(col, (np.dtypes.Float64DType, np.dtypes.IntDType)) for col in df.dtypes]):
+            bad_columns = df.columns[[not item for item in good_cols]].to_list()
+            raise ValueError(
+                f"All columns in the DataFrame must be of type float64 or int64. Bad columns: {bad_columns}"
+            )
 
         return check_array(
             df, accept_sparse=False, ensure_all_finite="allow-nan", ensure_2d=True, allow_nd=False, ensure_min_samples=1
@@ -2325,18 +2367,19 @@ class TPLS(RegressorMixin, BaseEstimator):
             ][key]["scale"].values[None, :]
 
         # Test that all blocks and groups within a block have a mean of 0 and a standard deviation of 1.
-        # Note the extra complexity with np.where: this skips checking columns that have perfectly zero stddev.
-        assert all(pytest.approx(np.nanmean(self.z_mats[key], axis=0)) == 0 for key in self.z_mats)
-        assert all(
-            pytest.approx(np.where((in_array := np.nanstd(self.z_mats[key], axis=0, ddof=1)) == 0, 1, in_array)) == 1
-            for key in self.z_mats
-        )
+        # Note the extra complexity for checking columns that have perfectly zero variance.
+        for key in self.z_mats:
+            assert pytest.approx(0) == np.nanmean(self.z_mats[key], axis=0)
+            for item in np.nanvar(self.z_mats[key], axis=0, ddof=1):
+                if item != 0:
+                    assert pytest.approx(item) == 1
 
-        assert all(pytest.approx(np.nanmean(self.f_mats[key], axis=0)) == 0 for key in self.f_mats)
-        assert all(
-            pytest.approx(np.where((in_array := np.nanstd(self.f_mats[key], axis=0, ddof=1)) == 0, 1, in_array)) == 1
-            for key in self.f_mats
-        )
+        # Check the F, D, and Y blocks as well.
+        for key in self.f_mats:
+            assert pytest.approx(0) == np.nanmean(self.f_mats[key], axis=0)
+            for item in np.nanvar(self.f_mats[key], axis=0, ddof=1):
+                if item != 0:
+                    assert pytest.approx(item) == 1
 
         assert all(pytest.approx(np.nanmean(self.y_mats[key], axis=0)) == 0 for key in self.y_mats)
         assert all(
