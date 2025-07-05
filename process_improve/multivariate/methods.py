@@ -611,9 +611,9 @@ class PLS(PLS_sklearn):
         self.K: int = X.shape[1]
         self.Ny: int = Y.shape[0]
         self.M: int = Y.shape[1]
-        assert (
-            self.Ny == self.N
-        ), f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
+        assert self.Ny == self.N, (
+            f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
+        )
 
         # Check if number of components is supported against maximum requested
         min_dim = min(self.N, self.K)
@@ -1862,7 +1862,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             key: pd.DataFrame(index=x_z[key].index, columns=range(1, self.n_components + 1)) for key in x_z
         }
 
-        super_scores = pd.DataFrame(index=names_observations, columns=range(1, self.n_components + 1), dtype=float)
+        t_scores_super = pd.DataFrame(index=names_observations, columns=range(1, self.n_components + 1), dtype=float)
         # Hotelling's T2 values, after so many components. In other words, in column 3, it is the Hotelling's T2
         # computed with 3 components.
         hotellings_t2 = pd.DataFrame(index=names_observations, columns=range(1, self.n_components + 1), dtype=float)
@@ -1874,15 +1874,15 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         for key, df_f in x_f.items():
             assert df_f.shape[0] == num_obs, "All formula blocks must have the same number of rows."
-            assert set(df_f.columns) == set(
-                self.property_names[key]
-            ), f"Columns in block F, group [{key}] must match training data column names"
+            assert set(df_f.columns) == set(self.property_names[key]), (
+                f"Columns in block F, group [{key}] must match training data column names"
+            )
 
         for key, df_z in x_z.items():
             assert df_z.shape[0] == num_obs, "All condition blocks must have the same number of rows."
-            assert set(df_z.columns) == set(
-                self.condition_names[key]
-            ), f"Columns names in block Z, group [{key}] must match training data column names."
+            assert set(df_z.columns) == set(self.condition_names[key]), (
+                f"Columns names in block Z, group [{key}] must match training data column names."
+            )
 
         for pc_a in range(self.n_components):
             # Regress the row of each new formula block on the r_loadings_f, to get the t-score for that pc_a component.
@@ -1938,26 +1938,28 @@ class TPLS(RegressorMixin, BaseEstimator):
                 spe_z[key].iloc[:, pc_a] = np.sqrt(np.sum(np.square(df_x_z), axis=1))
 
             # Store values for the final output
-            super_scores.iloc[:, pc_a] = super_score_a.flatten()
+            t_scores_super.iloc[:, pc_a] = super_score_a.flatten()
             hotellings_t2.iloc[:, pc_a] = np.sum(super_score_a**2, axis=1)
 
         # After the loop has repeated `self.n_components` times: calculate the predictions using the full set of super
         # scores and the q-loadings for the Y-space.
         for key in self.y_mats:
-            y_predicted[key].iloc[:, :] = (super_scores.values @ self.q_loadings_y[key].values.T) * self.preproc_["Y"][
-                key
-            ]["scale"].values[None, :] + self.preproc_["Y"][key]["center"].values[None, :]
+            y_predicted[key].iloc[:, :] = (t_scores_super.values @ self.q_loadings_y[key].values.T) * self.preproc_[
+                "Y"
+            ][key]["scale"].values[None, :] + self.preproc_["Y"][key]["center"].values[None, :]
 
         # Calculate the T2 values: for all the spaces
         hotellings_t2.iloc[:, :] = (
             # Last item in the statement here is not super_scores.values !! we want the result back as a DataFrame
-            super_scores.values
-            @ np.diag(np.power(1 / self.scaling_factor_for_scores.values, 2), 0)
-            * super_scores
+            t_scores_super.values @ np.diag(np.power(1 / self.scaling_factor_for_scores.values, 2), 0) * t_scores_super
         ).cumsum(axis="columns")
 
         return Bunch(
-            y_predicted=y_predicted, super_scores=super_scores, spe_z=spe_z, spe_f=spe_f, hotellings_t2=hotellings_t2
+            y_predicted=y_predicted,
+            t_scores_super=t_scores_super,
+            spe_z=spe_z,
+            spe_f=spe_f,
+            hotellings_t2=hotellings_t2,
         )
 
     def display_results(self, show_cumulative_stats: bool = True) -> str:
@@ -2043,24 +2045,33 @@ class TPLS(RegressorMixin, BaseEstimator):
     def help(self) -> str:
         """Help for the TPLS Estimator.
 
-        Data orgnazation:
+        Data organization
+        -----------------
 
-        Build model:        tpls = TPLS(n_components=2, d_matrix=d_matrix).fit(X)
+        Quick tips
+        ----------
+        Build model:                tpls = TPLS(n_components=2, d_matrix=d_matrix).fit(X)
+        Get model's predictions:    tpls.hat            <-- the hat-matrix, i.e., the predictions
+        Predict on new data:        tpls.predict(X_new)
+        See model summary:          tpls.display_results()
+        This help page:             tpls.help()
 
-        Predict new data:   tpls.predict(X_new)
+        Statistical values
+        ------------------
 
-        Statistical outputs:
+        .t_scores_super             Super scores for the entire model                           [pd.DataFrame]
+        .spe                        Squared prediction error for each block                     [dict of pd.DataFrames]
 
-        .display_results()
-                Display the results of the model fitting, including R2 values and timing information.
-
-        .hotellings_t2_limit()
-                Returns the Hotelling's T2 limit for the model.
-
-        .spe_limit["Y"](spe["Y"])
+        .hotellings_t2_limit()      Returns the Hotelling's T2 limit for the model              [float]
+        .spe_limit[block]()         Return the SPE limit for the block, `.spe_limit["Y"]()`.    [float]
                 Returns the SPE limit for the Y block.
 
 
+        TODO:
+        self.hotellings_t2: pd.DataFrame = pd.DataFrame()
+        self.hotellings_t2_limit: Callable = hotellings_t2_limit
+        self.scaling_factor_for_scores = pd.Series()
+        self.ellipse_coordinates: Callable = ellipse_coordinates
 
         """
 
