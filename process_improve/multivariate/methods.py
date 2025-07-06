@@ -611,9 +611,9 @@ class PLS(PLS_sklearn):
         self.K: int = X.shape[1]
         self.Ny: int = Y.shape[0]
         self.M: int = Y.shape[1]
-        assert self.Ny == self.N, (
-            f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
-        )
+        assert (
+            self.Ny == self.N
+        ), f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
 
         # Check if number of components is supported against maximum requested
         min_dim = min(self.N, self.K)
@@ -1867,22 +1867,22 @@ class TPLS(RegressorMixin, BaseEstimator):
         # computed with 3 components.
         hotellings_t2 = pd.DataFrame(index=names_observations, columns=range(1, self.n_components + 1), dtype=float)
         # Predictions are returned in un-scaled form, so they are in the same units as the training data.
-        y_predicted: dict[str, pd.DataFrame] = {
+        hat: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=names_observations, columns=self.quality_names[key], dtype=float)
             for key in self.y_mats
         }
 
         for key, df_f in x_f.items():
             assert df_f.shape[0] == num_obs, "All formula blocks must have the same number of rows."
-            assert set(df_f.columns) == set(self.property_names[key]), (
-                f"Columns in block F, group [{key}] must match training data column names"
-            )
+            assert set(df_f.columns) == set(
+                self.property_names[key]
+            ), f"Columns in block F, group [{key}] must match training data column names"
 
         for key, df_z in x_z.items():
             assert df_z.shape[0] == num_obs, "All condition blocks must have the same number of rows."
-            assert set(df_z.columns) == set(self.condition_names[key]), (
-                f"Columns names in block Z, group [{key}] must match training data column names."
-            )
+            assert set(df_z.columns) == set(
+                self.condition_names[key]
+            ), f"Columns names in block Z, group [{key}] must match training data column names."
 
         for pc_a in range(self.n_components):
             # Regress the row of each new formula block on the r_loadings_f, to get the t-score for that pc_a component.
@@ -1917,7 +1917,8 @@ class TPLS(RegressorMixin, BaseEstimator):
                     self.w_loadings_super.iloc[:, pc_a].values
                 ).reshape(-1, 1)
             else:
-                super_score_a = score_f_a.reshape(-1, 1)  # The w_loadings_super are just "1" in this case
+                # The w_loadings_super are just "1" or "-1" in this case
+                super_score_a = score_f_a.reshape(-1, 1) * self.w_loadings_super.iloc[:, pc_a].values
 
             # Deflate each block (key) in x_f matrices with the super_scores, to get values for the next iteration,
             # and to compute SPE.
@@ -1944,21 +1945,22 @@ class TPLS(RegressorMixin, BaseEstimator):
         # After the loop has repeated `self.n_components` times: calculate the predictions using the full set of super
         # scores and the q-loadings for the Y-space.
         for key in self.y_mats:
-            y_predicted[key].iloc[:, :] = (t_scores_super.values @ self.q_loadings_y[key].values.T) * self.preproc_[
-                "Y"
-            ][key]["scale"].values[None, :] + self.preproc_["Y"][key]["center"].values[None, :]
+            hat[key].iloc[:, :] = (t_scores_super.values @ self.q_loadings_y[key].values.T) * self.preproc_["Y"][key][
+                "scale"
+            ].values[None, :] + self.preproc_["Y"][key]["center"].values[None, :]
 
         # Calculate the T2 values: for all the spaces
         hotellings_t2.iloc[:, :] = (
             # Last item in the statement here is not super_scores.values !! we want the result back as a DataFrame
-            t_scores_super.values @ np.diag(np.power(1 / self.scaling_factor_for_scores.values, 2), 0) * t_scores_super
+            t_scores_super.values
+            @ np.diag(np.power(1 / self.scaling_factor_for_scores.values, 2), 0)
+            * t_scores_super
         ).cumsum(axis="columns")
 
         return Bunch(
-            y_predicted=y_predicted,
+            hat=hat,
             t_scores_super=t_scores_super,
-            spe_z=spe_z,
-            spe_f=spe_f,
+            spe={"Z": spe_z, "F": spe_f},
             hotellings_t2=hotellings_t2,
         )
 
@@ -2035,7 +2037,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             :math:`R^2` of ``self.predict(X)``.
         """
         predictions = self.predict(X)
-        y_pred = predictions.y_predicted
+        y_pred = predictions.hat
         y_actual = X["Y"]
         r2_key = 0.0
         for _idx, key in enumerate(y_actual):
@@ -2060,7 +2062,9 @@ class TPLS(RegressorMixin, BaseEstimator):
         ------------------
 
         .t_scores_super             Super scores for the entire model                           [pd.DataFrame]
+        .hotellings_t2              Hotelling's T2 values for each observation, per component   [pd.DataFrame]
         .spe                        Squared prediction error for each block                     [dict of pd.DataFrames]
+
 
         .hotellings_t2_limit()      Returns the Hotelling's T2 limit for the model              [float]
         .spe_limit[block]()         Return the SPE limit for the block, `.spe_limit["Y"]()`.    [float]
@@ -2156,7 +2160,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
     def _store_model_coefficients(
         self,
-        pc_a: int,
+        pc_a_column: int,  # one-based index for the component
         t_super_i: np.ndarray,
         r_i: dict[str, np.ndarray],
         w_i_z: dict[str, np.ndarray],
@@ -2165,23 +2169,27 @@ class TPLS(RegressorMixin, BaseEstimator):
         """Store the model coefficients for later use."""
 
         self.t_scores_super = self.t_scores_super.join(
-            pd.DataFrame(t_super_i, index=self.observation_names, columns=[pc_a])
+            pd.DataFrame(t_super_i, index=self.observation_names, columns=[pc_a_column])
         )
 
         # These are loadings really, not scores, for each group in the F block.
         self.r_loadings_f = {
-            key: self.r_loadings_f[key].join(pd.DataFrame(r_i[key], index=self.property_names[key], columns=[pc_a]))
+            key: self.r_loadings_f[key].join(
+                pd.DataFrame(r_i[key], index=self.property_names[key], columns=[pc_a_column])
+            )
             for key in r_i
         }
 
         # These are the loadings for the Z space
         self.w_loadings_z = {
-            key: self.w_loadings_z[key].join(pd.DataFrame(w_i_z[key], index=self.condition_names[key], columns=[pc_a]))
+            key: self.w_loadings_z[key].join(
+                pd.DataFrame(w_i_z[key], index=self.condition_names[key], columns=[pc_a_column])
+            )
             for key in w_i_z
         }
 
         self.w_loadings_super = self.w_loadings_super.join(
-            pd.DataFrame(w_super_i, index=["Z", "F"] if self.n_conditions > 0 else ["F"], columns=[pc_a])
+            pd.DataFrame(w_super_i, index=["Z", "F"] if self.n_conditions > 0 else ["F"], columns=[pc_a_column])
         )
 
     def _calculate_and_store_deflation_matrices(
