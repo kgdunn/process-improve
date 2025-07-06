@@ -1322,47 +1322,47 @@ def fixture_tpls_example() -> dict[str, dict[str, pd.DataFrame]]:
     properties = {
         "Group 1": pd.read_csv(  # 162 x 7
             "process_improve/datasets/multivariate/tpls-pyphi/properties_Group1.csv", sep=",", index_col=0, header=0
-        ),
+        ).astype("float64"),
         "Group 2": pd.read_csv(  # 9 x 6
             "process_improve/datasets/multivariate/tpls-pyphi/properties_Group2.csv", sep=",", index_col=0, header=0
-        ),
+        ).astype("float64"),
         "Group 3": pd.read_csv(  # 22 x 6
             "process_improve/datasets/multivariate/tpls-pyphi/properties_Group3.csv", sep=",", index_col=0, header=0
-        ),
+        ).astype("float64"),
         "Group 4": pd.read_csv(  # 19 x 11
             "process_improve/datasets/multivariate/tpls-pyphi/properties_Group4.csv", sep=",", index_col=0, header=0
-        ),
+        ).astype("float64"),
         "Group 5": pd.read_csv(  # 18 x 3
             "process_improve/datasets/multivariate/tpls-pyphi/properties_Group5.csv", sep=",", index_col=0, header=0
-        ),
+        ).astype("float64"),
     }
     formulas = {
         "Group 1": pd.read_csv(  # 105 x 162
             "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group1.csv", sep=",", index_col=0, header=0
-        ),
+        ).astype("float64"),
         "Group 2": pd.read_csv(  # 105 x 9
             "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group2.csv", sep=",", index_col=0, header=0
-        ),
+        ).astype("float64"),
         "Group 3": pd.read_csv(  # 105 x 22
             "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group3.csv", sep=",", index_col=0, header=0
-        ),
+        ).astype("float64"),
         "Group 4": pd.read_csv(  # 105 x 19
             "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group4.csv", sep=",", index_col=0, header=0
-        ),
+        ).astype("float64"),
         "Group 5": pd.read_csv(  # 105 x 18
             "process_improve/datasets/multivariate/tpls-pyphi/formulas_Group5.csv", sep=",", index_col=0, header=0
-        ),
+        ).astype("float64"),
     }
     process_conditions: dict[str, pd.DataFrame] = {
         "Conditions": pd.read_csv(  # 105 x 10
             "process_improve/datasets/multivariate/tpls-pyphi/process_conditions.csv", sep=",", index_col=0, header=0
-        )
+        ).astype("float64")
     }
 
     quality_indicators: dict[str, pd.DataFrame] = {
         "Quality": pd.read_csv(  # 105 x 6
             "process_improve/datasets/multivariate/tpls-pyphi/quality_indicators.csv", sep=",", index_col=0, header=0
-        )
+        ).astype("float64")
     }
     return {
         "Z": process_conditions,
