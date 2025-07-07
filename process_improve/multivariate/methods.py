@@ -611,9 +611,9 @@ class PLS(PLS_sklearn):
         self.K: int = X.shape[1]
         self.Ny: int = Y.shape[0]
         self.M: int = Y.shape[1]
-        assert (
-            self.Ny == self.N
-        ), f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
+        assert self.Ny == self.N, (
+            f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
+        )
 
         # Check if number of components is supported against maximum requested
         min_dim = min(self.N, self.K)
@@ -1668,6 +1668,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.n_samples = 0
         self.tolerance_ = np.sqrt(np.finfo(float).eps)
         self.required_blocks_ = {"D", "F", "Y", "Z"}  # "Z" block is optional; an empty one is added if not provided
+        # "required_inputs" used in the sense of inputs to this class; not in the sense of a "model input"
         self.required_inputs_ = {"F", "Y", "Z"}
         self.plot = Plot(self)
 
@@ -1698,6 +1699,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         # The keys are the blocks, and the values are dictionaries with group keys as keys.
         # The values are the R2 values for each column in the block.
         self.r2_frac: list[dict[str, dict[str, np.ndarray]]] = [{key: {} for key in self.required_blocks_}]
+        self.feature_importance: dict[str, dict[str, pd.Series]] = {key: {} for key in self.required_blocks_}
 
         self.d_mats: dict[str, np.ndarray] = {key: self.d_matrix[key].values.copy() for key in group_keys}
         self.f_mats: dict[str, np.ndarray] = {key: X["F"][key].values.copy() for key in group_keys}
@@ -1726,7 +1728,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             self.preproc_["D"][key]["center"], self.preproc_["D"][key]["scale"] = (
                 self._learn_center_and_scaling_parameters(df_d)
             )
-            self.preproc_["D"][key]["block"] = pd.Series([np.sqrt(df_d.shape[1])])
+            self.preproc_["D"][key]["block"] = pd.Series([np.sqrt(df_d.shape[1])])  # <-- sqrt(number of properties!)
             #
             # Also do the same for the formula matrix
             self.preproc_["F"][key] = {}
@@ -1823,7 +1825,6 @@ class TPLS(RegressorMixin, BaseEstimator):
             key: pd.DataFrame(index=self.observation_names, columns=self.quality_names[key], dtype=float).fillna(0)
             for key in self.y_mats
         }
-
         # 3. Squared prediction error (SPE) for each observation, per component, per block
         self.spe: dict[str, dict[str, pd.DataFrame]] = {key: {} for key in self.required_blocks_}
         self.spe_limit: dict[str, dict[str, Callable]] = {key: {} for key in self.required_blocks_}
@@ -1901,15 +1902,15 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         for key, df_f in x_f.items():
             assert df_f.shape[0] == num_obs, "All formula blocks must have the same number of rows."
-            assert set(df_f.columns) == set(
-                self.material_names[key]
-            ), f"Columns in block F, group [{key}] must match training data column names for each material"
+            assert set(df_f.columns) == set(self.material_names[key]), (
+                f"Columns in block F, group [{key}] must match training data column names for each material"
+            )
 
         for key, df_z in x_z.items():
             assert df_z.shape[0] == num_obs, "All condition blocks must have the same number of rows."
-            assert set(df_z.columns) == set(
-                self.condition_names[key]
-            ), f"Columns names in block Z, group [{key}] must match training data column names."
+            assert set(df_z.columns) == set(self.condition_names[key]), (
+                f"Columns names in block Z, group [{key}] must match training data column names."
+            )
 
         for pc_a in range(self.n_components):
             # Regress the row of each new formula block on the r_loadings_f, to get the t-score for that pc_a component.
@@ -1979,9 +1980,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Calculate the T2 values: for all the spaces
         hotellings_t2.iloc[:, :] = (
             # Last item in the statement here is not super_scores.values !! we want the result back as a DataFrame
-            t_scores_super.values
-            @ np.diag(np.power(1 / self.scaling_factor_for_scores.values, 2), 0)
-            * t_scores_super
+            t_scores_super.values @ np.diag(np.power(1 / self.scaling_factor_for_scores.values, 2), 0) * t_scores_super
         ).cumsum(axis="columns")
 
         return Bunch(
@@ -2315,7 +2314,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.sums_of_squares_.append(calc_ssq)
 
         # Calculate the incremental (not cumulative!) R2 values for each block, per column:
-        # Cumulative R2 values can be found by summation.
+        # Cumulative R2 values can be found by summation. The R2 values are **always** fractional (between 0 and 1).
         ssq_prior_pc = self.sums_of_squares_[-2]
         ssq_start_0 = self.sums_of_squares_[0]
         calc_r2 = {
@@ -2326,18 +2325,46 @@ class TPLS(RegressorMixin, BaseEstimator):
         }
         self.r2_frac.append(calc_r2)
 
-        # VIP for each block, per column, the for given number of components we currently have. VIP are cumulative.
-        # So they will change from component to component, depending on the prior components, and the current one.
+        # VIP for each block, for given number of components we currently have. VIP are cumulative.
+        # For the D-block and F-block: you want to be able to use the VIPs to compare across the entire block, without
+        # regards to the banding in groups that might have to be done. So use the total R2 for that block, and do not
+        # work per group.
+        r2_d_a: list[float] = [
+            float(np.mean([np.nanmean(r2val) for r2val in r2_frac["D"].values()])) for r2_frac in self.r2_frac
+        ]
+        r2_f_a: list[float] = [
+            float(np.mean([np.nanmean(r2val) for r2val in r2_frac["F"].values()])) for r2_frac in self.r2_frac
+        ]
+        loadings_s = np.concatenate(list(self.s_loadings_d.values()))
+        loadings_f = np.concatenate(list(self.p_loadings_f.values()))
+        vip_d = self._calculate_vip(loadings_s, np.array(r2_d_a[1:]))
+        vip_f = self._calculate_vip(loadings_f, np.array(r2_f_a[1:]))
+        # Split the `vip_d` back into the original groups that it was merged from.
+        # For example: if there are two groups, one with 17 columns, and the second with 3 columns, then there are
+        # a total of 20 values in `vip_d`, and the first 17 values correspond to the first group, and the last 3 values.
+        # Create a dictionary with the group names as keys, and the VIP values as values, split correctly:
+        vip_split_d = {}
+        start = 0
+        for key in self.property_names:
+            end = start + len(self.property_names[key])
+            vip_split_d[key] = vip_d[start:end]
+            start = end
 
-        # For the `D` block: the relevant loadings are self.s_loadings_d, and the R2 values are in calc_r2["D"].
-        a = 2
-        # self._calculate_vip(self.s_loadings_d, calc_r2["D"])
+        vip_split_f = {}
+        start = 0
+        for key in self.material_names:
+            end = start + len(self.material_names[key])
+            vip_split_f[key] = vip_f[start:end]
+            start = end
+
+        self.feature_importance["D"] = vip_split_d  # TODO: should it not be based on deflated matrices? S(V^TS)^{-1}
+        self.feature_importance["F"] = vip_split_f  # TODO: should it not be based on deflated matrices? P(_^TP)^{-1}
 
     def _calculate_vip(self, loadings: np.ndarray, r2_vector: np.ndarray) -> np.ndarray:
         """Calculate the VIP values for the current component.
 
         The `loadings` has as many rows as there are feature varaibles, and A columns, where A = number of components.
-        The `r2_vector` is a vector of R2 values for the current component, with `A` entries.
+        The `r2_vector` is a vector of fractional R^2 values for the current component, with `A` entries.
         The `r2_vector` values should be between 0 and 1; the fraction of variance explained by the component for that
         given `loadings` matrix.
 
@@ -2348,8 +2375,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         """
         # VIP = sqrt(n * sum((r2_vector * (loadings ** 2)) / sum(r2_vector)))
         n = loadings.shape[0]
-        r2_vector = r2_vector.reshape(-1, 1)  # Ensure r2_vector is a column vector
-        return np.sqrt(n * np.sum((r2_vector * (loadings**2)), axis=0) / np.sum(r2_vector))
+        r2_vector = r2_vector.reshape(1, -1)  # Ensure r2_vector is a row vector
+        return np.sqrt(n * np.sum(r2_vector * (loadings**2), axis=1) / np.sum(r2_vector))
 
     def _calculate_model_statistics_and_limits(self) -> None:
         """Calculate and store the model limits.
@@ -2591,10 +2618,10 @@ class TPLS(RegressorMixin, BaseEstimator):
             # Calculate and store the deflation vectors. See equation 7 on page 55.
             self._calculate_and_store_deflation_matrices(pc_a + 1, t_super_i=t_super_i, q_super_i=q_super_i, r_i=r_i)
 
-            # Update performance statistics
+            # Update performance statistics for this component
             self._update_performance_statistics()
 
-        # Step 15: Calculate the final model limit
+        # Step 15: Calculate the final model limits (after all components have been fitted).
         self._calculate_model_statistics_and_limits()
 
     # def _calculate_r2_score(
