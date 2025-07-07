@@ -1764,7 +1764,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Storage for the model objects. Make a copy only of the Numpy values to use in the Estimator.
         self.observation_names = X["F"][group_keys[0]].index
-        self.property_names = {key: self.d_matrix[key].index.to_list() for key in group_keys}
+        self.material_names = {key: self.d_matrix[key].index.to_list() for key in group_keys}
         self.condition_names = {key: X["Z"][key].columns.to_list() for key in X["Z"]}
         self.quality_names = {key: X["Y"][key].columns.to_list() for key in X["Y"]}
 
@@ -1782,14 +1782,22 @@ class TPLS(RegressorMixin, BaseEstimator):
         # ----------------
         self.t_scores_super: pd.DataFrame = pd.DataFrame(index=self.observation_names)
         self.r_loadings_f: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
+            key: pd.DataFrame(index=self.material_names[key]) for key in group_keys
         }
         self.w_loadings_z: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=self.condition_names[key]) for key in self.z_mats
         }
         self.w_loadings_super = pd.DataFrame(index=["Z", "F"] if self.n_conditions > 0 else ["F"])
+        # # Capture the correlation of the properties in D; for the last component.
+        # self.s_loadings_d: dict[str, pd.DataFrame] = {
+        #     key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
+        # }
+        # # Captures the deflation of the properties in D; for the last component.
+        # self.v_loadings_d: dict[str, pd.DataFrame] = {
+        #     key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
+        # }
         self.p_loadings_f: dict[str, pd.DataFrame] = {
-            key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
+            key: pd.DataFrame(index=self.material_names[key]) for key in group_keys
         }
         self.p_loadings_z: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=self.condition_names[key]) for key in self.z_mats
@@ -1889,8 +1897,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         for key, df_f in x_f.items():
             assert df_f.shape[0] == num_obs, "All formula blocks must have the same number of rows."
             assert set(df_f.columns) == set(
-                self.property_names[key]
-            ), f"Columns in block F, group [{key}] must match training data column names"
+                self.material_names[key]
+            ), f"Columns in block F, group [{key}] must match training data column names for each material"
 
         for key, df_z in x_z.items():
             assert df_z.shape[0] == num_obs, "All condition blocks must have the same number of rows."
@@ -2099,7 +2107,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         """
 
         # Return this function's docstring as the help text.
-        return self.__doc__ + "\n\n" + self.help.__doc__
+        # Dedent the self.__docs__ string and return that
+        return self.help.__doc__.replace("        ", "").replace("\n\n", "\n").strip()
 
     def _input_data_checks(self, X: DataFrameDict) -> None:
         """Check the incoming data."""
@@ -2184,6 +2193,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         r_i: dict[str, np.ndarray],
         w_i_z: dict[str, np.ndarray],
         w_super_i: np.ndarray,
+        s_i: dict[str, np.ndarray],
     ) -> None:
         """Store the model coefficients for later use."""
 
@@ -2194,7 +2204,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         # These are loadings really, not scores, for each group in the F block.
         self.r_loadings_f = {
             key: self.r_loadings_f[key].join(
-                pd.DataFrame(r_i[key], index=self.property_names[key], columns=[pc_a_column])
+                pd.DataFrame(r_i[key], index=self.material_names[key], columns=[pc_a_column])
             )
             for key in r_i
         }
@@ -2210,6 +2220,13 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.w_loadings_super = self.w_loadings_super.join(
             pd.DataFrame(w_super_i, index=["Z", "F"] if self.n_conditions > 0 else ["F"], columns=[pc_a_column])
         )
+
+        # self.s_loadings_d = {
+        #     key: self.s_loadings_d[key].join(
+        #         pd.DataFrame(s_i[key], index=self.material_names[key], columns=[pc_a_column])
+        #     )
+        #     for key in s_i
+        # }
 
     def _calculate_and_store_deflation_matrices(
         self,
@@ -2245,11 +2262,12 @@ class TPLS(RegressorMixin, BaseEstimator):
             for key, df_f, pmap_f in zip(self.f_mats.keys(), self.f_mats.values(), self.not_na_f.values(), strict=True)
         }
         self.p_loadings_f = {
-            key: self.p_loadings_f[key].join(pd.DataFrame(pf_i[key], index=self.property_names[key], columns=[pc_a]))
+            key: self.p_loadings_f[key].join(pd.DataFrame(pf_i[key], index=self.material_names[key], columns=[pc_a]))
             for key in pf_i
         }
         # Step 13: v_i = D_i' r_i / r_i'r_i. Regress the rows of D_i (properties) on r_i; store slopes in v_i.
-        v_i = {
+        self.v_loadings_d = {
+            # v_i = {
             key: regress_a_space_on_b_row(df_d.T, r_i[key].T, pmap_d.T)
             for key, df_d, pmap_d in zip(self.d_mats.keys(), self.d_mats.values(), self.not_na_d.values(), strict=True)
         }
@@ -2260,7 +2278,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             self.f_mats[key] -= (t_super_i @ pf_i[key].T) * self.not_na_f[key]
 
             # Two sets of matrices to deflate: properties D and formulas F.
-            self.d_mats[key] -= (r_i[key] @ v_i[key].T) * self.not_na_d[key]
+            self.d_mats[key] -= (r_i[key] @ self.v_loadings_d[key].T) * self.not_na_d[key]
 
         # Deflate the Y-space as well
         self.q_loadings_y = {
@@ -2302,6 +2320,31 @@ class TPLS(RegressorMixin, BaseEstimator):
             },
         }
         self.r2_.append(calc_r2)
+
+        # VIP for each block, per column, the for given number of components we currently have. VIP are cumulative.
+        # So they will change from component to component, depending on the prior components, and the current one.
+
+        # For the `D` block: the relevant loadings are self.s_loadings_d, and the R2 values are in calc_r2["D"].
+        # self._calculate_vip(self.s_loadings_d, calc_r2["D"])
+
+    def _calculate_vip(self, loadings: np.ndarray, r2_vector: np.ndarray) -> np.ndarray:
+        """Calculate the VIP values for the current component.
+
+        The `loadings` has as many rows as there are feature varaibles, and A columns, where A = number of components.
+        The `r2_vector` is a vector of R2 values for the current component, with `A` entries.
+        The `r2_vector` values should be between 0 and 1; the fraction of variance explained by the component for that
+        given `loadings` matrix.
+
+        The VIP values are calculated as follows:
+            VIP = sqrt(n * sum((r2_vector * (loadings ** 2)) / sum(r2_vector)))
+
+        where n is the number of features (rows in the loadings matrix).
+        """
+        # VIP = sqrt(n * sum((r2_vector * (loadings ** 2)) / sum(r2_vector)))
+        n = loadings.shape[0]
+        r2_vector = r2_vector.reshape(-1, 1)  # Ensure r2_vector is a column vector
+        vip = np.sqrt(n * np.sum((r2_vector * (loadings**2)), axis=0) / np.sum(r2_vector))
+        return vip
 
     def _calculate_model_statistics_and_limits(self) -> None:
         """Calculate and store the model limits.
@@ -2359,7 +2402,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.spe["D"] = {
             key: pd.DataFrame(
                 np.sqrt(np.sum(np.square(self.d_mats[key]), axis=1, keepdims=True)),
-                index=self.property_names[key],
+                index=self.material_names[key],
                 columns=column_name,
             )
             for key in self.d_mats
@@ -2541,7 +2584,9 @@ class TPLS(RegressorMixin, BaseEstimator):
             self.fitting_statistics["milliseconds"].append((time.time() - milliseconds_start) * 1000)
 
             # Store model coefficients
-            self._store_model_coefficients(pc_a + 1, t_super_i=t_super_i, r_i=r_i, w_i_z=w_i_z, w_super_i=w_super_i)
+            self._store_model_coefficients(
+                pc_a + 1, t_super_i=t_super_i, r_i=r_i, w_i_z=w_i_z, w_super_i=w_super_i, s_i=s_i
+            )
 
             # Calculate and store the deflation vectors. See equation 7 on page 55.
             self._calculate_and_store_deflation_matrices(pc_a + 1, t_super_i=t_super_i, q_super_i=q_super_i, r_i=r_i)
