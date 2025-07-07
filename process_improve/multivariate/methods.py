@@ -1530,6 +1530,17 @@ class DataFrameDict(dict):
         """Return the number of samples in the DataFrameDict."""
         return self.n_samples
 
+    def __repr__(self):
+        """Return a string representation of the DataFrameDict."""
+        groups_in_block_f = list(self.datadict["F"].keys())
+        groups_in_block_z = list(self.datadict["Z"].keys())
+        groups_in_block_y = list(self.datadict["Y"].keys())
+        output = f"DataFrameDict with {len(self)} samples and {len(self.datadict)} blocks: {list(self.datadict.keys())}"
+        output += f"\n  F groups: {groups_in_block_f}"
+        output += f"\n  Z groups: {groups_in_block_z}"
+        output += f"\n  Y groups: {groups_in_block_y}"
+        return output
+
 
 class TPLS(RegressorMixin, BaseEstimator):
     """
@@ -1646,9 +1657,13 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         self.d_matrix = d_matrix  # This is required input dict containing the properties for each group.
         assert isinstance(self.d_matrix, dict), "d_matrix must be a dictionary of dataframes."
+
         assert all(isinstance(df, pd.DataFrame) for df in self.d_matrix.values()), "d_matrix must contain dataframes."
+
         self.max_iterations = max_iterations
         assert self.max_iterations > 0, "Maximum number of iterations must be positive."
+
+        self.is_fitted_ = False
         self.n_substances = 0
         self.n_samples = 0
         self.tolerance_ = np.sqrt(np.finfo(float).eps)
@@ -1670,7 +1685,6 @@ class TPLS(RegressorMixin, BaseEstimator):
         self : object
             Returns self.
         """
-        self.is_fitted_ = False
         assert isinstance(X, DataFrameDict)
         self._input_data_checks(X)
         group_keys = [str(key) for key in self.d_matrix]
@@ -1967,7 +1981,11 @@ class TPLS(RegressorMixin, BaseEstimator):
     def display_results(self, show_cumulative_stats: bool = True) -> str:
         """Display the results of the model fitting."""
 
-        output = f"Hotelling's T2 limit: {self.hotellings_t2_limit():.4g}\n"
+        if not self.is_fitted_:
+            raise RuntimeError("The model is not fitted yet. Please call `fit` first.")
+
+        output = f"Hotelling's T2 limit [95% limit]: {self.hotellings_t2_limit():.4g}\n"
+        output += f"                     [99% limit]: {self.hotellings_t2_limit(0.99):.4g}\n"
         # output += f"SPE limits: {self.spe_limit['Y'](self.spe['Y'])}\n"
         sep = "------ ---------- ---------- ---------- ----------  -------------\n"
         output += sep
@@ -2042,6 +2060,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         r2_key = 0.0
         for _idx, key in enumerate(y_actual):
             r2_key += r2_score(y_true=y_actual[key], y_pred=y_pred[key], sample_weight=sample_weight)
+            _ = np.corrcoef(y_actual[key].values.ravel(), y_pred[key].values.ravel())
         return r2_key / (_idx + 1)
 
     def help(self) -> str:

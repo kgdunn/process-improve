@@ -1539,23 +1539,25 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
 
     # OK, now use these to make predictions
     predictions = tpls_test.predict(DataFrameDict(new_observation_raw))
-    expected_keys = ["y_predicted", "super_scores", "hotellings_t2", "spe_z", "spe_f"]
+    expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe"]
     assert set(expected_keys) == set(predictions.keys())
 
     # Test the predicted values are what were expected:
-    assert pytest.approx(predictions["y_predicted"]["Quality"].iloc[0, :]) == np.array(
+    assert pytest.approx(predictions["hat"]["Quality"].iloc[0, :]) == np.array(
         [33.09434113, 3.15224246, 58.76423934, 3.29991258, 79.90201127, 2.67042528]
     )
     # Compare the predictions to what is stored in the training data
-    assert pytest.approx(predictions["y_predicted"]["Quality"].iloc[0, :]) == np.array(
+    assert pytest.approx(predictions["hat"]["Quality"].iloc[0, :]) == np.array(
         tpls_test.hat["Quality"].iloc[0, :].values
     )
 
     # Test that the SPE_z values:
-    assert pytest.approx([predictions["spe_z"][key].values[0, -1] for key in predictions["spe_z"]]) == [1.87201925670]
+    assert pytest.approx([predictions["spe"]["Z"][key].values[0, -1] for key in predictions["spe"]["Z"]]) == [
+        1.87201925670
+    ]
 
     # Test that the SPE_f values are correct:
-    assert pytest.approx([predictions["spe_f"][key].values[0, -1] for key in predictions["spe_f"]]) == [
+    assert pytest.approx([predictions["spe"]["F"][key].values[0, -1] for key in predictions["spe"]["F"]]) == [
         12.9399977,
         6.92978457,
         5.56504553,
@@ -1645,11 +1647,11 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
 
     # OK, now use these to make predictions
     predictions = tpls_test_no_z.predict(new_observation_raw_no_z)
-    expected_keys = ["y_predicted", "super_scores", "hotellings_t2", "spe_z", "spe_f"]
+    expected_keys = ["hat", "t_scores_super", "hotellings_t2", "spe"]
     assert set(expected_keys) == set(predictions.keys())
-    assert predictions["spe_z"] == {}
-    assert predictions["spe_f"] is not None
-    assert predictions.spe_f is not None  # test the `Bunch` functionality
+    assert predictions["spe"]["Z"] == {}
+    assert predictions["spe"]["F"] is not None
+    assert predictions.spe is not None  # test the `Bunch` functionality
 
 
 def test_tpls_cross_validation(fixture_tpls_example: dict) -> None:
@@ -1686,11 +1688,11 @@ def manual_cross_validation(tpls_model: TPLS, full_datadict: dict, cv: int = 5, 
 
         # Calculate score
         if scoring == "r2":
-            score = r2_score(testing_datadict["Y"]["Quality"], inference.y_predicted["Quality"])
+            score = r2_score(testing_datadict["Y"]["Quality"], inference.hat["Quality"])
         elif scoring == "mse":
-            score = -mean_squared_error(testing_datadict["Y"]["Quality"], inference.y_predicted["Quality"])
+            score = -mean_squared_error(testing_datadict["Y"]["Quality"], inference.hat["Quality"])
         else:
-            score = tpls_model.score(testing_datadict, inference.y_predicted["Quality"])
+            score = tpls_model.score(testing_datadict, inference.hat["Quality"])
 
         scores.append(score)
 
