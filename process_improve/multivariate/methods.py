@@ -1764,6 +1764,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Storage for the model objects. Make a copy only of the Numpy values to use in the Estimator.
         self.observation_names = X["F"][group_keys[0]].index
+        self.property_names = {key: self.d_matrix[key].columns.to_list() for key in group_keys}
         self.material_names = {key: self.d_matrix[key].index.to_list() for key in group_keys}
         self.condition_names = {key: X["Z"][key].columns.to_list() for key in X["Z"]}
         self.quality_names = {key: X["Y"][key].columns.to_list() for key in X["Y"]}
@@ -1788,14 +1789,14 @@ class TPLS(RegressorMixin, BaseEstimator):
             key: pd.DataFrame(index=self.condition_names[key]) for key in self.z_mats
         }
         self.w_loadings_super = pd.DataFrame(index=["Z", "F"] if self.n_conditions > 0 else ["F"])
-        # # Capture the correlation of the properties in D; for the last component.
-        # self.s_loadings_d: dict[str, pd.DataFrame] = {
-        #     key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
-        # }
-        # # Captures the deflation of the properties in D; for the last component.
-        # self.v_loadings_d: dict[str, pd.DataFrame] = {
-        #     key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
-        # }
+        # Capture the correlation of the properties in D; for the last component.
+        self.s_loadings_d: dict[str, pd.DataFrame] = {
+            key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
+        }
+        # Captures the deflation of the properties in D; for the last component.
+        self.v_loadings_d: dict[str, pd.DataFrame] = {
+            key: pd.DataFrame(index=self.property_names[key]) for key in group_keys
+        }
         self.p_loadings_f: dict[str, pd.DataFrame] = {
             key: pd.DataFrame(index=self.material_names[key]) for key in group_keys
         }
@@ -2186,7 +2187,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         max_iter = iterations >= self.max_iterations
         return bool(np.any([max_iter, converged]))
 
-    def _store_model_coefficients(
+    def _store_model_coefficients(  # noqa: PLR0913
         self,
         pc_a_column: int,  # one-based index for the component
         t_super_i: np.ndarray,
@@ -2221,12 +2222,12 @@ class TPLS(RegressorMixin, BaseEstimator):
             pd.DataFrame(w_super_i, index=["Z", "F"] if self.n_conditions > 0 else ["F"], columns=[pc_a_column])
         )
 
-        # self.s_loadings_d = {
-        #     key: self.s_loadings_d[key].join(
-        #         pd.DataFrame(s_i[key], index=self.material_names[key], columns=[pc_a_column])
-        #     )
-        #     for key in s_i
-        # }
+        self.s_loadings_d = {
+            key: self.s_loadings_d[key].join(
+                pd.DataFrame(s_i[key], index=self.property_names[key], columns=[pc_a_column])
+            )
+            for key in s_i
+        }
 
     def _calculate_and_store_deflation_matrices(
         self,
@@ -2267,18 +2268,22 @@ class TPLS(RegressorMixin, BaseEstimator):
         }
         # Step 13: v_i = D_i' r_i / r_i'r_i. Regress the rows of D_i (properties) on r_i; store slopes in v_i.
         self.v_loadings_d = {
-            # v_i = {
-            key: regress_a_space_on_b_row(df_d.T, r_i[key].T, pmap_d.T)
+            key: self.v_loadings_d[key].join(
+                pd.DataFrame(
+                    regress_a_space_on_b_row(df_d.T, r_i[key].T, pmap_d.T),
+                    index=self.property_names[key],
+                    columns=[pc_a],
+                )
+            )
             for key, df_d, pmap_d in zip(self.d_mats.keys(), self.d_mats.values(), self.not_na_d.values(), strict=True)
         }
-
         # Step 14. Do the actual deflation.
         for key in self.d_mats:
             # Step to deflate F matrix
             self.f_mats[key] -= (t_super_i @ pf_i[key].T) * self.not_na_f[key]
 
             # Two sets of matrices to deflate: properties D and formulas F.
-            self.d_mats[key] -= (r_i[key] @ self.v_loadings_d[key].T) * self.not_na_d[key]
+            self.d_mats[key] -= (r_i[key] @ self.v_loadings_d[key].iloc[:, [-1]].T) * self.not_na_d[key]
 
         # Deflate the Y-space as well
         self.q_loadings_y = {
@@ -2325,6 +2330,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         # So they will change from component to component, depending on the prior components, and the current one.
 
         # For the `D` block: the relevant loadings are self.s_loadings_d, and the R2 values are in calc_r2["D"].
+
         # self._calculate_vip(self.s_loadings_d, calc_r2["D"])
 
     def _calculate_vip(self, loadings: np.ndarray, r2_vector: np.ndarray) -> np.ndarray:
@@ -2343,8 +2349,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         # VIP = sqrt(n * sum((r2_vector * (loadings ** 2)) / sum(r2_vector)))
         n = loadings.shape[0]
         r2_vector = r2_vector.reshape(-1, 1)  # Ensure r2_vector is a column vector
-        vip = np.sqrt(n * np.sum((r2_vector * (loadings**2)), axis=0) / np.sum(r2_vector))
-        return vip
+        return np.sqrt(n * np.sum((r2_vector * (loadings**2)), axis=0) / np.sum(r2_vector))
 
     def _calculate_model_statistics_and_limits(self) -> None:
         """Calculate and store the model limits.
@@ -2399,14 +2404,9 @@ class TPLS(RegressorMixin, BaseEstimator):
             for key in self.z_mats
         }
         self.spe_limit["Z"] = {key: partial(spe_calculation, self.spe["Z"][key].values) for key in self.z_mats}
-        self.spe["D"] = {
-            key: pd.DataFrame(
-                np.sqrt(np.sum(np.square(self.d_mats[key]), axis=1, keepdims=True)),
-                index=self.material_names[key],
-                columns=column_name,
-            )
-            for key in self.d_mats
-        }
+
+        # SPE for the D-space. There are two options: per property feature, or per material feature.
+        self.spe["D"] = {key: self.d_mats[key].pow(2).sum(axis="columns").pow(0.5) for key in self.d_mats}
         self.spe_limit["D"] = {key: partial(spe_calculation, self.spe["D"][key].values) for key in self.d_mats}
         self.spe["F"] = {
             key: pd.DataFrame(
