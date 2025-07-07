@@ -1488,27 +1488,27 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
 
     # Test various R2 values for columns in blocks
     # For the last component, for the Z block:
-    assert pytest.approx(tpls_test.r2_[-1]["Z"]["Conditions"].round(1)) == np.array(
-        [41.1, 0.0, 0.4, 26.2, 4.9, 0.1, 2.8, 0.1, 1.5, 1.5]
+    assert pytest.approx(tpls_test.r2_frac[-1]["Z"]["Conditions"].round(3)) == np.array(
+        [0.411, 0.0, 0.004, 0.262, 0.049, 0.001, 0.028, 0.001, 0.015, 0.015]
     ).astype(np.float64)
     # For the D-block
-    assert pytest.approx(tpls_test.r2_[-1]["D"]["Group 1"].round(1)) == np.array(
-        [28.5, 5.4, 43.7, 0.1, 2.1, 14.3, 13.8]
+    assert pytest.approx(tpls_test.r2_frac[-1]["D"]["Group 1"].round(3)) == np.array(
+        [0.285, 0.054, 0.437, 0.001, 0.021, 0.143, 0.138]
     ).astype(np.float64)
     # For the F-block
-    assert pytest.approx(tpls_test.r2_[-1]["F"]["Group 2"].round(1)) == np.array(
-        [4.7, 0.0, 1.1, 0.0, 4.7, 2.5, 0.0, 0.3, 5.2]
+    assert pytest.approx(tpls_test.r2_frac[-1]["F"]["Group 2"].round(3)) == np.array(
+        [0.047, 0.0, 0.011, 0.0, 0.047, 0.025, 0.0, 0.003, 0.052]
     ).astype(np.float64)
     # For the Y-block after 1 component, 2 components, and 3 components:
-    assert pytest.approx(tpls_test.r2_[1]["Y"]["Quality"].round(1)) == np.array(
-        [0.5, 7.9, 28.8, 32.9, 33.2, 15.3]
+    assert pytest.approx(tpls_test.r2_frac[1]["Y"]["Quality"].round(3)) == np.array(
+        [0.005, 0.079, 0.288, 0.329, 0.332, 0.153]
     ).astype(np.float64)
-    assert pytest.approx(tpls_test.r2_[2]["Y"]["Quality"].round(1)) == np.array([13.5, 0.0, 3.9, 2.3, 0.7, 5.1]).astype(
-        np.float64
-    )
-    assert pytest.approx(tpls_test.r2_[-1]["Y"]["Quality"].round(1)) == np.array([1.7, 7.3, 1.8, 0.0, 0.5, 0.0]).astype(
-        np.float64
-    )
+    assert pytest.approx(tpls_test.r2_frac[2]["Y"]["Quality"].round(3)) == np.array(
+        [0.135, 0.0, 0.039, 0.023, 0.007, 0.051]
+    ).astype(np.float64)
+    assert pytest.approx(tpls_test.r2_frac[-1]["Y"]["Quality"].round(3)) == np.array(
+        [0.017, 0.073, 0.018, 0.0, 0.005, 0.0]
+    ).astype(np.float64)
 
 
 def test_tpls_model_plots(fixture_tpls_example: dict) -> None:
@@ -1702,8 +1702,11 @@ def manual_cross_validation(tpls_model: TPLS, full_datadict: dict, cv: int = 5, 
 # n_components = 3
 # data = fixture_tpls_example()
 # full_model = TPLS(n_components=n_components, d_matrix=data.pop("D"))
+# full_model.fit(DataFrameDict(data))
+
+# data = fixture_tpls_example()
 # cv_results = cross_val_score(
-#     estimator=full_model,
+#     estimator=TPLS(n_components=n_components, d_matrix=data.pop("D")),
 #     X=DataFrameDict(data),
 #     cv=10,
 #     # scoring={"score": scorer},

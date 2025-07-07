@@ -1693,7 +1693,11 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
         self.preproc_: dict[str, dict[str, dict[str, pd.Series]]] = {key: {} for key in self.required_blocks_}
         self.sums_of_squares_: list[dict[str, dict[str, np.ndarray]]] = [{key: {} for key in self.required_blocks_}]
-        self.r2_: list[dict[str, dict[str, np.ndarray]]] = [{key: {} for key in self.required_blocks_}]
+        # These are *fractional* R2 values, i.e. always less than or equal to 1.0.
+        # As a list: entry 0 is zeros; entry 1 is after fitting the first component, and so on.
+        # The keys are the blocks, and the values are dictionaries with group keys as keys.
+        # The values are the R2 values for each column in the block.
+        self.r2_frac: list[dict[str, dict[str, np.ndarray]]] = [{key: {} for key in self.required_blocks_}]
 
         self.d_mats: dict[str, np.ndarray] = {key: self.d_matrix[key].values.copy() for key in group_keys}
         self.f_mats: dict[str, np.ndarray] = {key: X["F"][key].values.copy() for key in group_keys}
@@ -1745,7 +1749,7 @@ class TPLS(RegressorMixin, BaseEstimator):
                 "Y": {key: np.nansum(self.y_mats[key] ** 2, axis=0) for key in X["Y"]},
             }
         ]
-        self.r2_ = [
+        self.r2_frac = [
             {
                 "D": {key: np.zeros(self.d_mats[key].shape[1]) for key in group_keys},
                 "F": {key: np.zeros(self.f_mats[key].shape[1]) for key in group_keys},
@@ -2004,15 +2008,19 @@ class TPLS(RegressorMixin, BaseEstimator):
             header = "LV #        R2: D      R2: Z      R2: F      R2: Y |    ms [iter]"
 
         output += header + "\n" + sep
-        r2_d_a_prior = np.mean([r2val.mean() for r2val in self.r2_[0]["D"].values()])
-        r2_z_a_prior = np.mean([r2val.mean() for r2val in self.r2_[0]["Z"].values()]) if self.n_conditions > 0 else 0
-        r2_f_a_prior = np.mean([r2val.mean() for r2val in self.r2_[0]["F"].values()])
-        r2_y_a_prior = np.mean([r2val.mean() for r2val in self.r2_[0]["Y"].values()])
+        r2_d_a_prior = np.mean([r2val.mean() for r2val in self.r2_frac[0]["D"].values()])
+        r2_z_a_prior = (
+            np.mean([r2val.mean() for r2val in self.r2_frac[0]["Z"].values()]) if self.n_conditions > 0 else 0
+        )
+        r2_f_a_prior = np.mean([r2val.mean() for r2val in self.r2_frac[0]["F"].values()])
+        r2_y_a_prior = np.mean([r2val.mean() for r2val in self.r2_frac[0]["Y"].values()])
         for a in range(1, self.n_components + 1):
-            r2_d_a = np.mean([np.nanmean(r2val) for r2val in self.r2_[a]["D"].values()])
-            r2_z_a = np.mean([np.nanmean(r2val) for r2val in self.r2_[a]["Z"].values()]) if self.n_conditions > 0 else 0
-            r2_f_a = np.mean([np.nanmean(r2val) for r2val in self.r2_[a]["F"].values()])
-            r2_y_a = np.mean([np.nanmean(r2val) for r2val in self.r2_[a]["Y"].values()])
+            r2_d_a = np.mean([np.nanmean(r2val) for r2val in self.r2_frac[a]["D"].values()])
+            r2_z_a = (
+                np.mean([np.nanmean(r2val) for r2val in self.r2_frac[a]["Z"].values()]) if self.n_conditions > 0 else 0
+            )
+            r2_f_a = np.mean([np.nanmean(r2val) for r2val in self.r2_frac[a]["F"].values()])
+            r2_y_a = np.mean([np.nanmean(r2val) for r2val in self.r2_frac[a]["Y"].values()])
             if show_cumulative_stats:
                 r2_d_a += r2_d_a_prior
                 r2_z_a += r2_z_a_prior
@@ -2311,26 +2319,18 @@ class TPLS(RegressorMixin, BaseEstimator):
         ssq_prior_pc = self.sums_of_squares_[-2]
         ssq_start_0 = self.sums_of_squares_[0]
         calc_r2 = {
-            "D": {
-                key: (ssq_prior_pc["D"][key] - calc_ssq["D"][key]) / ssq_start_0["D"][key] * 100 for key in self.d_mats
-            },
-            "F": {
-                key: (ssq_prior_pc["F"][key] - calc_ssq["F"][key]) / ssq_start_0["F"][key] * 100 for key in self.f_mats
-            },
-            "Z": {
-                key: (ssq_prior_pc["Z"][key] - calc_ssq["Z"][key]) / ssq_start_0["Z"][key] * 100 for key in self.z_mats
-            },
-            "Y": {
-                key: (ssq_prior_pc["Y"][key] - calc_ssq["Y"][key]) / ssq_start_0["Y"][key] * 100 for key in self.y_mats
-            },
+            "D": {key: (ssq_prior_pc["D"][key] - calc_ssq["D"][key]) / ssq_start_0["D"][key] for key in self.d_mats},
+            "F": {key: (ssq_prior_pc["F"][key] - calc_ssq["F"][key]) / ssq_start_0["F"][key] for key in self.f_mats},
+            "Z": {key: (ssq_prior_pc["Z"][key] - calc_ssq["Z"][key]) / ssq_start_0["Z"][key] for key in self.z_mats},
+            "Y": {key: (ssq_prior_pc["Y"][key] - calc_ssq["Y"][key]) / ssq_start_0["Y"][key] for key in self.y_mats},
         }
-        self.r2_.append(calc_r2)
+        self.r2_frac.append(calc_r2)
 
         # VIP for each block, per column, the for given number of components we currently have. VIP are cumulative.
         # So they will change from component to component, depending on the prior components, and the current one.
 
         # For the `D` block: the relevant loadings are self.s_loadings_d, and the R2 values are in calc_r2["D"].
-
+        a = 2
         # self._calculate_vip(self.s_loadings_d, calc_r2["D"])
 
     def _calculate_vip(self, loadings: np.ndarray, r2_vector: np.ndarray) -> np.ndarray:
