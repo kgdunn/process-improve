@@ -1,31 +1,31 @@
 [project]
 name = "process-improve"
-version = "0.9.92-rc1"
+version = "0.9.93"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = {text = "MIT license"}
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 keywords = ["Designed Experiments", "Latent Variables", "PCA", "PLS", "Multivariate Data Analysis", "Batch data analysis"]
 authors = [
     { name = "Kevin Dunn", email = "kgdunn@gmail.com" },
 ]
 dependencies = [
-    "bokeh>=3.6.3",
-    "matplotlib>=3.10.0",
-    "numba>=0.61.0",
+    "bokeh>=3.7.3",
+    "matplotlib>=3.10.3",
+    "numba>=0.61.2",
     "numpy>=1.26.4",
     "openpyxl>=3.1.5",
-    "pandas>=2.2.3",
+    "pandas>=2.3.1",
     "patsy>=1.0.1",
-    "plotly>=6.0.0",
-    "pydantic>=2.10.6",
+    "plotly>=6.2.0",
+    "pydantic>=2.11.7",
     "scikit-image>=0.25.2",
-    "scikit-learn>=1.6.1",
-    "scipy<=1.15.3",
+    "scikit-learn>=1.7.0",
     "seaborn>=0.13.2",
-    "statsmodels>=0.14.4",
+    "statsmodels>=0.14.5",
     "tqdm>=4.67.1",
 ]
+
 
 [project.urls]
 Homepage = "https://github.com/kgdunn/process_improve"
