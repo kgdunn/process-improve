@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
@@ -93,7 +95,7 @@ def simple_robust_regression(  # noqa: PLR0913, PLR0915
         pi_range       the prediction intervals, above an below, over the range of data.
     """
 
-    out = {
+    out: dict[str, Any] = {
         "N": None,
         "coefficients": [
             np.nan,
@@ -137,14 +139,12 @@ def simple_robust_regression(  # noqa: PLR0913, PLR0915
 
     # initialize statistical variables
     k_params = 2 if fit_intercept else 1
-    DoF_resid = len(x) - k_params
+    dof_resid = len(x) - k_params
 
     # Calculate robust regression
     slope = repeated_median_slope(x, y, nowarn=nowarn)
     intercept = np.nanmedian(y - slope * x) if fit_intercept else 0.0
     mean_x, mean_y = np.mean(x), np.mean(y)
-
-    out = {}
 
     out["N"] = len(x)
     out["intercept"] = intercept
@@ -161,12 +161,12 @@ def simple_robust_regression(  # noqa: PLR0913, PLR0915
     residual_ssq = np.sum(out["residuals"] * out["residuals"])
     total_ssq = regression_ssq + residual_ssq
     out["R2"] = regression_ssq / total_ssq
-    out["SE"] = np.sqrt(residual_ssq / DoF_resid)
+    out["SE"] = np.sqrt(residual_ssq / dof_resid)
     out["x_ssq"] = np.sum(np.power(x - mean_x, 2))
     out["k"] = k_params
 
     # t-critical value for confidence intervals
-    c_t = t_value(1 - (1 - conflevel) / 2, DoF_resid)
+    c_t = t_value(1 - (1 - conflevel) / 2, dof_resid)
 
     # Prediction intervals
     pi_range = np.linspace(np.min(x), np.max(x), pi_resolution)

@@ -9,8 +9,9 @@ from process_improve.regression.methods import (
 )
 
 
-@pytest.fixture()
-def repeated_median():
+@pytest.fixture
+def repeated_median() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Fixture for the repeated median slope calculation."""
     x = np.array([0, 1, 2, 3])
     y = np.array([5, 1, 6, 72])
 
@@ -22,8 +23,10 @@ def repeated_median():
     return x, y, divzero_x, divzero_y
 
 
-def test__repeated_median(repeated_median):
+def test__repeated_median(repeated_median: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]) -> None:
     """
+    Test the repeated median slope calculation.
+
     (1-5)/1 ; (6-5)/2 ; (72-5)/3   => 0.5
     (1-5)/-1 ; (6-1)/1 ; (72-1)/3   => 5
     (5-6)/-2 ; (1-6)/1 ; (72-6)/2   => 5
@@ -35,14 +38,16 @@ def test__repeated_median(repeated_median):
     assert repeated_median_slope(x, y) == 5.0
 
 
-def test__repeated_median_catch_division_by_zero(repeated_median):
+def test__repeated_median_catch_division_by_zero(
+    repeated_median: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+) -> None:
     """Ensure division by zero does not crash the algorithm."""
     *_, divzero_x, divzero_y = repeated_median
     assert repeated_median_slope(divzero_x, divzero_y) == 1.0
 
 
-@pytest.fixture()
-def multiple_linear_regression_data():
+@pytest.fixture
+def multiple_linear_regression_data() -> tuple[np.ndarray, np.ndarray]:
     """
     Verify the linear regression calculation matches the output from R.
 
@@ -101,16 +106,17 @@ def multiple_linear_regression_data():
     return X, y
 
 
-def test_inconsistent_sizes(multiple_linear_regression_data):
-    """Verifies that inconsistencies are picked up"""
+def test_inconsistent_sizes(multiple_linear_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
+    """Verifies that inconsistencies are picked up."""
     # TODO: X = 5 x 2, y = 7 x 1
     # TODO: X = 5 x 4, y = 5 x 1:  n=5, k=5: should work
     # TODO: X = 5 x 5, y = 5 x 1:  n=5, k=5+1 (with intercept): should fail
     X, y = multiple_linear_regression_data
 
 
-def test_regression_model_with_intercept(multiple_linear_regression_data):
-    """Can we reproduce the R output for single column X:
+def test_regression_model_with_intercept(multiple_linear_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
+    """Can we reproduce the R output for single column X.
+
     * model output
     * confidence intervals
     """
@@ -160,8 +166,9 @@ def test_regression_model_with_intercept(multiple_linear_regression_data):
     assert out["pi_range"][-1, 2] == pytest.approx(0.7343732, abs=1e-7)
 
 
-def test__regression_model_no_intercept(multiple_linear_regression_data):
-    """Can  == pytest.approx( reproduce the R output for single rel 1E-9:
+def test__regression_model_no_intercept(multiple_linear_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
+    """Can  == pytest.approx( reproduce the R output for single rel 1E-9.
+
     > summary(lm(y~x+0))
     Call:
     lm(formula = y ~ x + 0)
@@ -195,7 +202,8 @@ def test__regression_model_no_intercept(multiple_linear_regression_data):
     assert np.min(out["residuals"]) == pytest.approx(-0.008637, abs=1e-6)
 
 
-def test__regression_model_missing_values():
+def test__regression_model_missing_values() -> None:
+    """Test the regression model with missing values."""
     X, y = np.array([1, 2, 3, 4, 5]), np.array([2, np.nan, 4, np.nan, 9])
     out = multiple_linear_regression(X, y, na_rm=True, fit_intercept=True)
     assert out["intercept"] == pytest.approx(-0.25)
@@ -208,34 +216,34 @@ def test__regression_model_missing_values():
     assert np.isnan(out["residuals"][3])
 
 
-def test_input_pandas(multiple_linear_regression_data):
+def test_input_pandas(multiple_linear_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
     """
     Pandas and Numpy inputs should be acceptable. Replicate a test used above, but with
     Pandas as the inputs.
     """
-    X, y = multiple_linear_regression_data
-    x = pd.DataFrame(X)
-    y = pd.DataFrame(y)
+    x_, y_ = multiple_linear_regression_data
+    x = pd.DataFrame(x_)
+    y = pd.DataFrame(y_)
     out = multiple_linear_regression(x, y)
     assert out["SE"] == pytest.approx(0.03206, abs=1e-5)
 
 
-def test_input_transposed_vector(multiple_linear_regression_data):
+def test_input_transposed_vector(multiple_linear_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
     """
     Make the vector a column vector first.
     Also use a mix of Pandas (y) and Numpy (x).
     """
-    X, y = multiple_linear_regression_data
+    X, y_ = multiple_linear_regression_data
     x = X.copy().T
-    y = pd.DataFrame(y)
+    y = pd.DataFrame(y_)
 
     # There is a difference with a transposed array
     with pytest.raises(AssertionError, match=r"N >= K: You need at least as many rows .*"):
         _ = multiple_linear_regression(x, y)
 
 
-def test_input_one_data_point():
-    """Cannot work: fit a line with 1 datapoint"""
+def test_input_one_data_point() -> None:
+    """Cannot work: fit a line with 1 datapoint."""
     x = np.array([2])
     y = np.array([-5])
     out = multiple_linear_regression(x, y)
@@ -244,11 +252,13 @@ def test_input_one_data_point():
     assert np.isnan(out["residuals"])
 
 
-@pytest.fixture()
-def simple_robust_regression_data():
+@pytest.fixture
+def simple_robust_regression_data() -> tuple[np.ndarray, np.ndarray]:
     """
-    Check the simple robust regression model. Validated against a data set where the values
-    were calculated by hand/Excel. Can we reproduce the manually calculated output?
+    Check the simple robust regression model.
+
+    Validated against a data set where the values were calculated by hand/Excel. Can we reproduce the manually
+    calculated output?
 
     # Check against R as well (results from the robust output below all agree well.)
     ---------------------------
@@ -304,7 +314,8 @@ def simple_robust_regression_data():
     return X, y
 
 
-def test_regression_simple_robust(simple_robust_regression_data):
+def test_regression_simple_robust(simple_robust_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
+    """Tests the simple robust regression model."""
     X, y = simple_robust_regression_data
     out = simple_robust_regression(X, y)
 
@@ -322,7 +333,7 @@ def test_regression_simple_robust(simple_robust_regression_data):
     assert out["residuals"][0:5] == pytest.approx([0.0, 0.000118863, 0.005006413, -0.0035648, -0.000326859], abs=1e-9)
 
 
-def test_simple_robust_regression_corner_case():
+def test_simple_robust_regression_corner_case() -> None:
     """Tests some corner cases."""
     # No variation in x-space
     x = np.array([4, 4, 4, 4, 4])
@@ -334,8 +345,8 @@ def test_simple_robust_regression_corner_case():
     assert np.isnan(out["conf_intervals"][0][1])
 
 
-def test_simple_robust_regression_missing_values():
-    """Test y length less than 2 because of nan values"""
+def test_simple_robust_regression_missing_values() -> None:
+    """Test y length less than 2 because of nan values."""
 
     x = np.array([1, 2, 3, 4, 5])
     y = np.array([np.nan, np.nan, np.nan, np.nan, 1])
@@ -346,8 +357,8 @@ def test_simple_robust_regression_missing_values():
     assert np.isnan(out["conf_intervals"][0][1])
 
 
-def test_simple_regression_no_error():
-    """Tests cases where there is perfect fit"""
+def test_simple_regression_no_error() -> None:
+    """Tests cases where there is perfect fit."""
     x = np.array([1, 2, 3, 4, 5])
     y = np.array([9, 8, 7, 6, 5])
     robust = simple_robust_regression(x, y)
@@ -358,8 +369,8 @@ def test_simple_regression_no_error():
     assert robust["coefficients"] == pytest.approx(regular["coefficients"])
 
 
-def test_simple_robust_regression_no_intercept(simple_robust_regression_data):
-    """Test simple robust regression with fit_intercept=False"""
+def test_simple_robust_regression_no_intercept(simple_robust_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
+    """Test simple robust regression with fit_intercept=False."""
     X, y = simple_robust_regression_data
     out = simple_robust_regression(X.ravel(), y, fit_intercept=False)
 
@@ -392,7 +403,7 @@ def test_simple_robust_regression_no_intercept(simple_robust_regression_data):
     assert out["SE"] == pytest.approx(expected_se)
 
 
-def test_simple_robust_regression_compare_with_regular_no_intercept():
+def test_simple_robust_regression_compare_with_regular_no_intercept() -> None:
     """Compare simple robust regression with regular regression for no-intercept case."""
     # Use simple linear data where robust and regular should be similar
     x = np.array([1, 2, 3, 4, 5])
