@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
@@ -93,15 +95,11 @@ def simple_robust_regression(  # noqa: PLR0913, PLR0915
         pi_range       the prediction intervals, above an below, over the range of data.
     """
 
-    out = {
+    out: dict[str, Any] = {
         "N": None,
-        "coefficients": [
-            np.nan,
-        ],
+        "coefficients": [np.nan],
         "intercept": np.nan,
-        "standard_errors": [
-            np.nan,
-        ],
+        "standard_errors": [np.nan],
         "standard_error_intercept": np.nan,
         "R2": np.nan,
         "SE": np.nan,
@@ -137,20 +135,16 @@ def simple_robust_regression(  # noqa: PLR0913, PLR0915
 
     # initialize statistical variables
     k_params = 2 if fit_intercept else 1
-    DoF_resid = len(x) - k_params
+    dof_resid = len(x) - k_params
 
     # Calculate robust regression
     slope = repeated_median_slope(x, y, nowarn=nowarn)
     intercept = np.nanmedian(y - slope * x) if fit_intercept else 0.0
     mean_x, mean_y = np.mean(x), np.mean(y)
 
-    out = {}
-
     out["N"] = len(x)
     out["intercept"] = intercept
-    out["coefficients"] = [
-        slope,
-    ]
+    out["coefficients"] = [slope]
     out["fitted_values"] = intercept + slope * x
     out["residuals"] = y - out["fitted_values"]
 
@@ -161,12 +155,12 @@ def simple_robust_regression(  # noqa: PLR0913, PLR0915
     residual_ssq = np.sum(out["residuals"] * out["residuals"])
     total_ssq = regression_ssq + residual_ssq
     out["R2"] = regression_ssq / total_ssq
-    out["SE"] = np.sqrt(residual_ssq / DoF_resid)
+    out["SE"] = np.sqrt(residual_ssq / dof_resid)
     out["x_ssq"] = np.sum(np.power(x - mean_x, 2))
     out["k"] = k_params
 
     # t-critical value for confidence intervals
-    c_t = t_value(1 - (1 - conflevel) / 2, DoF_resid)
+    c_t = t_value(1 - (1 - conflevel) / 2, dof_resid)
 
     # Prediction intervals
     pi_range = np.linspace(np.min(x), np.max(x), pi_resolution)
@@ -176,21 +170,14 @@ def simple_robust_regression(  # noqa: PLR0913, PLR0915
     if out["x_ssq"] < __eps:
         out["standard_error_intercept"] = SE_b0 = np.nan
         out["conf_interval_intercept"] = np.array([np.nan, np.nan])
-        out["standard_errors"] = [
-            np.nan,
-        ]
+        out["standard_errors"] = [np.nan]
         out["pi_range"] = np.vstack([pi_range, pi_y_pred, pi_y_pred]).T
         out["leverage"] = 1 / out["N"] + np.power(x - mean_x, 2) / out["x_ssq"]
-
     else:
-        out["standard_errors"] = [
-            out["SE"] * 1 / np.sqrt(out["x_ssq"]),
-        ]
+        out["standard_errors"] = [out["SE"] * 1 / np.sqrt(out["x_ssq"])]
         if fit_intercept:
             out["standard_error_intercept"] = SE_b0 = out["SE"] * np.sqrt(1 / out["N"] + (mean_x) ** 2 / out["x_ssq"])
-            out["conf_interval_intercept"] = np.array(
-                [out["intercept"] - c_t * SE_b0, out["intercept"] + c_t * SE_b0],
-            )
+            out["conf_interval_intercept"] = np.array([out["intercept"] - c_t * SE_b0, out["intercept"] + c_t * SE_b0])
             var_y = (out["SE"] ** 2) * (1 + 1 / out["N"] + (pi_range - np.mean(x)) ** 2 / out["x_ssq"])
             out["leverage"] = 1 / out["N"] + np.power(x - mean_x, 2) / out["x_ssq"]
         else:  # 1 / out["N"] is the term for the uncertainty for the intercept

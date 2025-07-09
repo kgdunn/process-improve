@@ -358,8 +358,8 @@ def test_simple_regression_no_error():
     assert robust["coefficients"] == pytest.approx(regular["coefficients"])
 
 
-def test_simple_robust_regression_no_intercept(simple_robust_regression_data):
-    """Test simple robust regression with fit_intercept=False"""
+def test_simple_robust_regression_no_intercept(simple_robust_regression_data) -> None:
+    """Test simple robust regression with fit_intercept=False."""
     X, y = simple_robust_regression_data
     out = simple_robust_regression(X.ravel(), y, fit_intercept=False)
 
