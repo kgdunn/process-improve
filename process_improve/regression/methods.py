@@ -57,6 +57,7 @@ def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) ->
 def simple_robust_regression(  # noqa: PLR0913, PLR0915
     x: np.ndarray | pd.DataFrame | pd.Series,
     y: np.ndarray | pd.DataFrame | pd.Series,
+    fit_intercept: bool = True,
     na_rm: bool = True,
     conflevel: float = 0.95,
     nowarn: bool = False,
@@ -67,27 +68,21 @@ def simple_robust_regression(  # noqa: PLR0913, PLR0915
 
     Parameters
     - x, y: Sequences of numerical values.
+    - fit_intercept: If True, fits an intercept term. If False, forces regression through origin.
     - na_rm: If True, removes all observations with one or more missing values.
     - conflevel: Confidence level for confidence intervals, default is 0.95.
     - nowarn: If True, suppresses warnings. Users should ensure data validity beforehand.
     - pi_resolution: The resolution of prediction intervals, default is 50.
 
-    TODO: handle the missing values case still. See the `multiple_linear_regression` function,
-    especially for residuals: afterwards there are N residuals expected, even if <N points used
-    during the fitting. Missing values in either x or y will have missing values.
-
     Simple robust regression between an `x` and a `y` using the `repeated_median_slope` method
     to calculate the slope. The intercept is the median intercept, when using that slope and the
-    provided `x` and `y` values.
-
-    The rest of the classical output from a regression are based on these robust parameter
-    estimates.
+    provided `x` and `y` values, or forced to zero if fit_intercept=False.
 
     Returns a dictionary of outputs with these keys:
         coefficients:   a vector of K coefficients, one for each column in ``X``
-        intercept:      returned if ``fit_intercept==True``
+        intercept:      returned if ``fit_intercept==True``, otherwise 0
         standard_errors:a vector of K standard errors, one for each column in ``X``
-        standard_error_intercept: standard error for the intercept
+        standard_error_intercept: standard error for the intercept, np.nan if fit_intercept=False
         R2:             the infamous R^2 values
         SE              the model's standard error
         fitted_values   the N predicted values, one per row in ``y``
@@ -122,74 +117,95 @@ def simple_robust_regression(  # noqa: PLR0913, PLR0915
     }
 
     #  Data pre-processing: handle both Pandas and NumPy -> use Pandas internally for X and y
-    X_ = pd.DataFrame(x, copy=True) if isinstance(x, np.ndarray) else pd.DataFrame(x.values, copy=True)
+    x_ = pd.DataFrame(x, copy=True) if isinstance(x, np.ndarray) else pd.DataFrame(x.values, copy=True)
 
     y_ = pd.DataFrame(y.ravel(), copy=True) if isinstance(y, np.ndarray) else pd.DataFrame(y.values, copy=True)
 
     # Removing missing values:
     missing_idx = y_.isna().any(axis=1)
     if na_rm:
-        missing_idx = y_.isna().any(axis=1) | X_.isna().any(axis=1)
-        X_ = X_.loc[~missing_idx, :]
+        missing_idx = y_.isna().any(axis=1) | x_.isna().any(axis=1)
+        x_ = x_.loc[~missing_idx, :]
         y_ = y_.loc[~missing_idx]
 
     # CASE when there is no data, or only 2 data point (repeate median slope needs more than 2)
-    if (y_.size <= 2) or (X_.size <= 2):
+    if (y_.size <= 2) or (x_.size <= 2):
         return out
 
-    x_ = x.copy().ravel() if isinstance(x, np.ndarray) else x.copy().to_numpy()
-    y_ = y.copy().ravel() if isinstance(y, np.ndarray) else y.copy().to_numpy()
-    x, y = x_[~np.isnan(x_) & ~np.isnan(y_)], y_[~np.isnan(x_) & ~np.isnan(y_)]
+    x = x_.values.ravel()
+    y = y_.values.ravel()
 
+    # initialize statistical variables
+    k_params = 2 if fit_intercept else 1
+    DoF_resid = len(x) - k_params
+
+    # Calculate robust regression
     slope = repeated_median_slope(x, y, nowarn=nowarn)
-    intercept = np.nanmedian(y - slope * x)
+    intercept = np.nanmedian(y - slope * x) if fit_intercept else 0.0
     mean_x, mean_y = np.mean(x), np.mean(y)
-    total_ssq = np.sum(np.power(y - mean_y, 2))
 
     out = {}
 
-    out["N"] = min(x.size - np.count_nonzero(np.isnan(x)), y.size - np.count_nonzero(np.isnan(y)))
+    out["N"] = len(x)
     out["intercept"] = intercept
     out["coefficients"] = [
         slope,
     ]
     out["fitted_values"] = intercept + slope * x
-    regression_ssq = np.sum(np.power(out["fitted_values"] - mean_y, 2))
     out["residuals"] = y - out["fitted_values"]
-    residual_ssq = np.sum(out["residuals"] * out["residuals"])
+
     # For robust method, calculate this way, since no guarantee both RegSS or RSS are < TSS.
     # So ensure this way that the TSS = RegSS + RSS, and R2 is the ratio of RegSS/TSS
     # https://learnche.org/pid/least-squares-modelling/least-squares-model-analysis
+    regression_ssq = np.sum(np.power(out["fitted_values"] - mean_y, 2))
+    residual_ssq = np.sum(out["residuals"] * out["residuals"])
     total_ssq = regression_ssq + residual_ssq
     out["R2"] = regression_ssq / total_ssq
-    out["SE"] = np.sqrt(residual_ssq / (len(x) - 2))
-    out["x_ssq"] = np.sum(np.power(x - np.mean(x), 2))
-    c_t = t_value(1 - (1 - conflevel) / 2, out["N"] - 2)  # 2 fitted parameters
-    # out["t_value"] = np.array([c_t])  # for consistency with other regression models.
-    # "pi" = prediction interval
+    out["SE"] = np.sqrt(residual_ssq / DoF_resid)
+    out["x_ssq"] = np.sum(np.power(x - mean_x, 2))
+    out["k"] = k_params
+
+    # t-critical value for confidence intervals
+    c_t = t_value(1 - (1 - conflevel) / 2, DoF_resid)
+
+    # Prediction intervals
     pi_range = np.linspace(np.min(x), np.max(x), pi_resolution)
     pi_y_pred = out["intercept"] + out["coefficients"][0] * pi_range
+
+    # Handle degenerate case where x has no variation
     if out["x_ssq"] < __eps:
         out["standard_error_intercept"] = SE_b0 = np.nan
+        out["conf_interval_intercept"] = np.array([np.nan, np.nan])
         out["standard_errors"] = [
             np.nan,
         ]
         out["pi_range"] = np.vstack([pi_range, pi_y_pred, pi_y_pred]).T
+        out["leverage"] = 1 / out["N"] + np.power(x - mean_x, 2) / out["x_ssq"]
 
     else:
-        out["standard_error_intercept"] = SE_b0 = out["SE"] * np.sqrt(1 / out["N"] + (mean_x) ** 2 / out["x_ssq"])
         out["standard_errors"] = [
             out["SE"] * 1 / np.sqrt(out["x_ssq"]),
         ]
-        var_y = (out["SE"] ** 2) * (1 + 1 / out["N"] + (pi_range - np.mean(x)) ** 2 / out["x_ssq"])
+        if fit_intercept:
+            out["standard_error_intercept"] = SE_b0 = out["SE"] * np.sqrt(1 / out["N"] + (mean_x) ** 2 / out["x_ssq"])
+            out["conf_interval_intercept"] = np.array(
+                [out["intercept"] - c_t * SE_b0, out["intercept"] + c_t * SE_b0],
+            )
+            var_y = (out["SE"] ** 2) * (1 + 1 / out["N"] + (pi_range - np.mean(x)) ** 2 / out["x_ssq"])
+            out["leverage"] = 1 / out["N"] + np.power(x - mean_x, 2) / out["x_ssq"]
+        else:  # 1 / out["N"] is the term for the uncertainty for the intercept
+            out["standard_error_intercept"] = np.nan
+            out["conf_interval_intercept"] = np.array([np.nan, np.nan])
+            # The model without intercept centers around the origin
+            x_ssq_origin = np.sum(x**2)
+            var_y = (out["SE"] ** 2) * (1 + (pi_range**2) / x_ssq_origin)
+            out["leverage"] = np.power(x, 2) / x_ssq_origin
+
         std_y = np.sqrt(var_y)
         lower = pi_y_pred - c_t * std_y
         upper = pi_y_pred + c_t * std_y
         out["pi_range"] = np.vstack([pi_range, lower, upper]).T
 
-    out["conf_interval_intercept"] = np.array(
-        [out["intercept"] - c_t * SE_b0, out["intercept"] + c_t * SE_b0],
-    )
     out["conf_intervals"] = np.array(
         [
             [
@@ -198,8 +214,7 @@ def simple_robust_regression(  # noqa: PLR0913, PLR0915
             ],
         ]
     )
-    out["leverage"] = 1 / out["N"] + np.power(x - mean_x, 2) / out["x_ssq"]
-    out["k"] = 2
+
     if out["SE"] < __eps:
         out["influence"] = out["residuals"] * 0.0
     else:

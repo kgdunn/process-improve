@@ -356,3 +356,61 @@ def test_simple_regression_no_error():
     assert robust["influence"] == pytest.approx([0] * 5)
     assert robust["conf_intervals"][0] == pytest.approx(regular["conf_intervals"][0])
     assert robust["coefficients"] == pytest.approx(regular["coefficients"])
+
+
+def test_simple_robust_regression_no_intercept(simple_robust_regression_data):
+    """Test simple robust regression with fit_intercept=False"""
+    X, y = simple_robust_regression_data
+    out = simple_robust_regression(X.ravel(), y, fit_intercept=False)
+
+    # Basic structure checks
+    assert out["intercept"] == 0.0  # Should be exactly 0.0, not None or np.nan
+    assert len(out["coefficients"]) == 1
+    assert out["conf_intervals"].shape == (1, 2)
+    assert np.isnan(out["standard_error_intercept"])
+    assert np.array_equal(out["conf_interval_intercept"], np.array([np.nan, np.nan]), equal_nan=True)
+    assert out["k"] == 1  # Only one parameter (slope)
+
+    # Fitted values should pass through origin
+    assert out["fitted_values"][0] == out["coefficients"][0] * X.ravel()[0]
+
+    # Check that residuals are calculated correctly
+    expected_fitted = out["coefficients"][0] * X.ravel()
+    assert out["fitted_values"] == pytest.approx(expected_fitted)
+    assert out["residuals"] == pytest.approx(y - expected_fitted)
+
+    # Leverage should be calculated using distance from origin
+    x_vals = X.ravel()
+    expected_leverage = np.power(x_vals, 2) / np.sum(x_vals**2)
+    assert out["leverage"] == pytest.approx(expected_leverage)
+
+    # Standard error should be calculated with df = n - 1
+    n = len(x_vals)
+    expected_df = n - 1
+    residual_ssq = np.sum(out["residuals"] ** 2)
+    expected_se = np.sqrt(residual_ssq / expected_df)
+    assert out["SE"] == pytest.approx(expected_se)
+
+
+def test_simple_robust_regression_compare_with_regular_no_intercept():
+    """Compare simple robust regression with regular regression for no-intercept case."""
+    # Use simple linear data where robust and regular should be similar
+    x = np.array([1, 2, 3, 4, 5])
+    y = np.array([2, 4, 6, 8, 10])  # Perfect linear relationship through origin
+
+    robust_out = simple_robust_regression(x, y, fit_intercept=False)
+    regular_out = multiple_linear_regression(x, y, fit_intercept=False)
+
+    # Both should have intercept = 0 (robust) or np.nan (regular)
+    assert robust_out["intercept"] == 0.0
+    assert np.isnan(regular_out["intercept"])
+
+    # Coefficients should be very close for this linear data
+    assert robust_out["coefficients"][0] == pytest.approx(regular_out["coefficients"][0], rel=1e-3)
+
+    # Both should have k=1 (one parameter)
+    assert robust_out["k"] == 1
+    assert regular_out["k"] == 1
+
+    # Standard error calculations should use same degrees of freedom
+    assert len(x) - robust_out["k"] == len(x) - regular_out["k"]
