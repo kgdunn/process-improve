@@ -6,14 +6,15 @@ import typing
 import warnings
 from collections.abc import Callable, KeysView
 from functools import partial
-from typing import TypeAlias
+from typing import Self, TypeAlias
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import pytest
+import ridgeplot
 from scipy.stats import chi2, f
-from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, _fit_context
+from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, _fit_context, clone
 from sklearn.cross_decomposition import PLSRegression as PLS_sklearn
 from sklearn.decomposition import PCA as PCA_sklearn
 from sklearn.metrics import r2_score
@@ -1512,17 +1513,22 @@ class DataFrameDict(dict):
         for block in self.partitionable_blocks:
             datadict[block] = {}
             for group, df in self.datadict[block].items():
-                if isinstance(lookup, (int, np.integer)):
-                    datadict[block][group] = df.iloc[[lookup]]
-                if isinstance(lookup, list):
-                    raise TypeError("datadict[block][group] = df.iloc[lookup] <-- test still")
-                if isinstance(lookup, np.ndarray):
-                    raise TypeError("datadict[block][group] = df.iloc[lookup.tolist()] <-- test still")
-                if isinstance(lookup, tuple):
-                    assert lookup[1] == Ellipsis
-                    datadict[block][group] = df.iloc[[int(item) for item in lookup[0]]]
-                else:
-                    raise TypeError(f"Lookup must be an int, list of ints, or a string. Got {lookup}; {type(lookup)}")
+                match lookup:
+                    case int() | np.integer():
+                        datadict[block][group] = df.iloc[[lookup]]
+                    case list():
+                        datadict[block][group] = df.iloc[lookup]
+                    case np.ndarray():
+                        datadict[block][group] = df.iloc[lookup.tolist()]
+                    case tuple():
+                        if lookup[1] == Ellipsis:
+                            datadict[block][group] = df.iloc[[int(item) for item in lookup[0]]]
+                        else:
+                            raise TypeError(f"Invalid tuple structure for lookup: {lookup}")
+                    case _:
+                        raise TypeError(
+                            f"Lookup must be an int, list of ints, or a string. Got {lookup}; {type(lookup)}"
+                        )
 
         return DataFrameDict(datadict)
 
@@ -2158,7 +2164,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         """
         centering = y.mean(axis="index")
         scaling = y.std(ddof=1, axis="index") if y.shape[0] > 1 else pd.Series(1.0, index=y.columns)
-        scaling[scaling < self.tolerance_] = 1.0  # columns with little/no variance are left as-is.
+        scaling[scaling < self.tolerance_] = float("nan")  # columns with little/no variance: set as nan
         return centering, scaling
 
     def _validate_df(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -2322,13 +2328,24 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Cumulative R2 values can be found by summation. The R2 values are **always** fractional (between 0 and 1).
         ssq_prior_pc = self.sums_of_squares_[-2]
         ssq_start_0 = self.sums_of_squares_[0]
-        calc_r2 = {
-            "D": {key: (ssq_prior_pc["D"][key] - calc_ssq["D"][key]) / ssq_start_0["D"][key] for key in self.d_mats},
-            "F": {key: (ssq_prior_pc["F"][key] - calc_ssq["F"][key]) / ssq_start_0["F"][key] for key in self.f_mats},
-            "Z": {key: (ssq_prior_pc["Z"][key] - calc_ssq["Z"][key]) / ssq_start_0["Z"][key] for key in self.z_mats},
-            "Y": {key: (ssq_prior_pc["Y"][key] - calc_ssq["Y"][key]) / ssq_start_0["Y"][key] for key in self.y_mats},
-        }
-        self.r2_frac.append(calc_r2)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            # Ignore warnings about division by zero, since some columns might have no variance.
+            calc_r2 = {
+                "D": {
+                    key: (ssq_prior_pc["D"][key] - calc_ssq["D"][key]) / ssq_start_0["D"][key] for key in self.d_mats
+                },
+                "F": {
+                    key: (ssq_prior_pc["F"][key] - calc_ssq["F"][key]) / ssq_start_0["F"][key] for key in self.f_mats
+                },
+                "Z": {
+                    key: (ssq_prior_pc["Z"][key] - calc_ssq["Z"][key]) / ssq_start_0["Z"][key] for key in self.z_mats
+                },
+                "Y": {
+                    key: (ssq_prior_pc["Y"][key] - calc_ssq["Y"][key]) / ssq_start_0["Y"][key] for key in self.y_mats
+                },
+            }
+            self.r2_frac.append(calc_r2)
 
         # VIP for each block, for given number of components we currently have. VIP are cumulative.
         # For the D-block and F-block: you want to be able to use the VIPs to compare across the entire block, without
@@ -2483,38 +2500,35 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Note the extra complexity for checking columns that have perfectly zero variance.
         for key in self.z_mats:
             assert pytest.approx(0) == np.nanmean(self.z_mats[key], axis=0)
-            for item in np.nanvar(self.z_mats[key], axis=0, ddof=1):
+            for item in np.nanstd(self.z_mats[key], axis=0, ddof=1):
                 if item != 0:
                     assert pytest.approx(item) == 1
 
-        # Check the F, D, and Y blocks as well.
-        for key in self.f_mats:
-            assert pytest.approx(0) == np.nanmean(self.f_mats[key], axis=0)
-            for item in np.nanvar(self.f_mats[key], axis=0, ddof=1):
-                if item != 0:
-                    assert pytest.approx(item) == 1
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
 
+            for key in self.f_mats:
+                vector = np.nanmean(self.d_mats[key], axis=0)
+                vector[np.isnan(vector)] = 0
+                assert pytest.approx(vector) == 0
+
+                vector = np.nanmean(self.f_mats[key], axis=0)
+                vector[np.isnan(vector)] = 0
+                assert pytest.approx(vector) == 0
+
+                vector = np.nanstd(self.d_mats[key], axis=0, ddof=1) * self.preproc_["D"][key]["block"].values[0]
+                vector[np.isnan(vector)] = 1
+                assert pytest.approx(vector) == 1
+
+                vector = np.nanstd(self.f_mats[key], axis=0, ddof=1)
+                vector[np.isnan(vector)] = 1
+                assert pytest.approx(vector) == 1
+
+        # Checks on the Y-block
         assert all(pytest.approx(np.nanmean(self.y_mats[key], axis=0)) == 0 for key in self.y_mats)
         assert all(
             pytest.approx(np.where((in_array := np.nanstd(self.y_mats[key], axis=0, ddof=1)) == 0, 1, in_array)) == 1
             for key in self.y_mats
-        )
-
-        assert all(pytest.approx(np.nanmean(self.d_mats[key], axis=0)) == 0 for key in self.d_mats)
-        assert all(
-            pytest.approx(
-                np.where(
-                    (
-                        in_array := np.nanstd(self.d_mats[key], axis=0, ddof=1)
-                        * self.preproc_["D"][key]["block"].values[0]
-                    )
-                    == 0,
-                    1,
-                    in_array,
-                )
-            )
-            == 1
-            for key in self.d_mats
         )
 
     def _fit_iterative_regressions(self) -> None:
@@ -2678,3 +2692,130 @@ class Plot:
     def loadings(self, pc_horiz: int = 1, pc_vert: int = 2, **kwargs) -> go.Figure:
         """Generate a loading plot."""
         return loading_plot(self, pc_horiz=pc_horiz, pc_vert=pc_vert, **kwargs)
+
+
+class Resampler:
+    """Base class for resampling methods."""
+
+    def __init__(
+        self,
+        estimator: BaseEstimator,
+        x: DataFrameDict,
+        accessor: Callable,
+        use_jackknife: bool = True,
+        bootstrap_rounds: int = 0,
+    ):
+        """Initialize the resampling method.
+
+        The `accessor` is a callable that takes an estimator and returns the parameters of interest.
+        The `use_jackknife` flag indicates whether to use jackknife resampling.
+        The `bootstrap_rounds` specifies the number of bootstrap rounds if applicable.
+
+        These last two parameters are mutually exclusive, and only one should be set at a time.
+        """
+        if not isinstance(estimator, BaseEstimator):
+            raise TypeError("estimator must be a BaseEstimator instance.")
+        self.estimator = estimator
+
+        if not isinstance(x, DataFrameDict):
+            raise TypeError("x must be a DataFrameDict instance.")
+        self.x = x
+
+        if not callable(accessor):
+            raise TypeError("accessor must be a callable function.")
+        self.accessor = accessor
+
+        self.use_jackknife = use_jackknife
+        self.bootstrap_rounds = int(bootstrap_rounds)
+        if self.use_jackknife and self.bootstrap_rounds > 0:
+            raise ValueError("use_jackknife and bootstrap_rounds are mutually exclusive. Set only one of them.")
+
+        self.parameters: list = []
+        self.n_resamples = 0
+
+    def resample(self, show_progress: bool = True) -> Self:
+        """Perform the resampling."""
+        if self.use_jackknife:
+            return self.jackknife(show_progress=show_progress)
+        elif self.bootstrap_rounds > 0:
+            return self.bootstrap(show_progress=show_progress)
+        else:
+            raise ValueError("Either use_jackknife or bootstrap_rounds must be set.")
+
+    def jackknife(self, show_progress: bool) -> Self:
+        """Perform jackknife resampling on the given estimator."""
+        self.parameters = []
+        indices = np.arange(len(self.x))
+        for i in tqdm(range(len(self.x)), desc="Jackknife Resampling", disable=not show_progress):
+            leave_one_out_indices = indices[indices != i]
+            x_train = self.x[leave_one_out_indices]
+            parameter = self.accessor(clone(self.estimator).fit(x_train))
+            self.parameters.append(parameter)
+
+        self.n_resamples = len(self.parameters)
+        if self.n_resamples == 0:
+            raise ValueError("No resamples were generated. Check your data and parameters.")
+        return self
+
+    def bootstrap(self, show_progress: bool) -> Self:
+        """Perform bootstrap resampling on the given estimator."""
+        self.parameters = []
+
+        # Generate bootstrap samples, resample with replacement, in a loop of self.bootstrap_rounds iterations
+        for _ in tqdm(range(self.bootstrap_rounds), desc="Bootstrap Resampling", disable=not show_progress):
+            # Resample indices with replacement
+            indices = np.random.choice(len(self.x), size=len(self.x), replace=True)
+            x_train = self.x[indices]
+            parameter = self.accessor(clone(self.estimator).fit(x_train))
+            self.parameters.append(parameter)
+
+        self.n_resamples = len(self.parameters)
+        if self.n_resamples == 0:
+            raise ValueError("No resamples were generated. Check your data and parameters.")
+
+        return self
+
+    def plot_results(self, cutoff: float | None = None) -> go.Figure:
+        """
+        Plot the results of the resampling.
+
+        A vertical line can be added at the specified cutoff value. If `cutoff` is None, no vertical line is added.
+        """
+        parameters = pd.DataFrame(self.parameters)
+        size_per_sample = len(self.parameters[0])
+
+        # Resort the columns of the parameters DataFrame by the .median() value of each column
+        parameters = parameters.reindex(parameters.median().sort_values(ascending=False).index, axis=1)
+
+        fig = ridgeplot.ridgeplot(
+            samples=parameters.to_numpy().T.reshape((size_per_sample, 1, self.n_resamples)),
+            # bandwidth=4,
+            kde_points=np.linspace(0, 2, 500),
+            colorscale="viridis",
+            colormode="row-index",
+            opacity=0.6,
+            labels=parameters.columns.tolist(),
+            spacing=0.1,
+            norm="probability",
+        )
+        if cutoff is not None:
+            fig.add_vline(
+                x=cutoff, line_color="red", line_dash="dash", annotation_text="Cutoff", annotation_position="top left"
+            )
+        fig.update_layout(
+            font_size=16,
+            plot_bgcolor="white",
+            xaxis=dict(
+                title="Parameter Value",
+                showgrid=True,
+                zeroline=False,
+            ),
+            yaxis=dict(
+                title="Parameter Index",
+                showgrid=True,
+                zeroline=False,
+                showticklabels=True,
+            ),
+            title="Resampling Results",
+        )
+        return fig

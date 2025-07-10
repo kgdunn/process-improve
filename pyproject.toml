@@ -1,6 +1,6 @@
 [project]
 name = "process-improve"
-version = "0.9.93"
+version = "0.9.94"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = {text = "MIT license"}
@@ -19,6 +19,7 @@ dependencies = [
     "patsy>=1.0.1",
     "plotly>=6.2.0",
     "pydantic>=2.11.7",
+    "ridgeplot>=0.3.2",
     "scikit-image>=0.25.2",
     "scikit-learn>=1.7.0",
     "seaborn>=0.13.2",
