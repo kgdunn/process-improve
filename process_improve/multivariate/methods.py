@@ -11,7 +11,6 @@ from typing import Self, TypeAlias
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-import pytest
 import ridgeplot
 from scipy.stats import chi2, f
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, _fit_context, clone
@@ -26,6 +25,11 @@ from .plots import loading_plot, score_plot, spe_plot, t2_plot
 DataMatrix: TypeAlias = np.ndarray | pd.DataFrame
 
 epsqrt = np.sqrt(np.finfo(float).eps)
+
+# Helper for approximate equality checks (replacing pytest.approx for now)
+def approx_equal(a, b, rel=1e-7, abs=1e-12):
+    """Check if two values are approximately equal."""
+    return np.allclose(a, b, rtol=rel, atol=abs)
 
 
 class SpecificationWarning(UserWarning):
@@ -277,7 +281,7 @@ class PCA(PCA_sklearn):
     def fit_transform(self, X: DataMatrix, y: DataMatrix | None = None) -> None:  # noqa: ARG002
         """Fit the PCA model and transform the data."""
         self.fit(X)
-        pytest.fail("Still do the transform part")
+        raise NotImplementedError("Transform part is not implemented yet")
 
     def predict(self, X: DataMatrix):
         """Use the PCA model on new data coming in matrix X."""
@@ -367,7 +371,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
 
         # Perform MD algorithm here
         if self.missing_data_settings["md_method"].lower() == "pmp":
-            pytest.fail("The PMP method is not implemented yet")  # self._fit_pmp(X)
+            raise NotImplementedError("The PMP method is not implemented yet")  # self._fit_pmp(X)
         elif self.missing_data_settings["md_method"].lower() in ["scp", "nipals"]:
             self._fit_nipals_pca(settings=self.missing_data_settings)
         elif self.missing_data_settings["md_method"].lower() in ["tsr"]:
@@ -585,6 +589,7 @@ class PLS(PLS_sklearn):
         self.missing_data_settings = missing_data_settings
         self.has_missing_data = False
 
+    @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X: DataMatrix, Y: DataMatrix) -> PLS_sklearn:  # noqa: PLR0915
         """
         Fit a projection to latent structures (PLS) or Partial Least Square (PLS) model to the data.
@@ -608,26 +613,25 @@ class PLS(PLS_sklearn):
         Abdi, "Partial least squares regression and projection on latent structure
         regression (PLS Regression)", 2010, DOI: 10.1002/wics.51
         """
-        self.N: int = X.shape[0]
-        self.K: int = X.shape[1]
-        self.Ny: int = Y.shape[0]
-        self.M: int = Y.shape[1]
+        self.n_samples_: int = X.shape[0]
+        self.n_features_in_: int = X.shape[1]
+        n_targets = Y.shape[1]
         assert (
-            self.Ny == self.N
-        ), f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
+            Y.shape[0] == self.n_samples_
+        ), f"The X and Y arrays must have the same number of rows: X has {self.n_samples_} and Y has {Y.shape[0]}."
 
         # Check if number of components is supported against maximum requested
-        min_dim = min(self.N, self.K)
-        self.A = min_dim if self.n_components is None else int(self.n_components)
-        if min_dim < self.A:
+        min_dim = min(self.n_samples_, self.n_features_in_)
+        n_components_actual = min_dim if self.n_components is None else int(self.n_components)
+        if min_dim < n_components_actual:
             warn = (
                 "The requested number of components is more than can be "
                 "computed from data. The maximum number of components is "
-                f"the minimum of either the number of rows ({self.N}) or "
-                f"the number of columns ({self.K})."
+                f"the minimum of either the number of rows ({self.n_samples_}) or "
+                f"the number of columns ({self.n_features_in_})."
             )
             warnings.warn(warn, SpecificationWarning, stacklevel=2)
-            self.A = self.n_components = min_dim
+            n_components_actual = self.n_components = min_dim
 
         if np.any(Y.isna()) or np.any(X.isna()):
             # If there are missing data, then the missing data settings apply. Defaults are:
@@ -641,41 +645,56 @@ class PLS(PLS_sklearn):
                 default_mds.update(self.missing_data_settings)
 
             self.missing_data_settings = default_mds
-            self = PLS_missing_values(
+            missing_pls = PLS_missing_values(
                 n_components=self.n_components,
                 missing_data_settings=self.missing_data_settings,
             )
-            self.N, self.K = X.shape
-            self.Ny, self.M = Y.shape
-            self.A = self.n_components
-
-            # Call the sub-function to do the PLS fit when missing data are present
-            self.fit(X, Y)
+            missing_pls.fit(X, Y)
+            
+            # Copy the fitted attributes back to self
+            self.has_missing_data = True
+            self.n_samples_, self.n_features_in_ = missing_pls.n_samples_, missing_pls.n_features_in_
+            self.x_scores_ = missing_pls.x_scores_
+            self.y_scores_ = missing_pls.y_scores_
+            self.x_weights_ = missing_pls.x_weights_
+            self.y_weights_ = missing_pls.y_weights_
+            self.x_loadings_ = missing_pls.x_loadings_
+            self.y_loadings_ = missing_pls.y_loadings_
+            self.extra_info = missing_pls.extra_info
+            
+            n_targets = Y.shape[1]
+            n_components_actual = self.n_components
         else:
             self = super().fit(X, Y)
-            # x_scores #T: N x A
-            # y_scores # U: N x A
-            # x_weights # W: K x A
+            # x_scores #T: n_samples x n_components
+            # y_scores # U: n_samples x n_components
+            # x_weights # W: n_features x n_components
             # y_weights # identical values to y_loadings. So this is redundant then.
-            # x_loadings  # P: K x A
-            # y_loadings  # C: M x A
+            # x_loadings  # P: n_features x n_components
+            # y_loadings  # C: n_targets x n_components
 
             self.extra_info = {}
-            self.extra_info["timing"] = np.zeros(self.A) * np.nan
+            self.extra_info["timing"] = np.zeros(n_components_actual) * np.nan
             self.extra_info["iterations"] = np.array(self.n_iter_)
+            n_targets = Y.shape[1]
 
         # We have now fitted the model. Apply some convenience shortcuts for the user.
-        self.A = self.n_components
+        # Store for backward compatibility  
+        self.A = n_components_actual
+        self.N = self.n_samples_
+        self.K = self.n_features_in_
+        self.M = n_targets
 
         # Further convenience calculations
-        # "direct_weights" is matrix R = W(P'W)^{-1}  [R is KxA matrix]; useful since T = XR
+        # "direct_weights" is matrix R = W(P'W)^{-1}  [R is n_features x n_components matrix]; useful since T = XR
         direct_weights = self.x_weights_ @ np.linalg.inv(self.x_loadings_.T @ self.x_weights_)
-        # beta = RC' [KxA by AxM = KxM]: the KxM matrix gives the direct link from the k-th (input)
+        # beta = RC' [n_features x n_components by n_components x n_targets = n_features x n_targets]: 
+        # the n_features x n_targets matrix gives the direct link from the k-th (input)
         # X variable, to the m-th (output) Y variable.
         beta_coefficients = direct_weights @ self.y_loadings_.T
 
         # Initialize storage:
-        component_names = [a + 1 for a in range(self.A)]
+        component_names = [a + 1 for a in range(n_components_actual)]
         self.x_scores = pd.DataFrame(self.x_scores_, index=X.index, columns=component_names)
         self.y_scores = pd.DataFrame(self.y_scores_, index=Y.index, columns=component_names)
         self.x_weights = pd.DataFrame(self.x_weights_, index=X.columns, columns=component_names)
@@ -685,47 +704,47 @@ class PLS(PLS_sklearn):
         self.predictions = pd.DataFrame(self.x_scores @ self.y_loadings.T, index=Y.index, columns=Y.columns)
         self.direct_weights = pd.DataFrame(direct_weights, index=X.columns, columns=component_names)
         self.beta_coefficients = pd.DataFrame(beta_coefficients, index=X.columns, columns=Y.columns)
-        self.explained_variance = np.diag(self.x_scores.T @ self.x_scores) / (self.N - 1)
+        self.explained_variance = np.diag(self.x_scores.T @ self.x_scores) / (self.n_samples_ - 1)
         self.scaling_factor_for_scores = pd.Series(
             np.sqrt(self.explained_variance),
             index=component_names,
             name="Standard deviation per score",
         )
         self.hotellings_t2 = pd.DataFrame(
-            np.zeros(shape=(self.N, self.A)),
+            np.zeros(shape=(self.n_samples_, n_components_actual)),
             columns=component_names,
             index=X.index.copy(),
         )
         self.hotellings_t2.index.name = "Hotelling's T^2 statistic, per component (col)"
         self.squared_prediction_error = pd.DataFrame(
-            np.zeros((self.N, self.A)),
+            np.zeros((self.n_samples_, n_components_actual)),
             columns=component_names,
             index=X.index.copy(),
         )
         self.R2 = pd.Series(
-            np.zeros(shape=(self.A)),
+            np.zeros(shape=(n_components_actual)),
             index=component_names,
             name="Output R^2, per component (col)",
         )
         self.R2cum = pd.Series(
-            np.zeros(shape=(self.A)),
+            np.zeros(shape=(n_components_actual)),
             index=component_names,
             name="Output cumulative R^2, per component (col)",
         )
         self.R2X_cum = pd.DataFrame(
-            np.zeros(shape=(self.K, self.A)),
+            np.zeros(shape=(self.n_features_in_, n_components_actual)),
             index=X.columns.copy(),
             columns=component_names,
         )
         self.R2X_cum.index.name = "R^2 per variable (row), per component (col)"
         self.R2Y_cum = pd.DataFrame(
-            np.zeros(shape=(self.M, self.A)),
+            np.zeros(shape=(n_targets, n_components_actual)),
             index=Y.columns.copy(),
             columns=component_names,
         )
         self.R2Y_cum.index.name = "R^2 per variable (row), per component (col)"
         self.RMSE = pd.DataFrame(
-            np.zeros(shape=(self.M, self.A)),
+            np.zeros(shape=(n_targets, n_components_actual)),
             index=Y.columns.copy(),
             columns=component_names,
         )
@@ -736,7 +755,7 @@ class PLS(PLS_sklearn):
         prior_SSX_col = ssq(Xd.values, axis=0)
         prior_SSY_col = ssq(Yd.values, axis=0)
         base_variance_Y = np.sum(prior_SSY_col)
-        for a in range(self.A):
+        for a in range(n_components_actual):
             self.hotellings_t2.iloc[:, a] = (
                 self.hotellings_t2.iloc[:, max(0, a - 1)]
                 + (self.x_scores.iloc[:, a] / self.scaling_factor_for_scores.iloc[a]) ** 2
@@ -769,10 +788,10 @@ class PLS(PLS_sklearn):
             ellipse_coordinates,
             n_components=self.n_components,
             scaling_factor_for_scores=self.scaling_factor_for_scores,
-            n_rows=self.N,
+            n_rows=self.n_samples_,
         )
 
-        self.hotellings_t2_limit = partial(hotellings_t2_limit, n_components=self.n_components, n_rows=self.N)
+        self.hotellings_t2_limit = partial(hotellings_t2_limit, n_components=self.n_components, n_rows=self.n_samples_)
         self.spe_plot = partial(spe_plot, model=self)
         self.t2_plot = partial(t2_plot, model=self)
         self.loading_plot = partial(loading_plot, model=self)
@@ -787,16 +806,16 @@ class PLS(PLS_sklearn):
             """Class to hold the prediction results together."""
 
             def __init__(self):
-                self.N = None
-                self.K = None
+                self.n_samples = None
+                self.n_features = None
                 self.x_scores = None
                 self.hotellings_t2 = None
                 self.squared_prediction_error = None
                 self.y_hat = None
 
         state = State()
-        state.N, state.K = X.shape
-        assert self.K == state.K, "Prediction data must have same number of columns as training data."
+        state.n_samples, state.n_features = X.shape
+        assert self.n_features_in_ == state.n_features, "Prediction data must have same number of columns as training data."
 
         state.x_scores = X @ self.direct_weights
 
@@ -884,33 +903,37 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
                 "missing. Please remove those rows and refit model."
             )
 
-        # Other setups:
-        self.n_components = self.A
-        self.n_samples_ = self.N
-        self.n_features_in_ = self.K
-        # self.M ?
+        # Set sklearn-style attributes
+        self.n_samples_, self.n_features_in_ = X.shape
+        n_targets = Y.shape[1]
+        
+        # Set for backward compatibility
+        self.N = self.n_samples_
+        self.K = self.n_features_in_
+        self.M = n_targets
+        self.A = self.n_components
 
-        self.x_scores_ = np.zeros((self.N, self.A))  # T: N x A
-        self.y_scores_ = np.zeros((self.N, self.A))  # U: N x A
-        self.x_weights_ = np.zeros((self.K, self.A))  # W: K x A
+        self.x_scores_ = np.zeros((self.n_samples_, self.n_components))  # T: n_samples x n_components
+        self.y_scores_ = np.zeros((self.n_samples_, self.n_components))  # U: n_samples x n_components
+        self.x_weights_ = np.zeros((self.n_features_in_, self.n_components))  # W: n_features x n_components
         self.y_weights_ = None
-        self.x_loadings_ = np.zeros((self.K, self.A))  # P: K x A
-        self.y_loadings_ = np.zeros((self.M, self.A))  # C: M x A
+        self.x_loadings_ = np.zeros((self.n_features_in_, self.n_components))  # P: n_features x n_components
+        self.y_loadings_ = np.zeros((n_targets, self.n_components))  # C: n_targets x n_components
 
-        self.R2 = np.zeros(shape=(self.A,))
-        self.R2cum = np.zeros(shape=(self.A,))
-        self.R2X_cum = np.zeros(shape=(self.K, self.A))
-        self.R2Y_cum = np.zeros(shape=(self.M, self.A))
-        self.squared_prediction_error = np.zeros((self.N, self.A))
+        self.R2 = np.zeros(shape=(self.n_components,))
+        self.R2cum = np.zeros(shape=(self.n_components,))
+        self.R2X_cum = np.zeros(shape=(self.n_features_in_, self.n_components))
+        self.R2Y_cum = np.zeros(shape=(n_targets, self.n_components))
+        self.squared_prediction_error = np.zeros((self.n_samples_, self.n_components))
 
         # Perform MD algorithm here
         if self.missing_data_settings["md_method"].lower() == "pmp":
-            pytest.fail("PMP for PLS not implemented yet")  # self._fit_pmp_pls(X)
+            raise NotImplementedError("PMP for PLS not implemented yet")  # self._fit_pmp_pls(X)
 
         elif self.missing_data_settings["md_method"].lower() in ["scp", "nipals"]:
             self._fit_nipals_pls(settings=self.missing_data_settings)
         elif self.missing_data_settings["md_method"].lower() in ["tsr"]:
-            pytest.fail("TSR for PLS not implemented yet")  # self._fit_tsr_pls(settings=self.missing_data_settings)
+            raise NotImplementedError("TSR for PLS not implemented yet")  # self._fit_tsr_pls(settings=self.missing_data_settings)
 
         # Additional calculations, which can be done after the missing data method is complete.
         # self.explained_variance_ = np.diag(self.x_scores.T @ self.x_scores) / (self.N - 1)
@@ -2499,10 +2522,10 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Test that all blocks and groups within a block have a mean of 0 and a standard deviation of 1.
         # Note the extra complexity for checking columns that have perfectly zero variance.
         for key in self.z_mats:
-            assert pytest.approx(0) == np.nanmean(self.z_mats[key], axis=0)
+            assert approx_equal(np.nanmean(self.z_mats[key], axis=0), 0)
             for item in np.nanstd(self.z_mats[key], axis=0, ddof=1):
                 if item != 0:
-                    assert pytest.approx(item) == 1
+                    assert approx_equal(item, 1)
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
@@ -2510,24 +2533,24 @@ class TPLS(RegressorMixin, BaseEstimator):
             for key in self.f_mats:
                 vector = np.nanmean(self.d_mats[key], axis=0)
                 vector[np.isnan(vector)] = 0
-                assert pytest.approx(vector) == 0
+                assert approx_equal(vector, 0)
 
                 vector = np.nanmean(self.f_mats[key], axis=0)
                 vector[np.isnan(vector)] = 0
-                assert pytest.approx(vector) == 0
+                assert approx_equal(vector, 0)
 
                 vector = np.nanstd(self.d_mats[key], axis=0, ddof=1) * self.preproc_["D"][key]["block"].values[0]
                 vector[np.isnan(vector)] = 1
-                assert pytest.approx(vector) == 1
+                assert approx_equal(vector, 1)
 
                 vector = np.nanstd(self.f_mats[key], axis=0, ddof=1)
                 vector[np.isnan(vector)] = 1
-                assert pytest.approx(vector) == 1
+                assert approx_equal(vector, 1)
 
         # Checks on the Y-block
-        assert all(pytest.approx(np.nanmean(self.y_mats[key], axis=0)) == 0 for key in self.y_mats)
+        assert all(approx_equal(np.nanmean(self.y_mats[key], axis=0), 0) for key in self.y_mats)
         assert all(
-            pytest.approx(np.where((in_array := np.nanstd(self.y_mats[key], axis=0, ddof=1)) == 0, 1, in_array)) == 1
+            approx_equal(np.where((in_array := np.nanstd(self.y_mats[key], axis=0, ddof=1)) == 0, 1, in_array), 1)
             for key in self.y_mats
         )
 
