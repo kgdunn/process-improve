@@ -567,6 +567,160 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
 
 
 class PLS(PLS_sklearn):
+    """
+    Partial Least Squares (PLS) regression.
+
+    This implementation extends scikit-learn's PLSRegression with additional features
+    including missing data handling, enhanced diagnostics, and improved sklearn compatibility.
+
+    PLS finds a linear regression model by projecting the predicted variables and the 
+    observable variables to a new space of latent variables. This allows modeling of
+    data with multivariate outputs and handles the case where the number of predictors
+    is greater than the number of observations.
+
+    Parameters
+    ----------
+    n_components : int
+        Number of components to keep. Should be in ``[1, min(n_samples, n_features, n_targets)]``.
+
+    scale : bool, default=True
+        Whether to scale ``X`` and ``Y``. Note that this implementation uses 
+        degrees of freedom correction (ddof=1) for better accuracy with small datasets.
+
+    max_iter : int, default=1000
+        Maximum number of iterations of the power method when algorithm='nipals', 
+        or the maximum number of SVD iterations when algorithm='svd'.
+
+    tol : float, default=sqrt(machine_precision)
+        Tolerance used as convergence criteria in the iterative algorithm.
+
+    copy : bool, default=True
+        Whether to copy ``X`` and ``Y`` in fit before applying centering, and 
+        potentially scaling. If False, these operations will be done inplace, 
+        modifying both arrays.
+
+    missing_data_settings : dict, optional
+        Settings for handling missing data. If None, missing data will be detected
+        automatically and handled using default settings. Available options:
+
+        - 'md_method' : str, default='tsr'
+            Method for handling missing data. Options are:
+            
+            * 'nipals' or 'scp': Non-linear Iterative Partial Least Squares
+            * 'tsr': Trimmed Score Regression  
+            * 'pmp': Projection to Model Plane (not yet implemented)
+            
+        - 'md_tol' : float, default=sqrt(machine_precision)
+            Tolerance for missing data algorithms
+            
+        - 'md_max_iter' : int, default=1000
+            Maximum iterations for missing data algorithms
+
+    Attributes
+    ----------
+    n_samples_ : int
+        Number of samples in the training data.
+
+    n_features_in_ : int  
+        Number of features in the training data.
+
+    x_weights_ : ndarray of shape (n_features, n_components)
+        The left singular vectors of the cross-covariance matrices of each 
+        iteration.
+
+    y_weights_ : ndarray of shape (n_targets, n_components)
+        The right singular vectors of the cross-covariance matrices of each
+        iteration.
+
+    x_loadings_ : ndarray of shape (n_features, n_components)
+        The loadings of ``X``.
+
+    y_loadings_ : ndarray of shape (n_targets, n_components)
+        The loadings of ``Y``.
+
+    x_scores_ : ndarray of shape (n_samples, n_components)
+        The transformed training samples.
+
+    y_scores_ : ndarray of shape (n_samples, n_components)  
+        The transformed training targets.
+
+    n_iter_ : list of int
+        Number of iterations of the power method, for each
+        component. Empty if algorithm='svd'.
+
+    has_missing_data : bool
+        Whether the model was fitted with missing data handling.
+
+    hotellings_t2 : DataFrame of shape (n_samples, n_components)
+        Hotelling's T² statistic for each observation and component.
+
+    squared_prediction_error : DataFrame of shape (n_samples, n_components)
+        Squared prediction error (SPE) for each observation and component.
+
+    scaling_factor_for_scores : Series of length n_components
+        Standard deviation per score component.
+
+    direct_weights : DataFrame of shape (n_features, n_components)
+        Direct regression weights R = W(P'W)^{-1}.
+
+    beta_coefficients : DataFrame of shape (n_features, n_targets)
+        Direct regression coefficients linking input variables to outputs.
+
+    predictions : DataFrame of shape (n_samples, n_targets)
+        Model predictions on training data.
+
+    R2 : Series of length n_components
+        R² value for each component.
+
+    R2cum : Series of length n_components  
+        Cumulative R² value for each component.
+
+    Notes
+    -----
+    For missing data handling, this implementation provides several algorithms
+    that can handle NaN values in both X and Y matrices, which is not supported
+    by scikit-learn's standard PLSRegression.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> import pandas as pd
+    >>> from process_improve.multivariate.methods import PLS, MCUVScaler
+    >>> 
+    >>> # Generate sample data
+    >>> X = pd.DataFrame(np.random.randn(100, 5))
+    >>> Y = pd.DataFrame(np.random.randn(100, 2))
+    >>> 
+    >>> # Preprocessing
+    >>> scaler_X = MCUVScaler().fit(X)
+    >>> scaler_Y = MCUVScaler().fit(Y) 
+    >>> X_scaled = scaler_X.transform(X)
+    >>> Y_scaled = scaler_Y.transform(Y)
+    >>> 
+    >>> # Fit PLS model
+    >>> pls = PLS(n_components=3)
+    >>> pls.fit(X_scaled, Y_scaled)
+    >>> 
+    >>> # Make predictions
+    >>> predictions = pls.predict(X_scaled)
+    >>> Y_pred = scaler_Y.inverse_transform(predictions.y_hat)
+
+    References
+    ----------
+    .. [1] Abdi, H. (2010). Partial least squares regression and projection on
+           latent structure regression (PLS Regression). Wiley Interdisciplinary
+           Reviews: Computational Statistics, 2(1), 97-106.
+    """
+
+    _parameter_constraints: dict = {
+        "n_components": [int, None],
+        "scale": [bool],
+        "max_iter": [int],
+        "tol": [float],
+        "copy": [bool],
+        "missing_data_settings": [dict, None],
+    }
+
     def __init__(  # noqa: PLR0913
         self,
         n_components: int,
@@ -592,45 +746,87 @@ class PLS(PLS_sklearn):
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X: DataMatrix, Y: DataMatrix) -> PLS_sklearn:  # noqa: PLR0915
         """
-        Fit a projection to latent structures (PLS) or Partial Least Square (PLS) model to the data.
+        Fit the PLS model to the training data.
 
         Parameters
         ----------
-        X : array-like, shape (n_samples, n_features)
-            Training data, where `n_samples` is the number of samples (rows)
-            and `n_features` is the number of features (columns).
-        Y : array-like, shape (n_samples, n_targets)
-            Training data, where `n_samples` is the number of samples (rows)
-            and `n_targets` is the number of target outputs (columns).
+        X : array-like of shape (n_samples, n_features)
+            Training vectors, where `n_samples` is the number of samples and
+            `n_features` is the number of predictors.
+
+        Y : array-like of shape (n_samples, n_targets)
+            Target vectors, where `n_samples` is the number of samples and
+            `n_targets` is the number of response variables.
 
         Returns
         -------
-        PLS
-            Model object.
+        self : object
+            Fitted estimator.
 
-        References
-        ----------
-        Abdi, "Partial least squares regression and projection on latent structure
-        regression (PLS Regression)", 2010, DOI: 10.1002/wics.51
+        Notes
+        -----
+        This method will automatically detect missing values (NaN) in X or Y
+        and switch to appropriate missing data handling algorithms if needed.
+        
+        The method ensures sklearn compatibility by setting standard attributes
+        like `n_samples_`, `n_features_in_`, etc., while maintaining backward
+        compatibility with legacy attribute names.
+
+        Examples
+        --------
+        >>> import pandas as pd
+        >>> import numpy as np
+        >>> from process_improve.multivariate.methods import PLS
+        >>> 
+        >>> X = pd.DataFrame(np.random.randn(50, 4))
+        >>> Y = pd.DataFrame(np.random.randn(50, 2))
+        >>> pls = PLS(n_components=2)
+        >>> pls.fit(X, Y)
+        PLS(n_components=2)
         """
+        # Convert to DataFrames if needed for consistent API
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+        if not isinstance(Y, pd.DataFrame):
+            Y = pd.DataFrame(Y)
+
+        # Validate inputs
+        X = check_array(X, accept_sparse=False, ensure_all_finite='allow-nan', 
+                       ensure_2d=True, allow_nd=False, ensure_min_samples=1)
+        Y = check_array(Y, accept_sparse=False, ensure_all_finite='allow-nan',
+                       ensure_2d=True, allow_nd=False, ensure_min_samples=1)
+        
+        # Convert back to DataFrames with proper indices
+        X = pd.DataFrame(X)
+        Y = pd.DataFrame(Y)
+
         self.n_samples_: int = X.shape[0]
         self.n_features_in_: int = X.shape[1]
         n_targets = Y.shape[1]
-        assert (
-            Y.shape[0] == self.n_samples_
-        ), f"The X and Y arrays must have the same number of rows: X has {self.n_samples_} and Y has {Y.shape[0]}."
+        
+        if Y.shape[0] != self.n_samples_:
+            raise ValueError(
+                f"X and Y must have the same number of samples. "
+                f"X has {self.n_samples_} samples, Y has {Y.shape[0]} samples."
+            )
 
         # Check if number of components is supported against maximum requested
         min_dim = min(self.n_samples_, self.n_features_in_)
         n_components_actual = min_dim if self.n_components is None else int(self.n_components)
+        
+        if n_components_actual <= 0:
+            raise ValueError("n_components must be a positive integer")
+            
         if min_dim < n_components_actual:
-            warn = (
-                "The requested number of components is more than can be "
-                "computed from data. The maximum number of components is "
+            warnings.warn(
+                f"The requested number of components ({n_components_actual}) is more than can be "
+                f"computed from data. The maximum number of components is "
                 f"the minimum of either the number of rows ({self.n_samples_}) or "
-                f"the number of columns ({self.n_features_in_})."
+                f"the number of columns ({self.n_features_in_}). "
+                f"Reducing to {min_dim} components.",
+                SpecificationWarning, 
+                stacklevel=2
             )
-            warnings.warn(warn, SpecificationWarning, stacklevel=2)
             n_components_actual = self.n_components = min_dim
 
         if np.any(Y.isna()) or np.any(X.isna()):
@@ -800,7 +996,55 @@ class PLS(PLS_sklearn):
         return self
 
     def predict(self, X: DataMatrix):
-        """Use the PLS model on new data coming in matrix X."""
+        """
+        Apply the fitted PLS model to predict on new data.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to predict. Must have the same number of features as 
+            the training data.
+
+        Returns
+        -------
+        state : object
+            Prediction results containing:
+            
+            - `y_hat` : ndarray of shape (n_samples, n_targets)
+                Predicted values
+            - `x_scores` : ndarray of shape (n_samples, n_components)  
+                Scores for the input data
+            - `hotellings_t2` : ndarray of shape (n_samples,)
+                Hotelling's T² statistic for each sample
+            - `squared_prediction_error` : ndarray of shape (n_samples,)
+                Squared prediction error for each sample
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> import pandas as pd
+        >>> from process_improve.multivariate.methods import PLS
+        >>> 
+        >>> # Fit model
+        >>> X_train = pd.DataFrame(np.random.randn(100, 4))
+        >>> Y_train = pd.DataFrame(np.random.randn(100, 2))
+        >>> pls = PLS(n_components=2).fit(X_train, Y_train)
+        >>> 
+        >>> # Predict on new data
+        >>> X_test = pd.DataFrame(np.random.randn(20, 4))
+        >>> predictions = pls.predict(X_test)
+        >>> Y_pred = predictions.y_hat
+        """
+        check_is_fitted(self, "x_loadings_")
+        
+        # Convert to DataFrame if needed for consistent API
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+            
+        # Validate input
+        X = check_array(X, accept_sparse=False, ensure_all_finite=True,
+                       ensure_2d=True, allow_nd=False)
+        X = pd.DataFrame(X)
 
         class State:
             """Class to hold the prediction results together."""
@@ -840,8 +1084,29 @@ class PLS(PLS_sklearn):
         return state
 
     def SPE_limit(self, conf_level: float = 0.95) -> float:  # noqa: N802
-        """Calculate the SPE limit for the model."""
+        """
+        Calculate the SPE (Squared Prediction Error) limit for the model.
+
+        Parameters
+        ----------
+        conf_level : float, default=0.95
+            Confidence level for the limit calculation. Must be between 0 and 1.
+
+        Returns
+        -------
+        float
+            The SPE limit at the specified confidence level.
+
+        Examples
+        --------
+        >>> pls = PLS(n_components=2).fit(X, Y)
+        >>> spe_95 = pls.SPE_limit(0.95)
+        >>> spe_99 = pls.SPE_limit(0.99)
+        """
         check_is_fitted(self, "squared_prediction_error")
+        
+        if not 0 < conf_level < 1:
+            raise ValueError("conf_level must be between 0 and 1")
 
         return spe_calculation(
             spe_values=self.squared_prediction_error.iloc[:, self.A - 1],
