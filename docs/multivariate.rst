@@ -379,13 +379,17 @@ Here's a comprehensive example showing PLS regression:
     pls_model.fit(X_train, Y_train)
     
     # Make predictions
-    Y_pred_train = pls_model.predict(X_train)
-    Y_pred_test = pls_model.predict(X_test)
+    Y_pred_train_state = pls_model.predict(X_train)
+    Y_pred_test_state = pls_model.predict(X_test)
+    
+    # Extract predictions from state objects
+    Y_pred_train = Y_pred_train_state.y_hat
+    Y_pred_test = Y_pred_test_state.y_hat
     
     # Calculate performance metrics
-    r2_train_1 = r2_score(Y_train.iloc[:, 0], Y_pred_train[:, 0])
-    r2_test_1 = r2_score(Y_test.iloc[:, 0], Y_pred_test[:, 0])
-    rmse_test_1 = np.sqrt(mean_squared_error(Y_test.iloc[:, 0], Y_pred_test[:, 0]))
+    r2_train_1 = r2_score(Y_train.iloc[:, 0], Y_pred_train.iloc[:, 0])
+    r2_test_1 = r2_score(Y_test.iloc[:, 0], Y_pred_test.iloc[:, 0])
+    rmse_test_1 = np.sqrt(mean_squared_error(Y_test.iloc[:, 0], Y_pred_test.iloc[:, 0]))
     
     print(f"Quality 1 - Train R²: {r2_train_1:.3f}")
     print(f"Quality 1 - Test R²: {r2_test_1:.3f}")
@@ -395,8 +399,8 @@ Here's a comprehensive example showing PLS regression:
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     
     # Predicted vs Actual plots
-    axes[0, 0].scatter(Y_train.iloc[:, 0], Y_pred_train[:, 0], alpha=0.7, label='Training')
-    axes[0, 0].scatter(Y_test.iloc[:, 0], Y_pred_test[:, 0], alpha=0.7, label='Test')
+    axes[0, 0].scatter(Y_train.iloc[:, 0], Y_pred_train.iloc[:, 0], alpha=0.7, label='Training')
+    axes[0, 0].scatter(Y_test.iloc[:, 0], Y_pred_test.iloc[:, 0], alpha=0.7, label='Test')
     axes[0, 0].plot([Y_df.iloc[:, 0].min(), Y_df.iloc[:, 0].max()], 
                     [Y_df.iloc[:, 0].min(), Y_df.iloc[:, 0].max()], 'r--', alpha=0.8)
     axes[0, 0].set_xlabel('Actual Quality 1')
@@ -473,7 +477,8 @@ Proper model selection using cross-validation:
                 pls.fit(X_train_fold, Y_train_fold)
                 
                 # Predict and calculate error
-                Y_pred = pls.predict(X_val_fold)
+                Y_pred_state = pls.predict(X_val_fold)
+                Y_pred = Y_pred_state.y_hat
                 mse = mean_squared_error(Y_val_fold, Y_pred)
                 fold_scores.append(mse)
             
@@ -574,7 +579,7 @@ TPLS Class Documentation
 Complete TPLS Example with Synthetic Data
 -----------------------------------------
 
-Here's a comprehensive example demonstrating TPLS usage:
+Here's a comprehensive example demonstrating TPLS usage with the correct T-shaped data structure:
 
 .. code-block:: python
 
@@ -583,265 +588,150 @@ Here's a comprehensive example demonstrating TPLS usage:
     import matplotlib.pyplot as plt
     from process_improve.multivariate.methods import TPLS, DataFrameDict
 
-    # Generate synthetic T-shaped data for batch process
+    # Generate synthetic T-shaped data following the TPLS structure
     np.random.seed(42)
-    n_batches = 80
+    n_formulas = 60  # Number of formulations/batches
+    n_materials_a, n_materials_b = 8, 6  # Materials in each group
+    n_props_a, n_props_b = 4, 3  # Properties for each material group
+    n_conditions = 3  # Process conditions
+    n_outputs = 2    # Quality outputs
     
-    # D block: Design conditions (initial settings)
-    D_data = {
-        'Initial_Temp': 20 + 10 * np.random.randn(n_batches),
-        'Initial_pH': 7.0 + 0.5 * np.random.randn(n_batches),
-        'Catalyst_Conc': 1.0 + 0.2 * np.random.randn(n_batches),
-        'Feed_Rate': 10 + 2 * np.random.randn(n_batches)
+    # D block: Material Properties (rows = materials, columns = properties)
+    # This describes the intrinsic properties of raw materials
+    properties = {
+        "Group_A": pd.DataFrame(
+            np.random.randn(n_materials_a, n_props_a),
+            columns=[f'Density_A', f'Viscosity_A', f'Purity_A', f'Cost_A'],
+            index=[f'Material_A{i}' for i in range(n_materials_a)]
+        ),
+        "Group_B": pd.DataFrame(
+            np.random.randn(n_materials_b, n_props_b), 
+            columns=[f'Melting_Point_B', f'Hardness_B', f'Color_B'],
+            index=[f'Material_B{i}' for i in range(n_materials_b)]
+        )
     }
-    D = pd.DataFrame(D_data)
     
-    # F block: Process trajectory variables (averaged over batch)
-    # Simulate how design conditions affect process trajectories
-    F_data = {
-        'Avg_Temp': D['Initial_Temp'] + 5 + 2 * np.random.randn(n_batches),
-        'Temp_Std': 2 + 0.5 * np.random.randn(n_batches),
-        'Avg_pH': D['Initial_pH'] + 0.2 * D['Catalyst_Conc'] + 0.1 * np.random.randn(n_batches),
-        'pH_Drift': 0.1 + 0.05 * np.random.randn(n_batches),
-        'Avg_Pressure': 1.5 + 0.1 * D['Feed_Rate'] + 0.2 * np.random.randn(n_batches),
-        'Max_Pressure': 2.0 + 0.15 * D['Feed_Rate'] + 0.3 * np.random.randn(n_batches)
+    # F block: Formulation Matrix (rows = formulations, columns = materials)
+    # Each row represents a formulation recipe
+    formulas = {
+        "Group_A": pd.DataFrame(
+            np.random.exponential(0.2, (n_formulas, n_materials_a)),
+            columns=[f'Material_A{i}' for i in range(n_materials_a)],
+            index=[f'Formula_{i}' for i in range(n_formulas)]
+        ),
+        "Group_B": pd.DataFrame(
+            np.random.exponential(0.15, (n_formulas, n_materials_b)),
+            columns=[f'Material_B{i}' for i in range(n_materials_b)],
+            index=[f'Formula_{i}' for i in range(n_formulas)]
+        )
     }
-    F = pd.DataFrame(F_data)
     
-    # Z block: Final state variables  
-    Z_data = {
-        'Final_Volume': 100 + 2 * D['Feed_Rate'] + F['Avg_Temp'] * 0.5 + np.random.randn(n_batches),
-        'Final_Density': 1.2 - 0.02 * F['Avg_Temp'] + 0.05 * D['Catalyst_Conc'] + 0.02 * np.random.randn(n_batches),
-        'Final_pH': F['Avg_pH'] + F['pH_Drift'] + 0.05 * np.random.randn(n_batches)
+    # Normalize formulation rows to sum to 1 (percentage composition)
+    for group in formulas:
+        formulas[group] = formulas[group].div(formulas[group].sum(axis=1), axis=0)
+    
+    # Z block: Process Conditions (rows = formulations, columns = conditions)
+    process_conditions = {
+        "Conditions": pd.DataFrame({
+            'Temperature': 150 + 50 * np.random.randn(n_formulas),
+            'Pressure': 2.0 + 0.5 * np.random.randn(n_formulas), 
+            'Time': 120 + 30 * np.random.randn(n_formulas)
+        }, index=[f'Formula_{i}' for i in range(n_formulas)])
     }
-    Z = pd.DataFrame(Z_data)
     
-    # Y block: Quality responses (dependent on all blocks)
-    Y_data = {
-        'Yield': (80 + 2 * D['Catalyst_Conc'] + 0.5 * F['Avg_Temp'] - 10 * F['Temp_Std'] + 
-                 5 * Z['Final_Density'] + 2 * np.random.randn(n_batches)),
-        'Purity': (95 - 0.5 * F['pH_Drift'] + D['Initial_pH'] - 0.2 * F['Max_Pressure'] + 
-                  np.random.randn(n_batches))
+    # Y block: Quality Indicators (rows = formulations, columns = responses)
+    # Simulate realistic relationships between inputs and outputs
+    temp_effect = (process_conditions["Conditions"]['Temperature'] - 150) / 50
+    pressure_effect = (process_conditions["Conditions"]['Pressure'] - 2.0) / 0.5
+    
+    quality_indicators = {
+        "Quality": pd.DataFrame({
+            'Strength': 100 + 10 * temp_effect + 5 * pressure_effect + 3 * np.random.randn(n_formulas),
+            'Flexibility': 50 - 5 * temp_effect + 8 * pressure_effect + 2 * np.random.randn(n_formulas)
+        }, index=[f'Formula_{i}' for i in range(n_formulas)])
     }
-    Y = pd.DataFrame(Y_data)
     
-    # Organize data into DataFrameDict
-    tpls_data = DataFrameDict({
-        'D': D,
-        'F': F, 
-        'Z': Z,
-        'Y': Y
+    # Organize data into the required TPLS structure
+    all_data = DataFrameDict({
+        "D": properties,      # Material properties
+        "F": formulas,        # Formulation recipes  
+        "Z": process_conditions,  # Process conditions
+        "Y": quality_indicators   # Quality responses
     })
     
-    print("Data blocks created:")
-    for block_name, block_data in tpls_data.items():
-        print(f"  {block_name}: {block_data.shape}")
+    print("TPLS Data Structure:")
+    print(f"D (Properties): {len(properties)} groups")
+    for group, df in properties.items():
+        print(f"  {group}: {df.shape} (materials × properties)")
+    print(f"F (Formulas): {len(formulas)} groups") 
+    for group, df in formulas.items():
+        print(f"  {group}: {df.shape} (formulas × materials)")
+    print(f"Z (Conditions): {process_conditions['Conditions'].shape} (formulas × conditions)")
+    print(f"Y (Quality): {quality_indicators['Quality'].shape} (formulas × responses)")
     
     # Split data for training and testing
-    train_idx = np.arange(60)
-    test_idx = np.arange(60, 80)
+    train_idx = slice(0, 45)  # First 45 formulations for training
+    test_idx = slice(45, 60)  # Last 15 for testing
     
+    # Create training dataset
     train_data = DataFrameDict({
-        block: data.iloc[train_idx] for block, data in tpls_data.items()
-    })
-    test_data = DataFrameDict({
-        block: data.iloc[test_idx] for block, data in tpls_data.items()
+        "D": properties,  # Properties don't change
+        "F": {group: df.iloc[train_idx] for group, df in formulas.items()},
+        "Z": {group: df.iloc[train_idx] for group, df in process_conditions.items()},
+        "Y": {group: df.iloc[train_idx] for group, df in quality_indicators.items()}
     })
     
-    # Fit TPLS model
-    tpls_model = TPLS(n_components=3)
+    # Fit TPLS model (d_matrix contains the material properties)
+    tpls_model = TPLS(n_components=3, d_matrix=properties)
     tpls_model.fit(train_data)
     
-    # Make predictions
-    predictions = tpls_model.predict(test_data)
+    print(f"\\nTPLS model fitted successfully:")
+    print(f"  Components: {tpls_model.n_components}")
+    print(f"  Samples: {tpls_model.n_samples}")
+    print(f"  Training completed successfully")
     
-    # Calculate performance metrics
-    from sklearn.metrics import r2_score, mean_squared_error
-    
-    y_true = test_data['Y'].values
-    y_pred = predictions
-    
-    r2_yield = r2_score(y_true[:, 0], y_pred[:, 0])
-    r2_purity = r2_score(y_true[:, 1], y_pred[:, 1])
-    rmse_yield = np.sqrt(mean_squared_error(y_true[:, 0], y_pred[:, 0]))
-    rmse_purity = np.sqrt(mean_squared_error(y_true[:, 1], y_pred[:, 1]))
-    
-    print(f"\\nModel Performance:")
-    print(f"Yield - R²: {r2_yield:.3f}, RMSE: {rmse_yield:.3f}")
-    print(f"Purity - R²: {r2_purity:.3f}, RMSE: {rmse_purity:.3f}")
-    
-    # Visualization
-    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
-    
-    # Predicted vs Actual for both Y variables
-    axes[0, 0].scatter(y_true[:, 0], y_pred[:, 0], alpha=0.7, s=60)
-    axes[0, 0].plot([y_true[:, 0].min(), y_true[:, 0].max()], 
-                    [y_true[:, 0].min(), y_true[:, 0].max()], 'r--', alpha=0.8)
-    axes[0, 0].set_xlabel('Actual Yield')
-    axes[0, 0].set_ylabel('Predicted Yield')
-    axes[0, 0].set_title(f'Yield Prediction (R² = {r2_yield:.3f})')
-    axes[0, 0].grid(True, alpha=0.3)
-    
-    axes[0, 1].scatter(y_true[:, 1], y_pred[:, 1], alpha=0.7, s=60)
-    axes[0, 1].plot([y_true[:, 1].min(), y_true[:, 1].max()], 
-                    [y_true[:, 1].min(), y_true[:, 1].max()], 'r--', alpha=0.8)
-    axes[0, 1].set_xlabel('Actual Purity')
-    axes[0, 1].set_ylabel('Predicted Purity')
-    axes[0, 1].set_title(f'Purity Prediction (R² = {r2_purity:.3f})')
-    axes[0, 1].grid(True, alpha=0.3)
-    
-    # Score plots for different blocks
-    score_names = ['LV1', 'LV2', 'LV3']
-    colors = ['blue', 'green', 'orange']
-    
-    for i, (block_name, color) in enumerate(zip(['D', 'F', 'Z'], colors)):
-        if hasattr(tpls_model, f'{block_name.lower()}_scores'):
-            scores = getattr(tpls_model, f'{block_name.lower()}_scores')
-            axes[0, 2].scatter(scores.iloc[:, 0], scores.iloc[:, 1], 
-                             alpha=0.6, label=f'{block_name} block', color=color)
-    
-    axes[0, 2].set_xlabel('LV1 Scores')
-    axes[0, 2].set_ylabel('LV2 Scores')
-    axes[0, 2].set_title('TPLS Multi-Block Score Plot')
-    axes[0, 2].legend()
-    axes[0, 2].grid(True, alpha=0.3)
-    
-    # Loading plots for each block
-    block_names = ['D', 'F', 'Z']
-    for i, block_name in enumerate(block_names):
-        if hasattr(tpls_model, f'{block_name.lower()}_loadings'):
-            loadings = getattr(tpls_model, f'{block_name.lower()}_loadings')
-            
-            for j, var in enumerate(tpls_data[block_name].columns):
-                axes[1, i].arrow(0, 0, loadings.iloc[j, 0], loadings.iloc[j, 1],
-                               head_width=0.02, head_length=0.02, fc='blue', ec='blue', alpha=0.7)
-                axes[1, i].text(loadings.iloc[j, 0]*1.1, loadings.iloc[j, 1]*1.1,
-                               var, fontsize=8, ha='center', rotation=0)
-            
-            axes[1, i].set_xlabel('LV1 Loading')
-            axes[1, i].set_ylabel('LV2 Loading')
-            axes[1, i].set_title(f'{block_name} Block Loadings')
-            axes[1, i].grid(True, alpha=0.3)
-            axes[1, i].axis('equal')
-    
-    plt.tight_layout()
-    plt.show()
-
-Model Interpretation and Diagnostics
+Model Interpretation and Basic Usage
 ------------------------------------
 
-Understanding TPLS model results:
+Understanding TPLS model structure and basic usage patterns:
 
 .. code-block:: python
 
     # Model interpretation
-    print("\\n=== TPLS Model Interpretation ===")
+    print("\\n=== TPLS Model Information ===")
+    print(f"Number of components: {tpls_model.n_components}")
+    print(f"Number of training samples: {tpls_model.n_samples}")
+    print(f"Material groups: {list(properties.keys())}")
+    print(f"Is fitted: {tpls_model.is_fitted_}")
     
-    # Explained variance by component
-    print("\\nExplained Variance by Component:")
-    if hasattr(tpls_model, 'explained_variance_ratio_'):
-        for i, var_exp in enumerate(tpls_model.explained_variance_ratio_):
-            print(f"  Component {i+1}: {var_exp:.1%}")
-    
-    # Variable importance in each block
-    print("\\nVariable Importance Analysis:")
-    
-    for block_name in ['D', 'F', 'Z']:
-        if hasattr(tpls_model, f'{block_name.lower()}_loadings'):
-            loadings = getattr(tpls_model, f'{block_name.lower()}_loadings')
-            
-            # Calculate variable importance (sum of squared loadings)
-            var_importance = (loadings ** 2).sum(axis=1).sort_values(ascending=False)
-            
-            print(f"\\n{block_name} Block - Variable Importance:")
-            for var, importance in var_importance.items():
-                print(f"  {var}: {importance:.3f}")
-    
-    # Model diagnostics
-    print("\\n=== Model Diagnostics ===")
-    
-    # Residual analysis
-    residuals_yield = y_true[:, 0] - y_pred[:, 0]
-    residuals_purity = y_true[:, 1] - y_pred[:, 1]
-    
-    print(f"\\nResidual Statistics:")
-    print(f"Yield residuals - Mean: {np.mean(residuals_yield):.3f}, Std: {np.std(residuals_yield):.3f}")
-    print(f"Purity residuals - Mean: {np.mean(residuals_purity):.3f}, Std: {np.std(residuals_purity):.3f}")
-    
-    # Plot residuals
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-    
-    ax1.scatter(y_pred[:, 0], residuals_yield, alpha=0.7)
-    ax1.axhline(y=0, color='r', linestyle='--', alpha=0.8)
-    ax1.set_xlabel('Predicted Yield')
-    ax1.set_ylabel('Residuals')
-    ax1.set_title('Yield Residual Plot')
-    ax1.grid(True, alpha=0.3)
-    
-    ax2.scatter(y_pred[:, 1], residuals_purity, alpha=0.7)
-    ax2.axhline(y=0, color='r', linestyle='--', alpha=0.8)
-    ax2.set_xlabel('Predicted Purity')
-    ax2.set_ylabel('Residuals')
-    ax2.set_title('Purity Residual Plot')
-    ax2.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    plt.show()
+    # Display data structure summary
+    print("\\n=== Data Structure Summary ===")
+    total_materials = sum(df.shape[0] for df in properties.values())
+    total_properties = sum(df.shape[1] for df in properties.values())
+    print(f"Total materials: {total_materials}")
+    print(f"Total properties: {total_properties}")
+    print(f"Process conditions: {process_conditions['Conditions'].shape[1]}")
+    print(f"Quality indicators: {quality_indicators['Quality'].shape[1]}")
 
-Prediction Workflow for New Batches
------------------------------------
+Important Notes for TPLS Usage
+------------------------------
 
-Using TPLS model for prediction on new batch data:
+**Data Structure Requirements:**
 
-.. code-block:: python
+1. **D block (Properties)**: Dictionary of DataFrames, where each DataFrame contains material properties (rows = materials, columns = properties)
 
-    # Simulate new batch data for prediction
-    n_new_batches = 5
-    
-    # Create new batch conditions
-    new_D = pd.DataFrame({
-        'Initial_Temp': [25, 22, 28, 20, 24],
-        'Initial_pH': [7.2, 6.8, 7.0, 7.3, 6.9],
-        'Catalyst_Conc': [1.1, 0.9, 1.2, 1.0, 1.05],
-        'Feed_Rate': [11, 9, 12, 10, 10.5]
-    })
-    
-    # Simulate corresponding F and Z blocks (in practice, these would be measured)
-    new_F = pd.DataFrame({
-        'Avg_Temp': new_D['Initial_Temp'] + 5 + 2 * np.random.randn(n_new_batches),
-        'Temp_Std': 2 + 0.5 * np.random.randn(n_new_batches),
-        'Avg_pH': new_D['Initial_pH'] + 0.2 * new_D['Catalyst_Conc'] + 0.1 * np.random.randn(n_new_batches),
-        'pH_Drift': 0.1 + 0.05 * np.random.randn(n_new_batches),
-        'Avg_Pressure': 1.5 + 0.1 * new_D['Feed_Rate'] + 0.2 * np.random.randn(n_new_batches),
-        'Max_Pressure': 2.0 + 0.15 * new_D['Feed_Rate'] + 0.3 * np.random.randn(n_new_batches)
-    })
-    
-    new_Z = pd.DataFrame({
-        'Final_Volume': 100 + 2 * new_D['Feed_Rate'] + new_F['Avg_Temp'] * 0.5 + np.random.randn(n_new_batches),
-        'Final_Density': 1.2 - 0.02 * new_F['Avg_Temp'] + 0.05 * new_D['Catalyst_Conc'] + 0.02 * np.random.randn(n_new_batches),
-        'Final_pH': new_F['Avg_pH'] + new_F['pH_Drift'] + 0.05 * np.random.randn(n_new_batches)
-    })
-    
-    new_data = DataFrameDict({
-        'D': new_D,
-        'F': new_F,
-        'Z': new_Z
-    })
-    
-    # Make predictions
-    new_predictions = tpls_model.predict(new_data)
-    
-    # Display results
-    results_df = pd.DataFrame({
-        'Batch': range(1, n_new_batches + 1),
-        'Predicted_Yield': new_predictions[:, 0],
-        'Predicted_Purity': new_predictions[:, 1],
-        'Initial_Temp': new_D['Initial_Temp'],
-        'Catalyst_Conc': new_D['Catalyst_Conc']
-    })
-    
-    print("\\nPredictions for New Batches:")
-    print(results_df.round(2))
+2. **F block (Formulas)**: Dictionary of DataFrames, where each DataFrame contains formulation recipes (rows = formulations, columns = materials)
+
+3. **Z block (Conditions)**: Dictionary of DataFrames containing process conditions (rows = formulations, columns = conditions)
+
+4. **Y block (Quality)**: Dictionary of DataFrames containing quality responses (rows = formulations, columns = responses)
+
+**Key Requirements:**
+
+* All F, Z, and Y blocks must have the same number of rows (formulations)
+* Column names in F blocks must match the index names in corresponding D blocks
+* The d_matrix parameter in TPLS constructor should be the D block (properties)
+* Use DataFrameDict to organize the data blocks
 
 Utility Functions Documentation
 ==============================
