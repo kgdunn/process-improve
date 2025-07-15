@@ -20,6 +20,7 @@ from sklearn.decomposition import PCA as PCA_sklearn
 from sklearn.metrics import r2_score
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
+from tqdm import tqdm
 
 from .plots import loading_plot, score_plot, spe_plot, t2_plot
 
@@ -2007,12 +2008,12 @@ class TPLS(RegressorMixin, BaseEstimator):
         output = f"Hotelling's T2 limit [95% limit]: {self.hotellings_t2_limit():.4g}\n"
         output += f"                     [99% limit]: {self.hotellings_t2_limit(0.99):.4g}\n"
         # output += f"SPE limits: {self.spe_limit['Y'](self.spe['Y'])}\n"
-        sep = "------ ---------- ---------- ---------- ----------  -------------\n"
+        sep = "------ ---------- ---------- ---------- ---------- -------------\n"
         output += sep
         if show_cumulative_stats:
-            header = "LV #   sum(R2: D) sum(R2: Z) sum(R2: F) sum(R2: Y) |    ms [iter]"
+            header = "LV #   sum(R2: D) sum(R2: Z) sum(R2: F) sum(R2: Y)|    ms [iter]"
         else:
-            header = "LV #        R2: D      R2: Z      R2: F      R2: Y |    ms [iter]"
+            header = "LV #        R2: D      R2: Z      R2: F      R2: Y|    ms [iter]"
 
         output += header + "\n" + sep
         r2_d_a_prior = np.mean([r2val.mean() for r2val in self.r2_frac[0]["D"].values()])
@@ -2043,7 +2044,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             # Calculate time per iteration for this component
             time_ms = self.fitting_statistics["milliseconds"][a - 1]
             iterations = self.fitting_statistics["iterations"][a - 1]
-            time_iter = f"{time_ms:>5.0f} [{iterations:>3d}]"
+            time_iter = f"{time_ms:>5.0f} [{iterations:>4d}]"
 
             line = (
                 f"LV {a:<2}  {r2_d_a * 100:>10.1f} {r2_z_a} {r2_f_a * 100:>10.1f} {r2_y_a * 100:>10.1f} "
@@ -2762,9 +2763,11 @@ class Resampler:
         self.parameters = []
 
         # Generate bootstrap samples, resample with replacement, in a loop of self.bootstrap_rounds iterations
+        rng = np.random.default_rng()
         for _ in tqdm(range(self.bootstrap_rounds), desc="Bootstrap Resampling", disable=not show_progress):
             # Resample indices with replacement
-            indices = np.random.choice(len(self.x), size=len(self.x), replace=True)
+
+            indices = rng.choice(len(self.x), size=len(self.x), replace=True)
             x_train = self.x[indices]
             parameter = self.accessor(clone(self.estimator).fit(x_train))
             self.parameters.append(parameter)
