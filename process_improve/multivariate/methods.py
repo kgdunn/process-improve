@@ -613,9 +613,9 @@ class PLS(PLS_sklearn):
         self.K: int = X.shape[1]
         self.Ny: int = Y.shape[0]
         self.M: int = Y.shape[1]
-        assert (
-            self.Ny == self.N
-        ), f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
+        assert self.Ny == self.N, (
+            f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
+        )
 
         # Check if number of components is supported against maximum requested
         min_dim = min(self.N, self.K)
@@ -1657,6 +1657,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         n_components: int,
         d_matrix: dict,
         max_iterations: int = 500,
+        skip_f_matrix_preprocessing: bool = False,
     ):
         super().__init__()
         assert n_components > 0, "Number of components must be positive."
@@ -1669,6 +1670,8 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         self.max_iterations = max_iterations
         assert self.max_iterations > 0, "Maximum number of iterations must be positive."
+
+        self.skip_f_matrix_preprocessing = skip_f_matrix_preprocessing
 
         self.is_fitted_ = False
         self.n_substances = 0
@@ -1881,7 +1884,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         x_z: dict[str, pd.DataFrame] = {key: X["Z"][key].copy() for key in X["Z"]}
 
         for key, df_f in x_f.items():
-            x_f[key] = (df_f - self.preproc_["F"][key]["center"]) / self.preproc_["F"][key]["scale"]
+            if not self.skip_f_matrix_preprocessing:
+                x_f[key] = (df_f - self.preproc_["F"][key]["center"]) / self.preproc_["F"][key]["scale"]
 
         for key, df_z in x_z.items():
             x_z[key] = (df_z - self.preproc_["Z"][key]["center"]) / self.preproc_["Z"][key]["scale"]
@@ -1909,15 +1913,15 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         for key, df_f in x_f.items():
             assert df_f.shape[0] == num_obs, "All formula blocks must have the same number of rows."
-            assert set(df_f.columns) == set(
-                self.material_names[key]
-            ), f"Columns in block F, group [{key}] must match training data column names for each material"
+            assert set(df_f.columns) == set(self.material_names[key]), (
+                f"Columns in block F, group [{key}] must match training data column names for each material"
+            )
 
         for key, df_z in x_z.items():
             assert df_z.shape[0] == num_obs, "All condition blocks must have the same number of rows."
-            assert set(df_z.columns) == set(
-                self.condition_names[key]
-            ), f"Columns names in block Z, group [{key}] must match training data column names."
+            assert set(df_z.columns) == set(self.condition_names[key]), (
+                f"Columns names in block Z, group [{key}] must match training data column names."
+            )
 
         for pc_a in range(self.n_components):
             # Regress the row of each new formula block on the r_loadings_f, to get the t-score for that pc_a component.
@@ -1987,9 +1991,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Calculate the T2 values: for all the spaces
         hotellings_t2.iloc[:, :] = (
             # Last item in the statement here is not super_scores.values !! we want the result back as a DataFrame
-            t_scores_super.values
-            @ np.diag(np.power(1 / self.scaling_factor_for_scores.values, 2), 0)
-            * t_scores_super
+            t_scores_super.values @ np.diag(np.power(1 / self.scaling_factor_for_scores.values, 2), 0) * t_scores_super
         ).cumsum(axis="columns")
 
         return Bunch(
@@ -2039,7 +2041,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             r2_z_a_prior = r2_z_a
             r2_f_a_prior = r2_f_a
             r2_y_a_prior = r2_y_a
-            r2_z_a = f"{r2_z_a:>10.1f}" if self.n_conditions > 0 else "        -"
+            r2_z_a = f"{r2_z_a * 100:>10.1f}" if self.n_conditions > 0 else "        -"
 
             # Calculate time per iteration for this component
             time_ms = self.fitting_statistics["milliseconds"][a - 1]
@@ -2047,8 +2049,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             time_iter = f"{time_ms:>5.0f} [{iterations:>4d}]"
 
             line = (
-                f"LV {a:<2}  {r2_d_a * 100:>10.1f} {r2_z_a} {r2_f_a * 100:>10.1f} {r2_y_a * 100:>10.1f} "
-                f"|{time_iter:>13}"
+                f"LV {a:<2}  {r2_d_a * 100:>10.1f} {r2_z_a} {r2_f_a * 100:>10.1f} {r2_y_a * 100:>10.1f}|{time_iter:>13}"
             )
             if self.fitting_statistics["iterations"][a - 1] >= self.max_iterations:
                 line += "** (max iter reached)"
@@ -2059,7 +2060,12 @@ class TPLS(RegressorMixin, BaseEstimator):
             sum(self.fitting_statistics["milliseconds"]) / sum(self.fitting_statistics["iterations"]), 2
         )
         output += f"Timing: {ms_per_iter} ms/iter; {sum(self.fitting_statistics['iterations'])} iterations required\n"
+        output += f"Total time: {sum(self.fitting_statistics['milliseconds']) / 1000:.2f} seconds\n"
         output += f"Average tolerance: {np.mean(self.fitting_statistics['convergance_tolerance']):.4g}\n"
+        output += "Settings\n---------\n"
+        output += f"n_components: {self.n_components}\n"
+        output += f"max_iterations: {self.max_iterations}\n"
+        output += f"skip_f_matrix_preprocessing: {self.skip_f_matrix_preprocessing}\n"
 
         return output
 
@@ -2479,9 +2485,11 @@ class TPLS(RegressorMixin, BaseEstimator):
         """Pre-process the training data."""
 
         for key in self.f_mats:
-            self.f_mats[key] = (self.f_mats[key] - self.preproc_["F"][key]["center"].values[None, :]) / self.preproc_[
-                "F"
-            ][key]["scale"].values[None, :]
+            if not self.skip_f_matrix_preprocessing:
+                self.f_mats[key] = (
+                    self.f_mats[key] - self.preproc_["F"][key]["center"].values[None, :]
+                ) / self.preproc_["F"][key]["scale"].values[None, :]
+
             self.d_mats[key] = (
                 (self.d_mats[key] - self.preproc_["D"][key]["center"].values[None, :])
                 / self.preproc_["D"][key]["scale"].values[None, :]
@@ -2509,19 +2517,19 @@ class TPLS(RegressorMixin, BaseEstimator):
             warnings.simplefilter("ignore", category=RuntimeWarning)
 
             for key in self.f_mats:
+                if not self.skip_f_matrix_preprocessing:
+                    vector = np.nanmean(self.f_mats[key], axis=0)
+                    vector[np.isnan(vector)] = 0
+                    assert pytest.approx(vector) == 0
+
+                    vector = np.nanstd(self.f_mats[key], axis=0, ddof=1)
+                    vector[np.isnan(vector)] = 1
+                    assert pytest.approx(vector) == 1
+
                 vector = np.nanmean(self.d_mats[key], axis=0)
                 vector[np.isnan(vector)] = 0
                 assert pytest.approx(vector) == 0
-
-                vector = np.nanmean(self.f_mats[key], axis=0)
-                vector[np.isnan(vector)] = 0
-                assert pytest.approx(vector) == 0
-
                 vector = np.nanstd(self.d_mats[key], axis=0, ddof=1) * self.preproc_["D"][key]["block"].values[0]
-                vector[np.isnan(vector)] = 1
-                assert pytest.approx(vector) == 1
-
-                vector = np.nanstd(self.f_mats[key], axis=0, ddof=1)
                 vector[np.isnan(vector)] = 1
                 assert pytest.approx(vector) == 1
 
