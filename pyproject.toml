@@ -169,7 +169,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.black]
-line-length = 121
+line-length = 120
 # skip-string-normalization = true
 # Prevent Black from being too aggressive with parentheses
 magic-trailing-comma = false
