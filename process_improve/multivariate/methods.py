@@ -562,8 +562,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
             # So take the square root of the sum of squares of the residuals.
             self.squared_prediction_error_[:, a] = np.sqrt(ssq(residuals, axis=1))  # N x A matrix
 
-
-class PLS(PLS_sklearn):
+    # class PLS(PLS_sklearn):
     def __init__(  # noqa: PLR0913
         self,
         n_components: int,
@@ -1585,7 +1584,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         This "D" matrix is provided once when constructing the model, and reused for fitting, prediction and
         cross-validation.
 
-    max_iterations: int, optional
+    max_iter: int, optional
         The maximum number of iterations for the TPLS algorithm. Default is 500.
 
     Data structures in input `X` (a dictionary with 4 keys, as listed below)
@@ -1650,7 +1649,7 @@ class TPLS(RegressorMixin, BaseEstimator):
     # It used to validate parameter within the `_fit_context` decorator.
     _parameter_constraints: typing.ClassVar = {
         "n_components": [int],
-        "max_iterations": [int],
+        "max_iter": [int],
         "d_matrix": [dict, None],
     }
 
@@ -1658,7 +1657,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self,
         n_components: int,
         d_matrix: dict,
-        max_iterations: int = 500,
+        max_iter: int = 500,
         skip_f_matrix_preprocessing: bool = False,
     ):
         super().__init__()
@@ -1670,8 +1669,8 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         assert all(isinstance(df, pd.DataFrame) for df in self.d_matrix.values()), "d_matrix must contain dataframes."
 
-        self.max_iterations = max_iterations
-        assert self.max_iterations > 0, "Maximum number of iterations must be positive."
+        self.max_iter = max_iter
+        assert self.max_iter > 0, "Maximum number of iterations must be positive."
 
         self.skip_f_matrix_preprocessing = skip_f_matrix_preprocessing
 
@@ -2055,7 +2054,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             line = (
                 f"LV {a:<2}  {r2_d_a * 100:>10.1f} {r2_z_a} {r2_f_a * 100:>10.1f} {r2_y_a * 100:>10.1f}|{time_iter:>13}"
             )
-            if self.fitting_statistics["iterations"][a - 1] >= self.max_iterations:
+            if self.fitting_statistics["iterations"][a - 1] >= self.max_iter:
                 line += "** (max iter reached)"
             output += line + "\n"
 
@@ -2068,7 +2067,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         output += f"Average tolerance: {np.mean(self.fitting_statistics['convergance_tolerance']):.4g}\n"
         output += "Settings\n---------\n"
         output += f"n_components: {self.n_components}\n"
-        output += f"max_iterations: {self.max_iterations}\n"
+        output += f"max_iter: {self.max_iter}\n"
         output += f"skip_f_matrix_preprocessing: {self.skip_f_matrix_preprocessing}\n"
 
         return output
@@ -2213,7 +2212,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             np.linalg.norm(starting_vector - revised_vector, ord=None) / np.linalg.norm(starting_vector, ord=None)
         )
         converged = delta_gap < self.tolerance_
-        max_iter = iterations >= self.max_iterations
+        max_iter = iterations >= self.max_iter
         return bool(np.any([max_iter, converged]))
 
     def _store_model_coefficients(  # noqa: PLR0913
