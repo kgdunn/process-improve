@@ -1,14 +1,4 @@
 {
-    // // Python debugging settings
-    // "python.debugging.justMyCode": false,
-    // "python.testing.debugOnTest": true,
-
-    // // Additional debugging preferences
-    // "debug.allowBreakpointsEverywhere": true,
-    // "debug.showInlineBreakpointCandidates": true,
-    // "debug.inlineValues": "on",
-    // "debug.showVariableTypes": true,
-
     // Python testing configuration
     "python.testing.pytestEnabled": true,
     "python.testing.unittestEnabled": false,
@@ -16,4 +6,11 @@
         "tests"
     ],
 
+    // Disable all automatic formatting to prevent conflicts
+    "editor.formatOnSave": true,
+    "editor.formatOnType": false,
+    "editor.formatOnPaste": true,
+
+    // Line length indicator only
+    "editor.rulers": [120]
 }
