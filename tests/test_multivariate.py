@@ -11,13 +11,7 @@ from sklearn.cross_decomposition import PLSRegression
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import KFold, cross_val_score
 
-from process_improve.multivariate.methods import (
-    PCA,
-    PLS,
-    TPLS,
-    DataFrameDict,
-    MCUVScaler,
-    SpecificationWarning,
+from process_improve.multivariate.calculations import (
     center,
     epsqrt,
     nan_to_zeros,
@@ -26,6 +20,7 @@ from process_improve.multivariate.methods import (
     scale,
     ssq,
 )
+from process_improve.multivariate.methods import PCA, PLS, TPLS, DataFrameDict, MCUVScaler, SpecificationWarning
 
 pd.options.plotting.backend = "plotly"
 pd.options.display.max_columns = 20
