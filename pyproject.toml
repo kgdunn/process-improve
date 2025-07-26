@@ -143,8 +143,8 @@ docstring-quotes = "double"
 [tool.ruff.lint.isort]
 known-third-party=["pytest", "pandas"]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "black>=25.1.0",
     "coverage>=7.6.10",
     "flake8>=7.1.1",
