@@ -1,0 +1,56 @@
+# This workflow will install Python dependencies and run tests with a variety of Python versions
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: Unit tests
+
+on:
+  pull_request:
+    branches: ['**']
+  create:
+    branches: [main]
+    tags: ['**']
+  # schedule:
+  #   - cron: "0 4 * * *"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+       # Adjust for min and max supported Python versions
+        python-version: ["3.13"]
+        os: [ubuntu-latest, windows-latest, macos-latest, macos-13]  # macos-13 is last Intel version
+        include:
+          - python-version: "3.10"
+            os: ubuntu-latest
+          - python-version: "3.11"
+            os: ubuntu-latest
+          - python-version: "3.12"
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -e {0}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Install uv and set the python version
+      uses: astral-sh/setup-uv@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+    # Test building & distribution
+    - name: Test building the distributions
+      run: uv build
+    - name: Check if the built package can be installed and imported
+      run: uv run --isolated --with . --no-project -- python -c "import process_improve"
+    # Editable install for testing
+    - name: Install the project (editable)
+      run: uv sync --dev --all-extras
+    # This is where the actual unit and integration tests start
+    - name: Test with pytest
+      run: uv run pytest
