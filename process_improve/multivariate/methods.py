@@ -562,7 +562,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
             # So take the square root of the sum of squares of the residuals.
             self.squared_prediction_error_[:, a] = np.sqrt(ssq(residuals, axis=1))  # N x A matrix
 
-    # class PLS(PLS_sklearn):
+class PLS(PLS_sklearn):
     def __init__(  # noqa: PLR0913
         self,
         n_components: int,
@@ -907,7 +907,7 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
         if self.missing_data_settings["md_method"].lower() == "pmp":
             raise NotImplementedError("PMP for PLS not implemented yet")  # self._fit_pmp_pls(X)
 
-        elif self.missing_data_settings["md_method"].lower() in ["scp", "nipals"]:
+        if self.missing_data_settings["md_method"].lower() in ["scp", "nipals"]:
             self._fit_nipals_pls(settings=self.missing_data_settings)
         elif self.missing_data_settings["md_method"].lower() in ["tsr"]:
             raise NotImplementedError(
