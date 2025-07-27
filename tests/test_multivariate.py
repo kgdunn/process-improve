@@ -423,7 +423,7 @@ def test_pca_columns_with_no_variance() -> None:
 
     # Are scores orthogonal?
     covmatrix = m.x_scores.T @ m.x_scores
-    covmatrix - np.diag(np.diag(covmatrix))
+    # covmatrix - np.diag(np.diag(covmatrix))
     assert (np.sum(np.abs(covmatrix - np.diag(np.diag(covmatrix))))).values == pytest.approx(0, abs=1e-6)
 
 
@@ -1309,6 +1309,102 @@ def test_pls_simca_ldpe_missing_data(
             / Y_mcuv.center_
         )
     ) == pytest.approx(0, abs=0.5)
+
+
+@pytest.fixture
+def fixture_pls_vip_calculation() -> dict:
+    """
+    Test PLS VIP calculation.
+
+    Data from: Simca-P, version 14.1, fake data created for testing from 4 variables: A, B, C, D
+    Target = y = 0.4*A + 0.005*B - 0.2*C + 4*D
+    """
+    out: dict = {}
+    out["X"] = pd.DataFrame(
+        np.array(
+            [
+                [1, 87, 6, 8],
+                [2, 23, 3, 4],
+                [3, 23, 5, 2],
+                [4, 41, 1, 6],
+                [5, 16, 4, 3],
+                [6, 16, 1, 3],
+                [7, 74, 5, 5],
+                [8, 23, 6, 2],
+                [9, 24, 6, 6],
+            ]
+        ),
+        columns=["A", "B", "C", "D"],
+    )
+    out["X"]["y"] = pd.Series([0.4 * a + 0.005 * b - 0.2 * c + 4 * d for a, b, c, d in out["X"].values])
+    out["expected_vip"] = np.array(
+        [
+            [0.207898, 1.15344, 0.153091, 1.61335],  # after 1 PC; each entry is for a column in X
+            [0.519153, 1.11958, 0.361539, 1.53177],  # after 2 PC
+            [0.533829, 1.12568, 0.372785, 1.51951],  # after 3 PC
+        ]
+    )
+    out["expected_w*c"] = [
+        [-0.103949, 0.576722, 0.0765457, 0.806677],
+        [0.618124, -0.306383, -0.425238, 0.631601],
+        [-0.33801, -0.764933, 0.249265, 0.554374],
+    ]
+    out["expected_loadings_p"] = [
+        [-0.255614, 0.681147, 0.181164, 0.702548],
+        [0.769273, -0.267136, -0.534682, 0.34085],
+        [-0.74773, -0.689608, -0.000758336, 0.396744],
+    ]
+    out["expected_coefficiencts_unscaled"] = [
+        [-0.209876, 0.121399, 0.208745, 2.16361],
+        [0.655745, 0.0766668, -0.595588, 3.33859],
+        [0.364184, 0.00787622, -0.305179, 3.97383],
+    ]
+    out["expected_coefficiencts_scaled_and_centerd"] = [
+        [-0.070996, 0.393894, 0.0522798, 0.550951],
+        [0.221822, 0.248755, -0.149164, 0.850153],
+        [0.123194, 0.0255553, -0.0764317, 1.01191],
+    ]
+    out["r2_per_variable"] = [
+        [0.117652, 0.835439, 0.0590982, 0.888761],
+        [0.480221, 0.87916, 0.234252, 0.95994],
+        [0.62223, 0.99995, 0.234252, 0.999921],
+    ]
+    out["r2_per_component"] = [0.839961, 0.977452, 0.999078]
+    out["q2_per_component"] = [0.635802, 0.731724, 0.779401]
+    out["q2_group_per_observation"] = [2, 3, 4, 5, 6, 7, 1, 2, 3]  # 9 observations; 7 groups
+
+    return out
+
+
+def test_pls_variable_importance(fixture_pls_vip_calculation: dict) -> None:
+    """Unit tests for PLS VIP calculation."""
+    data = fixture_pls_vip_calculation
+    x_features = data["X"][["A", "B", "C", "D"]]
+    y_target = data["X"]["y"]
+
+    plsmodel = PLS(n_components=3)
+    x_mcuv = MCUVScaler().fit(x_features)
+    y_mcuv = MCUVScaler().fit(y_target)
+    plsmodel.fit(x_mcuv.transform(x_features), y_mcuv.transform(pd.DataFrame(y_target)))
+
+    # Compare the loadings first. Only check absolute values, since sign flips can occur
+    expected_loadings_p = pd.DataFrame(data["expected_loadings_p"]).T.abs()
+    plsmodel_x_loadings = plsmodel.x_loadings.abs()
+    assert expected_loadings_p.values == pytest.approx(plsmodel_x_loadings.values, abs=1e-5)
+
+    # Compare the w*c values
+    expected_w_c = pd.DataFrame(data["expected_w*c"]).T.abs()
+    plsmodel_w_c = plsmodel.direct_weights.abs()
+    assert expected_w_c.values == pytest.approx(plsmodel_w_c.values, abs=1e-5)
+
+    # Compare the coefficients
+    expected_coefficiencts_scaled_and_centerd = pd.DataFrame(data["expected_coefficiencts_scaled_and_centerd"]).T.iloc[
+        :, -1
+    ]
+    plsmodel_coeff_centered_scaled = plsmodel.beta_coefficients
+    assert expected_coefficiencts_scaled_and_centerd.values.reshape(-1, 1) == pytest.approx(
+        plsmodel_coeff_centered_scaled.values, abs=1e-5
+    )
 
 
 # ---- TPLS models ----

@@ -50,8 +50,8 @@ repos:
       hooks:
           - id: nbstripout
 
-    - repo: https://github.com/charliermarsh/ruff-pre-commit
-      # Ruff version. To eventually replace flake8?
-      rev: "v0.12.2"
+    - repo: https://github.com/astral-sh/ruff-pre-commit
+      rev: v0.12.5
       hooks:
-          - id: ruff
+          - id: ruff-check
+          - id: ruff-format

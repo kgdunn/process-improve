@@ -172,7 +172,7 @@ build-backend = "hatchling.build"
 line-length = 120
 # skip-string-normalization = true
 # Prevent Black from being too aggressive with parentheses
-magic-trailing-comma = false
+# magic-trailing-comma = false
 
 [tool.mypy]
 ignore_missing_imports = true
