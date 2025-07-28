@@ -1341,14 +1341,22 @@ def fixture_pls_vip_calculation() -> dict:
         [
             [0.207898, 1.15344, 0.153091, 1.61335],  # after 1 PC; each entry is for a column in X
             [0.519153, 1.11958, 0.361539, 1.53177],  # after 2 PC
-            [0.533829, 1.12568, 0.372785, 1.51951],  # after 3 PC
+            [0.5338292, 1.125678, 0.3727853, 1.519509],  # after 3 PC
         ]
     )
-    out["expected_w*c"] = [
-        [-0.103949, 0.576722, 0.0765457, 0.806677],
-        [0.618124, -0.306383, -0.425238, 0.631601],
-        [-0.33801, -0.764933, 0.249265, 0.554374],
+    out["expected_x_weights"] = np.array(
+        [
+            [-0.103949, 0.576722, 0.07654569, 0.8066766],
+            [0.6426554, -0.442487, -0.4433027, 0.4412279],
+            [-0.495851, -0.6866972, 0.3578511, 0.393092],
+        ]
+    )
+    out["expected_direct_weights"] = [
+        [-0.103949, 0.576722, 0.07654569, 0.8066766],
+        [0.6181238, -0.3063825, -0.4252382, 0.6316009],
+        [-0.3380104, -0.7649333, 0.2492646, 0.5543741],
     ]
+    out["expected_loadings_c"] = [0.6829885, 0.4737209, 0.2917893]
     out["expected_loadings_p"] = [
         [-0.255614, 0.681147, 0.181164, 0.702548],
         [0.769273, -0.267136, -0.534682, 0.34085],
@@ -1369,8 +1377,9 @@ def fixture_pls_vip_calculation() -> dict:
         [0.480221, 0.87916, 0.234252, 0.95994],
         [0.62223, 0.99995, 0.234252, 0.999921],
     ]
-    out["r2_per_component"] = [0.839961, 0.977452, 0.999078]
-    out["q2_per_component"] = [0.635802, 0.731724, 0.779401]
+    out["r2_per_component"] = [0.839961, 0.137491, 0.0216254]
+
+    out["q2_sum_per_component"] = [0.635802, 0.731724, 0.779401]
     out["q2_group_per_observation"] = [2, 3, 4, 5, 6, 7, 1, 2, 3]  # 9 observations; 7 groups
 
     return out
@@ -1392,10 +1401,20 @@ def test_pls_variable_importance(fixture_pls_vip_calculation: dict) -> None:
     plsmodel_x_loadings = plsmodel.x_loadings.abs()
     assert expected_loadings_p.values == pytest.approx(plsmodel_x_loadings.values, abs=1e-5)
 
-    # Compare the w*c values
-    expected_w_c = pd.DataFrame(data["expected_w*c"]).T.abs()
-    plsmodel_w_c = plsmodel.direct_weights.abs()
-    assert expected_w_c.values == pytest.approx(plsmodel_w_c.values, abs=1e-5)
+    # Compare the w values (weights)
+    expected_x_weights = pd.DataFrame(data["expected_x_weights"]).T.abs()
+    plsmodel_x_weights = plsmodel.x_weights.abs()
+    assert expected_x_weights.values == pytest.approx(plsmodel_x_weights.values, abs=1e-6)
+
+    # Compare the w* values
+    expected_direct_weights = pd.DataFrame(data["expected_direct_weights"]).T.abs()
+    plsmodel_direct_weights = plsmodel.direct_weights.abs()
+    assert expected_direct_weights.values == pytest.approx(plsmodel_direct_weights.values, abs=1e-5)
+
+    # Compare the c values
+    expected_loadings_c = pd.DataFrame(data["expected_loadings_c"]).T.abs()
+    plsmodel_y_loadings = plsmodel.y_loadings.abs()
+    assert expected_loadings_c.values == pytest.approx(plsmodel_y_loadings.values, abs=1e-6)
 
     # Compare the coefficients
     expected_coefficiencts_scaled_and_centerd = pd.DataFrame(data["expected_coefficiencts_scaled_and_centerd"]).T.iloc[
@@ -1405,6 +1424,53 @@ def test_pls_variable_importance(fixture_pls_vip_calculation: dict) -> None:
     assert expected_coefficiencts_scaled_and_centerd.values.reshape(-1, 1) == pytest.approx(
         plsmodel_coeff_centered_scaled.values, abs=1e-5
     )
+
+    # Test calculation VIP
+
+    def vip_calculation(r2_values: pd.Series, loadings_k_a: pd.DataFrame, num_components: int) -> pd.Series:
+        """Calculate VIP scores.
+
+        The `r2_values` should be a Series with R^2 fractional values (between 0 and 1) per component, not cumulative.
+
+        In pseudo-code, the calculation is:
+        VIP^2 =  K * (loadings.pow(2) * R2_per_component).sum(axis=1) / R2_sum
+
+        where K = number of features of the model, and matches the number of rows in `loadings`
+        `loadings` is a DataFrame with K rows and A columns, where A is the number of components.
+        `R2_per_component` is a Series with A values, where A is the number of components.
+
+        You can also specify `num_components` to limit the number of components to use in the calculation. This number
+        should be smaller or equal to the number of columns (total number of components) in the `loadings_k_a`.
+        """
+        num_features = loadings_k_a.shape[0]
+        assert len(r2_values) >= num_components, "Specify at least the first `num_components` R2 values."
+        assert loadings_k_a.shape[1] >= num_components, "Specify at least the first `num_components` loading columns."
+        r2_vals = r2_values.copy().iloc[:num_components]
+        loadings = loadings_k_a.copy().iloc[:, :num_components]  # Take only the first `num_components` columns
+
+        # Check that r2_values are not cumulative, but per component
+        sum_r2_values = r2_vals.sum()
+        assert sum_r2_values < 1, (
+            "R2 values should be fraction, and should not be cumulative, but rather the R2 fraction per component"
+        )  # Neccesary, but not sufficient
+        # Check if r2_values are monotonically increasing
+        if num_components > 1:
+            r2_extra = pd.Series([0, *r2_vals.tolist()])
+            diff_values = r2_extra.diff()[1:]
+            assert not np.all(np.array(diff_values.values) > 0.0), "R2 values should not be cumulative; check values."
+
+        # Calculate VIP. The `loadings` has K (n_features) rows and A columns
+        vip_internal = (loadings**2 * r2_vals.values).sum(axis=1)
+        scaling_factor = num_features / sum_r2_values
+        return pd.Series(vip_internal * scaling_factor, index=loadings.index).pow(0.5)
+
+    expected_vip = pd.DataFrame(data["expected_vip"]).T
+    plsmodel_vip_1 = vip_calculation(plsmodel.R2, plsmodel.x_weights, num_components=1)
+    assert expected_vip.iloc[:, 0].values == pytest.approx(plsmodel_vip_1.values, abs=1e-5)
+    plsmodel_vip_2 = vip_calculation(plsmodel.R2, plsmodel.x_weights, num_components=2)
+    assert expected_vip.iloc[:, 1].values == pytest.approx(plsmodel_vip_2.values, abs=1e-5)
+    plsmodel_vip_3 = vip_calculation(plsmodel.R2, plsmodel.x_weights, num_components=3)
+    assert expected_vip.iloc[:, 2].values == pytest.approx(plsmodel_vip_3.values, abs=1e-5)
 
 
 # ---- TPLS models ----
