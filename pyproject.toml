@@ -165,8 +165,13 @@ dev-dependencies = [
 ]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+# This is needed because we do not (yet) use a src/ layout.
+module-root = ""
+
 
 [tool.black]
 line-length = 120
