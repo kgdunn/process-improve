@@ -23,10 +23,10 @@ export PRINT_HELP_PYSCRIPT
 
 BROWSER := python -c "$$BROWSER_PYSCRIPT"
 
-help:        ## Help in the makefile
+help:		## Help in the makefile
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
-clean: 		## Remove build artifacts and set up environment
+clean:		## Remove build artifacts and set up environment
 	find . -name '*.pyc' -exec rm -f {} +
 	find . -name '*.pyo' -exec rm -f {} +
 	find . -name '*~' -exec rm -f {} +
@@ -62,14 +62,14 @@ clean: 		## Remove build artifacts and set up environment
 
 	uvx mypy --install-types
 
-check:  # if the first command gives a return, then stage those files, then run pre-commit
+check:		## if the first command gives a return, then stage those files, then run pre-commit
 	git update-index --refresh
 	pre-commit run --all-files
 
-lint: ## check style with flake8
+lint:		## check style with flake8
 	flake8 process_improve tests
 
-test: ## run tests quickly with the default Python
+test:		## run tests quickly with the default Python
 	clear
 	rm -fr build/
 	rm -fr dist/
@@ -81,12 +81,12 @@ test: ## run tests quickly with the default Python
 
 # TODO: single test: ['-p', 'vscode_pytest', '--rootdir=/rootdir', '--capture=no', '/rootdir/tests/test_file.py::test_func']
 
-coverage: ## check code coverage quickly with the default Python
+coverage:	## check code coverage quickly with the default Python
 	coverage html --precision=1 --skip-covered --skip-empty --title="Process Improve Coverage Report"
 	coverage report --precision=1 --skip-covered --skip-empty
 	python -m http.server 8080 --directory htmlcov
 
-docs: ## generate Sphinx HTML documentation, including API docs
+docs:		## generate Sphinx HTML documentation, including API docs
 	rm -f docs/process_improve.rst
 	rm -f docs/modules.rst
 	sphinx-apidoc -o docs/ process_improve
@@ -95,10 +95,10 @@ docs: ## generate Sphinx HTML documentation, including API docs
 	python -m http.server 8080 --directory docs/_build/html/
 
 
-servedocs: docs ## compile the docs watching for changes
+servedocs: docs 	## compile the docs watching for changes
 	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
 
-release: clean check test  ## release to PyPI
+release: clean check test  	## release to PyPI
 	git pull
 	uv build
 	uv publish
