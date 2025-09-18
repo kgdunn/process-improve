@@ -562,6 +562,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
             # So take the square root of the sum of squares of the residuals.
             self.squared_prediction_error_[:, a] = np.sqrt(ssq(residuals, axis=1))  # N x A matrix
 
+
 class PLS(PLS_sklearn):
     def __init__(  # noqa: PLR0913
         self,
@@ -2714,14 +2715,18 @@ class Resampler:
         accessor: Callable,
         use_jackknife: bool = True,
         bootstrap_rounds: int = 0,
+        fraction_excluded: float = 0.0,
     ):
         """Initialize the resampling method.
 
         The `accessor` is a callable that takes an estimator and returns the parameters of interest.
-        The `use_jackknife` flag indicates whether to use jackknife resampling.
-        The `bootstrap_rounds` specifies the number of bootstrap rounds if applicable.
 
-        These last two parameters are mutually exclusive, and only one should be set at a time.
+        Mutually exclusive parameters:
+            * `use_jackknife` flag indicates whether to use jackknife resampling (leave out one sample; rebuild)
+            * `bootstrap_rounds` specifies the number of bootstrap rounds if applicable (resample data with replacement)
+            * `fraction_excluded` specifies the fraction of data to exclude in each resample (for fractional resampling)
+
+        Only one of these parameters should be set at a time.
         """
         if not isinstance(estimator, BaseEstimator):
             raise TypeError("estimator must be a BaseEstimator instance.")
@@ -2737,8 +2742,14 @@ class Resampler:
 
         self.use_jackknife = use_jackknife
         self.bootstrap_rounds = int(bootstrap_rounds)
-        if self.use_jackknife and self.bootstrap_rounds > 0:
-            raise ValueError("use_jackknife and bootstrap_rounds are mutually exclusive. Set only one of them.")
+        self.fraction_excluded = float(fraction_excluded)
+        if self.use_jackknife and self.bootstrap_rounds > 0 and self.fraction_excluded > 0.0:
+            raise ValueError(
+                (
+                    "`use_jackknife`, `bootstrap_rounds`, and `fraction_excluded` are mutually exclusive. ",
+                    "Set only one of them.",
+                )
+            )
 
         self.parameters: list = []
         self.n_resamples = 0
@@ -2749,6 +2760,8 @@ class Resampler:
             return self.jackknife(show_progress=show_progress)
         elif self.bootstrap_rounds > 0:
             return self.bootstrap(show_progress=show_progress)
+        elif self.fraction_excluded > 0.0:
+            return self.fractional(show_progress=show_progress)
         else:
             raise ValueError("Either use_jackknife or bootstrap_rounds must be set.")
 
@@ -2778,6 +2791,34 @@ class Resampler:
 
             indices = rng.choice(len(self.x), size=len(self.x), replace=True)
             x_train = self.x[indices]
+            parameter = self.accessor(clone(self.estimator).fit(x_train))
+            self.parameters.append(parameter)
+
+        self.n_resamples = len(self.parameters)
+        if self.n_resamples == 0:
+            raise ValueError("No resamples were generated. Check your data and parameters.")
+
+        return self
+
+    def fractional(self, show_progress: bool) -> Self:
+        """Perform fractional resampling on the given estimator.
+
+        Will repeat N times (N = number of rows in x), each time leaving out a fraction of the data as specified by
+        self.fraction_excluded.
+        """
+        self.parameters = []
+
+        # Generate fractional samples, resample with replacement, in a loop of self.bootstrap_rounds iterations
+        rng = np.random.default_rng()
+        n_groups = int(1 / self.fraction_excluded)
+        for _ in tqdm(range(len(self.x)), desc="Fractional Resampling", disable=not show_progress):
+            # Find the indices to leave out
+            all_indices = np.arange(len(self.x))
+            rng.shuffle(all_indices)
+            groups = np.array_split(all_indices, n_groups)
+            rows_to_drop = groups[0]
+            train_indices = np.setdiff1d(all_indices, rows_to_drop)
+            x_train = self.x[train_indices]
             parameter = self.accessor(clone(self.estimator).fit(x_train))
             self.parameters.append(parameter)
 
