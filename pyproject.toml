@@ -9,6 +9,20 @@ keywords = ["Designed Experiments", "Latent Variables", "PCA", "PLS", "Multivari
 authors = [
     { name = "Kevin Dunn", email = "kgdunn@gmail.com" },
 ]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Manufacturing",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
 dependencies = [
     "bokeh>=3.7.3",
     "matplotlib>=3.10.3",
@@ -149,7 +163,7 @@ known-third-party=["pytest", "pandas"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
     "black>=25.1.0",
     "coverage>=7.10.6",

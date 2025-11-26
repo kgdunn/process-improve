@@ -11,8 +11,8 @@ from typing import Self, TypeAlias
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-import pytest
 import ridgeplot
+from numpy.testing import assert_allclose
 from scipy.stats import chi2, f
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, _fit_context, clone
 from sklearn.cross_decomposition import PLSRegression as PLS_sklearn
@@ -2510,10 +2510,10 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Test that all blocks and groups within a block have a mean of 0 and a standard deviation of 1.
         # Note the extra complexity for checking columns that have perfectly zero variance.
         for key in self.z_mats:
-            assert pytest.approx(0) == np.nanmean(self.z_mats[key], axis=0)
+            assert_allclose(np.nanmean(self.z_mats[key], axis=0), 0, atol=1e-7)
             for item in np.nanstd(self.z_mats[key], axis=0, ddof=1):
                 if item != 0:
-                    assert pytest.approx(item) == 1
+                    assert_allclose(item, 1, rtol=1e-7)
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
@@ -2522,25 +2522,26 @@ class TPLS(RegressorMixin, BaseEstimator):
                 if not self.skip_f_matrix_preprocessing:
                     vector = np.nanmean(self.f_mats[key], axis=0)
                     vector[np.isnan(vector)] = 0
-                    assert pytest.approx(vector) == 0
+                    assert_allclose(vector, 0, atol=1e-7)
 
                     vector = np.nanstd(self.f_mats[key], axis=0, ddof=1)
                     vector[np.isnan(vector)] = 1
-                    assert pytest.approx(vector) == 1
+                    assert_allclose(vector, 1, rtol=1e-7)
 
                 vector = np.nanmean(self.d_mats[key], axis=0)
                 vector[np.isnan(vector)] = 0
-                assert pytest.approx(vector) == 0
+                assert_allclose(vector, 0, atol=1e-7)
                 vector = np.nanstd(self.d_mats[key], axis=0, ddof=1) * self.preproc_["D"][key]["block"].values[0]
                 vector[np.isnan(vector)] = 1
-                assert pytest.approx(vector) == 1
+                assert_allclose(vector, 1, rtol=1e-7)
 
         # Checks on the Y-block
-        assert all(pytest.approx(np.nanmean(self.y_mats[key], axis=0)) == 0 for key in self.y_mats)
-        assert all(
-            pytest.approx(np.where((in_array := np.nanstd(self.y_mats[key], axis=0, ddof=1)) == 0, 1, in_array)) == 1
-            for key in self.y_mats
-        )
+        for key in self.y_mats:
+            assert_allclose(np.nanmean(self.y_mats[key], axis=0), 0, atol=1e-7)
+            std_array = np.nanstd(self.y_mats[key], axis=0, ddof=1)
+            # For columns with zero variance, we expect the value to be 0 (which is replaced with 1)
+            std_array = np.where(std_array == 0, 1, std_array)
+            assert_allclose(std_array, 1, rtol=1e-7)
 
     def _fit_iterative_regressions(self) -> None:
         """Fit the model via iterative regressions and store the model coefficients in the class instance."""
