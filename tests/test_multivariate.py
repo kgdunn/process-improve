@@ -1426,7 +1426,6 @@ def test_pls_variable_importance(fixture_pls_vip_calculation: dict) -> None:
     )
 
     # Test calculation VIP
-
     def vip_calculation(r2_values: pd.Series, loadings_k_a: pd.DataFrame, num_components: int) -> pd.Series:
         """Calculate VIP scores.
 
