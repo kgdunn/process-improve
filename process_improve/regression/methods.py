@@ -38,8 +38,9 @@ def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) ->
     """
     # Slope
     medians = []
-    x = x.copy().ravel()
-    y = y.copy().ravel()
+    x = x.copy().ravel() if isinstance(x, np.ndarray) else pd.Series(x).values.ravel()
+    y = y.copy().ravel() if isinstance(y, np.ndarray) else pd.Series(y).values.ravel()
+
     if not (nowarn):
         assert len(x) > 2, "More than two samples are required for this function."
         assert len(x) == len(y), "Vectors x and y must have the same length."
@@ -311,7 +312,7 @@ def multiple_linear_regression(  # noqa: PLR0915, PLR0913
 
     if x_vector.shape[1] == 1:
         mean_X = np.mean(x_vector, axis=0)
-        out["x_ssq"] = np.sum(np.power(x_vector - mean_X, 2))[0]
+        out["x_ssq"] = np.sum(np.power(x_vector - mean_X, 2))
 
         # Can be calculated before the model is even fit:
         out["leverage"] = (1 / out["N"] + np.power(x_vector - mean_X, 2) / out["x_ssq"]).to_numpy().ravel()

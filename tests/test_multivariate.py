@@ -424,7 +424,7 @@ def test_pca_columns_with_no_variance() -> None:
     # Are scores orthogonal?
     covmatrix = m.x_scores.T @ m.x_scores
     # covmatrix - np.diag(np.diag(covmatrix))
-    assert (np.sum(np.abs(covmatrix - np.diag(np.diag(covmatrix))))).values == pytest.approx(0, abs=1e-6)
+    assert (np.sum(np.abs(covmatrix - np.diag(np.diag(covmatrix))))) == pytest.approx(0, abs=1e-6)
 
 
 @pytest.fixture
@@ -1247,7 +1247,7 @@ def test_pls_simca_ldpe(fixture_pls_ldpe_example: dict[str, pd.DataFrame | np.nd
     # different range/scaling.
     assert np.sum(
         np.abs(
-            np.sum(np.abs(Y_mcuv.inverse_transform(plsmodel.predictions) - np.array(data["expected_yhat_a6"])))
+            np.sum(np.abs(Y_mcuv.inverse_transform(plsmodel.predictions) - np.array(data["expected_yhat_a6"])), axis=0)
             / Y_mcuv.center_
         )
     ) == pytest.approx(0, abs=1e-2)
@@ -1305,7 +1305,7 @@ def test_pls_simca_ldpe_missing_data(
     # different range/scaling.
     assert np.sum(
         np.abs(
-            np.sum(np.abs(Y_mcuv.inverse_transform(plsmodel.predictions) - np.array(data["expected_yhat_a6"])))
+            np.sum(np.abs(Y_mcuv.inverse_transform(plsmodel.predictions) - np.array(data["expected_yhat_a6"])), axis=0)
             / Y_mcuv.center_
         )
     ) == pytest.approx(0, abs=0.5)

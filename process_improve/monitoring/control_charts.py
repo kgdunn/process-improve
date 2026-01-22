@@ -79,7 +79,7 @@ class ControlChart(object):
 
     def calculate_limits(self, y, target=None, s=None, **kwargs):
         """
-        Finds, for a given vector `y`, the control chart target and limits.
+        Find for a given vector `y`, the control chart target and limits.
 
         Only for the Holt-Winters method, and only when there are more than
             min(20, max(10, np.ceil(0.10 * N))))
@@ -100,7 +100,7 @@ class ControlChart(object):
         if target is not None:
             self.target = float(target)
 
-        self.df["y"] = y.ravel()
+        self.df["y"] = y.ravel() if isinstance(y, np.ndarray) else pd.Series(y).values.ravel()
         self.N = self.df.shape[0]
 
         # Between M = 10 and 20 samples required to warm-up (calculate summary statistics)

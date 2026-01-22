@@ -1003,8 +1003,8 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
             # X-space.  Regress columns of t_a onto each column in X and calculate loadings, p_a.
             # Use this p_a to deflate afterwards.
             p_a = quick_regress(self.Xd, t_a)  # Note the similarity with step 4!
-            self.Xd -= np.dot(t_a, p_a.T)  # and that similarity helps understand
-            self.Yd -= np.dot(t_a, c_a.T)  # the deflation process.
+            self.Xd = self.Xd - np.dot(t_a, p_a.T)  # and that similarity helps understand
+            self.Yd = self.Yd - np.dot(t_a, c_a.T)  # the deflation process.
 
             ## VIP value (only calculated for X-blocks); only last column is useful
             # self.stats.VIP_a = np.zeros((self.K, self.A))
@@ -2422,8 +2422,14 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Calculate the Hotelling's T2 values, and limits. Could do a ddof correction (n-1) for the variance matrix.
         variance_matrix = self.t_scores_super.T @ self.t_scores_super / self.t_scores_super.shape[0]
-        self.hotellings_t2[:, :] = np.sum(
-            (self.t_scores_super.values @ np.linalg.inv(variance_matrix)) * self.t_scores_super, axis=1
+        t2_values = np.sum(
+            (self.t_scores_super.values @ np.linalg.inv(variance_matrix)) * self.t_scores_super.values,
+            axis=1,
+        )
+        self.hotellings_t2 = pd.DataFrame(
+            t2_values,
+            index=self.observation_names,
+            columns=["Hotelling's T^2"],
         )
         self.hotellings_t2_limit = partial(
             hotellings_t2_limit, n_components=self.n_components, n_rows=self.hotellings_t2.shape[0]

@@ -752,12 +752,10 @@ def outlier_detection_multiple(
             lambda_i = (N - i) * t_s / np.sqrt((dof + np.power(t_s, 2)) * (dof + 2))
             extra_out["lambda"].append(lambda_i)
 
-            R_i_idx = R.idxmax()
             g = R.max()
-            # Formula from the R-function for the Grubb's calculation
-            s = g**2 * N * (2 - N) / (g**2 * N - (N - 1) ** 2)
+            s = g**2 * N * (2 - N) / (g**2 * N - (N - 1) ** 2)  # Formula from R-function for the Grubb's calculation
             p_value = 0 if s <= 0 else min(N * (1 - t_value_cdf(np.sqrt(s), N - 2)), 1)
-
+            R_i_idx = None if pd.isna(p_value) else R.idxmax()
             extra_out["R_i_idx"].append(R_i_idx)
             extra_out["R_i"].append(R.max())
             extra_out["p-value"].append(p_value)
@@ -769,9 +767,7 @@ def outlier_detection_multiple(
         try:
             cutoff_i = np.where(
                 np.array(extra_out["R_i"]) - np.array(extra_out["lambda"]) >= 0,
-            )[
-                0
-            ][0]
+            )[0][0]
         except IndexError:
             cutoff_i = -1
 

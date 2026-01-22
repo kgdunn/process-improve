@@ -300,7 +300,7 @@ def f_area(data: pd.DataFrame, time_tag, tags=None, batch_col=None, phase_col=No
     f_names = [(tag + "_" + base_name) for tag in tags]
 
     # We will overwrite all entries in this dataframe, one-by-one
-    output = prepared.sum()
+    output = prepared.sum() * 0.0
     for batch_id, this_batch in prepared:
         # Average width of the base * height. For time series, the average width of the base is
         # the same as the sampling intervals. Therefore the diff of the index.
@@ -310,10 +310,10 @@ def f_area(data: pd.DataFrame, time_tag, tags=None, batch_col=None, phase_col=No
             # up the smaller trapezoids: consider the trapezoids as rotated by 90 degrees.
             # The parallel edges are lying vertically. Area of each one is the average of the
             # heights on the left and the right, multiplied by delta distance on the horizontal
-            # index axis. Area = average(parallel lenghts) * height
+            # index axis. Area = average(parallel lengths) * height
             # where height = delta distance on the horizontal axis.
-            area = ((this_batch[tag].iloc[0:-1].values + this_batch[tag].iloc[1:]) / 2 * half_base_factor).sum()
-            output.loc[batch_id][tag] = area
+            area = ((this_batch[tag].iloc[0:-1].values + this_batch[tag].iloc[1:].values) / 2 * half_base_factor).sum()
+            output.loc[batch_id, tag] = area
 
             # TODO: check this out still
             # Trapezoidal rule for integrated area, still add the "delta X" constant:
