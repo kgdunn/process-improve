@@ -52,19 +52,18 @@ clean:		## Remove build artifacts and set up environment
 	uv python install 3.11
 	uv venv
 	uv lock
-	uv add pandas openpyxl numpy matplotlib statsmodels bokeh scikit-image scikit-learn patsy plotly numba seaborn pydantic tqdm ridgeplot
+	uv add pandas openpyxl numpy matplotlib statsmodels scikit-image scikit-learn patsy plotly numba seaborn pydantic tqdm ridgeplot
 	uv add --dev flake8 tox coverage Sphinx twine pytest pytest-runner pytest-cov pytest-xdist pre-commit black isort
 	uv add --dev pandas-stubs matplotlib-stubs plotly-stubs tqdm-stubs mypy
 
-	uvx pre-commit install
-	uvx pre-commit
-	uvx pre-commit autoupdate
+	uv run pre-commit install
+	uv run pre-commit
+	uv run pre-commit autoupdate
 
-	uvx mypy --install-types
-
+	uv run mypy --install-types
 check:		## if the first command gives a return, then stage those files, then run pre-commit
 	git update-index --refresh
-	pre-commit run --all-files
+	uv run pre-commit run --all-files
 
 lint:		## check style with flake8
 	flake8 process_improve tests
@@ -77,14 +76,14 @@ test:		## run tests quickly with the default Python
 	rm -f .coverage
 	rm -fr htmlcov/
 	rm -fr .pytest_cache
-	python -W ignore -m pytest --exitfirst -v --new-first -r=s -r=a -n auto --cov=. #--pdb
+	uv run python -W ignore -m pytest -v  -r=s -r=a -n auto --cov=.
 
 # TODO: single test: ['-p', 'vscode_pytest', '--rootdir=/rootdir', '--capture=no', '/rootdir/tests/test_file.py::test_func']
 
 coverage:	## check code coverage quickly with the default Python
 	coverage html --precision=1 --skip-covered --skip-empty --title="Process Improve Coverage Report"
 	coverage report --precision=1 --skip-covered --skip-empty
-	python -m http.server 8080 --directory htmlcov
+	uv run python -m http.server 8080 --directory htmlcov
 
 docs:		## generate Sphinx HTML documentation, including API docs
 	rm -f docs/process_improve.rst
@@ -92,7 +91,7 @@ docs:		## generate Sphinx HTML documentation, including API docs
 	sphinx-apidoc -o docs/ process_improve
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
-	python -m http.server 8080 --directory docs/_build/html/
+	uv run python -m http.server 8080 --directory docs/_build/html/
 
 
 servedocs: docs 	## compile the docs watching for changes
