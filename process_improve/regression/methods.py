@@ -311,8 +311,8 @@ def multiple_linear_regression(  # noqa: PLR0915, PLR0913
     assert out["N"] == y_.size
 
     if x_vector.shape[1] == 1:
-        mean_X = np.mean(x_vector, axis=0)
-        out["x_ssq"] = np.sum(np.power(x_vector - mean_X, 2))
+        mean_X = np.mean(x_vector)
+        out["x_ssq"] = np.sum(np.power(x_vector.values - mean_X, 2))
 
         # Can be calculated before the model is even fit:
         out["leverage"] = (1 / out["N"] + np.power(x_vector - mean_X, 2) / out["x_ssq"]).to_numpy().ravel()
