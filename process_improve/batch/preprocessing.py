@@ -237,7 +237,7 @@ def one_iteration_dtw(
             # see Kassidas, page 180
             batch_subset = batch.iloc[:: int(settings["subsample"]), :]
             result = dtw_core(batch_subset, refbatch_sc, weight_matrix=weight_matrix)
-            average_batch += result.synced
+            average_batch = average_batch + result.synced
             aligned_batches[batch_id] = result
             successful_alignments += 1
             distances.append(
@@ -251,7 +251,7 @@ def one_iteration_dtw(
         except ValueError:  # noqa: PERF203
             assert False, f"Failed on batch {batch_id}"
 
-    average_batch /= successful_alignments
+    average_batch = average_batch / successful_alignments
 
     return aligned_batches, average_batch
 
@@ -354,7 +354,7 @@ def batch_dtw(  # noqa: PLR0915
         # Deviations from the average batch:
         next_weights = np.zeros((1, refbatch_sc.shape[1]))
         for result in aligned_batches.values():
-            next_weights += np.nansum(np.power(result.synced - average_batch, 2), axis=0)
+            next_weights = next_weights + np.nansum(np.power(result.synced - average_batch, 2), axis=0)
             # TODO: use quadratic weights for now, but try sum of the absolute values instead
             #  np.abs(result.synced - average_batch).sum(axis=0)
 

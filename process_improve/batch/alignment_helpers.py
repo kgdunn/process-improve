@@ -47,10 +47,10 @@ def backtrack_optimal_path(D: np.ndarray):
     while (nt + nr) != 0:
         if nt == 0:
             nr -= 1
-            path_sum += D[nr, nt]
+            path_sum = path_sum + D[nr, nt]
         elif nr == 0:
             nt -= 1
-            path_sum += D[nr, nt]
+            path_sum = path_sum + D[nr, nt]
         else:
             # Commented-code here is to read, but for Numba JIT, the other code is able to be
             # compiled. They give the same results in regular Python.
@@ -58,16 +58,16 @@ def backtrack_optimal_path(D: np.ndarray):
             a, b, c = D[nr - 1, nt - 1], D[nr, nt - 1], D[nr - 1, nt]
             if (a <= b) & (a <= c):
                 # assert number == 0
-                path_sum += D[nr - 1, nt - 1]
+                path_sum = path_sum + D[nr - 1, nt - 1]
                 nt -= 1
                 nr -= 1
             elif (b <= a) & (b <= c):
                 # assert number == 1
-                path_sum += D[nr, nt - 1]
+                path_sum = path_sum + D[nr, nt - 1]
                 nt -= 1
             elif (c <= a) & (c <= b):
                 # assert number == 2
-                path_sum += D[nr - 1, nt]
+                path_sum = path_sum + D[nr - 1, nt]
                 nr -= 1
             else:
                 assert False

@@ -230,7 +230,7 @@ class PCA(PCA_sklearn):
             prior_ssx_col = ssq(xd.values, axis=0)
             base_variance = np.sum(prior_ssx_col)
             for a in range(self.A):
-                xd -= self.x_scores.iloc[:, [a]] @ self.loadings.iloc[:, [a]].T
+                xd = xd - self.x_scores.iloc[:, [a]] @ self.loadings.iloc[:, [a]].T
                 # These are the Residual Sums of Squares (RSS); i.e X-X_hat
                 row_ssx = ssq(xd.values, axis=1)
                 col_ssx = ssq(xd.values, axis=0)
@@ -304,14 +304,14 @@ class PCA(PCA_sklearn):
             pass
             # p = self.x_loadings.iloc[:, [a]]
             # temp = X @ self.x_loadings.iloc[:, [a]]
-            # X_mcuv -= temp @ p.T
+            # X_mcuv = X_mcuv - temp @ p.T
             # state.x_scores[:, [a]] = temp
 
         # Scores are calculated, now do the rest
         state.hotellings_t2 = np.sum(np.power((state.x_scores / self.scaling_factor_for_scores.values), 2), 1)
         # Calculate SPE-residuals (sum over rows of the errors)
         X_mcuv = X.copy()
-        X_mcuv -= state.x_scores @ self.x_loadings.T
+        X_mcuv = X_mcuv - state.x_scores @ self.x_loadings.T
         state.squared_prediction_error = np.sqrt(np.power(X_mcuv, 2).sum(axis=1))
         return state
 
@@ -451,7 +451,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
                 p_a = quick_regress(Xd, t_a)
 
                 # 2: Normalize p_a to unit length
-                p_a /= np.sqrt(ssq(p_a))
+                p_a = p_a / np.sqrt(ssq(p_a))
 
                 # 3: Now regress each row in X on the p_a vector, and store the
                 #    regression coefficient in t_a
@@ -466,7 +466,7 @@ class PCA_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
             self.extra_info["iterations"][a] = itern
 
             # Loop terminated!  Now deflate the X-matrix
-            Xd -= np.dot(t_a, p_a.T)
+            Xd = Xd - np.dot(t_a, p_a.T)
             # These are the Residual Sums of Squares (RSS); i.e X-X_hat
             row_SSX = ssq(Xd, axis=1)
             col_SSX = ssq(Xd, axis=0)
@@ -742,7 +742,7 @@ class PLS(PLS_sklearn):
                 self.hotellings_t2.iloc[:, max(0, a - 1)]
                 + (self.x_scores.iloc[:, a] / self.scaling_factor_for_scores.iloc[a]) ** 2
             )
-            Xd -= self.x_scores.iloc[:, [a]] @ self.x_loadings.iloc[:, [a]].T
+            Xd = Xd - self.x_scores.iloc[:, [a]] @ self.x_loadings.iloc[:, [a]].T
             y_hat = self.x_scores.iloc[:, 0 : (a + 1)] @ self.y_loadings.iloc[:, 0 : (a + 1)].T
             # These are the Residual Sums of Squares (RSS); i.e X-X_hat
             row_SSX = ssq(Xd.values, axis=1)
@@ -807,14 +807,14 @@ class PLS(PLS_sklearn):
             # p = self.x_loadings.iloc[:, [a]]
             # w = self.x_weights.iloc[:, [a]]
             # temp = X @ self.direct_weights.iloc[:, [a]]
-            # X_mcuv -= temp @ p.T
+            # X_mcuv = X_mcuv - temp @ p.T
             # state.x_scores[:, [a]] = temp
 
         # Scores are calculated, now do the rest
         state.hotellings_t2 = np.sum(np.power((state.x_scores / self.scaling_factor_for_scores.values), 2), 1)
         # Calculate SPE-residuals (sum over rows of the errors)
         X_mcuv = X.copy()
-        X_mcuv -= state.x_scores @ self.x_loadings.T
+        X_mcuv = X_mcuv - state.x_scores @ self.x_loadings.T
         state.squared_prediction_error = np.sqrt(np.power(X_mcuv, 2).sum(axis=1))
         # Predicted values from the model (user still has to un-preprocess these predictions!)
         state.y_hat = state.x_scores @ self.y_loadings.T
@@ -971,7 +971,7 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
                 w_a = quick_regress(self.Xd, u_a)
 
                 # 2: Normalize w_a to unit length
-                w_a /= np.sqrt(ssq(w_a))
+                w_a = w_a / np.sqrt(ssq(w_a))
 
                 # 3: Now regress each row in X on the w_a vector, and store the
                 #    regression coefficient in t_a
@@ -1076,14 +1076,14 @@ def ssq(X: np.ndarray, axis: int | None = None) -> float | np.ndarray:
     if axis == 0:
         out_ax0 = np.zeros(K)
         for k in np.arange(K):
-            out_ax0[k] += np.nansum(X[:, k] ** 2)
+            out_ax0[k] = out_ax0[k] + np.nansum(X[:, k] ** 2)
 
         return out_ax0
 
     if axis == 1:
         out_ax1 = np.zeros(N)
         for n in np.arange(N):
-            out_ax1[n] += np.nansum(X[n, :] ** 2)
+            out_ax1[n] = out_ax1[n] + np.nansum(X[n, :] ** 2)
 
         return out_ax1
 
@@ -1122,7 +1122,7 @@ def quick_regress(Y: np.ndarray, x: np.ndarray) -> np.ndarray:
             temp = ~np.isnan(Y[:, k]) * x.T
             denom = np.dot(temp, temp.T)[0][0]
             if np.abs(denom) > epsqrt:
-                b[k] /= denom
+                b[k] = b[k] / denom
         return b
 
     elif Nx == K:  # Case B: b = (Yx)/(x'x): (NxK)(Kx1) = (Nx1)
@@ -1132,7 +1132,7 @@ def quick_regress(Y: np.ndarray, x: np.ndarray) -> np.ndarray:
             # TODO(KGD): check: this denom is usually(always?) equal to 1.0
             denom = ssq(~np.isnan(Y[n, :]) * x.T)
             if np.abs(denom) > epsqrt:
-                b[n] /= denom
+                b[n] = b[n] / denom
         return b
 
     else:
@@ -1446,8 +1446,8 @@ def internal_pls_nipals_fit_one_pc(
 #                 # result.c_scores[0:j+1, :, j, a] = temp.reshape(j+1, LVM.K)
 #                 result.scores[j, a] = np.nansum(temp)
 
-#                 # \mathbf{x}_\text{pp} -= t_{\text{new},j}(a) \mathbf{P}'_*(:,a)
-#                 x[0, 0:idx_end] -= result.scores[j, a] * p
+#                 # \mathbf{x}_\text{pp} = \mathbf{x}_\text{pp} - t_{\text{new},j}(a) \mathbf{P}'_*(:,a)
+#                 x[0, 0:idx_end] = x[0, 0:idx_end] - result.scores[j, a] * p
 
 #             # The error_j is only the portion related to the current time step
 #             error_j = x[0, idx_beg:idx_end]
@@ -2686,8 +2686,8 @@ class TPLS(RegressorMixin, BaseEstimator):
     #         y_mean = np.mean(y_true_values, axis=0)
     #         ss_tot = np.sum((y_true_values - y_mean) ** 2)
 
-    #     total_ss_res += ss_res
-    #     total_ss_tot += ss_tot
+    #     total_ss_res = total_ss_res + ss_res
+    #     total_ss_tot = total_ss_tot + ss_tot
 
     # # Calculate R² = 1 - (SS_res / SS_tot)
     # if total_ss_tot == 0:

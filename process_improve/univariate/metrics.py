@@ -828,10 +828,7 @@ def within_between_standard_deviation(df, measured: str, repeat: str) -> dict:
         # handling missing data makes for messier code
         within_ms = np.nansum([within_ms, group[measured].var() * dof_group_i])
 
-    if within_dof == 0:
-        within_ms = 0
-    else:
-        within_ms /= within_dof
+    within_ms = 0 if within_dof == 0 else within_ms / within_dof
 
     # Between groups: the ANOVA relationship is such that SSQ(total) = SSQ(between) + SSQ(within).
     # Therefore the between-group statistics are found by differencing

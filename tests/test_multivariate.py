@@ -823,7 +823,7 @@ def test_pls_compare_sklearn_1_component(fixture_pls_model_simca_1_component: di
     # assert t1_predict_manually.values.ravel() == pytest.approx(t1_predict.ravel(), 1e-9)
 
     # # Deflate the X's:
-    # X_check_mcuv -= t1_predict_manually @ plsmodel.x_loadings_.T
+    # X_check_mcuv = X_check_mcuv - t1_predict_manually @ plsmodel.x_loadings_.T
     # y_hat = t1_predict_manually @ simca_C
     # y_hat_rawunits = y_hat * plsmodel._y_std + plsmodel._y_mean
     # assert data["expected_y_predicted"] == pytest.approx(y_hat_rawunits.values.ravel(), abs=1e-5)

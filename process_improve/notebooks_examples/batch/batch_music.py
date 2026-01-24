@@ -171,7 +171,7 @@ for batch_id, df in df_dict.items():
         if row.abs().sum() == 1:
             continue  # we don't have any change from the prior row
 
-        row_values += row
+        row_values = row_values + row
         # Create the transitions
         for tag, pitch_value in (next_row := store_row(row_values, batch_id, flags=row)).items():
             pitches[tag].leads_to.connect(
