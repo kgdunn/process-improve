@@ -602,7 +602,7 @@ def find_reference_batch(
 
     # Excludes all batches with Hotelling's T2 > 90% limit.
     hotellings_t2_limit_90 = pca_first.hotellings_t2_limit(0.90)
-    to_keep = pca_first.hotellings_t2.iloc[:, -1] < hotellings_t2_limit_90
+    to_keep = pca_first.hotellings_t2_.iloc[:, -1] < hotellings_t2_limit_90
 
     # Refits PCA with A=4 on a subset of the batches, to avoid biasing the PCA model too much.
     basewide = basewide.loc[to_keep, :]
@@ -613,8 +613,8 @@ def find_reference_batch(
     # Finds batch with scores; and ensures this batch has SPE < 50% of the model limit.
     metrics = pd.DataFrame(
         {
-            "HT2": pca_second.hotellings_t2.iloc[:, -1],
-            "SPE": pca_second.squared_prediction_error.iloc[:, -1],
+            "HT2": pca_second.hotellings_t2_.iloc[:, -1],
+            "SPE": pca_second.spe_.iloc[:, -1],
         }
     )
     metrics = metrics.sort_values(by=["HT2", "SPE"])

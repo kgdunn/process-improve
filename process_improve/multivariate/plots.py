@@ -12,7 +12,7 @@ from sklearn.base import BaseEstimator
 
 def plot_pre_checks(model: BaseEstimator, pc_horiz: int, pc_vert: int, pc_depth: int) -> bool:
     """Check the inputs for the plot functions are valid."""
-    n_components = model.A if hasattr(model, "A") else model._parent.n_components
+    n_components = model.n_components if hasattr(model, "n_components") else model._parent.n_components
     assert (
         0 < pc_horiz <= n_components
     ), f"The model has {n_components} components. Ensure that 1 <= pc_horiz<={n_components}."
@@ -83,7 +83,7 @@ def score_plot(  # noqa: C901, PLR0913
     """
     plot_pre_checks(model, pc_horiz, pc_vert, pc_depth)
     margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
-    data_to_plot = model.x_scores if hasattr(model, "x_scores") else model._parent.t_scores_super
+    data_to_plot = model.scores_ if hasattr(model, "scores_") else model._parent.t_scores_super
     ellipse_coordinates = (
         model.ellipse_coordinates if hasattr(model, "ellipse_coordinates") else model._parent.ellipse_coordinates
     )
@@ -318,12 +318,12 @@ def loading_plot(  # noqa: PLR0913
     if fig is None:
         fig = go.Figure()
 
-    what = model.loadings  # PCA default
+    what = model.loadings_ if hasattr(model, "loadings_") else model.loadings  # PCA default
     if hasattr(model, "direct_weights"):
         what = model.direct_weights  # PLS default
     extra = None
     if loadings_type.lower() == "p":
-        what = model.loadings
+        what = model.loadings_ if hasattr(model, "loadings_") else model.loadings
     if loadings_type.lower() == "w":
         what = model.x_weights
     elif loadings_type.lower() == "w*":
@@ -462,11 +462,11 @@ def spe_plot(
 
     if with_a < 0:
         # Get the actual name of the last column in the model if negative indexing is used
-        with_a = model.squared_prediction_error.columns[with_a]
+        with_a = model.spe_.columns[with_a]
     elif with_a == 0:
         raise AssertionError("`with_a` must be >= 1, or specified with negative indexing")
 
-    assert with_a <= model.A, "`with_a` must be <= the number of components fitted"
+    assert with_a <= model.n_components, "`with_a` must be <= the number of components fitted"
 
     class Settings(BaseModel):
         show_limit: bool = True
@@ -499,7 +499,7 @@ def spe_plot(
 
     name = f"SPE values after {with_a} component{'s' if with_a > 1 else ''}"
     highlights: dict[str, list] = {}
-    default_index = model.squared_prediction_error.index
+    default_index = model.spe_.index
     if items_to_highlight is not None:
         highlights = items_to_highlight.copy()
         for key, items in items_to_highlight.items():
@@ -511,7 +511,7 @@ def spe_plot(
     fig.add_trace(
         go.Scatter(
             x=default_index,
-            y=model.squared_prediction_error.loc[default_index, with_a],
+            y=model.spe_.loc[default_index, with_a],
             name=name,
             mode="markers+text" if setdict["show_labels"] else "markers",
             marker=setdict["default_marker"],
@@ -526,7 +526,7 @@ def spe_plot(
         fig.add_trace(
             go.Scatter(
                 x=index,
-                y=model.squared_prediction_error.loc[index, with_a],
+                y=model.spe_.loc[index, with_a],
                 name=name,
                 mode="markers+text" if setdict["show_labels"] else "markers",
                 marker=styling,
@@ -638,7 +638,7 @@ def t2_plot(
     margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
 
     if with_a < 0:
-        with_a = model.hotellings_t2.columns[with_a]
+        with_a = model.hotellings_t2_.columns[with_a]
 
     # TODO: check `with_a`: what should it plot if `with_a` is zero, or > A?
 
@@ -661,7 +661,7 @@ def t2_plot(
 
     name = f"T2 values after {with_a} component{'s' if with_a > 1 else ''}"
     highlights: dict[str, list] = {}
-    default_index = model.hotellings_t2.index
+    default_index = model.hotellings_t2_.index
     if items_to_highlight is not None:
         highlights = items_to_highlight.copy()
         for key, items in items_to_highlight.items():
@@ -673,7 +673,7 @@ def t2_plot(
     fig.add_trace(
         go.Scatter(
             x=default_index,
-            y=model.hotellings_t2.loc[default_index, with_a],
+            y=model.hotellings_t2_.loc[default_index, with_a],
             name=name,
             mode="markers+text" if setdict["show_labels"] else "markers",
             marker=setdict["default_marker"],
@@ -688,7 +688,7 @@ def t2_plot(
         fig.add_trace(
             go.Scatter(
                 x=index,
-                y=model.hotellings_t2.loc[index, with_a],
+                y=model.hotellings_t2_.loc[index, with_a],
                 name=name,
                 mode="markers+text" if setdict["show_labels"] else "markers",
                 marker=styling,

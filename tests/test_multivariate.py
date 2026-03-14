@@ -84,8 +84,8 @@ def test_pca_spe_limits() -> None:
         spe_limit_95 = pca.spe_limit(conf_level=0.95)
         spe_limit_99 = pca.spe_limit(conf_level=0.99)
 
-        outliers_95.append((pca.squared_prediction_error.iloc[:, A - 1] > spe_limit_95).sum())
-        outliers_99.append((pca.squared_prediction_error.iloc[:, A - 1] > spe_limit_99).sum())
+        outliers_95.append((pca.spe_.iloc[:, A - 1] > spe_limit_95).sum())
+        outliers_99.append((pca.spe_.iloc[:, A - 1] > spe_limit_99).sum())
 
     assert np.mean(outliers_95) == pytest.approx(0.05 * N, rel=0.1)
     assert np.mean(outliers_99) == pytest.approx(0.01 * N, rel=0.1)
@@ -110,7 +110,7 @@ def test_pca_foods() -> None:
     pca = PCA(n_components=A).fit(foods_mcuv)
 
     assert np.linalg.norm(
-        np.diag(pca.x_scores.T @ pca.x_scores) / (pca.N - 1) - pca.explained_variance_
+        np.diag(pca.scores_.T @ pca.scores_) / (pca.n_samples_ - 1) - pca.explained_variance_
     ) == pytest.approx(0, abs=epsqrt)
 
     hotellings_t2_limit_95 = pca.hotellings_t2_limit(0.95)
@@ -143,12 +143,14 @@ def test_pca_missing_data(fixture_kamyr_data_missing_value: pd.DataFrame) -> Non
     pca = PCA(n_components=A)
     assert pca.missing_data_settings is None
 
-    # Check that default missing data options were used
+    # Check that default auto algorithm was used (NIPALS for missing data)
     model = pca.fit(X_mcuv)
-    assert isinstance(model.missing_data_settings, dict)
-    assert "md_tol" in model.missing_data_settings
+    assert model.algorithm_ == "nipals"
+    assert model.has_missing_data_ is True
 
-    assert np.linalg.norm((model.loadings.T @ model.loadings) - np.eye(model.A)) == pytest.approx(0, abs=1e-2)
+    assert np.linalg.norm((model.loadings_.T @ model.loadings_) - np.eye(model.n_components)) == pytest.approx(
+        0, abs=1e-2
+    )
 
 
 def test_pca_missing_data_as_numpy(fixture_kamyr_data_missing_value: pd.DataFrame) -> None:
@@ -160,12 +162,14 @@ def test_pca_missing_data_as_numpy(fixture_kamyr_data_missing_value: pd.DataFram
     pca = PCA(n_components=A)
     assert pca.missing_data_settings is None
 
-    # Check that default missing data options were used
+    # Check that default auto algorithm was used (NIPALS for missing data)
     model = pca.fit(X_mcuv)
-    assert isinstance(model.missing_data_settings, dict)
-    assert "md_tol" in model.missing_data_settings
+    assert model.algorithm_ == "nipals"
+    assert model.has_missing_data_ is True
 
-    assert np.linalg.norm((model.loadings.T @ model.loadings) - np.eye(model.A)) == pytest.approx(0, abs=1e-2)
+    assert np.linalg.norm((model.loadings_.T @ model.loadings_) - np.eye(model.n_components)) == pytest.approx(
+        0, abs=1e-2
+    )
 
 
 @pytest.fixture
@@ -311,18 +315,18 @@ def test_pca_tablet_spectra(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.
     model.fit(scale(center(spectra)))
 
     # P'P = identity matrix of size A x A
-    orthogonal_check = model.loadings.T @ model.loadings
-    assert pytest.approx(np.linalg.norm(orthogonal_check - np.eye(model.A)), rel=1e-9) == 0.0
+    orthogonal_check = model.loadings_.T @ model.loadings_
+    assert pytest.approx(np.linalg.norm(orthogonal_check - np.eye(model.n_components)), rel=1e-9) == 0.0
 
     # Check the R2 value against the R software output
-    assert model.R2cum[1] == pytest.approx(0.7368, rel=1e-3)
-    assert model.R2cum[2] == pytest.approx(0.9221, rel=1e-2)
+    assert model.r2_cumulative_[1] == pytest.approx(0.7368, rel=1e-3)
+    assert model.r2_cumulative_[2] == pytest.approx(0.9221, rel=1e-2)
 
     # Unit length: actually checked above, via subtraction with I matrix.
     # Check if scores are orthogonal
-    scores_covar = pd.DataFrame(model.x_scores.T @ model.x_scores).astype(float)
-    for i in range(model.A):
-        for j in range(model.A):
+    scores_covar = pd.DataFrame(model.scores_.T @ model.scores_).astype(float)
+    for i in range(model.n_components):
+        for j in range(model.n_components):
             # Technically not need, but more explict this way.
             if i == j:
                 assert scores_covar.iloc[i, j] == pytest.approx(known_scores_covar[i, j], rel=1e-2)
@@ -337,7 +341,7 @@ def test_pca_tablet_spectra(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.
     autoscaled_X = scale(center(spectra))
     u, s, v = np.linalg.svd(autoscaled_X)
 
-    loadings_delta = np.linalg.norm(np.abs(v[0 : model.A, :]) - np.abs(model.loadings.T))
+    loadings_delta = np.linalg.norm(np.abs(v[0 : model.n_components, :]) - np.abs(model.loadings_.T))
     assert loadings_delta == pytest.approx(0, abs=1e-8)
 
     # It is not possible, it seems, to get the scores to match the SVD
@@ -351,9 +355,9 @@ def test_pca_errors_no_variance_to_start() -> None:
     model = PCA(n_components=A)
     # with pytest.raises(RuntimeError):
     model.fit(data)
-    assert np.sum(model.x_scores.values) == pytest.approx(0, abs=epsqrt)
-    assert model.R2cum.sum() == pytest.approx(0, abs=epsqrt)
-    assert np.isnan(model.R2cum[A - 1])
+    assert np.sum(model.scores_.values) == pytest.approx(0, abs=epsqrt)
+    assert model.r2_cumulative_.sum() == pytest.approx(0, abs=epsqrt)
+    assert np.isnan(model.r2_cumulative_[A - 1])
 
 
 def test_pca_invalid_calls() -> None:
@@ -369,10 +373,10 @@ def test_pca_invalid_calls() -> None:
         model.fit(data)
     data.iloc[0, 0] = np.nan
     with pytest.raises(AssertionError, match="Tolerance must exceed machine precision"):
-        _ = PCA(n_components=A, missing_data_settings=dict(md_method="nipals", md_tol=0)).fit(data)
+        _ = PCA(n_components=A, algorithm="nipals", missing_data_settings=dict(md_tol=0)).fit(data)
 
-    with pytest.raises(AssertionError, match=r"Missing data method is not recognized(.*)"):
-        _ = PCA(n_components=A, missing_data_settings={"md_method": "SCP"}).fit(data)
+    with pytest.raises(ValueError, match=r"Algorithm .* is not recognized(.*)"):
+        _ = PCA(n_components=A, algorithm="SCP").fit(data)
 
     # TODO: replace with a check to ensure the data is in a DataFrame.
     # from scipy.sparse import csr_matrix
@@ -420,14 +424,16 @@ def test_pca_columns_with_no_variance() -> None:
     m = PCA(n_components=2)
     m.fit(x_to_fit)
 
-    # `loadings` is a K by A matrix.  Check sum of loadings in rows with
+    # `loadings_` is a K by A matrix.  Check sum of loadings in rows with
     # no variance must be zero
-    assert np.sum(np.abs(m.loadings.iloc[cols_with_no_variance, :].values)) == pytest.approx(0, abs=1e-14)
+    assert np.sum(np.abs(m.loadings_.iloc[cols_with_no_variance, :].values)) == pytest.approx(0, abs=1e-14)
     # The loadings must still be orthonormal though:
-    assert np.sum(np.identity(m.A) - m.loadings.values.T @ m.loadings.values) == pytest.approx(0, abs=1e-14)
+    assert np.sum(np.identity(m.n_components) - m.loadings_.values.T @ m.loadings_.values) == pytest.approx(
+        0, abs=1e-14
+    )
 
     # Are scores orthogonal?
-    covmatrix = m.x_scores.T @ m.x_scores
+    covmatrix = m.scores_.T @ m.scores_
     # covmatrix - np.diag(np.diag(covmatrix))
     assert (np.sum(np.abs(covmatrix - np.diag(np.diag(covmatrix))))) == pytest.approx(0, abs=1e-6)
 
@@ -482,15 +488,15 @@ def test_pca_wold_model_results(fixture_pca_pca_wold_etal_paper: pd.DataFrame) -
     X_preproc = scale(center(fixture_pca_pca_wold_etal_paper))
     pca_2 = PCA(n_components=2)
     pca_2.fit(X_preproc)
-    assert np.abs(pca_2.loadings.values[:, 0]) == pytest.approx([0.5410, 0.3493, 0.5410, 0.5410], abs=1e-4)
-    assert np.abs(pca_2.loadings.values[:, 1]) == pytest.approx([0.2017, 0.9370, 0.2017, 0.2017], abs=1e-4)
+    assert np.abs(pca_2.loadings_.values[:, 0]) == pytest.approx([0.5410, 0.3493, 0.5410, 0.5410], abs=1e-4)
+    assert np.abs(pca_2.loadings_.values[:, 1]) == pytest.approx([0.2017, 0.9370, 0.2017, 0.2017], abs=1e-4)
 
     # Scores. The scaling is off here by a constant factor of 0.8165
     # assert np.all(pca_2.x_scores["1"] == pytest.approx([-1.6229, -0.3493, 1.9723], rel=1e-3))
     # assert np.all(pca_2.x_scores["2"] == pytest.approx([0.6051, -0.9370, 0.3319], rel=1e-4))
 
     # R2 values, given on page 43
-    assert pca_2.R2.values == pytest.approx([0.831, 0.169], rel=1e-2)
+    assert pca_2.r2_per_component_.values == pytest.approx([0.831, 0.169], rel=1e-2)
 
     # SS values, on page 43
     # SS_X = np.sum(X_preproc ** 2, axis=0)
