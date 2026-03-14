@@ -1,6 +1,5 @@
 import warnings
 from collections import defaultdict
-from typing import Any, DefaultDict
 
 import numpy as np
 import pandas as pd
@@ -18,7 +17,6 @@ def t_value(p, v) -> float:
 
     Examples
     --------
-
     Since the cumulative distribution passes symmetrically through the x-axis at 0.0 for any
     number of degrees of freedom
 
@@ -131,29 +129,17 @@ def Sn(x, constant=1.1926):
         https://dx.doi.org/10.2307/2291267
 
     """
-    n = np.sum(~np.isnan(x))
+    arr = np.asarray(x, dtype=np.float64)
+    n = np.sum(~np.isnan(arr))
     if n == 0:
         return np.float64(np.nan)
     elif n == 1:
         return np.float64(0.0)
-    medians = []
-    for i, value in enumerate(x):
-        # In the paper by Rousseeuw and Croux: they seem to iterate over all data. But
-        # in the R-source code, they iterate over the two loops for i/= j. That also makes
-        # sense, because the difference with itself does not help determine the spread. The
-        # spread is exactly the average (median) of the deviations.
 
-        if np.isnan(value):
-            continue
-
-        differences = []
-        for j, other in enumerate(x):
-            if np.isnan(other):
-                continue
-            differences.append(abs(value - other))
-
-        # Belongs to the outer loop
-        medians.append(np.nanmedian(differences))
+    # Remove NaNs and compute all pairwise absolute differences via broadcasting
+    clean = arr[~np.isnan(arr)]
+    diffs = np.abs(clean[:, None] - clean[None, :])
+    medians = np.median(diffs, axis=1)
 
     if n <= 9:
         # Correction factors for n = 2 to 9:
@@ -163,7 +149,7 @@ def Sn(x, constant=1.1926):
     else:
         correction = 1.0
 
-    return constant * np.nanmedian(medians) * correction
+    return constant * np.median(medians) * correction
 
 
 def _contains_nan(a, nan_policy="propagate"):
@@ -461,15 +447,13 @@ def _mad_1d(x, center, nan_policy):
         return np.nan
     # Edge cases have been handled, so do the basic MAD calculation.
     med = center(x)
-    mad = np.median(np.abs(x - med))
-    return mad
+    return np.median(np.abs(x - med))
 
 
 def median_abs_deviation(x, axis=0, center=np.median, scale="normal", nan_policy="omit"):
     r"""
-
     Taken from `scipy.stats.stats`: we want the same functionality, but with a slightly different
-    default function signature:
+    default function signature.
 
     *   `scale='normal'` instead of `scale=1.0`.
     *   `nan_policy='omit'` instead of `nan_policy='propogate'`
@@ -673,7 +657,7 @@ def summary_stats(x, method="robust") -> dict:
 
 def outlier_detection_multiple(
     x, algorithm: str = "esd", max_outliers_detected: int = 1, **kwargs
-) -> tuple[list[int], DefaultDict[Any, Any]]:
+) -> tuple[list[int], defaultdict[Any, Any]]:
     """
     Return a list of indexes of points in the vector `x` which are likely outliers.
 

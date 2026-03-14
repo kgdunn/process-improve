@@ -1,9 +1,9 @@
 [project]
 name = "process-improve"
-version = "0.9.99"
+version = "1.0.0"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
-license = {text = "MIT license"}
+license = "MIT"
 requires-python = ">=3.10"
 keywords = ["Designed Experiments", "Latent Variables", "PCA", "PLS", "Multivariate Data Analysis", "Batch data analysis"]
 authors = [

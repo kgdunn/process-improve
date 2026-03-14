@@ -1,6 +1,8 @@
 # (c) Kevin Dunn, 2010-2025. MIT License.
 
+import io
 import pathlib
+import urllib.request
 
 import numpy as np
 import pandas as pd
@@ -92,12 +94,15 @@ def test_pca_spe_limits() -> None:
 def test_pca_foods() -> None:
     """Arrays with no variance should not be able to have variance extracted."""
 
-    foods = pd.read_csv("https://openmv.net/file/food-texture.csv").drop(
-        [
-            "Unnamed: 0",
-        ],
-        axis=1,
-    )
+    url = "https://openmv.net/file/food-texture.csv"
+    req = urllib.request.Request(url, headers={"User-Agent": "Python/process-improve-tests"})
+    with urllib.request.urlopen(req) as response:  # noqa: S310
+        foods = pd.read_csv(io.StringIO(response.read().decode())).drop(
+            [
+                "Unnamed: 0",
+            ],
+            axis=1,
+        )
     scaler = MCUVScaler().fit(foods)
     foods_mcuv = scaler.fit_transform(foods)
 
