@@ -319,21 +319,21 @@ def loading_plot(  # noqa: PLR0913
         fig = go.Figure()
 
     what = model.loadings_ if hasattr(model, "loadings_") else model.loadings  # PCA default
-    if hasattr(model, "direct_weights"):
-        what = model.direct_weights  # PLS default
+    if hasattr(model, "direct_weights_"):
+        what = model.direct_weights_  # PLS default
     extra = None
     if loadings_type.lower() == "p":
         what = model.loadings_ if hasattr(model, "loadings_") else model.loadings
     if loadings_type.lower() == "w":
-        what = model.x_weights
+        what = model.x_weights_
     elif loadings_type.lower() == "w*":
-        what = model.direct_weights
+        what = model.direct_weights_
     elif loadings_type.lower() == "w*c":
         loadings_type = loadings_type[0:-1]
-        what = model.direct_weights
-        extra = model.y_loadings
+        what = model.direct_weights_
+        extra = model.y_loadings_
     elif loadings_type.lower() == "c":
-        what = model.y_loadings
+        what = model.y_loadings_
 
     fig.add_trace(
         go.Scatter(

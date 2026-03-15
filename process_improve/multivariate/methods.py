@@ -822,11 +822,11 @@ class PLS(PLS_sklearn):
         )
         self.n_components: int = n_components
         self.missing_data_settings = missing_data_settings
-        self.has_missing_data = False
+        self.has_missing_data_ = False
 
-    def fit(self, X: DataMatrix, Y: DataMatrix) -> PLS_sklearn:  # noqa: PLR0915
+    def fit(self, X: DataMatrix, Y: DataMatrix) -> PLS:  # noqa: PLR0915
         """
-        Fit a projection to latent structures (PLS) or Partial Least Square (PLS) model to the data.
+        Fit a projection to latent structures (PLS) model to the data.
 
         Parameters
         ----------
@@ -847,34 +847,32 @@ class PLS(PLS_sklearn):
         Abdi, "Partial least squares regression and projection on latent structure
         regression (PLS Regression)", 2010, DOI: 10.1002/wics.51
         """
-        self.N: int = X.shape[0]
-        self.K: int = X.shape[1]
-        self.Ny: int = Y.shape[0]
-        self.M: int = Y.shape[1]
-        assert self.Ny == self.N, (
-            f"The X and Y arrays must have the same number of rows: X has {self.N} and Y has {self.Ny}."
+        self.n_samples_: int = X.shape[0]
+        self.n_features_in_: int = X.shape[1]
+        Ny: int = Y.shape[0]
+        self.n_targets_: int = Y.shape[1]
+        assert Ny == self.n_samples_, (
+            f"The X and Y arrays must have the same number of rows: X has {self.n_samples_} and Y has {Ny}."
         )
 
+        N = self.n_samples_  # noqa: N806
+        K = self.n_features_in_  # noqa: N806
+        M = self.n_targets_  # noqa: N806
+
         # Check if number of components is supported against maximum requested
-        min_dim = min(self.N, self.K)
-        self.A = min_dim if self.n_components is None else int(self.n_components)
-        if min_dim < self.A:
+        min_dim = min(N, K)
+        A = min_dim if self.n_components is None else int(self.n_components)  # noqa: N806
+        if min_dim < A:
             warn = (
                 "The requested number of components is more than can be "
                 "computed from data. The maximum number of components is "
-                f"the minimum of either the number of rows ({self.N}) or "
-                f"the number of columns ({self.K})."
+                f"the minimum of either the number of rows ({N}) or "
+                f"the number of columns ({K})."
             )
             warnings.warn(warn, SpecificationWarning, stacklevel=2)
-            self.A = self.n_components = min_dim
+            A = self.n_components = min_dim  # noqa: N806
 
         if np.any(Y.isna()) or np.any(X.isna()):
-            # If there are missing data, then the missing data settings apply. Defaults are:
-            #
-            #       md_method = "tsr"
-            #       md_tol = np.sqrt(np.finfo(float).eps)
-            #       md_max_iter = self.max_iter
-
             default_mds = dict(md_method="tsr", md_tol=epsqrt, md_max_iter=self.max_iter)
             if isinstance(self.missing_data_settings, dict):
                 default_mds.update(self.missing_data_settings)
@@ -884,134 +882,115 @@ class PLS(PLS_sklearn):
                 n_components=self.n_components,
                 missing_data_settings=self.missing_data_settings,
             )
-            self.N, self.K = X.shape
-            self.Ny, self.M = Y.shape
-            self.A = self.n_components
+            self.n_samples_, self.n_features_in_ = X.shape
+            self.n_targets_ = Y.shape[1]
+            N, K, M = self.n_samples_, self.n_features_in_, self.n_targets_  # noqa: N806
+            A = self.n_components  # noqa: N806
 
-            # Call the sub-function to do the PLS fit when missing data are present
             self.fit(X, Y)
         else:
             self = super().fit(X, Y)
-            # x_scores #T: N x A
-            # y_scores # U: N x A
-            # x_weights # W: K x A
-            # y_weights # identical values to y_loadings. So this is redundant then.
-            # x_loadings  # P: K x A
-            # y_loadings  # C: M x A
+            self.fitting_info_ = {
+                "timing": np.zeros(A) * np.nan,
+                "iterations": np.array(self.n_iter_),
+            }
 
-            self.extra_info = {}
-            self.extra_info["timing"] = np.zeros(self.A) * np.nan
-            self.extra_info["iterations"] = np.array(self.n_iter_)
+        # --- Common post-fit path: wrap numpy arrays into pandas ---
 
-        # We have now fitted the model. Apply some convenience shortcuts for the user.
-        self.A = self.n_components
-
-        # Further convenience calculations
-        # "direct_weights" is matrix R = W(P'W)^{-1}  [R is KxA matrix]; useful since T = XR
+        # R = W(P'W)^{-1} [K×A]; useful since T = XR
         direct_weights = self.x_weights_ @ np.linalg.inv(self.x_loadings_.T @ self.x_weights_)
-        # beta = RC' [KxA by AxM = KxM]: the KxM matrix gives the direct link from the k-th (input)
-        # X variable, to the m-th (output) Y variable.
+        # beta = RC' [K×M]: direct link from k-th X variable to m-th Y variable
         beta_coefficients = direct_weights @ self.y_loadings_.T
 
-        # Initialize storage:
-        component_names = [a + 1 for a in range(self.A)]
-        self.x_scores = pd.DataFrame(self.x_scores_, index=X.index, columns=component_names)
-        self.y_scores = pd.DataFrame(self.y_scores_, index=Y.index, columns=component_names)
-        self.x_weights = pd.DataFrame(self.x_weights_, index=X.columns, columns=component_names)
-        self.y_weights = pd.DataFrame(self.y_weights_, index=Y.columns, columns=component_names)
-        self.x_loadings = pd.DataFrame(self.x_loadings_, index=X.columns, columns=component_names)
-        self.y_loadings = pd.DataFrame(self.y_loadings_, index=Y.columns, columns=component_names)
-        self.predictions = pd.DataFrame(self.x_scores @ self.y_loadings.T, index=Y.index, columns=Y.columns)
-        self.direct_weights = pd.DataFrame(direct_weights, index=X.columns, columns=component_names)
-        self.beta_coefficients = pd.DataFrame(beta_coefficients, index=X.columns, columns=Y.columns)
-        self.explained_variance = np.diag(self.x_scores.T @ self.x_scores) / (self.N - 1)
-        self.scaling_factor_for_scores = pd.Series(
-            np.sqrt(self.explained_variance),
+        component_names = list(range(1, A + 1))
+        self.scores_ = pd.DataFrame(self.x_scores_, index=X.index, columns=component_names)
+        self.y_scores_ = pd.DataFrame(self.y_scores_, index=Y.index, columns=component_names)
+        self.x_weights_ = pd.DataFrame(self.x_weights_, index=X.columns, columns=component_names)
+        self.y_weights_ = pd.DataFrame(self.y_weights_, index=Y.columns, columns=component_names)
+        self.x_loadings_ = pd.DataFrame(self.x_loadings_, index=X.columns, columns=component_names)
+        self.y_loadings_ = pd.DataFrame(self.y_loadings_, index=Y.columns, columns=component_names)
+        self.predictions_ = pd.DataFrame(self.scores_ @ self.y_loadings_.T, index=Y.index, columns=Y.columns)
+        self.direct_weights_ = pd.DataFrame(direct_weights, index=X.columns, columns=component_names)
+        self.beta_coefficients_ = pd.DataFrame(beta_coefficients, index=X.columns, columns=Y.columns)
+        self.explained_variance_ = np.diag(self.scores_.T @ self.scores_) / (N - 1)
+        self.scaling_factor_for_scores_ = pd.Series(
+            np.sqrt(self.explained_variance_),
             index=component_names,
             name="Standard deviation per score",
         )
-        self.hotellings_t2 = pd.DataFrame(
-            np.zeros(shape=(self.N, self.A)),
+        self.hotellings_t2_ = pd.DataFrame(
+            np.zeros(shape=(N, A)),
             columns=component_names,
             index=X.index.copy(),
         )
-        self.hotellings_t2.index.name = "Hotelling's T^2 statistic, per component (col)"
-        self.squared_prediction_error = pd.DataFrame(
-            np.zeros((self.N, self.A)),
+        self.spe_ = pd.DataFrame(
+            np.zeros((N, A)),
             columns=component_names,
             index=X.index.copy(),
         )
-        self.R2 = pd.Series(
-            np.zeros(shape=(self.A)),
+        self.r2_per_component_ = pd.Series(
+            np.zeros(shape=(A)),
             index=component_names,
-            name="Output R^2, per component (col)",
+            name="Output R² per component",
         )
-        self.R2cum = pd.Series(
-            np.zeros(shape=(self.A)),
+        self.r2_cumulative_ = pd.Series(
+            np.zeros(shape=(A)),
             index=component_names,
-            name="Output cumulative R^2, per component (col)",
+            name="Output cumulative R²",
         )
-        self.R2X_cum = pd.DataFrame(
-            np.zeros(shape=(self.K, self.A)),
+        self.r2_per_variable_ = pd.DataFrame(
+            np.zeros(shape=(K, A)),
             index=X.columns.copy(),
             columns=component_names,
         )
-        self.R2X_cum.index.name = "R^2 per variable (row), per component (col)"
-        self.R2Y_cum = pd.DataFrame(
-            np.zeros(shape=(self.M, self.A)),
+        self.r2y_per_variable_ = pd.DataFrame(
+            np.zeros(shape=(M, A)),
             index=Y.columns.copy(),
             columns=component_names,
         )
-        self.R2Y_cum.index.name = "R^2 per variable (row), per component (col)"
-        self.RMSE = pd.DataFrame(
-            np.zeros(shape=(self.M, self.A)),
+        self.rmse_ = pd.DataFrame(
+            np.zeros(shape=(M, A)),
             index=Y.columns.copy(),
             columns=component_names,
         )
-        self.RMSE.index.name = "Root mean square error per variable (row), per component (col)"
 
-        Xd = X.copy()
-        Yd = Y.copy()
-        prior_SSX_col = ssq(Xd.values, axis=0)
-        prior_SSY_col = ssq(Yd.values, axis=0)
-        base_variance_Y = np.sum(prior_SSY_col)
-        for a in range(self.A):
-            self.hotellings_t2.iloc[:, a] = (
-                self.hotellings_t2.iloc[:, max(0, a - 1)]
-                + (self.x_scores.iloc[:, a] / self.scaling_factor_for_scores.iloc[a]) ** 2
+        Xd = X.copy()  # noqa: N806
+        Yd = Y.copy()  # noqa: N806
+        prior_SSX_col = ssq(Xd.values, axis=0)  # noqa: N806
+        prior_SSY_col = ssq(Yd.values, axis=0)  # noqa: N806
+        base_variance_Y = np.sum(prior_SSY_col)  # noqa: N806
+        for a in range(A):
+            self.hotellings_t2_.iloc[:, a] = (
+                self.hotellings_t2_.iloc[:, max(0, a - 1)]
+                + (self.scores_.iloc[:, a] / self.scaling_factor_for_scores_.iloc[a]) ** 2
             )
-            Xd = Xd - self.x_scores.iloc[:, [a]] @ self.x_loadings.iloc[:, [a]].T
-            y_hat = self.x_scores.iloc[:, 0 : (a + 1)] @ self.y_loadings.iloc[:, 0 : (a + 1)].T
-            # These are the Residual Sums of Squares (RSS); i.e X-X_hat
-            row_SSX = ssq(Xd.values, axis=1)
-            col_SSX = ssq(Xd.values, axis=0)
-            row_SSY = ssq(y_hat.values, axis=1)
-            col_SSY = ssq(y_hat.values, axis=0)
-            # R2 and cumulative R2 value for the whole block
-            self.R2cum.iloc[a] = sum(row_SSY) / base_variance_Y
+            Xd = Xd - self.scores_.iloc[:, [a]] @ self.x_loadings_.iloc[:, [a]].T  # noqa: N806
+            y_hat = self.scores_.iloc[:, 0 : (a + 1)] @ self.y_loadings_.iloc[:, 0 : (a + 1)].T
+            row_SSX = ssq(Xd.values, axis=1)  # noqa: N806
+            col_SSX = ssq(Xd.values, axis=0)  # noqa: N806
+            row_SSY = ssq(y_hat.values, axis=1)  # noqa: N806
+            col_SSY = ssq(y_hat.values, axis=0)  # noqa: N806
+            self.r2_cumulative_.iloc[a] = sum(row_SSY) / base_variance_Y
             if a > 0:
-                self.R2.iloc[a] = self.R2cum.iloc[a] - self.R2cum.iloc[a - 1]
+                self.r2_per_component_.iloc[a] = self.r2_cumulative_.iloc[a] - self.r2_cumulative_.iloc[a - 1]
             else:
-                self.R2.iloc[a] = self.R2cum.iloc[a]
+                self.r2_per_component_.iloc[a] = self.r2_cumulative_.iloc[a]
 
-            # Don't use a check correction factor. Define SPE simply as the sum of squares of
-            # the errors, then take the square root, so it is interpreted like a standard error.
-            # If the user wants to normalize it, then this is a clean base value to start from.
-            self.squared_prediction_error.iloc[:, a] = np.sqrt(row_SSX)
+            self.spe_.iloc[:, a] = np.sqrt(row_SSX)
 
-            # TODO: some entries in prior_SSX_col can be zero and leads to nan's in R2X_cum
-            self.R2X_cum.iloc[:, a] = 1 - col_SSX / prior_SSX_col
-            self.R2Y_cum.iloc[:, a] = col_SSY / prior_SSY_col
-            self.RMSE.iloc[:, a] = (Yd.values - y_hat).pow(2).mean().pow(0.5)
+            self.r2_per_variable_.iloc[:, a] = 1 - col_SSX / prior_SSX_col
+            self.r2y_per_variable_.iloc[:, a] = col_SSY / prior_SSY_col
+            self.rmse_.iloc[:, a] = (Yd.values - y_hat).pow(2).mean().pow(0.5)
 
+        # Bind convenience methods
         self.ellipse_coordinates = partial(
             ellipse_coordinates,
             n_components=self.n_components,
-            scaling_factor_for_scores=self.scaling_factor_for_scores,
-            n_rows=self.N,
+            scaling_factor_for_scores=self.scaling_factor_for_scores_,
+            n_rows=N,
         )
-
-        self.hotellings_t2_limit = partial(hotellings_t2_limit, n_components=self.n_components, n_rows=self.N)
+        self.hotellings_t2_limit = partial(hotellings_t2_limit, n_components=self.n_components, n_rows=N)
+        self.spe_limit = partial(spe_limit, model=self)
         self.spe_plot = partial(spe_plot, model=self)
         self.t2_plot = partial(t2_plot, model=self)
         self.loading_plot = partial(loading_plot, model=self)
@@ -1019,54 +998,200 @@ class PLS(PLS_sklearn):
 
         return self
 
-    def predict(self, X: DataMatrix):
-        """Use the PLS model on new data coming in matrix X."""
+    def predict(self, X: DataMatrix) -> Bunch:
+        """Project new data and compute diagnostics.
 
-        class State:
-            """Class to hold the prediction results together."""
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
 
-            def __init__(self):
-                self.N = None
-                self.K = None
-                self.x_scores = None
-                self.hotellings_t2 = None
-                self.squared_prediction_error = None
-                self.y_hat = None
-
-        state = State()
-        state.N, state.K = X.shape
-        assert self.K == state.K, "Prediction data must have same number of columns as training data."
-
-        state.x_scores = X @ self.direct_weights
-
-        # TODO: handle the missing data version here still
-        for _ in range(self.A):
-            pass
-            # p = self.x_loadings.iloc[:, [a]]
-            # w = self.x_weights.iloc[:, [a]]
-            # temp = X @ self.direct_weights.iloc[:, [a]]
-            # X_mcuv = X_mcuv - temp @ p.T
-            # state.x_scores[:, [a]] = temp
-
-        # Scores are calculated, now do the rest
-        state.hotellings_t2 = np.sum(np.power((state.x_scores / self.scaling_factor_for_scores.values), 2), 1)
-        # Calculate SPE-residuals (sum over rows of the errors)
-        X_mcuv = X.copy()
-        X_mcuv = X_mcuv - state.x_scores @ self.x_loadings.T
-        state.squared_prediction_error = np.sqrt(np.power(X_mcuv, 2).sum(axis=1))
-        # Predicted values from the model (user still has to un-preprocess these predictions!)
-        state.y_hat = state.x_scores @ self.y_loadings.T
-
-        return state
-
-    def SPE_limit(self, conf_level: float = 0.95) -> float:  # noqa: N802
-        """Calculate the SPE limit for the model."""
-        check_is_fitted(self, "squared_prediction_error")
-
-        return spe_calculation(
-            spe_values=self.squared_prediction_error.iloc[:, self.A - 1],
-            conf_level=conf_level,
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With keys ``scores``, ``hotellings_t2``, ``spe``, ``y_hat``.
+        """
+        check_is_fitted(self, "scores_")
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+        assert X.shape[1] == self.n_features_in_, (
+            f"Prediction data must have {self.n_features_in_} columns, got {X.shape[1]}."
         )
+
+        scores = X @ self.direct_weights_
+
+        # Hotelling's T² (cumulative over all components)
+        t2_values = np.sum(np.power((scores / self.scaling_factor_for_scores_.values), 2), axis=1)
+        t2 = pd.Series(t2_values, index=X.index, name="Hotelling's T²")
+
+        # SPE: residual after X reconstruction
+        X_hat = scores @ self.x_loadings_.T  # noqa: N806
+        residuals = X - X_hat
+        spe_values = pd.Series(np.sqrt(np.power(residuals, 2).sum(axis=1)), index=X.index, name="SPE")
+
+        # Y predictions
+        y_hat = scores @ self.y_loadings_.T
+
+        return Bunch(scores=scores, hotellings_t2=t2, spe=spe_values, y_hat=y_hat)
+
+    def score_contributions(
+        self,
+        t_start: np.ndarray | pd.Series,
+        t_end: np.ndarray | pd.Series | None = None,
+        components: list[int] | None = None,
+        *,
+        weighted: bool = False,
+    ) -> pd.Series:
+        """Contribution of each X variable to a score-space movement.
+
+        Identical to ``PCA.score_contributions`` but uses the PLS X-loadings
+        (P matrix) for back-projection.
+
+        Parameters
+        ----------
+        t_start : array-like of shape (n_components,)
+            Score vector of the observation of interest.
+        t_end : array-like of shape (n_components,), optional
+            Reference point in score space. Default is the model center (zeros).
+        components : list of int, optional
+            **1-based** component indices. Default: all components.
+        weighted : bool, default False
+            If True, scale by 1/sqrt(explained_variance) for T² contributions.
+
+        Returns
+        -------
+        contributions : pd.Series of shape (n_features,)
+        """
+        check_is_fitted(self, "x_loadings_")
+        t_start = np.asarray(t_start, dtype=float)
+        if t_end is None:
+            t_end = np.zeros(self.n_components)
+        else:
+            t_end = np.asarray(t_end, dtype=float)
+
+        if components is None:
+            idx = np.arange(self.n_components)
+        else:
+            idx = np.array(components) - 1
+
+        dt = t_end[idx] - t_start[idx]
+
+        if weighted:
+            dt = dt / np.sqrt(self.explained_variance_[idx])
+
+        P = self.x_loadings_.values[:, idx].T  # noqa: N806
+        contributions = dt @ P
+
+        return pd.Series(contributions, index=self.x_loadings_.index, name="score_contributions")
+
+    def detect_outliers(self, conf_level: float = 0.95) -> list[dict]:
+        """Detect outlier observations using SPE and Hotelling's T² diagnostics.
+
+        Same approach as ``PCA.detect_outliers``: combines statistical limits
+        with the robust generalized ESD test.
+
+        Parameters
+        ----------
+        conf_level : float, default 0.95
+            Confidence level in [0.8, 0.999].
+
+        Returns
+        -------
+        outliers : list of dict
+            Sorted from most severe to least. Each dict contains
+            ``observation``, ``outlier_types``, ``spe``, ``hotellings_t2``,
+            ``spe_limit``, ``hotellings_t2_limit``, ``severity``.
+        """
+        check_is_fitted(self, "spe_")
+        if not (0.8 <= conf_level <= 0.999):
+            raise ValueError(f"conf_level must be between 0.8 and 0.999, got {conf_level}.")
+
+        N = self.n_samples_  # noqa: N806
+
+        spe_values = self.spe_.iloc[:, -1]
+        t2_values = self.hotellings_t2_.iloc[:, -1]
+
+        spe_lim = self.spe_limit(conf_level=conf_level)
+        t2_lim = self.hotellings_t2_limit(conf_level=conf_level)
+
+        max_outliers = max(1, N // 5)
+        alpha = 1 - conf_level
+
+        spe_outlier_idx, _ = outlier_detection_multiple(
+            spe_values.values, algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
+        )
+        t2_outlier_idx, _ = outlier_detection_multiple(
+            t2_values.values, algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
+        )
+
+        spe_flagged = set(spe_outlier_idx)
+        t2_flagged = set(t2_outlier_idx)
+
+        for i in range(N):
+            if spe_values.iloc[i] > spe_lim:
+                spe_flagged.add(i)
+            if t2_values.iloc[i] > t2_lim:
+                t2_flagged.add(i)
+
+        all_flagged = spe_flagged | t2_flagged
+        results = []
+        for i in all_flagged:
+            types = []
+            if i in spe_flagged:
+                types.append("spe")
+            if i in t2_flagged:
+                types.append("hotellings_t2")
+
+            spe_val = float(spe_values.iloc[i])
+            t2_val = float(t2_values.iloc[i])
+            severity = max(spe_val / spe_lim, t2_val / t2_lim)
+
+            results.append({
+                "observation": spe_values.index[i],
+                "outlier_types": types,
+                "spe": spe_val,
+                "hotellings_t2": t2_val,
+                "spe_limit": spe_lim,
+                "hotellings_t2_limit": t2_lim,
+                "severity": round(severity, 4),
+            })
+
+        results.sort(key=lambda d: d["severity"], reverse=True)
+        return results
+
+    def __getattr__(self, name: str):
+        """Provide helpful error messages for old attribute names."""
+        renames = {
+            "x_scores": "scores_",
+            "y_scores": "y_scores_",
+            "x_weights": "x_weights_",
+            "y_weights": "y_weights_",
+            "x_loadings": "x_loadings_",
+            "y_loadings": "y_loadings_",
+            "direct_weights": "direct_weights_",
+            "beta_coefficients": "beta_coefficients_",
+            "predictions": "predictions_",
+            "squared_prediction_error": "spe_",
+            "hotellings_t2": "hotellings_t2_",
+            "R2": "r2_per_component_",
+            "R2cum": "r2_cumulative_",
+            "R2X_cum": "r2_per_variable_",
+            "R2Y_cum": "r2y_per_variable_",
+            "RMSE": "rmse_",
+            "explained_variance": "explained_variance_",
+            "scaling_factor_for_scores": "scaling_factor_for_scores_",
+            "extra_info": "fitting_info_",
+            "has_missing_data": "has_missing_data_",
+            "N": "n_samples_",
+            "K": "n_features_in_",
+            "M": "n_targets_",
+            "A": "n_components",
+        }
+        if name in renames:
+            raise AttributeError(
+                f"'{name}' was renamed to '{renames[name]}' in the PLS refactoring. "
+                f"Please update your code to use '{renames[name]}'."
+            )
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
 
 class PLS_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
@@ -1096,7 +1221,7 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
     ):
         self.n_components = n_components
         self.missing_data_settings = missing_data_settings
-        self.has_missing_data = True
+        self.has_missing_data_ = True
         self.missing_data_settings["md_max_iter"] = int(self.missing_data_settings["md_max_iter"])
 
         assert self.missing_data_settings["md_tol"] < 10, "Tolerance should not be too large"
@@ -1124,23 +1249,17 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
             )
 
         # Other setups:
-        self.n_components = self.A
-        self.n_samples_ = self.N
-        self.n_features_in_ = self.K
-        # self.M ?
+        N = self.n_samples_  # noqa: N806
+        K = self.n_features_in_  # noqa: N806
+        M = self.n_targets_  # noqa: N806
+        A = self.n_components  # noqa: N806
 
-        self.x_scores_ = np.zeros((self.N, self.A))  # T: N x A
-        self.y_scores_ = np.zeros((self.N, self.A))  # U: N x A
-        self.x_weights_ = np.zeros((self.K, self.A))  # W: K x A
+        self.x_scores_ = np.zeros((N, A))  # T: N x A
+        self.y_scores_ = np.zeros((N, A))  # U: N x A
+        self.x_weights_ = np.zeros((K, A))  # W: K x A
         self.y_weights_ = None
-        self.x_loadings_ = np.zeros((self.K, self.A))  # P: K x A
-        self.y_loadings_ = np.zeros((self.M, self.A))  # C: M x A
-
-        self.R2 = np.zeros(shape=(self.A,))
-        self.R2cum = np.zeros(shape=(self.A,))
-        self.R2X_cum = np.zeros(shape=(self.K, self.A))
-        self.R2Y_cum = np.zeros(shape=(self.M, self.A))
-        self.squared_prediction_error = np.zeros((self.N, self.A))
+        self.x_loadings_ = np.zeros((K, A))  # P: K x A
+        self.y_loadings_ = np.zeros((M, A))  # C: M x A
 
         # Perform MD algorithm here
         if self.missing_data_settings["md_method"].lower() == "pmp":
@@ -1164,12 +1283,12 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
         (Internal method)
         """
         # NIPALS algorithm
-        A = self.A
+        A = self.n_components  # noqa: N806
 
         # Initialize storage:
-        self.extra_info = {}
-        self.extra_info["timing"] = np.zeros(A) * np.nan
-        self.extra_info["iterations"] = np.zeros(A) * np.nan
+        self.fitting_info_ = {}
+        self.fitting_info_["timing"] = np.zeros(A) * np.nan
+        self.fitting_info_["iterations"] = np.zeros(A) * np.nan
 
         for a in np.arange(A):
             # Timers and housekeeping
@@ -1230,8 +1349,8 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
 
                 itern += 1
 
-            self.extra_info["timing"][a] = time.time() - start_time
-            self.extra_info["iterations"][a] = itern
+            self.fitting_info_["timing"][a] = time.time() - start_time
+            self.fitting_info_["iterations"][a] = itern
 
             if itern > settings["md_max_iter"]:
                 raise Warning("PLS missing data [SCP method]: maximum number of iterations reached!")
