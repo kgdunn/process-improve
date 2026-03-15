@@ -17,6 +17,7 @@ from scipy.stats import chi2, f
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, _fit_context, clone
 from sklearn.cross_decomposition import PLSRegression as PLS_sklearn
 from sklearn.metrics import r2_score
+from sklearn.model_selection import cross_val_score
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
 from tqdm import tqdm
@@ -506,6 +507,120 @@ class PCA(TransformerMixin, BaseEstimator):
         spe_values = pd.Series(np.sqrt(np.sum(residuals**2, axis=1)), index=X.index, name="SPE")
 
         return Bunch(scores=scores, hotellings_t2=t2, spe=spe_values)
+
+    def score(self, X: DataMatrix, y: DataMatrix | None = None) -> float:  # noqa: ARG002
+        """Negative mean squared reconstruction error (higher is better).
+
+        Follows the sklearn convention where higher scores indicate better
+        model fit. This makes PCA compatible with ``cross_val_score``,
+        ``GridSearchCV``, and other sklearn model-selection utilities.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Test data to score.
+        y : ignored
+
+        Returns
+        -------
+        score : float
+            Negative mean squared reconstruction error.
+        """
+        check_is_fitted(self, "loadings_")
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+        scores = self.transform(X)
+        X_hat = scores.values @ self.loadings_.values.T  # noqa: N806
+        residuals = X.values - X_hat
+        return -float(np.mean(residuals**2))
+
+    @classmethod
+    def select_n_components(
+        cls,
+        X: DataMatrix,
+        *,
+        max_components: int | None = None,
+        cv: int = 5,
+        threshold: float = 0.95,
+        **pca_kwargs,
+    ) -> Bunch:
+        """Select the number of components via PRESS cross-validation.
+
+        Fits PCA models with 1, 2, ..., ``max_components`` components,
+        evaluates each with K-fold cross-validation, and recommends the
+        optimal number using Wold's criterion: stop adding components when
+        PRESS_a / PRESS_{a-1} > ``threshold``.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Training data.
+        max_components : int, optional
+            Maximum number of components to evaluate. Default is
+            ``min(n_samples - 1, n_features)``.
+        cv : int or sklearn CV splitter, default 5
+            Number of cross-validation folds, or an sklearn splitter object
+            (e.g., ``KFold(n_splits=10, shuffle=True)``).
+        threshold : float, default 0.95
+            Wold's criterion threshold. If PRESS_a / PRESS_{a-1} exceeds
+            this value, component ``a`` is deemed not significant. Lower
+            values are more aggressive (fewer components).
+        **pca_kwargs
+            Additional keyword arguments passed to the ``PCA()`` constructor
+            (e.g., ``algorithm="nipals"`` for data with missing values).
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With keys:
+
+            - ``n_components`` — recommended number of components (int)
+            - ``press`` — PRESS per component count (pd.Series, indexed 1..A_max)
+            - ``press_ratio`` — PRESS_a / PRESS_{a-1} (pd.Series, indexed 2..A_max)
+            - ``cv_scores`` — per-fold scores (pd.DataFrame, A_max rows × cv cols)
+        """
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+
+        N, K = X.shape  # noqa: N806
+        if max_components is None:
+            max_components = min(N - 1, K)
+        max_components = min(max_components, N - 1, K)
+
+        press_values = {}
+        all_cv_scores = {}
+
+        for a in range(1, max_components + 1):
+            scores_a = cross_val_score(cls(n_components=a, **pca_kwargs), X, cv=cv)
+            all_cv_scores[a] = scores_a
+            press_values[a] = -scores_a.mean()  # undo negation from score()
+
+        press = pd.Series(press_values, name="PRESS")
+        press.index.name = "n_components"
+
+        # Wold's criterion: ratio of consecutive PRESS values
+        ratio_values = {a: press[a] / press[a - 1] for a in range(2, max_components + 1)}
+        press_ratio = pd.Series(ratio_values, name="PRESS ratio")
+        press_ratio.index.name = "n_components"
+
+        # Recommend: last component where ratio <= threshold
+        recommended = 1
+        for a in range(2, max_components + 1):
+            if press_ratio[a] <= threshold:
+                recommended = a
+            else:
+                break
+
+        cv_scores = pd.DataFrame(all_cv_scores).T
+        cv_scores.index.name = "n_components"
+        cv_scores.columns = [f"fold_{i + 1}" for i in range(cv_scores.shape[1])]
+
+        return Bunch(
+            n_components=recommended,
+            press=press,
+            press_ratio=press_ratio,
+            cv_scores=cv_scores,
+        )
 
     def score_contributions(
         self,

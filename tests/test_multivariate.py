@@ -12,6 +12,7 @@ from scipy.sparse import csr_matrix
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import KFold, cross_val_score
+from sklearn.utils import Bunch
 
 from process_improve.multivariate.methods import (
     PCA,
@@ -510,6 +511,78 @@ def test_pca_wold_model_results(fixture_pca_pca_wold_etal_paper: pd.DataFrame) -
     # #testing = PCA_model.apply(X_test)
     # compare_entries(testing.T, np.array([[-0.2075, 0.1009],
     # [-2.0511, -1.3698]])
+
+
+def test_pca_score() -> None:
+    """Test PCA score() method returns negative MSE reconstruction error."""
+    rng = np.random.default_rng(99)
+    X = pd.DataFrame(rng.standard_normal((30, 5)), columns=[f"V{i}" for i in range(1, 6)])
+    X = center(X)
+
+    pca_2 = PCA(n_components=2).fit(X)
+    pca_4 = PCA(n_components=4).fit(X)
+
+    s2 = pca_2.score(X)
+    s4 = pca_4.score(X)
+
+    # Returns a negative float (negative MSE)
+    assert isinstance(s2, float)
+    assert s2 < 0
+    assert np.isfinite(s2)
+
+    # More components → better reconstruction → higher (less negative) score
+    assert s4 > s2
+
+    # Works with numpy arrays too
+    s2_np = pca_2.score(X.values)
+    assert s2_np == pytest.approx(s2, abs=1e-12)
+
+
+def test_pca_select_n_components() -> None:
+    """Test PRESS-based component selection on synthetic data with known structure."""
+    rng = np.random.default_rng(77)
+    N, K = 50, 30
+
+    # 2 strong latent components driving 30 measured variables (spectral-like)
+    T_true = rng.standard_normal((N, 2)) * np.array([8.0, 5.0])
+    P_true = rng.standard_normal((2, K))
+    P_true /= np.linalg.norm(P_true, axis=1, keepdims=True)
+    noise = rng.standard_normal((N, K)) * 1.0
+    X = pd.DataFrame(T_true @ P_true + noise)
+    X = center(X)
+
+    max_comp = 6
+    result = PCA.select_n_components(X, max_components=max_comp, cv=5)
+
+    # Returns a Bunch with the expected keys
+    assert isinstance(result, Bunch)
+    assert set(result.keys()) == {"n_components", "press", "press_ratio", "cv_scores"}
+
+    # With 2 true components, should recommend 2 (or at most 3)
+    assert 2 <= result.n_components <= 3
+
+    # PRESS is a Series indexed 1..max_components
+    assert isinstance(result.press, pd.Series)
+    assert len(result.press) == max_comp
+    assert list(result.press.index) == list(range(1, max_comp + 1))
+    assert all(result.press > 0)
+
+    # PRESS should decrease substantially for the 2nd component
+    assert result.press[2] < result.press[1]
+
+    # PRESS ratio is indexed 2..max_components
+    assert isinstance(result.press_ratio, pd.Series)
+    assert len(result.press_ratio) == max_comp - 1
+    assert list(result.press_ratio.index) == list(range(2, max_comp + 1))
+
+    # cv_scores is a DataFrame
+    assert isinstance(result.cv_scores, pd.DataFrame)
+    assert result.cv_scores.shape == (max_comp, 5)
+
+    # Works with KFold splitter too
+    result2 = PCA.select_n_components(X, max_components=4, cv=KFold(n_splits=3, shuffle=True, random_state=0))
+    assert isinstance(result2.n_components, int)
+    assert 1 <= result2.n_components <= 4
 
 
 def test_pca_score_contributions() -> None:
