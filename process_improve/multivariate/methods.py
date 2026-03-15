@@ -21,6 +21,7 @@ from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
 from tqdm import tqdm
 
+from ..univariate.metrics import outlier_detection_multiple
 from .plots import loading_plot, score_plot, spe_plot, t2_plot
 
 DataMatrix: TypeAlias = np.ndarray | pd.DataFrame
@@ -564,6 +565,101 @@ class PCA(TransformerMixin, BaseEstimator):
         contributions = dt @ P  # (n_features,)
 
         return pd.Series(contributions, index=self.loadings_.index, name="score_contributions")
+
+    def detect_outliers(self, conf_level: float = 0.95) -> list[dict]:
+        """Detect outlier observations using SPE and Hotelling's T² diagnostics.
+
+        Combines two approaches:
+
+        1. **Statistical limits** — observations exceeding the SPE or T² limit
+           at ``conf_level`` are flagged.
+        2. **Robust ESD test** — the generalized ESD test (with robust median/MAD
+           variant) identifies observations that are unusual *relative to the
+           rest of the data*, even if they fall below the statistical limit.
+
+        An observation can be flagged for one or both reasons.
+
+        Parameters
+        ----------
+        conf_level : float, default 0.95
+            Confidence level in [0.8, 0.999]. Controls both the statistical
+            limits and the ESD test's significance level (alpha = 1 - conf_level).
+
+        Returns
+        -------
+        outliers : list of dict
+            Sorted from most severe to least. Each dict contains:
+
+            - ``observation`` — index label of the observation
+            - ``outlier_types`` — list of ``"spe"`` and/or ``"hotellings_t2"``
+            - ``spe`` — SPE value for this observation
+            - ``hotellings_t2`` — T² value for this observation
+            - ``spe_limit`` — SPE limit at the given confidence level
+            - ``hotellings_t2_limit`` — T² limit at the given confidence level
+            - ``severity`` — max(spe/spe_limit, t2/t2_limit)
+        """
+        check_is_fitted(self, "spe_")
+        if not (0.8 <= conf_level <= 0.999):
+            raise ValueError(f"conf_level must be between 0.8 and 0.999, got {conf_level}.")
+
+        N = self.n_samples_  # noqa: N806
+
+        # Full-model SPE and cumulative T² (last column)
+        spe_values = self.spe_.iloc[:, -1]
+        t2_values = self.hotellings_t2_.iloc[:, -1]
+
+        # Statistical limits
+        spe_lim = self.spe_limit(conf_level=conf_level)
+        t2_lim = self.hotellings_t2_limit(conf_level=conf_level)
+
+        # Robust ESD outlier detection on each series
+        max_outliers = max(1, N // 5)
+        alpha = 1 - conf_level
+
+        spe_outlier_idx, _ = outlier_detection_multiple(
+            spe_values.values, algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
+        )
+        t2_outlier_idx, _ = outlier_detection_multiple(
+            t2_values.values, algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
+        )
+
+        # Collect all flagged observations: ESD outliers + above-limit
+        spe_flagged = set(spe_outlier_idx)
+        t2_flagged = set(t2_outlier_idx)
+
+        # Also flag any observation above the statistical limit
+        for i in range(N):
+            if spe_values.iloc[i] > spe_lim:
+                spe_flagged.add(i)
+            if t2_values.iloc[i] > t2_lim:
+                t2_flagged.add(i)
+
+        # Merge into result dicts
+        all_flagged = spe_flagged | t2_flagged
+        results = []
+        for i in all_flagged:
+            types = []
+            if i in spe_flagged:
+                types.append("spe")
+            if i in t2_flagged:
+                types.append("hotellings_t2")
+
+            spe_val = float(spe_values.iloc[i])
+            t2_val = float(t2_values.iloc[i])
+            severity = max(spe_val / spe_lim, t2_val / t2_lim)
+
+            results.append({
+                "observation": spe_values.index[i],
+                "outlier_types": types,
+                "spe": spe_val,
+                "hotellings_t2": t2_val,
+                "spe_limit": spe_lim,
+                "hotellings_t2_limit": t2_lim,
+                "severity": round(severity, 4),
+            })
+
+        results.sort(key=lambda d: d["severity"], reverse=True)
+        return results
 
     def __getattr__(self, name: str):
         """Provide helpful error messages for old attribute names."""

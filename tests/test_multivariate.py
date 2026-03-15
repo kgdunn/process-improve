@@ -562,6 +562,51 @@ def test_pca_score_contributions() -> None:
     assert contrib_w2.values == pytest.approx(expected_w1, abs=1e-12)
 
 
+def test_pca_detect_outliers() -> None:
+    """Test detect_outliers method with a synthetic dataset containing known outliers."""
+    rng = np.random.default_rng(123)
+    # Normal data: 40 observations, 4 variables, mild correlation
+    X_normal = rng.standard_normal((40, 4))
+    X_normal[:, 1] = X_normal[:, 0] * 0.8 + rng.standard_normal(40) * 0.3
+    X_normal[:, 3] = X_normal[:, 2] * 0.6 + rng.standard_normal(40) * 0.5
+
+    # Inject 2 obvious outliers
+    X = np.vstack([X_normal, [[15, 15, 15, 15]], [[0.1, 0.1, 12, 12]]])
+    X = pd.DataFrame(X, columns=["A", "B", "C", "D"])
+    X = center(X)
+
+    pca = PCA(n_components=2).fit(X)
+
+    # --- Basic contract ---
+    outliers = pca.detect_outliers(conf_level=0.95)
+    assert isinstance(outliers, list)
+    assert all(isinstance(o, dict) for o in outliers)
+
+    # Each dict has the required keys
+    required_keys = {"observation", "outlier_types", "spe", "hotellings_t2", "spe_limit", "hotellings_t2_limit", "severity"}
+    for o in outliers:
+        assert set(o.keys()) == required_keys
+        assert isinstance(o["outlier_types"], list)
+        assert all(t in ("spe", "hotellings_t2") for t in o["outlier_types"])
+        assert len(o["outlier_types"]) >= 1
+
+    # --- Sorted by severity descending ---
+    severities = [o["severity"] for o in outliers]
+    assert severities == sorted(severities, reverse=True)
+
+    # --- The injected outliers (indices 40, 41) should be detected ---
+    detected_obs = {o["observation"] for o in outliers}
+    assert 40 in detected_obs, "The extreme outlier at index 40 should be detected"
+    assert 41 in detected_obs, "The outlier at index 41 should be detected"
+
+    # --- conf_level validation ---
+    with pytest.raises(ValueError, match="conf_level must be between"):
+        pca.detect_outliers(conf_level=0.5)
+
+    with pytest.raises(ValueError, match="conf_level must be between"):
+        pca.detect_outliers(conf_level=1.0)
+
+
 def test_pls_properties_todo() -> None:
     """
     Complete this later.
