@@ -23,7 +23,7 @@ bivariate
 visualization
     General-purpose plotting utilities.
 
-(c) Kevin Dunn, 2010-2025. MIT License.
+(c) Kevin Dunn, 2010-2026. MIT License.
 """
 
 from process_improve.multivariate.methods import PCA, PLS, MCUVScaler

@@ -1,4 +1,4 @@
-# (c) Kevin Dunn, 2010-2025. MIT License.
+# (c) Kevin Dunn, 2010-2026. MIT License.
 
 import io
 import pathlib

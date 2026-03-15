@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.abspath(".."))
 # -- Project information -----------------------------------------------------
 
 project = "process-improve"
-copyright = "2010-2025, Kevin Dunn"  # noqa: A001
+copyright = "2010-2026, Kevin Dunn"  # noqa: A001
 author = "Kevin Dunn"
 release = "1.0.0"
 
