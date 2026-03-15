@@ -512,6 +512,56 @@ def test_pca_wold_model_results(fixture_pca_pca_wold_etal_paper: pd.DataFrame) -
     # [-2.0511, -1.3698]])
 
 
+def test_pca_score_contributions() -> None:
+    """Test score_contributions method on a simple dataset."""
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(rng.standard_normal((30, 5)), columns=[f"V{i}" for i in range(1, 6)])
+    X = center(X)
+
+    pca = PCA(n_components=3).fit(X)
+
+    # --- Basic shape and index ---
+    obs = pca.scores_.iloc[0]
+    contrib = pca.score_contributions(obs)
+    assert isinstance(contrib, pd.Series)
+    assert len(contrib) == 5
+    assert list(contrib.index) == [f"V{i}" for i in range(1, 6)]
+
+    # --- Conservation: sum of contributions equals the projected reconstruction ---
+    # For unweighted, all-component case: contributions = (0 - t) @ P.T row-wise
+    # and sum(contributions * p_k) should recover dt for each component
+    P = pca.loadings_.values  # (K, A)
+    dt = -obs.values  # t_end(0) - t_start
+    expected = dt @ P.T
+    assert contrib.values == pytest.approx(expected, abs=1e-12)
+
+    # --- Specific components (1-based) ---
+    contrib_23 = pca.score_contributions(obs, components=[2, 3])
+    dt_23 = -obs.values[[1, 2]]  # 0-based indices 1, 2
+    P_23 = P[:, [1, 2]].T
+    expected_23 = dt_23 @ P_23
+    assert contrib_23.values == pytest.approx(expected_23, abs=1e-12)
+
+    # --- Custom t_end ---
+    obs2 = pca.scores_.iloc[1]
+    contrib_pair = pca.score_contributions(obs, t_end=obs2)
+    dt_pair = obs2.values - obs.values
+    expected_pair = dt_pair @ P.T
+    assert contrib_pair.values == pytest.approx(expected_pair, abs=1e-12)
+
+    # --- Weighted mode (T² contributions) ---
+    contrib_w = pca.score_contributions(obs, weighted=True)
+    dt_w = -obs.values / np.sqrt(pca.explained_variance_)
+    expected_w = dt_w @ P.T
+    assert contrib_w.values == pytest.approx(expected_w, abs=1e-12)
+
+    # --- Weighted + specific components ---
+    contrib_w2 = pca.score_contributions(obs, components=[1], weighted=True)
+    dt_w1 = -obs.values[0] / np.sqrt(pca.explained_variance_[0])
+    expected_w1 = dt_w1 * P[:, 0]
+    assert contrib_w2.values == pytest.approx(expected_w1, abs=1e-12)
+
+
 def test_pls_properties_todo() -> None:
     """
     Complete this later.

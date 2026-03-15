@@ -506,6 +506,65 @@ class PCA(TransformerMixin, BaseEstimator):
 
         return Bunch(scores=scores, hotellings_t2=t2, spe=spe_values)
 
+    def score_contributions(
+        self,
+        t_start: np.ndarray | pd.Series,
+        t_end: np.ndarray | pd.Series | None = None,
+        components: list[int] | None = None,
+        *,
+        weighted: bool = False,
+    ) -> pd.Series:
+        """Contribution of each variable to a score-space movement.
+
+        Decomposes the difference (t_end - t_start) back into variable space
+        via the loadings for the selected components.
+
+        Parameters
+        ----------
+        t_start : array-like of shape (n_components,)
+            Score vector of the observation of interest. Can be a row from
+            ``self.scores_`` or from ``predict(X_new).scores``.
+        t_end : array-like of shape (n_components,), optional
+            Reference point in score space. Default is the model center
+            (a vector of zeros), which is the most common choice.
+        components : list of int, optional
+            **1-based** component indices to decompose over, matching the
+            model's column convention. Examples: ``[2, 3]`` for a PC2-vs-PC3
+            score plot, or ``None`` (default) for all components — appropriate
+            for Hotelling's T² contributions.
+        weighted : bool, default False
+            If True, scale the score difference by 1/sqrt(explained_variance)
+            per component before back-projecting. This gives contributions to
+            the T² statistic rather than to the Euclidean score distance.
+
+        Returns
+        -------
+        contributions : pd.Series of shape (n_features,)
+            One value per variable; sign indicates direction. Index contains
+            the variable (feature) names.
+        """
+        check_is_fitted(self, "loadings_")
+        t_start = np.asarray(t_start, dtype=float)
+        if t_end is None:
+            t_end = np.zeros(self.n_components)
+        else:
+            t_end = np.asarray(t_end, dtype=float)
+
+        if components is None:
+            idx = np.arange(self.n_components)
+        else:
+            idx = np.array(components) - 1  # convert 1-based to 0-based
+
+        dt = t_end[idx] - t_start[idx]
+
+        if weighted:
+            dt = dt / np.sqrt(self.explained_variance_[idx])
+
+        P = self.loadings_.values[:, idx].T  # (len(idx), n_features)  # noqa: N806
+        contributions = dt @ P  # (n_features,)
+
+        return pd.Series(contributions, index=self.loadings_.index, name="score_contributions")
+
     def __getattr__(self, name: str):
         """Provide helpful error messages for old attribute names."""
         renames = {
