@@ -4,7 +4,7 @@ import pandas as pd
 
 
 def distillateflow():
-    """The flow rate of distillate from the top of a distillation column.
+    """Return the flow rate of distillate from the top of a distillation column.
 
     These are actual data, taken 1 minute apart in time, of the flow rate leaving
     the top of a continuous distillation column (data are from a 31 day period
@@ -19,15 +19,12 @@ def distillateflow():
     http://openmv.net/info/distillate-flow
 
 
-    Example
-    -------
-
     """
 
 
 def pollutant():
     """
-    Water treatment example from BHH2, Ch 5, Question 19.
+    Return water treatment example data from BHH2, Ch 5, Question 19.
 
     Description
     -----------
@@ -54,15 +51,12 @@ def pollutant():
     Box, G. E. P. and Hunter, J. S. and Hunter, W. G.r, Statistics for
     Experimenters, Wiley, 2nd edition, Chapter 5, Question 19, page 232.
 
-    Example
-    -------
-
     """
 
 
 def oildoe():
     """
-    Industrial designed experiment to improve the volumetric heat capacity of
+    Return industrial designed experiment data to improve the volumetric heat capacity of
     a product.
 
     Description
@@ -87,16 +81,12 @@ def oildoe():
     http://openmv.net/info/oil-company-doe
     Data from a confidential industrial source.
 
-    Example
-    -------
-
-
     """
 
 
 def golf():
     """
-    Full factorial experiments to maximize a golfer's driving distance.
+    Return full factorial experiment data to maximize a golfer's driving distance.
 
     A full factorial experiment with four factors run by a golf enthusiast. The
     objective of the experiments was for the golfer to maximize her driving distance
@@ -125,14 +115,12 @@ def golf():
     A MOOC on Design of Experiments: ``Experimentation for Improvement'',
     https://learnche.org
 
-    Example
-    -------
     """
 
 
 def boilingpot():
     """
-    Full factorial experiments for stove-top boiling of water.
+    Return full factorial experiment data for stove-top boiling of water.
 
     Description
     -----------
@@ -167,14 +155,12 @@ def boilingpot():
     MOOC on Design of Experiments: ``Experimentation for Improvement'',
     https://learnche.org
 
-    Example
-    -------
     """
 
 
 def solar():
     """
-    Solar panel example from Box, Hunter and Hunter, 2nd edition, Chapter 5,
+    Return solar panel example data from Box, Hunter and Hunter, 2nd edition, Chapter 5,
     page 230.
 
 
@@ -211,9 +197,6 @@ def solar():
     ------
     Box, G. E. P. and Hunter, J. S. and Hunter, W. G., Statistics for
     Experimenters, 2nd edition, Wiley, Chapter 5, page 230.
-
-    Example
-    -------
 
     """
 

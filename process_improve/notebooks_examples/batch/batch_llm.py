@@ -38,9 +38,9 @@ basecwd = pathlib.Path.cwd()
 sys.path.insert(0, str(basecwd))
 assert basecwd.exists()
 
-import process_improve.datasets.batch as batch_ds
-from process_improve.batch.data_input import melted_to_dict
-from process_improve.batch.plotting import plot_all_batches_per_tag
+import process_improve.datasets.batch as batch_ds  # noqa: E402
+from process_improve.batch.data_input import melted_to_dict  # noqa: E402
+from process_improve.batch.plotting import plot_all_batches_per_tag  # noqa: E402
 
 pd.options.plotting.backend = "plotly"
 pd.options.display.max_columns = 20

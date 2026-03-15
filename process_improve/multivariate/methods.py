@@ -274,9 +274,9 @@ class PCA(TransformerMixin, BaseEstimator):
 
         return self
 
-    def _fit_svd(self, X_values: np.ndarray, N: int, K: int, A: int) -> None:  # noqa: N803
+    def _fit_svd(self, X_values: np.ndarray, N: int, K: int, A: int) -> None:
         """Fit PCA using SVD decomposition (complete data only)."""
-        U, S, Vt = np.linalg.svd(X_values, full_matrices=False)  # noqa: N806
+        U, S, Vt = np.linalg.svd(X_values, full_matrices=False)
 
         # Loadings are the first A right singular vectors (transposed to K x A)
         self._loadings_np = Vt[:A, :].T
@@ -300,7 +300,7 @@ class PCA(TransformerMixin, BaseEstimator):
         self._r2_per_var_np = np.zeros((K, A))
         self._spe_np = np.zeros((N, A))
 
-        Xd = X_values.copy()  # noqa: N806
+        Xd = X_values.copy()
         prior_ssx_col = ssq(Xd, axis=0)
         base_variance = np.sum(prior_ssx_col)
 
@@ -316,9 +316,9 @@ class PCA(TransformerMixin, BaseEstimator):
 
         self.fitting_info_ = {"timing": np.zeros(A) * np.nan, "iterations": np.zeros(A) * np.nan}
 
-    def _fit_nipals(self, X_values: np.ndarray, N: int, K: int, A: int, settings: dict) -> None:  # noqa: N803
+    def _fit_nipals(self, X_values: np.ndarray, N: int, K: int, A: int, settings: dict) -> None:
         """Fit PCA using the NIPALS algorithm (handles missing data)."""
-        Xd = X_values.copy()  # noqa: N806
+        Xd = X_values.copy()
         base_variance = ssq(Xd)
 
         self._loadings_np = np.zeros((K, A))
@@ -383,15 +383,15 @@ class PCA(TransformerMixin, BaseEstimator):
         # Explained variance
         self.explained_variance_ = np.diag(self._scores_np.T @ self._scores_np) / (N - 1)
 
-    def _fit_tsr(self, X_values: np.ndarray, N: int, K: int, A: int, settings: dict) -> None:  # noqa: N803
+    def _fit_tsr(self, X_values: np.ndarray, N: int, K: int, A: int, settings: dict) -> None:
         """Fit PCA using the Trimmed Score Regression algorithm (handles missing data).
 
         See papers by Abel Folch-Fortuny and also DOI: 10.1002/cem.750
         """
         start_time = time.time()
         delta = 1e100
-        Xd = X_values.copy()  # noqa: N806
-        X_original = X_values.copy()  # noqa: N806
+        Xd = X_values.copy()
+        X_original = X_values.copy()
         base_variance = ssq(Xd)
 
         mmap = np.isnan(Xd)
@@ -399,31 +399,31 @@ class PCA(TransformerMixin, BaseEstimator):
         itern = 0
         while (itern < settings["md_max_iter"]) and (delta > settings["md_tol"]):
             itern += 1
-            missing_X = Xd[mmap]  # noqa: N806
-            mean_X = np.mean(Xd, axis=0)  # noqa: N806
-            S = np.cov(Xd, rowvar=False, ddof=1)  # noqa: N806
-            Xc = Xd - mean_X  # noqa: N806
+            missing_X = Xd[mmap]
+            mean_X = np.mean(Xd, axis=0)
+            S = np.cov(Xd, rowvar=False, ddof=1)
+            Xc = Xd - mean_X
             if N > K:
-                _, _, V = np.linalg.svd(Xc, full_matrices=False)  # noqa: N806
+                _, _, V = np.linalg.svd(Xc, full_matrices=False)
             else:
-                V, _, _ = np.linalg.svd(Xc.T, full_matrices=False)  # noqa: N806
+                V, _, _ = np.linalg.svd(Xc.T, full_matrices=False)
 
-            V = V.T[:, 0:A]  # noqa: N806
+            V = V.T[:, 0:A]
             for n in range(N):
                 row_mis = mmap[n, :]
                 row_obs = ~row_mis
                 if np.any(row_mis):
-                    L = V[row_obs, 0 : min(A, sum(row_obs))]  # noqa: N806
-                    S11 = S[row_obs, :][:, row_obs]  # noqa: N806
-                    S21 = S[row_mis, :][:, row_obs]  # noqa: N806
+                    L = V[row_obs, 0 : min(A, sum(row_obs))]
+                    S11 = S[row_obs, :][:, row_obs]
+                    S21 = S[row_mis, :][:, row_obs]
                     z2 = (S21 @ L) @ np.linalg.pinv(L.T @ S11 @ L) @ L.T
                     Xc[n, row_mis] = z2 @ Xc[n, row_obs]
             Xd = Xc + mean_X
             delta = np.mean((Xd[mmap] - missing_X) ** 2)
 
         # Final decomposition
-        S = np.cov(Xd, rowvar=False, ddof=1)  # noqa: N806
-        _, _, V = np.linalg.svd(S, full_matrices=False)  # noqa: N806
+        S = np.cov(Xd, rowvar=False, ddof=1)
+        _, _, V = np.linalg.svd(S, full_matrices=False)
 
         self._loadings_np = (V[0:A, :]).T  # K x A
         self._scores_np = (Xd - np.mean(Xd, axis=0)) @ self._loadings_np
@@ -502,7 +502,7 @@ class PCA(TransformerMixin, BaseEstimator):
             )
 
         # SPE: residual after reconstruction
-        X_hat = scores.values @ self.loadings_.values.T  # noqa: N806
+        X_hat = scores.values @ self.loadings_.values.T
         residuals = X.values - X_hat
         spe_values = pd.Series(np.sqrt(np.sum(residuals**2, axis=1)), index=X.index, name="SPE")
 
@@ -536,7 +536,7 @@ class PCA(TransformerMixin, BaseEstimator):
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
         scores = self.transform(X)
-        X_hat = scores.values @ self.loadings_.values.T  # noqa: N806
+        X_hat = scores.values @ self.loadings_.values.T
         residuals = X.values - X_hat
         return -float(np.mean(residuals**2))
 
@@ -588,7 +588,7 @@ class PCA(TransformerMixin, BaseEstimator):
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
 
-        N, K = X.shape  # noqa: N806
+        N, K = X.shape
         if max_components is None:
             max_components = min(N - 1, K)
         max_components = min(max_components, N - 1, K)
@@ -677,22 +677,16 @@ class PCA(TransformerMixin, BaseEstimator):
         """
         check_is_fitted(self, "loadings_")
         t_start = np.asarray(t_start, dtype=float)
-        if t_end is None:
-            t_end = np.zeros(self.n_components)
-        else:
-            t_end = np.asarray(t_end, dtype=float)
+        t_end = np.zeros(self.n_components) if t_end is None else np.asarray(t_end, dtype=float)
 
-        if components is None:
-            idx = np.arange(self.n_components)
-        else:
-            idx = np.array(components) - 1  # convert 1-based to 0-based
+        idx = np.arange(self.n_components) if components is None else np.array(components) - 1  # convert 1-based to 0-based
 
         dt = t_end[idx] - t_start[idx]
 
         if weighted:
             dt = dt / np.sqrt(self.explained_variance_[idx])
 
-        P = self.loadings_.values[:, idx].T  # (len(idx), n_features)  # noqa: N806
+        P = self.loadings_.values[:, idx].T  # (len(idx), n_features)
         contributions = dt @ P  # (n_features,)
 
         return pd.Series(contributions, index=self.loadings_.index, name="score_contributions")
@@ -740,7 +734,7 @@ class PCA(TransformerMixin, BaseEstimator):
         if not (0.8 <= conf_level <= 0.999):
             raise ValueError(f"conf_level must be between 0.8 and 0.999, got {conf_level}.")
 
-        N = self.n_samples_  # noqa: N806
+        N = self.n_samples_
 
         # Full-model SPE and cumulative T² (last column)
         spe_values = self.spe_.iloc[:, -1]
@@ -971,13 +965,13 @@ class PLS(PLS_sklearn):
             f"The X and Y arrays must have the same number of rows: X has {self.n_samples_} and Y has {Ny}."
         )
 
-        N = self.n_samples_  # noqa: N806
-        K = self.n_features_in_  # noqa: N806
-        M = self.n_targets_  # noqa: N806
+        N = self.n_samples_
+        K = self.n_features_in_
+        M = self.n_targets_
 
         # Check if number of components is supported against maximum requested
         min_dim = min(N, K)
-        A = min_dim if self.n_components is None else int(self.n_components)  # noqa: N806
+        A = min_dim if self.n_components is None else int(self.n_components)
         if min_dim < A:
             warn = (
                 "The requested number of components is more than can be "
@@ -986,7 +980,7 @@ class PLS(PLS_sklearn):
                 f"the number of columns ({K})."
             )
             warnings.warn(warn, SpecificationWarning, stacklevel=2)
-            A = self.n_components = min_dim  # noqa: N806
+            A = self.n_components = min_dim
 
         if np.any(Y.isna()) or np.any(X.isna()):
             default_mds = dict(md_method="tsr", md_tol=epsqrt, md_max_iter=self.max_iter)
@@ -1000,8 +994,8 @@ class PLS(PLS_sklearn):
             )
             self.n_samples_, self.n_features_in_ = X.shape
             self.n_targets_ = Y.shape[1]
-            N, K, M = self.n_samples_, self.n_features_in_, self.n_targets_  # noqa: N806
-            A = self.n_components  # noqa: N806
+            N, K, M = self.n_samples_, self.n_features_in_, self.n_targets_
+            A = self.n_components
 
             self.fit(X, Y)
         else:
@@ -1070,22 +1064,22 @@ class PLS(PLS_sklearn):
             columns=component_names,
         )
 
-        Xd = X.copy()  # noqa: N806
-        Yd = Y.copy()  # noqa: N806
-        prior_SSX_col = ssq(Xd.values, axis=0)  # noqa: N806
-        prior_SSY_col = ssq(Yd.values, axis=0)  # noqa: N806
-        base_variance_Y = np.sum(prior_SSY_col)  # noqa: N806
+        Xd = X.copy()
+        Yd = Y.copy()
+        prior_SSX_col = ssq(Xd.values, axis=0)
+        prior_SSY_col = ssq(Yd.values, axis=0)
+        base_variance_Y = np.sum(prior_SSY_col)
         for a in range(A):
             self.hotellings_t2_.iloc[:, a] = (
                 self.hotellings_t2_.iloc[:, max(0, a - 1)]
                 + (self.scores_.iloc[:, a] / self.scaling_factor_for_scores_.iloc[a]) ** 2
             )
-            Xd = Xd - self.scores_.iloc[:, [a]] @ self.x_loadings_.iloc[:, [a]].T  # noqa: N806
+            Xd = Xd - self.scores_.iloc[:, [a]] @ self.x_loadings_.iloc[:, [a]].T
             y_hat = self.scores_.iloc[:, 0 : (a + 1)] @ self.y_loadings_.iloc[:, 0 : (a + 1)].T
-            row_SSX = ssq(Xd.values, axis=1)  # noqa: N806
-            col_SSX = ssq(Xd.values, axis=0)  # noqa: N806
-            row_SSY = ssq(y_hat.values, axis=1)  # noqa: N806
-            col_SSY = ssq(y_hat.values, axis=0)  # noqa: N806
+            row_SSX = ssq(Xd.values, axis=1)
+            col_SSX = ssq(Xd.values, axis=0)
+            row_SSY = ssq(y_hat.values, axis=1)
+            col_SSY = ssq(y_hat.values, axis=0)
             self.r2_cumulative_.iloc[a] = sum(row_SSY) / base_variance_Y
             if a > 0:
                 self.r2_per_component_.iloc[a] = self.r2_cumulative_.iloc[a] - self.r2_cumulative_.iloc[a - 1]
@@ -1147,7 +1141,7 @@ class PLS(PLS_sklearn):
         t2 = pd.Series(t2_values, index=X.index, name="Hotelling's T²")
 
         # SPE: residual after X reconstruction
-        X_hat = scores @ self.x_loadings_.T  # noqa: N806
+        X_hat = scores @ self.x_loadings_.T
         residuals = X - X_hat
         spe_values = pd.Series(np.sqrt(np.power(residuals, 2).sum(axis=1)), index=X.index, name="SPE")
 
@@ -1192,22 +1186,16 @@ class PLS(PLS_sklearn):
         """
         check_is_fitted(self, "x_loadings_")
         t_start = np.asarray(t_start, dtype=float)
-        if t_end is None:
-            t_end = np.zeros(self.n_components)
-        else:
-            t_end = np.asarray(t_end, dtype=float)
+        t_end = np.zeros(self.n_components) if t_end is None else np.asarray(t_end, dtype=float)
 
-        if components is None:
-            idx = np.arange(self.n_components)
-        else:
-            idx = np.array(components) - 1
+        idx = np.arange(self.n_components) if components is None else np.array(components) - 1
 
         dt = t_end[idx] - t_start[idx]
 
         if weighted:
             dt = dt / np.sqrt(self.explained_variance_[idx])
 
-        P = self.x_loadings_.values[:, idx].T  # noqa: N806
+        P = self.x_loadings_.values[:, idx].T
         contributions = dt @ P
 
         return pd.Series(contributions, index=self.x_loadings_.index, name="score_contributions")
@@ -1241,7 +1229,7 @@ class PLS(PLS_sklearn):
         if not (0.8 <= conf_level <= 0.999):
             raise ValueError(f"conf_level must be between 0.8 and 0.999, got {conf_level}.")
 
-        N = self.n_samples_  # noqa: N806
+        N = self.n_samples_
 
         spe_values = self.spe_.iloc[:, -1]
         t2_values = self.hotellings_t2_.iloc[:, -1]
@@ -1385,10 +1373,10 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
             )
 
         # Other setups:
-        N = self.n_samples_  # noqa: N806
-        K = self.n_features_in_  # noqa: N806
-        M = self.n_targets_  # noqa: N806
-        A = self.n_components  # noqa: N806
+        N = self.n_samples_
+        K = self.n_features_in_
+        M = self.n_targets_
+        A = self.n_components
 
         self.x_scores_ = np.zeros((N, A))  # T: N x A
         self.y_scores_ = np.zeros((N, A))  # U: N x A
@@ -1403,7 +1391,7 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
 
         if self.missing_data_settings["md_method"].lower() in ["scp", "nipals"]:
             self._fit_nipals_pls(settings=self.missing_data_settings)
-        elif self.missing_data_settings["md_method"].lower() in ["tsr"]:
+        elif self.missing_data_settings["md_method"].lower() == "tsr":
             raise NotImplementedError(
                 "TSR for PLS not implemented yet"
             )  # self._fit_tsr_pls(settings=self.missing_data_settings)
@@ -1419,7 +1407,7 @@ class PLS_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
         (Internal method)
         """
         # NIPALS algorithm
-        A = self.n_components  # noqa: N806
+        A = self.n_components
 
         # Initialize storage:
         self.fitting_info_ = {}

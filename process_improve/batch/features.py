@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 import numpy as np
 import pandas as pd
 from scipy.stats import iqr, norm
@@ -100,7 +98,7 @@ def _prepare_data(df: pd.DataFrame, tags=None, batch_col=None, phase_col=None, a
 # ------------------------------------------
 def f_mean(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     """
-    Feature:    mean
+    Feature:    mean.
 
     The arithmetic mean for the given tags in ``tags``,
     for each unique batch in the ``batch_col`` indicator column, and
@@ -115,7 +113,7 @@ def f_mean(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
 
 def f_median(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     """
-    Feature:    median
+    Feature:    median.
 
     The median for the given tags in ``tags``, for each unique batch in the ``batch_col``
     indicator column, and within each unique phase, per batch, of the ``phase_col`` column.
@@ -160,7 +158,7 @@ def f_median(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
 # ------------------------------------------
 def f_std(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     """
-    Feature:    std
+    Feature:    std.
 
     The standard deviation for the given tags in ``tags``,
     for each unique batch in the ``batch_col`` indicator column, and
@@ -177,7 +175,7 @@ def f_std(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
 
 def f_iqr(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     """
-    Feature:    iqr
+    Feature:    iqr.
 
     The InterQuartile Range (IQR) for the given tags in ``tags``,
     for each unique batch in the ``batch_col`` indicator column, and
@@ -198,7 +196,7 @@ def f_iqr(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
 
 def f_mad(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     """
-    Feature:    mad
+    Feature:    mad.
 
     The MEAN (not MEDIAN) Absolute Deviation for the given tags in ``tags``,
     for each unique batch in the ``batch_col`` indicator column, and
@@ -223,7 +221,7 @@ def f_mad(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
 
 def f_robust_mad(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     """
-    Feature:    mad
+    Feature:    mad.
 
     The MEDIAN (not MEAN) Absolute Deviation for the given tags in ``tags``,
     for each unique batch in the ``batch_col`` indicator column, and
@@ -251,7 +249,7 @@ def f_robust_mad(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
 
-    assert False, "This next line of code fails. Fix it."
+    raise AssertionError("This next line of code fails. Fix it.")
     output = (np.fabs(prepared - prepared.median())).median() / c_MAD_const
 
     return output.rename(columns=dict(zip(tags, f_names)))
@@ -261,7 +259,7 @@ def f_robust_mad(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
 # ------------------------------------------
 def f_sum(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     """
-    Feature:    sum
+    Feature:    sum.
 
     The SUM within each tag for for the given tags in ``tags``,
     for each unique batch in the ``batch_col`` indicator column, and
@@ -281,7 +279,7 @@ def f_sum(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
 
 def f_area(data: pd.DataFrame, time_tag, tags=None, batch_col=None, phase_col=None):
     """
-    Feature:    area
+    Feature:    area.
 
     The AREA of each tag for for the given tags in ``tags``,
     for each unique batch in the ``batch_col`` indicator column, and
@@ -332,7 +330,7 @@ def f_area(data: pd.DataFrame, time_tag, tags=None, batch_col=None, phase_col=No
 # ------------------------------------------
 def f_rupture(data: pd.DataFrame, columns=None, batch_col=None, phase_col=None):
     """
-    Feature:    rupture
+    Feature:    rupture.
 
     The breakpoint in a given tag in ``columns`` (usually it is 1 tag),
     for each unique batch in the ``batch_col`` indicator column, and
@@ -365,7 +363,7 @@ def f_rupture(data: pd.DataFrame, columns=None, batch_col=None, phase_col=None):
 # ------------------------------------------
 def f_min(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     """
-    Feature:    min
+    Feature:    min.
 
     The minimum value attained by each tag, for the given tags in ``tags``,
     for each unique batch in the ``batch_col`` indicator column, and
@@ -384,7 +382,7 @@ def f_min(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
 
 def f_max(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     """
-    Feature:    max
+    Feature:    max.
 
     The maximum value attained by each tag, for the given tags in ``tags``,
     for each unique batch in the ``batch_col`` indicator column, and
@@ -413,7 +411,7 @@ def f_agemax(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
 
 def f_last(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     """
-    Feature:    endpoint
+    Feature:    endpoint.
 
     The final value attained by each tag, for the given tags in ``tags``,
     for each unique batch in the ``batch_col`` indicator column, and
@@ -433,7 +431,7 @@ def f_last(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
 
 def f_count(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     """
-    Feature:    count
+    Feature:    count.
 
     The index number of the final value for each tag, for the given tags
     in ``tags``, for each unique batch in the ``batch_col`` indicator column,
@@ -457,12 +455,12 @@ def f_slope(
     data: pd.DataFrame,
     x_axis_tag: str,
     tags=None,
-    batch_col: Optional[str] = None,
-    phase_col: Optional[str] = None,
-    age_col: Optional[str] = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+    age_col: str | None = None,
 ) -> pd.DataFrame:
     """
-    Feature:    slope
+    Feature:    slope.
 
     The slope of the given `tags` for each unique batch in the `batch_col` indicator column,
     of the `phase_col` column.
@@ -482,17 +480,17 @@ def f_slope(
             this_batch = this_batch.reset_index()
         for tag in tags:
             X = this_batch[x_axis_tag]
-            output.loc[batch_id][tag] = repeated_median_slope(X, this_batch[tag])
+            output.loc[batch_id, tag] = repeated_median_slope(X, this_batch[tag])
 
     return output.rename(columns=dict(zip(tags, f_names)))
 
 
 def cross(
     series: pd.Series,
-    threshold: Optional[int] = 0,
-    direction: Optional[str] = "cross",
-    only_index: Optional[bool] = False,
-    first_point_only: Optional[bool] = False,
+    threshold: int | None = 0,
+    direction: str | None = "cross",
+    only_index: bool | None = False,
+    first_point_only: bool | None = False,
 ) -> list:
     """
     Given a Series returns all the index values where the data values equal
@@ -557,12 +555,12 @@ def f_crossing(
     threshold: int = 0,
     direction: str = "cross",
     only_index: bool = False,
-    batch_col: Optional[str] = None,
-    phase_col: Optional[str] = None,
-    suffix: Optional[str] = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+    suffix: str | None = None,
 ) -> pd.DataFrame:
     """
-    Feature:    cross
+    Feature:    cross.
 
     The time (`time_tag`) value at which `tag` crosses a certain numeric
     `threshold``, either `direction='rising'`` (for rising edge), or
@@ -605,12 +603,12 @@ def f_elbow(
     data: pd.DataFrame,
     x_axis_tag: str,
     tags=None,
-    only_index: Optional[bool] = False,
-    batch_col: Optional[str] = None,
-    phase_col: Optional[str] = None,
+    only_index: bool | None = False,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
 ) -> pd.DataFrame:
     """
-    Feature:    elbow
+    Feature:    elbow.
 
     The "elbow" of the given ``tags`` for each unique batch in the ``batch_col`` indicator column,
     of the ``phase_col`` column.
@@ -647,10 +645,9 @@ def f_elbow(
 
                 if only_index:
                     output.loc[batch_id][tag] = elbow_index
+                elif np.isnan(elbow_index):
+                    output.loc[batch_id][tag] = np.isnan
                 else:
-                    if np.isnan(elbow_index):
-                        output.loc[batch_id][tag] = np.isnan
-                    else:
-                        output.loc[batch_id][tag] = X[elbow_index]
+                    output.loc[batch_id][tag] = X[elbow_index]
 
     return output.rename(columns=dict(zip(tags, f_names)))

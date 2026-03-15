@@ -90,7 +90,7 @@ def test_normality_check():
 
 def test_univariate_robust_scale():
     """
-    A scale estimator which is robust to outliers
+    A scale estimator which is robust to outliers.
 
     Testing against R code [R version 3.6.0 (2019-04-26)]
     > library(robustbase)
@@ -282,10 +282,10 @@ def test_t_paried_test_differences():
     assert row["Degrees of freedom"][0] == 11
 
 
-@pytest.fixture()
+@pytest.fixture
 def univariate_summary():
     """
-    A univariate case study
+    Provide a univariate case study.
 
     In R:
     r <- c(108, 89.52, 95.16, 101.61, 99.19, 100, 93.55, 97.58, 93.55, 98.39, 88.71)
@@ -359,6 +359,7 @@ def test__raises_error():
 def test_confidence_interval():
     """
     Test confidence intervals.
+
     r1 <- c(108, 89.52, 95.16, 101.61, 99.19, 100, 93.55, 97.58, 93.55, 98.39, 88.71, 94.35)
 
     Results of the CI, compared to R.
@@ -389,9 +390,11 @@ def test_confidence_interval():
     # TODO: complete the test for the robust case
 
 
-@pytest.fixture()
+@pytest.fixture
 def within_between_sd_data():
     """
+    Within-between standard deviation test data.
+
     r1 <- c(108.06, 89.52, 95.16, 101.61, 99.19, 100, 93.55, 97.58, 93.55, 98.39, 96.77, 89.92,
             88.71, 94.35)
     r2 <- c(108.07, 87.9, 95.97, 97.58, 100, 95.97, 88.71, 97.59, 95.97, 93.55, 96.78, 86.69,
@@ -469,6 +472,7 @@ def test_empty_case(within_between_sd_data):
 def test_within_between_sd_missing_values():
     """
     Test against Excel sheet formulas.
+
     r1 <- c(108.06, NA, 95.16, 101.61, 99.19, 100, 93.55, 97.58, 93.55, 98.39, 96.77, 89.92,
             88.71, NA)
     r2 <- c(108.07, 87.9, 95.97, 97.58, 100, 95.97, 88.71, 97.59, 95.97, 93.55, 96.78, 86.69,
@@ -547,7 +551,7 @@ def test_within_between_sd_missing_values():
     assert out["between_dof"] == 0
 
 
-@pytest.fixture()
+@pytest.fixture
 def outliers_data_measurement() -> list[float]:
     """From an actual use-case."""
     return [
@@ -575,7 +579,7 @@ def test_edge_case_outliers(outliers_data_measurement) -> None:
     assert reasons["p-value"][1] == 0
 
 
-@pytest.fixture()
+@pytest.fixture
 def outliers_data():
     # Rosner data set: https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h3.htm
     rosner = [

@@ -39,9 +39,6 @@ basecwd = pathlib.Path.cwd()
 sys.path.insert(0, str(basecwd))
 assert basecwd.exists()
 
-import process_improve.datasets.batch as batch_ds
-from process_improve.batch.data_input import melted_to_dict
-from process_improve.batch.plotting import plot_all_batches_per_tag
 
 pd.options.plotting.backend = "plotly"
 pd.options.display.max_columns = 20
@@ -111,9 +108,7 @@ def preprocess_dataset(dataframe: pd.DataFrame, dynamic_cov: list, time_col: str
     cleaned_df = pd.concat(cleaned_df)
 
     # join dynamic cov
-    cleaned_df = pd.merge(cleaned_df, dynamic_cov_df, on=[time_col], how="left")
-
-    return cleaned_df
+    return cleaned_df.merge(dynamic_cov_df, on=[time_col], how="left")
 
 
 def moirai_forecast_to_pandas(forecast, test_df: pd.DataFrame, forecast_horizon: int, time_col: str) -> pd.DataFrame:

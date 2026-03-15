@@ -152,7 +152,8 @@ class test_holt_winters_control_chart:
 
 class test_holt_winters_control_chart_BatchYield:
     """
-    Testing the Holt-Winters control chart settings on a different dataset: batch yields
+    Testing the Holt-Winters control chart settings on a different dataset: batch yields.
+
     http://openmv.net/info/batch-yield-and-purity (Kevin Dunn, personal data)
     """
 

@@ -64,7 +64,7 @@ def check_valid_batch_dict(in_dict: dict, no_nan=False) -> bool:
         True, if it passes the checks.
     """
     assert len(in_dict) >= 1, "At least 1 batch is required in the dataframe dictionary."
-    batch1 = in_dict[list(in_dict.keys())[0]]
+    batch1 = in_dict[next(iter(in_dict.keys()))]
     base_columns = set(batch1.columns)
     check = True
     for bid, batch in in_dict.items():
@@ -88,7 +88,7 @@ def check_valid_batch_dict(in_dict: dict, no_nan=False) -> bool:
 
 
 def dict_to_melted(in_df: pd.DataFrame, insert_batch_id_column=True, insert_sequence_column=False) -> pd.DataFrame:
-    """Reverse of `melted_to_dict`"""
+    """Reverse of `melted_to_dict`."""
     batch_id_col = "batch_id"
     all_batches = []
     num_rows = 0
@@ -113,7 +113,7 @@ def dict_to_melted(in_df: pd.DataFrame, insert_batch_id_column=True, insert_sequ
 
 def dict_to_wide(in_df: dict, group_by_batch=False) -> pd.DataFrame:
     """
-    Data must be aligned (warped) already so that every batch has the same number of *rows*!
+    Convert aligned batch data from dict to wide format.
 
     `group_by_batch`, if True, means that all the data from the first batch is on the left
     of the output dataframe, and the last batch is collected on the right.
@@ -123,7 +123,7 @@ def dict_to_wide(in_df: dict, group_by_batch=False) -> pd.DataFrame:
     TODO: `group_by_batch` is not implemented yet.
     """
     out_df = dict_to_melted(in_df=in_df, insert_batch_id_column=True, insert_sequence_column=True)
-    aligned_wide_df = out_df.pivot(index="batch_id", columns="_sequence_")
+    aligned_wide_df = out_df.pivot_table(index="batch_id", columns="_sequence_")
     if group_by_batch:
         pass
         # TODO: use the hierarchical indexing and regroup the columns
@@ -133,7 +133,7 @@ def dict_to_wide(in_df: dict, group_by_batch=False) -> pd.DataFrame:
 
 def melted_to_dict(in_df: pd.DataFrame, batch_id_col) -> dict:
     """
-    Loads a "melted" data set, where one of the columns is the `batch_id_col`.
+    Load a "melted" data set, where one of the columns is the `batch_id_col`.
     The data are grouped along the unique values of `batch_id_col`, and each group is stored
     in a dictionary. The dictionary keys are the batch identifier, and the corresponding value
     is a Pandas dataframe of the batch data for that batch.
@@ -147,9 +147,7 @@ def melted_to_dict(in_df: pd.DataFrame, batch_id_col) -> dict:
 
 
 def melted_to_wide(in_df: pd.DataFrame, batch_id_col) -> dict:
-    """
-    Data must be aligned already.
-    """
+    """Convert aligned melted data to wide format."""
     assert batch_id_col in in_df
     return {}
 
@@ -176,8 +174,10 @@ def wide_to_dict():
     pass
 
 
-def melt_df_to_series(in_df: pd.DataFrame, exclude_columns=["batch_id"], name=None) -> pd.Series:
-    """Returns a Series with a multilevel-index, melted from the DataFrame"""
-    out = in_df.drop(exclude_columns, axis=1).T.stack()
+def melt_df_to_series(in_df: pd.DataFrame, exclude_columns=None, name=None) -> pd.Series:
+    """Return a Series with a multilevel-index, melted from the DataFrame."""
+    if exclude_columns is None:
+        exclude_columns = ["batch_id"]
+    out = in_df.drop(exclude_columns, axis=1).T.stack()  # noqa: PD013  # noqa: PD013
     out.name = name
     return out

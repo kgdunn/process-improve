@@ -118,7 +118,7 @@ class Expt(pd.DataFrame):
 
 def create_names(n: int, letters=True, prefix="X", start_at=1, padded=True):
     """
-    Returns default factor names, for a given number of `n` [integer] factors.
+    Return default factor names, for a given number of `n` [integer] factors.
     The factor name "I" is never used.
 
     If `letters` is True (default), then at most 25 factors can be returned.
@@ -148,15 +148,15 @@ def create_names(n: int, letters=True, prefix="X", start_at=1, padded=True):
         if padded:
             longest = len(str(start_at + n - 1))
 
-        out = [f'{str(prefix)}{str(i).rjust(longest, "0")}' for i in range(start_at, n + start_at)]
+        out = [f'{prefix!s}{str(i).rjust(longest, "0")}' for i in range(start_at, n + start_at)]
 
     return out
 
 
 def c(*args, **kwargs) -> Column:  # noqa: C901
     """
-    Performs the equivalent of the R function "c(...)", to combine data elements
-    into a DataFrame. Converts every entry into a floating point object.
+    Perform the equivalent of the R function "c(...)", to combine data elements
+    into a DataFrame. Convert every entry into a floating point object.
 
     Inputs
     ------
@@ -195,7 +195,7 @@ def c(*args, **kwargs) -> Column:  # noqa: C901
     """
     sanitize = []
     numeric = True
-    override_coded = kwargs.get("coded", None)
+    override_coded = kwargs.get("coded")
 
     if "levels" in kwargs:
         numeric = False
@@ -269,7 +269,7 @@ def c(*args, **kwargs) -> Column:  # noqa: C901
         try:
             _ = (e for e in out.pi_range)
         except TypeError:
-            assert False, "The `range` input must be an iterable, with 2 values."
+            raise TypeError("The `range` input must be an iterable, with 2 values.")
         assert len(out.pi_range) == 2, "The `range` variable must be a tuple, with 2 values."
         out.pi_range = tuple(out.pi_range)
 
@@ -289,16 +289,15 @@ def c(*args, **kwargs) -> Column:  # noqa: C901
         if override_coded is not None:
             out.pi_is_coded = override_coded
 
+    elif "levels" in kwargs:
+        msg = "Levels must be list or tuple of the unique level names."
+        # TODO: Check that all entries in the level list are accounted for.
+        assert isinstance(kwargs.get("levels"), Iterable), msg
+        out.pi_levels = {out.pi_name: list(kwargs.get("levels", []))}
     else:
-        if "levels" in kwargs:
-            msg = "Levels must be list or tuple of the unique level names."
-            # TODO: Check that all entries in the level list are accounted for.
-            assert isinstance(kwargs.get("levels"), Iterable), msg
-            out.pi_levels = {out.pi_name: list(kwargs.get("levels", []))}
-        else:
-            levels = out.unique()
-            levels.sort()
-            out.pi_levels = {out.pi_name: levels.tolist()}  # for use with Patsy
+        levels = out.unique()
+        levels.sort()
+        out.pi_levels = {out.pi_name: levels.tolist()}  # for use with Patsy
 
     units = kwargs.get("units", "")
     if units and not (out.pi_is_coded):
@@ -366,7 +365,7 @@ def gather(*args, title=None, **kwargs) -> Expt:
                 index.append(value.index)
 
         elif isinstance(value, pd.DataFrame):
-            assert False, "Handle this case still"
+            raise NotImplementedError("Handle this case still")
 
     # TODO : check that all indexes are common, to merge. Or use the pandas
     #        functionality of merging series with the same index

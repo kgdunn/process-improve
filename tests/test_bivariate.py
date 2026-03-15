@@ -4,7 +4,7 @@ import pytest
 from process_improve.bivariate.methods import find_elbow_point
 
 
-@pytest.fixture()
+@pytest.fixture
 def straight_line():
     slope = 2.5
     intercept = -13
@@ -32,10 +32,10 @@ def test__validate_nan_output(straight_line):
     assert np.isnan(elbow)
 
 
-@pytest.fixture()
+@pytest.fixture
 def elbow_with_synthetic_data():
     """
-    Creates simulated data to test against.
+    Create simulated data to test against.
 
     Create a line with slope of 2.0 between 0 and 5 on the x-axis.
     Then a line of slope of 3.0 between 5 and 10.
@@ -72,9 +72,9 @@ def test__validate_with_synthetic_data_plus_noise(elbow_with_synthetic_data):
     """
     # Test with an odd number of points
     x, y, break_pt = elbow_with_synthetic_data
-    np.random.seed(12)
+    rng = np.random.default_rng(12)
     range = (y.max() - y.min()) * 0.02
-    y = y + np.random.randn(y.shape[0]) * range
+    y = y + rng.standard_normal(y.shape[0]) * range
     expected_elbow = np.argmin(np.abs(x - break_pt))
     found_elbow = find_elbow_point(x, y)
     assert abs(found_elbow - expected_elbow) < 10
@@ -82,7 +82,7 @@ def test__validate_with_synthetic_data_plus_noise(elbow_with_synthetic_data):
     # Test with an even number of points
     x, y, break_pt = elbow_with_synthetic_data
     range = (y.max() - y.min()) * 0.02
-    y = y + np.random.randn(y.shape[0]) * range
+    y = y + rng.standard_normal(y.shape[0]) * range
     expected_elbow = np.argmin(np.abs(x - break_pt))
     found_elbow = find_elbow_point(x, y, max_iter=40)
     assert abs(found_elbow - expected_elbow) < 10

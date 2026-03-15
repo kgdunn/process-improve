@@ -103,7 +103,7 @@ def apply_scaling(
         elif isinstance(batches, pd.DataFrame):
             columns_to_align = batches.columns
         else:
-            assert False, "Undefined input type"
+            raise TypeError("Undefined input type")
     out = {}
     for batch_id, batch in batches.items():
         out[batch_id] = batch[columns_to_align].copy()
@@ -124,7 +124,7 @@ def reverse_scaling(
         elif isinstance(batches, pd.DataFrame):
             columns_to_align = batches.columns
         else:
-            assert False, "Undefined input type"
+            raise TypeError("Undefined input type")
     out = {}
     for batch_id, batch in batches.items():
         out[batch_id] = batch[columns_to_align].copy()
@@ -249,7 +249,7 @@ def one_iteration_dtw(
             )
 
         except ValueError:  # noqa: PERF203
-            assert False, f"Failed on batch {batch_id}"
+            raise ValueError(f"Failed on batch {batch_id}")
 
     average_batch = average_batch / successful_alignments
 

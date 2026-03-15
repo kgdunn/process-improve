@@ -19,15 +19,16 @@ def rho(x, k=2.52):
 
 def psi(x, k=2.0):
     """
-    Pre-cleaning based on the Huber y-function can be interpreted as replacing unexpected
-    high or low values by a more likely value.
+    Pre-clean based on the Huber y-function.
+
+    Can be interpreted as replacing unexpected high or low values by a more likely value.
     From p 288 of the paper
     https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125
     """
     return x if abs(x) < k else k * np.sign(x)
 
 
-class ControlChart(object):
+class ControlChart:
     """Create control chart instance objects."""
 
     def __init__(self, style="robust", variant="HW"):
@@ -129,10 +130,10 @@ class ControlChart(object):
 
         if self.variant.strip().lower() == "hw":
             if not hasattr(self, "ld_1"):
-                setattr(self, "ld_1", None)
+                self.ld_1 = None
 
             if not hasattr(self, "ld_2"):
-                setattr(self, "ld_2", None)
+                self.ld_2 = None
 
             self._holt_winters_parameter_fit()
 
@@ -145,7 +146,7 @@ class ControlChart(object):
 
     def _xbar_no_subgroup_fit(self):
         """
-        The control chart is fit from the data samples, assuming each sample is its own subgroup.
+        Fit the control chart from the data samples, assuming each sample is its own subgroup.
         Variant = 'regulur' | 'robust' switchs how the average and standard deviation are
         calculated.
 
@@ -230,7 +231,7 @@ class ControlChart(object):
 
     def _holt_winters_warmup_fit(self, ld_1=0.5, ld_2=0.8, ld_s=0.2):
         """
-        See paper: https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125
+        See paper: https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125.
 
         Calculates the Holt-Winters fitting and control chart parameters, for given values of the
         smoothing parameters lambda_1 (how must local history for the level is used, with values

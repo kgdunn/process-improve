@@ -1,4 +1,4 @@
-"""
+r"""
 IDEAS from earlier code written in 2015/2016.
 RSM optimization.
 
