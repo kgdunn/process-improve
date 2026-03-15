@@ -1,93 +1,75 @@
 Multivariate Analysis
 =====================
 
-PCA vs PLS
-----------
+Latent variable methods summarize high-dimensional, correlated data into a
+small number of underlying variables that capture the dominant structure.
+A latent variable is an unobservable quantity — your overall health, for
+example — that manifests through measurable indicators (blood pressure,
+cholesterol, heart rate). In process data, a single underlying phenomenon
+such as a feed quality change can shift dozens of correlated sensors
+simultaneously. Latent variable models recover those phenomena from the
+measurements.
 
-**PCA** (Principal Component Analysis) finds directions of maximum variance in a
-single data matrix **X**. Use PCA for:
+When to Use These Methods
+-------------------------
 
-- Exploratory data analysis and visualization
-- Dimensionality reduction
-- Outlier detection in process data
-- Understanding variable relationships
+Latent variable methods are the right tool when your data has one or more of
+these characteristics (common in process industries):
 
-**PLS** (Projection to Latent Structures) finds directions in **X** that are
-maximally correlated with **Y**. Use PLS for:
+- **Many correlated variables** — traditional regression struggles with
+  collinearity, but latent variable methods thrive on it.
+- **More variables than observations** (K > N) — ordinary least squares
+  cannot be computed, but PCA/PLS handle this naturally.
+- **Missing values** — sensors fail, lab samples are skipped. The algorithms
+  in this package handle incomplete data natively.
+- **Low signal-to-noise ratio** — by separating systematic variation from
+  noise, latent variable models act as multivariate filters.
+- **Need for visualization** — score plots and loading plots reveal structure
+  that is invisible in univariate views.
 
-- Predictive modeling when X has many correlated variables
-- Understanding which X variables drive Y responses
-- Process optimization (relating process settings to quality outcomes)
+Five common applications drive their use:
 
-Interpreting Model Outputs
---------------------------
+1. **Process understanding** — confirm existing knowledge or discover
+   unexpected variable relationships through score and loading plots.
+2. **Troubleshooting** — after a problem occurs, screen variables to isolate
+   the most relevant ones using contribution plots.
+3. **Optimization** — move along favorable directions in the latent variable
+   space to improve yield, quality, or throughput.
+4. **Predictive modeling** — build inferential sensors that predict
+   hard-to-measure quality variables from readily available process data.
+5. **Process monitoring** — extend univariate control charts (Shewhart, CUSUM)
+   to the multivariate case with SPE and Hotelling's T² charts.
 
-Scores
-~~~~~~
-
-Scores (``model.scores_``) are the coordinates of each observation in the
-latent variable space. Points close together in score space have similar
-characteristics in the original variables.
-
-Loadings
-~~~~~~~~
-
-Loadings (``model.loadings_`` for PCA, ``model.x_loadings_`` for PLS) describe
-how each original variable contributes to each component. Variables with large
-absolute loadings on a component are important for that component.
-
-SPE (Squared Prediction Error)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-SPE (``model.spe_``) measures how well each observation is described by the
-model. High SPE indicates the observation does not conform to the correlation
-structure captured by the model — it may represent a novel event or
-measurement error.
-
-Hotelling's T²
-~~~~~~~~~~~~~~
-
-Hotelling's T² (``model.hotellings_t2_``) measures how far each observation is
-from the model center in the latent variable space. High T² indicates extreme
-but in-model behavior — the observation follows the correlation structure but
-with unusual magnitude.
-
-Outlier Detection
+Available Methods
 -----------------
 
-The ``detect_outliers()`` method combines two approaches:
+This package provides three multivariate methods, each suited to different
+data structures and goals:
 
-1. **Statistical limits** — SPE and T² limits at the specified confidence level
-2. **Robust ESD test** — Generalized Extreme Studentized Deviate test using
-   median and MAD (robust to masking effects)
+.. list-table::
+   :header-rows: 1
+   :widths: 15 20 65
 
-Results are returned as a list of dicts sorted by severity (most severe first):
+   * - Method
+     - Type
+     - Use when ...
+   * - :doc:`PCA <pca>`
+     - Unsupervised
+     - You have a single data matrix **X** and want to explore, monitor, or
+       reduce dimensionality.
+   * - :doc:`PLS <pls>`
+     - Supervised
+     - You have predictor variables **X** and response variables **Y** and
+       want to build a predictive or explanatory model.
+   * - :doc:`TPLS <tpls>`
+     - Multi-block
+     - Your data is naturally organized in T-shaped blocks (materials,
+       formulations, conditions, quality) as in batch processes.
 
-.. code-block:: python
+.. toctree::
+   :maxdepth: 2
+   :hidden:
 
-   outliers = model.detect_outliers(conf_level=0.95)
-   for o in outliers:
-       print(f"{o['observation']}: {o['outlier_types']} (severity={o['severity']})")
-
-Score Contributions
--------------------
-
-Score contributions decompose a score-space movement back into the original
-variable space, answering: "Which variables caused this observation to score
-where it did?"
-
-.. code-block:: python
-
-   # Why does observation 5 differ from the model center?
-   contrib = model.score_contributions(model.scores_.iloc[5].values)
-
-   # Why do observations 5 and 10 differ from each other?
-   contrib = model.score_contributions(
-       model.scores_.iloc[5].values,
-       model.scores_.iloc[10].values,
-   )
-
-   # T²-weighted contributions (scale by 1/sqrt(eigenvalue))
-   contrib = model.score_contributions(
-       model.scores_.iloc[5].values, weighted=True
-   )
+   pca
+   pls
+   tpls
