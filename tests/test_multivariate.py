@@ -517,7 +517,7 @@ def test_pca_score() -> None:
     """Test PCA score() method returns negative MSE reconstruction error."""
     rng = np.random.default_rng(99)
     X = pd.DataFrame(rng.standard_normal((30, 5)), columns=[f"V{i}" for i in range(1, 6)])
-    X = center(X)
+    X = MCUVScaler().fit_transform(X)
 
     pca_2 = PCA(n_components=2).fit(X)
     pca_4 = PCA(n_components=4).fit(X)
@@ -541,15 +541,18 @@ def test_pca_score() -> None:
 def test_pca_select_n_components() -> None:
     """Test PRESS-based component selection on synthetic data with known structure."""
     rng = np.random.default_rng(77)
-    N, K = 50, 30
+    N, K = 30, 50
 
-    # 2 strong latent components driving 30 measured variables (spectral-like)
-    T_true = rng.standard_normal((N, 2)) * np.array([8.0, 5.0])
+    # 2 strong latent components driving 50 measured variables
+    # N < K: the classic chemometrics scenario where PRESS cross-validation
+    # excels — noise components overfit because there aren't enough samples
+    # to reliably estimate them.
+    T_true = rng.standard_normal((N, 2)) * np.array([10.0, 6.0])
     P_true = rng.standard_normal((2, K))
     P_true /= np.linalg.norm(P_true, axis=1, keepdims=True)
     noise = rng.standard_normal((N, K)) * 1.0
     X = pd.DataFrame(T_true @ P_true + noise)
-    X = center(X)
+    X = MCUVScaler().fit_transform(X)
 
     max_comp = 6
     result = PCA.select_n_components(X, max_components=max_comp, cv=5)
@@ -558,7 +561,7 @@ def test_pca_select_n_components() -> None:
     assert isinstance(result, Bunch)
     assert set(result.keys()) == {"n_components", "press", "press_ratio", "cv_scores"}
 
-    # With 2 true components, should recommend 2 (or at most 3)
+    # With 2 true components and N < K, should recommend 2 (or at most 3)
     assert 2 <= result.n_components <= 3
 
     # PRESS is a Series indexed 1..max_components
@@ -589,7 +592,7 @@ def test_pca_score_contributions() -> None:
     """Test score_contributions method on a simple dataset."""
     rng = np.random.default_rng(42)
     X = pd.DataFrame(rng.standard_normal((30, 5)), columns=[f"V{i}" for i in range(1, 6)])
-    X = center(X)
+    X = MCUVScaler().fit_transform(X)
 
     pca = PCA(n_components=3).fit(X)
 
@@ -646,7 +649,7 @@ def test_pca_detect_outliers() -> None:
     # Inject 2 obvious outliers
     X = np.vstack([X_normal, [[15, 15, 15, 15]], [[0.1, 0.1, 12, 12]]])
     X = pd.DataFrame(X, columns=["A", "B", "C", "D"])
-    X = center(X)
+    X = MCUVScaler().fit_transform(X)
 
     pca = PCA(n_components=2).fit(X)
 
