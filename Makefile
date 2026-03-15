@@ -86,9 +86,6 @@ coverage:	## check code coverage quickly with the default Python
 	uv run python -m http.server 8080 --directory htmlcov
 
 docs:		## generate Sphinx HTML documentation, including API docs
-	rm -f docs/process_improve.rst
-	rm -f docs/modules.rst
-	sphinx-apidoc -o docs/ process_improve
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
 	uv run python -m http.server 8080 --directory docs/_build/html/

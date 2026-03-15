@@ -80,6 +80,13 @@ def score_plot(  # noqa: C901, PLR0913
                 sets the image width, as a ratio of the height
 
         }
+
+    Examples
+    --------
+    >>> pca = PCA(n_components=3).fit(X_scaled)
+    >>> pca.score_plot()                          # PC1 vs PC2
+    >>> pca.score_plot(pc_horiz=1, pc_vert=3)     # PC1 vs PC3
+    >>> pca.score_plot(pc_horiz=1, pc_vert=2, pc_depth=3)  # 3D
     """
     plot_pre_checks(model, pc_horiz, pc_vert, pc_depth)
     margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
@@ -304,6 +311,12 @@ def loading_plot(  # noqa: PLR0913
                 sets the image width, as a ratio of the height
 
         }
+
+    Examples
+    --------
+    >>> pca.loading_plot()                                 # P loadings, PC1 vs PC2
+    >>> pls.loading_plot(loadings_type="w*c")              # W* and C loadings
+    >>> pls.loading_plot(loadings_type="w", pc_vert=3)     # W loadings, PC1 vs PC3
     """
     plot_pre_checks(model, pc_horiz, pc_vert, pc_depth=0)
     margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
@@ -456,6 +469,11 @@ def spe_plot(
                 Sets the image width, as a ratio of the height.
 
         }
+
+    Examples
+    --------
+    >>> pca.spe_plot()
+    >>> pca.spe_plot(settings={"conf_level": 0.99, "show_labels": True})
     """
     # TO CONSIDER: allow a setting `as_line`: which connects the points with line segments
     margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
@@ -633,6 +651,11 @@ def t2_plot(
             "html_aspect_ratio_w_over_h": 16/9,
                 Sets the image width, as a ratio of the height.
         }
+
+    Examples
+    --------
+    >>> pca.t2_plot()
+    >>> pca.t2_plot(settings={"conf_level": 0.99, "show_labels": True})
     """
     # TO CONSIDER: allow a setting `as_line`: which connects the points with line segments
     margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80

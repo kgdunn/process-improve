@@ -525,6 +525,12 @@ class PCA(TransformerMixin, BaseEstimator):
         -------
         score : float
             Negative mean squared reconstruction error.
+
+        Examples
+        --------
+        >>> from sklearn.model_selection import cross_val_score
+        >>> scores = cross_val_score(PCA(n_components=2), X_scaled, cv=5)
+        >>> print(f"Mean CV score: {scores.mean():.4f}")
         """
         check_is_fitted(self, "loadings_")
         if not isinstance(X, pd.DataFrame):
@@ -658,6 +664,16 @@ class PCA(TransformerMixin, BaseEstimator):
         contributions : pd.Series of shape (n_features,)
             One value per variable; sign indicates direction. Index contains
             the variable (feature) names.
+
+        Examples
+        --------
+        >>> pca = PCA(n_components=3).fit(X_scaled)
+        >>> # Why does observation 0 differ from the model center?
+        >>> contrib = pca.score_contributions(pca.scores_.iloc[0].values)
+        >>> # Which variables drive the difference between obs 0 and obs 5?
+        >>> contrib = pca.score_contributions(
+        ...     pca.scores_.iloc[0].values, pca.scores_.iloc[5].values
+        ... )
         """
         check_is_fitted(self, "loadings_")
         t_start = np.asarray(t_start, dtype=float)
@@ -712,6 +728,13 @@ class PCA(TransformerMixin, BaseEstimator):
             - ``spe_limit`` — SPE limit at the given confidence level
             - ``hotellings_t2_limit`` — T² limit at the given confidence level
             - ``severity`` — max(spe/spe_limit, t2/t2_limit)
+
+        Examples
+        --------
+        >>> pca = PCA(n_components=3).fit(X_scaled)
+        >>> outliers = pca.detect_outliers(conf_level=0.95)
+        >>> for o in outliers:
+        ...     print(f"{o['observation']}: {o['outlier_types']} (severity={o['severity']})")
         """
         check_is_fitted(self, "spe_")
         if not (0.8 <= conf_level <= 0.999):
@@ -802,6 +825,99 @@ class PCA(TransformerMixin, BaseEstimator):
 
 
 class PLS(PLS_sklearn):
+    """Projection to Latent Structures (PLS) regression with diagnostics.
+
+    Extends sklearn's ``PLSRegression`` with production diagnostics: SPE,
+    Hotelling's T², score contributions, and outlier detection. The API mirrors
+    :class:`PCA` so that ``model.scores_``, ``model.spe_``, and
+    ``model.detect_outliers()`` work identically for both model types.
+
+    Parameters
+    ----------
+    n_components : int
+        Number of latent components to extract.
+    scale : bool, default=True
+        Whether to scale X and Y to unit variance (sklearn internal scaling).
+        When using ``MCUVScaler`` externally, set ``scale=False`` to avoid
+        double scaling.
+    max_iter : int, default=1000
+        Maximum number of iterations for the NIPALS algorithm.
+    tol : float, default=sqrt(machine epsilon)
+        Convergence tolerance for the NIPALS algorithm.
+    copy : bool, default=True
+        Whether to copy X and Y before fitting.
+    missing_data_settings : dict or None, default=None
+        Settings for missing data algorithms (NIPALS/TSR for PLS).
+        Keys: ``md_method`` (``"tsr"``, ``"scp"``, ``"nipals"``),
+        ``md_tol``, ``md_max_iter``.
+
+    Attributes (after fitting)
+    --------------------------
+    scores_ : pd.DataFrame of shape (n_samples, n_components)
+        X-block score matrix (T). This is the primary score matrix; equivalent
+        to ``x_scores`` in older versions.
+    y_scores_ : pd.DataFrame of shape (n_samples, n_components)
+        Y-block score matrix (U).
+    x_loadings_ : pd.DataFrame of shape (n_features, n_components)
+        X-block loading matrix (P).
+    y_loadings_ : pd.DataFrame of shape (n_targets, n_components)
+        Y-block loading matrix (C).
+    x_weights_ : pd.DataFrame of shape (n_features, n_components)
+        X-block weight matrix (W).
+    y_weights_ : pd.DataFrame of shape (n_targets, n_components)
+        Y-block weight matrix.
+    direct_weights_ : pd.DataFrame of shape (n_features, n_components)
+        Direct (W*) weights: ``W (P'W)^{-1}``. Used for direct projection
+        ``T = X @ W*``.
+    beta_coefficients_ : pd.DataFrame of shape (n_features, n_targets)
+        Regression coefficients linking X directly to Y.
+    predictions_ : pd.DataFrame of shape (n_samples, n_targets)
+        Y predictions from the training data.
+    spe_ : pd.DataFrame of shape (n_samples, n_components)
+        Squared Prediction Error (stored as sqrt of row sum-of-squares).
+    hotellings_t2_ : pd.DataFrame of shape (n_samples, n_components)
+        Cumulative Hotelling's T² statistic.
+    r2_per_component_ : pd.Series of length n_components
+        Fractional R² (on Y) explained by each component.
+    r2_cumulative_ : pd.Series of length n_components
+        Cumulative R² (on Y) after each component.
+    r2_per_variable_ : pd.DataFrame of shape (n_features, n_components)
+        Per-variable cumulative R² for X after each component.
+    r2y_per_variable_ : pd.DataFrame of shape (n_targets, n_components)
+        Per-variable R² for Y after each component.
+    rmse_ : pd.DataFrame of shape (n_targets, n_components)
+        Root mean squared error of Y predictions per component.
+    explained_variance_ : np.ndarray of shape (n_components,)
+        Variance explained by each component in X.
+    scaling_factor_for_scores_ : pd.Series of length n_components
+        Standard deviation per score (sqrt of explained variance).
+    has_missing_data_ : bool
+        Whether the training data contained missing values.
+    fitting_info_ : dict
+        Timing and iteration info from the fitting algorithm.
+
+    See Also
+    --------
+    PCA : Principal Component Analysis.
+    MCUVScaler : Mean-center unit-variance scaler.
+
+    References
+    ----------
+    Abdi, "Partial least squares regression and projection on latent structure
+    regression (PLS Regression)", 2010, DOI: 10.1002/wics.51
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> from process_improve.multivariate.methods import PLS, MCUVScaler
+    >>> X = pd.DataFrame({"A": [1, 2, 3, 4], "B": [4, 3, 2, 1]})
+    >>> Y = pd.DataFrame({"y": [2.1, 3.9, 6.2, 7.8]})
+    >>> pls = PLS(n_components=1)
+    >>> pls = pls.fit(MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y))
+    >>> pls.scores_.shape
+    (4, 1)
+    """
+
     def __init__(  # noqa: PLR0913
         self,
         n_components: int,
@@ -1009,6 +1125,13 @@ class PLS(PLS_sklearn):
         -------
         result : sklearn.utils.Bunch
             With keys ``scores``, ``hotellings_t2``, ``spe``, ``y_hat``.
+
+        Examples
+        --------
+        >>> result = pls.predict(scaler_x.transform(X_new))
+        >>> result.y_hat           # Predicted Y values
+        >>> result.spe             # SPE for each new observation
+        >>> result.hotellings_t2   # T² for each new observation
         """
         check_is_fitted(self, "scores_")
         if not isinstance(X, pd.DataFrame):
@@ -1060,6 +1183,12 @@ class PLS(PLS_sklearn):
         Returns
         -------
         contributions : pd.Series of shape (n_features,)
+
+        Examples
+        --------
+        >>> pls = PLS(n_components=3).fit(X_scaled, Y_scaled)
+        >>> contrib = pls.score_contributions(pls.scores_.iloc[0].values)
+        >>> contrib.abs().sort_values(ascending=False).head()  # top contributors
         """
         check_is_fitted(self, "x_loadings_")
         t_start = np.asarray(t_start, dtype=float)
@@ -1100,6 +1229,13 @@ class PLS(PLS_sklearn):
             Sorted from most severe to least. Each dict contains
             ``observation``, ``outlier_types``, ``spe``, ``hotellings_t2``,
             ``spe_limit``, ``hotellings_t2_limit``, ``severity``.
+
+        Examples
+        --------
+        >>> pls = PLS(n_components=3).fit(X_scaled, Y_scaled)
+        >>> outliers = pls.detect_outliers(conf_level=0.95)
+        >>> for o in outliers:
+        ...     print(f"{o['observation']}: {o['outlier_types']}")
         """
         check_is_fitted(self, "spe_")
         if not (0.8 <= conf_level <= 0.999):
