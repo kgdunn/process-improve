@@ -1,4 +1,4 @@
-# (c) Kevin Dunn, 2010-2025. MIT License. Based on own private work over the years.
+# (c) Kevin Dunn, 2010-2026. MIT License. Based on own private work over the years.
 
 from .designs_factorial import full_factorial
 from .models import lm, predict, summary
@@ -8,7 +8,7 @@ from .structures import c, expand_grid, gather, supplement
 
 def case_3B():
     """
-    See video 3B in the Coursera series. R code equivalent: http://yint.org/3B
+    See video 3B in the Coursera series. R code equivalent: http://yint.org/3B.
 
     Two factors, no extra degrees of freedom.
     """
@@ -25,7 +25,7 @@ def case_3B():
 
 def case_3C(show=False):
     """
-    See video 3C in the Coursera series. R code equivalent: http://yint.org/3C
+    See video 3C in the Coursera series. R code equivalent: http://yint.org/3C.
 
     3 factors, no extra degrees of freedom.
     """
@@ -43,7 +43,9 @@ def case_3C(show=False):
 
 def case_3D():
     """
-    solar = data("solar")
+    Solar panel case study.
+
+    Solar = data("solar")
     model_y1 = lm("y1 ~ A*B*C*D", data=solar)
     summary(model_y1)
     pareto_plot(model_y1)
@@ -80,7 +82,7 @@ def case_3D():
 
 
 def case_w2():
-    """Teaching case week 2: https://yint.org/w2"""
+    """Teaching case week 2: https://yint.org/w2."""
     # T = time used for baking:
     #      (-1) corresponds to 80 minutes and (+1) corresponds to 100 minutes
     T = c(-1, +1, -1, +1, lo=80, hi=100)
@@ -110,7 +112,7 @@ def case_w2():
 
 
 def case_w4_1():
-    """Teaching case week 4: https://yint.org/w4"""
+    """Teaching case week 4: https://yint.org/w4."""
     # S = Free shipping if order amount is €30 or more [-1],
     # or if order amount is over €50 [+1]
     S = c(-1, +1, -1, +1, -1, +1, -1, +1, name="Free shipping amount")
@@ -129,7 +131,7 @@ def case_w4_1():
 
 
 def case_w4_2():
-    """Teaching case week 4: https://yint.org/w4"""
+    """Teaching case week 4: https://yint.org/w4."""
     # S = Free shipping if order amount is €30 or more [-1], or if
     # order amount is over €50 [+1]. Notice that a mistake was made
     # with the last experiment: order minimum for free shipping was €60 [+1].
@@ -150,6 +152,8 @@ def case_w4_2():
 
 def case_worksheet_5():
     """
+    Worksheet 5 case study.
+
     A = feed rate                           5 g/min     or   8 g/min
     B = initial inoculant amount            300 g       or 400 g
     C = feed substrate concentration        40 g/L      or  60 g/L
@@ -276,7 +280,7 @@ def api_usage():
 
 
 def case_worksheet_6():
-    """Half-fraction"""
+    """Half-fraction."""
     # The half-fraction, when C = A*B
     A = c(-1, +1, -1, +1)
     B = c(-1, -1, +1, +1)
@@ -303,7 +307,7 @@ def case_worksheet_6():
 
 
 def case_worksheet_8():
-    """Highly-fractionated factorial"""
+    """Highly-fractionated factorial."""
     A, B, C = full_factorial(3, names=["A", "B", "C"])
 
     # These 4 factors are generated, using the trade-off table relationships
@@ -331,6 +335,8 @@ def case_worksheet_8():
 
 def case_worksheet_9():
     """
+    Worksheet 9 experiment data.
+
     Experiment
     number       Date and time        Duration    Product created [g]
                                       [hours]      per unit sugar used
@@ -728,7 +734,6 @@ def case_worksheet_10C():
     mod_base3 = lm("y ~ P * T + I(T**2)", data=expt3)
     summary(mod_base3)
     contour_plot(mod_base3, "P", "T", xlim=(-1.5, 5))
-    #
 
     # Try extrapolating far out: (P, T) = (4, 1)
     P4 = P3.extend([4])

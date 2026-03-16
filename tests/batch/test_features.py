@@ -27,9 +27,7 @@ def test_verify_file(batch_data):
 
 
 def test_corner_cases(batch_data):
-    """
-    Certain corner cases: to ensure coverage in
-    """
+    """Certain corner cases: to ensure coverage."""
     df = batch_data
     data = df.set_index(pd.to_datetime(df["DateTime"])).drop("DateTime", axis=1)
     step1 = features.f_mean(data).reset_index()
@@ -44,10 +42,7 @@ def test_corner_cases(batch_data):
 
 
 def test_age_col_specification(batch_data):
-    """
-    Some features, like slopes, need to know a value from the x-axis. Often this is a column
-    representing the time since start of the batch: age_col
-    """
+    """Some features, like slopes, need to know a value from the x-axis: age_col."""
     df = batch_data
     df = df.drop("DateTime", axis=1)
 
@@ -113,16 +108,17 @@ def test_shape_features(batch_data):
         age_col="UCI_minutes",
     )
     # Actual values checked against Datamore's robust linear regression fitting tool
-    slopes.iloc[0]["Temp1_slope"] == pytest.approx(+0.009564041, rel=1e-7)
-    slopes.iloc[1]["Temp1_slope"] == pytest.approx(+0.004404998, rel=1e-7)
-    slopes.iloc[0]["Temp2_slope"] == pytest.approx(-0.000292716, rel=1e-7)
-    slopes.iloc[1]["Temp2_slope"] == pytest.approx(+0.002852301, rel=1e-7)
+    assert slopes.iloc[0]["Temp1_slope"] == pytest.approx(+0.009564041, rel=1e-7)
+    assert slopes.iloc[1]["Temp1_slope"] == pytest.approx(+0.004404998, rel=1e-7)
+    assert slopes.iloc[0]["Temp2_slope"] == pytest.approx(-0.000292716, rel=1e-7)
+    assert slopes.iloc[1]["Temp2_slope"] == pytest.approx(+0.002852301, rel=1e-7)
 
 
 # Cumulative features
 def test_sum_features(batch_data):
     """Simple tests regarding the area
-    Values were calculated manually in Excel."""
+    Values were calculated manually in Excel.
+    """
 
     assert features.f_sum(batch_data, tags=["Temp1", "Temp2", "Pressure1"]).values[0] == pytest.approx(
         [-9760.51, -23872.34, 222.781677], rel=1e-9

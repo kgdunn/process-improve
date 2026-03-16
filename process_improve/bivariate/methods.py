@@ -1,23 +1,22 @@
 """
-Bivariate statistical tools:
+Bivariate statistical tools.
 
 * elbow detection in an (x,y) plot
 * peaks: finding peaks, quantifying their height, width, center, area, left & right boundaries
 * area under curve
 """
 
-from typing import List, Union
 
 import numpy as np
 
 from ..regression.methods import fit_robust_lm
 
 
-def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter=41) -> Union[int, float]:
+def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter=41) -> int | float:
     """
-    Finds the elbow point when plotting numeric entries in `x` vs numeric values in list `y`.
+    Find the elbow point when plotting numeric entries in `x` vs numeric values in list `y`.
 
-    Returns the index into the vectors `x` and `y` [the vectors must have the same length], where
+    Return the index into the vectors `x` and `y` [the vectors must have the same length], where
     the elbow point occurs.
 
     Using a robust linear fit, sorts the samples in X (independent variable)
@@ -25,7 +24,7 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter=41) -> Union[int, fl
     linear regressions. Finds the angle between the two lines.
     Adds a point to each regression, so (1:6) and (end-6:end) and repeats.
 
-    Finds the median angle, which is where it should stabilize.
+    Find the median angle, which is where it should stabilize.
 
     Will probably not work well on few data points. If so, try fitting a spline
     to the raw data and then repeat with the interpolated data.
@@ -34,9 +33,10 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter=41) -> Union[int, fl
     start = 5
     # assert divmod(max_iter, 2)[1]  # must be odd number; to ensure we calculate the median later
 
-    def calculate_line_length(x1: float, y1: float, x2: np.ndarray, y2: np.ndarray) -> Union[float, np.ndarray]:
-        """Returns the length of the line between 2 points (x1, y1) and (x2, y2), defined as:
-        :math:`\\sqrt{(x2 - x1)^2 + (y2 - y1)^2}`
+    def calculate_line_length(x1: float, y1: float, x2: np.ndarray, y2: np.ndarray) -> float | np.ndarray:
+        r"""Return the length of the line between 2 points (x1, y1) and (x2, y2).
+
+        Defined as :math:`\\sqrt{(x2 - x1)^2 + (y2 - y1)^2}`.
         """
         return np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
@@ -131,6 +131,8 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter=41) -> Union[int, fl
 
 def find_line_intersection(m1: float, b1: float, m2: float, b2: float) -> tuple:
     """
+    Find the intersection point of two lines.
+
     From Stackoverflow:
     stackoverflow.com/questions/20677795/how-do-i-compute-the-intersection-point-of-two-lines
 

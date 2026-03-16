@@ -65,5 +65,4 @@ def calculate_Cpk(
         spread_lower, spread_upper = metric_lower.std(), metric_upper.std()
 
     # TODO: return the RSD also: rsd = (spread / center) * 100
-    Cpk = np.nanmin([center_lower / (3 * spread_lower), center_upper / (3 * spread_upper)])
-    return Cpk
+    return np.nanmin([center_lower / (3 * spread_lower), center_upper / (3 * spread_upper)])

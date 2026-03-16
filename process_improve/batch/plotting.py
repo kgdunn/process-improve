@@ -57,7 +57,7 @@ def plot_all_batches_per_tag(
     tag_y2: str = None,
     time_column: str = None,
     extra_info: str = "",
-    batches_to_highlight: dict = {},
+    batches_to_highlight: dict = None,
     x_axis_label: str = "Time [sequence order]",
     highlight_width: int = 5,
     html_image_height: int = 900,
@@ -113,6 +113,8 @@ def plot_all_batches_per_tag(
     go.Figure
         Standard Plotly fig object (dictionary-like).
     """
+    if batches_to_highlight is None:
+        batches_to_highlight = {}
     default_line_width = 2
     unique_items = list(df_dict.keys())
     n_colours = len(unique_items)
@@ -140,30 +142,29 @@ def plot_all_batches_per_tag(
 
         if batch_id in highlight_list:
             continue  # come to this later
-        else:
+        fig.add_trace(
+            go.Scatter(
+                x=time_data,
+                y=batch_df[tag],
+                name=batch_id,
+                line=line_styles[batch_id],
+                mode="lines",
+                opacity=0.8,
+                yaxis="y1",
+            )
+        )
+        if tag_y2:
             fig.add_trace(
                 go.Scatter(
                     x=time_data,
-                    y=batch_df[tag],
+                    y=batch_df[tag_y2],
                     name=batch_id,
                     line=line_styles[batch_id],
                     mode="lines",
                     opacity=0.8,
-                    yaxis="y1",
+                    yaxis="y2",
                 )
             )
-            if tag_y2:
-                fig.add_trace(
-                    go.Scatter(
-                        x=time_data,
-                        y=batch_df[tag_y2],
-                        name=batch_id,
-                        line=line_styles[batch_id],
-                        mode="lines",
-                        opacity=0.8,
-                        yaxis="y2",
-                    )
-                )
 
     # Add the highlighted batches last: therefore, sadly, we have to do another run-through.
     # Plotly does not yet support z-orders.
@@ -260,7 +261,7 @@ def plot_multitags(
     batch_list: list = None,
     tag_list: list = None,
     time_column: str = None,
-    batches_to_highlight: dict = {},
+    batches_to_highlight: dict = None,
     settings: dict = None,
     fig=None,
 ) -> go.Figure:
@@ -320,6 +321,8 @@ def plot_multitags(
         If supplied, uses the existing Plotly figure to draw in.
 
     """
+    if batches_to_highlight is None:
+        batches_to_highlight = {}
     font_size = 12
     margin_dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
     hovertemplate = "Time: %{x}\ny: %{y}"

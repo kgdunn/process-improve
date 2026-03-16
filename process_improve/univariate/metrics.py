@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import warnings
 from collections import defaultdict
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -156,7 +159,7 @@ def _contains_nan(a, nan_policy="propagate"):
     """From scipy.stats.stats."""
     policies = ["propagate", "raise", "omit"]
     if nan_policy not in policies:
-        raise ValueError("nan_policy must be one of {%s}" % ", ".join("'%s'" % s for s in policies))
+        raise ValueError(f"nan_policy must be one of {{{', '.join(f'{s!r}' for s in policies)}}}")
     try:
         # Calling np.sum to avoid creating a huge array into memory
         # e.g. np.isnan(a).any()
@@ -175,6 +178,7 @@ def _contains_nan(a, nan_policy="propagate"):
             warnings.warn(
                 "The input array could not be properly checked for nan values. nan values will be ignored.",
                 RuntimeWarning,
+                stacklevel=2,
             )
 
     if contains_nan and nan_policy == "raise":
@@ -425,9 +429,7 @@ def confidence_interval(df: pd.DataFrame, column_name: str, conflevel=0.95, styl
 
 
 def _mad_1d(x, center, nan_policy):
-    """
-
-    Taken from `scipy.stats.stats`
+    """Taken from `scipy.stats.stats`.
 
     Median absolute deviation for 1-d array x.
     This is a helper function for `median_abs_deviation`; it assumes its
@@ -465,7 +467,6 @@ def median_abs_deviation(x, axis=0, center=np.median, scale="normal", nan_policy
 
     Parameters
     ----------
-
     x : array_like
         Input array or object that can be converted to an array.
     axis : int or None, optional
@@ -527,7 +528,6 @@ def median_abs_deviation(x, axis=0, center=np.median, scale="normal", nan_policy
 
     Examples
     --------
-
     When comparing the behavior of `median_abs_deviation` with ``np.std``,
     the latter is affected when we change a single value of an array to have an
     outlier value while the MAD hardly changes:
@@ -565,7 +565,7 @@ def median_abs_deviation(x, axis=0, center=np.median, scale="normal", nan_policy
     """
     assert axis is not None, "axis=None is now depricated. Unraval the array."
     if not callable(center):
-        raise TypeError(f"The argument 'center' must be callable. The given value {repr(center)} is not callable.")
+        raise TypeError(f"The argument 'center' must be callable. The given value {center!r} is not callable.")
 
     # An error may be raised here, so fail-fast, before doing lengthy
     # computations, even though `scale` is not used until later
@@ -603,11 +603,9 @@ def summary_stats(x, method="robust") -> dict:
     Return summary statistics of the numeric values in vector `x`.
 
     Arguments:
-
         x (Numpy vector or Pandas series): A vector of univariate values to summarize.
 
     Returns:
-
         dict: a summary of the univariate vector. The following outputs are the most interesting:
 
             "center":   a measure of the center  (average). If method is ``robust``, this is the

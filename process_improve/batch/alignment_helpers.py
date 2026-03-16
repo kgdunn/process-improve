@@ -70,7 +70,7 @@ def backtrack_optimal_path(D: np.ndarray):
                 path_sum = path_sum + D[nr - 1, nt]
                 nr -= 1
             else:
-                assert False
+                raise AssertionError
 
         path.append([nr, nt])
 

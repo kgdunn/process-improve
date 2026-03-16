@@ -31,8 +31,9 @@ env.bak/
 venv.bak/
 
 
-# mkdocs documentation
+# Documentation build output
 /site
+docs/_build/
 
 # mypy
 **/*.mypy_cache/

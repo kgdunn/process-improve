@@ -1,8 +1,8 @@
-# (c) Kevin Dunn, 2010-2025. MIT License. Based on own private work over the years.
+# (c) Kevin Dunn, 2010-2026. MIT License. Based on own private work over the years.
 
 import warnings
 from collections import defaultdict
-from typing import Any, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -16,14 +16,14 @@ def forg(x, prec=3):
     if prec == 3:
         # for 3 decimals
         if (abs(x) >= 1e4) or (abs(x) < 1e-4):
-            return "%9.3g" % x
+            return f"{x:9.3g}"
         else:
-            return "%9.3f" % x
+            return f"{x:9.3f}"
     elif prec == 4:
         if (abs(x) >= 1e4) or (abs(x) < 1e-4):
-            return "%10.4g" % x
+            return f"{x:10.4g}"
         else:
-            return "%10.4f" % x
+            return f"{x:10.4f}"
     else:
         raise NotImplementedError
 
@@ -62,9 +62,8 @@ class Model(OLS):
             main = "OLS Regression Results"
             if self.name:
                 main += ": " + str(self.name)
-            else:
-                if self.data.pi_title:
-                    main += ": " + str(self.data.pi_title)
+            elif self.data.pi_title:
+                main += ": " + str(self.data.pi_title)
 
             smry = self._OLS.summary(title=main)
             # print(smry)
@@ -86,7 +85,7 @@ class Model(OLS):
         return smry
 
     def get_parameters(self, drop_intercept=True) -> pd.DataFrame:
-        """Gets the paramter values; returns it in a Pandas dataframe"""
+        """Get the parameter values; return them in a Pandas dataframe."""
 
         params = self._OLS.params.copy()
         try:
@@ -120,11 +119,11 @@ class Model(OLS):
     def get_aliases(
         self,
         aliasing_up_to_level: int = 2,
-        drop_intercept: Optional[bool] = True,
-        websafe: Optional[bool] = False,
+        drop_intercept: bool | None = True,
+        websafe: bool | None = False,
     ) -> list:
         """
-        Returns a list, containing strings, representing the aliases
+        Return a list, containing strings, representing the aliases
         of the fitted effects.
 
         aliasing_up_to_level: up to which level of interactions shown
@@ -136,26 +135,20 @@ class Model(OLS):
             in the aliasing in bold, since that is the nominally estimated
             effect.
         """
-        alias_strings: List[Any] = []
+        alias_strings: list[Any] = []
         if len(self.aliasing.keys()) == 0:
             return alias_strings
 
         params = self.get_parameters(drop_intercept=drop_intercept)
         for p_name in params.index.values:
-            if websafe:
-                aliasing = f'<span style="font-size: 130%; font-weight: 700">{p_name}</span>'
-            else:
-                aliasing = p_name
+            aliasing = f'<span style="font-size: 130%; font-weight: 700">{p_name}</span>' if websafe else p_name
             suffix = ""
-            for alias in self.aliasing[tuple([p_name])]:
+            for alias in self.aliasing[(p_name,)]:
                 # Subtract "-1" because the first list entry tracks the sign
                 if (len(alias) - 1) <= aliasing_up_to_level:
                     aliasing += f" {alias[0]} {':'.join(alias[1:])}"
                 if (len(alias) - 1) > aliasing_up_to_level:
-                    if websafe:
-                        suffix = r" + <i>higher interactions</i>"
-                    else:
-                        suffix = " + higher interactions"
+                    suffix = r" + <i>higher interactions</i>" if websafe else " + higher interactions"
 
             # Finished with this parameter
             alias_strings.append(aliasing + suffix)
@@ -168,23 +161,23 @@ class Model(OLS):
 
 
 def predict(model, **kwargs):
-    """Make predictions from the model"""
+    """Make predictions from the model."""
     return model._OLS.predict(exog=dict(kwargs))
 
 
 def lm(
     model_spec: str,
     data: pd.DataFrame,
-    name: Optional[str] = None,
-    alias_threshold: Optional[float] = 0.995,
+    name: str | None = None,
+    alias_threshold: float | None = 0.995,
 ) -> Model:
     """Create a linear model."""
 
     def find_aliases(model, model_desc, threshold_correlation=0.995):
         """
-        Finds columns which are exactly correlated, or up to at least a level
+        Find columns which are exactly correlated, or up to at least a level
         of `threshold_correlation`.
-        Returns a dictionary of aliasing and a list of columns to keep.
+        Return a dictionary of aliasing and a list of columns to keep.
 
         The columns to keep will be in the order checked. Perhaps this can be
         improved.
@@ -221,7 +214,7 @@ def lm(
                     if stddev_value == 0:
                         pass
                     else:
-                        corrcoef[idx, j] = c[idx, j] / stddev[idx] / stddev[j]
+                        corrcoef[idx, j] = c[idx, j] / stddev[idx] / stddev_value
 
                 # corrcoef = c / stddev[idx, None]
                 # corrcoef = corrcoef / stddev[None, idx]
@@ -238,8 +231,7 @@ def lm(
             # Now drop out the candidates with the longest word lengths
             alias_len = [(len(terms[i].factors), i) for i in candidates]
             alias_len.sort(reverse=True)
-            for entry in alias_len[0:-1]:
-                drop_columns.append(entry[1])
+            drop_columns.extend(entry[1] for entry in alias_len[0:-1])
 
             for col in candidates:
                 if col == idx:
@@ -289,11 +281,11 @@ def lm(
 
 def summary(
     model: Model,
-    show: Optional[bool] = True,
+    show: bool | None = True,
     aliasing_up_to_level: int = 3,
 ):
     """
-    Prints a summary to the screen of the model.
+    Print a summary to the screen of the model.
 
     Appends, if there is any aliasing, a summary of those aliases,
     up to the (integer) level of interaction: `aliasing_up_to_level`.

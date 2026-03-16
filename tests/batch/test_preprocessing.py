@@ -53,10 +53,10 @@ def test_alignment(dryer_data):
             "tolerance": 1,
         },  # high tolerance ensures only 1 iteration
     )
-    assert [1, 1, 1, 1, 1] == pytest.approx(outputs["weight_history"].iloc[0])
-    assert [152.379618, 48.254502, 101.703155, 73.146169, 68.004085] == pytest.approx(
+    assert pytest.approx(outputs["weight_history"].iloc[0]) == [1, 1, 1, 1, 1]
+    assert pytest.approx(
         outputs["scale_df"]["Range"][columns_to_align]
-    )
+    ) == [152.379618, 48.254502, 101.703155, 73.146169, 68.004085]
     b1 = outputs["aligned_batch_objects"][1]
     expected_warping_path = [
         1,
@@ -190,12 +190,12 @@ def test_alignment(dryer_data):
         148,
     ]
     assert expected_warping_path == pytest.approx(b1.warping_path + 1)
-    assert [1.0371, 0.1673, 0.9712, 0.6538, 0.2532] == pytest.approx(
+    assert pytest.approx(
         outputs["last_average_batch"].iloc[1, :] / (outputs["scale_df"]["Range"][columns_to_align]),
         abs=1e-4,
-    )
-    len(outputs["aligned_batch_dfdict"]) == 71
-    outputs["aligned_batch_dfdict"].pop(1).shape == (100, 12)
+    ) == [1.0371, 0.1673, 0.9712, 0.6538, 0.2532]
+    assert len(outputs["aligned_batch_dfdict"]) == 71
+    assert outputs["aligned_batch_dfdict"].pop(1).shape == (100, 12)
 
     # Repeat, with a lower tolerance, to ensure the number of iterations exceeds 3.
     outputs = batch_dtw(
@@ -204,7 +204,7 @@ def test_alignment(dryer_data):
         reference_batch=2,
         settings={"robust": False, "tolerance": 0.06, "show_progress": True},
     )
-    assert (3, 5) == outputs["weight_history"].shape
+    assert outputs["weight_history"].shape == (3, 5)
     # TODO: still work on this, depending on how you terminate DTW.
     # assert [0.43702525, 1.33206459, 0.98298667, 0.93599197, 1.31193153] == pytest.approx(
     #     outputs["weight_history"][4, :], abs=1e-7
