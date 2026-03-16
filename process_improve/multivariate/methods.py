@@ -2046,16 +2046,16 @@ class TPLS(RegressorMixin, BaseEstimator):
     We change the notation from the original paper to avoid confusion with a generic "X" matrix, and match symbols
     that are more natural for our use.
 
-    Paper           This code     Internal Numpy variable name (holds only NumPy values)
-    =====           ========      ============================
-    X^T             D             d_matrix (external);              Database of properties
-                                  d_mats   (internal)               (we use a copy, d_mats, internally)
-    X               D^T           --                                -- (we do not use the transposed version of D)
-    R               F             f_mats                            Formula
-    Z               Z             z_mats                            Conditions
-    Y               Y             y_mats                            Quality indicators
+    Notation mapping (paper → this code):
 
-    Notes
+    - X^T → D: ``d_matrix`` (external), ``d_mats`` (internal) — Database of properties
+    - X → D^T: transposed D (not used directly)
+    - R → F: ``f_mats`` — Formula matrices
+    - Z → Z: ``z_mats`` — Process conditions
+    - Y → Y: ``y_mats`` — Quality indicators
+
+    Notes:
+
     1. Matrices in F, Z and Y must all have the same number of rows.
     2. Columns in F must be the same as the **rows** in D.
     3. Conditions in Z may be missing (turning it into an L-shaped data structure).
@@ -2067,34 +2067,23 @@ class TPLS(RegressorMixin, BaseEstimator):
 
     d_matrix : dict[str, dict[str, pd.DataFrame]]
         A dictionary containing the properties of each group of materials.
-        The keys are the group names, and the values are dataframes with properties as columns and materials as rows.
-        This "D" matrix is provided once when constructing the model, and reused for fitting, prediction and
+        Keys are group names; values are DataFrames with properties as columns and materials as rows.
+        This "D" matrix is provided once at construction and reused for fitting, prediction and
         cross-validation.
 
-    max_iter: int, optional
+    max_iter : int, optional
         The maximum number of iterations for the TPLS algorithm. Default is 500.
 
-    Data structures in input `X` (a dictionary with 4 keys, as listed below)
-    ------------------------------------------------------------------------
+    Notes
+    -----
+    The input ``X`` is a dictionary with 4 keys:
 
-    D. Database of dataframes, containing properties in the columns, while each row is a material.
-
-        D = { "Group A": dataframe of properties of group A materials. (columns contain properties, rows are materials),
-              "Group B": dataframe of properties of group B materials. (columns contain properties, rows are materials),
-              ...
-            }
-
-    F. Formula matrices/ratio of materials, corresponding to the *rows* of D (or columns of D after transposing):
-
-        F = { "GroupA": dataframe of formula for group A used in each blend (one formula per row, columns are materials)
-              "GroupB": dataframe of formula for group B used in each blend (one formula per row, columns are materials)
-              ...
-            }
-
-    Z. Process conditions. One row per formula/blend; one column per condition.
-
-    Y. Product characteristics (quality space; key performance indicators). One row per formula/blend;
-       one column per quality indicator.
+    - ``D``: Database of DataFrames (properties in columns, materials in rows).
+      ``D = {"Group A": df_props_a, "Group B": df_props_b, ...}``
+    - ``F``: Formula matrices (rows = blends, columns = materials).
+      ``F = {"Group A": df_formulas_a, "Group B": df_formulas_b, ...}``
+    - ``Z``: Process conditions — one row per blend, one column per condition.
+    - ``Y``: Product quality indicators — one row per blend, one column per indicator.
 
     Attributes
     ----------
@@ -2608,8 +2597,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
 
         .hotellings_t2_limit()      Returns the Hotelling's T2 limit for the model              [float]
-        .spe_limit[block]()         Return the SPE limit for the block, `.spe_limit["Y"]()`.    [float]
-                Returns the SPE limit for the Y block.
+        .spe_limit[block]()         Return the SPE limit for the block; e.g. .spe_limit["Y"]() [float]
 
 
         TODO:

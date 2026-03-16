@@ -49,37 +49,25 @@ def score_plot(  # noqa: C901, PLR0913
     pc_depth : int, optional
         If pc_depth >= 1, then a 3D score plot is generated, with this component on the 3rd axis
     items_to_highlight : dict, optional
-        keys:   an string which can be json.loads(...) and turns into a Plotly line specifier.
-        values: a list of identifiers for the items to highlight [index names]
-        For example:
+        Keys are JSON strings parseable by ``json.loads`` into a Plotly line specifier;
+        values are lists of index names to highlight. For example::
+
             items_to_highlight = {'{"color": "red", "symbol": "cross"}': items_in_red}
 
-            will ensure the subset of the index listed in `items_in_red` in that colour and shape.
+        will highlight the items in ``items_in_red`` with the given colour and shape.
 
     settings : dict
-        Default settings are = {
-            "show_ellipse": True [bool],
-                Should the Hotelling's T2 ellipse be added
+        Default settings::
 
-            "ellipse_conf_level": 0.95 [float]
-                If the ellipse is added, which confidence level is used. A number < 1.00.
-
-            "title": f"Score plot of ... "
-                Overall plot title
-
-            "show_labels": False,
-                Adds a label for each observation. Labels are always available in the hover.
-
-            "show_legend": True,
-                Shows a clickable legend (allows to turn the ellipse(s) on/off)
-
-            "html_image_height": 500,
-                in pixels
-
-            "html_aspect_ratio_w_over_h": 16/9,
-                sets the image width, as a ratio of the height
-
-        }
+            {
+                "show_ellipse": True,          # bool: show the Hotelling's T2 ellipse
+                "ellipse_conf_level": 0.95,    # float: ellipse confidence level (< 1.00)
+                "title": "Score plot of ...",  # str: overall plot title
+                "show_labels": False,          # bool: add a label for each observation
+                "show_legend": True,           # bool: show clickable legend
+                "html_image_height": 500,      # int: image height in pixels
+                "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
+            }
 
     Examples
     --------
@@ -297,20 +285,14 @@ def loading_plot(  # noqa: PLR0913
     pc_vert : int, optional
         Which component to plot on the vertical axis, by default 2 (the second component)
     settings : dict
-        Default settings are = {
-            "title": f"Loadings plot of component {pc_horiz} vs component {pc_vert}"
-                Overall plot title
+        Default settings::
 
-            "show_labels": True,
-                Adds a label for each column. Labels are always available in the hover.
-
-            "html_image_height": 500,
-                in pixels
-
-            "html_aspect_ratio_w_over_h": 16/9,
-                sets the image width, as a ratio of the height
-
-        }
+            {
+                "title": "Loadings plot ...",  # str: overall plot title
+                "show_labels": True,           # bool: add a label for each variable
+                "html_image_height": 500,      # int: image height in pixels
+                "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
+            }
 
     Examples
     --------
@@ -434,41 +416,26 @@ def spe_plot(
         Uses this many number of latent variables, and therefore shows the SPE after this number of
         model components. By default the total number of components fitted will be used.
     items_to_highlight : dict, optional
-        keys:   an string which can be json.loads(...) and turns into a Plotly line specifier.
-        values: a list of identifiers for the items to highlight [index names]
-        For example:
+        Keys are JSON strings parseable by ``json.loads`` into a Plotly line specifier;
+        values are lists of index names to highlight. For example::
+
             items_to_highlight = {'{"color": "red", "symbol": "cross"}': items_in_red}
 
-            will ensure the subset of the index listed in `items_in_red` in that colour and shape.
+        will highlight the items in ``items_in_red`` with the given colour and shape.
 
     settings : dict
-        Default settings are = {
-            "show_limit": True [bool],
-                Should the SPE limit be plotted.
+        Default settings::
 
-            "conf_level": 0.95 [float]
-                If the limit line is added, which confidence level is used. Number < 1.00.
-
-            "title": f"Squared prediction error plot after fitting {with_a} components,
-                       with the {conf_level*100}% confidence limit"
-                Overall plot title
-
-            "default_marker": optional, [dict]
-                dict(color="darkblue", symbol="circle", size=7)
-
-            "show_labels": False,
-                Adds a label for each observation. Labels are always available in the hover.
-
-            "show_legend": False,
-                Shows a clickable legend (allows to turn the limit on/off)
-
-            "html_image_height": 500,
-                Image height, in pixels.
-
-            "html_aspect_ratio_w_over_h": 16/9,
-                Sets the image width, as a ratio of the height.
-
-        }
+            {
+                "show_limit": True,            # bool: show the SPE confidence limit line
+                "conf_level": 0.95,            # float: confidence level for limit (< 1.00)
+                "title": "SPE plot ...",        # str: overall plot title
+                "default_marker": {...},        # dict: e.g. dict(color="darkblue", size=7)
+                "show_labels": False,           # bool: add a label for each observation
+                "show_legend": False,           # bool: show clickable legend
+                "html_image_height": 500,       # int: image height in pixels
+                "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
+            }
 
     Examples
     --------
@@ -617,40 +584,26 @@ def t2_plot(
         Uses this many number of latent variables, and therefore shows the SPE after this number of
         model components. By default the total number of components fitted will be used.
     items_to_highlight : dict, optional
-        keys:   an string which can be json.loads(...) and turns into a Plotly line specifier.
-        values: a list of identifiers for the items to highlight [index names]
-        For example:
+        Keys are JSON strings parseable by ``json.loads`` into a Plotly line specifier;
+        values are lists of index names to highlight. For example::
+
             items_to_highlight = {'{"color": "red", "symbol": "cross"}': items_in_red}
 
-            will ensure the subset of the index listed in `items_in_red` in that colour and shape.
+        will highlight the items in ``items_in_red`` with the given colour and shape.
 
     settings : dict
-        Default settings are = {
-            "show_limit": True [bool],
-                Should the T2 limit be plotted.
+        Default settings::
 
-            "conf_level": 0.95 [float]
-                If the limit line is added, which confidence level is used. Number < 1.00.
-
-            "title": f"Hotelling's T2 plot after fitting {with_a} components,
-                       with the {conf_level*100}% confidence limit""
-                Overall plot title
-
-            "default_marker": optional, [dict]
-                dict(color="darkblue", symbol="circle", size=7)
-
-            "show_labels": False,
-                Adds a label for each observation. Labels are always available in the hover.
-
-            "show_legend": False,
-                Shows a clickable legend (allows to turn the limit on/off)
-
-            "html_image_height": 500,
-                Image height, in pixels.
-
-            "html_aspect_ratio_w_over_h": 16/9,
-                Sets the image width, as a ratio of the height.
-        }
+            {
+                "show_limit": True,            # bool: show the T2 confidence limit line
+                "conf_level": 0.95,            # float: confidence level for limit (< 1.00)
+                "title": "T2 plot ...",         # str: overall plot title
+                "default_marker": {...},        # dict: e.g. dict(color="darkblue", size=7)
+                "show_labels": False,           # bool: add a label for each observation
+                "show_legend": False,           # bool: show clickable legend
+                "html_image_height": 500,       # int: image height in pixels
+                "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
+            }
 
     Examples
     --------

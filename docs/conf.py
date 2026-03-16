@@ -57,6 +57,14 @@ intersphinx_mapping = {
     "sklearn": ("https://scikit-learn.org/stable/", None),
 }
 
+# -- Nitpick ignore ---------------------------------------------------------
+# Suppress cross-reference warnings from inherited sklearn docstrings that
+# reference labels/terms defined only inside sklearn's own documentation.
+nitpick_ignore = [
+    ("std:term", "meta-estimator"),
+    ("std:label", "metadata_routing"),
+]
+
 # -- HTML output -------------------------------------------------------------
 
 html_theme = "pydata_sphinx_theme"

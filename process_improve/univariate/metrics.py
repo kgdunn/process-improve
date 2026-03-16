@@ -359,16 +359,17 @@ def ttest_paired_difference(df: pd.DataFrame, grouper_column: str, values_column
         conflevel (float, optional): [description]. Defaults to 0.995.
 
     Output: Dataframe with columns containing the statistical outputs of the t-test, including:
-        1. Group A name
-        2. Group B name
-        3. Group A mean
-        4. Group B mean
-        5. Differences mean:  The average difference between the groups
-            (Note: this is not the same as the difference of the averages, given by 4 and 5 above!)
-        CHECK5. z-value for the difference between group "B" minus group "A"
-        CHECK6. p-value for this z-value
-        CHECK7. Confidence interval low value for difference between group "B" minus group "A"
-        CHECK8. Confidence interval high value for difference between group "B" minus group "A"
+
+    1. Group A name
+    2. Group B name
+    3. Group A mean
+    4. Group B mean
+    5. Differences mean: average difference between the groups (not the same as the difference
+       of the averages from items 3 and 4 above)
+    6. z-value for the difference between group "B" minus group "A"
+    7. p-value for this z-value
+    8. Confidence interval low value for difference between group "B" minus group "A"
+    9. Confidence interval high value for difference between group "B" minus group "A"
 
     """
     data_subset = df[[grouper_column, values_column]].copy()

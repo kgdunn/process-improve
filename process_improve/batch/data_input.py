@@ -3,38 +3,38 @@ Getting data into the required format for use with this library.
 
 There are 3 useful ways to represent batch data.
 
-`dict`: as a Python dictionary
+``dict``: as a Python dictionary. Example::
 
     data = {
-        "batch 1": data frame with varying number of rows, but same number of columns.
-        "batch 2": etc
+        "batch 1": data frame with varying number of rows, but same number of columns,
+        "batch 2": etc,
     }
 
-    The `keys` are unique identifiers for each batch, such as integers, or strings.
+The keys are unique identifiers for each batch, such as integers or strings.
 
-`melt`: as a single Pandas data frame
-
-    data = pd.DataFrame(...)
-
-        * very large number of rows, for all batches stacked vertically on top of each other
-        * some number of columns, one column per tag
-        * one column, usually called "batch_id", indicates what the batch number is for that row
-        * another column, usually called "time", indicates what the time is within that batch
-        * typically sorted, but does not have to be
-
-`wide`: as a single Pandas data frame, as for the "melted" version, but pivoted instead, and
-these `wide` dataframes *always* have a multilevel column index, to help distinguish the tags
-from the time. It is a requirement of course that this representation is only for aligned data.
+``melt``: as a single Pandas data frame::
 
     data = pd.DataFrame(...)
 
-        * each row is a unique batch number
-        * the multilevel column index has
-            * level 0: the column name
-            * level 1: the aligned time
+Characteristics:
 
-        This form only makes sense if the data are aligned, so that there is the same number of
-        unique elements in the level-1 column index.
+- very large number of rows, for all batches stacked vertically on top of each other
+- some number of columns, one column per tag
+- one column, usually called ``batch_id``, indicates what the batch number is for that row
+- another column, usually called ``time``, indicates what the time is within that batch
+- typically sorted, but does not have to be
+
+``wide``: as a single Pandas data frame, as for the "melted" version, but pivoted instead.
+These ``wide`` dataframes *always* have a multilevel column index to distinguish the tags
+from the time. This representation is only valid for aligned data. Example::
+
+    data = pd.DataFrame(...)
+
+Characteristics:
+
+- each row is a unique batch number
+- the multilevel column index has level 0 = column name, level 1 = aligned time
+- only makes sense if the data are aligned (same number of elements in each level-1 index)
 """
 
 import numpy as np

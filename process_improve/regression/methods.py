@@ -81,19 +81,19 @@ def simple_robust_regression(  # noqa: PLR0913, PLR0915
     to calculate the slope. The intercept is the median intercept, when using that slope and the
     provided `x` and `y` values, or forced to zero if fit_intercept=False.
 
-    Returns a dictionary of outputs with these keys:
-        coefficients:   a vector of K coefficients, one for each column in ``X``
-        intercept:      returned if ``fit_intercept==True``, otherwise 0
-        standard_errors:a vector of K standard errors, one for each column in ``X``
-        standard_error_intercept: standard error for the intercept, np.nan if fit_intercept=False
-        R2:             the infamous R^2 values
-        SE              the model's standard error
-        fitted_values   the N predicted values, one per row in ``y``
-        residuals       the N residuals
-        t_value         the t-values for the standard errors
-        conf_intervals  the 95% confidence intervals for the model terms: K rows,
-                        2 columns: column 1 is lower, column 2 is upper
-        pi_range       the prediction intervals, above an below, over the range of data.
+    Returns a dictionary of outputs with these keys::
+
+        coefficients:             a vector of K coefficients, one for each column in X
+        intercept:                returned if fit_intercept==True, otherwise 0
+        standard_errors:          a vector of K standard errors, one per column in X
+        standard_error_intercept: standard error for the intercept (np.nan if fit_intercept=False)
+        R2:                       the R^2 value
+        SE:                       the model's standard error
+        fitted_values:            the N predicted values, one per row in y
+        residuals:                the N residuals
+        t_value:                  the t-values for the standard errors
+        conf_intervals:           K rows x 2 columns (lower, upper) confidence intervals
+        pi_range:                 prediction intervals above and below, over the range of data
     """
 
     out: dict[str, Any] = {
@@ -244,20 +244,19 @@ def multiple_linear_regression(  # noqa: PLR0915, PLR0913
         * does not handle weighting
         * N >= K at least as many rows as columns in X
 
-    Returns a dictionary of outputs with these keys:
+    Returns a dictionary of outputs with these keys::
 
-        coefficients:   a vector of K coefficients, one for each column in ``X``
-        intercept:      returned if ``fit_intercept==True``
-        standard_errors:a vector of K standard errors, one for each column in ``X``
+        coefficients:             a vector of K coefficients, one for each column in X
+        intercept:                returned if fit_intercept==True
+        standard_errors:          a vector of K standard errors, one per column in X
         standard_error_intercept: standard error for the intercept
-        R2:             the infamous R^2 values
-        SE              the model's standard error
-        fitted_values   the N predicted values, one per row in ``y``
-        residuals       the N residuals
-        t_value         the t-values for the standard errors
-        conf_intervals  the 95% confidence intervals for the model terms: K rows,
-                        2 columns: column 1 is lower, column 2 is upper
-        pi_range       the prediction intervals, above an below, over the range of data.
+        R2:                       the R^2 value
+        SE:                       the model's standard error
+        fitted_values:            the N predicted values, one per row in y
+        residuals:                the N residuals
+        t_value:                  the t-values for the standard errors
+        conf_intervals:           K rows x 2 columns (lower, upper) confidence intervals
+        pi_range:                 prediction intervals above and below, over the range of data
 
     TODO: report hatvalues, discrepancy:  for residual detection
     """
