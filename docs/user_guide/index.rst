@@ -5,7 +5,4 @@ User Guide
    :maxdepth: 2
 
    multivariate
-   pca
-   pls
-   tpls
    cross_validation

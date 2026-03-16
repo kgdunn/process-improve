@@ -29,11 +29,8 @@ def determine_scaling(
     Returns
     -------
     range_scalers: DataFrame
-
-        J rows
-        2 columns:
-            column 1 = Range of each tag. Approximated as the typical delta from q98 - q02
-            column 2 = Typical minimum of each tag. Robustly calculated.
+        J rows, 2 columns: column 1 = range of each tag (approx. q98 - q02),
+        column 2 = typical minimum of each tag (robustly calculated).
 
     TODO: put this in a scikit-learn style: .fit() and .apply() style
     """
@@ -277,20 +274,21 @@ def batch_dtw(  # noqa: PLR0915
     reference_batch : str
         Which key in the `batches` is the reference batch to use.
     settings : dict
-        Default settings are = {
-            "maximum_iterations": 25,  # maximum iterations (stops here, even if not converged)
-            "tolerance": 0.1,  # convergence tolerance
-            "robust": True,  # use robust scaling
-            "show_progress": True,  # show progress
-            "subsample": 1,  # use every sample
-            "interpolate_time_axis_maximum": 100,  # interpolates everything to be on this scale
-            "interpolate_time_axis_delta": 1,  # with this resolution
-            "interpolate_method": "cubic" # any method from scipy.interpolate.interp1d allowed
-        }
+        Default settings are::
 
-        The default settings will therefore resampled the time axis to have 100 data points,
-        starting at 0 and ending at 99. You might want more points (change the delta), or use
-        a different x-axis maximum.
+            {
+                "maximum_iterations": 25,  # stops here, even if not converged
+                "tolerance": 0.1,          # convergence tolerance
+                "robust": True,            # use robust scaling
+                "show_progress": True,     # show progress
+                "subsample": 1,            # use every sample
+                "interpolate_time_axis_maximum": 100,  # resample time axis to this scale
+                "interpolate_time_axis_delta": 1,      # resolution of resampled axis
+                "interpolate_method": "cubic",         # any scipy.interpolate.interp1d method
+            }
+
+        The default settings resample the time axis to 100 data points, starting at 0 and
+        ending at 99. Adjust the delta for more points, or change the maximum.
 
     Returns
     -------
@@ -500,9 +498,9 @@ def find_average_length(batches: dict[str, pd.DataFrame], settings: dict | None 
     batches : dict[str, pd.DataFrame]
         Batch data, in the standard format.
     settings : dict
-        Default settings are = {
-            "robust": True,  # use robust (median)
-        }
+        Default settings are::
+
+            {"robust": True}  # use robust (median) average batch length
 
     Returns
     -------
@@ -551,13 +549,15 @@ def find_reference_batch(
     columns_to_align : list
         Which columns to use. Others are ignored.
     settings : dict
-        Default settings are = {
-            "robust": True,  # use robust scaling
-            "subsample": 1,  # use every sample
-            "method": "pca_most_average", # the most average batch from a crudely aligned PCA
-            "n_components": 4,
-            "number_of_reference_batches": 1 # only a single batch will be returned
-        }
+        Default settings are::
+
+            {
+                "robust": True,                    # use robust scaling
+                "subsample": 1,                    # use every sample
+                "method": "pca_most_average",      # most average batch from a crude PCA
+                "n_components": 4,
+                "number_of_reference_batches": 1,  # only a single batch returned
+            }
 
     Returns
     -------

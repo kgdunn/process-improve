@@ -11,7 +11,7 @@ Batch Data Analysis
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: process_improve.batch.plots
+.. automodule:: process_improve.batch.plotting
    :members:
    :undoc-members:
    :show-inheritance:

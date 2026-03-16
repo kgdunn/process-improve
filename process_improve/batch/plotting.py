@@ -83,12 +83,12 @@ def plot_all_batches_per_tag(
     extra_info : str, optional
         Used in the plot title to add any extra details, by default ""
     batches_to_highlight : dict, optional
-        keys: an string which can be json.loads(...) and turns into a Plotly line specifier.
-        For example:
-            batches_to_highlight = grouper= {'{"width": 2, "color": "rgba(255,0,0,0.5)"}': redlist}
+        Keys are JSON strings parseable by ``json.loads`` into a Plotly line specifier.
+        For example::
 
-            will plot batch identifiers (must be valid keys in `df_dict`) in the "redlist" list
-            with that colour and linewidth.
+            batches_to_highlight = {'{"width": 2, "color": "rgba(255,0,0,0.5)"}': redlist}
+
+        will plot the batch identifiers in ``redlist`` with that colour and linewidth.
     x_axis_label : str, optional
         String label for the x-axis, by default "Time [sequence order]"
     highlight_width: int, optional
@@ -285,37 +285,25 @@ def plot_multitags(
         if left as the default, `None`.
 
     batches_to_highlight : dict, optional
-        keys: an string which can be json.loads(...) and turns into a Plotly line specifier.
-        For example:
-            batches_to_highlight = grouper= {'{"width": 2, "color": "rgba(255,0,0,0.5)"}': redlist}
+        Keys are JSON strings parseable by ``json.loads`` into a Plotly line specifier.
+        For example::
 
-            will plot batch identifiers (must be valid keys in `df_dict`) in the "redlist" list
-            with that colour and linewidth.
+            batches_to_highlight = {'{"width": 2, "color": "rgba(255,0,0,0.5)"}': redlist}
+
+        will plot the batch identifiers in ``redlist`` with that colour and linewidth.
 
     settings : dict
-        Default settings are = {
-            "nrows": 1 [int],
-                Number of rows in the plot.
+        Default settings::
 
-            "ncols": None
-                None = use as many columns as required to plot the data; else, supply an integer.
-
-            "x_axis_label": "Time, grouped per tag"  <-- still TODO: make this show up.
-                What label is added to the x-axis?
-
-            "title": ""
-                Overall plot title
-
-            "show_legend": True,
-                Add a legend item for each tag
-
-            "html_image_height": 900,
-                in pixels
-
-            "html_aspect_ratio_w_over_h": 16/9,
-                sets the image width, as a ratio of the height
-
-        }
+            {
+                "nrows": 1,                             # int: number of subplot rows
+                "ncols": None,                          # int or None: columns (None = auto)
+                "x_axis_label": "Time, grouped per tag",# str: x-axis label
+                "title": "",                            # str: overall plot title
+                "show_legend": True,                    # bool: show legend
+                "html_image_height": 900,               # int: image height in pixels
+                "html_aspect_ratio_w_over_h": 16/9,     # float: width as ratio of height
+            }
 
     fig : go.Figure
         If supplied, uses the existing Plotly figure to draw in.
