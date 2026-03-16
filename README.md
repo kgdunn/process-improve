@@ -99,7 +99,9 @@ Both PCA and PLS follow sklearn conventions:
 
 ## Documentation
 
-Build the documentation locally:
+Full documentation is available at **https://kgdunn.github.io/process-improve/**.
+
+To build the documentation locally:
 
 ```bash
 cd docs
