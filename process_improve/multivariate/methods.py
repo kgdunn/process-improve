@@ -174,7 +174,9 @@ class PCA(TransformerMixin, BaseEstimator):
         self.has_missing_data_ = bool(np.any(X.isna()))
         algo = self.algorithm.lower()
         if algo not in self._valid_algorithms:
-            raise ValueError(f"Algorithm '{self.algorithm}' is not recognized. Must be one of {self._valid_algorithms}.")
+            raise ValueError(
+                f"Algorithm '{self.algorithm}' is not recognized. Must be one of {self._valid_algorithms}."
+            )
 
         if algo == "auto":
             algo = "nipals" if self.has_missing_data_ else "svd"
@@ -460,9 +462,7 @@ class PCA(TransformerMixin, BaseEstimator):
         check_is_fitted(self, "loadings_")
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
-        assert X.shape[1] == self.n_features_in_, (
-            f"New data must have {self.n_features_in_} columns, got {X.shape[1]}."
-        )
+        assert X.shape[1] == self.n_features_in_, f"New data must have {self.n_features_in_} columns, got {X.shape[1]}."
         scores = X.values @ self.loadings_.values
         return pd.DataFrame(scores, index=X.index, columns=self.loadings_.columns)
 
@@ -497,8 +497,7 @@ class PCA(TransformerMixin, BaseEstimator):
         t2 = pd.DataFrame(np.zeros((X.shape[0], self.n_components)), columns=component_names, index=X.index)
         for a in range(self.n_components):
             t2.iloc[:, a] = (
-                t2.iloc[:, max(0, a - 1)]
-                + (scores.iloc[:, a] / self.scaling_factor_for_scores_.iloc[a]) ** 2
+                t2.iloc[:, max(0, a - 1)] + (scores.iloc[:, a] / self.scaling_factor_for_scores_.iloc[a]) ** 2
             )
 
         # SPE: residual after reconstruction
@@ -679,7 +678,9 @@ class PCA(TransformerMixin, BaseEstimator):
         t_start = np.asarray(t_start, dtype=float)
         t_end = np.zeros(self.n_components) if t_end is None else np.asarray(t_end, dtype=float)
 
-        idx = np.arange(self.n_components) if components is None else np.array(components) - 1  # convert 1-based to 0-based
+        idx = (
+            np.arange(self.n_components) if components is None else np.array(components) - 1
+        )  # convert 1-based to 0-based
 
         dt = t_end[idx] - t_start[idx]
 
@@ -780,15 +781,17 @@ class PCA(TransformerMixin, BaseEstimator):
             t2_val = float(t2_values.iloc[i])
             severity = max(spe_val / spe_lim, t2_val / t2_lim)
 
-            results.append({
-                "observation": spe_values.index[i],
-                "outlier_types": types,
-                "spe": spe_val,
-                "hotellings_t2": t2_val,
-                "spe_limit": spe_lim,
-                "hotellings_t2_limit": t2_lim,
-                "severity": round(severity, 4),
-            })
+            results.append(
+                {
+                    "observation": spe_values.index[i],
+                    "outlier_types": types,
+                    "spe": spe_val,
+                    "hotellings_t2": t2_val,
+                    "spe_limit": spe_lim,
+                    "hotellings_t2_limit": t2_lim,
+                    "severity": round(severity, 4),
+                }
+            )
 
         results.sort(key=lambda d: d["severity"], reverse=True)
         return results
@@ -1269,15 +1272,17 @@ class PLS(PLS_sklearn):
             t2_val = float(t2_values.iloc[i])
             severity = max(spe_val / spe_lim, t2_val / t2_lim)
 
-            results.append({
-                "observation": spe_values.index[i],
-                "outlier_types": types,
-                "spe": spe_val,
-                "hotellings_t2": t2_val,
-                "spe_limit": spe_lim,
-                "hotellings_t2_limit": t2_lim,
-                "severity": round(severity, 4),
-            })
+            results.append(
+                {
+                    "observation": spe_values.index[i],
+                    "outlier_types": types,
+                    "spe": spe_val,
+                    "hotellings_t2": t2_val,
+                    "spe_limit": spe_lim,
+                    "hotellings_t2_limit": t2_lim,
+                    "severity": round(severity, 4),
+                }
+            )
 
         results.sort(key=lambda d: d["severity"], reverse=True)
         return results

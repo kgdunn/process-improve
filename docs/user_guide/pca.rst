@@ -162,9 +162,7 @@ The reference point matters: contributions always measure the difference
    )
 
    # T²-weighted contributions (scale by 1/sqrt(eigenvalue))
-   contrib = model.score_contributions(
-       model.scores_.iloc[5].values, weighted=True
-   )
+   contrib = model.score_contributions(model.scores_.iloc[5].values, weighted=True)
 
 Outlier Detection
 -----------------
@@ -252,8 +250,8 @@ Enable missing data handling by passing a settings dictionary:
        n_components=3,
        missing_data_settings={
            "md_method": "tsr",
-           "md_tol": 1e-6,       # convergence tolerance
-           "md_max_iter": 200,    # maximum iterations
+           "md_tol": 1e-6,  # convergence tolerance
+           "md_max_iter": 200,  # maximum iterations
        },
    )
    model.fit(X_with_nans)

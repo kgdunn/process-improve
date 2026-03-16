@@ -13,15 +13,15 @@ from sklearn.base import BaseEstimator
 def plot_pre_checks(model: BaseEstimator, pc_horiz: int, pc_vert: int, pc_depth: int) -> bool:
     """Check the inputs for the plot functions are valid."""
     n_components = model.n_components if hasattr(model, "n_components") else model._parent.n_components
-    assert (
-        0 < pc_horiz <= n_components
-    ), f"The model has {n_components} components. Ensure that 1 <= pc_horiz<={n_components}."
-    assert (
-        0 < pc_vert <= n_components
-    ), f"The model has {n_components} components. Ensure that 1 <= pc_vert<={n_components}."
-    assert (
-        -1 <= pc_depth <= n_components
-    ), f"The model has {n_components} components. Ensure that 1 <= pc_depth<={n_components}."
+    assert 0 < pc_horiz <= n_components, (
+        f"The model has {n_components} components. Ensure that 1 <= pc_horiz<={n_components}."
+    )
+    assert 0 < pc_vert <= n_components, (
+        f"The model has {n_components} components. Ensure that 1 <= pc_vert<={n_components}."
+    )
+    assert -1 <= pc_depth <= n_components, (
+        f"The model has {n_components} components. Ensure that 1 <= pc_depth<={n_components}."
+    )
     assert len({pc_horiz, pc_vert, pc_depth}) == 3, "Specify distinct components for each axis"
 
     return True

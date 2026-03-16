@@ -25,9 +25,9 @@ PCA Example
    pca = PCA(n_components=3).fit(X_scaled)
 
    # Results
-   pca.scores_            # Score matrix (N x A)
-   pca.loadings_          # Loading matrix (K x A)
-   pca.r2_cumulative_     # Cumulative R² per component
+   pca.scores_  # Score matrix (N x A)
+   pca.loadings_  # Loading matrix (K x A)
+   pca.r2_cumulative_  # Cumulative R² per component
 
    # Diagnostics
    pca.detect_outliers()
@@ -57,9 +57,9 @@ PLS Example
 
    # Predict new observations
    result = pls.predict(scaler_x.transform(X_new))
-   result.y_hat           # Predicted Y
-   result.spe             # SPE diagnostics
-   result.hotellings_t2   # Hotelling's T² diagnostics
+   result.y_hat  # Predicted Y
+   result.spe  # SPE diagnostics
+   result.hotellings_t2  # Hotelling's T² diagnostics
 
    # Diagnostics
    pls.detect_outliers()

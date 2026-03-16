@@ -197,7 +197,7 @@ for batch in testing_batches:
             y=cast[0].numpy()[i],
             mode="lines",
             legendgroup="i^th forecast",
-            name=f"Forecast {i+1}",
+            name=f"Forecast {i + 1}",
             line=dict(color=light_grey),
         )
 

@@ -26,8 +26,8 @@ Sum of Squares (PRESS) with K-fold cross-validation:
    result = PCA.select_n_components(
        X_scaled,
        max_components=10,
-       cv=7,                  # 7-fold cross-validation
-       threshold=0.95,        # Wold's criterion threshold
+       cv=7,  # 7-fold cross-validation
+       threshold=0.95,  # Wold's criterion threshold
    )
 
    print(f"Recommended components: {result.n_components}")

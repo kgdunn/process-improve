@@ -25,6 +25,7 @@ import math
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 from process_improve.tool_spec import _TOOL_REGISTRY, get_tool_specs, tool_spec
 from process_improve.univariate.metrics import (
@@ -39,9 +40,6 @@ from process_improve.univariate.metrics import (
     ttest_paired_difference_calculate,
     within_between_standard_deviation,
 )
-
-import pandas as pd
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -149,8 +147,7 @@ _register("robust_summary_stats")
                 "max_outliers_to_detect": {
                     "type": "integer",
                     "description": (
-                        "Upper bound on the number of outliers to search for "
-                        "(default 5, must be < len(values))."
+                        "Upper bound on the number of outliers to search for (default 5, must be < len(values))."
                     ),
                     "minimum": 1,
                 },
@@ -358,8 +355,7 @@ def normality_test(*, values: list[float], alpha: float = 0.05) -> dict:
             "alpha": alpha,
             "is_normal": is_normal,
             "interpretation": (
-                f"At the {alpha:.0%} significance level, the data appear consistent with "
-                "a normal distribution."
+                f"At the {alpha:.0%} significance level, the data appear consistent with a normal distribution."
                 if is_normal
                 else f"At the {alpha:.0%} significance level, there is evidence that the data "
                 "are NOT normally distributed (p={p_value:.4f}). Consider using robust methods."
@@ -400,8 +396,7 @@ _register("normality_test")
                     "type": "string",
                     "enum": ["robust", "classical"],
                     "description": (
-                        "'robust' (default): use median ± t * MAD / √n. "
-                        "'classical': use mean ± t * std / √n."
+                        "'robust' (default): use median ± t * MAD / √n. 'classical': use mean ± t * std / √n."
                     ),
                 },
             },
@@ -510,9 +505,9 @@ def ttest_two_samples(
     result["interpretation"] = (
         f"The difference (B − A = {result['Group B average'] - result['Group A average']:.4g}) "
         + (
-            f"IS statistically significant (p={result['p value']:.4f} < {1-confidence_level:.2f})."
+            f"IS statistically significant (p={result['p value']:.4f} < {1 - confidence_level:.2f})."
             if significant
-            else f"is NOT statistically significant (p={result['p value']:.4f} ≥ {1-confidence_level:.2f})."
+            else f"is NOT statistically significant (p={result['p value']:.4f} ≥ {1 - confidence_level:.2f})."
         )
     )
     return _clean(result)
@@ -582,13 +577,10 @@ def ttest_paired_samples(
     result["confidence_level"] = confidence_level
     significant = bool(result["p value"] < (1 - confidence_level))
     result["significant"] = significant
-    result["interpretation"] = (
-        f"The mean paired difference (A − B = {result['Differences mean']:.4g}) "
-        + (
-            f"IS statistically significant (p={result['p value']:.4f} < {1-confidence_level:.2f})."
-            if significant
-            else f"is NOT statistically significant (p={result['p value']:.4f} ≥ {1-confidence_level:.2f})."
-        )
+    result["interpretation"] = f"The mean paired difference (A − B = {result['Differences mean']:.4g}) " + (
+        f"IS statistically significant (p={result['p value']:.4f} < {1 - confidence_level:.2f})."
+        if significant
+        else f"is NOT statistically significant (p={result['p value']:.4f} ≥ {1 - confidence_level:.2f})."
     )
     return _clean(result)
 

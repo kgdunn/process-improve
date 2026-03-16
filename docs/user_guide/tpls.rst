@@ -67,12 +67,14 @@ DataFrames, optionally grouped:
 
    from process_improve.multivariate.methods import TPLS, DataFrameDict
 
-   data = DataFrameDict({
-       "D": {"Group_A": properties_a, "Group_B": properties_b},
-       "F": {"Group_A": formulas_a, "Group_B": formulas_b},
-       "Z": {"Conditions": process_conditions},
-       "Y": {"Quality": quality_responses},
-   })
+   data = DataFrameDict(
+       {
+           "D": {"Group_A": properties_a, "Group_B": properties_b},
+           "F": {"Group_A": formulas_a, "Group_B": formulas_b},
+           "Z": {"Conditions": process_conditions},
+           "Y": {"Quality": quality_responses},
+       }
+   )
 
    model = TPLS(n_components=3, d_matrix=data["D"])
    model.fit(data)

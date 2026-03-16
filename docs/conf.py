@@ -2,16 +2,21 @@
 
 import os
 import sys
+from pathlib import Path
+
+import tomllib
 
 # Add project root to path so autodoc can find the package
 sys.path.insert(0, os.path.abspath(".."))
 
 # -- Project information -----------------------------------------------------
 
+_pyproject = tomllib.loads(Path(__file__).resolve().parent.parent.joinpath("pyproject.toml").read_text())
+release = _pyproject["project"]["version"]
+
 project = "process-improve"
 copyright = "2010-2026, Kevin Dunn"  # noqa: A001
 author = "Kevin Dunn"
-release = "1.0.0"
 
 # -- General configuration ---------------------------------------------------
 

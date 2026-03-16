@@ -148,7 +148,7 @@ def create_names(n: int, letters=True, prefix="X", start_at=1, padded=True):
         if padded:
             longest = len(str(start_at + n - 1))
 
-        out = [f'{prefix!s}{str(i).rjust(longest, "0")}' for i in range(start_at, n + start_at)]
+        out = [f"{prefix!s}{str(i).rjust(longest, '0')}" for i in range(start_at, n + start_at)]
 
     return out
 

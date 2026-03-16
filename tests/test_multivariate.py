@@ -659,7 +659,15 @@ def test_pca_detect_outliers() -> None:
     assert all(isinstance(o, dict) for o in outliers)
 
     # Each dict has the required keys
-    required_keys = {"observation", "outlier_types", "spe", "hotellings_t2", "spe_limit", "hotellings_t2_limit", "severity"}
+    required_keys = {
+        "observation",
+        "outlier_types",
+        "spe",
+        "hotellings_t2",
+        "spe_limit",
+        "hotellings_t2_limit",
+        "severity",
+    }
     for o in outliers:
         assert set(o.keys()) == required_keys
         assert isinstance(o["outlier_types"], list)
@@ -1047,12 +1055,12 @@ def test_pls_compare_model_api(
 
     # Check the model's predictions
     result = plsmodel.predict(X_mcuv.transform(data["X"]))
-    assert plsmodel.spe_.values.ravel() == pytest.approx(
-        result.spe.values, abs=1e-9
-    )
+    assert plsmodel.spe_.values.ravel() == pytest.approx(result.spe.values, abs=1e-9)
     assert data["t1"] == pytest.approx(result.scores.values.ravel(), abs=1e-5)
     assert data["Tsq"] == pytest.approx(result.hotellings_t2.values.ravel(), abs=1e-5)
-    assert data["expected_y_predicted"] == pytest.approx(Y_mcuv.inverse_transform(result.y_hat).values.ravel(), abs=1e-5)
+    assert data["expected_y_predicted"] == pytest.approx(
+        Y_mcuv.inverse_transform(result.y_hat).values.ravel(), abs=1e-5
+    )
 
 
 @pytest.fixture
@@ -1295,11 +1303,11 @@ def test_pls_compare_api(fixture_pls_simca_2_components: dict) -> None:
     result = plsmodel.predict(X_mcuv.transform(data["X"]))
     # TODO: a check on SPE vs Simca-P. Here we are doing a check between the SPE from the
     # model building, to model-using, but not against an external library.
-    assert plsmodel.spe_.iloc[:, -1].values == pytest.approx(
-        result.spe, abs=1e-10
-    )
+    assert plsmodel.spe_.iloc[:, -1].values == pytest.approx(result.spe, abs=1e-10)
     assert data["Tsq"] == pytest.approx(result.hotellings_t2, abs=1e-5)
-    assert data["expected_y_predicted"] == pytest.approx(Y_mcuv.inverse_transform(result.y_hat).values.ravel(), abs=1e-5)
+    assert data["expected_y_predicted"] == pytest.approx(
+        Y_mcuv.inverse_transform(result.y_hat).values.ravel(), abs=1e-5
+    )
     assert np.abs(data["T"]) == pytest.approx(np.abs(result.scores), abs=1e-5)
 
 
@@ -1400,9 +1408,7 @@ def test_pls_simca_ldpe(fixture_pls_ldpe_example: dict[str, pd.DataFrame | np.nd
     assert data["expected_t2_lim_95_a6"] == pytest.approx(plsmodel.hotellings_t2_limit(0.95), rel=1e-1)
     assert data["expected_t2_lim_99_a6"] == pytest.approx(plsmodel.hotellings_t2_limit(0.99), rel=1e-1)
 
-    assert np.mean(np.abs(np.array(data["expected_T"])) - np.abs(plsmodel.scores_.values)) == pytest.approx(
-        0, abs=1e-4
-    )
+    assert np.mean(np.abs(np.array(data["expected_T"])) - np.abs(plsmodel.scores_.values)) == pytest.approx(0, abs=1e-4)
     assert np.mean(np.abs(np.array(data["expected_P"])) - np.abs(plsmodel.x_loadings_.values)) == pytest.approx(
         0, abs=1e-5
     )
@@ -1458,9 +1464,7 @@ def test_pls_simca_ldpe_missing_data(
     assert data["expected_t2_lim_95_a6"] == pytest.approx(plsmodel.hotellings_t2_limit(0.95), rel=1e-1)
     assert data["expected_t2_lim_99_a6"] == pytest.approx(plsmodel.hotellings_t2_limit(0.99), rel=1e-1)
 
-    assert np.mean(np.abs(np.array(data["expected_T"])) - np.abs(plsmodel.scores_.values)) == pytest.approx(
-        0, abs=1e-2
-    )
+    assert np.mean(np.abs(np.array(data["expected_T"])) - np.abs(plsmodel.scores_.values)) == pytest.approx(0, abs=1e-2)
     assert np.mean(np.abs(np.array(data["expected_P"])) - np.abs(plsmodel.x_loadings_.values)) == pytest.approx(
         0, abs=1e-3
     )

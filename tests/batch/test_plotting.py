@@ -1,10 +1,6 @@
 import pytest
 
-from process_improve.batch.plotting import (
-    get_rgba_from_triplet,
-    plot_all_batches_per_tag,
-    plot_multitags,
-)
+from process_improve.batch.plotting import get_rgba_from_triplet, plot_all_batches_per_tag, plot_multitags
 from process_improve.batch.preprocessing import apply_scaling, determine_scaling
 
 

@@ -2,7 +2,6 @@
 
 """Various factorial designs."""
 
-
 from .structures import c, create_names, expand_grid
 
 

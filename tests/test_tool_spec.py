@@ -6,14 +6,8 @@ import pytest
 
 # Importing the univariate tools module triggers @tool_spec registration.
 import process_improve.univariate.tools  # noqa: F401
-from process_improve.tool_spec import (
-    _TOOL_REGISTRY,
-    execute_tool_call,
-    get_tool_specs,
-    tool_spec,
-)
+from process_improve.tool_spec import _TOOL_REGISTRY, execute_tool_call, get_tool_specs, tool_spec
 from process_improve.univariate.tools import get_univariate_tool_specs
-
 
 # ---------------------------------------------------------------------------
 # tool_spec decorator and registry
@@ -25,7 +19,13 @@ class TestToolSpecDecorator:
         @tool_spec(
             name="test_dummy_add",
             description="Add two numbers.",
-            input_schema={"json": {"type": "object", "properties": {"a": {"type": "number"}, "b": {"type": "number"}}, "required": ["a", "b"]}},
+            input_schema={
+                "json": {
+                    "type": "object",
+                    "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
+                    "required": ["a", "b"],
+                }
+            },
         )
         def _dummy(*, a: float, b: float) -> dict:
             return {"result": a + b}
@@ -37,7 +37,13 @@ class TestToolSpecDecorator:
         @tool_spec(
             name="test_dummy_mul",
             description="Multiply.",
-            input_schema={"json": {"type": "object", "properties": {"a": {"type": "number"}, "b": {"type": "number"}}, "required": ["a", "b"]}},
+            input_schema={
+                "json": {
+                    "type": "object",
+                    "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
+                    "required": ["a", "b"],
+                }
+            },
         )
         def _mul(*, a: float, b: float) -> dict:
             return {"result": a * b}
@@ -159,6 +165,7 @@ class TestRobustSummaryStats:
 
     def test_all_values_json_serialisable(self):
         import json
+
         result = execute_tool_call("robust_summary_stats", {"values": [1.0, 2.0, 3.0]})
         json.dumps(result)  # must not raise
 
@@ -189,6 +196,7 @@ class TestDetectOutliers:
 
     def test_result_json_serialisable(self):
         import json
+
         result = execute_tool_call("detect_outliers", {"values": [1, 2, 3, 100]})
         json.dumps(result)
 
@@ -205,6 +213,7 @@ class TestRobustScaleSn:
 
     def test_sn_approximately_matches_std_for_normal_data(self):
         import numpy as np
+
         rng = np.random.default_rng(42)
         data = rng.normal(loc=0, scale=1, size=200).tolist()
         result = execute_tool_call("robust_scale_sn", {"values": data})
@@ -233,6 +242,7 @@ class TestMedianAbsoluteDeviation:
 
     def test_normal_scale_approx_std(self):
         import numpy as np
+
         rng = np.random.default_rng(0)
         data = rng.normal(0, 1, 1000).tolist()
         result = execute_tool_call("median_absolute_deviation", {"values": data, "scale": "normal"})
@@ -253,6 +263,7 @@ class TestMedianAbsoluteDeviation:
 class TestNormalityTest:
     def test_clearly_normal_data(self):
         import numpy as np
+
         rng = np.random.default_rng(1)
         data = rng.normal(10, 1, 100).tolist()
         result = execute_tool_call("normality_test", {"values": data})
@@ -264,6 +275,7 @@ class TestNormalityTest:
     def test_clearly_non_normal_data(self):
         # Exponential distribution is highly skewed
         import numpy as np
+
         rng = np.random.default_rng(2)
         data = rng.exponential(scale=1, size=100).tolist()
         result = execute_tool_call("normality_test", {"values": data})
@@ -272,6 +284,7 @@ class TestNormalityTest:
 
     def test_returns_json_serialisable(self):
         import json
+
         result = execute_tool_call("normality_test", {"values": [1.0, 2.0, 1.5, 1.8, 2.1]})
         json.dumps(result)
 
@@ -334,6 +347,7 @@ class TestTtestTwoSamples:
 
     def test_result_json_serialisable(self):
         import json
+
         result = execute_tool_call("ttest_two_samples", {"group_a": [1, 2, 3], "group_b": [4, 5, 6]})
         json.dumps(result)
 
@@ -360,9 +374,8 @@ class TestTtestPairedSamples:
 
     def test_result_json_serialisable(self):
         import json
-        result = execute_tool_call(
-            "ttest_paired_samples", {"group_a": [1, 2, 3], "group_b": [1, 2, 3]}
-        )
+
+        result = execute_tool_call("ttest_paired_samples", {"group_a": [1, 2, 3], "group_b": [1, 2, 3]})
         json.dumps(result)
 
 

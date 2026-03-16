@@ -6,7 +6,6 @@ Bivariate statistical tools.
 * area under curve
 """
 
-
 import numpy as np
 
 from ..regression.methods import fit_robust_lm

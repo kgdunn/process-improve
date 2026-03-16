@@ -54,9 +54,13 @@ def test_alignment(dryer_data):
         },  # high tolerance ensures only 1 iteration
     )
     assert pytest.approx(outputs["weight_history"].iloc[0]) == [1, 1, 1, 1, 1]
-    assert pytest.approx(
-        outputs["scale_df"]["Range"][columns_to_align]
-    ) == [152.379618, 48.254502, 101.703155, 73.146169, 68.004085]
+    assert pytest.approx(outputs["scale_df"]["Range"][columns_to_align]) == [
+        152.379618,
+        48.254502,
+        101.703155,
+        73.146169,
+        68.004085,
+    ]
     b1 = outputs["aligned_batch_objects"][1]
     expected_warping_path = [
         1,
