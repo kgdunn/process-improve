@@ -26,6 +26,17 @@ visualization
 (c) Kevin Dunn, 2010-2026. MIT License.
 """
 
+from process_improve.monitoring.control_charts import ControlChart
+from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.multivariate.methods import PCA, PLS, MCUVScaler
+from process_improve.tool_spec import execute_tool_call, get_tool_specs
 
-__all__ = ["PCA", "PLS", "MCUVScaler"]
+__all__ = [
+    "PCA",
+    "PLS",
+    "ControlChart",
+    "MCUVScaler",
+    "calculate_cpk",
+    "execute_tool_call",
+    "get_tool_specs",
+]

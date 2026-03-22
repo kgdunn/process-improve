@@ -27,6 +27,12 @@ dependencies = [
 ]
 
 
+[project.optional-dependencies]
+mcp = ["mcp>=1.0"]
+
+[project.scripts]
+process-improve-mcp = "process_improve.mcp_server:main"
+
 [project.urls]
 Homepage = "https://github.com/kgdunn/process_improve"
 Repository = "https://github.com/kgdunn/process_improve"

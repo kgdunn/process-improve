@@ -1,4 +1,4 @@
-"""(c) Kevin Dunn, 2010-2025. MIT License.
+"""(c) Kevin Dunn, 2010-2026. MIT License.
 
 Agent-callable tool wrappers for robust univariate statistics.
 
@@ -21,24 +21,21 @@ Dispatch a tool call returned by the model::
 
 from __future__ import annotations
 
-import math
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from process_improve.tool_spec import _TOOL_REGISTRY, get_tool_specs, tool_spec
+from process_improve.tool_spec import clean, get_tool_specs, tool_spec
 from process_improve.univariate.metrics import (
     Sn,
-    median_abs_deviation,
-    normality_check,
-    outlier_detection_multiple,
+    detect_outliers_esd,
+    median_absolute_deviation,
     summary_stats,
     t_value,
-    t_value_cdf,
-    ttest_difference_calculate,
-    ttest_paired_difference_calculate,
-    within_between_standard_deviation,
+    ttest_independent,
+    ttest_paired,
+    variance_decomposition,
 )
 
 # ---------------------------------------------------------------------------
@@ -50,22 +47,6 @@ _UNIVARIATE_TOOL_NAMES: list[str] = []
 
 def _register(name: str) -> None:
     _UNIVARIATE_TOOL_NAMES.append(name)
-
-
-def _clean(value: Any) -> Any:
-    """Recursively convert numpy scalars / arrays to plain Python types."""
-    if isinstance(value, dict):
-        return {k: _clean(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_clean(v) for v in value]
-    if isinstance(value, np.integer):
-        return int(value)
-    if isinstance(value, np.floating):
-        v = float(value)
-        return None if math.isnan(v) or math.isinf(v) else v
-    if isinstance(value, float):
-        return None if math.isnan(value) or math.isinf(value) else value
-    return value
 
 
 # ---------------------------------------------------------------------------
@@ -112,12 +93,13 @@ def _clean(value: Any) -> Any:
     # "Summarise this batch result using classical statistics: [5.1, 4.9, 5.0, 5.2]"
         -> ``robust_summary_stats(values=[5.1, 4.9, 5.0, 5.2], method="classical")``
     """,
+    category="univariate",
 )
 def robust_summary_stats(*, values: list[float], method: str = "robust") -> dict:
     """Compute summary statistics; see tool spec for parameter details."""
     arr = np.asarray(values, dtype=float)
     result = summary_stats(arr, method=method)
-    return _clean(result)
+    return clean(result)
 
 
 _register("robust_summary_stats")
@@ -178,6 +160,7 @@ _register("robust_summary_stats")
     # "Run a classical (non-robust) outlier test"
         -> ``detect_outliers(values=[...], robust_variant=False)``
     """,
+    category="univariate",
 )
 def detect_outliers(
     *,
@@ -189,7 +172,7 @@ def detect_outliers(
     """Detect outliers using the Generalised ESD test; see tool spec for details."""
     arr = np.asarray(values, dtype=float)
     max_k = min(max_outliers_to_detect, len(arr) - 1)
-    outlier_indices, details = outlier_detection_multiple(
+    outlier_indices, _details = detect_outliers_esd(
         arr,
         algorithm="esd",
         max_outliers_detected=max_k,
@@ -215,7 +198,7 @@ _register("detect_outliers")
         "Compute the Sn robust scale estimator for a list of numeric values. "
         "Sn is an alternative to the standard deviation that is highly resistant to outliers "
         "and does not assume symmetry around the median, unlike MAD. "
-        "For normally distributed data with no outliers, Sn ≈ std. "
+        "For normally distributed data with no outliers, Sn ~ std. "
         "A large Sn relative to the mean suggests high variability or outliers. "
         "Reference: Rousseeuw & Croux (1993)."
     ),
@@ -237,6 +220,7 @@ _register("detect_outliers")
     # "What is the robust spread of [5, 6, 5, 7, 5, 6, 100]?"
         -> ``robust_scale_sn(values=[5, 6, 5, 7, 5, 6, 100])``
     """,
+    category="univariate",
 )
 def robust_scale_sn(*, values: list[float]) -> dict:
     """Compute Sn robust scale estimator; see tool spec for details."""
@@ -244,7 +228,7 @@ def robust_scale_sn(*, values: list[float]) -> dict:
     sn_value = float(Sn(arr))
     mean = float(np.nanmean(arr))
     rsd = (sn_value / mean) if mean != 0 else None
-    return _clean({"sn": sn_value, "rsd": rsd, "n": int(np.sum(~np.isnan(arr)))})
+    return clean({"sn": sn_value, "rsd": rsd, "n": int(np.sum(~np.isnan(arr)))})
 
 
 _register("robust_scale_sn")
@@ -274,7 +258,7 @@ _register("robust_scale_sn")
                     "type": "string",
                     "enum": ["normal", "raw"],
                     "description": (
-                        "'normal' (default): normalise so MAD ≈ std for Gaussian data. "
+                        "'normal' (default): normalise so MAD ~ std for Gaussian data. "
                         "'raw': return the raw median of absolute deviations."
                     ),
                 },
@@ -289,13 +273,14 @@ _register("robust_scale_sn")
     # "Give me the raw (un-normalised) MAD"
         -> ``median_absolute_deviation(values=[...], scale="raw")``
     """,
+    category="univariate",
 )
-def median_absolute_deviation(*, values: list[float], scale: str = "normal") -> dict:
+def median_absolute_deviation_tool(*, values: list[float], scale: str = "normal") -> dict:
     """Compute Median Absolute Deviation; see tool spec for details."""
     arr = np.asarray(values, dtype=float)
     scale_arg = "normal" if scale == "normal" else 1.0
-    mad_value = float(median_abs_deviation(arr, scale=scale_arg))
-    return _clean({"mad": mad_value, "scale": scale, "n": int(np.sum(~np.isnan(arr)))})
+    mad_value = float(median_absolute_deviation(arr, scale=scale_arg))
+    return clean({"mad": mad_value, "scale": scale, "n": int(np.sum(~np.isnan(arr)))})
 
 
 _register("median_absolute_deviation")
@@ -339,6 +324,7 @@ _register("median_absolute_deviation")
     # "Test for normality at the 1% level"
         -> ``normality_test(values=[...], alpha=0.01)``
     """,
+    category="univariate",
 )
 def normality_test(*, values: list[float], alpha: float = 0.05) -> dict:
     """Shapiro-Wilk normality test; see tool spec for details."""
@@ -348,7 +334,7 @@ def normality_test(*, values: list[float], alpha: float = 0.05) -> dict:
     arr_clean = arr[~np.isnan(arr)]
     stat, p_value = shapiro(arr_clean)
     is_normal = bool(p_value >= alpha)
-    return _clean(
+    return clean(
         {
             "statistic": float(stat),
             "p_value": float(p_value),
@@ -358,7 +344,7 @@ def normality_test(*, values: list[float], alpha: float = 0.05) -> dict:
                 f"At the {alpha:.0%} significance level, the data appear consistent with a normal distribution."
                 if is_normal
                 else f"At the {alpha:.0%} significance level, there is evidence that the data "
-                "are NOT normally distributed (p={p_value:.4f}). Consider using robust methods."
+                f"are NOT normally distributed (p={p_value:.4f}). Consider using robust methods."
             ),
         }
     )
@@ -388,7 +374,7 @@ _register("normality_test")
                 },
                 "confidence_level": {
                     "type": "number",
-                    "description": "Confidence level between 0 and 1 (default 0.95 → 95% CI).",
+                    "description": "Confidence level between 0 and 1 (default 0.95 -> 95% CI).",
                     "exclusiveMinimum": 0,
                     "exclusiveMaximum": 1,
                 },
@@ -396,7 +382,8 @@ _register("normality_test")
                     "type": "string",
                     "enum": ["robust", "classical"],
                     "description": (
-                        "'robust' (default): use median ± t * MAD / √n. 'classical': use mean ± t * std / √n."
+                        "'robust' (default): use median +/- t * MAD / sqrt(n). "
+                        "'classical': use mean +/- t * std / sqrt(n)."
                     ),
                 },
             },
@@ -410,8 +397,9 @@ _register("normality_test")
     # "Give me a 99% classical confidence interval"
         -> ``confidence_interval(values=[...], confidence_level=0.99, method="classical")``
     """,
+    category="univariate",
 )
-def confidence_interval(
+def confidence_interval_tool(
     *,
     values: list[float],
     confidence_level: float = 0.95,
@@ -423,13 +411,13 @@ def confidence_interval(
     n = len(arr_clean)
     if method == "robust":
         center = float(np.median(arr_clean))
-        spread = float(median_abs_deviation(arr_clean))
+        spread = float(median_absolute_deviation(arr_clean))
     else:
         center = float(np.mean(arr_clean))
         spread = float(np.std(arr_clean, ddof=1))
     ct = float(t_value(1 - (1 - confidence_level) / 2, n - 1))
     margin = ct * spread / np.sqrt(n)
-    return _clean(
+    return clean(
         {
             "lower": center - margin,
             "center": center,
@@ -450,8 +438,8 @@ _register("confidence_interval")
     description=(
         "Perform an unpaired (independent samples) two-sided t-test to determine whether the "
         "means of two groups differ significantly. "
-        "Returns the z/t statistic, p-value, confidence interval for the difference "
-        "(group_b_mean − group_a_mean), and degrees of freedom. "
+        "Returns the t statistic, p-value, confidence interval for the difference "
+        "(group_b_mean - group_a_mean), and degrees of freedom. "
         "The groups must be independent (different subjects/items). "
         "Use ttest_paired_samples instead when each observation in group A is matched to one in B."
     ),
@@ -488,6 +476,7 @@ _register("confidence_interval")
     # "t-test at 99% confidence level"
         -> ``ttest_two_samples(group_a=[...], group_b=[...], confidence_level=0.99)``
     """,
+    category="univariate",
 )
 def ttest_two_samples(
     *,
@@ -498,19 +487,34 @@ def ttest_two_samples(
     """Unpaired t-test for two independent samples; see tool spec for details."""
     a = pd.Series(np.asarray(group_a, dtype=float)).dropna()
     b = pd.Series(np.asarray(group_b, dtype=float)).dropna()
-    result = ttest_difference_calculate(a, b, conflevel=confidence_level)
-    result["confidence_level"] = confidence_level
-    significant = bool(result["p value"] < (1 - confidence_level))
+    raw = ttest_independent(a, b, conflevel=confidence_level)
+
+    # Remap keys to snake_case
+    result = {
+        "group_a_n": raw["Group A number"],
+        "group_b_n": raw["Group B number"],
+        "group_a_mean": raw["Group A average"],
+        "group_b_mean": raw["Group B average"],
+        "z_value": raw["z value"],
+        "conf_int_lower": raw["ConfInt: Lo"],
+        "conf_int_upper": raw["ConfInt: Hi"],
+        "p_value": raw["p value"],
+        "degrees_of_freedom": raw["Degrees of freedom"],
+        "pooled_std": raw["Pooled standard deviation"],
+        "confidence_level": confidence_level,
+    }
+    significant = bool(result["p_value"] < (1 - confidence_level))
     result["significant"] = significant
+    diff = result["group_b_mean"] - result["group_a_mean"]
     result["interpretation"] = (
-        f"The difference (B − A = {result['Group B average'] - result['Group A average']:.4g}) "
+        f"The difference (B - A = {diff:.4g}) "
         + (
-            f"IS statistically significant (p={result['p value']:.4f} < {1 - confidence_level:.2f})."
+            f"IS statistically significant (p={result['p_value']:.4f} < {1 - confidence_level:.2f})."
             if significant
-            else f"is NOT statistically significant (p={result['p value']:.4f} ≥ {1 - confidence_level:.2f})."
+            else f"is NOT statistically significant (p={result['p_value']:.4f} >= {1 - confidence_level:.2f})."
         )
     )
-    return _clean(result)
+    return clean(result)
 
 
 _register("ttest_two_samples")
@@ -521,7 +525,7 @@ _register("ttest_two_samples")
     description=(
         "Perform a paired (repeated-measures) two-sided t-test to determine whether the "
         "mean of the differences between matched pairs is significantly different from zero. "
-        "The difference is defined as before − after (group_a − group_b). "
+        "The difference is defined as before - after (group_a - group_b). "
         "Each position i in group_a must correspond to the same subject/unit as position i in "
         "group_b (e.g. before/after measurements on the same individual). "
         "Use ttest_two_samples instead for independent groups."
@@ -556,6 +560,7 @@ _register("ttest_two_samples")
     # "Did the treatment improve scores? Before: [70,65,80], After: [75,70,82]"
         -> ``ttest_paired_samples(group_a=[70,65,80], group_b=[75,70,82])``
     """,
+    category="univariate",
 )
 def ttest_paired_samples(
     *,
@@ -569,20 +574,34 @@ def ttest_paired_samples(
     assert len(a) == len(b), "group_a and group_b must have the same length for a paired test."
     differences = a - b.values
     differences = differences.dropna()
-    result = ttest_paired_difference_calculate(differences, conflevel=confidence_level)
-    result["Group A average"] = float(a.mean())
-    result["Group B average"] = float(b.mean())
-    result["Group A number"] = int(a.count())
-    result["Group B number"] = int(b.count())
-    result["confidence_level"] = confidence_level
-    significant = bool(result["p value"] < (1 - confidence_level))
+    raw = ttest_paired(differences, conflevel=confidence_level)
+
+    # Remap keys to snake_case
+    result = {
+        "differences_mean": raw["Differences mean"],
+        "z_value": raw["z value"],
+        "conf_int_lower": raw["ConfInt: Lo"],
+        "conf_int_upper": raw["ConfInt: Hi"],
+        "p_value": raw["p value"],
+        "degrees_of_freedom": raw["Degrees of freedom"],
+        "std": raw["Standard deviation"],
+        "group_a_mean": float(a.mean()),
+        "group_b_mean": float(b.mean()),
+        "group_a_n": int(a.count()),
+        "group_b_n": int(b.count()),
+        "confidence_level": confidence_level,
+    }
+    significant = bool(result["p_value"] < (1 - confidence_level))
     result["significant"] = significant
-    result["interpretation"] = f"The mean paired difference (A − B = {result['Differences mean']:.4g}) " + (
-        f"IS statistically significant (p={result['p value']:.4f} < {1 - confidence_level:.2f})."
-        if significant
-        else f"is NOT statistically significant (p={result['p value']:.4f} ≥ {1 - confidence_level:.2f})."
+    result["interpretation"] = (
+        f"The mean paired difference (A - B = {result['differences_mean']:.4g}) "
+        + (
+            f"IS statistically significant (p={result['p_value']:.4f} < {1 - confidence_level:.2f})."
+            if significant
+            else f"is NOT statistically significant (p={result['p_value']:.4f} >= {1 - confidence_level:.2f})."
+        )
     )
-    return _clean(result)
+    return clean(result)
 
 
 _register("ttest_paired_samples")
@@ -627,8 +646,10 @@ _register("ttest_paired_samples")
         -> ``within_between_variance(values=[101,102,94,95], groups=[1,1,2,2])``
 
     # "Operator study: Alice measured [10.1,10.2,10.0], Bob measured [10.5,10.4,10.6]"
-        -> ``within_between_variance(values=[10.1,10.2,10.0,10.5,10.4,10.6], groups=["Alice","Alice","Alice","Bob","Bob","Bob"])``
+        -> ``within_between_variance(values=[10.1,10.2,10.0,10.5,10.4,10.6],
+                groups=["Alice","Alice","Alice","Bob","Bob","Bob"])``
     """,
+    category="univariate",
 )
 def within_between_variance(
     *,
@@ -638,8 +659,8 @@ def within_between_variance(
     """Within- and between-group variance decomposition; see tool spec for details."""
     assert len(values) == len(groups), "'values' and 'groups' must have the same length."
     df = pd.DataFrame({"measured": values, "repeat": groups})
-    result = within_between_standard_deviation(df, measured="measured", repeat="repeat")
-    return _clean(result)
+    result = variance_decomposition(df, measured="measured", repeat="repeat")
+    return clean(result)
 
 
 _register("within_between_variance")

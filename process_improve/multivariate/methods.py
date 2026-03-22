@@ -22,7 +22,7 @@ from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
 from tqdm import tqdm
 
-from ..univariate.metrics import outlier_detection_multiple
+from ..univariate.metrics import detect_outliers_esd
 from .plots import loading_plot, score_plot, spe_plot, t2_plot
 
 DataMatrix: TypeAlias = np.ndarray | pd.DataFrame
@@ -749,10 +749,10 @@ class PCA(TransformerMixin, BaseEstimator):
         max_outliers = max(1, N // 5)
         alpha = 1 - conf_level
 
-        spe_outlier_idx, _ = outlier_detection_multiple(
+        spe_outlier_idx, _ = detect_outliers_esd(
             spe_values.values, algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
         )
-        t2_outlier_idx, _ = outlier_detection_multiple(
+        t2_outlier_idx, _ = detect_outliers_esd(
             t2_values.values, algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
         )
 
@@ -1243,10 +1243,10 @@ class PLS(PLS_sklearn):
         max_outliers = max(1, N // 5)
         alpha = 1 - conf_level
 
-        spe_outlier_idx, _ = outlier_detection_multiple(
+        spe_outlier_idx, _ = detect_outliers_esd(
             spe_values.values, algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
         )
-        t2_outlier_idx, _ = outlier_detection_multiple(
+        t2_outlier_idx, _ = detect_outliers_esd(
             t2_values.values, algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
         )
 

@@ -75,7 +75,7 @@ def t_value_cdf(z, v) -> float:
     return t.cdf(z, df=v)
 
 
-def normality_check(x):
+def test_normality(x):
     """
     Check the p-value of the hypothesis that the data are from a normal distribution.
 
@@ -187,7 +187,7 @@ def _contains_nan(a, nan_policy="propagate"):
     return (contains_nan, nan_policy)
 
 
-def ttest_difference_calculate(sample_A, sample_B, conflevel=0.995) -> dict:
+def ttest_independent(sample_A, sample_B, conflevel=0.995) -> dict:
     """Core calculation for a test of differences between the average of A and the average of B.
     No checking of inputs.
 
@@ -236,7 +236,7 @@ def ttest_difference_calculate(sample_A, sample_B, conflevel=0.995) -> dict:
     }
 
 
-def ttest_difference(df: pd.DataFrame, grouper_column: str, values_column: str, conflevel=0.995):
+def ttest_independent_from_df(df: pd.DataFrame, grouper_column: str, values_column: str, conflevel=0.995):
     """
     Calculate the t-test for differences between two or more groups and returns a confidence
     interval for the difference. The test is for UNPAIRED differences.
@@ -283,7 +283,7 @@ def ttest_difference(df: pd.DataFrame, grouper_column: str, values_column: str, 
             sample_B = data_subset[data_subset[grouper_column].eq(groupB_name)][values_column]
             sample_A = sample_A.astype(np.float64)
             sample_B = sample_B.astype(np.float64)
-            basic_stats = ttest_difference_calculate(sample_A, sample_B, conflevel)
+            basic_stats = ttest_independent(sample_A, sample_B, conflevel)
             basic_stats.update(
                 {
                     "Group A name": groupA_name,
@@ -295,7 +295,7 @@ def ttest_difference(df: pd.DataFrame, grouper_column: str, values_column: str, 
     return output
 
 
-def ttest_paired_difference_calculate(differences, conflevel=0.995) -> dict:
+def ttest_paired(differences, conflevel=0.995) -> dict:
     """Core calculation for a test of differences.
 
     Parameters
@@ -340,7 +340,7 @@ def ttest_paired_difference_calculate(differences, conflevel=0.995) -> dict:
     }
 
 
-def ttest_paired_difference(df: pd.DataFrame, grouper_column: str, values_column: str, conflevel=0.995):
+def ttest_paired_from_df(df: pd.DataFrame, grouper_column: str, values_column: str, conflevel=0.995):
     """
     Calculate the t-test for paired differences between two or more groups and returns a
     confidence interval for the difference. The test is for PAIRED differences.
@@ -386,7 +386,7 @@ def ttest_paired_difference(df: pd.DataFrame, grouper_column: str, values_column
             sample_B = sample_B.astype(np.float64)
             assert sample_A.shape[0] == sample_B.shape[0]
             differences = sample_A - sample_B.values  # only the .values of one vector are needed!
-            basic_stats = ttest_paired_difference_calculate(differences, conflevel)
+            basic_stats = ttest_paired(differences, conflevel)
             basic_stats.update(
                 {
                     "Group A name": groupA_name,
@@ -420,7 +420,7 @@ def confidence_interval(df: pd.DataFrame, column_name: str, conflevel=0.95, styl
 
     if style.lower() == "robust":
         center = data.median()
-        spread = median_abs_deviation(data.values, nan_policy="omit")
+        spread = median_absolute_deviation(data.values, nan_policy="omit")
     else:
         center = data.mean()
         spread = data.std()
@@ -453,7 +453,7 @@ def _mad_1d(x, center, nan_policy):
     return np.median(np.abs(x - med))
 
 
-def median_abs_deviation(x, axis=0, center=np.median, scale="normal", nan_policy="omit"):
+def median_absolute_deviation(x, axis=0, center=np.median, scale="normal", nan_policy="omit"):
     r"""
     Taken from `scipy.stats.stats`: we want the same functionality, but with a slightly different
     default function signature.
@@ -654,7 +654,7 @@ def summary_stats(x, method="robust") -> dict:
     return out
 
 
-def outlier_detection_multiple(
+def detect_outliers_esd(
     x, algorithm: str = "esd", max_outliers_detected: int = 1, **kwargs
 ) -> tuple[list[int], defaultdict[Any, Any]]:
     """
@@ -723,7 +723,7 @@ def outlier_detection_multiple(
             extra_out["i"].append(i)
 
             if robust_variant:
-                variation = median_abs_deviation(x)
+                variation = median_absolute_deviation(x)
                 R = ((x - x.median()) / variation).abs()
             else:
                 variation = x.std()
@@ -765,7 +765,7 @@ def outlier_detection_multiple(
         return [], defaultdict(dict)
 
 
-def within_between_standard_deviation(df, measured: str, repeat: str) -> dict:
+def variance_decomposition(df, measured: str, repeat: str) -> dict:
     """
     Given a DataFrame `df` of raw data, and an indication of which column is the `measured` value
     column, and which is the `repeat` indicator, it will calculate the within and between replicate
@@ -828,3 +828,29 @@ def within_between_standard_deviation(df, measured: str, repeat: str) -> dict:
         "between_stddev": np.sqrt(between_ms),
         "between_dof": between_dof,
     }
+
+
+# ---------------------------------------------------------------------------
+# Migration helpers — old names raise helpful errors
+# ---------------------------------------------------------------------------
+
+_RENAMED = {
+    "median_abs_deviation": "median_absolute_deviation",
+    "normality_check": "test_normality",
+    "within_between_standard_deviation": "variance_decomposition",
+    "outlier_detection_multiple": "detect_outliers_esd",
+    "ttest_difference_calculate": "ttest_independent",
+    "ttest_paired_difference_calculate": "ttest_paired",
+    "ttest_difference": "ttest_independent_from_df",
+    "ttest_paired_difference": "ttest_paired_from_df",
+}
+
+
+def __getattr__(name: str):
+    if name in _RENAMED:
+        new = _RENAMED[name]
+        raise AttributeError(
+            f"{name!r} has been renamed to {new!r}. "
+            f"Use: from process_improve.univariate.metrics import {new}"
+        )
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

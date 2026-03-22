@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from ..regression.methods import repeated_median_slope
-from ..univariate.metrics import median_abs_deviation
+from ..univariate.metrics import median_absolute_deviation
 
 
 def rho(x, k=2.52):
@@ -266,7 +266,7 @@ class ControlChart:
             warm_up_residuals = y_warm_up - self.warm_up["alpha_0"] - self.warm_up["beta_0"]
 
             # Some other method that does not rely on SciPy for 1 function.
-            self.warm_up["sigma_0"] = median_abs_deviation(warm_up_residuals, nan_policy="omit")
+            self.warm_up["sigma_0"] = median_absolute_deviation(warm_up_residuals, nan_policy="omit")
             self.warm_up["residuals"] = warm_up_residuals
 
         df.loc[0, "rho_input"] = (
