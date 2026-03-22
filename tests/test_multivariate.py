@@ -28,6 +28,7 @@ from process_improve.multivariate.methods import (
     regress_a_space_on_b_row,
     scale,
     ssq,
+    vip,
 )
 
 pd.options.plotting.backend = "plotly"
@@ -1591,6 +1592,137 @@ def test_pls_variable_importance(fixture_pls_vip_calculation: dict) -> None:
     assert expected_coefficiencts_scaled_and_centerd.values.reshape(-1, 1) == pytest.approx(
         plsmodel_coeff_centered_scaled.values, abs=1e-5
     )
+
+
+def test_pls_vip_basic(fixture_pls_vip_calculation: dict) -> None:
+    """VIP for a fitted PLS model: shape, index, positivity, and bound method."""
+    data = fixture_pls_vip_calculation
+    x_features = data["X"][["A", "B", "C", "D"]]
+    y_target = data["X"]["y"]
+
+    plsmodel = PLS(n_components=3)
+    x_mcuv = MCUVScaler().fit(x_features)
+    y_mcuv = MCUVScaler().fit(y_target)
+    plsmodel.fit(x_mcuv.transform(x_features), y_mcuv.transform(pd.DataFrame(y_target)))
+
+    # Standalone function and bound method must agree
+    vip_standalone = vip(plsmodel)
+    vip_bound = plsmodel.vip()
+    assert vip_standalone.equals(vip_bound)
+
+    # Structural checks
+    assert isinstance(vip_standalone, pd.Series)
+    assert vip_standalone.name == "VIP"
+    assert len(vip_standalone) == x_features.shape[1]
+    assert vip_standalone.index.tolist() == list(x_features.columns)
+    assert (vip_standalone > 0).all()
+
+    # Features with VIP > 1 are considered important
+    # With 4 features and cumulative R² close to 1, at least one should be above 1
+    assert (vip_standalone > 1).any()
+
+
+def test_pls_vip_n_components(fixture_pls_vip_calculation: dict) -> None:
+    """VIP changes when fewer components are used."""
+    data = fixture_pls_vip_calculation
+    x_features = data["X"][["A", "B", "C", "D"]]
+    y_target = data["X"]["y"]
+
+    plsmodel = PLS(n_components=3)
+    x_mcuv = MCUVScaler().fit(x_features)
+    y_mcuv = MCUVScaler().fit(y_target)
+    plsmodel.fit(x_mcuv.transform(x_features), y_mcuv.transform(pd.DataFrame(y_target)))
+
+    vip_all = plsmodel.vip()
+    vip_1 = plsmodel.vip(n_components=1)
+    vip_2 = plsmodel.vip(n_components=2)
+
+    assert len(vip_1) == len(vip_all)  # same number of features
+    assert not vip_all.equals(vip_1)    # but different values
+    assert not vip_all.equals(vip_2)
+
+    # Invalid n_components raises ValueError
+    with pytest.raises(ValueError, match="n_components"):
+        plsmodel.vip(n_components=0)
+    with pytest.raises(ValueError, match="n_components"):
+        plsmodel.vip(n_components=99)
+
+
+def test_pca_vip_basic() -> None:
+    """VIP for a fitted PCA model: shape, index, positivity, bound method."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.standard_normal((50, 5)), columns=[f"X{i}" for i in range(1, 6)])
+    X_scaled = MCUVScaler().fit_transform(X)
+
+    pcamodel = PCA(n_components=3)
+    pcamodel.fit(X_scaled)
+
+    vip_standalone = vip(pcamodel)
+    vip_bound = pcamodel.vip()
+    assert vip_standalone.equals(vip_bound)
+
+    assert isinstance(vip_standalone, pd.Series)
+    assert vip_standalone.name == "VIP"
+    assert len(vip_standalone) == X.shape[1]
+    assert vip_standalone.index.tolist() == list(X.columns)
+    assert (vip_standalone > 0).all()
+
+
+def test_pca_vip_n_components() -> None:
+    """VIP with n_components subset differs from full-model VIP for PCA."""
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame(rng.standard_normal((50, 4)), columns=["A", "B", "C", "D"])
+    X_scaled = MCUVScaler().fit_transform(X)
+
+    pcamodel = PCA(n_components=3)
+    pcamodel.fit(X_scaled)
+
+    vip_all = pcamodel.vip()
+    vip_1 = pcamodel.vip(n_components=1)
+    assert not vip_all.equals(vip_1)
+
+    with pytest.raises(ValueError, match="n_components"):
+        pcamodel.vip(n_components=0)
+    with pytest.raises(ValueError, match="n_components"):
+        pcamodel.vip(n_components=10)
+
+
+def test_vip_unfitted_raises() -> None:
+    """vip() raises ValueError when called on an unfitted model."""
+    pls_unfitted = PLS(n_components=2)
+    with pytest.raises(ValueError, match="not fitted"):
+        vip(pls_unfitted)
+
+    pca_unfitted = PCA(n_components=2)
+    with pytest.raises(ValueError, match="not fitted"):
+        vip(pca_unfitted)
+
+
+def test_vip_formula_correctness() -> None:
+    """VIP formula: verify against manually computed values."""
+    # Simple synthetic case with known PLS model internals
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(rng.standard_normal((60, 4)), columns=["A", "B", "C", "D"])
+    Y = pd.DataFrame(X.values @ np.array([2.0, 0.5, 0.1, 0.0]).reshape(-1, 1) + rng.standard_normal((60, 1)) * 0.05,
+                     columns=["y"])
+    X_scaled = MCUVScaler().fit_transform(X)
+    Y_scaled = MCUVScaler().fit_transform(Y)
+
+    model = PLS(n_components=2)
+    model.fit(X_scaled, Y_scaled)
+
+    result = model.vip()
+
+    # Manually replicate the formula: VIP_j = sqrt(K * sum(r2_a * w_ja^2) / sum(r2_a))
+    W = model.x_weights_.values  # (K, A)
+    r2 = model.r2_per_component_.values  # (A,)
+    K = W.shape[0]
+    expected = np.sqrt(K * np.sum(r2.reshape(1, -1) * W**2, axis=1) / np.sum(r2))
+
+    assert result.values == pytest.approx(expected, abs=1e-10)
+
+    # Feature "A" (highest coefficient) should have the highest VIP
+    assert result.idxmax() == "A"
 
 
 def test_pls_score_contributions() -> None:

@@ -68,6 +68,83 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
         return X * self.scale_ + self.center_
 
 
+def vip(model: PCA | PLS, n_components: int | None = None) -> pd.Series:
+    r"""Calculate Variable Importance in Projection (VIP) scores.
+
+    Works with fitted :class:`PCA` and :class:`PLS` models. For PCA the
+    principal-component loadings ``loadings_`` are used as the weight matrix;
+    for PLS the X-block weights ``x_weights_`` are used.
+
+    The formula is:
+
+    .. math::
+
+        \\text{VIP}_j = \\sqrt{K \\cdot
+            \\frac{\\sum_{a=1}^{A} r2_a \\cdot w_{ja}^2}{\\sum_{a=1}^{A} r2_a}}
+
+    where :math:`K` is the number of features, :math:`A` the number of
+    components, :math:`r2_a` the fraction of variance explained by component
+    :math:`a`, and :math:`w_{ja}` the weight for feature :math:`j` in
+    component :math:`a`.
+
+    Parameters
+    ----------
+    model : PCA or PLS
+        A fitted PCA or PLS model.
+    n_components : int or None, default=None
+        Number of components to include. ``None`` uses all fitted components.
+
+    Returns
+    -------
+    pd.Series
+        VIP scores indexed by feature names, named ``"VIP"``.
+
+    Raises
+    ------
+    ValueError
+        If the model is not fitted, if neither ``x_weights_`` nor
+        ``loadings_`` is found, or if *n_components* is out of range.
+
+    Examples
+    --------
+    >>> pls = PLS(n_components=3).fit(X_scaled, Y_scaled)
+    >>> pls.vip()          # bound convenience method after fit()
+    >>> vip(pls)           # or call the standalone function directly
+    >>> pca = PCA(n_components=3).fit(X_scaled)
+    >>> pca.vip(n_components=2)
+    """
+    if not hasattr(model, "r2_per_component_"):
+        msg = "Model is not fitted. Call fit() before computing VIP."
+        raise ValueError(msg)
+
+    if hasattr(model, "x_weights_"):
+        weights: pd.DataFrame = model.x_weights_
+    elif hasattr(model, "loadings_"):
+        weights = model.loadings_
+    else:
+        msg = "Model must have 'x_weights_' (PLS) or 'loadings_' (PCA) to compute VIP."
+        raise ValueError(msg)
+
+    r2: np.ndarray = model.r2_per_component_.values
+    w: np.ndarray = weights.values  # (n_features, total_components)
+
+    total_components = w.shape[1]
+    if n_components is None:
+        n_components = total_components
+    elif not (1 <= n_components <= total_components):
+        msg = f"n_components must be between 1 and {total_components}, got {n_components}."
+        raise ValueError(msg)
+
+    w = w[:, :n_components]
+    r2 = r2[:n_components]
+
+    n_features = w.shape[0]
+    r2_row = r2.reshape(1, -1)  # (1, n_components)
+    vip_values = np.sqrt(n_features * np.sum(r2_row * w**2, axis=1) / np.sum(r2))
+
+    return pd.Series(vip_values, index=weights.index, name="VIP")
+
+
 class PCA(TransformerMixin, BaseEstimator):
     """Principal Component Analysis with support for missing data.
 
@@ -270,6 +347,7 @@ class PCA(TransformerMixin, BaseEstimator):
         self.loading_plot = partial(loading_plot, model=self, loadings_type="p")
         self.score_plot = partial(score_plot, model=self)
         self.spe_limit = partial(spe_limit, model=self)
+        self.vip = partial(vip, model=self)
 
         # Clean up temporary numpy arrays
         del self._loadings_np, self._scores_np, self._r2_np, self._r2cum_np, self._r2_per_var_np, self._spe_np
@@ -1108,6 +1186,7 @@ class PLS(PLS_sklearn):
         self.t2_plot = partial(t2_plot, model=self)
         self.loading_plot = partial(loading_plot, model=self)
         self.score_plot = partial(score_plot, model=self)
+        self.vip = partial(vip, model=self)
 
         return self
 
@@ -2864,6 +2943,44 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         self.feature_importance["D"] = vip_split_d  # TODO: should it not be based on deflated matrices? S(V^TS)^{-1}
         self.feature_importance["F"] = vip_split_f  # TODO: should it not be based on deflated matrices? P(_^TP)^{-1}
+
+    def vip(self, block: str | None = None) -> dict[str, dict[str, pd.Series]] | dict[str, pd.Series]:
+        """Return Variable Importance in Projection (VIP) scores for TPLS blocks.
+
+        VIP scores are computed during fitting for the D-block (material properties) and
+        F-block (formulation variables) and stored in :attr:`feature_importance`.
+
+        Parameters
+        ----------
+        block : str or None, default=None
+            Which block to return. Must be ``"D"`` or ``"F"``, or ``None`` to
+            return all blocks.
+
+        Returns
+        -------
+        dict
+            If *block* is ``None``: ``{"D": {group: pd.Series, ...}, "F": {group: pd.Series, ...}}``.
+            If *block* is ``"D"`` or ``"F"``: the inner dict ``{group: pd.Series, ...}`` for that block,
+            where each ``pd.Series`` is indexed by feature names.
+
+        Raises
+        ------
+        ValueError
+            If the model is not fitted or *block* is not ``"D"``, ``"F"``, or ``None``.
+
+        Examples
+        --------
+        >>> tpls = TPLS(...).fit(data)
+        >>> tpls.vip()          # all blocks
+        >>> tpls.vip("D")       # D-block only → {group_name: pd.Series, ...}
+        """
+        check_is_fitted(self, "feature_importance")
+        if block is None:
+            return self.feature_importance
+        if block not in ("D", "F"):
+            msg = f"block must be 'D', 'F', or None; got {block!r}."
+            raise ValueError(msg)
+        return self.feature_importance[block]
 
     def _calculate_vip(self, loadings: np.ndarray, r2_vector: np.ndarray) -> np.ndarray:
         """Calculate the VIP values for the current component.
