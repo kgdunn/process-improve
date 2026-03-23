@@ -57,7 +57,7 @@ def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) ->
     return np.nanmedian(medians)
 
 
-def simple_robust_regression(  # noqa: PLR0913, PLR0915
+def robust_regression(  # noqa: PLR0913, PLR0915
     x: np.ndarray | pd.DataFrame | pd.Series,
     y: np.ndarray | pd.DataFrame | pd.Series,
     fit_intercept: bool = True,
@@ -224,6 +224,18 @@ def simple_robust_regression(  # noqa: PLR0913, PLR0915
         )
 
     return out
+
+
+_RENAMED = {"simple_robust_regression": "robust_regression"}
+
+def __getattr__(name: str):
+    if name in _RENAMED:
+        new = _RENAMED[name]
+        raise AttributeError(
+            f"{name!r} has been renamed to {new!r}. "
+            f"Use: from process_improve.regression.methods import {new}"
+        )
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def multiple_linear_regression(  # noqa: PLR0915, PLR0913

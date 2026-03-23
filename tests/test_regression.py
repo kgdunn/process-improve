@@ -5,7 +5,7 @@ import pytest
 from process_improve.regression.methods import (
     multiple_linear_regression,
     repeated_median_slope,
-    simple_robust_regression,
+    robust_regression,
 )
 
 
@@ -317,7 +317,7 @@ def simple_robust_regression_data() -> tuple[np.ndarray, np.ndarray]:
 def test_regression_simple_robust(simple_robust_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
     """Tests the simple robust regression model."""
     X, y = simple_robust_regression_data
-    out = simple_robust_regression(X, y)
+    out = robust_regression(X, y)
 
     assert isinstance(out["intercept"], float)
     assert len(out["coefficients"]) == 1
@@ -338,7 +338,7 @@ def test_simple_robust_regression_corner_case() -> None:
     # No variation in x-space
     x = np.array([4, 4, 4, 4, 4])
     y = np.array([1, 2, 3, 4, 5])
-    out = simple_robust_regression(x, y)
+    out = robust_regression(x, y)
     assert np.isnan(out["standard_error_intercept"])
     assert np.isnan(out["standard_errors"][0])
     assert np.isnan(out["conf_intervals"][0][0])
@@ -350,7 +350,7 @@ def test_simple_robust_regression_missing_values() -> None:
 
     x = np.array([1, 2, 3, 4, 5])
     y = np.array([np.nan, np.nan, np.nan, np.nan, 1])
-    out = simple_robust_regression(x, y)
+    out = robust_regression(x, y)
     assert np.isnan(out["standard_error_intercept"])
     assert np.isnan(out["standard_errors"][0])
     assert np.isnan(out["conf_intervals"][0][0])
@@ -361,7 +361,7 @@ def test_simple_regression_no_error() -> None:
     """Tests cases where there is perfect fit."""
     x = np.array([1, 2, 3, 4, 5])
     y = np.array([9, 8, 7, 6, 5])
-    robust = simple_robust_regression(x, y)
+    robust = robust_regression(x, y)
     regular = multiple_linear_regression(x, y, fit_intercept=True)
     assert robust["influence"] == pytest.approx(regular["influence"])
     assert robust["influence"] == pytest.approx([0] * 5)
@@ -372,7 +372,7 @@ def test_simple_regression_no_error() -> None:
 def test_simple_robust_regression_no_intercept(simple_robust_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
     """Test simple robust regression with fit_intercept=False."""
     X, y = simple_robust_regression_data
-    out = simple_robust_regression(X.ravel(), y, fit_intercept=False)
+    out = robust_regression(X.ravel(), y, fit_intercept=False)
 
     # Basic structure checks
     assert out["intercept"] == 0.0  # Should be exactly 0.0, not None or np.nan
@@ -409,7 +409,7 @@ def test_simple_robust_regression_compare_with_regular_no_intercept() -> None:
     x = np.array([1, 2, 3, 4, 5])
     y = np.array([2, 4, 6, 8, 10])  # Perfect linear relationship through origin
 
-    robust_out = simple_robust_regression(x, y, fit_intercept=False)
+    robust_out = robust_regression(x, y, fit_intercept=False)
     regular_out = multiple_linear_regression(x, y, fit_intercept=False)
 
     # Both should have intercept = 0 (robust) or np.nan (regular)

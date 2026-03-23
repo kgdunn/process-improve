@@ -4,7 +4,7 @@ import pandas as pd
 from ..univariate.metrics import Sn
 
 
-def calculate_Cpk(
+def calculate_cpk(
     df: pd.DataFrame,
     which_column: str,
     specifications=(np.nan, np.nan),
@@ -66,3 +66,15 @@ def calculate_Cpk(
 
     # TODO: return the RSD also: rsd = (spread / center) * 100
     return np.nanmin([center_lower / (3 * spread_lower), center_upper / (3 * spread_upper)])
+
+
+_RENAMED = {"calculate_Cpk": "calculate_cpk"}
+
+def __getattr__(name: str):
+    if name in _RENAMED:
+        new = _RENAMED[name]
+        raise AttributeError(
+            f"{name!r} has been renamed to {new!r}. "
+            f"Use: from process_improve.monitoring.metrics import {new}"
+        )
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

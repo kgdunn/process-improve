@@ -330,7 +330,7 @@ class TestTtestTwoSamples:
             {"group_a": [100, 101, 99, 100, 101], "group_b": [200, 201, 199, 200, 201]},
         )
         assert result["significant"] is True
-        assert result["p value"] < 0.05
+        assert result["p_value"] < 0.05
 
     def test_same_groups_not_significant(self):
         data = [10.0, 10.0, 10.0, 10.0, 10.0]
@@ -342,7 +342,7 @@ class TestTtestTwoSamples:
             "ttest_two_samples",
             {"group_a": [1, 2, 3], "group_b": [4, 5, 6]},
         )
-        for key in ("p value", "z value", "ConfInt: Lo", "ConfInt: Hi", "interpretation"):
+        for key in ("p_value", "z_value", "conf_int_lower", "conf_int_upper", "interpretation"):
             assert key in result
 
     def test_result_json_serialisable(self):
@@ -362,14 +362,14 @@ class TestTtestPairedSamples:
         values = [10, 11, 9, 10, 11]
         result = execute_tool_call("ttest_paired_samples", {"group_a": values, "group_b": values})
         # identical before/after: differences all zero
-        assert result["Differences mean"] == pytest.approx(0.0)
+        assert result["differences_mean"] == pytest.approx(0.0)
 
     def test_output_keys_present(self):
         result = execute_tool_call(
             "ttest_paired_samples",
             {"group_a": [70, 65, 80], "group_b": [75, 70, 82]},
         )
-        for key in ("Differences mean", "p value", "z value", "significant", "interpretation"):
+        for key in ("differences_mean", "p_value", "z_value", "significant", "interpretation"):
             assert key in result
 
     def test_result_json_serialisable(self):

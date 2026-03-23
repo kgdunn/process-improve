@@ -82,10 +82,10 @@ def test_normality_check():
     ]
 
     # Data actually are from a  normal distribution:
-    assert univariate.normality_check(x) == pytest.approx(0.4352, abs=1e-3)
+    assert univariate.test_normality(x) == pytest.approx(0.4352, abs=1e-3)
 
     # Data actually are from a uniform distribution:
-    assert univariate.normality_check(y) == pytest.approx(0.1117, abs=1e-3)
+    assert univariate.test_normality(y) == pytest.approx(0.1117, abs=1e-3)
 
 
 def test_univariate_robust_scale():
@@ -165,45 +165,45 @@ def test_summary_stats_corner_case_with_robust_scale():
 
 def test_median_abs_deviation():
     x = np.array([[10, 7, 4], [3, 2, 1]])
-    assert univariate.median_abs_deviation(x, scale=1) == pytest.approx([3.5, 2.5, 1.5])
-    assert univariate.median_abs_deviation(x.ravel(), scale=1) == 2.0
+    assert univariate.median_absolute_deviation(x, scale=1) == pytest.approx([3.5, 2.5, 1.5])
+    assert univariate.median_absolute_deviation(x.ravel(), scale=1) == 2.0
 
     from scipy import stats
 
     x = stats.norm.rvs(size=1000000, scale=2, random_state=123456)
-    assert univariate.median_abs_deviation(x, scale=1) == pytest.approx(1.3487398527041636, rel=1e-12)
-    assert univariate.median_abs_deviation(x) == pytest.approx(1.9996446978061115, rel=1e-12)
+    assert univariate.median_absolute_deviation(x, scale=1) == pytest.approx(1.3487398527041636, rel=1e-12)
+    assert univariate.median_absolute_deviation(x) == pytest.approx(1.9996446978061115, rel=1e-12)
 
     with pytest.raises(TypeError, match=r"The argument 'center' must .*"):
-        _ = univariate.median_abs_deviation(x, center=0.0)
+        _ = univariate.median_absolute_deviation(x, center=0.0)
 
     with pytest.raises(ValueError, match=r".* is not a valid scale value."):
-        _ = univariate.median_abs_deviation(x, scale="robust")
+        _ = univariate.median_absolute_deviation(x, scale="robust")
 
     with pytest.raises(ValueError, match=r"nan_policy must be one of .*"):
-        univariate.median_abs_deviation([1, 2, 3, 4], nan_policy="propogatess")
+        univariate.median_absolute_deviation([1, 2, 3, 4], nan_policy="propogatess")
 
     with pytest.raises(TypeError):
-        univariate.median_abs_deviation(["a", "b"])
+        univariate.median_absolute_deviation(["a", "b"])
 
     with pytest.raises(ValueError, match="The input contains nan values"):
-        univariate.median_abs_deviation([np.nan, 1], nan_policy="raise")
+        univariate.median_absolute_deviation([np.nan, 1], nan_policy="raise")
 
-    assert np.isnan(univariate.median_abs_deviation([np.nan, 1, 2], nan_policy="propagate"))
+    assert np.isnan(univariate.median_absolute_deviation([np.nan, 1, 2], nan_policy="propagate"))
 
-    assert np.isnan(univariate.median_abs_deviation([np.nan]))
+    assert np.isnan(univariate.median_absolute_deviation([np.nan]))
     assert np.isnan(
-        univariate.median_abs_deviation(
+        univariate.median_absolute_deviation(
             [
                 np.nan,
             ],
             axis=0,
         )
     )
-    assert np.isnan(univariate.median_abs_deviation([]))
-    assert np.isnan(univariate.median_abs_deviation([], axis=0))
-    assert np.isnan(univariate.median_abs_deviation((np.empty((2, 3, 4)) * np.nan).ravel()))
-    assert np.isnan(univariate.median_abs_deviation(np.array([np.nan, np.nan]), axis=0))
+    assert np.isnan(univariate.median_absolute_deviation([]))
+    assert np.isnan(univariate.median_absolute_deviation([], axis=0))
+    assert np.isnan(univariate.median_absolute_deviation((np.empty((2, 3, 4)) * np.nan).ravel()))
+    assert np.isnan(univariate.median_absolute_deviation(np.array([np.nan, np.nan]), axis=0))
 
 
 def test_t_test_differences():
@@ -228,7 +228,7 @@ def test_t_test_differences():
     mik = [5.80, 9.00, 5.60, 8.40, 8.60, None, None, None, None, None, None, None]
     temp = pd.DataFrame(data={"Sam": sam, "Jen": jen, "Mik": mik}).reset_index().melt(id_vars="index")
     df = temp.drop("index", axis=1).dropna().rename(columns={"variable": "Person"})
-    output = univariate.ttest_difference(df, grouper_column="Person", values_column="value", conflevel=0.95)
+    output = univariate.ttest_independent_from_df(df, grouper_column="Person", values_column="value", conflevel=0.95)
     row = output[output["Group A name"].eq("Sam") & output["Group B name"].eq("Jen")]
 
     # Assert against the R values in the above validation script.
@@ -267,7 +267,7 @@ def test_t_paried_test_differences():
     jen = [5.37, 4.83, 7.87, 3.30, 8.26, 7.87, 8.26, 6.13, 6.13, 5.63, 2.96, 5.88]
     temp = pd.DataFrame(data={"Sam": sam, "Jen": jen}).reset_index().melt(id_vars="index")
     df = temp.drop("index", axis=1).dropna().rename(columns={"variable": "Person"})
-    output = univariate.ttest_paired_difference(df, grouper_column="Person", values_column="value", conflevel=0.95)
+    output = univariate.ttest_paired_from_df(df, grouper_column="Person", values_column="value", conflevel=0.95)
     row = output[output["Group A name"].eq("Sam") & output["Group B name"].eq("Jen")]
 
     # Assert against the R values in the above validation script.
@@ -448,7 +448,7 @@ def test_within_between_variance(within_between_sd_data):
     dof_between = 13
     dof_total = 27
 
-    out = univariate.within_between_standard_deviation(df, "value", "index")
+    out = univariate.variance_decomposition(df, "value", "index")
     assert out["total_ms"] == pytest.approx(expected_actual_sd, rel=1e-5)
     assert out["total_dof"] == dof_total
     assert out["within_ms"] == pytest.approx(expected_within_ms, rel=1e-5)
@@ -460,7 +460,7 @@ def test_within_between_variance(within_between_sd_data):
 def test_empty_case(within_between_sd_data):
     """What happens if there are no data? Everything should be zero."""
     _, empty = within_between_sd_data
-    out = univariate.within_between_standard_deviation(empty, "value", "index")
+    out = univariate.variance_decomposition(empty, "value", "index")
     assert out["total_ms"] == 0
     assert out["within_ms"] == 0
     assert out["within_dof"] == 0
@@ -532,7 +532,7 @@ def test_within_between_sd_missing_values():
     dof_between = 12
     dof_total = 24
 
-    out = univariate.within_between_standard_deviation(df, "value", "index")
+    out = univariate.variance_decomposition(df, "value", "index")
     assert out["total_ms"] == pytest.approx(expected_actual_sd, abs=1e-4)
     assert out["total_dof"] == dof_total
     assert out["within_ms"] == pytest.approx(expected_within_ms, abs=1e-4)
@@ -542,7 +542,7 @@ def test_within_between_sd_missing_values():
 
     # test__empty_case
     # What happens if there are no/little data after accounting for outliers?
-    out = univariate.within_between_standard_deviation(empty, "value", "index")
+    out = univariate.variance_decomposition(empty, "value", "index")
     assert out["total_ms"] == 0
     assert out["within_ms"] == 0
     assert out["within_dof"] == 0
@@ -568,7 +568,7 @@ def outliers_data_measurement() -> list[float]:
 def test_edge_case_outliers(outliers_data_measurement) -> None:
     """Test an actual edge case that did not return p-values."""
     max_outliers = len(outliers_data_measurement) - 5
-    outliers, reasons = univariate.outlier_detection_multiple(
+    outliers, reasons = univariate.detect_outliers_esd(
         outliers_data_measurement, algoritm="esd", max_outliers_detected=max_outliers, alpha=0.05
     )
 
@@ -721,7 +721,7 @@ def outliers_data():
 
 def test_rosner_nonrobust_esd(outliers_data):
     rosner, _ = outliers_data
-    outliers, reasons = univariate.outlier_detection_multiple(
+    outliers, reasons = univariate.detect_outliers_esd(
         rosner,
         algorithm="esd",
         max_outliers_detected=7,
@@ -744,7 +744,7 @@ def test_rosner_nonrobust_esd(outliers_data):
 def test_rosner_esd_kwargs(outliers_data):
     """In this example it picks up fewer outliers."""
     rosner, _ = outliers_data
-    outliers, _ = univariate.outlier_detection_multiple(
+    outliers, _ = univariate.detect_outliers_esd(
         rosner,
         algorithm="esd",
         max_outliers_detected=7,
@@ -760,7 +760,7 @@ def test_rosner_esd_no_outliers(outliers_data):
     list.
     """
     rosner, _ = outliers_data
-    outliers, _ = univariate.outlier_detection_multiple(
+    outliers, _ = univariate.detect_outliers_esd(
         rosner[1:-5],
         algorithm="esd",
         max_outliers_detected=0,
@@ -773,26 +773,26 @@ def test_rosner_esd_corner_case():
     In this example it picks up no outliers. Ensures that the test can also return an empty
     list.
     """
-    outliers, extra_out = univariate.outlier_detection_multiple([1, 2], algorithm="esd", max_outliers_detected=1)
+    outliers, extra_out = univariate.detect_outliers_esd([1, 2], algorithm="esd", max_outliers_detected=1)
     assert extra_out["p-value"][0] == 0
 
     # If the values are all the same:
-    outliers, extra_out = univariate.outlier_detection_multiple([3, 3, 3], algorithm="esd", max_outliers_detected=1)
+    outliers, extra_out = univariate.detect_outliers_esd([3, 3, 3], algorithm="esd", max_outliers_detected=1)
     assert np.isnan(extra_out["p-value"])
     assert extra_out["cutoff"] == -1
     assert len(outliers) == 0
 
-    outliers, extra_out = univariate.outlier_detection_multiple([2, 2], algorithm="esd", max_outliers_detected=1)
+    outliers, extra_out = univariate.detect_outliers_esd([2, 2], algorithm="esd", max_outliers_detected=1)
     assert np.isnan(extra_out["p-value"])
     assert extra_out["cutoff"] == -1
     assert len(outliers) == 0
 
-    outliers, extra_out = univariate.outlier_detection_multiple([1], algorithm="esd", max_outliers_detected=1)
+    outliers, extra_out = univariate.detect_outliers_esd([1], algorithm="esd", max_outliers_detected=1)
     assert np.isnan(extra_out["p-value"])
     assert extra_out["cutoff"] == -1
     assert len(outliers) == 0
 
-    outliers, extra_out = univariate.outlier_detection_multiple(
+    outliers, extra_out = univariate.detect_outliers_esd(
         [1, 2, 3], algorithm="something-else", max_outliers_detected=1
     )
     assert len(extra_out) == 0
@@ -802,7 +802,7 @@ def test_rosner_esd_corner_case():
 def test_sequence_compare_R(outliers_data):
     """Compare it to an R sequence and the Grubb's test there."""
     _, sequence = outliers_data
-    outliers, reasons_regular = univariate.outlier_detection_multiple(
+    outliers, reasons_regular = univariate.detect_outliers_esd(
         sequence,
         algorithm="esd",
         max_outliers_detected=1,
@@ -812,7 +812,7 @@ def test_sequence_compare_R(outliers_data):
     assert reasons_regular["p-value"][0] == pytest.approx(0.02066273, rel=1e-7)
 
     # Now with the robust version, to check NaN handling.
-    outliers, reasons_robust = univariate.outlier_detection_multiple(
+    outliers, reasons_robust = univariate.detect_outliers_esd(
         sequence,
         algorithm="esd",
         max_outliers_detected=1,
@@ -821,7 +821,7 @@ def test_sequence_compare_R(outliers_data):
     )
     assert outliers[0] == 63
     assert np.isnan(
-        univariate.median_abs_deviation(
+        univariate.median_absolute_deviation(
             [np.nan],
         )
     )
