@@ -376,3 +376,111 @@ def test_model_get_aliases_empty():
     expt = gather(A=A, B=B, y=y)
     model = lm("y ~ A + B", expt)
     assert model.get_aliases() == []
+
+
+# ---- Structure tests (improving experiments/structures.py coverage) ----
+
+
+def test_expand_grid_basic():
+    """expand_grid should create all combinations of factor levels."""
+    A = c(-1, +1)
+    B = c(-1, +1)
+    result = expand_grid(A=A, B=B)
+    assert len(result) == 2  # 2 columns
+    assert len(result[0]) == 4  # 2^2 = 4 rows
+
+
+def test_expand_grid_three_factors():
+    """expand_grid with 3 factors should produce 2^3 = 8 rows."""
+    A = c(-1, +1)
+    B = c(-1, +1)
+    C_factor = c(-1, +1)
+    result = expand_grid(A=A, B=B, C=C_factor)
+    assert len(result) == 3
+    assert len(result[0]) == 8
+
+
+def test_supplement_function():
+    """supplement should carry over kwargs to a new Column from existing values."""
+    A = c(-1, +1, -1, +1)
+    A_supp = supplement(A, name="Feed rate", units="g/min", lo=-1, hi=1)
+    assert A_supp.pi_name == "Feed rate"
+    assert A_supp.pi_units == "g/min"
+    assert len(A_supp) == 4
+
+
+def test_full_factorial_default_names():
+    """full_factorial should create a 2^k design with default factor names."""
+    result = full_factorial(3)
+    assert len(result) == 3  # 3 factors
+    assert len(result[0]) == 8  # 2^3 = 8 runs
+
+
+def test_full_factorial_custom_names():
+    """full_factorial with custom names should use provided names."""
+    result = full_factorial(2, names=["Temp", "Pressure"])
+    assert len(result) == 2
+    assert result[0].pi_name == "Temp"
+    assert result[1].pi_name == "Pressure"
+    assert len(result[0]) == 4  # 2^2 = 4 runs
+
+
+def test_column_division():
+    """Column division should work element-wise."""
+    A = c(2.0, 4.0, 6.0)
+    B = c(1.0, 2.0, 3.0)
+    result = A / B
+    assert np.allclose(result.values, [2.0, 2.0, 2.0])
+
+
+def test_column_addition():
+    """Column addition should work element-wise."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    result = A + B
+    assert np.allclose(result.values, [-2, 0, 0, 2])
+
+
+def test_column_to_coded_already_coded():
+    """to_coded on already-coded column should return the same values."""
+    A = c(-1, +1, 0, name="A")
+    coded = A.to_coded()
+    assert np.allclose(coded.values, A.values)
+
+
+def test_column_to_realworld_not_coded():
+    """to_realworld on a real-world column should return the same values."""
+    A = c(100, 200, 150, lo=100, hi=200, name="Temp", units="C")
+    rw = A.to_realworld()
+    assert np.allclose(rw.values, A.values)
+
+
+def test_column_with_units_name():
+    """Column with units should format name correctly."""
+    A = c(100, 200, lo=100, hi=200, name="Temp", units="C")
+    assert "C" in A.name
+    assert "Temp" in A.name
+
+
+def test_column_categorical_with_levels():
+    """Column with explicit levels should store them."""
+    D = c(0, 1, 0, 1, levels=(0, 1))
+    assert hasattr(D, "pi_levels")
+
+
+def test_gather_drops_missing_values():
+    """gather should drop rows with any NaN values."""
+    A = c(-1, +1, -1, +1, float("nan"))
+    B = c(-1, -1, +1, +1, 0)
+    expt = gather(A=A, B=B)
+    assert expt.shape[0] == 4  # NaN row dropped
+
+
+def test_expt_repr():
+    """Expt repr should include title and dimensions."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    expt = gather(A=A, B=B, title="My experiment")
+    r = repr(expt)
+    assert "My experiment" in r
+    assert "4 experiments" in r
