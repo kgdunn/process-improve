@@ -15,7 +15,6 @@ import pytest
 import ridgeplot
 from scipy.stats import chi2, f
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, _fit_context, clone
-from sklearn.cross_decomposition import PLSRegression as PLS_sklearn
 from sklearn.metrics import r2_score
 from sklearn.model_selection import cross_val_score
 from sklearn.utils import Bunch
@@ -899,10 +898,10 @@ class PCA(TransformerMixin, BaseEstimator):
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
 
-class PLS(PLS_sklearn):
+class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
     """Projection to Latent Structures (PLS) regression with diagnostics.
 
-    Extends sklearn's ``PLSRegression`` with production diagnostics: SPE,
+    Implements PLS via the NIPALS algorithm with production diagnostics: SPE,
     Hotelling's T², score contributions, and outlier detection. The API mirrors
     :class:`PCA` so that ``model.scores_``, ``model.spe_``, and
     ``model.detect_outliers()`` work identically for both model types.
@@ -1004,16 +1003,129 @@ class PLS(PLS_sklearn):
         # Own extra inputs, for the case when there is missing data
         missing_data_settings: dict | None = None,
     ):
-        super().__init__(
-            n_components=n_components,
-            scale=scale,
-            max_iter=max_iter,
-            tol=tol,
-            copy=copy,
-        )
         self.n_components: int = n_components
+        self.scale = scale
+        self.max_iter = max_iter
+        self.tol = tol
+        self.copy = copy
         self.missing_data_settings = missing_data_settings
         self.has_missing_data_ = False
+
+    def _fit_nipals(self, X: DataMatrix, Y: DataMatrix, A: int, settings: dict) -> None:  # noqa: PLR0915
+        """Fit PLS via the NIPALS algorithm, handling missing data transparently.
+
+        Parameters
+        ----------
+        X : DataMatrix
+            Training X data (N x K).
+        Y : DataMatrix
+            Training Y data (N x M).
+        A : int
+            Number of components to extract.
+        settings : dict
+            Algorithm settings with keys ``md_method``, ``md_tol``, ``md_max_iter``.
+        """
+        N = self.n_samples_
+        K = self.n_features_in_
+        M = self.n_targets_
+
+        md_method = settings.get("md_method", "nipals").lower()
+        if md_method == "tsr":
+            raise NotImplementedError("TSR for PLS not implemented yet")
+        if md_method == "pmp":
+            raise NotImplementedError("PMP for PLS not implemented yet")
+
+        Xd = np.asarray(X, dtype=float).copy()
+        Yd = np.asarray(Y, dtype=float).copy()
+
+        self.x_scores_ = np.zeros((N, A))
+        self.y_scores_ = np.zeros((N, A))
+        self.x_weights_ = np.zeros((K, A))
+        self.y_weights_ = np.zeros((M, A))
+        self.x_loadings_ = np.zeros((K, A))
+        self.y_loadings_ = np.zeros((M, A))
+
+        self.fitting_info_ = {
+            "timing": np.zeros(A) * np.nan,
+            "iterations": np.zeros(A) * np.nan,
+        }
+
+        for a in range(A):
+            start_time = time.time()
+            itern = 0
+
+            start_SSX_col = ssq(Xd, axis=0)
+            start_SSY_col = ssq(Yd, axis=0)
+
+            if sum(start_SSX_col) < epsqrt:
+                emsg = (
+                    "There is no variance left in the data array for X: cannot "
+                    f"compute any more components beyond component {a}."
+                )
+                raise RuntimeError(emsg)
+            if sum(start_SSY_col) < epsqrt:
+                emsg = (
+                    "There is no variance left in the data array for Y: cannot "
+                    f"compute any more components beyond component {a}."
+                )
+                raise RuntimeError(emsg)
+
+            # Initialize u_a with the first column of Y (replace NaN with 0)
+            u_a_guess = Yd[:, [0]].copy()
+            u_a_guess[np.isnan(u_a_guess)] = 0
+            u_a = u_a_guess + 1.0
+
+            while not terminate_check(u_a_guess, u_a, iterations=itern, settings=settings):
+                u_a_guess = u_a.copy()
+
+                # 1: w_a = X'u_a / (u_a'u_a)
+                w_a = quick_regress(Xd, u_a)
+
+                # 2: Normalize w_a to unit length
+                w_a = w_a / np.sqrt(ssq(w_a))
+
+                # 3: t_a = X w_a / (w_a'w_a)
+                t_a = quick_regress(Xd, w_a)
+
+                # 4: c_a = Y't_a / (t_a't_a)
+                c_a = quick_regress(Yd, t_a)
+
+                # 5: u_a = Y c_a / (c_a'c_a)
+                u_a = quick_regress(Yd, c_a)
+
+                itern += 1
+
+            self.fitting_info_["timing"][a] = time.time() - start_time
+            self.fitting_info_["iterations"][a] = itern
+
+            if itern > settings["md_max_iter"]:
+                warnings.warn(
+                    "PLS NIPALS: maximum number of iterations reached!",
+                    SpecificationWarning,
+                    stacklevel=2,
+                )
+
+            # 6: Compute loadings and deflate
+            p_a = quick_regress(Xd, t_a)
+            Xd = Xd - np.dot(t_a, p_a.T)
+            Yd = Yd - np.dot(t_a, c_a.T)
+
+            # Flip signs so largest-magnitude loading element is positive
+            max_el_idx = np.argmax(np.abs(p_a))
+            if np.sign(p_a[max_el_idx]) < 1:
+                t_a *= -1.0
+                u_a *= -1.0
+                w_a *= -1.0
+                p_a *= -1.0
+                c_a *= -1.0
+
+            self.x_scores_[:, a] = t_a.flatten()
+            self.y_scores_[:, a] = u_a.flatten()
+            self.x_weights_[:, a] = w_a.flatten()
+            self.x_loadings_[:, a] = p_a.flatten()
+            self.y_loadings_[:, a] = c_a.flatten()
+            # In PLS mode A (PLSRegression), y_weights == y_loadings
+            self.y_weights_[:, a] = c_a.flatten()
 
     def fit(self, X: DataMatrix, Y: DataMatrix) -> PLS:  # noqa: PLR0915
         """
@@ -1064,27 +1176,18 @@ class PLS(PLS_sklearn):
             A = self.n_components = min_dim
 
         if np.any(Y.isna()) or np.any(X.isna()):
+            self.has_missing_data_ = True
             default_mds = dict(md_method="tsr", md_tol=epsqrt, md_max_iter=self.max_iter)
             if isinstance(self.missing_data_settings, dict):
                 default_mds.update(self.missing_data_settings)
-
             self.missing_data_settings = default_mds
-            self = PLS_missing_values(
-                n_components=self.n_components,
-                missing_data_settings=self.missing_data_settings,
-            )
-            self.n_samples_, self.n_features_in_ = X.shape
-            self.n_targets_ = Y.shape[1]
-            N, K, M = self.n_samples_, self.n_features_in_, self.n_targets_
-            A = self.n_components
 
-            self.fit(X, Y)
-        else:
-            self = super().fit(X, Y)
-            self.fitting_info_ = {
-                "timing": np.zeros(A) * np.nan,
-                "iterations": np.array(self.n_iter_),
-            }
+        settings = self.missing_data_settings or {
+            "md_method": "nipals",
+            "md_tol": self.tol,
+            "md_max_iter": self.max_iter,
+        }
+        self._fit_nipals(X, Y, A, settings)
 
         # --- Common post-fit path: wrap numpy arrays into pandas ---
 
@@ -1189,6 +1292,59 @@ class PLS(PLS_sklearn):
         self.vip = partial(vip, model=self)
 
         return self
+
+    def transform(self, X: DataMatrix, Y: DataMatrix | None = None) -> pd.DataFrame:  # noqa: ARG002
+        """Project X (and optionally Y) into the latent space.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Data to transform.
+        Y : array-like of shape (n_samples, n_targets), optional
+            Ignored. Present for API compatibility with sklearn pipelines.
+
+        Returns
+        -------
+        X_scores : pd.DataFrame of shape (n_samples, n_components)
+            Projected X data (scores).
+        """
+        check_is_fitted(self, "direct_weights_")
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+        return X @ self.direct_weights_
+
+    def fit_transform(self, X: DataMatrix, Y: DataMatrix | None = None) -> pd.DataFrame:
+        """Fit the model and return X scores.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+        Y : array-like of shape (n_samples, n_targets)
+
+        Returns
+        -------
+        X_scores : pd.DataFrame of shape (n_samples, n_components)
+        """
+        self.fit(X, Y)
+        return self.scores_
+
+    def score(self, X: DataMatrix, Y: DataMatrix, sample_weight: np.ndarray | None = None) -> float:
+        """Return the R² score for the prediction.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+        Y : array-like of shape (n_samples, n_targets)
+            True target values.
+        sample_weight : array-like of shape (n_samples,), optional
+
+        Returns
+        -------
+        score : float
+            R² of ``self.predict(X).y_hat`` w.r.t. *Y*.
+        """
+        result = self.predict(X)
+        return float(r2_score(Y, result.y_hat, sample_weight=sample_weight))
 
     def predict(self, X: DataMatrix) -> Bunch:
         """Project new data and compute diagnostics.
@@ -1400,201 +1556,6 @@ class PLS(PLS_sklearn):
                 f"Please update your code to use '{renames[name]}'."
             )
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
-
-
-class PLS_missing_values(BaseEstimator, TransformerMixin):  # noqa: N801
-    """
-    Create our PLS class if there is even a single missing data value in the X input array.
-
-    The default method to impute missing values is the TSR algorithm (`md_method="tsr"`).
-
-    Missing data method options are:
-
-    * 'pmp'         Projection to Model Plane
-    * 'scp'         Single Component Projection
-    * 'nipals'      Same as 'scp': non-linear iterative partial least squares.
-    * 'tsr':        Trimmed score regression
-
-    * Other options? See papers by Abel Folch-Fortuny and also:
-    https://analyticalsciencejournals.onlinelibrary.wiley.com/doi/abs/10.1002/cem.750
-
-    """
-
-    valid_md_methods: typing.ClassVar[list[str]] = ["pmp", "scp", "nipals", "tsr"]
-
-    def __init__(
-        self,
-        n_components: int,
-        missing_data_settings: dict,
-    ):
-        self.n_components = n_components
-        self.missing_data_settings = missing_data_settings
-        self.has_missing_data_ = True
-        self.missing_data_settings["md_max_iter"] = int(self.missing_data_settings["md_max_iter"])
-
-        assert self.missing_data_settings["md_tol"] < 10, "Tolerance should not be too large"
-        assert self.missing_data_settings["md_tol"] > epsqrt**1.95, "Tolerance must exceed machine precision"
-        assert self.missing_data_settings["md_method"] in self.valid_md_methods, (
-            f"Missing data method is not recognized. Must be one of {self.valid_md_methods}.",
-        )
-
-    def fit(self, X: DataMatrix, Y: DataMatrix) -> DataMatrix:
-        """
-        Fits a PLS latent variable model between `X` and `Y` data arrays, accounting for missing
-        values (nan's) in either or both arrays.
-
-        1.  Höskuldsson, PLS regression methods, Journal of Chemometrics, 2(3), 211-228, 1998,
-            http://dx.doi.org/10.1002/cem.1180020306
-        """
-        # Force input to NumPy array:
-        self.Xd = np.asarray(X)
-        self.Yd = np.asarray(Y)
-
-        if np.any(np.sum(self.Yd, axis=1) == 0):
-            raise Warning(
-                "Cannot handle the case yet where the entire observation in Y-matrix is "
-                "missing. Please remove those rows and refit model."
-            )
-
-        # Other setups:
-        N = self.n_samples_
-        K = self.n_features_in_
-        M = self.n_targets_
-        A = self.n_components
-
-        self.x_scores_ = np.zeros((N, A))  # T: N x A
-        self.y_scores_ = np.zeros((N, A))  # U: N x A
-        self.x_weights_ = np.zeros((K, A))  # W: K x A
-        self.y_weights_ = None
-        self.x_loadings_ = np.zeros((K, A))  # P: K x A
-        self.y_loadings_ = np.zeros((M, A))  # C: M x A
-
-        # Perform MD algorithm here
-        if self.missing_data_settings["md_method"].lower() == "pmp":
-            raise NotImplementedError("PMP for PLS not implemented yet")  # self._fit_pmp_pls(X)
-
-        if self.missing_data_settings["md_method"].lower() in ["scp", "nipals"]:
-            self._fit_nipals_pls(settings=self.missing_data_settings)
-        elif self.missing_data_settings["md_method"].lower() == "tsr":
-            raise NotImplementedError(
-                "TSR for PLS not implemented yet"
-            )  # self._fit_tsr_pls(settings=self.missing_data_settings)
-
-        # Additional calculations, which can be done after the missing data method is complete.
-        # self.explained_variance_ = np.diag(self.x_scores.T @ self.x_scores) / (self.N - 1)
-        return self
-
-    def _fit_nipals_pls(self, settings: dict) -> None:
-        """
-        Fit the PLS model using the NIPALS algorithm.
-
-        (Internal method)
-        """
-        # NIPALS algorithm
-        A = self.n_components
-
-        # Initialize storage:
-        self.fitting_info_ = {}
-        self.fitting_info_["timing"] = np.zeros(A) * np.nan
-        self.fitting_info_["iterations"] = np.zeros(A) * np.nan
-
-        for a in np.arange(A):
-            # Timers and housekeeping
-            start_time = time.time()
-            itern = 0
-
-            start_SSX_col = ssq(self.Xd, axis=0)
-            start_SSY_col = ssq(self.Yd, axis=0)
-
-            if sum(start_SSX_col) < epsqrt:
-                emsg = (
-                    "There is no variance left in the data array for X: cannot "
-                    f"compute any more components beyond component {a}."
-                )
-                raise RuntimeError(emsg)
-            if sum(start_SSY_col) < epsqrt:
-                emsg = (
-                    "There is no variance left in the data array for Y: cannot "
-                    f"compute any more components beyond component {a}."
-                )
-                raise RuntimeError(emsg)
-
-            # Initialize t_a with random numbers, or carefully select a column from X or Y?
-            # Find a column with the largest variance as t1_start; replace missing with zeros
-            # All columns have the same variance if the data have been scaled to unit variance!
-            u_a_guess = self.Yd[:, [0]]
-            u_a_guess[np.isnan(u_a_guess)] = 0
-            u_a = u_a_guess + 1.0
-
-            while not (terminate_check(u_a_guess, u_a, iterations=itern, settings=settings)):
-                # 0: starting point for convergence checking on next loop
-                u_a_guess = u_a.copy()
-
-                # 1: Regress the score, u_a, onto every column in X, compute the
-                #    regression coefficient and store in w_a
-                # w_a = X.T * u_a / (u_a.T * u_a)
-                w_a = quick_regress(self.Xd, u_a)
-
-                # 2: Normalize w_a to unit length
-                w_a = w_a / np.sqrt(ssq(w_a))
-
-                # 3: Now regress each row in X on the w_a vector, and store the
-                #    regression coefficient in t_a
-                # t_a = X * w_a / (w_a.T * w_a)
-                t_a = quick_regress(self.Xd, w_a)
-
-                # 4: Now regress score, t_a, onto every column in Y, compute the
-                #    regression coefficient and store in c_a
-                # c_a = Y * t_a / (t_a.T * t_a)
-                c_a = quick_regress(self.Yd, t_a)
-
-                # 5: Now regress each row in Y on the c_a vector, and store the
-                #    regression coefficient in u_a
-                # u_a = Y * c_a / (c_a.T * c_a)
-                #
-                # TODO(KGD):  % Still handle case when entire row in Y is missing
-                u_a = quick_regress(self.Yd, c_a)
-
-                itern += 1
-
-            self.fitting_info_["timing"][a] = time.time() - start_time
-            self.fitting_info_["iterations"][a] = itern
-
-            if itern > settings["md_max_iter"]:
-                raise Warning("PLS missing data [SCP method]: maximum number of iterations reached!")
-
-            # Loop terminated!
-            # 6: Now deflate the X-matrix.  To do that we need to calculate loadings for the
-            # X-space.  Regress columns of t_a onto each column in X and calculate loadings, p_a.
-            # Use this p_a to deflate afterwards.
-            p_a = quick_regress(self.Xd, t_a)  # Note the similarity with step 4!
-            self.Xd = self.Xd - np.dot(t_a, p_a.T)  # and that similarity helps understand
-            self.Yd = self.Yd - np.dot(t_a, c_a.T)  # the deflation process.
-
-            ## VIP value (only calculated for X-blocks); only last column is useful
-            # self.stats.VIP_a = np.zeros((self.K, self.A))
-            # self.stats.VIP = np.zeros(self.K)
-
-            # Store results
-            # -------------
-            # Flip the signs of the column vectors in P so that the largest
-            # magnitude element is positive (Wold, Esbensen, Geladi, PCA,
-            # CILS, 1987, p 42)
-            max_el_idx = np.argmax(np.abs(p_a))
-            if np.sign(p_a[max_el_idx]) < 1:
-                t_a *= -1.0
-                u_a *= -1.0
-                w_a *= -1.0
-                p_a *= -1.0
-                c_a *= -1.0
-
-            # Store the loadings and scores
-            self.x_scores_[:, a] = t_a.flatten()
-            self.y_scores_[:, a] = u_a.flatten()
-            self.x_weights_[:, a] = w_a.flatten()
-            self.x_loadings_[:, a] = p_a.flatten()
-            self.y_loadings_[:, a] = c_a.flatten()
-            # end looping on ``a``
 
 
 def nan_to_zeros(in_array: np.ndarray) -> np.ndarray:
