@@ -6,6 +6,7 @@ import urllib.request
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import plotly.io as pio
 import pytest
 from scipy.sparse import csr_matrix
@@ -2401,6 +2402,116 @@ def test_pls_old_attribute_names_raise():
 
     with pytest.raises(AttributeError, match="scores_"):
         _ = model.x_scores
+
+
+# ---- Plot tests (improving multivariate/plots.py coverage) ----
+
+
+@pytest.fixture()
+def fixture_pca_for_plots():
+    """A simple PCA model for plot testing."""
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(rng.standard_normal((50, 5)), columns=[f"V{i}" for i in range(5)])
+    X_scaled = MCUVScaler().fit_transform(X)
+    model = PCA(n_components=3)
+    model.fit(X_scaled)
+    return model
+
+
+@pytest.fixture()
+def fixture_pls_for_plots():
+    """A simple PLS model for plot testing."""
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(rng.standard_normal((50, 5)), columns=[f"X{i}" for i in range(5)])
+    beta = np.array([[2.0], [1.0], [-1.0], [0.5], [0.0]])
+    Y = pd.DataFrame(X.values @ beta + rng.standard_normal((50, 1)) * 0.3, columns=["y"])
+    X_scaled = MCUVScaler().fit_transform(X)
+    Y_scaled = MCUVScaler().fit_transform(Y)
+    model = PLS(n_components=2)
+    model.fit(X_scaled, Y_scaled)
+    return model
+
+
+def test_score_plot_basic(fixture_pca_for_plots):
+    """score_plot should return a Plotly Figure with scatter trace."""
+    fig = fixture_pca_for_plots.score_plot()
+    assert isinstance(fig, go.Figure)
+    assert len(fig.data) >= 1  # at least the scores trace
+
+
+def test_score_plot_with_ellipse(fixture_pca_for_plots):
+    """score_plot with ellipse should have an extra trace for the ellipse."""
+    fig = fixture_pca_for_plots.score_plot(settings={"show_ellipse": True})
+    assert isinstance(fig, go.Figure)
+    # Should have at least 2 traces: scores + ellipse
+    assert len(fig.data) >= 2
+
+
+def test_score_plot_no_ellipse(fixture_pca_for_plots):
+    """score_plot with show_ellipse=False should only have the scores trace."""
+    fig = fixture_pca_for_plots.score_plot(settings={"show_ellipse": False})
+    assert isinstance(fig, go.Figure)
+    assert len(fig.data) >= 1
+
+
+def test_score_plot_custom_components(fixture_pca_for_plots):
+    """score_plot should accept custom component selection."""
+    fig = fixture_pca_for_plots.score_plot(pc_horiz=1, pc_vert=3)
+    assert isinstance(fig, go.Figure)
+
+
+def test_score_plot_with_highlights(fixture_pca_for_plots):
+    """score_plot with items_to_highlight should add extra traces."""
+    model = fixture_pca_for_plots
+    idx = model.scores_.index[:5].tolist()
+    highlights = {'{"color": "red", "symbol": "cross"}': idx}
+    fig = model.score_plot(items_to_highlight=highlights)
+    assert isinstance(fig, go.Figure)
+    # Should have at least 3 traces: default scores, highlighted, ellipse
+    assert len(fig.data) >= 3
+
+
+def test_loading_plot_pca(fixture_pca_for_plots):
+    """loading_plot for PCA should return a Figure with P loadings."""
+    fig = fixture_pca_for_plots.loading_plot()
+    assert isinstance(fig, go.Figure)
+    assert len(fig.data) >= 1
+
+
+
+
+def test_spe_plot_basic(fixture_pca_for_plots):
+    """spe_plot should return a Figure with SPE markers and limit line."""
+    fig = fixture_pca_for_plots.spe_plot()
+    assert isinstance(fig, go.Figure)
+    assert len(fig.data) >= 1
+
+
+def test_t2_plot_basic(fixture_pca_for_plots):
+    """t2_plot should return a Figure with T2 markers and limit line."""
+    fig = fixture_pca_for_plots.t2_plot()
+    assert isinstance(fig, go.Figure)
+    assert len(fig.data) >= 1
+
+
+def test_spe_plot_with_highlights(fixture_pca_for_plots):
+    """spe_plot with items_to_highlight should add extra highlighted traces."""
+    model = fixture_pca_for_plots
+    idx = model.scores_.index[:3].tolist()
+    highlights = {'{"color": "orange", "symbol": "diamond"}': idx}
+    fig = model.spe_plot(items_to_highlight=highlights)
+    assert isinstance(fig, go.Figure)
+    assert len(fig.data) >= 2
+
+
+def test_t2_plot_with_highlights(fixture_pca_for_plots):
+    """t2_plot with items_to_highlight should add extra highlighted traces."""
+    model = fixture_pca_for_plots
+    idx = model.scores_.index[:3].tolist()
+    highlights = {'{"color": "orange", "symbol": "diamond"}': idx}
+    fig = model.t2_plot(items_to_highlight=highlights)
+    assert isinstance(fig, go.Figure)
+    assert len(fig.data) >= 2
 
 
 # n_components = 3
