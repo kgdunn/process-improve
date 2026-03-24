@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from process_improve.batch.alignment_helpers import backtrack_optimal_path, distance_matrix
 from process_improve.batch.preprocessing import (
     apply_scaling,
     batch_dtw,
@@ -254,3 +255,48 @@ def test_reference_batch_selection_nylon(nylon_data):
         },
     )
     assert good_reference_candidate == 45
+
+
+# ---- Alignment helper tests (batch/alignment_helpers.py) ----
+
+
+def test_distance_matrix_identity():
+    """distance_matrix of identical sequences should have zero diagonal."""
+    ref = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+    test = ref.copy()
+    weight = np.eye(2)
+    D = distance_matrix(test, ref, weight)
+    assert D.shape == (3, 3)
+    # Diagonal of dist (not cumulative D) should be 0 for identical sequences
+    assert D[0, 0] == pytest.approx(0.0, abs=1e-10)
+
+
+def test_distance_matrix_shape():
+    """distance_matrix should return (nr, nt) shaped matrix."""
+    ref = np.array([[1.0], [2.0], [3.0], [4.0]])
+    test = np.array([[1.5], [2.5], [3.5]])
+    weight = np.eye(1)
+    D = distance_matrix(test, ref, weight)
+    assert D.shape == (4, 3)
+
+
+def test_backtrack_optimal_path_identity():
+    """backtrack on a zero-diagonal D matrix should return the diagonal path."""
+    # Build a simple cumulative distance matrix where diagonal is optimal
+    D = np.array([[0.0, 10.0, 20.0], [10.0, 0.0, 10.0], [20.0, 10.0, 0.0]])
+    path, path_sum = backtrack_optimal_path(D)
+    assert path.shape[1] == 2
+    # Path should start at (0,0) and end at (2,2)
+    assert path[0, 0] == 0 and path[0, 1] == 0
+    assert path[-1, 0] == 2 and path[-1, 1] == 2
+
+
+def test_backtrack_optimal_path_returns_sum():
+    """backtrack should return a finite path sum."""
+    ref = np.array([[1.0, 0.0], [2.0, 0.0], [3.0, 0.0]])
+    test = np.array([[1.1, 0.0], [2.1, 0.0], [3.1, 0.0]])
+    weight = np.eye(2)
+    D = distance_matrix(test, ref, weight)
+    path, path_sum = backtrack_optimal_path(D)
+    assert np.isfinite(path_sum)
+    assert path_sum >= 0
