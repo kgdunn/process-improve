@@ -5,8 +5,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.experiments.models import lm
-from process_improve.experiments.structures import c, create_names, gather
+from process_improve.experiments.designs_factorial import full_factorial
+from process_improve.experiments.models import lm, predict, summary
+from process_improve.experiments.optimal import optimization_function, point_exchange
+from process_improve.experiments.structures import c, create_names, expand_grid, gather, supplement
 
 
 class TestStructures(unittest.TestCase):
@@ -238,3 +240,279 @@ class Test_API_usage(unittest.TestCase):
         )
         c2_rw = c2.to_realworld()
         self.assertListEqual(c2_rw.to_list(), [2.5, 2.5, 3.0, 3.0])
+
+
+# ---- Model tests (improving experiments/models.py coverage) ----
+
+
+def test_model_summary_output():
+    """Model.summary() should return a summary object with tables."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    y = c(52, 74, 62, 80, name="yield")
+    expt = gather(A=A, B=B, y=y, title="Summary test")
+    model = lm("y ~ A + B", expt)
+    smry = model.summary(print_to_screen=False)
+    assert smry is not None
+    assert len(smry.tables) >= 2
+
+
+def test_model_summary_with_name():
+    """Model.summary() with a model name should include it in the title."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    y = c(52, 74, 62, 80, name="yield")
+    expt = gather(A=A, B=B, y=y, title="Named model")
+    model = lm("y ~ A + B", expt, name="CustomName")
+    smry = model.summary(print_to_screen=False)
+    # The summary title should contain the custom name
+    assert "CustomName" in str(smry)
+
+
+def test_model_get_parameters():
+    """get_parameters should return coefficients, optionally without intercept."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    y = c(52, 74, 62, 80, name="yield")
+    expt = gather(A=A, B=B, y=y)
+    model = lm("y ~ A + B", expt)
+
+    params_no_intercept = model.get_parameters(drop_intercept=True)
+    assert "Intercept" not in params_no_intercept.index
+
+    params_with_intercept = model.get_parameters(drop_intercept=False)
+    assert "Intercept" in params_with_intercept.index
+    # For y = [52, 74, 62, 80], A = [-1,1,-1,1], B = [-1,-1,1,1]:
+    # intercept = mean = 67, A effect = (74+80-52-62)/4 = 10, B effect = (62+80-52-74)/4 = 4
+    assert params_with_intercept["A"] == pytest.approx(10.0, abs=1e-6)
+    assert params_with_intercept["B"] == pytest.approx(4.0, abs=1e-6)
+
+
+def test_model_get_factor_names():
+    """get_factor_names should return factors at the requested interaction level."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    y = c(52, 74, 62, 80, name="yield")
+    expt = gather(A=A, B=B, y=y)
+    model = lm("y ~ A*B", expt)
+
+    level1 = model.get_factor_names(level=1)
+    assert "A" in level1
+    assert "B" in level1
+
+    level2 = model.get_factor_names(level=2)
+    assert len(level2) == 1  # A:B interaction
+
+
+def test_model_get_response_name():
+    """get_response_name should return the response variable name."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    y = c(52, 74, 62, 80, name="yield")
+    expt = gather(A=A, B=B, y=y)
+    model = lm("y ~ A + B", expt)
+    assert model.get_response_name() == "y"
+
+
+def test_model_str():
+    """str(model) should return the formula description."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    y = c(52, 74, 62, 80, name="yield")
+    expt = gather(A=A, B=B, y=y)
+    model = lm("y ~ A + B", expt)
+    desc = str(model)
+    assert "A" in desc
+    assert "B" in desc
+
+
+def test_predict_function():
+    """predict() should make predictions from the model."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    y = c(52, 74, 62, 80, name="yield")
+    expt = gather(A=A, B=B, y=y)
+    model = lm("y ~ A + B", expt)
+
+    pred = predict(model, A=[0], B=[0])
+    assert pred[0] == pytest.approx(67.0, abs=1e-6)
+
+    pred_hi = predict(model, A=[1], B=[1])
+    assert pred_hi[0] == pytest.approx(81.0, abs=1e-6)
+
+
+def test_summary_function_with_aliasing():
+    """The standalone summary() function should include aliasing info."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    C = A * B
+    y = c(41, 27, 35, 20, name="Stability", units="days")
+    expt = gather(A=A, B=B, C=C, y=y, title="Half-fraction")
+    model = lm("y ~ A*B*C", expt)
+
+    smry = summary(model, show=False, aliasing_up_to_level=2)
+    smry_str = str(smry)
+    assert "Aliasing pattern" in smry_str
+
+
+def test_model_get_aliases_websafe():
+    """get_aliases with websafe=True should return HTML-formatted strings."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    C = A * B
+    y = c(41, 27, 35, 20, name="Stability")
+    expt = gather(A=A, B=B, C=C, y=y)
+    model = lm("y ~ A*B*C", expt)
+
+    aliases = model.get_aliases(websafe=True)
+    for alias_str in aliases:
+        assert "<span" in alias_str
+
+
+def test_model_get_aliases_empty():
+    """get_aliases should return empty list when there is no aliasing."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    y = c(52, 74, 62, 80, name="yield")
+    expt = gather(A=A, B=B, y=y)
+    model = lm("y ~ A + B", expt)
+    assert model.get_aliases() == []
+
+
+# ---- Structure tests (improving experiments/structures.py coverage) ----
+
+
+def test_expand_grid_basic():
+    """expand_grid should create all combinations of factor levels."""
+    A = c(-1, +1)
+    B = c(-1, +1)
+    result = expand_grid(A=A, B=B)
+    assert len(result) == 2  # 2 columns
+    assert len(result[0]) == 4  # 2^2 = 4 rows
+
+
+def test_expand_grid_three_factors():
+    """expand_grid with 3 factors should produce 2^3 = 8 rows."""
+    A = c(-1, +1)
+    B = c(-1, +1)
+    C_factor = c(-1, +1)
+    result = expand_grid(A=A, B=B, C=C_factor)
+    assert len(result) == 3
+    assert len(result[0]) == 8
+
+
+def test_supplement_function():
+    """supplement should carry over kwargs to a new Column from existing values."""
+    A = c(-1, +1, -1, +1)
+    A_supp = supplement(A, name="Feed rate", units="g/min", lo=-1, hi=1)
+    assert A_supp.pi_name == "Feed rate"
+    assert A_supp.pi_units == "g/min"
+    assert len(A_supp) == 4
+
+
+def test_full_factorial_default_names():
+    """full_factorial should create a 2^k design with default factor names."""
+    result = full_factorial(3)
+    assert len(result) == 3  # 3 factors
+    assert len(result[0]) == 8  # 2^3 = 8 runs
+
+
+def test_full_factorial_custom_names():
+    """full_factorial with custom names should use provided names."""
+    result = full_factorial(2, names=["Temp", "Pressure"])
+    assert len(result) == 2
+    assert result[0].pi_name == "Temp"
+    assert result[1].pi_name == "Pressure"
+    assert len(result[0]) == 4  # 2^2 = 4 runs
+
+
+def test_column_division():
+    """Column division should work element-wise."""
+    A = c(2.0, 4.0, 6.0)
+    B = c(1.0, 2.0, 3.0)
+    result = A / B
+    assert np.allclose(result.values, [2.0, 2.0, 2.0])
+
+
+def test_column_addition():
+    """Column addition should work element-wise."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    result = A + B
+    assert np.allclose(result.values, [-2, 0, 0, 2])
+
+
+def test_column_to_coded_already_coded():
+    """to_coded on already-coded column should return the same values."""
+    A = c(-1, +1, 0, name="A")
+    coded = A.to_coded()
+    assert np.allclose(coded.values, A.values)
+
+
+def test_column_to_realworld_not_coded():
+    """to_realworld on a real-world column should return the same values."""
+    A = c(100, 200, 150, lo=100, hi=200, name="Temp", units="C")
+    rw = A.to_realworld()
+    assert np.allclose(rw.values, A.values)
+
+
+def test_column_with_units_name():
+    """Column with units should format name correctly."""
+    A = c(100, 200, lo=100, hi=200, name="Temp", units="C")
+    assert "C" in A.name
+    assert "Temp" in A.name
+
+
+def test_column_categorical_with_levels():
+    """Column with explicit levels should store them."""
+    D = c(0, 1, 0, 1, levels=(0, 1))
+    assert hasattr(D, "pi_levels")
+
+
+def test_gather_drops_missing_values():
+    """gather should drop rows with any NaN values."""
+    A = c(-1, +1, -1, +1, float("nan"))
+    B = c(-1, -1, +1, +1, 0)
+    expt = gather(A=A, B=B)
+    assert expt.shape[0] == 4  # NaN row dropped
+
+
+def test_expt_repr():
+    """Expt repr should include title and dimensions."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    expt = gather(A=A, B=B, title="My experiment")
+    r = repr(expt)
+    assert "My experiment" in r
+    assert "4 experiments" in r
+
+
+# ---- Optimal design tests (experiments/optimal.py) ----
+
+
+def test_optimization_function_basic():
+    """optimization_function should return log determinant of (X'X)^-1."""
+    X = pd.DataFrame([[-1, -1], [1, -1], [-1, 1], [1, 1]])
+    result = optimization_function(X)
+    assert np.isfinite(result)
+
+
+def test_optimization_function_singular():
+    """optimization_function should return inf for singular designs."""
+    X = pd.DataFrame([[1, 1], [1, 1], [1, 1]])
+    result = optimization_function(X)
+    assert result == float(np.inf)
+
+
+def test_point_exchange_simple():
+    """point_exchange should select a near-optimal subset of candidate points."""
+    # Create a full factorial as the candidate set
+    rng = np.random.default_rng(42)
+    candidates = pd.DataFrame(rng.choice([-1, 0, 1], size=(20, 2)), columns=["A", "B"])
+    candidates = pd.concat([candidates, pd.DataFrame([[-1, -1], [1, -1], [-1, 1], [1, 1]], columns=["A", "B"])])
+    design, d_opt = point_exchange(candidates, number_points=4)
+    assert design.shape[0] == 4
+    assert design.shape[1] == 2
+    assert np.isfinite(d_opt)
+
+

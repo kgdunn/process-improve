@@ -1,9 +1,11 @@
 import pathlib
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from process_improve.batch import features
+from process_improve.batch.features import cross
 
 # General
 
@@ -154,3 +156,68 @@ def test_extreme_features(batch_data):
     assert features.f_count(batch_data, tags=["Temp1", "Temp2", "Pressure1"], batch_col="Batch").values[
         0
     ] == pytest.approx([437, 437, 437], rel=1e-7)
+
+
+# Cross (threshold crossing) helper and feature
+# ------------------------------------------
+def test_cross_rising():
+    """cross() should find rising-edge threshold crossings."""
+    series = pd.Series([-2, -1, 1, 2, 3], index=[0, 1, 2, 3, 4])
+    result = cross(series, threshold=0, direction="rising")
+    assert len(result) == 1
+    assert result[0] == pytest.approx(1.5, abs=1e-6)
+
+
+def test_cross_falling():
+    """cross() should find falling-edge threshold crossings."""
+    series = pd.Series([3, 2, 1, -1, -2], index=[0, 1, 2, 3, 4])
+    result = cross(series, threshold=0, direction="falling")
+    assert len(result) == 1
+    assert result[0] == pytest.approx(2.5, abs=1e-6)
+
+
+def test_cross_both_directions():
+    """cross() with direction='cross' should find both rising and falling."""
+    series = pd.Series([-1, 1, -1, 1], index=[0, 1, 2, 3])
+    result = cross(series, threshold=0, direction="cross")
+    assert len(result) == 3  # rising, falling, rising
+
+
+def test_cross_only_index():
+    """cross() with only_index=True should return integer indices."""
+    series = pd.Series([-1, 1, 2], index=[10, 20, 30])
+    result = cross(series, threshold=0, direction="rising", only_index=True)
+    assert len(result) == 1
+    assert result[0] == 0  # 0-based index
+
+
+def test_cross_first_point_only():
+    """cross() with first_point_only=True should return only the first crossing."""
+    series = pd.Series([-1, 1, -1, 1], index=[0, 1, 2, 3])
+    result = cross(series, threshold=0, direction="cross", first_point_only=True)
+    # Should return a single value, not an array of 3
+    assert np.isscalar(result) or len(result) == 1
+
+
+def test_cross_with_nan():
+    """cross() should handle NaN values by dropping them first."""
+    series = pd.Series([-1, np.nan, 1, 2], index=[0, 1, 2, 3])
+    result = cross(series, threshold=0, direction="rising")
+    assert len(result) == 1
+
+
+def test_f_crossing_with_batch_data(batch_data):
+    """f_crossing should find threshold crossings per batch."""
+    df = batch_data
+    result = features.f_crossing(
+        df,
+        tag="Temp1",
+        time_tag="UCI_minutes",
+        threshold=-25,
+        direction="rising",
+        batch_col="Batch",
+    )
+    assert result.shape[1] == 1  # one feature column
+    assert "Temp1" in result.columns[0]
+
+

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 # Importing the univariate tools module triggers @tool_spec registration.
+import process_improve.multivariate.tools  # noqa: F401
 import process_improve.univariate.tools  # noqa: F401
 from process_improve.tool_spec import _TOOL_REGISTRY, execute_tool_call, get_tool_specs, tool_spec
 from process_improve.univariate.tools import get_univariate_tool_specs
@@ -411,3 +413,113 @@ class TestWithinBetweenVariance:
         )
         assert result["within_stddev"] is not None
         assert result["between_stddev"] is not None
+
+
+# ---------------------------------------------------------------------------
+# Multivariate tool wrapper tests (improving multivariate/tools.py coverage)
+# ---------------------------------------------------------------------------
+
+
+class TestFitPca:
+    """Tests for the fit_pca tool wrapper."""
+
+    def test_basic_fit(self):
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal((30, 4)).tolist()
+        result = execute_tool_call("fit_pca", {"data": data, "n_components": 2})
+        assert "error" not in result
+        assert result["n_components"] == 2
+        assert result["n_samples"] == 30
+        assert result["n_features"] == 4
+        assert len(result["r2_cumulative"]) == 2
+
+    def test_with_column_names(self):
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal((20, 3)).tolist()
+        result = execute_tool_call(
+            "fit_pca",
+            {"data": data, "n_components": 2, "column_names": ["A", "B", "C"]},
+        )
+        assert "error" not in result
+        assert "model_params" in result
+
+    def test_returns_outliers(self):
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal((50, 4)).tolist()
+        # Add an obvious outlier
+        data.append([100.0, 100.0, 100.0, 100.0])
+        result = execute_tool_call("fit_pca", {"data": data, "n_components": 2})
+        assert "outlier_indices" in result
+
+
+class TestFitPls:
+    """Tests for the fit_pls tool wrapper."""
+
+    def test_basic_fit(self):
+        rng = np.random.default_rng(42)
+        x_data = rng.standard_normal((30, 3)).tolist()
+        y_data = [float(sum(row) + rng.normal() * 0.1) for row in x_data]
+        result = execute_tool_call(
+            "fit_pls",
+            {"x_data": x_data, "y_data": y_data, "n_components": 2},
+        )
+        assert "error" not in result, f"Got error: {result.get('error')}"
+        assert result["n_components"] == 2
+        assert "r2x_cumulative" in result
+        assert "model_params" in result
+
+    def test_with_column_names(self):
+        rng = np.random.default_rng(42)
+        x_data = rng.standard_normal((20, 3)).tolist()
+        y_data = [[sum(row)] for row in x_data]
+        result = execute_tool_call(
+            "fit_pls",
+            {
+                "x_data": x_data,
+                "y_data": y_data,
+                "n_components": 1,
+                "x_column_names": ["T", "P", "F"],
+                "y_column_names": ["yield"],
+            },
+        )
+        assert "error" not in result
+
+
+class TestPcaPredict:
+    """Tests for the pca_predict tool wrapper."""
+
+    def test_predict_new_data(self):
+        rng = np.random.default_rng(42)
+        data = rng.standard_normal((40, 3)).tolist()
+        fit_result = execute_tool_call("fit_pca", {"data": data, "n_components": 2})
+        assert "model_params" in fit_result
+
+        new_data = rng.standard_normal((5, 3)).tolist()
+        pred_result = execute_tool_call(
+            "pca_predict",
+            {"new_data": new_data, "model_params": fit_result["model_params"]},
+        )
+        assert "error" not in pred_result
+        assert len(pred_result["scores"]) == 5
+
+
+class TestPlsPredict:
+    """Tests for the pls_predict tool wrapper."""
+
+    def test_predict_new_data(self):
+        rng = np.random.default_rng(42)
+        x_data = rng.standard_normal((30, 3)).tolist()
+        y_data = [sum(row) for row in x_data]
+        fit_result = execute_tool_call(
+            "fit_pls",
+            {"x_data": x_data, "y_data": y_data, "n_components": 2},
+        )
+        assert "model_params" in fit_result
+
+        new_x = rng.standard_normal((5, 3)).tolist()
+        pred_result = execute_tool_call(
+            "pls_predict",
+            {"new_data": new_x, "model_params": fit_result["model_params"]},
+        )
+        assert "error" not in pred_result
+        assert len(pred_result["y_hat"]) == 5
