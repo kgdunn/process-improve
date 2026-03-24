@@ -22,6 +22,7 @@ from process_improve.multivariate.methods import (
     MCUVScaler,
     SpecificationWarning,
     center,
+    ellipse_coordinates,
     epsqrt,
     nan_to_zeros,
     quick_regress,
@@ -2245,6 +2246,161 @@ def manual_cross_validation(tpls_model: TPLS, full_datadict: dict, cv: int = 5, 
         scores.append(score)
 
     return np.array(scores)
+
+
+# ---- Additional coverage tests for multivariate/methods.py ----
+
+
+def test_pca_predict_new_data():
+    """PCA.predict() should return scores, T2, and SPE for new observations."""
+    rng = np.random.default_rng(42)
+    N, K = 100, 5
+    X = pd.DataFrame(rng.standard_normal((N, K)), columns=[f"V{i}" for i in range(K)])
+    scaler = MCUVScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    model = PCA(n_components=2)
+    model.fit(X_scaled)
+
+    # Predict on a subset of the data
+    X_new = scaler.transform(X.iloc[:10])
+    result = model.predict(X_new)
+
+    assert isinstance(result, Bunch)
+    assert result.scores.shape == (10, 2)
+    assert result.hotellings_t2.shape == (10, 2)
+    assert len(result.spe) == 10
+    assert (result.spe >= 0).all()
+
+
+def test_pca_predict_numpy_input():
+    """PCA.predict() should accept numpy arrays as well as DataFrames."""
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(rng.standard_normal((50, 4)))
+    X_scaled = MCUVScaler().fit_transform(X)
+
+    model = PCA(n_components=2)
+    model.fit(X_scaled)
+
+    result = model.predict(X_scaled.values[:5])
+    assert result.scores.shape == (5, 2)
+
+
+def test_pca_score_method():
+    """PCA.score() should return negative reconstruction error (higher = better)."""
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(rng.standard_normal((100, 5)))
+    X_scaled = MCUVScaler().fit_transform(X)
+
+    model_2 = PCA(n_components=2).fit(X_scaled)
+    model_4 = PCA(n_components=4).fit(X_scaled)
+
+    score_2 = model_2.score(X_scaled)
+    score_4 = model_4.score(X_scaled)
+
+    assert score_2 < 0  # negative MSE
+    assert score_4 < 0
+    # More components should give better (higher/less negative) score
+    assert score_4 > score_2
+
+
+def test_pca_transform_new_data():
+    """PCA.transform() should project new data onto the loading space."""
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(rng.standard_normal((80, 6)))
+    X_scaled = MCUVScaler().fit_transform(X)
+
+    model = PCA(n_components=3)
+    model.fit(X_scaled)
+
+    new_scores = model.transform(X_scaled.iloc[:5])
+    assert new_scores.shape == (5, 3)
+
+    # Transform of training data should match fitted scores
+    all_scores = model.transform(X_scaled)
+    np.testing.assert_allclose(all_scores.values, model.scores_.values, atol=1e-10)
+
+
+def test_pca_fit_transform():
+    """PCA.fit_transform() should return the same scores as fit() then accessing scores_."""
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(rng.standard_normal((50, 4)))
+    X_scaled = MCUVScaler().fit_transform(X)
+
+    scores = PCA(n_components=2).fit_transform(X_scaled)
+    model = PCA(n_components=2).fit(X_scaled)
+
+    np.testing.assert_allclose(scores.values, model.scores_.values, atol=1e-10)
+
+
+def test_ellipse_coordinates_basic():
+    """ellipse_coordinates should return x, y arrays forming a closed ellipse."""
+    scaling = pd.Series([2.0, 1.5, 1.0])
+    x, y = ellipse_coordinates(
+        score_horiz=1,
+        score_vert=2,
+        conf_level=0.95,
+        n_points=50,
+        n_components=3,
+        scaling_factor_for_scores=scaling,
+        n_rows=100,
+    )
+    assert len(x) == 50
+    assert len(y) == 50
+    # Ellipse should be roughly closed (first ~= last point)
+    assert x[0] == pytest.approx(x[-1], abs=0.1)
+    assert y[0] == pytest.approx(y[-1], abs=0.1)
+
+
+def test_ellipse_coordinates_symmetry():
+    """Ellipse with equal scaling should be roughly circular."""
+    scaling = pd.Series([1.0, 1.0])
+    x, y = ellipse_coordinates(
+        score_horiz=1,
+        score_vert=2,
+        conf_level=0.95,
+        n_points=100,
+        n_components=2,
+        scaling_factor_for_scores=scaling,
+        n_rows=50,
+    )
+    # For equal scaling, max |x| and max |y| should be similar
+    assert max(abs(x)) == pytest.approx(max(abs(y)), rel=0.05)
+
+
+def test_pls_predict_new_data():
+    """PLS.predict() should work on new X data and return a Bunch."""
+    rng = np.random.default_rng(42)
+    N, K = 80, 5
+    X = pd.DataFrame(rng.standard_normal((N, K)), columns=[f"X{i}" for i in range(K)])
+    beta = np.array([[2.0], [1.0], [-1.0], [0.5], [0.0]])
+    Y = pd.DataFrame(X.values @ beta + rng.standard_normal((N, 1)) * 0.5, columns=["y"])
+
+    scaler = MCUVScaler()
+    X_scaled = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
+    Y_scaled = pd.DataFrame(MCUVScaler().fit_transform(Y), columns=Y.columns)
+
+    model = PLS(n_components=2)
+    model.fit(X_scaled, Y_scaled)
+
+    result = model.predict(X_scaled.iloc[:10])
+    assert isinstance(result, Bunch)
+    assert "y_hat" in result
+    assert result.y_hat.shape[0] == 10
+
+
+def test_pls_old_attribute_names_raise():
+    """Accessing old attribute names should raise helpful AttributeError."""
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(rng.standard_normal((30, 3)), columns=["A", "B", "C"])
+    beta = np.array([[1.0], [0.5], [-0.5]])
+    Y = pd.DataFrame(X.values @ beta, columns=["y"])
+
+    model = PLS(n_components=1)
+    model.fit(X, Y)
+
+    with pytest.raises(AttributeError, match="scores_"):
+        _ = model.x_scores
 
 
 # n_components = 3
