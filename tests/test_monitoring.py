@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from process_improve.monitoring.control_charts import ControlChart
+from process_improve.monitoring.metrics import calculate_cpk
 
 
 class test_validate_against_R_qcc_xbar_one:
@@ -148,6 +149,45 @@ class test_holt_winters_control_chart:
     assert cc.target == pytest.approx(93.945, abs=1e-3)
     assert cc.s == pytest.approx(4.493, abs=1e-3)
     assert len(cc.idx_outside_3S) == 0
+
+
+def test_cpk_well_centered_process():
+    """Cpk for a well-centered process with wide specs should be high."""
+    rng = np.random.default_rng(42)
+    data = pd.DataFrame({"value": rng.normal(loc=50, scale=2, size=500)})
+    cpk = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
+    assert cpk > 1.0, f"Expected Cpk > 1.0 for well-centered process, got {cpk}"
+
+
+def test_cpk_classical_vs_robust():
+    """Both classical and robust Cpk should be positive for normal data."""
+    rng = np.random.default_rng(42)
+    data = pd.DataFrame({"value": rng.normal(loc=50, scale=2, size=500)})
+    cpk_classical = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
+    cpk_robust = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=2.5)
+    assert cpk_classical > 0
+    assert cpk_robust > 0
+
+
+def test_cpk_shifted_process():
+    """Process shifted toward upper spec should have lower Cpk, limited by upper side."""
+    rng = np.random.default_rng(42)
+    data = pd.DataFrame({"value": rng.normal(loc=58, scale=2, size=500)})
+    cpk = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
+    expected = (60 - data["value"].mean()) / (3 * data["value"].std())
+    assert cpk == pytest.approx(expected, abs=1e-6)
+    assert cpk < 1.0, "Shifted process near spec should have Cpk < 1"
+
+
+def test_cpk_column_name_specs():
+    """Specs given as column names should produce same result as numeric specs."""
+    rng = np.random.default_rng(42)
+    data = pd.DataFrame({"value": rng.normal(loc=50, scale=2, size=500)})
+    data["lower"] = 40.0
+    data["upper"] = 60.0
+    cpk_numeric = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
+    cpk_col = calculate_cpk(data, "value", specifications=("lower", "upper"), trim_percentile=0)
+    assert cpk_col == pytest.approx(cpk_numeric, abs=0.01)
 
 
 class test_holt_winters_control_chart_BatchYield:
