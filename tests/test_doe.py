@@ -5,8 +5,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.experiments.models import lm
-from process_improve.experiments.structures import c, create_names, gather
+from process_improve.experiments.designs_factorial import full_factorial
+from process_improve.experiments.models import lm, predict, summary
+from process_improve.experiments.structures import c, create_names, expand_grid, gather, supplement
 
 
 class TestStructures(unittest.TestCase):
@@ -238,3 +239,140 @@ class Test_API_usage(unittest.TestCase):
         )
         c2_rw = c2.to_realworld()
         self.assertListEqual(c2_rw.to_list(), [2.5, 2.5, 3.0, 3.0])
+
+
+# ---- Model tests (improving experiments/models.py coverage) ----
+
+
+def test_model_summary_output():
+    """Model.summary() should return a summary object with tables."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    y = c(52, 74, 62, 80, name="yield")
+    expt = gather(A=A, B=B, y=y, title="Summary test")
+    model = lm("y ~ A + B", expt)
+    smry = model.summary(print_to_screen=False)
+    assert smry is not None
+    assert len(smry.tables) >= 2
+
+
+def test_model_summary_with_name():
+    """Model.summary() with a model name should include it in the title."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    y = c(52, 74, 62, 80, name="yield")
+    expt = gather(A=A, B=B, y=y, title="Named model")
+    model = lm("y ~ A + B", expt, name="CustomName")
+    smry = model.summary(print_to_screen=False)
+    # The summary title should contain the custom name
+    assert "CustomName" in str(smry)
+
+
+def test_model_get_parameters():
+    """get_parameters should return coefficients, optionally without intercept."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    y = c(52, 74, 62, 80, name="yield")
+    expt = gather(A=A, B=B, y=y)
+    model = lm("y ~ A + B", expt)
+
+    params_no_intercept = model.get_parameters(drop_intercept=True)
+    assert "Intercept" not in params_no_intercept.index
+
+    params_with_intercept = model.get_parameters(drop_intercept=False)
+    assert "Intercept" in params_with_intercept.index
+    # For y = [52, 74, 62, 80], A = [-1,1,-1,1], B = [-1,-1,1,1]:
+    # intercept = mean = 67, A effect = (74+80-52-62)/4 = 10, B effect = (62+80-52-74)/4 = 4
+    assert params_with_intercept["A"] == pytest.approx(10.0, abs=1e-6)
+    assert params_with_intercept["B"] == pytest.approx(4.0, abs=1e-6)
+
+
+def test_model_get_factor_names():
+    """get_factor_names should return factors at the requested interaction level."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    y = c(52, 74, 62, 80, name="yield")
+    expt = gather(A=A, B=B, y=y)
+    model = lm("y ~ A*B", expt)
+
+    level1 = model.get_factor_names(level=1)
+    assert "A" in level1
+    assert "B" in level1
+
+    level2 = model.get_factor_names(level=2)
+    assert len(level2) == 1  # A:B interaction
+
+
+def test_model_get_response_name():
+    """get_response_name should return the response variable name."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    y = c(52, 74, 62, 80, name="yield")
+    expt = gather(A=A, B=B, y=y)
+    model = lm("y ~ A + B", expt)
+    assert model.get_response_name() == "y"
+
+
+def test_model_str():
+    """str(model) should return the formula description."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    y = c(52, 74, 62, 80, name="yield")
+    expt = gather(A=A, B=B, y=y)
+    model = lm("y ~ A + B", expt)
+    desc = str(model)
+    assert "A" in desc
+    assert "B" in desc
+
+
+def test_predict_function():
+    """predict() should make predictions from the model."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    y = c(52, 74, 62, 80, name="yield")
+    expt = gather(A=A, B=B, y=y)
+    model = lm("y ~ A + B", expt)
+
+    pred = predict(model, A=[0], B=[0])
+    assert pred[0] == pytest.approx(67.0, abs=1e-6)
+
+    pred_hi = predict(model, A=[1], B=[1])
+    assert pred_hi[0] == pytest.approx(81.0, abs=1e-6)
+
+
+def test_summary_function_with_aliasing():
+    """The standalone summary() function should include aliasing info."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    C = A * B
+    y = c(41, 27, 35, 20, name="Stability", units="days")
+    expt = gather(A=A, B=B, C=C, y=y, title="Half-fraction")
+    model = lm("y ~ A*B*C", expt)
+
+    smry = summary(model, show=False, aliasing_up_to_level=2)
+    smry_str = str(smry)
+    assert "Aliasing pattern" in smry_str
+
+
+def test_model_get_aliases_websafe():
+    """get_aliases with websafe=True should return HTML-formatted strings."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    C = A * B
+    y = c(41, 27, 35, 20, name="Stability")
+    expt = gather(A=A, B=B, C=C, y=y)
+    model = lm("y ~ A*B*C", expt)
+
+    aliases = model.get_aliases(websafe=True)
+    for alias_str in aliases:
+        assert "<span" in alias_str
+
+
+def test_model_get_aliases_empty():
+    """get_aliases should return empty list when there is no aliasing."""
+    A = c(-1, +1, -1, +1)
+    B = c(-1, -1, +1, +1)
+    y = c(52, 74, 62, 80, name="yield")
+    expt = gather(A=A, B=B, y=y)
+    model = lm("y ~ A + B", expt)
+    assert model.get_aliases() == []
