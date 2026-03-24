@@ -7,6 +7,7 @@ import pytest
 
 from process_improve.experiments.designs_factorial import full_factorial
 from process_improve.experiments.models import lm, predict, summary
+from process_improve.experiments.optimal import optimization_function, point_exchange
 from process_improve.experiments.structures import c, create_names, expand_grid, gather, supplement
 
 
@@ -484,3 +485,34 @@ def test_expt_repr():
     r = repr(expt)
     assert "My experiment" in r
     assert "4 experiments" in r
+
+
+# ---- Optimal design tests (experiments/optimal.py) ----
+
+
+def test_optimization_function_basic():
+    """optimization_function should return log determinant of (X'X)^-1."""
+    X = pd.DataFrame([[-1, -1], [1, -1], [-1, 1], [1, 1]])
+    result = optimization_function(X)
+    assert np.isfinite(result)
+
+
+def test_optimization_function_singular():
+    """optimization_function should return inf for singular designs."""
+    X = pd.DataFrame([[1, 1], [1, 1], [1, 1]])
+    result = optimization_function(X)
+    assert result == float(np.inf)
+
+
+def test_point_exchange_simple():
+    """point_exchange should select a near-optimal subset of candidate points."""
+    # Create a full factorial as the candidate set
+    rng = np.random.default_rng(42)
+    candidates = pd.DataFrame(rng.choice([-1, 0, 1], size=(20, 2)), columns=["A", "B"])
+    candidates = pd.concat([candidates, pd.DataFrame([[-1, -1], [1, -1], [-1, 1], [1, 1]], columns=["A", "B"])])
+    design, d_opt = point_exchange(candidates, number_points=4)
+    assert design.shape[0] == 4
+    assert design.shape[1] == 2
+    assert np.isfinite(d_opt)
+
+
