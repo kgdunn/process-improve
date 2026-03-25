@@ -11,7 +11,8 @@ from process_improve.batch.preprocessing import (
 )
 
 
-def test_scaling(dryer_data):
+def test_scaling(dryer_data: dict) -> None:
+    """Test batch scaling and reverse scaling."""
     columns_to_align = [
         "AgitatorPower",
         "AgitatorTorque",
@@ -37,7 +38,8 @@ def test_scaling(dryer_data):
     assert np.linalg.norm(orig[1] - dryer_data[1][columns_to_align]) == pytest.approx(0, abs=1e-10)
 
 
-def test_alignment(dryer_data):
+def test_alignment(dryer_data: dict) -> None:
+    """Test batch DTW alignment on dryer data."""
     columns_to_align = [
         "AgitatorPower",
         "AgitatorTorque",
@@ -216,7 +218,8 @@ def test_alignment(dryer_data):
     # )
 
 
-def test_reference_batch_selection_dryer(dryer_data):
+def test_reference_batch_selection_dryer(dryer_data: dict) -> None:
+    """Test that the correct reference batch is selected for dryer data."""
     columns_to_align = [
         "AgitatorPower",
         "AgitatorTorque",
@@ -234,7 +237,8 @@ def test_reference_batch_selection_dryer(dryer_data):
     assert good_reference_candidate == 3
 
 
-def test_reference_batch_selection_nylon(nylon_data):
+def test_reference_batch_selection_nylon(nylon_data: dict) -> None:
+    """Test that the correct reference batch is selected for nylon data."""
     columns_to_align = [
         "Tag01",
         "Tag02",
@@ -260,43 +264,45 @@ def test_reference_batch_selection_nylon(nylon_data):
 # ---- Alignment helper tests (batch/alignment_helpers.py) ----
 
 
-def test_distance_matrix_identity():
+def test_distance_matrix_identity() -> None:
     """distance_matrix of identical sequences should have zero diagonal."""
     ref = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
     test = ref.copy()
     weight = np.eye(2)
-    D = distance_matrix(test, ref, weight)
-    assert D.shape == (3, 3)
+    d_matrix = distance_matrix(test, ref, weight)
+    assert d_matrix.shape == (3, 3)
     # Diagonal of dist (not cumulative D) should be 0 for identical sequences
-    assert D[0, 0] == pytest.approx(0.0, abs=1e-10)
+    assert d_matrix[0, 0] == pytest.approx(0.0, abs=1e-10)
 
 
-def test_distance_matrix_shape():
+def test_distance_matrix_shape() -> None:
     """distance_matrix should return (nr, nt) shaped matrix."""
     ref = np.array([[1.0], [2.0], [3.0], [4.0]])
     test = np.array([[1.5], [2.5], [3.5]])
     weight = np.eye(1)
-    D = distance_matrix(test, ref, weight)
-    assert D.shape == (4, 3)
+    d_matrix = distance_matrix(test, ref, weight)
+    assert d_matrix.shape == (4, 3)
 
 
-def test_backtrack_optimal_path_identity():
+def test_backtrack_optimal_path_identity() -> None:
     """Backtrack on a zero-diagonal D matrix should return the diagonal path."""
     # Build a simple cumulative distance matrix where diagonal is optimal
-    D = np.array([[0.0, 10.0, 20.0], [10.0, 0.0, 10.0], [20.0, 10.0, 0.0]])
-    path, path_sum = backtrack_optimal_path(D)
+    d_matrix = np.array([[0.0, 10.0, 20.0], [10.0, 0.0, 10.0], [20.0, 10.0, 0.0]])
+    path, _path_sum = backtrack_optimal_path(d_matrix)
     assert path.shape[1] == 2
     # Path should start at (0,0) and end at (2,2)
-    assert path[0, 0] == 0 and path[0, 1] == 0
-    assert path[-1, 0] == 2 and path[-1, 1] == 2
+    assert path[0, 0] == 0
+    assert path[0, 1] == 0
+    assert path[-1, 0] == 2
+    assert path[-1, 1] == 2
 
 
-def test_backtrack_optimal_path_returns_sum():
+def test_backtrack_optimal_path_returns_sum() -> None:
     """Backtrack should return a finite path sum."""
     ref = np.array([[1.0, 0.0], [2.0, 0.0], [3.0, 0.0]])
     test = np.array([[1.1, 0.0], [2.1, 0.0], [3.1, 0.0]])
     weight = np.eye(2)
-    D = distance_matrix(test, ref, weight)
-    path, path_sum = backtrack_optimal_path(D)
+    d_matrix = distance_matrix(test, ref, weight)
+    _path, path_sum = backtrack_optimal_path(d_matrix)
     assert np.isfinite(path_sum)
     assert path_sum >= 0
