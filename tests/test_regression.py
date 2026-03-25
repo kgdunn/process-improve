@@ -111,7 +111,7 @@ def test_inconsistent_sizes(multiple_linear_regression_data: tuple[np.ndarray, n
     # TODO: X = 5 x 2, y = 7 x 1
     # TODO: X = 5 x 4, y = 5 x 1:  n=5, k=5: should work
     # TODO: X = 5 x 5, y = 5 x 1:  n=5, k=5+1 (with intercept): should fail
-    X, y = multiple_linear_regression_data
+    _X, _y = multiple_linear_regression_data
 
 
 def test_regression_model_with_intercept(multiple_linear_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
