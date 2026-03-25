@@ -182,6 +182,28 @@ exclude = [
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 
+[tool.ruff.lint.per-file-ignores]
+"process_improve/notebooks_examples/**" = [
+    "T201",    # print() is expected in example scripts and notebooks
+    "ANN001",  # Type annotations not needed in examples
+    "ANN201",  # Return type annotations not needed in examples
+    "D103",    # Docstrings not needed in example scripts
+    "E501",    # Line length less important in examples
+    "INP001",  # __init__.py not needed in example directories
+    "N802",    # Naming conventions relaxed in examples
+    "N816",    # Naming conventions relaxed in examples
+    "PLR0915", # Complexity checks relaxed in examples
+    "PLR0913", # Too many arguments relaxed in examples
+    "A004",    # Shadowing builtins OK in examples
+    "B905",    # zip strict not needed in examples
+    "B011",    # assert False OK in examples
+    "PLW2901", # Loop var overwrite OK in examples
+    "RUF046",  # Relaxed in examples
+    "RUF005",  # Relaxed in examples
+    "PT015",   # Relaxed in examples
+    "D104",    # Missing __init__.py docstring OK in examples
+]
+
 [tool.ruff.lint.flake8-quotes]
 docstring-quotes = "double"
 
