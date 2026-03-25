@@ -10,7 +10,7 @@ PCA
 ~~~
 
 .. autoclass:: PCA
-   :members: fit, predict, score, select_n_components, score_contributions, detect_outliers
+   :members: fit, transform, fit_transform, predict, score, select_n_components, score_contributions, detect_outliers
    :undoc-members:
    :show-inheritance:
 
@@ -18,7 +18,7 @@ PLS
 ~~~
 
 .. autoclass:: PLS
-   :members: fit, predict, score_contributions, detect_outliers
+   :members: fit, transform, fit_transform, predict, score, score_contributions, detect_outliers, cross_validate
    :undoc-members:
    :show-inheritance:
 
@@ -29,6 +29,11 @@ TPLS
    :members:
    :undoc-members:
    :show-inheritance:
+
+Analysis
+--------
+
+.. autofunction:: vip
 
 Preprocessing
 -------------
