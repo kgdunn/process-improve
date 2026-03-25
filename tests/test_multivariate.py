@@ -1848,6 +1848,128 @@ def test_pls_detect_outliers_ldpe(
         assert severities == sorted(severities, reverse=True)
 
 
+def test_pls_cross_validate_jackknife() -> None:
+    """Test PLS cross-validation with jackknife (leave-one-out)."""
+    rng = np.random.default_rng(42)
+    N, K, M = 30, 5, 2
+    beta_true = np.array([[3.0, 0.0], [0.0, 2.5], [-2.0, 0.0], [0.0, 0.0], [1.5, -1.0]])
+    X = pd.DataFrame(rng.standard_normal((N, K)), columns=[f"X{i}" for i in range(1, K + 1)])
+    Y = pd.DataFrame(X.values @ beta_true + rng.standard_normal((N, M)) * 0.5, columns=["Y1", "Y2"])
+
+    scaler_x = MCUVScaler().fit(X)
+    scaler_y = MCUVScaler().fit(Y)
+    X_s, Y_s = scaler_x.transform(X), scaler_y.transform(Y)
+
+    pls = PLS(n_components=2).fit(X_s, Y_s)
+    cv_result = pls.cross_validate(X_s, Y_s, cv="loo", show_progress=False)
+
+    assert cv_result.method == "jackknife"
+    assert cv_result.n_resamples == N
+    assert cv_result.conf_level == 0.95
+    assert cv_result.beta_samples.shape == (N, K, M)
+    assert cv_result.beta_mean.shape == (K, M)
+    assert cv_result.beta_std.shape == (K, M)
+    assert cv_result.beta_ci_lower.shape == (K, M)
+    assert cv_result.beta_ci_upper.shape == (K, M)
+    assert cv_result.significant.shape == (K, M)
+
+    # CI lower < mean < CI upper everywhere
+    assert (cv_result.beta_ci_lower.values <= cv_result.beta_mean.values + 1e-10).all()
+    assert (cv_result.beta_ci_upper.values >= cv_result.beta_mean.values - 1e-10).all()
+
+    # Prediction metrics should be present for LOO
+    assert cv_result.y_hat_cv is not None
+    assert cv_result.y_hat_cv.shape == (N, M)
+    assert cv_result.press is not None
+    assert cv_result.press > 0
+    assert cv_result.rmse_cv is not None
+    assert len(cv_result.rmse_cv) == M
+    assert cv_result.q_squared is not None
+    assert len(cv_result.q_squared) == M
+    # Q² should be positive for this well-conditioned problem
+    assert (cv_result.q_squared.values > 0).all()
+
+
+def test_pls_cross_validate_kfold() -> None:
+    """Test PLS cross-validation with K-fold."""
+    rng = np.random.default_rng(123)
+    N, K = 40, 4
+    X = pd.DataFrame(rng.standard_normal((N, K)), columns=[f"X{i}" for i in range(1, K + 1)])
+    beta_true = np.array([[2.0], [-1.5], [0.0], [1.0]])
+    Y = pd.DataFrame(X.values @ beta_true + rng.standard_normal((N, 1)) * 0.3, columns=["Y1"])
+
+    scaler_x = MCUVScaler().fit(X)
+    scaler_y = MCUVScaler().fit(Y)
+    X_s, Y_s = scaler_x.transform(X), scaler_y.transform(Y)
+
+    pls = PLS(n_components=2).fit(X_s, Y_s)
+    cv_result = pls.cross_validate(X_s, Y_s, cv=5, random_state=42, show_progress=False)
+
+    assert cv_result.method == "kfold"
+    assert cv_result.n_resamples == 5
+    assert cv_result.beta_samples.shape == (5, K, 1)
+    assert cv_result.y_hat_cv is not None
+    assert cv_result.y_hat_cv.shape == (N, 1)
+    assert cv_result.q_squared is not None
+    assert cv_result.q_squared.values[0] > 0
+
+
+def test_pls_cross_validate_bootstrap() -> None:
+    """Test PLS cross-validation with bootstrap."""
+    rng = np.random.default_rng(99)
+    N, K = 30, 3
+    X = pd.DataFrame(rng.standard_normal((N, K)), columns=[f"X{i}" for i in range(1, K + 1)])
+    Y = pd.DataFrame(X.values @ np.array([[1.0], [0.0], [-1.0]]) + rng.standard_normal((N, 1)) * 0.5, columns=["Y1"])
+
+    scaler_x = MCUVScaler().fit(X)
+    scaler_y = MCUVScaler().fit(Y)
+    X_s, Y_s = scaler_x.transform(X), scaler_y.transform(Y)
+
+    pls = PLS(n_components=2).fit(X_s, Y_s)
+    cv_result = pls.cross_validate(X_s, Y_s, n_bootstrap=50, random_state=42, show_progress=False)
+
+    assert cv_result.method == "bootstrap"
+    assert cv_result.n_resamples == 50
+    assert cv_result.beta_samples.shape == (50, K, 1)
+    # Bootstrap uses percentile CI
+    assert (cv_result.beta_ci_lower.values <= cv_result.beta_ci_upper.values).all()
+    # No cross-validated predictions for bootstrap
+    assert cv_result.y_hat_cv is None
+    assert cv_result.press is None
+    assert cv_result.q_squared is None
+
+
+def test_pls_cross_validate_significance() -> None:
+    """Test that significant betas are correctly identified with strong signal."""
+    rng = np.random.default_rng(7)
+    N, K = 50, 4
+    # Strong signal for X1 and X3, zero for X2 and X4
+    beta_true = np.array([[5.0], [0.0], [-5.0], [0.0]])
+    X = pd.DataFrame(rng.standard_normal((N, K)), columns=[f"X{i}" for i in range(1, K + 1)])
+    Y = pd.DataFrame(X.values @ beta_true + rng.standard_normal((N, 1)) * 0.1, columns=["Y1"])
+
+    scaler_x = MCUVScaler().fit(X)
+    scaler_y = MCUVScaler().fit(Y)
+    X_s, Y_s = scaler_x.transform(X), scaler_y.transform(Y)
+
+    pls = PLS(n_components=2).fit(X_s, Y_s)
+    cv_result = pls.cross_validate(X_s, Y_s, cv=5, random_state=0, show_progress=False)
+
+    # With very strong signal and low noise, the significant variables (X1, X3) should be flagged
+    sig = cv_result.significant
+    assert sig.loc["X1", "Y1"]  # strong positive
+    assert sig.loc["X3", "Y1"]  # strong negative
+
+
+def test_pls_cross_validate_not_fitted() -> None:
+    """Test that cross_validate raises error on unfitted model."""
+    pls = PLS(n_components=2)
+    X = pd.DataFrame(np.random.default_rng(0).standard_normal((20, 3)))
+    Y = pd.DataFrame(np.random.default_rng(0).standard_normal((20, 1)))
+    with pytest.raises(Exception):  # noqa: B017
+        pls.cross_validate(X, Y)
+
+
 def test_pls_old_attribute_names_raise() -> None:
     """Test that old PLS attribute names raise helpful errors."""
     rng = np.random.default_rng(42)

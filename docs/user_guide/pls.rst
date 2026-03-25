@@ -109,15 +109,49 @@ These diagnostics work identically to PCA (see :doc:`pca`):
   variables.
 - ``model.detect_outliers()`` — combined statistical + robust ESD detection.
 
+Variable Importance in Projection (VIP)
+---------------------------------------
+
+VIP scores quantify how much each X variable contributes to the PLS model's
+ability to explain Y. The formula weights each variable's loading by the
+variance explained by each component:
+
+.. math::
+
+   \text{VIP}_j = \sqrt{K \cdot
+       \frac{\sum_{a=1}^{A} r2_a \cdot w_{ja}^2}{\sum_{a=1}^{A} r2_a}}
+
+where :math:`K` is the number of features, :math:`A` the number of
+components, :math:`r2_a` the fraction of Y variance explained by component
+:math:`a`, and :math:`w_{ja}` the PLS weight for feature :math:`j` in
+component :math:`a`.
+
+- Variables with **VIP > 1** are considered important (above average
+  contribution).
+- Variables with **VIP < 0.5** contribute very little and may be candidates
+  for removal.
+
+.. code-block:: python
+
+   pls = PLS(n_components=3).fit(X_scaled, Y_scaled)
+   vip_scores = pls.vip()
+   print(vip_scores.sort_values(ascending=False))
+
+   # Use fewer components for VIP calculation
+   vip_2 = pls.vip(n_components=2)
+
+VIP is also available for PCA models (using loadings instead of weights),
+accessed the same way via ``pca.vip()``.
+
 Predictions
 -----------
 
 After fitting, ``model.predict(X_new)`` returns a ``Bunch`` with:
 
-- ``predictions_`` — the predicted Y values.
-- ``scores_`` — the X-scores for the new observations.
-- ``spe_`` — SPE values for the new observations.
-- ``hotellings_t2_`` — T² values for the new observations.
+- ``y_hat`` — the predicted Y values.
+- ``scores`` — the X-scores for the new observations.
+- ``spe`` — SPE values for the new observations.
+- ``hotellings_t2`` — T² values for the new observations.
 
 The underlying regression relationship is captured in
 ``model.beta_coefficients_``, which maps directly from (preprocessed) X to
@@ -135,6 +169,86 @@ The same PRESS / Wold's criterion approach described in
 :doc:`cross_validation` applies. A practical check: if the training R² is
 much higher than the test-set R² (gap > 0.15–0.20), overfitting is likely
 and you should reduce the number of components.
+
+Cross-Validation and Beta Coefficient Error Bars
+-------------------------------------------------
+
+PLS regression coefficients (``model.beta_coefficients_``) represent the best
+point estimate from the training data, but they do not convey how certain
+those estimates are. The ``cross_validate()`` method provides uncertainty
+quantification by refitting the model on data subsets and computing confidence
+intervals.
+
+**Three resampling strategies are available:**
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 20 60
+
+   * - Strategy
+     - Parameter
+     - Description
+   * - Jackknife (LOO)
+     - ``cv="loo"``
+     - Leave-one-out: N resamples. Uses the jackknife variance formula
+       :math:`\hat{\text{var}}(\beta_j) = \frac{N-1}{N} \sum_{i=1}^{N}
+       (\beta_{j,i} - \bar{\beta}_j)^2` with a t-distribution CI. This is
+       the default and most common choice in chemometrics.
+   * - K-fold
+     - ``cv=5``
+     - K-fold cross-validation: K resamples. Faster than LOO for large
+       datasets.
+   * - Bootstrap
+     - ``n_bootstrap=200``
+     - Resample with replacement B times. CI from percentiles of the
+       distribution.
+
+**Basic usage:**
+
+.. code-block:: python
+
+   from process_improve.multivariate.methods import PLS, MCUVScaler
+
+   scaler_x = MCUVScaler().fit(X)
+   scaler_y = MCUVScaler().fit(Y)
+   X_s, Y_s = scaler_x.transform(X), scaler_y.transform(Y)
+
+   pls = PLS(n_components=2).fit(X_s, Y_s)
+   cv = pls.cross_validate(X_s, Y_s, cv="loo")
+
+   # Beta coefficient uncertainty
+   print(cv.beta_mean)        # Mean beta across resamples
+   print(cv.beta_std)         # Standard error
+   print(cv.beta_ci_lower)    # Lower 95% CI bound
+   print(cv.beta_ci_upper)    # Upper 95% CI bound
+   print(cv.significant)      # True where CI excludes zero
+
+   # Prediction metrics
+   print(cv.q_squared)        # Cross-validated R² (Q²) per Y variable
+   print(cv.rmse_cv)          # Cross-validated RMSE per Y variable
+   print(cv.press)            # Total PRESS
+
+**Interpreting the results:**
+
+- ``significant`` flags which beta coefficients have confidence intervals that
+  do not contain zero — these are the X variables with a statistically
+  meaningful relationship to Y at the chosen confidence level.
+- ``q_squared`` (Q²) is the cross-validated R². A large gap between training
+  R² (``model.r2_cumulative_``) and Q² indicates overfitting.
+- ``beta_samples`` (shape: n_resamples × K × M) contains the raw beta
+  coefficients from every resample, useful for custom analyses or plotting
+  distributions.
+
+**Bootstrap example with custom confidence level:**
+
+.. code-block:: python
+
+   cv = pls.cross_validate(
+       X_s, Y_s,
+       n_bootstrap=200,
+       conf_level=0.99,
+       random_state=42,
+   )
 
 Missing Data and Troubleshooting
 --------------------------------

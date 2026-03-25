@@ -54,9 +54,10 @@ from process_improve.multivariate.methods import PLS, MCUVScaler
 # Scale X and Y separately
 scaler_x = MCUVScaler().fit(X)
 scaler_y = MCUVScaler().fit(Y)
+X_s, Y_s = scaler_x.transform(X), scaler_y.transform(Y)
 
 # Fit a PLS model
-pls = PLS(n_components=3).fit(scaler_x.transform(X), scaler_y.transform(Y))
+pls = PLS(n_components=3).fit(X_s, Y_s)
 
 # Inspect results
 print(pls.scores_)  # X scores (N x A)
@@ -72,6 +73,18 @@ print(result.hotellings_t2)  # Hotelling's T² for new data
 # Detect outliers and analyze contributions
 outliers = pls.detect_outliers(conf_level=0.95)
 contrib = pls.score_contributions(pls.scores_.iloc[0].values)
+
+# Variable importance
+print(pls.vip())  # VIP scores per X variable
+
+# Cross-validation with beta coefficient error bars
+cv = pls.cross_validate(X_s, Y_s, cv="loo")
+print(cv.beta_mean)       # Mean beta across LOO resamples
+print(cv.beta_ci_lower)   # Lower 95% CI for each beta
+print(cv.beta_ci_upper)   # Upper 95% CI for each beta
+print(cv.significant)     # Which betas are significantly != 0
+print(cv.q_squared)       # Cross-validated R² (Q²)
+print(cv.rmse_cv)         # Cross-validated RMSE per Y variable
 ```
 
 ## Features
@@ -82,7 +95,9 @@ contrib = pls.score_contributions(pls.scores_.iloc[0].values)
 - **Missing data handling** via TSR and NIPALS algorithms
 - **Outlier detection** combining Hotelling's T² and SPE with robust ESD test
 - **Score contributions** for variable-level diagnostics
-- **Cross-validation** for component selection (PRESS with Wold's criterion)
+- **VIP** (Variable Importance in Projection) scores for PCA and PLS
+- **Cross-validation** for PCA component selection (PRESS with Wold's criterion)
+- **PLS cross-validation** with beta coefficient error bars (jackknife, K-fold, bootstrap), Q², and RMSE
 - **Interactive plots** (Plotly) for scores, loadings, SPE, and T²
 - **Designed experiments** — full factorial, fractional factorial, response surface
 - **Process monitoring** — Shewhart, CUSUM, EWMA control charts
