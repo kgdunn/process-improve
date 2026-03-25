@@ -100,13 +100,16 @@ def test_pca_foods() -> None:
 
     url = "https://openmv.net/file/food-texture.csv"
     req = urllib.request.Request(url, headers={"User-Agent": "Python/process-improve-tests"})  # noqa: S310
-    with urllib.request.urlopen(req) as response:  # noqa: S310
-        foods = pd.read_csv(io.StringIO(response.read().decode())).drop(
-            [
-                "Unnamed: 0",
-            ],
-            axis=1,
-        )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:  # noqa: S310
+            foods = pd.read_csv(io.StringIO(response.read().decode())).drop(
+                [
+                    "Unnamed: 0",
+                ],
+                axis=1,
+            )
+    except (urllib.error.URLError, TimeoutError):
+        pytest.skip("Cannot reach openmv.net — skipping network-dependent test")
     scaler = MCUVScaler().fit(foods)
     foods_mcuv = scaler.fit_transform(foods)
 
