@@ -6,7 +6,7 @@ import typing
 import warnings
 from collections.abc import Callable, KeysView
 from functools import partial
-from typing import Self, TypeAlias
+from typing import TypeAlias
 
 import numpy as np
 import pandas as pd
@@ -3311,7 +3311,7 @@ class Resampler:
         self.parameters: list = []
         self.n_resamples = 0
 
-    def resample(self, show_progress: bool = True) -> Self:
+    def resample(self, show_progress: bool = True):
         """Perform the resampling."""
         if self.use_jackknife:
             return self.jackknife(show_progress=show_progress)
@@ -3322,7 +3322,7 @@ class Resampler:
         else:
             raise ValueError("Either use_jackknife or bootstrap_rounds must be set.")
 
-    def jackknife(self, show_progress: bool) -> Self:
+    def jackknife(self, show_progress: bool):
         """Perform jackknife resampling on the given estimator."""
         self.parameters = []
         indices = np.arange(len(self.x))
@@ -3337,7 +3337,7 @@ class Resampler:
             raise ValueError("No resamples were generated. Check your data and parameters.")
         return self
 
-    def bootstrap(self, show_progress: bool) -> Self:
+    def bootstrap(self, show_progress: bool):
         """Perform bootstrap resampling on the given estimator."""
         self.parameters = []
 
@@ -3357,7 +3357,7 @@ class Resampler:
 
         return self
 
-    def fractional(self, show_progress: bool) -> Self:
+    def fractional(self, show_progress: bool):
         """Perform fractional resampling on the given estimator.
 
         Will repeat N times (N = number of rows in x), each time leaving out a fraction of the data as specified by
