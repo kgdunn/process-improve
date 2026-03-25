@@ -5,7 +5,8 @@ from process_improve.bivariate.methods import find_elbow_point
 
 
 @pytest.fixture
-def straight_line():
+def straight_line() -> tuple:
+    """Create straight line test data."""
     slope = 2.5
     intercept = -13
     delta = 0.1
@@ -16,7 +17,7 @@ def straight_line():
     return x, y0, y1, y2
 
 
-def test__validate_nan_output(straight_line):
+def test__validate_nan_output(straight_line: tuple) -> None:
     """Is the elbow where we expect it? For clean, perfect data."""
     x, y0, y1, y2 = straight_line
     # Horizontal line
@@ -33,9 +34,8 @@ def test__validate_nan_output(straight_line):
 
 
 @pytest.fixture
-def elbow_with_synthetic_data():
-    """
-    Create simulated data to test against.
+def elbow_with_synthetic_data() -> tuple:
+    """Create simulated data to test against.
 
     Create a line with slope of 2.0 between 0 and 5 on the x-axis.
     Then a line of slope of 3.0 between 5 and 10.
@@ -51,44 +51,44 @@ def elbow_with_synthetic_data():
     line_3 = np.arange(break_pt, break_pt * 2, delta) * slope_3 + (slope_2 - slope_3) * break_pt
     x = np.arange(0, break_pt * 2, delta)
     y = np.concatenate((line_2, line_3))
-    break_pt = break_pt
 
     return x, y, break_pt
 
 
-def test__validate_with_synthetic_data(elbow_with_synthetic_data):
+def test__validate_with_synthetic_data(elbow_with_synthetic_data: tuple) -> None:
     """Is the elbow where we expect it? For clean, perfect data."""
     x, y, break_pt = elbow_with_synthetic_data
     expected_elbow = np.argmin(np.abs(x - break_pt))
     assert expected_elbow == find_elbow_point(x, y)
 
 
-def test__validate_with_synthetic_data_plus_noise(elbow_with_synthetic_data):
-    """
-    Is the elbow where we expect it? For low noisy data. Use normally distributed
-    noise, with standard deviation = 2% of the range of y.
+def test__validate_with_synthetic_data_plus_noise(elbow_with_synthetic_data: tuple) -> None:
+    """Is the elbow where we expect it? For low noisy data.
+
+    Use normally distributed noise, with standard deviation = 2% of the range of y.
 
     Elbow should be found within +/- 10 index positions from actual point
     """
     # Test with an odd number of points
     x, y, break_pt = elbow_with_synthetic_data
     rng = np.random.default_rng(12)
-    range = (y.max() - y.min()) * 0.02
-    y = y + rng.standard_normal(y.shape[0]) * range
+    y_range = (y.max() - y.min()) * 0.02
+    y = y + rng.standard_normal(y.shape[0]) * y_range
     expected_elbow = np.argmin(np.abs(x - break_pt))
     found_elbow = find_elbow_point(x, y)
     assert abs(found_elbow - expected_elbow) < 10
 
     # Test with an even number of points
     x, y, break_pt = elbow_with_synthetic_data
-    range = (y.max() - y.min()) * 0.02
-    y = y + rng.standard_normal(y.shape[0]) * range
+    y_range = (y.max() - y.min()) * 0.02
+    y = y + rng.standard_normal(y.shape[0]) * y_range
     expected_elbow = np.argmin(np.abs(x - break_pt))
     found_elbow = find_elbow_point(x, y, max_iter=40)
     assert abs(found_elbow - expected_elbow) < 10
 
 
-def test__corner_case():
+def test__corner_case() -> None:
+    """Test corner case with all NaN input."""
     found_elbow = find_elbow_point(
         [np.nan] * 11,
         [np.nan] * 11,

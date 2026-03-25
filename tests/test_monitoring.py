@@ -8,10 +8,8 @@ from process_improve.monitoring.control_charts import ControlChart
 from process_improve.monitoring.metrics import calculate_cpk
 
 
-class test_validate_against_R_qcc_xbar_one:
-    """
-    Uses testing data (on actual and simulated data) to verify the results agree with other
-    another software package, the "qcc" library in R.
+class TestValidateAgainstRQccXbarOne:
+    """Validate results against the "qcc" library in R.
 
     R commands
     ----------
@@ -26,44 +24,44 @@ class test_validate_against_R_qcc_xbar_one:
     y = cc_values["Colour"]
 
     # Do we get similar results to the "chart <- qcc(data=data$Colour, type="xbar.one")" from R?
-    cc = ControlChart(variant="xbar.no.subgroup", style="regular")
-    cc.calculate_limits(y)
-    assert cc.target == pytest.approx(238.78, abs=1e-2)
+    cc_regular = ControlChart(variant="xbar.no.subgroup", style="regular")
+    cc_regular.calculate_limits(y)
+    assert cc_regular.target == pytest.approx(238.78, abs=1e-2)
     # cannot get this more precise, since the R code used in QCC follows a different approach:
     # calculates the std dev from a sequence of differences from point to point.
-    assert round(cc.s) == 11
+    assert round(cc_regular.s) == 11
 
-    cc = ControlChart(variant="xbar.no.subgroup", style="robust")
-    cc.calculate_limits(y)
-    assert cc.target == pytest.approx(239.5, abs=1e-1)
+    cc_robust = ControlChart(variant="xbar.no.subgroup", style="robust")
+    cc_robust.calculate_limits(y)
+    assert cc_robust.target == pytest.approx(239.5, abs=1e-1)
     # cannot get this more precise, since the R code used in QCC follows a different approach:
     # calculates the std dev from a sequence of differences from point to point.
-    assert cc.s == pytest.approx(14.0847, abs=1e-3)
+    assert cc_robust.s == pytest.approx(14.0847, abs=1e-3)
 
 
-class test_control_chart:
+class TestControlChart:
     """Generic control chart tests."""
 
     y = np.array([33, 30, 29, 30, 27, 32, 17])
     # Simulated in R: loc=50, sd=4
     known_s = np.array([41.5, 43.0, 51.8, 50.4, 45.6, 49.5, 45.3, 49.0, 41.4, 51.8, 58.4])
 
-    cc = ControlChart(
+    cc_robust = ControlChart(
         variant="xbar.no.subgroup",
         style="robust",
     )
-    cc.calculate_limits(y)
-    assert cc.target == np.median(y[0:-1])
-    assert np.all(y[cc.idx_outside_3S] == [17])
+    cc_robust.calculate_limits(y)
+    assert cc_robust.target == np.median(y[0:-1])
+    assert np.all(y[cc_robust.idx_outside_3S] == [17])
 
     # test_with_known_s(self):
-    cc = ControlChart(variant="hw")
-    cc.calculate_limits(known_s, target=50, s=4)
-    assert cc.target == 50
-    assert cc.s == 4
+    cc_hw = ControlChart(variant="hw")
+    cc_hw.calculate_limits(known_s, target=50, s=4)
+    assert cc_hw.target == 50
+    assert cc_hw.s == 4
 
 
-class test_holt_winters_control_chart:
+class TestHoltWintersControlChart:
     """Testing the Holt-Winters control chart settings."""
 
     y = np.array([10.09, 9.08, 3.14, 7.00, 11.47, 11.95, 3.96, 8.18, 1.87, 8.72])
@@ -121,37 +119,37 @@ class test_holt_winters_control_chart:
     # def test_asserts:
     # Checks that the required asserts are raised
 
-    cc = ControlChart()
-    with pytest.raises(AssertionError, match="Lambda_1 must be less than or equal to 1.0."):
-        cc.calculate_limits(y, ld_1=1.2, ld_2=0.5)
+    cc_assert = ControlChart()
+    with pytest.raises(AssertionError, match=r"Lambda_1 must be less than or equal to 1\.0\."):
+        cc_assert.calculate_limits(y, ld_1=1.2, ld_2=0.5)
 
-    with pytest.raises(AssertionError, match="Lambda_1 must be greater than or equal to zero."):
-        cc.calculate_limits(y, ld_1=-1, ld_2=0.5)
+    with pytest.raises(AssertionError, match=r"Lambda_1 must be greater than or equal to zero\."):
+        cc_assert.calculate_limits(y, ld_1=-1, ld_2=0.5)
 
     # test_hw_chart_missing_values(self):
-    cc = ControlChart()
-    cc.calculate_limits(with_missing, ld_1=0.4, ld_2=0.7)
-    assert cc.target == pytest.approx(100.3, abs=1e-1)
-    assert cc.s == pytest.approx(6, abs=1)
+    cc_missing = ControlChart()
+    cc_missing.calculate_limits(with_missing, ld_1=0.4, ld_2=0.7)
+    assert cc_missing.target == pytest.approx(100.3, abs=1e-1)
+    assert cc_missing.s == pytest.approx(6, abs=1)
 
     # test_hw_short_length:
     # Ensures that short length sequences are also handled well.
 
-    cc = ControlChart()
-    cc.calculate_limits(short_length, ld_1=0.2, ld_2=0.5)
-    assert cc.target == pytest.approx((86.115 + 91.615) / 2.0, abs=1e-3)
-    assert cc.s == pytest.approx(np.std([86.115, 91.615], ddof=1))
+    cc_short = ControlChart()
+    cc_short.calculate_limits(short_length, ld_1=0.2, ld_2=0.5)
+    assert cc_short.target == pytest.approx((86.115 + 91.615) / 2.0, abs=1e-3)
+    assert cc_short.s == pytest.approx(np.std([86.115, 91.615], ddof=1))
 
     # test_hw_medium_length
     # Ensures that short length sequences are also handled well.
-    cc = ControlChart()
-    cc.calculate_limits(medium_length, ld_1=0.2, ld_2=0.5)
-    assert cc.target == pytest.approx(93.945, abs=1e-3)
-    assert cc.s == pytest.approx(4.493, abs=1e-3)
-    assert len(cc.idx_outside_3S) == 0
+    cc_medium = ControlChart()
+    cc_medium.calculate_limits(medium_length, ld_1=0.2, ld_2=0.5)
+    assert cc_medium.target == pytest.approx(93.945, abs=1e-3)
+    assert cc_medium.s == pytest.approx(4.493, abs=1e-3)
+    assert len(cc_medium.idx_outside_3S) == 0
 
 
-def test_cpk_well_centered_process():
+def test_cpk_well_centered_process() -> None:
     """Cpk for a well-centered process with wide specs should be high."""
     rng = np.random.default_rng(42)
     data = pd.DataFrame({"value": rng.normal(loc=50, scale=2, size=500)})
@@ -159,7 +157,7 @@ def test_cpk_well_centered_process():
     assert cpk > 1.0, f"Expected Cpk > 1.0 for well-centered process, got {cpk}"
 
 
-def test_cpk_classical_vs_robust():
+def test_cpk_classical_vs_robust() -> None:
     """Both classical and robust Cpk should be positive for normal data."""
     rng = np.random.default_rng(42)
     data = pd.DataFrame({"value": rng.normal(loc=50, scale=2, size=500)})
@@ -169,7 +167,7 @@ def test_cpk_classical_vs_robust():
     assert cpk_robust > 0
 
 
-def test_cpk_shifted_process():
+def test_cpk_shifted_process() -> None:
     """Process shifted toward upper spec should have lower Cpk, limited by upper side."""
     rng = np.random.default_rng(42)
     data = pd.DataFrame({"value": rng.normal(loc=58, scale=2, size=500)})
@@ -179,7 +177,7 @@ def test_cpk_shifted_process():
     assert cpk < 1.0, "Shifted process near spec should have Cpk < 1"
 
 
-def test_cpk_column_name_specs():
+def test_cpk_column_name_specs() -> None:
     """Specs given as column names should produce same result as numeric specs."""
     rng = np.random.default_rng(42)
     data = pd.DataFrame({"value": rng.normal(loc=50, scale=2, size=500)})
@@ -190,18 +188,17 @@ def test_cpk_column_name_specs():
     assert cpk_col == pytest.approx(cpk_numeric, abs=0.01)
 
 
-class test_holt_winters_control_chart_BatchYield:
-    """
-    Testing the Holt-Winters control chart settings on a different dataset: batch yields.
+class TestHoltWintersControlChartBatchYield:
+    """Validate Holt-Winters control chart on batch yield data.
 
     http://openmv.net/info/batch-yield-and-purity (Kevin Dunn, personal data)
     """
 
     folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "monitoring"
     cc_values = pd.read_csv(folder / "batch-yield-and-purity.csv")
-    subgroupsN = 3
+    subgroups_n = 3
     rounder = int(np.floor(cc_values.shape[0] / 3))
-    subgroups = cc_values["yield"].values[0 : (rounder * subgroupsN)].reshape(rounder, 3)
+    subgroups = cc_values["yield"].values[0 : (rounder * subgroups_n)].reshape(rounder, 3)
     y = subgroups.mean(axis=1)
 
     cc = ControlChart()
