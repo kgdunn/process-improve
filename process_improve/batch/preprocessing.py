@@ -113,7 +113,8 @@ def reverse_scaling(
     batches: dict[str, pd.DataFrame],
     scale_df: pd.DataFrame,
     columns_to_align: list | None = None,
-):
+) -> dict:
+    """Reverse the scaling applied by `apply_scaling`."""
     # TODO: handle the case of DataFrames still
     if columns_to_align is None:
         if isinstance(batches, dict):
@@ -150,7 +151,8 @@ class DTWresult:
         self.normalized_distance = normalized_distance
 
 
-def align_with_path(md_path, batch, initial_row) -> pd.DataFrame:
+def align_with_path(md_path: np.ndarray, batch: pd.DataFrame, initial_row: pd.Series) -> pd.DataFrame:
+    """Align a batch to the reference using the DTW path."""
     row = 0
     nr = md_path[:, 0].max() + 1  # to account for the zero-based indexing
     synced = pd.DataFrame(np.zeros((nr, batch.shape[1])), columns=batch.columns)
@@ -170,7 +172,8 @@ def align_with_path(md_path, batch, initial_row) -> pd.DataFrame:
     return pd.DataFrame(synced)
 
 
-def dtw_core(test, ref, weight_matrix: np.ndarray):
+def dtw_core(test: pd.DataFrame, ref: pd.DataFrame, weight_matrix: np.ndarray) -> DTWresult:
+    """Compute DTW alignment of test batch against reference batch."""
     show_plot = False
     nt = test.shape[0]  # 'test' data; will be align to the 'reference' data
     nr = ref.shape[0]
@@ -218,7 +221,8 @@ def one_iteration_dtw(
     refbatch_sc: pd.DataFrame,
     weight_matrix: np.ndarray,
     settings: dict | None = None,
-):
+) -> tuple[dict, pd.DataFrame]:
+    """Perform one iteration of the DTW alignment algorithm."""
     default_settings = {"show_progress": True, "subsample": 1}
     if settings:
         default_settings.update(settings)
@@ -246,7 +250,7 @@ def one_iteration_dtw(
             )
 
         except ValueError:  # noqa: PERF203
-            raise ValueError(f"Failed on batch {batch_id}")
+            raise ValueError(f"Failed on batch {batch_id}") from None
 
     average_batch = average_batch / successful_alignments
 
@@ -333,7 +337,7 @@ def batch_dtw(  # noqa: PLR0915
     iter_step = 0
     while (np.linalg.norm(delta_weight) > settings["tolerance"]) and (iter_step <= settings["maximum_iterations"]):
         if settings["show_progress"]:
-            print(f"Iter = {iter_step} and norm = {np.linalg.norm(delta_weight)}")
+            print(f"Iter = {iter_step} and norm = {np.linalg.norm(delta_weight)}")  # noqa: T201
 
         iter_step += 1
         weight_matrix = np.diag(weight_vector)
@@ -489,7 +493,7 @@ def resample_to_reference(
     return out
 
 
-def find_average_length(batches: dict[str, pd.DataFrame], settings: dict | None = None):
+def find_average_length(batches: dict[str, pd.DataFrame], settings: dict | None = None) -> str:
     """
     Find the batch in `batches` with the average length.
 
@@ -531,7 +535,7 @@ def find_reference_batch(
     batches: dict[str, pd.DataFrame],
     columns_to_align: list,
     settings: dict | None = None,
-):
+) -> str | list[str]:
     """
     Find a reference batch. Assumes NO missing data.
 

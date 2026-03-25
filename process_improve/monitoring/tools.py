@@ -78,7 +78,7 @@ def control_chart(
     style: str = "robust",
 ) -> dict[str, Any]:
     """Build a control chart and return limits + out-of-control points."""
-    from process_improve.monitoring.control_charts import ControlChart
+    from process_improve.monitoring.control_charts import ControlChart  # noqa: PLC0415
 
     variant_map = {
         "shewhart": "xbar.no.subgroup",
@@ -111,7 +111,7 @@ def control_chart(
             "chart_type": chart_type,
             "style": style,
         })
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return {"error": str(exc)}
 
 
@@ -171,7 +171,7 @@ def process_capability(
     robust: bool = True,
 ) -> dict[str, Any]:
     """Calculate Cpk process capability index."""
-    from process_improve.monitoring.metrics import calculate_cpk
+    from process_improve.monitoring.metrics import calculate_cpk  # noqa: PLC0415
 
     try:
         df = pd.DataFrame({"value": np.asarray(values, dtype=float)})
@@ -199,7 +199,7 @@ def process_capability(
             "n": len(values),
             "robust": robust,
         })
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return {"error": str(exc)}
 
 

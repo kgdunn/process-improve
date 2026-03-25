@@ -7,7 +7,7 @@ from ..regression.methods import repeated_median_slope
 from ..univariate.metrics import median_absolute_deviation
 
 
-def rho(x, k=2.52):
+def rho(x: float, k: float = 2.52) -> float:
     """
     Bi-weight rho function.
 
@@ -17,7 +17,7 @@ def rho(x, k=2.52):
     return k if np.abs(x) > k else k * (1 - np.power(1 - np.power(x / k, 2), 3))
 
 
-def psi(x, k=2.0):
+def psi(x: float, k: float = 2.0) -> float:
     """
     Pre-clean based on the Huber y-function.
 
@@ -31,7 +31,7 @@ def psi(x, k=2.0):
 class ControlChart:
     """Create control chart instance objects."""
 
-    def __init__(self, style="robust", variant="HW"):
+    def __init__(self, style: str = "robust", variant: str = "HW") -> None:
         """
         Create/initialize a control chart.
 
@@ -78,7 +78,9 @@ class ControlChart:
         ]
         self.df = pd.DataFrame(columns=columns, dtype=np.float64)
 
-    def calculate_limits(self, y, target=None, s=None, **kwargs):
+    def calculate_limits(
+        self, y: np.ndarray | pd.Series, target: float | None = None, s: float | None = None, **kwargs,
+    ) -> None:
         """
         Find for a given vector `y`, the control chart target and limits.
 
@@ -144,7 +146,7 @@ class ControlChart:
         idx_bool = (self.df["y"] - self.target).abs() > 3.0 * self.s
         self.idx_outside_3S = np.nonzero(idx_bool.to_numpy())[0].tolist()
 
-    def _xbar_no_subgroup_fit(self):
+    def _xbar_no_subgroup_fit(self) -> None:
         """
         Fit the control chart from the data samples, assuming each sample is its own subgroup.
         Variant = 'regulur' | 'robust' switchs how the average and standard deviation are
@@ -162,7 +164,7 @@ class ControlChart:
             self.target = self.df["y"].median()
             self.s = (self.df["y"] - self.target).abs().median() * 1.4826
 
-    def _holt_winters_parameter_fit(self):
+    def _holt_winters_parameter_fit(self) -> None:
         """
         Recommended in the paper: not to fit the lambda_s value, but to use a grid search for the
         lambda_1 and lambda_2 values. This is done in a 5x5 grid in the code below.
@@ -229,7 +231,7 @@ class ControlChart:
         self._delta_UCL_3sigma = +3.0 * self._tau
         self._delta_LCL_3sigma = -3.0 * self._tau
 
-    def _holt_winters_warmup_fit(self, ld_1=0.5, ld_2=0.8, ld_s=0.2):
+    def _holt_winters_warmup_fit(self, ld_1: float = 0.5, ld_2: float = 0.8, ld_s: float = 0.2) -> None:
         """
         See paper: https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125.
 

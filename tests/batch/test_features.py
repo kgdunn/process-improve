@@ -11,7 +11,7 @@ from process_improve.batch.features import cross
 
 
 @pytest.fixture(scope="module")
-def batch_data():
+def batch_data() -> pd.DataFrame:
     """Return a small example of a batch data set."""
     folder = pathlib.Path(__file__).parents[2] / "process_improve" / "datasets" / "batch"
     return pd.read_csv(
@@ -22,13 +22,14 @@ def batch_data():
     # return
 
 
-def test_verify_file(batch_data):
+def test_verify_file(batch_data: pd.DataFrame) -> None:
+    """Verify the batch data file was loaded correctly."""
     df = batch_data
     assert df.shape[0] == 501
     assert df.shape[1] == 5
 
 
-def test_corner_cases(batch_data):
+def test_corner_cases(batch_data: pd.DataFrame) -> None:
     """Certain corner cases: to ensure coverage."""
     df = batch_data
     data = df.set_index(pd.to_datetime(df["DateTime"])).drop("DateTime", axis=1)
@@ -43,7 +44,7 @@ def test_corner_cases(batch_data):
     assert features.f_mean(data, tags="Temp1").loc[:, "Temp1_mean"].values[0] == pytest.approx(-19.482056, rel=1e-7)
 
 
-def test_age_col_specification(batch_data):
+def test_age_col_specification(batch_data: pd.DataFrame) -> None:
     """Some features, like slopes, need to know a value from the x-axis: age_col."""
     df = batch_data
     df = df.drop("DateTime", axis=1)
@@ -57,7 +58,7 @@ def test_age_col_specification(batch_data):
     assert slopes.shape == (1, 2)
 
 
-def test_data_preprocessing(batch_data):
+def test_data_preprocessing(batch_data: pd.DataFrame) -> None:
     """Simple tests regarding the mean, median, etc. Location-based features."""
 
     df = batch_data
@@ -74,7 +75,7 @@ def test_data_preprocessing(batch_data):
 
 # Location-based features
 # ------------------------------------------
-def test_location_features(batch_data):
+def test_location_features(batch_data: pd.DataFrame) -> None:
     """Simple tests regarding the mean, median, etc. Location-based features."""
 
     assert features.f_mean(batch_data, tags=["Temp1", "Temp2", "Pressure1"], batch_col="Batch").loc[1].values[
@@ -88,7 +89,7 @@ def test_location_features(batch_data):
 
 # Scale-based features
 # ------------------------------------------
-def test_scale_features(batch_data):
+def test_scale_features(batch_data: pd.DataFrame) -> None:
     """Simple tests regarding the scale-based features."""
 
     assert features.f_std(batch_data, tags=["Temp1", "Temp2", "Pressure1"], batch_col="Batch").values[
@@ -101,7 +102,8 @@ def test_scale_features(batch_data):
 
 # Shape-based features
 # ------------------------------------------
-def test_shape_features(batch_data):
+def test_shape_features(batch_data: pd.DataFrame) -> None:
+    """Test slope-based shape features."""
     slopes = features.f_slope(
         batch_data,
         x_axis_tag="UCI_minutes",
@@ -117,8 +119,9 @@ def test_shape_features(batch_data):
 
 
 # Cumulative features
-def test_sum_features(batch_data):
-    """Simple tests regarding the area
+def test_sum_features(batch_data: pd.DataFrame) -> None:
+    """Simple tests regarding the area.
+
     Values were calculated manually in Excel.
     """
 
@@ -141,7 +144,7 @@ def test_sum_features(batch_data):
 
 # Extreme features
 # ------------------------------------------
-def test_extreme_features(batch_data):
+def test_extreme_features(batch_data: pd.DataFrame) -> None:
     """Simple tests regarding the extremum features."""
 
     assert features.f_min(batch_data, tags=["Temp1", "Temp2", "Pressure1"], batch_col="Batch").values[
@@ -160,7 +163,7 @@ def test_extreme_features(batch_data):
 
 # Cross (threshold crossing) helper and feature
 # ------------------------------------------
-def test_cross_rising():
+def test_cross_rising() -> None:
     """cross() should find rising-edge threshold crossings."""
     series = pd.Series([-2, -1, 1, 2, 3], index=[0, 1, 2, 3, 4])
     result = cross(series, threshold=0, direction="rising")
@@ -168,7 +171,7 @@ def test_cross_rising():
     assert result[0] == pytest.approx(1.5, abs=1e-6)
 
 
-def test_cross_falling():
+def test_cross_falling() -> None:
     """cross() should find falling-edge threshold crossings."""
     series = pd.Series([3, 2, 1, -1, -2], index=[0, 1, 2, 3, 4])
     result = cross(series, threshold=0, direction="falling")
@@ -176,14 +179,14 @@ def test_cross_falling():
     assert result[0] == pytest.approx(2.5, abs=1e-6)
 
 
-def test_cross_both_directions():
+def test_cross_both_directions() -> None:
     """cross() with direction='cross' should find both rising and falling."""
     series = pd.Series([-1, 1, -1, 1], index=[0, 1, 2, 3])
     result = cross(series, threshold=0, direction="cross")
     assert len(result) == 3  # rising, falling, rising
 
 
-def test_cross_only_index():
+def test_cross_only_index() -> None:
     """cross() with only_index=True should return integer indices."""
     series = pd.Series([-1, 1, 2], index=[10, 20, 30])
     result = cross(series, threshold=0, direction="rising", only_index=True)
@@ -191,7 +194,7 @@ def test_cross_only_index():
     assert result[0] == 0  # 0-based index
 
 
-def test_cross_first_point_only():
+def test_cross_first_point_only() -> None:
     """cross() with first_point_only=True should return only the first crossing."""
     series = pd.Series([-1, 1, -1, 1], index=[0, 1, 2, 3])
     result = cross(series, threshold=0, direction="cross", first_point_only=True)
@@ -199,14 +202,14 @@ def test_cross_first_point_only():
     assert np.isscalar(result) or len(result) == 1
 
 
-def test_cross_with_nan():
+def test_cross_with_nan() -> None:
     """cross() should handle NaN values by dropping them first."""
     series = pd.Series([-1, np.nan, 1, 2], index=[0, 1, 2, 3])
     result = cross(series, threshold=0, direction="rising")
     assert len(result) == 1
 
 
-def test_f_crossing_with_batch_data(batch_data):
+def test_f_crossing_with_batch_data(batch_data: pd.DataFrame) -> None:
     """f_crossing should find threshold crossings per batch."""
     df = batch_data
     result = features.f_crossing(
@@ -219,5 +222,3 @@ def test_f_crossing_with_batch_data(batch_data):
     )
     assert result.shape[1] == 1  # one feature column
     assert "Temp1" in result.columns[0]
-
-

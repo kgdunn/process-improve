@@ -1,10 +1,12 @@
 # (c) Kevin Dunn, 2010-2026. MIT License. Based on own private work over the years.
 
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 
 
-def popcorn(t=120, T=None):
+def popcorn(t: float = 120, T: float | None = None) -> None:
     """
     Simulate stovetop popcorn cooking.
 
@@ -50,7 +52,12 @@ def popcorn(t=120, T=None):
     """
 
 
-def grocery(p=3.46, h=150, P=None, H=None):
+def grocery(
+    p: float = 3.46,
+    h: float = 150,
+    P: float | None = None,
+    H: float | None = None,
+) -> int:
     """
     Simulate grocery store profits for a single product.
 

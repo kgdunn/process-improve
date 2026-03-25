@@ -73,13 +73,13 @@ def _create_mcp_tool(
     """Create and register a single MCP tool that delegates to execute_tool_call."""
 
     # Define an async handler that calls through to our tool registry
-    async def handler(**kwargs: Any) -> str:
+    async def handler(**kwargs: Any) -> str:  # noqa: ANN401
         try:
             result = execute_tool_call(tool_name, kwargs)
             if isinstance(result, dict):
                 return json.dumps(result, indent=2, default=str)
             return str(result)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc)})
 
     # Set proper function metadata for FastMCP

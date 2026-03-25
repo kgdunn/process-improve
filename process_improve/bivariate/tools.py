@@ -65,7 +65,7 @@ def find_elbow(
     y: list[float],
 ) -> dict[str, Any]:
     """Find the elbow point in an x-y curve."""
-    from process_improve.bivariate.methods import find_elbow_point
+    from process_improve.bivariate.methods import find_elbow_point  # noqa: PLC0415
 
     try:
         x_arr = np.asarray(x, dtype=float)
@@ -78,7 +78,7 @@ def find_elbow(
             "elbow_y": y[elbow_idx],
             "n": len(x),
         })
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return {"error": str(exc)}
 
 

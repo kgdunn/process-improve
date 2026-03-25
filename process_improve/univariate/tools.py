@@ -328,7 +328,7 @@ _register("median_absolute_deviation")
 )
 def normality_test(*, values: list[float], alpha: float = 0.05) -> dict:
     """Shapiro-Wilk normality test; see tool spec for details."""
-    from scipy.stats import shapiro
+    from scipy.stats import shapiro  # noqa: PLC0415
 
     arr = np.asarray(values, dtype=float)
     arr_clean = arr[~np.isnan(arr)]

@@ -99,14 +99,17 @@ def test_pca_foods() -> None:
     """Arrays with no variance should not be able to have variance extracted."""
 
     url = "https://openmv.net/file/food-texture.csv"
-    req = urllib.request.Request(url, headers={"User-Agent": "Python/process-improve-tests"})
-    with urllib.request.urlopen(req) as response:  # noqa: S310
-        foods = pd.read_csv(io.StringIO(response.read().decode())).drop(
-            [
-                "Unnamed: 0",
-            ],
-            axis=1,
-        )
+    req = urllib.request.Request(url, headers={"User-Agent": "Python/process-improve-tests"})  # noqa: S310
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:  # noqa: S310
+            foods = pd.read_csv(io.StringIO(response.read().decode())).drop(
+                [
+                    "Unnamed: 0",
+                ],
+                axis=1,
+            )
+    except (urllib.error.URLError, TimeoutError):
+        pytest.skip("Cannot reach openmv.net — skipping network-dependent test")
     scaler = MCUVScaler().fit(foods)
     foods_mcuv = scaler.fit_transform(foods)
 
@@ -343,7 +346,7 @@ def test_pca_tablet_spectra(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.
     # Check the model against an SVD: this raw data set has no missing
     # data, so the SVD should be faster and more accurate than NIPALS
     autoscaled_X = scale(center(spectra))
-    u, s, v = np.linalg.svd(autoscaled_X)
+    _u, _s, v = np.linalg.svd(autoscaled_X)
 
     loadings_delta = np.linalg.norm(np.abs(v[0 : model.n_components, :]) - np.abs(model.loadings_.T))
     assert loadings_delta == pytest.approx(0, abs=1e-8)
@@ -714,14 +717,14 @@ def test_pls_invalid_calls() -> None:
     rng = np.random.default_rng()
     data_x = pd.DataFrame(rng.uniform(low=-1, high=1, size=(N, K)))
     data_y = pd.DataFrame(rng.uniform(low=-1, high=1, size=(N, M)))
-    with pytest.raises(ValueError, match="Tolerance `tol`` must be between 1E-16 and 1.0"):
+    with pytest.raises(ValueError, match=r"Tolerance `tol`` must be between 1E-16 and 1.0"):
         _ = PLS(n_components=A, tol=0)
 
     # The `method` input parameter does not exist anymore
-    with pytest.raises(ValueError, match="Method 'SVDS' is not known."):
+    with pytest.raises(ValueError, match=r"Method 'SVDS' is not known."):
         _ = PLS(n_components=A, method="SVDS")
 
-    with pytest.raises(ValueError, match="Missing data method 'SCP' is not known."):
+    with pytest.raises(ValueError, match=r"Missing data method 'SCP' is not known."):
         _ = PLS(n_components=A, md_method="SCP")
 
     model = PLS(n_components=A)
@@ -729,7 +732,7 @@ def test_pls_invalid_calls() -> None:
         model.fit(data_x, data_y)
 
     sparse_data = csr_matrix([[1, 2], [0, 3], [4, 5]])
-    with pytest.raises(TypeError, match="This PLS class does not support sparse input."):
+    with pytest.raises(TypeError, match=r"This PLS class does not support sparse input."):
         PLS(n_components=2).fit(data_x, sparse_data)
 
 
@@ -998,7 +1001,7 @@ def test_pls_compare_sklearn_1_component(fixture_pls_model_simca_1_component: di
     assert data["loadings_r1"] == pytest.approx(plsmodel.x_weights_.ravel(), rel=1e-4)
 
     # Check the model's predictions
-    t1_predict, y_pp = plsmodel.transform(data["X"], data["y"])
+    t1_predict, _y_pp = plsmodel.transform(data["X"], data["y"])
     assert data["t1"] == pytest.approx(t1_predict.ravel(), abs=1e-5)
     # assert y_pp == pytest.approx((data["y"] - data["Yavg"]) / data["Yws"], abs=1e-6)
 
@@ -2252,7 +2255,7 @@ def manual_cross_validation(tpls_model: TPLS, full_datadict: dict, cv: int = 5, 
 # ---- Additional coverage tests for multivariate/methods.py ----
 
 
-def test_pca_predict_new_data():
+def test_pca_predict_new_data() -> None:
     """PCA.predict() should return scores, T2, and SPE for new observations."""
     rng = np.random.default_rng(42)
     N, K = 100, 5
@@ -2274,7 +2277,7 @@ def test_pca_predict_new_data():
     assert (result.spe >= 0).all()
 
 
-def test_pca_predict_numpy_input():
+def test_pca_predict_numpy_input() -> None:
     """PCA.predict() should accept numpy arrays as well as DataFrames."""
     rng = np.random.default_rng(42)
     X = pd.DataFrame(rng.standard_normal((50, 4)))
@@ -2287,7 +2290,7 @@ def test_pca_predict_numpy_input():
     assert result.scores.shape == (5, 2)
 
 
-def test_pca_score_method():
+def test_pca_score_method() -> None:
     """PCA.score() should return negative reconstruction error (higher = better)."""
     rng = np.random.default_rng(42)
     X = pd.DataFrame(rng.standard_normal((100, 5)))
@@ -2305,7 +2308,7 @@ def test_pca_score_method():
     assert score_4 > score_2
 
 
-def test_pca_transform_new_data():
+def test_pca_transform_new_data() -> None:
     """PCA.transform() should project new data onto the loading space."""
     rng = np.random.default_rng(42)
     X = pd.DataFrame(rng.standard_normal((80, 6)))
@@ -2322,7 +2325,7 @@ def test_pca_transform_new_data():
     np.testing.assert_allclose(all_scores.values, model.scores_.values, atol=1e-10)
 
 
-def test_pca_fit_transform():
+def test_pca_fit_transform() -> None:
     """PCA.fit_transform() should return the same scores as fit() then accessing scores_."""
     rng = np.random.default_rng(42)
     X = pd.DataFrame(rng.standard_normal((50, 4)))
@@ -2334,7 +2337,7 @@ def test_pca_fit_transform():
     np.testing.assert_allclose(scores.values, model.scores_.values, atol=1e-10)
 
 
-def test_ellipse_coordinates_basic():
+def test_ellipse_coordinates_basic() -> None:
     """ellipse_coordinates should return x, y arrays forming a closed ellipse."""
     scaling = pd.Series([2.0, 1.5, 1.0])
     x, y = ellipse_coordinates(
@@ -2353,7 +2356,7 @@ def test_ellipse_coordinates_basic():
     assert y[0] == pytest.approx(y[-1], abs=0.1)
 
 
-def test_ellipse_coordinates_symmetry():
+def test_ellipse_coordinates_symmetry() -> None:
     """Ellipse with equal scaling should be roughly circular."""
     scaling = pd.Series([1.0, 1.0])
     x, y = ellipse_coordinates(
@@ -2369,7 +2372,7 @@ def test_ellipse_coordinates_symmetry():
     assert max(abs(x)) == pytest.approx(max(abs(y)), rel=0.05)
 
 
-def test_pls_predict_new_data():
+def test_pls_predict_new_data() -> None:
     """PLS.predict() should work on new X data and return a Bunch."""
     rng = np.random.default_rng(42)
     N, K = 80, 5
@@ -2390,8 +2393,8 @@ def test_pls_predict_new_data():
     assert result.y_hat.shape[0] == 10
 
 
-def test_pls_old_attribute_names_raise():
-    """Accessing old attribute names should raise helpful AttributeError."""
+def test_pls_old_attribute_names_raise_simple() -> None:
+    """Access old PLS attribute name to verify helpful AttributeError is raised."""
     rng = np.random.default_rng(42)
     X = pd.DataFrame(rng.standard_normal((30, 3)), columns=["A", "B", "C"])
     beta = np.array([[1.0], [0.5], [-0.5]])
@@ -2407,9 +2410,9 @@ def test_pls_old_attribute_names_raise():
 # ---- Plot tests (improving multivariate/plots.py coverage) ----
 
 
-@pytest.fixture()
-def fixture_pca_for_plots():
-    """A simple PCA model for plot testing."""
+@pytest.fixture
+def fixture_pca_for_plots() -> PCA:
+    """Return a simple PCA model for plot testing."""
     rng = np.random.default_rng(42)
     X = pd.DataFrame(rng.standard_normal((50, 5)), columns=[f"V{i}" for i in range(5)])
     X_scaled = MCUVScaler().fit_transform(X)
@@ -2418,9 +2421,9 @@ def fixture_pca_for_plots():
     return model
 
 
-@pytest.fixture()
-def fixture_pls_for_plots():
-    """A simple PLS model for plot testing."""
+@pytest.fixture
+def fixture_pls_for_plots() -> PLS:
+    """Return a simple PLS model for plot testing."""
     rng = np.random.default_rng(42)
     X = pd.DataFrame(rng.standard_normal((50, 5)), columns=[f"X{i}" for i in range(5)])
     beta = np.array([[2.0], [1.0], [-1.0], [0.5], [0.0]])
@@ -2432,14 +2435,14 @@ def fixture_pls_for_plots():
     return model
 
 
-def test_score_plot_basic(fixture_pca_for_plots):
+def test_score_plot_basic(fixture_pca_for_plots: PCA) -> None:
     """score_plot should return a Plotly Figure with scatter trace."""
     fig = fixture_pca_for_plots.score_plot()
     assert isinstance(fig, go.Figure)
     assert len(fig.data) >= 1  # at least the scores trace
 
 
-def test_score_plot_with_ellipse(fixture_pca_for_plots):
+def test_score_plot_with_ellipse(fixture_pca_for_plots: PCA) -> None:
     """score_plot with ellipse should have an extra trace for the ellipse."""
     fig = fixture_pca_for_plots.score_plot(settings={"show_ellipse": True})
     assert isinstance(fig, go.Figure)
@@ -2447,20 +2450,20 @@ def test_score_plot_with_ellipse(fixture_pca_for_plots):
     assert len(fig.data) >= 2
 
 
-def test_score_plot_no_ellipse(fixture_pca_for_plots):
+def test_score_plot_no_ellipse(fixture_pca_for_plots: PCA) -> None:
     """score_plot with show_ellipse=False should only have the scores trace."""
     fig = fixture_pca_for_plots.score_plot(settings={"show_ellipse": False})
     assert isinstance(fig, go.Figure)
     assert len(fig.data) >= 1
 
 
-def test_score_plot_custom_components(fixture_pca_for_plots):
+def test_score_plot_custom_components(fixture_pca_for_plots: PCA) -> None:
     """score_plot should accept custom component selection."""
     fig = fixture_pca_for_plots.score_plot(pc_horiz=1, pc_vert=3)
     assert isinstance(fig, go.Figure)
 
 
-def test_score_plot_with_highlights(fixture_pca_for_plots):
+def test_score_plot_with_highlights(fixture_pca_for_plots: PCA) -> None:
     """score_plot with items_to_highlight should add extra traces."""
     model = fixture_pca_for_plots
     idx = model.scores_.index[:5].tolist()
@@ -2471,7 +2474,7 @@ def test_score_plot_with_highlights(fixture_pca_for_plots):
     assert len(fig.data) >= 3
 
 
-def test_loading_plot_pca(fixture_pca_for_plots):
+def test_loading_plot_pca(fixture_pca_for_plots: PCA) -> None:
     """loading_plot for PCA should return a Figure with P loadings."""
     fig = fixture_pca_for_plots.loading_plot()
     assert isinstance(fig, go.Figure)
@@ -2480,21 +2483,21 @@ def test_loading_plot_pca(fixture_pca_for_plots):
 
 
 
-def test_spe_plot_basic(fixture_pca_for_plots):
+def test_spe_plot_basic(fixture_pca_for_plots: PCA) -> None:
     """spe_plot should return a Figure with SPE markers and limit line."""
     fig = fixture_pca_for_plots.spe_plot()
     assert isinstance(fig, go.Figure)
     assert len(fig.data) >= 1
 
 
-def test_t2_plot_basic(fixture_pca_for_plots):
+def test_t2_plot_basic(fixture_pca_for_plots: PCA) -> None:
     """t2_plot should return a Figure with T2 markers and limit line."""
     fig = fixture_pca_for_plots.t2_plot()
     assert isinstance(fig, go.Figure)
     assert len(fig.data) >= 1
 
 
-def test_spe_plot_with_highlights(fixture_pca_for_plots):
+def test_spe_plot_with_highlights(fixture_pca_for_plots: PCA) -> None:
     """spe_plot with items_to_highlight should add extra highlighted traces."""
     model = fixture_pca_for_plots
     idx = model.scores_.index[:3].tolist()
@@ -2504,7 +2507,7 @@ def test_spe_plot_with_highlights(fixture_pca_for_plots):
     assert len(fig.data) >= 2
 
 
-def test_t2_plot_with_highlights(fixture_pca_for_plots):
+def test_t2_plot_with_highlights(fixture_pca_for_plots: PCA) -> None:
     """t2_plot with items_to_highlight should add extra highlighted traces."""
     model = fixture_pca_for_plots
     idx = model.scores_.index[:3].tolist()

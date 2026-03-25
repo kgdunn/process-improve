@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
 from scipy.stats import iqr, norm
@@ -11,7 +13,13 @@ from ..regression.methods import repeated_median_slope
 # ------------------------------------------
 
 
-def _prepare_data(df: pd.DataFrame, tags=None, batch_col=None, phase_col=None, age_col=None):  # noqa: C901, PLR0912
+def _prepare_data(  # noqa: C901, PLR0912
+    df: pd.DataFrame,
+    tags: list[str] | None = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+    age_col: str | None = None,
+) -> tuple[pd.core.groupby.DataFrameGroupBy, list[str], pd.DataFrame, pd.DataFrame]:
     """
     General function, used for all feature extractions.
 
@@ -96,7 +104,12 @@ def _prepare_data(df: pd.DataFrame, tags=None, batch_col=None, phase_col=None, a
 
 # Location-based features
 # ------------------------------------------
-def f_mean(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+def f_mean(
+    data: pd.DataFrame,
+    tags: list[str] | None = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+) -> pd.DataFrame:
     """
     Feature:    mean.
 
@@ -108,10 +121,15 @@ def f_mean(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
     output = prepared.mean()
-    return output.rename(columns=dict(zip(tags, f_names)))[f_names]
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))[f_names]
 
 
-def f_median(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+def f_median(
+    data: pd.DataFrame,
+    tags: list[str] | None = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+) -> pd.DataFrame:
     """
     Feature:    median.
 
@@ -119,7 +137,7 @@ def f_median(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     indicator column, and within each unique phase, per batch, of the ``phase_col`` column.
     """
     base_name = "median"
-    prepared, tags, output, df_out = _prepare_data(data, tags, batch_col, phase_col)
+    prepared, tags, output, _df_out = _prepare_data(data, tags, batch_col, phase_col)
 
     # If the feature is to be calculated within a specific range of time, then provide the
     # `slicer` input and the name of the `age_col` (column containing time evolution) which is
@@ -151,12 +169,17 @@ def f_median(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
 
     output = prepared.median()
     f_names = [(tag + "_" + base_name) for tag in tags]
-    return output.rename(columns=dict(zip(tags, f_names)))[f_names]
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))[f_names]
 
 
 # Scale-based features
 # ------------------------------------------
-def f_std(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+def f_std(
+    data: pd.DataFrame,
+    tags: list[str] | None = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+) -> pd.DataFrame:
     """
     Feature:    std.
 
@@ -170,10 +193,15 @@ def f_std(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
     output = prepared.std()
-    return output.rename(columns=dict(zip(tags, f_names)))
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
-def f_iqr(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+def f_iqr(
+    data: pd.DataFrame,
+    tags: list[str] | None = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+) -> pd.DataFrame:
     """
     Feature:    iqr.
 
@@ -191,10 +219,15 @@ def f_iqr(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
     output = prepared.agg(iqr)
-    return output.rename(columns=dict(zip(tags, f_names)))
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
-def f_mad(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+def f_mad(
+    data: pd.DataFrame,
+    tags: list[str] | None = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+) -> pd.DataFrame:
     """
     Feature:    mad.
 
@@ -216,10 +249,15 @@ def f_mad(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
     output = prepared.mad()
-    return output.rename(columns=dict(zip(tags, f_names)))
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
-def f_robust_mad(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+def f_robust_mad(
+    data: pd.DataFrame,
+    tags: list[str] | None = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+) -> pd.DataFrame:
     """
     Feature:    mad.
 
@@ -252,12 +290,17 @@ def f_robust_mad(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     raise AssertionError("This next line of code fails. Fix it.")
     output = (np.fabs(prepared - prepared.median())).median() / c_MAD_const
 
-    return output.rename(columns=dict(zip(tags, f_names)))
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
 # Cumulative features
 # ------------------------------------------
-def f_sum(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+def f_sum(
+    data: pd.DataFrame,
+    tags: list[str] | None = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+) -> pd.DataFrame:
     """
     Feature:    sum.
 
@@ -274,10 +317,16 @@ def f_sum(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
     output = prepared.sum()
-    return output.rename(columns=dict(zip(tags, f_names)))
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
-def f_area(data: pd.DataFrame, time_tag, tags=None, batch_col=None, phase_col=None):
+def f_area(
+    data: pd.DataFrame,
+    time_tag: str,
+    tags: list[str] | None = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+) -> pd.DataFrame:
     """
     Feature:    area.
 
@@ -310,7 +359,9 @@ def f_area(data: pd.DataFrame, time_tag, tags=None, batch_col=None, phase_col=No
             # heights on the left and the right, multiplied by delta distance on the horizontal
             # index axis. Area = average(parallel lengths) * height
             # where height = delta distance on the horizontal axis.
-            area = ((this_batch[tag].iloc[0:-1].values + this_batch[tag].iloc[1:].values) / 2 * half_base_factor).sum()
+            left_vals = this_batch[tag].iloc[0:-1].values
+            right_vals = this_batch[tag].iloc[1:].values
+            area = ((left_vals + right_vals) / 2 * half_base_factor).sum()
             output.loc[batch_id, tag] = area
 
             # TODO: check this out still
@@ -323,12 +374,17 @@ def f_area(data: pd.DataFrame, time_tag, tags=None, batch_col=None, phase_col=No
             # ) / 2
 
     # output.add_suffix('_' + base_name)
-    return output.rename(columns=dict(zip(tags, f_names)))
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
 # Breakpoint detection:  rupture / breakpoint within a particular tag.
 # ------------------------------------------
-def f_rupture(data: pd.DataFrame, columns=None, batch_col=None, phase_col=None):
+def f_rupture(
+    data: pd.DataFrame,
+    columns: list[str] | None = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+) -> None:
     """
     Feature:    rupture.
 
@@ -361,7 +417,12 @@ def f_rupture(data: pd.DataFrame, columns=None, batch_col=None, phase_col=None):
 
 # Extreme features
 # ------------------------------------------
-def f_min(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+def f_min(
+    data: pd.DataFrame,
+    tags: list[str] | None = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+) -> pd.DataFrame:
     """
     Feature:    min.
 
@@ -377,10 +438,15 @@ def f_min(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
     output = prepared.min()
-    return output.rename(columns=dict(zip(tags, f_names)))
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
-def f_max(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+def f_max(
+    data: pd.DataFrame,
+    tags: list[str] | None = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+) -> pd.DataFrame:
     """
     Feature:    max.
 
@@ -396,20 +462,35 @@ def f_max(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
     output = prepared.max()
-    return output.rename(columns=dict(zip(tags, f_names)))
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
-def f_agemin(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+def f_agemin(
+    data: pd.DataFrame,
+    tags: list[str] | None = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+) -> None:
+    """Feature: age at minimum value. Not yet implemented."""
     # TODO
-    pass
 
 
-def f_agemax(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+def f_agemax(
+    data: pd.DataFrame,
+    tags: list[str] | None = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+) -> None:
+    """Feature: age at maximum value. Not yet implemented."""
     # TODO
-    pass
 
 
-def f_last(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+def f_last(
+    data: pd.DataFrame,
+    tags: list[str] | None = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+) -> pd.DataFrame:
     """
     Feature:    endpoint.
 
@@ -426,10 +507,15 @@ def f_last(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
     output = prepared.last()
-    return output.rename(columns=dict(zip(tags, f_names)))
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
-def f_count(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
+def f_count(
+    data: pd.DataFrame,
+    tags: list[str] | None = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+) -> pd.DataFrame:
     """
     Feature:    count.
 
@@ -446,15 +532,15 @@ def f_count(data: pd.DataFrame, tags=None, batch_col=None, phase_col=None):
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
     output = prepared.count()
-    return output.rename(columns=dict(zip(tags, f_names)))
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
 # Shape-based features
 # ------------------------------------------
-def f_slope(
+def f_slope(  # noqa: PLR0913
     data: pd.DataFrame,
     x_axis_tag: str,
-    tags=None,
+    tags: list[str] | None = None,
     batch_col: str | None = None,
     phase_col: str | None = None,
     age_col: str | None = None,
@@ -475,14 +561,14 @@ def f_slope(
 
     # We will overwrite all entries in this dataframe, one-by-one
     output = prepared.sum()
-    for batch_id, this_batch in prepared:
-        if x_axis_tag not in this_batch:
-            this_batch = this_batch.reset_index()
+    for batch_id, batch_data in prepared:
+        if x_axis_tag not in batch_data:
+            batch_data = batch_data.reset_index()  # noqa: PLW2901
         for tag in tags:
-            X = this_batch[x_axis_tag]
-            output.loc[batch_id, tag] = repeated_median_slope(X, this_batch[tag])
+            x_vals = batch_data[x_axis_tag]
+            output.loc[batch_id, tag] = repeated_median_slope(x_vals, batch_data[tag])
 
-    return output.rename(columns=dict(zip(tags, f_names)))
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
 def cross(
@@ -548,7 +634,7 @@ def cross(
     return x_crossings
 
 
-def f_crossing(
+def f_crossing(  # noqa: PLR0913
     data: pd.DataFrame,
     tag: str,
     time_tag: str,
@@ -584,7 +670,7 @@ def f_crossing(
     assert isinstance(tag, str)
     assert tag in data, f"Desired tag ['{tag}'] not found in the dataframe."
 
-    prepared, tags, output, _ = _prepare_data(
+    prepared, _tags, output, _ = _prepare_data(
         data,
         [tag],
         batch_col,
@@ -594,15 +680,17 @@ def f_crossing(
 
     f_name = tag + "_" + base_name
 
-    output = prepared.apply(lambda x: cross(x[tag], threshold, direction, only_index=only_index, first_point_only=True))
+    output = prepared.apply(
+        lambda x: cross(x[tag], threshold, direction, only_index=only_index, first_point_only=True)
+    )
 
     return pd.DataFrame(data={f_name: output})
 
 
-def f_elbow(
+def f_elbow(  # noqa: PLR0913
     data: pd.DataFrame,
     x_axis_tag: str,
-    tags=None,
+    tags: list[str] | None = None,
     only_index: bool | None = False,
     batch_col: str | None = None,
     phase_col: str | None = None,
@@ -620,26 +708,24 @@ def f_elbow(
     want the *index* of the value, so you can also find the corresponding y-axis value. Use
     `only_index=True` for such cases.
     """
-    import warnings
-
     base_name = "elbow"
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col, age_col=x_axis_tag)
     f_names = [(tag + "_" + base_name) for tag in tags]
 
     # We will overwrite all entries in this dataframe, one-by-one
     output = prepared.sum()
-    for batch_id, this_batch in prepared:
-        if x_axis_tag not in this_batch:
-            this_batch = this_batch.reset_index()
+    for batch_id, batch_data in prepared:
+        if x_axis_tag not in batch_data:
+            batch_data = batch_data.reset_index()  # noqa: PLW2901
         for tag in tags:
-            subset = this_batch[[x_axis_tag, tag]]
+            subset = batch_data[[x_axis_tag, tag]]
             subset = subset.dropna()
-            X = subset[x_axis_tag]
+            x_vals = subset[x_axis_tag]
 
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
 
-                elbow_index = find_elbow_point(X, subset[tag])
+                elbow_index = find_elbow_point(x_vals, subset[tag])
                 if elbow_index < 0:
                     elbow_index = np.nan
 
@@ -648,6 +734,6 @@ def f_elbow(
                 elif np.isnan(elbow_index):
                     output.loc[batch_id][tag] = np.isnan
                 else:
-                    output.loc[batch_id][tag] = X[elbow_index]
+                    output.loc[batch_id][tag] = x_vals[elbow_index]
 
-    return output.rename(columns=dict(zip(tags, f_names)))
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))

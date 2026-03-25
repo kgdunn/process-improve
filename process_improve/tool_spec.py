@@ -135,7 +135,7 @@ def tool_spec(
 # ---------------------------------------------------------------------------
 
 
-def clean(value: Any) -> Any:
+def clean(value: Any) -> Any:  # noqa: PLR0911, ANN401
     """Recursively convert numpy scalars / arrays to plain Python types.
 
     All ``tools.py`` modules should call ``clean(result)`` before returning
@@ -172,7 +172,8 @@ def discover_tools() -> None:
     if _discovery_done:
         return
 
-    import importlib
+    import contextlib  # noqa: PLC0415
+    import importlib  # noqa: PLC0415
 
     for module in [
         "process_improve.univariate.tools",
@@ -183,10 +184,8 @@ def discover_tools() -> None:
         "process_improve.experiments.tools",
         "process_improve.batch.tools",
     ]:
-        try:
+        with contextlib.suppress(ImportError):
             importlib.import_module(module)
-        except ImportError:
-            pass
 
     _discovery_done = True
 
@@ -227,7 +226,7 @@ def get_tool_specs(
     return specs
 
 
-def execute_tool_call(tool_name: str, tool_input: dict[str, Any]) -> Any:
+def execute_tool_call(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noqa: ANN401
     """Dispatch a single tool call from an Anthropic ``tool_use`` content block.
 
     Parameters

@@ -36,12 +36,13 @@ Characteristics:
 - the multilevel column index has level 0 = column name, level 1 = aligned time
 - only makes sense if the data are aligned (same number of elements in each level-1 index)
 """
+from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 
 
-def check_valid_batch_dict(in_dict: dict, no_nan=False) -> bool:
+def check_valid_batch_dict(in_dict: dict, no_nan: bool = False) -> bool:
     """Check if the incoming dictionary of batch data is a valid dictionary of data.
 
     Checks:
@@ -87,7 +88,11 @@ def check_valid_batch_dict(in_dict: dict, no_nan=False) -> bool:
     return bool(check)
 
 
-def dict_to_melted(in_df: pd.DataFrame, insert_batch_id_column=True, insert_sequence_column=False) -> pd.DataFrame:
+def dict_to_melted(
+    in_df: pd.DataFrame,
+    insert_batch_id_column: bool = True,
+    insert_sequence_column: bool = False,
+) -> pd.DataFrame:
     """Reverse of `melted_to_dict`."""
     batch_id_col = "batch_id"
     all_batches = []
@@ -111,7 +116,7 @@ def dict_to_melted(in_df: pd.DataFrame, insert_batch_id_column=True, insert_sequ
     return pd.concat(all_batches)
 
 
-def dict_to_wide(in_df: dict, group_by_batch=False) -> pd.DataFrame:
+def dict_to_wide(in_df: dict, group_by_batch: bool = False) -> pd.DataFrame:
     """
     Convert aligned batch data from dict to wide format.
 
@@ -131,22 +136,18 @@ def dict_to_wide(in_df: dict, group_by_batch=False) -> pd.DataFrame:
     return aligned_wide_df
 
 
-def melted_to_dict(in_df: pd.DataFrame, batch_id_col) -> dict:
+def melted_to_dict(in_df: pd.DataFrame, batch_id_col: str) -> dict:
     """
     Load a "melted" data set, where one of the columns is the `batch_id_col`.
     The data are grouped along the unique values of `batch_id_col`, and each group is stored
     in a dictionary. The dictionary keys are the batch identifier, and the corresponding value
     is a Pandas dataframe of the batch data for that batch.
     """
-    batches = {}
     assert batch_id_col in in_df, "The `batch_id_col` column does not exist in the incoming dataframe."
-    for batch_id, batch in in_df.groupby(batch_id_col):
-        batches[batch_id] = batch
-
-    return batches
+    return {batch_id: batch for batch_id, batch in in_df.groupby(batch_id_col)}  # noqa: C416
 
 
-def melted_to_wide(in_df: pd.DataFrame, batch_id_col) -> dict:
+def melted_to_wide(in_df: pd.DataFrame, batch_id_col: str) -> dict:
     """Convert aligned melted data to wide format."""
     assert batch_id_col in in_df
     return {}
@@ -166,15 +167,16 @@ def melted_to_wide(in_df: pd.DataFrame, batch_id_col) -> dict:
 
 
 def wide_to_melted(in_df: pd.DataFrame) -> pd.DataFrame:
+    """Convert wide-format batch data to melted format. Not yet implemented."""
     # dict_to_melted(dict_to_wide(in_df))
     return pd.DataFrame()
 
 
-def wide_to_dict():
-    pass
+def wide_to_dict() -> None:
+    """Convert wide-format batch data to dict format. Not yet implemented."""
 
 
-def melt_df_to_series(in_df: pd.DataFrame, exclude_columns=None, name=None) -> pd.Series:
+def melt_df_to_series(in_df: pd.DataFrame, exclude_columns: list | None = None, name: str | None = None) -> pd.Series:
     """Return a Series with a multilevel-index, melted from the DataFrame."""
     if exclude_columns is None:
         exclude_columns = ["batch_id"]

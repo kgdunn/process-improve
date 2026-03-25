@@ -95,7 +95,7 @@ def fit_pca(
 ) -> dict[str, Any]:
     """Fit a PCA model to the given data; see tool spec for details."""
     try:
-        from process_improve.multivariate.methods import MCUVScaler, PCA
+        from process_improve.multivariate.methods import PCA, MCUVScaler  # noqa: PLC0415
 
         df = pd.DataFrame(data, columns=column_names)
         scaler = MCUVScaler().fit(df)
@@ -129,7 +129,7 @@ def fit_pca(
             "model_params": model_params,
         }
         return clean(result)
-    except Exception as exc:
+    except (ValueError, TypeError, KeyError, np.linalg.LinAlgError) as exc:
         return {"error": str(exc)}
 
 
@@ -204,7 +204,7 @@ def fit_pls(
 ) -> dict[str, Any]:
     """Fit a PLS model to X and Y data; see tool spec for details."""
     try:
-        from process_improve.multivariate.methods import MCUVScaler, PLS
+        from process_improve.multivariate.methods import PLS, MCUVScaler  # noqa: PLC0415
 
         X = pd.DataFrame(x_data, columns=x_column_names)
 
@@ -246,7 +246,7 @@ def fit_pls(
             "model_params": model_params,
         }
         return clean(result)
-    except Exception as exc:
+    except (ValueError, TypeError, KeyError, np.linalg.LinAlgError) as exc:
         return {"error": str(exc)}
 
 
@@ -297,7 +297,7 @@ def scale_data(
 ) -> dict[str, Any]:
     """Mean-centre and scale data to unit variance; see tool spec for details."""
     try:
-        from process_improve.multivariate.methods import MCUVScaler
+        from process_improve.multivariate.methods import MCUVScaler  # noqa: PLC0415
 
         df = pd.DataFrame(data, columns=column_names)
         scaler = MCUVScaler().fit(df)
@@ -309,7 +309,7 @@ def scale_data(
             "stds": scaler.scale_.values.tolist(),
         }
         return clean(result)
-    except Exception as exc:
+    except (ValueError, TypeError, KeyError) as exc:
         return {"error": str(exc)}
 
 
@@ -368,7 +368,7 @@ def detect_multivariate_outliers(
 ) -> dict[str, Any]:
     """Detect multivariate outliers via PCA diagnostics; see tool spec for details."""
     try:
-        from process_improve.multivariate.methods import MCUVScaler, PCA
+        from process_improve.multivariate.methods import PCA, MCUVScaler  # noqa: PLC0415
 
         df = pd.DataFrame(data)
         scaler = MCUVScaler().fit(df)
@@ -387,7 +387,7 @@ def detect_multivariate_outliers(
             "spe_limit": spe_lim,
         }
         return clean(result)
-    except Exception as exc:
+    except (ValueError, TypeError, KeyError, np.linalg.LinAlgError) as exc:
         return {"error": str(exc)}
 
 
@@ -434,7 +434,7 @@ def pca_predict(
 ) -> dict[str, Any]:
     """Project new data into a PCA model; see tool spec for details."""
     try:
-        from process_improve.multivariate.methods import hotellings_t2_limit, spe_calculation
+        from process_improve.multivariate.methods import hotellings_t2_limit, spe_calculation  # noqa: PLC0415
 
         means = np.array(model_params["means"])
         stds = np.array(model_params["stds"])
@@ -466,7 +466,10 @@ def pca_predict(
         )
         spe_lim = spe_calculation(spe_values=train_spe_values, conf_level=0.95)
 
-        is_outlier = [(bool(t2 > t2_lim) or bool(spe > spe_lim)) for t2, spe in zip(t2_values, spe_values)]
+        is_outlier = [
+            (bool(t2 > t2_lim) or bool(spe > spe_lim))
+            for t2, spe in zip(t2_values, spe_values, strict=False)
+        ]
 
         result: dict[str, Any] = {
             "scores": scores.tolist(),
@@ -477,7 +480,7 @@ def pca_predict(
             "spe_limit": float(spe_lim),
         }
         return clean(result)
-    except Exception as exc:
+    except (ValueError, TypeError, KeyError) as exc:
         return {"error": str(exc)}
 
 
@@ -525,7 +528,7 @@ def pls_predict(
 ) -> dict[str, Any]:
     """Predict Y from new X data using PLS model params; see tool spec for details."""
     try:
-        from process_improve.multivariate.methods import hotellings_t2_limit, spe_calculation
+        from process_improve.multivariate.methods import hotellings_t2_limit, spe_calculation  # noqa: PLC0415
 
         x_means = np.array(model_params["x_means"])
         x_stds = np.array(model_params["x_stds"])
@@ -574,7 +577,7 @@ def pls_predict(
             "spe_limit": float(spe_lim),
         }
         return clean(result)
-    except Exception as exc:
+    except (ValueError, TypeError, KeyError) as exc:
         return {"error": str(exc)}
 
 

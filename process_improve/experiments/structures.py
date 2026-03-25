@@ -1,8 +1,11 @@
 # (c) Kevin Dunn, 2010-2026. MIT License. Based on own private work over the years.
 
+from __future__ import annotations
+
 import itertools
 from collections import defaultdict
 from collections.abc import Iterable
+from typing import ClassVar
 
 import numpy as np
 import pandas as pd
@@ -13,11 +16,11 @@ class Column(pd.Series):
 
     # https://pandas.pydata.org/pandas-docs/stable/development/extending.html
     # Temporary properties
-    _internal_names = pd.DataFrame._internal_names + ["not_used_for_now"]
-    _internal_names_set = set(_internal_names)
+    _internal_names: ClassVar[list[str]] = [*pd.DataFrame._internal_names, "not_used_for_now"]
+    _internal_names_set: ClassVar[set[str]] = set(_internal_names)
 
     # Properties which survive subsetting, etc
-    _metadata = [
+    _metadata: ClassVar[list[str]] = [
         "pi_index",  # might be used later if the user provides their own index
         "pi_numeric",  # if numeric indicator
         "pi_lo",  # if numeric: low level (-1)
@@ -30,10 +33,10 @@ class Column(pd.Series):
     ]
 
     @property
-    def _constructor(self):
+    def _constructor(self) -> type[Column]:
         return Column
 
-    def to_coded(self, center=None, range=None):
+    def to_coded(self, center: float | None = None, range: tuple | None = None) -> Column:  # noqa: A002
         """Convert the column vector to coded units."""
         out = self.copy(deep=True)
         if self.pi_is_coded:
@@ -51,7 +54,7 @@ class Column(pd.Series):
 
         return out
 
-    def to_realworld(self, center=None, range=None):
+    def to_realworld(self, center: float | None = None, range: tuple | None = None) -> Column:  # noqa: A002
         """Convert the column vector to real-world units."""
         out = self.copy(deep=True)
         if not self.pi_is_coded:
@@ -68,12 +71,13 @@ class Column(pd.Series):
 
         return out
 
-    def copy(self, deep=True):
+    def copy(self, deep: bool = True) -> Column:
+        """Create a copy of this Column, preserving the name."""
         out = pd.Series.copy(self, deep=deep)
         out.name = self.name
         return out
 
-    def extend(self, values):
+    def extend(self, values: list) -> Column:
         """Extend the column with the list of new values."""
         assert isinstance(values, list), "The 'values' must be in a list [...]"
         prior_n = self.index[-1]
@@ -97,26 +101,28 @@ class Expt(pd.DataFrame):
     """
 
     # Temporary properties
-    _internal_names = pd.DataFrame._internal_names + ["not_used_for_now"]
-    _internal_names_set = set(_internal_names)
+    _internal_names: ClassVar[list[str]] = [*pd.DataFrame._internal_names, "not_used_for_now"]
+    _internal_names_set: ClassVar[set[str]] = set(_internal_names)
 
     # Properties which survive subsetting, etc
-    _metadata = ["pi_source", "pi_title", "pi_units"]
+    _metadata: ClassVar[list[str]] = ["pi_source", "pi_title", "pi_units"]
 
     @property
-    def _constructor(self):
+    def _constructor(self) -> type[Expt]:
         return Expt
 
-    def __repr__(self):
+    def __repr__(self) -> str:
+        """Return a string representation of the experiment."""
         title = f"Name: {self.pi_title}"
         dimensions = f"Size: {self.shape[0]} experiments; {self.shape[1]} columns."
         return "\n".join([pd.DataFrame.__repr__(self), title, dimensions])
 
-    def get_title(self):
+    def get_title(self) -> str:
+        """Return the experiment title, or empty string if not set."""
         return self.pi_title or ""
 
 
-def create_names(n: int, letters=True, prefix="X", start_at=1, padded=True):
+def create_names(n: int, letters: bool = True, prefix: str = "X", start_at: int = 1, padded: bool = True) -> list[str]:
     """
     Return default factor names, for a given number of `n` [integer] factors.
     The factor name "I" is never used.
@@ -153,7 +159,7 @@ def create_names(n: int, letters=True, prefix="X", start_at=1, padded=True):
     return out
 
 
-def c(*args, **kwargs) -> Column:  # noqa: C901
+def c(*args, **kwargs) -> Column:  # noqa: C901, PLR0912, PLR0915
     """
     Perform the equivalent of the R function "c(...)", to combine data elements
     into a DataFrame. Convert every entry into a floating point object.
@@ -268,8 +274,8 @@ def c(*args, **kwargs) -> Column:  # noqa: C901
 
         try:
             _ = (e for e in out.pi_range)
-        except TypeError:
-            raise TypeError("The `range` input must be an iterable, with 2 values.")
+        except TypeError as err:
+            raise TypeError("The `range` input must be an iterable, with 2 values.") from err
         assert len(out.pi_range) == 2, "The `range` variable must be a tuple, with 2 values."
         out.pi_range = tuple(out.pi_range)
 
@@ -308,20 +314,21 @@ def c(*args, **kwargs) -> Column:  # noqa: C901
     return out
 
 
-def expand_grid(**kwargs):
+def expand_grid(**kwargs: Column) -> list[Column]:
     """Create the expanded grid here."""
     n_col = len(kwargs)
     itrs = [v.values for v in kwargs.values()]
     product = list(itertools.product(*itrs))
     vals = np.fliplr(np.array(product).reshape(len(product), n_col))
     out = []
-    for name, values in zip(kwargs.keys(), np.split(vals, n_col, axis=1)):
+    for name, values in zip(kwargs.keys(), np.split(vals, n_col, axis=1), strict=False):
         out.append(c(values, name=name))
 
     return out
 
 
-def supplement(x, **kwargs):
+def supplement(x: Column, **kwargs: object) -> Column:
+    """Supplement an existing column with additional metadata (name, units, lo, hi, etc.)."""
     return c(x.values, **kwargs)
     # (A, name = 'Feed rate', units='g/min', lo = 5, high = 8.0)
     # B = supplement(B, name = 'Initial inoculate amount', units = 'g', lo = 300,
@@ -332,7 +339,7 @@ def supplement(x, **kwargs):
     # lo = 4, hi = 5)
 
 
-def gather(*args, title=None, **kwargs) -> Expt:
+def gather(*args: Column, title: str | None = None, **kwargs: Column | list) -> Expt:
     """
     Gathers the named inputs together as columns for a data frame.
 

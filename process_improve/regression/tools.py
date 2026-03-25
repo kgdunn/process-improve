@@ -81,7 +81,7 @@ def robust_regression(
     fit_intercept: bool = True,
 ) -> dict[str, Any]:
     """Fit a robust simple linear regression."""
-    from process_improve.regression.methods import robust_regression as _robust_regression
+    from process_improve.regression.methods import robust_regression as _robust_regression  # noqa: PLC0415
 
     try:
         x_arr = np.asarray(x, dtype=float)
@@ -118,7 +118,7 @@ def robust_regression(
             out["prediction_interval_upper"] = [row[2] for row in pi]
 
         return clean(out)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return {"error": str(exc)}
 
 
@@ -165,14 +165,14 @@ def repeated_median(
     y: list[float],
 ) -> dict[str, Any]:
     """Compute the repeated median slope."""
-    from process_improve.regression.methods import repeated_median_slope
+    from process_improve.regression.methods import repeated_median_slope  # noqa: PLC0415
 
     try:
         x_arr = np.asarray(x, dtype=float)
         y_arr = np.asarray(y, dtype=float)
         slope = float(repeated_median_slope(x_arr, y_arr))
         return clean({"slope": slope, "n": len(x)})
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return {"error": str(exc)}
 
 

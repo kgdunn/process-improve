@@ -3,11 +3,12 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import stats
 
 import process_improve.univariate.metrics as univariate
 
 
-class test_t_values:
+class TestTValues:
     """
     Checks the calculation of t values (at a given 'alpha' and with an integer number of degrees
     of freedom), against the values from R.
@@ -21,7 +22,7 @@ class test_t_values:
     assert univariate.t_value(0.9, 5) == pytest.approx(1.475884, rel=1e-6)
 
 
-class test_t_values_cdf:
+class TestTValuesCdf:
     """
     Checks the calculation of t values (at a given 'alpha' and with an integer number of degrees
     of freedom), against the values from R.
@@ -37,7 +38,7 @@ class test_t_values_cdf:
     assert univariate.t_value_cdf(0.5, 1) == pytest.approx(0.6475836, rel=1e-7)
 
 
-def test_normality_check():
+def test_normality_check() -> None:
     """
     Tests on data actually from a normal distribution, and some data which is from a
     uniform distribution.
@@ -88,7 +89,7 @@ def test_normality_check():
     assert univariate.test_normality(y) == pytest.approx(0.1117, abs=1e-3)
 
 
-def test_univariate_robust_scale():
+def test_univariate_robust_scale() -> None:
     """
     A scale estimator which is robust to outliers.
 
@@ -131,7 +132,8 @@ def test_univariate_robust_scale():
     assert univariate.Sn([13]) == 0.0
 
 
-def test_summary_stats_corner_case_with_robust_scale():
+def test_summary_stats_corner_case_with_robust_scale() -> None:
+    """Test summary stats corner case where Sn is zero despite variability."""
     x = [
         99,
         95,
@@ -163,12 +165,11 @@ def test_summary_stats_corner_case_with_robust_scale():
     assert out["center"] != np.median(x)
 
 
-def test_median_abs_deviation():
+def test_median_abs_deviation() -> None:
+    """Test median absolute deviation against known values and scipy."""
     x = np.array([[10, 7, 4], [3, 2, 1]])
     assert univariate.median_absolute_deviation(x, scale=1) == pytest.approx([3.5, 2.5, 1.5])
     assert univariate.median_absolute_deviation(x.ravel(), scale=1) == 2.0
-
-    from scipy import stats
 
     x = stats.norm.rvs(size=1000000, scale=2, random_state=123456)
     assert univariate.median_absolute_deviation(x, scale=1) == pytest.approx(1.3487398527041636, rel=1e-12)
@@ -206,7 +207,7 @@ def test_median_abs_deviation():
     assert np.isnan(univariate.median_absolute_deviation(np.array([np.nan, np.nan]), axis=0))
 
 
-def test_t_test_differences():
+def test_t_test_differences() -> None:
     """
     Tests for the t-test of differences.
 
@@ -244,7 +245,7 @@ def test_t_test_differences():
     assert row["Degrees of freedom"][0] == pytest.approx(22, rel=1e-8)
 
 
-def test_t_paried_test_differences():
+def test_t_paried_test_differences() -> None:
     """
     Tests for the paired t-test of differences.
 
@@ -283,7 +284,7 @@ def test_t_paried_test_differences():
 
 
 @pytest.fixture
-def univariate_summary():
+def univariate_summary() -> pd.DataFrame:
     """
     Provide a univariate case study.
 
@@ -315,7 +316,8 @@ def univariate_summary():
     return pd.DataFrame(data={"values": y})
 
 
-def test_compare_to_R_with_without_missing(univariate_summary):
+def test_compare_to_r_with_without_missing(univariate_summary: pd.DataFrame) -> None:
+    """Verify summary stats reproduce R results, with and without missing values."""
     # Verifies that we can reproduce results from R. R version 3.6.0 (2019-04-26)
     # Checked on 21 February 2020.
     data = univariate_summary
@@ -345,18 +347,20 @@ def test_compare_to_R_with_without_missing(univariate_summary):
         assert out["percentile_95"] == pytest.approx(104.805, rel=1e-6)
 
 
-def test_as_numpy_array(univariate_summary):
+def test_as_numpy_array(univariate_summary: pd.DataFrame) -> None:
+    """Test summary stats when input is a NumPy array instead of Pandas Series."""
     out = univariate.summary_stats(univariate_summary["values"].values)
     assert out["mean"] == pytest.approx(96.84181818181816, abs=1e-8)
     assert out["std_ddof1"] == pytest.approx(5.566925216278406, abs=1e-8)
 
 
-def test__raises_error():
-    with pytest.raises(ValueError, match="Expecting a NumPy vector or Pandas series."):
+def test__raises_error() -> None:
+    """Test that summary_stats raises TypeError for non-array input."""
+    with pytest.raises(TypeError, match=r"Expecting a NumPy vector or Pandas series\."):
         univariate.summary_stats([1, 2, 3, 3, 2, 1])
 
 
-def test_confidence_interval():
+def test_confidence_interval() -> None:
     """
     Test confidence intervals.
 
@@ -391,7 +395,7 @@ def test_confidence_interval():
 
 
 @pytest.fixture
-def within_between_sd_data():
+def within_between_sd_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Within-between standard deviation test data.
 
@@ -438,7 +442,7 @@ def within_between_sd_data():
     return df, empty
 
 
-def test_within_between_variance(within_between_sd_data):
+def test_within_between_variance(within_between_sd_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
     """Results are from a spreadsheet template. Unsure of the origin, or accuracy."""
     df, _ = within_between_sd_data
     expected_within_ms = 1.916015**2
@@ -457,7 +461,7 @@ def test_within_between_variance(within_between_sd_data):
     assert out["between_dof"] == dof_between
 
 
-def test_empty_case(within_between_sd_data):
+def test_empty_case(within_between_sd_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
     """What happens if there are no data? Everything should be zero."""
     _, empty = within_between_sd_data
     out = univariate.variance_decomposition(empty, "value", "index")
@@ -469,7 +473,7 @@ def test_empty_case(within_between_sd_data):
     assert out["between_dof"] == 0
 
 
-def test_within_between_sd_missing_values():
+def test_within_between_sd_missing_values() -> None:
     """
     Test against Excel sheet formulas.
 
@@ -565,7 +569,7 @@ def outliers_data_measurement() -> list[float]:
     ]
 
 
-def test_edge_case_outliers(outliers_data_measurement) -> None:
+def test_edge_case_outliers(outliers_data_measurement: list[float]) -> None:
     """Test an actual edge case that did not return p-values."""
     max_outliers = len(outliers_data_measurement) - 5
     outliers, reasons = univariate.detect_outliers_esd(
@@ -580,7 +584,8 @@ def test_edge_case_outliers(outliers_data_measurement) -> None:
 
 
 @pytest.fixture
-def outliers_data():
+def outliers_data() -> tuple[list[float], list[float]]:
+    """Rosner data set and a sequence for outlier detection tests."""
     # Rosner data set: https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h3.htm
     rosner = [
         -0.25,
@@ -719,7 +724,8 @@ def outliers_data():
     return rosner, sequence
 
 
-def test_rosner_nonrobust_esd(outliers_data):
+def test_rosner_nonrobust_esd(outliers_data: tuple[list[float], list[float]]) -> None:
+    """Test Rosner non-robust ESD against NIST reference values."""
     rosner, _ = outliers_data
     outliers, reasons = univariate.detect_outliers_esd(
         rosner,
@@ -741,7 +747,7 @@ def test_rosner_nonrobust_esd(outliers_data):
     assert reasons["R_i"] == pytest.approx([3.118, 2.942, 3.179, 2.810, 2.815, 2.848, 2.279], rel=1e-3)
 
 
-def test_rosner_esd_kwargs(outliers_data):
+def test_rosner_esd_kwargs(outliers_data: tuple[list[float], list[float]]) -> None:
     """In this example it picks up fewer outliers."""
     rosner, _ = outliers_data
     outliers, _ = univariate.detect_outliers_esd(
@@ -754,7 +760,7 @@ def test_rosner_esd_kwargs(outliers_data):
     assert outliers == [53]
 
 
-def test_rosner_esd_no_outliers(outliers_data):
+def test_rosner_esd_no_outliers(outliers_data: tuple[list[float], list[float]]) -> None:
     """
     In this example it picks up no outliers. Ensures that the test can also return an empty
     list.
@@ -768,7 +774,7 @@ def test_rosner_esd_no_outliers(outliers_data):
     assert outliers == []
 
 
-def test_rosner_esd_corner_case():
+def test_rosner_esd_corner_case() -> None:
     """
     In this example it picks up no outliers. Ensures that the test can also return an empty
     list.
@@ -799,7 +805,7 @@ def test_rosner_esd_corner_case():
     assert len(outliers) == 0
 
 
-def test_sequence_compare_R(outliers_data):
+def test_sequence_compare_r(outliers_data: tuple[list[float], list[float]]) -> None:
     """Compare it to an R sequence and the Grubb's test there."""
     _, sequence = outliers_data
     outliers, reasons_regular = univariate.detect_outliers_esd(
@@ -812,7 +818,7 @@ def test_sequence_compare_R(outliers_data):
     assert reasons_regular["p-value"][0] == pytest.approx(0.02066273, rel=1e-7)
 
     # Now with the robust version, to check NaN handling.
-    outliers, reasons_robust = univariate.detect_outliers_esd(
+    outliers, _reasons_robust = univariate.detect_outliers_esd(
         sequence,
         algorithm="esd",
         max_outliers_detected=1,
@@ -827,7 +833,7 @@ def test_sequence_compare_R(outliers_data):
     )
 
 
-def test_distribution_check():
+def test_distribution_check() -> None:
     """
     R code for the KS test.
 

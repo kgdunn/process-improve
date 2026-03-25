@@ -5,7 +5,7 @@
 from .structures import c, create_names, expand_grid
 
 
-def full_factorial(nfactors: int, names: list | None = None):
+def full_factorial(nfactors: int, names: list | None = None) -> list:
     """Create a full factorial (2^k) design for the case when there are `nfactors` [integer] number of factors.
 
     The optional list of `names` can be provided. The entries in the list
@@ -16,4 +16,4 @@ def full_factorial(nfactors: int, names: list | None = None):
         names = create_names(nfactors)
 
     # Expand the full factorial out into variables
-    return expand_grid(**dict(zip(names, [c(-1, +1)] * len(names))))
+    return expand_grid(**dict(zip(names, [c(-1, +1)] * len(names), strict=False)))

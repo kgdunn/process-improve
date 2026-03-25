@@ -90,7 +90,7 @@ def create_factorial_design(
 ) -> dict[str, Any]:
     """Create a full factorial design; see tool spec for details."""
     try:
-        from process_improve.experiments.designs_factorial import full_factorial
+        from process_improve.experiments.designs_factorial import full_factorial  # noqa: PLC0415
 
         columns = full_factorial(n_factors, names=factor_names)
         # full_factorial returns a list of Series; combine into a DataFrame
@@ -104,7 +104,7 @@ def create_factorial_design(
                 "factor_names": names,
             }
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
 
 
@@ -172,8 +172,8 @@ def fit_linear_model(
 ) -> dict[str, Any]:
     """Fit a linear model to experimental data; see tool spec for details."""
     try:
-        from process_improve.experiments.models import lm
-        from process_improve.experiments.structures import Expt
+        from process_improve.experiments.models import lm  # noqa: PLC0415
+        from process_improve.experiments.structures import Expt  # noqa: PLC0415
 
         df = pd.DataFrame(data)
         expt_data = Expt(df)
@@ -207,7 +207,7 @@ def fit_linear_model(
                 "summary_text": summary_text,
             }
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return {"error": str(e)}
 
 
