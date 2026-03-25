@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import warnings
 from collections import defaultdict
-from typing import Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 import numpy as np
 import pandas as pd
 from scipy.stats import shapiro, t
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 __eps = np.finfo(np.float32).eps
 
 
-def t_value(p, v) -> float:
+def t_value(p: float, v: float) -> float:
     r"""
     Return the value on the x-axis if you plot the cumulative t-distribution with a fractional
     area of `p` (p is therefore a fractional value between 0 and 1 on the y-axis) and `v` is the
@@ -43,7 +46,7 @@ def t_value(p, v) -> float:
     return t.ppf(p, df=v)
 
 
-def t_value_cdf(z, v) -> float:
+def t_value_cdf(z: float, v: float) -> float:
     r"""
     Return the value on the y-axis if you plot the cumulative t-distribution with a fractional
     area of `p` (p is therefore a fractional value between 0 and 1 on the y-axis) and `v` is the
@@ -75,7 +78,7 @@ def t_value_cdf(z, v) -> float:
     return t.cdf(z, df=v)
 
 
-def test_normality(x):
+def test_normality(x: np.ndarray | pd.Series) -> float:
     """
     Check the p-value of the hypothesis that the data are from a normal distribution.
 
@@ -99,7 +102,7 @@ def test_normality(x):
     return output[1]
 
 
-def Sn(x, constant=1.1926):
+def Sn(x: np.ndarray | pd.Series, constant: float = 1.1926) -> np.floating:  # noqa: N802
     """
     Compute a robust scale estimator. The Sn metric is an efficient alternative to MAD.
 
@@ -155,7 +158,7 @@ def Sn(x, constant=1.1926):
     return constant * np.median(medians) * correction
 
 
-def _contains_nan(a, nan_policy="propagate"):
+def _contains_nan(a: np.ndarray, nan_policy: str = "propagate") -> tuple[bool, str]:
     """From scipy.stats.stats."""
     policies = ["propagate", "raise", "omit"]
     if nan_policy not in policies:
@@ -169,7 +172,7 @@ def _contains_nan(a, nan_policy="propagate"):
         # This can happen when attempting to sum things which are not
         # numbers (e.g. as in the function `mode`). Try an alternative method:
         try:
-            contains_nan = np.nan in set(a.ravel())
+            contains_nan = any(np.isnan(v) for v in a.ravel())
         except TypeError:  # pragma: no cover
             # Don't know what to do. Fall back to omitting nan values and
             # issue a warning.
@@ -187,7 +190,7 @@ def _contains_nan(a, nan_policy="propagate"):
     return (contains_nan, nan_policy)
 
 
-def ttest_independent(sample_A, sample_B, conflevel=0.995) -> dict:
+def ttest_independent(sample_A: pd.Series, sample_B: pd.Series, conflevel: float = 0.995) -> dict:
     """Core calculation for a test of differences between the average of A and the average of B.
     No checking of inputs.
 
@@ -236,7 +239,9 @@ def ttest_independent(sample_A, sample_B, conflevel=0.995) -> dict:
     }
 
 
-def ttest_independent_from_df(df: pd.DataFrame, grouper_column: str, values_column: str, conflevel=0.995):
+def ttest_independent_from_df(
+    df: pd.DataFrame, grouper_column: str, values_column: str, conflevel: float = 0.995,
+) -> pd.DataFrame:
     """
     Calculate the t-test for differences between two or more groups and returns a confidence
     interval for the difference. The test is for UNPAIRED differences.
@@ -295,7 +300,7 @@ def ttest_independent_from_df(df: pd.DataFrame, grouper_column: str, values_colu
     return output
 
 
-def ttest_paired(differences, conflevel=0.995) -> dict:
+def ttest_paired(differences: pd.Series, conflevel: float = 0.995) -> dict:
     """Core calculation for a test of differences.
 
     Parameters
@@ -340,7 +345,9 @@ def ttest_paired(differences, conflevel=0.995) -> dict:
     }
 
 
-def ttest_paired_from_df(df: pd.DataFrame, grouper_column: str, values_column: str, conflevel=0.995):
+def ttest_paired_from_df(
+    df: pd.DataFrame, grouper_column: str, values_column: str, conflevel: float = 0.995,
+) -> pd.DataFrame:
     """
     Calculate the t-test for paired differences between two or more groups and returns a
     confidence interval for the difference. The test is for PAIRED differences.
@@ -402,7 +409,7 @@ def ttest_paired_from_df(df: pd.DataFrame, grouper_column: str, values_column: s
     return output
 
 
-def confidence_interval(df: pd.DataFrame, column_name: str, conflevel=0.95, style="robust") -> tuple:
+def confidence_interval(df: pd.DataFrame, column_name: str, conflevel: float = 0.95, style: str = "robust") -> tuple:
     """
     Calculate the confidence interval, returned as a tuple, for the `column_name` (str) in the
     dataframe `df`, for a given confidence level `conflevel` (default: 0.95).
@@ -429,7 +436,7 @@ def confidence_interval(df: pd.DataFrame, column_name: str, conflevel=0.95, styl
     return (center - c_t * spread / np.sqrt(n), center + c_t * spread / np.sqrt(n))
 
 
-def _mad_1d(x, center, nan_policy):
+def _mad_1d(x: np.ndarray, center: Callable, nan_policy: str) -> float:
     """Taken from `scipy.stats.stats`.
 
     Median absolute deviation for 1-d array x.
@@ -453,7 +460,13 @@ def _mad_1d(x, center, nan_policy):
     return np.median(np.abs(x - med))
 
 
-def median_absolute_deviation(x, axis=0, center=np.median, scale="normal", nan_policy="omit"):
+def median_absolute_deviation(
+    x: np.ndarray,
+    axis: int = 0,
+    center: Callable = np.median,
+    scale: str | float = "normal",
+    nan_policy: str = "omit",
+) -> np.ndarray | float:
     r"""
     Taken from `scipy.stats.stats`: we want the same functionality, but with a slightly different
     default function signature.
@@ -599,7 +612,7 @@ def median_absolute_deviation(x, axis=0, center=np.median, scale="normal", nan_p
     return mad / scale
 
 
-def summary_stats(x, method="robust") -> dict:
+def summary_stats(x: np.ndarray | pd.Series, method: str = "robust") -> dict:
     """
     Return summary statistics of the numeric values in vector `x`.
 
@@ -619,7 +632,7 @@ def summary_stats(x, method="robust") -> dict:
     elif isinstance(x, np.ndarray):
         x = x.ravel()
     else:
-        raise ValueError("Expecting a NumPy vector or Pandas series.")
+        raise TypeError("Expecting a NumPy vector or Pandas series.")
 
     out = {}
     out["mean"] = np.nanmean(x)
@@ -655,7 +668,7 @@ def summary_stats(x, method="robust") -> dict:
 
 
 def detect_outliers_esd(
-    x, algorithm: str = "esd", max_outliers_detected: int = 1, **kwargs
+    x: np.ndarray | pd.Series, algorithm: str = "esd", max_outliers_detected: int = 1, **kwargs
 ) -> tuple[list[int], defaultdict[Any, Any]]:
     """
     Return a list of indexes of points in the vector `x` which are likely outliers.
@@ -765,7 +778,7 @@ def detect_outliers_esd(
         return [], defaultdict(dict)
 
 
-def variance_decomposition(df, measured: str, repeat: str) -> dict:
+def variance_decomposition(df: pd.DataFrame, measured: str, repeat: str) -> dict:
     """
     Given a DataFrame `df` of raw data, and an indication of which column is the `measured` value
     column, and which is the `repeat` indicator, it will calculate the within and between replicate
@@ -846,7 +859,7 @@ _RENAMED = {
 }
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> NoReturn:
     if name in _RENAMED:
         new = _RENAMED[name]
         raise AttributeError(

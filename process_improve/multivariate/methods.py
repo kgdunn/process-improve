@@ -209,7 +209,7 @@ class PCA(TransformerMixin, BaseEstimator):
         self.missing_data_settings = missing_data_settings
 
     @_fit_context(prefer_skip_nested_validation=True)
-    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA:  # noqa: ARG002, PLR0915
+    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA:  # noqa: ARG002, PLR0915, C901
         """Fit a principal component analysis (PCA) model to the data.
 
         Parameters
@@ -659,7 +659,7 @@ class PCA(TransformerMixin, BaseEstimator):
             - ``n_components`` — recommended number of components (int)
             - ``press`` — PRESS per component count (pd.Series, indexed 1..A_max)
             - ``press_ratio`` — PRESS_a / PRESS_{a-1} (pd.Series, indexed 2..A_max)
-            - ``cv_scores`` — per-fold scores (pd.DataFrame, A_max rows × cv cols)
+            - ``cv_scores`` — per-fold scores (pd.DataFrame, A_max rows x cv cols)
         """
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
@@ -1191,9 +1191,9 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
         # --- Common post-fit path: wrap numpy arrays into pandas ---
 
-        # R = W(P'W)^{-1} [K×A]; useful since T = XR
+        # R = W(P'W)^{-1} [KxA]; useful since T = XR
         direct_weights = self.x_weights_ @ np.linalg.inv(self.x_loadings_.T @ self.x_weights_)
-        # beta = RC' [K×M]: direct link from k-th X variable to m-th Y variable
+        # beta = RC' [KxM]: direct link from k-th X variable to m-th Y variable
         beta_coefficients = direct_weights @ self.y_loadings_.T
 
         component_names = list(range(1, A + 1))
@@ -2365,7 +2365,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.is_fitted_ = True
         return self
 
-    def predict(self, X: DataFrameDict) -> Bunch:  # noqa: C901
+    def predict(self, X: DataFrameDict) -> Bunch:  # noqa: C901, PLR0912
         """
         Model inference on new data.
 
@@ -3265,7 +3265,7 @@ class Plot:
 class Resampler:
     """Base class for resampling methods."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         estimator: BaseEstimator,
         x: DataFrameDict,
