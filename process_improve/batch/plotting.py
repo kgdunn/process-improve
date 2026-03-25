@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # Built-in libraries
 import json
 import math
@@ -16,7 +18,7 @@ from plotly.offline import plot as plotoffline
 from .data_input import check_valid_batch_dict
 
 
-def get_rgba_from_triplet(incolour: list, alpha: float = 1, as_string: bool = False):
+def get_rgba_from_triplet(incolour: list, alpha: float = 1, as_string: bool = False) -> str | list:
     """
     Convert the input colour triplet (list) to a Plotly rgba(r,g,b,a) string if
     `as_string` is True. If `False` it will return the list of 3 integer RGB
@@ -25,14 +27,15 @@ def get_rgba_from_triplet(incolour: list, alpha: float = 1, as_string: bool = Fa
     E.g.    [0.9677975592919913, 0.44127456009157356, 0.5358103155058701] -> 'rgba(246,112,136,1)'
     """
     assert 3 <= len(incolour) <= 4, "`incolour` must be a list of 3 or 4 values; ignores 4th entry"
-    colours = [max(0, int(math.floor(c * 255))) for c in list(incolour)[0:3]]
+    colours = [max(0, math.floor(c * 255)) for c in list(incolour)[0:3]]
     if as_string:
         return f"rgba({colours[0]},{colours[1]},{colours[2]},{float(alpha)})"
     else:
         return colours
 
 
-def plot_to_HTML(filename: str, fig: dict):
+def plot_to_HTML(filename: str, fig: dict) -> str:  # noqa: N802
+    """Export a Plotly figure to an HTML file."""
     config = dict(
         scrollZoom=True,
         displayModeBar=True,
@@ -54,10 +57,10 @@ def plot_to_HTML(filename: str, fig: dict):
 def plot_all_batches_per_tag(
     df_dict: dict,
     tag: str,
-    tag_y2: str = None,
-    time_column: str = None,
+    tag_y2: str | None = None,
+    time_column: str | None = None,
     extra_info: str = "",
-    batches_to_highlight: dict = None,
+    batches_to_highlight: dict | None = None,
     x_axis_label: str = "Time [sequence order]",
     highlight_width: int = 5,
     html_image_height: int = 900,
@@ -122,7 +125,7 @@ def plot_all_batches_per_tag(
     colours = list(sns.husl_palette(n_colours))
     random.shuffle(colours)
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
-    line_styles = {k: dict(width=default_line_width, color=v) for k, v in zip(unique_items, colours)}
+    line_styles = {k: dict(width=default_line_width, color=v) for k, v in zip(unique_items, colours, strict=False)}
     for key, val in batches_to_highlight.items():
         line_styles.update({item: json.loads(key) for item in val if item in df_dict})
 
@@ -235,7 +238,7 @@ def colours_per_batch_id(
     batches_to_highlight: dict,
     default_line_width: float,
     use_default_colour: bool = False,
-    colour_map: Callable = partial(sns.color_palette, "hls"),
+    colour_map: Callable | None = None,
 ) -> dict[Any, dict]:
     """
     Return a colour to use for each trace in the plot. A dictionary: keys are batch ids, and
@@ -244,12 +247,17 @@ def colours_per_batch_id(
     override_default_colour: bool
         If True, then the default colour is used (grey: 0.5, 0.5, 0.5)
     """
+    if colour_map is None:
+        colour_map = partial(sns.color_palette, "hls")
     random.seed(13)
     n_colours = len(batch_ids)
     colours = list(colour_map(n_colours)) if not (use_default_colour) else [(0.5, 0.5, 0.5)] * n_colours
     random.shuffle(colours)
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
-    colour_assignment = {key: dict(width=default_line_width, color=val) for key, val in zip(list(batch_ids), colours)}
+    colour_assignment = {
+        key: dict(width=default_line_width, color=val)
+        for key, val in zip(list(batch_ids), colours, strict=False)
+    }
     for key, val in batches_to_highlight.items():
         colour_assignment.update({item: json.loads(key) for item in val if item in batch_ids})
     return colour_assignment
@@ -258,12 +266,12 @@ def colours_per_batch_id(
 # flake8: noqa: C901
 def plot_multitags(
     df_dict: dict,
-    batch_list: list = None,
-    tag_list: list = None,
-    time_column: str = None,
-    batches_to_highlight: dict = None,
-    settings: dict = None,
-    fig=None,
+    batch_list: list | None = None,
+    tag_list: list | None = None,
+    time_column: str | None = None,
+    batches_to_highlight: dict | None = None,
+    settings: dict | None = None,
+    fig: go.Figure | None = None,
 ) -> go.Figure:
     """
     Plot all the tags for a batch; or a subset of tags, if specified in `tag_list`.
@@ -509,11 +517,11 @@ def plot_multitags(
         settings["animate_n_frames"] if settings["animate_n_frames"] >= 0 else longest_time_length
     )
 
-    for index in np.linspace(0, longest_time_length, settings["animate_n_frames"]):
+    for raw_index in np.linspace(0, longest_time_length, settings["animate_n_frames"]):
         # TO OPTIMIZE: add hover template only on the last iteration
         # TO OPTIMIZE: can you add only the incremental new piece of animation?
 
-        index = int(np.floor(index))
+        index = int(np.floor(raw_index))
         frame_name = f"{index}"  # this is the link with the slider and the animation in the play button
         one_frame = generate_one_frame(
             df_dict,
@@ -624,17 +632,17 @@ def plot_multitags(
     return fig
 
 
-def generate_one_frame(
+def generate_one_frame(  # noqa: PLR0913
     df_dict: dict,
     tag_list: list,
-    fig,
-    up_to_index,
-    time_column,
+    fig: go.Figure,
+    up_to_index: int,
+    time_column: str | None,
     batch_ids_to_animate: list,
-    animation_colour_assignment,
-    show_legend=False,
+    animation_colour_assignment: dict,
+    show_legend: bool = False,
     hovertemplate: str = "",
-    max_columns=0,
+    max_columns: int = 0,
 ) -> list[dict]:
     """
     Return a list of dictionaries.
