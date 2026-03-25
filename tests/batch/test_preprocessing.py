@@ -281,7 +281,7 @@ def test_distance_matrix_shape():
 
 
 def test_backtrack_optimal_path_identity():
-    """backtrack on a zero-diagonal D matrix should return the diagonal path."""
+    """Backtrack on a zero-diagonal D matrix should return the diagonal path."""
     # Build a simple cumulative distance matrix where diagonal is optimal
     D = np.array([[0.0, 10.0, 20.0], [10.0, 0.0, 10.0], [20.0, 10.0, 0.0]])
     path, path_sum = backtrack_optimal_path(D)
@@ -292,7 +292,7 @@ def test_backtrack_optimal_path_identity():
 
 
 def test_backtrack_optimal_path_returns_sum():
-    """backtrack should return a finite path sum."""
+    """Backtrack should return a finite path sum."""
     ref = np.array([[1.0, 0.0], [2.0, 0.0], [3.0, 0.0]])
     test = np.array([[1.1, 0.0], [2.1, 0.0], [3.1, 0.0]])
     weight = np.eye(2)

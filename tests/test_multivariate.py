@@ -99,7 +99,7 @@ def test_pca_foods() -> None:
     """Arrays with no variance should not be able to have variance extracted."""
 
     url = "https://openmv.net/file/food-texture.csv"
-    req = urllib.request.Request(url, headers={"User-Agent": "Python/process-improve-tests"})
+    req = urllib.request.Request(url, headers={"User-Agent": "Python/process-improve-tests"})  # noqa: S310
     with urllib.request.urlopen(req) as response:  # noqa: S310
         foods = pd.read_csv(io.StringIO(response.read().decode())).drop(
             [
@@ -343,7 +343,7 @@ def test_pca_tablet_spectra(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.
     # Check the model against an SVD: this raw data set has no missing
     # data, so the SVD should be faster and more accurate than NIPALS
     autoscaled_X = scale(center(spectra))
-    u, s, v = np.linalg.svd(autoscaled_X)
+    _u, _s, v = np.linalg.svd(autoscaled_X)
 
     loadings_delta = np.linalg.norm(np.abs(v[0 : model.n_components, :]) - np.abs(model.loadings_.T))
     assert loadings_delta == pytest.approx(0, abs=1e-8)
@@ -2407,7 +2407,7 @@ def test_pls_old_attribute_names_raise():
 # ---- Plot tests (improving multivariate/plots.py coverage) ----
 
 
-@pytest.fixture()
+@pytest.fixture
 def fixture_pca_for_plots():
     """A simple PCA model for plot testing."""
     rng = np.random.default_rng(42)
@@ -2418,7 +2418,7 @@ def fixture_pca_for_plots():
     return model
 
 
-@pytest.fixture()
+@pytest.fixture
 def fixture_pls_for_plots():
     """A simple PLS model for plot testing."""
     rng = np.random.default_rng(42)

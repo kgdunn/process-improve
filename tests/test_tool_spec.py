@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 # Importing the univariate tools module triggers @tool_spec registration.
-import process_improve.multivariate.tools  # noqa: F401
+import process_improve.multivariate.tools
 import process_improve.univariate.tools  # noqa: F401
 from process_improve.tool_spec import _TOOL_REGISTRY, execute_tool_call, get_tool_specs, tool_spec
 from process_improve.univariate.tools import get_univariate_tool_specs

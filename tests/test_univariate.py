@@ -3,11 +3,12 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import stats
 
 import process_improve.univariate.metrics as univariate
 
 
-class test_t_values:
+class TestTValues:
     """
     Checks the calculation of t values (at a given 'alpha' and with an integer number of degrees
     of freedom), against the values from R.
@@ -21,7 +22,7 @@ class test_t_values:
     assert univariate.t_value(0.9, 5) == pytest.approx(1.475884, rel=1e-6)
 
 
-class test_t_values_cdf:
+class TestTValuesCdf:
     """
     Checks the calculation of t values (at a given 'alpha' and with an integer number of degrees
     of freedom), against the values from R.
@@ -37,7 +38,7 @@ class test_t_values_cdf:
     assert univariate.t_value_cdf(0.5, 1) == pytest.approx(0.6475836, rel=1e-7)
 
 
-def test_normality_check():
+def test_normality_check() -> None:
     """
     Tests on data actually from a normal distribution, and some data which is from a
     uniform distribution.
@@ -88,7 +89,7 @@ def test_normality_check():
     assert univariate.test_normality(y) == pytest.approx(0.1117, abs=1e-3)
 
 
-def test_univariate_robust_scale():
+def test_univariate_robust_scale() -> None:
     """
     A scale estimator which is robust to outliers.
 
@@ -131,7 +132,8 @@ def test_univariate_robust_scale():
     assert univariate.Sn([13]) == 0.0
 
 
-def test_summary_stats_corner_case_with_robust_scale():
+def test_summary_stats_corner_case_with_robust_scale() -> None:
+    """Test summary stats corner case where Sn is zero despite variability."""
     x = [
         99,
         95,
@@ -163,12 +165,11 @@ def test_summary_stats_corner_case_with_robust_scale():
     assert out["center"] != np.median(x)
 
 
-def test_median_abs_deviation():
+def test_median_abs_deviation() -> None:
+    """Test median absolute deviation against known values and scipy."""
     x = np.array([[10, 7, 4], [3, 2, 1]])
     assert univariate.median_absolute_deviation(x, scale=1) == pytest.approx([3.5, 2.5, 1.5])
     assert univariate.median_absolute_deviation(x.ravel(), scale=1) == 2.0
-
-    from scipy import stats
 
     x = stats.norm.rvs(size=1000000, scale=2, random_state=123456)
     assert univariate.median_absolute_deviation(x, scale=1) == pytest.approx(1.3487398527041636, rel=1e-12)
@@ -206,7 +207,7 @@ def test_median_abs_deviation():
     assert np.isnan(univariate.median_absolute_deviation(np.array([np.nan, np.nan]), axis=0))
 
 
-def test_t_test_differences():
+def test_t_test_differences() -> None:
     """
     Tests for the t-test of differences.
 
@@ -244,7 +245,7 @@ def test_t_test_differences():
     assert row["Degrees of freedom"][0] == pytest.approx(22, rel=1e-8)
 
 
-def test_t_paried_test_differences():
+def test_t_paried_test_differences() -> None:
     """
     Tests for the paired t-test of differences.
 
@@ -283,7 +284,7 @@ def test_t_paried_test_differences():
 
 
 @pytest.fixture
-def univariate_summary():
+def univariate_summary() -> pd.DataFrame:
     """
     Provide a univariate case study.
 

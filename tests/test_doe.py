@@ -402,7 +402,7 @@ def test_expand_grid_three_factors():
 
 
 def test_supplement_function():
-    """supplement should carry over kwargs to a new Column from existing values."""
+    """Supplement should carry over kwargs to a new Column from existing values."""
     A = c(-1, +1, -1, +1)
     A_supp = supplement(A, name="Feed rate", units="g/min", lo=-1, hi=1)
     assert A_supp.pi_name == "Feed rate"
@@ -470,7 +470,7 @@ def test_column_categorical_with_levels():
 
 
 def test_gather_drops_missing_values():
-    """gather should drop rows with any NaN values."""
+    """Gather should drop rows with any NaN values."""
     A = c(-1, +1, -1, +1, float("nan"))
     B = c(-1, -1, +1, +1, 0)
     expt = gather(A=A, B=B)

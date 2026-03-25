@@ -95,7 +95,7 @@ def fit_pca(
 ) -> dict[str, Any]:
     """Fit a PCA model to the given data; see tool spec for details."""
     try:
-        from process_improve.multivariate.methods import MCUVScaler, PCA
+        from process_improve.multivariate.methods import PCA, MCUVScaler
 
         df = pd.DataFrame(data, columns=column_names)
         scaler = MCUVScaler().fit(df)
@@ -204,7 +204,7 @@ def fit_pls(
 ) -> dict[str, Any]:
     """Fit a PLS model to X and Y data; see tool spec for details."""
     try:
-        from process_improve.multivariate.methods import MCUVScaler, PLS
+        from process_improve.multivariate.methods import PLS, MCUVScaler
 
         X = pd.DataFrame(x_data, columns=x_column_names)
 
@@ -368,7 +368,7 @@ def detect_multivariate_outliers(
 ) -> dict[str, Any]:
     """Detect multivariate outliers via PCA diagnostics; see tool spec for details."""
     try:
-        from process_improve.multivariate.methods import MCUVScaler, PCA
+        from process_improve.multivariate.methods import PCA, MCUVScaler
 
         df = pd.DataFrame(data)
         scaler = MCUVScaler().fit(df)

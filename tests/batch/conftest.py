@@ -7,12 +7,14 @@ from process_improve.batch.data_input import melted_to_dict
 
 
 @pytest.fixture
-def nylon_data():
+def nylon_data() -> dict:
+    """Load nylon batch data as a dictionary of DataFrames."""
     nylon_raw = pd.read_csv(pathlib.Path(__file__).parents[2] / "process_improve" / "datasets" / "batch" / "nylon.csv")
     return melted_to_dict(nylon_raw, batch_id_col="batch_id")
 
 
 @pytest.fixture
-def dryer_data():
+def dryer_data() -> dict:
+    """Load dryer batch data as a dictionary of DataFrames."""
     dryer_raw = pd.read_csv(pathlib.Path(__file__).parents[2] / "process_improve" / "datasets" / "batch" / "dryer.csv")
     return melted_to_dict(dryer_raw, batch_id_col="batch_id")

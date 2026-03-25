@@ -2094,8 +2094,7 @@ class TPLS(RegressorMixin, BaseEstimator):
     - Z → Z: ``z_mats`` — Process conditions
     - Y → Y: ``y_mats`` — Quality indicators
 
-    Notes:
-
+    Notes
     1. Matrices in F, Z and Y must all have the same number of rows.
     2. Columns in F must be the same as the **rows** in D.
     3. Conditions in Z may be missing (turning it into an L-shaped data structure).
