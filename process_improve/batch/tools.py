@@ -132,7 +132,7 @@ def extract_batch_features(
     time_column: str | None = None,
 ) -> dict[str, Any]:
     """Extract summary features from batch process data."""
-    from process_improve.batch import features as feat_mod
+    from process_improve.batch import features as feat_mod  # noqa: PLC0415
 
     if features is None:
         features = ["mean", "std"]
@@ -168,7 +168,7 @@ def extract_batch_features(
             "n_features": combined.shape[1] if results else 0,
             "features_extracted": features,
         })
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return {"error": str(exc)}
 
 

@@ -54,7 +54,7 @@ def plot_to_HTML(filename: str, fig: dict) -> str:  # noqa: N802
     )
 
 
-def plot_all_batches_per_tag(
+def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
     df_dict: dict,
     tag: str,
     tag_y2: str | None = None,
@@ -264,7 +264,7 @@ def colours_per_batch_id(
 
 
 # flake8: noqa: C901
-def plot_multitags(
+def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
     df_dict: dict,
     batch_list: list | None = None,
     tag_list: list | None = None,

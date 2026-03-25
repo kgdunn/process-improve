@@ -144,7 +144,7 @@ def melted_to_dict(in_df: pd.DataFrame, batch_id_col: str) -> dict:
     is a Pandas dataframe of the batch data for that batch.
     """
     assert batch_id_col in in_df, "The `batch_id_col` column does not exist in the incoming dataframe."
-    return dict(in_df.groupby(batch_id_col))
+    return {batch_id: batch for batch_id, batch in in_df.groupby(batch_id_col)}  # noqa: C416
 
 
 def melted_to_wide(in_df: pd.DataFrame, batch_id_col: str) -> dict:

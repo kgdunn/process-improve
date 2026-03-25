@@ -5,7 +5,8 @@ from numba import jit
 
 
 @jit(nopython=True)
-def distance_matrix(test: np.ndarray, ref: np.ndarray, weight_matrix: np.ndarray):
+def distance_matrix(test: np.ndarray, ref: np.ndarray, weight_matrix: np.ndarray) -> np.ndarray:
+    """Compute the DTW distance matrix between test and reference batch trajectories."""
     # TODO: allow user to specify `band`. The code below assumes that `band` is fixed as shown
     # here, so therefore, if user provide `band`, the code needs to be adjusted.
     nt = test.shape[0]  # 'test' data; will be align to the 'reference' data
@@ -36,7 +37,8 @@ def distance_matrix(test: np.ndarray, ref: np.ndarray, weight_matrix: np.ndarray
 
 
 @jit(nopython=True)
-def backtrack_optimal_path(D: np.ndarray):
+def backtrack_optimal_path(D: np.ndarray) -> tuple[list, float]:
+    """Backtrack through the distance matrix to find the optimal warping path."""
     nr, nt = D.shape
     nr -= 1
     nt -= 1
