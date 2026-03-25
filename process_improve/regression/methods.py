@@ -228,7 +228,7 @@ def robust_regression(  # noqa: PLR0913, PLR0915
 
 _RENAMED = {"simple_robust_regression": "robust_regression"}
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> None:
     if name in _RENAMED:
         new = _RENAMED[name]
         raise AttributeError(

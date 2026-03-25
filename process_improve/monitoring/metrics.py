@@ -7,7 +7,7 @@ from ..univariate.metrics import Sn
 def calculate_cpk(
     df: pd.DataFrame,
     which_column: str,
-    specifications=(np.nan, np.nan),
+    specifications: tuple[float, float] = (np.nan, np.nan),
     trim_percentile: float = 2.5,
 ) -> float:
     """
@@ -70,7 +70,7 @@ def calculate_cpk(
 
 _RENAMED = {"calculate_Cpk": "calculate_cpk"}
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> None:
     if name in _RENAMED:
         new = _RENAMED[name]
         raise AttributeError(
