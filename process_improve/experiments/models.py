@@ -1,5 +1,7 @@
 # (c) Kevin Dunn, 2010-2026. MIT License. Based on own private work over the years.
 
+from __future__ import annotations
+
 import warnings
 from collections import defaultdict
 from typing import Any
@@ -11,7 +13,7 @@ from patsy import ModelDesc
 from statsmodels.regression.linear_model import OLS
 
 
-def forg(x, prec=3):
+def forg(x: float, prec: int = 3) -> str:
     """Yanked from the code for Statsmodels / iolib / summary.py and adjusted."""
     if prec == 3:
         # for 3 decimals
@@ -31,7 +33,13 @@ def forg(x, prec=3):
 class Model(OLS):
     """Just a thin wrapper around the OLS class from Statsmodels."""
 
-    def __init__(self, OLS_instance, model_spec, aliasing=None, name=None):
+    def __init__(
+        self,
+        OLS_instance: Any,  # noqa: ANN401
+        model_spec: str,
+        aliasing: dict | None = None,
+        name: str | None = None,
+    ) -> None:
         self._OLS = OLS_instance
         self._model_spec = model_spec
         self.name = name
@@ -49,11 +57,12 @@ class Model(OLS):
         self.data = None
         self.aliasing = aliasing
 
-    def __str__(self):
+    def __str__(self) -> str:
+        """Return the model specification as a string."""
         spec = ModelDesc.from_formula(self._model_spec)
         return spec.describe()
 
-    def summary(self, alpha=0.05, print_to_screen=True):
+    def summary(self, alpha: float = 0.05, print_to_screen: bool = True) -> Any:  # noqa: ARG002, ANN401
         """Side effect: prints to the screen."""
         # Taken from statsmodels.regression.linear_model.py
         with warnings.catch_warnings():
@@ -84,7 +93,7 @@ class Model(OLS):
 
         return smry
 
-    def get_parameters(self, drop_intercept=True) -> pd.DataFrame:
+    def get_parameters(self, drop_intercept: bool = True) -> pd.DataFrame:
         """Get the parameter values; return them in a Pandas dataframe."""
 
         params = self._OLS.params.copy()
@@ -96,7 +105,7 @@ class Model(OLS):
 
         return params.dropna()
 
-    def get_factor_names(self, level=1):
+    def get_factor_names(self, level: int = 1) -> list[str]:
         """
         Get the factors in a model which correspond to a certain level.
 
@@ -108,7 +117,8 @@ class Model(OLS):
         spec = ModelDesc.from_formula(self._model_spec)
         return [term.name() for term in spec.rhs_termlist if len(term.factors) == level]
 
-    def get_response_name(self):
+    def get_response_name(self) -> str:
+        """Get the name of the response variable from the model specification."""
         spec = ModelDesc.from_formula(self._model_spec)
         return spec.lhs_termlist[0].name()
 
@@ -160,12 +170,12 @@ class Model(OLS):
 # Model.__repr__ = Model.__str__
 
 
-def predict(model, **kwargs):
+def predict(model: Model, **kwargs: Any) -> Any:  # noqa: ANN401
     """Make predictions from the model."""
     return model._OLS.predict(exog=dict(kwargs))
 
 
-def lm(
+def lm(  # noqa: C901, PLR0915
     model_spec: str,
     data: pd.DataFrame,
     name: str | None = None,
@@ -173,7 +183,11 @@ def lm(
 ) -> Model:
     """Create a linear model."""
 
-    def find_aliases(model, model_desc, threshold_correlation=0.995):
+    def find_aliases(  # noqa: C901, PLR0912
+        model: Any,  # noqa: ANN401
+        model_desc: ModelDesc,
+        threshold_correlation: float = 0.995,
+    ) -> tuple[dict, list]:
         """
         Find columns which are exactly correlated, or up to at least a level
         of `threshold_correlation`.
@@ -283,7 +297,7 @@ def summary(
     model: Model,
     show: bool | None = True,
     aliasing_up_to_level: int = 3,
-):
+) -> Any:  # noqa: ANN401
     """
     Print a summary to the screen of the model.
 
@@ -296,10 +310,10 @@ def summary(
     values = model.get_parameters(drop_intercept=False).values
     if len(aliases):
         extra.append("Aliasing pattern")
-        for value, alias in zip(values, aliases):
+        for value, alias in zip(values, aliases, strict=False):
             extra.append(f" {forg(value, 4)} = {alias}")
 
     out.add_extra_txt(extra)
     if show:
-        print(out)
+        print(out)  # noqa: T201
     return out

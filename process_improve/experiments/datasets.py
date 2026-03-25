@@ -1,9 +1,11 @@
 # (c) Kevin Dunn, 2010-2026. MIT License. Based on own private work over the years.
 
+from __future__ import annotations
+
 import pandas as pd
 
 
-def distillateflow():
+def distillateflow() -> None:
     """Return the flow rate of distillate from the top of a distillation column.
 
     These are actual data, taken 1 minute apart in time, of the flow rate leaving
@@ -22,7 +24,7 @@ def distillateflow():
     """
 
 
-def pollutant():
+def pollutant() -> None:
     """
     Return water treatment example data from BHH2, Ch 5, Question 19.
 
@@ -54,7 +56,7 @@ def pollutant():
     """
 
 
-def oildoe():
+def oildoe() -> None:
     """
     Return industrial designed experiment data to improve the volumetric heat capacity of
     a product.
@@ -84,7 +86,7 @@ def oildoe():
     """
 
 
-def golf():
+def golf() -> None:
     """
     Return full factorial experiment data to maximize a golfer's driving distance.
 
@@ -118,7 +120,7 @@ def golf():
     """
 
 
-def boilingpot():
+def boilingpot() -> None:
     """
     Return full factorial experiment data for stove-top boiling of water.
 
@@ -158,7 +160,7 @@ def boilingpot():
     """
 
 
-def solar():
+def solar() -> None:
     """
     Return solar panel example data from Box, Hunter and Hunter, 2nd edition, Chapter 5,
     page 230.
