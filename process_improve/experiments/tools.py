@@ -214,6 +214,173 @@ def fit_linear_model(
 _register("fit_linear_model")
 
 
+@tool_spec(
+    name="generate_design",
+    description=(
+        "Generate an experimental design matrix for a designed experiment. "
+        "Supports full factorial, fractional factorial, Plackett-Burman, Box-Behnken, "
+        "Central Composite (CCD), Definitive Screening (DSD), D-optimal, mixture, "
+        "and Taguchi designs. "
+        "Each factor needs a name and type ('continuous', 'categorical', or 'mixture'). "
+        "Continuous factors require 'low' and 'high' bounds. Categorical factors require 'levels'. "
+        "If design_type is not specified, one is auto-selected based on the number of factors and budget. "
+        "Returns the design matrix in both coded (-1/+1) and actual units, run order, and metadata."
+    ),
+    input_schema={
+        "json": {
+            "type": "object",
+            "properties": {
+                "factors": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Factor name (e.g. 'Temperature')."},
+                            "type": {
+                                "type": "string",
+                                "enum": ["continuous", "categorical", "mixture"],
+                                "description": "Factor type. Default: 'continuous'.",
+                            },
+                            "low": {"type": "number", "description": "Low level (required for continuous)."},
+                            "high": {"type": "number", "description": "High level (required for continuous)."},
+                            "levels": {
+                                "type": "array",
+                                "description": "Explicit levels (required for categorical).",
+                            },
+                            "units": {"type": "string", "description": "Engineering units (optional)."},
+                        },
+                        "required": ["name"],
+                    },
+                    "description": "List of factor specifications.",
+                    "minItems": 1,
+                },
+                "design_type": {
+                    "type": "string",
+                    "enum": [
+                        "full_factorial",
+                        "fractional_factorial",
+                        "plackett_burman",
+                        "box_behnken",
+                        "ccd",
+                        "dsd",
+                        "d_optimal",
+                        "mixture",
+                        "taguchi",
+                    ],
+                    "description": (
+                        "Design type. If omitted, auto-selected based on factors and budget."
+                    ),
+                },
+                "budget": {
+                    "type": "integer",
+                    "description": "Maximum number of experimental runs.",
+                    "minimum": 1,
+                },
+                "center_points": {
+                    "type": "integer",
+                    "description": "Number of center point replicates (default: 3).",
+                    "minimum": 0,
+                },
+                "replicates": {
+                    "type": "integer",
+                    "description": "Number of full replicates (default: 1).",
+                    "minimum": 1,
+                },
+                "resolution": {
+                    "type": "integer",
+                    "description": "Minimum resolution for fractional factorials (3, 4, or 5).",
+                    "minimum": 3,
+                    "maximum": 5,
+                },
+                "alpha": {
+                    "type": "string",
+                    "enum": ["rotatable", "face_centered", "orthogonal"],
+                    "description": "Axial distance for CCD designs.",
+                },
+                "random_seed": {
+                    "type": "integer",
+                    "description": "Seed for reproducible randomization (default: 42).",
+                },
+            },
+            "required": ["factors"],
+        }
+    },
+    examples="""
+    # "Create a 2-factor CCD for Temperature (150-200 degC) and Pressure (1-5 bar)"
+        -> ``generate_design(factors=[{"name": "Temperature", "low": 150, "high": 200, "units": "degC"},
+                                      {"name": "Pressure", "low": 1, "high": 5, "units": "bar"}],
+                             design_type="ccd", alpha="rotatable")``
+
+    # "Screen 7 factors with minimal runs"
+        -> ``generate_design(factors=[{"name": "A", "low": -1, "high": 1}, ...7 factors...],
+                             design_type="plackett_burman")``
+
+    # "Create a 2^(5-2) fractional factorial at resolution III"
+        -> ``generate_design(factors=[{"name": f, "low": -1, "high": 1} for f in "ABCDE"],
+                             design_type="fractional_factorial", resolution=3)``
+    """,
+    category="experiments",
+)
+def generate_design_tool(  # noqa: PLR0913
+    *,
+    factors: list[dict[str, Any]],
+    design_type: str | None = None,
+    budget: int | None = None,
+    center_points: int = 3,
+    replicates: int = 1,
+    resolution: int | None = None,
+    alpha: str | None = None,
+    random_seed: int = 42,
+) -> dict[str, Any]:
+    """Generate an experimental design; see tool spec for details."""
+    try:
+        from process_improve.experiments.designs import generate_design  # noqa: PLC0415
+        from process_improve.experiments.factor import Factor  # noqa: PLC0415
+
+        # Convert raw dicts to Factor objects
+        factor_objects = [Factor(**f) for f in factors]
+
+        result = generate_design(
+            factors=factor_objects,
+            design_type=design_type,
+            budget=budget,
+            center_points=center_points,
+            replicates=replicates,
+            resolution=resolution,
+            alpha=alpha,
+            random_seed=random_seed,
+        )
+
+        # Build JSON-serializable output
+        design_coded = result.design.drop(columns=["RunOrder"], errors="ignore")
+        design_actual = result.design_actual.drop(columns=["RunOrder"], errors="ignore")
+
+        output: dict[str, Any] = {
+            "design_coded": design_coded.to_dict(orient="records"),
+            "design_actual": design_actual.to_dict(orient="records"),
+            "run_order": result.run_order,
+            "design_type": result.design_type,
+            "n_runs": result.n_runs,
+            "n_factors": result.n_factors,
+            "factor_names": result.factor_names,
+        }
+        if result.generators:
+            output["generators"] = result.generators
+        if result.defining_relation:
+            output["defining_relation"] = result.defining_relation
+        if result.resolution is not None:
+            output["resolution"] = result.resolution
+        if result.alpha is not None:
+            output["alpha"] = result.alpha
+
+        return clean(output)
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+
+
+_register("generate_design")
+
+
 # ---------------------------------------------------------------------------
 # Module-level convenience
 # ---------------------------------------------------------------------------
