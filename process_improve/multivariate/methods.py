@@ -11,7 +11,6 @@ from typing import TypeAlias
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-import pytest
 import ridgeplot
 from scipy.stats import chi2, f
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, _fit_context, clone
@@ -3067,10 +3066,10 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Test that all blocks and groups within a block have a mean of 0 and a standard deviation of 1.
         # Note the extra complexity for checking columns that have perfectly zero variance.
         for key in self.z_mats:
-            assert pytest.approx(0) == np.nanmean(self.z_mats[key], axis=0)
+            assert np.allclose(np.nanmean(self.z_mats[key], axis=0), 0, atol=1e-6)
             for item in np.nanstd(self.z_mats[key], axis=0, ddof=1):
                 if item != 0:
-                    assert pytest.approx(item) == 1
+                    assert np.isclose(item, 1)
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
@@ -3079,23 +3078,23 @@ class TPLS(RegressorMixin, BaseEstimator):
                 if not self.skip_f_matrix_preprocessing:
                     vector = np.nanmean(self.f_mats[key], axis=0)
                     vector[np.isnan(vector)] = 0
-                    assert pytest.approx(vector) == 0
+                    assert np.allclose(vector, 0, atol=1e-6)
 
                     vector = np.nanstd(self.f_mats[key], axis=0, ddof=1)
                     vector[np.isnan(vector)] = 1
-                    assert pytest.approx(vector) == 1
+                    assert np.allclose(vector, 1)
 
                 vector = np.nanmean(self.d_mats[key], axis=0)
                 vector[np.isnan(vector)] = 0
-                assert pytest.approx(vector) == 0
+                assert np.allclose(vector, 0, atol=1e-6)
                 vector = np.nanstd(self.d_mats[key], axis=0, ddof=1) * self.preproc_["D"][key]["block"].values[0]
                 vector[np.isnan(vector)] = 1
-                assert pytest.approx(vector) == 1
+                assert np.allclose(vector, 1)
 
         # Checks on the Y-block
-        assert all(pytest.approx(np.nanmean(self.y_mats[key], axis=0)) == 0 for key in self.y_mats)
+        assert all(np.allclose(np.nanmean(self.y_mats[key], axis=0), 0, atol=1e-6) for key in self.y_mats)
         assert all(
-            pytest.approx(np.where((in_array := np.nanstd(self.y_mats[key], axis=0, ddof=1)) == 0, 1, in_array)) == 1
+            np.allclose(np.where((in_array := np.nanstd(self.y_mats[key], axis=0, ddof=1)) == 0, 1, in_array), 1)
             for key in self.y_mats
         )
 
