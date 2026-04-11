@@ -440,8 +440,7 @@ def test_pca_columns_with_no_variance() -> None:
     )
 
     # Are scores orthogonal?
-    covmatrix = m.scores_.T @ m.scores_
-    # covmatrix - np.diag(np.diag(covmatrix))
+    covmatrix = m.scores_.values.T @ m.scores_.values
     assert (np.sum(np.abs(covmatrix - np.diag(np.diag(covmatrix))))) == pytest.approx(0, abs=1e-6)
 
 
