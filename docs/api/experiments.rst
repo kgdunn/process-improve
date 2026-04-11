@@ -10,3 +10,8 @@ Designed Experiments
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. automodule:: process_improve.experiments.evaluate
+   :members:
+   :undoc-members:
+   :show-inheritance:
