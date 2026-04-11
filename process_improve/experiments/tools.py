@@ -381,6 +381,134 @@ def generate_design_tool(  # noqa: PLR0913
 _register("generate_design")
 
 
+@tool_spec(
+    name="evaluate_design",
+    description=(
+        "Evaluate the quality of an experimental design matrix by computing metrics such as "
+        "D-efficiency, G-efficiency, I-efficiency, VIF, condition number, alias structure, "
+        "confounding pattern, resolution, power, prediction variance, degrees of freedom, "
+        "clear effects, and minimum aberration. "
+        "The design_matrix should be a list of dictionaries with factor names as keys and "
+        "coded values (-1/+1) as values. "
+        "Use this after generating a design to check if it meets quality criteria, or to "
+        "compare alternative designs."
+    ),
+    input_schema={
+        "json": {
+            "type": "object",
+            "properties": {
+                "design_matrix": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {"type": "number"},
+                    },
+                    "description": (
+                        "List of dictionaries, one per experimental run. Each dict maps "
+                        "factor name to coded value. Example: [{'A': -1, 'B': -1}, ...]"
+                    ),
+                    "minItems": 2,
+                },
+                "model": {
+                    "type": "string",
+                    "enum": ["main_effects", "interactions", "quadratic"],
+                    "description": (
+                        "Model type to evaluate against. 'main_effects' = main effects only, "
+                        "'interactions' = main effects + 2-factor interactions (default), "
+                        "'quadratic' = interactions + squared terms."
+                    ),
+                },
+                "metric": {
+                    "oneOf": [
+                        {
+                            "type": "string",
+                            "enum": [
+                                "d_efficiency",
+                                "i_efficiency",
+                                "g_efficiency",
+                                "prediction_variance",
+                                "vif",
+                                "condition_number",
+                                "power",
+                                "degrees_of_freedom",
+                                "alias_structure",
+                                "confounding",
+                                "resolution",
+                                "defining_relation",
+                                "clear_effects",
+                                "minimum_aberration",
+                            ],
+                        },
+                        {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                    ],
+                    "description": (
+                        "One or more metric names to compute. Default: 'd_efficiency'."
+                    ),
+                },
+                "effect_size": {
+                    "type": "number",
+                    "description": "Expected effect size for power calculation.",
+                },
+                "alpha": {
+                    "type": "number",
+                    "description": "Significance level (default 0.05).",
+                },
+                "sigma": {
+                    "type": "number",
+                    "description": "Estimated noise standard deviation.",
+                },
+            },
+            "required": ["design_matrix", "metric"],
+        }
+    },
+    examples="""
+    # "What is the D-efficiency of my 2^3 factorial design?"
+        -> ``evaluate_design(design_matrix=[{"A":-1,"B":-1,"C":-1}, ...],
+                metric="d_efficiency", model="interactions")``
+
+    # "Check VIF and condition number"
+        -> ``evaluate_design(design_matrix=[...],
+                metric=["vif", "condition_number"], model="interactions")``
+
+    # "What is the power to detect an effect of size 2 with noise SD of 1?"
+        -> ``evaluate_design(design_matrix=[...],
+                metric="power", effect_size=2.0, sigma=1.0)``
+    """,
+    category="experiments",
+)
+def evaluate_design_tool(  # noqa: PLR0913
+    *,
+    design_matrix: list[dict[str, Any]],
+    model: str | None = None,
+    metric: str | list[str] = "d_efficiency",
+    effect_size: float | None = None,
+    alpha: float = 0.05,
+    sigma: float | None = None,
+) -> dict[str, Any]:
+    """Evaluate design quality; see tool spec for details."""
+    try:
+        from process_improve.experiments.evaluate import evaluate_design  # noqa: PLC0415
+
+        df = pd.DataFrame(design_matrix)
+        result = evaluate_design(
+            df,
+            model=model,
+            metric=metric,
+            effect_size=effect_size,
+            alpha=alpha,
+            sigma=sigma,
+        )
+        return clean(result)
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+
+
+_register("evaluate_design")
+
+
 # ---------------------------------------------------------------------------
 # Module-level convenience
 # ---------------------------------------------------------------------------

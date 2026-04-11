@@ -2,6 +2,7 @@
 
 from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_factorial import full_factorial
+from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor
 from process_improve.experiments.models import Model, lm, predict, summary
 from process_improve.experiments.structures import (
@@ -21,6 +22,7 @@ __all__ = [
     "Factor",
     "Model",
     "c",
+    "evaluate_design",
     "expand_grid",
     "full_factorial",
     "gather",
