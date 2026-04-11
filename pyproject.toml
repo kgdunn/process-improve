@@ -18,6 +18,7 @@ dependencies = [
     "patsy>=1.0.2",
     "plotly>=6.5.2",
     "pydantic>=2.12.5",
+    "pyDOE3>=1.0",
     "ridgeplot>=0.5.0",
     "scikit-image>=0.25.2",
     "scikit-learn>=1.7.2",
