@@ -1,5 +1,6 @@
 """Designed experiments: factorial designs, linear models, optimization, and design generation."""
 
+from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_factorial import full_factorial
 from process_improve.experiments.evaluate import evaluate_design
@@ -21,6 +22,7 @@ __all__ = [
     "Expt",
     "Factor",
     "Model",
+    "analyze_experiment",
     "c",
     "evaluate_design",
     "expand_grid",
