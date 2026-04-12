@@ -8,6 +8,16 @@ import pytest
 from process_improve.experiments.designs import _auto_select, generate_design
 from process_improve.experiments.factor import Constraint, Factor, FactorType
 
+_HAS_PYOPTEX = False
+try:
+    import pyoptex  # noqa: F401
+
+    _HAS_PYOPTEX = True
+except ImportError:
+    pass
+
+_skip_no_pyoptex = pytest.mark.skipif(not _HAS_PYOPTEX, reason="pyoptex not installed")
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -373,6 +383,7 @@ class TestDOptimal:
         result = generate_design(factors, design_type="d_optimal", center_points=0)
         assert result.n_runs == 7
 
+    @_skip_no_pyoptex
     def test_pyoptex_backend(self) -> None:
         """D-optimal via pyoptex should report the backend in metadata."""
         factors = _continuous_factors(2, "AB")
@@ -396,6 +407,7 @@ class TestDOptimal:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_pyoptex
 class TestIOptimal:
     """Test I-optimal design generation (requires pyoptex)."""
 
@@ -425,6 +437,7 @@ class TestIOptimal:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_pyoptex
 class TestAOptimal:
     """Test A-optimal design generation (requires pyoptex)."""
 
@@ -453,6 +466,7 @@ class TestAOptimal:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_pyoptex
 class TestSplitPlot:
     """Test split-plot design generation with hard-to-change factors."""
 
@@ -601,6 +615,7 @@ class TestErrorHandling:
         with pytest.raises(ValueError, match="Unknown design_type"):
             generate_design(factors, design_type="nonexistent")
 
+    @_skip_no_pyoptex
     def test_i_optimal_works_with_pyoptex(self) -> None:
         """I-optimal should work when pyoptex is available."""
         factors = _continuous_factors(2, "AB")
