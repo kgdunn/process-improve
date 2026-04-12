@@ -29,7 +29,6 @@ dependencies = [
 
 
 [project.optional-dependencies]
-optimal = ["pyoptex>=1.2"]
 mcp = ["mcp>=1.0"]
 dev = [
     "coverage>=7.13.1",
