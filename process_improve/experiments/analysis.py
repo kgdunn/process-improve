@@ -21,7 +21,6 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from scipy import stats
 
-
 # ---------------------------------------------------------------------------
 # Formula builder
 # ---------------------------------------------------------------------------
@@ -89,7 +88,7 @@ class AnalysisResult:
 
 
 # ---------------------------------------------------------------------------
-# Analysis‐type implementations
+# Analysis-type implementations
 # ---------------------------------------------------------------------------
 
 
@@ -98,16 +97,19 @@ def _run_anova(ols_result: Any, anova_type: int = 2) -> dict[str, Any]:
     if ols_result.df_resid <= 0:
         return {"anova_table": [], "note": "Saturated model — no residual degrees of freedom for ANOVA."}
     table = sm.stats.anova_lm(ols_result, typ=anova_type)
-    records = []
-    for idx, row in table.iterrows():
-        records.append({
+    records = [
+        {
             "source": str(idx),
             "df": int(row.get("df", 0)),
             "sum_sq": float(row.get("sum_sq", 0)),
             "mean_sq": float(row.get("mean_sq", 0)) if "mean_sq" in row else None,
             "F": float(row["F"]) if "F" in row and pd.notna(row.get("F")) else None,
-            "p_value": float(row["PR(>F)"]) if "PR(>F)" in row and pd.notna(row.get("PR(>F)")) else None,
-        })
+            "p_value": (
+                float(row["PR(>F)"]) if "PR(>F)" in row and pd.notna(row.get("PR(>F)")) else None
+            ),
+        }
+        for idx, row in table.iterrows()
+    ]
     return {"anova_table": records}
 
 
@@ -144,7 +146,6 @@ def _run_coefficients(ols_result: Any) -> dict[str, Any]:
 
 def _run_significance(ols_result: Any, alpha: float = 0.05) -> dict[str, Any]:
     """Identify significant and non-significant terms."""
-    params = ols_result.params.drop("Intercept", errors="ignore")
     pvals = ols_result.pvalues.drop("Intercept", errors="ignore")
     significant = [str(n) for n, p in pvals.items() if p < alpha]
     not_significant = [str(n) for n, p in pvals.items() if p >= alpha]
@@ -176,7 +177,7 @@ def _run_residual_diagnostics(ols_result: Any) -> dict[str, Any]:
     try:
         from statsmodels.stats.diagnostic import het_breuschpagan  # noqa: PLC0415
 
-        bp_stat, bp_p, bp_f, bp_fp = het_breuschpagan(residuals, ols_result.model.exog)
+        bp_stat, bp_p, _bp_f, _bp_fp = het_breuschpagan(residuals, ols_result.model.exog)
     except Exception:  # noqa: BLE001
         bp_stat, bp_p = None, None
 
@@ -189,9 +190,15 @@ def _run_residual_diagnostics(ols_result: Any) -> dict[str, Any]:
 
     return {
         "residual_diagnostics": {
-            "shapiro_wilk": {"statistic": float(sw_stat) if sw_stat else None, "p_value": float(sw_p) if sw_p else None},
+            "shapiro_wilk": {
+                "statistic": float(sw_stat) if sw_stat else None,
+                "p_value": float(sw_p) if sw_p else None,
+            },
             "durbin_watson": dw,
-            "breusch_pagan": {"statistic": float(bp_stat) if bp_stat else None, "p_value": float(bp_p) if bp_p else None},
+            "breusch_pagan": {
+                "statistic": float(bp_stat) if bp_stat else None,
+                "p_value": float(bp_p) if bp_p else None,
+            },
             "cooks_distance": [float(c) for c in cooks_d],
             "leverage": [float(h) for h in leverage],
             "residuals": [float(r) for r in residuals],
@@ -218,7 +225,6 @@ def _run_lack_of_fit(ols_result: Any, design_df: pd.DataFrame, response_col: str
 
     ss_pure_error = 0.0
     df_pure_error = 0
-    n_groups = 0
 
     for _name, group in groups:
         ni = len(group)
@@ -226,7 +232,6 @@ def _run_lack_of_fit(ols_result: Any, design_df: pd.DataFrame, response_col: str
             yi = y.loc[group.index]
             ss_pure_error += float(((yi - yi.mean()) ** 2).sum())
             df_pure_error += ni - 1
-        n_groups += 1
 
     if df_pure_error == 0:
         return {"lack_of_fit": {"error": "No replicated points — cannot test lack of fit."}}
@@ -311,7 +316,7 @@ def _run_curvature_test(
     }
 
 
-def _run_model_selection(
+def _run_model_selection(  # noqa: C901
     design_df: pd.DataFrame,
     response_col: str,
     factor_cols: list[str],
@@ -329,11 +334,8 @@ def _run_model_selection(
     for a, b in itertools.combinations(factor_cols, 2):
         all_terms.append(f"{a}:{b}")
 
-    def _fit_and_score(terms: list[str]) -> tuple[float, Any]:
-        if not terms:
-            formula = f"{response_col} ~ 1"
-        else:
-            formula = f"{response_col} ~ {' + '.join(terms)}"
+    def _fit_and_score(terms: list[str]) -> tuple[float, Any]:  # noqa: ANN401
+        formula = f"{response_col} ~ 1" if not terms else f"{response_col} ~ {' + '.join(terms)}"
         result = smf.ols(formula, data=design_df).fit()
         score = result.aic if criterion == "aic" else result.bic
         return score, result
@@ -364,7 +366,7 @@ def _run_model_selection(
         while improved and remaining:
             improved = False
             for term in list(remaining):
-                candidate = current_terms + [term]
+                candidate = [*current_terms, term]
                 score, result = _fit_and_score(candidate)
                 if score < best_score:
                     best_score = score
@@ -374,7 +376,10 @@ def _run_model_selection(
                     improved = True
                     break
 
-    selected_formula = best_result.model.formula if hasattr(best_result.model, "formula") else str(best_result.model.endog_names)
+    if hasattr(best_result.model, "formula"):
+        selected_formula = best_result.model.formula
+    else:
+        selected_formula = str(best_result.model.endog_names)
 
     return {
         "model_selection": {
@@ -428,10 +433,7 @@ def _run_lenth_method(ols_result: Any) -> dict[str, Any]:
 
     # Step 2: pseudo standard error — median of |effects| <= 2.5 * s0
     trimmed = abs_effects[abs_effects <= 2.5 * s0]
-    if len(trimmed) == 0:
-        pse = s0
-    else:
-        pse = 1.5 * np.median(trimmed)
+    pse = s0 if len(trimmed) == 0 else 1.5 * np.median(trimmed)
 
     # Margin of error and simultaneous margin of error
     m = len(effects)
@@ -441,14 +443,15 @@ def _run_lenth_method(ols_result: Any) -> dict[str, Any]:
     sme = t_val_sim * pse
 
     term_names = list(params.index)
-    effect_list = []
-    for i, name in enumerate(term_names):
-        effect_list.append({
+    effect_list = [
+        {
             "term": str(name),
             "effect": float(effects[i]),
             "active_ME": bool(abs(effects[i]) > me),
             "active_SME": bool(abs(effects[i]) > sme),
-        })
+        }
+        for i, name in enumerate(term_names)
+    ]
 
     return {
         "lenth_method": {
@@ -463,13 +466,14 @@ def _run_lenth_method(ols_result: Any) -> dict[str, Any]:
 def _run_confidence_intervals(ols_result: Any, alpha: float = 0.05) -> dict[str, Any]:
     """Confidence intervals for coefficients."""
     ci = ols_result.conf_int(alpha=alpha)
-    records = []
-    for name in ci.index:
-        records.append({
+    records = [
+        {
             "term": str(name),
             "ci_low": float(ci.loc[name, 0]),
             "ci_high": float(ci.loc[name, 1]),
-        })
+        }
+        for name in ci.index
+    ]
     return {"confidence_intervals": records, "confidence_level": 1.0 - alpha}
 
 
@@ -482,15 +486,16 @@ def _run_prediction(
     pred = ols_result.get_prediction(new_points)
     summary = pred.summary_frame(alpha=alpha)
 
-    records = []
-    for i, row in summary.iterrows():
-        records.append({
+    records = [
+        {
             "predicted": float(row["mean"]),
             "ci_low": float(row["mean_ci_lower"]),
             "ci_high": float(row["mean_ci_upper"]),
             "pi_low": float(row["obs_ci_lower"]),
             "pi_high": float(row["obs_ci_upper"]),
-        })
+        }
+        for _i, row in summary.iterrows()
+    ]
     return {"predictions": records}
 
 
@@ -500,10 +505,7 @@ def _run_confirmation_test(
     observed: list[float],
     alpha: float = 0.05,
 ) -> dict[str, Any]:
-    """Confirmation run testing: compare observed vs predicted with PI.
-
-    Custom implementation (~15 lines).
-    """
+    """Compare observed confirmation runs against predicted values with PI."""
     pred = ols_result.get_prediction(new_points)
     summary = pred.summary_frame(alpha=alpha)
 
@@ -589,7 +591,7 @@ _ANALYSIS_REGISTRY: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
-def analyze_experiment(  # noqa: PLR0912, PLR0913, C901
+def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
     design_matrix: pd.DataFrame,
     responses: pd.DataFrame | pd.Series | None = None,
     model: str | None = None,
@@ -694,10 +696,7 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, C901
     ols_result = smf.ols(formula, data=df).fit()
 
     # --- Normalize analysis_type to list -------------------------------
-    if isinstance(analysis_type, str):
-        types = [analysis_type]
-    else:
-        types = list(analysis_type)
+    types = [analysis_type] if isinstance(analysis_type, str) else list(analysis_type)
 
     # Validate
     unknown = [t for t in types if t not in _ANALYSIS_REGISTRY]
