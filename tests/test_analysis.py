@@ -93,7 +93,7 @@ class TestBuildFormula:
 class TestModelSummary:
     def test_basic_summary_keys(self) -> None:
         df = _two_factor_data()
-        result = analyze_experiment(df, response_column="y", analysis_type="anova")
+        result = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="coefficients")
         summary = result["model_summary"]
         assert "r_squared" in summary
         assert "r_squared_adj" in summary

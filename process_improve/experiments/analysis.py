@@ -95,6 +95,8 @@ class AnalysisResult:
 
 def _run_anova(ols_result: Any, anova_type: int = 2) -> dict[str, Any]:
     """ANOVA table via statsmodels."""
+    if ols_result.df_resid <= 0:
+        return {"anova_table": [], "note": "Saturated model — no residual degrees of freedom for ANOVA."}
     table = sm.stats.anova_lm(ols_result, typ=anova_type)
     records = []
     for idx, row in table.iterrows():
