@@ -152,7 +152,7 @@ def build_design_result(  # noqa: PLR0913
     center_points: int = 0,
     replicates: int = 1,
     blocks: int | None = None,
-    random_seed: int = 42,
+    random_seed: int | None = 42,
     generators: list[str] | None = None,
     defining_relation: list[str] | None = None,
     resolution: int | None = None,
@@ -216,14 +216,17 @@ def build_design_result(  # noqa: PLR0913
 
     n_runs = matrix.shape[0]
 
-    # 3. Randomize: shuffle the row order of the design matrix
-    rng = np.random.default_rng(random_seed)
-    perm = rng.permutation(n_runs)
-    matrix_randomized = matrix[perm]
-
-    # run_order tracks which original design row each randomized row came from
-    # (1-based).  E.g. [3, 1, 4, 2] means row 1 of the output is original row 3.
-    run_order = (perm + 1).tolist()
+    # 3. Randomize: shuffle the row order of the design matrix.
+    #    When random_seed is None the original order is preserved (used for
+    #    optimal designs whose run order is part of the solution, e.g. split-plot).
+    if random_seed is not None:
+        rng = np.random.default_rng(random_seed)
+        perm = rng.permutation(n_runs)
+        matrix_randomized = matrix[perm]
+        run_order = (perm + 1).tolist()
+    else:
+        matrix_randomized = matrix
+        run_order = list(range(1, n_runs + 1))
 
     # 4. Convert to Columns and Expt
     if is_actual:

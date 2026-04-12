@@ -105,7 +105,13 @@ def _dispatch_d_optimal(
 ) -> tuple[np.ndarray, dict]:
     from process_improve.experiments.designs_optimal import dispatch_d_optimal  # noqa: PLC0415
 
-    return dispatch_d_optimal(factors, budget=kwargs.get("budget"))
+    return dispatch_d_optimal(
+        factors,
+        budget=kwargs.get("budget"),
+        hard_to_change=kwargs.get("hard_to_change"),
+        constraints=kwargs.get("constraints"),
+        model_type=kwargs.get("model_type", "interactions"),
+    )
 
 
 def _dispatch_i_optimal(
@@ -114,7 +120,28 @@ def _dispatch_i_optimal(
 ) -> tuple[np.ndarray, dict]:
     from process_improve.experiments.designs_optimal import dispatch_i_optimal  # noqa: PLC0415
 
-    return dispatch_i_optimal(factors, budget=kwargs.get("budget"))
+    return dispatch_i_optimal(
+        factors,
+        budget=kwargs.get("budget"),
+        hard_to_change=kwargs.get("hard_to_change"),
+        constraints=kwargs.get("constraints"),
+        model_type=kwargs.get("model_type", "interactions"),
+    )
+
+
+def _dispatch_a_optimal(
+    factors: list[Factor],
+    **kwargs: Any,  # noqa: ANN401
+) -> tuple[np.ndarray, dict]:
+    from process_improve.experiments.designs_optimal import dispatch_a_optimal  # noqa: PLC0415
+
+    return dispatch_a_optimal(
+        factors,
+        budget=kwargs.get("budget"),
+        hard_to_change=kwargs.get("hard_to_change"),
+        constraints=kwargs.get("constraints"),
+        model_type=kwargs.get("model_type", "interactions"),
+    )
 
 
 def _dispatch_mixture(
@@ -148,6 +175,7 @@ _DESIGN_REGISTRY: dict[str, Callable[..., tuple[np.ndarray, dict]]] = {
     "dsd": _dispatch_dsd,
     "d_optimal": _dispatch_d_optimal,
     "i_optimal": _dispatch_i_optimal,
+    "a_optimal": _dispatch_a_optimal,
     "mixture": _dispatch_mixture,
     "taguchi": _dispatch_taguchi,
 }
@@ -238,7 +266,8 @@ def generate_design(  # noqa: PLR0913
     design_type : str or None
         One of ``"full_factorial"``, ``"fractional_factorial"``,
         ``"plackett_burman"``, ``"box_behnken"``, ``"ccd"``, ``"dsd"``,
-        ``"d_optimal"``, ``"i_optimal"``, ``"mixture"``, ``"taguchi"``.
+        ``"d_optimal"``, ``"i_optimal"``, ``"a_optimal"``, ``"mixture"``,
+        ``"taguchi"``.
         If ``None``, the design type is chosen automatically based on the
         factor count, budget, and constraints.
     budget : int or None
@@ -312,6 +341,8 @@ def generate_design(  # noqa: PLR0913
         "resolution": resolution,
         "generators": generators,
         "alpha": alpha,
+        "hard_to_change": hard_to_change,
+        "constraints": constraints,
     }
 
     coded_matrix, meta = dispatch_fn(factors, **dispatch_kwargs)
@@ -319,7 +350,13 @@ def generate_design(  # noqa: PLR0913
     # --- Determine center-point handling -----------------------------------
     # Designs that embed their own center points (CCD, Box-Behnken)
     # already include them; don't add more.
-    designs_with_embedded_centers = {"ccd", "box_behnken", "dsd", "mixture"}
+    designs_with_embedded_centers = {"ccd", "box_behnken", "dsd", "mixture", "d_optimal", "i_optimal", "a_optimal"}
+
+    # Optimal designs from pyoptex produce a pre-optimized run order
+    # (especially important for split-plot).  Skip randomization for these.
+    optimal_designs = {"d_optimal", "i_optimal", "a_optimal"}
+    if design_type in optimal_designs and meta.get("backend") == "pyoptex":
+        random_seed = None  # signal to build_design_result to skip randomization
     extra_center_points = 0 if design_type in designs_with_embedded_centers else center_points
 
     # Mixture designs return proportions (actual units), not coded
