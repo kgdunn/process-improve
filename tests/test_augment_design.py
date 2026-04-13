@@ -161,3 +161,102 @@ class TestReplicate:
         df = _full_factorial_df(2)
         result = augment_design(df, "replicate")
         assert "replicate" in result["explanation"].lower()
+
+
+# ---------------------------------------------------------------------------
+# Foldover
+# ---------------------------------------------------------------------------
+
+
+class TestFoldover:
+    """Test foldover augmentation."""
+
+    def test_doubles_run_count(self) -> None:
+        """Foldover doubles the number of runs."""
+        df = _full_factorial_df(3)
+        result = augment_design(df, "foldover")
+        assert result["n_runs_after"] == 16
+
+    def test_negated_signs(self) -> None:
+        """Folded half has all signs negated."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "foldover")
+        aug = pd.DataFrame(result["augmented_design"])
+        original = aug.iloc[:4].values
+        folded = aug.iloc[4:].values
+        np.testing.assert_array_equal(folded, -original)
+
+    def test_with_generators_updates_defining_relation(self) -> None:
+        """Foldover with generators should update the defining relation."""
+        # 2^(4-1) with D=ABC: I=ABCD (length 4, even)
+        # After foldover, even-length words survive
+        df = _fractional_factorial_df(["D=ABC"], names="ABCD")
+        result = augment_design(df, "foldover", generators=["D=ABC"])
+        # ABCD has length 4 (even) — it should survive
+        assert result["defining_relation"] is not None
+        assert any("ABCD" in w for w in result["defining_relation"])
+
+    def test_res_iii_foldover_clears_odd_words(self) -> None:
+        """Resolution III foldover should eliminate odd-length defining words."""
+        # 2^(3-1) with C=AB: I=ABC (length 3, odd)
+        df = _fractional_factorial_df(["C=AB"], names="ABC")
+        result = augment_design(df, "foldover", generators=["C=AB"])
+        # ABC has length 3 (odd) — should be eliminated
+        explanation = result["explanation"]
+        assert "eliminated" in explanation.lower() or "de-alias" in explanation.lower()
+
+    def test_without_generators_still_works(self) -> None:
+        """Foldover without generators should still produce valid augmentation."""
+        df = _full_factorial_df(3)
+        result = augment_design(df, "foldover")
+        assert result["n_runs_after"] == 16
+        assert result["defining_relation"] is None
+        assert "explanation" in result
+
+    def test_explanation_nonempty(self) -> None:
+        """Explanation should never be empty."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "foldover")
+        assert len(result["explanation"]) > 0
+
+
+# ---------------------------------------------------------------------------
+# Semifold
+# ---------------------------------------------------------------------------
+
+
+class TestSemifold:
+    """Test semifold augmentation."""
+
+    def test_adds_half_runs(self) -> None:
+        """Semifold adds N/2 new runs."""
+        df = _full_factorial_df(3)
+        result = augment_design(df, "semifold")
+        # Half of 8 rows where fold factor = -1 = 4 rows added
+        assert result["n_runs_after"] == 12
+
+    def test_explicit_fold_on(self) -> None:
+        """Explicit fold_on uses specified factor."""
+        df = _full_factorial_df(3)
+        result = augment_design(df, "semifold", fold_on="C")
+        assert result["fold_on"] == "C"
+
+    def test_auto_selects_fold_factor(self) -> None:
+        """Without fold_on, a factor is auto-selected."""
+        df = _fractional_factorial_df(["C=AB"], names="ABC")
+        result = augment_design(df, "semifold", generators=["C=AB"])
+        assert result["fold_on"] in ["A", "B", "C"]
+
+    def test_invalid_fold_factor_raises(self) -> None:
+        """fold_on with nonexistent factor raises ValueError."""
+        df = _full_factorial_df(2)
+        with pytest.raises(ValueError, match="fold_on"):
+            augment_design(df, "semifold", fold_on="Z")
+
+    def test_with_generators_reports_dealiasing(self) -> None:
+        """Semifold with generators should report de-aliasing."""
+        df = _fractional_factorial_df(["D=ABC"], names="ABCD")
+        result = augment_design(df, "semifold", generators=["D=ABC"], fold_on="A")
+        assert "explanation" in result
+        # Should mention fold factor
+        assert "A" in result["explanation"]
