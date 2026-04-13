@@ -21,11 +21,14 @@ Dispatch a tool call returned by the model::
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import pandas as pd
 
 from process_improve.tool_spec import clean, get_tool_specs, tool_spec
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -105,6 +108,7 @@ def create_factorial_design(
             }
         )
     except Exception as e:  # noqa: BLE001
+        logger.exception("Tool create_factorial_design failed")
         return {"error": str(e)}
 
 
@@ -208,6 +212,7 @@ def fit_linear_model(
             }
         )
     except Exception as e:  # noqa: BLE001
+        logger.exception("Tool fit_linear_model failed")
         return {"error": str(e)}
 
 
@@ -377,6 +382,7 @@ def generate_design_tool(  # noqa: PLR0913
 
         return clean(output)
     except Exception as e:  # noqa: BLE001
+        logger.exception("Tool generate_design failed")
         return {"error": str(e)}
 
 
@@ -505,6 +511,7 @@ def evaluate_design_tool(  # noqa: PLR0913
         )
         return clean(result)
     except Exception as e:  # noqa: BLE001
+        logger.exception("Tool evaluate_design failed")
         return {"error": str(e)}
 
 
@@ -644,6 +651,7 @@ def analyze_experiment_tool(  # noqa: PLR0913
         )
         return clean(result)
     except Exception as e:  # noqa: BLE001
+        logger.exception("Tool analyze_experiment failed")
         return {"error": str(e)}
 
 
@@ -845,6 +853,7 @@ def optimize_responses_tool(  # noqa: PLR0913
         )
         return clean(result)
     except Exception as e:  # noqa: BLE001
+        logger.exception("Tool optimize_responses failed")
         return {"error": str(e)}
 
 
@@ -988,6 +997,7 @@ def augment_design_tool(  # noqa: PLR0913
         )
         return clean(result)
     except Exception as e:  # noqa: BLE001
+        logger.exception("Tool augment_design failed")
         return {"error": str(e)}
 
 
@@ -1138,6 +1148,7 @@ def visualize_doe_tool(  # noqa: PLR0913
         )
         return clean(result)
     except Exception as e:  # noqa: BLE001
+        logger.exception("Tool visualize_doe failed")
         return {"error": str(e)}
 
 
@@ -1249,6 +1260,7 @@ def doe_knowledge_tool(
             detail_level=detail_level,
         ))
     except Exception as e:  # noqa: BLE001
+        logger.exception("Tool doe_knowledge failed")
         return {"error": str(e)}
 
 
