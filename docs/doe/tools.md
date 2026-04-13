@@ -219,6 +219,26 @@ WorkedExample -[DEMONSTRATES]->   Concept
 
 **Handles 63 questions as primary tool.** See [mapping](tool-question-mapping.md#doe_knowledge).
 
+### Implementation (v1)
+
+**Status: Implemented** — `process_improve/experiments/knowledge/`
+
+Three-layer architecture:
+
+1. **YAML data files** (`knowledge/data/`) — canonical knowledge authored in version-controlled YAML:
+   - `design_types.yaml` — 6 design types (full factorial, fractional factorial, Plackett-Burman, Box-Behnken, CCD, DSD) with multi-level descriptions
+   - `decision_rules.yaml` — 7 context-aware design selection rules
+   - `diagnostics.yaml` — 8 residual diagnostic patterns with remedies
+   - `concepts.yaml` — 9 statistical concepts (resolution, aliasing, replication, randomization, blocking, center points, effect hierarchy, effect sparsity, desirability)
+
+2. **In-memory query engine** (`knowledge/engine.py`) — loads YAML into Python dataclasses, builds keyword and topic indices, supports filtered traversal and condition matching
+
+3. **Public API** (`knowledge/api.py`) — `doe_knowledge(query, topic, context, detail_level)` routes to topic-specific handlers
+
+**Registered as `@tool_spec`** in `tools.py` — callable via `execute_tool_call("doe_knowledge", {...})`
+
+**Tests:** 38 tests in `tests/test_doe_knowledge.py`
+
 ---
 
 ## Tool 8: `recommend_strategy`

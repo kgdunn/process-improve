@@ -1,0 +1,197 @@
+# Decision Rules for DOE Design Selection
+# Each rule maps a set of experimental conditions to a recommended design.
+
+- id: screening_many_factors_tight_budget
+  topic: design_selection
+  description: "Screening many factors with a tight budget"
+  conditions:
+    - {key: n_factors, op: ">=", value: 6}
+    - {key: budget, op: "<=", value: 20}
+    - {key: goal, op: "==", value: screening}
+  recommend:
+    primary: plackett_burman
+    rationale: "PB in 12 runs screens up to 11 factors at resolution III"
+    alternatives:
+      - design: definitive_screening
+        rationale: "DSD estimates some quadratic effects but needs 2k+1 runs"
+  explanation:
+    novice: >
+      With many factors and few runs, use a Plackett-Burman design to find
+      which factors matter most. You can investigate them more deeply later.
+    intermediate: >
+      At 6+ factors with ≤20 runs, PB designs offer the best screening
+      efficiency. They estimate main effects only; interactions are partially
+      aliased. If curvature detection matters, a DSD needs 2k+1 runs.
+    expert: >
+      PB designs from Hadamard matrices provide N runs for N-1 factors
+      (N a multiple of 4). For non-geometric PBs (N=12, 20, 24), the partial
+      alias structure is complex but main effects remain orthogonal. DSDs
+      offer the advantage of orthogonality between main effects and 2FIs.
+
+- id: screening_moderate_factors
+  topic: design_selection
+  description: "Screening 4–6 factors with moderate budget"
+  conditions:
+    - {key: n_factors, op: ">=", value: 4}
+    - {key: n_factors, op: "<=", value: 6}
+    - {key: goal, op: "==", value: screening}
+  recommend:
+    primary: fractional_factorial
+    rationale: "Resolution IV fraction provides clean main effects"
+    alternatives:
+      - design: definitive_screening
+        rationale: "DSD adds curvature detection in 2k+1 runs"
+      - design: full_factorial
+        rationale: "Feasible for 4 factors (16 runs) if budget allows"
+  explanation:
+    novice: >
+      For 4–6 factors, a fractional factorial is the standard choice. Pick a
+      resolution IV fraction so main effects are not mixed up with interactions.
+    intermediate: >
+      A 2^(k-1) resolution IV fraction halves the full factorial while keeping
+      main effects clear of two-factor interactions. For k=4, that is 8 runs.
+      A DSD in 2k+1 runs adds curvature detection if that is a concern.
+    expert: >
+      Resolution IV fractions (e.g. 2^(4-1)_IV, 2^(5-1)_V, 2^(6-2)_IV) keep
+      main effects free of 2FI aliases. The 2^(5-1) design is actually
+      resolution V, making it especially powerful. Consider minimum-aberration
+      generators; for k=6, the 2^(6-2) with generators E=ABC, F=BCD gives
+      resolution IV with minimum aberration.
+
+- id: rsm_few_factors_sequential
+  topic: design_selection
+  description: "Response surface study with sequential buildup"
+  conditions:
+    - {key: n_factors, op: ">=", value: 2}
+    - {key: n_factors, op: "<=", value: 5}
+    - {key: goal, op: "==", value: optimization}
+    - {key: sequential, op: "==", value: true}
+  recommend:
+    primary: ccd
+    rationale: "CCD augments an existing factorial with axial + center points"
+    alternatives:
+      - design: box_behnken
+        rationale: "Fewer runs if starting fresh and corners are problematic"
+  explanation:
+    novice: >
+      If you already ran a factorial and want to fit a curved model, add star
+      points and center points to create a Central Composite Design.
+    intermediate: >
+      CCD is the natural sequential extension. If the factorial base already
+      exists (as it often does from a screening phase), adding 2k axial points
+      and 3–5 center points yields a full quadratic model. Choose alpha for
+      rotatability or face-centering.
+    expert: >
+      Sequential augmentation to CCD requires a resolution V or higher
+      factorial base for clean 2FI estimation. Set alpha = (n_f)^(1/4)
+      where n_f is the number of factorial points for rotatability. Orthogonal
+      blocking between the factorial and axial portions requires specific
+      center point counts (see Myers et al., Table 7.5).
+
+- id: rsm_few_factors_fresh
+  topic: design_selection
+  description: "Response surface study starting from scratch"
+  conditions:
+    - {key: n_factors, op: ">=", value: 3}
+    - {key: n_factors, op: "<=", value: 7}
+    - {key: goal, op: "==", value: optimization}
+    - {key: sequential, op: "==", value: false}
+  recommend:
+    primary: box_behnken
+    rationale: "Fewer runs than CCD, avoids extreme corners"
+    alternatives:
+      - design: ccd
+        rationale: "Better if rotatability or sequential buildup might be needed later"
+  explanation:
+    novice: >
+      Starting a new experiment to find optimal conditions? A Box-Behnken
+      design uses fewer runs than CCD and avoids extreme factor combinations.
+    intermediate: >
+      BBD is efficient for 3–7 factors when the experimental region corners are
+      not meaningful or are hard to achieve. It provides near-rotatability and
+      estimates all quadratic terms.
+    expert: >
+      BBD requires fewer runs than CCD (e.g., 15 vs. 20 for k=3). The trade-off
+      is that BBD cannot be sequentially augmented from a factorial base, and
+      prediction variance at the vertices is higher. For k=4, BBD needs 27 runs
+      versus 30 for a CCD, a modest saving.
+
+- id: two_factor_study
+  topic: design_selection
+  description: "Only 2 factors to study"
+  conditions:
+    - {key: n_factors, op: "==", value: 2}
+    - {key: goal, op: "in", value: [screening, optimization]}
+  recommend:
+    primary: full_factorial
+    rationale: "Only 4 runs for a 2^2; add center points for curvature check"
+    alternatives:
+      - design: ccd
+        rationale: "If quadratic model is needed, augment the 2^2 to a CCD"
+  explanation:
+    novice: >
+      With just 2 factors, run all 4 combinations. Add a few center point
+      replicates to check for curvature and estimate variability.
+    intermediate: >
+      A 2^2 + center points is the standard starting point for 2 factors.
+      If curvature is detected, augment to a face-centered CCD by adding
+      axial points at the face centers (alpha=1).
+    expert: >
+      For k=2, a CCD with alpha=sqrt(2) has 13 points (4 factorial + 4 axial
+      + 5 center). A BBD does not exist for k=2. If the experimental region
+      is irregular, consider a D-optimal design.
+
+- id: many_factors_curvature_needed
+  topic: design_selection
+  description: "Many factors when curvature detection is important"
+  conditions:
+    - {key: n_factors, op: ">=", value: 6}
+    - {key: goal, op: "==", value: screening}
+    - {key: curvature_important, op: "==", value: true}
+  recommend:
+    primary: definitive_screening
+    rationale: "DSDs detect curvature during screening at 2k+1 runs"
+    alternatives:
+      - design: plackett_burman
+        rationale: "Cheaper but no curvature information"
+  explanation:
+    novice: >
+      If you suspect curved relationships and need to screen many factors,
+      a Definitive Screening Design detects curvature during the screening
+      phase.
+    intermediate: >
+      DSDs use 2k+1 runs and provide main effects orthogonal to 2FI and
+      quadratic terms. If at most ~3 factors are active, the full quadratic
+      model for those factors can be estimated from the screening data.
+    expert: >
+      Jones & Nachtsheim (2011) conference-matrix DSDs ensure ME⊥2FI and
+      ME⊥QE. With heredity assumptions and modern variable selection (e.g.,
+      Bayesian or forward-stepwise with BIC), the active quadratic model can
+      often be identified from the DSD data alone.
+
+- id: hard_to_change_factors
+  topic: design_selection
+  description: "Experiment with hard-to-change factors (split-plot)"
+  conditions:
+    - {key: has_hard_to_change, op: "==", value: true}
+  recommend:
+    primary: split_plot
+    rationale: "Split-plot structure accounts for restriction on randomization"
+    alternatives:
+      - design: full_factorial
+        rationale: "If the hard-to-change factor can be re-set for each run"
+  explanation:
+    novice: >
+      Some factors are expensive or slow to change (like oven temperature).
+      A split-plot design groups runs so that hard-to-change factors stay
+      constant within groups, saving time and resources.
+    intermediate: >
+      Split-plot designs have whole plots (hard-to-change factors) and subplots
+      (easy-to-change factors). The analysis must use restricted randomization
+      error structure — ordinary ANOVA gives incorrect p-values for whole-plot
+      factors.
+    expert: >
+      The REML-based mixed model is the correct analysis for split-plot DOE.
+      Whole-plot error tests whole-plot effects; subplot error tests subplot
+      and cross effects. D-optimal split-plot algorithms (e.g., Jones & Goos,
+      2007) construct efficient designs for irregular split-plot structures.

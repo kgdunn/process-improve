@@ -1,0 +1,204 @@
+# Statistical Concepts for DOE
+# Definitions and explanations at multiple detail levels.
+
+- id: resolution
+  title: "Design Resolution"
+  topic: design_properties
+  content:
+    novice: >
+      Resolution tells you how cleanly a fractional factorial separates effects.
+      Higher resolution is better. Resolution III means main effects are mixed
+      with interactions; Resolution V means main effects and interactions are
+      all cleanly estimated.
+    intermediate: >
+      Resolution is defined as the length of the shortest word in the defining
+      relation. Resolution III: main effects aliased with 2FIs. Resolution IV:
+      main effects clear of 2FIs but 2FIs aliased with each other. Resolution V:
+      main effects and 2FIs all estimable. The general rule: effects of order r
+      are aliased with effects of order (resolution - r).
+    expert: >
+      Resolution R means no effect involving s factors is aliased with any
+      effect involving fewer than R-s factors. Minimum aberration selects, among
+      all resolution R designs, the one that minimizes the number of words of
+      length R in the defining relation, then R+1, etc. Generalized resolution
+      extends this to non-regular designs using the G-aberration criterion.
+  related_to: [fractional_factorial, plackett_burman, aliasing]
+
+- id: aliasing
+  title: "Aliasing (Confounding)"
+  topic: design_properties
+  content:
+    novice: >
+      When you run fewer experiments than a full factorial, some effects get
+      tangled together — you cannot tell which one caused the result. This
+      tangling is called aliasing.
+    intermediate: >
+      Aliasing occurs in fractional factorial designs when two or more effects
+      have identical columns in the design matrix. The alias chain shows which
+      effects are confounded. For example, in a 2^(3-1) with generator C=AB,
+      the main effect C is aliased with the AB interaction.
+    expert: >
+      The alias structure is determined by the defining relation I = word1 =
+      word2 = ... Multiplying any effect by the defining relation words gives
+      its alias chain. In non-regular designs (PB, DSD), aliasing is partial —
+      effects are correlated rather than completely confounded, with correlation
+      coefficients determined by the inner products of the design columns.
+  related_to: [resolution, fractional_factorial, plackett_burman]
+
+- id: replication
+  title: "Replication"
+  topic: design_properties
+  content:
+    novice: >
+      Replication means running the same experimental condition more than once.
+      It gives you an estimate of variability and makes your conclusions more
+      reliable.
+    intermediate: >
+      Replication provides an independent estimate of experimental error (pure
+      error), which is needed for the lack-of-fit test and for separating real
+      effects from noise. Replicating the entire design is most informative;
+      replicating only center points is more economical but estimates error
+      only at the center.
+    expert: >
+      Full replication doubles the run count but halves the variance of all
+      effect estimates. Partial replication (selected points) provides pure
+      error degrees of freedom for lack-of-fit testing. In unreplicated
+      factorials, Lenth's method or the half-normal plot substitutes for formal
+      significance testing using the assumption that most higher-order effects
+      are negligible.
+  related_to: [center_points, randomization]
+
+- id: randomization
+  title: "Randomization"
+  topic: design_properties
+  content:
+    novice: >
+      Run your experiments in random order. This protects against unknown
+      trends (e.g., equipment warming up) biasing your results.
+    intermediate: >
+      Randomization ensures that lurking variables (temperature drift, operator
+      fatigue, raw material changes) are not systematically confounded with
+      factor effects. It is the basis for the validity of the F-tests in ANOVA.
+      When complete randomization is impractical, use blocking or split-plot
+      structures.
+    expert: >
+      Randomization converts systematic bias into random noise, validating the
+      exchangeability assumption underlying permutation-based inference. When
+      hard-to-change factors prevent full randomization, the design becomes a
+      split-plot and the analysis must use REML with the appropriate error
+      structure. Ignoring the restriction on randomization inflates the
+      whole-plot F-statistics.
+  related_to: [blocking, split_plot]
+
+- id: blocking
+  title: "Blocking"
+  topic: design_properties
+  content:
+    novice: >
+      Blocking groups experimental runs to account for known sources of
+      variation (different batches of material, different days, different
+      operators). Blocks remove this variation from the error.
+    intermediate: >
+      In a 2^k factorial, blocks can be created by confounding selected
+      interactions with the block effect. The key rule: never confound main
+      effects or important interactions with blocks. Typically, the highest-
+      order interaction is confounded with blocks. In RSM, orthogonal blocking
+      ensures block effects do not bias the model coefficients.
+    expert: >
+      Orthogonal blocking in CCD requires specific center point allocations
+      so that the block effect is orthogonal to all model terms. For a CCD
+      with n_f factorial points and n_a axial points, the condition is:
+      n_a * d^2 = n_f * alpha^2 where d^2 is related to center point counts.
+      See Myers et al. (2016) Table 7.5 for detailed conditions.
+  related_to: [randomization, ccd]
+
+- id: center_points
+  title: "Center Points"
+  topic: design_properties
+  content:
+    novice: >
+      Center points are runs at the middle level of all factors. They help
+      detect curvature and estimate experimental variability.
+    intermediate: >
+      Adding n_c center points to a 2^k design provides: (1) a pure-error
+      estimate with n_c - 1 degrees of freedom, (2) a test for curvature via
+      the difference between the average of the factorial points and the
+      average of the center points. The curvature test has 1 degree of freedom.
+    expert: >
+      The curvature sum of squares is SS_curv = n_f * n_c * (y_bar_f -
+      y_bar_c)^2 / (n_f + n_c), tested against pure error from center point
+      replicates. A significant result indicates at least one quadratic effect
+      but does not identify which factor(s). The optimal number of center
+      points is typically 3–5; more than 5 adds little information.
+  related_to: [replication, ccd, full_factorial]
+
+- id: effect_hierarchy
+  title: "Effect Hierarchy Principle"
+  topic: analysis_methods
+  content:
+    novice: >
+      Main effects (single factors) tend to be larger than interactions
+      (combined effects of two factors), which tend to be larger than three-
+      factor interactions. This is why screening focuses on main effects first.
+    intermediate: >
+      The effect hierarchy principle has two parts: (1) lower-order effects
+      are more likely to be important than higher-order effects, and (2) effects
+      of the same order are equally likely to be important. This justifies
+      resolution III screening designs (sacrificing 2FI estimation) and the
+      convention of pooling three-factor and higher interactions into error.
+    expert: >
+      Effect hierarchy underpins effect sparsity — the assumption that only a
+      few effects are active (the Pareto principle applied to factorials). It
+      is the basis for Lenth's PSE, the half-normal plot, and Bayesian variable
+      selection in unreplicated factorials. Wu & Hamada (2009) formalize this
+      as the effect heredity principle: an interaction is active only if at
+      least one parent main effect is active (weak heredity) or both are
+      (strong heredity).
+  related_to: [resolution, aliasing]
+
+- id: effect_sparsity
+  title: "Effect Sparsity"
+  topic: analysis_methods
+  content:
+    novice: >
+      In most experiments, only a few factors (maybe 2–4 out of 10) actually
+      matter. This is why screening designs work — you do not need to estimate
+      every possible effect.
+    intermediate: >
+      Effect sparsity says that the number of active effects is small relative
+      to the total number of estimable effects. This is formalized as the
+      Pareto principle: roughly 20% of factors account for 80% of the
+      variation. Screening designs exploit this by using low-resolution
+      fractions that can identify the vital few.
+    expert: >
+      Effect sparsity is the a priori belief that justifies the use of
+      resolution III/IV fractions and analysis methods like Lenth's PSE,
+      half-normal plots, and Bayesian regularization. In formal Bayesian
+      analysis, it corresponds to a sparse prior on the effect vector.
+      Violation of sparsity (many active factors) degrades the performance
+      of screening designs.
+  related_to: [effect_hierarchy, resolution]
+
+- id: desirability
+  title: "Desirability Functions"
+  topic: optimization
+  content:
+    novice: >
+      When you have multiple responses to optimize simultaneously, desirability
+      functions convert each response into a 0-to-1 score and combine them
+      into a single number. Higher overall desirability means a better
+      compromise.
+    intermediate: >
+      Derringer & Suich (1980) desirability functions transform each response
+      to d_i in [0,1] using target/minimize/maximize goals with user-specified
+      bounds. The overall desirability D = (d_1^w1 * d_2^w2 * ... * d_m^wm)
+      ^(1/sum_w) is the weighted geometric mean. D = 0 if any individual
+      response is completely unacceptable.
+    expert: >
+      The geometric mean ensures D = 0 when any d_i = 0, enforcing hard
+      constraints. Weights w_i express relative importance. The shape parameter
+      s controls the curvature of the individual desirability: s < 1 makes the
+      function concave (easier to satisfy), s > 1 makes it convex (harder to
+      satisfy), s = 1 is linear. Optimization is typically done via numerical
+      search (Nelder-Mead or grid search) on the fitted response surfaces.
+  related_to: [ccd, box_behnken]

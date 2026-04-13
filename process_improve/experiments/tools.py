@@ -1148,6 +1148,117 @@ _register("visualize_doe")
 
 
 # ---------------------------------------------------------------------------
+# Tool 7 – doe_knowledge
+# ---------------------------------------------------------------------------
+
+
+@tool_spec(
+    name="doe_knowledge",
+    description=(
+        "Retrieve DOE (Design of Experiments) domain knowledge: design-type descriptions, "
+        "design-selection decision logic, statistical concept definitions, residual-diagnostic "
+        "troubleshooting guides, interpretation guidance, and worked examples. "
+        "Use this tool whenever the user asks a conceptual DOE question, needs help choosing "
+        "a design, or wants to understand how to interpret DOE results."
+    ),
+    input_schema={
+        "json": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "Natural-language query, e.g. 'What is design resolution?' or "
+                        "'funnel shaped residuals'."
+                    ),
+                },
+                "topic": {
+                    "type": "string",
+                    "description": (
+                        "Restrict search to a topic: design_selection, design_properties, "
+                        "design_types, analysis_methods, interpretation, troubleshooting, "
+                        "diagnostics, optimization, statistical_concepts, screening, "
+                        "response_surface, worked_examples.  Leave empty for broad search."
+                    ),
+                    "enum": [
+                        "design_selection",
+                        "design_properties",
+                        "design_types",
+                        "analysis_methods",
+                        "interpretation",
+                        "troubleshooting",
+                        "diagnostics",
+                        "optimization",
+                        "statistical_concepts",
+                        "screening",
+                        "response_surface",
+                        "worked_examples",
+                        "",
+                    ],
+                },
+                "context": {
+                    "type": "object",
+                    "description": (
+                        "Experimental context for design-selection queries. "
+                        "Keys: n_factors (int), budget (int), goal ('screening'|'optimization'), "
+                        "sequential (bool), curvature_important (bool), has_hard_to_change (bool)."
+                    ),
+                },
+                "detail_level": {
+                    "type": "string",
+                    "description": "Depth of explanation: novice, intermediate, or expert.",
+                    "enum": ["novice", "intermediate", "expert"],
+                    "default": "intermediate",
+                },
+            },
+            "required": [],
+        }
+    },
+    examples="""
+    # "Which design should I use for 7 screening factors with a budget of 15 runs?"
+        -> ``doe_knowledge(query="screening 7 factors 15 runs",
+                topic="design_selection",
+                context={"n_factors": 7, "budget": 15, "goal": "screening"})``
+
+    # "What is design resolution?"
+        -> ``doe_knowledge(query="What is design resolution?",
+                topic="statistical_concepts")``
+
+    # "My residuals look like a funnel"
+        -> ``doe_knowledge(query="funnel shaped residuals",
+                topic="troubleshooting")``
+
+    # "Compare Box-Behnken and CCD"
+        -> ``doe_knowledge(query="Box-Behnken CCD comparison",
+                topic="design_types")``
+    """,
+    category="experiments",
+)
+def doe_knowledge_tool(
+    *,
+    query: str = "",
+    topic: str = "",
+    context: dict[str, Any] | None = None,
+    detail_level: str = "intermediate",
+) -> dict[str, Any]:
+    """Query the DOE knowledge graph; see tool spec for details."""
+    try:
+        from process_improve.experiments.knowledge import doe_knowledge  # noqa: PLC0415
+
+        return clean(doe_knowledge(
+            query=query,
+            topic=topic,
+            context=context,
+            detail_level=detail_level,
+        ))
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+
+
+_register("doe_knowledge")
+
+
+# ---------------------------------------------------------------------------
 # Module-level convenience
 # ---------------------------------------------------------------------------
 
