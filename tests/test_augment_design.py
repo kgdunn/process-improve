@@ -260,3 +260,105 @@ class TestSemifold:
         assert "explanation" in result
         # Should mention fold factor
         assert "A" in result["explanation"]
+
+
+# ---------------------------------------------------------------------------
+# Add axial points
+# ---------------------------------------------------------------------------
+
+
+class TestAddAxialPoints:
+    """Test add_axial_points augmentation."""
+
+    def test_adds_2k_points(self) -> None:
+        """k factors -> 2k axial points added."""
+        df = _full_factorial_df(3)
+        result = augment_design(df, "add_axial_points", alpha="face_centered")
+        assert result["n_runs_after"] == 8 + 6  # 3 factors * 2
+
+    def test_face_centered_alpha(self) -> None:
+        """Face-centered alpha should be 1.0."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "add_axial_points", alpha="face_centered")
+        assert result["alpha"] == pytest.approx(1.0)
+
+    def test_rotatable_alpha(self) -> None:
+        """Rotatable alpha should be n_factorial^(1/4)."""
+        df = _full_factorial_df(3)  # 8 factorial runs
+        result = augment_design(df, "add_axial_points", alpha="rotatable")
+        expected = 8 ** 0.25  # ~1.6818
+        assert result["alpha"] == pytest.approx(expected, abs=0.01)
+
+    def test_numeric_alpha(self) -> None:
+        """Numeric alpha is used directly."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "add_axial_points", alpha=1.5)
+        assert result["alpha"] == pytest.approx(1.5)
+
+    def test_axial_point_structure(self) -> None:
+        """Each axial point should have exactly one non-zero factor at +/-alpha."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "add_axial_points", alpha="face_centered")
+        new_runs = pd.DataFrame(result["new_runs"])
+        for _, row in new_runs.iterrows():
+            nonzero = (row.abs() > 1e-10).sum()
+            assert nonzero == 1, f"Axial point should have exactly 1 nonzero: {row.to_dict()}"
+
+    def test_explanation_mentions_quadratic(self) -> None:
+        """Explanation should mention quadratic effects."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "add_axial_points", alpha="face_centered")
+        assert "quadratic" in result["explanation"].lower()
+
+
+# ---------------------------------------------------------------------------
+# Upgrade to RSM
+# ---------------------------------------------------------------------------
+
+
+class TestUpgradeToRSM:
+    """Test upgrade_to_rsm augmentation."""
+
+    def test_factorial_to_ccd(self) -> None:
+        """2^3 factorial should gain axial + center points."""
+        df = _full_factorial_df(3)
+        result = augment_design(df, "upgrade_to_rsm")
+        # 8 factorial + 6 axial + some center points
+        assert result["n_runs_after"] > 14
+
+    def test_quadratic_model_estimable(self) -> None:
+        """After RSM upgrade, quadratic model should be estimable."""
+        df = _full_factorial_df(3)
+        result = augment_design(df, "upgrade_to_rsm", alpha="face_centered")
+        aug = pd.DataFrame(result["augmented_design"])
+        # Should be able to evaluate with quadratic model without singularity
+        metrics = evaluate_design(aug, model="quadratic", metric="d_efficiency")
+        assert metrics["d_efficiency"] is not None
+        assert metrics["d_efficiency"] > 0
+
+    def test_alpha_parameter_passed(self) -> None:
+        """Alpha parameter should be reflected in result."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "upgrade_to_rsm", alpha="face_centered")
+        assert result["alpha"] == pytest.approx(1.0)
+
+    def test_preserves_existing_center_points(self) -> None:
+        """Existing center points should be preserved, not duplicated excessively."""
+        df = _full_factorial_df(2)
+        # Add 3 center points first
+        center = pd.DataFrame({"A": [0.0, 0.0, 0.0], "B": [0.0, 0.0, 0.0]})
+        df_with_centers = pd.concat([df, center], ignore_index=True)
+        result = augment_design(df_with_centers, "upgrade_to_rsm", alpha="face_centered")
+        aug = pd.DataFrame(result["augmented_design"])
+        # Count center points in augmented design
+        center_mask = (aug.abs() < 1e-10).all(axis=1)
+        n_centers = center_mask.sum()
+        # Should have original 3 + some new, but not an unreasonable number
+        assert n_centers >= 3
+        assert n_centers <= 8
+
+    def test_explanation_mentions_ccd(self) -> None:
+        """Explanation should mention CCD or Central Composite."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "upgrade_to_rsm")
+        assert "central composite" in result["explanation"].lower() or "ccd" in result["explanation"].lower()
