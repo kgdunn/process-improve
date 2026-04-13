@@ -166,3 +166,87 @@ class TestExtractBandB:
         # Interaction coeff 1.5 is split: B[0,1] = B[1,0] = 0.75
         assert B[0, 1] == pytest.approx(0.75)
         assert B[1, 0] == pytest.approx(0.75)
+
+
+# ---------------------------------------------------------------------------
+# Stationary point
+# ---------------------------------------------------------------------------
+
+
+class TestStationaryPoint:
+    def test_maximum_classification(self) -> None:
+        result = _find_stationary_point(_quadratic_2f_coeffs(), FACTOR_NAMES_2F)
+        assert result["classification"] == "maximum"
+
+    def test_saddle_classification(self) -> None:
+        result = _find_stationary_point(_saddle_2f_coeffs(), FACTOR_NAMES_2F)
+        assert result["classification"] == "saddle_point"
+
+    def test_minimum_classification(self) -> None:
+        result = _find_stationary_point(_minimum_2f_coeffs(), FACTOR_NAMES_2F)
+        assert result["classification"] == "minimum"
+
+    def test_stationary_point_keys(self) -> None:
+        result = _find_stationary_point(_quadratic_2f_coeffs(), FACTOR_NAMES_2F)
+        assert "stationary_point_coded" in result
+        assert "predicted_response" in result
+        assert "classification" in result
+        assert "eigenvalues" in result
+        assert "inside_design_space" in result
+
+    def test_predicted_response_is_float(self) -> None:
+        result = _find_stationary_point(_quadratic_2f_coeffs(), FACTOR_NAMES_2F)
+        assert isinstance(result["predicted_response"], float)
+
+    def test_with_factor_ranges(self) -> None:
+        result = _find_stationary_point(_quadratic_2f_coeffs(), FACTOR_NAMES_2F, FACTOR_RANGES_2F)
+        assert "stationary_point_actual" in result
+        actual = result["stationary_point_actual"]
+        assert "A" in actual
+        assert "B" in actual
+
+    def test_linear_model_errors(self) -> None:
+        result = _find_stationary_point(_linear_2f_coeffs(), FACTOR_NAMES_2F)
+        assert "error" in result
+
+    def test_eigenvalues_count(self) -> None:
+        result = _find_stationary_point(_quadratic_2f_coeffs(), FACTOR_NAMES_2F)
+        assert len(result["eigenvalues"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# Canonical analysis
+# ---------------------------------------------------------------------------
+
+
+class TestCanonicalAnalysis:
+    def test_maximum_classification(self) -> None:
+        result = _canonical_analysis(_quadratic_2f_coeffs(), FACTOR_NAMES_2F)
+        assert result["classification"] == "maximum"
+
+    def test_saddle_classification(self) -> None:
+        result = _canonical_analysis(_saddle_2f_coeffs(), FACTOR_NAMES_2F)
+        assert result["classification"] == "saddle_point"
+
+    def test_minimum_classification(self) -> None:
+        result = _canonical_analysis(_minimum_2f_coeffs(), FACTOR_NAMES_2F)
+        assert result["classification"] == "minimum"
+
+    def test_eigenvalues_sorted_by_absolute(self) -> None:
+        result = _canonical_analysis(_quadratic_2f_coeffs(), FACTOR_NAMES_2F)
+        evs = result["eigenvalues"]
+        assert abs(evs[0]) >= abs(evs[1])
+
+    def test_eigenvectors_present(self) -> None:
+        result = _canonical_analysis(_quadratic_2f_coeffs(), FACTOR_NAMES_2F)
+        assert "eigenvectors" in result
+        assert len(result["eigenvectors"]) == 2
+
+    def test_canonical_form_description(self) -> None:
+        result = _canonical_analysis(_quadratic_2f_coeffs(), FACTOR_NAMES_2F)
+        assert "canonical_form_description" in result
+        assert len(result["canonical_form_description"]) == 2
+
+    def test_linear_model_errors(self) -> None:
+        result = _canonical_analysis(_linear_2f_coeffs(), FACTOR_NAMES_2F)
+        assert "error" in result
