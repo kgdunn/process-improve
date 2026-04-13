@@ -399,3 +399,210 @@ class TestCompositeDesirability:
 
     def test_empty_list(self) -> None:
         assert _composite_desirability([]) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Desirability optimisation (end-to-end)
+# ---------------------------------------------------------------------------
+
+
+class TestOptimizeDesirability:
+    def test_single_response_maximize(self) -> None:
+        model = {
+            "response_name": "yield",
+            "coefficients": _quadratic_2f_coeffs(),
+            "factor_names": FACTOR_NAMES_2F,
+        }
+        goals = [{"response": "yield", "goal": "maximize", "low": 30.0, "high": 50.0}]
+        result = optimize_responses([model], goals=goals, method="desirability")
+        d_result = result["desirability"]
+        assert "optimal_coded" in d_result
+        assert "composite_desirability" in d_result
+        assert d_result["composite_desirability"] > 0.0
+
+    def test_two_response_desirability(self) -> None:
+        model1 = {
+            "response_name": "yield",
+            "coefficients": _quadratic_2f_coeffs(),
+            "factor_names": FACTOR_NAMES_2F,
+        }
+        model2 = {
+            "response_name": "purity",
+            "coefficients": [
+                {"term": "Intercept", "coefficient": 80.0},
+                {"term": "A", "coefficient": -3.0},
+                {"term": "B", "coefficient": 2.0},
+                {"term": "I(A ** 2)", "coefficient": -1.0},
+                {"term": "I(B ** 2)", "coefficient": -2.0},
+                {"term": "A:B", "coefficient": 0.5},
+            ],
+            "factor_names": FACTOR_NAMES_2F,
+        }
+        goals = [
+            {"response": "yield", "goal": "maximize", "low": 30.0, "high": 50.0},
+            {"response": "purity", "goal": "maximize", "low": 70.0, "high": 90.0},
+        ]
+        result = optimize_responses([model1, model2], goals=goals, method="desirability")
+        d_result = result["desirability"]
+        assert "predicted_responses" in d_result
+        assert "yield" in d_result["predicted_responses"]
+        assert "purity" in d_result["predicted_responses"]
+
+    def test_with_factor_ranges(self) -> None:
+        model = {
+            "response_name": "yield",
+            "coefficients": _quadratic_2f_coeffs(),
+            "factor_names": FACTOR_NAMES_2F,
+        }
+        goals = [{"response": "yield", "goal": "maximize", "low": 30.0, "high": 50.0}]
+        result = optimize_responses(
+            [model], goals=goals, method="desirability", factor_ranges=FACTOR_RANGES_2F
+        )
+        d_result = result["desirability"]
+        assert "optimal_actual" in d_result
+
+
+# ---------------------------------------------------------------------------
+# Stubs
+# ---------------------------------------------------------------------------
+
+
+class TestStubs:
+    def test_ridge_analysis_stub(self) -> None:
+        model = {
+            "response_name": "yield",
+            "coefficients": _quadratic_2f_coeffs(),
+            "factor_names": FACTOR_NAMES_2F,
+        }
+        result = optimize_responses([model], method="ridge_analysis")
+        assert "error" in result["ridge_analysis"]
+        assert result["ridge_analysis"]["status"] == "stub"
+
+    def test_pareto_front_stub(self) -> None:
+        model = {
+            "response_name": "yield",
+            "coefficients": _quadratic_2f_coeffs(),
+            "factor_names": FACTOR_NAMES_2F,
+        }
+        goals = [{"response": "yield", "goal": "maximize", "low": 30.0, "high": 50.0}]
+        result = optimize_responses([model], goals=goals, method="pareto_front")
+        assert "error" in result["pareto_front"]
+        assert result["pareto_front"]["status"] == "stub"
+
+
+# ---------------------------------------------------------------------------
+# Public dispatcher
+# ---------------------------------------------------------------------------
+
+
+class TestDispatcher:
+    def test_stationary_point_via_dispatcher(self) -> None:
+        model = {
+            "response_name": "yield",
+            "coefficients": _quadratic_2f_coeffs(),
+            "factor_names": FACTOR_NAMES_2F,
+        }
+        result = optimize_responses([model], method="stationary_point")
+        assert result["method"] == "stationary_point"
+        assert "stationary_point" in result
+
+    def test_canonical_via_dispatcher(self) -> None:
+        model = {
+            "response_name": "yield",
+            "coefficients": _quadratic_2f_coeffs(),
+            "factor_names": FACTOR_NAMES_2F,
+        }
+        result = optimize_responses([model], method="canonical_analysis")
+        assert "canonical_analysis" in result
+        assert "stationary_point" in result  # also included
+
+    def test_steepest_ascent_via_dispatcher(self) -> None:
+        model = {
+            "response_name": "yield",
+            "coefficients": _linear_2f_coeffs(),
+            "factor_names": FACTOR_NAMES_2F,
+        }
+        result = optimize_responses([model], method="steepest_ascent", step_size=0.5, n_steps=5)
+        assert "steepest_path" in result
+
+    def test_steepest_descent_via_dispatcher(self) -> None:
+        model = {
+            "response_name": "yield",
+            "coefficients": _linear_2f_coeffs(),
+            "factor_names": FACTOR_NAMES_2F,
+        }
+        result = optimize_responses([model], method="steepest_descent")
+        assert "steepest_path" in result
+        assert result["steepest_path"]["direction"] == "descent"
+
+    def test_unknown_method_raises(self) -> None:
+        model = {
+            "response_name": "y",
+            "coefficients": _linear_2f_coeffs(),
+            "factor_names": FACTOR_NAMES_2F,
+        }
+        with pytest.raises(ValueError, match="Unknown method"):
+            optimize_responses([model], method="bogus")
+
+    def test_empty_models_raises(self) -> None:
+        with pytest.raises(ValueError, match="At least one"):
+            optimize_responses([], method="stationary_point")
+
+    def test_desirability_without_goals_raises(self) -> None:
+        model = {
+            "response_name": "y",
+            "coefficients": _linear_2f_coeffs(),
+            "factor_names": FACTOR_NAMES_2F,
+        }
+        with pytest.raises(ValueError, match="Goals are required"):
+            optimize_responses([model], method="desirability")
+
+    def test_factor_names_in_result(self) -> None:
+        model = {
+            "response_name": "y",
+            "coefficients": _linear_2f_coeffs(),
+            "factor_names": FACTOR_NAMES_2F,
+        }
+        result = optimize_responses([model], method="steepest_ascent")
+        assert result["factor_names"] == FACTOR_NAMES_2F
+
+
+# ---------------------------------------------------------------------------
+# Tool wrapper (JSON round-trip)
+# ---------------------------------------------------------------------------
+
+
+class TestToolWrapper:
+    def test_tool_returns_dict(self) -> None:
+        from process_improve.experiments.tools import optimize_responses_tool
+
+        result = optimize_responses_tool(
+            fitted_models=[{
+                "response_name": "yield",
+                "coefficients": _quadratic_2f_coeffs(),
+                "factor_names": FACTOR_NAMES_2F,
+            }],
+            method="stationary_point",
+        )
+        assert isinstance(result, dict)
+        assert "method" in result
+
+    def test_tool_error_handling(self) -> None:
+        from process_improve.experiments.tools import optimize_responses_tool
+
+        result = optimize_responses_tool(
+            fitted_models=[{
+                "coefficients": _linear_2f_coeffs(),
+                "factor_names": FACTOR_NAMES_2F,
+            }],
+            method="desirability",
+            # Missing goals → should error
+        )
+        assert "error" in result
+
+    def test_tool_registered(self) -> None:
+        from process_improve.tool_spec import get_tool_specs
+
+        specs = get_tool_specs(category="experiments")
+        names = [s["name"] for s in specs]
+        assert "optimize_responses" in names
