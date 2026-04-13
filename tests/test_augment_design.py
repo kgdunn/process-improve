@@ -80,3 +80,84 @@ class TestDispatcher:
         aug = pd.DataFrame(result["augmented_design"])
         assert "RunOrder" not in aug.columns
         assert set(aug.columns) == {"A", "B"}
+
+
+# ---------------------------------------------------------------------------
+# Add center points
+# ---------------------------------------------------------------------------
+
+
+class TestAddCenterPoints:
+    """Test add_center_points augmentation."""
+
+    def test_adds_correct_count(self) -> None:
+        """n_additional_runs=5 adds exactly 5 rows."""
+        df = _full_factorial_df(3)
+        result = augment_design(df, "add_center_points", n_additional_runs=5)
+        assert result["n_runs_after"] == 8 + 5
+
+    def test_center_points_are_zeros(self) -> None:
+        """New center point rows are all zeros in coded units."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "add_center_points", n_additional_runs=3)
+        new_runs = pd.DataFrame(result["new_runs"])
+        assert (new_runs == 0).all().all()
+
+    def test_default_count(self) -> None:
+        """Without n_additional_runs, defaults to 3 center points."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "add_center_points")
+        assert result["n_runs_after"] == 4 + 3
+
+    def test_explanation_mentions_curvature(self) -> None:
+        """Explanation should mention curvature."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "add_center_points")
+        assert "curvature" in result["explanation"].lower()
+
+    def test_original_rows_preserved(self) -> None:
+        """Original design rows should be unchanged."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "add_center_points", n_additional_runs=2)
+        aug = pd.DataFrame(result["augmented_design"])
+        original_part = aug.iloc[:4]
+        pd.testing.assert_frame_equal(
+            original_part.reset_index(drop=True),
+            df.reset_index(drop=True).astype(float),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Replicate
+# ---------------------------------------------------------------------------
+
+
+class TestReplicate:
+    """Test replicate augmentation."""
+
+    def test_doubles_run_count(self) -> None:
+        """Default replication (1 copy) doubles the run count."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "replicate")
+        assert result["n_runs_after"] == 8
+
+    def test_custom_replicate_count(self) -> None:
+        """n_additional_runs=2 triples the design."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "replicate", n_additional_runs=2)
+        assert result["n_runs_after"] == 12
+
+    def test_rows_match_originals(self) -> None:
+        """Replicated rows should match the original design."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "replicate")
+        aug = pd.DataFrame(result["augmented_design"])
+        first_half = aug.iloc[:4].reset_index(drop=True)
+        second_half = aug.iloc[4:].reset_index(drop=True)
+        pd.testing.assert_frame_equal(first_half, second_half)
+
+    def test_explanation_mentions_replicate(self) -> None:
+        """Explanation should mention replication."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "replicate")
+        assert "replicate" in result["explanation"].lower()
