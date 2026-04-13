@@ -20,6 +20,7 @@ import pandas as pd
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from scipy import stats
+from statsmodels.regression.linear_model import RegressionResultsWrapper
 
 # ---------------------------------------------------------------------------
 # Formula builder
@@ -82,7 +83,7 @@ class AnalysisResult:
     Holds the fitted OLS result and all requested analysis outputs.
     """
 
-    ols_result: Any = None
+    ols_result: RegressionResultsWrapper = None
     formula: str = ""
     results: dict[str, Any] = field(default_factory=dict)
 
@@ -92,7 +93,7 @@ class AnalysisResult:
 # ---------------------------------------------------------------------------
 
 
-def _run_anova(ols_result: Any, anova_type: int = 2) -> dict[str, Any]:
+def _run_anova(ols_result: RegressionResultsWrapper, anova_type: int = 2) -> dict[str, Any]:
     """ANOVA table via statsmodels."""
     if ols_result.df_resid <= 0:
         return {"anova_table": [], "note": "Saturated model — no residual degrees of freedom for ANOVA."}
@@ -113,14 +114,14 @@ def _run_anova(ols_result: Any, anova_type: int = 2) -> dict[str, Any]:
     return {"anova_table": records}
 
 
-def _run_effects(ols_result: Any) -> dict[str, Any]:
+def _run_effects(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
     """Coefficient effects (2x the coefficient for coded ±1 factors)."""
     params = ols_result.params.drop("Intercept", errors="ignore")
     effects = (2.0 * params).to_dict()
     return {"effects": effects}
 
 
-def _run_coefficients(ols_result: Any) -> dict[str, Any]:
+def _run_coefficients(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
     """Coefficients with standard errors, t-values, p-values, and CIs."""
     summary_df = pd.DataFrame({
         "coefficient": ols_result.params,
@@ -144,7 +145,7 @@ def _run_coefficients(ols_result: Any) -> dict[str, Any]:
     return {"coefficients": records}
 
 
-def _run_significance(ols_result: Any, alpha: float = 0.05) -> dict[str, Any]:
+def _run_significance(ols_result: RegressionResultsWrapper, alpha: float = 0.05) -> dict[str, Any]:
     """Identify significant and non-significant terms."""
     pvals = ols_result.pvalues.drop("Intercept", errors="ignore")
     significant = [str(n) for n, p in pvals.items() if p < alpha]
@@ -156,7 +157,7 @@ def _run_significance(ols_result: Any, alpha: float = 0.05) -> dict[str, Any]:
     }
 
 
-def _run_residual_diagnostics(ols_result: Any) -> dict[str, Any]:
+def _run_residual_diagnostics(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
     """Residual diagnostics: normality, independence, homoscedasticity."""
     residuals = ols_result.resid.values
     fitted = ols_result.fittedvalues.values
@@ -207,7 +208,9 @@ def _run_residual_diagnostics(ols_result: Any) -> dict[str, Any]:
     }
 
 
-def _run_lack_of_fit(ols_result: Any, design_df: pd.DataFrame, response_col: str) -> dict[str, Any]:
+def _run_lack_of_fit(
+    ols_result: RegressionResultsWrapper, design_df: pd.DataFrame, response_col: str,
+) -> dict[str, Any]:
     """Lack-of-fit F-test using pure error from replicated points.
 
     Separates residual SS into pure-error SS (from replicates) and
@@ -266,7 +269,7 @@ def _run_lack_of_fit(ols_result: Any, design_df: pd.DataFrame, response_col: str
 
 
 def _run_curvature_test(
-    ols_result: Any,
+    ols_result: RegressionResultsWrapper,
     design_df: pd.DataFrame,
     response_col: str,
     factor_cols: list[str],
@@ -334,7 +337,7 @@ def _run_model_selection(  # noqa: C901
     for a, b in itertools.combinations(factor_cols, 2):
         all_terms.append(f"{a}:{b}")
 
-    def _fit_and_score(terms: list[str]) -> tuple[float, Any]:  # noqa: ANN401
+    def _fit_and_score(terms: list[str]) -> tuple[float, Any]:
         formula = f"{response_col} ~ 1" if not terms else f"{response_col} ~ {' + '.join(terms)}"
         result = smf.ols(formula, data=design_df).fit()
         score = result.aic if criterion == "aic" else result.bic
@@ -419,7 +422,7 @@ def _run_box_cox(design_df: pd.DataFrame, response_col: str) -> dict[str, Any]:
     }
 
 
-def _run_lenth_method(ols_result: Any) -> dict[str, Any]:
+def _run_lenth_method(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
     """Lenth's method (PSE) for unreplicated factorials.
 
     Not available in mainstream Python libraries — custom (~30 lines).
@@ -463,7 +466,7 @@ def _run_lenth_method(ols_result: Any) -> dict[str, Any]:
     }
 
 
-def _run_confidence_intervals(ols_result: Any, alpha: float = 0.05) -> dict[str, Any]:
+def _run_confidence_intervals(ols_result: RegressionResultsWrapper, alpha: float = 0.05) -> dict[str, Any]:
     """Confidence intervals for coefficients."""
     ci = ols_result.conf_int(alpha=alpha)
     records = [
@@ -478,7 +481,7 @@ def _run_confidence_intervals(ols_result: Any, alpha: float = 0.05) -> dict[str,
 
 
 def _run_prediction(
-    ols_result: Any,
+    ols_result: RegressionResultsWrapper,
     new_points: pd.DataFrame,
     alpha: float = 0.05,
 ) -> dict[str, Any]:
@@ -500,7 +503,7 @@ def _run_prediction(
 
 
 def _run_confirmation_test(
-    ols_result: Any,
+    ols_result: RegressionResultsWrapper,
     new_points: pd.DataFrame,
     observed: list[float],
     alpha: float = 0.05,
@@ -534,7 +537,7 @@ def _run_confirmation_test(
     }
 
 
-def _compute_pred_r_squared(ols_result: Any) -> float:
+def _compute_pred_r_squared(ols_result: RegressionResultsWrapper) -> float:
     """Predicted R² from PRESS residuals (~5 lines)."""
     influence = ols_result.get_influence()
     press_residuals = influence.resid_press
@@ -545,7 +548,7 @@ def _compute_pred_r_squared(ols_result: Any) -> float:
     return 1.0 - ss_press / ss_total
 
 
-def _compute_adequate_precision(ols_result: Any) -> float:
+def _compute_adequate_precision(ols_result: RegressionResultsWrapper) -> float:
     """Adequate precision: signal-to-noise ratio (~10 lines)."""
     predicted = ols_result.fittedvalues.values
     mse = float(ols_result.mse_resid)

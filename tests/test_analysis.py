@@ -2,17 +2,12 @@
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 import pytest
 
 from process_improve.experiments.analysis import (
-    AnalysisResult,
     analyze_experiment,
     build_formula,
-    _compute_adequate_precision,
-    _compute_pred_r_squared,
-    _run_lenth_method,
 )
 
 # ---------------------------------------------------------------------------
@@ -64,23 +59,28 @@ def _three_factor_data() -> pd.DataFrame:
 
 class TestBuildFormula:
     def test_main_effects(self) -> None:
+        """Verify main_effects model produces additive-only formula."""
         f = build_formula("y", ["A", "B"], "main_effects")
         assert f == "y ~ A + B"
 
     def test_interactions_default(self) -> None:
+        """Verify default model includes interaction terms."""
         f = build_formula("y", ["A", "B"])
         assert "**" in f or ":" in f  # patsy interaction syntax
 
     def test_quadratic(self) -> None:
+        """Verify quadratic model includes squared terms."""
         f = build_formula("y", ["A", "B"], "quadratic")
         assert "I(A ** 2)" in f
         assert "I(B ** 2)" in f
 
     def test_explicit_formula_passthrough(self) -> None:
+        """Verify explicit formula string passes through unchanged."""
         f = build_formula("y", ["A", "B"], "y ~ A + B + A:B")
         assert f == "y ~ A + B + A:B"
 
     def test_none_defaults_to_interactions(self) -> None:
+        """Verify None model defaults to interactions."""
         f = build_formula("y", ["A", "B"], None)
         assert f == build_formula("y", ["A", "B"], "interactions")
 
@@ -92,6 +92,7 @@ class TestBuildFormula:
 
 class TestModelSummary:
     def test_basic_summary_keys(self) -> None:
+        """Verify model summary contains expected keys."""
         df = _two_factor_data()
         result = analyze_experiment(df, response_column="y", model="main_effects", analysis_type="coefficients")
         summary = result["model_summary"]
@@ -103,6 +104,7 @@ class TestModelSummary:
         assert summary["n_obs"] == 4
 
     def test_r_squared_range(self) -> None:
+        """Verify R-squared is between 0 and 1."""
         df = _two_factor_replicated()
         result = analyze_experiment(df, response_column="y", analysis_type="anova")
         r2 = result["model_summary"]["r_squared"]
@@ -116,6 +118,7 @@ class TestModelSummary:
 
 class TestAnova:
     def test_anova_returns_table(self) -> None:
+        """Verify ANOVA returns a table with source and p-value."""
         df = _two_factor_replicated()
         result = analyze_experiment(df, response_column="y", analysis_type="anova")
         assert "anova_table" in result
@@ -125,6 +128,7 @@ class TestAnova:
         assert "p_value" in table[0]
 
     def test_anova_main_effects_model(self) -> None:
+        """Verify ANOVA table includes main effect sources."""
         df = _two_factor_replicated()
         result = analyze_experiment(
             df, response_column="y", model="main_effects", analysis_type="anova"
@@ -141,6 +145,7 @@ class TestAnova:
 
 class TestEffects:
     def test_effects_values(self) -> None:
+        """Verify effects dict contains factor names."""
         df = _two_factor_data()
         result = analyze_experiment(
             df, response_column="y", model="main_effects", analysis_type="effects"
@@ -151,6 +156,7 @@ class TestEffects:
         assert "B" in effects
 
     def test_effects_are_twice_coefficients(self) -> None:
+        """Verify effects equal 2x the coefficients for coded factors."""
         df = _two_factor_data()
         result = analyze_experiment(
             df, response_column="y", model="main_effects",
@@ -169,6 +175,7 @@ class TestEffects:
 
 class TestCoefficients:
     def test_coefficients_structure(self) -> None:
+        """Verify coefficient records contain all expected fields."""
         df = _two_factor_data()
         result = analyze_experiment(
             df, response_column="y", model="main_effects", analysis_type="coefficients"
@@ -192,6 +199,7 @@ class TestCoefficients:
 
 class TestSignificance:
     def test_significance_split(self) -> None:
+        """Verify significance analysis splits terms at alpha=0.05."""
         df = _two_factor_replicated()
         result = analyze_experiment(
             df, response_column="y", model="main_effects", analysis_type="significance"
@@ -201,6 +209,7 @@ class TestSignificance:
         assert result["significance_level"] == 0.05
 
     def test_custom_alpha(self) -> None:
+        """Verify custom alpha is reflected in results."""
         df = _two_factor_replicated()
         result = analyze_experiment(
             df, response_column="y", model="main_effects",
@@ -216,6 +225,7 @@ class TestSignificance:
 
 class TestResidualDiagnostics:
     def test_diagnostics_keys(self) -> None:
+        """Verify residual diagnostics contain all expected keys."""
         df = _two_factor_replicated()
         result = analyze_experiment(
             df, response_column="y", model="main_effects",
@@ -231,6 +241,7 @@ class TestResidualDiagnostics:
         assert "fitted_values" in diag
 
     def test_cooks_distance_length(self) -> None:
+        """Verify Cook's distance has one value per observation."""
         df = _two_factor_replicated()
         result = analyze_experiment(
             df, response_column="y", model="main_effects",
@@ -247,6 +258,7 @@ class TestResidualDiagnostics:
 
 class TestLackOfFit:
     def test_lof_with_replicates(self) -> None:
+        """Verify lack-of-fit test runs with replicated data."""
         df = _two_factor_replicated()
         result = analyze_experiment(
             df, response_column="y", model="main_effects",
@@ -258,6 +270,7 @@ class TestLackOfFit:
         assert "significant" in lof
 
     def test_lof_without_replicates_errors(self) -> None:
+        """Verify lack-of-fit returns error without replicates."""
         df = _two_factor_data()
         result = analyze_experiment(
             df, response_column="y", model="main_effects",
@@ -274,6 +287,7 @@ class TestLackOfFit:
 
 class TestCurvatureTest:
     def test_curvature_with_center_points(self) -> None:
+        """Verify curvature test runs with center points."""
         df = _two_factor_with_center()
         result = analyze_experiment(
             df, response_column="y", model="main_effects",
@@ -288,6 +302,7 @@ class TestCurvatureTest:
         assert ct["n_factorial_points"] == 4
 
     def test_curvature_without_center_points(self) -> None:
+        """Verify curvature test returns error without center points."""
         df = _two_factor_data()
         result = analyze_experiment(
             df, response_column="y", model="main_effects",
@@ -303,6 +318,7 @@ class TestCurvatureTest:
 
 class TestModelSelection:
     def test_backward_selection(self) -> None:
+        """Verify backward model selection returns a formula."""
         df = _three_factor_data()
         result = analyze_experiment(
             df, response_column="y", model="main_effects",
@@ -321,6 +337,7 @@ class TestModelSelection:
 
 class TestBoxCox:
     def test_box_cox_positive_data(self) -> None:
+        """Verify Box-Cox transform runs on positive data."""
         df = _two_factor_replicated()
         result = analyze_experiment(
             df, response_column="y", analysis_type="box_cox",
@@ -331,6 +348,7 @@ class TestBoxCox:
         assert len(bc["transformed_values"]) == len(df)
 
     def test_box_cox_negative_data(self) -> None:
+        """Verify Box-Cox returns error for negative data."""
         df = _two_factor_data().copy()
         df["y"] = [-1, -2, -3, -4]
         result = analyze_experiment(
@@ -346,6 +364,7 @@ class TestBoxCox:
 
 class TestLenthMethod:
     def test_lenth_unreplicated(self) -> None:
+        """Verify Lenth's method returns PSE, ME, and SME."""
         df = _three_factor_data()
         result = analyze_experiment(
             df, response_column="y", model="main_effects",
@@ -358,6 +377,7 @@ class TestLenthMethod:
         assert len(lm_result["effects"]) > 0
 
     def test_lenth_has_active_flags(self) -> None:
+        """Verify Lenth effects include active flags."""
         df = _three_factor_data()
         result = analyze_experiment(
             df, response_column="y", model="main_effects",
@@ -375,6 +395,7 @@ class TestLenthMethod:
 
 class TestConfidenceIntervals:
     def test_ci_structure(self) -> None:
+        """Verify confidence interval records have ci_low and ci_high."""
         df = _two_factor_replicated()
         result = analyze_experiment(
             df, response_column="y", model="main_effects",
@@ -395,6 +416,7 @@ class TestConfidenceIntervals:
 
 class TestPrediction:
     def test_prediction_with_new_points(self) -> None:
+        """Verify predictions with new points include intervals."""
         df = _two_factor_replicated()
         new = pd.DataFrame({"A": [0, 0.5], "B": [0, -0.5]})
         result = analyze_experiment(
@@ -408,6 +430,7 @@ class TestPrediction:
         assert "pi_high" in preds[0]
 
     def test_prediction_without_new_points_errors(self) -> None:
+        """Verify prediction without new_points returns error."""
         df = _two_factor_replicated()
         result = analyze_experiment(
             df, response_column="y", analysis_type="prediction",
@@ -422,6 +445,7 @@ class TestPrediction:
 
 class TestConfirmationTest:
     def test_confirmation_pass(self) -> None:
+        """Verify confirmation test returns results with PI check."""
         df = _two_factor_replicated()
         new = pd.DataFrame({"A": [0], "B": [0]})
         result = analyze_experiment(
@@ -435,6 +459,7 @@ class TestConfirmationTest:
         assert len(ct["results"]) == 1
 
     def test_confirmation_missing_args(self) -> None:
+        """Verify confirmation test returns error when args missing."""
         df = _two_factor_replicated()
         result = analyze_experiment(
             df, response_column="y", analysis_type="confirmation_test",
@@ -449,6 +474,7 @@ class TestConfirmationTest:
 
 class TestMultipleAnalyses:
     def test_multiple_types(self) -> None:
+        """Verify multiple analysis types run in a single call."""
         df = _two_factor_replicated()
         result = analyze_experiment(
             df, response_column="y", model="main_effects",
@@ -467,6 +493,7 @@ class TestMultipleAnalyses:
 
 class TestTransforms:
     def test_log_transform(self) -> None:
+        """Verify log transform produces coefficients."""
         df = _two_factor_replicated()
         result = analyze_experiment(
             df, response_column="y", transform="log", analysis_type="coefficients",
@@ -474,6 +501,7 @@ class TestTransforms:
         assert "coefficients" in result
 
     def test_sqrt_transform(self) -> None:
+        """Verify sqrt transform produces coefficients."""
         df = _two_factor_replicated()
         result = analyze_experiment(
             df, response_column="y", transform="sqrt", analysis_type="coefficients",
@@ -488,16 +516,19 @@ class TestTransforms:
 
 class TestValidation:
     def test_unknown_analysis_type_raises(self) -> None:
+        """Verify unknown analysis type raises ValueError."""
         df = _two_factor_data()
         with pytest.raises(ValueError, match="Unknown analysis_type"):
             analyze_experiment(df, response_column="y", analysis_type="bogus")
 
     def test_missing_response_column_raises(self) -> None:
+        """Verify missing response column raises ValueError."""
         df = _two_factor_data()
         with pytest.raises(ValueError, match="not found"):
             analyze_experiment(df, response_column="missing")
 
     def test_no_response_arg_raises(self) -> None:
+        """Verify omitting response argument raises ValueError."""
         df = pd.DataFrame({"A": [-1, 1], "B": [-1, 1]})
         with pytest.raises(ValueError, match="Must provide"):
             analyze_experiment(df)
@@ -510,12 +541,14 @@ class TestValidation:
 
 class TestSeparateResponses:
     def test_responses_as_series(self) -> None:
+        """Verify responses can be passed as a separate Series."""
         df = pd.DataFrame({"A": [-1, 1, -1, 1], "B": [-1, -1, 1, 1]})
         y = pd.Series([28, 36, 18, 31], name="y")
         result = analyze_experiment(df, responses=y, analysis_type="coefficients")
         assert "coefficients" in result
 
     def test_responses_as_dataframe(self) -> None:
+        """Verify responses can be passed as a separate DataFrame."""
         df = pd.DataFrame({"A": [-1, 1, -1, 1], "B": [-1, -1, 1, 1]})
         y = pd.DataFrame({"y": [28, 36, 18, 31]})
         result = analyze_experiment(df, responses=y, analysis_type="coefficients")
