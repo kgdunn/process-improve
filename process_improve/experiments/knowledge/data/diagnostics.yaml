@@ -1,0 +1,134 @@
+# Diagnostic Patterns for DOE Residual Analysis and Troubleshooting
+# Each entry describes a visual pattern, what it indicates, and remedies.
+
+- id: funnel_residuals
+  display_name: "Funnel-Shaped Residuals"
+  visual_pattern: "Residuals fan out (widen) as fitted values increase"
+  indicates:
+    - problem: heteroscedasticity
+      description: "Variance of the response increases with the mean"
+  remedies:
+    - action: log_transform
+      detail: "Apply log(y) transform — often the first choice for multiplicative variance"
+    - action: box_cox_transform
+      detail: "Use Box-Cox to find the optimal power transform (lambda)"
+    - action: weighted_least_squares
+      detail: "Use WLS with weights inversely proportional to variance"
+  severity: moderate
+
+- id: curved_residuals
+  display_name: "Curved Residual Pattern"
+  visual_pattern: "Residuals show a systematic curve (U-shape or inverted U) vs. fitted values"
+  indicates:
+    - problem: model_inadequacy
+      description: "The model is missing a quadratic or interaction term"
+    - problem: wrong_transform
+      description: "The response may need a transformation"
+  remedies:
+    - action: add_quadratic_terms
+      detail: "Add squared terms for factors showing curvature"
+    - action: add_interactions
+      detail: "Add missing interaction terms"
+    - action: center_point_test
+      detail: "Run center points to formally test for curvature"
+  severity: high
+
+- id: outlier_residual
+  display_name: "Outlier in Residuals"
+  visual_pattern: "One or a few residuals are much larger than others (|e_i| > 3-4 sigma)"
+  indicates:
+    - problem: outlier
+      description: "Unusual observation — may be a measurement error or special cause"
+  remedies:
+    - action: investigate_run
+      detail: "Check the lab notebook for that run — was there an identifiable cause?"
+    - action: rerun_point
+      detail: "If cause is found, re-run that experimental point"
+    - action: robust_fit
+      detail: "Fit with and without the outlier to assess sensitivity"
+  severity: high
+
+- id: non_normal_residuals
+  display_name: "Non-Normal Residuals"
+  visual_pattern: "Normal probability plot shows an S-curve or departures in the tails"
+  indicates:
+    - problem: non_normality
+      description: "Residuals are not normally distributed"
+    - problem: heteroscedasticity
+      description: "Non-normality may be a symptom of non-constant variance"
+  remedies:
+    - action: box_cox_transform
+      detail: "Apply Box-Cox transform to stabilize variance and improve normality"
+    - action: check_outliers
+      detail: "Heavy tails may be caused by outliers — investigate extreme residuals"
+    - action: often_minor
+      detail: "Moderate non-normality has little effect on F-tests — may not need a fix"
+  severity: low
+
+- id: time_trend_residuals
+  display_name: "Time Trend in Residuals"
+  visual_pattern: "Residuals show a drift or trend when plotted in run order"
+  indicates:
+    - problem: lurking_variable
+      description: "An uncontrolled variable is changing systematically over time"
+    - problem: instrument_drift
+      description: "Measurement equipment may be drifting"
+  remedies:
+    - action: randomize_run_order
+      detail: "Ensure the run order was truly randomized — re-randomize if not"
+    - action: add_blocking
+      detail: "Block on time periods to separate the trend from factor effects"
+    - action: covariate
+      detail: "Include run order (or the suspected variable) as a covariate"
+  severity: moderate
+
+- id: lack_of_fit_significant
+  display_name: "Significant Lack-of-Fit"
+  visual_pattern: "Lack-of-fit F-test p-value < 0.05 (requires replicate runs)"
+  indicates:
+    - problem: model_inadequacy
+      description: "The fitted model does not adequately describe the response surface"
+  remedies:
+    - action: add_terms
+      detail: "Add higher-order terms (quadratic, interaction) to the model"
+    - action: transform_response
+      detail: "Try a response transformation"
+    - action: augment_design
+      detail: "Augment the design to support a higher-order model"
+  severity: high
+
+- id: low_r_squared
+  display_name: "Low R-squared"
+  visual_pattern: "R² or adjusted R² is below 0.6, or predicted R² is much lower than adjusted R²"
+  indicates:
+    - problem: missing_factors
+      description: "Important factors may not be included in the study"
+    - problem: high_noise
+      description: "Measurement variability is too large relative to factor effects"
+    - problem: model_inadequacy
+      description: "The model form may not capture the true relationship"
+  remedies:
+    - action: review_factors
+      detail: "Consider what important factors were excluded from the study"
+    - action: improve_measurement
+      detail: "Improve measurement precision or increase replication"
+    - action: try_higher_model
+      detail: "Try adding interaction or quadratic terms"
+  severity: moderate
+
+- id: pred_r2_gap
+  display_name: "Large Gap Between Adjusted R² and Predicted R²"
+  visual_pattern: "Adjusted R² - Predicted R² > 0.20"
+  indicates:
+    - problem: overfitting
+      description: "The model fits the data well but predicts poorly"
+    - problem: influential_points
+      description: "A few points are driving the fit"
+  remedies:
+    - action: remove_insignificant_terms
+      detail: "Remove terms with p-value > 0.05–0.10 using backward elimination"
+    - action: check_leverage
+      detail: "Check leverage (hat values) for influential points"
+    - action: simplify_model
+      detail: "Start from a main-effects model and add terms only if significant"
+  severity: moderate
