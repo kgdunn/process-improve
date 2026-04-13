@@ -1,6 +1,6 @@
 # (c) Kevin Dunn, 2010-2026. MIT License.
 
-"""Factor, Constraint, and DesignResult definitions for design generation."""
+"""Factor, Constraint, Response, and DesignResult definitions for design generation."""
 
 from __future__ import annotations
 
@@ -106,6 +106,56 @@ class Constraint(BaseModel):
 
     expression: str
     type: Literal["linear", "nonlinear"] = "linear"
+
+
+class ResponseGoal(str, Enum):
+    """Goal direction for a response variable."""
+
+    maximize = "maximize"
+    minimize = "minimize"
+    target = "target"
+
+
+class Response(BaseModel):
+    """Specification for a response variable in a DOE study.
+
+    Parameters
+    ----------
+    name : str
+        Name of the response (e.g. "Yield", "Purity", "Cost").
+    goal : ResponseGoal
+        Optimisation direction: ``"maximize"``, ``"minimize"``, or ``"target"``.
+    target : float or None
+        Target value (required when ``goal="target"``).
+    low : float or None
+        Lower acceptable bound for desirability calculations.
+    high : float or None
+        Upper acceptable bound for desirability calculations.
+    units : str
+        Engineering units (e.g. "%", "mg/L", "min").
+    importance : float
+        Relative importance weight for multi-response optimisation (default 1.0).
+
+    Examples
+    --------
+    >>> Response(name="Yield", goal="maximize", low=60, high=95, units="%")
+    >>> Response(name="Cost", goal="minimize", low=10, high=50, units="USD")
+    >>> Response(name="pH", goal="target", target=7.0, low=6.5, high=7.5)
+    """
+
+    name: str
+    goal: ResponseGoal = ResponseGoal.maximize
+    target: float | None = None
+    low: float | None = None
+    high: float | None = None
+    units: str = ""
+    importance: float = 1.0
+
+    @model_validator(mode="after")
+    def _validate_response(self) -> Response:
+        if self.goal == ResponseGoal.target and self.target is None:
+            raise ValueError(f"Response '{self.name}': goal='target' requires a 'target' value.")
+        return self
 
 
 @dataclass
