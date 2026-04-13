@@ -650,6 +650,210 @@ def analyze_experiment_tool(  # noqa: PLR0913
 _register("analyze_experiment")
 
 
+@tool_spec(
+    name="optimize_responses",
+    description=(
+        "Find optimal factor settings for one or multiple responses from fitted experimental models. "
+        "Supports several methods: 'desirability' (Derringer-Suich desirability functions for single or "
+        "multi-response optimisation), 'steepest_ascent' / 'steepest_descent' (move along the gradient "
+        "of a first-order model), 'stationary_point' (locate the optimum of a second-order model), "
+        "'canonical_analysis' (eigenvalue decomposition to classify the response surface shape). "
+        "Ridge analysis and Pareto front are planned but not yet implemented. "
+        "Each fitted_model must include coefficients (as returned by analyze_experiment with "
+        "analysis_type='coefficients'), factor_names, and response_name. "
+        "For desirability, each goal specifies whether to maximize, minimize, or target a value."
+    ),
+    input_schema={
+        "json": {
+            "type": "object",
+            "properties": {
+                "fitted_models": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "response_name": {
+                                "type": "string",
+                                "description": "Name of the response variable.",
+                            },
+                            "coefficients": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "term": {"type": "string"},
+                                        "coefficient": {"type": "number"},
+                                    },
+                                    "required": ["term", "coefficient"],
+                                },
+                                "description": (
+                                    "List of model coefficients as returned by "
+                                    "analyze_experiment(analysis_type='coefficients'). "
+                                    "Each entry has 'term' (e.g. 'Intercept', 'A', 'A:B', "
+                                    "'I(A ** 2)') and 'coefficient' (float)."
+                                ),
+                            },
+                            "factor_names": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Ordered list of factor names.",
+                            },
+                            "mse_residual": {
+                                "type": "number",
+                                "description": "Mean squared error of the model (optional).",
+                            },
+                            "r_squared": {
+                                "type": "number",
+                                "description": "R-squared of the model (optional).",
+                            },
+                        },
+                        "required": ["coefficients", "factor_names"],
+                    },
+                    "description": "One or more fitted models from analyze_experiment.",
+                    "minItems": 1,
+                },
+                "goals": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "response": {
+                                "type": "string",
+                                "description": "Response name (must match a fitted_model).",
+                            },
+                            "goal": {
+                                "type": "string",
+                                "enum": ["maximize", "minimize", "target"],
+                                "description": "Optimisation direction.",
+                            },
+                            "target": {
+                                "type": "number",
+                                "description": "Target value (required when goal='target').",
+                            },
+                            "low": {
+                                "type": "number",
+                                "description": "Lower acceptable bound for desirability.",
+                            },
+                            "high": {
+                                "type": "number",
+                                "description": "Upper acceptable bound for desirability.",
+                            },
+                            "weight": {
+                                "type": "number",
+                                "description": "Desirability shape parameter (default 1.0 = linear).",
+                            },
+                            "importance": {
+                                "type": "number",
+                                "description": "Relative importance for composite desirability.",
+                            },
+                        },
+                        "required": ["response", "goal", "low", "high"],
+                    },
+                    "description": (
+                        "Per-response optimisation goals. Required for 'desirability' method."
+                    ),
+                },
+                "method": {
+                    "type": "string",
+                    "enum": [
+                        "desirability",
+                        "steepest_ascent",
+                        "steepest_descent",
+                        "stationary_point",
+                        "canonical_analysis",
+                        "ridge_analysis",
+                        "pareto_front",
+                    ],
+                    "description": "Optimisation method (default: 'desirability').",
+                },
+                "factor_ranges": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                            "low": {"type": "number"},
+                            "high": {"type": "number"},
+                        },
+                        "required": ["low", "high"],
+                    },
+                    "description": (
+                        "Factor bounds in actual units, e.g. "
+                        '{"Temperature": {"low": 150, "high": 200}}. '
+                        "Used to convert coded settings to actual units in the output."
+                    ),
+                },
+                "step_size": {
+                    "type": "number",
+                    "description": "Step size in coded units for steepest ascent/descent (default 0.5).",
+                },
+                "n_steps": {
+                    "type": "integer",
+                    "description": "Number of steps for steepest ascent/descent (default 10).",
+                    "minimum": 1,
+                },
+                "desirability_weights": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "description": "Importance weights for composite desirability (overrides per-goal importance).",
+                },
+            },
+            "required": ["fitted_models"],
+        }
+    },
+    examples="""
+    # "Find the stationary point of my quadratic model"
+        -> ``optimize_responses(fitted_models=[{"response_name": "yield",
+                "coefficients": [{"term": "Intercept", "coefficient": 40},
+                    {"term": "A", "coefficient": 5.25}, {"term": "B", "coefficient": -2},
+                    {"term": "I(A ** 2)", "coefficient": -3}, {"term": "I(B ** 2)", "coefficient": -1.5},
+                    {"term": "A:B", "coefficient": 1.5}],
+                "factor_names": ["A", "B"]}],
+            method="stationary_point")``
+
+    # "Optimize two responses using desirability"
+        -> ``optimize_responses(fitted_models=[model1, model2],
+                goals=[{"response": "yield", "goal": "maximize", "low": 30, "high": 50},
+                       {"response": "cost", "goal": "minimize", "low": 10, "high": 40}],
+                method="desirability")``
+
+    # "Generate a steepest ascent path from a first-order model"
+        -> ``optimize_responses(fitted_models=[model],
+                method="steepest_ascent", step_size=0.5, n_steps=8,
+                factor_ranges={"Temperature": {"low": 150, "high": 200}})``
+    """,
+    category="experiments",
+)
+def optimize_responses_tool(  # noqa: PLR0913
+    *,
+    fitted_models: list[dict[str, Any]],
+    goals: list[dict[str, Any]] | None = None,
+    method: str = "desirability",
+    factor_ranges: dict[str, dict[str, float]] | None = None,
+    step_size: float = 0.5,
+    n_steps: int = 10,
+    desirability_weights: list[float] | None = None,
+) -> dict[str, Any]:
+    """Optimize experimental responses; see tool spec for details."""
+    try:
+        from process_improve.experiments.optimization import optimize_responses  # noqa: PLC0415
+
+        result = optimize_responses(
+            fitted_models=fitted_models,
+            goals=goals,
+            method=method,
+            factor_ranges=factor_ranges,
+            step_size=step_size,
+            n_steps=n_steps,
+            desirability_weights=desirability_weights,
+        )
+        return clean(result)
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+
+
+_register("optimize_responses")
+
+
 # ---------------------------------------------------------------------------
 # Module-level convenience
 # ---------------------------------------------------------------------------
