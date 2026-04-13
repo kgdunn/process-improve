@@ -7,7 +7,7 @@ Current implementation status and gap analysis.
 | Tool | Status | Existing Code | Key Gaps |
 |---|---|---|---|
 | `generate_design` | **Partial** | `create_factorial_design` in `tools.py` — 2^k full factorial only | No fractional, PB, BBD, CCD, DSD, D-optimal, mixture, or Taguchi |
-| `analyze_experiment` | **Partial** | `fit_linear_model` in `tools.py` — basic OLS via `lm()` | No ANOVA table, residual diagnostics, lack-of-fit, curvature test, Lenth's method, Box-Cox, confirmation testing |
+| `analyze_experiment` | **Implemented** | `analysis.py` — full dispatcher with 13 analysis types via statsmodels/scipy | Split-plot ANOVA (mixed model mapping) |
 | `evaluate_design` | Not started | — | Everything: alias structure, power, efficiency metrics, VIF |
 | `optimize_responses` | Not started | `optimization.py` has legacy MATLAB skeleton | Desirability, steepest ascent, stationary point, ridge analysis |
 | `augment_design` | Not started | — | Foldover, semifold, axial points, optimal augmentation |
@@ -26,7 +26,8 @@ Current implementation status and gap analysis.
 | `optimization.py` | Legacy MATLAB RSM code | `optimize_responses` (needs rewrite) |
 | `datasets.py` | Sample datasets | Testing / examples |
 | `simulations.py` | `popcorn()`, `grocery()` | Teaching / examples |
-| `tools.py` | 2 tool specs registered | Agent interface |
+| `analysis.py` | `analyze_experiment()`, formula builder, 13 analysis types | `analyze_experiment` |
+| `tools.py` | 4 tool specs registered | Agent interface |
 
 ## Usage Frequency
 

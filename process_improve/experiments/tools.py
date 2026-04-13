@@ -511,6 +511,145 @@ def evaluate_design_tool(  # noqa: PLR0913
 _register("evaluate_design")
 
 
+@tool_spec(
+    name="analyze_experiment",
+    description=(
+        "Fit a model to experimental data and run statistical analyses. "
+        "Supports ANOVA, effects, coefficients with p-values, significance testing, "
+        "residual diagnostics (Shapiro-Wilk, Durbin-Watson, Breusch-Pagan, Cook's distance), "
+        "lack-of-fit test, curvature test (center points vs factorial points), "
+        "stepwise model selection (AIC/BIC), Box-Cox transformation, "
+        "Lenth's method (PSE for unreplicated factorials), confidence intervals, "
+        "prediction with prediction intervals, and confirmation run testing. "
+        "Always returns a model summary with R², adj-R², pred-R², and adequate precision. "
+        "The design_matrix should contain factor columns with coded values (-1/+1). "
+        "The response can be in a separate column or included in design_matrix."
+    ),
+    input_schema={
+        "json": {
+            "type": "object",
+            "properties": {
+                "design_matrix": {
+                    "type": "array",
+                    "items": {"type": "object", "additionalProperties": {"type": "number"}},
+                    "description": (
+                        "List of dicts, one per run. Must contain factor columns and "
+                        "optionally the response column. Example: "
+                        "[{'A': -1, 'B': -1, 'y': 28}, {'A': 1, 'B': -1, 'y': 36}, ...]"
+                    ),
+                    "minItems": 2,
+                },
+                "response_column": {
+                    "type": "string",
+                    "description": "Name of the response column in the design_matrix.",
+                },
+                "model": {
+                    "type": "string",
+                    "enum": ["main_effects", "interactions", "quadratic"],
+                    "description": (
+                        "Model type. 'main_effects' = main effects only, "
+                        "'interactions' = main effects + 2FI (default), "
+                        "'quadratic' = interactions + squared terms."
+                    ),
+                },
+                "analysis_type": {
+                    "oneOf": [
+                        {
+                            "type": "string",
+                            "enum": [
+                                "anova",
+                                "effects",
+                                "coefficients",
+                                "significance",
+                                "residual_diagnostics",
+                                "lack_of_fit",
+                                "curvature_test",
+                                "model_selection",
+                                "box_cox",
+                                "lenth_method",
+                                "confidence_intervals",
+                                "prediction",
+                                "confirmation_test",
+                            ],
+                        },
+                        {"type": "array", "items": {"type": "string"}},
+                    ],
+                    "description": "One or more analysis types to run. Default: 'anova'.",
+                },
+                "significance_level": {
+                    "type": "number",
+                    "description": "Significance level (default 0.05).",
+                },
+                "transform": {
+                    "type": "string",
+                    "enum": ["log", "sqrt", "inverse", "box_cox"],
+                    "description": "Optional response transform before fitting.",
+                },
+                "new_points": {
+                    "type": "array",
+                    "items": {"type": "object", "additionalProperties": {"type": "number"}},
+                    "description": "New factor settings for prediction or confirmation.",
+                },
+                "observed_at_new": {
+                    "type": "array",
+                    "items": {"type": "number"},
+                    "description": "Observed values at new_points (for confirmation testing).",
+                },
+            },
+            "required": ["design_matrix", "response_column"],
+        }
+    },
+    examples="""
+    # "Run ANOVA on my 2^2 factorial experiment"
+        -> ``analyze_experiment(design_matrix=[{"A":-1,"B":-1,"y":28}, ...],
+                response_column="y", analysis_type="anova")``
+
+    # "Check residual diagnostics and lack of fit"
+        -> ``analyze_experiment(design_matrix=[...], response_column="y",
+                analysis_type=["residual_diagnostics", "lack_of_fit"])``
+
+    # "Use Lenth's method on my unreplicated factorial"
+        -> ``analyze_experiment(design_matrix=[...], response_column="y",
+                analysis_type="lenth_method")``
+    """,
+    category="experiments",
+)
+def analyze_experiment_tool(  # noqa: PLR0913
+    *,
+    design_matrix: list[dict[str, Any]],
+    response_column: str,
+    model: str | None = None,
+    analysis_type: str | list[str] = "anova",
+    significance_level: float = 0.05,
+    transform: str | None = None,
+    new_points: list[dict[str, Any]] | None = None,
+    observed_at_new: list[float] | None = None,
+) -> dict[str, Any]:
+    """Analyze experimental data; see tool spec for details."""
+    try:
+        from process_improve.experiments.analysis import analyze_experiment  # noqa: PLC0415
+
+        df = pd.DataFrame(design_matrix)
+        np_df = pd.DataFrame(new_points) if new_points else None
+
+        result = analyze_experiment(
+            design_matrix=df,
+            response_column=response_column,
+            model=model,
+            analysis_type=analysis_type,
+            significance_level=significance_level,
+            transform=transform,
+            new_points=np_df,
+            observed_at_new=observed_at_new,
+        )
+        return clean(result)
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+
+
+_register("analyze_experiment")
+
+
 # ---------------------------------------------------------------------------
 # Module-level convenience
 # ---------------------------------------------------------------------------
