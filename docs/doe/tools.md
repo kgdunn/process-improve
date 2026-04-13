@@ -133,23 +133,52 @@ Extend or modify an existing design — add runs, fold over, upgrade to RSM.
 
 ---
 
-## Tool 6: `visualize_doe`
+## Tool 6: `visualize_doe` — **Implemented**
 
-Generate DOE plots from design data or fitted models.
+Generate DOE plots from design data or fitted models. Returns dual-backend output
+(Plotly interactive figures + ECharts JSON configs).
+
+**Architecture:** Three-layer design — plot classes compute DOE statistics once via
+`to_spec()` → ChartSpec IR, then backend adapters (PlotlyAdapter, EChartsAdapter)
+translate to native formats. See `process_improve/experiments/visualization/`.
 
 **Inputs:**
 
 | Parameter | Type | Description |
 |---|---|---|
-| `plot_type` | str | `"main_effects"`, `"interaction"`, `"contour"`, `"surface_3d"`, `"pareto"`, `"half_normal"`, `"daniel"`, `"residuals_vs_fitted"`, `"normal_probability"`, `"residuals_vs_order"`, `"box_cox"`, `"prediction_variance"`, `"desirability_contour"`, `"cube_plot"`, `"perturbation"`, `"overlay"`, `"fds_plot"`, `"power_curve"`, `"ridge_trace"`, `"steepest_ascent_path"` |
-| `data_source` | FittedModel / DataFrame | Context-dependent |
-| `factors_to_plot` | list[str] or None | Which factors (2 at a time for contour/interaction) |
-| `hold_values` | dict or None | Fixed values for factors not plotted |
-| `response` | str or None | Which response column |
-| `highlight_significant` | bool | Auto-highlight on Pareto/half-normal |
-| `confidence_level` | float | For reference lines (default 0.95) |
+| `plot_type` | str | One of 20 types — see enum below |
+| `analysis_results` | dict or None | From `analyze_experiment()` — coefficients, effects, residuals, lenth_method |
+| `design_data` | list[dict] or None | Raw design matrix (one dict per run, coded -1/+1) |
+| `response_column` | str or None | Which response column in design_data |
+| `factors_to_plot` | list[str] or None | Which factors (2 for contour/interaction, 3 for cube_plot) |
+| `hold_values` | dict or None | Coded values for factors not plotted (default 0 = centre) |
+| `highlight_significant` | bool | Auto-highlight on Pareto/half-normal (default True) |
+| `confidence_level` | float | For threshold lines (default 0.95) |
+| `backend` | str | `"both"`, `"plotly"`, or `"echarts"` (default `"both"`) |
 
-**Outputs:** Plot object.
+**Plot types (20):**
+
+| Category | Plot Types |
+|---|---|
+| Significance | `pareto`, `half_normal`, `daniel` |
+| Factor effects | `main_effects`, `interaction`, `perturbation` |
+| Diagnostics | `residuals_vs_fitted`, `normal_probability`, `residuals_vs_order`, `box_cox` |
+| Response surface | `contour`, `surface_3d`, `prediction_variance` |
+| Special | `cube_plot` |
+| Optimisation | `desirability_contour`, `overlay`, `ridge_trace`, `steepest_ascent_path` |
+| Design quality | `fds_plot`, `power_curve` |
+
+**Outputs:**
+
+```python
+{
+    "plot_type": "pareto",
+    "title": "Pareto Chart of Effects",
+    "plotly": { "data": [...], "layout": {...} },   # Plotly figure dict
+    "echarts": { "series": [...], "xAxis": {...} },  # ECharts option dict
+    "data": { "panels": [...] },                     # Raw computed data
+}
+```
 
 **Handles 3 questions as primary tool** (supports many more as secondary). See [mapping](tool-question-mapping.md#visualize_doe).
 

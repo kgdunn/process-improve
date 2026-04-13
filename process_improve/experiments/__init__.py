@@ -16,6 +16,7 @@ from process_improve.experiments.structures import (
     gather,
     supplement,
 )
+from process_improve.experiments.visualization import visualize_doe
 
 __all__ = [
     "Column",
@@ -37,4 +38,5 @@ __all__ = [
     "predict",
     "summary",
     "supplement",
+    "visualize_doe",
 ]
