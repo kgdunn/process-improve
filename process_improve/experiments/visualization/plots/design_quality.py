@@ -7,11 +7,9 @@ design provides adequate coverage and statistical power.
 
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 
-from process_improve.experiments.visualization.colors import DOE_PALETTE, FACTOR_COLORS
+from process_improve.experiments.visualization.colors import DOE_PALETTE
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
 from process_improve.experiments.visualization.spec import (
     Annotation,
@@ -21,7 +19,6 @@ from process_improve.experiments.visualization.spec import (
     PanelSpec,
 )
 from process_improve.experiments.visualization.types import AnnotationType, MarkType
-
 
 # ---------------------------------------------------------------------------
 # FDS (Fraction of Design Space) plot
@@ -42,7 +39,7 @@ class FDSPlot(BasePlot):
     Requires ``design_data`` with factor columns (coded values).
     """
 
-    def to_spec(self) -> ChartSpec:
+    def to_spec(self) -> ChartSpec:  # noqa: C901, PLR0912
         """Build an FDS ChartSpec.
 
         Returns
@@ -67,12 +64,12 @@ class FDSPlot(BasePlot):
 
         x_terms = [np.ones(n)]
         for i in range(k):
-            x_terms.append(x_design[:, i])
+            x_terms.append(x_design[:, i])  # noqa: PERF401
         for i in range(k):
             for j in range(i + 1, k):
-                x_terms.append(x_design[:, i] * x_design[:, j])
+                x_terms.append(x_design[:, i] * x_design[:, j])  # noqa: PERF401
         for i in range(k):
-            x_terms.append(x_design[:, i] ** 2)
+            x_terms.append(x_design[:, i] ** 2)  # noqa: PERF401
 
         x_model = np.column_stack(x_terms)
 
@@ -91,12 +88,12 @@ class FDSPlot(BasePlot):
             # Build model row for this point
             x_row = [1.0]
             for i in range(k):
-                x_row.append(point[i])
+                x_row.append(point[i])  # noqa: PERF401
             for i in range(k):
                 for j in range(i + 1, k):
-                    x_row.append(point[i] * point[j])
+                    x_row.append(point[i] * point[j])  # noqa: PERF401
             for i in range(k):
-                x_row.append(point[i] ** 2)
+                x_row.append(point[i] ** 2)  # noqa: PERF401
 
             x_vec = np.array(x_row)
             spv = float(n * x_vec @ xtx_inv @ x_vec)
@@ -184,7 +181,7 @@ class PowerCurvePlot(BasePlot):
     ------------
     Requires ``design_data`` with factor columns, or ``analysis_results``
     with design information (``n_runs``, ``n_factors``).
-    """
+    """  # noqa: RUF002
 
     def to_spec(self) -> ChartSpec:
         """Build a power curve ChartSpec.
@@ -219,7 +216,7 @@ class PowerCurvePlot(BasePlot):
         power_values = []
         for sn in sn_ratios:
             ncp = n_runs * sn**2 / 4.0
-            power = 1.0 - float(f_dist.cdf(f_crit, df1, df2, loc=0, scale=1)
+            power = 1.0 - float(f_dist.cdf(f_crit, df1, df2, loc=0, scale=1)  # noqa: RUF034
                                 if ncp == 0
                                 else f_dist.cdf(f_crit, df1, df2, loc=0, scale=1))
             # Use non-central F
@@ -232,13 +229,13 @@ class PowerCurvePlot(BasePlot):
 
         plot_data = [
             {"sn_ratio": float(sn), "power": float(p)}
-            for sn, p in zip(sn_ratios, power_values)
+            for sn, p in zip(sn_ratios, power_values)  # noqa: B905
         ]
 
         power_layer = LayerSpec(
             mark=MarkType.line,
             data=plot_data,
-            x=Encoding(field="sn_ratio", title="Signal-to-Noise Ratio (Δ/σ)"),
+            x=Encoding(field="sn_ratio", title="Signal-to-Noise Ratio (Δ/σ)"),  # noqa: RUF001
             y=Encoding(field="power", title="Power"),
             name=f"n={n_runs}, df={df2}",
             color=DOE_PALETTE["primary"],
@@ -258,7 +255,7 @@ class PowerCurvePlot(BasePlot):
                 annotation_type=AnnotationType.reference_line,
                 axis="y",
                 value=alpha,
-                label=f"α = {alpha:.2f}",
+                label=f"α = {alpha:.2f}",  # noqa: RUF001
                 style={"color": DOE_PALETTE["negative"], "dash": "dot", "width": 1},
             ),
         ]
@@ -267,8 +264,8 @@ class PowerCurvePlot(BasePlot):
             layers=[power_layer],
             annotations=annotations,
             title="Power Curve",
-            x_title="Signal-to-Noise Ratio (Δ/σ)",
-            y_title="Power (1 − β)",
+            x_title="Signal-to-Noise Ratio (Δ/σ)",  # noqa: RUF001
+            y_title="Power (1 − β)",  # noqa: RUF001
         )
 
         return ChartSpec(

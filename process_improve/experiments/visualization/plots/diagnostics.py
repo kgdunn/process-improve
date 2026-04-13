@@ -13,8 +13,6 @@ All consume the ``residual_diagnostics`` or ``box_cox`` keys from
 
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 from scipy import stats
 
@@ -28,7 +26,6 @@ from process_improve.experiments.visualization.spec import (
     PanelSpec,
 )
 from process_improve.experiments.visualization.types import AnnotationType, MarkType
-
 
 # ---------------------------------------------------------------------------
 # Residuals vs Fitted
@@ -65,7 +62,7 @@ class ResidualsVsFittedPlot(BasePlot):
         # Scatter layer
         scatter_data = [
             {"fitted": f, "residual": r}
-            for f, r in zip(fitted, residuals)
+            for f, r in zip(fitted, residuals)  # noqa: B905
         ]
         scatter_layer = LayerSpec(
             mark=MarkType.scatter,
@@ -139,7 +136,7 @@ class NormalProbabilityPlot(BasePlot):
 
         scatter_data = [
             {"theoretical": float(t), "ordered": float(o)}
-            for t, o in zip(theoretical, ordered)
+            for t, o in zip(theoretical, ordered)  # noqa: B905
         ]
         scatter_layer = LayerSpec(
             mark=MarkType.scatter,
@@ -304,7 +301,7 @@ class BoxCoxPlot(BasePlot):
         log_likes = []
         n = len(y_arr)
         for lam in lambdas:
-            if abs(lam) < 1e-10:
+            if abs(lam) < 1e-10:  # noqa: SIM108
                 y_t = np.log(y_arr)
             else:
                 y_t = (y_arr**lam - 1.0) / lam
@@ -326,7 +323,7 @@ class BoxCoxPlot(BasePlot):
         # Build data
         line_data = [
             {"lambda": float(l), "log_likelihood": ll}
-            for l, ll in zip(lambdas, log_likes)
+            for l, ll in zip(lambdas, log_likes)  # noqa: B905, E741
         ]
         line_layer = LayerSpec(
             mark=MarkType.line,
@@ -408,6 +405,6 @@ class BoxCoxPlot(BasePlot):
         fitted = diag.get("fitted_values", [])
         residuals = diag.get("residuals", [])
         if fitted and residuals and len(fitted) == len(residuals):
-            return [f + r for f, r in zip(fitted, residuals)]
+            return [f + r for f, r in zip(fitted, residuals)]  # noqa: B905
 
         return None

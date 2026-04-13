@@ -8,12 +8,9 @@ unreplicated or replicated factorial experiments.  They consume the
 
 from __future__ import annotations
 
-from typing import Any
-
-import numpy as np
 from scipy import stats
 
-from process_improve.experiments.visualization.colors import DOE_PALETTE, FACTOR_COLORS
+from process_improve.experiments.visualization.colors import DOE_PALETTE
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
 from process_improve.experiments.visualization.spec import (
     Annotation,
@@ -23,8 +20,7 @@ from process_improve.experiments.visualization.spec import (
     PanelSpec,
     significance_threshold,
 )
-from process_improve.experiments.visualization.types import AnnotationType, MarkType, ScaleType
-
+from process_improve.experiments.visualization.types import MarkType, ScaleType
 
 # ---------------------------------------------------------------------------
 # Pareto plot
@@ -79,7 +75,7 @@ class ParetoPlot(BasePlot):
         ]
 
         # --- Layers ---
-        bar_data = [{"name": n, "abs_effect": v} for n, v in zip(names, abs_vals)]
+        bar_data = [{"name": n, "abs_effect": v} for n, v in zip(names, abs_vals)]  # noqa: B905
         bar_layer = LayerSpec(
             mark=MarkType.bar,
             data=bar_data,
@@ -89,7 +85,7 @@ class ParetoPlot(BasePlot):
             style={"colors": bar_colors},
         )
 
-        cum_data = [{"name": n, "cum_pct": p} for n, p in zip(names, cum_pct)]
+        cum_data = [{"name": n, "cum_pct": p} for n, p in zip(names, cum_pct)]  # noqa: B905
         cum_layer = LayerSpec(
             mark=MarkType.line,
             data=cum_data,
@@ -112,7 +108,7 @@ class ParetoPlot(BasePlot):
                     sme,
                     alpha=1 - self.confidence_level,
                     name="SME",
-                    label=f"SME (α={1 - self.confidence_level})",
+                    label=f"SME (α={1 - self.confidence_level})",  # noqa: RUF001
                 ))
                 # Override SME colour to red
                 annotations[-1].style["color"] = DOE_PALETTE["threshold_sme"]
@@ -191,7 +187,7 @@ class HalfNormalPlot(BasePlot):
         # --- Layers ---
         scatter_data = [
             {"quantile": q, "abs_effect": v, "name": name}
-            for q, v, name in zip(quantiles, abs_vals, names)
+            for q, v, name in zip(quantiles, abs_vals, names)  # noqa: B905
         ]
         scatter_layer = LayerSpec(
             mark=MarkType.scatter,
@@ -204,10 +200,10 @@ class HalfNormalPlot(BasePlot):
 
         # Reference line through the non-significant effects
         if len(abs_vals) > 1:
-            non_sig_q = [q for q, n in zip(quantiles, names) if n not in significant_set]
-            non_sig_v = [v for v, n in zip(abs_vals, names) if n not in significant_set]
+            non_sig_q = [q for q, n in zip(quantiles, names) if n not in significant_set]  # noqa: B905
+            non_sig_v = [v for v, n in zip(abs_vals, names) if n not in significant_set]  # noqa: B905
             if len(non_sig_q) >= 2:
-                slope = (non_sig_v[-1] - non_sig_v[0]) / (non_sig_q[-1] - non_sig_q[0]) if non_sig_q[-1] != non_sig_q[0] else 0
+                slope = (non_sig_v[-1] - non_sig_v[0]) / (non_sig_q[-1] - non_sig_q[0]) if non_sig_q[-1] != non_sig_q[0] else 0  # noqa: E501
                 intercept = non_sig_v[0] - slope * non_sig_q[0]
                 line_q = [0, quantiles[-1] * 1.1]
                 line_v = [intercept, intercept + slope * line_q[1]]
@@ -219,7 +215,7 @@ class HalfNormalPlot(BasePlot):
             line_v = [0, abs_vals[0] if abs_vals else 1]
 
         ref_data = [
-            {"quantile": q, "abs_effect": v} for q, v in zip(line_q, line_v)
+            {"quantile": q, "abs_effect": v} for q, v in zip(line_q, line_v)  # noqa: B905
         ]
         ref_layer = LayerSpec(
             mark=MarkType.line,
@@ -234,7 +230,7 @@ class HalfNormalPlot(BasePlot):
         # Label layer for effect names
         label_data = [
             {"quantile": q, "abs_effect": v, "text": name}
-            for q, v, name in zip(quantiles, abs_vals, names)
+            for q, v, name in zip(quantiles, abs_vals, names)  # noqa: B905
             if name in significant_set
         ]
         label_layer = LayerSpec(
@@ -322,7 +318,7 @@ class DanielPlot(BasePlot):
         # --- Layers ---
         scatter_data = [
             {"quantile": q, "effect": v, "name": name}
-            for q, v, name in zip(quantiles, vals, names)
+            for q, v, name in zip(quantiles, vals, names)  # noqa: B905
         ]
         scatter_layer = LayerSpec(
             mark=MarkType.scatter,
@@ -342,7 +338,7 @@ class DanielPlot(BasePlot):
             line_q = [-2, 2]
             line_v = [vals[0], vals[0]] if vals else [0, 0]
 
-        ref_data = [{"quantile": q, "effect": v} for q, v in zip(line_q, line_v)]
+        ref_data = [{"quantile": q, "effect": v} for q, v in zip(line_q, line_v)]  # noqa: B905
         ref_layer = LayerSpec(
             mark=MarkType.line,
             data=ref_data,
@@ -356,7 +352,7 @@ class DanielPlot(BasePlot):
         # Labels for significant effects
         label_data = [
             {"quantile": q, "effect": v, "text": name}
-            for q, v, name in zip(quantiles, vals, names)
+            for q, v, name in zip(quantiles, vals, names)  # noqa: B905
             if name in significant_set
         ]
         label_layer = LayerSpec(

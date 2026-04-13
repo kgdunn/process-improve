@@ -8,9 +8,6 @@ no charting library provides this natively.
 from __future__ import annotations
 
 import itertools
-from typing import Any
-
-import numpy as np
 
 from process_improve.experiments.visualization.colors import DOE_PALETTE
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
@@ -61,7 +58,7 @@ class CubePlot(BasePlot):
 
         # Build vertex data with labels
         vertex_data = []
-        for (x, y, z), val in zip(vertices, vertex_values):
+        for (x, y, z), val in zip(vertices, vertex_values):  # noqa: B905
             vertex_data.append({
                 "x": float(x),
                 "y": float(y),
@@ -113,7 +110,7 @@ class CubePlot(BasePlot):
 
         panel = PanelSpec(
             layers=[edge_layer, vertex_layer],
-            title=f"Cube Plot: {f1} × {f2} × {f3}",
+            title=f"Cube Plot: {f1} x {f2} x {f3}",
             x_title=f1,
             y_title=f2,
             z_title=f3,
@@ -121,13 +118,13 @@ class CubePlot(BasePlot):
 
         return ChartSpec(
             panels=[panel],
-            title=f"Cube Plot: {f1} × {f2} × {f3}",
+            title=f"Cube Plot: {f1} x {f2} x {f3}",
             plot_type="cube_plot",
             metadata={
                 "factors": [f1, f2, f3],
                 "vertices": [
                     {"levels": list(v), "value": val}
-                    for v, val in zip(vertices, vertex_values)
+                    for v, val in zip(vertices, vertex_values)  # noqa: B905
                 ],
                 "requires_gl": True,
             },

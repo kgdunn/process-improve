@@ -7,7 +7,6 @@ specifications from :func:`~process_improve.experiments.optimization.optimize_re
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 import numpy as np
@@ -16,7 +15,6 @@ from process_improve.experiments.visualization.colors import (
     DESIRABILITY_COLORSCALE,
     DOE_PALETTE,
     FACTOR_COLORS,
-    SURFACE_COLORSCALE,
 )
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
 from process_improve.experiments.visualization.plots.surfaces import _build_coef_map, _compute_grid, _evaluate_model
@@ -26,10 +24,8 @@ from process_improve.experiments.visualization.spec import (
     Encoding,
     LayerSpec,
     PanelSpec,
-    constraint_region,
 )
 from process_improve.experiments.visualization.types import AnnotationType, MarkType
-
 
 # ---------------------------------------------------------------------------
 # Shared desirability helpers
@@ -54,7 +50,7 @@ def _desirability_minimize(y: float, low: float, high: float, weight: float = 1.
     return ((high - y) / (high - low)) ** weight
 
 
-def _desirability_target(
+def _desirability_target(  # noqa: PLR0913
     y: float,
     low: float,
     target: float,
@@ -100,7 +96,7 @@ def _composite_desirability(d_values: list[float], importances: list[float] | No
     weights = importances or [1.0] * len(d_values)
     total_w = sum(weights)
     product = 1.0
-    for d, w in zip(d_values, weights):
+    for d, w in zip(d_values, weights):  # noqa: B905
         product *= d ** (w / total_w)
     return product
 
@@ -165,7 +161,7 @@ class DesirabilityContourPlot(BasePlot):
                 point[factor_y] = y_val
 
                 d_values = []
-                for cm, resp in zip(coef_maps, responses):
+                for cm, resp in zip(coef_maps, responses):  # noqa: B905
                     y_hat = _evaluate_model(cm, point)
                     d = _individual_desirability(y_hat, resp)
                     d_values.append(d)
@@ -191,14 +187,14 @@ class DesirabilityContourPlot(BasePlot):
 
         panel = PanelSpec(
             layers=[contour_layer],
-            title=f"Desirability: {factor_x} × {factor_y}",
+            title=f"Desirability: {factor_x} x {factor_y}",
             x_title=factor_x,
             y_title=factor_y,
         )
 
         return ChartSpec(
             panels=[panel],
-            title=f"Desirability Contour: {factor_x} × {factor_y}",
+            title=f"Desirability Contour: {factor_x} x {factor_y}",
             plot_type="desirability_contour",
             metadata={
                 "factors": [factor_x, factor_y],
@@ -317,14 +313,14 @@ class OverlayPlot(BasePlot):
         panel = PanelSpec(
             layers=layers,
             annotations=annotations,
-            title=f"Overlay: {factor_x} × {factor_y}",
+            title=f"Overlay: {factor_x} x {factor_y}",
             x_title=factor_x,
             y_title=factor_y,
         )
 
         return ChartSpec(
             panels=[panel],
-            title=f"Overlay Plot: {factor_x} × {factor_y}",
+            title=f"Overlay Plot: {factor_x} x {factor_y}",
             plot_type="overlay",
             metadata={
                 "factors": [factor_x, factor_y],
@@ -361,7 +357,7 @@ class RidgeTracePlot(BasePlot):
     second-order (quadratic) model.
     """
 
-    def to_spec(self) -> ChartSpec:
+    def to_spec(self) -> ChartSpec:  # noqa: C901
         """Build a ridge trace ChartSpec.
 
         Returns
@@ -400,7 +396,7 @@ class RidgeTracePlot(BasePlot):
                     mat = b_mat + mu * np.eye(len(factors))
                     x_opt = np.linalg.solve(mat, -0.5 * b_vec)
                     norm_x = float(np.linalg.norm(x_opt))
-                    if norm_x > 0:
+                    if norm_x > 0:  # noqa: SIM108
                         x_scaled = x_opt * (r / norm_x)
                     else:
                         x_scaled = x_opt
@@ -408,7 +404,7 @@ class RidgeTracePlot(BasePlot):
                     if y_val > best_y:
                         best_y = y_val
                         best_x = x_scaled
-                except np.linalg.LinAlgError:
+                except np.linalg.LinAlgError:  # noqa: PERF203
                     continue
 
             response_trace.append(float(best_y))
@@ -418,7 +414,7 @@ class RidgeTracePlot(BasePlot):
         # Panel 1: Response vs radius
         resp_data = [
             {"radius": float(r), "response": float(y)}
-            for r, y in zip(radii, response_trace)
+            for r, y in zip(radii, response_trace)  # noqa: B905
         ]
         resp_layer = LayerSpec(
             mark=MarkType.line,
@@ -442,7 +438,7 @@ class RidgeTracePlot(BasePlot):
         for i, f in enumerate(factors):
             fdata = [
                 {"radius": float(r), "coded_level": float(v)}
-                for r, v in zip(radii, factor_traces[f])
+                for r, v in zip(radii, factor_traces[f])  # noqa: B905
             ]
             color = FACTOR_COLORS[i % len(FACTOR_COLORS)]
             flayer = LayerSpec(
@@ -473,7 +469,7 @@ class RidgeTracePlot(BasePlot):
             metadata={"factors": factors},
         )
 
-    def _extract_b_and_B(
+    def _extract_b_and_B(  # noqa: N802
         self,
         coef_map: dict[str, float],
         factors: list[str],

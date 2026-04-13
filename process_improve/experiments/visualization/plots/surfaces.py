@@ -13,7 +13,6 @@ from typing import Any
 
 import numpy as np
 
-from process_improve.experiments.visualization.colors import DOE_PALETTE, SURFACE_COLORSCALE
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
 from process_improve.experiments.visualization.spec import (
     ChartSpec,
@@ -22,7 +21,6 @@ from process_improve.experiments.visualization.spec import (
     PanelSpec,
 )
 from process_improve.experiments.visualization.types import MarkType
-
 
 # ---------------------------------------------------------------------------
 # Shared model evaluator
@@ -175,14 +173,14 @@ class ContourPlot(BasePlot):
 
         panel = PanelSpec(
             layers=[contour_layer],
-            title=f"Contour Plot: {factor_x} × {factor_y}",
+            title=f"Contour Plot: {factor_x} x {factor_y}",
             x_title=factor_x,
             y_title=factor_y,
         )
 
         return ChartSpec(
             panels=[panel],
-            title=f"Contour Plot: {factor_x} × {factor_y}",
+            title=f"Contour Plot: {factor_x} x {factor_y}",
             plot_type="contour",
             metadata={
                 "factors": [factor_x, factor_y],
@@ -246,7 +244,7 @@ class Surface3DPlot(BasePlot):
 
         panel = PanelSpec(
             layers=[surface_layer],
-            title=f"Response Surface: {factor_x} × {factor_y}",
+            title=f"Response Surface: {factor_x} x {factor_y}",
             x_title=factor_x,
             y_title=factor_y,
             z_title="Response",
@@ -254,7 +252,7 @@ class Surface3DPlot(BasePlot):
 
         return ChartSpec(
             panels=[panel],
-            title=f"Response Surface: {factor_x} × {factor_y}",
+            title=f"Response Surface: {factor_x} x {factor_y}",
             plot_type="surface_3d",
             metadata={
                 "factors": [factor_x, factor_y],
@@ -283,7 +281,7 @@ class PredictionVariancePlot(BasePlot):
     ``factors_to_plot`` (exactly 2 factors).
     """
 
-    def to_spec(self) -> ChartSpec:
+    def to_spec(self) -> ChartSpec:  # noqa: C901, PLR0912
         """Build a prediction-variance ChartSpec.
 
         Returns
@@ -309,12 +307,12 @@ class PredictionVariancePlot(BasePlot):
         # Add intercept, interactions, quadratics for a full second-order
         X_terms = [np.ones(n)]
         for i in range(k):
-            X_terms.append(X[:, i])
+            X_terms.append(X[:, i])  # noqa: PERF401
         for i in range(k):
             for j in range(i + 1, k):
-                X_terms.append(X[:, i] * X[:, j])
+                X_terms.append(X[:, i] * X[:, j])  # noqa: PERF401
         for i in range(k):
-            X_terms.append(X[:, i] ** 2)
+            X_terms.append(X[:, i] ** 2)  # noqa: PERF401
 
         X_model = np.column_stack(X_terms)
 
@@ -340,18 +338,18 @@ class PredictionVariancePlot(BasePlot):
                 point[fy_idx] = y_val
                 # Hold other factors at centre (0)
                 for fi in range(k):
-                    if fi != fx_idx and fi != fy_idx:
+                    if fi != fx_idx and fi != fy_idx:  # noqa: PLR1714
                         point[fi] = self.hold_values.get(factors[fi], 0.0)
 
                 # Build model row
                 x_row = [1.0]
                 for i in range(k):
-                    x_row.append(point[i])
+                    x_row.append(point[i])  # noqa: PERF401
                 for i in range(k):
                     for j in range(i + 1, k):
-                        x_row.append(point[i] * point[j])
+                        x_row.append(point[i] * point[j])  # noqa: PERF401
                 for i in range(k):
-                    x_row.append(point[i] ** 2)
+                    x_row.append(point[i] ** 2)  # noqa: PERF401
 
                 x_vec = np.array(x_row)
                 spv = float(n * x_vec @ XtX_inv @ x_vec)
@@ -373,13 +371,13 @@ class PredictionVariancePlot(BasePlot):
 
         panel = PanelSpec(
             layers=[contour_layer],
-            title=f"Prediction Variance: {factor_x} × {factor_y}",
+            title=f"Prediction Variance: {factor_x} x {factor_y}",
             x_title=factor_x,
             y_title=factor_y,
         )
 
         return ChartSpec(
             panels=[panel],
-            title=f"Scaled Prediction Variance: {factor_x} × {factor_y}",
+            title=f"Scaled Prediction Variance: {factor_x} x {factor_y}",
             plot_type="prediction_variance",
         )

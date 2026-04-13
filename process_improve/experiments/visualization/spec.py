@@ -22,7 +22,6 @@ from process_improve.experiments.visualization.types import (
     ScaleType,
 )
 
-
 # ---------------------------------------------------------------------------
 # Encoding: maps a data field to a visual channel
 # ---------------------------------------------------------------------------
@@ -83,7 +82,7 @@ class LayerSpec:
     style : dict
         Catch-all for extra visual properties (line dash, marker size,
         bar width, …).
-    """
+    """  # noqa: RUF002
 
     mark: MarkType
     data: list[dict[str, Any]]
@@ -155,12 +154,12 @@ def significance_threshold(
     Returns
     -------
     Annotation
-    """
+    """  # noqa: RUF002
     return Annotation(
         annotation_type=AnnotationType.significance_threshold,
         axis="y",
         value=value,
-        label=label or f"{name} (α={alpha})",
+        label=label or f"{name} (α={alpha})",  # noqa: RUF001
         style={"color": "#F59E0B", "dash": "dash", "width": 2},
     )
 
@@ -280,7 +279,7 @@ class ChartSpec:
         Whether panels share brush / zoom interactions.
     metadata : dict
         Extra metadata passed through to the output.
-    """
+    """  # noqa: RUF002
 
     panels: list[PanelSpec] = field(default_factory=list)
     title: str = ""
@@ -311,7 +310,7 @@ class ChartSpec:
         for panel in self.panels:
             layers_data = []
             for layer in panel.layers:
-                layers_data.append({
+                layers_data.append({  # noqa: PERF401
                     "mark": layer.mark.value if isinstance(layer.mark, MarkType) else layer.mark,
                     "data": layer.data,
                     "name": layer.name,
@@ -338,6 +337,6 @@ def _clean_enums(obj: Any) -> Any:  # noqa: ANN401
         return {k: _clean_enums(v) for k, v in obj.items()}
     if isinstance(obj, list):
         return [_clean_enums(v) for v in obj]
-    if isinstance(obj, Enum):
+    if isinstance(obj, Enum):  # noqa: F821
         return obj.value
     return obj

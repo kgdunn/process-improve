@@ -6,8 +6,6 @@ They operate on raw design data or analysis results.
 
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 import pandas as pd
 
@@ -21,7 +19,6 @@ from process_improve.experiments.visualization.spec import (
     PanelSpec,
 )
 from process_improve.experiments.visualization.types import AnnotationType, MarkType, ScaleType
-
 
 # ---------------------------------------------------------------------------
 # Main-effects plot
@@ -73,7 +70,7 @@ class MainEffectsPlot(BasePlot):
 
             data = [
                 {"level": ls, "mean_response": m, "factor": factor}
-                for ls, m in zip(level_strs, means)
+                for ls, m in zip(level_strs, means)  # noqa: B905
             ]
 
             color = FACTOR_COLORS[i % len(FACTOR_COLORS)]
@@ -183,7 +180,7 @@ class InteractionPlot(BasePlot):
 
             data = [
                 {"level_b": str(lb), "mean_response": m}
-                for lb, m in zip(levels_b, means)
+                for lb, m in zip(levels_b, means)  # noqa: B905
                 if m is not None
             ]
 
@@ -201,14 +198,14 @@ class InteractionPlot(BasePlot):
 
         panel = PanelSpec(
             layers=layers,
-            title=f"Interaction: {factor_a} × {factor_b}",
+            title=f"Interaction: {factor_a} x {factor_b}",
             x_title=factor_b,
             y_title=f"Mean {response}",
         )
 
         return ChartSpec(
             panels=[panel],
-            title=f"Interaction Plot: {factor_a} × {factor_b}",
+            title=f"Interaction Plot: {factor_a} x {factor_b}",
             plot_type="interaction",
         )
 
@@ -243,7 +240,7 @@ class PerturbationPlot(BasePlot):
     Requires ``analysis_results`` with ``"coefficients"`` key.
     """
 
-    def to_spec(self) -> ChartSpec:
+    def to_spec(self) -> ChartSpec:  # noqa: C901, PLR0912
         """Build a perturbation ChartSpec.
 
         Returns
@@ -294,7 +291,7 @@ class PerturbationPlot(BasePlot):
 
             data = [
                 {"coded_level": float(x), "predicted": p}
-                for x, p in zip(sweep, predictions)
+                for x, p in zip(sweep, predictions)  # noqa: B905
             ]
             color = FACTOR_COLORS[i % len(FACTOR_COLORS)]
             layer = LayerSpec(

@@ -50,7 +50,7 @@ class PlotlyAdapter(AbstractAdapter):
         if n == 0:
             return go.Figure().to_dict()
 
-        if n == 1:
+        if n == 1:  # noqa: SIM108
             fig = self._single_panel(spec.panels[0], spec.title)
         else:
             fig = self._multi_panel(spec)
@@ -77,7 +77,7 @@ class PlotlyAdapter(AbstractAdapter):
     # ------------------------------------------------------------------
 
     def _single_panel(self, panel: PanelSpec, title: str = "") -> go.Figure:
-        if panel.secondary_y:
+        if panel.secondary_y:  # noqa: SIM108
             fig = make_subplots(specs=[[{"secondary_y": True}]])
         else:
             fig = go.Figure()
@@ -148,7 +148,7 @@ class PlotlyAdapter(AbstractAdapter):
     # Layer → Plotly trace
     # ------------------------------------------------------------------
 
-    def _layer_to_trace(self, layer: LayerSpec) -> tuple[go.BaseTraceType, bool]:
+    def _layer_to_trace(self, layer: LayerSpec) -> tuple[go.BaseTraceType, bool]:  # noqa: PLR0911
         """Convert a :class:`LayerSpec` to a Plotly trace.
 
         Returns
@@ -320,7 +320,7 @@ class PlotlyAdapter(AbstractAdapter):
     # Annotations → Plotly shapes / annotations
     # ------------------------------------------------------------------
 
-    def _add_annotation(
+    def _add_annotation(  # noqa: C901
         self,
         fig: go.Figure,
         ann: Annotation,
@@ -347,8 +347,8 @@ class PlotlyAdapter(AbstractAdapter):
                     line_width=width,
                     annotation_text=ann.label,
                     annotation_position="top right",
-                    row=row if row else "all",
-                    col=col if col else "all",
+                    row=row or "all",
+                    col=col or "all",
                 )
             else:
                 fig.add_vline(
@@ -358,8 +358,8 @@ class PlotlyAdapter(AbstractAdapter):
                     line_width=width,
                     annotation_text=ann.label,
                     annotation_position="top right",
-                    row=row if row else "all",
-                    col=col if col else "all",
+                    row=row or "all",
+                    col=col or "all",
                 )
 
         elif at == AnnotationType.reference_band:
@@ -372,8 +372,8 @@ class PlotlyAdapter(AbstractAdapter):
                     y1=ann.value_end,
                     fillcolor=band_color,
                     line_width=0,
-                    row=row if row else "all",
-                    col=col if col else "all",
+                    row=row or "all",
+                    col=col or "all",
                 )
             else:
                 fig.add_vrect(
@@ -381,8 +381,8 @@ class PlotlyAdapter(AbstractAdapter):
                     x1=ann.value_end,
                     fillcolor=band_color,
                     line_width=0,
-                    row=row if row else "all",
-                    col=col if col else "all",
+                    row=row or "all",
+                    col=col or "all",
                 )
 
         elif at == AnnotationType.constraint_region:
@@ -398,8 +398,8 @@ class PlotlyAdapter(AbstractAdapter):
                     fillcolor=fill_color,
                     line_width=0,
                     annotation_text=ann.label,
-                    row=row if row else "all",
-                    col=col if col else "all",
+                    row=row or "all",
+                    col=col or "all",
                 )
             if y_min is not None and y_max is not None:
                 fig.add_hrect(
@@ -408,6 +408,6 @@ class PlotlyAdapter(AbstractAdapter):
                     fillcolor=fill_color,
                     line_width=0,
                     annotation_text=ann.label,
-                    row=row if row else "all",
-                    col=col if col else "all",
+                    row=row or "all",
+                    col=col or "all",
                 )

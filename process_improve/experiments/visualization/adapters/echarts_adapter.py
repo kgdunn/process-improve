@@ -13,7 +13,6 @@ from typing import Any
 from process_improve.experiments.visualization.adapters.base import AbstractAdapter
 from process_improve.experiments.visualization.colors import (
     DOE_PALETTE,
-    ECHARTS_VISUAL_MAP_COLORS,
 )
 from process_improve.experiments.visualization.spec import (
     Annotation,
@@ -202,7 +201,7 @@ class EChartsAdapter(AbstractAdapter):
     # Layer → ECharts series
     # ------------------------------------------------------------------
 
-    def _layer_to_series(self, layer: LayerSpec) -> tuple[dict[str, Any], bool]:
+    def _layer_to_series(self, layer: LayerSpec) -> tuple[dict[str, Any], bool]:  # noqa: PLR0911
         """Convert a :class:`LayerSpec` to an ECharts series dict.
 
         Returns
@@ -247,7 +246,7 @@ class EChartsAdapter(AbstractAdapter):
         if colors:
             series["itemStyle"] = {"color": None}
             series["data"] = [
-                {"value": v, "itemStyle": {"color": c}} for v, c in zip(data, colors)
+                {"value": v, "itemStyle": {"color": c}} for v, c in zip(data, colors)  # noqa: B905
             ]
         elif layer.color:
             series["itemStyle"] = {"color": layer.color}
@@ -280,7 +279,7 @@ class EChartsAdapter(AbstractAdapter):
         }
         if colors:
             series["data"] = [
-                {"value": d, "itemStyle": {"color": c}} for d, c in zip(data, colors)
+                {"value": d, "itemStyle": {"color": c}} for d, c in zip(data, colors)  # noqa: B905
             ]
         elif layer.color:
             series["itemStyle"] = {"color": layer.color}
@@ -339,7 +338,7 @@ class EChartsAdapter(AbstractAdapter):
     # Annotations → markLine / markArea
     # ------------------------------------------------------------------
 
-    def _collect_annotations(
+    def _collect_annotations(  # noqa: C901, PLR0912
         self,
         annotations: list[Annotation],
     ) -> tuple[list[dict], list[list[dict]]]:

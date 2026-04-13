@@ -22,7 +22,7 @@ from process_improve.experiments.visualization.spec import ChartSpec
 _PLOT_REGISTRY: dict[str, type[BasePlot]] = {}
 
 
-def register_plot(plot_type: str):
+def register_plot(plot_type: str):  # noqa: ANN201
     """Class decorator that registers a plot class under *plot_type*.
 
     Parameters
@@ -43,7 +43,7 @@ def register_plot(plot_type: str):
     return decorator
 
 
-def create_plot(plot_type: str, **kwargs: Any) -> BasePlot:
+def create_plot(plot_type: str, **kwargs: Any) -> BasePlot:  # noqa: ANN401
     """Instantiate a plot class by its registered name.
 
     Parameters
@@ -147,7 +147,7 @@ class BasePlot(ABC):
         Confidence level for reference lines.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         analysis_results: dict[str, Any] | None = None,

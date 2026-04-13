@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 
-def visualize_doe(
+def visualize_doe(  # noqa: PLR0913
     *,
     plot_type: str,
     analysis_results: dict[str, Any] | None = None,
