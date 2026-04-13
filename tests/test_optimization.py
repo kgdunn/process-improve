@@ -250,3 +250,60 @@ class TestCanonicalAnalysis:
     def test_linear_model_errors(self) -> None:
         result = _canonical_analysis(_linear_2f_coeffs(), FACTOR_NAMES_2F)
         assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# Steepest ascent / descent
+# ---------------------------------------------------------------------------
+
+
+class TestSteepestPath:
+    def test_ascent_direction(self) -> None:
+        result = _steepest_path(_linear_2f_coeffs(), FACTOR_NAMES_2F, direction="ascent")
+        dv = result["direction_vector"]
+        # For y = 30 + 4A + 3B, direction should be positive for both
+        assert dv["A"] > 0
+        assert dv["B"] > 0
+
+    def test_descent_direction(self) -> None:
+        result = _steepest_path(_linear_2f_coeffs(), FACTOR_NAMES_2F, direction="descent")
+        dv = result["direction_vector"]
+        assert dv["A"] < 0
+        assert dv["B"] < 0
+
+    def test_step_count(self) -> None:
+        result = _steepest_path(_linear_2f_coeffs(), FACTOR_NAMES_2F, n_steps=5)
+        # n_steps + 1 because step 0 (center) is included
+        assert len(result["steps"]) == 6
+
+    def test_first_step_is_center(self) -> None:
+        result = _steepest_path(_linear_2f_coeffs(), FACTOR_NAMES_2F)
+        step0 = result["steps"][0]
+        assert step0["step"] == 0
+        assert step0["coded"]["A"] == pytest.approx(0.0)
+        assert step0["coded"]["B"] == pytest.approx(0.0)
+
+    def test_predicted_response_increases_for_ascent(self) -> None:
+        result = _steepest_path(_linear_2f_coeffs(), FACTOR_NAMES_2F, direction="ascent")
+        responses = [s["predicted_response"] for s in result["steps"]]
+        # Each step should give a higher predicted response
+        for i in range(1, len(responses)):
+            assert responses[i] > responses[i - 1]
+
+    def test_actual_values_with_factor_ranges(self) -> None:
+        result = _steepest_path(
+            _linear_2f_coeffs(), FACTOR_NAMES_2F, factor_ranges=FACTOR_RANGES_2F
+        )
+        step1 = result["steps"][1]
+        assert "actual" in step1
+        assert "A" in step1["actual"]
+        assert "B" in step1["actual"]
+
+    def test_zero_coefficients_error(self) -> None:
+        coeffs = [
+            {"term": "Intercept", "coefficient": 10.0},
+            {"term": "A", "coefficient": 0.0},
+            {"term": "B", "coefficient": 0.0},
+        ]
+        result = _steepest_path(coeffs, FACTOR_NAMES_2F)
+        assert "error" in result
