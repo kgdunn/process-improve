@@ -362,3 +362,96 @@ class TestUpgradeToRSM:
         df = _full_factorial_df(2)
         result = augment_design(df, "upgrade_to_rsm")
         assert "central composite" in result["explanation"].lower() or "ccd" in result["explanation"].lower()
+
+
+# ---------------------------------------------------------------------------
+# Add runs optimal
+# ---------------------------------------------------------------------------
+
+
+class TestAddRunsOptimal:
+    """Test add_runs_optimal augmentation."""
+
+    def test_adds_correct_number(self) -> None:
+        """Should add the requested number of runs."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "add_runs_optimal", n_additional_runs=3)
+        assert result["n_runs_after"] == 7
+
+    def test_requires_n_additional_runs(self) -> None:
+        """Missing n_additional_runs should raise ValueError."""
+        df = _full_factorial_df(2)
+        with pytest.raises(ValueError, match="n_additional_runs"):
+            augment_design(df, "add_runs_optimal")
+
+    def test_existing_runs_preserved(self) -> None:
+        """Original design rows should appear in the augmented design."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "add_runs_optimal", n_additional_runs=2)
+        aug = pd.DataFrame(result["augmented_design"])
+        # Check that all original rows are present
+        for _, orig_row in df.iterrows():
+            found = False
+            for _, aug_row in aug.iterrows():
+                if all(abs(orig_row[c] - aug_row[c]) < 1e-8 for c in df.columns):
+                    found = True
+                    break
+            assert found, f"Original row {orig_row.to_dict()} not in augmented design"
+
+    def test_augmented_design_not_singular(self) -> None:
+        """Adding D-optimal runs should produce a non-singular design for target model."""
+        # Start with a main-effects-only design (too few runs for interactions)
+        df = pd.DataFrame({"A": [-1, 1, -1], "B": [-1, -1, 1]})
+        result = augment_design(
+            df, "add_runs_optimal", n_additional_runs=3, target_model="interactions",
+        )
+        aug = pd.DataFrame(result["augmented_design"])
+        d_after = evaluate_design(aug, model="interactions", metric="d_efficiency")["d_efficiency"]
+        assert d_after is not None
+        assert d_after > 0
+
+
+# ---------------------------------------------------------------------------
+# Add blocks
+# ---------------------------------------------------------------------------
+
+
+class TestAddBlocks:
+    """Test add_blocks augmentation."""
+
+    def test_two_blocks(self) -> None:
+        """Default should assign 2 blocks."""
+        df = _full_factorial_df(3)
+        result = augment_design(df, "add_blocks")
+        aug = pd.DataFrame(result["augmented_design"])
+        assert "Block" in aug.columns
+        assert set(aug["Block"].unique()) == {1, 2}
+
+    def test_balanced_block_sizes(self) -> None:
+        """Blocks should have equal sizes for a 2^k design split into 2."""
+        df = _full_factorial_df(3)
+        result = augment_design(df, "add_blocks")
+        aug = pd.DataFrame(result["augmented_design"])
+        block_sizes = aug["Block"].value_counts()
+        assert block_sizes.max() == block_sizes.min()
+
+    def test_confounded_interaction_reported(self) -> None:
+        """Explanation should report which interaction is confounded."""
+        df = _full_factorial_df(3)
+        result = augment_design(df, "add_blocks")
+        assert "confounded_with" in result
+        assert len(result["confounded_with"]) > 0
+
+    def test_invalid_n_blocks_raises(self) -> None:
+        """Number of blocks < 2 should raise ValueError."""
+        df = _full_factorial_df(3)
+        with pytest.raises(ValueError, match="at least 2"):
+            augment_design(df, "add_blocks", n_additional_runs=1)
+
+    def test_four_blocks(self) -> None:
+        """4 blocks should use 2 confounding columns."""
+        df = _full_factorial_df(4)  # 16 runs
+        result = augment_design(df, "add_blocks", n_additional_runs=4)
+        aug = pd.DataFrame(result["augmented_design"])
+        assert len(aug["Block"].unique()) == 4
+        assert len(result["confounded_with"]) == 2
