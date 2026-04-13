@@ -152,7 +152,7 @@ class TestRegistry:
         assert hasattr(plot, "to_spec")
 
     def test_create_plot_unknown_type(self) -> None:
-        with pytest.raises(ValueError, match="Unknown plot type"):
+        with pytest.raises(ValueError, match="Unknown plot_type"):
             create_plot("nonexistent_plot_type")
 
 
@@ -270,7 +270,11 @@ class TestInteractionPlot:
 
 class TestPerturbationPlot:
     def test_spec_structure(self, coefficients_2f: list) -> None:
-        plot = create_plot("perturbation", analysis_results={"coefficients": coefficients_2f})
+        plot = create_plot(
+            "perturbation",
+            analysis_results={"coefficients": coefficients_2f},
+            factors_to_plot=["A", "B"],
+        )
         spec = plot.to_spec()
         assert spec.plot_type == "perturbation"
         # One line per factor

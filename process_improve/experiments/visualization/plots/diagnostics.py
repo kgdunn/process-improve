@@ -397,6 +397,8 @@ class BoxCoxPlot(BasePlot):
     def _get_response_values(self) -> list[float] | None:
         """Extract response values from design data or analysis results."""
         if self.design_data and self.response_column:
+            import pandas as pd  # noqa: PLC0415
+
             df = pd.DataFrame(self.design_data)
             if self.response_column in df.columns:
                 return [float(v) for v in df[self.response_column].values]
