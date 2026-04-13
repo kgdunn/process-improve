@@ -264,6 +264,8 @@ _register("fit_linear_model")
                         "ccd",
                         "dsd",
                         "d_optimal",
+                        "i_optimal",
+                        "a_optimal",
                         "mixture",
                         "taguchi",
                     ],

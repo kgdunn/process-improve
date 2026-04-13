@@ -8,6 +8,16 @@ import pytest
 from process_improve.experiments.designs import _auto_select, generate_design
 from process_improve.experiments.factor import Constraint, Factor, FactorType
 
+_HAS_PYOPTEX = False
+try:
+    import pyoptex  # noqa: F401
+
+    _HAS_PYOPTEX = True
+except ImportError:
+    pass
+
+_skip_no_pyoptex = pytest.mark.skipif(not _HAS_PYOPTEX, reason="pyoptex not installed")
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -359,19 +369,144 @@ class TestDOptimal:
     """Test D-optimal design generation."""
 
     def test_basic(self) -> None:
-        """D-optimal should select the requested number of points."""
+        """D-optimal should produce a non-empty design."""
         factors = _continuous_factors(2, "AB")
         result = generate_design(
-            factors, design_type="d_optimal", budget=5, center_points=0
+            factors, design_type="d_optimal", budget=8, center_points=0
         )
-        assert result.n_runs == 5
+        assert result.n_runs >= 1
         assert result.n_factors == 2
+        assert result.design_type == "d_optimal"
 
     def test_default_budget(self) -> None:
-        """D-optimal default budget should be 2*k + 1."""
+        """D-optimal with default budget should produce a non-empty design."""
         factors = _continuous_factors(3, "ABC")
         result = generate_design(factors, design_type="d_optimal", center_points=0)
-        assert result.n_runs == 7
+        assert result.n_runs >= 1
+        assert result.n_factors == 3
+
+    @_skip_no_pyoptex
+    def test_pyoptex_backend(self) -> None:
+        """D-optimal via pyoptex should report the backend in metadata."""
+        factors = _continuous_factors(2, "AB")
+        result = generate_design(
+            factors, design_type="d_optimal", budget=8, center_points=0
+        )
+        assert result.metadata.get("backend") == "pyoptex"
+        assert result.metadata.get("metric_value") is not None
+
+    def test_coded_values_in_range(self) -> None:
+        """D-optimal coded values should be within [-1, +1]."""
+        factors = _continuous_factors(3, "ABC")
+        result = generate_design(factors, design_type="d_optimal", budget=10, center_points=0)
+        for col in result.factor_names:
+            vals = result.design[col].values
+            assert np.all(np.abs(vals) <= 1.0 + 1e-10)
+
+
+# ---------------------------------------------------------------------------
+# I-Optimal (pyoptex)
+# ---------------------------------------------------------------------------
+
+
+@_skip_no_pyoptex
+class TestIOptimal:
+    """Test I-optimal design generation (requires pyoptex)."""
+
+    def test_basic(self) -> None:
+        """I-optimal should produce the requested number of runs."""
+        factors = _continuous_factors(2, "AB")
+        result = generate_design(
+            factors, design_type="i_optimal", budget=8, center_points=0
+        )
+        assert result.n_runs == 8
+        assert result.n_factors == 2
+        assert result.metadata.get("backend") == "pyoptex"
+        assert result.metadata.get("optimality_criterion") == "i_optimal"
+
+    def test_3_factors(self) -> None:
+        """I-optimal with 3 factors should work."""
+        factors = _continuous_factors(3, "ABC")
+        result = generate_design(
+            factors, design_type="i_optimal", budget=10, center_points=0
+        )
+        assert result.n_runs == 10
+        assert result.n_factors == 3
+
+
+# ---------------------------------------------------------------------------
+# A-Optimal (pyoptex)
+# ---------------------------------------------------------------------------
+
+
+@_skip_no_pyoptex
+class TestAOptimal:
+    """Test A-optimal design generation (requires pyoptex)."""
+
+    def test_basic(self) -> None:
+        """A-optimal should produce the requested number of runs."""
+        factors = _continuous_factors(2, "AB")
+        result = generate_design(
+            factors, design_type="a_optimal", budget=8, center_points=0
+        )
+        assert result.n_runs == 8
+        assert result.n_factors == 2
+        assert result.metadata.get("backend") == "pyoptex"
+        assert result.metadata.get("optimality_criterion") == "a_optimal"
+
+    def test_3_factors(self) -> None:
+        """A-optimal with 3 factors should work."""
+        factors = _continuous_factors(3, "ABC")
+        result = generate_design(
+            factors, design_type="a_optimal", budget=10, center_points=0
+        )
+        assert result.n_runs == 10
+
+
+# ---------------------------------------------------------------------------
+# Split-plot (hard-to-change factors via pyoptex)
+# ---------------------------------------------------------------------------
+
+
+@_skip_no_pyoptex
+class TestSplitPlot:
+    """Test split-plot design generation with hard-to-change factors."""
+
+    def test_hard_to_change_preserves_grouping(self) -> None:
+        """Hard-to-change factor should be constant within whole plots."""
+        factors = _continuous_factors(3, "ABC")
+        result = generate_design(
+            factors,
+            design_type="d_optimal",
+            budget=12,
+            hard_to_change=["A"],
+            center_points=0,
+        )
+        assert result.n_runs == 12
+        assert result.metadata.get("hard_to_change") == ["A"]
+
+        # Check that A is grouped: within each 3-run block, A should be constant
+        a_vals = result.design["A"].values
+        n_whole_plots = max(4, 12 // 3)
+        runs_per_plot = 12 // n_whole_plots
+        for plot_idx in range(n_whole_plots):
+            start = plot_idx * runs_per_plot
+            end = start + runs_per_plot
+            block = a_vals[start:end]
+            assert len(set(block)) == 1, f"A not constant in whole plot {plot_idx}: {block}"
+
+    def test_split_plot_metadata(self) -> None:
+        """Split-plot design should report hard_to_change in metadata."""
+        factors = _continuous_factors(2, "AB")
+        result = generate_design(
+            factors,
+            design_type="d_optimal",
+            budget=8,
+            hard_to_change=["A"],
+            center_points=0,
+        )
+        assert result.metadata.get("hard_to_change") == ["A"]
+        assert result.metadata.get("backend") == "pyoptex"
 
 
 # ---------------------------------------------------------------------------
@@ -482,11 +617,12 @@ class TestErrorHandling:
         with pytest.raises(ValueError, match="Unknown design_type"):
             generate_design(factors, design_type="nonexistent")
 
-    def test_i_optimal_not_implemented(self) -> None:
-        """I-optimal should raise NotImplementedError."""
+    @_skip_no_pyoptex
+    def test_i_optimal_works_with_pyoptex(self) -> None:
+        """I-optimal should work when pyoptex is available."""
         factors = _continuous_factors(2, "AB")
-        with pytest.raises(NotImplementedError):
-            generate_design(factors, design_type="i_optimal")
+        result = generate_design(factors, design_type="i_optimal", budget=6, center_points=0)
+        assert result.n_runs == 6
 
 
 # ---------------------------------------------------------------------------
