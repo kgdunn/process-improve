@@ -8,8 +8,8 @@ import pytest
 
 from process_improve.experiments.augment import (
     _AUGMENT_REGISTRY,
-    _auto_select_fold_factor,
     _AugmentContext,
+    _auto_select_fold_factor,
     _compute_alpha,
     augment_design,
 )
@@ -271,7 +271,7 @@ class TestAddAxialPoints:
     """Test add_axial_points augmentation."""
 
     def test_adds_2k_points(self) -> None:
-        """k factors -> 2k axial points added."""
+        """Adding axial points produces 2k new rows for k factors."""
         df = _full_factorial_df(3)
         result = augment_design(df, "add_axial_points", alpha="face_centered")
         assert result["n_runs_after"] == 8 + 6  # 3 factors * 2
@@ -574,7 +574,7 @@ class TestToolSpec:
 
     def test_basic_round_trip(self) -> None:
         """Tool wrapper returns JSON-serializable output."""
-        from process_improve.experiments.tools import augment_design_tool
+        from process_improve.experiments.tools import augment_design_tool  # noqa: PLC0415
 
         result = augment_design_tool(
             existing_design=[
@@ -592,7 +592,7 @@ class TestToolSpec:
 
     def test_foldover_via_tool(self) -> None:
         """Foldover works through the tool wrapper."""
-        from process_improve.experiments.tools import augment_design_tool
+        from process_improve.experiments.tools import augment_design_tool  # noqa: PLC0415
 
         result = augment_design_tool(
             existing_design=[
@@ -608,7 +608,7 @@ class TestToolSpec:
 
     def test_error_handling(self) -> None:
         """Bad augmentation_type returns error dict."""
-        from process_improve.experiments.tools import augment_design_tool
+        from process_improve.experiments.tools import augment_design_tool  # noqa: PLC0415
 
         result = augment_design_tool(
             existing_design=[{"A": -1}, {"A": 1}],
