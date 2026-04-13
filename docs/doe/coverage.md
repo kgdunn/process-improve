@@ -10,8 +10,8 @@ Current implementation status and gap analysis.
 | `analyze_experiment` | **Implemented** | `analysis.py` — full dispatcher with 13 analysis types via statsmodels/scipy | Split-plot ANOVA (mixed model mapping) |
 | `evaluate_design` | Not started | — | Everything: alias structure, power, efficiency metrics, VIF |
 | `optimize_responses` | **Partial** | `optimization.py` — desirability, steepest ascent/descent, stationary point, canonical analysis | Ridge analysis, Pareto front (stubs) |
-| `augment_design` | Not started | — | Foldover, semifold, axial points, optimal augmentation |
-| `visualize_doe` | Not started | — | All DOE plot types |
+| `augment_design` | **Implemented** | `augment.py` — foldover, semifold, axial, replicate, D-optimal | — |
+| `visualize_doe` | **Implemented** | `visualization/` — 20 plot types, dual Plotly+ECharts backends | — |
 | `doe_knowledge` | Not started | — | Knowledge graph, decision logic, interpretation guidance |
 | `recommend_strategy` | Not started | — | Multi-stage planning, budget allocation |
 
@@ -27,7 +27,8 @@ Current implementation status and gap analysis.
 | `datasets.py` | Sample datasets | Testing / examples |
 | `simulations.py` | `popcorn()`, `grocery()` | Teaching / examples |
 | `analysis.py` | `analyze_experiment()`, formula builder, 13 analysis types | `analyze_experiment` |
-| `tools.py` | 5 tool specs registered | Agent interface |
+| `tools.py` | 6 tool specs registered | Agent interface |
+| `visualization/` | `visualize_doe()`, 20 plot classes, Plotly+ECharts adapters | `visualize_doe` |
 
 ## Usage Frequency
 
