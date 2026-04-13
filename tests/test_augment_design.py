@@ -455,3 +455,209 @@ class TestAddBlocks:
         aug = pd.DataFrame(result["augmented_design"])
         assert len(aug["Block"].unique()) == 4
         assert len(result["confounded_with"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# Explainer
+# ---------------------------------------------------------------------------
+
+
+class TestExplainer:
+    """Test the 'what changed' explanation output."""
+
+    def test_before_after_metrics_present(self) -> None:
+        """Result should include before_metrics and after_metrics."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "add_center_points", n_additional_runs=3)
+        assert "before_metrics" in result
+        assert "after_metrics" in result
+
+    def test_explanation_nonempty(self) -> None:
+        """Explanation should never be empty for any augmentation type."""
+        df = _full_factorial_df(3)
+        for aug_type in ["add_center_points", "replicate", "foldover", "add_axial_points"]:
+            kwargs = {}
+            if aug_type == "add_axial_points":
+                kwargs["alpha"] = "face_centered"
+            result = augment_design(df, aug_type, **kwargs)
+            assert len(result["explanation"]) > 0, f"Explanation empty for {aug_type}"
+
+    def test_run_count_in_explanation(self) -> None:
+        """Explanation should mention the run count change."""
+        df = _full_factorial_df(2)
+        result = augment_design(df, "replicate")
+        assert "4" in result["explanation"]
+        assert "8" in result["explanation"]
+
+
+# ---------------------------------------------------------------------------
+# Alpha computation
+# ---------------------------------------------------------------------------
+
+
+class TestAlphaComputation:
+    """Test the _compute_alpha helper."""
+
+    def test_numeric_passthrough(self) -> None:
+        """Numeric alpha is returned as-is."""
+        df = _full_factorial_df(2)
+        assert _compute_alpha(df, ["A", "B"], 2.0) == pytest.approx(2.0)
+
+    def test_face_centered(self) -> None:
+        """Face-centered alpha is 1.0."""
+        df = _full_factorial_df(2)
+        assert _compute_alpha(df, ["A", "B"], "face_centered") == pytest.approx(1.0)
+
+    def test_rotatable_with_center_points(self) -> None:
+        """Rotatable alpha should exclude center points from factorial count."""
+        df = _full_factorial_df(2)
+        center = pd.DataFrame({"A": [0.0, 0.0], "B": [0.0, 0.0]})
+        df_with_centers = pd.concat([df, center], ignore_index=True)
+        # Should still use n_factorial=4, not 6
+        alpha = _compute_alpha(df_with_centers, ["A", "B"], "rotatable")
+        expected = 4 ** 0.25  # ~1.414
+        assert alpha == pytest.approx(expected, abs=0.01)
+
+    def test_unknown_alpha_raises(self) -> None:
+        """Unknown alpha string should raise ValueError."""
+        df = _full_factorial_df(2)
+        with pytest.raises(ValueError, match="Unknown alpha"):
+            _compute_alpha(df, ["A", "B"], "invalid_alpha")
+
+
+# ---------------------------------------------------------------------------
+# Auto fold-factor selection
+# ---------------------------------------------------------------------------
+
+
+class TestAutoSelectFoldFactor:
+    """Test the _auto_select_fold_factor helper."""
+
+    def test_selects_factor_in_short_words(self) -> None:
+        """Should select a factor that appears in the shortest defining words."""
+        ctx = _AugmentContext(
+            existing_design=pd.DataFrame(),
+            factor_names=["A", "B", "C"],
+            augmentation_type="semifold",
+            target_model=None,
+            n_additional_runs=None,
+            fold_on=None,
+            alpha=None,
+            generators=["C=AB"],  # I=ABC (length 3)
+        )
+        result = _auto_select_fold_factor(ctx)
+        # All factors appear in ABC, so any is valid
+        assert result in ["A", "B", "C"]
+
+    def test_no_generators_returns_first(self) -> None:
+        """Without generators, returns the first factor."""
+        ctx = _AugmentContext(
+            existing_design=pd.DataFrame(),
+            factor_names=["X", "Y", "Z"],
+            augmentation_type="semifold",
+            target_model=None,
+            n_additional_runs=None,
+            fold_on=None,
+            alpha=None,
+            generators=None,
+        )
+        assert _auto_select_fold_factor(ctx) == "X"
+
+
+# ---------------------------------------------------------------------------
+# Tool spec wrapper
+# ---------------------------------------------------------------------------
+
+
+class TestToolSpec:
+    """Test the LLM tool spec wrapper."""
+
+    def test_basic_round_trip(self) -> None:
+        """Tool wrapper returns JSON-serializable output."""
+        from process_improve.experiments.tools import augment_design_tool
+
+        result = augment_design_tool(
+            existing_design=[
+                {"A": -1, "B": -1},
+                {"A": 1, "B": -1},
+                {"A": -1, "B": 1},
+                {"A": 1, "B": 1},
+            ],
+            augmentation_type="add_center_points",
+            n_additional_runs=2,
+        )
+        assert "error" not in result
+        assert "augmented_design" in result
+        assert result["n_runs_after"] == 6
+
+    def test_foldover_via_tool(self) -> None:
+        """Foldover works through the tool wrapper."""
+        from process_improve.experiments.tools import augment_design_tool
+
+        result = augment_design_tool(
+            existing_design=[
+                {"A": -1, "B": -1, "C": -1},
+                {"A": 1, "B": -1, "C": -1},
+                {"A": -1, "B": 1, "C": -1},
+                {"A": 1, "B": 1, "C": 1},
+            ],
+            augmentation_type="foldover",
+        )
+        assert "error" not in result
+        assert result["n_runs_after"] == 8
+
+    def test_error_handling(self) -> None:
+        """Bad augmentation_type returns error dict."""
+        from process_improve.experiments.tools import augment_design_tool
+
+        result = augment_design_tool(
+            existing_design=[{"A": -1}, {"A": 1}],
+            augmentation_type="nonexistent",
+        )
+        assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# Integration
+# ---------------------------------------------------------------------------
+
+
+class TestIntegration:
+    """Integration tests: generate_design -> augment_design -> evaluate_design."""
+
+    def test_generate_then_foldover(self) -> None:
+        """Generate a fractional factorial, fold it over, evaluate."""
+        factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C", "D"]]
+        design_result = generate_design(
+            factors, design_type="fractional_factorial",
+            generators=["D=ABC"], center_points=0,
+        )
+        df = pd.DataFrame(design_result.design).drop(columns=["RunOrder"])
+        result = augment_design(df, "foldover", generators=["D=ABC"])
+        aug = pd.DataFrame(result["augmented_design"])
+        assert len(aug) == 16
+        # Should be evaluable with main effects model
+        metrics = evaluate_design(aug, model="main_effects", metric="d_efficiency")
+        assert metrics["d_efficiency"] is not None
+
+    def test_generate_then_upgrade_to_rsm(self) -> None:
+        """Generate factorial, upgrade to RSM, evaluate quadratic."""
+        factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C"]]
+        design_result = generate_design(
+            factors, design_type="full_factorial", center_points=0,
+        )
+        df = pd.DataFrame(design_result.design).drop(columns=["RunOrder"])
+        result = augment_design(df, "upgrade_to_rsm", alpha="face_centered")
+        aug = pd.DataFrame(result["augmented_design"])
+        # Should support quadratic model
+        metrics = evaluate_design(aug, model="quadratic", metric="d_efficiency")
+        assert metrics["d_efficiency"] is not None
+        assert metrics["d_efficiency"] > 0
+
+    def test_augment_chain(self) -> None:
+        """Chain multiple augmentations: add center points then replicate."""
+        df = _full_factorial_df(2)
+        r1 = augment_design(df, "add_center_points", n_additional_runs=3)
+        aug1 = pd.DataFrame(r1["augmented_design"])
+        r2 = augment_design(aug1, "replicate")
+        assert r2["n_runs_after"] == 14  # (4 + 3) * 2
