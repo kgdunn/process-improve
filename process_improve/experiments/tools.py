@@ -998,6 +998,156 @@ _register("augment_design")
 
 
 # ---------------------------------------------------------------------------
+# Tool 6: Visualise DOE
+# ---------------------------------------------------------------------------
+
+
+@tool_spec(
+    name="visualize_doe",
+    description=(
+        "Generate DOE visualisations from analysis results or design data. "
+        "Supports 20 plot types: significance plots (pareto, half_normal, daniel), "
+        "factor-effect plots (main_effects, interaction, perturbation), "
+        "diagnostic plots (residuals_vs_fitted, normal_probability, residuals_vs_order, box_cox), "
+        "response-surface plots (contour, surface_3d, prediction_variance), "
+        "cube plot (cube_plot), "
+        "optimisation plots (desirability_contour, overlay, ridge_trace, steepest_ascent_path), "
+        "and design-quality plots (fds_plot, power_curve). "
+        "Returns both Plotly and ECharts configurations for dual-backend rendering. "
+        "Pass analysis_results from fit_linear_model or analyze_experiment, or raw design_data."
+    ),
+    input_schema={
+        "json": {
+            "type": "object",
+            "properties": {
+                "plot_type": {
+                    "type": "string",
+                    "enum": [
+                        "pareto", "half_normal", "daniel",
+                        "main_effects", "interaction", "perturbation",
+                        "residuals_vs_fitted", "normal_probability",
+                        "residuals_vs_order", "box_cox",
+                        "contour", "surface_3d", "prediction_variance",
+                        "cube_plot",
+                        "desirability_contour", "overlay",
+                        "ridge_trace", "steepest_ascent_path",
+                        "fds_plot", "power_curve",
+                    ],
+                    "description": "Type of DOE plot to generate.",
+                },
+                "analysis_results": {
+                    "type": "object",
+                    "description": (
+                        "Results from fit_linear_model or analyze_experiment. "
+                        "Should contain keys like 'coefficients', 'effects', "
+                        "'residual_diagnostics', 'lenth_method', 'model_summary'."
+                    ),
+                },
+                "design_data": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": (
+                        "Raw design matrix as a list of dicts (one per run). "
+                        "Factor columns should be coded -1/+1."
+                    ),
+                },
+                "response_column": {
+                    "type": "string",
+                    "description": "Name of the response column in design_data.",
+                },
+                "factors_to_plot": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Which factors to plot (2 for contour/interaction, "
+                        "3 for cube_plot). If omitted, inferred from data."
+                    ),
+                },
+                "hold_values": {
+                    "type": "object",
+                    "description": (
+                        "Coded values for factors not being plotted "
+                        "(default 0 = centre). E.g. {'C': 0.5}."
+                    ),
+                },
+                "highlight_significant": {
+                    "type": "boolean",
+                    "description": "Highlight significant effects on Pareto/half-normal plots.",
+                    "default": True,
+                },
+                "confidence_level": {
+                    "type": "number",
+                    "description": "Confidence level for thresholds (default 0.95).",
+                    "default": 0.95,
+                },
+                "backend": {
+                    "type": "string",
+                    "enum": ["both", "plotly", "echarts"],
+                    "description": "Which rendering backend(s) to include in output.",
+                    "default": "both",
+                },
+            },
+            "required": ["plot_type"],
+        }
+    },
+    examples="""
+    # "Show me a Pareto chart of my effects"
+        -> ``visualize_doe(plot_type="pareto",
+                analysis_results={"effects": {"A": 5.2, "B": -3.1, "A:B": 1.0}})``
+
+    # "Draw a contour plot of Temperature vs Pressure"
+        -> ``visualize_doe(plot_type="contour",
+                analysis_results={"coefficients": [...]},
+                factors_to_plot=["Temperature", "Pressure"])``
+
+    # "Show residuals vs fitted values"
+        -> ``visualize_doe(plot_type="residuals_vs_fitted",
+                analysis_results={"residual_diagnostics":
+                    {"residuals": [...], "fitted_values": [...]}})``
+
+    # "Create a cube plot for my 3-factor design"
+        -> ``visualize_doe(plot_type="cube_plot",
+                analysis_results={"coefficients": [...]},
+                factors_to_plot=["A", "B", "C"])``
+    """,
+    category="experiments",
+)
+def visualize_doe_tool(  # noqa: PLR0913
+    *,
+    plot_type: str,
+    analysis_results: dict[str, Any] | None = None,
+    design_data: list[dict[str, Any]] | None = None,
+    response_column: str | None = None,
+    factors_to_plot: list[str] | None = None,
+    hold_values: dict[str, float] | None = None,
+    highlight_significant: bool = True,
+    confidence_level: float = 0.95,
+    backend: str = "both",
+) -> dict[str, Any]:
+    """Generate a DOE visualisation; see tool spec for details."""
+    try:
+        from process_improve.experiments.visualization import visualize_doe  # noqa: PLC0415
+
+        result = visualize_doe(
+            plot_type=plot_type,
+            analysis_results=analysis_results,
+            design_data=design_data,
+            response_column=response_column,
+            factors_to_plot=factors_to_plot,
+            hold_values=hold_values,
+            highlight_significant=highlight_significant,
+            confidence_level=confidence_level,
+            backend=backend,
+        )
+        return clean(result)
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+
+
+_register("visualize_doe")
+
+
+# ---------------------------------------------------------------------------
 # Module-level convenience
 # ---------------------------------------------------------------------------
 
