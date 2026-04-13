@@ -9,7 +9,7 @@ Current implementation status and gap analysis.
 | `generate_design` | **Partial** | `create_factorial_design` in `tools.py` — 2^k full factorial only | No fractional, PB, BBD, CCD, DSD, D-optimal, mixture, or Taguchi |
 | `analyze_experiment` | **Implemented** | `analysis.py` — full dispatcher with 13 analysis types via statsmodels/scipy | Split-plot ANOVA (mixed model mapping) |
 | `evaluate_design` | Not started | — | Everything: alias structure, power, efficiency metrics, VIF |
-| `optimize_responses` | Not started | `optimization.py` has legacy MATLAB skeleton | Desirability, steepest ascent, stationary point, ridge analysis |
+| `optimize_responses` | **Partial** | `optimization.py` — desirability, steepest ascent/descent, stationary point, canonical analysis | Ridge analysis, Pareto front (stubs) |
 | `augment_design` | Not started | — | Foldover, semifold, axial points, optimal augmentation |
 | `visualize_doe` | Not started | — | All DOE plot types |
 | `doe_knowledge` | Not started | — | Knowledge graph, decision logic, interpretation guidance |
@@ -23,11 +23,11 @@ Current implementation status and gap analysis.
 | `models.py` | `Model`, `lm()`, `predict()`, `summary()` | `analyze_experiment` |
 | `designs_factorial.py` | `full_factorial()` | `generate_design` |
 | `optimal.py` | D-optimal point exchange | `generate_design` (future) |
-| `optimization.py` | Legacy MATLAB RSM code | `optimize_responses` (needs rewrite) |
+| `optimization.py` | `optimize_responses()`, desirability, stationary point, canonical analysis, steepest ascent/descent | `optimize_responses` |
 | `datasets.py` | Sample datasets | Testing / examples |
 | `simulations.py` | `popcorn()`, `grocery()` | Teaching / examples |
 | `analysis.py` | `analyze_experiment()`, formula builder, 13 analysis types | `analyze_experiment` |
-| `tools.py` | 4 tool specs registered | Agent interface |
+| `tools.py` | 5 tool specs registered | Agent interface |
 
 ## Usage Frequency
 
