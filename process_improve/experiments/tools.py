@@ -658,7 +658,6 @@ _register("analyze_experiment")
         "multi-response optimisation), 'steepest_ascent' / 'steepest_descent' (move along the gradient "
         "of a first-order model), 'stationary_point' (locate the optimum of a second-order model), "
         "'canonical_analysis' (eigenvalue decomposition to classify the response surface shape). "
-        "Ridge analysis and Pareto front are planned but not yet implemented. "
         "Each fitted_model must include coefficients (as returned by analyze_experiment with "
         "analysis_type='coefficients'), factor_names, and response_name. "
         "For desirability, each goal specifies whether to maximize, minimize, or target a value."
@@ -761,8 +760,6 @@ _register("analyze_experiment")
                         "steepest_descent",
                         "stationary_point",
                         "canonical_analysis",
-                        "ridge_analysis",
-                        "pareto_front",
                     ],
                     "description": "Optimisation method (default: 'desirability').",
                 },
