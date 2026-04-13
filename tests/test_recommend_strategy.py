@@ -7,9 +7,7 @@ import json
 import pytest
 
 from process_improve.experiments.factor import (
-    Constraint,
     Factor,
-    FactorType,
     Response,
     ResponseGoal,
 )
@@ -32,7 +30,6 @@ from process_improve.experiments.strategy.models import (
     DomainType,
     ExperimentalStage,
     ExperimentalStrategy,
-    PriorKnowledge,
     TransitionRule,
 )
 
@@ -41,27 +38,27 @@ from process_improve.experiments.strategy.models import (
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture()
+@pytest.fixture
 def two_factors():
     return [Factor(name="A", low=0, high=100), Factor(name="B", low=0, high=100)]
 
 
-@pytest.fixture()
+@pytest.fixture
 def three_factors():
     return [Factor(name="A", low=0, high=100), Factor(name="B", low=0, high=100), Factor(name="C", low=0, high=100)]
 
 
-@pytest.fixture()
+@pytest.fixture
 def seven_factors():
     return [Factor(name=chr(65 + i), low=0, high=100) for i in range(7)]
 
 
-@pytest.fixture()
+@pytest.fixture
 def twelve_factors():
     return [Factor(name=f"X{i+1}", low=0, high=100) for i in range(12)]
 
 
-@pytest.fixture()
+@pytest.fixture
 def basic_responses():
     return [Response(name="Yield", goal="maximize"), Response(name="Purity", goal="maximize")]
 
@@ -440,7 +437,7 @@ class TestRealWorldScenarios:
     """Integration tests matching specific questions from the 162-question bank."""
 
     def test_q1_seven_factors_how_to_start(self):
-        """Q1: I have 7 factors — how do I even start planning a DOE?"""
+        """Q1: I have 7 factors, how do I even start planning a DOE."""
         factors = [Factor(name=f"Factor_{i+1}", low=0, high=100) for i in range(7)]
         result = recommend_strategy(factors=factors, budget=40)
         assert len(result["stages"]) >= 2
@@ -608,5 +605,5 @@ class TestModels:
 
     def test_domain_type_enum(self):
         assert DomainType("fermentation") == DomainType.fermentation
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="nonexistent"):
             DomainType("nonexistent")

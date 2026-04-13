@@ -47,7 +47,7 @@ _CCD_FACTORIAL_RUNS: dict[int, int] = {
 # ---------------------------------------------------------------------------
 
 
-def estimate_screening_runs(n_factors: int, design_type: str) -> int:
+def estimate_screening_runs(n_factors: int, design_type: str) -> int:  # noqa: PLR0911
     """Estimate the number of runs for a screening design.
 
     Parameters
@@ -130,7 +130,7 @@ def estimate_rsm_runs(n_factors: int, design_type: str, center_points: int = 3) 
         # Rough estimate: 1.5x the number of model terms for a quadratic model
         # Quadratic model terms: 1 + k + k(k-1)/2 + k = 1 + 2k + k(k-1)/2
         n_terms = 1 + 2 * n_factors + n_factors * (n_factors - 1) // 2
-        return int(math.ceil(1.5 * n_terms))
+        return math.ceil(1.5 * n_terms)
 
     # Fallback: CCD estimate
     factorial = _CCD_FACTORIAL_RUNS.get(n_factors, 2**n_factors)
@@ -158,7 +158,7 @@ def estimate_confirmation_runs(min_runs: int = 3) -> int:
 # ---------------------------------------------------------------------------
 
 
-def allocate_budget(
+def allocate_budget(  # noqa: C901, PLR0913, PLR0915
     total_budget: int | None,
     n_factors: int,
     needs_screening: bool,

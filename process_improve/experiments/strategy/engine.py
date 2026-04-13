@@ -14,7 +14,7 @@ import json
 import re
 from typing import Any
 
-from process_improve.experiments.factor import Constraint, Factor, FactorType, Response
+from process_improve.experiments.factor import Constraint, Factor, Response
 from process_improve.experiments.strategy.budget import (
     allocate_budget,
     estimate_confirmation_runs,
@@ -91,9 +91,8 @@ def _parse_prior_knowledge(
         candidate = match.group(1).strip()
         # Match against actual factor names (case-insensitive substring)
         for fn in factor_names:
-            if fn.lower() in candidate.lower() or candidate.lower() in fn.lower():
-                if fn not in known_factors:
-                    known_factors.append(fn)
+            if (fn.lower() in candidate.lower() or candidate.lower() in fn.lower()) and fn not in known_factors:
+                known_factors.append(fn)
 
     return PriorKnowledge(
         raw_text=text,
@@ -141,7 +140,7 @@ def _classify_problem(spec: DOEProblemSpec) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _select_screening_design(
+def _select_screening_design(  # noqa: C901, PLR0912, PLR0915
     spec: DOEProblemSpec,
     classification: dict[str, Any],
     template: dict[str, Any],
@@ -215,7 +214,8 @@ def _select_screening_design(
         # Medium confidence — DSD to screen + detect curvature
         design_type = "definitive_screening"
         runs = estimate_screening_runs(n, "definitive_screening")
-        reasoning.append(f"Moderate prior confidence ({classification['prior_confidence']:.1f}) → DSD for dual purpose.")
+        conf = classification["prior_confidence"]
+        reasoning.append(f"Moderate prior confidence ({conf:.1f}) -- DSD for dual purpose.")
     elif domain_pref == "plackett_burman" or (n >= 6 and not classification["is_tight_budget"]):
         design_type = "plackett_burman"
         runs = estimate_screening_runs(n, "plackett_burman")
@@ -253,7 +253,7 @@ def _select_screening_design(
 
 
 def _screening_transition_rules() -> list[TransitionRule]:
-    """Standard transition rules after a screening stage."""
+    """Return standard transition rules after a screening stage."""
     return [
         TransitionRule(
             condition="0-1 significant factors identified",
@@ -294,10 +294,7 @@ def _select_rsm_design(
         return None
 
     # Determine RSM factor count (screening narrows to ~3)
-    if has_screening:
-        n_rsm = min(classification["n_factors"], 3)
-    else:
-        n_rsm = classification["n_factors"]
+    n_rsm = min(classification["n_factors"], 3) if has_screening else classification["n_factors"]
 
     if n_rsm < 2:
         return None
@@ -312,10 +309,7 @@ def _select_rsm_design(
         purpose = "D-optimal RSM design for constrained factor space."
     # Rule: Sequential buildup from factorial base → CCD
     elif has_screening and domain_pref in ("ccd", "ccd_face_centered", None):
-        if domain_pref == "ccd_face_centered":
-            design_type = "ccd_face_centered"
-        else:
-            design_type = "ccd"
+        design_type = "ccd_face_centered" if domain_pref == "ccd_face_centered" else "ccd"
         runs = estimate_rsm_runs(n_rsm, design_type, center_points)
         purpose = "CCD augments the factorial base from screening with axial + center points."
     # Rule: Fresh start → BBD (fewer runs, avoids corners)
@@ -415,8 +409,9 @@ def _apply_split_plot(
             new_params["split_plot"] = True
             new_params["whole_plot_factors"] = htc
             new_params["subplot_factors"] = [f for f in stage.factors if f not in htc]
-            stage = stage.model_copy(update={"design_params": new_params})
-        updated.append(stage)
+            updated.append(stage.model_copy(update={"design_params": new_params}))
+        else:
+            updated.append(stage)
 
     return updated
 
@@ -474,8 +469,9 @@ def _apply_budget_constraints(
         budget_key = stage_budget_map.get(stage.stage_name, "")
         alloc = budget_alloc.get(budget_key, stage.estimated_runs)
         if alloc < stage.estimated_runs:
-            stage = stage.model_copy(update={"estimated_runs": max(alloc, 3)})
-        updated.append(stage)
+            updated.append(stage.model_copy(update={"estimated_runs": max(alloc, 3)}))
+        else:
+            updated.append(stage)
 
     return updated, warnings
 
@@ -585,11 +581,11 @@ def _build_reasoning(
             )
         )
 
-    for stage in stages:
-        reasoning.append(
-            f"Stage {stage.stage_number} ({stage.stage_name}): "
-            f"{stage.design_type}, {stage.estimated_runs} runs. {stage.purpose}"
-        )
+    reasoning.extend(
+        f"Stage {stage.stage_number} ({stage.stage_name}): "
+        f"{stage.design_type}, {stage.estimated_runs} runs. {stage.purpose}"
+        for stage in stages
+    )
 
     domain_notes = template.get("notes", {}).get(spec.detail_level, "")
     if domain_notes:
@@ -603,7 +599,7 @@ def _build_reasoning(
 # ---------------------------------------------------------------------------
 
 
-def recommend_strategy(
+def recommend_strategy(  # noqa: C901, PLR0913
     *,
     factors: list[Factor],
     responses: list[Response] | None = None,

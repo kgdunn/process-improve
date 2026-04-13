@@ -6,8 +6,10 @@ from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_factorial import full_factorial
 from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
+from process_improve.experiments.knowledge import doe_knowledge
 from process_improve.experiments.models import Model, lm, predict, summary
 from process_improve.experiments.optimization import optimize_responses
+from process_improve.experiments.strategy import recommend_strategy
 from process_improve.experiments.structures import (
     Column,
     Expt,
@@ -16,8 +18,6 @@ from process_improve.experiments.structures import (
     gather,
     supplement,
 )
-from process_improve.experiments.knowledge import doe_knowledge
-from process_improve.experiments.strategy import recommend_strategy
 from process_improve.experiments.visualization import visualize_doe
 
 __all__ = [
