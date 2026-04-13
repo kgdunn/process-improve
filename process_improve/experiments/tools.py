@@ -107,7 +107,7 @@ def create_factorial_design(
                 "factor_names": names,
             }
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.exception("Tool create_factorial_design failed")
         return {"error": str(e)}
 
@@ -211,7 +211,7 @@ def fit_linear_model(
                 "summary_text": summary_text,
             }
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.exception("Tool fit_linear_model failed")
         return {"error": str(e)}
 
@@ -381,7 +381,7 @@ def generate_design_tool(  # noqa: PLR0913
             output["alpha"] = result.alpha
 
         return clean(output)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.exception("Tool generate_design failed")
         return {"error": str(e)}
 
@@ -510,7 +510,7 @@ def evaluate_design_tool(  # noqa: PLR0913
             sigma=sigma,
         )
         return clean(result)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.exception("Tool evaluate_design failed")
         return {"error": str(e)}
 
@@ -650,7 +650,7 @@ def analyze_experiment_tool(  # noqa: PLR0913
             observed_at_new=observed_at_new,
         )
         return clean(result)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.exception("Tool analyze_experiment failed")
         return {"error": str(e)}
 
@@ -852,7 +852,7 @@ def optimize_responses_tool(  # noqa: PLR0913
             desirability_weights=desirability_weights,
         )
         return clean(result)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.exception("Tool optimize_responses failed")
         return {"error": str(e)}
 
@@ -996,7 +996,7 @@ def augment_design_tool(  # noqa: PLR0913
             generators=generators,
         )
         return clean(result)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.exception("Tool augment_design failed")
         return {"error": str(e)}
 
@@ -1147,7 +1147,7 @@ def visualize_doe_tool(  # noqa: PLR0913
             backend=backend,
         )
         return clean(result)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.exception("Tool visualize_doe failed")
         return {"error": str(e)}
 
@@ -1156,7 +1156,7 @@ _register("visualize_doe")
 
 
 # ---------------------------------------------------------------------------
-# Tool 7 – doe_knowledge
+# Tool 7 - doe_knowledge
 # ---------------------------------------------------------------------------
 
 
@@ -1259,7 +1259,7 @@ def doe_knowledge_tool(
             context=context,
             detail_level=detail_level,
         ))
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.exception("Tool doe_knowledge failed")
         return {"error": str(e)}
 

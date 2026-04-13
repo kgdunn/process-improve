@@ -63,7 +63,7 @@ def point_exchange(x: pd.DataFrame, number_points: int = 10) -> np.ndarray:
             design = x.iloc[0 : x.shape[1]]
             xtx_i = np.linalg.inv(np.dot(np.transpose(design), design))
             break
-        except np.linalg.LinAlgError:  # noqa: PERF203
+        except np.linalg.LinAlgError:
             pass
     else:
         msg = (
