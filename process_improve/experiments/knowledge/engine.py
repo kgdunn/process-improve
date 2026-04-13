@@ -6,6 +6,7 @@ and topic indices, and provides filtered traversal for ``doe_knowledge()``.
 
 from __future__ import annotations
 
+import operator as _op
 import re
 from pathlib import Path
 from typing import Any
@@ -41,6 +42,20 @@ def _load_yaml(filename: str) -> list[dict[str, Any]]:
     return data if isinstance(data, list) else []
 
 
+def _index_texts(
+    index: dict[str, list[tuple[str, str]]],
+    node_type: str,
+    node_id: str,
+    texts: list[str],
+) -> None:
+    """Add all tokens from *texts* to the keyword *index*."""
+    for text in texts:
+        for raw_token in text.split():
+            clean_token = raw_token.lower().strip(".,;:!?()\"'")
+            if len(clean_token) >= 3:
+                index.setdefault(clean_token, []).append((node_type, node_id))
+
+
 def _build_keyword_index(graph: KnowledgeGraph) -> dict[str, list[tuple[str, str]]]:
     """Build a keyword -> [(node_type, node_id), ...] lookup.
 
@@ -49,42 +64,25 @@ def _build_keyword_index(graph: KnowledgeGraph) -> dict[str, list[tuple[str, str
     """
     index: dict[str, list[tuple[str, str]]] = {}
 
-    def _add(keyword: str, node_type: str, node_id: str) -> None:
-        keyword = keyword.lower().strip(".,;:!?()\"'")
-        if len(keyword) >= 3:  # noqa: PLR2004
-            index.setdefault(keyword, []).append((node_type, node_id))
-
     for dt in graph.design_types.values():
-        for token in dt.id.replace("_", " ").split():
-            _add(token, "design_type", dt.id)
-        for token in dt.display_name.split():
-            _add(token, "design_type", dt.id)
-        for text in dt.description.values():
-            for token in text.split():
-                _add(token, "design_type", dt.id)
+        _index_texts(index, "design_type", dt.id, [
+            dt.id.replace("_", " "), dt.display_name, *dt.description.values(),
+        ])
 
     for diag in graph.diagnostics.values():
-        for token in diag.id.replace("_", " ").split():
-            _add(token, "diagnostic", diag.id)
-        for token in diag.display_name.split():
-            _add(token, "diagnostic", diag.id)
-        for token in diag.visual_pattern.split():
-            _add(token, "diagnostic", diag.id)
+        _index_texts(index, "diagnostic", diag.id, [
+            diag.id.replace("_", " "), diag.display_name, diag.visual_pattern,
+        ])
 
     for concept in graph.concepts.values():
-        for token in concept.id.replace("_", " ").split():
-            _add(token, "concept", concept.id)
-        for token in concept.title.split():
-            _add(token, "concept", concept.id)
-        for text in concept.content.values():
-            for token in text.split():
-                _add(token, "concept", concept.id)
+        _index_texts(index, "concept", concept.id, [
+            concept.id.replace("_", " "), concept.title, *concept.content.values(),
+        ])
 
     for guide in graph.interpretation_guides.values():
-        for token in guide.id.replace("_", " ").split():
-            _add(token, "interpretation", guide.id)
-        for token in guide.title.split():
-            _add(token, "interpretation", guide.id)
+        _index_texts(index, "interpretation", guide.id, [
+            guide.id.replace("_", " "), guide.title,
+        ])
 
     # De-duplicate entries within each keyword
     return {k: list(dict.fromkeys(v)) for k, v in index.items()}
@@ -267,6 +265,17 @@ def _extract_detail(content: dict[str, str], detail_level: str) -> str:
     return ""
 
 
+_OPS: dict[str, Any] = {
+    "==": _op.eq,
+    "!=": _op.ne,
+    ">=": _op.ge,
+    "<=": _op.le,
+    ">": _op.gt,
+    "<": _op.lt,
+    "in": lambda a, b: a in b,
+}
+
+
 def _match_condition(condition: dict[str, Any], context: dict[str, Any]) -> bool:
     """Check whether a single condition matches the given context."""
     key = condition.get("key", "")
@@ -276,24 +285,8 @@ def _match_condition(condition: dict[str, Any], context: dict[str, Any]) -> bool
     if key not in context:
         return False
 
-    ctx_val = context[key]
-
-    if op == "==":
-        return ctx_val == value
-    if op == "!=":
-        return ctx_val != value
-    if op == ">=":
-        return ctx_val >= value
-    if op == "<=":
-        return ctx_val <= value
-    if op == ">":
-        return ctx_val > value
-    if op == "<":
-        return ctx_val < value
-    if op == "in":
-        return ctx_val in value
-
-    return False
+    fn = _OPS.get(op)
+    return fn(context[key], value) if fn else False
 
 
 def _match_all_conditions(conditions: list[dict[str, Any]], context: dict[str, Any]) -> bool:
@@ -339,15 +332,17 @@ def query_design_selection(
     results: list[dict[str, Any]] = []
 
     if context:
-        for rule in graph.decision_rules:
-            if _match_all_conditions(rule.conditions, context):
-                results.append({
-                    "type": "decision_rule",
-                    "id": rule.id,
-                    "description": rule.description,
-                    "recommendation": rule.recommend,
-                    "explanation": _extract_detail(rule.explanation, detail_level),
-                })
+        results.extend(
+            {
+                "type": "decision_rule",
+                "id": rule.id,
+                "description": rule.description,
+                "recommendation": rule.recommend,
+                "explanation": _extract_detail(rule.explanation, detail_level),
+            }
+            for rule in graph.decision_rules
+            if _match_all_conditions(rule.conditions, context)
+        )
 
     # If no context matches or no context provided, fall back to keyword search
     if not results and query:
@@ -427,8 +422,8 @@ def query_troubleshooting(
                 })
     else:
         # No query: return all diagnostics
-        for diag in graph.diagnostics.values():
-            results.append({
+        results.extend(
+            {
                 "type": "diagnostic",
                 "id": diag.id,
                 "display_name": diag.display_name,
@@ -436,7 +431,9 @@ def query_troubleshooting(
                 "indicates": diag.indicates,
                 "remedies": diag.remedies,
                 "severity": diag.severity,
-            })
+            }
+            for diag in graph.diagnostics.values()
+        )
 
     return results
 
@@ -464,14 +461,16 @@ def query_statistical_concepts(
                     "related_to": concept.related_to,
                 })
     else:
-        for concept in graph.concepts.values():
-            results.append({
+        results.extend(
+            {
                 "type": "concept",
                 "id": concept.id,
                 "title": concept.title,
                 "content": _extract_detail(concept.content, detail_level),
                 "related_to": concept.related_to,
-            })
+            }
+            for concept in graph.concepts.values()
+        )
 
     return results
 
@@ -493,8 +492,7 @@ def query_design_types(
                 dt = graph.design_types[node_id]
                 results.append(_format_design_type(dt, detail_level))
     else:
-        for dt in graph.design_types.values():
-            results.append(_format_design_type(dt, detail_level))
+        results.extend(_format_design_type(dt, detail_level) for dt in graph.design_types.values())
 
     return results
 

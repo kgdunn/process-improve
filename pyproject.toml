@@ -201,6 +201,14 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 
 [tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "ANN001",  # Type annotations not needed in tests
+    "ANN201",  # Return type annotations not needed in tests
+    "ANN202",  # Return type annotations not needed in tests
+    "D102",    # Docstrings not needed in test methods
+    "D103",    # Docstrings not needed in test functions
+    "PLC0415", # Inline imports are common in tests for isolation
+]
 "process_improve/notebooks_examples/**" = [
     "T201",    # print() is expected in example scripts and notebooks
     "ANN001",  # Type annotations not needed in examples
