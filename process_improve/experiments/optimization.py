@@ -113,7 +113,7 @@ def _build_model_evaluator(
             elif len(components) == 1:
                 # Linear
                 y += coef * x[name_to_idx[components[0]]]
-            elif len(components) == 2:  # noqa: PLR2004
+            elif len(components) == 2:
                 # Interaction or quadratic
                 y += coef * x[name_to_idx[components[0]]] * x[name_to_idx[components[1]]]
             else:
@@ -183,7 +183,7 @@ def _extract_b_and_B(  # noqa: N802
             b0 = coef
         elif len(components) == 1:
             b[name_to_idx[components[0]]] = coef
-        elif len(components) == 2:  # noqa: PLR2004
+        elif len(components) == 2:
             i = name_to_idx[components[0]]
             j = name_to_idx[components[1]]
             if i == j:
@@ -337,7 +337,7 @@ def _canonical_analysis(
 # ---------------------------------------------------------------------------
 
 
-def _steepest_path(
+def _steepest_path(  # noqa: PLR0913
     coefficients: list[dict[str, Any]],
     factor_names: list[str],
     step_size: float = 0.5,
@@ -454,7 +454,7 @@ def _desirability_minimize(y: float, low: float, high: float, weight: float = 1.
     return ((high - y) / (high - low)) ** weight
 
 
-def _desirability_target(
+def _desirability_target(  # noqa: PLR0913
     y: float,
     low: float,
     target: float,
@@ -503,13 +503,13 @@ def _composite_desirability(d_values: list[float], importances: list[float] | No
     if not d_values:
         return 0.0
 
-    weights = importances if importances else [1.0] * len(d_values)
+    weights = importances or [1.0] * len(d_values)
 
     # If any desirability is zero, composite is zero
     if any(d == 0.0 for d in d_values):
         return 0.0
 
-    log_d = sum(w * np.log(d) for d, w in zip(d_values, weights))
+    log_d = sum(w * np.log(d) for d, w in zip(d_values, weights, strict=True))
     w_sum = sum(weights)
     if w_sum == 0:
         return 0.0
@@ -548,7 +548,7 @@ def _optimize_desirability(
 
     def neg_composite(x: np.ndarray) -> float:
         d_vals = []
-        for evaluator, goal in zip(evaluators, goals):
+        for evaluator, goal in zip(evaluators, goals, strict=True):
             y_pred = evaluator(x)
             d = _individual_desirability(y_pred, goal)
             d_vals.append(d)
@@ -562,9 +562,7 @@ def _optimize_desirability(
     best_result = None
     best_value = np.inf
 
-    starting_points = [np.zeros(k)]
-    for _ in range(9):
-        starting_points.append(rng.uniform(-1, 1, size=k))
+    starting_points = [np.zeros(k), *[rng.uniform(-1, 1, size=k) for _ in range(9)]]
 
     for x0 in starting_points:
         res = optimize.minimize(neg_composite, x0, method="SLSQP", bounds=bounds)
@@ -578,7 +576,7 @@ def _optimize_desirability(
     # Evaluate individual responses and desirabilities at optimum
     predictions = {}
     individual_d = {}
-    for evaluator, model_dict, goal in zip(evaluators, fitted_models, goals):
+    for evaluator, model_dict, goal in zip(evaluators, fitted_models, goals, strict=True):
         resp_name = model_dict.get("response_name", "response")
         y_pred = float(evaluator(x_opt))
         predictions[resp_name] = y_pred
@@ -682,7 +680,7 @@ def _coded_to_actual(coded: dict[str, float], factor_ranges: dict[str, dict[str,
 # ---------------------------------------------------------------------------
 
 
-def optimize_responses(  # noqa: PLR0912, PLR0913, C901
+def optimize_responses(  # noqa: PLR0913, C901
     fitted_models: list[dict[str, Any]],
     goals: list[dict[str, Any]] | None = None,
     method: str = "desirability",
