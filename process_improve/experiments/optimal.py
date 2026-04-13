@@ -55,15 +55,22 @@ def point_exchange(x: pd.DataFrame, number_points: int = 10) -> np.ndarray:
 
     number_points = min(number_points, x.shape[0])
     # Continually try to pick rows from x, until it is not singular
-    is_singular = True
-    while is_singular:  # TODO: add a limit to the number of repeats here
+    max_attempts = 1000
+    xtx_i = None
+    for _attempt in range(max_attempts):
         try:
             x = x.sample(frac=1)
             design = x.iloc[0 : x.shape[1]]
             xtx_i = np.linalg.inv(np.dot(np.transpose(design), design))
-            is_singular = False
+            break
         except np.linalg.LinAlgError:  # noqa: PERF203
             pass
+    else:
+        msg = (
+            f"Could not find a non-singular starting design after {max_attempts} "
+            "attempts. The candidate set may contain collinear columns."
+        )
+        raise ValueError(msg)
 
     _, d_optimality_i = np.linalg.slogdet(xtx_i)
 
