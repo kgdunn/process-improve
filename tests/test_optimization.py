@@ -97,3 +97,72 @@ class TestParseTerm:
 
     def test_three_way_interaction(self) -> None:
         assert _parse_term("A:B:C") == ("A", "B", "C")
+
+
+# ---------------------------------------------------------------------------
+# Model evaluator
+# ---------------------------------------------------------------------------
+
+
+class TestModelEvaluator:
+    def test_intercept_only(self) -> None:
+        coeffs = [{"term": "Intercept", "coefficient": 42.0}]
+        val = evaluate_model(coeffs, ["A"], {"A": 0.0})
+        assert val == pytest.approx(42.0)
+
+    def test_linear_model_at_origin(self) -> None:
+        coeffs = _linear_2f_coeffs()
+        val = evaluate_model(coeffs, FACTOR_NAMES_2F, {"A": 0.0, "B": 0.0})
+        assert val == pytest.approx(30.0)
+
+    def test_linear_model_at_plus_one(self) -> None:
+        coeffs = _linear_2f_coeffs()
+        # y = 30 + 4*1 + 3*1 = 37
+        val = evaluate_model(coeffs, FACTOR_NAMES_2F, {"A": 1.0, "B": 1.0})
+        assert val == pytest.approx(37.0)
+
+    def test_quadratic_model_at_origin(self) -> None:
+        coeffs = _quadratic_2f_coeffs()
+        # At origin: y = 40 (intercept only, all x=0)
+        val = evaluate_model(coeffs, FACTOR_NAMES_2F, {"A": 0.0, "B": 0.0})
+        assert val == pytest.approx(40.0)
+
+    def test_quadratic_model_at_corner(self) -> None:
+        coeffs = _quadratic_2f_coeffs()
+        # At (1,1): y = 40 + 5.25 - 2 - 3 - 1.5 + 1.5 = 40.25
+        val = evaluate_model(coeffs, FACTOR_NAMES_2F, {"A": 1.0, "B": 1.0})
+        assert val == pytest.approx(40.25)
+
+    def test_build_evaluator_returns_callable(self) -> None:
+        f = _build_model_evaluator(_linear_2f_coeffs(), FACTOR_NAMES_2F)
+        assert callable(f)
+        assert f(np.array([0.0, 0.0])) == pytest.approx(30.0)
+
+
+# ---------------------------------------------------------------------------
+# Extract b and B
+# ---------------------------------------------------------------------------
+
+
+class TestExtractBandB:
+    def test_linear_model_has_zero_B(self) -> None:
+        b0, b, B = _extract_b_and_B(_linear_2f_coeffs(), FACTOR_NAMES_2F)
+        assert b0 == pytest.approx(30.0)
+        assert b[0] == pytest.approx(4.0)
+        assert b[1] == pytest.approx(3.0)
+        assert np.allclose(B, 0)
+
+    def test_quadratic_model_B_is_symmetric(self) -> None:
+        _b0, _b, B = _extract_b_and_B(_quadratic_2f_coeffs(), FACTOR_NAMES_2F)
+        assert B[0, 1] == pytest.approx(B[1, 0])
+
+    def test_quadratic_diagonals(self) -> None:
+        _b0, _b, B = _extract_b_and_B(_quadratic_2f_coeffs(), FACTOR_NAMES_2F)
+        assert B[0, 0] == pytest.approx(-3.0)
+        assert B[1, 1] == pytest.approx(-1.5)
+
+    def test_interaction_split(self) -> None:
+        _b0, _b, B = _extract_b_and_B(_quadratic_2f_coeffs(), FACTOR_NAMES_2F)
+        # Interaction coeff 1.5 is split: B[0,1] = B[1,0] = 0.75
+        assert B[0, 1] == pytest.approx(0.75)
+        assert B[1, 0] == pytest.approx(0.75)
