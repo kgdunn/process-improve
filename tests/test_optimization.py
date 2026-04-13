@@ -307,3 +307,95 @@ class TestSteepestPath:
         ]
         result = _steepest_path(coeffs, FACTOR_NAMES_2F)
         assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# Desirability functions
+# ---------------------------------------------------------------------------
+
+
+class TestDesirabilityMaximize:
+    def test_below_low(self) -> None:
+        assert _desirability_maximize(5.0, 10.0, 20.0) == 0.0
+
+    def test_above_high(self) -> None:
+        assert _desirability_maximize(25.0, 10.0, 20.0) == 1.0
+
+    def test_at_midpoint(self) -> None:
+        assert _desirability_maximize(15.0, 10.0, 20.0) == pytest.approx(0.5)
+
+    def test_weight_effect(self) -> None:
+        d_linear = _desirability_maximize(15.0, 10.0, 20.0, weight=1.0)
+        d_concave = _desirability_maximize(15.0, 10.0, 20.0, weight=0.5)
+        # weight < 1 → concave → higher d at midpoint
+        assert d_concave > d_linear
+
+
+class TestDesirabilityMinimize:
+    def test_below_low(self) -> None:
+        assert _desirability_minimize(5.0, 10.0, 20.0) == 1.0
+
+    def test_above_high(self) -> None:
+        assert _desirability_minimize(25.0, 10.0, 20.0) == 0.0
+
+    def test_at_midpoint(self) -> None:
+        assert _desirability_minimize(15.0, 10.0, 20.0) == pytest.approx(0.5)
+
+
+class TestDesirabilityTarget:
+    def test_at_target(self) -> None:
+        assert _desirability_target(15.0, 10.0, 15.0, 20.0) == pytest.approx(1.0)
+
+    def test_below_low(self) -> None:
+        assert _desirability_target(5.0, 10.0, 15.0, 20.0) == 0.0
+
+    def test_above_high(self) -> None:
+        assert _desirability_target(25.0, 10.0, 15.0, 20.0) == 0.0
+
+    def test_between_low_and_target(self) -> None:
+        d = _desirability_target(12.5, 10.0, 15.0, 20.0)
+        assert 0.0 < d < 1.0
+
+    def test_between_target_and_high(self) -> None:
+        d = _desirability_target(17.5, 10.0, 15.0, 20.0)
+        assert 0.0 < d < 1.0
+
+
+class TestIndividualDesirability:
+    def test_maximize_goal(self) -> None:
+        goal = {"goal": "maximize", "low": 10.0, "high": 20.0}
+        assert _individual_desirability(25.0, goal) == 1.0
+
+    def test_minimize_goal(self) -> None:
+        goal = {"goal": "minimize", "low": 10.0, "high": 20.0}
+        assert _individual_desirability(5.0, goal) == 1.0
+
+    def test_target_goal(self) -> None:
+        goal = {"goal": "target", "low": 10.0, "high": 20.0, "target": 15.0}
+        assert _individual_desirability(15.0, goal) == pytest.approx(1.0)
+
+    def test_unknown_goal_raises(self) -> None:
+        goal = {"goal": "unknown", "low": 10.0, "high": 20.0}
+        with pytest.raises(ValueError, match="Unknown goal"):
+            _individual_desirability(15.0, goal)
+
+
+class TestCompositeDesirability:
+    def test_all_ones(self) -> None:
+        assert _composite_desirability([1.0, 1.0, 1.0]) == pytest.approx(1.0)
+
+    def test_any_zero_gives_zero(self) -> None:
+        assert _composite_desirability([1.0, 0.0, 1.0]) == 0.0
+
+    def test_geometric_mean(self) -> None:
+        # D = (0.5 * 0.8)^(1/2) = sqrt(0.4)
+        d = _composite_desirability([0.5, 0.8])
+        assert d == pytest.approx(np.sqrt(0.4))
+
+    def test_weighted(self) -> None:
+        d = _composite_desirability([0.5, 0.8], importances=[2.0, 1.0])
+        expected = np.exp((2.0 * np.log(0.5) + 1.0 * np.log(0.8)) / 3.0)
+        assert d == pytest.approx(expected)
+
+    def test_empty_list(self) -> None:
+        assert _composite_desirability([]) == 0.0
