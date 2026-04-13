@@ -854,6 +854,149 @@ def optimize_responses_tool(  # noqa: PLR0913
 _register("optimize_responses")
 
 
+@tool_spec(
+    name="augment_design",
+    description=(
+        "Extend or modify an existing experimental design. Supports foldover (de-alias all "
+        "2-factor interactions), semifold (de-alias specific interactions with fewer runs), "
+        "adding center points (test for curvature), adding axial/star points (upgrade to CCD "
+        "for response surface modeling), D-optimal augmentation (add runs to maximize information), "
+        "upgrade to RSM (convert screening design to response surface design), add blocks "
+        "(retroactively confound block effects with high-order interactions), and replication "
+        "(improve precision estimates). "
+        "Always returns the augmented design matrix plus an explanation of what changed in the "
+        "alias structure and design properties."
+    ),
+    input_schema={
+        "json": {
+            "type": "object",
+            "properties": {
+                "existing_design": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {"type": "number"},
+                    },
+                    "description": (
+                        "Current design matrix as list of dicts with factor names as keys "
+                        "and coded values (-1/+1) as values. "
+                        "Example: [{'A': -1, 'B': -1}, {'A': 1, 'B': -1}, ...]"
+                    ),
+                    "minItems": 2,
+                },
+                "augmentation_type": {
+                    "type": "string",
+                    "enum": [
+                        "foldover",
+                        "semifold",
+                        "add_center_points",
+                        "add_axial_points",
+                        "add_runs_optimal",
+                        "upgrade_to_rsm",
+                        "add_blocks",
+                        "replicate",
+                    ],
+                    "description": "Type of augmentation to apply to the design.",
+                },
+                "target_model": {
+                    "type": "string",
+                    "enum": ["main_effects", "interactions", "quadratic"],
+                    "description": (
+                        "Desired model after augmentation. Used by 'add_runs_optimal' "
+                        "and 'upgrade_to_rsm'. Default: 'interactions'."
+                    ),
+                },
+                "n_additional_runs": {
+                    "type": "integer",
+                    "description": (
+                        "Budget for additional runs. Interpretation depends on type: "
+                        "number of center points, D-optimal runs, replicates, or blocks."
+                    ),
+                    "minimum": 1,
+                },
+                "fold_on": {
+                    "type": "string",
+                    "description": (
+                        "Factor name to fold on (semifold only). "
+                        "If omitted, the best factor is auto-selected."
+                    ),
+                },
+                "alpha": {
+                    "oneOf": [
+                        {
+                            "type": "string",
+                            "enum": ["rotatable", "face_centered", "orthogonal"],
+                        },
+                        {"type": "number"},
+                    ],
+                    "description": (
+                        "Axial distance for add_axial_points or upgrade_to_rsm. "
+                        "'rotatable', 'face_centered', 'orthogonal', or a numeric value."
+                    ),
+                },
+                "generators": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Generator strings from the original fractional factorial design "
+                        "(e.g. ['D=ABC']). Needed for foldover/semifold alias analysis."
+                    ),
+                },
+            },
+            "required": ["existing_design", "augmentation_type"],
+        }
+    },
+    examples="""
+    # "Fold over my 2^(4-1) design to de-alias two-factor interactions"
+        -> ``augment_design(existing_design=[...], augmentation_type="foldover",
+                generators=["D=ABC"])``
+
+    # "Add 5 center points to test for curvature"
+        -> ``augment_design(existing_design=[...], augmentation_type="add_center_points",
+                n_additional_runs=5)``
+
+    # "Upgrade my screening design to a CCD for response surface modeling"
+        -> ``augment_design(existing_design=[...], augmentation_type="upgrade_to_rsm",
+                alpha="rotatable", target_model="quadratic")``
+
+    # "Add 6 D-optimal runs to improve my design"
+        -> ``augment_design(existing_design=[...], augmentation_type="add_runs_optimal",
+                n_additional_runs=6, target_model="interactions")``
+    """,
+    category="experiments",
+)
+def augment_design_tool(  # noqa: PLR0913
+    *,
+    existing_design: list[dict[str, Any]],
+    augmentation_type: str,
+    target_model: str | None = None,
+    n_additional_runs: int | None = None,
+    fold_on: str | None = None,
+    alpha: str | float | None = None,
+    generators: list[str] | None = None,
+) -> dict[str, Any]:
+    """Augment an existing design; see tool spec for details."""
+    try:
+        from process_improve.experiments.augment import augment_design  # noqa: PLC0415
+
+        df = pd.DataFrame(existing_design)
+        result = augment_design(
+            existing_design=df,
+            augmentation_type=augmentation_type,
+            target_model=target_model,
+            n_additional_runs=n_additional_runs,
+            fold_on=fold_on,
+            alpha=alpha,
+            generators=generators,
+        )
+        return clean(result)
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+
+
+_register("augment_design")
+
+
 # ---------------------------------------------------------------------------
 # Module-level convenience
 # ---------------------------------------------------------------------------
