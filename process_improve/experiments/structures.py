@@ -84,10 +84,10 @@ class Column(pd.Series):
         index = list(range(prior_n + 1, prior_n + len(values) + 1))
         new = pd.Series(data=values, index=index)
         intermediate = self.copy(deep=True)
-        intermediate = intermediate.append(new)
+        intermediate = pd.concat([intermediate, new])
 
-        # Carry the meta data over. For some reason the `pd.Series.append`
-        # function does not do this (yet?)
+        # Carry the meta data over. pd.concat does not propagate custom
+        # metadata from subclassed Series.
         for key in self._metadata:
             setattr(intermediate, key, getattr(self, key))
         intermediate.name = self.name
