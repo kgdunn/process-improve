@@ -270,3 +270,18 @@ Total: ~40 runs
 ```
 
 **Handles 10 questions as primary tool.** See [mapping](tool-question-mapping.md#recommend_strategy).
+
+### Implementation (v1)
+
+**Status: Implemented** — `process_improve/experiments/strategy/`
+
+Deterministic rule engine architecture:
+
+1. **Pydantic models** (`strategy/models.py`) — `ExperimentalStrategy`, `ExperimentalStage`, `TransitionRule`, `DOEProblemSpec`, `PriorKnowledge`, `DomainType`
+2. **Budget allocator** (`strategy/budget.py`) — 25-40-55-15 framework with domain-specific adjustments and run estimation for PB, DSD, fractional factorial, CCD, BBD designs
+3. **Domain templates** (`strategy/domain_templates.py`) — 8 domain templates (pharma, fermentation, food science, extraction, analytical method, cell culture, bioprocess, general) with design preferences and budget weights
+4. **Rule engine** (`strategy/engine.py`) — ~50 deterministic decision rules from Montgomery, NIST, Stat-Ease SCOR; pipeline: classify → stage selection → design selection → budget allocation → transition rules → assembly
+
+**Registered as `@tool_spec`** in `tools.py` — callable via `execute_tool_call("recommend_strategy", {...})`
+
+**Tests:** 74 tests in `tests/test_recommend_strategy.py`

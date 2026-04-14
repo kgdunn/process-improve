@@ -13,7 +13,7 @@ Current implementation status and gap analysis.
 | `augment_design` | **Implemented** | `augment.py` — foldover, semifold, axial, replicate, D-optimal | — |
 | `visualize_doe` | **Implemented** | `visualization/` — 20 plot types, dual Plotly+ECharts backends | — |
 | `doe_knowledge` | **Implemented** | `knowledge/` — YAML knowledge graph, in-memory query engine, 6 design types, 7 decision rules, 8 diagnostics, 9 concepts | Interpretation guides, worked examples (YAML stubs) |
-| `recommend_strategy` | Not started | — | Multi-stage planning, budget allocation |
+| `recommend_strategy` | **Implemented** | `strategy/` — deterministic rule engine, ~50 decision rules, 8 domain templates, budget allocation | — |
 
 ## Existing Module Files
 
@@ -27,9 +27,10 @@ Current implementation status and gap analysis.
 | `datasets.py` | Sample datasets | Testing / examples |
 | `simulations.py` | `popcorn()`, `grocery()` | Teaching / examples |
 | `analysis.py` | `analyze_experiment()`, formula builder, 13 analysis types | `analyze_experiment` |
-| `tools.py` | 7 tool specs registered | Agent interface |
+| `tools.py` | 8 tool specs registered | Agent interface |
 | `knowledge/` | `doe_knowledge()`, YAML data files, query engine | `doe_knowledge` |
 | `visualization/` | `visualize_doe()`, 20 plot classes, Plotly+ECharts adapters | `visualize_doe` |
+| `strategy/` | `recommend_strategy()`, rule engine, 8 domain templates, budget allocation, ~50 decision rules | `recommend_strategy` |
 
 ## Usage Frequency
 

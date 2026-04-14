@@ -688,7 +688,7 @@ class TestToolSpec:
 
     def test_basic_round_trip(self) -> None:
         """Tool wrapper returns JSON-serializable output."""
-        from process_improve.experiments.tools import evaluate_design_tool  # noqa: PLC0415
+        from process_improve.experiments.tools import evaluate_design_tool
 
         result = evaluate_design_tool(
             design_matrix=[
@@ -705,7 +705,7 @@ class TestToolSpec:
 
     def test_multiple_metrics(self) -> None:
         """Tool wrapper supports list of metrics."""
-        from process_improve.experiments.tools import evaluate_design_tool  # noqa: PLC0415
+        from process_improve.experiments.tools import evaluate_design_tool
 
         result = evaluate_design_tool(
             design_matrix=[
@@ -722,7 +722,7 @@ class TestToolSpec:
 
     def test_error_handling(self) -> None:
         """Bad metric name returns error dict."""
-        from process_improve.experiments.tools import evaluate_design_tool  # noqa: PLC0415
+        from process_improve.experiments.tools import evaluate_design_tool
 
         result = evaluate_design_tool(
             design_matrix=[{"A": -1}, {"A": 1}],

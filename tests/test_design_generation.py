@@ -635,8 +635,8 @@ class TestIntegration:
 
     def test_full_factorial_to_lm(self) -> None:
         """Generate a full factorial, add response, fit model, check coefficients."""
-        from process_improve.experiments.models import lm  # noqa: PLC0415
-        from process_improve.experiments.structures import c, gather  # noqa: PLC0415
+        from process_improve.experiments.models import lm
+        from process_improve.experiments.structures import c, gather
 
         factors = [Factor(name="A", low=0, high=10), Factor(name="B", low=0, high=10)]
         result = generate_design(factors, design_type="full_factorial", center_points=0)
@@ -682,7 +682,7 @@ class TestToolSpec:
 
     def test_generate_design_tool(self) -> None:
         """Tool wrapper should return design as list of dicts."""
-        from process_improve.experiments.tools import generate_design_tool  # noqa: PLC0415
+        from process_improve.experiments.tools import generate_design_tool
 
         result = generate_design_tool(
             factors=[
@@ -700,7 +700,7 @@ class TestToolSpec:
 
     def test_generate_design_tool_auto(self) -> None:
         """Tool wrapper with no design_type should auto-select."""
-        from process_improve.experiments.tools import generate_design_tool  # noqa: PLC0415
+        from process_improve.experiments.tools import generate_design_tool
 
         result = generate_design_tool(
             factors=[
@@ -714,7 +714,7 @@ class TestToolSpec:
 
     def test_generate_design_tool_error(self) -> None:
         """Tool wrapper should return error dict on invalid input."""
-        from process_improve.experiments.tools import generate_design_tool  # noqa: PLC0415
+        from process_improve.experiments.tools import generate_design_tool
 
         result = generate_design_tool(factors=[{"name": "T"}])  # missing low/high
         assert "error" in result

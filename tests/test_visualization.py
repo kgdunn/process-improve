@@ -142,14 +142,14 @@ class TestRegistry:
         for pt in DOEPlotType:
             assert pt.value in available, f"{pt.value} not registered"
 
-    def test_create_plot_returns_base_plot(self, two_factor_effects: dict) -> None:  # noqa: D102
+    def test_create_plot_returns_base_plot(self, two_factor_effects: dict) -> None:
         plot = create_plot(
             "pareto",
             analysis_results={"effects": two_factor_effects},
         )
         assert hasattr(plot, "to_spec")
 
-    def test_create_plot_unknown_type(self) -> None:  # noqa: D102
+    def test_create_plot_unknown_type(self) -> None:
         with pytest.raises(ValueError, match="Unknown plot_type"):
             create_plot("nonexistent_plot_type")
 
@@ -160,7 +160,7 @@ class TestRegistry:
 
 
 class TestParetoPlot:
-    def test_spec_structure(self, two_factor_effects: dict) -> None:  # noqa: D102
+    def test_spec_structure(self, two_factor_effects: dict) -> None:
         plot = create_plot("pareto", analysis_results={"effects": two_factor_effects})
         spec = plot.to_spec()
         assert isinstance(spec, ChartSpec)
@@ -169,7 +169,7 @@ class TestParetoPlot:
         # Should have bar + cumulative line layers
         assert len(spec.panels[0].layers) == 2
 
-    def test_with_lenth_thresholds(self, two_factor_effects: dict, lenth_data: dict) -> None:  # noqa: D102
+    def test_with_lenth_thresholds(self, two_factor_effects: dict, lenth_data: dict) -> None:
         plot = create_plot(
             "pareto",
             analysis_results={"effects": two_factor_effects, "lenth_method": lenth_data},
@@ -178,36 +178,36 @@ class TestParetoPlot:
         # Should have threshold annotations
         assert len(spec.panels[0].annotations) >= 1
 
-    def test_plotly_output(self, two_factor_effects: dict) -> None:  # noqa: D102
+    def test_plotly_output(self, two_factor_effects: dict) -> None:
         plot = create_plot("pareto", analysis_results={"effects": two_factor_effects})
         fig_dict = plot.to_plotly()
         assert "data" in fig_dict
         assert "layout" in fig_dict
 
-    def test_echarts_output(self, two_factor_effects: dict) -> None:  # noqa: D102
+    def test_echarts_output(self, two_factor_effects: dict) -> None:
         plot = create_plot("pareto", analysis_results={"effects": two_factor_effects})
         config = plot.to_echarts()
         assert "series" in config
 
-    def test_json_serialisable(self, two_factor_effects: dict) -> None:  # noqa: D102
+    def test_json_serialisable(self, two_factor_effects: dict) -> None:
         result = visualize_doe(plot_type="pareto", analysis_results={"effects": two_factor_effects})
         json_str = json.dumps(result)
         assert json_str  # Should not raise
 
-    def test_empty_effects(self) -> None:  # noqa: D102
+    def test_empty_effects(self) -> None:
         plot = create_plot("pareto", analysis_results={"effects": {}})
         spec = plot.to_spec()
         assert "no effects" in spec.title.lower() or spec.plot_type == "pareto"
 
 
 class TestHalfNormalPlot:
-    def test_spec_structure(self, three_factor_effects: dict) -> None:  # noqa: D102
+    def test_spec_structure(self, three_factor_effects: dict) -> None:
         plot = create_plot("half_normal", analysis_results={"effects": three_factor_effects})
         spec = plot.to_spec()
         assert spec.plot_type == "half_normal"
         assert len(spec.panels) == 1
 
-    def test_with_lenth(self, three_factor_effects: dict, lenth_data: dict) -> None:  # noqa: D102
+    def test_with_lenth(self, three_factor_effects: dict, lenth_data: dict) -> None:
         plot = create_plot(
             "half_normal",
             analysis_results={"effects": three_factor_effects, "lenth_method": lenth_data},
@@ -218,7 +218,7 @@ class TestHalfNormalPlot:
 
 
 class TestDanielPlot:
-    def test_spec_structure(self, three_factor_effects: dict) -> None:  # noqa: D102
+    def test_spec_structure(self, three_factor_effects: dict) -> None:
         plot = create_plot("daniel", analysis_results={"effects": three_factor_effects})
         spec = plot.to_spec()
         assert spec.plot_type == "daniel"
@@ -231,21 +231,21 @@ class TestDanielPlot:
 
 
 class TestMainEffectsPlot:
-    def test_spec_structure(self, design_data_2f: list) -> None:  # noqa: D102
+    def test_spec_structure(self, design_data_2f: list) -> None:
         plot = create_plot("main_effects", design_data=design_data_2f, response_column="y")
         spec = plot.to_spec()
         assert spec.plot_type == "main_effects"
         # One line per factor
         assert len(spec.panels[0].layers) == 2
 
-    def test_no_data(self) -> None:  # noqa: D102
+    def test_no_data(self) -> None:
         plot = create_plot("main_effects")
         spec = plot.to_spec()
         assert "no data" in spec.title.lower()
 
 
 class TestInteractionPlot:
-    def test_spec_structure(self, design_data_2f: list) -> None:  # noqa: D102
+    def test_spec_structure(self, design_data_2f: list) -> None:
         plot = create_plot(
             "interaction",
             design_data=design_data_2f,
@@ -255,7 +255,7 @@ class TestInteractionPlot:
         spec = plot.to_spec()
         assert spec.plot_type == "interaction"
 
-    def test_need_two_factors(self, design_data_2f: list) -> None:  # noqa: D102
+    def test_need_two_factors(self, design_data_2f: list) -> None:
         plot = create_plot(
             "interaction",
             design_data=design_data_2f,
@@ -267,7 +267,7 @@ class TestInteractionPlot:
 
 
 class TestPerturbationPlot:
-    def test_spec_structure(self, coefficients_2f: list) -> None:  # noqa: D102
+    def test_spec_structure(self, coefficients_2f: list) -> None:
         plot = create_plot(
             "perturbation",
             analysis_results={"coefficients": coefficients_2f},
@@ -285,7 +285,7 @@ class TestPerturbationPlot:
 
 
 class TestResidualsVsFittedPlot:
-    def test_spec_structure(self, residual_diagnostics: dict) -> None:  # noqa: D102
+    def test_spec_structure(self, residual_diagnostics: dict) -> None:
         plot = create_plot(
             "residuals_vs_fitted",
             analysis_results={"residual_diagnostics": residual_diagnostics},
@@ -298,7 +298,7 @@ class TestResidualsVsFittedPlot:
 
 
 class TestNormalProbabilityPlot:
-    def test_spec_structure(self, residual_diagnostics: dict) -> None:  # noqa: D102
+    def test_spec_structure(self, residual_diagnostics: dict) -> None:
         plot = create_plot(
             "normal_probability",
             analysis_results={"residual_diagnostics": residual_diagnostics},
@@ -310,7 +310,7 @@ class TestNormalProbabilityPlot:
 
 
 class TestResidualsVsOrderPlot:
-    def test_spec_structure(self, residual_diagnostics: dict) -> None:  # noqa: D102
+    def test_spec_structure(self, residual_diagnostics: dict) -> None:
         plot = create_plot(
             "residuals_vs_order",
             analysis_results={"residual_diagnostics": residual_diagnostics},
@@ -320,7 +320,7 @@ class TestResidualsVsOrderPlot:
 
 
 class TestBoxCoxPlot:
-    def test_spec_with_positive_response(self, design_data_2f: list) -> None:  # noqa: D102
+    def test_spec_with_positive_response(self, design_data_2f: list) -> None:
         plot = create_plot("box_cox", design_data=design_data_2f, response_column="y")
         spec = plot.to_spec()
         assert spec.plot_type == "box_cox"
@@ -333,7 +333,7 @@ class TestBoxCoxPlot:
 
 
 class TestContourPlot:
-    def test_spec_structure(self, coefficients_2f: list) -> None:  # noqa: D102
+    def test_spec_structure(self, coefficients_2f: list) -> None:
         plot = create_plot(
             "contour",
             analysis_results={"coefficients": coefficients_2f},
@@ -343,7 +343,7 @@ class TestContourPlot:
         assert spec.plot_type == "contour"
         assert len(spec.panels) == 1
 
-    def test_quadratic_model(self, quadratic_coefficients: list) -> None:  # noqa: D102
+    def test_quadratic_model(self, quadratic_coefficients: list) -> None:
         plot = create_plot(
             "contour",
             analysis_results={"coefficients": quadratic_coefficients},
@@ -357,7 +357,7 @@ class TestContourPlot:
 
 
 class TestSurface3DPlot:
-    def test_spec_structure(self, quadratic_coefficients: list) -> None:  # noqa: D102
+    def test_spec_structure(self, quadratic_coefficients: list) -> None:
         plot = create_plot(
             "surface_3d",
             analysis_results={"coefficients": quadratic_coefficients},
@@ -369,7 +369,7 @@ class TestSurface3DPlot:
 
 
 class TestPredictionVariancePlot:
-    def test_spec_structure(self, design_data_2f: list) -> None:  # noqa: D102
+    def test_spec_structure(self, design_data_2f: list) -> None:
         plot = create_plot(
             "prediction_variance",
             design_data=design_data_2f,
@@ -386,7 +386,7 @@ class TestPredictionVariancePlot:
 
 
 class TestCubePlot:
-    def test_spec_structure(self, coefficients_3f: list) -> None:  # noqa: D102
+    def test_spec_structure(self, coefficients_3f: list) -> None:
         plot = create_plot(
             "cube_plot",
             analysis_results={"coefficients": coefficients_3f},
@@ -397,7 +397,7 @@ class TestCubePlot:
         assert spec.metadata.get("requires_gl") is True
         assert len(spec.metadata["vertices"]) == 8
 
-    def test_needs_3_factors(self, coefficients_2f: list) -> None:  # noqa: D102
+    def test_needs_3_factors(self, coefficients_2f: list) -> None:
         plot = create_plot(
             "cube_plot",
             analysis_results={"coefficients": coefficients_2f},
@@ -406,7 +406,7 @@ class TestCubePlot:
         spec = plot.to_spec()
         assert "need exactly 3" in spec.title.lower()
 
-    def test_raw_data_fallback(self, design_data_3f: list) -> None:  # noqa: D102
+    def test_raw_data_fallback(self, design_data_3f: list) -> None:
         plot = create_plot(
             "cube_plot",
             design_data=design_data_3f,
@@ -423,7 +423,7 @@ class TestCubePlot:
 
 
 class TestDesirabilityContourPlot:
-    def test_spec_structure(self, quadratic_coefficients: list) -> None:  # noqa: D102
+    def test_spec_structure(self, quadratic_coefficients: list) -> None:
         plot = create_plot(
             "desirability_contour",
             analysis_results={
@@ -456,7 +456,7 @@ class TestDesirabilityContourPlot:
 
 
 class TestOverlayPlot:
-    def test_spec_structure(self, quadratic_coefficients: list, coefficients_2f: list) -> None:  # noqa: D102
+    def test_spec_structure(self, quadratic_coefficients: list, coefficients_2f: list) -> None:
         plot = create_plot(
             "overlay",
             analysis_results={
@@ -475,7 +475,7 @@ class TestOverlayPlot:
 
 
 class TestRidgeTracePlot:
-    def test_spec_structure(self, quadratic_coefficients: list) -> None:  # noqa: D102
+    def test_spec_structure(self, quadratic_coefficients: list) -> None:
         plot = create_plot(
             "ridge_trace",
             analysis_results={"coefficients": quadratic_coefficients},
@@ -487,7 +487,7 @@ class TestRidgeTracePlot:
 
 
 class TestSteepestAscentPathPlot:
-    def test_spec_with_coefficients(self, coefficients_2f: list) -> None:  # noqa: D102
+    def test_spec_with_coefficients(self, coefficients_2f: list) -> None:
         plot = create_plot(
             "steepest_ascent_path",
             analysis_results={"coefficients": coefficients_2f},
@@ -498,7 +498,7 @@ class TestSteepestAscentPathPlot:
         assert len(spec.panels) == 2
         assert spec.metadata["n_steps"] > 0
 
-    def test_spec_with_precomputed_path(self) -> None:  # noqa: D102
+    def test_spec_with_precomputed_path(self) -> None:
         path = {
             "direction": "ascent",
             "direction_vector": {"A": 0.8, "B": 0.6},
@@ -523,7 +523,7 @@ class TestSteepestAscentPathPlot:
 
 
 class TestFDSPlot:
-    def test_spec_structure(self, design_data_2f: list) -> None:  # noqa: D102
+    def test_spec_structure(self, design_data_2f: list) -> None:
         plot = create_plot("fds_plot", design_data=design_data_2f, response_column="y")
         spec = plot.to_spec()
         assert spec.plot_type == "fds_plot"
@@ -531,7 +531,7 @@ class TestFDSPlot:
 
 
 class TestPowerCurvePlot:
-    def test_spec_structure(self, design_data_2f: list) -> None:  # noqa: D102
+    def test_spec_structure(self, design_data_2f: list) -> None:
         plot = create_plot("power_curve", design_data=design_data_2f, response_column="y")
         spec = plot.to_spec()
         assert spec.plot_type == "power_curve"
@@ -544,7 +544,7 @@ class TestPowerCurvePlot:
 
 
 class TestPlotlyAdapter:
-    def test_renders_pareto(self, two_factor_effects: dict) -> None:  # noqa: D102
+    def test_renders_pareto(self, two_factor_effects: dict) -> None:
         plot = create_plot("pareto", analysis_results={"effects": two_factor_effects})
         spec = plot.to_spec()
         result = PlotlyAdapter().render(spec)
@@ -552,7 +552,7 @@ class TestPlotlyAdapter:
         assert "layout" in result
         assert len(result["data"]) >= 2  # Bar + line
 
-    def test_renders_contour(self, coefficients_2f: list) -> None:  # noqa: D102
+    def test_renders_contour(self, coefficients_2f: list) -> None:
         plot = create_plot(
             "contour",
             analysis_results={"coefficients": coefficients_2f},
@@ -562,7 +562,7 @@ class TestPlotlyAdapter:
         result = PlotlyAdapter().render(spec)
         assert "data" in result
 
-    def test_multi_panel(self, quadratic_coefficients: list) -> None:  # noqa: D102
+    def test_multi_panel(self, quadratic_coefficients: list) -> None:
         plot = create_plot(
             "ridge_trace",
             analysis_results={"coefficients": quadratic_coefficients},
@@ -574,13 +574,13 @@ class TestPlotlyAdapter:
 
 
 class TestEChartsAdapter:
-    def test_renders_pareto(self, two_factor_effects: dict) -> None:  # noqa: D102
+    def test_renders_pareto(self, two_factor_effects: dict) -> None:
         plot = create_plot("pareto", analysis_results={"effects": two_factor_effects})
         spec = plot.to_spec()
         result = EChartsAdapter().render(spec)
         assert "series" in result
 
-    def test_renders_contour(self, coefficients_2f: list) -> None:  # noqa: D102
+    def test_renders_contour(self, coefficients_2f: list) -> None:
         plot = create_plot(
             "contour",
             analysis_results={"coefficients": coefficients_2f},
@@ -597,7 +597,7 @@ class TestEChartsAdapter:
 
 
 class TestVisualizeDoe:
-    def test_returns_both_backends(self, two_factor_effects: dict) -> None:  # noqa: D102
+    def test_returns_both_backends(self, two_factor_effects: dict) -> None:
         result = visualize_doe(
             plot_type="pareto",
             analysis_results={"effects": two_factor_effects},
@@ -606,7 +606,7 @@ class TestVisualizeDoe:
         assert "echarts" in result
         assert result["plot_type"] == "pareto"
 
-    def test_plotly_only(self, two_factor_effects: dict) -> None:  # noqa: D102
+    def test_plotly_only(self, two_factor_effects: dict) -> None:
         result = visualize_doe(
             plot_type="pareto",
             analysis_results={"effects": two_factor_effects},
@@ -615,7 +615,7 @@ class TestVisualizeDoe:
         assert "plotly" in result
         assert result.get("echarts") is None
 
-    def test_echarts_only(self, two_factor_effects: dict) -> None:  # noqa: D102
+    def test_echarts_only(self, two_factor_effects: dict) -> None:
         result = visualize_doe(
             plot_type="pareto",
             analysis_results={"effects": two_factor_effects},
@@ -624,7 +624,7 @@ class TestVisualizeDoe:
         assert result.get("plotly") is None
         assert "echarts" in result
 
-    def test_json_round_trip(self, two_factor_effects: dict) -> None:  # noqa: D102
+    def test_json_round_trip(self, two_factor_effects: dict) -> None:
         result = visualize_doe(
             plot_type="pareto",
             analysis_results={"effects": two_factor_effects},
@@ -633,14 +633,14 @@ class TestVisualizeDoe:
         parsed = json.loads(json_str)
         assert parsed["plot_type"] == "pareto"
 
-    def test_unknown_plot_type(self) -> None:  # noqa: D102
-        with pytest.raises(ValueError):  # noqa: PT011
+    def test_unknown_plot_type(self) -> None:
+        with pytest.raises(ValueError, match="nonexistent"):
             visualize_doe(plot_type="nonexistent")
 
     @pytest.mark.parametrize("plot_type", [
         "pareto", "half_normal", "daniel",
     ])
-    def test_significance_plots(self, plot_type: str, three_factor_effects: dict, lenth_data: dict) -> None:  # noqa: D102
+    def test_significance_plots(self, plot_type: str, three_factor_effects: dict, lenth_data: dict) -> None:
         result = visualize_doe(
             plot_type=plot_type,
             analysis_results={"effects": three_factor_effects, "lenth_method": lenth_data},
@@ -651,7 +651,7 @@ class TestVisualizeDoe:
     @pytest.mark.parametrize("plot_type", [
         "residuals_vs_fitted", "normal_probability", "residuals_vs_order",
     ])
-    def test_diagnostic_plots(self, plot_type: str, residual_diagnostics: dict) -> None:  # noqa: D102
+    def test_diagnostic_plots(self, plot_type: str, residual_diagnostics: dict) -> None:
         result = visualize_doe(
             plot_type=plot_type,
             analysis_results={"residual_diagnostics": residual_diagnostics},
@@ -659,7 +659,7 @@ class TestVisualizeDoe:
         assert result["plot_type"] == plot_type
         assert json.dumps(result)
 
-    def test_contour_plot(self, coefficients_2f: list) -> None:  # noqa: D102
+    def test_contour_plot(self, coefficients_2f: list) -> None:
         result = visualize_doe(
             plot_type="contour",
             analysis_results={"coefficients": coefficients_2f},
@@ -668,7 +668,7 @@ class TestVisualizeDoe:
         assert result["plot_type"] == "contour"
         assert json.dumps(result)
 
-    def test_surface_3d_plot(self, quadratic_coefficients: list) -> None:  # noqa: D102
+    def test_surface_3d_plot(self, quadratic_coefficients: list) -> None:
         result = visualize_doe(
             plot_type="surface_3d",
             analysis_results={"coefficients": quadratic_coefficients},
@@ -676,7 +676,7 @@ class TestVisualizeDoe:
         )
         assert result["plot_type"] == "surface_3d"
 
-    def test_cube_plot(self, coefficients_3f: list) -> None:  # noqa: D102
+    def test_cube_plot(self, coefficients_3f: list) -> None:
         result = visualize_doe(
             plot_type="cube_plot",
             analysis_results={"coefficients": coefficients_3f},
@@ -684,7 +684,7 @@ class TestVisualizeDoe:
         )
         assert result["plot_type"] == "cube_plot"
 
-    def test_main_effects_plot(self, design_data_2f: list) -> None:  # noqa: D102
+    def test_main_effects_plot(self, design_data_2f: list) -> None:
         result = visualize_doe(
             plot_type="main_effects",
             design_data=design_data_2f,
@@ -692,7 +692,7 @@ class TestVisualizeDoe:
         )
         assert result["plot_type"] == "main_effects"
 
-    def test_interaction_plot(self, design_data_2f: list) -> None:  # noqa: D102
+    def test_interaction_plot(self, design_data_2f: list) -> None:
         result = visualize_doe(
             plot_type="interaction",
             design_data=design_data_2f,
@@ -710,14 +710,14 @@ class TestVisualizeDoe:
 class TestToolSpecIntegration:
     def test_tool_registered(self) -> None:
         """visualize_doe should be in the tool registry."""
-        from process_improve.experiments.tools import get_experiments_tool_specs  # noqa: PLC0415
+        from process_improve.experiments.tools import get_experiments_tool_specs
 
         specs = get_experiments_tool_specs()
         names = [s["name"] for s in specs]
         assert "visualize_doe" in names
 
-    def test_execute_tool_call(self) -> None:  # noqa: D102
-        from process_improve.tool_spec import execute_tool_call  # noqa: PLC0415
+    def test_execute_tool_call(self) -> None:
+        from process_improve.tool_spec import execute_tool_call
 
         result = execute_tool_call("visualize_doe", {
             "plot_type": "pareto",

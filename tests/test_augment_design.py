@@ -574,7 +574,7 @@ class TestToolSpec:
 
     def test_basic_round_trip(self) -> None:
         """Tool wrapper returns JSON-serializable output."""
-        from process_improve.experiments.tools import augment_design_tool  # noqa: PLC0415
+        from process_improve.experiments.tools import augment_design_tool
 
         result = augment_design_tool(
             existing_design=[
@@ -592,7 +592,7 @@ class TestToolSpec:
 
     def test_foldover_via_tool(self) -> None:
         """Foldover works through the tool wrapper."""
-        from process_improve.experiments.tools import augment_design_tool  # noqa: PLC0415
+        from process_improve.experiments.tools import augment_design_tool
 
         result = augment_design_tool(
             existing_design=[
@@ -608,7 +608,7 @@ class TestToolSpec:
 
     def test_error_handling(self) -> None:
         """Bad augmentation_type returns error dict."""
-        from process_improve.experiments.tools import augment_design_tool  # noqa: PLC0415
+        from process_improve.experiments.tools import augment_design_tool
 
         result = augment_design_tool(
             existing_design=[{"A": -1}, {"A": 1}],

@@ -1268,6 +1268,196 @@ _register("doe_knowledge")
 
 
 # ---------------------------------------------------------------------------
+# Tool 8 - recommend_strategy
+# ---------------------------------------------------------------------------
+
+
+@tool_spec(
+    name="recommend_strategy",
+    description=(
+        "Recommend a multi-stage experimental strategy given a DOE problem description. "
+        "Given factors, responses, budget, constraints, domain, and prior knowledge, "
+        "applies deterministic decision rules to recommend a staged experimental plan "
+        "(screening → optimisation → confirmation). "
+        "Returns a structured strategy with stage-by-stage design types, estimated run counts, "
+        "transition rules, budget allocation, assumptions, risks, and alternative approaches. "
+        "Use this when the user asks 'How should I plan my experiments?' or 'What design strategy "
+        "should I use for N factors?'"
+    ),
+    input_schema={
+        "json": {
+            "type": "object",
+            "properties": {
+                "factors": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Factor name (e.g. 'Temperature')."},
+                            "type": {
+                                "type": "string",
+                                "enum": ["continuous", "categorical", "mixture"],
+                                "description": "Factor type. Default: 'continuous'.",
+                            },
+                            "low": {"type": "number", "description": "Low level (required for continuous)."},
+                            "high": {"type": "number", "description": "High level (required for continuous)."},
+                            "levels": {
+                                "type": "array",
+                                "description": "Explicit levels (required for categorical).",
+                            },
+                            "units": {"type": "string", "description": "Engineering units (optional)."},
+                        },
+                        "required": ["name"],
+                    },
+                    "description": "All candidate experimental factors.",
+                    "minItems": 1,
+                },
+                "responses": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Response name (e.g. 'Yield')."},
+                            "goal": {
+                                "type": "string",
+                                "enum": ["maximize", "minimize", "target"],
+                                "description": "Optimisation direction. Default: 'maximize'.",
+                            },
+                            "target": {"type": "number", "description": "Target value (for goal='target')."},
+                            "low": {"type": "number", "description": "Lower acceptable bound."},
+                            "high": {"type": "number", "description": "Upper acceptable bound."},
+                            "units": {"type": "string", "description": "Response units (optional)."},
+                            "importance": {
+                                "type": "number",
+                                "description": "Relative importance weight (default 1.0).",
+                            },
+                        },
+                        "required": ["name"],
+                    },
+                    "description": "Response variables with optimisation goals.",
+                },
+                "budget": {
+                    "type": "integer",
+                    "description": "Total run budget across all stages. Omit for ideal allocation.",
+                    "minimum": 1,
+                },
+                "constraints": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "expression": {"type": "string", "description": "e.g. '3*T + 5*D <= 600'."},
+                            "type": {
+                                "type": "string",
+                                "enum": ["linear", "nonlinear"],
+                                "description": "Constraint type. Default: 'linear'.",
+                            },
+                        },
+                        "required": ["expression"],
+                    },
+                    "description": "Factor-space constraints.",
+                },
+                "hard_to_change_factors": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Factor names that are expensive to reset (triggers split-plot).",
+                },
+                "prior_knowledge": {
+                    "type": "string",
+                    "description": (
+                        "Free-text description of prior knowledge, e.g. "
+                        "'Published literature confirms Temperature and pH are significant.' "
+                        "or 'No prior data — first time running this process.'"
+                    ),
+                },
+                "existing_data": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": "Prior experimental data as list of dicts (optional).",
+                },
+                "domain": {
+                    "type": "string",
+                    "enum": [
+                        "pharma_formulation",
+                        "fermentation",
+                        "food_science",
+                        "extraction",
+                        "analytical_method",
+                        "cell_culture",
+                        "bioprocess",
+                        "general",
+                    ],
+                    "description": "Application domain for domain-specific adjustments. Default: 'general'.",
+                },
+                "detail_level": {
+                    "type": "string",
+                    "enum": ["novice", "intermediate"],
+                    "description": "Depth of explanations in the output. Default: 'intermediate'.",
+                },
+            },
+            "required": ["factors"],
+        }
+    },
+    examples="""
+    # "I have 7 factors — how do I plan my experiments?"
+        -> ``recommend_strategy(factors=[{"name": "A", "low": 0, "high": 100}, ...7 factors...],
+                budget=40, domain="general")``
+
+    # "Optimize fermentation with 7 factors in ~40 runs"
+        -> ``recommend_strategy(factors=[{"name": "pH", "low": 5, "high": 8}, ...],
+                responses=[{"name": "Yield", "goal": "maximize"}],
+                budget=40, domain="fermentation")``
+
+    # "Expensive cell culture experiments — most efficient approach for 6 factors?"
+        -> ``recommend_strategy(factors=[...6 factors...],
+                responses=[{"name": "Viability", "goal": "maximize"}],
+                domain="cell_culture", detail_level="intermediate")``
+    """,
+    category="experiments",
+)
+def recommend_strategy_tool(  # noqa: PLR0913
+    *,
+    factors: list[dict[str, Any]],
+    responses: list[dict[str, Any]] | None = None,
+    budget: int | None = None,
+    constraints: list[dict[str, Any]] | None = None,
+    hard_to_change_factors: list[str] | None = None,
+    prior_knowledge: str | None = None,
+    existing_data: list[dict[str, Any]] | None = None,
+    domain: str | None = None,
+    detail_level: str = "intermediate",
+) -> dict[str, Any]:
+    """Recommend a multi-stage experimental strategy; see tool spec for details."""
+    try:
+        from process_improve.experiments.factor import Constraint, Factor, Response  # noqa: PLC0415
+        from process_improve.experiments.strategy import recommend_strategy  # noqa: PLC0415
+
+        factor_objects = [Factor(**f) for f in factors]
+        response_objects = [Response(**r) for r in responses] if responses else None
+        constraint_objects = [Constraint(**c) for c in constraints] if constraints else None
+
+        df = pd.DataFrame(existing_data) if existing_data else None
+
+        result = recommend_strategy(
+            factors=factor_objects,
+            responses=response_objects,
+            budget=budget,
+            constraints=constraint_objects,
+            hard_to_change_factors=hard_to_change_factors,
+            prior_knowledge=prior_knowledge,
+            existing_data=df,
+            domain=domain,
+            detail_level=detail_level,
+        )
+        return clean(result)
+    except Exception as e:  # noqa: BLE001
+        return {"error": str(e)}
+
+
+_register("recommend_strategy")
+
+
+# ---------------------------------------------------------------------------
 # Module-level convenience
 # ---------------------------------------------------------------------------
 
