@@ -75,3 +75,34 @@ Use cross-validation to select the number of PCA components:
    result = PCA.select_n_components(X_scaled, max_components=10)
    print(f"Recommended: {result.n_components} components")
    print(f"PRESS ratios: {result.press_ratio}")
+
+DOE Strategy Example
+--------------------
+
+Plan a multi-stage experimental strategy before running any experiments:
+
+.. code-block:: python
+
+   from process_improve.experiments.factor import Factor, Response
+   from process_improve.experiments.strategy import recommend_strategy
+
+   factors = [
+       Factor(name="Temperature", low=25, high=40, units="degC"),
+       Factor(name="pH", low=5.0, high=7.5),
+       Factor(name="Glucose", low=10, high=50, units="g/L"),
+       Factor(name="Yeast extract", low=1, high=10, units="g/L"),
+       Factor(name="Agitation", low=100, high=400, units="rpm"),
+       Factor(name="Aeration", low=0.5, high=2.0, units="vvm"),
+       Factor(name="Inoculum", low=2, high=10, units="%v/v"),
+   ]
+
+   result = recommend_strategy(
+       factors=factors,
+       responses=[Response(name="Yield", goal="maximize", units="g/L")],
+       budget=40,
+       domain="fermentation",
+   )
+
+   for stage in result["stages"]:
+       print(f"Stage {stage['stage_number']}: {stage['stage_name']} "
+             f"({stage['design_type']}, {stage['estimated_runs']} runs)")
