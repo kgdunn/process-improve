@@ -74,6 +74,50 @@ outliers = pls.detect_outliers(conf_level=0.95)
 contrib = pls.score_contributions(pls.scores_.iloc[0].values)
 ```
 
+### DOE — Experimental Strategy Recommendation
+
+Plan a complete multi-stage experimental program before running any experiments:
+
+```python
+from process_improve.experiments.factor import Factor, Response
+from process_improve.experiments.strategy import recommend_strategy
+
+# Define factors for a fermentation optimization
+factors = [
+    Factor(name="Temperature", low=25, high=40, units="degC"),
+    Factor(name="pH", low=5.0, high=7.5),
+    Factor(name="Glucose", low=10, high=50, units="g/L"),
+    Factor(name="Yeast extract", low=1, high=10, units="g/L"),
+    Factor(name="Agitation", low=100, high=400, units="rpm"),
+    Factor(name="Aeration", low=0.5, high=2.0, units="vvm"),
+    Factor(name="Inoculum", low=2, high=10, units="%v/v"),
+]
+responses = [Response(name="Yield", goal="maximize", units="g/L")]
+
+# Get a complete experimental plan
+strategy = recommend_strategy(
+    factors=factors,
+    responses=responses,
+    budget=40,
+    domain="fermentation",
+)
+
+# Inspect the multi-stage strategy
+for stage in strategy["stages"]:
+    print(f"Stage {stage['stage_number']}: {stage['stage_name']}")
+    print(f"  Design: {stage['design_type']}, Runs: {stage['estimated_runs']}")
+    print(f"  Purpose: {stage['purpose']}")
+
+# Review reasoning, risks, and alternatives
+print(strategy["budget_allocation"])
+print(strategy["reasoning"])
+```
+
+The engine applies ~50 deterministic rules (from Montgomery, NIST, Stat-Ease)
+to recommend screening, optimization, and confirmation stages — with
+budget-aware allocation and domain-specific advice for fermentation, cell
+culture, pharma, and 5 other application domains.
+
 ## Features
 
 - **PCA** with SVD, NIPALS, and missing data (TSR) algorithms
@@ -85,6 +129,7 @@ contrib = pls.score_contributions(pls.scores_.iloc[0].values)
 - **Cross-validation** for component selection (PRESS with Wold's criterion)
 - **Interactive plots** (Plotly) for scores, loadings, SPE, and T²
 - **Designed experiments** — full factorial, fractional factorial, response surface
+- **DOE strategy recommender** — multi-stage experimental planning (screening, optimization, confirmation) with budget-aware allocation and 8 application domains
 - **Process monitoring** — Shewhart, CUSUM, EWMA control charts
 - **Batch data analysis** — alignment, feature extraction, multivariate batch monitoring
 
