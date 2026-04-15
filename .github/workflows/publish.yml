@@ -1,11 +1,13 @@
 name: Publish to PyPI
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
+    paths:
+      - "pyproject.toml"  # Only run when this file changes
 
 jobs:
-  build-and-publish:
+  publish:
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -13,18 +15,42 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need previous commit to diff
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      - name: Check if version changed
+        id: version_check
+        run: |
+          pip install tomli
+          NEW=$(python -c "import tomli; print(tomli.load(open('pyproject.toml','rb'))['project']['version'])")
+          git show HEAD~1:pyproject.toml > /tmp/old_pyproject.toml 2>/dev/null || echo "first_run"
+          OLD=$(python -c "
+          import tomli, sys
+          try:
+              print(tomli.load(open('/tmp/old_pyproject.toml','rb'))['project']['version'])
+          except:
+              print('none')
+          ")
+          echo "old=$OLD new=$NEW"
+          if [ "$OLD" != "$NEW" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "version=$NEW" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install uv
+        if: steps.version_check.outputs.changed == 'true'
         uses: astral-sh/setup-uv@v4
 
       - name: Build
+        if: steps.version_check.outputs.changed == 'true'
         run: |
           pip install build
           python -m build
 
       - name: Publish to PyPI
+        if: steps.version_check.outputs.changed == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
