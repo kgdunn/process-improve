@@ -1,6 +1,6 @@
 # Process Improvement using Data
 
-A Python package for multivariate data analysis, designed experiments, and process monitoring. Companion to the online textbook [Process Improvement using Data](https://learnche.org/pid).
+A Python package for multivariate data analysis, designed experiments, and process monitoring. Companion to the online textbook [Process Improvement using Data](https://learnche.org/pid). This package also powers the statistical engine behind [factori.al](https://factori.al).
 
 ## Installation
 
