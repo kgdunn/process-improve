@@ -23,6 +23,17 @@ process_improve/
     datasets/        # Sample datasets for examples and tests
 ```
 
+## Versioning
+
+The version is defined in `pyproject.toml` under `[project] version`. It uses 3-part semver: `MAJOR.MINOR.PATCH` (e.g., `1.3.1`).
+
+**Auto-bump the version with every PR that changes code or configuration:**
+- **PATCH** (last position, e.g., 1.3.0 → 1.3.1): bug fixes, CI/workflow changes, docs updates, dependency bumps, small refactors, and other minor changes.
+- **MINOR** (middle position, e.g., 1.3.1 → 1.4.0): new features, new modules, significant API additions, or meaningful behavioral changes. Resets PATCH to 0.
+- **If unsure** whether a change is major or minor, **ask the user** before bumping.
+
+The PyPI publish workflow (`.github/workflows/publish.yml`) automatically detects version changes on push to `main` and publishes to PyPI when the version differs from the previous commit.
+
 ## Key Architectural Decisions
 
 ### sklearn API Compatibility
