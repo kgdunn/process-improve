@@ -334,16 +334,27 @@ class TestDSD:
     """Test Definitive Screening Design."""
 
     def test_3_factors(self) -> None:
-        """DSD for 3 factors (odd) should produce 7 runs."""
+        """DSD for k=3 (odd) should produce 2k+3 = 9 runs (Jones-Nachtsheim)."""
         factors = _continuous_factors(3, "ABC")
         result = generate_design(factors, design_type="dsd", center_points=0)
-        assert result.n_runs == 7
+        assert result.n_runs == 9
 
     def test_4_factors(self) -> None:
-        """DSD for 4 factors (even) should produce 11 runs."""
+        """DSD for k=4 (even) should produce 2k+1 = 9 runs (Jones-Nachtsheim)."""
         factors = _continuous_factors(4)
         result = generate_design(factors, design_type="dsd", center_points=0)
-        assert result.n_runs == 11
+        assert result.n_runs == 9
+
+    def test_main_effects_orthogonal(self) -> None:
+        """Paley-constructed DSD should have mutually orthogonal main effects."""
+        factors = _continuous_factors(6)
+        result = generate_design(factors, design_type="dsd", center_points=0)
+        x = result.design[result.factor_names].values.astype(float)
+        gram = x.T @ x
+        off_diag = gram - np.diag(np.diag(gram))
+        assert np.abs(off_diag).max() < 1e-9
+        # Paley construction should have been used (no cyclic fallback warning).
+        assert result.metadata["construction"].startswith("paley")
 
     def test_requires_3_factors(self) -> None:
         """DSD should require at least 3 factors."""
@@ -358,6 +369,45 @@ class TestDSD:
         for col in result.factor_names:
             vals = result.design[col].values
             assert np.all(np.abs(vals) <= 1.0 + 1e-10)
+
+
+# ---------------------------------------------------------------------------
+# Taguchi
+# ---------------------------------------------------------------------------
+
+
+class TestTaguchi:
+    """Test Taguchi orthogonal-array designs (2-level)."""
+
+    def test_three_factors_picks_l4(self) -> None:
+        """Three 2-level factors should select the L4 orthogonal array."""
+        factors = _continuous_factors(3, "ABC")
+        result = generate_design(factors, design_type="taguchi", center_points=0)
+        assert result.n_runs == 4
+        assert result.metadata["orthogonal_array"] == "L4(2^3)"
+
+    def test_seven_factors_picks_l8(self) -> None:
+        """Seven 2-level factors should select the L8 orthogonal array."""
+        factors = _continuous_factors(7)
+        result = generate_design(factors, design_type="taguchi", center_points=0)
+        assert result.n_runs == 8
+        assert result.metadata["orthogonal_array"] == "L8(2^7)"
+
+    def test_coded_values_are_plus_minus_one(self) -> None:
+        """All 2-level Taguchi entries must be in {-1, +1}."""
+        factors = _continuous_factors(3, "ABC")
+        result = generate_design(factors, design_type="taguchi", center_points=0)
+        values = result.design[result.factor_names].values
+        assert set(np.unique(values).tolist()) <= {-1.0, 1.0}
+
+    def test_main_effects_orthogonal(self) -> None:
+        """Taguchi OA columns must be mutually orthogonal."""
+        factors = _continuous_factors(7)
+        result = generate_design(factors, design_type="taguchi", center_points=0)
+        x = result.design[result.factor_names].values.astype(float)
+        gram = x.T @ x
+        off_diag = gram - np.diag(np.diag(gram))
+        assert np.abs(off_diag).max() < 1e-9
 
 
 # ---------------------------------------------------------------------------
@@ -544,6 +594,31 @@ class TestMixture:
         factors = [Factor(name="x1", type="mixture")]
         with pytest.raises(ValueError, match="at least 2"):
             generate_design(factors, design_type="mixture")
+
+    def test_simplex_centroid_run_count(self) -> None:
+        """Simplex-centroid for k components has 2^k - 1 runs."""
+        for k in (3, 4, 5):
+            factors = [Factor(name=f"x{i}", type="mixture") for i in range(k)]
+            result = generate_design(factors, design_type="mixture")
+            assert result.n_runs == 2**k - 1
+            assert result.metadata["method"] == "simplex_centroid"
+
+    def test_values_in_unit_interval(self) -> None:
+        """All mixture proportions must lie in [0, 1]."""
+        factors = [Factor(name=f"x{i}", type="mixture") for i in range(4)]
+        result = generate_design(factors, design_type="mixture")
+        proportions = result.design_actual[result.factor_names].values
+        assert proportions.min() >= -1e-12
+        assert proportions.max() <= 1.0 + 1e-12
+
+    def test_budget_triggers_simplex_lattice(self) -> None:
+        """Tight budget should downgrade to a simplex-lattice of degree 2."""
+        factors = [Factor(name=f"x{i}", type="mixture") for i in range(5)]
+        # Simplex-centroid would need 2^5 - 1 = 31 runs; cap at 10.
+        result = generate_design(factors, design_type="mixture", budget=10)
+        assert result.metadata["method"] == "simplex_lattice_degree_2"
+        # {5, 2} lattice has k*(k+1)/2 = 15 points.
+        assert result.n_runs == 15
 
 
 # ---------------------------------------------------------------------------
