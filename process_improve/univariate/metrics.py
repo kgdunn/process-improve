@@ -301,17 +301,15 @@ def ttest_independent_from_df(
 
 
 def ttest_paired(differences: pd.Series, conflevel: float = 0.995) -> dict:
-    """Core calculation for a test of differences.
+    """Core calculation for a test of paired differences.
 
     Parameters
     ----------
-    sample_A : iterable
-        Vector of n_a measurements.
-    sample_B : iterable
-        Vector of n_b measurements.
-    conflevel : float
+    differences : pd.Series
+        The paired differences (e.g. ``sample_A - sample_B``) for which the test is run.
+    conflevel : float, optional
         Value between 0 and 1 (closer to 1.0), that gives the level of confidence required for
-        the 2-sided test.
+        the 2-sided test. Default is 0.995.
 
     Returns
     -------

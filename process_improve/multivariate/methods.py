@@ -1751,11 +1751,16 @@ def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows:
     ----------
     conf_level : float, optional
         Fractional confidence limit, less that 1.00; by default 0.95
+    n_components : int
+        Number of components in the fitted multivariate model.
+    n_rows : int
+        Number of rows (observations) used to fit the model. Must be > 0.
 
     Returns
     -------
     float
-        The Hotelling's T2 limit at the given level of confidence.
+        The Hotelling's T2 limit at the given level of confidence. Returns
+        ``inf`` when ``n_components == n_rows``.
     """
     assert 0.0 < conf_level < 1.0
     assert n_rows > 0
@@ -1775,6 +1780,9 @@ def spe_limit(model: BaseEstimator, conf_level: float = 0.95) -> float:
 
     Parameters
     ----------
+    model : BaseEstimator
+        A fitted multivariate model exposing a ``spe_`` attribute and an
+        ``n_components`` attribute (e.g. a fitted PCA or PLS instance).
     conf_level : float, optional
         Fractional confidence limit, less that 1.00; by default 0.95
 
@@ -1796,9 +1804,9 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
 
     Parameters
     ----------
-    spe_values : pd.Series
+    spe_values : np.ndarray
         The SPE values from the last component in the multivariate model.
-    conf_level : [float], optional
+    conf_level : float, optional
         The confidence level, by default 0.95, i.e. the 95% confidence level.
 
     Returns

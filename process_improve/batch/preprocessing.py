@@ -24,7 +24,14 @@ def determine_scaling(
     Parameters
     ----------
     batches : dict[str, pd.DataFrame]
-        Batch data, in the standard format.
+        Batch data, in the standard format (keyed by batch identifier).
+    columns_to_align : list, optional
+        The column names (tags) to be scaled. If ``None``, the columns of the
+        first batch are used.
+    settings : dict, optional
+        Optional overrides. Currently supports the key ``"robust"`` (bool,
+        default ``True``) which switches between a robust range (q98 - q02)
+        and the raw (max - min) range.
 
     Returns
     -------
