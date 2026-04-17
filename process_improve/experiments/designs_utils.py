@@ -185,8 +185,10 @@ def build_design_result(  # noqa: PLR0913
         Number of full replicates.
     blocks : int or None
         Number of blocks (None = no blocking).
-    random_seed : int
-        Seed for reproducible randomization.
+    random_seed : int or None
+        Seed for reproducible randomization. When ``None`` the original run
+        order of *coded_matrix* is preserved (used for designs whose run order
+        is part of the solution, e.g. split-plot optimal designs).
     generators : list[str] or None
         Generator strings (fractional factorials).
     defining_relation : list[str] or None

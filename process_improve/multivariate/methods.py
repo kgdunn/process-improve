@@ -1840,13 +1840,24 @@ def ellipse_coordinates(  # noqa: PLR0913
     Parameters
     ----------
     score_horiz : int
-        [description]
+        1-based index of the score to plot on the horizontal axis. Must satisfy
+        ``1 <= score_horiz <= n_components``.
     score_vert : int
-        [description]
+        1-based index of the score to plot on the vertical axis. Must satisfy
+        ``1 <= score_vert <= n_components``.
     conf_level : float
         The `conf_level` confidence value: e.g. 0.95 is for the 95% confidence limit.
     n_points : int, optional
         Number of points to use in the ellipse; by default 100.
+    n_components : int
+        Number of components `A` in the fitted model. Required to look up the
+        Hotelling's T^2 limit and to bound `score_horiz`/`score_vert`.
+    scaling_factor_for_scores : pd.Series
+        Per-component standard deviations of the scores (``model.scaling_factor_for_scores_``).
+        Used to scale the ellipse axes.
+    n_rows : int
+        Number of rows `N` in the data used to fit the model. Required to compute the
+        Hotelling's T^2 limit; must be strictly positive.
 
     Returns
     -------

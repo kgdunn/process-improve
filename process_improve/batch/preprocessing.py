@@ -23,7 +23,7 @@ def determine_scaling(
 
     Parameters
     ----------
-    dict_df : dict[str, pd.DataFrame]
+    batches : dict[str, pd.DataFrame]
         Batch data, in the standard format.
 
     Returns

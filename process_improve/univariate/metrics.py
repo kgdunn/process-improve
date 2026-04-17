@@ -68,7 +68,7 @@ def t_value_cdf(z: float, v: float) -> float:
 
     100% fractional area is always at :math:`+\infty`:
 
-    >>> t_value(np.inf, v)
+    >>> t_value_cdf(np.inf, v)
     1.0
 
     See also

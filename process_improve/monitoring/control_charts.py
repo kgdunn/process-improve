@@ -57,7 +57,7 @@ class ControlChart:
         self.style = style.strip()
         self.variant = variant.strip().lower()
 
-        # Will be calculated by the self.fit_limits() function
+        # Will be calculated by the self.calculate_limits() function
         self.target = None
         self._given_target = None
         self._given_s = None
