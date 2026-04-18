@@ -252,3 +252,35 @@ def execute_tool_call(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noq
         available = sorted(_TOOL_REGISTRY)
         raise ValueError(f"Unknown tool {tool_name!r}. Available tools: {available}")
     return _TOOL_REGISTRY[tool_name](**tool_input)
+
+
+# ---------------------------------------------------------------------------
+# Safety wrapper re-exports
+# ---------------------------------------------------------------------------
+# Callers that expose the registry over an untrusted transport should use
+# ``safe_execute_tool_call`` from ``process_improve.tool_safety`` instead of
+# ``execute_tool_call``. The names are re-exported here for discoverability.
+
+
+from process_improve.tool_safety import (  # noqa: E402
+    ToolInputInvalidError,
+    ToolInputTooLargeError,
+    ToolMemoryExceededError,
+    ToolSafetyError,
+    ToolTimeoutError,
+    safe_execute_tool_call,
+)
+
+__all__ = [
+    "ToolInputInvalidError",
+    "ToolInputTooLargeError",
+    "ToolMemoryExceededError",
+    "ToolSafetyError",
+    "ToolTimeoutError",
+    "clean",
+    "discover_tools",
+    "execute_tool_call",
+    "get_tool_specs",
+    "safe_execute_tool_call",
+    "tool_spec",
+]
