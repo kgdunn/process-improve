@@ -8,13 +8,14 @@ Covers:
 - Memory-cap breach.
 - Unknown-tool handling.
 
-The subprocess-based tests rely on ``fork`` to inherit the parent
-registry. On platforms without fork (Windows) they are skipped.
+The subprocess-based tests rely on ``fork`` so that the worker inherits
+the parent's in-test ``@tool_spec`` registrations. Fork is preferred
+only on Linux (see ``tool_safety._DEFAULT_MP_CONTEXT``); on macOS and
+Windows these tests are skipped.
 """
 
 from __future__ import annotations
 
-import multiprocessing
 import sys
 import time
 
@@ -33,10 +34,12 @@ from process_improve.tool_safety import (
 )
 from process_improve.tool_spec import _TOOL_REGISTRY, tool_spec
 
-_FORK_AVAILABLE = "fork" in multiprocessing.get_all_start_methods()
-_skip_if_no_fork = pytest.mark.skipif(
-    not _FORK_AVAILABLE,
-    reason="Subprocess-based safety tests require fork()",
+# Subprocess tests in this file register @tool_spec tools inline; those
+# registrations only survive into the worker when the pool is forked.
+# ``tool_safety`` only opts into fork on Linux, so skip elsewhere.
+_skip_if_not_linux = pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="Subprocess safety tests require a fork-based pool (Linux only)",
 )
 
 
@@ -144,7 +147,7 @@ class TestValidateInput:
 # ---------------------------------------------------------------------------
 
 
-@_skip_if_no_fork
+@_skip_if_not_linux
 class TestSafeExecuteToolCall:
     def test_happy_path_round_trip(self) -> None:
         result = safe_execute_tool_call("_safety_test_echo", {"value": 42}, timeout=10)

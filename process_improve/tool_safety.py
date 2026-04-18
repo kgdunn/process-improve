@@ -29,19 +29,25 @@ from __future__ import annotations
 import contextlib
 import multiprocessing
 import os
+import sys
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from concurrent.futures.process import BrokenProcessPool
 from typing import Any
 
-# Prefer fork where available: the worker inherits the parent's imported
+# Prefer ``fork`` on Linux: the worker inherits the parent's imported
 # numpy/registry/etc., which makes startup and tool-dispatch much cheaper
-# than re-importing on every spawn. Falls back to the platform default
-# (spawn) on Windows, where fork is not supported.
-try:
-    _DEFAULT_MP_CONTEXT: multiprocessing.context.BaseContext | None = multiprocessing.get_context("fork")
-except ValueError:
-    _DEFAULT_MP_CONTEXT = None
+# than re-importing on every spawn. macOS is excluded because Apple's
+# Accelerate framework (used by numpy) is not fork-safe and Python 3.13
+# emits a DeprecationWarning when a multi-threaded parent forks; Windows
+# does not support fork at all. On those platforms we fall back to the
+# platform default (spawn).
+_DEFAULT_MP_CONTEXT: multiprocessing.context.BaseContext | None = None
+if sys.platform.startswith("linux"):
+    try:
+        _DEFAULT_MP_CONTEXT = multiprocessing.get_context("fork")
+    except ValueError:
+        _DEFAULT_MP_CONTEXT = None
 
 # ---------------------------------------------------------------------------
 # Defaults (read once at import time; tests can override via env before import)
