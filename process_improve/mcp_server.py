@@ -32,13 +32,21 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from process_improve.tool_safety import ToolSafetyError, safe_execute_tool_call
 from process_improve.tool_spec import discover_tools, execute_tool_call, get_tool_specs
 
 logger = logging.getLogger(__name__)
+
+# Opt-in safety. The default (stdio on the user's own machine) keeps the
+# fast in-process path so local Claude Desktop / Cursor integrations don't
+# pay subprocess overhead. Set ``PROCESS_IMPROVE_MCP_SAFE_MODE=1`` when the
+# server is fronted by HTTP or otherwise reachable from untrusted clients.
+_SAFE_MODE = os.environ.get("PROCESS_IMPROVE_MCP_SAFE_MODE", "0").lower() in {"1", "true", "yes"}
 
 mcp = FastMCP(
     "process-improve",
@@ -75,10 +83,12 @@ def _create_mcp_tool(
     # Define an async handler that calls through to our tool registry
     async def handler(**kwargs: Any) -> str:  # noqa: ANN401
         try:
-            result = execute_tool_call(tool_name, kwargs)
+            result = safe_execute_tool_call(tool_name, kwargs) if _SAFE_MODE else execute_tool_call(tool_name, kwargs)
             if isinstance(result, dict):
                 return json.dumps(result, indent=2, default=str)
             return str(result)
+        except ToolSafetyError as exc:
+            return json.dumps(exc.to_dict())
         except Exception as exc:  # noqa: BLE001
             return json.dumps({"error": str(exc)})
 
