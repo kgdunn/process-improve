@@ -3,6 +3,8 @@ from collections.abc import Callable
 import numpy as np
 import pandas as pd
 
+IndexOrList = int | list
+
 
 def optimization_function(x: pd.DataFrame) -> float:
     """Return the D-optimality of the design."""
@@ -19,8 +21,19 @@ def index_to_replace_in_design_row(
     candidate_point: pd.DataFrame,
     current_optimum: float,
     optimization_function: Callable,
-) -> pd.DataFrame:
-    """Find index to replace in design with the candidate point if the D-optimality of the new design is better."""
+) -> IndexOrList:
+    """Find the row index in ``design`` to replace with ``candidate_point``.
+
+    Iterates over each row of ``design`` and evaluates the D-optimality of the
+    design that results from swapping that row with ``candidate_point``.
+
+    Returns
+    -------
+    int | list
+        The index of the row whose replacement yields the best (lowest)
+        optimality score. If no row produces an improvement over
+        ``current_optimum``, an empty list is returned.
+    """
     design_index = []
     new_optimimum = []
     design_to_consider = design.copy()
@@ -38,7 +51,7 @@ def index_to_replace_in_design_row(
         return design_index
 
 
-def point_exchange(x: pd.DataFrame, number_points: int = 10) -> np.ndarray:
+def point_exchange(x: pd.DataFrame, number_points: int = 10) -> tuple[pd.DataFrame, float]:
     """
     Return a design that is optimal in terms of D-optimality.
 
@@ -48,6 +61,12 @@ def point_exchange(x: pd.DataFrame, number_points: int = 10) -> np.ndarray:
 
     When do you swap a row? E.g. you request 2 points, and the 2 it selected are (-1,-1) and (-1, 1).
     While the optimum should be the opposite ends, right?
+
+    Returns
+    -------
+    tuple[pd.DataFrame, float]
+        The selected design (sorted by the original row index) and its
+        D-optimality value (log-determinant of ``(X'X)^-1``).
     """
     assert number_points >= x.shape[1], f"`number_point`s must be at least {x.shape[1]} (the number of columns in `x`)"
     assert number_points <= x.shape[0], f"`number_point`s must be at most {x.shape[0]} (the number of rows in `x`)"

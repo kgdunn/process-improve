@@ -279,6 +279,11 @@ def f_robust_mad(
     The constant correction factor is so that MAD agrees with standard
     deviation for normally distributed data.
 
+    .. warning::
+        This function is **not yet implemented**. Calling it always raises
+        ``AssertionError``; the underlying group-wise calculation below the
+        raise is a placeholder that still needs to be corrected.
+
     See also: f_mad, f_std, f_iqr,
     """
     c_MAD_const = norm.ppf(3 / 4.0)
