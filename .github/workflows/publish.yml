@@ -19,7 +19,7 @@ jobs:
         with:
           fetch-depth: 2  # Need previous commit to diff
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
