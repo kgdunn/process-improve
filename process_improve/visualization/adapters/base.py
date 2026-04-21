@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
-from process_improve.experiments.visualization.spec import ChartSpec, PanelSpec
+from process_improve.visualization.spec import ChartSpec, PanelSpec
 
 
 class AbstractAdapter(ABC):

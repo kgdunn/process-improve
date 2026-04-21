@@ -1,7 +1,10 @@
-"""Enums and type constants for DOE visualisation.
+"""Enums and type constants for chart specs.
 
-These enums define the vocabulary for chart specs: mark types, scale
-types, annotation types, and the 20 supported DOE plot types.
+These enums define the vocabulary for backend-agnostic chart specs: mark
+types, scale types, annotation types, and the DOE-specific plot types.
+The :class:`DOEPlotType` enum lists plot-type keys used by
+:func:`~process_improve.experiments.visualization.visualize_doe`; other
+enums are shared by generic chart classes as well.
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ class MarkType(str, Enum):
     area = "area"
     text = "text"
     wireframe = "wireframe"
+    boxplot = "boxplot"
 
 
 class ScaleType(str, Enum):

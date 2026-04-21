@@ -11,21 +11,21 @@ from typing import Any
 
 import numpy as np
 
-from process_improve.experiments.visualization.colors import (
+from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
+from process_improve.experiments.visualization.plots.surfaces import _build_coef_map, _compute_grid, _evaluate_model
+from process_improve.visualization.colors import (
     DESIRABILITY_COLORSCALE,
     DOE_PALETTE,
     FACTOR_COLORS,
 )
-from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
-from process_improve.experiments.visualization.plots.surfaces import _build_coef_map, _compute_grid, _evaluate_model
-from process_improve.experiments.visualization.spec import (
+from process_improve.visualization.spec import (
     Annotation,
     ChartSpec,
     Encoding,
     LayerSpec,
     PanelSpec,
 )
-from process_improve.experiments.visualization.types import AnnotationType, MarkType
+from process_improve.visualization.types import AnnotationType, MarkType
 
 # ---------------------------------------------------------------------------
 # Shared desirability helpers

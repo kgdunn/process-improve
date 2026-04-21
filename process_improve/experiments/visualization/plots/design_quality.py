@@ -9,16 +9,16 @@ from __future__ import annotations
 
 import numpy as np
 
-from process_improve.experiments.visualization.colors import DOE_PALETTE
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
-from process_improve.experiments.visualization.spec import (
+from process_improve.visualization.colors import DOE_PALETTE
+from process_improve.visualization.spec import (
     Annotation,
     ChartSpec,
     Encoding,
     LayerSpec,
     PanelSpec,
 )
-from process_improve.experiments.visualization.types import AnnotationType, MarkType
+from process_improve.visualization.types import AnnotationType, MarkType
 
 # ---------------------------------------------------------------------------
 # FDS (Fraction of Design Space) plot

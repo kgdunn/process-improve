@@ -11,9 +11,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
-from process_improve.experiments.visualization.adapters.echarts_adapter import EChartsAdapter
-from process_improve.experiments.visualization.adapters.plotly_adapter import PlotlyAdapter
-from process_improve.experiments.visualization.spec import ChartSpec
+from process_improve.visualization.adapters.echarts_adapter import EChartsAdapter
+from process_improve.visualization.adapters.plotly_adapter import PlotlyAdapter
+from process_improve.visualization.spec import ChartSpec
 
 # ---------------------------------------------------------------------------
 # Registry

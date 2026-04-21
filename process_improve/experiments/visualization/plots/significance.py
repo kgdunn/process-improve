@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from scipy import stats
 
-from process_improve.experiments.visualization.colors import DOE_PALETTE
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
-from process_improve.experiments.visualization.spec import (
+from process_improve.visualization.colors import DOE_PALETTE
+from process_improve.visualization.spec import (
     Annotation,
     ChartSpec,
     Encoding,
@@ -20,7 +20,7 @@ from process_improve.experiments.visualization.spec import (
     PanelSpec,
     significance_threshold,
 )
-from process_improve.experiments.visualization.types import MarkType, ScaleType
+from process_improve.visualization.types import MarkType, ScaleType
 
 # ---------------------------------------------------------------------------
 # Pareto plot

@@ -14,9 +14,10 @@ and fast to construct.  All fields are JSON-serialisable via
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from enum import Enum
 from typing import Any
 
-from process_improve.experiments.visualization.types import (
+from process_improve.visualization.types import (
     AnnotationType,
     MarkType,
     ScaleType,
@@ -279,6 +280,15 @@ class ChartSpec:
         Whether panels share brush / zoom interactions.
     metadata : dict
         Extra metadata passed through to the output.
+    link_group : str or None
+        Cross-chart linking key.  Charts that share this key form a
+        brushing group: a selection in any member highlights the matching
+        ``point_ids`` in the others.  Frontends read this from the
+        rendered option dict (``option["__link_group"]`` in ECharts).
+    point_ids : list[str] or None
+        Stable per-observation identifiers aligned with the points
+        emitted by this chart.  Paired with *link_group* by the frontend
+        link coordinator.  ``None`` means the chart is not linkable.
     """  # noqa: RUF002
 
     panels: list[PanelSpec] = field(default_factory=list)
@@ -288,6 +298,8 @@ class ChartSpec:
     columns: int = 2
     linked: bool = False
     metadata: dict[str, Any] = field(default_factory=dict)
+    link_group: str | None = None
+    point_ids: list[str] | None = None
 
     # -- helpers -----------------------------------------------------------
 
@@ -337,6 +349,6 @@ def _clean_enums(obj: Any) -> Any:  # noqa: ANN401
         return {k: _clean_enums(v) for k, v in obj.items()}
     if isinstance(obj, list):
         return [_clean_enums(v) for v in obj]
-    if isinstance(obj, Enum):  # noqa: F821
+    if isinstance(obj, Enum):
         return obj.value
     return obj
