@@ -5,6 +5,7 @@ Visualization
    :members:
    :undoc-members:
    :show-inheritance:
+   :exclude-members: Annotation, AnnotationType, ChartSpec, Encoding, LayerSpec, MarkType, PanelSpec, ScaleType
 
 Chart specification (IR)
 ------------------------
