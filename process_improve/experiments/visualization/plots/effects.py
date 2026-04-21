@@ -9,16 +9,16 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from process_improve.experiments.visualization.colors import DOE_PALETTE, FACTOR_COLORS
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
-from process_improve.experiments.visualization.spec import (
+from process_improve.visualization.colors import DOE_PALETTE, FACTOR_COLORS
+from process_improve.visualization.spec import (
     Annotation,
     ChartSpec,
     Encoding,
     LayerSpec,
     PanelSpec,
 )
-from process_improve.experiments.visualization.types import AnnotationType, MarkType, ScaleType
+from process_improve.visualization.types import AnnotationType, MarkType, ScaleType
 
 # ---------------------------------------------------------------------------
 # Main-effects plot

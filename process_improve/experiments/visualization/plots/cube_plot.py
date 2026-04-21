@@ -9,16 +9,16 @@ from __future__ import annotations
 
 import itertools
 
-from process_improve.experiments.visualization.colors import DOE_PALETTE
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
 from process_improve.experiments.visualization.plots.surfaces import _build_coef_map, _evaluate_model
-from process_improve.experiments.visualization.spec import (
+from process_improve.visualization.colors import DOE_PALETTE
+from process_improve.visualization.spec import (
     ChartSpec,
     Encoding,
     LayerSpec,
     PanelSpec,
 )
-from process_improve.experiments.visualization.types import MarkType
+from process_improve.visualization.types import MarkType
 
 
 @register_plot("cube_plot")

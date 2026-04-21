@@ -183,6 +183,7 @@ def discover_tools() -> None:
         "process_improve.bivariate.tools",
         "process_improve.experiments.tools",
         "process_improve.batch.tools",
+        "process_improve.visualization.tools",
     ]:
         with contextlib.suppress(ImportError):
             importlib.import_module(module)

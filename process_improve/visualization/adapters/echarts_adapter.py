@@ -10,17 +10,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from process_improve.experiments.visualization.adapters.base import AbstractAdapter
-from process_improve.experiments.visualization.colors import (
+from process_improve.visualization.adapters.base import AbstractAdapter
+from process_improve.visualization.colors import (
     DOE_PALETTE,
 )
-from process_improve.experiments.visualization.spec import (
+from process_improve.visualization.spec import (
     Annotation,
     ChartSpec,
     LayerSpec,
     PanelSpec,
 )
-from process_improve.experiments.visualization.types import AnnotationType, MarkType
+from process_improve.visualization.types import AnnotationType, MarkType
 
 
 class EChartsAdapter(AbstractAdapter):
@@ -46,11 +46,15 @@ class EChartsAdapter(AbstractAdapter):
         """
         n = len(spec.panels)
         if n == 0:
-            return {"title": {"text": spec.title}, "series": []}
+            option: dict[str, Any] = {"title": {"text": spec.title}, "series": []}
+        elif n == 1:
+            option = self._single_panel(spec.panels[0], spec.title)
+        else:
+            option = self._multi_panel(spec)
 
-        if n == 1:
-            return self._single_panel(spec.panels[0], spec.title)
-        return self._multi_panel(spec)
+        if spec.link_group:
+            self._inject_brush(option, spec.link_group)
+        return option
 
     def render_panel(self, panel: PanelSpec) -> dict[str, Any]:
         """Convert a single panel to an ECharts option dict.
@@ -232,6 +236,9 @@ class EChartsAdapter(AbstractAdapter):
         if mark == MarkType.text:
             return self._scatter_series(layer), False
 
+        if mark == MarkType.boxplot:
+            return self._boxplot_series(layer), False
+
         # Fallback
         return self._scatter_series(layer), False
 
@@ -313,6 +320,24 @@ class EChartsAdapter(AbstractAdapter):
             "data": z_matrix,
             "shading": "color",
         }
+
+    def _boxplot_series(self, layer: LayerSpec) -> dict[str, Any]:
+        """Build an ECharts boxplot series.
+
+        Each row in ``layer.data`` must provide the five-number summary
+        under ``q_stats`` as ``[min, Q1, median, Q3, max]`` (the order
+        ECharts expects).  The category axis is picked up from
+        :meth:`_build_x_axis` via ``layer.x`` with ``ScaleType.category``.
+        """
+        data = [list(row["q_stats"]) for row in layer.data]
+        series: dict[str, Any] = {
+            "type": "boxplot",
+            "name": layer.name,
+            "data": data,
+        }
+        if layer.color:
+            series["itemStyle"] = {"color": layer.color}
+        return series
 
     def _wireframe_series(self, layer: LayerSpec) -> dict[str, Any]:
         data = []
@@ -404,6 +429,32 @@ class EChartsAdapter(AbstractAdapter):
                     ])
 
         return mark_lines, mark_areas
+
+    # ------------------------------------------------------------------
+    # Cross-chart linking
+    # ------------------------------------------------------------------
+
+    def _inject_brush(self, option: dict[str, Any], link_group: str) -> None:
+        """Attach a ``brush`` component and record the link group key.
+
+        The frontend link coordinator reads ``__link_group`` to decide
+        which charts belong to the same brushing group.
+        """
+        option["__link_group"] = link_group
+
+        toolbox = option.setdefault("toolbox", {})
+        feature = toolbox.setdefault("feature", {})
+        feature.setdefault("brush", {})
+
+        option.setdefault(
+            "brush",
+            {
+                "toolbox": ["rect", "polygon", "clear"],
+                "xAxisIndex": "all",
+                "throttleType": "debounce",
+                "throttleDelay": 100,
+            },
+        )
 
     # ------------------------------------------------------------------
     # Axis builders

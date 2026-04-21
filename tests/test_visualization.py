@@ -13,13 +13,13 @@ from typing import Any
 import pytest
 
 from process_improve.experiments.visualization import visualize_doe
-from process_improve.experiments.visualization.adapters import EChartsAdapter, PlotlyAdapter
 from process_improve.experiments.visualization.plots.registry import (
     create_plot,
     get_available_plot_types,
 )
-from process_improve.experiments.visualization.spec import ChartSpec
-from process_improve.experiments.visualization.types import DOEPlotType
+from process_improve.visualization.adapters import EChartsAdapter, PlotlyAdapter
+from process_improve.visualization.spec import ChartSpec
+from process_improve.visualization.types import DOEPlotType
 
 # ---------------------------------------------------------------------------
 # Fixtures

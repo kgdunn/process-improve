@@ -12,18 +12,18 @@ from typing import Any
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from process_improve.experiments.visualization.adapters.base import AbstractAdapter
-from process_improve.experiments.visualization.colors import (
+from process_improve.visualization.adapters.base import AbstractAdapter
+from process_improve.visualization.colors import (
     DOE_PALETTE,
     SURFACE_COLORSCALE,
 )
-from process_improve.experiments.visualization.spec import (
+from process_improve.visualization.spec import (
     Annotation,
     ChartSpec,
     LayerSpec,
     PanelSpec,
 )
-from process_improve.experiments.visualization.types import AnnotationType, MarkType
+from process_improve.visualization.types import AnnotationType, MarkType
 
 
 class PlotlyAdapter(AbstractAdapter):
@@ -156,11 +156,24 @@ class PlotlyAdapter(AbstractAdapter):
         tuple[go.BaseTraceType, bool]
             The trace and whether it targets the secondary y-axis.
         """
+        on_secondary = layer.style.get("secondary_y", False)
+        mark = layer.mark if isinstance(layer.mark, MarkType) else MarkType(layer.mark)
+
+        # Marks that don't read from layer.x.field / layer.y.field at the
+        # row level (they use layer.style grids or row-level ``q_stats``).
+        if mark == MarkType.contour:
+            return self._contour_trace(layer), on_secondary
+        if mark == MarkType.surface:
+            return self._surface_trace(layer), on_secondary
+        if mark == MarkType.heatmap:
+            return self._heatmap_trace(layer), on_secondary
+        if mark == MarkType.wireframe:
+            return self._wireframe_trace(layer), on_secondary
+        if mark == MarkType.boxplot:
+            return self._boxplot_trace(layer), on_secondary
+
         x_vals = [row[layer.x.field] for row in layer.data] if layer.x else []
         y_vals = [row[layer.y.field] for row in layer.data] if layer.y else []
-        on_secondary = layer.style.get("secondary_y", False)
-
-        mark = layer.mark if isinstance(layer.mark, MarkType) else MarkType(layer.mark)
 
         if mark == MarkType.bar:
             return self._bar_trace(layer, x_vals, y_vals), on_secondary
@@ -171,20 +184,8 @@ class PlotlyAdapter(AbstractAdapter):
         if mark == MarkType.scatter:
             return self._scatter_trace(layer, x_vals, y_vals), on_secondary
 
-        if mark == MarkType.contour:
-            return self._contour_trace(layer), on_secondary
-
-        if mark == MarkType.surface:
-            return self._surface_trace(layer), on_secondary
-
-        if mark == MarkType.heatmap:
-            return self._heatmap_trace(layer), on_secondary
-
         if mark == MarkType.text:
             return self._text_trace(layer, x_vals, y_vals), on_secondary
-
-        if mark == MarkType.wireframe:
-            return self._wireframe_trace(layer), on_secondary
 
         # Fallback to scatter
         return self._scatter_trace(layer, x_vals, y_vals), on_secondary
@@ -298,6 +299,32 @@ class PlotlyAdapter(AbstractAdapter):
             text=text_vals,
             name=layer.name,
             textfont=dict(size=layer.style.get("size", 12)),
+        )
+
+    def _boxplot_trace(self, layer: LayerSpec) -> go.Box:
+        """Build a Plotly box trace from pre-computed quartiles.
+
+        Each row in ``layer.data`` provides ``group`` (category label)
+        and ``q_stats`` as ``[min, Q1, median, Q3, max]`` — matching
+        the wire format used by the ECharts adapter.
+        """
+        groups = [row["group"] for row in layer.data]
+        lower = [row["q_stats"][0] for row in layer.data]
+        q1 = [row["q_stats"][1] for row in layer.data]
+        median = [row["q_stats"][2] for row in layer.data]
+        q3 = [row["q_stats"][3] for row in layer.data]
+        upper = [row["q_stats"][4] for row in layer.data]
+        return go.Box(
+            x=groups,
+            lowerfence=lower,
+            q1=q1,
+            median=median,
+            q3=q3,
+            upperfence=upper,
+            name=layer.name,
+            marker=dict(color=layer.color or DOE_PALETTE["primary"]),
+            opacity=layer.opacity,
+            boxpoints=False,
         )
 
     def _wireframe_trace(self, layer: LayerSpec) -> go.Scatter3d:

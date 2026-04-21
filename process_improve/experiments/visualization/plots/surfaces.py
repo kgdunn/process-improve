@@ -14,13 +14,13 @@ from typing import Any
 import numpy as np
 
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
-from process_improve.experiments.visualization.spec import (
+from process_improve.visualization.spec import (
     ChartSpec,
     Encoding,
     LayerSpec,
     PanelSpec,
 )
-from process_improve.experiments.visualization.types import MarkType
+from process_improve.visualization.types import MarkType
 
 # ---------------------------------------------------------------------------
 # Shared model evaluator
