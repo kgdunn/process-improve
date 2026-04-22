@@ -184,6 +184,7 @@ def discover_tools() -> None:
         "process_improve.experiments.tools",
         "process_improve.batch.tools",
         "process_improve.visualization.tools",
+        "process_improve.simulation.tools",
     ]:
         with contextlib.suppress(ImportError):
             importlib.import_module(module)
