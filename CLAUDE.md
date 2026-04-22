@@ -130,3 +130,23 @@ pytest -o "addopts="
 3. Add tests in `tests/test_multivariate.py` using both real datasets and synthetic data
 4. If the method needs to be on both PCA and PLS, implement on both with the same API signature
 5. Run `pytest tests/test_multivariate.py -v -o "addopts="` to verify
+
+## Git & PR workflow (for Claude Code sessions)
+
+**Never push lock files.** Claude Code sessions must not stage, commit, or push
+any dependency lock files. Lock-file updates are performed manually by the
+repository owner.
+
+Specifically, do **not** include the following in any commit or PR opened from
+a Claude Code session:
+
+- `uv.lock`
+- `poetry.lock`
+- `Pipfile.lock`
+- `requirements.lock` / pip-tools compiled lockfiles
+- any equivalent regenerated lock artifact
+
+If a command (e.g. `uv sync`, `pip install`) regenerates a lock file during a
+session, leave the file uncommitted. If it has already been staged, unstage it
+(`git restore --staged <lockfile>`) before committing. The user will refresh
+lock files manually outside of Claude Code sessions.
