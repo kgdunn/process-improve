@@ -18,6 +18,9 @@ kwarg. The JSON schema advertised to the LLM does not mention
 so the LLM cannot bypass the reveal policy or fabricate state.
 """
 
+# ruff: noqa: ANN401
+# ``dict[str, Any]`` is the tool-call contract shape; the real schema
+# lives in the @tool_spec JSON blocks below, not in the Python types.
 from __future__ import annotations
 
 import uuid
@@ -192,7 +195,7 @@ def _public_from_private(private: dict[str, Any], process_description: str, crea
     """,
     category="simulation",
 )
-def create_simulator(
+def create_simulator(  # noqa: PLR0913
     *,
     process_description: str,
     factors: list[dict[str, Any]],
