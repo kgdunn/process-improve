@@ -8,9 +8,9 @@ dict containing:
 - ``seed``:             int  — base RNG seed for coefficient generation.
 - ``factors``:          list of ``{name, low, high, units?}``.
 - ``outputs``:          list of ``{name, units?, direction?}``.
-- ``structural_hints``: list of free-text hints (\"negative interaction
-  between pH and surfactant\", etc).
-- ``noise_level``:      ``\"low\"`` | ``\"medium\"`` | ``\"high\"``.
+- ``structural_hints``: list of free-text hints ("negative interaction
+  between pH and surfactant", etc).
+- ``noise_level``:      ``"low"`` | ``"medium"`` | ``"high"``.
 - ``time_drift``:       bool.
 - ``model_version``:    int (schema version for future migrations).
 
@@ -22,7 +22,6 @@ yield similar-but-not-identical outputs — matching the behaviour of a
 real physical asset.
 """
 
-# ruff: noqa: ANN401
 # The public tool-call contract uses ``dict[str, Any]`` and ``list[dict[str, Any]]``
 # deliberately: the schema that the LLM sees is declared as JSON Schema in
 # ``simulation/tools.py``, not as Python types, so tightening the Python side
@@ -50,7 +49,7 @@ _NOISE_FRACTIONS: dict[str, float] = {
 
 # Hint-parsing keyword sets.  Any token intersection with one of these sets
 # carries the corresponding meaning; ties (both positive *and* negative in
-# the same hint) fall back to \"no direction\" and are ignored.
+# the same hint) fall back to "no direction" and are ignored.
 _POS_WORDS: frozenset[str] = frozenset(
     {
         "positive", "increase", "increases", "increasing", "synergy",
@@ -85,7 +84,7 @@ def validate_factors(factors: list[dict[str, Any]]) -> None:
     seen: set[str] = set()
     for f in factors:
         if not isinstance(f, dict):
-            raise ValueError("Each factor must be a dict.")
+            raise TypeError("Each factor must be a dict.")
         name = f.get("name")
         if not isinstance(name, str) or not name:
             raise ValueError("Each factor must have a non-empty 'name' string.")
@@ -95,7 +94,7 @@ def validate_factors(factors: list[dict[str, Any]]) -> None:
         low = f.get("low")
         high = f.get("high")
         if not isinstance(low, (int, float)) or not isinstance(high, (int, float)):
-            raise ValueError(f"Factor {name!r}: 'low' and 'high' must be numbers.")
+            raise TypeError(f"Factor {name!r}: 'low' and 'high' must be numbers.")
         if float(low) >= float(high):
             raise ValueError(f"Factor {name!r}: low ({low}) must be < high ({high}).")
 
@@ -107,7 +106,7 @@ def validate_outputs(outputs: list[dict[str, Any]]) -> None:
     seen: set[str] = set()
     for o in outputs:
         if not isinstance(o, dict):
-            raise ValueError("Each output must be a dict.")
+            raise TypeError("Each output must be a dict.")
         name = o.get("name")
         if not isinstance(name, str) or not name:
             raise ValueError("Each output must have a non-empty 'name' string.")
@@ -144,8 +143,8 @@ def _parse_hint(
 
     The returned dict has keys:
     ``factors`` (subset of *factor_names*),
-    ``outputs`` (subset of *output_names*; empty means \"all\"),
-    ``direction`` (``\"+\"`` / ``\"-\"`` / ``None``),
+    ``outputs`` (subset of *output_names*; empty means "all"),
+    ``direction`` (``"+"`` / ``"-"`` / ``None``),
     ``is_quadratic`` (bool).
     """
     tokens = _tokenise(hint)
@@ -159,7 +158,7 @@ def _parse_hint(
         direction = "+"
     elif has_neg and not has_pos:
         direction = "-"
-    # Bare \"non\" also matches (\"non-linear\" etc).
+    # Bare "non" also matches ("non-linear" etc).
     is_quadratic = bool(tokens & _QUAD_WORDS)
     return {
         "factors": matched_factors,
@@ -249,17 +248,16 @@ def _empty_output_coefs(rng: np.random.Generator, factor_names: list[str]) -> di
     intercept = 50.0 + float(rng.normal(0.0, 10.0))
     main = {f: float(rng.normal(0.0, 5.0)) for f in factor_names}
 
-    interactions: list[dict[str, Any]] = []
     # Sparse: each pair is non-zero with 30 % probability.
-    for i in range(k):
-        for j in range(i + 1, k):
-            if rng.random() < 0.30:
-                interactions.append(
-                    {
-                        "factors": [factor_names[i], factor_names[j]],
-                        "coefficient": float(rng.normal(0.0, 2.5)),
-                    }
-                )
+    interactions: list[dict[str, Any]] = [
+        {
+            "factors": [factor_names[i], factor_names[j]],
+            "coefficient": float(rng.normal(0.0, 2.5)),
+        }
+        for i in range(k)
+        for j in range(i + 1, k)
+        if rng.random() < 0.30
+    ]
 
     quadratic: dict[str, float] = {}
     for f in factor_names:
@@ -289,7 +287,7 @@ def materialize_model(private_state: dict[str, Any]) -> dict[str, Any]:
     Deterministic: identical *private_state* always returns identical
     coefficients, across processes and machines.  This is the secret
     the simulator hides from the LLM — callers that have *private_state*
-    already have the model, so \"revealing\" is free.
+    already have the model, so "revealing" is free.
     """
     seed = int(private_state["seed"])
     factors = private_state["factors"]
