@@ -7,10 +7,7 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 import pytest
 
-from process_improve.simulation.model import (
-    materialize_model,
-    simulate,
-)
+from process_improve.simulation.model import materialize_model
 from process_improve.simulation.tools import (
     _SIMULATION_TOOL_NAMES,
     create_simulator,
