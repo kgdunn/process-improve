@@ -13,9 +13,10 @@ import pandas as pd
 import plotly.graph_objects as go
 import ridgeplot
 from scipy.stats import chi2, f
+from scipy.stats import t as t_dist
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, _fit_context, clone
 from sklearn.metrics import r2_score
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import KFold, cross_val_score
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
 from tqdm import tqdm
@@ -1520,6 +1521,232 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
         results.sort(key=lambda d: d["severity"], reverse=True)
         return results
+
+    def cross_validate(  # noqa: PLR0912, PLR0913, PLR0915, C901
+        self,
+        X: DataMatrix,
+        Y: DataMatrix,
+        *,
+        cv: int | str = "loo",
+        n_bootstrap: int = 0,
+        conf_level: float = 0.95,
+        random_state: int | None = None,
+        show_progress: bool = True,
+    ) -> Bunch:
+        """Cross-validate the PLS model and compute error bars for beta coefficients.
+
+        Refits the model on data subsets (jackknife, K-fold, or bootstrap),
+        collects ``beta_coefficients_`` from each refit, and computes
+        confidence intervals. Also returns cross-validated predictions
+        and prediction-error metrics (RMSE, Q²).
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Predictor matrix (same data used for ``fit``).
+        Y : array-like of shape (n_samples, n_targets)
+            Response matrix (same data used for ``fit``).
+        cv : int or ``"loo"``, default ``"loo"``
+            Cross-validation strategy:
+
+            * ``"loo"`` — leave-one-out (jackknife). Produces N resamples.
+            * ``int`` — number of folds for K-fold CV.
+        n_bootstrap : int, default 0
+            If > 0, use bootstrap resampling instead of CV folds.
+            The value specifies the number of bootstrap rounds.
+            Overrides the ``cv`` parameter when set.
+        conf_level : float, default 0.95
+            Confidence level for the beta-coefficient intervals, in (0, 1).
+        random_state : int or None, default None
+            Random seed for reproducibility (K-fold shuffle and bootstrap).
+        show_progress : bool, default True
+            Whether to display a ``tqdm`` progress bar.
+
+        Returns
+        -------
+        result : :class:`~sklearn.utils.Bunch`
+            Dictionary-like object with the following keys:
+
+            **Beta-coefficient uncertainty**
+
+            beta_samples : np.ndarray of shape (n_resamples, n_features, n_targets)
+                Raw beta coefficients from every resample.
+            beta_mean : pd.DataFrame of shape (n_features, n_targets)
+                Mean beta across resamples.
+            beta_std : pd.DataFrame of shape (n_features, n_targets)
+                Standard error of the beta coefficients.
+            beta_ci_lower : pd.DataFrame of shape (n_features, n_targets)
+                Lower bound of the confidence interval.
+            beta_ci_upper : pd.DataFrame of shape (n_features, n_targets)
+                Upper bound of the confidence interval.
+            significant : pd.DataFrame of shape (n_features, n_targets)
+                ``True`` where the confidence interval excludes zero.
+
+            **Prediction metrics**
+
+            y_hat_cv : pd.DataFrame of shape (n_samples, n_targets)
+                Cross-validated predictions (out-of-fold). Only available for
+                jackknife and K-fold; ``None`` for bootstrap.
+            press : float
+                Prediction Error Sum of Squares (sum over all Y elements).
+                Only for jackknife / K-fold.
+            rmse_cv : pd.Series of length n_targets
+                Root-mean-square error per Y variable (cross-validated).
+                Only for jackknife / K-fold.
+            q_squared : pd.Series of length n_targets
+                Cross-validated R² (Q²) per Y variable.
+                Only for jackknife / K-fold.
+
+            **Metadata**
+
+            n_resamples : int
+                Number of resamples performed.
+            method : str
+                ``"jackknife"``, ``"kfold"``, or ``"bootstrap"``.
+            conf_level : float
+                The confidence level used.
+
+        Examples
+        --------
+        >>> from process_improve.multivariate import PLS, MCUVScaler
+        >>> scaler_x = MCUVScaler().fit(X)
+        >>> scaler_y = MCUVScaler().fit(Y)
+        >>> X_s, Y_s = scaler_x.transform(X), scaler_y.transform(Y)
+        >>> pls = PLS(n_components=2).fit(X_s, Y_s)
+        >>> cv_results = pls.cross_validate(X_s, Y_s, cv="loo")
+        >>> cv_results.beta_mean          # mean beta across LOO resamples
+        >>> cv_results.significant        # which betas are significantly != 0
+        >>> cv_results.q_squared          # cross-validated R²
+        """
+        check_is_fitted(self, "beta_coefficients_")
+
+        X = pd.DataFrame(X) if not isinstance(X, pd.DataFrame) else X
+        Y = pd.DataFrame(Y) if not isinstance(Y, pd.DataFrame) else Y
+
+        N, _K = X.shape
+        M = Y.shape[1]
+
+        if X.shape[0] != Y.shape[0]:
+            raise ValueError(f"X and Y must have the same number of rows, got {X.shape[0]} and {Y.shape[0]}.")
+        if not (0.5 < conf_level < 1.0):
+            raise ValueError(f"conf_level must be between 0.5 and 1.0, got {conf_level}.")
+
+        # --- Determine resampling strategy ---
+        use_bootstrap = n_bootstrap > 0
+        if use_bootstrap:
+            method = "bootstrap"
+            n_resamples = n_bootstrap
+        elif cv == "loo":
+            method = "jackknife"
+            n_resamples = N
+        else:
+            method = "kfold"
+            n_resamples = int(cv)
+
+        # --- Collect beta coefficients (and out-of-fold predictions for CV) ---
+        beta_collection: list[np.ndarray] = []
+        y_hat_cv = np.full((N, M), np.nan) if not use_bootstrap else None
+        rng = np.random.default_rng(random_state)
+
+        if use_bootstrap:
+            iterator = tqdm(range(n_bootstrap), desc="Bootstrap", disable=not show_progress)
+            for _ in iterator:
+                train_idx = rng.choice(N, size=N, replace=True)
+                sub_model = clone(self).fit(X.iloc[train_idx], Y.iloc[train_idx])
+                beta_collection.append(sub_model.beta_coefficients_.values)
+
+        elif method == "jackknife":
+            iterator = tqdm(range(N), desc="Jackknife (LOO)", disable=not show_progress)
+            for i in iterator:
+                train_idx = np.concatenate([np.arange(i), np.arange(i + 1, N)])
+                sub_model = clone(self).fit(X.iloc[train_idx], Y.iloc[train_idx])
+                beta_collection.append(sub_model.beta_coefficients_.values)
+                pred = sub_model.predict(X.iloc[[i]])
+                y_hat_cv[i, :] = pred.y_hat.values.ravel()
+
+        else:  # K-fold
+            kf = KFold(n_splits=n_resamples, shuffle=True, random_state=random_state)
+            desc = f"{n_resamples}-Fold CV"
+            for train_idx, test_idx in tqdm(kf.split(X), total=n_resamples, desc=desc, disable=not show_progress):
+                sub_model = clone(self).fit(X.iloc[train_idx], Y.iloc[train_idx])
+                beta_collection.append(sub_model.beta_coefficients_.values)
+                pred = sub_model.predict(X.iloc[test_idx])
+                y_hat_cv[test_idx, :] = pred.y_hat.values
+
+        beta_samples = np.array(beta_collection)  # (n_resamples, K, M)
+        actual_n_resamples = beta_samples.shape[0]
+
+        # --- Beta-coefficient statistics ---
+        beta_mean_arr = beta_samples.mean(axis=0)
+
+        if method == "jackknife":
+            # Jackknife variance: var = (N-1)/N * sum_i (beta_i - beta_mean)^2
+            jackknife_var = (N - 1) / N * np.sum((beta_samples - beta_mean_arr) ** 2, axis=0)
+            beta_std_arr = np.sqrt(jackknife_var)
+            # CI via t-distribution
+            alpha = 1 - conf_level
+            t_crit = t_dist.ppf(1 - alpha / 2, df=N - 1)
+            beta_ci_lower_arr = beta_mean_arr - t_crit * beta_std_arr
+            beta_ci_upper_arr = beta_mean_arr + t_crit * beta_std_arr
+        elif method == "kfold":
+            # For K-fold, use sample std of the K beta estimates
+            beta_std_arr = beta_samples.std(axis=0, ddof=1)
+            alpha = 1 - conf_level
+            t_crit = t_dist.ppf(1 - alpha / 2, df=actual_n_resamples - 1)
+            beta_ci_lower_arr = beta_mean_arr - t_crit * beta_std_arr
+            beta_ci_upper_arr = beta_mean_arr + t_crit * beta_std_arr
+        else:  # bootstrap percentile CI
+            beta_std_arr = beta_samples.std(axis=0, ddof=1)
+            alpha = 1 - conf_level
+            beta_ci_lower_arr = np.percentile(beta_samples, 100 * alpha / 2, axis=0)
+            beta_ci_upper_arr = np.percentile(beta_samples, 100 * (1 - alpha / 2), axis=0)
+
+        # Significance: CI does not contain zero
+        significant_arr = (beta_ci_lower_arr > 0) | (beta_ci_upper_arr < 0)
+
+        x_cols = self.beta_coefficients_.index
+        y_cols = self.beta_coefficients_.columns
+
+        beta_mean_df = pd.DataFrame(beta_mean_arr, index=x_cols, columns=y_cols)
+        beta_std_df = pd.DataFrame(beta_std_arr, index=x_cols, columns=y_cols)
+        beta_ci_lower_df = pd.DataFrame(beta_ci_lower_arr, index=x_cols, columns=y_cols)
+        beta_ci_upper_df = pd.DataFrame(beta_ci_upper_arr, index=x_cols, columns=y_cols)
+        significant_df = pd.DataFrame(significant_arr, index=x_cols, columns=y_cols)
+
+        # --- Cross-validated prediction metrics ---
+        press_val = None
+        rmse_cv_series = None
+        q_squared_series = None
+        y_hat_cv_df = None
+
+        if y_hat_cv is not None:
+            y_hat_cv_df = pd.DataFrame(y_hat_cv, index=Y.index, columns=Y.columns)
+            residuals = Y.values - y_hat_cv
+            press_val = float(np.nansum(residuals**2))
+            ss_total = np.nansum((Y.values - Y.values.mean(axis=0)) ** 2, axis=0)
+            ss_res = np.nansum(residuals**2, axis=0)
+
+            rmse_vals = np.sqrt(np.nanmean(residuals**2, axis=0))
+            rmse_cv_series = pd.Series(rmse_vals, index=Y.columns, name="RMSE_CV")
+
+            q2_vals = 1.0 - ss_res / ss_total
+            q_squared_series = pd.Series(q2_vals, index=Y.columns, name="Q_squared")
+
+        return Bunch(
+            beta_samples=beta_samples,
+            beta_mean=beta_mean_df,
+            beta_std=beta_std_df,
+            beta_ci_lower=beta_ci_lower_df,
+            beta_ci_upper=beta_ci_upper_df,
+            significant=significant_df,
+            y_hat_cv=y_hat_cv_df,
+            press=press_val,
+            rmse_cv=rmse_cv_series,
+            q_squared=q_squared_series,
+            n_resamples=actual_n_resamples,
+            method=method,
+            conf_level=conf_level,
+        )
 
     def __getattr__(self, name: str):
         """Provide helpful error messages for old attribute names."""

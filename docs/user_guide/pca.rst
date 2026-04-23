@@ -183,6 +183,33 @@ first):
    for o in outliers:
        print(f"{o['observation']}: {o['outlier_types']} (severity={o['severity']})")
 
+Variable Importance in Projection (VIP)
+---------------------------------------
+
+VIP scores quantify how much each variable contributes to the PCA model. For
+PCA, the loadings matrix is used as the weight matrix:
+
+.. math::
+
+   \text{VIP}_j = \sqrt{K \cdot
+       \frac{\sum_{a=1}^{A} r2_a \cdot p_{ja}^2}{\sum_{a=1}^{A} r2_a}}
+
+where :math:`p_{ja}` is the loading for feature :math:`j` on component
+:math:`a`, and :math:`r2_a` is the fraction of variance explained by that
+component.
+
+- Variables with **VIP > 1** contribute more than average to the model.
+- Variables with **VIP < 0.5** contribute very little.
+
+.. code-block:: python
+
+   model = PCA(n_components=3).fit(X_scaled)
+   vip_scores = model.vip()
+   print(vip_scores.sort_values(ascending=False))
+
+   # Compute VIP using only the first 2 components
+   vip_2 = model.vip(n_components=2)
+
 Model Selection
 ---------------
 
