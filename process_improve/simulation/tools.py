@@ -21,7 +21,7 @@ so the LLM cannot bypass the reveal policy or fabricate state.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from process_improve.simulation.model import (
@@ -216,7 +216,7 @@ def create_simulator(
 
     seed_value = int(seed) if seed is not None else draw_initial_seed()
     sim_id = str(uuid.uuid4())
-    created_at = datetime.now(UTC).isoformat()
+    created_at = datetime.now(timezone.utc).isoformat()
 
     private_state: dict[str, Any] = {
         "seed": seed_value,
