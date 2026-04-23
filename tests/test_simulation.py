@@ -6,7 +6,6 @@ from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 import pytest
-from process_improve.tool_spec import execute_tool_call, get_tool_specs
 
 from process_improve.simulation.model import materialize_model
 from process_improve.simulation.tools import (
@@ -15,6 +14,7 @@ from process_improve.simulation.tools import (
     reveal_simulator,
     simulate_process,
 )
+from process_improve.tool_spec import execute_tool_call, get_tool_specs
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
