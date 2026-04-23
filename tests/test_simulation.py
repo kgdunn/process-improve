@@ -6,6 +6,7 @@ from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 import pytest
+from process_improve.tool_spec import execute_tool_call, get_tool_specs
 
 from process_improve.simulation.model import materialize_model
 from process_improve.simulation.tools import (
@@ -14,7 +15,6 @@ from process_improve.simulation.tools import (
     reveal_simulator,
     simulate_process,
 )
-from process_improve.tool_spec import execute_tool_call, get_tool_specs
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -61,7 +61,8 @@ def _make_sim(seed: int = 42, **overrides) -> dict:
 class TestCreateSimulator:
     def test_returns_sim_id_public_and_private(self):
         sim = _make_sim()
-        assert isinstance(sim["sim_id"], str) and len(sim["sim_id"]) > 10
+        assert isinstance(sim["sim_id"], str)
+        assert len(sim["sim_id"]) > 10
         assert "public" in sim
         assert "_private" in sim
 
@@ -96,7 +97,7 @@ class TestCreateSimulator:
             )
 
     def test_low_must_be_less_than_high(self):
-        with pytest.raises(ValueError, match="low .* must be"):
+        with pytest.raises(ValueError, match=r"low .* must be"):
             create_simulator(
                 process_description="x",
                 factors=[{"name": "A", "low": 5.0, "high": 5.0}],
