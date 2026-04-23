@@ -18,7 +18,6 @@ kwarg. The JSON schema advertised to the LLM does not mention
 so the LLM cannot bypass the reveal policy or fabricate state.
 """
 
-# ruff: noqa: ANN401
 # ``dict[str, Any]`` is the tool-call contract shape; the real schema
 # lives in the @tool_spec JSON blocks below, not in the Python types.
 from __future__ import annotations
@@ -26,6 +25,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from typing import Any
+
+from process_improve.tool_spec import clean, get_tool_specs, tool_spec
 
 from process_improve.simulation.model import (
     draw_initial_seed,
@@ -35,7 +36,6 @@ from process_improve.simulation.model import (
     validate_noise_level,
     validate_outputs,
 )
-from process_improve.tool_spec import clean, get_tool_specs, tool_spec
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -326,7 +326,7 @@ def simulate_process(
             ),
         }
     if not isinstance(settings, dict):
-        raise ValueError("'settings' must be a dict of factor-name to numeric value.")
+        raise TypeError("'settings' must be a dict of factor-name to numeric value.")
 
     result = simulate(
         simulator_state,
