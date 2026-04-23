@@ -26,8 +26,6 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from process_improve.tool_spec import clean, get_tool_specs, tool_spec
-
 from process_improve.simulation.model import (
     draw_initial_seed,
     materialize_model,
@@ -36,6 +34,7 @@ from process_improve.simulation.model import (
     validate_noise_level,
     validate_outputs,
 )
+from process_improve.tool_spec import clean, get_tool_specs, tool_spec
 
 # ---------------------------------------------------------------------------
 # Helpers
