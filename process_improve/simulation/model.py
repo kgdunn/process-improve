@@ -22,6 +22,11 @@ yield similar-but-not-identical outputs — matching the behaviour of a
 real physical asset.
 """
 
+# ruff: noqa: ANN401
+# The public tool-call contract uses ``dict[str, Any]`` and ``list[dict[str, Any]]``
+# deliberately: the schema that the LLM sees is declared as JSON Schema in
+# ``simulation/tools.py``, not as Python types, so tightening the Python side
+# with TypedDicts would be duplicative and brittle.
 from __future__ import annotations
 
 import re
@@ -47,17 +52,23 @@ _NOISE_FRACTIONS: dict[str, float] = {
 # carries the corresponding meaning; ties (both positive *and* negative in
 # the same hint) fall back to \"no direction\" and are ignored.
 _POS_WORDS: frozenset[str] = frozenset(
-    {"positive", "increase", "increases", "increasing", "synergy",
-     "synergistic", "synergise", "synergize", "boost", "boosts", "promotes"}
+    {
+        "positive", "increase", "increases", "increasing", "synergy",
+        "synergistic", "synergise", "synergize", "boost", "boosts", "promotes",
+    }
 )
 _NEG_WORDS: frozenset[str] = frozenset(
-    {"negative", "decrease", "decreases", "decreasing", "antagonistic",
-     "antagonise", "antagonize", "antagonism", "adverse", "inhibits",
-     "suppresses"}
+    {
+        "negative", "decrease", "decreases", "decreasing", "antagonistic",
+        "antagonise", "antagonize", "antagonism", "adverse", "inhibits",
+        "suppresses",
+    }
 )
 _QUAD_WORDS: frozenset[str] = frozenset(
-    {"quadratic", "curvature", "curved", "nonlinear", "non", "parabolic",
-     "optimum", "maximum", "minimum"}
+    {
+        "quadratic", "curvature", "curved", "nonlinear", "non", "parabolic",
+        "optimum", "maximum", "minimum",
+    }
 )
 
 _VALID_NOISE_LEVELS: tuple[str, ...] = tuple(_NOISE_FRACTIONS)
@@ -158,6 +169,48 @@ def _parse_hint(
     }
 
 
+def _apply_interaction_hint(
+    out_coefs: dict[str, Any],
+    factors: list[str],
+    sign: float,
+    rng: np.random.Generator,
+) -> None:
+    """Set (or strengthen) the interaction coefficient for a factor pair."""
+    a, b = sorted(factors)
+    magnitude = float(rng.uniform(1.8, 3.5))
+    for inter in out_coefs["interactions"]:
+        if tuple(sorted(inter["factors"])) == (a, b):
+            inter["coefficient"] = sign * max(abs(inter["coefficient"]), magnitude)
+            return
+    out_coefs["interactions"].append(
+        {"factors": [a, b], "coefficient": sign * magnitude}
+    )
+
+
+def _apply_main_hint(out_coefs: dict[str, Any], factor: str, sign: float) -> None:
+    """Set the main-effect coefficient for *factor* to the given sign."""
+    current = out_coefs["main"].get(factor, 0.0)
+    magnitude = max(abs(current), 3.0)
+    out_coefs["main"][factor] = sign * magnitude
+
+
+def _apply_quadratic_hint(
+    out_coefs: dict[str, Any],
+    factor: str,
+    direction: str | None,
+    rng: np.random.Generator,
+) -> None:
+    """Set the quadratic coefficient for *factor* (concave by default)."""
+    magnitude = float(rng.uniform(1.5, 3.0))
+    if direction == "+":
+        out_coefs["quadratic"][factor] = magnitude
+    elif direction == "-":
+        out_coefs["quadratic"][factor] = -magnitude
+    else:
+        # Default to concave (typical optimum-in-the-middle shape).
+        out_coefs["quadratic"][factor] = -magnitude
+
+
 def _apply_hint(
     coefficients: dict[str, dict[str, Any]],
     parsed: dict[str, Any],
@@ -169,43 +222,20 @@ def _apply_hint(
     is_quadratic = parsed["is_quadratic"]
     applied_outputs = parsed["outputs"] or list(coefficients.keys())
     sign_map = {"+": 1.0, "-": -1.0, None: 0.0}
+    has_dir = direction is not None
 
     for out_name in applied_outputs:
         if out_name not in coefficients:
             continue
         out_coefs = coefficients[out_name]
+        sign = sign_map[direction]
 
-        if len(factors) == 2 and direction is not None and not is_quadratic:
-            # Pairwise interaction with a known sign.
-            a, b = sorted(factors)
-            sign = sign_map[direction]
-            magnitude = float(rng.uniform(1.8, 3.5))
-            updated = False
-            for inter in out_coefs["interactions"]:
-                if tuple(sorted(inter["factors"])) == (a, b):
-                    inter["coefficient"] = sign * max(abs(inter["coefficient"]), magnitude)
-                    updated = True
-                    break
-            if not updated:
-                out_coefs["interactions"].append(
-                    {"factors": [a, b], "coefficient": sign * magnitude}
-                )
-
-        if len(factors) == 1 and direction is not None and not is_quadratic:
-            f_name = factors[0]
-            sign = sign_map[direction]
-            current = out_coefs["main"].get(f_name, 0.0)
-            magnitude = max(abs(current), 3.0)
-            out_coefs["main"][f_name] = sign * magnitude
-
-        if len(factors) == 1 and is_quadratic:
-            f_name = factors[0]
-            magnitude = float(rng.uniform(1.5, 3.0))
-            if direction is not None:
-                out_coefs["quadratic"][f_name] = sign_map[direction] * magnitude
-            else:
-                # Default to concave (typical optimum-in-the-middle shape).
-                out_coefs["quadratic"][f_name] = -magnitude
+        if len(factors) == 2 and has_dir and not is_quadratic:
+            _apply_interaction_hint(out_coefs, factors, sign, rng)
+        elif len(factors) == 1 and has_dir and not is_quadratic:
+            _apply_main_hint(out_coefs, factors[0], sign)
+        elif len(factors) == 1 and is_quadratic:
+            _apply_quadratic_hint(out_coefs, factors[0], direction, rng)
 
 
 # ---------------------------------------------------------------------------
@@ -283,7 +313,7 @@ def materialize_model(private_state: dict[str, Any]) -> dict[str, Any]:
         _apply_hint(per_output, _parse_hint(hint, factor_names, output_names), rng)
 
     noise_fraction = _NOISE_FRACTIONS[noise_level]
-    for name, coefs in per_output.items():
+    for coefs in per_output.values():
         coefs["noise_sigma"] = noise_fraction * _total_abs_magnitude(coefs)
         if time_drift:
             coefs["drift_rate_per_day"] = float(
@@ -309,6 +339,48 @@ def _coded_setting(value: float, low: float, high: float) -> float:
     if high == low:
         return 0.0
     return 2.0 * (value - low) / (high - low) - 1.0
+
+
+def _resolve_setting(
+    name: str,
+    low: float,
+    high: float,
+    settings: dict[str, float],
+    warnings: list[str],
+) -> float:
+    """Return the effective factor value, warning on missing/clipped inputs."""
+    if name not in settings:
+        val = (low + high) / 2.0
+        warnings.append(f"Factor {name!r} not provided; using mid-range value {val}.")
+        return val
+    val = float(settings[name])
+    if val < low:
+        warnings.append(f"Factor {name!r}={val} below low={low}; clipped to {low}.")
+        return low
+    if val > high:
+        warnings.append(f"Factor {name!r}={val} above high={high}; clipped to {high}.")
+        return high
+    return val
+
+
+def _evaluate_surface(
+    out_coefs: dict[str, Any],
+    coded: dict[str, float],
+    timestamp_offset_days: float,
+    noise_rng: np.random.Generator,
+) -> float:
+    """Evaluate the full polynomial for one output, including noise + drift."""
+    y = float(out_coefs["intercept"])
+    for f_name, coef in out_coefs["main"].items():
+        y += coef * coded[f_name]
+    for inter in out_coefs["interactions"]:
+        a, b = inter["factors"]
+        y += inter["coefficient"] * coded[a] * coded[b]
+    for f_name, coef in out_coefs["quadratic"].items():
+        y += coef * (coded[f_name] ** 2)
+    y += out_coefs["drift_rate_per_day"] * float(timestamp_offset_days)
+    y += float(noise_rng.normal(0.0, out_coefs["noise_sigma"]))
+    return y
 
 
 def simulate(
@@ -347,42 +419,16 @@ def simulate(
     effective_settings: dict[str, float] = {}
     coded: dict[str, float] = {}
     for name, (low, high) in factor_ranges.items():
-        if name not in settings:
-            val = (low + high) / 2.0
-            warnings.append(
-                f"Factor {name!r} not provided; using mid-range value {val}."
-            )
-        else:
-            val = float(settings[name])
-            if val < low:
-                warnings.append(
-                    f"Factor {name!r}={val} below low={low}; clipped to {low}."
-                )
-                val = low
-            elif val > high:
-                warnings.append(
-                    f"Factor {name!r}={val} above high={high}; clipped to {high}."
-                )
-                val = high
+        val = _resolve_setting(name, low, high, settings, warnings)
         effective_settings[name] = val
         coded[name] = _coded_setting(val, low, high)
 
     # Fresh (unseeded) RNG — noise is genuinely different on every call.
     noise_rng = np.random.default_rng()
-    outputs: dict[str, float] = {}
-
-    for out_name, out_coefs in model["per_output"].items():
-        y = float(out_coefs["intercept"])
-        for f_name, coef in out_coefs["main"].items():
-            y += coef * coded[f_name]
-        for inter in out_coefs["interactions"]:
-            a, b = inter["factors"]
-            y += inter["coefficient"] * coded[a] * coded[b]
-        for f_name, coef in out_coefs["quadratic"].items():
-            y += coef * (coded[f_name] ** 2)
-        y += out_coefs["drift_rate_per_day"] * float(timestamp_offset_days)
-        y += float(noise_rng.normal(0.0, out_coefs["noise_sigma"]))
-        outputs[out_name] = float(y)
+    outputs: dict[str, float] = {
+        out_name: float(_evaluate_surface(out_coefs, coded, timestamp_offset_days, noise_rng))
+        for out_name, out_coefs in model["per_output"].items()
+    }
 
     return {
         "settings": effective_settings,
