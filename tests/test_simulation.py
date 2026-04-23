@@ -9,7 +9,6 @@ import pytest
 
 from process_improve.simulation.model import materialize_model
 from process_improve.simulation.tools import (
-    _SIMULATION_TOOL_NAMES,
     create_simulator,
     get_simulation_tool_specs,
     reveal_simulator,
@@ -397,12 +396,13 @@ class TestRegistryIntegration:
         assert {"create_simulator", "simulate_process", "reveal_simulator"} <= names
 
     def test_simulation_helper_lists_all_three(self):
-        assert set(_SIMULATION_TOOL_NAMES) == {
+        specs = get_simulation_tool_specs()
+        assert {s["name"] for s in specs} == {
             "create_simulator",
             "simulate_process",
             "reveal_simulator",
         }
-        assert len(get_simulation_tool_specs()) == 3
+        assert len(specs) == 3
 
     def test_dispatch_via_execute_tool_call(self):
         out = execute_tool_call(
