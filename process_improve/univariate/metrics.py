@@ -48,25 +48,23 @@ def t_value(p: float, v: float) -> float:
 
 def t_value_cdf(z: float, v: float) -> float:
     r"""
-    Return the value on the y-axis if you plot the cumulative t-distribution with a fractional
-    area of `p` (p is therefore a fractional value between 0 and 1 on the y-axis) and `v` is the
-    degrees of freedom.
-
+    Return the fractional area under the cumulative t-distribution (y-axis value) at the t-value
+    `z` on the x-axis, with `v` degrees of freedom.
 
     Examples
     --------
-    Since the cumulative distribution passes symmetrically through the x-axis at 0.0 for any
-    number of degrees of freedom
+    The cumulative distribution is symmetric through the x-axis at 0.0 for any number of degrees
+    of freedom, so half of the area lies below zero:
 
-    >>> t_value_cdf(z=0.0, v)
+    >>> t_value_cdf(0.0, v)
     0.5
 
-    Zero fractional area under the curve is always at :math:`-\infty`:
+    Zero fractional area under the curve is at :math:`-\infty`:
 
-    >>> t_value_cdf(np.ninf, v)
+    >>> t_value_cdf(-np.inf, v)
     0.0
 
-    100% fractional area is always at :math:`+\infty`:
+    100% fractional area is at :math:`+\infty`:
 
     >>> t_value_cdf(np.inf, v)
     1.0
