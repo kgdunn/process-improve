@@ -47,16 +47,70 @@ _discovery_done: bool = False
 
 
 # ---------------------------------------------------------------------------
+# RNG metadata validation
+# ---------------------------------------------------------------------------
+
+
+def _validate_rng_metadata(name: str, rng: dict[str, Any]) -> None:
+    """Reject ``rng`` payloads that don't match the published contract.
+
+    The contract is intentionally narrow so downstream consumers (the
+    factorial reproducible-export service) can introspect specs without
+    defensive type-checking. See ``CLAUDE.md`` for the full schema.
+    """
+    if not isinstance(rng, dict):
+        raise TypeError(
+            f"@tool_spec(name={name!r}): 'rng' must be a dict, got {type(rng).__name__}."
+        )
+    if "uses_rng" not in rng or not isinstance(rng["uses_rng"], bool):
+        raise ValueError(
+            f"@tool_spec(name={name!r}): 'rng' must have a boolean 'uses_rng' key."
+        )
+    allowed_keys = {"uses_rng", "seed_param", "default_seed", "note"}
+    extra = set(rng) - allowed_keys
+    if extra:
+        raise ValueError(
+            f"@tool_spec(name={name!r}): unknown keys in 'rng': {sorted(extra)}. "
+            f"Allowed: {sorted(allowed_keys)}."
+        )
+    if not rng["uses_rng"]:
+        # Deterministic tools shouldn't carry a seed_param / default_seed.
+        if rng.get("seed_param") is not None or rng.get("default_seed") is not None:
+            raise ValueError(
+                f"@tool_spec(name={name!r}): 'seed_param' / 'default_seed' "
+                "must be omitted when uses_rng is False."
+            )
+        return
+    seed_param = rng.get("seed_param")
+    if seed_param is not None and not isinstance(seed_param, str):
+        raise TypeError(
+            f"@tool_spec(name={name!r}): 'seed_param' must be a string or None, "
+            f"got {type(seed_param).__name__}."
+        )
+    default_seed = rng.get("default_seed")
+    if default_seed is not None and not isinstance(default_seed, int):
+        raise TypeError(
+            f"@tool_spec(name={name!r}): 'default_seed' must be an int or None, "
+            f"got {type(default_seed).__name__}."
+        )
+    if seed_param is None and default_seed is not None:
+        raise ValueError(
+            f"@tool_spec(name={name!r}): 'default_seed' requires a 'seed_param' name."
+        )
+
+
+# ---------------------------------------------------------------------------
 # Decorator
 # ---------------------------------------------------------------------------
 
 
-def tool_spec(
+def tool_spec(  # noqa: PLR0913
     name: str,
     description: str,
     input_schema: dict[str, Any],
     examples: str = "",
     category: str = "",
+    rng: dict[str, Any] | None = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Mark a function as an agent-callable tool.
 
@@ -81,6 +135,23 @@ def tool_spec(
     category:
         Optional category string (e.g. ``"univariate"``, ``"multivariate"``).
         Used for filtering with :func:`get_tool_specs`.
+    rng:
+        Optional reproducibility metadata.  Tools that touch RNG should
+        declare whether the seed is user-controllable so downstream
+        reproducible-export tooling can introspect rather than guess.
+
+        Permitted shapes::
+
+            {"uses_rng": False}
+            {"uses_rng": True, "seed_param": "<kwarg-name>",
+             "default_seed": <int>}
+            {"uses_rng": True, "seed_param": None,
+             "note": "<why no user seed>"}
+
+        Omit entirely to leave the spec without an ``rng`` key (legacy
+        behavior; downstream consumers treat that as "unknown — assume
+        deterministic"). The Anthropic API ignores unknown spec keys, so
+        adding ``rng`` is safe.
 
     Returns
     -------
@@ -105,10 +176,13 @@ def tool_spec(
             }},
             examples='# "What is 2 + 3?" -> ``add_numbers(a=2, b=3)``',
             category="math",
+            rng={"uses_rng": False},
         )
         def add_numbers(*, a: float, b: float) -> dict:
             return {"result": a + b}
     """
+    if rng is not None:
+        _validate_rng_metadata(name, rng)
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         full_description = description
@@ -122,6 +196,8 @@ def tool_spec(
         }
         if category:
             spec["category"] = category
+        if rng is not None:
+            spec["rng"] = dict(rng)
 
         func._tool_spec = spec  # type: ignore[attr-defined]
         _TOOL_REGISTRY[name] = func
@@ -216,7 +292,9 @@ def get_tool_specs(
     -------
     list[dict]
         Each dict has keys ``"name"``, ``"description"``, and
-        ``"input_schema"`` as required by the Anthropic API.
+        ``"input_schema"`` as required by the Anthropic API.  Tools that
+        opt in via ``rng=`` on the decorator also carry an ``"rng"`` key
+        describing their reproducibility contract; see :func:`tool_spec`.
     """
     discover_tools()
     registry = _TOOL_REGISTRY
