@@ -150,3 +150,12 @@ If a command (e.g. `uv sync`, `pip install`) regenerates a lock file during a
 session, leave the file uncommitted. If it has already been staged, unstage it
 (`git restore --staged <lockfile>`) before committing. The user will refresh
 lock files manually outside of Claude Code sessions.
+
+## Updating this file (CLAUDE.md)
+
+If during a session you notice a recurring pattern, convention, or piece of
+project context that you think belongs in `CLAUDE.md`, **do not add it
+yourself**. Surface the proposed addition in chat — the wording you would
+add, where you would put it, and why you think it is reusable — and ask the
+user whether it should be recorded here. The user decides what gets
+canonised in this file.
