@@ -20,6 +20,7 @@ def visualize_doe(  # noqa: PLR0913
     hold_values: dict[str, float] | None = None,
     highlight_significant: bool = True,
     confidence_level: float = 0.95,
+    factor_labels: dict[str, str] | None = None,
     backend: str = "both",
 ) -> dict[str, Any]:
     """Generate a DOE visualisation.
@@ -46,6 +47,9 @@ def visualize_doe(  # noqa: PLR0913
         Auto-highlight significant effects (Pareto / half-normal).
     confidence_level : float
         Confidence level for reference lines (default 0.95).
+    factor_labels : dict or None
+        Mapping ``{factor_symbol: full_name}`` used for axis labels and
+        bar/legend entries (e.g. ``{"A": "Temperature [°C]"}``).
     backend : str
         ``"both"``, ``"plotly"``, or ``"echarts"``.
 
@@ -66,6 +70,7 @@ def visualize_doe(  # noqa: PLR0913
         hold_values=hold_values,
         highlight_significant=highlight_significant,
         confidence_level=confidence_level,
+        factor_labels=factor_labels,
     )
 
     spec = plot.to_spec()
