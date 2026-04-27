@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 
 
 def popcorn(t: float = 120, T: float | None = None) -> None:
@@ -84,10 +83,10 @@ def grocery(
     if H is None:
         H = h
 
-    if (len(P) > 1) | (len(H) > 1):
+    if np.ndim(P) > 0 or np.ndim(H) > 0:
         raise ValueError("Running the grocery store experiments in parallel is (intentionally) not allowed.")
 
-    if pd.isna(P) or pd.isna(H):
+    if not np.isfinite(P) or not np.isfinite(H):
         raise ValueError("All function inputs must be finite numbers.")
     if P < 0:
         raise ValueError("Please provide a positive sales price, P.")
