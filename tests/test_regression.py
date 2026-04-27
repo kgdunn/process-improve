@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 
 from process_improve.regression.methods import (
+    OLS,
     multiple_linear_regression,
     repeated_median_slope,
     robust_regression,
@@ -425,3 +426,203 @@ def test_simple_robust_regression_compare_with_regular_no_intercept() -> None:
 
     # Standard error calculations should use same degrees of freedom
     assert len(x) - robust_out["k"] == len(x) - regular_out["k"]
+
+
+# -------------------------------------------------------------------------
+# OLS class
+# -------------------------------------------------------------------------
+
+
+def test_ols_attributes_match_r(multiple_linear_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
+    """OLS().fit() should reproduce the R lm() reference values exactly."""
+    X, y = multiple_linear_regression_data
+    model = OLS().fit(X, y)
+
+    assert model.is_fitted_
+    assert model.n_samples_ == 7
+    assert model.n_features_in_ == 1
+    assert model.df_resid_ == 5
+    assert model.df_model_ == 1
+    assert model.intercept_ == pytest.approx(0.06641, abs=1e-5)
+    assert model.coefficients_[0] == pytest.approx(4.08993, rel=1e-6)
+    assert model.standard_error_intercept_ == pytest.approx(0.02710, abs=1e-5)
+    assert model.standard_errors_[0] == pytest.approx(0.30530, abs=1e-5)
+    assert model.t_value_intercept_ == pytest.approx(2.451, abs=1e-3)
+    assert model.t_values_[0] == pytest.approx(13.396, abs=1e-3)
+    assert model.p_value_intercept_ == pytest.approx(0.0579, abs=1e-4)
+    assert model.p_values_[0] == pytest.approx(4.148e-05, rel=1e-3)
+    assert model.r2_ == pytest.approx(0.9729, rel=1e-5)
+    assert model.adj_r2_ == pytest.approx(0.9675, abs=1e-4)
+    assert model.se_ == pytest.approx(0.03206, abs=1e-5)
+    assert model.f_statistic_ == pytest.approx(179.5, rel=1e-3)
+    assert model.f_pvalue_ == pytest.approx(4.148e-05, rel=1e-3)
+    assert model.conf_intervals_[0] == pytest.approx([3.30512, 4.87474], rel=1e-5)
+    assert model.conf_interval_intercept_ == pytest.approx([-0.003253309, 0.1360676], rel=1e-6)
+
+
+def test_ols_summary_contains_r_style_blocks(
+    multiple_linear_regression_data: tuple[np.ndarray, np.ndarray],
+) -> None:
+    """The summary should look like R's summary(lm(...)) output."""
+    X, y = multiple_linear_regression_data
+    model = OLS().fit(X, y)
+    summary = model.summary()
+
+    assert "Call:" in summary
+    assert "Residuals:" in summary
+    assert "Coefficients:" in summary
+    assert "(Intercept)" in summary
+    assert "Estimate" in summary
+    assert "Std. Error" in summary
+    assert "t value" in summary
+    assert "Pr(>|t|)" in summary
+    assert "Signif. codes" in summary
+    assert "Residual standard error:" in summary
+    assert "Multiple R-squared:" in summary
+    assert "Adjusted R-squared:" in summary
+    assert "F-statistic:" in summary
+
+    # Significance codes should appear for the highly-significant slope.
+    assert "***" in summary
+    # repr should match summary when fitted.
+    assert repr(model) == summary
+    # str(model) is also the summary.
+    assert str(model) == summary
+
+
+def test_ols_unfitted_repr_is_sklearn_style() -> None:
+    """An unfit model should show the default sklearn-style class repr (not the summary)."""
+    model = OLS()
+    text = repr(model)
+    assert text.startswith("OLS(")
+    # No fitted-only sections.
+    assert "Coefficients:" not in text
+    assert "Residual standard error" not in text
+
+    # Non-default parameters appear in the sklearn repr.
+    text_nondefault = repr(OLS(fit_intercept=False, conflevel=0.99))
+    assert "fit_intercept=False" in text_nondefault
+    assert "conflevel=0.99" in text_nondefault
+
+
+def test_ols_predict_matches_fitted_values(
+    multiple_linear_regression_data: tuple[np.ndarray, np.ndarray],
+) -> None:
+    """predict() on the training data should equal fitted_values_."""
+    X, y = multiple_linear_regression_data
+    model = OLS().fit(X, y)
+    np.testing.assert_allclose(model.predict(X), model.fitted_values_, rtol=1e-12)
+
+    # predict on a held-out grid follows intercept + slope * x.
+    x_new = np.array([0.05, 0.10, 0.15]).reshape(-1, 1)
+    expected = model.intercept_ + model.coefficients_[0] * x_new.ravel()
+    np.testing.assert_allclose(model.predict(x_new), expected, rtol=1e-12)
+
+
+def test_ols_no_intercept(multiple_linear_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
+    """OLS with fit_intercept=False should match R's summary(lm(y~x+0))."""
+    X, y = multiple_linear_regression_data
+    model = OLS(fit_intercept=False).fit(X, y)
+
+    assert np.isnan(model.intercept_)
+    assert len(model.coefficients_) == 1
+    assert model.coefficients_[0] == pytest.approx(4.7591, rel=1e-6)
+    assert model.se_ == pytest.approx(0.04343, abs=1e-5)
+    assert model.r2_ == pytest.approx(0.991, abs=1e-4)
+
+    summary = model.summary()
+    assert "(Intercept)" not in summary
+    assert "+ 0" in summary  # formula shows no-intercept form
+
+
+def test_ols_to_dict_matches_legacy_function(
+    multiple_linear_regression_data: tuple[np.ndarray, np.ndarray],
+) -> None:
+    """OLS.to_dict() must return the same dict as multiple_linear_regression()."""
+    X, y = multiple_linear_regression_data
+    expected = multiple_linear_regression(X, y, fit_intercept=True, na_rm=False)
+    got = OLS(na_rm=False).fit(X, y).to_dict()
+
+    assert got["N"] == expected["N"]
+    assert got["intercept"] == pytest.approx(expected["intercept"])
+    np.testing.assert_allclose(got["coefficients"], expected["coefficients"])
+    np.testing.assert_allclose(got["standard_errors"], expected["standard_errors"])
+    assert got["R2"] == pytest.approx(expected["R2"])
+    assert got["SE"] == pytest.approx(expected["SE"])
+
+
+def test_ols_pandas_dataframe_with_named_columns() -> None:
+    """Feature names from a DataFrame should appear in the summary's formula and coefficient table."""
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(rng.standard_normal((40, 2)), columns=["temperature", "pressure"])
+    y = pd.Series(X["temperature"] * 2 - X["pressure"] + 0.5 + 0.1 * rng.standard_normal(40), name="yield")
+
+    model = OLS().fit(X, y)
+    summary = model.summary()
+
+    assert "yield ~ temperature + pressure" in summary
+    assert "temperature" in summary
+    assert "pressure" in summary
+    assert model.feature_names_in_ == ["temperature", "pressure"]
+    assert model.target_name_ == "yield"
+
+
+def test_ols_handles_insufficient_data() -> None:
+    """A fit with 1 datapoint should mark the model as unfit but not raise."""
+    model = OLS().fit(np.array([2.0]), np.array([5.0]))
+    assert model.is_fitted_ is False
+    # Summary returns a graceful message rather than crashing.
+    assert "not been fitted" in model.summary()
+
+
+def test_ols_predict_accepts_dataframe_series_and_1d_numpy() -> None:
+    """predict() should accept pandas DataFrame / Series and 1-D numpy arrays."""
+    rng = np.random.default_rng(11)
+    X_df = pd.DataFrame(rng.standard_normal((30, 2)), columns=["a", "b"])
+    y = X_df @ [1.0, -1.0] + 0.5 * rng.standard_normal(30)
+    model = OLS().fit(X_df, y)
+
+    # DataFrame input
+    pred_df = model.predict(X_df)
+    np.testing.assert_allclose(pred_df, model.fitted_values_, rtol=1e-12)
+
+    # 1-D numpy input on a single-feature model
+    X1d_train = rng.standard_normal(30)
+    y1d = 2.0 * X1d_train + 0.1 * rng.standard_normal(30)
+    m1 = OLS().fit(X1d_train, y1d)
+    pred_1d = m1.predict(np.array([0.1, 0.5, -0.2]))
+    expected = m1.intercept_ + m1.coefficients_[0] * np.array([0.1, 0.5, -0.2])
+    np.testing.assert_allclose(pred_1d, expected, rtol=1e-12)
+
+    # pd.Series input
+    pred_series = m1.predict(pd.Series([0.1, 0.5, -0.2]))
+    np.testing.assert_allclose(pred_series, expected, rtol=1e-12)
+
+
+def test_ols_summary_with_nonsignificant_coefficient() -> None:
+    """The summary should render rows for non-significant coefficients without crashing."""
+    rng = np.random.default_rng(2)
+    # Pure noise: neither slope is meaningfully different from zero.
+    X = pd.DataFrame(rng.standard_normal((20, 2)), columns=["x1", "x2"])
+    y = pd.Series(rng.standard_normal(20), name="noise")
+    model = OLS().fit(X, y)
+    summary = model.summary()
+
+    assert "x1" in summary
+    assert "x2" in summary
+    # All rows should be present even when no coefficient hits the *** threshold.
+    assert summary.count("\n") > 5
+
+
+def test_ols_missing_values_preserve_residual_shape() -> None:
+    """Residuals should preserve the original y shape with NaN at dropped rows."""
+    X = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    y = np.array([2.0, np.nan, 4.0, np.nan, 9.0])
+    model = OLS(na_rm=True).fit(X, y)
+
+    assert model.is_fitted_
+    assert len(model.residuals_) == 5  # original length
+    assert np.isnan(model.residuals_[1])
+    assert np.isnan(model.residuals_[3])
+    assert model.intercept_ == pytest.approx(-0.25)
+    assert model.coefficients_[0] == pytest.approx(1.75)
