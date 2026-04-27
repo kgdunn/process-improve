@@ -492,6 +492,18 @@ def test_column_categorical_levels_all_present_ok() -> None:
     assert D.pi_levels[D.pi_name] == ["A", "B", "C"]
 
 
+def test_column_categorical_levels_list_arg_validated() -> None:
+    """A list arg whose elements are not in levels should raise."""
+    with pytest.raises(ValueError, match="not in levels"):
+        c(["A", "B", "C"], levels=["A", "B"])
+
+
+def test_column_categorical_levels_skips_nan() -> None:
+    """NaN entries should be ignored by the levels-membership check."""
+    D = c(0, 1, float("nan"), levels=(0, 1))
+    assert hasattr(D, "pi_levels")
+
+
 def test_gather_drops_missing_values() -> None:
     """Gather should drop rows with any NaN values."""
     A = c(-1, +1, -1, +1, float("nan"))
