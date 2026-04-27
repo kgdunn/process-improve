@@ -575,6 +575,45 @@ def test_ols_handles_insufficient_data() -> None:
     assert "not been fitted" in model.summary()
 
 
+def test_ols_predict_accepts_dataframe_series_and_1d_numpy() -> None:
+    """predict() should accept pandas DataFrame / Series and 1-D numpy arrays."""
+    rng = np.random.default_rng(11)
+    X_df = pd.DataFrame(rng.standard_normal((30, 2)), columns=["a", "b"])
+    y = X_df @ [1.0, -1.0] + 0.5 * rng.standard_normal(30)
+    model = OLS().fit(X_df, y)
+
+    # DataFrame input
+    pred_df = model.predict(X_df)
+    np.testing.assert_allclose(pred_df, model.fitted_values_, rtol=1e-12)
+
+    # 1-D numpy input on a single-feature model
+    X1d_train = rng.standard_normal(30)
+    y1d = 2.0 * X1d_train + 0.1 * rng.standard_normal(30)
+    m1 = OLS().fit(X1d_train, y1d)
+    pred_1d = m1.predict(np.array([0.1, 0.5, -0.2]))
+    expected = m1.intercept_ + m1.coefficients_[0] * np.array([0.1, 0.5, -0.2])
+    np.testing.assert_allclose(pred_1d, expected, rtol=1e-12)
+
+    # pd.Series input
+    pred_series = m1.predict(pd.Series([0.1, 0.5, -0.2]))
+    np.testing.assert_allclose(pred_series, expected, rtol=1e-12)
+
+
+def test_ols_summary_with_nonsignificant_coefficient() -> None:
+    """The summary should render rows for non-significant coefficients without crashing."""
+    rng = np.random.default_rng(2)
+    # Pure noise: neither slope is meaningfully different from zero.
+    X = pd.DataFrame(rng.standard_normal((20, 2)), columns=["x1", "x2"])
+    y = pd.Series(rng.standard_normal(20), name="noise")
+    model = OLS().fit(X, y)
+    summary = model.summary()
+
+    assert "x1" in summary
+    assert "x2" in summary
+    # All rows should be present even when no coefficient hits the *** threshold.
+    assert summary.count("\n") > 5
+
+
 def test_ols_missing_values_preserve_residual_shape() -> None:
     """Residuals should preserve the original y shape with NaN at dropped rows."""
     X = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
