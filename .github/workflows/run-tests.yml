@@ -53,4 +53,11 @@ jobs:
       run: uv sync --dev --all-extras
     # This is where the actual unit and integration tests start
     - name: Test with pytest
-      run: uv run pytest
+      run: uv run pytest --cov-report=xml
+    - name: Upload coverage to Codecov
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
+      uses: codecov/codecov-action@v5
+      with:
+        files: ./coverage.xml
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: false
