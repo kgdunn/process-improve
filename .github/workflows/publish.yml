@@ -30,12 +30,12 @@ jobs:
           NEW=$(python -c "import tomli; print(tomli.load(open('pyproject.toml','rb'))['project']['version'])")
           git show HEAD~1:pyproject.toml > /tmp/old_pyproject.toml 2>/dev/null || echo "first_run"
           OLD=$(python -c "
-          import tomli, sys
-          try:
-              print(tomli.load(open('/tmp/old_pyproject.toml','rb'))['project']['version'])
-          except:
-              print('none')
-          ")
+import tomli, sys
+try:
+    print(tomli.load(open('/tmp/old_pyproject.toml','rb'))['project']['version'])
+except:
+    print('none')
+")
           echo "old=$OLD new=$NEW"
           if [ "$OLD" != "$NEW" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -61,6 +61,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ steps.version_check.outputs.version }}" \
-            --title "v${{ steps.version_check.outputs.version }}" \
-            --generate-notes
+          TAG="v${{ steps.version_check.outputs.version }}"
+          if gh release view "${TAG}" > /dev/null 2>&1; then
+            echo "Release ${TAG} already exists (created by release workflow), skipping."
+          else
+            gh release create "${TAG}" \
+              --title "${TAG}" \
+              --generate-notes
+          fi
