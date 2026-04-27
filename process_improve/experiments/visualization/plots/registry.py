@@ -145,6 +145,10 @@ class BasePlot(ABC):
         Whether to highlight significant effects.
     confidence_level : float
         Confidence level for reference lines.
+    factor_labels : dict or None
+        Mapping ``{factor_symbol: full_name}`` used for axis labels and
+        legend entries.  If a factor symbol is not present in this map
+        the symbol itself is used.
     """
 
     def __init__(  # noqa: PLR0913
@@ -157,6 +161,7 @@ class BasePlot(ABC):
         hold_values: dict[str, float] | None = None,
         highlight_significant: bool = True,
         confidence_level: float = 0.95,
+        factor_labels: dict[str, str] | None = None,
     ) -> None:
         self.analysis_results = analysis_results or {}
         self.design_data = design_data or []
@@ -165,6 +170,7 @@ class BasePlot(ABC):
         self.hold_values = hold_values or {}
         self.highlight_significant = highlight_significant
         self.confidence_level = confidence_level
+        self.factor_labels = factor_labels or {}
 
     @abstractmethod
     def to_spec(self) -> ChartSpec:

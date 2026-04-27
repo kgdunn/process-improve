@@ -355,6 +355,115 @@ class TestContourPlot:
         assert len(z) == 50  # Grid resolution
         assert len(z[0]) == 50
 
+    def test_zero_reference_lines(self, coefficients_2f: list) -> None:
+        """Issue #5: solid black H/V lines through the origin."""
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": coefficients_2f},
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        anns = spec.panels[0].annotations
+        axes = sorted(a.axis for a in anns if a.value == 0.0)
+        assert axes == ["x", "y"]
+        # Lines should be solid and dark
+        for ann in anns:
+            assert ann.style.get("dash") == "solid"
+
+    def test_full_factor_labels_on_axes(self, coefficients_2f: list) -> None:
+        """Issue #15: full variable names on contour axes."""
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": coefficients_2f},
+            factors_to_plot=["A", "B"],
+            factor_labels={"A": "Temperature", "B": "Pressure"},
+        )
+        spec = plot.to_spec()
+        panel = spec.panels[0]
+        assert "Temperature" in panel.x_title
+        assert "Pressure" in panel.y_title
+        # Symbol is preserved for traceability
+        assert "(A)" in panel.x_title
+        assert "(B)" in panel.y_title
+
+    def test_equal_aspect_hint(self, coefficients_2f: list) -> None:
+        """Issues #14 and #22: 1:1 aspect ratio hint."""
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": coefficients_2f},
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        assert spec.panels[0].backend_hints.get("equal_aspect") is True
+
+        # And the Plotly adapter applies it as a scaleanchor
+        fig = plot.to_plotly()
+        layout = fig["layout"]
+        # scaleanchor is set on yaxis when equal_aspect is requested
+        assert layout.get("yaxis", {}).get("scaleanchor") == "x"
+
+    def test_design_points_overlay(self, coefficients_2f: list, design_data_2f: list) -> None:
+        """Issue #11: experimental points overlaid with jittered replicates."""
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": coefficients_2f},
+            design_data=design_data_2f,
+            response_column="y",
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        layers = spec.panels[0].layers
+        assert len(layers) == 2  # contour + scatter overlay
+        scatter = layers[1]
+        assert scatter.mark.value == "scatter"
+        assert len(scatter.data) == len(design_data_2f)
+        # Replicated runs should have distinct (jittered) coordinates
+        coords = {(round(r["x"], 6), round(r["y"], 6)) for r in scatter.data}
+        assert len(coords) == len(design_data_2f)
+
+    def test_design_point_hover_lists_all_factors(
+        self,
+        coefficients_3f: list,
+        design_data_3f: list,
+    ) -> None:
+        """Issue #23: hover text exposes all factor levels for the run."""
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": coefficients_3f},
+            design_data=design_data_3f,
+            response_column="y",
+            factors_to_plot=["A", "B"],
+            hold_values={"C": 0.0},
+        )
+        spec = plot.to_spec()
+        scatter = spec.panels[0].layers[1]
+        hover = scatter.data[0]["hover"]
+        assert "A" in hover
+        assert "B" in hover
+        assert "C" in hover  # held factor still shown
+        assert "y" in hover  # response shown
+
+    def test_no_design_points_without_data(self, coefficients_2f: list) -> None:
+        """Without design_data, only the contour layer is emitted."""
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": coefficients_2f},
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        assert len(spec.panels[0].layers) == 1
+
+    def test_plotly_contour_labels_enabled(self, coefficients_2f: list) -> None:
+        """Issue #10: contour line labels visible (Plotly ``showlabels``)."""
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": coefficients_2f},
+            factors_to_plot=["A", "B"],
+        )
+        fig = plot.to_plotly()
+        contour_trace = next(t for t in fig["data"] if t.get("type") == "contour")
+        assert contour_trace["contours"]["showlabels"] is True
+
 
 class TestSurface3DPlot:
     def test_spec_structure(self, quadratic_coefficients: list) -> None:

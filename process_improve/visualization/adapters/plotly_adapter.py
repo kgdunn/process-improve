@@ -107,6 +107,9 @@ class PlotlyAdapter(AbstractAdapter):
         else:
             fig.update_layout(yaxis=dict(title=panel.y_title))
 
+        if panel.backend_hints.get("equal_aspect"):
+            fig.update_yaxes(scaleanchor="x", scaleratio=1)
+
         return fig
 
     # ------------------------------------------------------------------
@@ -235,17 +238,30 @@ class PlotlyAdapter(AbstractAdapter):
         size = layer.style.get("size", 8)
         symbol = layer.style.get("symbol", "circle")
         colors = layer.style.get("colors")
+        hover_field = layer.style.get("hover_field")
+        hover_text = (
+            [row.get(hover_field, "") for row in layer.data] if hover_field else None
+        )
+        marker: dict[str, Any] = {
+            "color": colors or layer.color or DOE_PALETTE["primary"],
+            "size": size,
+            "symbol": symbol,
+        }
+        edge_color = layer.style.get("edge_color")
+        if edge_color is not None:
+            marker["line"] = {
+                "color": edge_color,
+                "width": layer.style.get("edge_width", 1),
+            }
         return go.Scatter(
             x=x_vals,
             y=y_vals,
             mode="markers",
             name=layer.name,
-            marker=dict(
-                color=colors or layer.color or DOE_PALETTE["primary"],
-                size=size,
-                symbol=symbol,
-            ),
+            marker=marker,
             opacity=layer.opacity,
+            text=hover_text,
+            hoverinfo="text" if hover_text is not None else None,
         )
 
     def _contour_trace(self, layer: LayerSpec) -> go.Contour:

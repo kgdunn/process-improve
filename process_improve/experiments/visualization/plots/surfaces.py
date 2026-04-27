@@ -15,12 +15,13 @@ import numpy as np
 
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
 from process_improve.visualization.spec import (
+    Annotation,
     ChartSpec,
     Encoding,
     LayerSpec,
     PanelSpec,
 )
-from process_improve.visualization.types import MarkType
+from process_improve.visualization.types import AnnotationType, MarkType
 
 # ---------------------------------------------------------------------------
 # Shared model evaluator
@@ -129,12 +130,19 @@ class ContourPlot(BasePlot):
     """Contour plot of the response surface for two factors.
 
     Evaluates the fitted model on a grid of two factors, holding
-    remaining factors at their centre (or at ``hold_values``).
+    remaining factors at their centre (or at ``hold_values``).  When
+    ``design_data`` is also provided the experimental points are
+    overlaid as a scatter layer with hover text giving every factor
+    level and the observed response.  Replicated points are jittered
+    slightly so they are individually visible.
 
     Data sources
     ------------
     Requires ``analysis_results`` with ``"coefficients"`` key and
-    ``factors_to_plot`` (exactly 2 factors).
+    ``factors_to_plot`` (exactly 2 factors).  Optionally accepts
+    ``design_data`` for the experimental-point overlay and
+    ``factor_labels`` (a ``{symbol: full_name}`` mapping) for the
+    axis titles.
     """
 
     def to_spec(self) -> ChartSpec:
@@ -153,6 +161,9 @@ class ContourPlot(BasePlot):
             return ChartSpec(title="Contour Plot — need at least 2 factors")
 
         factor_x, factor_y = factors[0], factors[1]
+        x_title = self._axis_title(factor_x)
+        y_title = self._axis_title(factor_y)
+
         coef_map = _build_coef_map(coefficients)
         x_grid, y_grid, z_matrix = _compute_grid(
             coef_map, factor_x, factor_y, self.hold_values,
@@ -161,8 +172,8 @@ class ContourPlot(BasePlot):
         contour_layer = LayerSpec(
             mark=MarkType.contour,
             data=[],  # Data is in style for grid-based plots
-            x=Encoding(field="x", title=factor_x),
-            y=Encoding(field="y", title=factor_y),
+            x=Encoding(field="x", title=x_title),
+            y=Encoding(field="y", title=y_title),
             name="Response",
             style={
                 "x_grid": x_grid,
@@ -171,22 +182,165 @@ class ContourPlot(BasePlot):
             },
         )
 
+        layers: list[LayerSpec] = [contour_layer]
+        point_layer = self._build_design_point_layer(factor_x, factor_y)
+        if point_layer is not None:
+            layers.append(point_layer)
+
         panel = PanelSpec(
-            layers=[contour_layer],
-            title=f"Contour Plot: {factor_x} x {factor_y}",
-            x_title=factor_x,
-            y_title=factor_y,
+            layers=layers,
+            annotations=_zero_reference_lines(),
+            title=f"Contour Plot: {x_title} x {y_title}",
+            x_title=x_title,
+            y_title=y_title,
+            backend_hints={"equal_aspect": True},
         )
 
         return ChartSpec(
             panels=[panel],
-            title=f"Contour Plot: {factor_x} x {factor_y}",
+            title=f"Contour Plot: {x_title} x {y_title}",
             plot_type="contour",
             metadata={
                 "factors": [factor_x, factor_y],
+                "factor_labels": {factor_x: x_title, factor_y: y_title},
                 "hold_values": self.hold_values,
             },
         )
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _axis_title(self, factor: str) -> str:
+        """Return the full-name axis label for *factor*, falling back to the symbol."""
+        label = self.factor_labels.get(factor)
+        if not label or label == factor:
+            return factor
+        return f"{label} ({factor})"
+
+    def _build_design_point_layer(
+        self,
+        factor_x: str,
+        factor_y: str,
+    ) -> LayerSpec | None:
+        """Return a scatter layer of experimental points, or ``None``.
+
+        Replicated points (same coded location) are jittered so they do
+        not overlap exactly.  Hover text exposes every factor level for
+        the run plus the measured response.
+        """
+        if not self.design_data:
+            return None
+
+        rows = [r for r in self.design_data if factor_x in r and factor_y in r]
+        if not rows:
+            return None
+
+        # Stable jitter: deterministic per-replicate offset so plots are
+        # reproducible across runs.
+        rng = np.random.default_rng(seed=0)
+        jitter_amplitude = 0.02
+
+        # Group rows by (rounded) coded location to detect replicates.
+        groups: dict[tuple[float, float], list[int]] = {}
+        for idx, r in enumerate(rows):
+            key = (round(float(r[factor_x]), 6), round(float(r[factor_y]), 6))
+            groups.setdefault(key, []).append(idx)
+
+        data: list[dict[str, Any]] = []
+        for indices in groups.values():
+            n_replicates = len(indices)
+            for k, idx in enumerate(indices):
+                r = rows[idx]
+                if n_replicates > 1:
+                    dx = float(rng.uniform(-jitter_amplitude, jitter_amplitude))
+                    dy = float(rng.uniform(-jitter_amplitude, jitter_amplitude))
+                else:
+                    dx = dy = 0.0
+                point: dict[str, Any] = {
+                    "x": float(r[factor_x]) + dx,
+                    "y": float(r[factor_y]) + dy,
+                    "hover": _format_point_hover(
+                        r,
+                        factor_x,
+                        factor_y,
+                        self.response_column,
+                        replicate=(k + 1, n_replicates) if n_replicates > 1 else None,
+                    ),
+                }
+                if self.response_column and self.response_column in r:
+                    point["response"] = r[self.response_column]
+                data.append(point)
+
+        return LayerSpec(
+            mark=MarkType.scatter,
+            data=data,
+            x=Encoding(field="x"),
+            y=Encoding(field="y"),
+            name="Experimental runs",
+            color="#111827",
+            opacity=0.55,
+            style={
+                "size": 9,
+                "symbol": "circle",
+                "hover_field": "hover",
+                "edge_color": "#111111",
+                "edge_width": 1,
+            },
+        )
+
+
+def _zero_reference_lines() -> list[Annotation]:
+    """Solid black axes through the origin (issue #5)."""
+    style = {"color": "#111111", "dash": "solid", "width": 1}
+    return [
+        Annotation(
+            annotation_type=AnnotationType.reference_line,
+            axis="x",
+            value=0.0,
+            style=dict(style),
+        ),
+        Annotation(
+            annotation_type=AnnotationType.reference_line,
+            axis="y",
+            value=0.0,
+            style=dict(style),
+        ),
+    ]
+
+
+def _format_point_hover(
+    row: dict[str, Any],
+    factor_x: str,
+    factor_y: str,
+    response_column: str | None,
+    replicate: tuple[int, int] | None = None,
+) -> str:
+    """Build the hover string for an experimental point.
+
+    Lists every factor level (not just the two being plotted) so that
+    overlapping runs in a fractional or replicated design can still be
+    distinguished — see issue #23.
+    """
+    lines: list[str] = []
+    for key, value in row.items():
+        if key == response_column:
+            continue
+        marker = " *" if key in (factor_x, factor_y) else ""
+        try:
+            val_str = f"{float(value):g}"
+        except (TypeError, ValueError):
+            val_str = str(value)
+        lines.append(f"{key}{marker}: {val_str}")
+    if response_column and response_column in row:
+        try:
+            resp_str = f"{float(row[response_column]):g}"
+        except (TypeError, ValueError):
+            resp_str = str(row[response_column])
+        lines.append(f"{response_column}: {resp_str}")
+    if replicate is not None:
+        lines.append(f"replicate {replicate[0]} of {replicate[1]}")
+    return "<br>".join(lines)
 
 
 # ---------------------------------------------------------------------------
