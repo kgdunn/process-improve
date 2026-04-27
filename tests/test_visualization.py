@@ -281,6 +281,22 @@ class TestMainEffectsPlotConvenience:
         # Two factors plotted → at least two line traces
         assert len(fig.data) >= 2
 
+    def test_from_model_with_explicit_factors(self) -> None:
+        """Passing factors_to_plot with a Model should override the level-1 list."""
+        import plotly.graph_objects as go
+
+        from process_improve.experiments import c, gather, lm
+
+        A = c(-1, +1, -1, +1, -1, +1, -1, +1)
+        B = c(-1, -1, +1, +1, -1, -1, +1, +1)
+        C = c(-1, -1, -1, -1, +1, +1, +1, +1)
+        y = c(22, 32, 15, 29, 24, 35, 17, 31, name="y")
+        expt = gather(A=A, B=B, C=C, y=y, title="ME factor subset")
+        model = lm("y ~ A + B + C", expt)
+
+        fig = main_effects_plot(model, factors_to_plot=["A"])
+        assert isinstance(fig, go.Figure)
+
     def test_dataframe_missing_response_column(self, design_data_2f: list) -> None:
         import pandas as pd
 
