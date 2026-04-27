@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from process_improve.experiments.visualization import visualize_doe
+from process_improve.experiments.visualization import main_effects_plot, visualize_doe
 from process_improve.experiments.visualization.plots.registry import (
     create_plot,
     get_available_plot_types,
@@ -242,6 +242,62 @@ class TestMainEffectsPlot:
         plot = create_plot("main_effects")
         spec = plot.to_spec()
         assert "no data" in spec.title.lower()
+
+
+class TestMainEffectsPlotConvenience:
+    """Tests for the standalone ``main_effects_plot`` convenience function."""
+
+    def test_from_dataframe(self, design_data_2f: list) -> None:
+        import pandas as pd
+        import plotly.graph_objects as go
+
+        df = pd.DataFrame(design_data_2f)
+        fig = main_effects_plot(df, response_column="y")
+        assert isinstance(fig, go.Figure)
+        # One trace per factor (A and B)
+        assert len(fig.data) >= 2
+
+    def test_from_model(self) -> None:
+        import plotly.graph_objects as go
+
+        from process_improve.experiments import c, gather, lm
+
+        A = c(-1, +1, -1, +1)
+        B = c(-1, -1, +1, +1)
+        y = c(52, 74, 62, 80, name="y")
+        expt = gather(A=A, B=B, y=y, title="ME convenience test")
+        model = lm("y ~ A + B", expt)
+
+        fig = main_effects_plot(model)
+        assert isinstance(fig, go.Figure)
+        # A and B factors → 2 line traces
+        assert len(fig.data) >= 2
+
+    def test_factors_subset(self, design_data_3f: list) -> None:
+        import pandas as pd
+
+        df = pd.DataFrame(design_data_3f)
+        fig = main_effects_plot(df, response_column="y", factors_to_plot=["A", "C"])
+        # Two factors plotted → at least two line traces
+        assert len(fig.data) >= 2
+
+    def test_dataframe_missing_response_column(self, design_data_2f: list) -> None:
+        import pandas as pd
+
+        df = pd.DataFrame(design_data_2f)
+        with pytest.raises(ValueError, match="response_column"):
+            main_effects_plot(df)
+
+    def test_response_column_not_in_data(self, design_data_2f: list) -> None:
+        import pandas as pd
+
+        df = pd.DataFrame(design_data_2f)
+        with pytest.raises(ValueError, match="not found in data columns"):
+            main_effects_plot(df, response_column="missing")
+
+    def test_invalid_input_type(self) -> None:
+        with pytest.raises(TypeError, match="Model or a pandas DataFrame"):
+            main_effects_plot([1, 2, 3])  # type: ignore[arg-type]
 
 
 class TestInteractionPlot:

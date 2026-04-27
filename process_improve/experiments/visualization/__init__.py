@@ -27,6 +27,6 @@ Quick start
     echarts_opt = result["echarts"] # ECharts option dict
 """
 
-from process_improve.experiments.visualization.api import visualize_doe
+from process_improve.experiments.visualization.api import main_effects_plot, visualize_doe
 
-__all__ = ["visualize_doe"]
+__all__ = ["main_effects_plot", "visualize_doe"]
