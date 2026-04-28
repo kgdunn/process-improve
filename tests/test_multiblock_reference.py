@@ -271,43 +271,105 @@ class TestWold1987PCA:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="MBPCA class not yet implemented; will be added in PR6 of the multi-block port.",
-    strict=True,
-    raises=ImportError,
-)
-class TestWold1987MBPCA:
-    """Multi-block PCA on the Wold matrix split into two blocks.
-
-    Conceptual setup
-    ----------------
-    Split ``WOLD_X`` into two blocks: ``X1 = columns 0-1``, ``X2 = columns 2-3``.
-    With equal block-scaling, the multiblock super-scores must equal the
-    single-block PCA scores from :class:`TestWold1987PCA` to within tolerance.
-
-    These tests are written now to lock in the expected behaviour so they
-    will become active automatically when MBPCA is implemented.
+class TestMBPCAAgainstOracle:
+    """The production :class:`MBPCA` class must agree with the pure-numpy
+    reference oracle on every quantity (up to a global per-component sign).
     """
 
-    def test_super_scores_match_single_block_pca_pc1(self) -> None:
-        from process_improve.multivariate.methods import MBPCA  # noqa: F401
+    @pytest.fixture
+    def synthetic_two_block(self) -> tuple[dict, tuple]:
+        rng = np.random.default_rng(42)
+        n_rows = 50
+        latent = rng.standard_normal((n_rows, 2))
+        block_a = latent @ rng.standard_normal((2, 6)) + 0.05 * rng.standard_normal((n_rows, 6))
+        block_b = latent @ rng.standard_normal((2, 4)) + 0.05 * rng.standard_normal((n_rows, 4))
+        x_blocks = {
+            "A": pd.DataFrame(block_a, columns=[f"a{i}" for i in range(6)]),
+            "B": pd.DataFrame(block_b, columns=[f"b{i}" for i in range(4)]),
+        }
+        x_pp = [MCUVScaler().fit_transform(x_blocks[k]).values for k in ("A", "B")]
+        return x_blocks, x_pp
 
-        # Intentionally left as a structural test; populated when MBPCA exists.
-        raise ImportError("MBPCA not yet implemented")
+    def test_super_scores_match_oracle(self, synthetic_two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+        from tests._multiblock_oracles import mbpca_full_multiblock
 
-    def test_super_scores_match_single_block_pca_pc2(self) -> None:
-        from process_improve.multivariate.methods import MBPCA  # noqa: F401
+        x_blocks, x_pp = synthetic_two_block
+        oracle = mbpca_full_multiblock(x_pp, n_components=2)
+        model = MBPCA(n_components=2).fit(x_blocks)
+        np.testing.assert_array_almost_equal(
+            np.abs(model.super_scores_.values), np.abs(oracle.super_scores), decimal=6
+        )
 
-        raise ImportError("MBPCA not yet implemented")
+    def test_super_loadings_match_oracle(self, synthetic_two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+        from tests._multiblock_oracles import mbpca_full_multiblock
 
-    def test_block_scores_recoverable_from_super_scores(self) -> None:
-        """Per-Westerhuis/Kourti/MacGregor 1998: block scores recovered from
-        the merged-then-recover path must equal block scores from the
-        full multiblock NIPALS loop.
-        """
-        from process_improve.multivariate.methods import MBPCA  # noqa: F401
+        x_blocks, x_pp = synthetic_two_block
+        oracle = mbpca_full_multiblock(x_pp, n_components=2)
+        model = MBPCA(n_components=2).fit(x_blocks)
+        np.testing.assert_array_almost_equal(
+            np.abs(model.super_loadings_.values), np.abs(oracle.super_loadings), decimal=6
+        )
 
-        raise ImportError("MBPCA not yet implemented")
+    def test_block_scores_match_oracle(self, synthetic_two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+        from tests._multiblock_oracles import mbpca_full_multiblock
+
+        x_blocks, x_pp = synthetic_two_block
+        oracle = mbpca_full_multiblock(x_pp, n_components=2)
+        model = MBPCA(n_components=2).fit(x_blocks)
+        for b_idx, name in enumerate(("A", "B")):
+            np.testing.assert_array_almost_equal(
+                np.abs(model.block_scores_[name].values), np.abs(oracle.block_scores[b_idx]), decimal=6
+            )
+
+    def test_block_loadings_match_oracle(self, synthetic_two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+        from tests._multiblock_oracles import mbpca_full_multiblock
+
+        x_blocks, x_pp = synthetic_two_block
+        oracle = mbpca_full_multiblock(x_pp, n_components=2)
+        model = MBPCA(n_components=2).fit(x_blocks)
+        for b_idx, name in enumerate(("A", "B")):
+            np.testing.assert_array_almost_equal(
+                np.abs(model.block_loadings_[name].values), np.abs(oracle.block_loadings[b_idx]), decimal=6
+            )
+
+    def test_super_loading_columns_have_unit_norm(self, synthetic_two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        x_blocks, _ = synthetic_two_block
+        model = MBPCA(n_components=2).fit(x_blocks)
+        norms = np.linalg.norm(model.super_loadings_.values, axis=0)
+        np.testing.assert_array_almost_equal(norms, np.ones_like(norms), decimal=8)
+
+    def test_predict_on_training_data_reproduces_super_scores(self, synthetic_two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        x_blocks, _ = synthetic_two_block
+        model = MBPCA(n_components=2).fit(x_blocks)
+        result = model.predict(x_blocks)
+        np.testing.assert_array_almost_equal(result.super_scores.values, model.super_scores_.values, decimal=10)
+
+    def test_block_spe_and_super_t2_have_expected_shape(self, synthetic_two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        x_blocks, _ = synthetic_two_block
+        model = MBPCA(n_components=2).fit(x_blocks)
+        for name in model.block_names_:
+            assert model.block_spe_[name].shape == (50, 2)
+            assert model.block_hotellings_t2_[name].shape == (50, 2)
+        assert model.super_hotellings_t2_.shape == (50, 2)
+
+    def test_display_results_returns_string(self, synthetic_two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        x_blocks, _ = synthetic_two_block
+        model = MBPCA(n_components=2).fit(x_blocks)
+        out = model.display_results()
+        assert isinstance(out, str)
+        assert "MBPCA model" in out
 
 
 # ---------------------------------------------------------------------------
