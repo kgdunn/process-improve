@@ -115,10 +115,19 @@ def _run_anova(ols_result: RegressionResultsWrapper, anova_type: int = 2) -> dic
 
 
 def _run_effects(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
-    """Coefficient effects (2x the coefficient for coded ±1 factors)."""
+    """Coefficient effects (2x the coefficient for coded ±1 factors).
+
+    Also returns ``effect_std_errors`` (twice the coefficient standard
+    error) when residual degrees of freedom are available; consumers such
+    as the Pareto plot use this to draw effect-level error bars.
+    """
     params = ols_result.params.drop("Intercept", errors="ignore")
     effects = (2.0 * params).to_dict()
-    return {"effects": effects}
+    result: dict[str, Any] = {"effects": effects}
+    if int(ols_result.df_resid) > 0:
+        bse = ols_result.bse.drop("Intercept", errors="ignore")
+        result["effect_std_errors"] = {str(k): float(2.0 * v) for k, v in bse.items()}
+    return result
 
 
 def _run_coefficients(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
