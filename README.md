@@ -1,8 +1,65 @@
 # Process Improvement using Data
 
-[![codecov](https://codecov.io/gh/kgdunn/process-improve/branch/main/graph/badge.svg)](https://codecov.io/gh/kgdunn/process-improve)
+> A pragmatic Python toolkit for industrial process data — multivariate
+> analysis, designed experiments, and process monitoring, in one place.
 
-A Python package for multivariate data analysis, designed experiments, and process monitoring. Companion to the online textbook [Process Improvement using Data](https://learnche.org/pid). This package also powers the statistical engine behind [factori.al](https://factori.al).
+[![PyPI version](https://img.shields.io/pypi/v/process-improve.svg)](https://pypi.org/project/process-improve/)
+[![Python versions](https://img.shields.io/pypi/pyversions/process-improve.svg)](https://pypi.org/project/process-improve/)
+[![License](https://img.shields.io/pypi/l/process-improve.svg)](LICENSE)
+[![CI](https://github.com/kgdunn/process-improve/actions/workflows/run-tests.yml/badge.svg)](https://github.com/kgdunn/process-improve/actions/workflows/run-tests.yml)
+[![codecov](https://codecov.io/gh/kgdunn/process-improve/branch/main/graph/badge.svg)](https://codecov.io/gh/kgdunn/process-improve)
+[![Docs](https://img.shields.io/badge/docs-kgdunn.github.io-blue.svg)](https://kgdunn.github.io/process-improve/)
+
+## What is this?
+
+`process-improve` is the companion package to the online textbook
+[Process Improvement using Data](https://learnche.org/pid), and powers the
+statistical engine behind [factori.al](https://factori.al). It bundles the
+methods practitioners actually reach for on real plant and lab data —
+PCA / PLS with proper missing-data handling, designed experiments with a
+multi-stage strategy recommender, control charts, and batch-data tooling —
+behind an API that is sklearn-compatible where it makes sense and
+pandas-native throughout.
+
+## Highlights
+
+### 🧪 Designed Experiments
+
+- Full-factorial, fractional-factorial, and response-surface designs (built on `pyDOE3`)
+- A **DOE strategy recommender** that plans a complete multi-stage program — screening → optimization → confirmation — from ~50 deterministic rules, with budget-aware allocation and domain-specific advice for fermentation, cell culture, pharma, and 5 other domains
+- ANOVA, main-effects plots, linear-model fitting, and response optimization
+
+### 📊 Latent Variable Methods
+
+- **PCA** with SVD and NIPALS algorithms, plus missing-data via Trimmed Score Regression
+- **PLS** regression with a fully sklearn-compatible API
+- **TPLS** — PLS for *T-shaped data structures*
+- Diagnostics: Hotelling's T², SPE, score contributions, and ESD-based outlier detection
+- Component selection via PRESS / Wold's criterion
+- Interactive Plotly score, loading, SPE, and T² plots, bound directly to fitted models
+
+### 📈 Process Monitoring
+
+- Shewhart, CUSUM, and Holt-Winters control charts (regular and robust variants)
+- Process-capability index `Cpk`
+
+### 🔄 Batch Data Analysis
+
+- DTW-based batch alignment, reference-batch selection, resampling
+- 15+ batch feature extractors (mean, slope, area, elbow, rupture, crossings, robust variants, …)
+- Format conversions between wide, melted, and dict-of-frames batch layouts
+
+### 📐 Univariate & Robust Regression
+
+- t-tests (paired, independent, plus DataFrame-aware helpers)
+- ESD outliers, Sn estimator, MAD, normality tests, variance decomposition
+- Robust regression: repeated-median slope and friends, for outlier-resistant fits
+
+### 🎨 Visualization
+
+- Plotly-backed plots that attach to fitted PCA / PLS models
+- A backend-agnostic `ChartSpec` layer with Plotly and ECharts adapters
+- DOE-specific plots: main-effects, design visualization
 
 ## Installation
 
@@ -10,7 +67,9 @@ A Python package for multivariate data analysis, designed experiments, and proce
 pip install process-improve
 ```
 
-## Quick Start
+Requires Python 3.10 or newer.
+
+## Quick start
 
 ### PCA — Principal Component Analysis
 
@@ -18,34 +77,12 @@ pip install process-improve
 import pandas as pd
 from process_improve.multivariate.methods import PCA, MCUVScaler
 
-# Load and scale your data
 X = pd.read_csv("your_data.csv", index_col=0)
-scaler = MCUVScaler().fit(X)
-X_scaled = scaler.transform(X)
+X_scaled = MCUVScaler().fit_transform(X)
 
-# Fit a PCA model
 pca = PCA(n_components=3).fit(X_scaled)
-
-# Inspect results
-print(pca.scores_)  # Score matrix (N x A)
-print(pca.loadings_)  # Loading matrix (K x A)
-print(pca.r2_cumulative_)  # Cumulative R² per component
-
-# Detect outliers
-outliers = pca.detect_outliers(conf_level=0.95)
-
-# Contribution analysis
-contrib = pca.score_contributions(pca.scores_.iloc[0].values)
-
-# Select number of components via cross-validation
-result = PCA.select_n_components(X_scaled, max_components=10)
-print(result.n_components)
-
-# Built-in plots
-pca.score_plot()
-pca.spe_plot()
-pca.t2_plot()
-pca.loading_plot()
+print(pca.r2_cumulative_)        # cumulative R² per component
+pca.score_plot()                  # interactive Plotly plot
 ```
 
 ### PLS — Projection to Latent Structures
@@ -53,108 +90,60 @@ pca.loading_plot()
 ```python
 from process_improve.multivariate.methods import PLS, MCUVScaler
 
-# Scale X and Y separately
-scaler_x = MCUVScaler().fit(X)
-scaler_y = MCUVScaler().fit(Y)
+X_s = MCUVScaler().fit_transform(X)
+Y_s = MCUVScaler().fit_transform(Y)
 
-# Fit a PLS model
-pls = PLS(n_components=3).fit(scaler_x.transform(X), scaler_y.transform(Y))
-
-# Inspect results
-print(pls.scores_)  # X scores (N x A)
-print(pls.beta_coefficients_)  # Regression coefficients (K x M)
-print(pls.r2_cumulative_)  # Cumulative R² for Y
-
-# Predict new observations
-result = pls.predict(scaler_x.transform(X_new))
-print(result.y_hat)  # Predicted Y values
-print(result.spe)  # SPE for new data
-print(result.hotellings_t2)  # Hotelling's T² for new data
-
-# Detect outliers and analyze contributions
-outliers = pls.detect_outliers(conf_level=0.95)
-contrib = pls.score_contributions(pls.scores_.iloc[0].values)
+pls = PLS(n_components=3).fit(X_s, Y_s)
+result = pls.predict(X_s)
+print(result.y_hat, result.spe, result.hotellings_t2)
 ```
 
-### DOE — Experimental Strategy Recommendation
-
-Plan a complete multi-stage experimental program before running any experiments:
+### DOE — multi-stage experimental strategy
 
 ```python
 from process_improve.experiments.factor import Factor, Response
 from process_improve.experiments.strategy import recommend_strategy
 
-# Define factors for a fermentation optimization
 factors = [
     Factor(name="Temperature", low=25, high=40, units="degC"),
     Factor(name="pH", low=5.0, high=7.5),
     Factor(name="Glucose", low=10, high=50, units="g/L"),
-    Factor(name="Yeast extract", low=1, high=10, units="g/L"),
-    Factor(name="Agitation", low=100, high=400, units="rpm"),
-    Factor(name="Aeration", low=0.5, high=2.0, units="vvm"),
-    Factor(name="Inoculum", low=2, high=10, units="%v/v"),
 ]
-responses = [Response(name="Yield", goal="maximize", units="g/L")]
-
-# Get a complete experimental plan
 strategy = recommend_strategy(
     factors=factors,
-    responses=responses,
+    responses=[Response(name="Yield", goal="maximize", units="g/L")],
     budget=40,
     domain="fermentation",
 )
-
-# Inspect the multi-stage strategy
-for stage in strategy["stages"]:
-    print(f"Stage {stage['stage_number']}: {stage['stage_name']}")
-    print(f"  Design: {stage['design_type']}, Runs: {stage['estimated_runs']}")
-    print(f"  Purpose: {stage['purpose']}")
-
-# Review reasoning, risks, and alternatives
-print(strategy["budget_allocation"])
-print(strategy["reasoning"])
+for s in strategy["stages"]:
+    print(s["stage_number"], s["design_type"], s["estimated_runs"])
 ```
 
-The engine applies ~50 deterministic rules (from Montgomery, NIST, Stat-Ease)
-to recommend screening, optimization, and confirmation stages — with
-budget-aware allocation and domain-specific advice for fermentation, cell
-culture, pharma, and 5 other application domains.
+Longer, fully-worked versions of each example live in the
+[Quickstart guide](https://kgdunn.github.io/process-improve/quickstart.html)
+and the `notebooks_examples/` folder.
 
-## Features
+## API design
 
-- **PCA** with SVD, NIPALS, and missing data (TSR) algorithms
-- **PLS** regression with sklearn-compatible API
-- **TPLS** (Total PLS) for multi-block data
-- **Missing data handling** via TSR and NIPALS algorithms
-- **Outlier detection** combining Hotelling's T² and SPE with robust ESD test
-- **Score contributions** for variable-level diagnostics
-- **Cross-validation** for component selection (PRESS with Wold's criterion)
-- **Interactive plots** (Plotly) for scores, loadings, SPE, and T²
-- **Designed experiments** — full factorial, fractional factorial, response surface
-- **DOE strategy recommender** — multi-stage experimental planning (screening, optimization, confirmation) with budget-aware allocation and 8 application domains
-- **Process monitoring** — Shewhart, CUSUM, EWMA control charts
-- **Batch data analysis** — alignment, feature extraction, multivariate batch monitoring
+PCA and PLS follow scikit-learn conventions: `fit()` returns `self`, fitted
+attributes end with a trailing underscore (`scores_`, `loadings_`, `spe_`,
+`hotellings_t2_`, `r2_cumulative_`, …), and `predict()` returns an
+`sklearn.utils.Bunch` with named fields (`y_hat`, `spe`, `hotellings_t2`, …).
+Inputs are accepted as `pandas.DataFrame`, and index/column labels are
+preserved through `fit` and `transform`.
 
-## API Design
+## Documentation & learning resources
 
-Both PCA and PLS follow sklearn conventions:
-- Fitted attributes end with `_` (e.g., `scores_`, `loadings_`, `spe_`)
-- `fit()` returns `self`
-- `predict()` returns a `Bunch` object with named fields
-- `score()` is compatible with `sklearn.model_selection.cross_val_score`
-- Works with `pandas.DataFrame` inputs (preserves index and column names)
+- **API reference & user guide:** <https://kgdunn.github.io/process-improve/>
+- **Companion textbook:** [Process Improvement using Data](https://learnche.org/pid)
+- **Hosted experiment-design tool:** [factori.al](https://factori.al)
+- **Local docs build:** `cd docs && make html`
 
-## Documentation
+## Contributing
 
-Full documentation is available at **https://kgdunn.github.io/process-improve/**.
-
-To build the documentation locally:
-
-```bash
-cd docs
-make html
-```
+Bug reports and feature requests are welcome on the
+[issue tracker](https://github.com/kgdunn/process-improve/issues).
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE) for details.
