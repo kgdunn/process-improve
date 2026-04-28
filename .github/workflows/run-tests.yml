@@ -11,6 +11,8 @@ on:
   create:
     branches: [main]
     tags: ['**']
+  pull_request:
+    branches: ['**']
   # schedule:
   #   - cron: "0 4 * * *"
 
