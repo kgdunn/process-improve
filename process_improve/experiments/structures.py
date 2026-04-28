@@ -297,9 +297,22 @@ def c(*args, **kwargs) -> Column:  # noqa: C901, PLR0912, PLR0915
 
     elif "levels" in kwargs:
         msg = "Levels must be list or tuple of the unique level names."
-        # TODO: Check that all entries in the level list are accounted for.
-        assert isinstance(kwargs.get("levels"), Iterable), msg
-        out.pi_levels = {out.pi_name: list(kwargs.get("levels", []))}
+        levels = kwargs.get("levels")
+        assert isinstance(levels, Iterable), msg
+        levels_list = list(levels)
+        raw_values: list = []
+        for arg in args:
+            if isinstance(arg, str) or not isinstance(arg, Iterable):
+                raw_values.append(arg)
+            else:
+                raw_values.extend(list(arg))
+        extras = {v for v in raw_values if not pd.isna(v)} - set(levels_list)
+        if extras:
+            raise ValueError(
+                f"All values must be present in `levels`. "
+                f"Found value(s) not in levels: {sorted(extras, key=str)}."
+            )
+        out.pi_levels = {out.pi_name: levels_list}
     else:
         levels = out.unique()
         levels.sort()
