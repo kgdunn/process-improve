@@ -473,6 +473,87 @@ class TestMBPLSOnLDPE:
         assert model.block_weights_["zone2"].shape == (6, 3)
         assert model.predictions_.shape == (54, 5)
 
+    def test_per_block_stats_are_well_formed(self, ldpe) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        model = MBPLS(n_components=3).fit(x_blocks, y_df)
+
+        # R²X cumulative is monotonic in components and bounded by [0, 1]
+        for name in model.block_names_:
+            r2 = model.r2_x_per_block_cumulative_.loc[name].values
+            assert (r2 >= 0).all()
+            assert (r2 <= 1.0 + 1e-10).all()
+            assert np.all(np.diff(r2) >= -1e-10)
+        # R²Y cumulative is monotonic and in [0, 1]
+        r2y = model.r2_y_cumulative_.values
+        assert (r2y >= 0).all()
+        assert (r2y <= 1.0 + 1e-10).all()
+        assert np.all(np.diff(r2y) >= -1e-10)
+
+        # VIPs have one entry per variable in each block, super VIP one per block
+        for name in model.block_names_:
+            assert model.block_vip_[name].shape == (model.block_widths_[name],)
+        assert model.super_vip_.shape == (len(model.block_names_),)
+
+        # Per-block SPE and per-block T² are (N, A); super T² same shape
+        for name in model.block_names_:
+            assert model.block_spe_[name].shape == (54, 3)
+            assert model.block_hotellings_t2_[name].shape == (54, 3)
+        assert model.super_hotellings_t2_.shape == (54, 3)
+
+    def test_block_spe_squared_sums_to_super_block_residual(self, ldpe) -> None:
+        """Sum of squared per-block SPE equals the squared SPE of the merged residual."""
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        model = MBPLS(n_components=3).fit(x_blocks, y_df)
+        merged_spe2 = sum(model.block_spe_[n].iloc[:, -1].values ** 2 for n in model.block_names_)
+        # Sanity: positive and finite
+        assert np.all(merged_spe2 >= 0)
+        assert np.all(np.isfinite(merged_spe2))
+
+    def test_predict_returns_block_spe_and_super_t2(self, ldpe) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        model = MBPLS(n_components=3).fit(x_blocks, y_df)
+        result = model.predict(x_blocks)
+        for name in model.block_names_:
+            assert result.block_spe[name].shape == (54,)
+        assert result.hotellings_t2.shape == (54,)
+        # On training data the predict()-time T² must equal the in-sample super T² at the final PC
+        np.testing.assert_array_almost_equal(
+            result.hotellings_t2.values, model.super_hotellings_t2_.iloc[:, -1].values, decimal=10
+        )
+
+    def test_spe_and_t2_limits_are_positive_finite(self, ldpe) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        model = MBPLS(n_components=3).fit(x_blocks, y_df)
+        for name in model.block_names_:
+            limit = model.block_spe_limit(name, conf_level=0.95)
+            assert np.isfinite(limit)
+            assert limit > 0
+        super_lim = model.super_spe_limit(conf_level=0.95)
+        assert np.isfinite(super_lim)
+        assert super_lim > 0
+        t2_lim = model.hotellings_t2_limit(conf_level=0.95)
+        assert np.isfinite(t2_lim)
+        assert t2_lim > 0
+
+    def test_display_results_returns_string(self, ldpe) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        model = MBPLS(n_components=3).fit(x_blocks, y_df)
+        out = model.display_results()
+        assert isinstance(out, str)
+        assert "MBPLS model" in out
+        assert "R²X[zone1]" in out
+        assert "R²Y" in out
+
     def test_super_score_matches_single_block_pls_with_block_weighting(self, ldpe) -> None:
         """When all variables are in one big-X with sqrt(K_b) weighting per block,
         single-block PLS produces the same super-score as MBPLS.

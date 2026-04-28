@@ -3435,6 +3435,25 @@ class MBPLS(RegressorMixin, BaseEstimator):
         x_def: dict[str, np.ndarray] = {name: x_blocks_pp[name].copy() for name in self.block_names_}
         y_def = y_pp.copy()
 
+        # Initial sums of squares (for R^2 bookkeeping)
+        ssq_x_init = {name: float(np.nansum(x_blocks_pp[name] ** 2)) for name in self.block_names_}
+        ssq_y_init = float(np.nansum(y_pp ** 2))
+        ssq_x_init_per_var = {
+            name: np.nansum(x_blocks_pp[name] ** 2, axis=0) for name in self.block_names_
+        }
+        ssq_y_init_per_var = np.nansum(y_pp ** 2, axis=0)
+
+        # Per-component cumulative R^2 storage (filled inside the loop)
+        r2_x_block_cum = np.zeros((n_blocks, n_components))
+        r2_x_var_cum: dict[str, np.ndarray] = {
+            name: np.zeros((self.block_widths_[name], n_components)) for name in self.block_names_
+        }
+        r2_y_cum = np.zeros(n_components)
+        r2_y_var_cum = np.zeros((self.n_targets_, n_components))
+        block_spe_np: dict[str, np.ndarray] = {
+            name: np.zeros((n_samples, n_components)) for name in self.block_names_
+        }
+
         tol = float(np.finfo(float).eps ** (6 / 7)) if self.tol is None else float(self.tol)
         timing = np.zeros(n_components)
         iterations = np.zeros(n_components, dtype=int)
@@ -3493,6 +3512,20 @@ class MBPLS(RegressorMixin, BaseEstimator):
             super_weights_np[:, a] = w_s
             super_y_loadings_np[:, a] = c_a
 
+            # Track per-block cumulative R^2_X and per-Y-variable cumulative R^2_Y
+            for b_idx, name in enumerate(self.block_names_):
+                ssq_remain_per_var = np.nansum(x_def[name] ** 2, axis=0)
+                r2_x_block_cum[b_idx, a] = 1 - np.sum(ssq_remain_per_var) / ssq_x_init[name]
+                r2_x_var_cum[name][:, a] = 1 - ssq_remain_per_var / np.where(
+                    ssq_x_init_per_var[name] > 0, ssq_x_init_per_var[name], 1.0
+                )
+                block_spe_np[name][:, a] = np.sqrt(np.nansum(x_def[name] ** 2, axis=1))
+            ssq_y_remain_per_var = np.nansum(y_def ** 2, axis=0)
+            r2_y_cum[a] = 1 - np.sum(ssq_y_remain_per_var) / ssq_y_init
+            r2_y_var_cum[:, a] = 1 - ssq_y_remain_per_var / np.where(
+                ssq_y_init_per_var > 0, ssq_y_init_per_var, 1.0
+            )
+
             timing[a] = time.time() - start
             iterations[a] = itern
 
@@ -3531,7 +3564,116 @@ class MBPLS(RegressorMixin, BaseEstimator):
         )
         self.fitting_info_ = {"timing": timing, "iterations": iterations}
 
+        # --- Per-component (incremental) R^2 from cumulative ---
+        r2_x_block_per_a = np.zeros_like(r2_x_block_cum)
+        r2_x_block_per_a[:, 0] = r2_x_block_cum[:, 0]
+        if n_components > 1:
+            r2_x_block_per_a[:, 1:] = np.diff(r2_x_block_cum, axis=1)
+        r2_y_per_a = np.empty_like(r2_y_cum)
+        r2_y_per_a[0] = r2_y_cum[0]
+        if n_components > 1:
+            r2_y_per_a[1:] = np.diff(r2_y_cum)
+
+        self.r2_x_per_block_cumulative_ = pd.DataFrame(
+            r2_x_block_cum, index=self.block_names_, columns=component_names
+        )
+        self.r2_x_per_block_per_component_ = pd.DataFrame(
+            r2_x_block_per_a, index=self.block_names_, columns=component_names
+        )
+        self.r2_x_per_variable_ = {
+            name: pd.DataFrame(r2_x_var_cum[name], index=self._block_columns[name], columns=component_names)
+            for name in self.block_names_
+        }
+        self.r2_y_cumulative_ = pd.Series(r2_y_cum, index=component_names, name="Cumulative R²Y")
+        self.r2_y_per_component_ = pd.Series(r2_y_per_a, index=component_names, name="R²Y per component")
+        self.r2_y_per_variable_ = pd.DataFrame(r2_y_var_cum, index=self._y_columns, columns=component_names)
+
+        # --- Per-block VIP and super VIP ---
+        # Per-block VIP_jb = sqrt(K_b * sum_a(r2_x_block_a * w_b[j,a]^2) / sum_a r2_x_block_a)
+        self.block_vip_: dict[str, pd.Series] = {}
+        for b_idx, name in enumerate(self.block_names_):
+            r2 = r2_x_block_per_a[b_idx, :]
+            if np.sum(r2) > 0:
+                w = self.block_weights_[name].values  # (K_b, A)
+                vip_b = np.sqrt(self.block_widths_[name] * np.sum(r2 * w**2, axis=1) / np.sum(r2))
+            else:
+                vip_b = np.zeros(self.block_widths_[name])
+            self.block_vip_[name] = pd.Series(vip_b, index=self._block_columns[name], name=f"VIP[{name}]")
+
+        # Super VIP_b = sqrt(B * sum_a(r2_y_a * w_super[b,a]^2) / sum_a r2_y_a)
+        if np.sum(r2_y_per_a) > 0:
+            ws = self.super_weights_.values  # (B, A)
+            super_vip = np.sqrt(n_blocks * np.sum(r2_y_per_a * ws**2, axis=1) / np.sum(r2_y_per_a))
+        else:
+            super_vip = np.zeros(n_blocks)
+        self.super_vip_ = pd.Series(super_vip, index=self.block_names_, name="Super VIP")
+
+        # --- Per-block SPE (already accumulated) and per-block / super Hotelling's T^2 ---
+        self.block_spe_ = {
+            name: pd.DataFrame(block_spe_np[name], index=self._sample_index, columns=component_names)
+            for name in self.block_names_
+        }
+
+        # Cumulative T^2 from block scores and super scores (using per-component score variance)
+        block_t2: dict[str, np.ndarray] = {}
+        for name in self.block_names_:
+            scores_np = self.block_scores_[name].values  # (N, A)
+            score_var = np.var(scores_np, axis=0, ddof=1)
+            score_var = np.where(score_var > 0, score_var, 1.0)
+            t2 = np.cumsum((scores_np**2) / score_var, axis=1)
+            block_t2[name] = t2
+        self.block_hotellings_t2_ = {
+            name: pd.DataFrame(block_t2[name], index=self._sample_index, columns=component_names)
+            for name in self.block_names_
+        }
+        super_score_var = np.where(self.explained_variance_ > 0, self.explained_variance_, 1.0)
+        super_t2 = np.cumsum((super_scores_np**2) / super_score_var, axis=1)
+        self.super_hotellings_t2_ = pd.DataFrame(super_t2, index=self._sample_index, columns=component_names)
+
+        # --- Convenience method bindings ---
+        self.hotellings_t2_limit = partial(hotellings_t2_limit, n_components=n_components, n_rows=n_samples)
+
         return self
+
+    def block_spe_limit(self, block: str, conf_level: float = 0.95) -> float:
+        """SPE limit for one X-block using the Nomikos & MacGregor chi-square approximation.
+
+        Operates on the same scale as ``block_spe_[block]`` (sqrt of row sum
+        of squares), so the value can be drawn directly on a SPE plot.
+        """
+        check_is_fitted(self, "block_spe_")
+        if block not in self.block_spe_:
+            raise KeyError(f"Unknown block '{block}'. Known blocks: {list(self.block_spe_)}.")
+        return spe_calculation(self.block_spe_[block].iloc[:, -1].values, conf_level=conf_level)
+
+    def super_spe_limit(self, conf_level: float = 0.95) -> float:
+        """SPE limit for the merged super-block (sum of per-block SPE squared)."""
+        check_is_fitted(self, "block_spe_")
+        merged_spe_squared = np.zeros(self.n_samples_)
+        for name in self.block_names_:
+            merged_spe_squared += self.block_spe_[name].iloc[:, -1].values ** 2
+        return spe_calculation(np.sqrt(merged_spe_squared), conf_level=conf_level)
+
+    def display_results(self, show_cumulative: bool = True) -> str:
+        """Format a short text summary of per-block R²X, overall R²Y, iterations and timing."""
+        check_is_fitted(self, "super_scores_")
+        rows: list[str] = []
+        rows.append(f"MBPLS model: {self.n_components} component(s), {len(self.block_names_)} X-block(s)")
+        header = "  PC | " + " | ".join(f"R²X[{name}]" for name in self.block_names_) + " | R²Y"
+        rows.append(header)
+        rows.append("-" * len(header))
+        for a in range(self.n_components):
+            cells = [f"{i:>3d}" for i in [a + 1]]
+            for name in self.block_names_:
+                src = self.r2_x_per_block_cumulative_ if show_cumulative else self.r2_x_per_block_per_component_
+                cells.append(f"{src.loc[name].iloc[a]:>9.4f}")
+            r2y_src = self.r2_y_cumulative_ if show_cumulative else self.r2_y_per_component_
+            cells.append(f"{r2y_src.iloc[a]:>9.4f}")
+            rows.append(" | ".join(cells))
+        rows.append("")
+        rows.append(f"  Iterations per PC: {list(self.fitting_info_['iterations'])}")
+        rows.append(f"  Time per PC (ms):  {[round(float(t * 1000), 1) for t in self.fitting_info_['timing']]}")
+        return "\n".join(rows)
 
     def transform(self, X: dict[str, pd.DataFrame]) -> pd.DataFrame:
         """Project new data to super-scores using the fitted model."""
@@ -3604,7 +3746,25 @@ class MBPLS(RegressorMixin, BaseEstimator):
         predictions = self.y_preproc_.inverse_transform(pd.DataFrame(y_hat_pp, columns=self._y_columns))
         predictions.index = sample_index
 
-        return Bunch(super_scores=super_scores_df, block_scores=block_scores_df, predictions=predictions)
+        # Per-block SPE for new observations (residual after final deflation)
+        block_spe = {
+            name: pd.Series(
+                np.sqrt(np.nansum(x_def[name] ** 2, axis=1)), index=sample_index, name=f"SPE[{name}]"
+            )
+            for name in self.block_names_
+        }
+        super_score_var = np.where(self.explained_variance_ > 0, self.explained_variance_, 1.0)
+        hotellings_t2 = pd.Series(
+            np.sum((super_scores**2) / super_score_var, axis=1), index=sample_index, name="Hotelling's T²"
+        )
+
+        return Bunch(
+            super_scores=super_scores_df,
+            block_scores=block_scores_df,
+            predictions=predictions,
+            block_spe=block_spe,
+            hotellings_t2=hotellings_t2,
+        )
 
 
 class Plot:
