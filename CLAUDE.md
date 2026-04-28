@@ -2,7 +2,7 @@
 
 ## Overview
 
-`process-improve` is a Python package for process improvement using data. It accompanies the online textbook [Process Improvement using Data](https://learnche.org/pid). The package provides multivariate analysis (PCA, PLS, TPLS), designed experiments, process monitoring, batch data analysis, and visualization tools.
+`process-improve` is a Python package for process improvement using data. It accompanies the online textbook [Process Improvement using Data](https://learnche.org/pid). The package provides multivariate analysis (PCA, PLS, and TPLS — *PLS for T-shaped data structures*, not "Total PLS" or "Three-way PLS"), designed experiments, process monitoring, batch data analysis, and visualization tools.
 
 **Repository:** https://github.com/kgdunn/process_improve
 **License:** MIT
