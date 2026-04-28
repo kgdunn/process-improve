@@ -4,9 +4,9 @@
 > analysis, designed experiments, and process monitoring, in one place.
 
 [![PyPI version](https://img.shields.io/pypi/v/process-improve.svg)](https://pypi.org/project/process-improve/)
-[![Python versions](https://img.shields.io/pypi/pyversions/process-improve.svg)](https://pypi.org/project/process-improve/)
+[![Python versions](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fkgdunn%2Fprocess-improve%2Fmain%2Fpyproject.toml&label=python)](https://pypi.org/project/process-improve/)
 [![License](https://img.shields.io/pypi/l/process-improve.svg)](LICENSE)
-[![CI](https://github.com/kgdunn/process-improve/actions/workflows/run-tests.yml/badge.svg)](https://github.com/kgdunn/process-improve/actions/workflows/run-tests.yml)
+[![CI](https://github.com/kgdunn/process-improve/actions/workflows/run-tests.yml/badge.svg?branch=main&event=push)](https://github.com/kgdunn/process-improve/actions/workflows/run-tests.yml?query=branch%3Amain)
 [![codecov](https://codecov.io/gh/kgdunn/process-improve/branch/main/graph/badge.svg)](https://codecov.io/gh/kgdunn/process-improve)
 [![Docs](https://img.shields.io/badge/docs-kgdunn.github.io-blue.svg)](https://kgdunn.github.io/process-improve/)
 
