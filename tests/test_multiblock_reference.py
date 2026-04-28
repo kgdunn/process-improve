@@ -385,6 +385,26 @@ class TestMBPCAAgainstOracle:
             block_spe_sq = model.block_spe_[name].iloc[:, -1].values ** 2
             np.testing.assert_array_almost_equal(row_sums, block_spe_sq, decimal=8)
 
+    def test_score_contributions_to_origin_back_project_correctly(self, synthetic_two_block) -> None:
+        """For ``t_super_end=0`` (the model centre), the per-block score
+        contributions must equal the per-block sums of effective-loading
+        projections of the (negated) super-score row.
+        """
+        from process_improve.multivariate.methods import MBPCA
+
+        x_blocks, _ = synthetic_two_block
+        model = MBPCA(n_components=2).fit(x_blocks)
+        t_row = model.super_scores_.iloc[0].values
+        contribs = model.score_contributions(t_row)
+        # Effective per-block reconstruction at the row level: compare manually
+        for b_idx, name in enumerate(model.block_names_):
+            sqrt_kb = float(np.sqrt(model.block_widths_[name]))
+            pb = model.block_loadings_[name].values
+            ps = model.super_loadings_.values[b_idx, :]
+            effective = pb * (ps * sqrt_kb)
+            expected = -t_row @ effective.T  # back-projected variable contributions
+            np.testing.assert_array_almost_equal(contribs[name].values, expected, decimal=10)
+
     def test_super_score_and_loadings_plots_return_figures(self, synthetic_two_block) -> None:
         import plotly.graph_objects as go
 
@@ -657,6 +677,36 @@ class TestMBPLSOnLDPE:
             row_sums = contribs[name].sum(axis=1).values
             block_spe_sq = model.block_spe_[name].iloc[:, -1].values ** 2
             np.testing.assert_array_almost_equal(row_sums, block_spe_sq, decimal=8)
+
+    def test_score_contributions_to_origin_back_project_correctly(self, ldpe) -> None:
+        """For each per-block contribution Series, manual back-projection
+        through ``w_super[b] * w_b / sqrt(K_b)`` reproduces the result.
+        """
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        model = MBPLS(n_components=3).fit(x_blocks, y_df)
+        t_row = model.super_scores_.iloc[0].values
+        contribs = model.score_contributions(t_row)
+        for b_idx, name in enumerate(model.block_names_):
+            sqrt_kb = float(np.sqrt(model.block_widths_[name]))
+            wb = model.block_weights_[name].values
+            ws = model.super_weights_.values[b_idx, :]
+            effective = wb * (ws / sqrt_kb)
+            expected = -t_row @ effective.T
+            np.testing.assert_array_almost_equal(contribs[name].values, expected, decimal=10)
+
+    def test_score_contributions_subset_of_components(self, ldpe) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        model = MBPLS(n_components=3).fit(x_blocks, y_df)
+        t_row = model.super_scores_.iloc[0].values
+        # Components 1 + 2 should differ from full (1+2+3) decomposition
+        partial = model.score_contributions(t_row, components=[1, 2])
+        full = model.score_contributions(t_row)
+        for name in model.block_names_:
+            assert not np.allclose(partial[name].values, full[name].values)
 
     def test_super_score_plot_returns_plotly_figure(self, ldpe) -> None:
         import plotly.graph_objects as go

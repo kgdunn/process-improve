@@ -3691,6 +3691,67 @@ class MBPLS(RegressorMixin, BaseEstimator):
             out[name] = pd.DataFrame(residuals_sq, index=sample_index, columns=self._block_columns[name])
         return out
 
+    def score_contributions(
+        self,
+        t_super_start: np.ndarray | pd.Series,
+        t_super_end: np.ndarray | pd.Series | None = None,
+        components: list[int] | None = None,
+        *,
+        weighted: bool = False,
+    ) -> dict[str, pd.Series]:
+        r"""Per-block per-variable contributions to a super-score movement.
+
+        The multi-block analogue of :meth:`PCA.score_contributions`. Decomposes
+        a super-score-space delta back into preprocessed-scale variable-space
+        deltas, one per X-block.
+
+        For MBPLS, the super-score at component *a* is built from the per-block
+        scores (which themselves are weighted regressions of the block on
+        ``w_b``), so the back-projection through ``w_super[b,a] * w_b[:,a] /
+        sqrt(K_b)`` gives the variable contribution.
+
+        Parameters
+        ----------
+        t_super_start : array-like, shape (n_components,)
+            Super-score row of the observation of interest. Typically a row
+            from ``self.super_scores_`` or from ``predict(X_new).super_scores``.
+        t_super_end : array-like, optional
+            Reference point in super-score space. Defaults to the model
+            centre (zeros).
+        components : list of int, optional
+            **1-based** component indices to decompose over. ``None`` (default)
+            uses all components — appropriate for Hotelling's T² contributions.
+        weighted : bool, default=False
+            If ``True``, divide the super-score delta by
+            ``sqrt(explained_variance_)`` per component before back-projecting,
+            giving contributions to the T² statistic instead of the Euclidean
+            super-score distance.
+
+        Returns
+        -------
+        dict[str, pd.Series]
+            One Series per X-block (length ``K_b``), indexed by variable
+            (column) name.
+        """
+        check_is_fitted(self, "block_weights_")
+        t_start = np.asarray(t_super_start, dtype=float)
+        t_end = np.zeros(self.n_components) if t_super_end is None else np.asarray(t_super_end, dtype=float)
+        idx = np.arange(self.n_components) if components is None else np.array(components) - 1
+        dt = t_end[idx] - t_start[idx]  # (len(idx),)
+        if weighted:
+            dt = dt / np.sqrt(self.explained_variance_[idx])
+
+        out: dict[str, pd.Series] = {}
+        for b_idx, name in enumerate(self.block_names_):
+            sqrt_kb = float(np.sqrt(self.block_widths_[name]))
+            ws = self.super_weights_.values[b_idx, idx]  # (len(idx),)
+            wb = self.block_weights_[name].values[:, idx]  # (K_b, len(idx))
+            # Effective per-component contribution per variable: w_super[b] * w_b[:,a] / sqrt(K_b)
+            effective = wb * (ws / sqrt_kb)  # (K_b, len(idx))
+            contrib = effective @ dt  # (K_b,)
+            out[name] = pd.Series(contrib, index=self._block_columns[name], name=f"score_contributions[{name}]")
+        return out
+
     def super_score_plot(self, pc_horiz: int = 1, pc_vert: int = 2) -> go.Figure:
         """Scatter plot of super-scores for two components."""
         check_is_fitted(self, "super_scores_")
@@ -4367,6 +4428,46 @@ class MBPCA(TransformerMixin, BaseEstimator):
             x_hat = super_scores @ p_eff.T
             residuals_sq = (x_pp - x_hat) ** 2
             out[name] = pd.DataFrame(residuals_sq, index=sample_index, columns=self._block_columns[name])
+        return out
+
+    def score_contributions(
+        self,
+        t_super_start: np.ndarray | pd.Series,
+        t_super_end: np.ndarray | pd.Series | None = None,
+        components: list[int] | None = None,
+        *,
+        weighted: bool = False,
+    ) -> dict[str, pd.Series]:
+        r"""Per-block per-variable contributions to a super-score movement (MBPCA).
+
+        Decomposes a super-score-space delta into preprocessed-scale variable
+        contributions per X-block. The MBPCA back-projection mirrors the
+        deflation step used during fit:
+
+        .. math::
+
+            \text{contrib}_{b,j} = \sum_a (\Delta t_\mathrm{super}[a]) \cdot
+            P_b[j, a] \cdot p_\mathrm{super}[b, a] \cdot \sqrt{K_b}
+
+        See :meth:`MBPLS.score_contributions` for the parameter and return
+        descriptions; the API is identical.
+        """
+        check_is_fitted(self, "block_loadings_")
+        t_start = np.asarray(t_super_start, dtype=float)
+        t_end = np.zeros(self.n_components) if t_super_end is None else np.asarray(t_super_end, dtype=float)
+        idx = np.arange(self.n_components) if components is None else np.array(components) - 1
+        dt = t_end[idx] - t_start[idx]
+        if weighted:
+            dt = dt / np.sqrt(self.explained_variance_[idx])
+
+        out: dict[str, pd.Series] = {}
+        for b_idx, name in enumerate(self.block_names_):
+            sqrt_kb = float(np.sqrt(self.block_widths_[name]))
+            ps = self.super_loadings_.values[b_idx, idx]  # (len(idx),)
+            pb = self.block_loadings_[name].values[:, idx]  # (K_b, len(idx))
+            effective = pb * (ps * sqrt_kb)  # (K_b, len(idx))
+            contrib = effective @ dt  # (K_b,)
+            out[name] = pd.Series(contrib, index=self._block_columns[name], name=f"score_contributions[{name}]")
         return out
 
     def super_score_plot(self, pc_horiz: int = 1, pc_vert: int = 2) -> go.Figure:
