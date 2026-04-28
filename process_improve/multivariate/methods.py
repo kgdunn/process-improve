@@ -3804,6 +3804,90 @@ class MBPLS(RegressorMixin, BaseEstimator):
         )
 
 
+def randomization_test_mbpls(
+    model: MBPLS,
+    X: dict[str, pd.DataFrame],
+    y: pd.DataFrame,
+    n_permutations: int = 200,
+    *,
+    seed: int | None = None,
+) -> pd.DataFrame:
+    r"""Randomization (permutation) test for component significance in MBPLS.
+
+    For each component ``a``, the null hypothesis is "there is no real
+    relationship between X and Y at this component"; the test permutes the
+    rows of ``y``, refits a fresh MBPLS with the same number of components,
+    and recomputes the test statistic. The risk is the fraction of
+    permutations whose statistic equals or exceeds the original model's.
+
+    Statistic: per-component absolute correlation between the super X-score
+    and the super Y-score, ``|t_super(:,a)' u_super(:,a)| / (||t|| * ||u||)``,
+    matching the legacy ConnectMV randomization-objective for PLS.
+
+    Parameters
+    ----------
+    model : MBPLS
+        A fitted MBPLS model.
+    X, y : dict[str, DataFrame], DataFrame
+        The same training data used to fit ``model``.
+    n_permutations : int, default=200
+        Number of Y-row permutations to evaluate.
+    seed : int or None, default=None
+        Seed for the permutation RNG (``None`` uses non-reproducible
+        randomness).
+
+    Returns
+    -------
+    pd.DataFrame
+        Indexed by component ``1..A`` with columns:
+
+        - ``observed`` : the actual model's per-component statistic.
+        - ``risk_pct`` : fraction (in %) of permutations with statistic
+          ``>= observed``. Low values (e.g. < 5%) suggest the component is
+          significant; values near 50% suggest the component is no better
+          than chance.
+
+    References
+    ----------
+    Wiklund, S., Nilsson, D., Eriksson, L., Sjöström, M., Wold, S. &
+    Faber, K. *A randomization test for PLS component selection.* J.
+    Chemometrics, 21 (2007), 427-439.
+    """
+    check_is_fitted(model, "super_scores_")
+    rng = np.random.default_rng(seed)
+    a_components = int(model.n_components)
+
+    def _objective(mod: MBPLS) -> np.ndarray:
+        t = mod.super_scores_.values
+        u = mod.super_y_scores_.values
+        out = np.zeros(t.shape[1])
+        for a in range(t.shape[1]):
+            num = float(np.abs(t[:, a] @ u[:, a]))
+            denom = float(np.linalg.norm(t[:, a]) * np.linalg.norm(u[:, a]))
+            out[a] = 0.0 if denom == 0 else num / denom
+        return out
+
+    observed = _objective(model)
+    n_exceed = np.zeros(a_components, dtype=int)
+    n_samples = y.shape[0]
+    for _ in range(int(n_permutations)):
+        perm_idx = rng.permutation(n_samples)
+        y_perm = y.iloc[perm_idx].reset_index(drop=True)
+        # Reset X indices to align row positions (otherwise pandas will
+        # join on index and silently misalign).
+        x_reset = {name: X[name].reset_index(drop=True) for name in X}
+        permuted_model = MBPLS(n_components=a_components).fit(x_reset, y_perm)
+        stat = _objective(permuted_model)
+        n_exceed += (stat >= observed).astype(int)
+
+    component_names = list(range(1, a_components + 1))
+    risk_pct = 100.0 * n_exceed / n_permutations
+    return pd.DataFrame(
+        {"observed": observed, "risk_pct": risk_pct},
+        index=pd.Index(component_names, name="component"),
+    )
+
+
 class MBPCA(TransformerMixin, BaseEstimator):
     r"""Multi-block PCA (hierarchical / consensus PCA).
 

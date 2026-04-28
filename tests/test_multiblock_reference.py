@@ -644,6 +644,25 @@ class TestMBPLSOnLDPE:
             block_spe_sq = model.block_spe_[name].iloc[:, -1].values ** 2
             np.testing.assert_array_almost_equal(row_sums, block_spe_sq, decimal=8)
 
+    def test_randomization_test_returns_observed_and_risk(self, ldpe) -> None:
+        """Real data should be more correlated than randomly-permuted Y for the
+        first component; risk_pct for PC1 should be small (< 50%).
+        """
+        from process_improve.multivariate.methods import MBPLS, randomization_test_mbpls
+
+        x_blocks, y_df = ldpe
+        model = MBPLS(n_components=2).fit(x_blocks, y_df)
+        result = randomization_test_mbpls(model, x_blocks, y_df, n_permutations=20, seed=0)
+        assert list(result.columns) == ["observed", "risk_pct"]
+        assert result.shape == (2, 2)
+        assert (result["observed"] >= 0).all()
+        assert (result["observed"] <= 1).all()
+        assert (result["risk_pct"] >= 0).all()
+        assert (result["risk_pct"] <= 100).all()
+        # First component on a real signal-bearing dataset should rarely be
+        # beaten by random permutations.
+        assert result.loc[1, "risk_pct"] < 50.0
+
     def test_super_score_matches_single_block_pls_with_block_weighting(self, ldpe) -> None:
         """When all variables are in one big-X with sqrt(K_b) weighting per block,
         single-block PLS produces the same super-score as MBPLS.
