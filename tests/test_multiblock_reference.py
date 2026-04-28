@@ -385,6 +385,20 @@ class TestMBPCAAgainstOracle:
             block_spe_sq = model.block_spe_[name].iloc[:, -1].values ** 2
             np.testing.assert_array_almost_equal(row_sums, block_spe_sq, decimal=8)
 
+    def test_super_score_and_loadings_plots_return_figures(self, synthetic_two_block) -> None:
+        import plotly.graph_objects as go
+
+        from process_improve.multivariate.methods import MBPCA
+
+        x_blocks, _ = synthetic_two_block
+        model = MBPCA(n_components=2).fit(x_blocks)
+        fig_scores = model.super_score_plot(pc_horiz=1, pc_vert=2)
+        fig_loadings = model.super_loadings_bar_plot(component=1)
+        assert isinstance(fig_scores, go.Figure)
+        assert isinstance(fig_loadings, go.Figure)
+        assert "PC1 vs PC2" in fig_scores.layout.title.text
+        assert list(fig_loadings.data[0].x) == model.block_names_
+
 
 # ---------------------------------------------------------------------------
 # Multi-block PLS reference tests (active as of PR3 - MBPLS implemented)
@@ -643,6 +657,44 @@ class TestMBPLSOnLDPE:
             row_sums = contribs[name].sum(axis=1).values
             block_spe_sq = model.block_spe_[name].iloc[:, -1].values ** 2
             np.testing.assert_array_almost_equal(row_sums, block_spe_sq, decimal=8)
+
+    def test_super_score_plot_returns_plotly_figure(self, ldpe) -> None:
+        import plotly.graph_objects as go
+
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        model = MBPLS(n_components=2).fit(x_blocks, y_df)
+        fig = model.super_score_plot(pc_horiz=1, pc_vert=2)
+        assert isinstance(fig, go.Figure)
+        assert len(fig.data) >= 1
+        assert "PC1 vs PC2" in fig.layout.title.text
+
+    def test_super_weights_bar_plot_returns_plotly_figure(self, ldpe) -> None:
+        import plotly.graph_objects as go
+
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        model = MBPLS(n_components=2).fit(x_blocks, y_df)
+        fig = model.super_weights_bar_plot(component=1)
+        assert isinstance(fig, go.Figure)
+        assert len(fig.data) == 1
+        assert list(fig.data[0].x) == model.block_names_
+
+    def test_predictions_vs_observed_plot_includes_y_eq_x_and_rmsee(self, ldpe) -> None:
+        import plotly.graph_objects as go
+
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        model = MBPLS(n_components=3).fit(x_blocks, y_df)
+        fig = model.predictions_vs_observed_plot(y_observed=y_df, variable=str(y_df.columns[0]))
+        assert isinstance(fig, go.Figure)
+        # Two traces: scatter + y=x line
+        assert len(fig.data) == 2
+        annotation_text = " ".join(a.text for a in fig.layout.annotations)
+        assert "RMSEE" in annotation_text
 
     def test_randomization_test_returns_observed_and_risk(self, ldpe) -> None:
         """Real data should be more correlated than randomly-permuted Y for the

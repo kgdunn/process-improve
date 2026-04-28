@@ -3691,6 +3691,95 @@ class MBPLS(RegressorMixin, BaseEstimator):
             out[name] = pd.DataFrame(residuals_sq, index=sample_index, columns=self._block_columns[name])
         return out
 
+    def super_score_plot(self, pc_horiz: int = 1, pc_vert: int = 2) -> go.Figure:
+        """Scatter plot of super-scores for two components."""
+        check_is_fitted(self, "super_scores_")
+        a_max = int(self.n_components)
+        if not (1 <= pc_horiz <= a_max and 1 <= pc_vert <= a_max):
+            raise ValueError(f"pc_horiz and pc_vert must be in 1..{a_max}.")
+        x = self.super_scores_[pc_horiz].values
+        y = self.super_scores_[pc_vert].values
+        labels = [str(i) for i in self.super_scores_.index]
+        fig = go.Figure(
+            data=[
+                go.Scatter(
+                    x=x,
+                    y=y,
+                    mode="markers+text",
+                    text=labels,
+                    textposition="top center",
+                    name="Super-scores",
+                )
+            ]
+        )
+        fig.update_layout(
+            xaxis_title=f"t_super[{pc_horiz}]",
+            yaxis_title=f"t_super[{pc_vert}]",
+            title=f"MBPLS super-score plot: PC{pc_horiz} vs PC{pc_vert}",
+        )
+        return fig
+
+    def super_weights_bar_plot(self, component: int = 1) -> go.Figure:
+        """Bar plot of super-weights ``w_super`` for a single component."""
+        check_is_fitted(self, "super_weights_")
+        a_max = int(self.n_components)
+        if not (1 <= component <= a_max):
+            raise ValueError(f"component must be in 1..{a_max}.")
+        weights = self.super_weights_[component]
+        fig = go.Figure(data=[go.Bar(x=list(weights.index), y=weights.values, name=f"w_super[{component}]")])
+        fig.update_layout(
+            xaxis_title="Block",
+            yaxis_title=f"w_super[{component}]",
+            title=f"MBPLS super-weights, component {component}",
+        )
+        return fig
+
+    def predictions_vs_observed_plot(self, y_observed: pd.DataFrame, variable: str | None = None) -> go.Figure:
+        """Scatter plot of predicted vs observed Y, with y=x reference and RMSEE annotation.
+
+        Parameters
+        ----------
+        y_observed : pd.DataFrame
+            The observed Y on the original scale, same columns as the training Y.
+        variable : str or None, default=None
+            If given, plot only that Y-variable. If ``None``, plot the first one.
+        """
+        check_is_fitted(self, "predictions_")
+        if variable is None:
+            variable = str(self.predictions_.columns[0])
+        if variable not in self.predictions_.columns:
+            raise ValueError(f"Unknown Y-variable '{variable}'. Known: {list(self.predictions_.columns)}.")
+        observed = pd.Series(y_observed[variable].values, name="observed").reset_index(drop=True)
+        predicted = pd.Series(self.predictions_[variable].values, name="predicted").reset_index(drop=True)
+        rmsee = float(np.sqrt(np.mean((observed.values - predicted.values) ** 2)))
+        lo = float(min(observed.min(), predicted.min()))
+        hi = float(max(observed.max(), predicted.max()))
+        pad = 0.05 * (hi - lo) if hi > lo else 1.0
+        fig = go.Figure(
+            data=[
+                go.Scatter(x=observed, y=predicted, mode="markers", name="Predicted vs observed"),
+                go.Scatter(
+                    x=[lo - pad, hi + pad],
+                    y=[lo - pad, hi + pad],
+                    mode="lines",
+                    line={"color": "black", "dash": "dash"},
+                    name="y = x",
+                ),
+            ]
+        )
+        fig.add_annotation(
+            x=lo + 0.05 * (hi - lo),
+            y=hi - 0.05 * (hi - lo),
+            text=f"RMSEE = {rmsee:.4g}",
+            showarrow=False,
+        )
+        fig.update_layout(
+            xaxis_title=f"Observed: {variable}",
+            yaxis_title=f"Predicted: {variable}",
+            title=f"Predicted vs observed for {variable}",
+        )
+        return fig
+
     def display_results(self, show_cumulative: bool = True) -> str:
         """Format a short text summary of per-block R²X, overall R²Y, iterations and timing."""
         check_is_fitted(self, "super_scores_")
@@ -4279,6 +4368,49 @@ class MBPCA(TransformerMixin, BaseEstimator):
             residuals_sq = (x_pp - x_hat) ** 2
             out[name] = pd.DataFrame(residuals_sq, index=sample_index, columns=self._block_columns[name])
         return out
+
+    def super_score_plot(self, pc_horiz: int = 1, pc_vert: int = 2) -> go.Figure:
+        """Scatter plot of MBPCA super-scores for two components."""
+        check_is_fitted(self, "super_scores_")
+        a_max = int(self.n_components)
+        if not (1 <= pc_horiz <= a_max and 1 <= pc_vert <= a_max):
+            raise ValueError(f"pc_horiz and pc_vert must be in 1..{a_max}.")
+        x = self.super_scores_[pc_horiz].values
+        y = self.super_scores_[pc_vert].values
+        labels = [str(i) for i in self.super_scores_.index]
+        fig = go.Figure(
+            data=[
+                go.Scatter(
+                    x=x,
+                    y=y,
+                    mode="markers+text",
+                    text=labels,
+                    textposition="top center",
+                    name="Super-scores",
+                )
+            ]
+        )
+        fig.update_layout(
+            xaxis_title=f"t_super[{pc_horiz}]",
+            yaxis_title=f"t_super[{pc_vert}]",
+            title=f"MBPCA super-score plot: PC{pc_horiz} vs PC{pc_vert}",
+        )
+        return fig
+
+    def super_loadings_bar_plot(self, component: int = 1) -> go.Figure:
+        """Bar plot of MBPCA super-loadings for a single component."""
+        check_is_fitted(self, "super_loadings_")
+        a_max = int(self.n_components)
+        if not (1 <= component <= a_max):
+            raise ValueError(f"component must be in 1..{a_max}.")
+        loadings = self.super_loadings_[component]
+        fig = go.Figure(data=[go.Bar(x=list(loadings.index), y=loadings.values, name=f"p_super[{component}]")])
+        fig.update_layout(
+            xaxis_title="Block",
+            yaxis_title=f"p_super[{component}]",
+            title=f"MBPCA super-loadings, component {component}",
+        )
+        return fig
 
     def display_results(self, show_cumulative: bool = True) -> str:
         """Format a short text summary of per-block R²X, iterations and timing."""
