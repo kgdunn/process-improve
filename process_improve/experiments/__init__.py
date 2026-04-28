@@ -18,7 +18,7 @@ from process_improve.experiments.structures import (
     gather,
     supplement,
 )
-from process_improve.experiments.visualization import visualize_doe
+from process_improve.experiments.visualization import main_effects_plot, visualize_doe
 
 __all__ = [
     "Column",
@@ -39,6 +39,7 @@ __all__ = [
     "gather",
     "generate_design",
     "lm",
+    "main_effects_plot",
     "optimize_responses",
     "predict",
     "recommend_strategy",
