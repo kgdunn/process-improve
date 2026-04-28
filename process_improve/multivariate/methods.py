@@ -3654,6 +3654,43 @@ class MBPLS(RegressorMixin, BaseEstimator):
             merged_spe_squared += self.block_spe_[name].iloc[:, -1].values ** 2
         return spe_calculation(np.sqrt(merged_spe_squared), conf_level=conf_level)
 
+    def spe_contributions(self, X: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
+        """Per-variable squared residuals for each X-block (SPE contributions).
+
+        For each new observation and each X-block, reconstruct the block as
+        ``T_super @ P_b^T`` (matching the deflation step used during fit) and
+        return the squared per-variable residuals. Useful for fault diagnosis:
+        the variable with the largest contribution is the most likely culprit
+        for a high SPE.
+
+        Returns
+        -------
+        dict[str, pd.DataFrame]
+            One DataFrame per block, shape ``(n_samples, K_b)``. Values are
+            preprocessed-scale squared residuals (centred and scaled inside
+            the model). Sum across columns equals ``block_spe_[b].iloc[:, -1] ** 2``.
+        """
+        check_is_fitted(self, "block_loadings_")
+        if not isinstance(X, dict):
+            raise TypeError("X must be a dict[str, pd.DataFrame].")
+        missing = set(self.block_names_) - set(X)
+        if missing:
+            raise ValueError(f"Missing X-blocks: {sorted(missing)}.")
+
+        result = self._project(X)
+        super_scores = result.super_scores.values  # (N, A)
+        out: dict[str, pd.DataFrame] = {}
+        sample_index = next(iter(result.block_scores.values())).index
+        for name in self.block_names_:
+            block = X[name]
+            if not isinstance(block, pd.DataFrame):
+                block = pd.DataFrame(block, columns=self._block_columns[name])
+            x_pp = self.preproc_[name].transform(block).values.astype(float)
+            x_hat = super_scores @ self.block_loadings_[name].values.T
+            residuals_sq = (x_pp - x_hat) ** 2
+            out[name] = pd.DataFrame(residuals_sq, index=sample_index, columns=self._block_columns[name])
+        return out
+
     def display_results(self, show_cumulative: bool = True) -> str:
         """Format a short text summary of per-block R²X, overall R²Y, iterations and timing."""
         check_is_fitted(self, "super_scores_")
@@ -4123,6 +4160,41 @@ class MBPCA(TransformerMixin, BaseEstimator):
         for name in self.block_names_:
             merged_spe_squared += self.block_spe_[name].iloc[:, -1].values ** 2
         return spe_calculation(np.sqrt(merged_spe_squared), conf_level=conf_level)
+
+    def spe_contributions(self, X: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
+        """Per-variable squared residuals for each X-block (SPE contributions).
+
+        Reconstruction matches the MBPCA deflation step:
+        ``X_b = T_super @ (P_b * p_super[b] * sqrt(K_b))^T`` summed over
+        components. Returns squared residuals on the preprocessed scale; sum
+        across columns equals ``block_spe_[b].iloc[:, -1] ** 2``.
+        """
+        check_is_fitted(self, "block_loadings_")
+        if not isinstance(X, dict):
+            raise TypeError("X must be a dict[str, pd.DataFrame].")
+        missing = set(self.block_names_) - set(X)
+        if missing:
+            raise ValueError(f"Missing X-blocks: {sorted(missing)}.")
+
+        result = self._project(X)
+        super_scores = result.super_scores.values  # (N, A)
+        sample_index = next(iter(result.block_scores.values())).index
+        sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
+
+        out: dict[str, pd.DataFrame] = {}
+        for b_idx, name in enumerate(self.block_names_):
+            block = X[name]
+            if not isinstance(block, pd.DataFrame):
+                block = pd.DataFrame(block, columns=self._block_columns[name])
+            x_pp = self.preproc_[name].transform(block).values.astype(float)
+            # X_b reconstruction summed over components
+            p_b = self.block_loadings_[name].values  # (K_b, A)
+            p_s = self.super_loadings_.values[b_idx, :]  # (A,)
+            p_eff = p_b * p_s * sqrt_kb[name]  # (K_b, A) effective loading
+            x_hat = super_scores @ p_eff.T
+            residuals_sq = (x_pp - x_hat) ** 2
+            out[name] = pd.DataFrame(residuals_sq, index=sample_index, columns=self._block_columns[name])
+        return out
 
     def display_results(self, show_cumulative: bool = True) -> str:
         """Format a short text summary of per-block R²X, iterations and timing."""

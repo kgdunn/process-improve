@@ -371,6 +371,20 @@ class TestMBPCAAgainstOracle:
         assert isinstance(out, str)
         assert "MBPCA model" in out
 
+    def test_spe_contributions_sum_to_block_spe_squared(self, synthetic_two_block) -> None:
+        """Sum of per-variable squared residuals across one block must equal
+        that block's squared SPE at the final component.
+        """
+        from process_improve.multivariate.methods import MBPCA
+
+        x_blocks, _ = synthetic_two_block
+        model = MBPCA(n_components=2).fit(x_blocks)
+        contribs = model.spe_contributions(x_blocks)
+        for name in model.block_names_:
+            row_sums = contribs[name].sum(axis=1).values
+            block_spe_sq = model.block_spe_[name].iloc[:, -1].values ** 2
+            np.testing.assert_array_almost_equal(row_sums, block_spe_sq, decimal=8)
+
 
 # ---------------------------------------------------------------------------
 # Multi-block PLS reference tests (active as of PR3 - MBPLS implemented)
@@ -615,6 +629,20 @@ class TestMBPLSOnLDPE:
         assert "MBPLS model" in out
         assert "R²X[zone1]" in out
         assert "R²Y" in out
+
+    def test_spe_contributions_sum_to_block_spe_squared(self, ldpe) -> None:
+        """For each row, sum of squared residual contributions across one block
+        must equal that block's squared SPE at the final component.
+        """
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        model = MBPLS(n_components=3).fit(x_blocks, y_df)
+        contribs = model.spe_contributions(x_blocks)
+        for name in model.block_names_:
+            row_sums = contribs[name].sum(axis=1).values
+            block_spe_sq = model.block_spe_[name].iloc[:, -1].values ** 2
+            np.testing.assert_array_almost_equal(row_sums, block_spe_sq, decimal=8)
 
     def test_super_score_matches_single_block_pls_with_block_weighting(self, ldpe) -> None:
         """When all variables are in one big-X with sqrt(K_b) weighting per block,
