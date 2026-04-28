@@ -311,39 +311,185 @@ class TestWold1987MBPCA:
 
 
 # ---------------------------------------------------------------------------
-# Multi-block PLS reference tests (xfail until the MBPLS class lands in PR3)
+# Multi-block PLS reference tests (active as of PR3 - MBPLS implemented)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.xfail(
-    reason="MBPLS class not yet implemented; will be added in PR3 of the multi-block port.",
-    strict=True,
-    raises=ImportError,
-)
-class TestSmallMBPLS:
-    """Multi-block PLS on a tiny synthetic problem.
+class TestMBPLSAgainstOracle:
+    """The production :class:`MBPLS` class must agree with the pure-numpy
+    reference oracle on every quantity (up to a global per-component sign).
 
-    These mirror the assertions in the legacy ``test_mbpls.m`` self-consistency
-    block: regardless of which path produces the model (a single big-X PLS
-    with later block recovery, vs. the full multi-block NIPALS loop), super
-    scores, super weights, block scores, block weights and Y predictions must
-    agree to within numerical precision.
+    The oracle in ``tests/_multiblock_oracles.py`` has been independently
+    self-validated by ``tests/test_multiblock_oracles.py`` against a second
+    reference implementation (merged-then-recover).
     """
 
-    def test_super_scores_match_path_a_and_path_b(self) -> None:
-        from process_improve.multivariate.methods import MBPLS  # noqa: F401
+    @pytest.fixture
+    def synthetic_two_block(self) -> tuple[dict, pd.DataFrame, pd.DataFrame]:
+        rng = np.random.default_rng(42)
+        n_rows = 50
+        latent = rng.standard_normal((n_rows, 2))
+        block_a = latent @ rng.standard_normal((2, 6)) + 0.05 * rng.standard_normal((n_rows, 6))
+        block_b = latent @ rng.standard_normal((2, 4)) + 0.05 * rng.standard_normal((n_rows, 4))
+        y_block = latent @ rng.standard_normal((2, 2)) + 0.05 * rng.standard_normal((n_rows, 2))
+        x_blocks = {
+            "A": pd.DataFrame(block_a, columns=[f"a{i}" for i in range(6)]),
+            "B": pd.DataFrame(block_b, columns=[f"b{i}" for i in range(4)]),
+        }
+        y_df = pd.DataFrame(y_block, columns=["y0", "y1"])
+        # Pre-scaled versions for the oracle (which expects already-preprocessed numpy)
+        from process_improve.multivariate.methods import MCUVScaler
 
-        raise ImportError("MBPLS not yet implemented")
+        x_pp = [MCUVScaler().fit_transform(x_blocks[k]).values for k in ("A", "B")]
+        y_pp = MCUVScaler().fit_transform(y_df).values
+        return x_blocks, y_df, (x_pp, y_pp)
 
-    def test_super_weight_unit_norm(self) -> None:
-        from process_improve.multivariate.methods import MBPLS  # noqa: F401
+    def test_super_scores_match_oracle(self, synthetic_two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+        from tests._multiblock_oracles import mbpls_full_multiblock
 
-        raise ImportError("MBPLS not yet implemented")
+        x_blocks, y_df, (x_pp, y_pp) = synthetic_two_block
+        oracle = mbpls_full_multiblock(x_pp, y_pp, n_components=2)
+        model = MBPLS(n_components=2).fit(x_blocks, y_df)
+        np.testing.assert_array_almost_equal(
+            np.abs(model.super_scores_.values), np.abs(oracle.super_scores), decimal=6
+        )
 
-    def test_y_prediction_matches_single_block_pls(self) -> None:
-        from process_improve.multivariate.methods import MBPLS  # noqa: F401
+    def test_super_weights_match_oracle(self, synthetic_two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+        from tests._multiblock_oracles import mbpls_full_multiblock
 
-        raise ImportError("MBPLS not yet implemented")
+        x_blocks, y_df, (x_pp, y_pp) = synthetic_two_block
+        oracle = mbpls_full_multiblock(x_pp, y_pp, n_components=2)
+        model = MBPLS(n_components=2).fit(x_blocks, y_df)
+        np.testing.assert_array_almost_equal(
+            np.abs(model.super_weights_.values), np.abs(oracle.super_weights), decimal=6
+        )
+
+    def test_block_weights_match_oracle(self, synthetic_two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+        from tests._multiblock_oracles import mbpls_full_multiblock
+
+        x_blocks, y_df, (x_pp, y_pp) = synthetic_two_block
+        oracle = mbpls_full_multiblock(x_pp, y_pp, n_components=2)
+        model = MBPLS(n_components=2).fit(x_blocks, y_df)
+        for b_idx, name in enumerate(("A", "B")):
+            np.testing.assert_array_almost_equal(
+                np.abs(model.block_weights_[name].values), np.abs(oracle.block_weights[b_idx]), decimal=6
+            )
+
+    def test_block_loadings_match_oracle(self, synthetic_two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+        from tests._multiblock_oracles import mbpls_full_multiblock
+
+        x_blocks, y_df, (x_pp, y_pp) = synthetic_two_block
+        oracle = mbpls_full_multiblock(x_pp, y_pp, n_components=2)
+        model = MBPLS(n_components=2).fit(x_blocks, y_df)
+        for b_idx, name in enumerate(("A", "B")):
+            np.testing.assert_array_almost_equal(
+                np.abs(model.block_loadings_[name].values), np.abs(oracle.block_loadings[b_idx]), decimal=6
+            )
+
+    def test_y_predictions_match_oracle(self, synthetic_two_block) -> None:
+        # Predictions involve the product of two sign-flipped quantities
+        # (super_scores * super_y_loadings), so the comparison is direct.
+        from process_improve.multivariate.methods import MBPLS, MCUVScaler
+        from tests._multiblock_oracles import mbpls_full_multiblock
+
+        x_blocks, y_df, (x_pp, y_pp) = synthetic_two_block
+        oracle = mbpls_full_multiblock(x_pp, y_pp, n_components=2)
+        # Oracle predictions are on the preprocessed scale; un-preprocess for comparison.
+        y_scaler = MCUVScaler().fit(y_df)
+        oracle_predictions = y_scaler.inverse_transform(
+            pd.DataFrame(oracle.y_predictions, columns=y_df.columns)
+        )
+        model = MBPLS(n_components=2).fit(x_blocks, y_df)
+        np.testing.assert_array_almost_equal(model.predictions_.values, oracle_predictions.values, decimal=6)
+
+    def test_super_weight_columns_have_unit_norm(self, synthetic_two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df, _ = synthetic_two_block
+        model = MBPLS(n_components=2).fit(x_blocks, y_df)
+        norms = np.linalg.norm(model.super_weights_.values, axis=0)
+        np.testing.assert_array_almost_equal(norms, np.ones_like(norms), decimal=8)
+
+    def test_block_weight_columns_have_unit_norm(self, synthetic_two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df, _ = synthetic_two_block
+        model = MBPLS(n_components=2).fit(x_blocks, y_df)
+        for name in model.block_names_:
+            norms = np.linalg.norm(model.block_weights_[name].values, axis=0)
+            np.testing.assert_array_almost_equal(norms, np.ones_like(norms), decimal=8)
+
+    def test_predict_on_training_data_reproduces_in_sample_predictions(self, synthetic_two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df, _ = synthetic_two_block
+        model = MBPLS(n_components=2).fit(x_blocks, y_df)
+        result = model.predict(x_blocks)
+        np.testing.assert_array_almost_equal(result.predictions.values, model.predictions_.values, decimal=10)
+        np.testing.assert_array_almost_equal(result.super_scores.values, model.super_scores_.values, decimal=10)
+
+
+class TestMBPLSOnLDPE:
+    """MBPLS on the LDPE tubular reactor dataset.
+
+    The legacy ``test_mbpls.m`` splits the LDPE X-matrix by reactor zone:
+    block 1 = vars 1, 2, 3, 6, 8, 10, 12, 14 (zone 1); block 2 = vars
+    4, 5, 7, 9, 11, 13 (zone 2). When the per-block weighting is correct
+    the MBPLS super-score must equal the single-block PLS score from the
+    column-stacked, block-weighted X.
+    """
+
+    @pytest.fixture
+    def ldpe(self) -> tuple[dict, pd.DataFrame]:
+        import pathlib
+
+        folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "multivariate" / "LDPE"
+        values = pd.read_csv(folder / "LDPE.csv", index_col=0)
+        # MATLAB 1-based -> Python 0-based
+        zone_1_idx = [0, 1, 2, 5, 7, 9, 11, 13]
+        zone_2_idx = [3, 4, 6, 8, 10, 12]
+        x_blocks = {
+            "zone1": values.iloc[:, zone_1_idx],
+            "zone2": values.iloc[:, zone_2_idx],
+        }
+        y_df = values.iloc[:, 14:]
+        return x_blocks, y_df
+
+    def test_fit_runs_and_stores_expected_attributes(self, ldpe) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        model = MBPLS(n_components=3).fit(x_blocks, y_df)
+        assert model.super_scores_.shape == (54, 3)
+        assert model.super_y_scores_.shape == (54, 3)
+        assert model.super_weights_.shape == (2, 3)
+        assert model.block_scores_["zone1"].shape == (54, 3)
+        assert model.block_scores_["zone2"].shape == (54, 3)
+        assert model.block_weights_["zone1"].shape == (8, 3)
+        assert model.block_weights_["zone2"].shape == (6, 3)
+        assert model.predictions_.shape == (54, 5)
+
+    def test_super_score_matches_single_block_pls_with_block_weighting(self, ldpe) -> None:
+        """When all variables are in one big-X with sqrt(K_b) weighting per block,
+        single-block PLS produces the same super-score as MBPLS.
+        """
+        from process_improve.multivariate.methods import MBPLS, MCUVScaler
+        from tests._multiblock_oracles import mbpls_merged_then_recover
+
+        x_blocks, y_df = ldpe
+        # Path A: oracle merged-then-recover (verified self-consistent)
+        x_pp = [MCUVScaler().fit_transform(x_blocks[k]).values for k in ("zone1", "zone2")]
+        y_pp = MCUVScaler().fit_transform(y_df).values
+        oracle = mbpls_merged_then_recover(x_pp, y_pp, n_components=2)
+        # Path B: production MBPLS
+        model = MBPLS(n_components=2).fit(x_blocks, y_df)
+        np.testing.assert_array_almost_equal(
+            np.abs(model.super_scores_.values), np.abs(oracle.super_scores), decimal=5
+        )
 
 
 # ---------------------------------------------------------------------------

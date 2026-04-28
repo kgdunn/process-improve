@@ -3265,6 +3265,348 @@ class TPLS(RegressorMixin, BaseEstimator):
     #    return 1.0 - (total_ss_res / total_ss_tot)
 
 
+class MBPLS(RegressorMixin, BaseEstimator):
+    r"""Multi-block PLS (hierarchical / superblock formulation).
+
+    Generic multi-block PLS as described by Westerhuis, Kourti & MacGregor
+    (1998) and Westerhuis & Smilde (2001). Each X-block is preprocessed
+    independently (mean-centred and unit-variance scaled), then divided by
+    ``sqrt(K_b)`` so that blocks of unequal width contribute fairly to the
+    super-score.
+
+    Parameters
+    ----------
+    n_components : int
+        Number of latent variables to extract.
+    max_iter : int, default=500
+        Maximum NIPALS iterations per latent variable.
+    tol : float or None, default=None
+        Convergence tolerance on the change in the Y-block score. If
+        ``None``, ``np.finfo(float).eps ** (6/7)`` is used (matching the
+        legacy multi-block reference implementation).
+
+    Attributes (after fitting)
+    --------------------------
+    block_names_ : list[str]
+        Ordered list of X-block names (the keys of the input dict).
+    block_widths_ : dict[str, int]
+        Number of variables in each X-block.
+    super_scores_ : pd.DataFrame, shape (n_samples, n_components)
+        Super-block (consensus) X-scores ``T``.
+    super_y_scores_ : pd.DataFrame, shape (n_samples, n_components)
+        Super-block Y-scores ``U``.
+    super_weights_ : pd.DataFrame, shape (n_blocks, n_components)
+        Super-block weights ``w_super``; rows indexed by block name.
+    super_y_loadings_ : pd.DataFrame, shape (n_targets, n_components)
+        Y-block loadings ``c``.
+    block_scores_ : dict[str, pd.DataFrame]
+        Per-block X-scores ``t_b``, each shape ``(n_samples, n_components)``.
+    block_weights_ : dict[str, pd.DataFrame]
+        Per-block X-weights ``w_b``, each shape ``(K_b, n_components)``.
+        Each column has unit norm.
+    block_loadings_ : dict[str, pd.DataFrame]
+        Per-block X-loadings ``p_b`` (used for deflation), each shape
+        ``(K_b, n_components)``.
+    predictions_ : pd.DataFrame, shape (n_samples, n_targets)
+        In-sample Y predictions on the *original* scale.
+    explained_variance_ : np.ndarray, shape (n_components,)
+        Variance of the super-score per component (ddof=1).
+    scaling_factor_for_super_scores_ : pd.Series
+        ``sqrt(explained_variance_)`` per component.
+    fitting_info_ : dict
+        Per-component iteration count and timing.
+    has_missing_data_ : bool
+        Whether any X-block or Y had NaN values.
+
+    Notes
+    -----
+    Block weighting uses the convention :math:`X_b / \sqrt{K_b}` so that
+    every block contributes the same total sum of squares to the
+    super-score, regardless of how many variables it has.
+
+    References
+    ----------
+    Westerhuis, J. A., Kourti, T. & MacGregor, J. F. *Analysis of
+    multiblock and hierarchical PCA and PLS models.* Journal of
+    Chemometrics, 12 (1998), 301-321.
+
+    Westerhuis, J. A. & Smilde, A. K. *Deflation in multiblock PLS.*
+    Journal of Chemometrics, 15 (2001), 485-493.
+    """
+
+    _parameter_constraints: typing.ClassVar = {
+        "n_components": [int],
+        "max_iter": [int],
+        "tol": [float, None],
+    }
+
+    def __init__(
+        self,
+        n_components: int,
+        *,
+        max_iter: int = 500,
+        tol: float | None = None,
+    ):
+        super().__init__()
+        assert n_components > 0, "Number of components must be positive."
+        assert max_iter > 0, "max_iter must be positive."
+        self.n_components = n_components
+        self.max_iter = max_iter
+        self.tol = tol
+
+    @_fit_context(prefer_skip_nested_validation=True)
+    def fit(self, X: dict[str, pd.DataFrame], y: pd.DataFrame) -> MBPLS:  # noqa: C901, PLR0912, PLR0915
+        """Fit the multi-block PLS model.
+
+        Parameters
+        ----------
+        X : dict[str, pd.DataFrame]
+            X-blocks. Keys are block names; values are DataFrames sharing the
+            same row index (and row count). Each block is preprocessed
+            independently.
+        y : pd.DataFrame
+            Y-block. Same row index / row count as the X-blocks.
+        """
+        if not isinstance(X, dict) or len(X) == 0:
+            raise TypeError("X must be a non-empty dict[str, pd.DataFrame].")
+        if not isinstance(y, pd.DataFrame):
+            y = pd.DataFrame(y)
+        for name, block in X.items():
+            if not isinstance(block, pd.DataFrame):
+                raise TypeError(f"X['{name}'] must be a pandas DataFrame; got {type(block).__name__}.")
+
+        self.block_names_: list[str] = list(X.keys())
+        first = X[self.block_names_[0]]
+        n_samples = first.shape[0]
+        for name in self.block_names_:
+            if X[name].shape[0] != n_samples:
+                raise ValueError(
+                    f"All X-blocks must have the same row count. Block '{name}' has "
+                    f"{X[name].shape[0]} rows; expected {n_samples}."
+                )
+        if y.shape[0] != n_samples:
+            raise ValueError(f"y has {y.shape[0]} rows; expected {n_samples} to match X-blocks.")
+
+        self.block_widths_: dict[str, int] = {name: int(X[name].shape[1]) for name in self.block_names_}
+        self._sample_index = first.index
+        self._y_columns = y.columns
+        self._block_columns: dict[str, pd.Index] = {name: X[name].columns for name in self.block_names_}
+
+        self.n_samples_ = int(n_samples)
+        self.n_targets_ = int(y.shape[1])
+        self.n_features_in_ = int(sum(self.block_widths_.values()))
+        n_components = int(self.n_components)
+        n_blocks = len(self.block_names_)
+
+        self.has_missing_data_ = any(np.any(X[name].isna().values) for name in self.block_names_) or bool(
+            np.any(y.isna().values)
+        )
+        if self.has_missing_data_:
+            raise NotImplementedError(
+                "MBPLS does not yet support missing data. Drop or impute NaN values before fitting."
+            )
+
+        # Preprocess each X-block and Y independently
+        self.preproc_: dict[str, MCUVScaler] = {name: MCUVScaler().fit(X[name]) for name in self.block_names_}
+        self.y_preproc_ = MCUVScaler().fit(y)
+        x_blocks_pp: dict[str, np.ndarray] = {
+            name: self.preproc_[name].transform(X[name]).values.astype(float) for name in self.block_names_
+        }
+        y_pp = self.y_preproc_.transform(y).values.astype(float)
+
+        # Algorithmic block weighting: X_b / sqrt(K_b)
+        sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
+
+        # Storage (numpy arrays during fit; wrapped in pandas at the end)
+        super_scores_np = np.zeros((n_samples, n_components))
+        super_y_scores_np = np.zeros((n_samples, n_components))
+        super_weights_np = np.zeros((n_blocks, n_components))
+        super_y_loadings_np = np.zeros((self.n_targets_, n_components))
+        block_scores_np: dict[str, np.ndarray] = {
+            name: np.zeros((n_samples, n_components)) for name in self.block_names_
+        }
+        block_weights_np: dict[str, np.ndarray] = {
+            name: np.zeros((self.block_widths_[name], n_components)) for name in self.block_names_
+        }
+        block_loadings_np: dict[str, np.ndarray] = {
+            name: np.zeros((self.block_widths_[name], n_components)) for name in self.block_names_
+        }
+
+        x_def: dict[str, np.ndarray] = {name: x_blocks_pp[name].copy() for name in self.block_names_}
+        y_def = y_pp.copy()
+
+        tol = float(np.finfo(float).eps ** (6 / 7)) if self.tol is None else float(self.tol)
+        timing = np.zeros(n_components)
+        iterations = np.zeros(n_components, dtype=int)
+        rng = np.random.default_rng(0)
+
+        for a in range(n_components):
+            start = time.time()
+            u_a = rng.standard_normal(n_samples)
+            prev = u_a * 2
+            local_w: dict[str, np.ndarray] = {}
+            local_t: dict[str, np.ndarray] = {}
+            t_b_summary = np.zeros((n_samples, n_blocks))
+            t_super = np.zeros(n_samples)
+            w_s = np.zeros(n_blocks)
+            c_a = np.zeros(self.n_targets_)
+            itern = 0
+            while np.linalg.norm(prev - u_a) > tol and itern < self.max_iter:
+                prev = u_a
+                for b_idx, name in enumerate(self.block_names_):
+                    w_b = x_def[name].T @ u_a / (u_a @ u_a)
+                    w_b = w_b / np.linalg.norm(w_b)
+                    t_b = x_def[name] @ w_b / (w_b @ w_b) / sqrt_kb[name]
+                    local_w[name] = w_b
+                    local_t[name] = t_b
+                    t_b_summary[:, b_idx] = t_b
+
+                w_s = t_b_summary.T @ u_a / (u_a @ u_a)
+                w_s = w_s / np.linalg.norm(w_s)
+                t_super = t_b_summary @ w_s / (w_s @ w_s)
+                c_a = y_def.T @ t_super / (t_super @ t_super)
+                u_a = y_def @ c_a / (c_a @ c_a)
+                itern += 1
+
+            # Sign convention: largest |w_super| element positive
+            flip_idx = int(np.argmax(np.abs(w_s)))
+            if w_s[flip_idx] < 0:
+                w_s = -w_s
+                t_super = -t_super
+                u_a = -u_a
+                c_a = -c_a
+                for name in self.block_names_:
+                    local_w[name] = -local_w[name]
+                    local_t[name] = -local_t[name]
+
+            # Deflate using the super-score
+            for name in self.block_names_:
+                p_b = x_def[name].T @ t_super / (t_super @ t_super)
+                x_def[name] = x_def[name] - np.outer(t_super, p_b)
+                block_loadings_np[name][:, a] = p_b
+                block_weights_np[name][:, a] = local_w[name]
+                block_scores_np[name][:, a] = local_t[name]
+            y_def = y_def - np.outer(t_super, c_a)
+
+            super_scores_np[:, a] = t_super
+            super_y_scores_np[:, a] = u_a
+            super_weights_np[:, a] = w_s
+            super_y_loadings_np[:, a] = c_a
+
+            timing[a] = time.time() - start
+            iterations[a] = itern
+
+        component_names = list(range(1, n_components + 1))
+        self.super_scores_ = pd.DataFrame(super_scores_np, index=self._sample_index, columns=component_names)
+        self.super_y_scores_ = pd.DataFrame(super_y_scores_np, index=self._sample_index, columns=component_names)
+        self.super_weights_ = pd.DataFrame(super_weights_np, index=self.block_names_, columns=component_names)
+        self.super_y_loadings_ = pd.DataFrame(super_y_loadings_np, index=self._y_columns, columns=component_names)
+
+        self.block_scores_ = {
+            name: pd.DataFrame(block_scores_np[name], index=self._sample_index, columns=component_names)
+            for name in self.block_names_
+        }
+        self.block_weights_ = {
+            name: pd.DataFrame(
+                block_weights_np[name], index=self._block_columns[name], columns=component_names
+            )
+            for name in self.block_names_
+        }
+        self.block_loadings_ = {
+            name: pd.DataFrame(
+                block_loadings_np[name], index=self._block_columns[name], columns=component_names
+            )
+            for name in self.block_names_
+        }
+
+        # In-sample predictions on the original Y scale
+        y_hat_pp = super_scores_np @ super_y_loadings_np.T
+        y_hat = self.y_preproc_.inverse_transform(pd.DataFrame(y_hat_pp, columns=self._y_columns))
+        y_hat.index = self._sample_index
+        self.predictions_ = y_hat
+
+        self.explained_variance_ = np.diag(super_scores_np.T @ super_scores_np) / max(1, n_samples - 1)
+        self.scaling_factor_for_super_scores_ = pd.Series(
+            np.sqrt(self.explained_variance_), index=component_names, name="Standard deviation per super-score"
+        )
+        self.fitting_info_ = {"timing": timing, "iterations": iterations}
+
+        return self
+
+    def transform(self, X: dict[str, pd.DataFrame]) -> pd.DataFrame:
+        """Project new data to super-scores using the fitted model."""
+        check_is_fitted(self, "super_weights_")
+        return self._project(X).super_scores
+
+    def predict(self, X: dict[str, pd.DataFrame]) -> Bunch:
+        """Project new data and predict Y on the original scale.
+
+        Returns a :class:`sklearn.utils.Bunch` with fields ``super_scores``,
+        ``block_scores`` (dict[str, DataFrame]) and ``predictions`` (DataFrame
+        on original Y scale).
+        """
+        check_is_fitted(self, "super_weights_")
+        return self._project(X)
+
+    def _project(self, X: dict[str, pd.DataFrame]) -> Bunch:
+        if not isinstance(X, dict):
+            raise TypeError("X must be a dict[str, pd.DataFrame].")
+        missing = set(self.block_names_) - set(X)
+        if missing:
+            raise ValueError(f"Missing X-blocks for prediction: {sorted(missing)}.")
+
+        # Preprocess each block
+        x_pp: dict[str, np.ndarray] = {}
+        sample_index = None
+        for name in self.block_names_:
+            block = X[name]
+            if not isinstance(block, pd.DataFrame):
+                block = pd.DataFrame(block, columns=self._block_columns[name])
+            if block.shape[1] != self.block_widths_[name]:
+                raise ValueError(
+                    f"Block '{name}' must have {self.block_widths_[name]} columns; got {block.shape[1]}."
+                )
+            x_pp[name] = self.preproc_[name].transform(block).values.astype(float)
+            if sample_index is None:
+                sample_index = block.index
+
+        n_components = int(self.n_components)
+        n_new = next(iter(x_pp.values())).shape[0]
+        sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
+
+        super_scores = np.zeros((n_new, n_components))
+        block_scores: dict[str, np.ndarray] = {
+            name: np.zeros((n_new, n_components)) for name in self.block_names_
+        }
+
+        x_def = {name: x_pp[name].copy() for name in self.block_names_}
+        for a in range(n_components):
+            t_b_row = np.zeros((n_new, len(self.block_names_)))
+            for b_idx, name in enumerate(self.block_names_):
+                w_b = self.block_weights_[name].values[:, a]
+                t_b = x_def[name] @ w_b / sqrt_kb[name]
+                block_scores[name][:, a] = t_b
+                t_b_row[:, b_idx] = t_b
+            w_s = self.super_weights_.values[:, a]
+            t_super = t_b_row @ w_s
+            super_scores[:, a] = t_super
+            for name in self.block_names_:
+                p_b = self.block_loadings_[name].values[:, a]
+                x_def[name] = x_def[name] - np.outer(t_super, p_b)
+
+        component_names = list(range(1, n_components + 1))
+        super_scores_df = pd.DataFrame(super_scores, index=sample_index, columns=component_names)
+        block_scores_df = {
+            name: pd.DataFrame(block_scores[name], index=sample_index, columns=component_names)
+            for name in self.block_names_
+        }
+        y_hat_pp = super_scores @ self.super_y_loadings_.values.T
+        predictions = self.y_preproc_.inverse_transform(pd.DataFrame(y_hat_pp, columns=self._y_columns))
+        predictions.index = sample_index
+
+        return Bunch(super_scores=super_scores_df, block_scores=block_scores_df, predictions=predictions)
+
+
 class Plot:
     """Create plots of estimators."""
 
