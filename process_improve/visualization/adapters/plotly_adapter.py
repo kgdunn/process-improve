@@ -200,13 +200,19 @@ class PlotlyAdapter(AbstractAdapter):
         y_vals: list,
     ) -> go.Bar:
         colors = layer.style.get("colors")
-        return go.Bar(
-            x=x_vals,
-            y=y_vals,
-            name=layer.name,
-            marker=dict(color=colors or layer.color or DOE_PALETTE["primary"]),
-            opacity=layer.opacity,
-        )
+        kwargs: dict[str, Any] = {
+            "x": x_vals,
+            "y": y_vals,
+            "name": layer.name,
+            "marker": dict(color=colors or layer.color or DOE_PALETTE["primary"]),
+            "opacity": layer.opacity,
+        }
+        error_y = layer.style.get("error_y")
+        if error_y is not None:
+            arr = [abs(float(e)) if e is not None else 0.0 for e in error_y]
+            if any(v > 0 for v in arr):
+                kwargs["error_y"] = dict(type="data", array=arr, visible=True)
+        return go.Bar(**kwargs)
 
     def _line_trace(
         self,

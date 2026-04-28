@@ -89,10 +89,7 @@ class EChartsAdapter(AbstractAdapter):
         mark_lines, mark_areas = self._collect_annotations(panel.annotations)
         if series and (mark_lines or mark_areas):
             if mark_lines:
-                series[0].setdefault("markLine", {})
-                series[0]["markLine"]["data"] = mark_lines
-                series[0]["markLine"]["silent"] = True
-                series[0]["markLine"]["symbol"] = "none"
+                self._merge_mark_lines(series[0], mark_lines)
             if mark_areas:
                 series[0].setdefault("markArea", {})
                 series[0]["markArea"]["data"] = mark_areas
@@ -182,10 +179,7 @@ class EChartsAdapter(AbstractAdapter):
             if all_series and (mark_lines or mark_areas):
                 last_series = all_series[-1]
                 if mark_lines:
-                    last_series.setdefault("markLine", {})
-                    last_series["markLine"]["data"] = mark_lines
-                    last_series["markLine"]["silent"] = True
-                    last_series["markLine"]["symbol"] = "none"
+                    self._merge_mark_lines(last_series, mark_lines)
                 if mark_areas:
                     last_series.setdefault("markArea", {})
                     last_series["markArea"]["data"] = mark_areas
@@ -257,6 +251,30 @@ class EChartsAdapter(AbstractAdapter):
             ]
         elif layer.color:
             series["itemStyle"] = {"color": layer.color}
+
+        error_y = layer.style.get("error_y")
+        if error_y and layer.x:
+            categories = [row[layer.x.field] for row in layer.data]
+            mark_data: list[list[dict[str, Any]]] = []
+            for cat, value, err in zip(categories, data, error_y):  # noqa: B905
+                if err is None:
+                    continue
+                err_abs = abs(float(err))
+                if err_abs <= 0:
+                    continue
+                low = max(0.0, float(value) - err_abs)
+                high = float(value) + err_abs
+                mark_data.append([
+                    {"coord": [cat, low], "symbol": "none"},
+                    {"coord": [cat, high], "symbol": "none"},
+                ])
+            if mark_data:
+                series["markLine"] = {
+                    "silent": True,
+                    "symbol": ["none", "none"],
+                    "lineStyle": {"color": "#333", "width": 1.5},
+                    "data": mark_data,
+                }
         return series
 
     def _line_series(self, layer: LayerSpec) -> dict[str, Any]:
@@ -480,6 +498,22 @@ class EChartsAdapter(AbstractAdapter):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _merge_mark_lines(
+        self,
+        series: dict[str, Any],
+        new_lines: list[dict[str, Any]],
+    ) -> None:
+        """Append annotation markLines to a series, preserving any existing
+        per-series markLines (e.g. bar-layer error bars).
+        """
+        existing = series.setdefault("markLine", {})
+        if "data" in existing:
+            existing["data"] = list(existing["data"]) + list(new_lines)
+        else:
+            existing["data"] = list(new_lines)
+            existing.setdefault("silent", True)
+            existing.setdefault("symbol", "none")
 
     def _paired_data(self, layer: LayerSpec) -> list[list]:
         """Build ECharts ``[[x, y], ...]`` paired data from a layer."""

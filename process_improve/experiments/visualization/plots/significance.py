@@ -74,15 +74,24 @@ class ParetoPlot(BasePlot):
             for _, v in sorted_items
         ]
 
+        # Per-bar error half-widths.  Source of truth (in priority order):
+        # 1. ``effect_std_errors`` from a replicated-design fit, or
+        # 2. Lenth's PSE applied uniformly to every effect for an
+        #    unreplicated design.
+        error_bars = self._effect_error_bars(names)
+
         # --- Layers ---
         bar_data = [{"name": n, "abs_effect": v} for n, v in zip(names, abs_vals)]  # noqa: B905
+        bar_style: dict[str, object] = {"colors": bar_colors}
+        if error_bars is not None:
+            bar_style["error_y"] = error_bars
         bar_layer = LayerSpec(
             mark=MarkType.bar,
             data=bar_data,
             x=Encoding(field="name", scale=ScaleType.category),
             y=Encoding(field="abs_effect", title="|Effect|"),
             name="Absolute Effect",
-            style={"colors": bar_colors},
+            style=bar_style,
         )
 
         cum_data = [{"name": n, "cum_pct": p} for n, p in zip(names, cum_pct)]  # noqa: B905
@@ -128,6 +137,33 @@ class ParetoPlot(BasePlot):
             title="Pareto Chart of Effects",
             plot_type="pareto",
         )
+
+    def _effect_error_bars(self, names: list[str]) -> list[float] | None:
+        """Resolve per-effect error-bar half-widths for the Pareto plot.
+
+        Parameters
+        ----------
+        names : list[str]
+            Term names in display order.
+
+        Returns
+        -------
+        list[float] or None
+            One non-negative half-width per term, or ``None`` if no
+            error information is available.
+        """
+        std_errors = self.analysis_results.get("effect_std_errors")
+        if isinstance(std_errors, dict) and std_errors:
+            resolved = [std_errors.get(n) for n in names]
+            if any(v is not None for v in resolved):
+                return [abs(float(v)) if v is not None else 0.0 for v in resolved]
+
+        lenth = self._get_lenth()
+        pse = lenth.get("PSE") if lenth else None
+        if pse is not None:
+            return [abs(float(pse))] * len(names)
+
+        return None
 
 
 # ---------------------------------------------------------------------------

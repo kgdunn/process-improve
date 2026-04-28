@@ -199,6 +199,87 @@ class TestParetoPlot:
         spec = plot.to_spec()
         assert "no effects" in spec.title.lower() or spec.plot_type == "pareto"
 
+    def test_no_error_bars_without_uncertainty(self, two_factor_effects: dict) -> None:
+        """Bar layer should not carry error_y when no uncertainty info supplied."""
+        plot = create_plot("pareto", analysis_results={"effects": two_factor_effects})
+        spec = plot.to_spec()
+        bar_layer = spec.panels[0].layers[0]
+        assert "error_y" not in bar_layer.style
+
+    def test_error_bars_from_effect_std_errors(self, two_factor_effects: dict) -> None:
+        """``effect_std_errors`` should drive per-bar error bars sorted with the bars."""
+        std_errors = {"A": 0.5, "B": 0.4, "A:B": 0.3}
+        plot = create_plot(
+            "pareto",
+            analysis_results={
+                "effects": two_factor_effects,
+                "effect_std_errors": std_errors,
+            },
+        )
+        spec = plot.to_spec()
+        bar_layer = spec.panels[0].layers[0]
+        names = [row["name"] for row in bar_layer.data]
+        expected = [std_errors[n] for n in names]
+        assert bar_layer.style["error_y"] == pytest.approx(expected)
+
+    def test_error_bars_fall_back_to_lenth_pse(
+        self,
+        three_factor_effects: dict,
+        lenth_data: dict,
+    ) -> None:
+        """Without explicit std errors, Lenth's PSE should populate uniform error bars."""
+        plot = create_plot(
+            "pareto",
+            analysis_results={"effects": three_factor_effects, "lenth_method": lenth_data},
+        )
+        spec = plot.to_spec()
+        bar_layer = spec.panels[0].layers[0]
+        errors = bar_layer.style["error_y"]
+        assert len(errors) == len(three_factor_effects)
+        assert all(e == pytest.approx(lenth_data["PSE"]) for e in errors)
+
+    def test_plotly_renders_error_bars(self, two_factor_effects: dict) -> None:
+        """Plotly bar trace should expose ``error_y`` when uncertainty is present."""
+        plot = create_plot(
+            "pareto",
+            analysis_results={
+                "effects": two_factor_effects,
+                "effect_std_errors": {"A": 0.5, "B": 0.4, "A:B": 0.3},
+            },
+        )
+        fig_dict = plot.to_plotly()
+        bar_traces = [t for t in fig_dict["data"] if t.get("type") == "bar"]
+        assert bar_traces
+        err = bar_traces[0].get("error_y")
+        assert err is not None
+        assert err.get("visible") is True
+        assert len(err["array"]) == 3
+
+    def test_echarts_renders_error_bars_alongside_thresholds(
+        self,
+        two_factor_effects: dict,
+        lenth_data: dict,
+    ) -> None:
+        """ECharts bar series should carry markLine pairs for error bars,
+        and Lenth threshold annotations must coexist with them.
+        """
+        plot = create_plot(
+            "pareto",
+            analysis_results={
+                "effects": two_factor_effects,
+                "effect_std_errors": {"A": 0.5, "B": 0.4, "A:B": 0.3},
+                "lenth_method": lenth_data,
+            },
+        )
+        config = plot.to_echarts()
+        bar_series = next(s for s in config["series"] if s["type"] == "bar")
+        mark_data = bar_series["markLine"]["data"]
+        # Three error-bar pairs (each is [start, end]) + ME + SME annotations
+        pair_entries = [d for d in mark_data if isinstance(d, list)]
+        threshold_entries = [d for d in mark_data if isinstance(d, dict)]
+        assert len(pair_entries) == 3
+        assert len(threshold_entries) >= 1
+
 
 class TestHalfNormalPlot:
     def test_spec_structure(self, three_factor_effects: dict) -> None:
