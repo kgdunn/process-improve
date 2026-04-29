@@ -8,8 +8,9 @@ end (success path) and, where cheap, also exercises its except-branch.
 
 from __future__ import annotations
 
-# Import the experiments tools module so its @tool_spec registrations run.
-import process_improve.experiments.tools  # noqa: F401
+# execute_tool_call calls discover_tools(), which imports
+# process_improve.experiments.tools and triggers all @tool_spec
+# registrations - no explicit import is needed here.
 from process_improve.tool_spec import execute_tool_call
 
 # ---------------------------------------------------------------------------
