@@ -8,8 +8,6 @@ sitting at 0% coverage.
 
 from __future__ import annotations
 
-import pandas as pd
-
 from process_improve.experiments import datasets
 
 
@@ -47,5 +45,7 @@ def test_data_dispatch_signature_typed() -> None:
     """``datasets.data`` is the planned dispatcher; verify its signature
     is preserved so we notice if it is later refactored away.
     """
-    # The annotation is stored as a string under PEP 563 (`from __future__ import annotations`).
+    # The annotation is stored as a string under PEP 563
+    # (``from __future__ import annotations``).
     assert datasets.data.__annotations__["return"] == "pd.DataFrame"
+    assert datasets.data.__annotations__["dataset"] == "str"
