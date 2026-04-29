@@ -113,3 +113,24 @@
 ## Visualization
 
 - [ ] Implement `raincloud` — currently a stub that returns `None`. (#89, visualization/plots.py:4)
+
+## Tests
+
+- [ ] Flesh out partial / placeholder test bodies — R cross-checks, SPE-vs-Simca-P comparison, Plotly assertions, etc. (tests/test_multivariate.py:388, tests/test_multivariate.py:413, tests/test_multivariate.py:478, tests/test_multivariate.py:703, tests/test_multivariate.py:747, tests/test_multivariate.py:1012, tests/test_multivariate.py:1226, tests/test_multivariate.py:1246, tests/test_multivariate.py:1309, tests/test_multivariate.py:2073, tests/test_multivariate.py:2220)
+- [ ] Investigate the sequence that yields Sn = 0 despite variability. (tests/test_univariate.py:113)
+- [ ] Complete the robust-case test. (tests/test_univariate.py:394)
+- [ ] Address the bare `# TODO`. (tests/test_univariate.py:843)
+- [ ] Add NaN-at-start example. (tests/test_monitoring.py:116)
+- [ ] Add NaN-in-warm-up example. (tests/test_monitoring.py:117)
+- [ ] Migrate from `unittest` to `pytest`. (tests/test_doe.py:194)
+- [ ] Switch to `pathlib.Path`. (tests/test_doe.py:195)
+- [ ] Add pandas-Series input tests. (tests/test_regression.py:19)
+- [ ] Handle NaN in vectors. (tests/test_regression.py:20)
+- [ ] Add shape edge cases (5×2 / 7×1, 5×4 / 5×1, 5×5+intercept failure). (tests/test_regression.py:112, tests/test_regression.py:113, tests/test_regression.py:114)
+- [ ] Test the `age` column. (tests/batch/test_features.py:73)
+- [ ] Tighten the test depending on how DTW termination is finalised. (tests/batch/test_preprocessing.py:215)
+
+## Documentation
+
+- [ ] Add documentation (general carry-over). (TODO.txt)
+- [ ] Update Quick Start link `https://kgdunn.github.io/process-improve/quickstart.html` if deployed docs path changes. (#119)
