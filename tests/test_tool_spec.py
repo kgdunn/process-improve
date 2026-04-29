@@ -697,3 +697,85 @@ class TestClean:
         """clean() should recurse into dicts and tuples."""
         result = clean({"a": (np.int64(1), np.float64(2.5)), "b": [np.int64(3)]})
         assert result == {"a": [1, 2.5], "b": [3]}
+
+
+# ---------------------------------------------------------------------------
+# scale_data and detect_multivariate_outliers wrappers in multivariate/tools.py
+# ---------------------------------------------------------------------------
+
+
+class TestScaleData:
+    """Cover the scale_data wrapper, including its except branch."""
+
+    def test_basic_mcuv_scaling(self) -> None:
+        result = execute_tool_call(
+            "scale_data",
+            {"data": [[1.0, 10.0], [2.0, 20.0], [3.0, 30.0], [4.0, 40.0]]},
+        )
+        assert "error" not in result
+        # Means should be the column means of the input.
+        assert pytest.approx(result["means"][0], rel=1e-6) == 2.5
+        assert pytest.approx(result["means"][1], rel=1e-6) == 25.0
+        # All scaled column std-devs should be 1.
+        scaled = np.asarray(result["scaled_data"])
+        assert pytest.approx(scaled.std(axis=0, ddof=1), rel=1e-6) == np.array([1.0, 1.0])
+
+    def test_with_column_names(self) -> None:
+        result = execute_tool_call(
+            "scale_data",
+            {
+                "data": [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]],
+                "column_names": ["temp", "pressure"],
+            },
+        )
+        assert "error" not in result
+        assert len(result["means"]) == 2
+        assert len(result["stds"]) == 2
+
+    def test_string_data_returns_error(self) -> None:
+        """Non-numeric input should be reported via the error key, not raised."""
+        result = execute_tool_call(
+            "scale_data",
+            {"data": [["x", "y"], ["a", "b"]]},
+        )
+        assert "error" in result
+
+
+class TestDetectMultivariateOutliers:
+    """Cover the detect_multivariate_outliers wrapper."""
+
+    def test_basic_outlier_detection(self) -> None:
+        rng = np.random.default_rng(42)
+        # Cluster of 50 normals + 1 obvious outlier.
+        clean_data = rng.standard_normal((50, 4)).tolist()
+        clean_data.append([100.0, 100.0, 100.0, 100.0])
+        result = execute_tool_call(
+            "detect_multivariate_outliers",
+            {"data": clean_data, "n_components": 2},
+        )
+        assert "error" not in result
+        assert "outlier_indices" in result
+        assert "t2_limit" in result
+        assert "spe_limit" in result
+
+    def test_custom_conf_level(self) -> None:
+        rng = np.random.default_rng(0)
+        data = rng.standard_normal((40, 3)).tolist()
+        result = execute_tool_call(
+            "detect_multivariate_outliers",
+            {"data": data, "n_components": 2, "conf_level": 0.99},
+        )
+        assert "error" not in result
+        # The 99% T2 limit must be larger than the 95% limit.
+        result_95 = execute_tool_call(
+            "detect_multivariate_outliers",
+            {"data": data, "n_components": 2, "conf_level": 0.95},
+        )
+        assert result["t2_limit"] >= result_95["t2_limit"]
+
+    def test_string_data_returns_error(self) -> None:
+        result = execute_tool_call(
+            "detect_multivariate_outliers",
+            {"data": [["x", "y"], ["a", "b"]], "n_components": 1},
+        )
+        assert "error" in result
