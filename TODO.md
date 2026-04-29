@@ -153,3 +153,43 @@
 - [ ] Downstream `factorial` reproducible-export service: read `spec["rng"]["seed_param"]` instead of the hardcoded `_DESIGN_SEED_KEYS` set. (#105)
 - [ ] Companion PR in `kgdunn/agentic-doe` wires the hosted backend through `safe_execute_tool_call`. (#91)
 - [ ] Land the unmerged tools-architecture restructure (PR #55 still open). (#55)
+
+## Reference snippets
+
+Preserved verbatim from the original `TODO.txt` so the context referenced by the
+checkboxes above is not lost.
+
+### `fill_na_values` — crude batch missing-value fill
+
+```python
+# Fill in missing values
+def fill_na_values(df):
+    "Very very crude method for now"
+    return df.fillna(method='bfill').fillna(method='ffill')
+
+missing_filled = {}
+for batch_id, batch in  df_dict.items():
+    missing_filled[batch_id] = fill_na_values(batch)
+```
+
+### Elbow-method reference
+
+- https://github.com/Mathemilda/Numeric_ElbowMethod_For_K-means/blob/master/EstimatedClusterNumberWithWCSS.py
+
+### Univariate references
+
+- Distribution check: https://www.itl.nist.gov/div898/handbook/eda/section3/eda35g.htm
+- Outlier detection: https://pyod.readthedocs.io/en/latest/
+- Grubbs / Tietjen-Moore: https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h1.htm
+- Multiple outliers: https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h3.htm
+- https://www.itl.nist.gov/div898//software/dataplot/refman1/auxillar/grubtest.htm
+- https://www.itl.nist.gov/div898//software/dataplot/refman1/auxillar/tietjen.htm
+
+### Holm post-hoc test reference
+
+- https://stats.libretexts.org/Bookshelves/Applied_Statistics/Book%3A_Learning_Statistics_with_R_-_A_tutorial_for_Psychology_Students_and_other_Beginners_(Navarro)/14%3A_Comparing_Several_Means_(One-way_ANOVA)/14.06%3A_Multiple_Comparisons_and_Post_Hoc_Tests
+
+### Multivariate references
+
+- PLS with TSR methods: https://riunet.upv.es/bitstream/id/303213/PCA%20model%20building%20with%20missing%20data%20new%20proposals%20and%20a%20comparative%20study%20-%20Folch-Fortuny.pdf
+- Robust PLS: S. Serneels, C. Croux, P. Filzmoser, P.J. Van Espen, *Partial Robust M-regression*, Chemometrics and Intelligent Laboratory Systems, 79 (2005), 55-64.
