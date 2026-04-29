@@ -8,6 +8,15 @@ from process_improve.regression.methods import (
     repeated_median_slope,
     robust_regression,
 )
+from process_improve.regression.tools import (
+    get_regression_tool_specs,
+)
+from process_improve.regression.tools import (
+    repeated_median as repeated_median_tool,
+)
+from process_improve.regression.tools import (
+    robust_regression as robust_regression_tool,
+)
 
 
 @pytest.fixture
@@ -626,3 +635,78 @@ def test_ols_missing_values_preserve_residual_shape() -> None:
     assert np.isnan(model.residuals_[3])
     assert model.intercept_ == pytest.approx(-0.25)
     assert model.coefficients_[0] == pytest.approx(1.75)
+
+
+# ---------------------------------------------------------------------------
+# Agent-tool wrappers: process_improve.regression.tools
+# ---------------------------------------------------------------------------
+
+
+def test_robust_regression_tool_recovers_known_line() -> None:
+    """The wrapper should recover the slope/intercept of an exact line."""
+    rng = np.random.default_rng(11)
+    x = list(np.arange(0.0, 10.0, 0.1))
+    y = [2.0 * xi + 1.0 + 0.01 * float(rng.standard_normal()) for xi in x]
+    result = robust_regression_tool(x=x, y=y)
+
+    assert "error" not in result
+    assert result["slope"] == pytest.approx(2.0, abs=0.05)
+    assert result["intercept"] == pytest.approx(1.0, abs=0.1)
+    assert result["n"] == len(x)
+    assert result["r2"] > 0.99
+    assert result["confidence_level"] == 0.95
+    assert len(result["fitted_values"]) == len(x)
+    assert len(result["residuals"]) == len(x)
+    # Confidence interval and prediction intervals should be present and well-shaped.
+    assert "slope_confidence_interval" in result
+    assert "prediction_interval_x" in result
+    assert "prediction_interval_lower" in result
+    assert "prediction_interval_upper" in result
+    assert (
+        len(result["prediction_interval_x"])
+        == len(result["prediction_interval_lower"])
+        == len(result["prediction_interval_upper"])
+    )
+
+
+def test_robust_regression_tool_no_intercept() -> None:
+    """fit_intercept=False forces the line through the origin."""
+    x = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+    y = [3.0, 6.0, 9.0, 12.0, 15.0, 18.0]
+    result = robust_regression_tool(x=x, y=y, fit_intercept=False, confidence_level=0.99)
+
+    assert "error" not in result
+    assert result["slope"] == pytest.approx(3.0, abs=1e-6)
+    assert result["intercept"] == pytest.approx(0.0, abs=1e-6)
+    assert result["confidence_level"] == 0.99
+
+
+def test_robust_regression_tool_returns_error_on_mismatched_lengths() -> None:
+    """Length-mismatched inputs surface as an error dict, not an exception."""
+    result = robust_regression_tool(x=[1.0, 2.0, 3.0], y=[1.0, 2.0])
+    assert "error" in result
+
+
+def test_repeated_median_tool_matches_underlying_method() -> None:
+    """The wrapper's slope must match the underlying repeated_median_slope."""
+    rng = np.random.default_rng(13)
+    x = np.linspace(0.0, 10.0, 50)
+    y = 1.5 * x - 4.0 + rng.standard_normal(50) * 0.05
+    result = repeated_median_tool(x=list(x), y=list(y))
+
+    assert "error" not in result
+    assert result["n"] == len(x)
+    assert result["slope"] == pytest.approx(repeated_median_slope(x, y), rel=1e-9)
+
+
+def test_repeated_median_tool_returns_error_on_bad_input() -> None:
+    """Non-numeric input should surface as an error dict."""
+    result = repeated_median_tool(x=["a", "b"], y=[1.0, 2.0])  # type: ignore[arg-type]
+    assert "error" in result
+
+
+def test_get_regression_tool_specs_lists_both_tools() -> None:
+    """The module-level convenience returns both registered specs."""
+    specs = get_regression_tool_specs()
+    names = {spec.get("name") for spec in specs}
+    assert {"robust_regression", "repeated_median"}.issubset(names)
