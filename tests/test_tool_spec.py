@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 
 import numpy as np
 import pytest
@@ -10,7 +11,13 @@ import pytest
 # Importing the univariate tools module triggers @tool_spec registration.
 import process_improve.multivariate.tools
 import process_improve.univariate.tools  # noqa: F401
-from process_improve.tool_spec import _TOOL_REGISTRY, execute_tool_call, get_tool_specs, tool_spec
+from process_improve.tool_spec import (
+    _TOOL_REGISTRY,
+    clean,
+    execute_tool_call,
+    get_tool_specs,
+    tool_spec,
+)
 from process_improve.univariate.tools import get_univariate_tool_specs
 
 # ---------------------------------------------------------------------------
@@ -21,6 +28,7 @@ from process_improve.univariate.tools import get_univariate_tool_specs
 class TestToolSpecDecorator:
     def test_attaches_tool_spec_attribute(self) -> None:
         """Verify the decorator attaches a _tool_spec dict to the function."""
+
         @tool_spec(
             name="test_dummy_add",
             description="Add two numbers.",
@@ -40,6 +48,7 @@ class TestToolSpecDecorator:
 
     def test_function_still_callable(self) -> None:
         """Verify the decorated function remains callable."""
+
         @tool_spec(
             name="test_dummy_mul",
             description="Multiply.",
@@ -58,6 +67,7 @@ class TestToolSpecDecorator:
 
     def test_examples_appended_to_description(self) -> None:
         """Verify examples text is appended to the description."""
+
         @tool_spec(
             name="test_dummy_examples",
             description="A tool.",
@@ -72,6 +82,7 @@ class TestToolSpecDecorator:
 
     def test_no_examples_no_extra_text(self) -> None:
         """Verify description is unchanged when no examples are provided."""
+
         @tool_spec(
             name="test_dummy_no_examples",
             description="Plain description.",
@@ -559,3 +570,130 @@ class TestPlsPredict:
         )
         assert "error" not in pred_result
         assert len(pred_result["y_hat"]) == 5
+
+
+# ---------------------------------------------------------------------------
+# _validate_rng_metadata (via the @tool_spec decorator)
+# ---------------------------------------------------------------------------
+
+
+class TestValidateRngMetadata:
+    """Cover ``_validate_rng_metadata`` through the public ``@tool_spec`` decorator."""
+
+    @staticmethod
+    def _make(rng_value: object) -> Callable[[], dict]:
+        """Apply @tool_spec(rng=<rng_value>) to a trivial function."""
+        return tool_spec(
+            name=f"_rng_test_tool_{id(rng_value)}",
+            description="x",
+            input_schema={"json": {"type": "object", "properties": {}, "required": []}},
+            rng=rng_value,  # type: ignore[arg-type]
+        )(dict)
+
+    def test_rng_must_be_dict(self) -> None:
+        """Non-dict rng payloads should raise TypeError."""
+        with pytest.raises(TypeError, match="must be a dict"):
+            self._make("not-a-dict")
+
+    def test_rng_requires_uses_rng_key(self) -> None:
+        """Missing the ``uses_rng`` key should raise ValueError."""
+        with pytest.raises(ValueError, match="uses_rng"):
+            self._make({})
+
+    def test_rng_uses_rng_must_be_bool(self) -> None:
+        """A non-bool ``uses_rng`` should raise ValueError."""
+        with pytest.raises(ValueError, match="uses_rng"):
+            self._make({"uses_rng": "yes"})
+
+    def test_rng_unknown_key_rejected(self) -> None:
+        """Unknown keys in rng should raise ValueError."""
+        with pytest.raises(ValueError, match="unknown keys"):
+            self._make({"uses_rng": True, "bogus": 1})
+
+    def test_uses_rng_false_with_seed_param_rejected(self) -> None:
+        """Deterministic tools must not carry seed metadata."""
+        with pytest.raises(ValueError, match="must be omitted"):
+            self._make({"uses_rng": False, "seed_param": "seed"})
+
+    def test_uses_rng_false_with_default_seed_rejected(self) -> None:
+        """Deterministic tools must not carry a default_seed either."""
+        with pytest.raises(ValueError, match="must be omitted"):
+            self._make({"uses_rng": False, "default_seed": 42})
+
+    def test_seed_param_must_be_str_or_none(self) -> None:
+        """A non-string ``seed_param`` should raise TypeError."""
+        with pytest.raises(TypeError, match="seed_param"):
+            self._make({"uses_rng": True, "seed_param": 123})
+
+    def test_default_seed_must_be_int_or_none(self) -> None:
+        """A non-int ``default_seed`` should raise TypeError."""
+        with pytest.raises(TypeError, match="default_seed"):
+            self._make({"uses_rng": True, "seed_param": "seed", "default_seed": "x"})
+
+    def test_default_seed_requires_seed_param(self) -> None:
+        """A ``default_seed`` without a ``seed_param`` should raise ValueError."""
+        with pytest.raises(ValueError, match="default_seed"):
+            self._make({"uses_rng": True, "default_seed": 42})
+
+    def test_valid_rng_attaches_to_spec(self) -> None:
+        """A valid rng payload should be copied onto the spec."""
+
+        @tool_spec(
+            name="_rng_test_valid",
+            description="x",
+            input_schema={"json": {"type": "object", "properties": {}, "required": []}},
+            rng={"uses_rng": True, "seed_param": "seed", "default_seed": 42},
+        )
+        def _f() -> dict:
+            return {}
+
+        assert _f._tool_spec["rng"] == {  # type: ignore[attr-defined]
+            "uses_rng": True,
+            "seed_param": "seed",
+            "default_seed": 42,
+        }
+
+    def test_valid_rng_uses_rng_false_no_seed(self) -> None:
+        """``{'uses_rng': False}`` is the deterministic-tool short form."""
+
+        @tool_spec(
+            name="_rng_test_deterministic",
+            description="x",
+            input_schema={"json": {"type": "object", "properties": {}, "required": []}},
+            rng={"uses_rng": False},
+        )
+        def _f() -> dict:
+            return {}
+
+        assert _f._tool_spec["rng"] == {"uses_rng": False}  # type: ignore[attr-defined]
+
+
+# ---------------------------------------------------------------------------
+# clean()
+# ---------------------------------------------------------------------------
+
+
+class TestClean:
+    """Exercise the corner cases of ``clean()`` not hit by tool wrappers."""
+
+    def test_ndarray_recursively_cleaned(self) -> None:
+        """A numpy ndarray should be turned into a JSON-friendly nested list."""
+        arr = np.array([[1, 2], [3, 4]], dtype=np.int64)
+        result = clean(arr)
+        assert result == [[1, 2], [3, 4]]
+        # Each scalar should be a Python int (not np.int64) after cleaning.
+        assert all(isinstance(v, int) for row in result for v in row)
+
+    def test_nan_float_becomes_none(self) -> None:
+        """NaN floats should be replaced with None for JSON safety."""
+        assert clean(float("nan")) is None
+        assert clean(float("inf")) is None
+
+    def test_numpy_nan_becomes_none(self) -> None:
+        """NaN coming from numpy should also be coerced to None."""
+        assert clean(np.float64("nan")) is None
+
+    def test_dict_and_tuple_recurse(self) -> None:
+        """clean() should recurse into dicts and tuples."""
+        result = clean({"a": (np.int64(1), np.float64(2.5)), "b": [np.int64(3)]})
+        assert result == {"a": [1, 2.5], "b": [3]}
