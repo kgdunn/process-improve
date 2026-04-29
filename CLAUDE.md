@@ -133,6 +133,21 @@ pytest -o "addopts="
 
 ## Git & PR workflow (for Claude Code sessions)
 
+**Default workflow for any non-trivial task:**
+
+1. **Open a blank PR up front**, before doing the work. Push an empty commit
+   (or the first micro-commit) to `claude/<task-slug>` and open the PR as
+   ready-for-review with a description of what's about to be done. Do not
+   open it as a draft.
+2. **Micro-commit as you go.** Each commit should be a small, self-contained
+   step (one module's tests, one config tweak, one bug fix) — not a single
+   end-of-session megacommit.
+3. **Push regularly.** After every micro-commit (or at worst every 2-3),
+   `git push` to the same branch so the PR reflects current progress and the
+   user can watch it land.
+
+This is the default — don't ask the user whether to do it, just do it.
+
 **Never push lock files.** Claude Code sessions must not stage, commit, or push
 any dependency lock files. Lock-file updates are performed manually by the
 repository owner.
