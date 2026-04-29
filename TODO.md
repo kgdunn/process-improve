@@ -76,3 +76,24 @@
 - [ ] Add Sakoe-Chiba constraints. (batch/alignment_helpers.py:22)
 - [ ] Replace pre-3.9 dataclass workaround with pydantic. (batch/plotting.py:326, batch/plotting.py:327)
 - [ ] Fix the `[[None]]` placeholder that does not work. (batch/plotting.py:570)
+
+## Univariate
+
+- [ ] Distribution-fit check (NIST handbook §3.5.7 — see *Reference snippets*). (TODO.txt)
+- [ ] Outlier detection: integrate / wrap `pyod`. (TODO.txt)
+- [ ] Grubbs / Tietjen–Moore single & multiple outlier tests (NIST §3.5.h, §3.5.h3 — see *Reference snippets*). (TODO.txt)
+- [ ] Holm post-hoc multiple-comparisons test. (TODO.txt)
+- [ ] Robust scale — port the verbatim Mosteller–Tukey MATLAB function in *Reference snippets*. (TODO.txt)
+- [ ] Follow up on the `rips-irsp.com/article/10.5334/irsp.82/` reference (likely a multiple-comparisons or post-hoc test to add). (univariate/metrics.py:419)
+
+## Monitoring
+
+- [ ] Return RSD as well: `rsd = (spread / center) * 100`. (monitoring/metrics.py:67)
+
+## Bivariate
+
+- [ ] Robustify the elbow-point detection. (bivariate/methods.py:125)
+
+## Regression
+
+- [ ] Prediction-interval function for linear regression that accepts any `x`. (TODO.txt)
