@@ -3,24 +3,24 @@ Experimental Strategy Recommendation
 
 Before running any experiments, the most important question is: *"How should
 I plan my experimental program?"*  The ``recommend_strategy`` function answers
-this by generating a complete multi-stage experimental plan — screening,
-optimization, and confirmation — using deterministic decision rules from
+this by generating a complete multi-stage experimental plan - screening,
+optimization, and confirmation - using deterministic decision rules from
 Montgomery, NIST, and the Stat-Ease SCOR framework.
 
 The recommender is fully deterministic: identical inputs always produce
-identical outputs.  There is no randomness and no LLM — just ~50 codified
+identical outputs.  There is no randomness and no LLM - just ~50 codified
 rules that encode best practices from the DOE literature.
 
 When to Use This Tool
 ---------------------
 
-- **Before your first experiment** — plan the entire workflow upfront so that
+- **Before your first experiment** - plan the entire workflow upfront so that
   budget and time are spent efficiently.
-- **When you have many candidate factors** — the tool decides whether a
+- **When you have many candidate factors** - the tool decides whether a
   screening stage is needed and which design to use.
-- **When budget is limited** — it allocates runs across stages to maximize
+- **When budget is limited** - it allocates runs across stages to maximize
   information per experiment.
-- **When working in a specialized domain** — domain-specific templates
+- **When working in a specialized domain** - domain-specific templates
   (fermentation, cell culture, pharma, etc.) adjust design choices and
   center-point requirements automatically.
 
@@ -32,13 +32,13 @@ Multi-stage workflows
 
 Most experimental programs follow a three-stage sequence:
 
-1. **Screening** — Identify the vital few factors from many candidates.
+1. **Screening** - Identify the vital few factors from many candidates.
    Typical designs: Plackett-Burman, Definitive Screening Design (DSD), or
    fractional factorial.
-2. **Optimization** — Fit a response surface model for the significant
+2. **Optimization** - Fit a response surface model for the significant
    factors.  Typical designs: Central Composite Design (CCD), Box-Behnken,
    or D-optimal.
-3. **Confirmation** — Run replicates at the predicted optimum to verify
+3. **Confirmation** - Run replicates at the predicted optimum to verify
    that the model predictions hold.
 
 Each stage has *transition rules* that tell you what to do next based on
@@ -111,7 +111,7 @@ This outputs::
 
 The engine selected Plackett-Burman screening (the fermentation domain
 default), a CCD for response surface optimization, and 3 confirmation
-replicates — all within the 40-run budget.
+replicates - all within the 40-run budget.
 
 Interpreting the Output
 -----------------------
@@ -144,7 +144,7 @@ Interpreting the Output
    * - ``alternative_strategies``
      - Brief descriptions of other approaches worth considering.
    * - ``strategy_id``
-     - Deterministic hash of the input — same inputs always produce the
+     - Deterministic hash of the input - same inputs always produce the
        same ID.
    * - ``domain``
      - The application domain used.
@@ -204,18 +204,18 @@ entirely:
 
 .. code-block:: python
 
-   # No prior knowledge — full screening
+   # No prior knowledge - full screening
    s1 = recommend_strategy(factors=factors, budget=40, domain="fermentation")
    print(f"No prior: {len(s1['stages'])} stages")
 
-   # Low confidence — still screens
+   # Low confidence - still screens
    s2 = recommend_strategy(
        factors=factors, budget=40, domain="fermentation",
        prior_knowledge="We suspect Temperature and pH are important.",
    )
    print(f"Low confidence: {len(s2['stages'])} stages")
 
-   # High confidence — screening skipped
+   # High confidence - screening skipped
    s3 = recommend_strategy(
        factors=factors, budget=40, domain="fermentation",
        prior_knowledge=(
@@ -287,7 +287,7 @@ Comparing two domains on the same factors shows how design choices differ:
 
 Fermentation uses Plackett-Burman (efficient, many-factor screening), while
 cell culture uses a Definitive Screening Design because it combines screening
-and curvature detection in a single stage — saving an entire experimental
+and curvature detection in a single stage - saving an entire experimental
 cycle when each run takes 2–3 weeks.
 
 Hard-to-Change Factors
@@ -323,7 +323,7 @@ split-plot structure:
 With split-plot designs, runs are grouped within whole-plot factor levels
 to minimize the number of hard-to-change factor resets.  The output risks
 will include a reminder that standard ANOVA gives incorrect p-values for
-split-plot experiments — a restricted maximum likelihood (REML) analysis
+split-plot experiments - a restricted maximum likelihood (REML) analysis
 is needed instead.
 
 Multiple Responses
@@ -346,7 +346,7 @@ When optimizing for more than one response, define each with its own goal:
        domain="fermentation",
    )
 
-The strategy structure is the same — the engine plans the experimental
+The strategy structure is the same - the engine plans the experimental
 stages needed to build models for all responses simultaneously.  After
 running the experiments, use
 :func:`~process_improve.experiments.optimize_responses` with desirability
@@ -355,10 +355,10 @@ functions to find the best trade-off across responses.
 See Also
 --------
 
-- :doc:`/api/experiments` — Full API reference for all DOE functions.
-- :func:`~process_improve.experiments.generate_design` — Generate the actual
+- :doc:`/api/experiments` - Full API reference for all DOE functions.
+- :func:`~process_improve.experiments.generate_design` - Generate the actual
   design matrix once you know which design to use.
-- :func:`~process_improve.experiments.analyze_experiment` — Analyze the
+- :func:`~process_improve.experiments.analyze_experiment` - Analyze the
   results after running experiments.
-- :func:`~process_improve.experiments.optimize_responses` — Find optimal
+- :func:`~process_improve.experiments.optimize_responses` - Find optimal
   factor settings for single or multiple responses.

@@ -15,7 +15,7 @@
       k <= 5 or so.
     expert: >
       The 2^k full factorial is the benchmark against which all other two-level
-      designs are judged. Resolution is technically infinite — no alias chains
+      designs are judged. Resolution is technically infinite - no alias chains
       exist. The design is both D-optimal and I-optimal within the class of
       orthogonal two-level designs. Center points can be added to test for
       curvature without inflating the factorial portion.
@@ -49,7 +49,7 @@
     - "Cannot estimate quadratic effects without center points"
     - "Inefficient when many factors are likely inert"
   common_misconceptions:
-    - "A full factorial is always the best design — it is only best when you can afford it and need all interactions"
+    - "A full factorial is always the best design - it is only best when you can afford it and need all interactions"
   references:
     - "Montgomery (2019), Ch. 5–6"
     - "Box, Hunter & Hunter (2005), Ch. 5"
@@ -97,15 +97,15 @@
     - {target: fractional_factorial, method: "Foldover to increase resolution"}
   advantages:
     - "Dramatically reduces run count compared to full factorial"
-    - "Orthogonal — clean estimation of non-aliased effects"
+    - "Orthogonal - clean estimation of non-aliased effects"
     - "Can augment (foldover, add runs) sequentially"
   disadvantages:
     - "Aliased effects cannot be separated without additional runs"
     - "Requires understanding of confounding structure"
     - "Low-resolution fractions may miss important interactions"
   common_misconceptions:
-    - "Resolution IV means all two-factor interactions are estimable — they are aliased with each other"
-    - "You must always use the minimum-aberration generator — other generators may be better for specific alias priorities"
+    - "Resolution IV means all two-factor interactions are estimable - they are aliased with each other"
+    - "You must always use the minimum-aberration generator - other generators may be better for specific alias priorities"
   references:
     - "Montgomery (2019), Ch. 8"
     - "Box, Hunter & Hunter (2005), Ch. 6"
@@ -159,7 +159,7 @@
     - "Complex partial aliasing makes interpretation harder than regular fractions"
     - "No information on curvature"
   common_misconceptions:
-    - "PB designs estimate two-factor interactions — they do not; interactions are partially aliased with every main effect"
+    - "PB designs estimate two-factor interactions - they do not; interactions are partially aliased with every main effect"
   references:
     - "Plackett & Burman (1946)"
     - "Montgomery (2019), Ch. 8.6"
@@ -174,7 +174,7 @@
     intermediate: >
       Box-Behnken designs (BBD) are three-level response surface designs that
       estimate all main effects, interactions, and quadratic terms. They avoid
-      the extreme vertices of the cube — all design points are at the midpoints
+      the extreme vertices of the cube - all design points are at the midpoints
       of edges or at center. This makes them useful when factor extremes are
       operationally difficult.
     expert: >
@@ -213,7 +213,7 @@
     - "Prediction variance higher at corners"
     - "Cannot be built sequentially from a factorial base"
   common_misconceptions:
-    - "BBD is always better than CCD because it uses fewer runs — CCD may be preferred when corner points are feasible and rotatability matters"
+    - "BBD is always better than CCD because it uses fewer runs - CCD may be preferred when corner points are feasible and rotatability matters"
   references:
     - "Box & Behnken (1960)"
     - "Myers, Montgomery & Anderson-Cook (2016), Ch. 7"
@@ -266,8 +266,8 @@
     - "Axial points may extend beyond the feasible region"
     - "Five levels per factor (if alpha != 1)"
   common_misconceptions:
-    - "CCD always requires 5 factor levels — face-centered CCD (alpha=1) uses only 3"
-    - "You must start with a full factorial — a resolution V fraction works as the cube portion"
+    - "CCD always requires 5 factor levels - face-centered CCD (alpha=1) uses only 3"
+    - "You must start with a full factorial - a resolution V fraction works as the cube portion"
   references:
     - "Box & Wilson (1951)"
     - "Myers, Montgomery & Anderson-Cook (2016), Ch. 7"
@@ -318,9 +318,9 @@
   disadvantages:
     - "Requires three levels per factor"
     - "Cannot estimate full quadratic model if more than ~3 factors are active"
-    - "Relatively new — less practitioner experience"
+    - "Relatively new - less practitioner experience"
   common_misconceptions:
-    - "DSDs replace RSM designs — they supplement screening, but follow-up RSM is needed when many factors are active"
+    - "DSDs replace RSM designs - they supplement screening, but follow-up RSM is needed when many factors are active"
   references:
     - "Jones & Nachtsheim (2011)"
-    - "Jones & Nachtsheim (2013) — categorical factors"
+    - "Jones & Nachtsheim (2013) - categorical factors"

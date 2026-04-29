@@ -11,13 +11,13 @@ When to Use TPLS
 Use TPLS when your data has a natural multi-block structure that standard PLS
 cannot represent. Typical applications include:
 
-- **Pharmaceutical manufacturing** — formulation recipes, raw material
+- **Pharmaceutical manufacturing** - formulation recipes, raw material
   properties, process conditions, and tablet quality form distinct blocks.
-- **Chemical reaction optimization** — catalyst properties, feed
+- **Chemical reaction optimization** - catalyst properties, feed
   compositions, operating conditions, and product quality.
-- **Food processing** — ingredient properties, recipes, process settings,
+- **Food processing** - ingredient properties, recipes, process settings,
   and sensory or nutritional outcomes.
-- **Biotechnology** — media composition, strain properties, fermentation
+- **Biotechnology** - media composition, strain properties, fermentation
   trajectories, and yield/quality metrics.
 
 If your data fits naturally into a single X matrix and a single Y matrix,
@@ -60,7 +60,7 @@ batch (rows). F, Z, and Y must all have the same number of rows (batches).
 Basic Usage
 -----------
 
-Data blocks are organized using ``DataFrameDict`` — a dictionary of
+Data blocks are organized using ``DataFrameDict`` - a dictionary of
 DataFrames, optionally grouped:
 
 .. code-block:: python
@@ -82,7 +82,7 @@ DataFrames, optionally grouped:
 **Key requirements:**
 
 - Column names in each F group must match the row index of the corresponding
-  D group — this is how TPLS knows which material properties correspond to
+  D group - this is how TPLS knows which material properties correspond to
   which formulation amounts.
 - All F, Z, and Y DataFrames must have the same number of rows.
 - The ``d_matrix`` parameter passed to the constructor should be the D block

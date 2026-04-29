@@ -1,4 +1,4 @@
-"""Tests for Tool 8: recommend_strategy — multi-stage DOE strategy recommender."""
+"""Tests for Tool 8: recommend_strategy - multi-stage DOE strategy recommender."""
 
 from __future__ import annotations
 
@@ -444,14 +444,14 @@ class TestRealWorldScenarios:
         assert result["total_estimated_runs"] <= 40
 
     def test_q63_eight_factors_screening(self):
-        """Q63: 8 factors — screening to narrow to 2-3 in 16 runs."""
+        """Q63: 8 factors - screening to narrow to 2-3 in 16 runs."""
         factors = [Factor(name=chr(65 + i), low=0, high=100) for i in range(8)]
         result = recommend_strategy(factors=factors, budget=40)
         screening = [s for s in result["stages"] if s["stage_name"] == "Screening"]
         assert len(screening) == 1
 
     def test_q64_chemical_engineer_maximize_yield(self):
-        """Q64: T, P, catalyst% in ~20 runs — propose full strategy."""
+        """Q64: T, P, catalyst% in ~20 runs - propose full strategy."""
         factors = [
             Factor(name="Temperature", low=150, high=200, units="degC"),
             Factor(name="Pressure", low=1, high=5, units="bar"),

@@ -7,13 +7,13 @@ Current implementation status across every agent-facing DoE tool.
 | Tool | Status | Implementation | Open gaps |
 |---|---|---|---|
 | `generate_design` | **Implemented** | Unified dispatcher in `experiments/designs.py`; per-family handlers in `designs_factorial.py`, `designs_screening.py`, `designs_response_surface.py`, `designs_optimal.py`, `designs_mixture.py`. Covers all 11 design types (full/fractional factorial, PB, BBD, CCD, DSD, D/I/A-optimal, mixture, Taguchi). | I/A-optimal require `pyoptex`; hard-to-change factors without `pyoptex` are ignored with a warning. |
-| `evaluate_design` | **Implemented** | `experiments/evaluate.py` — 14 metrics: `d/i/g_efficiency`, `prediction_variance`, `vif`, `condition_number`, `power`, `degrees_of_freedom`, `alias_structure`, `confounding`, `resolution`, `defining_relation`, `clear_effects`, `minimum_aberration`. | — |
-| `analyze_experiment` | **Implemented** | `analysis.py` — 13 analysis types via statsmodels/scipy. | Split-plot ANOVA (mixed-model mapping). |
-| `optimize_responses` | **Partial** | `optimization.py` — desirability, steepest ascent/descent, stationary point, canonical analysis. | Ridge analysis, Pareto front (stubs). |
-| `augment_design` | **Implemented** | `augment.py` — foldover, semifold, axial, replicate, D-optimal. | — |
-| `visualize_doe` | **Implemented** | `visualization/` — 20 plot types, dual Plotly/ECharts backends. | — |
-| `doe_knowledge` | **Implemented** | `knowledge/` — YAML knowledge graph, in-memory query engine. | Interpretation guides and worked examples (YAML stubs). |
-| `recommend_strategy` | **Implemented** | `strategy/` — deterministic rule engine, ~50 decision rules, 8 domain templates, budget allocation. | — |
+| `evaluate_design` | **Implemented** | `experiments/evaluate.py` - 14 metrics: `d/i/g_efficiency`, `prediction_variance`, `vif`, `condition_number`, `power`, `degrees_of_freedom`, `alias_structure`, `confounding`, `resolution`, `defining_relation`, `clear_effects`, `minimum_aberration`. | - |
+| `analyze_experiment` | **Implemented** | `analysis.py` - 13 analysis types via statsmodels/scipy. | Split-plot ANOVA (mixed-model mapping). |
+| `optimize_responses` | **Partial** | `optimization.py` - desirability, steepest ascent/descent, stationary point, canonical analysis. | Ridge analysis, Pareto front (stubs). |
+| `augment_design` | **Implemented** | `augment.py` - foldover, semifold, axial, replicate, D-optimal. | - |
+| `visualize_doe` | **Implemented** | `visualization/` - 20 plot types, dual Plotly/ECharts backends. | - |
+| `doe_knowledge` | **Implemented** | `knowledge/` - YAML knowledge graph, in-memory query engine. | Interpretation guides and worked examples (YAML stubs). |
+| `recommend_strategy` | **Implemented** | `strategy/` - deterministic rule engine, ~50 decision rules, 8 domain templates, budget allocation. | - |
 
 ## Design Family Details
 
@@ -24,11 +24,11 @@ Current implementation status across every agent-facing DoE tool.
 | Plackett-Burman (N ∈ {8, 12, 16, 20, 24, …}) | `designs_screening.py::dispatch_plackett_burman` via `pyDOE3.pbdesign`. | `TestPlackettBurman`, `TestPlackettBurmanProperties`. |
 | Box-Behnken | `designs_response_surface.py::dispatch_box_behnken` via `pyDOE3.bbdesign`. | `TestBoxBehnken`, `TestBoxBehnkenProperties`. |
 | Central Composite Design (face-centered, rotatable, inscribed, orthogonal) | `designs_response_surface.py::dispatch_ccd` via `pyDOE3.ccdesign`. | `TestCCD`, `TestCCDProperties`. |
-| Definitive Screening Design | `designs_response_surface.py::dispatch_dsd` — Paley conference-matrix construction (see caveat below). | `TestDSD`, `TestDSDProperties`. |
-| D-optimal | `designs_optimal.py::dispatch_d_optimal` — `pyoptex` coordinate exchange when available, otherwise point exchange on a 3-level candidate set. | `TestDOptimal`. |
+| Definitive Screening Design | `designs_response_surface.py::dispatch_dsd` - Paley conference-matrix construction (see caveat below). | `TestDSD`, `TestDSDProperties`. |
+| D-optimal | `designs_optimal.py::dispatch_d_optimal` - `pyoptex` coordinate exchange when available, otherwise point exchange on a 3-level candidate set. | `TestDOptimal`. |
 | I-optimal | `designs_optimal.py::dispatch_i_optimal` via `pyoptex`. | `TestIOptimal` (skipped without `pyoptex`). |
 | A-optimal | `designs_optimal.py::dispatch_a_optimal` via `pyoptex`. | `TestAOptimal` (skipped without `pyoptex`). |
-| Mixture (simplex-lattice, simplex-centroid) | `designs_mixture.py::dispatch_mixture` — auto-selects based on budget. | `TestMixture`. |
+| Mixture (simplex-lattice, simplex-centroid) | `designs_mixture.py::dispatch_mixture` - auto-selects based on budget. | `TestMixture`. |
 | Taguchi orthogonal arrays | `designs_screening.py::dispatch_taguchi` via `pyDOE3.taguchi_design`. | `TestTaguchi`. |
 
 ## `evaluate_design` Metrics

@@ -30,7 +30,7 @@
   content:
     novice: >
       When you run fewer experiments than a full factorial, some effects get
-      tangled together — you cannot tell which one caused the result. This
+      tangled together - you cannot tell which one caused the result. This
       tangling is called aliasing.
     intermediate: >
       Aliasing occurs in fractional factorial designs when two or more effects
@@ -40,7 +40,7 @@
     expert: >
       The alias structure is determined by the defining relation I = word1 =
       word2 = ... Multiplying any effect by the defining relation words gives
-      its alias chain. In non-regular designs (PB, DSD), aliasing is partial —
+      its alias chain. In non-regular designs (PB, DSD), aliasing is partial -
       effects are correlated rather than completely confounded, with correlation
       coefficients determined by the inner products of the design columns.
   related_to: [resolution, fractional_factorial, plackett_burman]
@@ -147,7 +147,7 @@
       resolution III screening designs (sacrificing 2FI estimation) and the
       convention of pooling three-factor and higher interactions into error.
     expert: >
-      Effect hierarchy underpins effect sparsity — the assumption that only a
+      Effect hierarchy underpins effect sparsity - the assumption that only a
       few effects are active (the Pareto principle applied to factorials). It
       is the basis for Lenth's PSE, the half-normal plot, and Bayesian variable
       selection in unreplicated factorials. Wu & Hamada (2009) formalize this
@@ -162,7 +162,7 @@
   content:
     novice: >
       In most experiments, only a few factors (maybe 2–4 out of 10) actually
-      matter. This is why screening designs work — you do not need to estimate
+      matter. This is why screening designs work - you do not need to estimate
       every possible effect.
     intermediate: >
       Effect sparsity says that the number of active effects is small relative

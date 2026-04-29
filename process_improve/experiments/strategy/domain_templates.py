@@ -22,15 +22,15 @@ from typing import Any
 # ---------------------------------------------------------------------------
 #
 # Each template is a dict with the following keys:
-#   screening_preference : str — preferred screening design type
-#   rsm_preference : str — preferred RSM design type
-#   budget_weights : dict — stage -> fraction of total budget
-#   min_confirmation : int — minimum confirmation runs
-#   min_center_points : int — minimum center points for variability estimation
-#   prefer_curvature_detection : bool — prefer DSD over PB when possible
-#   notes : dict[str, str] — detail_level -> domain-specific advice
-#   extra_stages : list[str] — additional stages specific to this domain
-#   special_considerations : list[str] — domain-specific warnings/notes
+#   screening_preference : str - preferred screening design type
+#   rsm_preference : str - preferred RSM design type
+#   budget_weights : dict - stage -> fraction of total budget
+#   min_confirmation : int - minimum confirmation runs
+#   min_center_points : int - minimum center points for variability estimation
+#   prefer_curvature_detection : bool - prefer DSD over PB when possible
+#   notes : dict[str, str] - detail_level -> domain-specific advice
+#   extra_stages : list[str] - additional stages specific to this domain
+#   special_considerations : list[str] - domain-specific warnings/notes
 
 DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
     "pharma_formulation": {
@@ -48,7 +48,7 @@ DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
                 "Attributes (CMAs), and responses are Critical Quality Attributes (CQAs)."
             ),
             "intermediate": (
-                "Per ICH Q8, the experimental strategy should map the design space — the "
+                "Per ICH Q8, the experimental strategy should map the design space - the "
                 "multidimensional region of factor settings that provides acceptable quality. "
                 "Face-centered CCD is preferred for RSM because it stays within physical bounds, "
                 "which is important for regulatory acceptance. DSD screening efficiently detects "
@@ -111,7 +111,7 @@ DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
         },
         "extra_stages": [],
         "special_considerations": [
-            "Check for mixture constraints — formulation components summing to a constant.",
+            "Check for mixture constraints - formulation components summing to a constant.",
             "Sensory responses may require larger replication for subjective variability.",
             "Extreme factor combinations may produce unacceptable products.",
         ],
@@ -190,7 +190,7 @@ DOMAIN_TEMPLATES: dict[str, dict[str, Any]] = {
         "extra_stages": ["library_screen", "scaleup"],
         "special_considerations": [
             "Experiments are expensive and slow (14-21 days per run).",
-            "Run minimisation is critical — every run saved is 2-3 weeks.",
+            "Run minimisation is critical - every run saved is 2-3 weeks.",
             "DSD allows screening and curvature detection in a single stage.",
             "High-dimensionality media screening may need a pre-screening step.",
         ],

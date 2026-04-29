@@ -4,17 +4,17 @@ Agent-callable tool wrappers for the fake-data simulator.
 
 Three tools are exposed:
 
-- ``create_simulator`` — records a hidden response-surface model.
-- ``simulate_process`` — evaluates the hidden model at given factor
+- ``create_simulator`` - records a hidden response-surface model.
+- ``simulate_process`` - evaluates the hidden model at given factor
   settings, with fresh Gaussian noise each call.
-- ``reveal_simulator`` — returns the underlying coefficients, gated
+- ``reveal_simulator`` - returns the underlying coefficients, gated
   behind a ``confirmed`` flag enforced by the host.
 
 The tools are intentionally stateless: the hidden model lives in a
 ``private_state`` dict that the host (e.g. the factorial web app)
 persists and injects on each call via a hidden ``simulator_state``
 kwarg. The JSON schema advertised to the LLM does not mention
-``simulator_state`` or ``confirmed`` — those are injected server-side
+``simulator_state`` or ``confirmed`` - those are injected server-side
 so the LLM cannot bypass the reveal policy or fabricate state.
 """
 
@@ -82,7 +82,7 @@ def _public_from_private(private: dict[str, Any], process_description: str, crea
         "response data. Use this when the user wants fake but realistic data to "
         "plan or demonstrate a designed experiment. "
         "Pick factor ranges silently from your domain knowledge; pass them in "
-        "the 'factors' list. The 'outputs' list must come from the user — "
+        "the 'factors' list. The 'outputs' list must come from the user - "
         "propose defaults if they are undecided but confirm before calling. "
         "The underlying model (intercepts, main effects, 2-factor interactions, "
         "quadratic terms) is generated internally and must NOT be disclosed to "
@@ -90,7 +90,7 @@ def _public_from_private(private: dict[str, Any], process_description: str, crea
         "'reveal_simulator'. "
         "Returns a 'sim_id' to pass to subsequent 'simulate_process' calls, plus "
         "a public summary of the declared factors, outputs, and noise level. "
-        "The host application persists the hidden state — do NOT try to store "
+        "The host application persists the hidden state - do NOT try to store "
         "or paraphrase it yourself."
     ),
     input_schema={
@@ -256,7 +256,7 @@ _register("create_simulator")
     description=(
         "Evaluate a previously created simulator at specific factor settings. "
         "Returns the simulated output values (with fresh Gaussian noise per call, "
-        "so identical settings yield similar but not identical outputs — this is "
+        "so identical settings yield similar but not identical outputs - this is "
         "intentional, matching real asset behaviour). "
         "Pass 'sim_id' from the 'create_simulator' response. Supply all declared "
         "factors in 'settings'; missing factors default to their mid-range value "

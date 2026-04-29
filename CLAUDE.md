@@ -1,8 +1,8 @@
-# CLAUDE.md — Project Context for AI Agents
+# CLAUDE.md - Project Context for AI Agents
 
 ## Overview
 
-`process-improve` is a Python package for process improvement using data. It accompanies the online textbook [Process Improvement using Data](https://learnche.org/pid). The package provides multivariate analysis (PCA, PLS, and TPLS — *PLS for T-shaped data structures*, not "Total PLS" or "Three-way PLS"), designed experiments, process monitoring, batch data analysis, and visualization tools.
+`process-improve` is a Python package for process improvement using data. It accompanies the online textbook [Process Improvement using Data](https://learnche.org/pid). The package provides multivariate analysis (PCA, PLS, and TPLS - *PLS for T-shaped data structures*, not "Total PLS" or "Three-way PLS"), designed experiments, process monitoring, batch data analysis, and visualization tools.
 
 **Repository:** https://github.com/kgdunn/process_improve
 **License:** MIT
@@ -81,9 +81,15 @@ Both PCA and PLS have `__getattr__` methods that raise `AttributeError` with hel
 
 ### Code Quality
 - Line length: 120 characters
-- Linter: ruff (with `select = ["ALL"]` and specific ignores — see `pyproject.toml`)
+- Linter: ruff (with `select = ["ALL"]` and specific ignores - see `pyproject.toml`)
 - Formatter: black
 - Type checking: mypy
+
+### Prose style
+- Do not use em-dashes (Unicode U+2014) in docs, docstrings, comments, commit
+  messages, or PR descriptions. Use a hyphen (`-`), a semicolon, or split the
+  sentence instead. This applies to Markdown, reStructuredText, Python
+  docstrings/comments, and YAML prose content.
 
 ## Testing
 
@@ -103,7 +109,7 @@ pytest -o "addopts="
 ```
 
 ### Test Conventions
-- Use **real datasets** (LDPE, SIMCA) alongside synthetic data — do not remove real dataset tests
+- Use **real datasets** (LDPE, SIMCA) alongside synthetic data - do not remove real dataset tests
 - Scale with `MCUVScaler().fit_transform(X)` in tests (not just `center()`)
 - For synthetic PLS data, use `X.values @ beta` (not `X @ beta`) to avoid pandas column mismatch producing NaN
 - Test fixtures load CSV data from `process_improve/datasets/multivariate/`
@@ -140,13 +146,13 @@ pytest -o "addopts="
    ready-for-review with a description of what's about to be done. Do not
    open it as a draft.
 2. **Micro-commit as you go.** Each commit should be a small, self-contained
-   step (one module's tests, one config tweak, one bug fix) — not a single
+   step (one module's tests, one config tweak, one bug fix) - not a single
    end-of-session megacommit.
 3. **Push regularly.** After every micro-commit (or at worst every 2-3),
    `git push` to the same branch so the PR reflects current progress and the
    user can watch it land.
 
-This is the default — don't ask the user whether to do it, just do it.
+This is the default - don't ask the user whether to do it, just do it.
 
 **Never push lock files.** Claude Code sessions must not stage, commit, or push
 any dependency lock files. Lock-file updates are performed manually by the
@@ -170,7 +176,7 @@ lock files manually outside of Claude Code sessions.
 
 If during a session you notice a recurring pattern, convention, or piece of
 project context that you think belongs in `CLAUDE.md`, **do not add it
-yourself**. Surface the proposed addition in chat — the wording you would
-add, where you would put it, and why you think it is reusable — and ask the
+yourself**. Surface the proposed addition in chat - the wording you would
+add, where you would put it, and why you think it is reusable - and ask the
 user whether it should be recorded here. The user decides what gets
 canonised in this file.

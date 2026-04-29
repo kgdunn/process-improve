@@ -183,13 +183,13 @@ def process_capability(
         cpk_float = float(cpk)
 
         if cpk_float >= 1.67:
-            interpretation = f"Cpk = {cpk_float:.3f}. Excellent capability — process is well within spec limits."
+            interpretation = f"Cpk = {cpk_float:.3f}. Excellent capability - process is well within spec limits."
         elif cpk_float >= 1.33:
-            interpretation = f"Cpk = {cpk_float:.3f}. Good capability — process fits within spec limits."
+            interpretation = f"Cpk = {cpk_float:.3f}. Good capability - process fits within spec limits."
         elif cpk_float >= 1.0:
-            interpretation = f"Cpk = {cpk_float:.3f}. Marginal capability — process barely fits within spec limits."
+            interpretation = f"Cpk = {cpk_float:.3f}. Marginal capability - process barely fits within spec limits."
         else:
-            interpretation = f"Cpk = {cpk_float:.3f}. Poor capability — process is producing out-of-spec output."
+            interpretation = f"Cpk = {cpk_float:.3f}. Poor capability - process is producing out-of-spec output."
 
         return clean({
             "cpk": cpk_float,

@@ -48,11 +48,11 @@ class MainEffectsPlot(BasePlot):
         """
         df = self._get_design_df()
         if df is None or df.empty:
-            return ChartSpec(title="Main Effects Plot — no data")
+            return ChartSpec(title="Main Effects Plot - no data")
 
         response = self.response_column or self._infer_response(df)
         if response is None or response not in df.columns:
-            return ChartSpec(title="Main Effects Plot — no response column")
+            return ChartSpec(title="Main Effects Plot - no response column")
 
         factors = self.factors_to_plot or self._get_factor_names()
         if not factors:
@@ -152,19 +152,19 @@ class InteractionPlot(BasePlot):
         """
         df = self._get_design_df()
         if df is None or df.empty:
-            return ChartSpec(title="Interaction Plot — no data")
+            return ChartSpec(title="Interaction Plot - no data")
 
         response = self.response_column or self._infer_response(df)
         if response is None or response not in df.columns:
-            return ChartSpec(title="Interaction Plot — no response column")
+            return ChartSpec(title="Interaction Plot - no response column")
 
         factors = self.factors_to_plot or self._get_factor_names()
         if len(factors) < 2:
-            return ChartSpec(title="Interaction Plot — need at least 2 factors")
+            return ChartSpec(title="Interaction Plot - need at least 2 factors")
 
         factor_a, factor_b = factors[0], factors[1]
         if factor_a not in df.columns or factor_b not in df.columns:
-            return ChartSpec(title=f"Interaction Plot — factors {factor_a}, {factor_b} not in data")
+            return ChartSpec(title=f"Interaction Plot - factors {factor_a}, {factor_b} not in data")
 
         levels_a = sorted(df[factor_a].unique())
         levels_b = sorted(df[factor_b].unique())
@@ -249,11 +249,11 @@ class PerturbationPlot(BasePlot):
         """
         coefficients = self._get_coefficients()
         if not coefficients:
-            return ChartSpec(title="Perturbation Plot — no coefficients")
+            return ChartSpec(title="Perturbation Plot - no coefficients")
 
         factors = self.factors_to_plot or self._get_factor_names()
         if not factors:
-            return ChartSpec(title="Perturbation Plot — no factors")
+            return ChartSpec(title="Perturbation Plot - no factors")
 
         # Build a simple model evaluator from coefficients
         coef_map = {c["term"]: c["coefficient"] for c in coefficients}

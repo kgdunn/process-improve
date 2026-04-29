@@ -3,7 +3,7 @@
 """Deterministic rule engine for DOE strategy recommendation.
 
 Implements ~50 decision rules from Montgomery, NIST, and Stat-Ease SCOR
-to recommend multi-stage experimental strategies.  No LLM or randomness —
+to recommend multi-stage experimental strategies.  No LLM or randomness -
 identical inputs always produce identical outputs.
 """
 
@@ -82,7 +82,7 @@ def _parse_prior_knowledge(
         confidence = 0.9
         has_supporting_data = True
     else:
-        # No clear keywords — assign moderate-low confidence
+        # No clear keywords - assign moderate-low confidence
         confidence = 0.3
 
     # Extract factor names mentioned near significance keywords
@@ -149,15 +149,15 @@ def _select_screening_design(  # noqa: C901, PLR0912, PLR0915
     n = classification["n_factors"]
     reasoning: list[str] = []
 
-    # Rule: 2 or fewer factors — no screening needed
+    # Rule: 2 or fewer factors - no screening needed
     if n <= 2:
         return None
 
-    # Rule: High prior confidence — skip screening
+    # Rule: High prior confidence - skip screening
     if classification["prior_confidence"] >= 0.8:
         return None
 
-    # Rule: Mixture factors only — use mixture design path
+    # Rule: Mixture factors only - use mixture design path
     if spec.has_mixture and spec.n_continuous == 0:
         design_type = "simplex_lattice"
         runs = max(n + 1, 6)  # Minimum for simplex lattice
@@ -174,7 +174,7 @@ def _select_screening_design(  # noqa: C901, PLR0912, PLR0915
             transition_rules=_screening_transition_rules(),
         )
 
-    # Rule: 3-5 factors, all continuous — full/fractional factorial
+    # Rule: 3-5 factors, all continuous - full/fractional factorial
     if 3 <= n <= 5 and spec.n_continuous == n:
         if n <= 4:
             design_type = "full_factorial"
@@ -197,7 +197,7 @@ def _select_screening_design(  # noqa: C901, PLR0912, PLR0915
             transition_rules=_screening_transition_rules(),
         )
 
-    # Rule: 6+ factors — PB, DSD, or fractional factorial
+    # Rule: 6+ factors - PB, DSD, or fractional factorial
     # Sub-rule: Domain or user prefers curvature detection → DSD
     prefer_curvature = template.get("prefer_curvature_detection", False)
     domain_pref = template.get("screening_preference")
@@ -211,7 +211,7 @@ def _select_screening_design(  # noqa: C901, PLR0912, PLR0915
         runs = estimate_screening_runs(n, "definitive_screening")
         reasoning.append(f"Domain prefers curvature detection → DSD ({runs} runs).")
     elif classification["prior_confidence"] >= 0.6:
-        # Medium confidence — DSD to screen + detect curvature
+        # Medium confidence - DSD to screen + detect curvature
         design_type = "definitive_screening"
         runs = estimate_screening_runs(n, "definitive_screening")
         conf = classification["prior_confidence"]
@@ -316,8 +316,8 @@ def _select_rsm_design(
     elif domain_pref == "box_behnken" or (not has_screening and 3 <= n_rsm <= 7):
         design_type = "box_behnken"
         runs = estimate_rsm_runs(n_rsm, "box_behnken", center_points)
-        purpose = "BBD for response surface modeling — fewer runs, avoids extreme corners."
-    # Rule: Default — CCD
+        purpose = "BBD for response surface modeling - fewer runs, avoids extreme corners."
+    # Rule: Default - CCD
     else:
         design_type = "ccd"
         runs = estimate_rsm_runs(n_rsm, "ccd", center_points)
@@ -569,13 +569,13 @@ def _build_reasoning(
     if spec.budget:
         reasoning.append(f"Budget: {spec.budget} total runs ({spec.budget / n:.1f} runs per factor).")
     else:
-        reasoning.append("No budget constraint — recommending ideal allocation.")
+        reasoning.append("No budget constraint - recommending ideal allocation.")
 
     if spec.prior_knowledge and spec.prior_knowledge.confidence > 0:
         reasoning.append(
             f"Prior knowledge confidence: {spec.prior_knowledge.confidence:.1f}. "
             + (
-                "Skipping screening — going directly to RSM."
+                "Skipping screening - going directly to RSM."
                 if spec.prior_knowledge.confidence >= 0.8
                 else "Using prior knowledge to inform design choices."
             )
@@ -607,7 +607,7 @@ def recommend_strategy(  # noqa: C901, PLR0913
     constraints: list[Constraint] | None = None,
     hard_to_change_factors: list[str] | None = None,
     prior_knowledge: str | None = None,
-    existing_data: Any = None,  # noqa: ANN401 — DataFrame or None
+    existing_data: Any = None,  # noqa: ANN401 - DataFrame or None
     domain: str | None = None,
     detail_level: str = "intermediate",
 ) -> dict[str, Any]:

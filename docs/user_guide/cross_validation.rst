@@ -46,7 +46,7 @@ Wold's Criterion
 
 The default threshold of 0.95 means: stop adding components when the PRESS
 ratio exceeds 0.95. A ratio close to 1.0 means the new component barely
-improves prediction — it is likely fitting noise.
+improves prediction - it is likely fitting noise.
 
 Lower thresholds (e.g., 0.90) are more conservative (fewer components).
 Higher thresholds (e.g., 0.98) are more liberal (more components).

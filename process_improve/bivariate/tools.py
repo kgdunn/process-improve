@@ -26,7 +26,7 @@ def _register(name: str) -> None:
 @tool_spec(
     name="find_elbow",
     description=(
-        "Find the elbow (knee) point in an x-y curve — the point where the curve transitions "
+        "Find the elbow (knee) point in an x-y curve - the point where the curve transitions "
         "from steep to flat (or vice versa). "
         "Common use cases: selecting the number of PCA components from a scree plot, determining "
         "optimal cluster count from an elbow plot, or finding a saturation point. "

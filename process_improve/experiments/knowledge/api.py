@@ -1,6 +1,6 @@
 """Public API for the DOE knowledge graph.
 
-Provides :func:`doe_knowledge` — the single entry-point for retrieving
+Provides :func:`doe_knowledge` - the single entry-point for retrieving
 DOE concepts, design selection logic, interpretation guidance, diagnostic
 patterns, and worked examples.
 """
@@ -44,10 +44,10 @@ def doe_knowledge(
     context : dict, optional
         Experimental context for design-selection queries.  Recognised keys:
 
-        * ``n_factors`` (int) — number of factors
-        * ``budget`` (int) — maximum number of runs
-        * ``goal`` (str) — ``"screening"`` | ``"optimization"``
-        * ``sequential`` (bool) — whether the design will be augmented later
+        * ``n_factors`` (int) - number of factors
+        * ``budget`` (int) - maximum number of runs
+        * ``goal`` (str) - ``"screening"`` | ``"optimization"``
+        * ``sequential`` (bool) - whether the design will be augmented later
         * ``curvature_important`` (bool)
         * ``has_hard_to_change`` (bool)
     detail_level : str, default ``"intermediate"``
@@ -59,11 +59,11 @@ def doe_knowledge(
     dict
         A dictionary with keys:
 
-        * ``"results"`` — list of matching knowledge entries
-        * ``"query"`` — the original query string
-        * ``"topic"`` — the topic used for filtering
-        * ``"detail_level"`` — the detail level applied
-        * ``"n_results"`` — number of results returned
+        * ``"results"`` - list of matching knowledge entries
+        * ``"query"`` - the original query string
+        * ``"topic"`` - the topic used for filtering
+        * ``"detail_level"`` - the detail level applied
+        * ``"n_results"`` - number of results returned
 
     Examples
     --------

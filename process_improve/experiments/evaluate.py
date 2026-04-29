@@ -102,7 +102,7 @@ def _build_model_matrix(
         squared = " + ".join(f"I({f} ** 2)" for f in factor_names)
         rhs = f"({joined}) ** 2 + {squared}"
     elif "~" in model:
-        # Explicit formula with response side — strip LHS
+        # Explicit formula with response side - strip LHS
         rhs = model.split("~", 1)[1].strip()
     else:
         # Assume it is already a valid RHS formula
@@ -407,7 +407,7 @@ def _word_to_str(indices: frozenset[int], factor_names: list[str]) -> str:
 
 
 def _multiply_words(w1: frozenset[int], w2: frozenset[int]) -> frozenset[int]:
-    """Multiply two words in GF(2) — symmetric difference of factor sets."""
+    """Multiply two words in GF(2) - symmetric difference of factor sets."""
     return w1.symmetric_difference(w2)
 
 
@@ -736,7 +736,7 @@ def evaluate_design(  # noqa: PLR0913
     -------
     dict[str, Any]
         Results keyed by metric name.  The structure of each value depends
-        on the metric — see individual metric documentation.
+        on the metric - see individual metric documentation.
 
     Examples
     --------

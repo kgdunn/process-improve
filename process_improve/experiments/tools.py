@@ -1367,7 +1367,7 @@ _register("doe_knowledge")
                     "description": (
                         "Free-text description of prior knowledge, e.g. "
                         "'Published literature confirms Temperature and pH are significant.' "
-                        "or 'No prior data — first time running this process.'"
+                        "or 'No prior data - first time running this process.'"
                     ),
                 },
                 "existing_data": {
@@ -1399,7 +1399,7 @@ _register("doe_knowledge")
         }
     },
     examples="""
-    # "I have 7 factors — how do I plan my experiments?"
+    # "I have 7 factors - how do I plan my experiments?"
         -> ``recommend_strategy(factors=[{"name": "A", "low": 0, "high": 100}, ...7 factors...],
                 budget=40, domain="general")``
 
@@ -1408,7 +1408,7 @@ _register("doe_knowledge")
                 responses=[{"name": "Yield", "goal": "maximize"}],
                 budget=40, domain="fermentation")``
 
-    # "Expensive cell culture experiments — most efficient approach for 6 factors?"
+    # "Expensive cell culture experiments - most efficient approach for 6 factors?"
         -> ``recommend_strategy(factors=[...6 factors...],
                 responses=[{"name": "Viability", "goal": "maximize"}],
                 domain="cell_culture", detail_level="intermediate")``

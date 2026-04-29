@@ -130,7 +130,7 @@ def main_effects_plot(
         a fitted ``Model`` is supplied.
     factors_to_plot : list of str, optional
         Subset of factors to display.  By default all main-effect
-        factors are shown — for a ``Model`` these are the level-1
+        factors are shown - for a ``Model`` these are the level-1
         factors from the formula; for a DataFrame they are all columns
         other than *response_column*.
     factor_labels : dict, optional

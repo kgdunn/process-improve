@@ -12,30 +12,30 @@
 >   stub found in `process_improve/**/*.py` and `tests/**/*.py`.
 >
 > Provenance tags on each item:
-> - `(#NNN)` — derived from PR description.
-> - `(TODO.txt)` — from the original free-form file.
-> - `(file.py:line)` — from an in-source TODO/FIXME or stub.
+> - `(#NNN)` - derived from PR description.
+> - `(TODO.txt)` - from the original free-form file.
+> - `(file.py:line)` - from an in-source TODO/FIXME or stub.
 
 ## Multivariate (PCA / PLS / TPLS / MBPCA / MBPLS)
 
 - [ ] Add plotting routines on MV models: `model.plot_screeplot(...)` etc.; plots accept a `pc_depth` argument so a 3D plot is made instead. (TODO.txt)
-- [ ] PLS lacks an SPE limit — add it. (TODO.txt)
+- [ ] PLS lacks an SPE limit - add it. (TODO.txt)
 - [ ] Fill in `R2*` attributes on MV models. (TODO.txt)
-- [ ] `print(model)` raises `'PCA_missing_values' object has no attribute 'copy'` — fix. (TODO.txt)
+- [ ] `print(model)` raises `'PCA_missing_values' object has no attribute 'copy'` - fix. (TODO.txt)
 - [ ] Implement sklearn-style `fit_transform` on `PCA`. (TODO.txt)
 - [ ] Add a post-filter helper: snap values within ±eps of zero to zero. (TODO.txt)
-- [ ] Add VIP for PCA, PLS, TPLS. (TODO.txt, #54 — unmerged)
+- [ ] Add VIP for PCA, PLS, TPLS. (TODO.txt, #54 - unmerged)
 - [ ] Prediction intervals for PLS. (TODO.txt)
 - [ ] Jackknife confidence intervals for PLS coefficients. (TODO.txt)
 - [ ] Contribution plots and contribution-plot calculation. (TODO.txt)
 - [ ] In NIPALS, use the column of X with the greatest variance as the starting score after iteration 1. (TODO.txt)
-- [ ] PLS with missing values via TSR methods (Folch-Fortuny — see Reference snippets). (TODO.txt)
+- [ ] PLS with missing values via TSR methods (Folch-Fortuny - see Reference snippets). (TODO.txt)
 - [ ] Investigate Robust PLS (Serneels/Croux/Filzmoser/Van Espen 2005, Partial Robust M-regression). (TODO.txt)
 - [ ] Port the legacy `calc_limits` MATLAB block (verbatim in *Reference snippets*) into Python. (TODO.txt)
 - [ ] Verify sklearn pipeline compatibility (clone, `get_params` / `set_params`) for refactored PLS. (#59)
 - [ ] Verify numerical equivalence of refactored PLS with sklearn `PLSRegression` on reference datasets. (#59)
 - [ ] Add larger multi-block reference datasets (FMC, SBR, DuPont) once `.mat` conversion is wanted. (#124)
-- [ ] Multi-block batch-wise unfolding — extend `process_improve/batch/preprocessing.py`. (#124)
+- [ ] Multi-block batch-wise unfolding - extend `process_improve/batch/preprocessing.py`. (#124)
 - [ ] Multi-block cross-validation helper (single-block `Resampler` exists; multi-block CV needs its own pass). (#124)
 - [ ] Optional thin `Block` wrapper class around `dict[str, DataFrame]` (only if usage warrants). (#124)
 - [ ] Implement TSR for PLS. (multivariate/methods.py:1033)
@@ -55,11 +55,11 @@
 ## Batch
 
 - [ ] Percentage-scale x-axis for alignment, with configurable resolution. (TODO.txt)
-- [ ] Missing-data handling in batch — see verbatim `fill_na_values` in *Reference snippets*. (TODO.txt)
+- [ ] Missing-data handling in batch - see verbatim `fill_na_values` in *Reference snippets*. (TODO.txt)
 - [ ] Smoothing tools: lowess and Savitzky–Golay filter for batch data. (TODO.txt)
 - [ ] Add tests for `f_cross` and `f_elbow`. (TODO.txt)
 - [ ] Don't force batch dict keys to `str`; investigate `align_with_path` adding `batch_id` as a column and crashing on `synced.iloc[row, :] = np.nanmean(temp, axis=0)`. (TODO.txt)
-- [ ] Implement `f_robust_mad` — currently raises `AssertionError("This next line of code fails. Fix it.")`. (#89, batch/features.py:295)
+- [ ] Implement `f_robust_mad` - currently raises `AssertionError("This next line of code fails. Fix it.")`. (#89, batch/features.py:295)
 - [ ] Resolve outstanding `# TODO: check this out still`. (batch/features.py:372)
 - [ ] Investigate change-point detection via `ruptures` (https://github.com/deepcharles/ruptures). (batch/features.py:403)
 - [ ] Address the bare `# TODO` markers on two feature functions. (batch/features.py:480, batch/features.py:490)
@@ -79,11 +79,11 @@
 
 ## Univariate
 
-- [ ] Distribution-fit check (NIST handbook §3.5.7 — see *Reference snippets*). (TODO.txt)
+- [ ] Distribution-fit check (NIST handbook §3.5.7 - see *Reference snippets*). (TODO.txt)
 - [ ] Outlier detection: integrate / wrap `pyod`. (TODO.txt)
-- [ ] Grubbs / Tietjen–Moore single & multiple outlier tests (NIST §3.5.h, §3.5.h3 — see *Reference snippets*). (TODO.txt)
+- [ ] Grubbs / Tietjen–Moore single & multiple outlier tests (NIST §3.5.h, §3.5.h3 - see *Reference snippets*). (TODO.txt)
 - [ ] Holm post-hoc multiple-comparisons test. (TODO.txt)
-- [ ] Robust scale — port the verbatim Mosteller–Tukey MATLAB function in *Reference snippets*. (TODO.txt)
+- [ ] Robust scale - port the verbatim Mosteller–Tukey MATLAB function in *Reference snippets*. (TODO.txt)
 - [ ] Follow up on the `rips-irsp.com/article/10.5334/irsp.82/` reference (likely a multiple-comparisons or post-hoc test to add). (univariate/metrics.py:419)
 
 ## Monitoring
@@ -100,7 +100,7 @@
 
 ## Experiments / DOE
 
-- [ ] Build out the product-development notebook — full outline preserved verbatim under *Reference snippets*. (TODO.txt)
+- [ ] Build out the product-development notebook - full outline preserved verbatim under *Reference snippets*. (TODO.txt)
 - [ ] Implement `ridge_analysis` (trace optimum along increasing radii). Currently a stub; removed from the `optimize_responses` tool enum. (#74, #79)
 - [ ] Implement `pareto_front` (multi-objective NSGA-II). Currently a stub; removed from the `optimize_responses` tool enum. (#74, #79)
 - [ ] Verify `execute_tool_call("analyze_experiment", ...)` works end-to-end. (#72)
@@ -112,11 +112,11 @@
 
 ## Visualization
 
-- [ ] Implement `raincloud` — currently a stub that returns `None`. (#89, visualization/plots.py:4)
+- [ ] Implement `raincloud` - currently a stub that returns `None`. (#89, visualization/plots.py:4)
 
 ## Tests
 
-- [ ] Flesh out partial / placeholder test bodies — R cross-checks, SPE-vs-Simca-P comparison, Plotly assertions, etc. (tests/test_multivariate.py:388, tests/test_multivariate.py:413, tests/test_multivariate.py:478, tests/test_multivariate.py:703, tests/test_multivariate.py:747, tests/test_multivariate.py:1012, tests/test_multivariate.py:1226, tests/test_multivariate.py:1246, tests/test_multivariate.py:1309, tests/test_multivariate.py:2073, tests/test_multivariate.py:2220)
+- [ ] Flesh out partial / placeholder test bodies - R cross-checks, SPE-vs-Simca-P comparison, Plotly assertions, etc. (tests/test_multivariate.py:388, tests/test_multivariate.py:413, tests/test_multivariate.py:478, tests/test_multivariate.py:703, tests/test_multivariate.py:747, tests/test_multivariate.py:1012, tests/test_multivariate.py:1226, tests/test_multivariate.py:1246, tests/test_multivariate.py:1309, tests/test_multivariate.py:2073, tests/test_multivariate.py:2220)
 - [ ] Investigate the sequence that yields Sn = 0 despite variability. (tests/test_univariate.py:113)
 - [ ] Complete the robust-case test. (tests/test_univariate.py:394)
 - [ ] Address the bare `# TODO`. (tests/test_univariate.py:843)
@@ -139,7 +139,7 @@
 
 - [ ] Confirm Codecov "Missing Base Commit" is gone after the next PR. (#117)
 - [ ] Confirm `CODECOV_TOKEN` is set under repo Settings → Secrets and variables → Actions. (#118)
-- [ ] After merge, watch first `Unit tests` run on `main` — codecov upload should run on `ubuntu-latest` + `3.13` only. (#118)
+- [ ] After merge, watch first `Unit tests` run on `main` - codecov upload should run on `ubuntu-latest` + `3.13` only. (#118)
 - [ ] Confirm README codecov badge resolves to a percentage instead of "unknown". (#118)
 - [ ] Update the README CI badge URL when `run-tests.yml` is renamed/replaced. (#119)
 - [ ] Settings → Code security → enable Dependabot alerts + Dependabot security updates. (#97)
@@ -159,7 +159,7 @@
 Preserved verbatim from the original `TODO.txt` so the context referenced by the
 checkboxes above is not lost.
 
-### `fill_na_values` — crude batch missing-value fill
+### `fill_na_values` - crude batch missing-value fill
 
 ```python
 # Fill in missing values
@@ -194,7 +194,7 @@ for batch_id, batch in  df_dict.items():
 - PLS with TSR methods: https://riunet.upv.es/bitstream/id/303213/PCA%20model%20building%20with%20missing%20data%20new%20proposals%20and%20a%20comparative%20study%20-%20Folch-Fortuny.pdf
 - Robust PLS: S. Serneels, C. Croux, P. Filzmoser, P.J. Van Espen, *Partial Robust M-regression*, Chemometrics and Intelligent Laboratory Systems, 79 (2005), 55-64.
 
-### `robust_scale` — Mosteller & Tukey, MATLAB
+### `robust_scale` - Mosteller & Tukey, MATLAB
 
 ```matlab
 function  v = robust_scale(a)
@@ -212,7 +212,7 @@ function  v = robust_scale(a)
 end
 ```
 
-### `calc_limits` — legacy MATLAB / Python hybrid block to port
+### `calc_limits` - legacy MATLAB / Python hybrid block to port
 
 ```python
 def calc_limits(self):
@@ -292,7 +292,7 @@ def calc_limits(self):
 
 ### Product-development notebook narrative
 
-Verbatim from `TODO.txt` — captures the storyboard for the planned PD notebook
+Verbatim from `TODO.txt` - captures the storyboard for the planned PD notebook
 that walks through latent-variable model inversion for new-product design.
 
 ```

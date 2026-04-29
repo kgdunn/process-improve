@@ -160,7 +160,7 @@ def _augment_foldover(ctx: _AugmentContext) -> dict[str, Any]:
             generators_after = [f"I={_word_to_str(w, ctx.factor_names)}" for w in surviving]
             notes.append(f"New defining relation: {', '.join(generators_after)}.")
         else:
-            notes.append("All defining words eliminated — design is now full resolution.")
+            notes.append("All defining words eliminated - design is now full resolution.")
 
         eliminated = [w for w in words if len(w) % 2 != 0]
         if eliminated:
@@ -218,7 +218,7 @@ def _augment_semifold(ctx: _AugmentContext) -> dict[str, Any]:
             generators_after = [f"I={_word_to_str(w, ctx.factor_names)}" for w in surviving]
             notes.append(f"Surviving defining words: {', '.join(generators_after)}.")
         else:
-            notes.append("All defining words eliminated — design is now full resolution.")
+            notes.append("All defining words eliminated - design is now full resolution.")
         if eliminated:
             eliminated_strs = [_word_to_str(w, ctx.factor_names) for w in eliminated]
             notes.append(f"De-aliased by removing words: {', '.join(eliminated_strs)}.")
@@ -249,7 +249,7 @@ def _auto_select_fold_factor(ctx: _AugmentContext) -> str:
     most short words is the best choice.
     """
     if not ctx.generators:
-        # No generators — just pick the first factor
+        # No generators - just pick the first factor
         return ctx.factor_names[0]
 
     words = _defining_relation_from_generators(ctx.generators, ctx.factor_names)

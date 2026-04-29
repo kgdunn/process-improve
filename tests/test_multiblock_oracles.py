@@ -8,7 +8,7 @@ synthetic problem.
 
 If both reference paths agree, we have a trustworthy Python oracle that the
 production :class:`MBPCA` and :class:`MBPLS` classes can be validated against
-when they land in PR3 / PR6 — without ever needing to run MATLAB.
+when they land in PR3 / PR6 - without ever needing to run MATLAB.
 
 The MATLAB ``unit_tests.m`` MBPCA_tests / MBPLS_tests blocks structure their
 self-consistency checks the same way; this module is the Python equivalent.
@@ -28,7 +28,7 @@ from tests._multiblock_oracles import (
 
 
 def _preprocess(matrix: np.ndarray) -> np.ndarray:
-    """Mean-centre and unit-variance scale (ddof=1) — matches MCUVScaler."""
+    """Mean-centre and unit-variance scale (ddof=1) - matches MCUVScaler."""
     centred = matrix - matrix.mean(axis=0, keepdims=True)
     scale = centred.std(axis=0, ddof=1, keepdims=True)
     scale[scale == 0] = 1.0

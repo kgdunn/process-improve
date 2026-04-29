@@ -59,7 +59,7 @@ Compute properties and quality metrics of an existing design.
 | `alpha` | float | Significance level (default 0.05) |
 | `sigma` | float or None | Estimated noise SD |
 
-**Outputs:** Requested metrics — alias chains, power curves, efficiency values, etc.
+**Outputs:** Requested metrics - alias chains, power curves, efficiency values, etc.
 
 **Handles 7 questions as primary tool.** See [mapping](tool-question-mapping.md#evaluate_design).
 
@@ -114,7 +114,7 @@ Find optimal factor settings for one or multiple responses.
 
 ## Tool 5: `augment_design`
 
-Extend or modify an existing design — add runs, fold over, upgrade to RSM.
+Extend or modify an existing design - add runs, fold over, upgrade to RSM.
 
 **Inputs:**
 
@@ -133,12 +133,12 @@ Extend or modify an existing design — add runs, fold over, upgrade to RSM.
 
 ---
 
-## Tool 6: `visualize_doe` — **Implemented**
+## Tool 6: `visualize_doe` - **Implemented**
 
 Generate DOE plots from design data or fitted models. Returns dual-backend output
 (Plotly interactive figures + ECharts JSON configs).
 
-**Architecture:** Three-layer design — plot classes compute DOE statistics once via
+**Architecture:** Three-layer design - plot classes compute DOE statistics once via
 `to_spec()` → ChartSpec IR, then backend adapters (PlotlyAdapter, EChartsAdapter)
 translate to native formats. See `process_improve/experiments/visualization/`.
 
@@ -146,8 +146,8 @@ translate to native formats. See `process_improve/experiments/visualization/`.
 
 | Parameter | Type | Description |
 |---|---|---|
-| `plot_type` | str | One of 20 types — see enum below |
-| `analysis_results` | dict or None | From `analyze_experiment()` — coefficients, effects, residuals, lenth_method |
+| `plot_type` | str | One of 20 types - see enum below |
+| `analysis_results` | dict or None | From `analyze_experiment()` - coefficients, effects, residuals, lenth_method |
 | `design_data` | list[dict] or None | Raw design matrix (one dict per run, coded -1/+1) |
 | `response_column` | str or None | Which response column in design_data |
 | `factors_to_plot` | list[str] or None | Which factors (2 for contour/interaction, 3 for cube_plot) |
@@ -186,7 +186,7 @@ translate to native formats. See `process_improve/experiments/visualization/`.
 
 ## Tool 7: `doe_knowledge`
 
-Retrieve DOE knowledge — definitions, decision logic, interpretation guidance, worked examples.
+Retrieve DOE knowledge - definitions, decision logic, interpretation guidance, worked examples.
 
 This is the most-used tool (65% of questions). It provides the conceptual grounding that computation alone cannot.
 
@@ -221,21 +221,21 @@ WorkedExample -[DEMONSTRATES]->   Concept
 
 ### Implementation (v1)
 
-**Status: Implemented** — `process_improve/experiments/knowledge/`
+**Status: Implemented** - `process_improve/experiments/knowledge/`
 
 Three-layer architecture:
 
-1. **YAML data files** (`knowledge/data/`) — canonical knowledge authored in version-controlled YAML:
-   - `design_types.yaml` — 6 design types (full factorial, fractional factorial, Plackett-Burman, Box-Behnken, CCD, DSD) with multi-level descriptions
-   - `decision_rules.yaml` — 7 context-aware design selection rules
-   - `diagnostics.yaml` — 8 residual diagnostic patterns with remedies
-   - `concepts.yaml` — 9 statistical concepts (resolution, aliasing, replication, randomization, blocking, center points, effect hierarchy, effect sparsity, desirability)
+1. **YAML data files** (`knowledge/data/`) - canonical knowledge authored in version-controlled YAML:
+   - `design_types.yaml` - 6 design types (full factorial, fractional factorial, Plackett-Burman, Box-Behnken, CCD, DSD) with multi-level descriptions
+   - `decision_rules.yaml` - 7 context-aware design selection rules
+   - `diagnostics.yaml` - 8 residual diagnostic patterns with remedies
+   - `concepts.yaml` - 9 statistical concepts (resolution, aliasing, replication, randomization, blocking, center points, effect hierarchy, effect sparsity, desirability)
 
-2. **In-memory query engine** (`knowledge/engine.py`) — loads YAML into Python dataclasses, builds keyword and topic indices, supports filtered traversal and condition matching
+2. **In-memory query engine** (`knowledge/engine.py`) - loads YAML into Python dataclasses, builds keyword and topic indices, supports filtered traversal and condition matching
 
-3. **Public API** (`knowledge/api.py`) — `doe_knowledge(query, topic, context, detail_level)` routes to topic-specific handlers
+3. **Public API** (`knowledge/api.py`) - `doe_knowledge(query, topic, context, detail_level)` routes to topic-specific handlers
 
-**Registered as `@tool_spec`** in `tools.py` — callable via `execute_tool_call("doe_knowledge", {...})`
+**Registered as `@tool_spec`** in `tools.py` - callable via `execute_tool_call("doe_knowledge", {...})`
 
 **Tests:** 38 tests in `tests/test_doe_knowledge.py`
 
@@ -273,15 +273,15 @@ Total: ~40 runs
 
 ### Implementation (v1)
 
-**Status: Implemented** — `process_improve/experiments/strategy/`
+**Status: Implemented** - `process_improve/experiments/strategy/`
 
 Deterministic rule engine architecture:
 
-1. **Pydantic models** (`strategy/models.py`) — `ExperimentalStrategy`, `ExperimentalStage`, `TransitionRule`, `DOEProblemSpec`, `PriorKnowledge`, `DomainType`
-2. **Budget allocator** (`strategy/budget.py`) — 25-40-55-15 framework with domain-specific adjustments and run estimation for PB, DSD, fractional factorial, CCD, BBD designs
-3. **Domain templates** (`strategy/domain_templates.py`) — 8 domain templates (pharma, fermentation, food science, extraction, analytical method, cell culture, bioprocess, general) with design preferences and budget weights
-4. **Rule engine** (`strategy/engine.py`) — ~50 deterministic decision rules from Montgomery, NIST, Stat-Ease SCOR; pipeline: classify → stage selection → design selection → budget allocation → transition rules → assembly
+1. **Pydantic models** (`strategy/models.py`) - `ExperimentalStrategy`, `ExperimentalStage`, `TransitionRule`, `DOEProblemSpec`, `PriorKnowledge`, `DomainType`
+2. **Budget allocator** (`strategy/budget.py`) - 25-40-55-15 framework with domain-specific adjustments and run estimation for PB, DSD, fractional factorial, CCD, BBD designs
+3. **Domain templates** (`strategy/domain_templates.py`) - 8 domain templates (pharma, fermentation, food science, extraction, analytical method, cell culture, bioprocess, general) with design preferences and budget weights
+4. **Rule engine** (`strategy/engine.py`) - ~50 deterministic decision rules from Montgomery, NIST, Stat-Ease SCOR; pipeline: classify → stage selection → design selection → budget allocation → transition rules → assembly
 
-**Registered as `@tool_spec`** in `tools.py` — callable via `execute_tool_call("recommend_strategy", {...})`
+**Registered as `@tool_spec`** in `tools.py` - callable via `execute_tool_call("recommend_strategy", {...})`
 
 **Tests:** 74 tests in `tests/test_recommend_strategy.py`

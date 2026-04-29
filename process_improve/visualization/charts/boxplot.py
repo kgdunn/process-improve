@@ -32,12 +32,12 @@ class BoxStats:
     group : str
         Category label rendered on the x-axis.
     q_stats : list[float]
-        ``[lower_whisker, Q1, median, Q3, upper_whisker]`` — the order
+        ``[lower_whisker, Q1, median, Q3, upper_whisker]`` - the order
         used by both ECharts boxplot series and Plotly's pre-computed
         :class:`plotly.graph_objects.Box` (``lowerfence``, ``q1``,
         ``median``, ``q3``, ``upperfence``).
     outliers : list[dict]
-        Each entry has ``value`` (float) and optional ``id`` (str) — the
+        Each entry has ``value`` (float) and optional ``id`` (str) - the
         stable observation id used for cross-chart brushing.
     """
 

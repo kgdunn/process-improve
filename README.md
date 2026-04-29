@@ -1,6 +1,6 @@
 # Process Improvement using Data
 
-> A pragmatic Python toolkit for industrial process data — multivariate
+> A pragmatic Python toolkit for industrial process data - multivariate
 > analysis, designed experiments, and process monitoring, in one place.
 
 [![PyPI version](https://img.shields.io/pypi/v/process-improve.svg)](https://pypi.org/project/process-improve/)
@@ -15,9 +15,9 @@
 `process-improve` is the companion package to the online textbook
 [Process Improvement using Data](https://learnche.org/pid), and powers the
 statistical engine behind [factori.al](https://factori.al). It bundles the
-methods practitioners actually reach for on real plant and lab data —
+methods practitioners actually reach for on real plant and lab data -
 PCA / PLS with proper missing-data handling, designed experiments with a
-multi-stage strategy recommender, control charts, and batch-data tooling —
+multi-stage strategy recommender, control charts, and batch-data tooling -
 behind an API that is sklearn-compatible where it makes sense and
 pandas-native throughout.
 
@@ -26,14 +26,14 @@ pandas-native throughout.
 ### 🧪 Designed Experiments
 
 - Full-factorial, fractional-factorial, and response-surface designs (built on `pyDOE3`)
-- A **DOE strategy recommender** that plans a complete multi-stage program — screening → optimization → confirmation — from ~50 deterministic rules, with budget-aware allocation and domain-specific advice for fermentation, cell culture, pharma, and 5 other domains
+- A **DOE strategy recommender** that plans a complete multi-stage program - screening → optimization → confirmation - from ~50 deterministic rules, with budget-aware allocation and domain-specific advice for fermentation, cell culture, pharma, and 5 other domains
 - ANOVA, main-effects plots, linear-model fitting, and response optimization
 
 ### 📊 Latent Variable Methods
 
 - **PCA** with SVD and NIPALS algorithms, plus missing-data via Trimmed Score Regression
 - **PLS** regression with a fully sklearn-compatible API
-- **TPLS** — PLS for *T-shaped data structures*
+- **TPLS** - PLS for *T-shaped data structures*
 - Diagnostics: Hotelling's T², SPE, score contributions, and ESD-based outlier detection
 - Component selection via PRESS / Wold's criterion
 - Interactive Plotly score, loading, SPE, and T² plots, bound directly to fitted models
@@ -71,7 +71,7 @@ Requires Python 3.10 or newer.
 
 ## Quick start
 
-### PCA — Principal Component Analysis
+### PCA - Principal Component Analysis
 
 ```python
 import pandas as pd
@@ -85,7 +85,7 @@ print(pca.r2_cumulative_)        # cumulative R² per component
 pca.score_plot()                  # interactive Plotly plot
 ```
 
-### PLS — Projection to Latent Structures
+### PLS - Projection to Latent Structures
 
 ```python
 from process_improve.multivariate.methods import PLS, MCUVScaler
@@ -98,7 +98,7 @@ result = pls.predict(X_s)
 print(result.y_hat, result.spe, result.hotellings_t2)
 ```
 
-### DOE — multi-stage experimental strategy
+### DOE - multi-stage experimental strategy
 
 ```python
 from process_improve.experiments.factor import Factor, Response
@@ -146,4 +146,4 @@ Bug reports and feature requests are welcome on the
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+MIT - see [LICENSE](LICENSE) for details.

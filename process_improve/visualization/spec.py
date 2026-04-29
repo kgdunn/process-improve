@@ -1,7 +1,7 @@
 """Backend-agnostic chart specification (ChartSpec IR).
 
-The intermediate representation captures *what* to draw — data, visual
-encodings, annotations — while backend adapters handle *how* to draw it.
+The intermediate representation captures *what* to draw - data, visual
+encodings, annotations - while backend adapters handle *how* to draw it.
 Inspired by Vega-Lite's declarative approach, with DOE-specific
 primitives (significance thresholds, constraint regions) as first-class
 concepts.
@@ -60,7 +60,7 @@ class Encoding:
 
 @dataclass
 class LayerSpec:
-    """A single visual layer — one trace in Plotly, one series in ECharts.
+    """A single visual layer - one trace in Plotly, one series in ECharts.
 
     Parameters
     ----------
@@ -110,7 +110,7 @@ class Annotation:
     annotation_type : AnnotationType
         What kind of annotation this is.
     axis : str
-        ``"x"`` or ``"y"`` — which axis the annotation references.
+        ``"x"`` or ``"y"`` - which axis the annotation references.
     value : float or None
         Position for reference lines / thresholds.
     value_end : float or None
@@ -209,7 +209,7 @@ def constraint_region(
 
 @dataclass
 class PanelSpec:
-    """A single chart panel — becomes one Plotly subplot or ECharts grid.
+    """A single chart panel - becomes one Plotly subplot or ECharts grid.
 
     Parameters
     ----------
@@ -257,7 +257,7 @@ class PanelSpec:
 
 @dataclass
 class ChartSpec:
-    """Top-level chart specification — the IR that adapters consume.
+    """Top-level chart specification - the IR that adapters consume.
 
     A ``ChartSpec`` may contain one or more :class:`PanelSpec` panels.
     Single-panel charts (Pareto, contour, …) have ``len(panels) == 1``.
@@ -315,7 +315,7 @@ class ChartSpec:
         """Extract computed data arrays from the spec.
 
         Returns a lightweight dict containing just the raw data from each
-        panel's layers — useful when the consumer wants to render with a
+        panel's layers - useful when the consumer wants to render with a
         custom frontend.
         """
         panels_data: list[dict[str, Any]] = []

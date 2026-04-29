@@ -655,10 +655,10 @@ class PCA(TransformerMixin, BaseEstimator):
         result : sklearn.utils.Bunch
             With keys:
 
-            - ``n_components`` — recommended number of components (int)
-            - ``press`` — PRESS per component count (pd.Series, indexed 1..A_max)
-            - ``press_ratio`` — PRESS_a / PRESS_{a-1} (pd.Series, indexed 2..A_max)
-            - ``cv_scores`` — per-fold scores (pd.DataFrame, A_max rows x cv cols)
+            - ``n_components`` - recommended number of components (int)
+            - ``press`` - PRESS per component count (pd.Series, indexed 1..A_max)
+            - ``press_ratio`` - PRESS_a / PRESS_{a-1} (pd.Series, indexed 2..A_max)
+            - ``cv_scores`` - per-fold scores (pd.DataFrame, A_max rows x cv cols)
         """
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
@@ -727,7 +727,7 @@ class PCA(TransformerMixin, BaseEstimator):
         components : list of int, optional
             **1-based** component indices to decompose over, matching the
             model's column convention. Examples: ``[2, 3]`` for a PC2-vs-PC3
-            score plot, or ``None`` (default) for all components — appropriate
+            score plot, or ``None`` (default) for all components - appropriate
             for Hotelling's T² contributions.
         weighted : bool, default False
             If True, scale the score difference by 1/sqrt(explained_variance)
@@ -773,9 +773,9 @@ class PCA(TransformerMixin, BaseEstimator):
 
         Combines two approaches:
 
-        1. **Statistical limits** — observations exceeding the SPE or T² limit
+        1. **Statistical limits** - observations exceeding the SPE or T² limit
            at ``conf_level`` are flagged.
-        2. **Robust ESD test** — the generalized ESD test (with robust median/MAD
+        2. **Robust ESD test** - the generalized ESD test (with robust median/MAD
            variant) identifies observations that are unusual *relative to the
            rest of the data*, even if they fall below the statistical limit.
 
@@ -792,13 +792,13 @@ class PCA(TransformerMixin, BaseEstimator):
         outliers : list of dict
             Sorted from most severe to least. Each dict contains:
 
-            - ``observation`` — index label of the observation
-            - ``outlier_types`` — list of ``"spe"`` and/or ``"hotellings_t2"``
-            - ``spe`` — SPE value for this observation
-            - ``hotellings_t2`` — T² value for this observation
-            - ``spe_limit`` — SPE limit at the given confidence level
-            - ``hotellings_t2_limit`` — T² limit at the given confidence level
-            - ``severity`` — max(spe/spe_limit, t2/t2_limit)
+            - ``observation`` - index label of the observation
+            - ``outlier_types`` - list of ``"spe"`` and/or ``"hotellings_t2"``
+            - ``spe`` - SPE value for this observation
+            - ``hotellings_t2`` - T² value for this observation
+            - ``spe_limit`` - SPE limit at the given confidence level
+            - ``hotellings_t2_limit`` - T² limit at the given confidence level
+            - ``severity`` - max(spe/spe_limit, t2/t2_limit)
 
         Examples
         --------
@@ -2106,11 +2106,11 @@ class TPLS(RegressorMixin, BaseEstimator):
 
     Notation mapping (paper → this code):
 
-    - X^T → D: ``d_matrix`` (external), ``d_mats`` (internal) — Database of properties
+    - X^T → D: ``d_matrix`` (external), ``d_mats`` (internal) - Database of properties
     - X → D^T: transposed D (not used directly)
-    - R → F: ``f_mats`` — Formula matrices
-    - Z → Z: ``z_mats`` — Process conditions
-    - Y → Y: ``y_mats`` — Quality indicators
+    - R → F: ``f_mats`` - Formula matrices
+    - Z → Z: ``z_mats`` - Process conditions
+    - Y → Y: ``y_mats`` - Quality indicators
 
     Notes
     1. Matrices in F, Z and Y must all have the same number of rows.
@@ -2139,8 +2139,8 @@ class TPLS(RegressorMixin, BaseEstimator):
       ``D = {"Group A": df_props_a, "Group B": df_props_b, ...}``
     - ``F``: Formula matrices (rows = blends, columns = materials).
       ``F = {"Group A": df_formulas_a, "Group B": df_formulas_b, ...}``
-    - ``Z``: Process conditions — one row per blend, one column per condition.
-    - ``Y``: Product quality indicators — one row per blend, one column per indicator.
+    - ``Z``: Process conditions - one row per blend, one column per condition.
+    - ``Y``: Product quality indicators - one row per blend, one column per indicator.
 
     Attributes
     ----------
@@ -3720,7 +3720,7 @@ class MBPLS(RegressorMixin, BaseEstimator):
             centre (zeros).
         components : list of int, optional
             **1-based** component indices to decompose over. ``None`` (default)
-            uses all components — appropriate for Hotelling's T² contributions.
+            uses all components - appropriate for Hotelling's T² contributions.
         weighted : bool, default=False
             If ``True``, divide the super-score delta by
             ``sqrt(explained_variance_)`` per component before back-projecting,

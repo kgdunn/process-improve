@@ -57,7 +57,7 @@ class ResidualsVsFittedPlot(BasePlot):
         fitted = diag.get("fitted_values", [])
 
         if not residuals or not fitted:
-            return ChartSpec(title="Residuals vs Fitted — no data")
+            return ChartSpec(title="Residuals vs Fitted - no data")
 
         # Scatter layer
         scatter_data = [
@@ -129,7 +129,7 @@ class NormalProbabilityPlot(BasePlot):
         residuals = diag.get("residuals", [])
 
         if not residuals:
-            return ChartSpec(title="Normal Probability Plot — no data")
+            return ChartSpec(title="Normal Probability Plot - no data")
 
         # scipy.stats.probplot returns (quantiles, ordered_residuals)
         (theoretical, ordered), (slope, intercept, _r) = stats.probplot(residuals, dist="norm")
@@ -207,7 +207,7 @@ class ResidualsVsOrderPlot(BasePlot):
         residuals = diag.get("residuals", [])
 
         if not residuals:
-            return ChartSpec(title="Residuals vs Order — no data")
+            return ChartSpec(title="Residuals vs Order - no data")
 
         scatter_data = [
             {"run_order": i + 1, "residual": float(r)}
@@ -289,10 +289,10 @@ class BoxCoxPlot(BasePlot):
         # Get response values
         y = self._get_response_values()
         if y is None or len(y) < 3:
-            return ChartSpec(title="Box-Cox Plot — insufficient data")
+            return ChartSpec(title="Box-Cox Plot - insufficient data")
 
         if np.any(np.array(y) <= 0):
-            return ChartSpec(title="Box-Cox Plot — requires all positive response values")
+            return ChartSpec(title="Box-Cox Plot - requires all positive response values")
 
         y_arr = np.array(y, dtype=float)
 

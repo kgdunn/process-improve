@@ -840,7 +840,7 @@ def variance_decomposition(df: pd.DataFrame, measured: str, repeat: str) -> dict
 
 
 # ---------------------------------------------------------------------------
-# Migration helpers — old names raise helpful errors
+# Migration helpers - old names raise helpful errors
 # ---------------------------------------------------------------------------
 
 _RENAMED = {

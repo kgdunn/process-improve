@@ -154,11 +154,11 @@ class ContourPlot(BasePlot):
         """
         coefficients = self._get_coefficients()
         if not coefficients:
-            return ChartSpec(title="Contour Plot — no coefficients")
+            return ChartSpec(title="Contour Plot - no coefficients")
 
         factors = self.factors_to_plot or self._get_factor_names()
         if len(factors) < 2:
-            return ChartSpec(title="Contour Plot — need at least 2 factors")
+            return ChartSpec(title="Contour Plot - need at least 2 factors")
 
         factor_x, factor_y = factors[0], factors[1]
         x_title = self._axis_title(factor_x)
@@ -320,7 +320,7 @@ def _format_point_hover(
 
     Lists every factor level (not just the two being plotted) so that
     overlapping runs in a fractional or replicated design can still be
-    distinguished — see issue #23.
+    distinguished - see issue #23.
     """
     lines: list[str] = []
     for key, value in row.items():
@@ -370,11 +370,11 @@ class Surface3DPlot(BasePlot):
         """
         coefficients = self._get_coefficients()
         if not coefficients:
-            return ChartSpec(title="3D Surface — no coefficients")
+            return ChartSpec(title="3D Surface - no coefficients")
 
         factors = self.factors_to_plot or self._get_factor_names()
         if len(factors) < 2:
-            return ChartSpec(title="3D Surface — need at least 2 factors")
+            return ChartSpec(title="3D Surface - need at least 2 factors")
 
         factor_x, factor_y = factors[0], factors[1]
         coef_map = _build_coef_map(coefficients)
@@ -445,12 +445,12 @@ class PredictionVariancePlot(BasePlot):
         import pandas as pd  # noqa: PLC0415
 
         if not self.design_data:
-            return ChartSpec(title="Prediction Variance — no design data")
+            return ChartSpec(title="Prediction Variance - no design data")
 
         df = pd.DataFrame(self.design_data)
         factors = self.factors_to_plot or [c for c in df.columns if c != self.response_column]
         if len(factors) < 2:
-            return ChartSpec(title="Prediction Variance — need at least 2 factors")
+            return ChartSpec(title="Prediction Variance - need at least 2 factors")
 
         factor_x, factor_y = factors[0], factors[1]
 

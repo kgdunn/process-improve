@@ -2,7 +2,7 @@ Multi-block PCA and PLS (MBPCA / MBPLS)
 =======================================
 
 Generic multi-block latent-variable models for the case where your X
-data is naturally organized into several semantically distinct blocks —
+data is naturally organized into several semantically distinct blocks -
 for example, one block per processing zone, plant unit, or sensor group.
 
 Multi-block models give you per-block diagnostics (which block is
@@ -66,13 +66,13 @@ Both classes use the same ``dict[str, pd.DataFrame]`` API for X-blocks::
 After fitting, every model exposes:
 
 - ``super_scores_``, ``super_loadings_`` (or ``super_weights_`` for MBPLS)
-- ``block_scores_``, ``block_loadings_`` — both ``dict[str, DataFrame]``
+- ``block_scores_``, ``block_loadings_`` - both ``dict[str, DataFrame]``
 - ``r2_x_per_block_cumulative_``, ``r2_x_per_block_per_component_``
-- ``block_vip_`` — per-block VIPs as ``dict[str, Series]``
+- ``block_vip_`` - per-block VIPs as ``dict[str, Series]``
 - ``block_spe_``, ``block_hotellings_t2_``, ``super_hotellings_t2_``
-- ``predict(X_new)`` — returns super-scores, block-scores, per-block SPE,
+- ``predict(X_new)`` - returns super-scores, block-scores, per-block SPE,
   super Hotelling's T² (and Y predictions for MBPLS)
-- ``spe_contributions(X)`` — per-variable squared residuals for fault
+- ``spe_contributions(X)`` - per-variable squared residuals for fault
   diagnosis
 - ``block_spe_limit(name, conf_level)``, ``super_spe_limit(conf_level)``,
   ``hotellings_t2_limit(conf_level)``
