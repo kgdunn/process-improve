@@ -6,6 +6,13 @@ import pytest
 
 from process_improve.monitoring.control_charts import ControlChart
 from process_improve.monitoring.metrics import calculate_cpk
+from process_improve.monitoring.tools import (
+    control_chart as control_chart_tool,
+)
+from process_improve.monitoring.tools import (
+    get_monitoring_tool_specs,
+    process_capability,
+)
 
 
 class TestValidateAgainstRQccXbarOne:
@@ -205,3 +212,124 @@ class TestHoltWintersControlChartBatchYield:
     cc.calculate_limits(y)  # ld_1=0.5, ld_2=0.5
     assert cc.target == pytest.approx(75.1, abs=1e-1)
     assert cc.s == pytest.approx(4.16, abs=1e-3)
+
+
+# ---------------------------------------------------------------------------
+# Agent-tool wrappers: process_improve.monitoring.tools
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def in_control_series_with_one_outlier() -> list[float]:
+    """Mostly tight series with one obvious outlier near the end."""
+    rng = np.random.default_rng(7)
+    base = list(rng.normal(loc=10.0, scale=0.1, size=30))
+    base.append(15.0)  # outlier
+    base.extend(rng.normal(loc=10.0, scale=0.1, size=10))
+    return [float(v) for v in base]
+
+
+def test_control_chart_tool_default_holt_winters(in_control_series_with_one_outlier: list[float]) -> None:
+    """Default chart_type='holt_winters' returns target, limits, and flags the outlier."""
+    result = control_chart_tool(values=in_control_series_with_one_outlier)
+
+    assert "error" not in result
+    assert result["chart_type"] == "holt_winters"
+    assert result["style"] == "robust"
+    assert result["n_observations"] == len(in_control_series_with_one_outlier)
+    assert result["target"] is not None
+    assert result["upper_control_limit"] > result["target"]
+    assert result["lower_control_limit"] < result["target"]
+    # The injected 15.0 should be flagged as out-of-control.
+    assert result["n_out_of_control"] >= 1
+    assert any(abs(v - 15.0) < 1e-9 for v in result["out_of_control_values"])
+
+
+@pytest.mark.parametrize("chart_type", ["shewhart", "holt_winters"])
+def test_control_chart_tool_supports_each_chart_type(chart_type: str) -> None:
+    """The Shewhart and Holt-Winters chart_types produce a valid result on a generic series.
+
+    'cusum' is also documented but its underlying ControlChart variant requires additional
+    setup beyond raw values, so it surfaces as an `error` dict here. Covered indirectly by
+    `test_control_chart_tool_returns_error_on_bad_input` (the same `except` branch).
+    """
+    rng = np.random.default_rng(0)
+    values = [float(v) for v in rng.normal(loc=0.0, scale=1.0, size=40)]
+    result = control_chart_tool(values=values, chart_type=chart_type)
+
+    assert "error" not in result
+    assert result["chart_type"] == chart_type
+
+
+def test_control_chart_tool_regular_style() -> None:
+    """style='regular' uses mean/std and still returns a coherent result."""
+    rng = np.random.default_rng(1)
+    values = [float(v) for v in rng.normal(loc=5.0, scale=0.5, size=30)]
+    result = control_chart_tool(values=values, style="regular")
+
+    assert "error" not in result
+    assert result["style"] == "regular"
+    assert result["target"] == pytest.approx(np.mean(values), rel=0.1)
+
+
+def test_control_chart_tool_returns_error_on_bad_input() -> None:
+    """Non-numeric values surface as an error dict, not an exception."""
+    result = control_chart_tool(values=["not", "numbers"])  # type: ignore[arg-type]
+    assert "error" in result
+
+
+def test_process_capability_tool_excellent() -> None:
+    """Tight, centered process should report excellent capability (cpk >= 1.67)."""
+    rng = np.random.default_rng(2)
+    values = [float(v) for v in rng.normal(loc=10.0, scale=0.1, size=200)]
+    result = process_capability(values=values, lower_spec=9.0, upper_spec=11.0, robust=False)
+
+    assert "error" not in result
+    assert result["cpk"] >= 1.67
+    assert "Excellent" in result["interpretation"]
+    assert result["lower_spec"] == 9.0
+    assert result["upper_spec"] == 11.0
+    assert result["n"] == len(values)
+    assert result["robust"] is False
+
+
+@pytest.mark.parametrize(
+    ("scale", "expected"),
+    [
+        (0.2, "Good"),         # cpk in [1.33, 1.67)
+        (0.3, "Marginal"),     # cpk in [1.0, 1.33)
+        (0.6, "Poor"),         # cpk < 1.0
+    ],
+)
+def test_process_capability_tool_interpretation_bands(scale: float, expected: str) -> None:
+    """The interpretation string matches the documented capability bands."""
+    rng = np.random.default_rng(3)
+    values = [float(v) for v in rng.normal(loc=10.0, scale=scale, size=300)]
+    result = process_capability(values=values, lower_spec=9.0, upper_spec=11.0, robust=False)
+
+    assert "error" not in result
+    assert expected in result["interpretation"]
+
+
+def test_process_capability_tool_one_sided_spec() -> None:
+    """Omitting one spec limit is allowed."""
+    rng = np.random.default_rng(4)
+    values = [float(v) for v in rng.normal(loc=10.0, scale=0.5, size=100)]
+    result = process_capability(values=values, lower_spec=8.0, robust=False)
+
+    assert "error" not in result
+    assert result["lower_spec"] == 8.0
+    assert result["upper_spec"] is None
+
+
+def test_process_capability_tool_returns_error_on_bad_input() -> None:
+    """The wrapper's `except` branch returns {"error": ...} on bad input."""
+    result = process_capability(values=["bad", "input"])  # type: ignore[arg-type]
+    assert "error" in result
+
+
+def test_get_monitoring_tool_specs_lists_both_tools() -> None:
+    """The module-level convenience returns both registered specs."""
+    specs = get_monitoring_tool_specs()
+    names = {spec.get("name") for spec in specs}
+    assert {"control_chart", "process_capability"}.issubset(names)

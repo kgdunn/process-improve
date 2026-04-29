@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from process_improve.bivariate.methods import find_elbow_point
+from process_improve.bivariate.tools import find_elbow, get_bivariate_tool_specs
 
 
 @pytest.fixture
@@ -94,3 +95,36 @@ def test__corner_case() -> None:
         [np.nan] * 11,
     )
     assert found_elbow == -1
+
+
+# ---------------------------------------------------------------------------
+# Agent-tool wrapper: process_improve.bivariate.tools
+# ---------------------------------------------------------------------------
+
+
+def test_find_elbow_tool_returns_index_on_clean_data(elbow_with_synthetic_data: tuple) -> None:
+    """The tool wrapper returns an integer index plus the (x, y) at the elbow."""
+    x, y, break_pt = elbow_with_synthetic_data
+    result = find_elbow(x=list(x), y=list(y))
+
+    assert "error" not in result
+    assert result["n"] == len(x)
+    expected_idx = int(np.argmin(np.abs(x - break_pt)))
+    assert result["elbow_index"] == expected_idx
+    assert result["elbow_x"] == x[expected_idx]
+    assert result["elbow_y"] == y[expected_idx]
+
+
+def test_find_elbow_tool_reports_error_on_too_few_points() -> None:
+    """The wrapper's `except` branch returns {"error": ...} on bad input."""
+    # The underlying assertion in find_elbow_point requires more than 10 non-NaN values.
+    result = find_elbow(x=[1.0, 2.0, 3.0], y=[1.0, 2.0, 3.0])
+    assert "error" in result
+
+
+def test_get_bivariate_tool_specs_lists_find_elbow() -> None:
+    """The module-level convenience returns at least the find_elbow spec."""
+    specs = get_bivariate_tool_specs()
+    assert isinstance(specs, list)
+    names = {spec.get("name") for spec in specs}
+    assert "find_elbow" in names
