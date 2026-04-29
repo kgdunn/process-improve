@@ -12,7 +12,6 @@ from __future__ import annotations
 import process_improve.experiments.tools  # noqa: F401
 from process_improve.tool_spec import execute_tool_call
 
-
 # ---------------------------------------------------------------------------
 # create_factorial_design
 # ---------------------------------------------------------------------------
@@ -111,7 +110,8 @@ class TestGenerateDesign:
 
     def test_fractional_factorial_with_resolution(self) -> None:
         """A 5-factor resolution III fractional factorial fires the optional-metadata
-        branches in the wrapper (generators / defining_relation / resolution)."""
+        branches in the wrapper (generators / defining_relation / resolution).
+        """
         result = execute_tool_call(
             "generate_design",
             {
@@ -124,11 +124,7 @@ class TestGenerateDesign:
         assert "error" not in result
         assert result["n_runs"] == 8
         # At least one of the optional-metadata branches should fire.
-        assert (
-            "generators" in result
-            or "defining_relation" in result
-            or "resolution" in result
-        )
+        assert "generators" in result or "defining_relation" in result or "resolution" in result
 
     def test_ccd_alpha_branch(self) -> None:
         """A CCD design exercises the alpha-output branch."""
