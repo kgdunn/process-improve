@@ -97,3 +97,19 @@
 ## Regression
 
 - [ ] Prediction-interval function for linear regression that accepts any `x`. (TODO.txt)
+
+## Experiments / DOE
+
+- [ ] Build out the product-development notebook — full outline preserved verbatim under *Reference snippets*. (TODO.txt)
+- [ ] Implement `ridge_analysis` (trace optimum along increasing radii). Currently a stub; removed from the `optimize_responses` tool enum. (#74, #79)
+- [ ] Implement `pareto_front` (multi-objective NSGA-II). Currently a stub; removed from the `optimize_responses` tool enum. (#74, #79)
+- [ ] Verify `execute_tool_call("analyze_experiment", ...)` works end-to-end. (#72)
+- [ ] Test `analyze_experiment` with real DOE datasets (LDPE, etc.). (#72)
+- [ ] Handle inputs whose shape is ≥ 2 columns (category branch). (experiments/structures.py:368)
+- [ ] Implement the `pd.DataFrame` branch (currently `raise NotImplementedError("Handle this case still")`). (experiments/structures.py:388)
+- [ ] Check that all indexes are common before merging, or use pandas's same-index merge functionality. (experiments/structures.py:390)
+- [ ] Replace the unhandled-type `raise NotImplementedError` in the number-formatting fallback. (experiments/models.py:30)
+
+## Visualization
+
+- [ ] Implement `raincloud` — currently a stub that returns `None`. (#89, visualization/plots.py:4)
