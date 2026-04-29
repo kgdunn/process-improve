@@ -316,7 +316,7 @@ class TestPower:
         double = generate_design(factors, design_type="full_factorial", center_points=0, replicates=2)
         p1 = evaluate_design(single, model="main_effects", metric="power", effect_size=2.0, sigma=1.0)
         p2 = evaluate_design(double, model="main_effects", metric="power", effect_size=2.0, sigma=1.0)
-        # Pick any factor — power should be higher with 2x runs
+        # Pick any factor - power should be higher with 2x runs
         assert p2["power"]["A"] >= p1["power"]["A"] - 0.01
 
     def test_power_curve_when_no_effect_size(self) -> None:

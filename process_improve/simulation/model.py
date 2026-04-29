@@ -5,7 +5,7 @@ Deterministic fake-data simulator for DOE demonstrations.
 The simulator is fully specified by a JSON-serialisable ``private_state``
 dict containing:
 
-- ``seed``:             int  — base RNG seed for coefficient generation.
+- ``seed``:             int  - base RNG seed for coefficient generation.
 - ``factors``:          list of ``{name, low, high, units?}``.
 - ``outputs``:          list of ``{name, units?, direction?}``.
 - ``structural_hints``: list of free-text hints ("negative interaction
@@ -18,7 +18,7 @@ Given this state, :func:`materialize_model` regenerates the exact same
 response-surface coefficients on every call, across processes, across
 machines.  :func:`simulate` evaluates that surface at a given factor
 setting and adds *fresh* Gaussian noise each call so identical inputs
-yield similar-but-not-identical outputs — matching the behaviour of a
+yield similar-but-not-identical outputs - matching the behaviour of a
 real physical asset.
 """
 
@@ -286,7 +286,7 @@ def materialize_model(private_state: dict[str, Any]) -> dict[str, Any]:
 
     Deterministic: identical *private_state* always returns identical
     coefficients, across processes and machines.  This is the secret
-    the simulator hides from the LLM — callers that have *private_state*
+    the simulator hides from the LLM - callers that have *private_state*
     already have the model, so "revealing" is free.
     """
     seed = int(private_state["seed"])
@@ -421,7 +421,7 @@ def simulate(
         effective_settings[name] = val
         coded[name] = _coded_setting(val, low, high)
 
-    # Fresh (unseeded) RNG — noise is genuinely different on every call.
+    # Fresh (unseeded) RNG - noise is genuinely different on every call.
     noise_rng = np.random.default_rng()
     outputs: dict[str, float] = {
         out_name: float(_evaluate_surface(out_coefs, coded, timestamp_offset_days, noise_rng))

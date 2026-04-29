@@ -24,7 +24,7 @@ from process_improve.experiments.tools import optimize_responses_tool
 from process_improve.tool_spec import get_tool_specs
 
 # ---------------------------------------------------------------------------
-# Fixtures — reusable model coefficient dicts
+# Fixtures - reusable model coefficient dicts
 # ---------------------------------------------------------------------------
 
 

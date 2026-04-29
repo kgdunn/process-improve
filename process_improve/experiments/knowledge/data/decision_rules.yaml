@@ -188,7 +188,7 @@
     intermediate: >
       Split-plot designs have whole plots (hard-to-change factors) and subplots
       (easy-to-change factors). The analysis must use restricted randomization
-      error structure — ordinary ANOVA gives incorrect p-values for whole-plot
+      error structure - ordinary ANOVA gives incorrect p-values for whole-plot
       factors.
     expert: >
       The REML-based mixed model is the correct analysis for split-plot DOE.

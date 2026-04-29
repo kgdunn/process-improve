@@ -2,7 +2,7 @@
 
 Produces raw Python dicts that match the `ECharts option specification
 <https://echarts.apache.org/en/option.html>`_.  No pyecharts dependency
-— dicts are JSON-serialisable and can be passed directly to
+- dicts are JSON-serialisable and can be passed directly to
 ``echarts.setOption()`` on the SvelteKit frontend.
 """
 

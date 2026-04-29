@@ -109,7 +109,7 @@ def test_pca_foods() -> None:
                 axis=1,
             )
     except (urllib.error.URLError, TimeoutError):
-        pytest.skip("Cannot reach openmv.net — skipping network-dependent test")
+        pytest.skip("Cannot reach openmv.net - skipping network-dependent test")
     scaler = MCUVScaler().fit(foods)
     foods_mcuv = scaler.fit_transform(foods)
 
@@ -550,7 +550,7 @@ def test_pca_select_n_components() -> None:
 
     # 2 strong latent components driving 50 measured variables
     # N < K: the classic chemometrics scenario where PRESS cross-validation
-    # excels — noise components overfit because there aren't enough samples
+    # excels - noise components overfit because there aren't enough samples
     # to reliably estimate them.
     T_true = rng.standard_normal((N, 2)) * np.array([10.0, 6.0])
     P_true = rng.standard_normal((2, K))

@@ -1,4 +1,4 @@
-"""Tests for Tool 7: doe_knowledge — DOE knowledge graph and query engine."""
+"""Tests for Tool 7: doe_knowledge - DOE knowledge graph and query engine."""
 
 from __future__ import annotations
 

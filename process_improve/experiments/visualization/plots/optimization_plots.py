@@ -118,7 +118,7 @@ class DesirabilityContourPlot(BasePlot):
     ------------
     Requires ``analysis_results`` with ``"coefficients"`` and
     ``"optimization"`` keys.  The ``"optimization"`` dict should contain
-    ``"responses"`` — a list of dicts each with ``"coefficients"``,
+    ``"responses"`` - a list of dicts each with ``"coefficients"``,
     ``"goal"``, ``"low"``, ``"high"``, and optionally ``"target"``,
     ``"weight"``, ``"importance"``.
     """
@@ -132,11 +132,11 @@ class DesirabilityContourPlot(BasePlot):
         """
         responses = self._get_optimization_responses()
         if not responses:
-            return ChartSpec(title="Desirability Contour — no optimisation data")
+            return ChartSpec(title="Desirability Contour - no optimisation data")
 
         factors = self.factors_to_plot or self._get_factor_names()
         if len(factors) < 2:
-            return ChartSpec(title="Desirability Contour — need at least 2 factors")
+            return ChartSpec(title="Desirability Contour - need at least 2 factors")
 
         factor_x, factor_y = factors[0], factors[1]
         n_grid = 50
@@ -241,7 +241,7 @@ class OverlayPlot(BasePlot):
     Data sources
     ------------
     Requires ``analysis_results`` with ``"optimization"`` containing
-    ``"responses"`` — each with ``"coefficients"``, and optionally
+    ``"responses"`` - each with ``"coefficients"``, and optionally
     ``"low"``/``"high"`` bounds for feasibility shading.
     """
 
@@ -254,11 +254,11 @@ class OverlayPlot(BasePlot):
         """
         responses = self._get_overlay_responses()
         if not responses:
-            return ChartSpec(title="Overlay Plot — no response data")
+            return ChartSpec(title="Overlay Plot - no response data")
 
         factors = self.factors_to_plot or self._get_factor_names()
         if len(factors) < 2:
-            return ChartSpec(title="Overlay Plot — need at least 2 factors")
+            return ChartSpec(title="Overlay Plot - need at least 2 factors")
 
         factor_x, factor_y = factors[0], factors[1]
         n_grid = 50
@@ -366,11 +366,11 @@ class RidgeTracePlot(BasePlot):
         """
         coefficients = self._get_coefficients()
         if not coefficients:
-            return ChartSpec(title="Ridge Trace — no coefficients")
+            return ChartSpec(title="Ridge Trace - no coefficients")
 
         factors = self.factors_to_plot or self._get_factor_names()
         if not factors:
-            return ChartSpec(title="Ridge Trace — no factors")
+            return ChartSpec(title="Ridge Trace - no factors")
 
         coef_map = _build_coef_map(coefficients)
         b0, b_vec, b_mat = self._extract_b_and_B(coef_map, factors)
@@ -532,11 +532,11 @@ class SteepestAscentPathPlot(BasePlot):
         """
         path_data = self._get_path_data()
         if path_data is None:
-            return ChartSpec(title="Steepest Ascent — no path data")
+            return ChartSpec(title="Steepest Ascent - no path data")
 
         steps = path_data.get("steps", [])
         if not steps:
-            return ChartSpec(title="Steepest Ascent — no steps computed")
+            return ChartSpec(title="Steepest Ascent - no steps computed")
 
         direction = path_data.get("direction", "ascent")
         direction_label = direction.capitalize()

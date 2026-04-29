@@ -49,14 +49,14 @@ class FDSPlot(BasePlot):
         import pandas as pd  # noqa: PLC0415
 
         if not self.design_data:
-            return ChartSpec(title="FDS Plot — no design data")
+            return ChartSpec(title="FDS Plot - no design data")
 
         df = pd.DataFrame(self.design_data)
         factors = self.factors_to_plot or [
             c for c in df.columns if c != self.response_column
         ]
         if len(factors) < 2:
-            return ChartSpec(title="FDS Plot — need at least 2 factors")
+            return ChartSpec(title="FDS Plot - need at least 2 factors")
 
         # Build model matrix (intercept + linear + interactions + quadratic)
         x_design = df[factors].values.astype(float)
@@ -194,7 +194,7 @@ class PowerCurvePlot(BasePlot):
 
         design_info = self._get_design_info()
         if design_info is None:
-            return ChartSpec(title="Power Curve — no design information")
+            return ChartSpec(title="Power Curve - no design information")
 
         n_runs = design_info["n_runs"]
         n_terms = design_info["n_terms"]

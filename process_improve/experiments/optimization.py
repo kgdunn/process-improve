@@ -7,19 +7,19 @@ a model with :func:`analyze_experiment` (Tool 3).
 
 Implemented methods
 -------------------
-- **desirability** — Derringer-Suich desirability functions (single and
+- **desirability** - Derringer-Suich desirability functions (single and
   multi-response) with ``scipy.optimize.minimize`` (SLSQP).
-- **steepest_ascent** / **steepest_descent** — Move along the gradient
+- **steepest_ascent** / **steepest_descent** - Move along the gradient
   of a first-order model from the design centre.
-- **stationary_point** — Locate the stationary point of a second-order
+- **stationary_point** - Locate the stationary point of a second-order
   model via ``numpy.linalg.solve``.
-- **canonical_analysis** — Eigenvalue decomposition of the *B* matrix
+- **canonical_analysis** - Eigenvalue decomposition of the *B* matrix
   to classify the stationary point (max / min / saddle).
 
 Stubs (not yet implemented)
 ---------------------------
-- **ridge_analysis** — Trace the optimum along increasing radii.
-- **pareto_front** — Multi-objective Pareto frontier (NSGA-II).
+- **ridge_analysis** - Trace the optimum along increasing radii.
+- **pareto_front** - Multi-objective Pareto frontier (NSGA-II).
 """
 
 from __future__ import annotations
@@ -231,13 +231,13 @@ def _find_stationary_point(
 
     # Check that B has quadratic terms (not purely first-order)
     if np.allclose(B, 0):
-        return {"error": "Model has no quadratic or interaction terms — cannot find stationary point."}
+        return {"error": "Model has no quadratic or interaction terms - cannot find stationary point."}
 
     try:
         # Solve 2*B*x_s = -b
         x_s = np.linalg.solve(2.0 * B, -b)
     except np.linalg.LinAlgError:
-        return {"error": "Singular B matrix — stationary point does not exist."}
+        return {"error": "Singular B matrix - stationary point does not exist."}
 
     # Predicted response at stationary point
     y_s = float(b0 + b @ x_s + x_s @ B @ x_s)
@@ -301,7 +301,7 @@ def _canonical_analysis(
     _b0, _b, B = _extract_b_and_B(coefficients, factor_names)
 
     if np.allclose(B, 0):
-        return {"error": "Model has no quadratic or interaction terms — canonical analysis not applicable."}
+        return {"error": "Model has no quadratic or interaction terms - canonical analysis not applicable."}
 
     eigenvalues, eigenvectors = np.linalg.eigh(B)
 
@@ -381,7 +381,7 @@ def _steepest_path(  # noqa: PLR0913
             b[name_to_idx[components[0]]] = float(entry["coefficient"])
 
     if np.allclose(b, 0):
-        return {"error": "All linear coefficients are zero — no steepest direction."}
+        return {"error": "All linear coefficients are zero - no steepest direction."}
 
     # Direction: normalize, then scale by step_size
     norm = np.linalg.norm(b)
@@ -616,7 +616,7 @@ def _ridge_analysis(
     factor_names: list[str],
     factor_ranges: dict[str, dict[str, float]] | None = None,
 ) -> dict[str, Any]:
-    """Ridge analysis — trace the optimum along increasing radii.
+    """Ridge analysis - trace the optimum along increasing radii.
 
     .. note::
         Not yet implemented.  Planned: constrained eigenvalue computation
@@ -676,7 +676,7 @@ def _coded_to_actual(coded: dict[str, float], factor_ranges: dict[str, dict[str,
 
 
 # ---------------------------------------------------------------------------
-# Public API — dispatcher
+# Public API - dispatcher
 # ---------------------------------------------------------------------------
 
 
@@ -696,26 +696,26 @@ def optimize_responses(  # noqa: PLR0913, C901
     fitted_models : list[dict]
         Each dict describes a fitted model with keys:
 
-        - ``"response_name"`` (str) — name of the response.
-        - ``"coefficients"`` (list[dict]) — coefficient list, each with
+        - ``"response_name"`` (str) - name of the response.
+        - ``"coefficients"`` (list[dict]) - coefficient list, each with
           ``"term"`` and ``"coefficient"`` keys as returned by
           ``analyze_experiment(..., analysis_type="coefficients")``.
-        - ``"factor_names"`` (list[str]) — ordered factor names.
-        - ``"mse_residual"`` (float, optional) — mean squared error.
-        - ``"r_squared"`` (float, optional) — model R-squared.
+        - ``"factor_names"`` (list[str]) - ordered factor names.
+        - ``"mse_residual"`` (float, optional) - mean squared error.
+        - ``"r_squared"`` (float, optional) - model R-squared.
 
     goals : list[dict] or None
         Per-response optimisation goals.  Each dict has keys:
 
-        - ``"response"`` (str) — response name (must match a model).
-        - ``"goal"`` (str) — ``"maximize"``, ``"minimize"``, or
+        - ``"response"`` (str) - response name (must match a model).
+        - ``"goal"`` (str) - ``"maximize"``, ``"minimize"``, or
           ``"target"``.
-        - ``"target"`` (float, optional) — target value (required when
+        - ``"target"`` (float, optional) - target value (required when
           ``goal="target"``).
-        - ``"low"`` (float) — lower acceptable bound.
-        - ``"high"`` (float) — upper acceptable bound.
-        - ``"weight"`` (float, default 1) — desirability shape parameter.
-        - ``"importance"`` (float, default 1) — relative importance for
+        - ``"low"`` (float) - lower acceptable bound.
+        - ``"high"`` (float) - upper acceptable bound.
+        - ``"weight"`` (float, default 1) - desirability shape parameter.
+        - ``"importance"`` (float, default 1) - relative importance for
           composite desirability.
 
     method : str

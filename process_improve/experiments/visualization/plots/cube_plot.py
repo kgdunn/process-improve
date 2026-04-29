@@ -1,7 +1,7 @@
 """Cube plot: 3D wireframe with response values at 2^3 design vertices.
 
 A cube plot displays the predicted (or observed) response at each
-corner of the design cube for a 3-factor experiment.  Fully custom —
+corner of the design cube for a 3-factor experiment.  Fully custom -
 no charting library provides this natively.
 """
 
@@ -45,7 +45,7 @@ class CubePlot(BasePlot):
         """
         factors = self.factors_to_plot or self._get_factor_names()
         if len(factors) < 3:
-            return ChartSpec(title="Cube Plot — need exactly 3 factors")
+            return ChartSpec(title="Cube Plot - need exactly 3 factors")
 
         f1, f2, f3 = factors[0], factors[1], factors[2]
 
@@ -54,7 +54,7 @@ class CubePlot(BasePlot):
         vertex_values = self._get_vertex_values(f1, f2, f3, vertices)
 
         if vertex_values is None:
-            return ChartSpec(title="Cube Plot — cannot compute vertex values")
+            return ChartSpec(title="Cube Plot - cannot compute vertex values")
 
         # Build vertex data with labels
         vertex_data = []

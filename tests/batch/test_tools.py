@@ -55,8 +55,8 @@ def test_extract_batch_features_default_features(two_batch_timeseries: list[dict
 # f_mad and f_robust_mad have pre-existing implementation issues in
 # `process_improve.batch.features` (mad: removed pandas API; robust_mad:
 # stub raises). The wrapper still surfaces them as `{"error": ...}` rather
-# than raising — that branch is covered by the unknown-feature and bad-data
-# tests below — so they're excluded here to keep this test focused on the
+# than raising - that branch is covered by the unknown-feature and bad-data
+# tests below - so they're excluded here to keep this test focused on the
 # working dispatch path.
 _WORKING_LOCATION_FEATURES = sorted(set(_FEATURE_MAP) - {"mad", "robust_mad"})
 

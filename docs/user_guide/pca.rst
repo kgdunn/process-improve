@@ -16,18 +16,18 @@ PCA decomposes an (N × K) data matrix into scores, loadings, and residuals:
 
 where:
 
-- **T** (N × A) — scores: the coordinates of each observation in the
+- **T** (N × A) - scores: the coordinates of each observation in the
   reduced space.
-- **P** (K × A) — loadings: the direction vectors that define the model
+- **P** (K × A) - loadings: the direction vectors that define the model
   plane.
-- **E** (N × K) — residuals: what the model does not explain.
-- A — the number of components retained.
+- **E** (N × K) - residuals: what the model does not explain.
+- A - the number of components retained.
 
 Geometrically, PCA fits a best-fit hyperplane through the cloud of
 observations in K-dimensional space. Each observation is projected
 perpendicularly onto this plane; the projected coordinates are the scores.
 Minimizing the perpendicular residual distance is equivalent to maximizing
-the variance captured in the scores — the two formulations yield the same
+the variance captured in the scores - the two formulations yield the same
 solution.
 
 Preprocessing
@@ -55,7 +55,7 @@ for sklearn-compatible autoscaling:
 
 **Transformations** (log, square root) can reduce the effect of extreme
 measurements or improve linearity. Consider adding derived columns
-(interactions, squared terms, ratios) to the raw data matrix — the model
+(interactions, squared terms, ratios) to the raw data matrix - the model
 will sort out which are informative.
 
 Interpreting Scores
@@ -64,13 +64,13 @@ Interpreting Scores
 Scores (``model.scores_``) are the coordinates of each observation in the
 latent variable space. They reveal the dominant patterns in the data:
 
-- **Clusters** — observations that are similar in the original K variables
+- **Clusters** - observations that are similar in the original K variables
   will be close together in score space.
-- **Outliers** — observations far from the main cluster may represent unusual
+- **Outliers** - observations far from the main cluster may represent unusual
   operating conditions or measurement errors.
-- **Time trends** — when rows are ordered by time, gradual drifts or sudden
+- **Time trends** - when rows are ordered by time, gradual drifts or sudden
   shifts become visible as trajectories in the score plot.
-- **Groups** — coloring scores by a categorical variable (grade, shift,
+- **Groups** - coloring scores by a categorical variable (grade, shift,
   equipment ID) can reveal systematic differences.
 
 Use ``model.score_plot()`` for quick visualization.
@@ -86,7 +86,7 @@ contributes to each component:
 - Variables that are **positively correlated** cluster together in the
   loading plot; variables that are **negatively correlated** appear on
   opposite sides.
-- The **sign of a loading** can flip between different runs or software — the
+- The **sign of a loading** can flip between different runs or software - the
   sign of the component as a whole is arbitrary, so always interpret loading
   *patterns* rather than individual signs.
 
@@ -104,7 +104,7 @@ residuals for that observation:
    \text{SPE}_i = \mathbf{e}_i^T \mathbf{e}_i
 
 - SPE = 0 means the observation lies exactly on the model plane.
-- **High SPE** means the observation *breaks* the correlation structure — a
+- **High SPE** means the observation *breaks* the correlation structure - a
   new event or fault has introduced variation that the model's A components
   do not describe.
 - Column-wise residuals give the per-variable R² (``model.r2_per_variable_``),
@@ -127,7 +127,7 @@ where :math:`s_a^2` is the variance of the *a*-th score column.
 - T² is always non-negative and follows an F-distribution, so confidence
   limits (e.g., 95 %) can be computed analytically.
 - **High T²** means the observation follows the correlation structure but
-  with **unusual magnitude** — it is extreme *within* the model, not outside
+  with **unusual magnitude** - it is extreme *within* the model, not outside
   it.
 - On a score plot of component *a* vs *b*, the T² limit traces an
   **elliptical boundary**. This single ellipse replaces examining
@@ -169,8 +169,8 @@ Outlier Detection
 
 The ``detect_outliers()`` method combines two complementary approaches:
 
-1. **Statistical limits** — SPE and T² limits at a specified confidence level
-2. **Robust ESD test** — Generalized Extreme Studentized Deviate test using
+1. **Statistical limits** - SPE and T² limits at a specified confidence level
+2. **Robust ESD test** - Generalized Extreme Studentized Deviate test using
    median and MAD, which is robust to masking effects where multiple outliers
    hide each other
 
@@ -193,7 +193,7 @@ improving indicates the useful number of components.
 
 Use ``PCA.select_n_components()`` for automated selection via PRESS
 cross-validation with Wold's criterion (see :doc:`cross_validation` for
-details). Remember that the answer is never exact — examine one or two
+details). Remember that the answer is never exact - examine one or two
 components beyond and before the suggestion, and consider the interpretability
 of each additional component in the context of your application.
 
@@ -207,7 +207,7 @@ applications. The workflow:
 2. **Preprocess new observations** using the *same* centering and scaling
    learned from the training data (e.g., the same ``MCUVScaler`` instance).
 3. **Project new observations** into the model with ``model.predict(X_new)``.
-4. **Monitor SPE and T²** — compare each new observation's SPE and T² against
+4. **Monitor SPE and T²** - compare each new observation's SPE and T² against
    the control limits:
 
    .. code-block:: python
@@ -230,17 +230,17 @@ Both can occur simultaneously.
 Missing Data
 ------------
 
-Real process data often has missing values — sensor failures, skipped lab
+Real process data often has missing values - sensor failures, skipped lab
 analyses, or variables recorded at different frequencies. The PCA
 implementation supports several iterative algorithms for fitting models in
 the presence of missing data:
 
-- **TSR** (Trimmed Scores Regression) — generally the best default choice;
+- **TSR** (Trimmed Scores Regression) - generally the best default choice;
   uses the available data to estimate scores, then reconstructs missing
   values.
-- **NIPALS** — the classical algorithm; handles moderate amounts of missing
+- **NIPALS** - the classical algorithm; handles moderate amounts of missing
   data well.
-- **SCP** — Single Component Projection; a simpler alternative.
+- **SCP** - Single Component Projection; a simpler alternative.
 
 Enable missing data handling by passing a settings dictionary:
 
@@ -275,7 +275,7 @@ Troubleshooting
        duplicate or perfectly correlated variables.
    * - Missing-data algorithm does not converge
      - Increase ``md_max_iter`` or relax ``md_tol``. If the fraction of
-       missing data is very large (>40 %), the algorithm may struggle — try
+       missing data is very large (>40 %), the algorithm may struggle - try
        removing rows or columns with excessive missingness first.
    * - Shape mismatch in ``predict()``
      - The new data must have the same columns (K) as the training data, in
@@ -283,7 +283,7 @@ Troubleshooting
        ``scaler.transform(X_new)`` to apply the training centering/scaling.
    * - Very different results with different software
      - Check that the same preprocessing (centering, scaling) was applied.
-       Also note that the sign of a component can flip — this is normal and
+       Also note that the sign of a component can flip - this is normal and
        does not affect interpretation.
    * - First component explains almost all variance
      - The data may not have been centered. Without centering, the first

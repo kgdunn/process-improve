@@ -327,7 +327,7 @@ class PlotlyAdapter(AbstractAdapter):
         """Build a Plotly box trace from pre-computed quartiles.
 
         Each row in ``layer.data`` provides ``group`` (category label)
-        and ``q_stats`` as ``[min, Q1, median, Q3, max]`` — matching
+        and ``q_stats`` as ``[min, Q1, median, Q3, max]`` - matching
         the wire format used by the ECharts adapter.
         """
         groups = [row["group"] for row in layer.data]

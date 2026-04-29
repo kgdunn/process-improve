@@ -96,7 +96,7 @@ class AnalysisResult:
 def _run_anova(ols_result: RegressionResultsWrapper, anova_type: int = 2) -> dict[str, Any]:
     """ANOVA table via statsmodels."""
     if ols_result.df_resid <= 0:
-        return {"anova_table": [], "note": "Saturated model — no residual degrees of freedom for ANOVA."}
+        return {"anova_table": [], "note": "Saturated model - no residual degrees of freedom for ANOVA."}
     table = sm.stats.anova_lm(ols_result, typ=anova_type)
     records = [
         {
@@ -246,7 +246,7 @@ def _run_lack_of_fit(
             df_pure_error += ni - 1
 
     if df_pure_error == 0:
-        return {"lack_of_fit": {"error": "No replicated points — cannot test lack of fit."}}
+        return {"lack_of_fit": {"error": "No replicated points - cannot test lack of fit."}}
 
     ss_residual = float((residuals**2).sum())
     df_residual = int(ols_result.df_resid)
@@ -434,7 +434,7 @@ def _run_box_cox(design_df: pd.DataFrame, response_col: str) -> dict[str, Any]:
 def _run_lenth_method(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
     """Lenth's method (PSE) for unreplicated factorials.
 
-    Not available in mainstream Python libraries — custom (~30 lines).
+    Not available in mainstream Python libraries - custom (~30 lines).
     """
     params = ols_result.params.drop("Intercept", errors="ignore")
     effects = 2.0 * params.values  # coded ±1 → effect = 2 * coefficient
@@ -443,7 +443,7 @@ def _run_lenth_method(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
     # Step 1: initial median
     s0 = 1.5 * np.median(abs_effects)
 
-    # Step 2: pseudo standard error — median of |effects| <= 2.5 * s0
+    # Step 2: pseudo standard error - median of |effects| <= 2.5 * s0
     trimmed = abs_effects[abs_effects <= 2.5 * s0]
     pse = s0 if len(trimmed) == 0 else 1.5 * np.median(trimmed)
 

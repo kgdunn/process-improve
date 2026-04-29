@@ -28,7 +28,7 @@ def _register(name: str) -> None:
     description=(
         "Fit a robust simple linear regression between x and y variables using the repeated "
         "median slope estimator. Unlike ordinary least squares, the repeated median method is "
-        "highly resistant to outliers — up to ~29% of the data can be contaminated without "
+        "highly resistant to outliers - up to ~29% of the data can be contaminated without "
         "affecting the fit. "
         "Returns slope, intercept, R-squared, standard errors, prediction intervals, and "
         "fitted values. "
@@ -129,7 +129,7 @@ _register("robust_regression")
     name="repeated_median",
     description=(
         "Compute the repeated median slope between x and y vectors. "
-        "This is a highly robust slope estimator — the median of medians of all pairwise slopes. "
+        "This is a highly robust slope estimator - the median of medians of all pairwise slopes. "
         "It gives just the slope (no intercept, no full regression output). "
         "Use robust_regression if you need a complete regression analysis."
     ),

@@ -48,10 +48,10 @@ doe_knowledge  →  recommend_strategy  →  generate_design  →  evaluate_desi
 
 Example: "Design a screening experiment for my 7 fermentation factors"
 
-1. `doe_knowledge` — retrieve design selection guidance for 7 factors
-2. `recommend_strategy` — propose staged plan (screening → RSM)
-3. `generate_design` — create PB design in 12 runs
-4. `evaluate_design` — check alias structure and resolution
+1. `doe_knowledge` - retrieve design selection guidance for 7 factors
+2. `recommend_strategy` - propose staged plan (screening → RSM)
+3. `generate_design` - create PB design in 12 runs
+4. `evaluate_design` - check alias structure and resolution
 
 ### Factorial Analysis + Optimization
 
@@ -61,10 +61,10 @@ analyze_experiment  →  visualize_doe  →  optimize_responses  →  visualize_
 
 Example: "Analyze my 2^4 factorial data and find the optimum"
 
-1. `analyze_experiment` — ANOVA, effects, residual diagnostics
-2. `visualize_doe` — Pareto plot and normal probability plot
-3. `optimize_responses` — find optimal factor settings
-4. `visualize_doe` — contour plot at optimum
+1. `analyze_experiment` - ANOVA, effects, residual diagnostics
+2. `visualize_doe` - Pareto plot and normal probability plot
+3. `optimize_responses` - find optimal factor settings
+4. `visualize_doe` - contour plot at optimum
 
 ### Troubleshooting
 
@@ -72,10 +72,10 @@ Example: "Analyze my 2^4 factorial data and find the optimum"
 doe_knowledge  →  analyze_experiment
 ```
 
-Example: "My confirmation runs don't match — what went wrong?"
+Example: "My confirmation runs don't match - what went wrong?"
 
-1. `doe_knowledge` — retrieve troubleshooting guidance
-2. `analyze_experiment` — run confirmation test analysis with observed vs predicted
+1. `doe_knowledge` - retrieve troubleshooting guidance
+2. `analyze_experiment` - run confirmation test analysis with observed vs predicted
 
 ## Agent Orchestration
 

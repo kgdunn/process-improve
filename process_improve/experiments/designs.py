@@ -32,7 +32,7 @@ from process_improve.experiments.designs_utils import build_design_result
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, FactorType
 
 # ---------------------------------------------------------------------------
-# Dispatch handlers — each returns (coded_matrix, metadata_dict)
+# Dispatch handlers - each returns (coded_matrix, metadata_dict)
 # ---------------------------------------------------------------------------
 
 

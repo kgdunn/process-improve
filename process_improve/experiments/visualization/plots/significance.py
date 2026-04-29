@@ -53,7 +53,7 @@ class ParetoPlot(BasePlot):
         lenth = self._get_lenth()
 
         if not effects:
-            return ChartSpec(title="Pareto Chart — no effects data")
+            return ChartSpec(title="Pareto Chart - no effects data")
 
         # Sort by absolute effect (descending)
         sorted_items = sorted(effects.items(), key=lambda kv: abs(kv[1]), reverse=True)
@@ -195,7 +195,7 @@ class HalfNormalPlot(BasePlot):
         lenth = self._get_lenth()
 
         if not effects:
-            return ChartSpec(title="Half-Normal Plot — no effects data")
+            return ChartSpec(title="Half-Normal Plot - no effects data")
 
         abs_effects = {n: abs(v) for n, v in effects.items()}
         sorted_items = sorted(abs_effects.items(), key=lambda kv: kv[1])
@@ -329,7 +329,7 @@ class DanielPlot(BasePlot):
         lenth = self._get_lenth()
 
         if not effects:
-            return ChartSpec(title="Daniel Plot — no effects data")
+            return ChartSpec(title="Daniel Plot - no effects data")
 
         sorted_items = sorted(effects.items(), key=lambda kv: kv[1])
         names = [n for n, _ in sorted_items]

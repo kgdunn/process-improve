@@ -293,7 +293,7 @@ _register("median_absolute_deviation")
         "using the Shapiro-Wilk test. "
         "Returns the test statistic, p-value, and a plain-language interpretation. "
         "A p-value below the significance threshold (default 0.05) provides evidence AGAINST "
-        "normality. Failure to reject does not prove normality — it merely means the data are "
+        "normality. Failure to reject does not prove normality - it merely means the data are "
         "not inconsistent with it. "
         "Use this to decide whether robust or classical statistics are more appropriate."
     ),

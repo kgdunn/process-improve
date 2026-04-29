@@ -192,7 +192,7 @@ class TestFoldover:
         # After foldover, even-length words survive
         df = _fractional_factorial_df(["D=ABC"], names="ABCD")
         result = augment_design(df, "foldover", generators=["D=ABC"])
-        # ABCD has length 4 (even) — it should survive
+        # ABCD has length 4 (even) - it should survive
         assert result["defining_relation"] is not None
         assert any("ABCD" in w for w in result["defining_relation"])
 
@@ -201,7 +201,7 @@ class TestFoldover:
         # 2^(3-1) with C=AB: I=ABC (length 3, odd)
         df = _fractional_factorial_df(["C=AB"], names="ABC")
         result = augment_design(df, "foldover", generators=["C=AB"])
-        # ABC has length 3 (odd) — should be eliminated
+        # ABC has length 3 (odd) - should be eliminated
         explanation = result["explanation"]
         assert "eliminated" in explanation.lower() or "de-alias" in explanation.lower()
 

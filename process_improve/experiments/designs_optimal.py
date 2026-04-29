@@ -282,7 +282,7 @@ def dispatch_d_optimal(
 
     if hard_to_change:
         logger.warning(
-            "pyoptex is not installed — hard_to_change factors will be ignored. "
+            "pyoptex is not installed - hard_to_change factors will be ignored. "
             "Install with: pip install pyoptex"
         )
     return _run_point_exchange_fallback(factors, budget)

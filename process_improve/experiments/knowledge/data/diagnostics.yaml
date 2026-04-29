@@ -9,7 +9,7 @@
       description: "Variance of the response increases with the mean"
   remedies:
     - action: log_transform
-      detail: "Apply log(y) transform — often the first choice for multiplicative variance"
+      detail: "Apply log(y) transform - often the first choice for multiplicative variance"
     - action: box_cox_transform
       detail: "Use Box-Cox to find the optimal power transform (lambda)"
     - action: weighted_least_squares
@@ -38,10 +38,10 @@
   visual_pattern: "One or a few residuals are much larger than others (|e_i| > 3-4 sigma)"
   indicates:
     - problem: outlier
-      description: "Unusual observation — may be a measurement error or special cause"
+      description: "Unusual observation - may be a measurement error or special cause"
   remedies:
     - action: investigate_run
-      detail: "Check the lab notebook for that run — was there an identifiable cause?"
+      detail: "Check the lab notebook for that run - was there an identifiable cause?"
     - action: rerun_point
       detail: "If cause is found, re-run that experimental point"
     - action: robust_fit
@@ -60,9 +60,9 @@
     - action: box_cox_transform
       detail: "Apply Box-Cox transform to stabilize variance and improve normality"
     - action: check_outliers
-      detail: "Heavy tails may be caused by outliers — investigate extreme residuals"
+      detail: "Heavy tails may be caused by outliers - investigate extreme residuals"
     - action: often_minor
-      detail: "Moderate non-normality has little effect on F-tests — may not need a fix"
+      detail: "Moderate non-normality has little effect on F-tests - may not need a fix"
   severity: low
 
 - id: time_trend_residuals
@@ -75,7 +75,7 @@
       description: "Measurement equipment may be drifting"
   remedies:
     - action: randomize_run_order
-      detail: "Ensure the run order was truly randomized — re-randomize if not"
+      detail: "Ensure the run order was truly randomized - re-randomize if not"
     - action: add_blocking
       detail: "Block on time periods to separate the trend from factor effects"
     - action: covariate

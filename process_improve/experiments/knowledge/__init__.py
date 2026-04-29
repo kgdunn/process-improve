@@ -1,4 +1,4 @@
-"""DOE knowledge graph — definitions, decision logic, interpretation guidance.
+"""DOE knowledge graph - definitions, decision logic, interpretation guidance.
 
 This subpackage encodes DOE domain knowledge as structured YAML files and
 provides an in-memory query engine for retrieving it.

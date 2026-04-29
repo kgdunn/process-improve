@@ -149,7 +149,7 @@ def tool_spec(  # noqa: PLR0913
              "note": "<why no user seed>"}
 
         Omit entirely to leave the spec without an ``rng`` key (legacy
-        behavior; downstream consumers treat that as "unknown — assume
+        behavior; downstream consumers treat that as "unknown - assume
         deterministic"). The Anthropic API ignores unknown spec keys, so
         adding ``rng`` is safe.
 

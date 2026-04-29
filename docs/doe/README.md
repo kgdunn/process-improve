@@ -1,4 +1,4 @@
-# DOE Module — Architecture & Requirements
+# DOE Module - Architecture & Requirements
 
 Developer reference for the `process_improve.experiments` module.
 These docs capture the tool architecture and question bank that drive development.
@@ -13,7 +13,7 @@ These docs capture the tool architecture and question bank that drive developmen
 
 | File | What's in it |
 |---|---|
-| [tools.md](tools.md) | The 8-tool architecture — what each tool does, its inputs/outputs |
+| [tools.md](tools.md) | The 8-tool architecture - what each tool does, its inputs/outputs |
 | [questions.md](questions.md) | All 162 questions organized by category (A–P) |
 | [tool-question-mapping.md](tool-question-mapping.md) | Which tool(s) answer which question |
 | [workflows.md](workflows.md) | Common workflow patterns, design type usage, multi-tool chains |
