@@ -193,3 +193,21 @@ for batch_id, batch in  df_dict.items():
 
 - PLS with TSR methods: https://riunet.upv.es/bitstream/id/303213/PCA%20model%20building%20with%20missing%20data%20new%20proposals%20and%20a%20comparative%20study%20-%20Folch-Fortuny.pdf
 - Robust PLS: S. Serneels, C. Croux, P. Filzmoser, P.J. Van Espen, *Partial Robust M-regression*, Chemometrics and Intelligent Laboratory Systems, 79 (2005), 55-64.
+
+### `robust_scale` — Mosteller & Tukey, MATLAB
+
+```matlab
+function  v = robust_scale(a)
+% Using the formula from Mosteller and Tukey, Data Analysis and Regression,
+% p 207-208, 1977.
+    n = numel(a);
+    location = median(a);
+    spread_MAD = median(abs(a-location));
+    ui = (a - location)/(6*spread_MAD);
+    % Valid u_i values used in the summation:
+    vu = ui.^2 <= 1;
+    num = (a(vu)-location).^2 .* (1-ui(vu).^2).^4;
+    den = (1-ui(vu).^2) .* (1-5*ui(vu).^2);
+    v = n * sum(num) / (sum(den))^2;
+end
+```
