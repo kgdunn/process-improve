@@ -100,7 +100,7 @@ def score_plot(  # noqa: C901, PLR0913
         title: str = (
             f"Score plot of component {pc_horiz} vs component {pc_vert} vs component {pc_depth}" if pc_depth > 0 else ""
         )
-        show_labels: bool = False  # TODO
+        show_labels: bool = False
         show_legend: bool = True
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
@@ -615,18 +615,31 @@ def t2_plot(
 
     if with_a < 0:
         with_a = model.hotellings_t2_.columns[with_a]
+    elif with_a == 0:
+        raise AssertionError("`with_a` must be >= 1, or specified with negative indexing")
 
-    # TODO: check `with_a`: what should it plot if `with_a` is zero, or > A?
+    assert with_a <= model.n_components, "`with_a` must be <= the number of components fitted"
 
     class Settings(BaseModel):
         show_limit: bool = True
-        conf_level: float = 0.95  # TODO: check constraint < 1
+        conf_level: float = 0.95
+
+        @field_validator("conf_level")
+        @classmethod
+        def check_conf_level(cls, val: float) -> float:
+            """Check confidence value is in range."""
+            if val >= 1:
+                raise ValueError("0.0 < `conf_level` < 1.0")
+            if val <= 0:
+                raise ValueError("0.0 < `conf_level` < 1.0")
+            return val
+
         title: str = (
             f"Hotelling's T2 plot after fitting {with_a} component{'s' if with_a > 1 else ''}"
             f", with the {conf_level * 100}% confidence limit"
         )
         default_marker: dict = dict(color="darkblue", symbol="circle", size=7)
-        show_labels: bool = False  # TODO
+        show_labels: bool = False
         show_legend: bool = False
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0

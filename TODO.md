@@ -19,10 +19,8 @@
 ## Multivariate (PCA / PLS / TPLS / MBPCA / MBPLS)
 
 - [ ] Add plotting routines on MV models: `model.plot_screeplot(...)` etc.; plots accept a `pc_depth` argument so a 3D plot is made instead. (TODO.txt)
-- [ ] PLS lacks an SPE limit - add it. (TODO.txt)
 - [ ] Fill in `R2*` attributes on MV models. (TODO.txt)
 - [ ] `print(model)` raises `'PCA_missing_values' object has no attribute 'copy'` - fix. (TODO.txt)
-- [ ] Implement sklearn-style `fit_transform` on `PCA`. (TODO.txt)
 - [ ] Add a post-filter helper: snap values within ±eps of zero to zero. (TODO.txt)
 - [ ] Add VIP for PCA, PLS, TPLS. (TODO.txt, #54 - unmerged)
 - [ ] Prediction intervals for PLS. (TODO.txt)
@@ -48,9 +46,6 @@
 - [ ] Re-derive `feature_importance["F"]` against deflated matrices `P(_^TP)^{-1}`. (multivariate/methods.py:2923)
 - [ ] Add missing-data support to MBPLS (currently raises `NotImplementedError`). (multivariate/methods.py:3405)
 - [ ] Add missing-data support to MBPCA (currently raises `NotImplementedError`). (multivariate/methods.py:4138)
-- [ ] Wire the `show_labels` flag through plot helpers. (multivariate/plots.py:103, multivariate/plots.py:629)
-- [ ] Decide what to plot when `with_a` is zero or > A. (multivariate/plots.py:619)
-- [ ] Constrain `conf_level` to < 1. (multivariate/plots.py:623)
 
 ## Batch
 
