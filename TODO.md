@@ -134,3 +134,22 @@
 
 - [ ] Add documentation (general carry-over). (TODO.txt)
 - [ ] Update Quick Start link `https://kgdunn.github.io/process-improve/quickstart.html` if deployed docs path changes. (#119)
+
+## CI / release / infra
+
+- [ ] Confirm Codecov "Missing Base Commit" is gone after the next PR. (#117)
+- [ ] Confirm `CODECOV_TOKEN` is set under repo Settings → Secrets and variables → Actions. (#118)
+- [ ] After merge, watch first `Unit tests` run on `main` — codecov upload should run on `ubuntu-latest` + `3.13` only. (#118)
+- [ ] Confirm README codecov badge resolves to a percentage instead of "unknown". (#118)
+- [ ] Update the README CI badge URL when `run-tests.yml` is renamed/replaced. (#119)
+- [ ] Settings → Code security → enable Dependabot alerts + Dependabot security updates. (#97)
+- [ ] Settings → Code security → confirm secret scanning is enabled. (#97)
+- [ ] Bump version in `pyproject.toml` on `main` and confirm a tag + release appear on the releases page. (#87)
+- [ ] Ensure PyPI trusted publisher is configured for this repo (one-time manual step via PyPI browser UI). (#86)
+
+## External / downstream coordination
+
+- [ ] After PyPI publish: downstream `factorial` PR bumps `process-improve` pin to `>=1.6.0` and drops the `requires_simulator_tools` skip guard. (#103)
+- [ ] Downstream `factorial` reproducible-export service: read `spec["rng"]["seed_param"]` instead of the hardcoded `_DESIGN_SEED_KEYS` set. (#105)
+- [ ] Companion PR in `kgdunn/agentic-doe` wires the hosted backend through `safe_execute_tool_call`. (#91)
+- [ ] Land the unmerged tools-architecture restructure (PR #55 still open). (#55)
