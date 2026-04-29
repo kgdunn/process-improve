@@ -2537,6 +2537,12 @@ def test_t2_plot_rejects_invalid_conf_level(fixture_pca_for_plots: PCA) -> None:
         fixture_pca_for_plots.t2_plot(settings={"conf_level": 0.0})
 
 
+def test_t2_plot_accepts_valid_conf_level(fixture_pca_for_plots: PCA) -> None:
+    """t2_plot should accept `conf_level` strictly inside (0, 1)."""
+    fig = fixture_pca_for_plots.t2_plot(settings={"conf_level": 0.99})
+    assert isinstance(fig, go.Figure)
+
+
 # n_components = 3
 # data = fixture_tpls_example()
 # full_model = TPLS(n_components=n_components, d_matrix=data.pop("D"))
