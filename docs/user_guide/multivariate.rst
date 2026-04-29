@@ -65,6 +65,11 @@ data structures and goals:
      - Multi-block
      - Your data is naturally organized in T-shaped blocks (materials,
        formulations, conditions, quality) as in batch processes.
+   * - :doc:`MBPCA / MBPLS <multiblock>`
+     - Multi-block
+     - You have several X-blocks (e.g. one block per processing zone, plant
+       unit, or sensor group) and want a consensus model that respects the
+       block structure rather than dumping every variable into a single big-X.
 
 .. toctree::
    :maxdepth: 2
@@ -73,3 +78,4 @@ data structures and goals:
    pca
    pls
    tpls
+   multiblock
