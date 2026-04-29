@@ -2516,6 +2516,27 @@ def test_t2_plot_with_highlights(fixture_pca_for_plots: PCA) -> None:
     assert len(fig.data) >= 2
 
 
+def test_t2_plot_rejects_zero_with_a(fixture_pca_for_plots: PCA) -> None:
+    """t2_plot should reject `with_a == 0`."""
+    with pytest.raises(AssertionError, match="with_a"):
+        fixture_pca_for_plots.t2_plot(with_a=0)
+
+
+def test_t2_plot_rejects_with_a_above_components(fixture_pca_for_plots: PCA) -> None:
+    """t2_plot should reject `with_a` larger than the number of fitted components."""
+    model = fixture_pca_for_plots
+    with pytest.raises(AssertionError, match="with_a"):
+        model.t2_plot(with_a=model.n_components + 1)
+
+
+def test_t2_plot_rejects_invalid_conf_level(fixture_pca_for_plots: PCA) -> None:
+    """t2_plot should reject `conf_level` outside the open interval (0, 1)."""
+    with pytest.raises(ValueError, match="conf_level"):
+        fixture_pca_for_plots.t2_plot(settings={"conf_level": 1.0})
+    with pytest.raises(ValueError, match="conf_level"):
+        fixture_pca_for_plots.t2_plot(settings={"conf_level": 0.0})
+
+
 # n_components = 3
 # data = fixture_tpls_example()
 # full_model = TPLS(n_components=n_components, d_matrix=data.pop("D"))
