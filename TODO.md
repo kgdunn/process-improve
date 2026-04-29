@@ -211,3 +211,81 @@ function  v = robust_scale(a)
     v = n * sum(num) / (sum(den))^2;
 end
 ```
+
+### `calc_limits` — legacy MATLAB / Python hybrid block to port
+
+```python
+def calc_limits(self):
+    """
+    Calculate the limits for the latent variable model.
+
+    References
+    ----------
+    [1]  SPE limits: Nomikos and MacGregor, Multivariate SPC Charts for
+            Monitoring Batch Processes. Technometrics, 37, 41-59, 1995.
+
+    [2]  T2 limits: Johnstone and Wischern?
+    [3]  Score limits: two methods
+
+            A: Assume that scores are from a two-sided t-distribution with N-1
+            degrees of freedom.  Based on the central limit theorem
+
+            B: (t_a/s_a)^2 ~ F_alpha(1, N-1) distribution if scores are
+            assumed to be normally distributed, and s_a is chi-squared
+            variable with N-1 DOF.
+
+            critical F = scipy.stats.f.ppf(0.95, 1, N-1)
+            which happens to be equal to (scipy.stats.t.ppf(0.975, N-1))^2,
+            as expected.  Therefore the alpha limit for t_a is equal to
+            np.sqrt(scipy.stats.f.ppf(0.95, 1, N-1)) * S[:,a]
+
+            Both methods give the same limits. In fact, some previous code was:
+            t_ppf_95 = scipy.stats.t.ppf(0.975, N-1)
+            S[:,a] = np.std(this_lv, ddof=0, axis=0)
+            lim.t['95.0'][a, :] = t_ppf_95 * S[:,a]
+
+            which assumes the scores were t-distributed.  In fact, the scores
+            are not t-distributed, only the (score_a/s_a) is t-distributed, and
+            the scores are NORMALLY distributed.
+            S[:,a] = np.std(this_lv, ddof=0, axis=0)
+            lim.t['95.0'][a, :] = n_ppf_95 * S[:,a]
+            lim.t['99.0'][a, :] = n_ppf_99 * [:,a]
+
+            From the CLT: we divide by N, not N-1, but stddev is calculated
+            with the N-1 divisor.
+    """
+    for block in self.blocks:
+        N = block.N
+        # SPE limits using Nomikos and MacGregor approximation
+        for a in xrange(block.A):
+            SPE_values = block.stats.SPE[:, a]
+            var_SPE = np.var(SPE_values, ddof=1)
+            avg_SPE = np.mean(SPE_values)
+            chi2_mult = var_SPE / (2.0 * avg_SPE)
+            chi2_DOF = (2.0 * avg_SPE ** 2) / var_SPE
+            for siglevel_str in block.lim.SPE.keys():
+                siglevel = float(siglevel_str) / 100
+                block.lim.SPE[siglevel_str][:, a] = chi2_mult * stats.chi2.ppf(
+                    siglevel, chi2_DOF
+                )
+
+            # For batch blocks: calculate instantaneous SPE using a window
+            # of width = 2w+1 (default value for w=2).
+            # This allows for (2w+1)*N observations to be used to calculate
+            # the SPE limit, instead of just the usual N observations.
+            #
+            # Also for batch systems:
+            # low values of chi2_DOF: large variability of only a few variables
+            # high values: more stable periods: all k's contribute
+
+            for siglevel_str in block.lim.T2.keys():
+                siglevel = float(siglevel_str) / 100
+                mult = (a + 1) * (N - 1) * (N + 1) / (N * (N - (a + 1)))
+                limit = stats.f.ppf(siglevel, a + 1, N - (a + 1))
+                block.lim.T2[siglevel_str][:, a] = mult * limit
+
+            for siglevel_str in block.lim.t.keys():
+                alpha = (1 - float(siglevel_str) / 100.0) / 2.0
+                n_ppf = stats.norm.ppf(1 - alpha)
+                block.lim.t[siglevel_str][:, a] = n_ppf * block.S[a]
+```
