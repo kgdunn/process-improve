@@ -12,11 +12,12 @@ from ..univariate.metrics import t_value
 __eps = np.finfo(np.float32).eps
 
 
-def fit_robust_lm(x: np.ndarray, y: np.ndarray) -> list:
+def fit_robust_lm(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     """
     Fits a robust linear model between Numpy vectors `x` and `y`, with an
-    intercept. Returns a list: [intercept, slope] of the fit. No extra
-    checking on data consistency is done.
+    intercept. Returns a length-2 array ``[intercept, slope]`` (the
+    ``params`` attribute returned by ``statsmodels.RLM``); no extra checking
+    on data consistency is done.
 
     See also: regression.repeated_median_slope
     """

@@ -104,15 +104,22 @@ def Sn(x: np.ndarray | pd.Series, constant: float = 1.1926) -> np.floating:  # n
     """
     Compute a robust scale estimator. The Sn metric is an efficient alternative to MAD.
 
-    Args:
-        x (iterable): A vector of values
+    Parameters
+    ----------
+    x : np.ndarray or pd.Series
+        A vector of values. NaN entries are ignored.
+    constant : float, optional
+        Multiplicative constant that makes the estimator consistent with iid values from a
+        Gaussian distribution with no outliers. Default is 1.1926.
 
-    Outputs:
-        a scalar value, the Sn estimate of spread
+    Returns
+    -------
+    np.floating
+        A scalar value, the Sn estimate of spread. Returns NaN if all entries are missing,
+        and 0.0 when only a single non-missing value is supplied.
 
-    The `constant` gives values which are consistent with iid values from a Gaussian distribution
-    and no outliers.
-
+    Notes
+    -----
     Tested against once of the most reliable open-source packages, written by some of the
     most respected names in the area of robust methods: [1]_ and [2]_.
 

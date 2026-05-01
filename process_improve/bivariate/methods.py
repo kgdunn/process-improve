@@ -20,10 +20,13 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
 
     Using a robust linear fit, sorts the samples in X (independent variable)
     and takes sample 1:5 from the left, and samples (end-5):end and fits two
-    linear regressions. Finds the angle between the two lines.
-    Adds a point to each regression, so (1:6) and (end-6:end) and repeats.
+    linear regressions, then computes the intersection of the two fitted lines.
+    Adds a point to each regression, so (1:6) and (end-6:end) and repeats,
+    accumulating one intersection point per iteration.
 
-    Find the median angle, which is where it should stabilize.
+    The elbow is taken as the data point whose (x, y) location is closest to
+    the median of the accumulated intersection points; the median location is
+    where the intersections should stabilise.
 
     Will probably not work well on few data points. If so, try fitting a spline
     to the raw data and then repeat with the interpolated data.
