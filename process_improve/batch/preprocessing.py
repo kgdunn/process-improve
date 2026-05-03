@@ -559,7 +559,7 @@ def find_reference_batch(
         Batch data, in the standard format.
     columns_to_align : list
         Which columns to use. Others are ignored.
-    settings : dict
+    settings : dict, optional
         Default settings are::
 
             {
@@ -572,7 +572,11 @@ def find_reference_batch(
 
     Returns
     -------
-    One of the dictionary keys from `batches`.
+    str or list[str]
+        When ``settings["number_of_reference_batches"] == 1`` (the default), a
+        single dictionary key from ``batches`` is returned. When more than one
+        reference batch is requested, a list of that many keys is returned,
+        ordered from most to least central in the PCA model.
 
     """
     default_settings: dict[str, int | float | str | bool] = {
