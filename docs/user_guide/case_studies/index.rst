@@ -14,6 +14,7 @@ the book lines up with a case study here.
    :maxdepth: 2
 
    latent-variable-modelling/index
+   process-monitoring/index
 
 Sources and attribution
 -----------------------
