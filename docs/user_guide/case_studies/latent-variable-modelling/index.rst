@@ -8,3 +8,5 @@ projection to latent structures (PLS) on real process and product data.
    :maxdepth: 1
 
    pca-spectral-data
+   pca-food-texture
+   pca-kamyr-missing-data

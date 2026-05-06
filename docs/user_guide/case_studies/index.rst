@@ -14,6 +14,9 @@ the book lines up with a case study here.
    :maxdepth: 2
 
    latent-variable-modelling/index
+   least-squares-modelling/index
+   design-analysis-experiments/index
+   process-monitoring/index
 
 Sources and attribution
 -----------------------
