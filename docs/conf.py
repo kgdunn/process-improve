@@ -26,10 +26,19 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
+    "nbsphinx",
 ]
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**/.ipynb_checkpoints"]
+
+# -- nbsphinx settings ------------------------------------------------------
+# Notebooks under user_guide/case_studies/ are committed without outputs (the
+# ``nbstripout`` pre-commit hook strips them). nbsphinx executes them at docs
+# build time; live datasets are fetched from https://openmv.net/.
+nbsphinx_execute = "auto"
+nbsphinx_allow_errors = False
+nbsphinx_timeout = 300
 
 # -- Napoleon settings (NumPy docstrings) ------------------------------------
 

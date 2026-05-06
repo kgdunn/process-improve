@@ -25,6 +25,8 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: uv sync --dev --all-extras
+      - name: Install pandoc (required by nbsphinx)
+        run: sudo apt-get update && sudo apt-get install -y pandoc
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v6
       - name: Build docs
