@@ -1,17 +1,17 @@
 # Configuration file for the Sphinx documentation builder.
 
-import os
 import sys
 from pathlib import Path
 
 import tomllib
 
 # Add project root to path so autodoc can find the package
-sys.path.insert(0, os.path.abspath(".."))
+_repo_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_repo_root))
 
 # -- Project information -----------------------------------------------------
 
-_pyproject = tomllib.loads(Path(__file__).resolve().parent.parent.joinpath("pyproject.toml").read_text())
+_pyproject = tomllib.loads(_repo_root.joinpath("pyproject.toml").read_text())
 release = _pyproject["project"]["version"]
 
 project = "process-improve"

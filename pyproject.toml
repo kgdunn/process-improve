@@ -246,6 +246,9 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
     "PT015",   # Relaxed in examples
     "D104",    # Missing __init__.py docstring OK in examples
 ]
+"docs/conf.py" = [
+    "INP001",  # Sphinx conf.py is intentionally not in a package
+]
 "docs/user_guide/case_studies/**" = [
     "T201",    # print() expected in case-study notebooks
     "ANN001",  # Type annotations not required in didactic code
