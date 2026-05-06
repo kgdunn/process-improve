@@ -7,3 +7,4 @@ User Guide
    multivariate
    cross_validation
    doe_strategy
+   case_studies/index
