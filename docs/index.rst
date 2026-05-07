@@ -12,3 +12,9 @@ monitoring. Companion to the online textbook
    quickstart
    user_guide/index
    api/index
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Case studies
+
+   user_guide/case_studies/index
