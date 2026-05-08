@@ -1667,7 +1667,7 @@ def quick_regress(Y: np.ndarray, x: np.ndarray) -> np.ndarray:
 def center(X, func: Callable = np.mean, axis: int = 0, extra_output: bool = False) -> DataMatrix:  # noqa: ANN001
     """
     Perform centering of data, using a function, `func` (default: np.mean).
-    The function, if supplied, but return a vector with as many columns as the matrix X.
+    The function, if supplied, must return a vector with as many columns as the matrix X.
 
     `axis` [optional; default=0] {integer or None}
 

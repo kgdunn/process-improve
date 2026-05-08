@@ -34,6 +34,15 @@ def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) ->
 
     An elegant (simple) method to compute the robust slope between a vector `x` and `y`.
 
+    Parameters
+    ----------
+    x, y : np.ndarray
+        Input vectors. Must have the same length and at least 3 elements
+        (assertion only enforced when ``nowarn`` is False).
+    nowarn : bool, optional
+        If True, skips the length / equal-length assertions on ``x`` and
+        ``y``. Default is False.
+
     INVESTIGATE: algorithm speed-ups via these articles:
     https://link.springer.com/article/10.1007/PL00009190
     http://www.sciencedirect.com/science/article/pii/S0020019003003508

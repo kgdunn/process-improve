@@ -148,7 +148,7 @@ def melted_to_dict(in_df: pd.DataFrame, batch_id_col: str) -> dict:
 
 
 def melted_to_wide(in_df: pd.DataFrame, batch_id_col: str) -> dict:
-    """Convert aligned melted data to wide format."""
+    """Convert aligned melted data to wide format. Not yet implemented; returns an empty dict."""
     assert batch_id_col in in_df
     return {}
 

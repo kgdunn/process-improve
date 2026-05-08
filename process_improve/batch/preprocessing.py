@@ -36,8 +36,12 @@ def determine_scaling(
     Returns
     -------
     range_scalers: DataFrame
-        J rows, 2 columns: column 1 = range of each tag (approx. q98 - q02),
-        column 2 = typical minimum of each tag (robustly calculated).
+        J rows, 2 columns. Column ``"Range"`` holds the per-tag range
+        (``q98 - q02`` when ``robust=True``; ``max - min`` when
+        ``robust=False``), aggregated across batches by median when
+        ``robust=True`` and by mean otherwise. Column ``"Minimum"``
+        holds the per-tag raw minimum, aggregated across batches by the
+        same median / mean rule.
 
     TODO: put this in a scikit-learn style: .fit() and .apply() style
     """

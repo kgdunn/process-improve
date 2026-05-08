@@ -35,8 +35,10 @@ def dispatch_ccd(
         Number of center points (split between cube and axial portions).
     alpha : str, float, or None
         Axial distance.  Accepted string values: ``"rotatable"``,
-        ``"face_centered"``, ``"orthogonal"``.  A numeric value sets
-        alpha directly.  Defaults to ``"orthogonal"``.
+        ``"face_centered"``, ``"orthogonal"``.  Numeric values are
+        currently treated as ``"orthogonal"`` (passing a custom alpha
+        directly to pyDOE3 is not yet wired through). Defaults to
+        ``"orthogonal"``.
 
     Returns
     -------

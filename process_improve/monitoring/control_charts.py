@@ -243,7 +243,7 @@ class ControlChart:
 
         lambda_1 = ld_1 = 0.5 (default): value must be between 0 <= ld_1 <= 1.0
         lambda_2 = ld_2 = 0.8 (default): value must be between 0 <= ld_2 <= 1.0
-        lambda_s = ld_s = 0.2 (default): value must be between 0 <= ld_2 <= 1.0, based on values
+        lambda_s = ld_s = 0.2 (default): value must be between 0 <= ld_s <= 1.0, based on values
                                          used in the paper, recommended on page 291.
 
         The ideal lambda values (ld_1, ld_2, ld_s) can be found from a grid search.
