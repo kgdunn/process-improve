@@ -3346,6 +3346,26 @@ class MBPLS(RegressorMixin, BaseEstimator):
     every block contributes the same total sum of squares to the
     super-score, regardless of how many variables it has.
 
+    Missing data
+    ------------
+    When any X-block or Y contains NaN entries, the ``"auto"``
+    algorithm routes to a mask-aware NIPALS variant. The X-block
+    weights, block scores, block loadings used for deflation, Y-block
+    loadings and Y-block scores are each computed as a regression that
+    uses only the observed entries; the masked sum-of-squares is used
+    as the denominator so missing values neither bias the latent
+    direction nor contribute to the score. The mask is preserved
+    across components automatically because deflation propagates NaN
+    through subtraction. This is the standard skip-NaN NIPALS update;
+    see Walczak & Massart (2001) and Arteaga & Ferrer (2002).
+
+    The fit refuses to run if any X-block or Y has a column with all
+    entries missing, or a row with all entries missing for that
+    block; either case leaves the masked denominator at zero. Drop or
+    impute such rows or columns before fitting. Predict-time score
+    estimation for new observations with NaN (Trimmed Score Regression
+    / Projection to the Model Plane) is a separate follow-up.
+
     References
     ----------
     Westerhuis, J. A., Kourti, T. & MacGregor, J. F. *Analysis of
@@ -3354,6 +3374,13 @@ class MBPLS(RegressorMixin, BaseEstimator):
 
     Westerhuis, J. A. & Smilde, A. K. *Deflation in multiblock PLS.*
     Journal of Chemometrics, 15 (2001), 485-493.
+
+    Walczak, B. & Massart, D. L. *Dealing with missing data: Part I.*
+    Chemom. Intell. Lab. Syst., 58 (2001), 15-27.
+
+    Arteaga, F. & Ferrer, A. *Dealing with missing data in MSPC: several
+    methods, different interpretations, some examples.* J. Chemometrics,
+    16 (2002), 408-418.
     """
 
     _valid_algorithms: typing.ClassVar[list[str]] = ["auto", "dense", "nipals"]
