@@ -4189,10 +4189,26 @@ class MBPCA(TransformerMixin, BaseEstimator):
         if algo == "nipals":
             assert settings["md_tol"] < 10, "Tolerance should not be too large"
             assert settings["md_tol"] > epsqrt**1.95, "Tolerance must exceed machine precision"
-            raise NotImplementedError(
-                "MBPCA mask-aware NIPALS path is not yet implemented in this commit; "
-                "follow-up commit will deliver it."
-            )
+            # Degeneracy guards: any column or any (block, row) entirely NaN
+            # leaves the masked NIPALS denominator at zero, which would
+            # silently produce a spurious score or loading. Refuse the fit
+            # rather than coerce the user into a misleading result.
+            for name in self.block_names_:
+                values = X[name].values
+                col_all_nan = np.all(np.isnan(values), axis=0)
+                if np.any(col_all_nan):
+                    bad = X[name].columns[col_all_nan].tolist()
+                    raise ValueError(
+                        f"Block '{name}' has columns with all values missing: {bad}. "
+                        "Drop these columns before fitting."
+                    )
+                row_all_nan = np.all(np.isnan(values), axis=1)
+                if np.any(row_all_nan):
+                    bad_rows = np.where(row_all_nan)[0].tolist()
+                    raise ValueError(
+                        f"Block '{name}' has rows with all values missing at positions {bad_rows}. "
+                        "Drop these observations or impute them before fitting."
+                    )
 
         # Preprocess each block independently
         self.preproc_: dict[str, MCUVScaler] = {name: MCUVScaler().fit(X[name]) for name in self.block_names_}
@@ -4240,13 +4256,27 @@ class MBPCA(TransformerMixin, BaseEstimator):
             itern = 0
             while np.linalg.norm(prev - t_super) > tol and itern < self.max_iter:
                 prev = t_super
-                for b_idx, name in enumerate(self.block_names_):
-                    p_b = x_def[name].T @ t_super / (t_super @ t_super)
-                    p_b = p_b / np.linalg.norm(p_b)
-                    t_b = x_def[name] @ p_b / (p_b @ p_b) / sqrt_kb[name]
-                    local_loadings[name] = p_b
-                    local_scores[name] = t_b
-                    t_b_summary[:, b_idx] = t_b
+                if algo == "nipals":
+                    # Mask-aware NIPALS: each projection is a per-column (or
+                    # per-row) regression that uses only the entries that
+                    # are not NaN, and divides by the masked sum of squares.
+                    # Reuses the same primitives as single-block PCA NIPALS.
+                    t_super_col = t_super.reshape(-1, 1)
+                    for b_idx, name in enumerate(self.block_names_):
+                        p_b = quick_regress(x_def[name], t_super_col).flatten()
+                        p_b = p_b / np.sqrt(ssq(p_b.reshape(-1, 1)))
+                        t_b = quick_regress(x_def[name], p_b.reshape(-1, 1)).flatten() / sqrt_kb[name]
+                        local_loadings[name] = p_b
+                        local_scores[name] = t_b
+                        t_b_summary[:, b_idx] = t_b
+                else:
+                    for b_idx, name in enumerate(self.block_names_):
+                        p_b = x_def[name].T @ t_super / (t_super @ t_super)
+                        p_b = p_b / np.linalg.norm(p_b)
+                        t_b = x_def[name] @ p_b / (p_b @ p_b) / sqrt_kb[name]
+                        local_loadings[name] = p_b
+                        local_scores[name] = t_b
+                        t_b_summary[:, b_idx] = t_b
                 p_s = t_b_summary.T @ t_super / (t_super @ t_super)
                 p_s = p_s / np.linalg.norm(p_s)
                 t_super = t_b_summary @ p_s / (p_s @ p_s)
