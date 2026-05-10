@@ -4102,11 +4102,37 @@ class MBPCA(TransformerMixin, BaseEstimator):
     paper and is independently validated against the pure-numpy reference
     oracles in the test suite.
 
+    Missing data
+    ------------
+    When any block contains NaN entries, the ``"auto"`` algorithm
+    routes to a mask-aware NIPALS variant. Each per-block projection
+    in the inner loop is computed as a regression that uses only the
+    observed entries; the masked sum-of-squares is used as the
+    denominator so missing values neither bias the loading direction
+    nor contribute to the score. The mask is preserved across
+    components automatically because deflation propagates NaN through
+    subtraction. This is the standard skip-NaN NIPALS update; see
+    Walczak & Massart (2001) and Arteaga & Ferrer (2002).
+
+    The fit refuses to run if any block has a column with all entries
+    missing, or any block has a row with all entries missing for that
+    block; either case leaves the masked denominator at zero. Drop or
+    impute such rows or columns before fitting. Predict-time score
+    estimation for new observations with NaN (Trimmed Score Regression
+    / Projection to the Model Plane) is a separate follow-up.
+
     References
     ----------
     Westerhuis, J. A., Kourti, T. & MacGregor, J. F. *Analysis of
     multiblock and hierarchical PCA and PLS models.* J. Chemometrics, 12
     (1998), 301-321.
+
+    Walczak, B. & Massart, D. L. *Dealing with missing data: Part I.*
+    Chemom. Intell. Lab. Syst., 58 (2001), 15-27.
+
+    Arteaga, F. & Ferrer, A. *Dealing with missing data in MSPC: several
+    methods, different interpretations, some examples.* J. Chemometrics,
+    16 (2002), 408-418.
     """
 
     _valid_algorithms: typing.ClassVar[list[str]] = ["auto", "dense", "nipals"]
