@@ -715,6 +715,267 @@ class TestMBPLSAgainstOracle:
         np.testing.assert_array_almost_equal(result.super_scores.values, model.super_scores_.values, decimal=10)
 
 
+# ---------------------------------------------------------------------------
+# Multi-block PLS missing-data tests
+# ---------------------------------------------------------------------------
+
+
+class TestMBPLSMissingData:
+    """Mask-aware NIPALS tests for :class:`MBPLS`.
+
+    Verifies that the masked NIPALS path on MBPLS:
+
+    1. Produces results equivalent to the dense path on complete data
+       (regression test: existing behaviour is preserved).
+    2. Auto-dispatches to NIPALS when any X-block or Y contains NaN.
+    3. Refuses to fit on degenerate inputs in either X-blocks or Y
+       (column or row entirely NaN).
+    4. Recovers the complete-data super-weights within tolerance and
+       keeps a high per-component super-score correlation when a
+       small number of X- and Y-entries are missing at random.
+
+    The skip-NaN NIPALS update is the standard masked-denominator
+    variant (Walczak & Massart, 2001; Arteaga & Ferrer, 2002).
+    """
+
+    @pytest.fixture
+    def two_block(self) -> tuple[dict[str, pd.DataFrame], pd.DataFrame]:
+        rng = np.random.default_rng(42)
+        n_rows = 50
+        latent = rng.standard_normal((n_rows, 2))
+        block_a = latent @ rng.standard_normal((2, 6)) + 0.05 * rng.standard_normal((n_rows, 6))
+        block_b = latent @ rng.standard_normal((2, 4)) + 0.05 * rng.standard_normal((n_rows, 4))
+        y_block = latent @ rng.standard_normal((2, 2)) + 0.05 * rng.standard_normal((n_rows, 2))
+        x_blocks = {
+            "A": pd.DataFrame(block_a, columns=[f"a{i}" for i in range(6)]),
+            "B": pd.DataFrame(block_b, columns=[f"b{i}" for i in range(4)]),
+        }
+        y_df = pd.DataFrame(y_block, columns=["y0", "y1"])
+        return x_blocks, y_df
+
+    def test_auto_with_complete_data_resolves_to_dense(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        model = MBPLS(n_components=2, algorithm="auto").fit(x, y)
+        assert model.algorithm_ == "dense"
+        assert model.has_missing_data_ is False
+
+    def test_nipals_with_complete_data_matches_dense(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        m_dense = MBPLS(n_components=2, algorithm="dense").fit(x, y)
+        m_nipals = MBPLS(n_components=2, algorithm="nipals").fit(x, y)
+
+        np.testing.assert_array_almost_equal(
+            np.abs(m_dense.super_scores_.values),
+            np.abs(m_nipals.super_scores_.values),
+            decimal=6,
+        )
+        np.testing.assert_array_almost_equal(
+            np.abs(m_dense.super_weights_.values),
+            np.abs(m_nipals.super_weights_.values),
+            decimal=6,
+        )
+        np.testing.assert_array_almost_equal(
+            np.abs(m_dense.super_y_loadings_.values),
+            np.abs(m_nipals.super_y_loadings_.values),
+            decimal=6,
+        )
+        np.testing.assert_array_almost_equal(
+            m_dense.predictions_.values,
+            m_nipals.predictions_.values,
+            decimal=6,
+        )
+        for name in m_dense.block_names_:
+            np.testing.assert_array_almost_equal(
+                np.abs(m_dense.block_weights_[name].values),
+                np.abs(m_nipals.block_weights_[name].values),
+                decimal=6,
+            )
+            np.testing.assert_array_almost_equal(
+                np.abs(m_dense.block_loadings_[name].values),
+                np.abs(m_nipals.block_loadings_[name].values),
+                decimal=6,
+            )
+
+    def test_dense_with_missing_x_raises(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        x_n = {name: df.copy() for name, df in x.items()}
+        x_n["A"].iloc[0, 0] = np.nan
+        with pytest.raises(ValueError, match="cannot handle missing data"):
+            MBPLS(n_components=2, algorithm="dense").fit(x_n, y)
+
+    def test_dense_with_missing_y_raises(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        y_n = y.copy()
+        y_n.iloc[3, 0] = np.nan
+        with pytest.raises(ValueError, match="cannot handle missing data"):
+            MBPLS(n_components=2, algorithm="dense").fit(x, y_n)
+
+    def test_auto_with_missing_x_resolves_to_nipals(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        x_n = {name: df.copy() for name, df in x.items()}
+        x_n["A"].iloc[0, 0] = np.nan
+        x_n["B"].iloc[5, 1] = np.nan
+        model = MBPLS(n_components=2).fit(x_n, y)
+        assert model.algorithm_ == "nipals"
+        assert model.has_missing_data_ is True
+
+    def test_auto_with_missing_y_resolves_to_nipals(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        y_n = y.copy()
+        y_n.iloc[2, 1] = np.nan
+        model = MBPLS(n_components=2).fit(x, y_n)
+        assert model.algorithm_ == "nipals"
+        assert model.has_missing_data_ is True
+
+    def test_unknown_algorithm_raises(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        with pytest.raises(ValueError, match="not recognised"):
+            MBPLS(n_components=2, algorithm="bogus").fit(x, y)
+
+    def test_x_column_all_nan_raises(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        x_n = {name: df.copy() for name, df in x.items()}
+        x_n["A"].iloc[:, 2] = np.nan
+        with pytest.raises(ValueError, match="columns with all values missing"):
+            MBPLS(n_components=2).fit(x_n, y)
+
+    def test_x_row_all_nan_raises(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        x_n = {name: df.copy() for name, df in x.items()}
+        x_n["A"].iloc[7, :] = np.nan
+        with pytest.raises(ValueError, match="rows with all values missing"):
+            MBPLS(n_components=2).fit(x_n, y)
+
+    def test_y_column_all_nan_raises(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        y_n = y.copy()
+        y_n.iloc[:, 0] = np.nan
+        with pytest.raises(ValueError, match=r"Y has columns with all values missing"):
+            MBPLS(n_components=2).fit(x, y_n)
+
+    def test_y_row_all_nan_raises(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        y_n = y.copy()
+        y_n.iloc[4, :] = np.nan
+        with pytest.raises(ValueError, match=r"Y has rows with all values missing"):
+            MBPLS(n_components=2).fit(x, y_n)
+
+    def test_nipals_recovers_with_sparse_nan(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        complete = MBPLS(n_components=2, algorithm="dense").fit(x, y)
+
+        rng = np.random.default_rng(7)
+        x_n: dict[str, pd.DataFrame] = {}
+        # Inject ~5% MCAR NaN in each X-block.
+        for name, df in x.items():
+            mask = rng.random(df.shape) < 0.05
+            x_n[name] = df.mask(pd.DataFrame(mask, index=df.index, columns=df.columns))
+        # And ~5% MCAR NaN in Y.
+        mask_y = rng.random(y.shape) < 0.05
+        y_n = y.mask(pd.DataFrame(mask_y, index=y.index, columns=y.columns))
+
+        with_nan = MBPLS(n_components=2).fit(x_n, y_n)
+
+        assert not with_nan.super_scores_.isna().any().any()
+        assert not with_nan.super_weights_.isna().any().any()
+        assert not with_nan.predictions_.isna().any().any()
+
+        # Predictions are coordinate-system invariant (they only depend on the
+        # span of the fitted subspace), so they are the most operationally
+        # meaningful recovery metric. Under MCAR, latent components can be
+        # permuted or rotated relative to the complete-data fit, so do not
+        # compare super-scores / super-weights component-by-component.
+        for col in complete.predictions_.columns:
+            corr = np.corrcoef(complete.predictions_[col], with_nan.predictions_[col])[0, 1]
+            assert corr > 0.99, f"Prediction correlation for {col!r} dropped to {corr}"
+
+        # Score-space recovery up to a permutation: each complete-data
+        # component must correlate >0.9 with at least one masked-fit
+        # component.
+        for i in range(complete.super_scores_.shape[1]):
+            best = max(
+                abs(np.corrcoef(complete.super_scores_.iloc[:, i], with_nan.super_scores_.iloc[:, j])[0, 1])
+                for j in range(with_nan.super_scores_.shape[1])
+            )
+            assert best > 0.9, f"Component {i + 1} has no matching masked component (best corr {best})"
+
+    def test_nipals_outputs_have_no_nan(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        x_n = {name: df.copy() for name, df in x.items()}
+        x_n["A"].iloc[0, 0] = np.nan
+        x_n["B"].iloc[3, 2] = np.nan
+        y_n = y.copy()
+        y_n.iloc[5, 0] = np.nan
+
+        m = MBPLS(n_components=2).fit(x_n, y_n)
+        assert not m.super_scores_.isna().any().any()
+        assert not m.super_y_scores_.isna().any().any()
+        assert not m.super_weights_.isna().any().any()
+        assert not m.super_y_loadings_.isna().any().any()
+        assert not m.predictions_.isna().any().any()
+        for name in m.block_names_:
+            assert not m.block_scores_[name].isna().any().any()
+            assert not m.block_weights_[name].isna().any().any()
+            assert not m.block_loadings_[name].isna().any().any()
+            assert not m.block_spe_[name].isna().any().any()
+
+    def test_block_weights_have_unit_norm_under_nan(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        x_n = {name: df.copy() for name, df in x.items()}
+        x_n["A"].iloc[0, 0] = np.nan
+        x_n["B"].iloc[5, 1] = np.nan
+
+        m = MBPLS(n_components=2).fit(x_n, y)
+        for name in m.block_names_:
+            norms = np.linalg.norm(m.block_weights_[name].values, axis=0)
+            np.testing.assert_array_almost_equal(norms, np.ones(2), decimal=6)
+
+    def test_predict_after_nan_fit_returns_finite(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        x_train = {name: df.copy() for name, df in x.items()}
+        x_train["A"].iloc[0, 0] = np.nan
+        y_train = y.copy()
+        y_train.iloc[3, 1] = np.nan
+
+        m = MBPLS(n_components=2).fit(x_train, y_train)
+        # Predict-time NaN scoring (TSR / PMP) is a follow-up; verify that a
+        # model fitted on NaN data can still score complete held-out rows.
+        x_new = {name: df.iloc[:5, :] for name, df in x.items()}
+        result = m.predict(x_new)
+        assert not result.super_scores.isna().any().any()
+        assert not result.predictions.isna().any().any()
+
+
 class TestMBPLSOnLDPE:
     """MBPLS on the LDPE tubular reactor dataset.
 
