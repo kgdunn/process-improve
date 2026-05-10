@@ -4061,6 +4061,24 @@ class MBPCA(TransformerMixin, BaseEstimator):
     tol : float or None, default=None
         Convergence tolerance on the super-score change. ``None`` uses
         ``np.finfo(float).eps ** (9/10)`` (matches the legacy reference).
+    algorithm : str, default="auto"
+        Algorithm to use for fitting the model.
+
+        - ``"auto"``: dense vectorised hierarchical NIPALS when the data is
+          complete; mask-aware NIPALS (NaN-tolerant) when any block contains
+          missing values.
+        - ``"dense"``: dense vectorised hierarchical NIPALS. Raises if any
+          block contains missing values.
+        - ``"nipals"``: mask-aware hierarchical NIPALS. Always uses the
+          NaN-tolerant inner-loop primitives, even when the data is
+          complete (slower than ``"dense"`` but produces equivalent
+          results).
+
+    missing_data_settings : dict or None, default=None
+        Settings for the iterative ``"nipals"`` path. Keys: ``md_tol``
+        (convergence tolerance on the score-vector change between
+        iterations), ``md_max_iter`` (maximum NIPALS iterations per
+        component). Defaults to ``{"md_tol": epsqrt, "md_max_iter": 1000}``.
 
     Attributes (after fitting)
     --------------------------
@@ -4073,7 +4091,7 @@ class MBPCA(TransformerMixin, BaseEstimator):
     block_vip_, super_vip_
     block_spe_, block_hotellings_t2_, super_hotellings_t2_
     explained_variance_, scaling_factor_for_super_scores_
-    fitting_info_, has_missing_data_
+    fitting_info_, has_missing_data_, algorithm_
 
     Notes
     -----
@@ -4091,19 +4109,33 @@ class MBPCA(TransformerMixin, BaseEstimator):
     (1998), 301-321.
     """
 
+    _valid_algorithms: typing.ClassVar[list[str]] = ["auto", "dense", "nipals"]
+
     _parameter_constraints: typing.ClassVar = {
         "n_components": [int],
         "max_iter": [int],
         "tol": [float, None],
+        "algorithm": [str],
+        "missing_data_settings": [dict, None],
     }
 
-    def __init__(self, n_components: int, *, max_iter: int = 500, tol: float | None = None):
+    def __init__(
+        self,
+        n_components: int,
+        *,
+        max_iter: int = 500,
+        tol: float | None = None,
+        algorithm: str = "auto",
+        missing_data_settings: dict | None = None,
+    ):
         super().__init__()
         assert n_components > 0, "Number of components must be positive."
         assert max_iter > 0, "max_iter must be positive."
         self.n_components = n_components
         self.max_iter = max_iter
         self.tol = tol
+        self.algorithm = algorithm
+        self.missing_data_settings = missing_data_settings
 
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X: dict[str, pd.DataFrame], y: None = None) -> MBPCA:  # noqa: ARG002, C901, PLR0912, PLR0915
@@ -4134,9 +4166,32 @@ class MBPCA(TransformerMixin, BaseEstimator):
         n_blocks = len(self.block_names_)
 
         self.has_missing_data_ = any(np.any(X[name].isna().values) for name in self.block_names_)
-        if self.has_missing_data_:
+        algo = self.algorithm.lower()
+        if algo not in self._valid_algorithms:
+            raise ValueError(
+                f"Algorithm '{self.algorithm}' is not recognised. "
+                f"Must be one of {self._valid_algorithms}."
+            )
+        if algo == "auto":
+            algo = "nipals" if self.has_missing_data_ else "dense"
+        if algo == "dense" and self.has_missing_data_:
+            raise ValueError(
+                "Algorithm 'dense' cannot handle missing data. "
+                "Use 'nipals' or 'auto' instead."
+            )
+        self.algorithm_ = algo
+
+        # Resolve iterative-algorithm settings (used by the 'nipals' path).
+        settings = {"md_tol": epsqrt, "md_max_iter": 1000}
+        if isinstance(self.missing_data_settings, dict):
+            settings.update(self.missing_data_settings)
+        settings["md_max_iter"] = int(settings["md_max_iter"])
+        if algo == "nipals":
+            assert settings["md_tol"] < 10, "Tolerance should not be too large"
+            assert settings["md_tol"] > epsqrt**1.95, "Tolerance must exceed machine precision"
             raise NotImplementedError(
-                "MBPCA does not yet support missing data. Drop or impute NaN values before fitting."
+                "MBPCA mask-aware NIPALS path is not yet implemented in this commit; "
+                "follow-up commit will deliver it."
             )
 
         # Preprocess each block independently
