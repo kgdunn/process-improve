@@ -4061,6 +4061,24 @@ class MBPCA(TransformerMixin, BaseEstimator):
     tol : float or None, default=None
         Convergence tolerance on the super-score change. ``None`` uses
         ``np.finfo(float).eps ** (9/10)`` (matches the legacy reference).
+    algorithm : str, default="auto"
+        Algorithm to use for fitting the model.
+
+        - ``"auto"``: dense vectorised hierarchical NIPALS when the data is
+          complete; mask-aware NIPALS (NaN-tolerant) when any block contains
+          missing values.
+        - ``"dense"``: dense vectorised hierarchical NIPALS. Raises if any
+          block contains missing values.
+        - ``"nipals"``: mask-aware hierarchical NIPALS. Always uses the
+          NaN-tolerant inner-loop primitives, even when the data is
+          complete (slower than ``"dense"`` but produces equivalent
+          results).
+
+    missing_data_settings : dict or None, default=None
+        Settings for the iterative ``"nipals"`` path. Keys: ``md_tol``
+        (convergence tolerance on the score-vector change between
+        iterations), ``md_max_iter`` (maximum NIPALS iterations per
+        component). Defaults to ``{"md_tol": epsqrt, "md_max_iter": 1000}``.
 
     Attributes (after fitting)
     --------------------------
@@ -4073,7 +4091,7 @@ class MBPCA(TransformerMixin, BaseEstimator):
     block_vip_, super_vip_
     block_spe_, block_hotellings_t2_, super_hotellings_t2_
     explained_variance_, scaling_factor_for_super_scores_
-    fitting_info_, has_missing_data_
+    fitting_info_, has_missing_data_, algorithm_
 
     Notes
     -----
@@ -4084,26 +4102,66 @@ class MBPCA(TransformerMixin, BaseEstimator):
     paper and is independently validated against the pure-numpy reference
     oracles in the test suite.
 
+    Missing data
+    ------------
+    When any block contains NaN entries, the ``"auto"`` algorithm
+    routes to a mask-aware NIPALS variant. Each per-block projection
+    in the inner loop is computed as a regression that uses only the
+    observed entries; the masked sum-of-squares is used as the
+    denominator so missing values neither bias the loading direction
+    nor contribute to the score. The mask is preserved across
+    components automatically because deflation propagates NaN through
+    subtraction. This is the standard skip-NaN NIPALS update; see
+    Walczak & Massart (2001) and Arteaga & Ferrer (2002).
+
+    The fit refuses to run if any block has a column with all entries
+    missing, or any block has a row with all entries missing for that
+    block; either case leaves the masked denominator at zero. Drop or
+    impute such rows or columns before fitting. Predict-time score
+    estimation for new observations with NaN (Trimmed Score Regression
+    / Projection to the Model Plane) is a separate follow-up.
+
     References
     ----------
     Westerhuis, J. A., Kourti, T. & MacGregor, J. F. *Analysis of
     multiblock and hierarchical PCA and PLS models.* J. Chemometrics, 12
     (1998), 301-321.
+
+    Walczak, B. & Massart, D. L. *Dealing with missing data: Part I.*
+    Chemom. Intell. Lab. Syst., 58 (2001), 15-27.
+
+    Arteaga, F. & Ferrer, A. *Dealing with missing data in MSPC: several
+    methods, different interpretations, some examples.* J. Chemometrics,
+    16 (2002), 408-418.
     """
+
+    _valid_algorithms: typing.ClassVar[list[str]] = ["auto", "dense", "nipals"]
 
     _parameter_constraints: typing.ClassVar = {
         "n_components": [int],
         "max_iter": [int],
         "tol": [float, None],
+        "algorithm": [str],
+        "missing_data_settings": [dict, None],
     }
 
-    def __init__(self, n_components: int, *, max_iter: int = 500, tol: float | None = None):
+    def __init__(
+        self,
+        n_components: int,
+        *,
+        max_iter: int = 500,
+        tol: float | None = None,
+        algorithm: str = "auto",
+        missing_data_settings: dict | None = None,
+    ):
         super().__init__()
         assert n_components > 0, "Number of components must be positive."
         assert max_iter > 0, "max_iter must be positive."
         self.n_components = n_components
         self.max_iter = max_iter
         self.tol = tol
+        self.algorithm = algorithm
+        self.missing_data_settings = missing_data_settings
 
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X: dict[str, pd.DataFrame], y: None = None) -> MBPCA:  # noqa: ARG002, C901, PLR0912, PLR0915
@@ -4134,10 +4192,49 @@ class MBPCA(TransformerMixin, BaseEstimator):
         n_blocks = len(self.block_names_)
 
         self.has_missing_data_ = any(np.any(X[name].isna().values) for name in self.block_names_)
-        if self.has_missing_data_:
-            raise NotImplementedError(
-                "MBPCA does not yet support missing data. Drop or impute NaN values before fitting."
+        algo = self.algorithm.lower()
+        if algo not in self._valid_algorithms:
+            raise ValueError(
+                f"Algorithm '{self.algorithm}' is not recognised. "
+                f"Must be one of {self._valid_algorithms}."
             )
+        if algo == "auto":
+            algo = "nipals" if self.has_missing_data_ else "dense"
+        if algo == "dense" and self.has_missing_data_:
+            raise ValueError(
+                "Algorithm 'dense' cannot handle missing data. "
+                "Use 'nipals' or 'auto' instead."
+            )
+        self.algorithm_ = algo
+
+        # Resolve iterative-algorithm settings (used by the 'nipals' path).
+        settings = {"md_tol": epsqrt, "md_max_iter": 1000}
+        if isinstance(self.missing_data_settings, dict):
+            settings.update(self.missing_data_settings)
+        settings["md_max_iter"] = int(settings["md_max_iter"])
+        if algo == "nipals":
+            assert settings["md_tol"] < 10, "Tolerance should not be too large"
+            assert settings["md_tol"] > epsqrt**1.95, "Tolerance must exceed machine precision"
+            # Degeneracy guards: any column or any (block, row) entirely NaN
+            # leaves the masked NIPALS denominator at zero, which would
+            # silently produce a spurious score or loading. Refuse the fit
+            # rather than coerce the user into a misleading result.
+            for name in self.block_names_:
+                values = X[name].values
+                col_all_nan = np.all(np.isnan(values), axis=0)
+                if np.any(col_all_nan):
+                    bad = X[name].columns[col_all_nan].tolist()
+                    raise ValueError(
+                        f"Block '{name}' has columns with all values missing: {bad}. "
+                        "Drop these columns before fitting."
+                    )
+                row_all_nan = np.all(np.isnan(values), axis=1)
+                if np.any(row_all_nan):
+                    bad_rows = np.where(row_all_nan)[0].tolist()
+                    raise ValueError(
+                        f"Block '{name}' has rows with all values missing at positions {bad_rows}. "
+                        "Drop these observations or impute them before fitting."
+                    )
 
         # Preprocess each block independently
         self.preproc_: dict[str, MCUVScaler] = {name: MCUVScaler().fit(X[name]) for name in self.block_names_}
@@ -4185,13 +4282,27 @@ class MBPCA(TransformerMixin, BaseEstimator):
             itern = 0
             while np.linalg.norm(prev - t_super) > tol and itern < self.max_iter:
                 prev = t_super
-                for b_idx, name in enumerate(self.block_names_):
-                    p_b = x_def[name].T @ t_super / (t_super @ t_super)
-                    p_b = p_b / np.linalg.norm(p_b)
-                    t_b = x_def[name] @ p_b / (p_b @ p_b) / sqrt_kb[name]
-                    local_loadings[name] = p_b
-                    local_scores[name] = t_b
-                    t_b_summary[:, b_idx] = t_b
+                if algo == "nipals":
+                    # Mask-aware NIPALS: each projection is a per-column (or
+                    # per-row) regression that uses only the entries that
+                    # are not NaN, and divides by the masked sum of squares.
+                    # Reuses the same primitives as single-block PCA NIPALS.
+                    t_super_col = t_super.reshape(-1, 1)
+                    for b_idx, name in enumerate(self.block_names_):
+                        p_b = quick_regress(x_def[name], t_super_col).flatten()
+                        p_b = p_b / np.sqrt(ssq(p_b.reshape(-1, 1)))
+                        t_b = quick_regress(x_def[name], p_b.reshape(-1, 1)).flatten() / sqrt_kb[name]
+                        local_loadings[name] = p_b
+                        local_scores[name] = t_b
+                        t_b_summary[:, b_idx] = t_b
+                else:
+                    for b_idx, name in enumerate(self.block_names_):
+                        p_b = x_def[name].T @ t_super / (t_super @ t_super)
+                        p_b = p_b / np.linalg.norm(p_b)
+                        t_b = x_def[name] @ p_b / (p_b @ p_b) / sqrt_kb[name]
+                        local_loadings[name] = p_b
+                        local_scores[name] = t_b
+                        t_b_summary[:, b_idx] = t_b
                 p_s = t_b_summary.T @ t_super / (t_super @ t_super)
                 p_s = p_s / np.linalg.norm(p_s)
                 t_super = t_b_summary @ p_s / (p_s @ p_s)

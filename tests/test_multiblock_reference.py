@@ -170,9 +170,7 @@ class TestWold1987PCA:
 
     def test_r2_per_component(self) -> None:
         model, _, _ = _fit_pca_on_wold(n_components=2)
-        np.testing.assert_array_almost_equal(
-            model.r2_per_component_.values, WOLD_R2_PER_COMPONENT, decimal=3
-        )
+        np.testing.assert_array_almost_equal(model.r2_per_component_.values, WOLD_R2_PER_COMPONENT, decimal=3)
 
     def test_r2_cumulative_reaches_one(self) -> None:
         model, _, _ = _fit_pca_on_wold(n_components=2)
@@ -261,9 +259,7 @@ class TestWold1987PCA:
     def test_predict_training_spe_matches_fit_spe(self) -> None:
         model, _, df_pp = _fit_pca_on_wold(n_components=1)
         result = model.predict(df_pp)
-        np.testing.assert_array_almost_equal(
-            result.spe.values ** 2, PROMV_SPE_AFTER_PC1, decimal=4
-        )
+        np.testing.assert_array_almost_equal(result.spe.values**2, PROMV_SPE_AFTER_PC1, decimal=4)
 
 
 # ---------------------------------------------------------------------------
@@ -297,9 +293,7 @@ class TestMBPCAAgainstOracle:
         x_blocks, x_pp = synthetic_two_block
         oracle = mbpca_full_multiblock(x_pp, n_components=2)
         model = MBPCA(n_components=2).fit(x_blocks)
-        np.testing.assert_array_almost_equal(
-            np.abs(model.super_scores_.values), np.abs(oracle.super_scores), decimal=6
-        )
+        np.testing.assert_array_almost_equal(np.abs(model.super_scores_.values), np.abs(oracle.super_scores), decimal=6)
 
     def test_super_loadings_match_oracle(self, synthetic_two_block) -> None:
         from process_improve.multivariate.methods import MBPCA
@@ -421,6 +415,188 @@ class TestMBPCAAgainstOracle:
 
 
 # ---------------------------------------------------------------------------
+# Multi-block PCA missing-data tests
+# ---------------------------------------------------------------------------
+
+
+class TestMBPCAMissingData:
+    """Mask-aware NIPALS tests for :class:`MBPCA`.
+
+    Verifies that the masked NIPALS path:
+
+    1. Produces results equivalent to the dense path on complete data
+       (regression test: existing behaviour is preserved).
+    2. Auto-dispatches to NIPALS when any block contains NaN.
+    3. Refuses to fit on degenerate inputs (column or row entirely NaN).
+    4. Recovers the complete-data scores and loadings within tolerance
+       when a small number of entries are missing at random.
+
+    The skip-NaN NIPALS update is the standard masked-denominator
+    variant (Walczak & Massart, 2001; Arteaga & Ferrer, 2002).
+    """
+
+    @pytest.fixture
+    def two_block(self) -> dict[str, pd.DataFrame]:
+        rng = np.random.default_rng(42)
+        n_rows = 50
+        latent = rng.standard_normal((n_rows, 2))
+        block_a = latent @ rng.standard_normal((2, 6)) + 0.05 * rng.standard_normal((n_rows, 6))
+        block_b = latent @ rng.standard_normal((2, 4)) + 0.05 * rng.standard_normal((n_rows, 4))
+        return {
+            "A": pd.DataFrame(block_a, columns=[f"a{i}" for i in range(6)]),
+            "B": pd.DataFrame(block_b, columns=[f"b{i}" for i in range(4)]),
+        }
+
+    def test_auto_with_complete_data_resolves_to_dense(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        model = MBPCA(n_components=2, algorithm="auto").fit(two_block)
+        assert model.algorithm_ == "dense"
+        assert model.has_missing_data_ is False
+
+    def test_nipals_with_complete_data_matches_dense(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        m_dense = MBPCA(n_components=2, algorithm="dense").fit(two_block)
+        m_nipals = MBPCA(n_components=2, algorithm="nipals").fit(two_block)
+
+        np.testing.assert_array_almost_equal(
+            np.abs(m_dense.super_scores_.values),
+            np.abs(m_nipals.super_scores_.values),
+            decimal=6,
+        )
+        np.testing.assert_array_almost_equal(
+            np.abs(m_dense.super_loadings_.values),
+            np.abs(m_nipals.super_loadings_.values),
+            decimal=6,
+        )
+        for name in m_dense.block_names_:
+            np.testing.assert_array_almost_equal(
+                np.abs(m_dense.block_scores_[name].values),
+                np.abs(m_nipals.block_scores_[name].values),
+                decimal=6,
+            )
+            np.testing.assert_array_almost_equal(
+                np.abs(m_dense.block_loadings_[name].values),
+                np.abs(m_nipals.block_loadings_[name].values),
+                decimal=6,
+            )
+
+    def test_dense_with_missing_data_raises(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        x = {name: df.copy() for name, df in two_block.items()}
+        x["A"].iloc[0, 0] = np.nan
+        with pytest.raises(ValueError, match="cannot handle missing data"):
+            MBPCA(n_components=2, algorithm="dense").fit(x)
+
+    def test_auto_with_missing_data_resolves_to_nipals(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        x = {name: df.copy() for name, df in two_block.items()}
+        x["A"].iloc[0, 0] = np.nan
+        x["B"].iloc[5, 1] = np.nan
+        model = MBPCA(n_components=2).fit(x)
+        assert model.algorithm_ == "nipals"
+        assert model.has_missing_data_ is True
+
+    def test_unknown_algorithm_raises(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        with pytest.raises(ValueError, match="not recognised"):
+            MBPCA(n_components=2, algorithm="bogus").fit(two_block)
+
+    def test_column_all_nan_raises(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        x = {name: df.copy() for name, df in two_block.items()}
+        x["A"].iloc[:, 2] = np.nan
+        with pytest.raises(ValueError, match="columns with all values missing"):
+            MBPCA(n_components=2).fit(x)
+
+    def test_row_all_nan_raises(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        x = {name: df.copy() for name, df in two_block.items()}
+        x["A"].iloc[7, :] = np.nan
+        with pytest.raises(ValueError, match="rows with all values missing"):
+            MBPCA(n_components=2).fit(x)
+
+    def test_nipals_recovers_scores_with_sparse_nan(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        complete = MBPCA(n_components=2, algorithm="dense").fit(two_block)
+
+        rng = np.random.default_rng(7)
+        x: dict[str, pd.DataFrame] = {}
+        # Inject ~5% MCAR NaN in each block, leaving every row and column with
+        # at least one observation.
+        for name, df in two_block.items():
+            mask = rng.random(df.shape) < 0.05
+            x[name] = df.mask(pd.DataFrame(mask, index=df.index, columns=df.columns))
+
+        with_nan = MBPCA(n_components=2).fit(x)
+
+        # Outputs must be finite, super-loadings must agree with the
+        # complete-data fit within tolerance, and per-component super-scores
+        # must remain highly correlated with the complete-data scores.
+        # Per-row score values can drift by a few tenths under MCAR because
+        # the MCUVScaler is re-fitted on the masked block, which shifts the
+        # working space slightly. Score correlation isolates that shift.
+        assert not with_nan.super_scores_.isna().any().any()
+        assert not with_nan.super_loadings_.isna().any().any()
+        np.testing.assert_array_almost_equal(
+            np.abs(complete.super_loadings_.values),
+            np.abs(with_nan.super_loadings_.values),
+            decimal=1,
+        )
+        for a in range(complete.super_scores_.shape[1]):
+            corr = abs(np.corrcoef(complete.super_scores_.iloc[:, a], with_nan.super_scores_.iloc[:, a])[0, 1])
+            assert corr > 0.95, f"Component {a + 1} score correlation dropped to {corr}"
+
+    def test_nipals_outputs_have_no_nan(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        x = {name: df.copy() for name, df in two_block.items()}
+        x["A"].iloc[0, 0] = np.nan
+        x["A"].iloc[3, 4] = np.nan
+        x["B"].iloc[10, 2] = np.nan
+
+        m = MBPCA(n_components=2).fit(x)
+        assert not m.super_scores_.isna().any().any()
+        assert not m.super_loadings_.isna().any().any()
+        for name in m.block_names_:
+            assert not m.block_scores_[name].isna().any().any()
+            assert not m.block_loadings_[name].isna().any().any()
+            assert not m.block_spe_[name].isna().any().any()
+
+    def test_block_loadings_have_unit_norm_under_nan(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        x = {name: df.copy() for name, df in two_block.items()}
+        x["A"].iloc[0, 0] = np.nan
+        x["B"].iloc[5, 1] = np.nan
+
+        m = MBPCA(n_components=2).fit(x)
+        for name in m.block_names_:
+            norms = np.linalg.norm(m.block_loadings_[name].values, axis=0)
+            np.testing.assert_array_almost_equal(norms, np.ones(2), decimal=6)
+
+    def test_predict_after_nan_fit_returns_finite_super_scores(self, two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        x_train = {name: df.copy() for name, df in two_block.items()}
+        x_train["A"].iloc[0, 0] = np.nan
+
+        m = MBPCA(n_components=2).fit(x_train)
+        # Predict-time NaN scoring (TSR / PMP) is a follow-up; verify that a
+        # model fitted on NaN data can still score complete held-out rows.
+        x_new = {name: df.iloc[:5, :] for name, df in two_block.items()}
+        result = m.predict(x_new)
+        assert not result.super_scores.isna().any().any()
+
+
+# ---------------------------------------------------------------------------
 # Multi-block PLS reference tests (active as of PR3 - MBPLS implemented)
 # ---------------------------------------------------------------------------
 
@@ -461,9 +637,7 @@ class TestMBPLSAgainstOracle:
         x_blocks, y_df, (x_pp, y_pp) = synthetic_two_block
         oracle = mbpls_full_multiblock(x_pp, y_pp, n_components=2)
         model = MBPLS(n_components=2).fit(x_blocks, y_df)
-        np.testing.assert_array_almost_equal(
-            np.abs(model.super_scores_.values), np.abs(oracle.super_scores), decimal=6
-        )
+        np.testing.assert_array_almost_equal(np.abs(model.super_scores_.values), np.abs(oracle.super_scores), decimal=6)
 
     def test_super_weights_match_oracle(self, synthetic_two_block) -> None:
         from process_improve.multivariate.methods import MBPLS
@@ -510,9 +684,7 @@ class TestMBPLSAgainstOracle:
         oracle = mbpls_full_multiblock(x_pp, y_pp, n_components=2)
         # Oracle predictions are on the preprocessed scale; un-preprocess for comparison.
         y_scaler = MCUVScaler().fit(y_df)
-        oracle_predictions = y_scaler.inverse_transform(
-            pd.DataFrame(oracle.y_predictions, columns=y_df.columns)
-        )
+        oracle_predictions = y_scaler.inverse_transform(pd.DataFrame(oracle.y_predictions, columns=y_df.columns))
         model = MBPLS(n_components=2).fit(x_blocks, y_df)
         np.testing.assert_array_almost_equal(model.predictions_.values, oracle_predictions.values, decimal=6)
 
@@ -779,9 +951,7 @@ class TestMBPLSOnLDPE:
         oracle = mbpls_merged_then_recover(x_pp, y_pp, n_components=2)
         # Path B: production MBPLS
         model = MBPLS(n_components=2).fit(x_blocks, y_df)
-        np.testing.assert_array_almost_equal(
-            np.abs(model.super_scores_.values), np.abs(oracle.super_scores), decimal=5
-        )
+        np.testing.assert_array_almost_equal(np.abs(model.super_scores_.values), np.abs(oracle.super_scores), decimal=5)
 
 
 # ---------------------------------------------------------------------------
@@ -789,9 +959,7 @@ class TestMBPLSOnLDPE:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skip(
-    reason="Requires LDPE-PLS reference dataset (planned in PR2 of the multi-block port)."
-)
+@pytest.mark.skip(reason="Requires LDPE-PLS reference dataset (planned in PR2 of the multi-block port).")
 class TestLDPEReference:
     """Numerical assertions against the LDPE multiblock dataset.
 
@@ -801,16 +969,12 @@ class TestLDPEReference:
     """
 
 
-@pytest.mark.skip(
-    reason="Requires FMC reference dataset (planned in PR2 of the multi-block port)."
-)
+@pytest.mark.skip(reason="Requires FMC reference dataset (planned in PR2 of the multi-block port).")
 class TestFMCReference:
     """FMC dataset MBPLS assertions, deferred until PR2."""
 
 
-@pytest.mark.skip(
-    reason="Requires kamyr-digester / Simca-P reference values (planned in PR2 of the multi-block port)."
-)
+@pytest.mark.skip(reason="Requires kamyr-digester / Simca-P reference values (planned in PR2 of the multi-block port).")
 class TestSimcaPCAComparison:
     """Numerical comparison against Simca-P 11.5.0.0 (2006) for kamyr-digester
     PCA and PLS models. Deferred until PR2 brings the reference values into
