@@ -3284,6 +3284,24 @@ class MBPLS(RegressorMixin, BaseEstimator):
         Convergence tolerance on the change in the Y-block score. If
         ``None``, ``np.finfo(float).eps ** (6/7)`` is used (matching the
         legacy multi-block reference implementation).
+    algorithm : str, default="auto"
+        Algorithm to use for fitting the model.
+
+        - ``"auto"``: dense vectorised hierarchical NIPALS when every
+          block (X and Y) is complete; mask-aware NIPALS when any block
+          contains missing values.
+        - ``"dense"``: dense vectorised hierarchical NIPALS. Raises if
+          any block contains missing values.
+        - ``"nipals"``: mask-aware hierarchical NIPALS. Always uses the
+          NaN-tolerant inner-loop primitives, even when the data is
+          complete (slower than ``"dense"`` but produces equivalent
+          results).
+
+    missing_data_settings : dict or None, default=None
+        Settings for the iterative ``"nipals"`` path. Keys: ``md_tol``
+        (convergence tolerance on the score-vector change between
+        iterations), ``md_max_iter`` (maximum NIPALS iterations per
+        component). Defaults to ``{"md_tol": epsqrt, "md_max_iter": 1000}``.
 
     Attributes (after fitting)
     --------------------------
@@ -3317,6 +3335,10 @@ class MBPLS(RegressorMixin, BaseEstimator):
         Per-component iteration count and timing.
     has_missing_data_ : bool
         Whether any X-block or Y had NaN values.
+    algorithm_ : str
+        The resolved algorithm actually used for the fit. With
+        ``algorithm="auto"``, this is ``"dense"`` for complete data
+        and ``"nipals"`` for NaN-containing data.
 
     Notes
     -----
@@ -3334,10 +3356,14 @@ class MBPLS(RegressorMixin, BaseEstimator):
     Journal of Chemometrics, 15 (2001), 485-493.
     """
 
+    _valid_algorithms: typing.ClassVar[list[str]] = ["auto", "dense", "nipals"]
+
     _parameter_constraints: typing.ClassVar = {
         "n_components": [int],
         "max_iter": [int],
         "tol": [float, None],
+        "algorithm": [str],
+        "missing_data_settings": [dict, None],
     }
 
     def __init__(
@@ -3346,6 +3372,8 @@ class MBPLS(RegressorMixin, BaseEstimator):
         *,
         max_iter: int = 500,
         tol: float | None = None,
+        algorithm: str = "auto",
+        missing_data_settings: dict | None = None,
     ):
         super().__init__()
         assert n_components > 0, "Number of components must be positive."
@@ -3353,6 +3381,8 @@ class MBPLS(RegressorMixin, BaseEstimator):
         self.n_components = n_components
         self.max_iter = max_iter
         self.tol = tol
+        self.algorithm = algorithm
+        self.missing_data_settings = missing_data_settings
 
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X: dict[str, pd.DataFrame], y: pd.DataFrame) -> MBPLS:  # noqa: C901, PLR0912, PLR0915
@@ -3401,10 +3431,59 @@ class MBPLS(RegressorMixin, BaseEstimator):
         self.has_missing_data_ = any(np.any(X[name].isna().values) for name in self.block_names_) or bool(
             np.any(y.isna().values)
         )
-        if self.has_missing_data_:
-            raise NotImplementedError(
-                "MBPLS does not yet support missing data. Drop or impute NaN values before fitting."
+        algo = self.algorithm.lower()
+        if algo not in self._valid_algorithms:
+            raise ValueError(
+                f"Algorithm '{self.algorithm}' is not recognised. Must be one of {self._valid_algorithms}."
             )
+        if algo == "auto":
+            algo = "nipals" if self.has_missing_data_ else "dense"
+        if algo == "dense" and self.has_missing_data_:
+            raise ValueError("Algorithm 'dense' cannot handle missing data. Use 'nipals' or 'auto' instead.")
+        self.algorithm_ = algo
+
+        # Resolve iterative-algorithm settings (used by the 'nipals' path).
+        settings = {"md_tol": epsqrt, "md_max_iter": 1000}
+        if isinstance(self.missing_data_settings, dict):
+            settings.update(self.missing_data_settings)
+        settings["md_max_iter"] = int(settings["md_max_iter"])
+        if algo == "nipals":
+            assert settings["md_tol"] < 10, "Tolerance should not be too large"
+            assert settings["md_tol"] > epsqrt**1.95, "Tolerance must exceed machine precision"
+            # Degeneracy guards: any column or any (block, row) entirely NaN
+            # leaves the masked NIPALS denominator at zero, which would
+            # silently produce a spurious score or loading. Refuse the fit
+            # rather than coerce the user into a misleading result.
+            for name in self.block_names_:
+                values = X[name].values
+                col_all_nan = np.all(np.isnan(values), axis=0)
+                if np.any(col_all_nan):
+                    bad = X[name].columns[col_all_nan].tolist()
+                    raise ValueError(
+                        f"Block '{name}' has columns with all values missing: {bad}. "
+                        "Drop these columns before fitting."
+                    )
+                row_all_nan = np.all(np.isnan(values), axis=1)
+                if np.any(row_all_nan):
+                    bad_rows = np.where(row_all_nan)[0].tolist()
+                    raise ValueError(
+                        f"Block '{name}' has rows with all values missing at positions {bad_rows}. "
+                        "Drop these observations or impute them before fitting."
+                    )
+            y_values = y.values
+            y_col_all_nan = np.all(np.isnan(y_values), axis=0)
+            if np.any(y_col_all_nan):
+                bad = y.columns[y_col_all_nan].tolist()
+                raise ValueError(
+                    f"Y has columns with all values missing: {bad}. Drop these targets before fitting."
+                )
+            y_row_all_nan = np.all(np.isnan(y_values), axis=1)
+            if np.any(y_row_all_nan):
+                bad_rows = np.where(y_row_all_nan)[0].tolist()
+                raise ValueError(
+                    f"Y has rows with all values missing at positions {bad_rows}. "
+                    "Drop these observations or impute them before fitting."
+                )
 
         # Preprocess each X-block and Y independently
         self.preproc_: dict[str, MCUVScaler] = {name: MCUVScaler().fit(X[name]) for name in self.block_names_}
@@ -3472,19 +3551,38 @@ class MBPLS(RegressorMixin, BaseEstimator):
             itern = 0
             while np.linalg.norm(prev - u_a) > tol and itern < self.max_iter:
                 prev = u_a
-                for b_idx, name in enumerate(self.block_names_):
-                    w_b = x_def[name].T @ u_a / (u_a @ u_a)
-                    w_b = w_b / np.linalg.norm(w_b)
-                    t_b = x_def[name] @ w_b / (w_b @ w_b) / sqrt_kb[name]
-                    local_w[name] = w_b
-                    local_t[name] = t_b
-                    t_b_summary[:, b_idx] = t_b
+                if algo == "nipals":
+                    # Mask-aware NIPALS: each projection is a per-column (or
+                    # per-row) regression that uses only the entries that
+                    # are not NaN, and divides by the masked sum of squares.
+                    # Reuses the same primitives as single-block PCA NIPALS.
+                    u_a_col = u_a.reshape(-1, 1)
+                    for b_idx, name in enumerate(self.block_names_):
+                        w_b = quick_regress(x_def[name], u_a_col).flatten()
+                        w_b = w_b / np.sqrt(ssq(w_b.reshape(-1, 1)))
+                        t_b = quick_regress(x_def[name], w_b.reshape(-1, 1)).flatten() / sqrt_kb[name]
+                        local_w[name] = w_b
+                        local_t[name] = t_b
+                        t_b_summary[:, b_idx] = t_b
+                else:
+                    for b_idx, name in enumerate(self.block_names_):
+                        w_b = x_def[name].T @ u_a / (u_a @ u_a)
+                        w_b = w_b / np.linalg.norm(w_b)
+                        t_b = x_def[name] @ w_b / (w_b @ w_b) / sqrt_kb[name]
+                        local_w[name] = w_b
+                        local_t[name] = t_b
+                        t_b_summary[:, b_idx] = t_b
 
                 w_s = t_b_summary.T @ u_a / (u_a @ u_a)
                 w_s = w_s / np.linalg.norm(w_s)
                 t_super = t_b_summary @ w_s / (w_s @ w_s)
-                c_a = y_def.T @ t_super / (t_super @ t_super)
-                u_a = y_def @ c_a / (c_a @ c_a)
+                if algo == "nipals":
+                    t_super_col = t_super.reshape(-1, 1)
+                    c_a = quick_regress(y_def, t_super_col).flatten()
+                    u_a = quick_regress(y_def, c_a.reshape(-1, 1)).flatten()
+                else:
+                    c_a = y_def.T @ t_super / (t_super @ t_super)
+                    u_a = y_def @ c_a / (c_a @ c_a)
                 itern += 1
 
             # Sign convention: largest |w_super| element positive
@@ -3499,8 +3597,12 @@ class MBPLS(RegressorMixin, BaseEstimator):
                     local_t[name] = -local_t[name]
 
             # Deflate using the super-score
+            t_super_col = t_super.reshape(-1, 1)
             for name in self.block_names_:
-                p_b = x_def[name].T @ t_super / (t_super @ t_super)
+                if algo == "nipals":
+                    p_b = quick_regress(x_def[name], t_super_col).flatten()
+                else:
+                    p_b = x_def[name].T @ t_super / (t_super @ t_super)
                 x_def[name] = x_def[name] - np.outer(t_super, p_b)
                 block_loadings_np[name][:, a] = p_b
                 block_weights_np[name][:, a] = local_w[name]
