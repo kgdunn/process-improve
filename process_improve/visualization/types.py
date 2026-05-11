@@ -46,7 +46,7 @@ class AnnotationType(str, Enum):
 
 
 class DOEPlotType(str, Enum):
-    """All 20 supported DOE plot types plus the diagnostic panel."""
+    """All supported DOE plot types plus the diagnostic panel."""
 
     # Effect / significance plots
     pareto = "pareto"
@@ -69,8 +69,9 @@ class DOEPlotType(str, Enum):
     surface_3d = "surface_3d"
     prediction_variance = "prediction_variance"
 
-    # Cube / special
+    # Cube / square / special
     cube_plot = "cube_plot"
+    square_plot = "square_plot"
 
     # Optimisation plots
     desirability_contour = "desirability_contour"

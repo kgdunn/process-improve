@@ -109,6 +109,7 @@ def _ensure_discovery() -> None:
         "process_improve.experiments.visualization.plots.diagnostics",
         "process_improve.experiments.visualization.plots.surfaces",
         "process_improve.experiments.visualization.plots.cube_plot",
+        "process_improve.experiments.visualization.plots.square_plot",
         "process_improve.experiments.visualization.plots.optimization_plots",
         "process_improve.experiments.visualization.plots.design_quality",
     ]:

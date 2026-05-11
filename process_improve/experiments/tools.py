@@ -1013,11 +1013,11 @@ _register("augment_design")
     name="visualize_doe",
     description=(
         "Generate DOE visualisations from analysis results or design data. "
-        "Supports 20 plot types: significance plots (pareto, half_normal, daniel), "
+        "Supports 21 plot types: significance plots (pareto, half_normal, daniel), "
         "factor-effect plots (main_effects, interaction, perturbation), "
         "diagnostic plots (residuals_vs_fitted, normal_probability, residuals_vs_order, box_cox), "
         "response-surface plots (contour, surface_3d, prediction_variance), "
-        "cube plot (cube_plot), "
+        "cube plot (cube_plot), square plot (square_plot), "
         "optimisation plots (desirability_contour, overlay, ridge_trace, steepest_ascent_path), "
         "and design-quality plots (fds_plot, power_curve). "
         "Returns both Plotly and ECharts configurations for dual-backend rendering. "
@@ -1035,7 +1035,7 @@ _register("augment_design")
                         "residuals_vs_fitted", "normal_probability",
                         "residuals_vs_order", "box_cox",
                         "contour", "surface_3d", "prediction_variance",
-                        "cube_plot",
+                        "cube_plot", "square_plot",
                         "desirability_contour", "overlay",
                         "ridge_trace", "steepest_ascent_path",
                         "fds_plot", "power_curve",
