@@ -977,13 +977,22 @@ class TestMBPLSMissingData:
 
 
 class TestMBPLSOnLDPE:
-    """MBPLS on the LDPE tubular reactor dataset.
+    """MBPLS on the LDPE tubular reactor dataset using its natural 4-block split.
 
-    The legacy ``test_mbpls.m`` splits the LDPE X-matrix by reactor zone:
-    block 1 = vars 1, 2, 3, 6, 8, 10, 12, 14 (zone 1); block 2 = vars
-    4, 5, 7, 9, 11, 13 (zone 2). When the per-block weighting is correct
-    the MBPLS super-score must equal the single-block PLS score from the
-    column-stacked, block-weighted X.
+    The LDPE columns split naturally into four chemometric blocks:
+
+    - ``zone1`` (7 vars): Tin, Tmax1, Tout1, Tcin1, z1, Fi1, Fs1.
+      Reactor zone 1 process variables; Tin is the common feed inlet
+      temperature, grouped with zone 1 by convention.
+    - ``zone2`` (6 vars): Tmax2, Tout2, Tcin2, z2, Fi2, Fs2.
+      Reactor zone 2 process variables.
+    - ``pressure`` (1 var): Press.
+    - Y (5 vars): Conv, Mn, Mw, LCB, SCB. Quality block; used as Y in
+      MBPLS or as a fourth X-block in MBPCA.
+
+    The legacy ConnectMV ``test_mbpls.m`` used a 2-block zone split
+    purely to make a single-block-PLS oracle assertion convenient.
+    The 4-block split here is the chemometrically meaningful one.
     """
 
     @pytest.fixture
@@ -992,12 +1001,15 @@ class TestMBPLSOnLDPE:
 
         folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "multivariate" / "LDPE"
         values = pd.read_csv(folder / "LDPE.csv", index_col=0)
-        # MATLAB 1-based -> Python 0-based
-        zone_1_idx = [0, 1, 2, 5, 7, 9, 11, 13]
+        # Natural 4-block split: block 1 = zone-1 vars (incl. Tin), block 2 =
+        # zone-2 vars, block 3 = pressure, Y = quality.
+        zone_1_idx = [0, 1, 2, 5, 7, 9, 11]
         zone_2_idx = [3, 4, 6, 8, 10, 12]
+        pressure_idx = [13]
         x_blocks = {
             "zone1": values.iloc[:, zone_1_idx],
             "zone2": values.iloc[:, zone_2_idx],
+            "pressure": values.iloc[:, pressure_idx],
         }
         y_df = values.iloc[:, 14:]
         return x_blocks, y_df
@@ -1009,11 +1021,13 @@ class TestMBPLSOnLDPE:
         model = MBPLS(n_components=3).fit(x_blocks, y_df)
         assert model.super_scores_.shape == (54, 3)
         assert model.super_y_scores_.shape == (54, 3)
-        assert model.super_weights_.shape == (2, 3)
+        assert model.super_weights_.shape == (3, 3)
         assert model.block_scores_["zone1"].shape == (54, 3)
         assert model.block_scores_["zone2"].shape == (54, 3)
-        assert model.block_weights_["zone1"].shape == (8, 3)
+        assert model.block_scores_["pressure"].shape == (54, 3)
+        assert model.block_weights_["zone1"].shape == (7, 3)
         assert model.block_weights_["zone2"].shape == (6, 3)
+        assert model.block_weights_["pressure"].shape == (1, 3)
         assert model.predictions_.shape == (54, 5)
 
     def test_per_block_stats_are_well_formed(self, ldpe) -> None:
@@ -1200,19 +1214,205 @@ class TestMBPLSOnLDPE:
 
     def test_super_score_matches_single_block_pls_with_block_weighting(self, ldpe) -> None:
         """When all variables are in one big-X with sqrt(K_b) weighting per block,
-        single-block PLS produces the same super-score as MBPLS.
+        single-block PLS produces the same super-score as MBPLS. Holds for any
+        number of blocks, so the natural 4-block split (3 X-blocks + Y) is fine.
         """
         from process_improve.multivariate.methods import MBPLS, MCUVScaler
         from tests._multiblock_oracles import mbpls_merged_then_recover
 
         x_blocks, y_df = ldpe
         # Path A: oracle merged-then-recover (verified self-consistent)
-        x_pp = [MCUVScaler().fit_transform(x_blocks[k]).values for k in ("zone1", "zone2")]
+        x_pp = [MCUVScaler().fit_transform(x_blocks[k]).values for k in ("zone1", "zone2", "pressure")]
         y_pp = MCUVScaler().fit_transform(y_df).values
         oracle = mbpls_merged_then_recover(x_pp, y_pp, n_components=2)
         # Path B: production MBPLS
         model = MBPLS(n_components=2).fit(x_blocks, y_df)
         np.testing.assert_array_almost_equal(np.abs(model.super_scores_.values), np.abs(oracle.super_scores), decimal=5)
+
+
+# ---------------------------------------------------------------------------
+# MBPLS missing-data integration tests on real datasets
+# ---------------------------------------------------------------------------
+
+
+def _inject_mcar(
+    df: pd.DataFrame,
+    ratio: float,
+    rng: np.random.Generator,
+    *,
+    keep_one_per_row: bool = True,
+) -> pd.DataFrame:
+    """Return ``df`` with MCAR NaN entries at the given ratio.
+
+    If ``keep_one_per_row``, at least one column in each row stays observed,
+    keeping the degeneracy guards happy on narrow blocks or single-target Y.
+    """
+    mask = rng.random(df.shape) < ratio
+    if keep_one_per_row:
+        full_row = mask.all(axis=1)
+        mask[full_row, 0] = False
+    return df.mask(pd.DataFrame(mask, index=df.index, columns=df.columns))
+
+
+class TestMBPLSOnLDPEMissingData:
+    """MBPLS NaN-injection tests on the LDPE tubular reactor dataset.
+
+    Uses the natural 4-block split (zone1, zone2, pressure, quality-Y).
+    Establishes a complete-data baseline, then injects MCAR NaN in the
+    multi-column X-blocks (zone1, zone2) and in Y at 5/15/25%; verifies
+    that predictions remain highly correlated with the complete-data
+    fit (degrading gracefully with NaN density) and that outputs stay
+    NaN-free everywhere.
+
+    The single-column ``pressure`` block is held complete: with one
+    variable any NaN there is automatically a full-row NaN, which is
+    not a meaningful NIPALS skip-NaN scenario (it is plain missing
+    univariate data, and trips the degeneracy guard).
+    """
+
+    @pytest.fixture
+    def ldpe(self) -> tuple[dict, pd.DataFrame]:
+        import pathlib
+
+        folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "multivariate" / "LDPE"
+        values = pd.read_csv(folder / "LDPE.csv", index_col=0)
+        # Same natural 4-block split as TestMBPLSOnLDPE.
+        zone_1_idx = [0, 1, 2, 5, 7, 9, 11]
+        zone_2_idx = [3, 4, 6, 8, 10, 12]
+        pressure_idx = [13]
+        x_blocks = {
+            "zone1": values.iloc[:, zone_1_idx],
+            "zone2": values.iloc[:, zone_2_idx],
+            "pressure": values.iloc[:, pressure_idx],
+        }
+        y_df = values.iloc[:, 14:]
+        return x_blocks, y_df
+
+    @pytest.fixture
+    def complete_baseline(self, ldpe):
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        return MBPLS(n_components=3, algorithm="dense").fit(x_blocks, y_df)
+
+    @pytest.mark.parametrize(
+        ("ratio", "seed", "min_pred_corr"),
+        [
+            (0.05, 1, 0.97),
+            (0.15, 2, 0.95),
+            (0.25, 3, 0.85),
+        ],
+    )
+    def test_mcar_recovery(self, ldpe, complete_baseline, ratio: float, seed: int, min_pred_corr: float) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        rng = np.random.default_rng(seed)
+        # Only inject NaN into multi-column X-blocks; pressure is univariate
+        # so its skip-NaN behavior is not meaningfully exercised by MCAR.
+        x_n = {
+            name: _inject_mcar(df, ratio, rng) if df.shape[1] > 1 else df
+            for name, df in x_blocks.items()
+        }
+        y_n = _inject_mcar(y_df, ratio, rng)
+
+        m = MBPLS(n_components=3).fit(x_n, y_n)
+
+        assert m.algorithm_ == "nipals"
+        assert not m.super_scores_.isna().any().any()
+        assert not m.super_weights_.isna().any().any()
+        assert not m.predictions_.isna().any().any()
+        for name in m.block_names_:
+            assert not m.block_spe_[name].isna().any().any()
+
+        for col in complete_baseline.predictions_.columns:
+            corr = np.corrcoef(complete_baseline.predictions_[col], m.predictions_[col])[0, 1]
+            assert corr > min_pred_corr, (
+                f"LDPE @ {int(ratio * 100)}% MCAR: prediction correlation for {col!r} "
+                f"dropped to {corr:.3f} (threshold {min_pred_corr})"
+            )
+
+
+class TestMBPLSOnDTUPectin:
+    """MBPLS on the DTU pectin yield dataset (Baum and Vermue, JOSS 2019).
+
+    Two X-blocks: FTIR (148 wavenumbers) and carbohydrate microarray
+    (30 antibody probes). Y is a single column: pectin yield in grams.
+    Three extractions concatenate to 37 samples total. Verifies the
+    complete-data fit is well formed, then injects MCAR NaN in the
+    X-blocks at 5/15/25% and verifies graceful prediction recovery.
+    Y is not perturbed because it has a single target column; any
+    MCAR injection into Y trips the row-all-NaN degeneracy guard.
+
+    Reference: Baum and Vermue, JOSS 4(34), 1190 (2019).
+    """
+
+    @pytest.fixture
+    def pectin(self) -> tuple[dict, pd.DataFrame]:
+        import pathlib
+
+        folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "multivariate" / "dtu-pectin"
+        ftir = pd.concat([pd.read_csv(folder / f"ftir{i}.csv", index_col=0) for i in (1, 2, 3)])
+        micro = pd.concat([pd.read_csv(folder / f"extraction{i}.csv", index_col=0) for i in (1, 2, 3)])
+        # Yield (the row index of every CSV) is the single Y target. After
+        # extracting it the X-blocks are reset to a plain RangeIndex to
+        # match MBPLS's row-alignment contract.
+        y = pd.DataFrame({"yield_g": ftir.index.values.astype(float)})
+        ftir = ftir.reset_index(drop=True)
+        micro = micro.reset_index(drop=True)
+        return {"FTIR": ftir, "microarray": micro}, y
+
+    def test_baseline_fit_is_well_formed(self, pectin) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y = pectin
+        model = MBPLS(n_components=3).fit(x_blocks, y)
+
+        assert model.algorithm_ == "dense"
+        assert model.has_missing_data_ is False
+        assert model.super_scores_.shape == (37, 3)
+        assert model.block_weights_["FTIR"].shape == (148, 3)
+        assert model.block_weights_["microarray"].shape == (30, 3)
+        assert model.predictions_.shape == (37, 1)
+
+        # R^2Y monotonic, in [0, 1], and the 3-component fit recovers
+        # most of the Y variance (upstream notebook converges around the
+        # 0.97 mark for LV3 on this dataset).
+        r2y = model.r2_y_cumulative_.values
+        assert (r2y >= 0).all()
+        assert (r2y <= 1.0 + 1e-10).all()
+        assert np.all(np.diff(r2y) >= -1e-10)
+        assert r2y[-1] > 0.9
+
+    @pytest.mark.parametrize(
+        ("ratio", "seed", "min_pred_corr"),
+        [
+            (0.05, 11, 0.99),
+            (0.15, 12, 0.98),
+            (0.25, 13, 0.95),
+        ],
+    )
+    def test_mcar_recovery_in_x_blocks(self, pectin, ratio: float, seed: int, min_pred_corr: float) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y = pectin
+        complete = MBPLS(n_components=3, algorithm="dense").fit(x_blocks, y)
+
+        rng = np.random.default_rng(seed)
+        x_n = {name: _inject_mcar(df, ratio, rng) for name, df in x_blocks.items()}
+        m = MBPLS(n_components=3).fit(x_n, y)
+
+        assert m.algorithm_ == "nipals"
+        assert m.has_missing_data_ is True
+        assert not m.super_scores_.isna().any().any()
+        assert not m.super_weights_.isna().any().any()
+        assert not m.predictions_.isna().any().any()
+
+        corr = np.corrcoef(complete.predictions_["yield_g"], m.predictions_["yield_g"])[0, 1]
+        assert corr > min_pred_corr, (
+            f"DTU pectin @ {int(ratio * 100)}% MCAR: prediction correlation "
+            f"dropped to {corr:.3f} (threshold {min_pred_corr})"
+        )
 
 
 # ---------------------------------------------------------------------------
