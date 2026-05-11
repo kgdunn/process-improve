@@ -1,0 +1,64 @@
+DTU Pectin Yield example data
+=============================
+
+Source
+------
+https://github.com/DTUComputeStatisticsAndDataAnalysis/MBPLS
+File: mbpls/data/MBPLS_intro/{ftir1, ftir2, ftir3, extraction1,
+extraction2, extraction3}.pkl
+
+Reference
+---------
+Baum, A. & Vermue, L. *Multiblock PLS: Block dependent prediction
+modeling for Python.* Journal of Open Source Software, 4(34), 1190
+(2019). https://doi.org/10.21105/joss.01190
+
+Contents
+--------
+Three pectin extractions; each extraction has two measured X-blocks
+(FTIR spectra, 148 wavenumbers; carbohydrate microarray, 30 antibody
+probes) and a single Y (pectin yield in grams). The yield is encoded
+as the index of every CSV. The three extractions concatenate along
+the row axis to give 37 samples in total.
+
+- ftir1.csv, ftir2.csv, ftir3.csv: FTIR features, shape (23, 148),
+  (7, 148), (7, 148). Column names are wavenumbers (cm^-1).
+- extraction1.csv, extraction2.csv, extraction3.csv: microarray
+  features, shape (23, 30), (7, 30), (7, 30). Column names are
+  antibody / probe identifiers (e.g. JIM5, JIM7, LM18).
+
+The CSVs are exact value-preserving exports of the upstream pickles
+(written via pandas with float_format='%.6f' for the FTIR / microarray
+values; index preserved as the yield in grams).
+
+License (upstream)
+------------------
+BSD 3-Clause License
+
+Copyright (c) 2018, Andreas Baum and Laurent Vermue
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the copyright holder nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
