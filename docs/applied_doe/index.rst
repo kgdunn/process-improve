@@ -12,6 +12,16 @@ facilitator notes as inline **Tip**, **Guidance**, **Check yourself**, and
 **Solution** callouts so you can pause, reflect, and test your own
 understanding before reading the worked answer.
 
+Before you start
+----------------
+
+A short planning template to fill in before any of the modules below.
+
+.. toctree::
+   :maxdepth: 1
+
+   00_plan_your_experiment
+
 Phase A. Foundations
 --------------------
 
