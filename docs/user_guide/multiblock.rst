@@ -209,6 +209,48 @@ entirely absent for one sample) Trimmed Score Regression (TSR) is
 usually a better fit; ``PCA`` exposes it via ``algorithm="tsr"`` for
 the single-block case.
 
+Comparing with R / mixOmics
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you cross-check ``process_improve`` against R's ``mixOmics::nipals``
+(the de-facto reference for skip-NaN NIPALS in chemometrics), two
+implementation facts are worth knowing up front; both are captured
+and pinned in ``tests/test_pca_nipals_mixomics_crosscheck.py``.
+
+**Score normalisation differs deterministically.** Both packages use
+unit-norm loadings (``||p_k|| = 1``), but they scale the scores
+differently:
+
+- ``process_improve`` returns ``T = X @ P`` directly, so column ``k``
+  of ``T`` has L2 norm equal to the *singular value* of component
+  ``k``.
+- ``mixOmics`` returns unit-norm score columns (``||t_k|| = 1``) and
+  stores the singular values separately in ``fit$eig``.
+
+To compare like with like, divide each ``process_improve`` score
+column by its L2 norm before lining it up against the mixOmics
+scores, then handle the per-column sign flip (NIPALS components are
+sign-ambiguous; either package can converge to a sign-reversed
+column). Equivalently, multiply each mixOmics score column by the
+corresponding ``fit$eig`` entry.
+
+**Element-wise agreement on NaN data tops out around 1e-5.** Both
+implementations run their inner loop to a per-component tolerance
+around ``1e-9``, but they differ in how they deflate the residual
+under NaN and which quantity they compare between inner iterations.
+On a real NaN-containing matrix that algorithmic difference dominates
+the per-element residual, so loadings agree to roughly five decimal
+places rather than to either implementation's own convergence floor.
+Five-digit agreement on an independent reference implementation is a
+strong cross-check; the tighter ``1e-9`` bound is not achievable
+without first reconciling the deflation policy and convergence
+criterion.
+
+The full machinery (canonical centered-with-NaN input, R reference
+script, sign-and-scale-aware test, eigenvalue cross-check) ships in
+``tests/fixtures/mixomics_nipals/`` and the README there has a
+single-command regeneration recipe.
+
 References
 ----------
 
