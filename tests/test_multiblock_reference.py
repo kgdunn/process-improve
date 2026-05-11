@@ -1216,6 +1216,173 @@ class TestMBPLSOnLDPE:
 
 
 # ---------------------------------------------------------------------------
+# MBPLS missing-data integration tests on real datasets
+# ---------------------------------------------------------------------------
+
+
+def _inject_mcar(
+    df: pd.DataFrame,
+    ratio: float,
+    rng: np.random.Generator,
+    *,
+    keep_one_per_row: bool = True,
+) -> pd.DataFrame:
+    """Return ``df`` with MCAR NaN entries at the given ratio.
+
+    If ``keep_one_per_row``, at least one column in each row stays observed,
+    keeping the degeneracy guards happy on narrow blocks or single-target Y.
+    """
+    mask = rng.random(df.shape) < ratio
+    if keep_one_per_row:
+        full_row = mask.all(axis=1)
+        mask[full_row, 0] = False
+    return df.mask(pd.DataFrame(mask, index=df.index, columns=df.columns))
+
+
+class TestMBPLSOnLDPEMissingData:
+    """MBPLS NaN-injection tests on the LDPE tubular reactor dataset.
+
+    Establishes a complete-data baseline, then injects MCAR NaN in both
+    X-blocks and Y at 5/15/25%; verifies that predictions remain highly
+    correlated with the complete-data fit (degrading gracefully with
+    NaN density) and that outputs stay NaN-free everywhere.
+    """
+
+    @pytest.fixture
+    def ldpe(self) -> tuple[dict, pd.DataFrame]:
+        import pathlib
+
+        folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "multivariate" / "LDPE"
+        values = pd.read_csv(folder / "LDPE.csv", index_col=0)
+        zone_1_idx = [0, 1, 2, 5, 7, 9, 11, 13]
+        zone_2_idx = [3, 4, 6, 8, 10, 12]
+        x_blocks = {"zone1": values.iloc[:, zone_1_idx], "zone2": values.iloc[:, zone_2_idx]}
+        y_df = values.iloc[:, 14:]
+        return x_blocks, y_df
+
+    @pytest.fixture
+    def complete_baseline(self, ldpe):
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        return MBPLS(n_components=3, algorithm="dense").fit(x_blocks, y_df)
+
+    @pytest.mark.parametrize(
+        ("ratio", "seed", "min_pred_corr"),
+        [
+            (0.05, 1, 0.97),
+            (0.15, 2, 0.95),
+            (0.25, 3, 0.85),
+        ],
+    )
+    def test_mcar_recovery(self, ldpe, complete_baseline, ratio: float, seed: int, min_pred_corr: float) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        rng = np.random.default_rng(seed)
+        x_n = {name: _inject_mcar(df, ratio, rng) for name, df in x_blocks.items()}
+        y_n = _inject_mcar(y_df, ratio, rng)
+
+        m = MBPLS(n_components=3).fit(x_n, y_n)
+
+        assert m.algorithm_ == "nipals"
+        assert not m.super_scores_.isna().any().any()
+        assert not m.super_weights_.isna().any().any()
+        assert not m.predictions_.isna().any().any()
+        for name in m.block_names_:
+            assert not m.block_spe_[name].isna().any().any()
+
+        for col in complete_baseline.predictions_.columns:
+            corr = np.corrcoef(complete_baseline.predictions_[col], m.predictions_[col])[0, 1]
+            assert corr > min_pred_corr, (
+                f"LDPE @ {int(ratio * 100)}% MCAR: prediction correlation for {col!r} "
+                f"dropped to {corr:.3f} (threshold {min_pred_corr})"
+            )
+
+
+class TestMBPLSOnDTUPectin:
+    """MBPLS on the DTU pectin yield dataset (Baum and Vermue, JOSS 2019).
+
+    Two X-blocks: FTIR (148 wavenumbers) and carbohydrate microarray
+    (30 antibody probes). Y is a single column: pectin yield in grams.
+    Three extractions concatenate to 37 samples total. Verifies the
+    complete-data fit is well formed, then injects MCAR NaN in the
+    X-blocks at 5/15/25% and verifies graceful prediction recovery.
+    Y is not perturbed because it has a single target column; any
+    MCAR injection into Y trips the row-all-NaN degeneracy guard.
+
+    Reference: Baum and Vermue, JOSS 4(34), 1190 (2019).
+    """
+
+    @pytest.fixture
+    def pectin(self) -> tuple[dict, pd.DataFrame]:
+        import pathlib
+
+        folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "multivariate" / "dtu-pectin"
+        ftir = pd.concat([pd.read_csv(folder / f"ftir{i}.csv", index_col=0) for i in (1, 2, 3)])
+        micro = pd.concat([pd.read_csv(folder / f"extraction{i}.csv", index_col=0) for i in (1, 2, 3)])
+        # Yield (the row index of every CSV) is the single Y target. After
+        # extracting it the X-blocks are reset to a plain RangeIndex to
+        # match MBPLS's row-alignment contract.
+        y = pd.DataFrame({"yield_g": ftir.index.values.astype(float)})
+        ftir = ftir.reset_index(drop=True)
+        micro = micro.reset_index(drop=True)
+        return {"FTIR": ftir, "microarray": micro}, y
+
+    def test_baseline_fit_is_well_formed(self, pectin) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y = pectin
+        model = MBPLS(n_components=3).fit(x_blocks, y)
+
+        assert model.algorithm_ == "dense"
+        assert model.has_missing_data_ is False
+        assert model.super_scores_.shape == (37, 3)
+        assert model.block_weights_["FTIR"].shape == (148, 3)
+        assert model.block_weights_["microarray"].shape == (30, 3)
+        assert model.predictions_.shape == (37, 1)
+
+        # R^2Y monotonic, in [0, 1], and the 3-component fit recovers
+        # most of the Y variance (upstream notebook converges around the
+        # 0.97 mark for LV3 on this dataset).
+        r2y = model.r2_y_cumulative_.values
+        assert (r2y >= 0).all()
+        assert (r2y <= 1.0 + 1e-10).all()
+        assert np.all(np.diff(r2y) >= -1e-10)
+        assert r2y[-1] > 0.9
+
+    @pytest.mark.parametrize(
+        ("ratio", "seed", "min_pred_corr"),
+        [
+            (0.05, 11, 0.99),
+            (0.15, 12, 0.98),
+            (0.25, 13, 0.95),
+        ],
+    )
+    def test_mcar_recovery_in_x_blocks(self, pectin, ratio: float, seed: int, min_pred_corr: float) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y = pectin
+        complete = MBPLS(n_components=3, algorithm="dense").fit(x_blocks, y)
+
+        rng = np.random.default_rng(seed)
+        x_n = {name: _inject_mcar(df, ratio, rng) for name, df in x_blocks.items()}
+        m = MBPLS(n_components=3).fit(x_n, y)
+
+        assert m.algorithm_ == "nipals"
+        assert m.has_missing_data_ is True
+        assert not m.super_scores_.isna().any().any()
+        assert not m.super_weights_.isna().any().any()
+        assert not m.predictions_.isna().any().any()
+
+        corr = np.corrcoef(complete.predictions_["yield_g"], m.predictions_["yield_g"])[0, 1]
+        assert corr > min_pred_corr, (
+            f"DTU pectin @ {int(ratio * 100)}% MCAR: prediction correlation "
+            f"dropped to {corr:.3f} (threshold {min_pred_corr})"
+        )
+
+
+# ---------------------------------------------------------------------------
 # Tests deferred until PR2 ships the reference datasets
 # ---------------------------------------------------------------------------
 
