@@ -10,3 +10,4 @@ projection to latent structures (PLS) on real process and product data.
    pca-spectral-data
    pca-food-texture
    pca-kamyr-missing-data
+   mbpls-ldpe-missing-data

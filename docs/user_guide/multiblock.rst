@@ -199,7 +199,7 @@ block, drop the offending rows, or impute the offending row to a
 domain-sensible value before fitting.
 
 When *not* to use the missing-data path
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The mask-aware NIPALS solver is the right tool for moderate MCAR
 (missing-completely-at-random) patterns: dropped sensor readings,
