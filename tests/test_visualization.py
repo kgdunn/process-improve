@@ -136,7 +136,7 @@ def residual_diagnostics() -> dict[str, Any]:
 
 
 class TestRegistry:
-    def test_all_20_plot_types_registered(self) -> None:
+    def test_all_plot_types_registered(self) -> None:
         """Every DOEPlotType enum member should be available."""
         available = get_available_plot_types()
         for pt in DOEPlotType:
@@ -677,6 +677,65 @@ class TestCubePlot:
         )
         spec = plot.to_spec()
         assert spec.plot_type == "cube_plot"
+
+
+# ---------------------------------------------------------------------------
+# Square plot
+# ---------------------------------------------------------------------------
+
+
+class TestSquarePlot:
+    def test_spec_structure(self, coefficients_2f: list) -> None:
+        plot = create_plot(
+            "square_plot",
+            analysis_results={"coefficients": coefficients_2f},
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        assert spec.plot_type == "square_plot"
+        assert len(spec.metadata["vertices"]) == 4
+
+    def test_needs_2_factors(self) -> None:
+        plot = create_plot(
+            "square_plot",
+            analysis_results={"coefficients": [{"term": "Intercept", "coefficient": 5.0}]},
+            factors_to_plot=["A"],
+        )
+        spec = plot.to_spec()
+        assert "need exactly 2" in spec.title.lower()
+
+    def test_raw_data_fallback(self, design_data_2f: list) -> None:
+        plot = create_plot(
+            "square_plot",
+            design_data=design_data_2f,
+            response_column="y",
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        assert spec.plot_type == "square_plot"
+        values = [v["value"] for v in spec.metadata["vertices"]]
+        assert len(values) == 4
+        assert all(isinstance(v, float) for v in values)
+
+    def test_vertex_values_from_coefficients(self, coefficients_2f: list) -> None:
+        """Predicted values should follow y = b0 + bA*A + bB*B + bAB*A*B."""
+        plot = create_plot(
+            "square_plot",
+            analysis_results={"coefficients": coefficients_2f},
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        # Vertex order follows itertools.product([-1, 1], repeat=2):
+        # (-1,-1), (-1,1), (1,-1), (1,1)
+        expected = [
+            40.0 + 5.25 * (-1) + (-3.50) * (-1) + 1.75 * (-1) * (-1),
+            40.0 + 5.25 * (-1) + (-3.50) * (1) + 1.75 * (-1) * (1),
+            40.0 + 5.25 * (1) + (-3.50) * (-1) + 1.75 * (1) * (-1),
+            40.0 + 5.25 * (1) + (-3.50) * (1) + 1.75 * (1) * (1),
+        ]
+        got = [v["value"] for v in spec.metadata["vertices"]]
+        for g, e in zip(got, expected):  # noqa: B905
+            assert abs(g - e) < 1e-9
 
 
 # ---------------------------------------------------------------------------

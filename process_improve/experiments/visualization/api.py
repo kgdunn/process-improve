@@ -38,7 +38,7 @@ def visualize_doe(  # noqa: PLR0913
     Parameters
     ----------
     plot_type : str
-        One of the 20 supported DOE plot types (see
+        One of the supported DOE plot types (see
         :mod:`~process_improve.experiments.visualization.plots`).
     analysis_results : dict or None
         Output dict from :func:`analyze_experiment`.  Required for most
