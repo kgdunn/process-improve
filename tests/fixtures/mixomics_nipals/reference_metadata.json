@@ -1,0 +1,9 @@
+{
+  "n_components": 3,
+  "max_iter": 1000,
+  "tol": 1e-09,
+  "eigenvalues": [295.3478, 110.0044, 71.6781],
+  "mixOmics_version": "6.34.0",
+  "R_version": "R version 4.5.2 (2025-10-31)",
+  "generated_at": "2026-05-11T09:05:11+0000"
+}
