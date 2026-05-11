@@ -15,6 +15,12 @@ monitoring. Companion to the online textbook
 
 .. toctree::
    :maxdepth: 2
+   :caption: Applied DoE
+
+   applied_doe/index
+
+.. toctree::
+   :maxdepth: 2
    :caption: Case studies
 
    user_guide/case_studies/index
