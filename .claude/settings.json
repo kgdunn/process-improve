@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "mcp__685515ef-3fe8-4d45-a705-bffe45049dbc__search_files",
+      "mcp__685515ef-3fe8-4d45-a705-bffe45049dbc__read_file_content",
+      "mcp__685515ef-3fe8-4d45-a705-bffe45049dbc__get_file_metadata",
+      "mcp__685515ef-3fe8-4d45-a705-bffe45049dbc__list_recent_files",
+      "mcp__github__pull_request_read",
+      "mcp__github__add_issue_comment",
+      "mcp__github__add_reply_to_pull_request_comment",
+      "Bash(git add :*)",
+      "Bash(git commit :*)",
+      "Bash(git push :*)",
+      "Bash(git rm :*)",
+      "Bash(git restore :*)",
+      "Bash(uv run pytest :*)",
+      "Bash(uv run pytest)",
+      "Bash(uv run ruff :*)",
+      "Bash(uv run ruff)",
+      "Bash(uv run python :*)",
+      "Bash(uv run python)",
+      "Bash(make html)",
+      "Bash(make :*)",
+      "Bash(python3 -c :*)",
+      "Bash(python3 :*)"
+    ]
+  }
+}
