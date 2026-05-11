@@ -7,40 +7,81 @@
 # - Reads linnerud_centered_with_nan.csv (produced by prepare_fixture.py).
 #   The matrix is already column-mean-centered using nanmean, so no further
 #   preprocessing is applied here. NaN entries are preserved.
-# - Runs mixOmics::nipals with n.components = N_COMPONENTS (set below).
-# - Writes:
+# - Runs mixOmics::nipals with n.components = N_COMPONENTS.
+# - Writes (next to this script):
 #     reference_loadings.csv  (K x A; rows = columns of X)
 #     reference_scores.csv    (N x A; rows = samples)
 #     reference_metadata.json (n.components, max.iter, tol, mixOmics
-#                              version, R version, sessionInfo summary)
+#                              version, R version, eigenvalues)
 #
 # Run from the repository root:
 #
 #   Rscript tests/fixtures/mixomics_nipals/run_reference.R
 #
-# Requires mixOmics (Bioconductor):
+# Or from anywhere by passing the fixture directory as a single argument:
+#
+#   Rscript /path/to/run_reference.R /path/to/tests/fixtures/mixomics_nipals
+#
+# One-time mixOmics install (it lives on Bioconductor, not CRAN):
 #
 #   if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
 #   BiocManager::install("mixOmics")
+#   install.packages("jsonlite")
 
 suppressPackageStartupMessages({
   library(mixOmics)
   library(jsonlite)
 })
 
-here <- normalizePath(dirname(sys.frame(1)$ofile %||% "tests/fixtures/mixomics_nipals"))
-if (is.null(here) || !dir.exists(here)) {
-  here <- file.path(getwd(), "tests", "fixtures", "mixomics_nipals")
+# ---------------------------------------------------------------------------
+# Locate the fixture directory: explicit arg, script-relative under Rscript,
+# or repo-relative from the current working directory.
+# ---------------------------------------------------------------------------
+
+locate_fixture_dir <- function() {
+  args <- commandArgs(trailingOnly = TRUE)
+  if (length(args) >= 1L && nzchar(args[[1L]])) {
+    return(normalizePath(args[[1L]], mustWork = TRUE))
+  }
+  argv <- commandArgs(trailingOnly = FALSE)
+  file_arg <- argv[grepl("^--file=", argv)]
+  if (length(file_arg) == 1L) {
+    script_path <- sub("^--file=", "", file_arg)
+    return(normalizePath(dirname(script_path), mustWork = TRUE))
+  }
+  candidate <- file.path(getwd(), "tests", "fixtures", "mixomics_nipals")
+  if (dir.exists(candidate)) {
+    return(normalizePath(candidate, mustWork = TRUE))
+  }
+  stop(
+    "Could not locate the fixture directory. Pass it as the first argument, ",
+    "or run from the repository root."
+  )
 }
 
+here <- locate_fixture_dir()
 input_csv <- file.path(here, "linnerud_centered_with_nan.csv")
-stopifnot(file.exists(input_csv))
+if (!file.exists(input_csv)) {
+  stop(
+    "Missing canonical input: ", input_csv, ". ",
+    "Run `python tests/fixtures/mixomics_nipals/prepare_fixture.py` first."
+  )
+}
 
-X <- as.matrix(read.csv(input_csv, check.names = FALSE))
+# ---------------------------------------------------------------------------
+# Settings (kept in sync with the Python-side tolerance in
+# tests/test_pca_nipals_mixomics_crosscheck.py).
+# ---------------------------------------------------------------------------
 
 N_COMPONENTS <- 3L
 MAX_ITER <- 1000L
 TOL <- 1e-09
+
+# ---------------------------------------------------------------------------
+# Fit mixOmics::nipals on the already-centered matrix.
+# ---------------------------------------------------------------------------
+
+X <- as.matrix(read.csv(input_csv, check.names = FALSE))
 
 fit <- nipals(X, ncomp = N_COMPONENTS, max.iter = MAX_ITER, tol = TOL)
 
