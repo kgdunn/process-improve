@@ -1,6 +1,16 @@
 Designed Experiments
 ====================
 
+.. automodule:: process_improve.experiments.structures
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: process_improve.experiments.designs
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: process_improve.experiments.designs_factorial
    :members:
    :undoc-members:
@@ -17,6 +27,16 @@ Designed Experiments
    :show-inheritance:
 
 .. automodule:: process_improve.experiments.analysis
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: process_improve.experiments.augment
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: process_improve.experiments.optimization
    :members:
    :undoc-members:
    :show-inheritance:
