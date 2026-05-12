@@ -7,7 +7,7 @@ key for the corresponding weekly worksheet at
 `yint.org <https://yint.org/resources>`_, and uses :mod:`process_improve` code
 end-to-end.
 
-The series is organised into four phases. Each module page weaves in
+The series is organized into four phases. Each module page weaves in
 facilitator notes as inline **Tip**, **Guidance**, **Check yourself**, and
 **Solution** callouts so you can pause, reflect, and test your own
 understanding before reading the worked answer.

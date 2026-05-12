@@ -39,7 +39,7 @@ For each outcome record:
 
    If you would have to repeat the experiment to know how repeatable a
    measurement is, plan a small repeatability study first.  See
-   Module 3 for the role of replicates and centre points.
+   Module 3 for the role of replicates and center points.
 
 Type of study
 -------------
@@ -53,15 +53,15 @@ very different design choices:
 
    * - Ruggedness
      - Screening
-     - Characterisation
-     - Optimisation
+     - Characterization
+     - Optimization
    * - Confirm robustness.
      - Eliminate factors.
      - Quantify which factors matter, by how much.
      - Find the operating point that best meets the objective.
 
-Modules 1 to 4 cover screening and characterisation.  Module 5 covers
-fractional screening; Modules 6 to 8 cover optimisation.
+Modules 1 to 4 cover screening and characterization.  Module 5 covers
+fractional screening; Modules 6 to 8 cover optimization.
 
 Practicalities
 --------------
@@ -137,7 +137,7 @@ For each disturbance, decide:
 - Can you **measure** it?  If yes, record it as a **covariate** and
   include it in the analysis (Module 5).
 - Can you neither measure nor control it?  Treat it as a true
-  **disturbance** and design to minimise its bias (randomise run
+  **disturbance** and design to minimize its bias (randomize run
   order, see Module 6).
 - Is it a *nuisance factor* you can control?  Block on it.
 
@@ -146,8 +146,8 @@ What success looks like
 
 Before the first run, write down:
 
-- The **target value** of each outcome (or the direction: maximise /
-  minimise).
+- The **target value** of each outcome (or the direction: maximize /
+  minimize).
 - The **threshold** at which you would stop the study.
 - The **budget** in runs.
 - The **next decision** the data will inform.
@@ -162,9 +162,9 @@ The yogurt 2x2 study in Module 1 fills in this template as follows:
 
 ::
 
-    Objective:   maximise tasting-panel mouth-feel score (1-10).
+    Objective:   maximize tasting-panel mouth-feel score (1-10).
     Outcome:     mouth-feel score; coarse, integer-valued, noise approx 1 unit.
-    Type:        characterisation (find the recipe that maximises taste).
+    Type:        characterization (find the recipe that maximizes taste).
     Practicalities: ~24 hrs per run (fermentation), no monetary cost,
                  no batching constraint.
     Factors:
