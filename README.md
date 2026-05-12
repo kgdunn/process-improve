@@ -121,7 +121,15 @@ for s in strategy["stages"]:
 
 Longer, fully-worked versions of each example live in the
 [Quickstart guide](https://kgdunn.github.io/process-improve/quickstart.html)
-and the `notebooks_examples/` folder.
+and the `process_improve/notebooks_examples/` folder.
+
+New to designed experiments? The
+[**Applied DoE tutorial**](https://kgdunn.github.io/process-improve/applied_doe/index.html)
+is an eight-module worked-solution series that mirrors the
+[12-week DoE short course](https://yint.org) and shows the same workflow
+in Python with `process-improve` end to end - from a 2x2 first design
+through factorial scaling, fractional factorials, blocking, and 1-D / 2-D
+response-surface optimization.
 
 ## API design
 
@@ -135,6 +143,8 @@ preserved through `fit` and `transform`.
 ## Documentation & learning resources
 
 - **API reference & user guide:** <https://kgdunn.github.io/process-improve/>
+- **Applied DoE tutorial (8 modules):**
+  <https://kgdunn.github.io/process-improve/applied_doe/index.html>
 - **Companion textbook:** [Process Improvement using Data](https://learnche.org/pid)
 - **Hosted experiment-design tool:** [factori.al](https://factori.al)
 - **Local docs build:** `cd docs && make html`
