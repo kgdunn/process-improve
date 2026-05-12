@@ -55,7 +55,7 @@ very different design choices:
      - Screening
      - Characterization
      - Optimization
-   * - Confirm robustness.
+   * - Test reliability and noise (variability) of the measurement system.
      - Eliminate factors.
      - Quantify which factors matter, by how much.
      - Find the operating point that best meets the objective.
