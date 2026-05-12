@@ -174,8 +174,8 @@ The yogurt 2x2 study in Module 1 fills in this template as follows:
     Success:     a recipe scoring >= 9 reliably; next decision is
                  whether to put it into the production schedule.
 
-Six lines.  That is the kind of artefact that survives the first
-review meeting and the last.
+Six lines of this kind constitute the type of artifact that survives
+the first review meeting and the last.
 
 See also
 --------
