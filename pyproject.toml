@@ -230,6 +230,16 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
     "INP001",  # __init__.py not needed for standalone fixture scripts
     "T201",    # print() is expected when these scripts are run manually
 ]
+"scripts/**" = [
+    "ANN001",  # Type annotations not needed in helper scripts
+    "ANN201",  # Return type annotations not needed in helper scripts
+    "D103",    # Docstrings not needed in one-off analysis scripts
+    "INP001",  # __init__.py not needed for standalone scripts
+    "RET504",  # Pre-return assignment kept for readability
+    "RUF046",  # Cast-already-int OK in helper scripts
+    "S108",    # /tmp paths are fine for local dev caches in helper scripts
+    "T201",    # print() is expected progress output in helper scripts
+]
 "process_improve/notebooks_examples/**" = [
     "T201",    # print() is expected in example scripts and notebooks
     "ANN001",  # Type annotations not needed in examples
