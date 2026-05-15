@@ -23,10 +23,18 @@ def calculate_cpk(
         Raw data, at least one column is numeric.
     which_column : str
         Indicates which is the column of data that should be used for the Cpk calculation.
-    specifications : tuple, optional
-        Either a value, if the specification is constant over time; if the specification changes
-        over time, then use two column names here, one of which is the lower specification and
-        the second is the upper specification.
+    specifications : tuple of (lower, upper), optional
+        A 2-tuple ``(lower_spec, upper_spec)`` of the lower and upper specification limits.
+        Each element may be:
+
+        * a numeric value, when the specification is constant over time;
+        * a string, interpreted as a column name in ``df`` whose values give the
+          per-row specification (use this when the specification changes over time);
+        * ``None``, in which case the corresponding spec is estimated from the data
+          using ``trim_percentile`` (a percentile-based robust limit).
+
+        Default is ``(np.nan, np.nan)``, which treats both specs as numeric NaN
+        and yields NaN for the corresponding side of the Cpk calculation.
     trim_percentile : float, optional
         If non-zero, then robust alternatives are used. The value specified is the percentile of
         data that is trimmed away; by default 2.5 percent on the left, and 2.5% on the right.
