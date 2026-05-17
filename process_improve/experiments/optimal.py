@@ -7,7 +7,15 @@ IndexOrList = int | list
 
 
 def optimization_function(x: pd.DataFrame) -> float:
-    """Return the D-optimality of the design."""
+    """Score a design for the point-exchange D-optimal search (lower is better).
+
+    Returns ``log|det((X'X)^-1)|`` which is equivalent to the negative
+    log of the standard D-criterion ``log|det(X'X)|``. The point-exchange
+    routine in this module uses this convention and selects swaps that
+    decrease the returned value, i.e. that increase ``|det(X'X)|``.
+
+    Returns ``+inf`` when ``X'X`` is singular (no improvement possible).
+    """
     try:
         x = pd.DataFrame(x).drop_duplicates()
         xtx_i = np.linalg.inv(np.dot(np.transpose(x), x))

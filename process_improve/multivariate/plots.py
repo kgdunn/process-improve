@@ -36,7 +36,11 @@ def score_plot(  # noqa: C901, PLR0913
     settings: dict | None = None,
     fig: go.Figure | None = None,
 ) -> go.Figure:
-    """Generate a 2-dimensional score plot for the given latent variable model.
+    """Generate a 2D or 3D score plot for the given latent variable model.
+
+    A 2D scatter on (``pc_horiz``, ``pc_vert``) is produced by default. Supplying
+    ``pc_depth >= 1`` adds a third score axis and switches the underlying trace
+    to ``Scatter3d``.
 
     Parameters
     ----------

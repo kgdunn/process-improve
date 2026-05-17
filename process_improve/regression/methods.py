@@ -259,8 +259,9 @@ def multiple_linear_regression(  # noqa: PLR0913
         * does not handle weighting
         * N >= K at least as many rows as columns in X
 
-    Returns a dictionary of outputs with these keys::
+    Returns a dictionary of outputs. Keys always present::
 
+        N:                        number of observations actually used to fit
         coefficients:             a vector of K coefficients, one for each column in X
         intercept:                returned if fit_intercept==True
         standard_errors:          a vector of K standard errors, one per column in X
@@ -271,7 +272,15 @@ def multiple_linear_regression(  # noqa: PLR0913
         residuals:                the N residuals
         t_value:                  the t-values for the standard errors
         conf_intervals:           K rows x 2 columns (lower, upper) confidence intervals
-        pi_range:                 prediction intervals above and below, over the range of data
+
+    Keys present only for single-feature ``X`` (and only when ``fit_intercept``
+    is True and there is enough non-degenerate data)::
+
+        x_ssq:                    sum of squares of the centred predictor
+        leverage:                 hat-matrix diagonal
+        influence:                Cook-style influence values
+        pi_range:                 prediction interval above and below, over the
+                                  range of the predictor (``pi_resolution`` points)
     """
     model = OLS(
         fit_intercept=fit_intercept,
