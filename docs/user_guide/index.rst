@@ -6,4 +6,5 @@ User Guide
 
    multivariate
    cross_validation
+   showcase
    doe_strategy
