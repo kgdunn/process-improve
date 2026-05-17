@@ -49,14 +49,14 @@ def calculate_cpk(
     lower_spec, upper_spec = specifications
 
     if lower_spec is None:
-        Cpk_lower_spec = float(np.nanpercentile(df[which_column].values, [trim_percentile]))
+        Cpk_lower_spec = float(np.nanpercentile(df[which_column].values, trim_percentile))
     elif isinstance(lower_spec, str):
         Cpk_lower_spec = df[lower_spec]
     else:
         Cpk_lower_spec = float(lower_spec)
 
     if upper_spec is None:
-        Cpk_upper_spec = float(np.nanpercentile(df[which_column].values, [100 - trim_percentile]))
+        Cpk_upper_spec = float(np.nanpercentile(df[which_column].values, 100 - trim_percentile))
     elif isinstance(upper_spec, str):
         Cpk_upper_spec = df[upper_spec]
     else:

@@ -16,6 +16,7 @@ Windows these tests are skipped.
 
 from __future__ import annotations
 
+import contextlib
 import sys
 import time
 
@@ -28,6 +29,11 @@ from process_improve.tool_safety import (
     ToolMemoryExceededError,
     ToolSafetyError,
     ToolTimeoutError,
+    _apply_memory_limit,
+    _count_numeric_leaves,
+    _pool_initializer,
+    _worker_run,
+    get_pool,
     safe_execute_tool_call,
     shutdown_pool,
     validate_input,
@@ -190,3 +196,58 @@ class TestSafeExecuteToolCall:
                 memory_mb=128,
             )
         assert exc_info.value.code == "memory_exceeded"
+
+
+# ---------------------------------------------------------------------------
+# Lower-level helpers, exercised in-process
+# ---------------------------------------------------------------------------
+
+
+class TestHelpers:
+    """Direct tests for the internal building blocks."""
+
+    def test_count_numeric_leaves_rejects_excess_depth(self) -> None:
+        """_count_numeric_leaves raises once nesting exceeds max_depth."""
+        nested: dict = {"a": {"b": {"c": {"d": 1}}}}
+        with pytest.raises(ToolInputTooLargeError):
+            _count_numeric_leaves(nested, depth=0, max_depth=2)
+
+    def test_count_numeric_leaves_counts_scalars(self) -> None:
+        assert _count_numeric_leaves({"x": [1, 2], "y": 3}, depth=0, max_depth=10) == 3
+        assert _count_numeric_leaves("a string", depth=0, max_depth=10) == 0
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="RLIMIT_AS is POSIX-only")
+    def test_apply_memory_limit_is_safe_with_generous_cap(self) -> None:
+        """A very large cap leaves the running process unharmed."""
+        import resource
+
+        original = resource.getrlimit(resource.RLIMIT_AS)
+        try:
+            # 1 TB cap: far above this process, so nothing is actually constrained.
+            _apply_memory_limit(1024 * 1024)
+        finally:
+            with contextlib.suppress(ValueError, OSError):
+                resource.setrlimit(resource.RLIMIT_AS, original)
+
+    def test_worker_run_dispatches_to_registry(self) -> None:
+        """_worker_run executes a registered tool in the current process."""
+        assert _worker_run("_safety_test_echo", {"value": 99}) == {"value": 99}
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="RLIMIT_AS is POSIX-only")
+    def test_pool_initializer_warms_registry(self) -> None:
+        """_pool_initializer discovers tools and applies the memory cap."""
+        import resource
+
+        original = resource.getrlimit(resource.RLIMIT_AS)
+        try:
+            _pool_initializer(1024 * 1024)
+        finally:
+            with contextlib.suppress(ValueError, OSError):
+                resource.setrlimit(resource.RLIMIT_AS, original)
+
+    @_skip_if_not_linux
+    def test_get_pool_returns_cached_instance(self) -> None:
+        """Repeated get_pool calls with the same memory cap reuse one pool."""
+        first = get_pool(memory_mb=256)
+        second = get_pool(memory_mb=256)
+        assert first is second

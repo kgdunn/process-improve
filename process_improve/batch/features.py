@@ -4,7 +4,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
-from scipy.stats import iqr, norm
+from scipy.stats import iqr
 
 from ..bivariate.methods import find_elbow_point
 from ..regression.methods import repeated_median_slope
@@ -187,7 +187,7 @@ def f_std(
     for each unique batch in the ``batch_col`` indicator column, and
     within each unique phase, per batch, of the ``phase_col`` column.
 
-    See also: f_mad, f_iqr
+    See also: f_iqr
     """
     base_name = "std"
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
@@ -213,95 +213,12 @@ def f_iqr(
     The difference between the 75th percentile and the 25th percentile of a
     sample this is the 25 % trimmed range, an example of an L - estimator.
 
-    See also: f_std, f_mad
+    See also: f_std
     """
     base_name = "iqr"
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
     output = prepared.agg(iqr)
-    return output.rename(columns=dict(zip(tags, f_names, strict=False)))
-
-
-def f_mad(
-    data: pd.DataFrame,
-    tags: list[str] | None = None,
-    batch_col: str | None = None,
-    phase_col: str | None = None,
-) -> pd.DataFrame:
-    """
-    Feature:    mad.
-
-    The MEAN (not MEDIAN) Absolute Deviation for the given tags in ``tags``,
-    for each unique batch in the ``batch_col`` indicator column, and
-    within each unique phase, per batch, of the ``phase_col`` column.
-
-    The mean absolute deviation (MAD) is a measure of the variability of a
-    univariate sample of quantitative data. For values in a sequence
-    X1, X2, ..., Xn, the ``mad`` is the mean of the absolute deviations from
-    the data's mean.
-
-    Since the mean can be biased by outliers, the MAD can also be biased. If
-    an unbiased estimate is required, see `f_robust_mad`.
-
-    .. warning::
-        This function calls ``DataFrameGroupBy.mad()``, which was
-        deprecated in pandas 1.5 and **removed in pandas 2.0**. On a
-        modern pandas it raises ``AttributeError``. Until the
-        implementation is rewritten in terms of ``apply``, callers on
-        pandas >= 2.0 cannot use this function.
-
-    See also: f_std, f_iqr, f_robust_mad
-    """
-    base_name = "mad"
-    prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
-    f_names = [(tag + "_" + base_name) for tag in tags]
-    output = prepared.mad()
-    return output.rename(columns=dict(zip(tags, f_names, strict=False)))
-
-
-def f_robust_mad(
-    data: pd.DataFrame,
-    tags: list[str] | None = None,
-    batch_col: str | None = None,
-    phase_col: str | None = None,
-) -> pd.DataFrame:
-    """
-    Feature:    mad.
-
-    The MEDIAN (not MEAN) Absolute Deviation for the given tags in ``tags``,
-    for each unique batch in the ``batch_col`` indicator column, and
-    within each unique phase, per batch, of the ``phase_col`` column.
-
-    In statistics, the median absolute deviation (MAD) is a robust measure of
-    the variability of a univariate sample of quantitative data.
-
-    For a univariate data set X1, X2, ..., Xn, the MAD is defined as the
-    median of the absolute deviations from the data's median.
-
-    from scipy.stats import norm as Gaussian
-    c_MAD_constant = Gaussian.ppf(3/4.0)
-    median = np.nanmedian(x)
-    mad = np.nanmedian((np.fabs(x - median)) / c_MAD_constant)
-
-    The constant correction factor is so that MAD agrees with standard
-    deviation for normally distributed data.
-
-    .. warning::
-        This function is **not yet implemented**. Calling it always raises
-        ``AssertionError``; the underlying group-wise calculation below the
-        raise is a placeholder that still needs to be corrected.
-
-    See also: f_mad, f_std, f_iqr,
-    """
-    c_MAD_const = norm.ppf(3 / 4.0)
-
-    base_name = "mad_robust"
-    prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
-    f_names = [(tag + "_" + base_name) for tag in tags]
-
-    raise AssertionError("This next line of code fails. Fix it.")
-    output = (np.fabs(prepared - prepared.median())).median() / c_MAD_const
-
     return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 

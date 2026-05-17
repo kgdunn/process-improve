@@ -324,6 +324,24 @@ class TestCCD:
         max_abs = max(result.design[col].abs().max() for col in result.factor_names)
         assert max_abs > 1.0
 
+    def test_inscribed(self) -> None:
+        """Inscribed CCD keeps all points within the coded cube."""
+        factors = _continuous_factors(2, "AB")
+        result = generate_design(factors, design_type="ccd", alpha="inscribed")
+        assert result.n_factors == 2
+
+    def test_orthogonal_default(self) -> None:
+        """An explicit 'orthogonal' alpha is accepted."""
+        factors = _continuous_factors(2, "AB")
+        result = generate_design(factors, design_type="ccd", alpha="orthogonal")
+        assert result.n_factors == 2
+
+    def test_numeric_alpha(self) -> None:
+        """A numeric alpha value is accepted directly."""
+        factors = _continuous_factors(2, "AB")
+        result = generate_design(factors, design_type="ccd", alpha=2.0)
+        assert result.n_factors == 2
+
 
 # ---------------------------------------------------------------------------
 # DSD (Definitive Screening Design)

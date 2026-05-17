@@ -27,8 +27,6 @@ _FEATURE_MAP = {
     "median": "f_median",
     "std": "f_std",
     "iqr": "f_iqr",
-    "mad": "f_mad",
-    "robust_mad": "f_robust_mad",
     "sum": "f_sum",
     "min": "f_min",
     "max": "f_max",

@@ -52,20 +52,11 @@ def test_extract_batch_features_default_features(two_batch_timeseries: list[dict
     assert by_batch["B1"]["press_mean"] == pytest.approx(1.15)
 
 
-# f_mad and f_robust_mad have pre-existing implementation issues in
-# `process_improve.batch.features` (mad: removed pandas API; robust_mad:
-# stub raises). The wrapper still surfaces them as `{"error": ...}` rather
-# than raising - that branch is covered by the unknown-feature and bad-data
-# tests below - so they're excluded here to keep this test focused on the
-# working dispatch path.
-_WORKING_LOCATION_FEATURES = sorted(set(_FEATURE_MAP) - {"mad", "robust_mad"})
-
-
-@pytest.mark.parametrize("feature_name", _WORKING_LOCATION_FEATURES)
+@pytest.mark.parametrize("feature_name", sorted(_FEATURE_MAP))
 def test_extract_batch_features_each_location_feature(
     two_batch_timeseries: list[dict], feature_name: str
 ) -> None:
-    """Every (working) location-based feature in the documented mapping is dispatchable."""
+    """Every location-based feature in the documented mapping is dispatchable."""
     result = extract_batch_features(
         data=two_batch_timeseries,
         value_columns=["temp"],
@@ -75,23 +66,6 @@ def test_extract_batch_features_each_location_feature(
     assert "error" not in result
     assert result["features_extracted"] == [feature_name]
     assert result["n_batches"] == 2
-
-
-@pytest.mark.parametrize("broken_feature", ["mad", "robust_mad"])
-def test_extract_batch_features_known_broken_features_return_error(
-    two_batch_timeseries: list[dict], broken_feature: str
-) -> None:
-    """Pre-existing wrapper limitation: 'mad' and 'robust_mad' surface as errors.
-
-    Documents the current behavior so a future fix in `batch/features` is noticed
-    here and these tests can be flipped to assert success.
-    """
-    result = extract_batch_features(
-        data=two_batch_timeseries,
-        value_columns=["temp"],
-        features=[broken_feature],
-    )
-    assert "error" in result
 
 
 def test_extract_batch_features_area_with_time_column(two_batch_timeseries: list[dict]) -> None:

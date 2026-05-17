@@ -11,6 +11,26 @@ those changes.
 
 ## [Unreleased]
 
+## [1.21.6] - 2026-05-17
+
+### Fixed
+
+- `calculate_cpk` no longer raises a `TypeError` under NumPy 2.x when a
+  specification limit is passed as `None` (the limit is estimated from the
+  data via `trim_percentile`).
+- `c()` no longer raises an `AttributeError` when building a categorical
+  factor column from non-numeric values without an explicit `levels`
+  argument; the levels are now sorted correctly.
+
+### Removed
+
+- `f_mad` and `f_robust_mad` batch feature functions. Both were
+  non-functional: `f_mad` relied on `DataFrameGroupBy.mad()` (removed in
+  pandas 2.0, below this project's supported pandas) and `f_robust_mad`
+  was an unfinished stub that always raised. The `"mad"` and
+  `"robust_mad"` keys are also removed from the batch feature dispatch
+  table.
+
 ## [1.21.4] - 2026-05-17
 
 ### Added
@@ -37,6 +57,7 @@ those changes.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.21.4...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.21.6...HEAD
+[1.21.6]: https://github.com/kgdunn/process-improve/compare/v1.21.4...v1.21.6
 [1.21.4]: https://github.com/kgdunn/process-improve/compare/v1.21.3...v1.21.4
 [1.21.3]: https://github.com/kgdunn/process-improve/releases/tag/v1.21.3
