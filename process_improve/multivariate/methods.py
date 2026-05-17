@@ -15,7 +15,7 @@ import ridgeplot
 from scipy.stats import chi2, f
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, _fit_context, clone
 from sklearn.metrics import r2_score
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import check_cv, cross_val_score
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
 from tqdm import tqdm
@@ -1386,6 +1386,164 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         y_hat = scores @ self.y_loadings_.T
 
         return Bunch(scores=scores, hotellings_t2=t2, spe=spe_values, y_hat=y_hat)
+
+    @classmethod
+    def select_n_components(
+        cls,
+        X: DataMatrix,
+        Y: DataMatrix,
+        *,
+        max_components: int | None = None,
+        cv: int = 5,
+        **pls_kwargs,
+    ) -> Bunch:
+        """Select the number of PLS components via cross-validation.
+
+        Fits PLS models on cross-validation training folds and evaluates the
+        out-of-fold prediction error for every component count ``1, 2, ...,
+        max_components``. Reports RMSECV and validated explained variance, and
+        recommends the component count with the lowest overall RMSECV.
+
+        Unlike the calibration statistics stored on a fitted model
+        (``rmse_``, ``r2_cumulative_``), these metrics estimate performance on
+        unseen data and are therefore suitable for choosing ``n_components``.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Training data. Should already be scaled (e.g. with ``MCUVScaler``).
+        Y : array-like of shape (n_samples, n_targets)
+            Target data, scaled in the same way as ``X``.
+        max_components : int, optional
+            Maximum number of components to evaluate. Default is the largest
+            value supported by every cross-validation training fold,
+            ``min(min_fold_size, n_features)``.
+        cv : int or sklearn CV splitter, default 5
+            Number of K-fold splits, or an sklearn splitter object (e.g.
+            ``KFold(n_splits=10, shuffle=True)`` or ``LeaveOneOut()``).
+        **pls_kwargs
+            Additional keyword arguments passed to the ``PLS()`` constructor
+            (e.g. ``missing_data_settings``).
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With keys:
+
+            - ``n_components`` - recommended number of components (int): the
+              count with the lowest overall RMSECV.
+            - ``rmsecv`` - root-mean-square error of cross-validation
+              (pd.DataFrame, indexed 1..A; columns are the Y-variable names
+              plus ``"total"``).
+            - ``r2y_validated`` - validated cumulative R² of Y (pd.DataFrame,
+              same shape as ``rmsecv``).
+            - ``r2x_validated`` - validated cumulative R² of X (pd.DataFrame,
+              indexed 1..A; columns are the X-variable names plus ``"total"``).
+            - ``press`` - overall Y prediction error sum of squares per
+              component count (pd.Series, indexed 1..A).
+            - ``cv_predictions`` - out-of-fold predictions of Y at the
+              recommended component count (pd.DataFrame).
+
+        Notes
+        -----
+        Like :meth:`PCA.select_n_components`, this expects ``X`` and ``Y`` to
+        be pre-scaled and refits PLS on each fold without re-deriving the
+        scaling inside the fold. Folds therefore share the scaling of the full
+        dataset, which makes the reported errors slightly optimistic compared
+        with scaling each training fold independently.
+
+        The recommendation uses the minimum overall RMSECV. A more
+        conservative choice is Wold's criterion: stop adding components once
+        RMSECV stops improving appreciably. That can be applied directly to
+        the returned ``rmsecv["total"]`` curve.
+
+        Examples
+        --------
+        >>> from sklearn.model_selection import KFold
+        >>> result = PLS.select_n_components(X_scaled, Y_scaled, max_components=6)
+        >>> result.n_components
+        >>> result.rmsecv["total"]
+        >>> PLS.select_n_components(X_scaled, Y_scaled, cv=KFold(10, shuffle=True))
+        """
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+        if isinstance(Y, pd.Series):
+            Y = Y.to_frame()
+        elif not isinstance(Y, pd.DataFrame):
+            Y = pd.DataFrame(Y)
+
+        N, K = X.shape
+        M = Y.shape[1]
+
+        splits = list(check_cv(cv).split(X, Y))
+        if not splits:
+            raise ValueError("The cross-validation splitter produced no folds.")
+        min_train_size = min(len(train_idx) for train_idx, _ in splits)
+
+        upper = min(min_train_size, K)
+        if max_components is None:
+            max_components = upper
+        A = min(int(max_components), upper)
+        if A < 1:
+            raise ValueError("No components can be evaluated; the data or folds are too small.")
+
+        component_index = pd.Index(range(1, A + 1), name="n_components")
+
+        press_y = np.zeros((A, M))
+        press_x = np.zeros((A, K))
+        oof = np.full((A, N, M), np.nan)
+
+        for train_idx, test_idx in splits:
+            model = cls(n_components=A, **pls_kwargs).fit(X.iloc[train_idx], Y.iloc[train_idx])
+            scores_test = X.iloc[test_idx].to_numpy() @ model.direct_weights_.to_numpy()
+            y_test = Y.iloc[test_idx].to_numpy()
+            x_test = X.iloc[test_idx].to_numpy()
+            y_loadings = model.y_loadings_.to_numpy()  # shape (M, A)
+            x_loadings = model.x_loadings_.to_numpy()  # shape (K, A)
+            for a in range(1, A + 1):
+                y_hat = scores_test[:, :a] @ y_loadings[:, :a].T
+                x_hat = scores_test[:, :a] @ x_loadings[:, :a].T
+                press_y[a - 1] += np.nansum((y_test - y_hat) ** 2, axis=0)
+                press_x[a - 1] += np.nansum((x_test - x_hat) ** 2, axis=0)
+                oof[a - 1, test_idx, :] = y_hat
+
+        tss_y = np.nansum((Y.to_numpy() - np.nanmean(Y.to_numpy(), axis=0)) ** 2, axis=0)
+        tss_x = np.nansum((X.to_numpy() - np.nanmean(X.to_numpy(), axis=0)) ** 2, axis=0)
+
+        rmsecv = pd.DataFrame(
+            np.column_stack([np.sqrt(press_y / N), np.sqrt(press_y.sum(axis=1) / (N * M))]),
+            index=component_index,
+            columns=[*Y.columns, "total"],
+        )
+
+        def _validated_r2(press: np.ndarray, tss: np.ndarray) -> np.ndarray:
+            per_var = np.where(tss > 0, 1.0 - press / tss, np.nan)
+            total = np.where(tss.sum() > 0, 1.0 - press.sum(axis=1) / tss.sum(), np.nan)
+            return np.column_stack([per_var, total])
+
+        r2y_validated = pd.DataFrame(
+            _validated_r2(press_y, tss_y),
+            index=component_index,
+            columns=[*Y.columns, "total"],
+        )
+        r2x_validated = pd.DataFrame(
+            _validated_r2(press_x, tss_x),
+            index=component_index,
+            columns=[*X.columns, "total"],
+        )
+        press = pd.Series(press_y.sum(axis=1), index=component_index, name="PRESS")
+
+        recommended = int(np.argmin(rmsecv["total"].to_numpy())) + 1
+        cv_predictions = pd.DataFrame(oof[recommended - 1], index=Y.index, columns=Y.columns)
+
+        return Bunch(
+            n_components=recommended,
+            rmsecv=rmsecv,
+            r2y_validated=r2y_validated,
+            r2x_validated=r2x_validated,
+            press=press,
+            cv_predictions=cv_predictions,
+        )
 
     def score_contributions(
         self,
