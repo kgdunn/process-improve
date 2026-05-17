@@ -3317,3 +3317,19 @@ def test_pls_renamed_attribute_raises_helpful_error() -> None:
         _ = pls.x_scores
     with pytest.raises(AttributeError, match="no attribute"):
         _ = pls.totally_made_up_name
+
+
+def test_vip_raises_on_unfitted_model() -> None:
+    """vip() requires a fitted model with r2_per_component_."""
+    with pytest.raises(ValueError, match="not fitted"):
+        vip(object())
+
+
+def test_vip_raises_without_weights_or_loadings() -> None:
+    """vip() needs x_weights_ (PLS) or loadings_ (PCA) to compute scores."""
+
+    class _FakeFitted:
+        r2_per_component_ = pd.DataFrame([[0.5, 0.3]])
+
+    with pytest.raises(ValueError, match="x_weights_"):
+        vip(_FakeFitted())
