@@ -24,6 +24,7 @@ from process_improve.multivariate.methods import (
     MCUVScaler,
     SpecificationWarning,
     center,
+    coefficient_plot,
     correlation_loadings_plot,
     eigenvalue_summary,
     ellipse_coordinates,
@@ -31,6 +32,7 @@ from process_improve.multivariate.methods import (
     explained_variance_plot,
     nan_to_zeros,
     observation_contributions,
+    predictions_vs_observed_plot,
     project_variables,
     quick_regress,
     regress_a_space_on_b_row,
@@ -2922,6 +2924,88 @@ def test_correlation_loadings_plot_errors() -> None:
         model.correlation_loadings_plot(pc_horiz=2, pc_vert=2)
     with pytest.raises(ValueError, match="fraction in"):
         model.correlation_loadings_plot(variance_ellipses=(1.5,))
+
+
+def test_predictions_vs_observed_plot() -> None:
+    """The parity plot pairs observed and predicted Y, with a y=x line and RMSE."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.standard_normal((50, 6)), columns=[f"X{i}" for i in range(6)])
+    beta = rng.standard_normal((6, 2))
+    Y = pd.DataFrame(X.values @ beta + 0.3 * rng.standard_normal((50, 2)), columns=["conv", "quality"])
+    X_s, Y_s = MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y)
+    model = PLS(n_components=3).fit(X_s, Y_s)
+
+    fig = model.predictions_vs_observed_plot(y_observed=Y_s)
+    assert isinstance(fig, go.Figure)
+    assert {trace.name for trace in fig.data} == {"y = x", "Observations"}
+
+    # The observations trace carries the observed/predicted pairs of the first Y.
+    obs_trace = next(trace for trace in fig.data if trace.name == "Observations")
+    assert np.allclose(obs_trace.x, Y_s["conv"].to_numpy())
+    assert np.allclose(obs_trace.y, model.predictions_["conv"].to_numpy())
+
+    # The RMSE annotation matches a direct calculation.
+    rmse = np.sqrt(np.mean((Y_s["conv"].to_numpy() - model.predictions_["conv"].to_numpy()) ** 2))
+    assert fig.layout.annotations[0].text == f"RMSE = {rmse:.4g}"
+
+    # A specific Y-variable can be selected.
+    fig_q = model.predictions_vs_observed_plot(y_observed=Y_s, variable="quality")
+    assert "quality" in fig_q.layout.title.text
+
+
+def test_coefficient_plot() -> None:
+    """The coefficient plot shows one bar per X-variable, matching beta_coefficients_."""
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame(rng.standard_normal((40, 5)), columns=[f"X{i}" for i in range(5)])
+    beta = rng.standard_normal((5, 2))
+    Y = pd.DataFrame(X.values @ beta + 0.3 * rng.standard_normal((40, 2)), columns=["y0", "y1"])
+    model = PLS(n_components=2).fit(MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y))
+
+    fig = model.coefficient_plot()
+    assert isinstance(fig, go.Figure)
+    assert fig.data[0].type == "bar"
+    assert np.allclose(fig.data[0].y, model.beta_coefficients_["y0"].to_numpy())
+    assert list(fig.data[0].x) == [str(name) for name in model.beta_coefficients_.index]
+
+    fig_y1 = model.coefficient_plot(variable="y1")
+    assert np.allclose(fig_y1.data[0].y, model.beta_coefficients_["y1"].to_numpy())
+
+
+def test_pls_prediction_plots_errors() -> None:
+    """The PLS prediction plots validate the model and their arguments."""
+    rng = np.random.default_rng(2)
+    X = pd.DataFrame(rng.standard_normal((30, 4)))
+    Y = pd.DataFrame(rng.standard_normal((30, 1)), columns=["y"])
+    model = PLS(n_components=2).fit(MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y))
+    Y_s = MCUVScaler().fit_transform(Y)
+
+    with pytest.raises(ValueError, match="not fitted"):
+        coefficient_plot(PLS(n_components=2))
+    with pytest.raises(ValueError, match="not fitted"):
+        predictions_vs_observed_plot(PLS(n_components=2), y_observed=Y_s)
+    with pytest.raises(ValueError, match="Unknown Y-variable"):
+        model.coefficient_plot(variable="missing")
+    with pytest.raises(ValueError, match="must have 30 rows"):
+        model.predictions_vs_observed_plot(y_observed=Y_s.iloc[:5])
+
+
+def test_pls_prediction_plots_settings_and_figure() -> None:
+    """Both PLS prediction plots honour settings and draw onto a given figure."""
+    rng = np.random.default_rng(3)
+    X = pd.DataFrame(rng.standard_normal((35, 4)))
+    Y = pd.DataFrame(rng.standard_normal((35, 1)), columns=["y"])
+    model = PLS(n_components=2).fit(MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y))
+    Y_s = MCUVScaler().fit_transform(Y)
+
+    base = go.Figure()
+    parity = model.predictions_vs_observed_plot(y_observed=Y_s, settings={"title": "P"}, fig=base)
+    assert parity is base
+    assert parity.layout.title.text == "P"
+
+    base2 = go.Figure()
+    coeffs = model.coefficient_plot(settings={"title": "C", "bar_color": "green"}, fig=base2)
+    assert coeffs is base2
+    assert coeffs.layout.title.text == "C"
 
 
 # ---- Per-observation diagnostics: cos2, contributions, eigenvalue summary, supplementary variables ----
