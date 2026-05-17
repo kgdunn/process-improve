@@ -91,6 +91,8 @@ def score_plot(  # noqa: C901, PLR0913
     )
 
     class Settings(BaseModel):
+        """Validated display settings for the score plot."""
+
         show_ellipse: bool = True
         ellipse_conf_level: float = 0.95
 
@@ -311,6 +313,8 @@ def loading_plot(  # noqa: PLR0913
     margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
 
     class Settings(BaseModel):
+        """Validated display settings for the loadings plot."""
+
         title: str = f"Loadings plot [{loadings_type.upper()}] of component {pc_horiz} vs component {pc_vert}"
         show_labels: bool = True
         html_image_height: float = 500.0
@@ -461,6 +465,8 @@ def spe_plot(
     assert with_a <= model.n_components, "`with_a` must be <= the number of components fitted"
 
     class Settings(BaseModel):
+        """Validated display settings for the SPE plot."""
+
         show_limit: bool = True
         conf_level: float = 0.95
 
@@ -628,6 +634,8 @@ def t2_plot(
     assert with_a <= model.n_components, "`with_a` must be <= the number of components fitted"
 
     class Settings(BaseModel):
+        """Validated display settings for the Hotelling's T2 plot."""
+
         show_limit: bool = True
         conf_level: float = 0.95
 
@@ -782,6 +790,8 @@ def explained_variance_plot(
     block_label = "Y-variance" if type(model).__name__ == "PLS" else "X-variance"
 
     class Settings(BaseModel):
+        """Validated display settings for the explained-variance plot."""
+
         as_percentage: bool = True
         title: str = f"{block_label} explained per component"
         bar_color: str = "darkblue"
@@ -955,6 +965,8 @@ def correlation_loadings_plot(  # noqa: C901, PLR0913
     x_loadings = model.x_loadings_ if is_pls else model.loadings_
 
     class Settings(BaseModel):
+        """Validated display settings for the correlation-loadings plot."""
+
         title: str = f"Correlation loadings: components {pc_horiz} and {pc_vert}"
         x_marker_color: str = "darkblue"
         y_marker_color: str = "crimson"
@@ -1115,6 +1127,8 @@ def predictions_vs_observed_plot(
     margin_dict: dict = dict(l=10, r=10, b=5, t=80)
 
     class Settings(BaseModel):
+        """Validated display settings for the predictions-vs-observed plot."""
+
         title: str = f"Observed vs predicted for {variable}"
         marker_color: str = "darkblue"
         reference_color: str = "black"
@@ -1216,6 +1230,8 @@ def coefficient_plot(
     margin_dict: dict = dict(l=10, r=10, b=5, t=80)
 
     class Settings(BaseModel):
+        """Validated display settings for the regression-coefficient plot."""
+
         title: str = f"Regression coefficients for {variable}"
         bar_color: str = "darkblue"
         html_image_height: float = 500.0

@@ -82,6 +82,7 @@ def _create_mcp_tool(
 
     # Define an async handler that calls through to our tool registry
     async def handler(**kwargs: Any) -> str:  # noqa: ANN401
+        """Run the registered tool and return its result as a JSON string."""
         try:
             result = safe_execute_tool_call(tool_name, kwargs) if _SAFE_MODE else execute_tool_call(tool_name, kwargs)
             if isinstance(result, dict):
