@@ -16,6 +16,7 @@ from process_improve.multivariate.methods import (
     vip,
 )
 from process_improve.multivariate.plots import (
+    explained_variance_plot,
     loading_plot,
     score_plot,
     spe_plot,
@@ -29,6 +30,7 @@ __all__ = [
     "MCUVScaler",
     "center",
     "eigenvalue_summary",
+    "explained_variance_plot",
     "loading_plot",
     "observation_contributions",
     "project_variables",

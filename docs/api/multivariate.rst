@@ -132,3 +132,5 @@ Plots
 .. autofunction:: spe_plot
 
 .. autofunction:: t2_plot
+
+.. autofunction:: explained_variance_plot

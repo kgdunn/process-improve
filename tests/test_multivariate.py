@@ -27,6 +27,7 @@ from process_improve.multivariate.methods import (
     eigenvalue_summary,
     ellipse_coordinates,
     epsqrt,
+    explained_variance_plot,
     nan_to_zeros,
     observation_contributions,
     project_variables,
@@ -2783,6 +2784,60 @@ def test_t2_plot_accepts_valid_conf_level(fixture_pca_for_plots: PCA) -> None:
     """t2_plot should accept `conf_level` strictly inside (0, 1)."""
     fig = fixture_pca_for_plots.t2_plot(settings={"conf_level": 0.99})
     assert isinstance(fig, go.Figure)
+
+
+def test_explained_variance_plot_pca(fixture_pca_for_plots: PCA) -> None:
+    """explained_variance_plot returns per-component bars and a cumulative line."""
+    model = fixture_pca_for_plots
+    fig = model.explained_variance_plot()
+    assert isinstance(fig, go.Figure)
+    assert [trace.type for trace in fig.data] == ["bar", "scatter"]
+
+    # Bars are the per-component R2; the line is the cumulative R2 (as percentages).
+    assert np.allclose(fig.data[0].y, model.r2_per_component_.to_numpy() * 100.0)
+    assert np.allclose(fig.data[1].y, model.r2_cumulative_.to_numpy() * 100.0)
+
+    # The cumulative curve never decreases.
+    cumulative = list(fig.data[1].y)
+    assert cumulative == sorted(cumulative)
+    assert "X-variance" in fig.layout.title.text
+
+    # The standalone function agrees with the bound method.
+    assert np.array_equal(explained_variance_plot(model).data[0].y, fig.data[0].y)
+
+
+def test_explained_variance_plot_pls(fixture_pls_for_plots: PLS) -> None:
+    """explained_variance_plot works for PLS and labels the Y-block."""
+    fig = fixture_pls_for_plots.explained_variance_plot()
+    assert isinstance(fig, go.Figure)
+    assert len(fig.data) == 2
+    assert "Y-variance" in fig.layout.title.text
+
+
+def test_explained_variance_plot_settings(fixture_pca_for_plots: PCA) -> None:
+    """The as_percentage and title settings are honoured."""
+    fig = fixture_pca_for_plots.explained_variance_plot(
+        settings={"as_percentage": False, "title": "Custom title"},
+    )
+    # Fractions, not percentages: every bar is at most 1.0.
+    assert max(fig.data[0].y) <= 1.0
+    assert fig.layout.title.text == "Custom title"
+    assert "fraction" in fig.layout.yaxis.title.text
+
+
+def test_explained_variance_plot_unfitted_raises() -> None:
+    """An unfitted model raises a clear error."""
+    for unfitted in (PCA(n_components=2), PLS(n_components=2)):
+        with pytest.raises(ValueError, match="not fitted"):
+            explained_variance_plot(unfitted)
+
+
+def test_explained_variance_plot_accepts_existing_figure(fixture_pca_for_plots: PCA) -> None:
+    """Passing a figure draws onto it rather than creating a new one."""
+    base = go.Figure()
+    returned = fixture_pca_for_plots.explained_variance_plot(fig=base)
+    assert returned is base
+    assert len(returned.data) == 2
 
 
 # ---- Per-observation diagnostics: cos2, contributions, eigenvalue summary, supplementary variables ----

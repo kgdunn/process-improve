@@ -22,7 +22,7 @@ from sklearn.utils.validation import check_array, check_is_fitted
 from tqdm import tqdm
 
 from ..univariate.metrics import detect_outliers_esd
-from .plots import loading_plot, score_plot, spe_plot, t2_plot
+from .plots import explained_variance_plot, loading_plot, score_plot, spe_plot, t2_plot
 
 DataMatrix: TypeAlias = np.ndarray | pd.DataFrame
 
@@ -736,6 +736,7 @@ class PCA(TransformerMixin, BaseEstimator):
         self.t2_plot = partial(t2_plot, model=self)
         self.loading_plot = partial(loading_plot, model=self, loadings_type="p")
         self.score_plot = partial(score_plot, model=self)
+        self.explained_variance_plot = partial(explained_variance_plot, model=self)
         self.spe_limit = partial(spe_limit, model=self)
         self.vip = partial(vip, model=self)
         self.squared_cosine = partial(squared_cosine, model=self)
@@ -1700,6 +1701,7 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.t2_plot = partial(t2_plot, model=self)
         self.loading_plot = partial(loading_plot, model=self)
         self.score_plot = partial(score_plot, model=self)
+        self.explained_variance_plot = partial(explained_variance_plot, model=self)
         self.vip = partial(vip, model=self)
         self.squared_cosine = partial(squared_cosine, model=self)
         self.observation_contributions = partial(observation_contributions, model=self)
