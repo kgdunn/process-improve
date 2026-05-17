@@ -410,7 +410,7 @@ def _column_centred_array(data: DataMatrix, name: str) -> np.ndarray:
     if arr.ndim != 2:
         msg = f"{name} must be 1- or 2-dimensional, got {arr.ndim} dimensions."
         raise ValueError(msg)
-    return arr - arr.mean(axis=0, keepdims=True)
+    return np.asarray(center(arr), dtype=float)
 
 
 def _matrix_correlation(X: DataMatrix, Y: DataMatrix, *, modified: bool) -> float:

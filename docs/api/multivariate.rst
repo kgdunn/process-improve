@@ -65,8 +65,6 @@ Multi-block PCA / consensus-PCA. Same dict-of-DataFrames API as
 Analysis
 --------
 
-.. autofunction:: vip
-
 .. autofunction:: rv_coefficient
 
 .. autofunction:: rv2_coefficient

@@ -3017,9 +3017,18 @@ def test_rv_coefficient_inputs_and_errors() -> None:
     from_frames = rv_coefficient(pd.DataFrame(X), pd.DataFrame(Y))
     assert from_arrays == pytest.approx(from_frames)
 
+    # A 1-D block (a single variable) is treated as one column.
+    one_d = rng.standard_normal(25)
+    assert np.isfinite(rv_coefficient(one_d, Y))
+    assert rv2_coefficient(one_d, one_d) == pytest.approx(1.0)
+
     # Mismatched row counts raise a clear error.
     with pytest.raises(ValueError, match="same number of rows"):
         rv_coefficient(X, rng.standard_normal((10, 3)))
+
+    # A 3-D array is not a valid data block.
+    with pytest.raises(ValueError, match="1- or 2-dimensional"):
+        rv_coefficient(rng.standard_normal((25, 2, 3)), Y)
 
     # A block with no variance has an undefined coefficient.
     assert np.isnan(rv_coefficient(np.ones((25, 3)), Y))
