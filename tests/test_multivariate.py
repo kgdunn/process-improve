@@ -2985,8 +2985,13 @@ def test_pls_prediction_plots_errors() -> None:
         predictions_vs_observed_plot(PLS(n_components=2), y_observed=Y_s)
     with pytest.raises(ValueError, match="Unknown Y-variable"):
         model.coefficient_plot(variable="missing")
+    with pytest.raises(ValueError, match="Unknown Y-variable"):
+        model.predictions_vs_observed_plot(y_observed=Y_s, variable="missing")
     with pytest.raises(ValueError, match="must have 30 rows"):
         model.predictions_vs_observed_plot(y_observed=Y_s.iloc[:5])
+    # A bare ndarray is coerced to a DataFrame; its columns then will not match.
+    with pytest.raises(ValueError, match="has no column"):
+        model.predictions_vs_observed_plot(y_observed=Y_s.to_numpy())
 
 
 def test_pls_prediction_plots_settings_and_figure() -> None:
