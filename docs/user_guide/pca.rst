@@ -135,6 +135,35 @@ where :math:`s_a^2` is the variance of the *a*-th score column.
 
 Use ``model.t2_plot()`` and ``model.hotellings_t2_limit()`` for monitoring.
 
+Quality of Representation (cos²)
+--------------------------------
+
+The squared cosine, or *cos²*, reports how well each observation is represented
+on each component. It is the squared score divided by that observation's total
+variation budget:
+
+.. math::
+
+   \cos^2_{i,a} = \frac{t_{i,a}^2}{\sum_{a=1}^{A} t_{i,a}^2 + \text{SPE}_i^2}
+
+- cos² lies between 0 and 1. A value close to 1 means the component captures
+  most of that observation's variation.
+- Summed across all components, the cos² values plus the residual fraction
+  add up to 1.
+- For PCA, where the loadings are orthonormal, the denominator equals the
+  squared distance of the observation from the origin, so cos² matches the
+  classical factor-analysis definition.
+
+cos² completes the trio of per-observation diagnostics: **Hotelling's T²**
+measures distance *within* the model plane, **SPE** measures distance *to* it,
+and **cos²** says how much of an observation's total variation a given
+component accounts for.
+
+.. code-block:: python
+
+   model.squared_cosine()                  # all components
+   model.squared_cosine(n_components=2)     # first two components only
+
 Score Contributions
 -------------------
 
@@ -163,6 +192,35 @@ The reference point matters: contributions always measure the difference
 
    # T²-weighted contributions (scale by 1/sqrt(eigenvalue))
    contrib = model.score_contributions(model.scores_.iloc[5].values, weighted=True)
+
+Observation Contributions
+-------------------------
+
+Observation contributions answer a different question: *"Which observations
+shaped this component?"* The contribution of observation *i* to component *a*
+is its squared score as a fraction of the total over all observations:
+
+.. math::
+
+   \text{contribution}_{i,a} = \frac{t_{i,a}^2}{\sum_{i=1}^{N} t_{i,a}^2}
+
+- Each component column sums to 1, so a contribution well above the average
+  :math:`1/N` flags an observation that strongly drives that component.
+- Use it to find which observations a component is built on, and whether a
+  single observation is dominating it.
+
+This is **not** the same as *Score Contributions*, despite the similar name.
+``score_contributions`` is *per-variable* and signed: it decomposes one
+observation's position back onto the original variables.
+``observation_contributions`` is *per-observation* and non-negative: it reports
+each observation's share of a component's variation. The two are orthogonal
+views of the same score matrix; one decomposes across variables, the other
+across observations.
+
+.. code-block:: python
+
+   model.observation_contributions()              # all components
+   model.observation_contributions(n_components=2)
 
 Outlier Detection
 -----------------
@@ -209,6 +267,46 @@ component.
 
    # Compute VIP using only the first 2 components
    vip_2 = model.vip(n_components=2)
+
+Supplementary Variables
+-----------------------
+
+A *supplementary* (or passive) variable is an extra column that did not take
+part in fitting the model but was measured on the same observations. Projecting
+it shows how it relates to the model without letting it influence the model.
+
+Each supplementary variable is represented by its correlation with each
+component's scores, the standard representation for passive quantitative
+variables. This is the column-wise counterpart of ``transform()``, which
+projects supplementary *rows* (new observations).
+
+A common use is to build a PCA on process variables and then project a quality
+or outcome variable onto it, to see which components, and therefore which
+process patterns, line up with that outcome.
+
+.. code-block:: python
+
+   # passive_columns: a DataFrame with the same rows as the training data
+   model.project_variables(passive_columns)
+
+Eigenvalue Summary
+------------------
+
+``model.eigenvalue_summary()`` collects the per-component variance information
+into one tidy table, with one row per component and three columns:
+
+- ``eigenvalue`` - the variance of that component's score column.
+- ``percent_variance`` - the share of variance the component explains.
+- ``cumulative_percent`` - the running total of ``percent_variance``.
+
+It gathers ``explained_variance_``, ``r2_per_component_`` and
+``r2_cumulative_`` into a single view, and is the numeric companion of
+``model.explained_variance_plot()``. The cumulative column is a quick input to
+the component-count decision discussed next.
+
+.. code-block:: python
+
+   model.eigenvalue_summary()
 
 Model Selection
 ---------------

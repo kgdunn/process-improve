@@ -96,8 +96,8 @@ system (just artificially separated into cause and effect), their joint
 loading plot reveals the interconnections between process conditions and
 quality outcomes.
 
-SPE, T², Contributions, and Outlier Detection
-----------------------------------------------
+Diagnostics Shared with PCA
+---------------------------
 
 These diagnostics work identically to PCA (see :doc:`pca`):
 
@@ -108,6 +108,14 @@ These diagnostics work identically to PCA (see :doc:`pca`):
 - ``model.score_contributions()`` - decompose scores back to original
   variables.
 - ``model.detect_outliers()`` - combined statistical + robust ESD detection.
+- ``model.squared_cosine()`` - quality of representation of each observation,
+  computed on the X-scores.
+- ``model.observation_contributions()`` - each observation's share of a
+  component, computed on the X-scores.
+- ``model.eigenvalue_summary()`` - per-component variance table; for PLS the
+  ``percent_variance`` and ``cumulative_percent`` columns refer to Y-variance.
+- ``model.project_variables()`` - project supplementary variables as their
+  correlation with the X-scores.
 
 Variable Importance in Projection (VIP)
 ---------------------------------------
