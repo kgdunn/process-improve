@@ -134,3 +134,5 @@ Plots
 .. autofunction:: t2_plot
 
 .. autofunction:: explained_variance_plot
+
+.. autofunction:: correlation_loadings_plot
