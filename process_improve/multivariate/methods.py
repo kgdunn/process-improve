@@ -143,6 +143,250 @@ def vip(model: PCA | PLS, n_components: int | None = None) -> pd.Series:
     return pd.Series(vip_values, index=weights.index, name="VIP")
 
 
+def squared_cosine(model: PCA | PLS, n_components: int | None = None) -> pd.DataFrame:
+    r"""Calculate the squared cosine (cos2): quality of representation of observations.
+
+    Works with fitted :class:`PCA` and :class:`PLS` models. The squared cosine
+    of observation :math:`i` on component :math:`a` is the squared score
+    divided by that observation's total variation budget:
+
+    .. math::
+
+        \\cos^2_{ia} = \\frac{t_{ia}^2}
+            {\\sum_{a=1}^{A} t_{ia}^2 + \\text{SPE}_i^2}
+
+    where :math:`t_{ia}` is the score and :math:`\\text{SPE}_i` the residual
+    (squared prediction error) of the observation. Across all components the
+    cos2 values plus the residual fraction sum to 1. A value close to 1 means
+    the observation is well represented on that component. For :class:`PCA`,
+    whose loadings are orthonormal, the denominator equals the squared distance
+    of the observation from the origin, matching the classical definition.
+
+    cos2 complements the existing diagnostics: Hotelling's T² measures distance
+    *within* the model plane, SPE measures distance *to* it, and cos2 reports
+    how much of an observation's total variation a given component captures.
+
+    Parameters
+    ----------
+    model : PCA or PLS
+        A fitted PCA or PLS model.
+    n_components : int or None, default=None
+        Number of components to return. ``None`` returns all fitted components.
+
+    Returns
+    -------
+    pd.DataFrame
+        cos2 values of shape (n_samples, n_components), indexed by sample.
+
+    Raises
+    ------
+    ValueError
+        If the model is not fitted, or if *n_components* is out of range.
+
+    Examples
+    --------
+    >>> pca = PCA(n_components=3).fit(X_scaled)
+    >>> pca.squared_cosine()              # bound convenience method after fit()
+    >>> squared_cosine(pca, n_components=2)  # or call the function directly
+    """
+    if not hasattr(model, "scores_") or not hasattr(model, "spe_"):
+        msg = "Model is not fitted. Call fit() before computing the squared cosine."
+        raise ValueError(msg)
+
+    scores = model.scores_
+    total_components = scores.shape[1]
+    if n_components is None:
+        n_components = total_components
+    elif not (1 <= n_components <= total_components):
+        msg = f"n_components must be between 1 and {total_components}, got {n_components}."
+        raise ValueError(msg)
+
+    score_ss = scores.to_numpy(dtype=float) ** 2
+    residual_ss = model.spe_.to_numpy(dtype=float)[:, -1] ** 2
+    total_ss = score_ss.sum(axis=1) + residual_ss
+
+    with np.errstate(invalid="ignore", divide="ignore"):
+        cos2 = score_ss[:, :n_components] / total_ss[:, None]
+    cos2[~np.isfinite(cos2)] = 0.0
+
+    return pd.DataFrame(cos2, index=scores.index, columns=scores.columns[:n_components])
+
+
+def observation_contributions(model: PCA | PLS, n_components: int | None = None) -> pd.DataFrame:
+    r"""Calculate the contribution of each observation to each component.
+
+    Works with fitted :class:`PCA` and :class:`PLS` models. The contribution of
+    observation :math:`i` to component :math:`a` is its squared score divided
+    by the sum of squared scores of all observations on that component:
+
+    .. math::
+
+        \\text{contribution}_{ia} = \\frac{t_{ia}^2}{\\sum_{i=1}^{N} t_{ia}^2}
+
+    Values lie between 0 and 1 and each column sums to 1, so a contribution
+    well above the average :math:`1/N` flags an observation that strongly
+    shapes that component. This is the per-observation counterpart of the
+    per-variable ``score_contributions`` and :func:`vip` diagnostics.
+
+    Parameters
+    ----------
+    model : PCA or PLS
+        A fitted PCA or PLS model.
+    n_components : int or None, default=None
+        Number of components to return. ``None`` returns all fitted components.
+
+    Returns
+    -------
+    pd.DataFrame
+        Contributions of shape (n_samples, n_components), indexed by sample.
+        Each column sums to 1.
+
+    Raises
+    ------
+    ValueError
+        If the model is not fitted, or if *n_components* is out of range.
+
+    Examples
+    --------
+    >>> pca = PCA(n_components=3).fit(X_scaled)
+    >>> pca.observation_contributions()
+    >>> observation_contributions(pca, n_components=2)
+    """
+    if not hasattr(model, "scores_"):
+        msg = "Model is not fitted. Call fit() before computing observation contributions."
+        raise ValueError(msg)
+
+    scores = model.scores_
+    total_components = scores.shape[1]
+    if n_components is None:
+        n_components = total_components
+    elif not (1 <= n_components <= total_components):
+        msg = f"n_components must be between 1 and {total_components}, got {n_components}."
+        raise ValueError(msg)
+
+    score_ss = scores.to_numpy(dtype=float) ** 2
+    column_ss = score_ss.sum(axis=0)
+
+    with np.errstate(invalid="ignore", divide="ignore"):
+        contributions = score_ss[:, :n_components] / column_ss[:n_components]
+    contributions[~np.isfinite(contributions)] = 0.0
+
+    return pd.DataFrame(contributions, index=scores.index, columns=scores.columns[:n_components])
+
+
+def eigenvalue_summary(model: PCA | PLS) -> pd.DataFrame:
+    """Summarize the variance captured by each component as a tidy table.
+
+    Works with fitted :class:`PCA` and :class:`PLS` models. Returns one row per
+    component, collecting ``explained_variance_``, ``r2_per_component_`` and
+    ``r2_cumulative_`` into a single table.
+
+    Parameters
+    ----------
+    model : PCA or PLS
+        A fitted PCA or PLS model.
+
+    Returns
+    -------
+    pd.DataFrame
+        Indexed by component, with columns ``eigenvalue`` (the variance of the
+        component scores), ``percent_variance`` and ``cumulative_percent``. For
+        PCA the percentages refer to variance in X; for PLS they refer to the
+        variance in Y explained by each component.
+
+    Raises
+    ------
+    ValueError
+        If the model is not fitted.
+
+    Examples
+    --------
+    >>> pca = PCA(n_components=3).fit(X_scaled)
+    >>> pca.eigenvalue_summary()
+    >>> eigenvalue_summary(pca)
+    """
+    if not hasattr(model, "r2_per_component_"):
+        msg = "Model is not fitted. Call fit() before computing the eigenvalue summary."
+        raise ValueError(msg)
+
+    summary = pd.DataFrame(
+        {
+            "eigenvalue": np.asarray(model.explained_variance_, dtype=float),
+            "percent_variance": model.r2_per_component_.to_numpy(dtype=float) * 100.0,
+            "cumulative_percent": model.r2_cumulative_.to_numpy(dtype=float) * 100.0,
+        },
+        index=model.r2_per_component_.index,
+    )
+    summary.index.name = "component"
+    return summary
+
+
+def project_variables(model: PCA | PLS, supplementary_data: DataMatrix) -> pd.DataFrame:
+    """Project supplementary (passive) variables onto a fitted model.
+
+    Works with fitted :class:`PCA` and :class:`PLS` models. Supplementary
+    variables are extra columns that did not take part in fitting the model but
+    were measured on the *same observations*. Each supplementary variable is
+    represented by its correlation with each component's scores, the standard
+    representation for passive quantitative variables. This is the column-wise
+    counterpart of ``transform``, which projects supplementary *rows* (new
+    observations).
+
+    Parameters
+    ----------
+    model : PCA or PLS
+        A fitted PCA or PLS model.
+    supplementary_data : array-like of shape (n_samples, n_supplementary)
+        Passive variables measured on the same observations used to fit the
+        model. Must have the same number of rows as the training data.
+
+    Returns
+    -------
+    pd.DataFrame
+        Correlations of shape (n_supplementary, n_components): the coordinate
+        of each supplementary variable on each component.
+
+    Raises
+    ------
+    ValueError
+        If the model is not fitted, or if *supplementary_data* does not have
+        the same number of rows as the training data.
+
+    Examples
+    --------
+    >>> pca = PCA(n_components=3).fit(X_scaled)
+    >>> pca.project_variables(passive_columns)
+    >>> project_variables(pca, passive_columns)
+    """
+    if not hasattr(model, "scores_"):
+        msg = "Model is not fitted. Call fit() before projecting variables."
+        raise ValueError(msg)
+
+    scores = model.scores_
+    if not isinstance(supplementary_data, pd.DataFrame):
+        supplementary_data = pd.DataFrame(supplementary_data)
+
+    if supplementary_data.shape[0] != scores.shape[0]:
+        msg = (
+            f"Supplementary data must have {scores.shape[0]} rows (the number of "
+            f"observations used to fit the model), got {supplementary_data.shape[0]}."
+        )
+        raise ValueError(msg)
+
+    xs = supplementary_data.to_numpy(dtype=float)
+    t = scores.to_numpy(dtype=float)
+    xs_centered = xs - xs.mean(axis=0, keepdims=True)
+    t_centered = t - t.mean(axis=0, keepdims=True)
+    xs_norm = np.sqrt((xs_centered**2).sum(axis=0))
+    t_norm = np.sqrt((t_centered**2).sum(axis=0))
+
+    with np.errstate(invalid="ignore", divide="ignore"):
+        correlations = (xs_centered.T @ t_centered) / np.outer(xs_norm, t_norm)
+    correlations[~np.isfinite(correlations)] = 0.0
+
+    return pd.DataFrame(correlations, index=supplementary_data.columns, columns=scores.columns)
+
+
 class PCA(TransformerMixin, BaseEstimator):
     """Principal Component Analysis with support for missing data.
 
@@ -346,6 +590,10 @@ class PCA(TransformerMixin, BaseEstimator):
         self.score_plot = partial(score_plot, model=self)
         self.spe_limit = partial(spe_limit, model=self)
         self.vip = partial(vip, model=self)
+        self.squared_cosine = partial(squared_cosine, model=self)
+        self.observation_contributions = partial(observation_contributions, model=self)
+        self.eigenvalue_summary = partial(eigenvalue_summary, model=self)
+        self.project_variables = partial(project_variables, self)
 
         # Clean up temporary numpy arrays
         del self._loadings_np, self._scores_np, self._r2_np, self._r2cum_np, self._r2_per_var_np, self._spe_np
@@ -1289,6 +1537,10 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.loading_plot = partial(loading_plot, model=self)
         self.score_plot = partial(score_plot, model=self)
         self.vip = partial(vip, model=self)
+        self.squared_cosine = partial(squared_cosine, model=self)
+        self.observation_contributions = partial(observation_contributions, model=self)
+        self.eigenvalue_summary = partial(eigenvalue_summary, model=self)
+        self.project_variables = partial(project_variables, self)
 
         return self
 
