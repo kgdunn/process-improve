@@ -152,9 +152,7 @@ and the `process_improve/notebooks_examples/` folder.
 
 New to designed experiments? The
 [**Applied DoE tutorial**](https://kgdunn.github.io/process-improve/applied_doe/index.html)
-is an eight-module worked-solution series that mirrors the
-[12-week DoE short course](https://yint.org) and shows the same workflow in
-Python with `process-improve` end to end.
+is an eight-module worked-solution series.
 
 ## API design
 
@@ -183,7 +181,7 @@ If you use this package in academic work, please cite it:
   author  = {Dunn, Kevin G.},
   title   = {{process-improve: Multivariate Analysis for Process Improvement}},
   year    = {2026},
-  version = {v1.21.2},
+  version = {v1.21.3},
   url     = {https://github.com/kgdunn/process-improve}
 }
 ```
