@@ -16,6 +16,7 @@ from process_improve.multivariate.methods import (
     vip,
 )
 from process_improve.multivariate.plots import (
+    correlation_loadings_plot,
     explained_variance_plot,
     loading_plot,
     score_plot,
@@ -29,6 +30,7 @@ __all__ = [
     "TPLS",
     "MCUVScaler",
     "center",
+    "correlation_loadings_plot",
     "eigenvalue_summary",
     "explained_variance_plot",
     "loading_plot",

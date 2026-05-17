@@ -24,6 +24,7 @@ from process_improve.multivariate.methods import (
     MCUVScaler,
     SpecificationWarning,
     center,
+    correlation_loadings_plot,
     eigenvalue_summary,
     ellipse_coordinates,
     epsqrt,
@@ -2838,6 +2839,89 @@ def test_explained_variance_plot_accepts_existing_figure(fixture_pca_for_plots: 
     returned = fixture_pca_for_plots.explained_variance_plot(fig=base)
     assert returned is base
     assert len(returned.data) == 2
+
+
+def test_correlation_loadings_plot_pca() -> None:
+    """Correlation loadings: points inside the unit circle, matching direct correlations."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.standard_normal((60, 6)), columns=[f"V{i}" for i in range(6)])
+    X_scaled = MCUVScaler().fit_transform(X)
+    model = PCA(n_components=3).fit(X_scaled)
+
+    fig = model.correlation_loadings_plot()
+    assert isinstance(fig, go.Figure)
+    assert len(fig.data) == 1  # X-variables only, for PCA
+    assert fig.data[0].name == "X-variables"
+
+    xs = np.asarray(fig.data[0].x, dtype=float)
+    ys = np.asarray(fig.data[0].y, dtype=float)
+    # Every variable lies within the unit circle.
+    assert np.all(np.hypot(xs, ys) <= 1.0 + 1e-9)
+
+    # The plotted coordinates are the correlations of each variable with the scores.
+    t1 = model.scores_.iloc[:, 0].to_numpy()
+    direct = np.array([np.corrcoef(X_scaled.iloc[:, k], t1)[0, 1] for k in range(6)])
+    assert np.allclose(xs, direct, atol=1e-6)
+
+    # Two variance ellipses are drawn by default.
+    circles = [shape for shape in fig.layout.shapes if shape.type == "circle"]
+    assert len(circles) == 2
+
+
+def test_correlation_loadings_plot_pls() -> None:
+    """For PLS both the X- and Y-variables are overlaid."""
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame(rng.standard_normal((50, 5)), columns=[f"X{i}" for i in range(5)])
+    beta = rng.standard_normal((5, 2))
+    Y = pd.DataFrame(X.values @ beta + 0.3 * rng.standard_normal((50, 2)), columns=["y0", "y1"])
+    model = PLS(n_components=2).fit(MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y))
+
+    fig = model.correlation_loadings_plot()
+    assert [trace.name for trace in fig.data] == ["X-variables", "Y-variables"]
+    assert len(fig.data[1].x) == 2  # two Y-variables
+
+
+def test_correlation_loadings_plot_configurable_ellipses() -> None:
+    """The variance_ellipses argument controls which ellipses are drawn."""
+    rng = np.random.default_rng(2)
+    X = pd.DataFrame(rng.standard_normal((40, 5)))
+    model = PCA(n_components=2).fit(MCUVScaler().fit_transform(X))
+
+    default_fig = model.correlation_loadings_plot()
+    assert {ann.text for ann in default_fig.layout.annotations} == {"50%", "100%"}
+
+    custom_fig = model.correlation_loadings_plot(variance_ellipses=(0.75, 0.95))
+    assert {ann.text for ann in custom_fig.layout.annotations} == {"75%", "95%"}
+    assert len([shape for shape in custom_fig.layout.shapes if shape.type == "circle"]) == 2
+
+
+def test_correlation_loadings_plot_settings_and_figure() -> None:
+    """correlation_loadings_plot honours settings and draws onto a given figure."""
+    rng = np.random.default_rng(4)
+    X = pd.DataFrame(rng.standard_normal((40, 5)))
+    model = PCA(n_components=2).fit(MCUVScaler().fit_transform(X))
+
+    base = go.Figure()
+    fig = model.correlation_loadings_plot(settings={"show_labels": False, "title": "Custom"}, fig=base)
+    assert fig is base
+    assert fig.layout.title.text == "Custom"
+    assert fig.data[0].mode == "markers"
+
+
+def test_correlation_loadings_plot_errors() -> None:
+    """correlation_loadings_plot validates the model and its arguments."""
+    rng = np.random.default_rng(3)
+    X = pd.DataFrame(rng.standard_normal((30, 4)))
+    model = PCA(n_components=3).fit(MCUVScaler().fit_transform(X))
+
+    with pytest.raises(ValueError, match="not fitted"):
+        correlation_loadings_plot(PCA(n_components=2))
+    with pytest.raises(ValueError, match="not a fitted component"):
+        model.correlation_loadings_plot(pc_vert=9)
+    with pytest.raises(ValueError, match="must be different"):
+        model.correlation_loadings_plot(pc_horiz=2, pc_vert=2)
+    with pytest.raises(ValueError, match="fraction in"):
+        model.correlation_loadings_plot(variance_ellipses=(1.5,))
 
 
 # ---- Per-observation diagnostics: cos2, contributions, eigenvalue summary, supplementary variables ----
