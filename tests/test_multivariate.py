@@ -2895,6 +2895,19 @@ def test_correlation_loadings_plot_configurable_ellipses() -> None:
     assert len([shape for shape in custom_fig.layout.shapes if shape.type == "circle"]) == 2
 
 
+def test_correlation_loadings_plot_settings_and_figure() -> None:
+    """correlation_loadings_plot honours settings and draws onto a given figure."""
+    rng = np.random.default_rng(4)
+    X = pd.DataFrame(rng.standard_normal((40, 5)))
+    model = PCA(n_components=2).fit(MCUVScaler().fit_transform(X))
+
+    base = go.Figure()
+    fig = model.correlation_loadings_plot(settings={"show_labels": False, "title": "Custom"}, fig=base)
+    assert fig is base
+    assert fig.layout.title.text == "Custom"
+    assert fig.data[0].mode == "markers"
+
+
 def test_correlation_loadings_plot_errors() -> None:
     """correlation_loadings_plot validates the model and its arguments."""
     rng = np.random.default_rng(3)
