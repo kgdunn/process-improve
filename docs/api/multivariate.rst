@@ -74,6 +74,22 @@ Preprocessing
 
 .. autofunction:: scale
 
+Diagnostics
+-----------
+
+These functions work with fitted :class:`PCA` and :class:`PLS` models. Each is
+also bound as a convenience method on the model after :meth:`fit`.
+
+.. autofunction:: vip
+
+.. autofunction:: squared_cosine
+
+.. autofunction:: observation_contributions
+
+.. autofunction:: eigenvalue_summary
+
+.. autofunction:: project_variables
+
 Plots
 -----
 
