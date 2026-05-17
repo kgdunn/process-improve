@@ -80,6 +80,29 @@ Diagnostics
 These functions work with fitted :class:`PCA` and :class:`PLS` models. Each is
 also bound as a convenience method on the model after :meth:`fit`.
 
+.. note::
+
+   **Two different "contributions" diagnostics.** The library has two methods
+   whose names both contain "contributions"; they are not interchangeable and
+   answer different questions about the same fitted score matrix.
+
+   * :meth:`PCA.score_contributions` (and :meth:`PLS.score_contributions`) is
+     *per-variable* and signed. It decomposes a single observation's movement
+     in score space back onto the original variables, answering "which
+     **variables** explain why this observation sits where it does?". It
+     returns one signed value per variable, and it takes an observation's
+     score vector as input.
+
+   * :func:`observation_contributions` is *per-observation* and non-negative.
+     It reports each observation's share of a component's total inertia
+     (:math:`t_{ia}^2 / \sum_i t_{ia}^2`), answering "which **observations**
+     most strongly shape this component?". It returns a sample-by-component
+     table whose columns each sum to 1, and it takes no input beyond the
+     fitted model.
+
+   In short, ``score_contributions`` decomposes *across variables* while
+   ``observation_contributions`` decomposes *across observations*.
+
 .. autofunction:: vip
 
 .. autofunction:: squared_cosine

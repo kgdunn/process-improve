@@ -225,8 +225,17 @@ def observation_contributions(model: PCA | PLS, n_components: int | None = None)
 
     Values lie between 0 and 1 and each column sums to 1, so a contribution
     well above the average :math:`1/N` flags an observation that strongly
-    shapes that component. This is the per-observation counterpart of the
-    per-variable ``score_contributions`` and :func:`vip` diagnostics.
+    shapes that component.
+
+    Note that this is *not* the same diagnostic as the ``score_contributions``
+    method, despite the similar name. ``score_contributions`` is *per-variable*
+    and signed: it decomposes one observation's position in score space back
+    onto the original variables ("which **variables** explain why this
+    observation sits where it does?"). ``observation_contributions`` is
+    *per-observation* and non-negative: it reports each observation's share of
+    a component's total inertia ("which **observations** most strongly shape
+    this component?"). The two are orthogonal views of the same score matrix
+    and are not interchangeable.
 
     Parameters
     ----------
@@ -251,6 +260,11 @@ def observation_contributions(model: PCA | PLS, n_components: int | None = None)
     >>> pca = PCA(n_components=3).fit(X_scaled)
     >>> pca.observation_contributions()
     >>> observation_contributions(pca, n_components=2)
+
+    See Also
+    --------
+    PCA.score_contributions : The per-variable counterpart - decomposes one
+        observation's score-space position back onto the original variables.
     """
     if not hasattr(model, "scores_"):
         msg = "Model is not fitted. Call fit() before computing observation contributions."
@@ -997,6 +1011,22 @@ class PCA(TransformerMixin, BaseEstimator):
         >>> contrib = pca.score_contributions(
         ...     pca.scores_.iloc[0].values, pca.scores_.iloc[5].values
         ... )
+
+        See Also
+        --------
+        observation_contributions : The per-observation counterpart. Despite
+            the similar name, the two answer different questions and are not
+            interchangeable. ``score_contributions`` is *per-variable*: it
+            decomposes a single observation's movement in score space back
+            onto the original variables, answering "which **variables**
+            explain why this observation sits where it does?". It returns one
+            signed value per variable. ``observation_contributions`` is
+            *per-observation*: it reports each observation's share of a
+            component's total inertia, answering "which **observations** most
+            strongly shape this component?". It returns a non-negative
+            sample-by-component table whose columns each sum to 1. The two are
+            orthogonal views of the same score matrix - one decomposes across
+            variables, the other across observations.
         """
         check_is_fitted(self, "loadings_")
         t_start = np.asarray(t_start, dtype=float)
@@ -1672,6 +1702,22 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         >>> pls = PLS(n_components=3).fit(X_scaled, Y_scaled)
         >>> contrib = pls.score_contributions(pls.scores_.iloc[0].values)
         >>> contrib.abs().sort_values(ascending=False).head()  # top contributors
+
+        See Also
+        --------
+        observation_contributions : The per-observation counterpart. Despite
+            the similar name, the two answer different questions and are not
+            interchangeable. ``score_contributions`` is *per-variable*: it
+            decomposes a single observation's movement in score space back
+            onto the original X variables, answering "which **variables**
+            explain why this observation sits where it does?". It returns one
+            signed value per variable. ``observation_contributions`` is
+            *per-observation*: it reports each observation's share of a
+            component's total inertia, answering "which **observations** most
+            strongly shape this component?". It returns a non-negative
+            sample-by-component table whose columns each sum to 1. The two are
+            orthogonal views of the same score matrix - one decomposes across
+            variables, the other across observations.
         """
         check_is_fitted(self, "x_loadings_")
         t_start = np.asarray(t_start, dtype=float)
