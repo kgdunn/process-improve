@@ -1,67 +1,65 @@
-# Process Improvement using Data
+# process-improve
 
-> A pragmatic Python toolkit for industrial process data - multivariate
-> analysis, designed experiments, and process monitoring, in one place.
+**Multivariate analysis, designed experiments, and process monitoring for Python.**
+Built for chemometrics, manufacturing, and pharma data - the methods that scikit-learn skips.
 
 [![PyPI version](https://img.shields.io/pypi/v/process-improve.svg)](https://pypi.org/project/process-improve/)
 [![Python versions](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fkgdunn%2Fprocess-improve%2Fmain%2Fpyproject.toml&label=python)](https://pypi.org/project/process-improve/)
-[![License](https://img.shields.io/pypi/l/process-improve.svg)](LICENSE)
 [![Downloads](https://static.pepy.tech/badge/process-improve)](https://pepy.tech/project/process-improve)
 [![Downloads per month](https://static.pepy.tech/badge/process-improve/month)](https://pepy.tech/project/process-improve)
 [![CI](https://github.com/kgdunn/process-improve/actions/workflows/run-tests.yml/badge.svg?branch=main&event=push)](https://github.com/kgdunn/process-improve/actions/workflows/run-tests.yml?query=branch%3Amain)
 [![codecov](https://codecov.io/gh/kgdunn/process-improve/branch/main/graph/badge.svg)](https://codecov.io/gh/kgdunn/process-improve)
 [![Docs](https://img.shields.io/badge/docs-kgdunn.github.io-blue.svg)](https://kgdunn.github.io/process-improve/)
+[![License](https://img.shields.io/pypi/l/process-improve.svg)](LICENSE)
 
-## What is this?
+---
 
-`process-improve` is the companion package to the online textbook
+## What it does
+
+`process-improve` provides production-grade implementations of the methods
+practitioners actually use on real plant and lab data:
+
+- **PCA** with SVD and NIPALS, plus native missing-value handling via Trimmed
+  Score Regression
+- **PLS** regression with a fully sklearn-compatible API, VIP scores, and
+  cross-validated diagnostics
+- **TPLS** - PLS for *T-shaped (multi-block) data structures*
+- **Outlier detection** combining Hotelling's T² and SPE with an ESD-based test
+- **Designed experiments** - full-factorial, fractional-factorial, and
+  response-surface designs, plus a multi-stage DOE strategy recommender
+- **Process monitoring** - Shewhart, CUSUM, and Holt-Winters control charts
+- **Batch data analysis** - alignment, feature extraction, and multivariate
+  batch monitoring (MBPCA / MBPLS)
+- **Interactive Plotly diagnostics** bound directly to every fitted model
+
+Outputs are `pandas`-native: scores, loadings, and predictions keep your row
+and column labels.
+
+It is the companion package to the online textbook
 [Process Improvement using Data](https://learnche.org/pid), and powers the
-statistical engine behind [factori.al](https://factori.al). It bundles the
-methods practitioners actually reach for on real plant and lab data -
-PCA / PLS with proper missing-data handling, designed experiments with a
-multi-stage strategy recommender, control charts, and batch-data tooling -
-behind an API that is sklearn-compatible where it makes sense and
-pandas-native throughout.
+statistical engine behind [factori.al](https://factori.al).
 
-## Highlights
+## Why not scikit-learn?
 
-### 🧪 Designed Experiments
+scikit-learn answers *"what fits the data?"* - `process-improve` answers
+*"is this batch normal, which variable went off, and how confident am I in the
+prediction?"* The two libraries are designed to be used together;
+`process-improve` follows sklearn conventions (`fit`, `predict`, `score`, the
+`_` suffix on fitted attributes) and drops into existing pipelines.
 
-- Full-factorial, fractional-factorial, and response-surface designs (built on `pyDOE3`)
-- A **DOE strategy recommender** that plans a complete multi-stage program - screening → optimization → confirmation - from ~50 deterministic rules, with budget-aware allocation and domain-specific advice for fermentation, cell culture, pharma, and 5 other domains
-- ANOVA, main-effects plots, linear-model fitting, and response optimization
-
-### 📊 Latent Variable Methods
-
-- **PCA** with SVD and NIPALS algorithms, plus missing-data via Trimmed Score Regression
-- **PLS** regression with a fully sklearn-compatible API
-- **TPLS** - PLS for *T-shaped data structures*
-- Diagnostics: Hotelling's T², SPE, score contributions, VIP, and ESD-based outlier detection
-- Cross-validation: PRESS / Wold's component selection, PLS RMSECV with validated explained variance, and PLS beta-coefficient error bars
-- Interactive Plotly score, loading, SPE, and T² plots, bound directly to fitted models
-
-### 📈 Process Monitoring
-
-- Shewhart, CUSUM, and Holt-Winters control charts (regular and robust variants)
-- Process-capability index `Cpk`
-
-### 🔄 Batch Data Analysis
-
-- DTW-based batch alignment, reference-batch selection, resampling
-- 15+ batch feature extractors (mean, slope, area, elbow, rupture, crossings, robust variants, …)
-- Format conversions between wide, melted, and dict-of-frames batch layouts
-
-### 📐 Univariate & Robust Regression
-
-- t-tests (paired, independent, plus DataFrame-aware helpers)
-- ESD outliers, Sn estimator, MAD, normality tests, variance decomposition
-- Robust regression: repeated-median slope and friends, for outlier-resistant fits
-
-### 🎨 Visualization
-
-- Plotly-backed plots that attach to fitted PCA / PLS models
-- A backend-agnostic `ChartSpec` layer with Plotly and ECharts adapters
-- DOE-specific plots: main-effects, design visualization
+| Capability                                       | scikit-learn | process-improve |
+| ------------------------------------------------ | :----------: | :-------------: |
+| PCA, PLS with sklearn-style API                  |       ✓      |        ✓        |
+| Missing-data fitting (NIPALS / TSR)              |       -      |        ✓        |
+| Hotelling's T² + SPE outlier limits              |       -      |        ✓        |
+| Variable-level score contributions               |       -      |        ✓        |
+| Cross-validated coefficient confidence intervals |       -      |        ✓        |
+| Multi-block models (TPLS)                         |       -      |        ✓        |
+| Designed experiments (DoE)                        |       -      |        ✓        |
+| Control charts (Shewhart / CUSUM / Holt-Winters)  |       -      |        ✓        |
+| Batch process monitoring (MBPCA / MBPLS)          |       -      |        ✓        |
+| Plotly diagnostics built in                       |       -      |        ✓        |
+| Labeled `DataFrame` outputs                       |    partial   |        ✓        |
 
 ## Installation
 
@@ -69,7 +67,8 @@ pandas-native throughout.
 pip install process-improve
 ```
 
-Requires Python 3.10 or newer.
+Requires Python 3.10 or newer. Built on `numpy`, `pandas`, `scipy`,
+`scikit-learn`, `statsmodels`, `plotly`, and `pyDOE3`.
 
 ## Quick start
 
@@ -83,8 +82,14 @@ X = pd.read_csv("your_data.csv", index_col=0)
 X_scaled = MCUVScaler().fit_transform(X)
 
 pca = PCA(n_components=3).fit(X_scaled)
-print(pca.r2_cumulative_)        # cumulative R² per component
-pca.score_plot()                  # interactive Plotly plot
+print(pca.r2_cumulative_)         # cumulative R² per component
+pca.score_plot()                  # interactive Plotly figure
+
+# Flag outliers using combined T² and SPE limits at 95% confidence
+outliers = pca.detect_outliers(conf_level=0.95)
+
+# Which variables drove the first observation off?
+contrib = pca.score_contributions(pca.scores_.iloc[0].values)
 ```
 
 ### PLS - Projection to Latent Structures
@@ -97,40 +102,27 @@ scaler_x = MCUVScaler().fit(X)
 scaler_y = MCUVScaler().fit(Y)
 X_s, Y_s = scaler_x.transform(X), scaler_y.transform(Y)
 
-# Fit a PLS model
 pls = PLS(n_components=3).fit(X_s, Y_s)
+print(pls.beta_coefficients_)     # regression coefficients (K x M)
+print(pls.r2_cumulative_)         # cumulative R² for Y
+print(pls.vip())                  # VIP scores per X variable
 
-# Inspect results
-print(pls.scores_)  # X scores (N x A)
-print(pls.beta_coefficients_)  # Regression coefficients (K x M)
-print(pls.r2_cumulative_)  # Cumulative R² for Y
-
-# Predict new observations
+# Predict new observations, with diagnostics on the prediction
 result = pls.predict(scaler_x.transform(X_new))
-print(result.y_hat)  # Predicted Y values
-print(result.spe)  # SPE for new data
-print(result.hotellings_t2)  # Hotelling's T² for new data
-
-# Detect outliers and analyze contributions
-outliers = pls.detect_outliers(conf_level=0.95)
-contrib = pls.score_contributions(pls.scores_.iloc[0].values)
-
-# Variable importance
-print(pls.vip())  # VIP scores per X variable
+result.y_hat                      # point predictions
+result.spe                        # squared prediction error
+result.hotellings_t2              # Hotelling's T² for new observations
 
 # Cross-validated component selection
 cv_select = PLS.select_n_components(X_s, Y_s, max_components=6)
-print(cv_select.n_components)  # Recommended number of components
-print(cv_select.rmsecv)        # RMSECV per component count
+print(cv_select.n_components)     # recommended number of components
+print(cv_select.rmsecv)           # RMSECV per component count
 
-# Cross-validation with beta coefficient error bars
+# Cross-validation with beta-coefficient confidence intervals
 cv = pls.cross_validate(X_s, Y_s, cv="loo")
-print(cv.beta_mean)       # Mean beta across LOO resamples
-print(cv.beta_ci_lower)   # Lower 95% CI for each beta
-print(cv.beta_ci_upper)   # Upper 95% CI for each beta
-print(cv.significant)     # Which betas are significantly != 0
-print(cv.q_squared)       # Cross-validated R² (Q²)
-print(cv.rmse_cv)         # Cross-validated RMSE per Y variable
+print(cv.beta_ci_lower, cv.beta_ci_upper)   # 95% CI for each beta
+print(cv.significant)                       # betas significantly != 0
+print(cv.q_squared)                         # cross-validated R² (Q²)
 ```
 
 ### DOE - multi-stage experimental strategy
@@ -160,18 +152,14 @@ and the `process_improve/notebooks_examples/` folder.
 
 New to designed experiments? The
 [**Applied DoE tutorial**](https://kgdunn.github.io/process-improve/applied_doe/index.html)
-is an eight-module worked-solution series that mirrors the
-[12-week DoE short course](https://yint.org) and shows the same workflow
-in Python with `process-improve` end to end - from a 2x2 first design
-through factorial scaling, fractional factorials, blocking, and 1-D / 2-D
-response-surface optimization.
+is an eight-module worked-solution series.
 
 ## API design
 
 PCA and PLS follow scikit-learn conventions: `fit()` returns `self`, fitted
 attributes end with a trailing underscore (`scores_`, `loadings_`, `spe_`,
-`hotellings_t2_`, `r2_cumulative_`, …), and `predict()` returns an
-`sklearn.utils.Bunch` with named fields (`y_hat`, `spe`, `hotellings_t2`, …).
+`hotellings_t2_`, `r2_cumulative_`, ...), and `predict()` returns an
+`sklearn.utils.Bunch` with named fields (`y_hat`, `spe`, `hotellings_t2`, ...).
 Inputs are accepted as `pandas.DataFrame`, and index/column labels are
 preserved through `fit` and `transform`.
 
@@ -184,9 +172,28 @@ preserved through `fit` and `transform`.
 - **Hosted experiment-design tool:** [factori.al](https://factori.al)
 - **Local docs build:** `cd docs && make html`
 
+## Citing process-improve
+
+If you use this package in academic work, please cite it:
+
+```bibtex
+@software{dunn_process_improve,
+  author  = {Dunn, Kevin G.},
+  title   = {{process-improve: Multivariate Analysis for Process Improvement}},
+  year    = {2026},
+  version = {v1.21.3},
+  url     = {https://github.com/kgdunn/process-improve}
+}
+```
+
+A `CITATION.cff` file is included, so GitHub renders a *"Cite this
+repository"* button in the sidebar.
+
 ## Contributing
 
-Bug reports and feature requests are welcome on the
+Bug reports, feature requests, and pull requests are welcome. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing, and code
+style. Bugs and feature requests can be filed on the
 [issue tracker](https://github.com/kgdunn/process-improve/issues).
 
 ## License

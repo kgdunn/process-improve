@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "process-improve: Multivariate Analysis for Process Improvement"
+abstract: >-
+  A Python package for process improvement using data: multivariate analysis
+  (PCA, PLS, TPLS), designed experiments, process monitoring, and batch data
+  analysis.
+type: software
+authors:
+  - family-names: Dunn
+    given-names: Kevin G.
+repository-code: "https://github.com/kgdunn/process-improve"
+url: "https://kgdunn.github.io/process-improve/"
+license: MIT
+version: 1.21.3
+date-released: "2026-05-17"
+keywords:
+  - chemometrics
+  - multivariate analysis
+  - PCA
+  - PLS
+  - designed experiments
+  - process monitoring
+  - batch data analysis
