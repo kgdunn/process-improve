@@ -19,6 +19,15 @@ those changes.
   specification limit is passed as `None` (the limit is estimated from the
   data via `trim_percentile`).
 
+### Removed
+
+- `f_mad` and `f_robust_mad` batch feature functions. Both were
+  non-functional: `f_mad` relied on `DataFrameGroupBy.mad()` (removed in
+  pandas 2.0, below this project's supported pandas) and `f_robust_mad`
+  was an unfinished stub that always raised. The `"mad"` and
+  `"robust_mad"` keys are also removed from the batch feature dispatch
+  table.
+
 ## [1.21.4] - 2026-05-17
 
 ### Added
