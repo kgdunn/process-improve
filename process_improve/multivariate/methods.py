@@ -1793,13 +1793,10 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         use_bootstrap = n_bootstrap > 0
         if use_bootstrap:
             method = "bootstrap"
-            n_resamples = n_bootstrap
         elif cv == "loo":
             method = "jackknife"
-            n_resamples = N
         else:
             method = "kfold"
-            n_resamples = int(cv)
 
         # --- Collect beta coefficients (and out-of-fold predictions for CV) ---
         beta_collection: list[np.ndarray] = []
@@ -1823,6 +1820,7 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
                 y_hat_cv[i, :] = pred.y_hat.values.ravel()
 
         else:  # K-fold
+            n_resamples = int(cv)
             kf = KFold(n_splits=n_resamples, shuffle=True, random_state=random_state)
             desc = f"{n_resamples}-Fold CV"
             for train_idx, test_idx in tqdm(kf.split(X), total=n_resamples, desc=desc, disable=not show_progress):
