@@ -10,7 +10,7 @@ PCA
 ~~~
 
 .. autoclass:: PCA
-   :members: fit, predict, score, select_n_components, score_contributions, detect_outliers
+   :members: fit, transform, fit_transform, predict, score, select_n_components, score_contributions, detect_outliers
    :undoc-members:
    :show-inheritance:
 
@@ -18,7 +18,7 @@ PLS
 ~~~
 
 .. autoclass:: PLS
-   :members: fit, predict, score_contributions, detect_outliers
+   :members: fit, transform, fit_transform, predict, score, select_n_components, score_contributions, detect_outliers, cross_validate
    :undoc-members:
    :show-inheritance:
 
@@ -61,6 +61,11 @@ Multi-block PCA / consensus-PCA. Same dict-of-DataFrames API as
              super_score_plot, super_loadings_bar_plot
    :undoc-members:
    :show-inheritance:
+
+Analysis
+--------
+
+.. autofunction:: vip
 
 Preprocessing
 -------------

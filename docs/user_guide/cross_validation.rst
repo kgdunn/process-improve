@@ -1,5 +1,14 @@
+Cross-Validation
+=================
+
+Cross-validation is used for two purposes in multivariate analysis:
+
+1. **Component selection** - choosing the right number of components (PCA).
+2. **Coefficient uncertainty** - obtaining error bars for PLS beta
+   coefficients.
+
 Selecting the Number of Components
-===================================
+-----------------------------------
 
 Choosing the right number of components is critical. Too few components
 underfit (miss important structure), too many overfit (model noise).
@@ -50,3 +59,83 @@ improves prediction - it is likely fitting noise.
 
 Lower thresholds (e.g., 0.90) are more conservative (fewer components).
 Higher thresholds (e.g., 0.98) are more liberal (more components).
+
+PLS Component Selection
+------------------------
+
+``PLS.select_n_components()`` cross-validates a PLS model and reports how it
+performs on unseen data, in contrast to the calibration statistics stored on a
+fitted model (``rmse_``, ``r2_cumulative_``), which always improve as
+components are added.
+
+.. code-block:: python
+
+   from process_improve.multivariate.methods import PLS, MCUVScaler
+
+   X_s = MCUVScaler().fit_transform(X)
+   Y_s = MCUVScaler().fit_transform(Y)
+
+   result = PLS.select_n_components(X_s, Y_s, max_components=8, cv=5)
+
+   print(f"Recommended components: {result.n_components}")
+   print(result.rmsecv["total"])         # RMSECV per component count
+   print(result.r2y_validated["total"])  # Validated R2 of Y
+
+The result is a ``Bunch`` with:
+
+- ``n_components``: recommended count, the one with the lowest overall RMSECV
+- ``rmsecv``: root-mean-square error of cross-validation, per Y variable and overall
+- ``r2y_validated`` / ``r2x_validated``: validated explained variance, per variable and overall
+- ``press``: overall Y prediction error sum of squares per component count
+- ``cv_predictions``: out-of-fold Y predictions at the recommended count
+
+The ``cv`` argument accepts an integer (K-fold) or any scikit-learn splitter
+object, such as ``KFold`` or ``LeaveOneOut``.
+
+PLS Beta Coefficient Error Bars
+--------------------------------
+
+For PLS models, ``model.cross_validate()`` refits the model on data subsets
+and computes confidence intervals for the regression coefficients. This answers
+the question: *"How reliable is each beta coefficient?"*
+
+Three resampling strategies are supported:
+
+- **Jackknife** (``cv="loo"``, default) - leave-one-out resampling. Uses the
+  jackknife variance formula with t-distribution critical values.
+- **K-fold** (``cv=5``) - K-fold cross-validation. Faster for large datasets.
+- **Bootstrap** (``n_bootstrap=200``) - resample with replacement. Uses
+  percentile confidence intervals.
+
+.. code-block:: python
+
+   from process_improve.multivariate.methods import PLS, MCUVScaler
+
+   scaler_x = MCUVScaler().fit(X)
+   scaler_y = MCUVScaler().fit(Y)
+   X_s, Y_s = scaler_x.transform(X), scaler_y.transform(Y)
+
+   pls = PLS(n_components=2).fit(X_s, Y_s)
+
+   # Jackknife (leave-one-out) cross-validation
+   cv = pls.cross_validate(X_s, Y_s, cv="loo")
+
+   print(cv.significant)      # Which betas have CIs excluding zero
+   print(cv.beta_ci_lower)    # Lower 95% CI
+   print(cv.beta_ci_upper)    # Upper 95% CI
+   print(cv.q_squared)        # Cross-validated R² (Q²)
+   print(cv.rmse_cv)          # Cross-validated RMSE
+
+The result is a ``Bunch`` with:
+
+- ``beta_mean``, ``beta_std``: mean and standard error of betas across
+  resamples
+- ``beta_ci_lower``, ``beta_ci_upper``: confidence interval bounds
+- ``significant``: boolean mask - ``True`` where the CI excludes zero
+- ``beta_samples``: raw betas from every resample (n_resamples × K × M)
+- ``y_hat_cv``: out-of-fold Y predictions (jackknife / K-fold only)
+- ``press``: Prediction Error Sum of Squares
+- ``rmse_cv``: cross-validated RMSE per Y variable
+- ``q_squared``: cross-validated R² (Q²) per Y variable
+
+See :doc:`pls` for detailed documentation and additional examples.

@@ -36,8 +36,8 @@ pandas-native throughout.
 - **PCA** with SVD and NIPALS algorithms, plus missing-data via Trimmed Score Regression
 - **PLS** regression with a fully sklearn-compatible API
 - **TPLS** - PLS for *T-shaped data structures*
-- Diagnostics: Hotelling's T², SPE, score contributions, and ESD-based outlier detection
-- Component selection via PRESS / Wold's criterion
+- Diagnostics: Hotelling's T², SPE, score contributions, VIP, and ESD-based outlier detection
+- Cross-validation: PRESS / Wold's component selection, PLS RMSECV with validated explained variance, and PLS beta-coefficient error bars
 - Interactive Plotly score, loading, SPE, and T² plots, bound directly to fitted models
 
 ### 📈 Process Monitoring
@@ -92,12 +92,45 @@ pca.score_plot()                  # interactive Plotly plot
 ```python
 from process_improve.multivariate.methods import PLS, MCUVScaler
 
-X_s = MCUVScaler().fit_transform(X)
-Y_s = MCUVScaler().fit_transform(Y)
+# Scale X and Y separately
+scaler_x = MCUVScaler().fit(X)
+scaler_y = MCUVScaler().fit(Y)
+X_s, Y_s = scaler_x.transform(X), scaler_y.transform(Y)
 
+# Fit a PLS model
 pls = PLS(n_components=3).fit(X_s, Y_s)
-result = pls.predict(X_s)
-print(result.y_hat, result.spe, result.hotellings_t2)
+
+# Inspect results
+print(pls.scores_)  # X scores (N x A)
+print(pls.beta_coefficients_)  # Regression coefficients (K x M)
+print(pls.r2_cumulative_)  # Cumulative R² for Y
+
+# Predict new observations
+result = pls.predict(scaler_x.transform(X_new))
+print(result.y_hat)  # Predicted Y values
+print(result.spe)  # SPE for new data
+print(result.hotellings_t2)  # Hotelling's T² for new data
+
+# Detect outliers and analyze contributions
+outliers = pls.detect_outliers(conf_level=0.95)
+contrib = pls.score_contributions(pls.scores_.iloc[0].values)
+
+# Variable importance
+print(pls.vip())  # VIP scores per X variable
+
+# Cross-validated component selection
+cv_select = PLS.select_n_components(X_s, Y_s, max_components=6)
+print(cv_select.n_components)  # Recommended number of components
+print(cv_select.rmsecv)        # RMSECV per component count
+
+# Cross-validation with beta coefficient error bars
+cv = pls.cross_validate(X_s, Y_s, cv="loo")
+print(cv.beta_mean)       # Mean beta across LOO resamples
+print(cv.beta_ci_lower)   # Lower 95% CI for each beta
+print(cv.beta_ci_upper)   # Upper 95% CI for each beta
+print(cv.significant)     # Which betas are significantly != 0
+print(cv.q_squared)       # Cross-validated R² (Q²)
+print(cv.rmse_cv)         # Cross-validated RMSE per Y variable
 ```
 
 ### DOE - multi-stage experimental strategy
