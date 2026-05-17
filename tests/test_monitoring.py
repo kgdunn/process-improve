@@ -195,6 +195,25 @@ def test_cpk_column_name_specs() -> None:
     assert cpk_col == pytest.approx(cpk_numeric, abs=0.01)
 
 
+def test_cpk_estimates_specs_from_data_when_none() -> None:
+    """When a spec is None, it is estimated from the data via trim_percentile."""
+    rng = np.random.default_rng(7)
+    data = pd.DataFrame({"value": rng.normal(loc=50, scale=2, size=500)})
+    cpk = calculate_cpk(data, "value", specifications=(None, None), trim_percentile=2.5)
+    assert np.isfinite(cpk)
+
+
+def test_metrics_renamed_attribute_raises_helpful_error() -> None:
+    """Accessing the old `calculate_Cpk` name should raise a rename hint."""
+    import process_improve.monitoring.metrics as metrics_module
+
+    with pytest.raises(AttributeError, match="calculate_cpk"):
+        _ = metrics_module.calculate_Cpk
+
+    with pytest.raises(AttributeError, match="no attribute"):
+        _ = metrics_module.does_not_exist
+
+
 class TestHoltWintersControlChartBatchYield:
     """Validate Holt-Winters control chart on batch yield data.
 
