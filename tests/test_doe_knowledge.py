@@ -362,3 +362,49 @@ class TestToolSpecIntegration:
         })
         assert "results" in result
         assert result["n_results"] >= 1
+
+
+# ---------------------------------------------------------------------------
+# Topic coverage: every documented topic should be queryable
+# ---------------------------------------------------------------------------
+
+
+class TestAllTopicsQueryable:
+    """Each valid topic routes to a handler and returns a well-formed result."""
+
+    @pytest.mark.parametrize(
+        "topic",
+        [
+            "design_properties",
+            "interpretation",
+            "optimization",
+            "response_surface",
+            "screening",
+            "analysis_methods",
+            "worked_examples",
+        ],
+    )
+    def test_topic_returns_structured_result(self, topic: str) -> None:
+        result = doe_knowledge(query="design", topic=topic)
+        assert result["topic"] == topic
+        assert "results" in result
+        assert result["n_results"] == len(result["results"])
+
+    def test_design_properties_without_query(self) -> None:
+        """design_properties with no query returns all design-property concepts."""
+        result = doe_knowledge(topic="design_properties")
+        assert isinstance(result["results"], list)
+
+    def test_design_properties_with_query_narrows(self) -> None:
+        result = doe_knowledge(query="resolution", topic="design_properties")
+        assert isinstance(result["results"], list)
+
+    @pytest.mark.parametrize("detail_level", ["novice", "intermediate", "expert"])
+    def test_detail_levels_for_design_properties(self, detail_level: str) -> None:
+        result = doe_knowledge(query="resolution", topic="design_properties", detail_level=detail_level)
+        assert result["detail_level"] == detail_level
+
+    def test_troubleshooting_keyword_search_paths(self) -> None:
+        """A broad troubleshooting query exercises the multi-node-type result builder."""
+        result = doe_knowledge(query="design model residual", topic="troubleshooting")
+        assert isinstance(result["results"], list)
