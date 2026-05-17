@@ -67,6 +67,10 @@ Analysis
 
 .. autofunction:: vip
 
+.. autofunction:: rv_coefficient
+
+.. autofunction:: rv2_coefficient
+
 Preprocessing
 -------------
 
