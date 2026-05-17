@@ -16,7 +16,11 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Only cancel redundant in-progress runs for pull requests. Pushes to main
+  # share a single concurrency group (no pull_request.number), so a blanket
+  # cancel-in-progress would abort an earlier merge commit's run as soon as the
+  # next commit lands, leaving it marked as cancelled rather than tested.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint:

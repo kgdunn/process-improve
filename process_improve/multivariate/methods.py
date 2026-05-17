@@ -2018,10 +2018,19 @@ def terminate_check(t_a_guess: np.ndarray, t_a: np.ndarray, iterations: int, set
 
 def quick_regress(Y: np.ndarray, x: np.ndarray) -> np.ndarray:
     """
-    Regress vector `x` onto the columns in matrix ``Y`` one at a time.
-    Return the vector of regression coefficients, one for each column in `Y`.
-    There may be missing data in `Y`, but not in `x`.  The `x` vector
-    *must* be a column vector.
+    Quick least-squares regression with two shape-driven modes.
+
+    The mode is selected from the shapes of ``Y`` (``Ny`` x ``K``) and ``x`` (``Nx`` x 1):
+
+    * **Case A** (``Ny == Nx``): regress ``x`` onto each column of ``Y`` one at a
+      time. Returns a ``(K, 1)`` vector of coefficients ``b_k = (x' y_k) / (x' x)``,
+      one per column of ``Y``.
+    * **Case B** (``Nx == K``): regress ``x`` onto each row of ``Y`` one at a
+      time. Returns a ``(Ny, 1)`` vector of coefficients ``b_n = (y_n x) / (x' x)``,
+      one per row of ``Y``.
+
+    There may be missing data in ``Y``, but not in ``x``. The ``x`` vector
+    *must* be a column vector. Raises ``ValueError`` if neither case matches.
     """
     Ny, K = Y.shape
     Nx = x.shape[0]

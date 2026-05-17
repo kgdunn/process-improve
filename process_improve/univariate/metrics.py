@@ -504,7 +504,7 @@ def median_absolute_deviation(
         argument.
     nan_policy : {'propagate', 'raise', 'omit'}, optional
         Defines how to handle when input contains nan.
-        The following options are available (default is 'propagate'):
+        The following options are available (default is 'omit'):
         * 'propagate': returns nan
         * 'raise': throws an error
         * 'omit': performs the calculations ignoring nan values

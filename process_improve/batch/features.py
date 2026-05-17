@@ -243,6 +243,13 @@ def f_mad(
     Since the mean can be biased by outliers, the MAD can also be biased. If
     an unbiased estimate is required, see `f_robust_mad`.
 
+    .. warning::
+        This function calls ``DataFrameGroupBy.mad()``, which was
+        deprecated in pandas 1.5 and **removed in pandas 2.0**. On a
+        modern pandas it raises ``AttributeError``. Until the
+        implementation is rewritten in terms of ``apply``, callers on
+        pandas >= 2.0 cannot use this function.
+
     See also: f_std, f_iqr, f_robust_mad
     """
     base_name = "mad"
