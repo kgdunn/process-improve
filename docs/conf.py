@@ -83,4 +83,6 @@ html_theme_options = {
     "github_url": "https://github.com/kgdunn/process_improve",
     "show_toc_level": 2,
     "navigation_with_keys": True,
+    "pygments_light_style": "default",
+    "pygments_dark_style": "monokai",
 }
