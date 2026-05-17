@@ -547,6 +547,7 @@ def _optimize_desirability(
     evaluators = [_build_model_evaluator(m["coefficients"], factor_names) for m in fitted_models]
 
     def neg_composite(x: np.ndarray) -> float:
+        """Return the negated composite desirability at coded settings ``x``, for minimization."""
         d_vals = []
         for evaluator, goal in zip(evaluators, goals, strict=True):
             y_pred = evaluator(x)

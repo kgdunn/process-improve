@@ -37,6 +37,7 @@ def register_plot(plot_type: str):  # noqa: ANN201
     """
 
     def decorator(cls: type[BasePlot]) -> type[BasePlot]:
+        """Register ``cls`` under ``plot_type`` and return it unchanged."""
         _PLOT_REGISTRY[plot_type] = cls
         return cls
 
