@@ -18,6 +18,9 @@ those changes.
 - `calculate_cpk` no longer raises a `TypeError` under NumPy 2.x when a
   specification limit is passed as `None` (the limit is estimated from the
   data via `trim_percentile`).
+- `c()` no longer raises an `AttributeError` when building a categorical
+  factor column from non-numeric values without an explicit `levels`
+  argument; the levels are now sorted correctly.
 
 ### Removed
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from process_improve.experiments.structures import c, create_names
 
@@ -52,3 +53,21 @@ class TestColumnCoding:
         assert len(extended) == 5
         assert "Temp" in extended.name
         assert list(extended.values) == [-1, 0, 1, 1, -1]
+
+
+class TestColumnConstruction:
+    """The c() factory across input shapes."""
+
+    def test_accepts_a_numpy_array(self) -> None:
+        col = c(np.array([1.0, 2.0, 3.0, 4.0]))
+        assert len(col) == 4
+        assert list(col.values) == [1.0, 2.0, 3.0, 4.0]
+
+    def test_categorical_values_without_explicit_levels(self) -> None:
+        """Non-numeric values infer their levels from the unique entries."""
+        col = c(["low", "high", "low", "high"])
+        assert set(col.pi_levels[col.pi_name]) == {"low", "high"}
+
+    def test_non_iterable_range_raises_type_error(self) -> None:
+        with pytest.raises(TypeError, match="iterable"):
+            c(1, 2, 3, 4, range=99)

@@ -314,8 +314,9 @@ def c(*args, **kwargs) -> Column:  # noqa: C901, PLR0912, PLR0915
             )
         out.pi_levels = {out.pi_name: levels_list}
     else:
-        levels = out.unique()
-        levels.sort()
+        # np.sort handles both ndarray (numeric columns) and pandas
+        # extension arrays (e.g. StringArray for categorical columns).
+        levels = np.sort(out.unique())
         out.pi_levels = {out.pi_name: levels.tolist()}  # for use with Patsy
 
     units = kwargs.get("units", "")
