@@ -32,6 +32,8 @@ from process_improve.multivariate.methods import (
     project_variables,
     quick_regress,
     regress_a_space_on_b_row,
+    rv2_coefficient,
+    rv_coefficient,
     scale,
     squared_cosine,
     ssq,
@@ -2949,6 +2951,105 @@ def test_diagnostics_unfitted_raise() -> None:
             eigenvalue_summary(unfitted)
         with pytest.raises(ValueError, match="not fitted"):
             project_variables(unfitted, pd.DataFrame(np.zeros((3, 2))))
+
+
+def test_rv_coefficient_basic() -> None:
+    """RV coefficient: identity, rotation/scale invariance, range, symmetry."""
+    rng = np.random.default_rng(0)
+    X = rng.standard_normal((40, 6))
+
+    # A block is perfectly correlated with itself.
+    assert rv_coefficient(X, X) == pytest.approx(1.0)
+
+    # RV is invariant to an orthogonal rotation and an overall rescaling.
+    rotation, _ = np.linalg.qr(rng.standard_normal((6, 6)))
+    assert rv_coefficient(X, 3.0 * X @ rotation) == pytest.approx(1.0)
+
+    # An unrelated block gives a value strictly inside [0, 1].
+    Y = rng.standard_normal((40, 4))
+    rv = rv_coefficient(X, Y)
+    assert 0.0 <= rv <= 1.0
+
+    # The coefficient is symmetric in its two arguments.
+    assert rv_coefficient(X, Y) == pytest.approx(rv_coefficient(Y, X))
+
+
+def test_rv2_coefficient_basic() -> None:
+    """Modified RV coefficient: identity, rotation invariance, symmetry."""
+    rng = np.random.default_rng(1)
+    X = rng.standard_normal((35, 5))
+
+    assert rv2_coefficient(X, X) == pytest.approx(1.0)
+
+    rotation, _ = np.linalg.qr(rng.standard_normal((5, 5)))
+    assert rv2_coefficient(X, 2.5 * X @ rotation) == pytest.approx(1.0)
+
+    Y = rng.standard_normal((35, 7))
+    assert rv2_coefficient(X, Y) == pytest.approx(rv2_coefficient(Y, X))
+    assert -1.0 <= rv2_coefficient(X, Y) <= 1.0
+
+
+def test_rv2_unbiased_for_high_dimensional_data() -> None:
+    """RV is inflated for many-variable data; RV2 corrects that bias."""
+    rng = np.random.default_rng(2)
+    # Two independent blocks with far more variables than observations.
+    A = rng.standard_normal((80, 400))
+    B = rng.standard_normal((80, 400))
+
+    rv = rv_coefficient(A, B)
+    rv2 = rv2_coefficient(A, B)
+
+    # The ordinary RV coefficient is inflated towards 1 here.
+    assert rv > 0.7
+    # The modified coefficient stays close to 0 for genuinely unrelated blocks.
+    assert abs(rv2) < 0.3
+    assert rv2 < rv
+
+
+def test_rv_coefficient_inputs_and_errors() -> None:
+    """RV accepts DataFrames and ndarrays, and validates its inputs."""
+    rng = np.random.default_rng(3)
+    X = rng.standard_normal((25, 4))
+    Y = rng.standard_normal((25, 6))
+
+    # DataFrame and ndarray inputs give the same answer.
+    from_arrays = rv_coefficient(X, Y)
+    from_frames = rv_coefficient(pd.DataFrame(X), pd.DataFrame(Y))
+    assert from_arrays == pytest.approx(from_frames)
+
+    # A 1-D block (a single variable) is treated as one column.
+    one_d = rng.standard_normal(25)
+    assert np.isfinite(rv_coefficient(one_d, Y))
+    assert rv2_coefficient(one_d, one_d) == pytest.approx(1.0)
+
+    # Mismatched row counts raise a clear error.
+    with pytest.raises(ValueError, match="same number of rows"):
+        rv_coefficient(X, rng.standard_normal((10, 3)))
+
+    # A 3-D array is not a valid data block.
+    with pytest.raises(ValueError, match="1- or 2-dimensional"):
+        rv_coefficient(rng.standard_normal((25, 2, 3)), Y)
+
+    # A block with no variance has an undefined coefficient.
+    assert np.isnan(rv_coefficient(np.ones((25, 3)), Y))
+    assert np.isnan(rv2_coefficient(X, np.full((25, 3), 7.0)))
+
+
+def test_rv_coefficient_ldpe(
+    fixture_pls_ldpe_example: dict[str, pd.DataFrame | np.ndarray | float | int],
+) -> None:
+    """RV / RV2 give sensible values on the real LDPE process and quality blocks."""
+    data = fixture_pls_ldpe_example
+    X = MCUVScaler().fit_transform(pd.DataFrame(data["X"]))
+    Y = MCUVScaler().fit_transform(pd.DataFrame(data["Y"]))
+
+    rv = rv_coefficient(X, Y)
+    rv2 = rv2_coefficient(X, Y)
+
+    # Process and quality blocks share real structure: a positive coefficient.
+    assert 0.0 < rv <= 1.0
+    assert np.isfinite(rv2)
+    assert rv2 < rv
 
 
 # n_components = 3

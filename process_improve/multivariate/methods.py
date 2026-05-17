@@ -402,6 +402,139 @@ def project_variables(model: PCA | PLS, supplementary_data: DataMatrix) -> pd.Da
     return pd.DataFrame(correlations, index=supplementary_data.columns, columns=scores.columns)
 
 
+def _column_centred_array(data: DataMatrix, name: str) -> np.ndarray:
+    """Coerce *data* to a 2-D float array with every column mean-centred."""
+    arr = data.to_numpy(dtype=float) if isinstance(data, pd.DataFrame) else np.asarray(data, dtype=float)
+    if arr.ndim == 1:
+        arr = arr.reshape(-1, 1)
+    if arr.ndim != 2:
+        msg = f"{name} must be 1- or 2-dimensional, got {arr.ndim} dimensions."
+        raise ValueError(msg)
+    return np.asarray(center(arr), dtype=float)
+
+
+def _matrix_correlation(X: DataMatrix, Y: DataMatrix, *, modified: bool) -> float:
+    """Shared core of the RV and modified-RV (RV2) coefficients."""
+    x_centred = _column_centred_array(X, "X")
+    y_centred = _column_centred_array(Y, "Y")
+    if x_centred.shape[0] != y_centred.shape[0]:
+        msg = f"X and Y must have the same number of rows; got {x_centred.shape[0]} and {y_centred.shape[0]}."
+        raise ValueError(msg)
+
+    s_x = x_centred @ x_centred.T
+    s_y = y_centred @ y_centred.T
+    if modified:
+        np.fill_diagonal(s_x, 0.0)
+        np.fill_diagonal(s_y, 0.0)
+
+    denominator = np.sqrt(np.sum(s_x * s_x) * np.sum(s_y * s_y))
+    if denominator == 0.0:
+        return float("nan")
+    return float(np.sum(s_x * s_y) / denominator)
+
+
+def rv_coefficient(X: DataMatrix, Y: DataMatrix) -> float:
+    """Compute the RV coefficient between two data blocks.
+
+    The RV coefficient (Robert and Escoufier, 1976) measures how much common
+    structure two matrices, measured on the *same observations*, share. It is a
+    multivariate generalisation of the squared Pearson correlation: it compares
+    the observation-by-observation configuration matrices :math:`XX^T` and
+    :math:`YY^T` rather than individual variables.
+
+    Parameters
+    ----------
+    X : array-like of shape (n_samples, n_features_x)
+        First data block.
+    Y : array-like of shape (n_samples, n_features_y)
+        Second data block. Must have the same number of rows as *X*; the
+        number of columns may differ.
+
+    Returns
+    -------
+    float
+        The RV coefficient in the range [0, 1]. A value of 1 means the two
+        blocks describe the same configuration of observations up to a
+        rotation and an overall scaling; 0 means no shared structure.
+        ``nan`` is returned if either block has no variance.
+
+    Notes
+    -----
+    Each column is mean-centred internally, since the RV coefficient is defined
+    on centred data. The blocks are **not** scaled; scale the columns yourself
+    (for example with :class:`MCUVScaler`) when the variables have different
+    units.
+
+    For high-dimensional data (many more variables than observations) the RV
+    coefficient is biased upwards and tends towards 1 even for unrelated
+    blocks. Use :func:`rv2_coefficient` in that regime.
+
+    References
+    ----------
+    Robert, P. and Escoufier, Y. (1976). A unifying tool for linear
+    multivariate statistical methods: the RV-coefficient. *Journal of the
+    Royal Statistical Society, Series C*, 25(3), 257-265.
+
+    See Also
+    --------
+    rv2_coefficient : Modified RV coefficient, unbiased for high-dimensional data.
+
+    Examples
+    --------
+    >>> rv_coefficient(X, Y)
+    >>> rv_coefficient(X, X)  # 1.0: a block is perfectly correlated with itself
+    """
+    return _matrix_correlation(X, Y, modified=False)
+
+
+def rv2_coefficient(X: DataMatrix, Y: DataMatrix) -> float:
+    """Compute the modified RV coefficient (RV2) between two data blocks.
+
+    The modified RV coefficient (Smilde et al., 2009) is a variant of
+    :func:`rv_coefficient` that removes the diagonals of the configuration
+    matrices :math:`XX^T` and :math:`YY^T` before comparing them. This removes
+    the upward bias that makes the ordinary RV coefficient tend towards 1 for
+    high-dimensional data, so RV2 stays near 0 for genuinely unrelated blocks.
+
+    Parameters
+    ----------
+    X : array-like of shape (n_samples, n_features_x)
+        First data block.
+    Y : array-like of shape (n_samples, n_features_y)
+        Second data block. Must have the same number of rows as *X*; the
+        number of columns may differ.
+
+    Returns
+    -------
+    float
+        The modified RV coefficient, in the range [-1, 1]. A value of 1 means
+        the two blocks describe the same configuration of observations; values
+        near 0 mean no shared structure, and small negative values can occur.
+        ``nan`` is returned if either block has no variance.
+
+    Notes
+    -----
+    Each column is mean-centred internally but the blocks are **not** scaled;
+    scale the columns yourself (for example with :class:`MCUVScaler`) when the
+    variables have different units.
+
+    References
+    ----------
+    Smilde, A. K., Kiers, H. A. L., Bijlsma, S., Rubingh, C. M. and van Erk,
+    M. J. (2009). Matrix correlations for high-dimensional data: the modified
+    RV-coefficient. *Bioinformatics*, 25(3), 401-405.
+
+    See Also
+    --------
+    rv_coefficient : The original RV coefficient.
+
+    Examples
+    --------
+    >>> rv2_coefficient(X, Y)
+    """
+    return _matrix_correlation(X, Y, modified=True)
+
+
 class PCA(TransformerMixin, BaseEstimator):
     """Principal Component Analysis with support for missing data.
 
