@@ -6,7 +6,12 @@ from process_improve.multivariate.methods import (
     TPLS,
     MCUVScaler,
     center,
+    eigenvalue_summary,
+    observation_contributions,
+    project_variables,
     scale,
+    squared_cosine,
+    vip,
 )
 from process_improve.multivariate.plots import (
     loading_plot,
@@ -21,9 +26,14 @@ __all__ = [
     "TPLS",
     "MCUVScaler",
     "center",
+    "eigenvalue_summary",
     "loading_plot",
+    "observation_contributions",
+    "project_variables",
     "scale",
     "score_plot",
     "spe_plot",
+    "squared_cosine",
     "t2_plot",
+    "vip",
 ]

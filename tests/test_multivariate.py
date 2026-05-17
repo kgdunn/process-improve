@@ -24,12 +24,16 @@ from process_improve.multivariate.methods import (
     MCUVScaler,
     SpecificationWarning,
     center,
+    eigenvalue_summary,
     ellipse_coordinates,
     epsqrt,
     nan_to_zeros,
+    observation_contributions,
+    project_variables,
     quick_regress,
     regress_a_space_on_b_row,
     scale,
+    squared_cosine,
     ssq,
     vip,
 )
@@ -2777,6 +2781,174 @@ def test_t2_plot_accepts_valid_conf_level(fixture_pca_for_plots: PCA) -> None:
     """t2_plot should accept `conf_level` strictly inside (0, 1)."""
     fig = fixture_pca_for_plots.t2_plot(settings={"conf_level": 0.99})
     assert isinstance(fig, go.Figure)
+
+
+# ---- Per-observation diagnostics: cos2, contributions, eigenvalue summary, supplementary variables ----
+
+
+def test_squared_cosine_pca() -> None:
+    """cos2 for a fitted PCA model: shape, range, and agreement with the bound method."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.standard_normal((40, 6)), columns=[f"V{i}" for i in range(6)])
+    model = PCA(n_components=3).fit(MCUVScaler().fit_transform(X))
+
+    standalone = squared_cosine(model)
+    bound = model.squared_cosine()
+    assert standalone.equals(bound)
+
+    assert isinstance(standalone, pd.DataFrame)
+    assert standalone.shape == (40, 3)
+    assert standalone.index.equals(model.scores_.index)
+    assert list(standalone.columns) == list(model.scores_.columns)
+    assert ((standalone.to_numpy() >= 0) & (standalone.to_numpy() <= 1 + 1e-9)).all()
+
+    # cos2 over all components plus the residual fraction must sum to 1 per row.
+    residual_ss = model.spe_.iloc[:, -1].to_numpy() ** 2
+    score_ss = (model.scores_.to_numpy() ** 2).sum(axis=1)
+    residual_fraction = residual_ss / (score_ss + residual_ss)
+    assert standalone.sum(axis=1).to_numpy() + residual_fraction == pytest.approx(1.0, abs=1e-9)
+
+
+def test_squared_cosine_pls() -> None:
+    """cos2 works for PLS and matches the bound method."""
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame(rng.standard_normal((40, 5)), columns=[f"X{i}" for i in range(5)])
+    beta = np.array([[2.0], [1.0], [-1.0], [0.5], [0.0]])
+    Y = pd.DataFrame(X.values @ beta + rng.standard_normal((40, 1)) * 0.3, columns=["y"])
+    model = PLS(n_components=2).fit(MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y))
+
+    bound = model.squared_cosine()
+    assert squared_cosine(model).equals(bound)
+    assert bound.shape == (40, 2)
+    assert ((bound.to_numpy() >= 0) & (bound.to_numpy() <= 1 + 1e-9)).all()
+
+
+def test_squared_cosine_n_components() -> None:
+    """cos2 honours n_components and rejects out-of-range values."""
+    rng = np.random.default_rng(2)
+    X = pd.DataFrame(rng.standard_normal((30, 5)), columns=list("ABCDE"))
+    model = PCA(n_components=3).fit(MCUVScaler().fit_transform(X))
+
+    assert model.squared_cosine(n_components=2).shape == (30, 2)
+    # Restricting the number of components does not change the values that remain.
+    assert model.squared_cosine(n_components=2).equals(model.squared_cosine().iloc[:, :2])
+
+    with pytest.raises(ValueError, match="n_components"):
+        model.squared_cosine(n_components=0)
+    with pytest.raises(ValueError, match="n_components"):
+        model.squared_cosine(n_components=99)
+
+
+def test_observation_contributions_pca() -> None:
+    """Observation contributions for PCA: each component column sums to 1."""
+    rng = np.random.default_rng(3)
+    X = pd.DataFrame(rng.standard_normal((35, 6)), columns=[f"V{i}" for i in range(6)])
+    model = PCA(n_components=3).fit(MCUVScaler().fit_transform(X))
+
+    standalone = observation_contributions(model)
+    bound = model.observation_contributions()
+    assert standalone.equals(bound)
+
+    assert standalone.shape == (35, 3)
+    assert (standalone.to_numpy() >= 0).all()
+    assert standalone.sum(axis=0).to_numpy() == pytest.approx(1.0, abs=1e-9)
+
+
+def test_observation_contributions_pls() -> None:
+    """Observation contributions for PLS: each component column sums to 1."""
+    rng = np.random.default_rng(4)
+    X = pd.DataFrame(rng.standard_normal((35, 5)), columns=[f"X{i}" for i in range(5)])
+    beta = np.array([[1.5], [-0.5], [1.0], [0.0], [0.7]])
+    Y = pd.DataFrame(X.values @ beta + rng.standard_normal((35, 1)) * 0.2, columns=["y"])
+    model = PLS(n_components=2).fit(MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y))
+
+    contributions = model.observation_contributions()
+    assert contributions.shape == (35, 2)
+    assert contributions.sum(axis=0).to_numpy() == pytest.approx(1.0, abs=1e-9)
+
+    with pytest.raises(ValueError, match="n_components"):
+        model.observation_contributions(n_components=5)
+
+
+def test_eigenvalue_summary_pca(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarray]) -> None:
+    """Eigenvalue summary for PCA on a real dataset: tidy table, monotone cumulative."""
+    spectra, _ = fixture_tablet_spectra_data
+    model = PCA(n_components=4).fit(MCUVScaler().fit_transform(spectra))
+
+    summary = eigenvalue_summary(model)
+    assert model.eigenvalue_summary().equals(summary)
+    assert list(summary.columns) == ["eigenvalue", "percent_variance", "cumulative_percent"]
+    assert summary.index.name == "component"
+    assert len(summary) == 4
+
+    # Cumulative percentage is non-decreasing and matches r2_cumulative_.
+    cumulative = summary["cumulative_percent"].to_numpy()
+    assert np.all(np.diff(cumulative) >= -1e-9)
+    assert cumulative == pytest.approx(model.r2_cumulative_.to_numpy() * 100.0)
+    # The R reference (prcomp) reports ~95.85% cumulative variance for 4 components.
+    assert cumulative[-1] == pytest.approx(95.846, abs=0.5)
+
+
+def test_eigenvalue_summary_pls() -> None:
+    """Eigenvalue summary works for PLS."""
+    rng = np.random.default_rng(5)
+    X = pd.DataFrame(rng.standard_normal((40, 5)), columns=[f"X{i}" for i in range(5)])
+    beta = np.array([[2.0], [1.0], [-1.0], [0.5], [0.0]])
+    Y = pd.DataFrame(X.values @ beta + rng.standard_normal((40, 1)) * 0.3, columns=["y"])
+    model = PLS(n_components=3).fit(MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y))
+
+    summary = model.eigenvalue_summary()
+    assert list(summary.columns) == ["eigenvalue", "percent_variance", "cumulative_percent"]
+    assert len(summary) == 3
+    assert summary["cumulative_percent"].iloc[-1] == pytest.approx(model.r2_cumulative_.iloc[-1] * 100.0)
+
+
+def test_project_variables_recovers_scores() -> None:
+    """Projecting the score matrix as supplementary variables yields the identity."""
+    rng = np.random.default_rng(6)
+    X = pd.DataFrame(rng.standard_normal((50, 6)), columns=[f"V{i}" for i in range(6)])
+    model = PCA(n_components=3).fit(MCUVScaler().fit_transform(X))
+
+    # PCA scores are mutually orthogonal, so projecting them as supplementary
+    # variables must give an (almost) identity correlation matrix.
+    projected = model.project_variables(model.scores_)
+    assert projected.shape == (3, 3)
+    assert projected.to_numpy() == pytest.approx(np.eye(3), abs=1e-9)
+
+
+def test_project_variables_pls_and_errors() -> None:
+    """project_variables works for PLS and validates the row count."""
+    rng = np.random.default_rng(7)
+    X = pd.DataFrame(rng.standard_normal((40, 5)), columns=[f"X{i}" for i in range(5)])
+    beta = np.array([[2.0], [1.0], [-1.0], [0.5], [0.0]])
+    Y = pd.DataFrame(X.values @ beta + rng.standard_normal((40, 1)) * 0.3, columns=["y"])
+    model = PLS(n_components=2).fit(MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y))
+
+    supplementary = pd.DataFrame(rng.standard_normal((40, 3)), columns=["s1", "s2", "s3"])
+    projected = model.project_variables(supplementary)
+    assert projected.shape == (3, 2)
+    assert list(projected.index) == ["s1", "s2", "s3"]
+    assert ((projected.to_numpy() >= -1 - 1e-9) & (projected.to_numpy() <= 1 + 1e-9)).all()
+
+    # The standalone function agrees with the bound method.
+    assert project_variables(model, supplementary).equals(projected)
+
+    # A supplementary block with the wrong number of rows must raise.
+    with pytest.raises(ValueError, match="rows"):
+        model.project_variables(pd.DataFrame(rng.standard_normal((10, 2))))
+
+
+def test_diagnostics_unfitted_raise() -> None:
+    """The new diagnostics raise a clear error on an unfitted model."""
+    for unfitted in (PCA(n_components=2), PLS(n_components=2)):
+        with pytest.raises(ValueError, match="not fitted"):
+            squared_cosine(unfitted)
+        with pytest.raises(ValueError, match="not fitted"):
+            observation_contributions(unfitted)
+        with pytest.raises(ValueError, match="not fitted"):
+            eigenvalue_summary(unfitted)
+        with pytest.raises(ValueError, match="not fitted"):
+            project_variables(unfitted, pd.DataFrame(np.zeros((3, 2))))
 
 
 # n_components = 3
