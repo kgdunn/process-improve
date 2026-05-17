@@ -12,7 +12,7 @@ import pytest
 from scipy.sparse import csr_matrix
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.model_selection import KFold, cross_val_score
+from sklearn.model_selection import KFold, LeaveOneOut, cross_val_score
 from sklearn.utils import Bunch
 
 from process_improve.multivariate.methods import (
@@ -1845,6 +1845,119 @@ def test_pls_detect_outliers_ldpe(
         assert set(outliers[0].keys()) == keys
         severities = [o["severity"] for o in outliers]
         assert severities == sorted(severities, reverse=True)
+
+
+def test_pls_select_n_components_synthetic() -> None:
+    """Cross-validated component selection recovers a known low-rank structure."""
+    rng = np.random.default_rng(42)
+    N, K = 30, 25
+
+    # X is driven by 2 latent factors; Y depends only on those same 2 factors.
+    # With N < K and moderate noise, components beyond 2 overfit, so RMSECV
+    # has a clear minimum at the true rank.
+    T_true = rng.normal(size=(N, 2))
+    P_true = rng.normal(size=(K, 2))
+    X = pd.DataFrame(T_true @ P_true.T + 0.8 * rng.normal(size=(N, K)), columns=[f"x{i}" for i in range(K)])
+    gamma = rng.normal(size=(2, 1))
+    Y = pd.DataFrame(T_true @ gamma + 0.3 * rng.normal(size=(N, 1)), columns=["y"])
+
+    X_s = MCUVScaler().fit_transform(X)
+    Y_s = MCUVScaler().fit_transform(Y)
+
+    result = PLS.select_n_components(X_s, Y_s, max_components=10)
+
+    assert isinstance(result, Bunch)
+    assert set(result.keys()) == {
+        "n_components",
+        "rmsecv",
+        "r2y_validated",
+        "r2x_validated",
+        "press",
+        "cv_predictions",
+    }
+
+    # The clear RMSECV minimum is at the true rank of 2.
+    assert result.n_components == 2
+
+    # RMSECV is a DataFrame indexed 1..10 with one column per Y variable + total.
+    assert isinstance(result.rmsecv, pd.DataFrame)
+    assert list(result.rmsecv.index) == list(range(1, 11))
+    assert list(result.rmsecv.columns) == ["y", "total"]
+
+    # RMSECV drops from the 1st to the 2nd component, then rises (overfitting).
+    assert result.rmsecv["total"][2] < result.rmsecv["total"][1]
+    assert result.rmsecv["total"][3] > result.rmsecv["total"][2]
+
+    # Validated explained variance is meaningful at the recommended count and
+    # never reaches the (calibration-only) ceiling of 1.0.
+    assert 0.5 < result.r2y_validated["total"][2] < 1.0
+    assert (result.r2x_validated["total"] < 1.0).all()
+
+    # Out-of-fold predictions cover every observation.
+    assert result.cv_predictions.shape == (N, 1)
+    assert not result.cv_predictions.isna().any().any()
+
+
+def test_pls_select_n_components_ldpe(
+    fixture_pls_ldpe_example: dict[str, pd.DataFrame | np.ndarray | float | int],
+) -> None:
+    """Smoke test of cross-validated PLS metrics on the real LDPE dataset."""
+    data = fixture_pls_ldpe_example
+    X = pd.DataFrame(data["X"], columns=[f"x{i}" for i in range(data["X"].shape[1])])
+    Y = pd.DataFrame(data["Y"], columns=[f"y{i}" for i in range(data["Y"].shape[1])])
+    n_samples, n_features = X.shape
+    n_targets = Y.shape[1]
+
+    X_s = MCUVScaler().fit_transform(X)
+    Y_s = MCUVScaler().fit_transform(Y)
+
+    max_comp = 6
+    result = PLS.select_n_components(X_s, Y_s, max_components=max_comp, cv=5)
+
+    assert 1 <= result.n_components <= max_comp
+    assert result.rmsecv.shape == (max_comp, n_targets + 1)
+    assert result.r2y_validated.shape == (max_comp, n_targets + 1)
+    assert result.r2x_validated.shape == (max_comp, n_features + 1)
+    assert (result.rmsecv.to_numpy() > 0).all()
+    assert (result.press > 0).all()
+    assert (result.r2y_validated["total"] <= 1.0).all()
+    assert result.cv_predictions.shape == (n_samples, n_targets)
+
+
+def test_pls_select_n_components_accepts_splitters() -> None:
+    """The cv argument accepts an int and any sklearn splitter object."""
+    rng = np.random.default_rng(7)
+    N, K = 28, 6
+    X = pd.DataFrame(rng.standard_normal((N, K)), columns=[f"x{i}" for i in range(K)])
+    beta = rng.standard_normal((K, 2))
+    Y = pd.DataFrame(X.values @ beta + 0.2 * rng.standard_normal((N, 2)), columns=["y0", "y1"])
+    X_s = MCUVScaler().fit_transform(X)
+    Y_s = MCUVScaler().fit_transform(Y)
+
+    res_kfold = PLS.select_n_components(X_s, Y_s, max_components=4, cv=KFold(5, shuffle=True, random_state=0))
+    assert 1 <= res_kfold.n_components <= 4
+    assert res_kfold.rmsecv.shape == (4, 3)
+
+    res_loo = PLS.select_n_components(X_s, Y_s, max_components=4, cv=LeaveOneOut())
+    assert 1 <= res_loo.n_components <= 4
+    assert res_loo.cv_predictions.shape == (N, 2)
+    assert not res_loo.cv_predictions.isna().any().any()
+
+
+def test_pls_select_n_components_caps_max_components() -> None:
+    """max_components is capped to what every CV training fold can support."""
+    rng = np.random.default_rng(11)
+    N, K = 30, 25
+    X = pd.DataFrame(rng.standard_normal((N, K)), columns=[f"x{i}" for i in range(K)])
+    Y = pd.DataFrame(rng.standard_normal((N, 1)), columns=["y"])
+    X_s = MCUVScaler().fit_transform(X)
+    Y_s = MCUVScaler().fit_transform(Y)
+
+    # 5-fold CV leaves a training fold of 24 rows, so at most 24 components
+    # can be evaluated despite the absurdly large request.
+    result = PLS.select_n_components(X_s, Y_s, max_components=1000, cv=5)
+    assert len(result.rmsecv) == 24
+    assert result.n_components <= 24
 
 
 def test_pls_old_attribute_names_raise() -> None:
