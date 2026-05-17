@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://kgdunn.github.io/process-improve/
+    about: API reference and user guide.
+  - name: Companion textbook
+    url: https://learnche.org/pid
+    about: Process Improvement using Data - the theory behind the methods.
