@@ -136,3 +136,7 @@ Plots
 .. autofunction:: explained_variance_plot
 
 .. autofunction:: correlation_loadings_plot
+
+.. autofunction:: predictions_vs_observed_plot
+
+.. autofunction:: coefficient_plot

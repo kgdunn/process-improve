@@ -183,7 +183,7 @@ If you use this package in academic work, please cite it:
   author  = {Dunn, Kevin G.},
   title   = {{process-improve: Multivariate Analysis for Process Improvement}},
   year    = {2026},
-  version = {v1.20.1},
+  version = {v1.21.2},
   url     = {https://github.com/kgdunn/process-improve}
 }
 ```
