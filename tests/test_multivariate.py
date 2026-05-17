@@ -2832,6 +2832,14 @@ def test_explained_variance_plot_unfitted_raises() -> None:
             explained_variance_plot(unfitted)
 
 
+def test_explained_variance_plot_accepts_existing_figure(fixture_pca_for_plots: PCA) -> None:
+    """Passing a figure draws onto it rather than creating a new one."""
+    base = go.Figure()
+    returned = fixture_pca_for_plots.explained_variance_plot(fig=base)
+    assert returned is base
+    assert len(returned.data) == 2
+
+
 # ---- Per-observation diagnostics: cos2, contributions, eigenvalue summary, supplementary variables ----
 
 
