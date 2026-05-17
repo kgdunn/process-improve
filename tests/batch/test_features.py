@@ -222,3 +222,27 @@ def test_f_crossing_with_batch_data(batch_data: pd.DataFrame) -> None:
     )
     assert result.shape[1] == 1  # one feature column
     assert "Temp1" in result.columns[0]
+
+
+def test_f_elbow_returns_x_value(batch_data: pd.DataFrame) -> None:
+    """f_elbow should return the x-axis value of the elbow per batch."""
+    result = features.f_elbow(
+        batch_data,
+        x_axis_tag="UCI_minutes",
+        tags=["Temp1"],
+        batch_col="Batch",
+    )
+    assert result.shape[1] == 1
+    assert "elbow" in str(result.columns[0])
+
+
+def test_f_elbow_only_index(batch_data: pd.DataFrame) -> None:
+    """f_elbow with only_index=True should return the elbow index."""
+    result = features.f_elbow(
+        batch_data,
+        x_axis_tag="UCI_minutes",
+        tags=["Temp1"],
+        batch_col="Batch",
+        only_index=True,
+    )
+    assert result.shape[1] == 1

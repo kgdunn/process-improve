@@ -3297,3 +3297,23 @@ def test_rv_coefficient_ldpe(
 # print(cv_results)
 # fixture_tpls_example = fixture_tpls_example()
 # test_tpls_model_predictions(fixture_tpls_example)
+
+
+def test_pca_renamed_attribute_raises_helpful_error() -> None:
+    """Old PCA attribute names should raise an AttributeError pointing to the new name."""
+    pca = PCA(n_components=2)
+    with pytest.raises(AttributeError, match="renamed to 'scores_'"):
+        _ = pca.x_scores
+    with pytest.raises(AttributeError, match="renamed to 'spe_'"):
+        _ = pca.squared_prediction_error
+    with pytest.raises(AttributeError, match="no attribute"):
+        _ = pca.totally_made_up_name
+
+
+def test_pls_renamed_attribute_raises_helpful_error() -> None:
+    """Old PLS attribute names should raise an AttributeError pointing to the new name."""
+    pls = PLS(n_components=2)
+    with pytest.raises(AttributeError):
+        _ = pls.x_scores
+    with pytest.raises(AttributeError, match="no attribute"):
+        _ = pls.totally_made_up_name
