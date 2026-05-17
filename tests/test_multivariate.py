@@ -11,6 +11,7 @@ import plotly.io as pio
 import pytest
 from scipy.sparse import csr_matrix
 from sklearn.cross_decomposition import PLSRegression
+from sklearn.exceptions import NotFittedError
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import KFold, LeaveOneOut, cross_val_score
 from sklearn.utils import Bunch
@@ -2078,7 +2079,7 @@ def test_pls_cross_validate_not_fitted() -> None:
     pls = PLS(n_components=2)
     X = pd.DataFrame(np.random.default_rng(0).standard_normal((20, 3)))
     Y = pd.DataFrame(np.random.default_rng(0).standard_normal((20, 1)))
-    with pytest.raises(Exception):  # noqa: B017
+    with pytest.raises(NotFittedError):
         pls.cross_validate(X, Y)
 
 

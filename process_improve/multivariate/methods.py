@@ -1707,8 +1707,8 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         cv : int or ``"loo"``, default ``"loo"``
             Cross-validation strategy:
 
-            * ``"loo"`` — leave-one-out (jackknife). Produces N resamples.
-            * ``int`` — number of folds for K-fold CV.
+            * ``"loo"`` - leave-one-out (jackknife). Produces N resamples.
+            * ``int`` - number of folds for K-fold CV.
         n_bootstrap : int, default 0
             If > 0, use bootstrap resampling instead of CV folds.
             The value specifies the number of bootstrap rounds.
