@@ -34,6 +34,12 @@ The version is defined in `pyproject.toml` under `[project] version`. It uses 3-
 
 The PyPI publish workflow (`.github/workflows/publish.yml`) automatically detects version changes on push to `main` and publishes to PyPI when the version differs from the previous commit.
 
+## Changelog
+
+`CHANGELOG.md` (repo root) follows the [Keep a Changelog](https://keepachangelog.com) format.
+
+For every PR or set of changes, **prompt the user to confirm whether a changelog entry is required.** User-facing changes (new features, API changes, bug fixes, behavioural changes) generally need one; internal-only changes (refactors, CI tweaks, edits to this file) generally do not. If an entry is required, write a relevant line under the appropriate version heading in `CHANGELOG.md` and stage it as part of the same commit.
+
 ## Key Architectural Decisions
 
 ### sklearn API Compatibility

@@ -617,18 +617,24 @@ def median_absolute_deviation(
 
 def summary_stats(x: np.ndarray | pd.Series, method: str = "robust") -> dict:
     """
-    Return summary statistics of the numeric values in vector `x`.
+    Return summary statistics of the numeric values in vector ``x``.
 
-    Arguments:
-        x (Numpy vector or Pandas series): A vector of univariate values to summarize.
+    Parameters
+    ----------
+    x : numpy.ndarray or pandas.Series
+        A vector of univariate values to summarize.
+    method : str, optional
+        If ``"robust"`` (the default), the reported center is the median and
+        the spread is the Sn robust estimate; otherwise the mean and the
+        sample standard deviation are used.
 
-    Returns:
-        dict: a summary of the univariate vector. The following outputs are the most interesting:
-
-            "center":   a measure of the center  (average). If method is ``robust``, this is the
-                        median.
-            "spread":   a measure of the spread. If method is ``robust``, this is the Sn, a robust
-                        spread estimate.
+    Returns
+    -------
+    dict
+        A summary of the univariate vector. The most useful keys are
+        ``"center"`` (a measure of the center, e.g. the median for the robust
+        method) and ``"spread"`` (a measure of the spread, e.g. the Sn robust
+        estimate for the robust method).
     """
     if isinstance(x, pd.Series):
         x = x.copy(deep=True).values
@@ -863,6 +869,7 @@ _RENAMED = {
 
 
 def __getattr__(name: str) -> NoReturn:
+    """Raise a helpful error when a renamed module attribute is accessed."""
     if name in _RENAMED:
         new = _RENAMED[name]
         raise AttributeError(

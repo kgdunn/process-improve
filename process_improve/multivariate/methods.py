@@ -2843,6 +2843,8 @@ def internal_pls_nipals_fit_one_pc(
 
 
 class DataFrameDict(dict):
+    """Container for the partitionable (Z, F) and static (Y) data blocks used by TPLS."""
+
     def __init__(self, datadict: dict[str, dict[str, pd.DataFrame]]):
         """
         Initialize a DataFrameDict to handle partitionable and static dataframes.

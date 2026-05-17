@@ -1,0 +1,42 @@
+# Changelog
+
+All notable changes to `process-improve` are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+Entries before `1.21.3` predate this changelog; see the
+[commit history](https://github.com/kgdunn/process-improve/commits/main) for
+those changes.
+
+## [Unreleased]
+
+## [1.21.4] - 2026-05-17
+
+### Added
+
+- `CHANGELOG.md` to track notable changes between releases.
+- Issue forms for bug reports, feature requests, and questions, plus a pull
+  request template, under `.github/`.
+
+## [1.21.3] - 2026-05-17
+
+### Added
+
+- Per-observation diagnostics for PCA and PLS.
+- Cross-validation for PLS: component selection and beta-coefficient error
+  bars.
+- Explained-variance, correlation-loadings, observed-vs-predicted, and
+  coefficient plots for PCA and PLS.
+- RV and modified RV (RV2) matrix-correlation coefficients.
+- `CITATION.cff` so GitHub renders a "Cite this repository" button, and
+  `CONTRIBUTING.md` with development setup, testing, and code-style notes.
+
+### Changed
+
+- Reworked the README with a sharper value proposition and a
+  "Why not scikit-learn?" comparison table.
+
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.21.4...HEAD
+[1.21.4]: https://github.com/kgdunn/process-improve/compare/v1.21.3...v1.21.4
+[1.21.3]: https://github.com/kgdunn/process-improve/releases/tag/v1.21.3

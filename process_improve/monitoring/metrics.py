@@ -79,6 +79,7 @@ def calculate_cpk(
 _RENAMED = {"calculate_Cpk": "calculate_cpk"}
 
 def __getattr__(name: str) -> None:
+    """Raise a helpful error when a renamed module attribute is accessed."""
     if name in _RENAMED:
         new = _RENAMED[name]
         raise AttributeError(

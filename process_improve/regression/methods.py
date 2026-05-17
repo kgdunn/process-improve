@@ -231,6 +231,7 @@ def robust_regression(  # noqa: PLR0913, PLR0915
 _RENAMED = {"simple_robust_regression": "robust_regression"}
 
 def __getattr__(name: str) -> None:
+    """Raise a helpful error when a renamed module attribute is accessed."""
     if name in _RENAMED:
         new = _RENAMED[name]
         raise AttributeError(

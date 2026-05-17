@@ -185,6 +185,7 @@ def tool_spec(  # noqa: PLR0913
         _validate_rng_metadata(name, rng)
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        """Attach the assembled tool spec to ``func`` and return it unchanged."""
         full_description = description
         if examples:
             full_description = f"{description}\n\nExamples\n--------\n{examples}"
