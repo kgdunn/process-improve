@@ -1,3 +1,4 @@
+import importlib
 import pathlib
 
 import numpy as np
@@ -205,7 +206,7 @@ def test_cpk_estimates_specs_from_data_when_none() -> None:
 
 def test_metrics_renamed_attribute_raises_helpful_error() -> None:
     """Accessing the old `calculate_Cpk` name should raise a rename hint."""
-    import process_improve.monitoring.metrics as metrics_module
+    metrics_module = importlib.import_module("process_improve.monitoring.metrics")
 
     with pytest.raises(AttributeError, match="calculate_cpk"):
         _ = metrics_module.calculate_Cpk

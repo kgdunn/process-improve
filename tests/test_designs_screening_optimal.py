@@ -6,6 +6,8 @@ paths that the high-level ``generate_design`` API does not reach.
 
 from __future__ import annotations
 
+import importlib.util
+
 import pytest
 
 from process_improve.experiments.designs_optimal import (
@@ -19,13 +21,7 @@ from process_improve.experiments.designs_screening import (
 )
 from process_improve.experiments.factor import Factor
 
-_HAS_PYOPTEX = False
-try:
-    import pyoptex  # noqa: F401
-
-    _HAS_PYOPTEX = True
-except ImportError:
-    pass
+_HAS_PYOPTEX = importlib.util.find_spec("pyoptex") is not None
 
 _skip_with_pyoptex = pytest.mark.skipif(_HAS_PYOPTEX, reason="behaviour differs when pyoptex installed")
 
