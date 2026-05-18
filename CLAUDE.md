@@ -32,6 +32,8 @@ The version is defined in `pyproject.toml` under `[project] version`. It uses 3-
 - **MINOR** (middle position, e.g., 1.3.1 → 1.4.0): new features, new modules, significant API additions, or meaningful behavioral changes. Resets PATCH to 0.
 - **If unsure** whether a change is major or minor, **ask the user** before bumping.
 
+**Keep `CITATION.cff` in sync with the version.** Whenever you bump the `version` in `pyproject.toml`, in the *same commit* set the `version:` field in `CITATION.cff` (repo root) to the identical value, and update `date-released:` to the current date. `pyproject.toml` and `CITATION.cff` must never report different versions.
+
 The PyPI publish workflow (`.github/workflows/publish.yml`) automatically detects version changes on push to `main` and publishes to PyPI when the version differs from the previous commit.
 
 ## Changelog
@@ -39,6 +41,8 @@ The PyPI publish workflow (`.github/workflows/publish.yml`) automatically detect
 `CHANGELOG.md` (repo root) follows the [Keep a Changelog](https://keepachangelog.com) format.
 
 For every PR or set of changes, **prompt the user to confirm whether a changelog entry is required.** User-facing changes (new features, API changes, bug fixes, behavioural changes) generally need one; internal-only changes (refactors, CI tweaks, edits to this file) generally do not. If an entry is required, write a relevant line under the appropriate version heading in `CHANGELOG.md` and stage it as part of the same commit.
+
+New changelog lines go under the `## [Unreleased]` heading. When you bump the version in `pyproject.toml`, also update `CHANGELOG.md` in the same commit: rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` (today's date), add a fresh empty `## [Unreleased]` heading above it, and update the link-reference footer at the bottom of the file (the `[Unreleased]` compare link and a new `[X.Y.Z]` compare link).
 
 ## Key Architectural Decisions
 
