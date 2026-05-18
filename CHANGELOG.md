@@ -11,6 +11,16 @@ those changes.
 
 ## [Unreleased]
 
+## [1.21.7] - 2026-05-18
+
+### Fixed
+
+- `OLS.fit()` no longer raises `ValueError: The indices for endog and exog are
+  not aligned` when the input `X` has a non-default pandas index (for example
+  a `DatetimeIndex`, or a row subset sliced out of a larger DataFrame). The
+  feature matrix is now reset to a clean `RangeIndex` so it always aligns
+  positionally with the target.
+
 ## [1.21.6] - 2026-05-17
 
 ### Fixed
@@ -57,7 +67,8 @@ those changes.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.21.6...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.21.7...HEAD
+[1.21.7]: https://github.com/kgdunn/process-improve/compare/v1.21.6...v1.21.7
 [1.21.6]: https://github.com/kgdunn/process-improve/compare/v1.21.4...v1.21.6
 [1.21.4]: https://github.com/kgdunn/process-improve/compare/v1.21.3...v1.21.4
 [1.21.3]: https://github.com/kgdunn/process-improve/releases/tag/v1.21.3

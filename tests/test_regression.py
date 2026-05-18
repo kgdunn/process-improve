@@ -576,6 +576,43 @@ def test_ols_pandas_dataframe_with_named_columns() -> None:
     assert model.target_name_ == "yield"
 
 
+def test_ols_fit_with_non_default_pandas_index() -> None:
+    """A DataFrame/Series whose index is not 0..N-1 must still fit.
+
+    Regression test: ``y`` was rebuilt with a fresh RangeIndex while ``X`` kept
+    its original index, so statsmodels rejected the design matrix with
+    "The indices for endog and exog are not aligned".
+    """
+    rng = np.random.default_rng(7)
+    n = 30
+    # A non-default index: e.g. the rows survived a filter on a larger frame.
+    odd_index = pd.Index(range(100, 100 + 2 * n, 2))
+    X = pd.DataFrame(rng.standard_normal((n, 2)), columns=["a", "b"], index=odd_index)
+    y = pd.Series(X["a"] * 1.5 - X["b"] + 0.3 + 0.05 * rng.standard_normal(n), index=odd_index, name="resp")
+
+    model = OLS().fit(X, y)
+    assert model.is_fitted_ is True
+
+    # A DatetimeIndex is another common non-default index.
+    date_index = pd.date_range("2024-01-01", periods=n, freq="D")
+    X_dt = X.set_axis(date_index, axis=0)
+    y_dt = y.set_axis(date_index, axis=0)
+    model_dt = OLS().fit(X_dt, y_dt)
+    assert model_dt.is_fitted_ is True
+
+    # The index must not change the fitted result: same data, default index.
+    model_plain = OLS().fit(X.reset_index(drop=True), y.reset_index(drop=True))
+    np.testing.assert_allclose(model.coefficients_, model_plain.coefficients_, rtol=1e-12)
+    np.testing.assert_allclose(model.intercept_, model_plain.intercept_, rtol=1e-12)
+
+    # na_rm path also reindexes X internally; a non-default index must work there too.
+    X_na = X.copy()
+    X_na.iloc[3, 0] = np.nan
+    model_na = OLS(na_rm=True).fit(X_na, y)
+    assert model_na.is_fitted_ is True
+    assert model_na.n_samples_ == n - 1
+
+
 def test_ols_handles_insufficient_data() -> None:
     """A fit with 1 datapoint should mark the model as unfit but not raise."""
     model = OLS().fit(np.array([2.0]), np.array([5.0]))

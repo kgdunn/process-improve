@@ -447,6 +447,14 @@ class OLS(RegressorMixin, BaseEstimator):
             y_full = pd.DataFrame(np.asarray(y).ravel())
             target_name = "y"
 
+        # X and y are matched positionally (row i of X with row i of y). Reset X
+        # to a clean RangeIndex so that a non-default index on the input X (for
+        # example a date index, or a sliced-out subset of a larger DataFrame)
+        # cannot misalign with the freshly built, RangeIndex-ed ``y_full``.
+        # Without this, statsmodels raises "indices for endog and exog are not
+        # aligned" once a design matrix is handed to ``sm.OLS`` below.
+        X_full = X_full.reset_index(drop=True)
+
         n_original = y_full.shape[0]
         self.feature_names_in_ = [str(c) for c in X_full.columns]
         self.target_name_ = str(target_name)
