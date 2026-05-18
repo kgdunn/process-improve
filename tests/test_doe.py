@@ -9,11 +9,10 @@ from process_improve.experiments.models import lm, predict, summary
 from process_improve.experiments.optimal import optimization_function, point_exchange
 from process_improve.experiments.structures import c, create_names, expand_grid, gather, supplement
 
-
 # ---- Fixtures ----
 
 
-@pytest.fixture()
+@pytest.fixture
 def structure_data():
     """Provide basic factor data for structure tests."""
     return {
@@ -25,7 +24,7 @@ def structure_data():
     }
 
 
-@pytest.fixture()
+@pytest.fixture
 def half_fraction_model():
     """Provide a half-fraction model for model tests."""
     A = c(-1, +1, -1, +1)
@@ -33,11 +32,10 @@ def half_fraction_model():
     C = A * B
     y = c(41, 27, 35, 20, name="Stability", units="days")
     expt = gather(A=A, B=B, C=C, y=y, title="Half-fraction, using C = A*B")
-    model = lm("y ~ A*B*C", expt)
-    return model
+    return lm("y ~ A*B*C", expt)
 
 
-@pytest.fixture()
+@pytest.fixture
 def api_dataframe():
     """Load the test_doe1.csv dataset for API usage tests."""
     folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "experiments"
@@ -199,7 +197,7 @@ def test_case_1(api_dataframe) -> None:
     _ = lm("np.log10(y) ~ C*M*B*V", expt)
 
 
-def test_aliasing(api_dataframe) -> None:
+def test_aliasing() -> None:
     """Test aliasing detection in models."""
     d4 = c(24, 48, 36, 36, 60, units="hours", lo=24, high=48)
     y4 = c(31, 65, 52, 54, 69)
