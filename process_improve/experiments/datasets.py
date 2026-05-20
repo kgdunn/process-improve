@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pandas as pd
 
+_DATASETS_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments"
 
-def distillateflow() -> None:
+
+def distillateflow() -> pd.DataFrame:
     """Return the flow rate of distillate from the top of a distillation column.
 
     These are actual data, taken 1 minute apart in time, of the flow rate leaving
     the top of a continuous distillation column (data are from a 31 day period
-    in time).
+    in time). The data are fetched from the canonical hosted location on
+    openmv.net rather than bundled with the package.
 
     Dimensions
     ----------
@@ -22,6 +27,7 @@ def distillateflow() -> None:
 
 
     """
+    return pd.read_csv("https://openmv.net/file/distillate-flow.csv")
 
 
 def pollutant() -> None:
@@ -56,7 +62,7 @@ def pollutant() -> None:
     """
 
 
-def oildoe() -> None:
+def oildoe() -> pd.DataFrame:
     """
     Return industrial designed experiment data to improve the volumetric heat capacity of
     a product.
@@ -71,7 +77,8 @@ def oildoe() -> None:
 
     The data are scaled and coded for confidentiality. All that may be
     disclosed is that variable C is either added ("Yes") or not added not
-    added ("No").
+    added ("No"). The data are fetched from the canonical hosted location
+    on openmv.net rather than bundled with the package.
 
     Dimensions
     ----------
@@ -84,6 +91,7 @@ def oildoe() -> None:
     Data from a confidential industrial source.
 
     """
+    return pd.read_csv("https://openmv.net/file/oil-company-doe.csv")
 
 
 def golf() -> None:
@@ -120,7 +128,7 @@ def golf() -> None:
     """
 
 
-def boilingpot() -> None:
+def boilingpot() -> pd.DataFrame:
     """
     Return full factorial experiment data for stove-top boiling of water.
 
@@ -158,6 +166,7 @@ def boilingpot() -> None:
     https://learnche.org
 
     """
+    return pd.read_csv(_DATASETS_DIR / "boilingpot.csv")
 
 
 def solar() -> None:
