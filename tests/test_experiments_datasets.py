@@ -1,19 +1,50 @@
-"""Smoke tests for the experiments dataset stubs.
+"""Tests for the experiments dataset loaders.
 
-The functions in ``process_improve.experiments.datasets`` are currently
-docstring-only stubs (they return ``None``). They still count toward
-coverage when called, so we exercise each one to keep the file from
-sitting at 0% coverage.
+``boilingpot()`` loads from a CSV bundled with the package; ``oildoe()``
+and ``distillateflow()`` fetch from openmv.net. The remaining functions
+in ``process_improve.experiments.datasets`` are still docstring-only
+stubs (they return ``None``); we exercise them so they keep counting
+toward coverage.
 """
 
 from __future__ import annotations
 
+import urllib.error
+from collections.abc import Callable
+
+import pandas as pd
+import pytest
+
 from process_improve.experiments import datasets
 
 
-def test_distillateflow_returns_none() -> None:
-    """The stub should be callable and return None."""
-    assert datasets.distillateflow() is None
+def _load_or_skip(loader: Callable[[], pd.DataFrame]) -> pd.DataFrame:
+    """Call the network-backed loader, ``pytest.skip`` on any network error."""
+    try:
+        return loader()
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError) as exc:
+        pytest.skip(f"could not fetch from openmv.net: {exc}")
+
+
+def test_boilingpot_loads() -> None:
+    """``boilingpot()`` returns the documented 11x4 factorial frame."""
+    df = datasets.boilingpot()
+    assert df.shape == (11, 4)
+    assert set(df.columns) == {"A", "B", "C", "y"}
+
+
+def test_oildoe_loads() -> None:
+    """``oildoe()`` fetches the openmv.net file (skipped if offline)."""
+    df = _load_or_skip(datasets.oildoe)
+    assert df.shape == (19, 5)
+    assert set(df.columns) == {"A", "B", "C", "D", "y"}
+
+
+def test_distillateflow_loads() -> None:
+    """``distillateflow()`` fetches the openmv.net file (skipped if offline)."""
+    df = _load_or_skip(datasets.distillateflow)
+    assert df.shape == (44640, 1)
+    assert "Flow" in df.columns
 
 
 def test_pollutant_returns_none() -> None:
@@ -21,19 +52,9 @@ def test_pollutant_returns_none() -> None:
     assert datasets.pollutant() is None
 
 
-def test_oildoe_returns_none() -> None:
-    """The stub should be callable and return None."""
-    assert datasets.oildoe() is None
-
-
 def test_golf_returns_none() -> None:
     """The stub should be callable and return None."""
     assert datasets.golf() is None
-
-
-def test_boilingpot_returns_none() -> None:
-    """The stub should be callable and return None."""
-    assert datasets.boilingpot() is None
 
 
 def test_solar_returns_none() -> None:
