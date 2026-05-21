@@ -566,8 +566,8 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
         method="animate",
         args=[
             # https://plotly.com/python/animations/
-            # Note the None is in a list!
-            [[None]],  # TODO: does not work at the moment.
+            # Note the None is in a list.
+            [None],
             dict(
                 frame=dict(duration=0, redraw=False),
                 transition=dict(duration=0),
