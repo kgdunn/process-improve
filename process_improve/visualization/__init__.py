@@ -18,13 +18,33 @@ from process_improve.visualization.spec import (
     LayerSpec,
     PanelSpec,
 )
+from process_improve.visualization.themes import (
+    DEFAULT_THEME,
+    THEME_BRAND,
+    THEME_ECONOMIST,
+    THEME_JOURNAL,
+    THEME_NAMES,
+    THEME_TUFTE,
+    register_themes,
+    set_theme,
+)
 from process_improve.visualization.types import (
     AnnotationType,
     MarkType,
     ScaleType,
 )
 
+# Register the base themes and apply the package default on import.
+register_themes()
+set_theme(DEFAULT_THEME)
+
 __all__ = [
+    "DEFAULT_THEME",
+    "THEME_BRAND",
+    "THEME_ECONOMIST",
+    "THEME_JOURNAL",
+    "THEME_NAMES",
+    "THEME_TUFTE",
     "Annotation",
     "AnnotationType",
     "ChartSpec",
@@ -33,4 +53,6 @@ __all__ = [
     "MarkType",
     "PanelSpec",
     "ScaleType",
+    "register_themes",
+    "set_theme",
 ]

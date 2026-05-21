@@ -90,3 +90,19 @@ DESIRABILITY_COLORSCALE: list[list[float | str]] = [
     [0.5, "#F59E0B"],   # d = 0.5
     [1.0, "#059669"],   # d = 1 (best)
 ]
+
+# ---------------------------------------------------------------------------
+# Font stacks (shared by the registered Plotly base themes)
+# ---------------------------------------------------------------------------
+
+#: Serif stack - used by the Tufte theme.
+FONT_SERIF: str = "Georgia, 'Times New Roman', serif"
+
+#: Modern sans stack - used by the process-improve brand theme.
+FONT_SANS: str = "Inter, 'Helvetica Neue', Arial, sans-serif"
+
+#: Heavy sans stack - used by the Economist theme.
+FONT_SANS_HEAVY: str = "Verdana, Arial, sans-serif"
+
+#: Compact sans stack - used by the scientific-journal theme.
+FONT_SANS_COMPACT: str = "Helvetica, Arial, sans-serif"
