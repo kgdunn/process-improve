@@ -23,6 +23,7 @@ from process_improve.visualization.spec import (
     LayerSpec,
     PanelSpec,
 )
+from process_improve.visualization.themes import DEFAULT_THEME
 from process_improve.visualization.types import AnnotationType, MarkType
 
 
@@ -97,8 +98,7 @@ class PlotlyAdapter(AbstractAdapter):
             xaxis=dict(title=panel.x_title),
             width=panel.width,
             height=panel.height,
-            template="plotly_white",
-            font=dict(size=12),
+            template=DEFAULT_THEME,
         )
 
         if panel.secondary_y:
@@ -140,8 +140,7 @@ class PlotlyAdapter(AbstractAdapter):
 
         fig.update_layout(
             title=dict(text=spec.title),
-            template="plotly_white",
-            font=dict(size=12),
+            template=DEFAULT_THEME,
             showlegend=True,
         )
 

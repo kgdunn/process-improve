@@ -11,6 +11,25 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-05-21
+
+### Added
+
+- A shared Plotly base theme. Four templates are registered with Plotly
+  (`pi_tufte`, `pi_economist`, `pi_journal`, `pi_brand`) so every plot in
+  the library shares a consistent, professional look. `pi_journal` is
+  applied as the default; switch the global default with
+  `process_improve.visualization.set_theme(...)`, or override a single
+  plot through its `template` setting.
+
+### Changed
+
+- The latent-variable plots (score, loadings, SPE, Hotelling's T2,
+  explained-variance, correlation-loadings, observed-vs-predicted,
+  coefficient), the batch plots and the DOE plots now inherit their
+  styling from the base theme instead of hard-coding margins, legends,
+  axes and marker colours.
+
 ## [1.21.7] - 2026-05-18
 
 ### Fixed
@@ -67,7 +86,8 @@ those changes.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.21.7...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.0...HEAD
+[1.22.0]: https://github.com/kgdunn/process-improve/compare/v1.21.7...v1.22.0
 [1.21.7]: https://github.com/kgdunn/process-improve/compare/v1.21.6...v1.21.7
 [1.21.6]: https://github.com/kgdunn/process-improve/compare/v1.21.4...v1.21.6
 [1.21.4]: https://github.com/kgdunn/process-improve/compare/v1.21.3...v1.21.4
