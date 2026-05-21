@@ -80,7 +80,7 @@ def score_plot(  # noqa: C901, PLR0913
                 "show_legend": True,           # bool: show clickable legend
                 "html_image_height": 500,      # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
-                "template": "pi_brand",        # str: registered Plotly theme name
+                "template": "pi_journal",        # str: registered Plotly theme name
             }
 
     Examples
@@ -284,7 +284,7 @@ def loading_plot(  # noqa: PLR0913
                 "show_labels": True,           # bool: add a label for each variable
                 "html_image_height": 500,      # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
-                "template": "pi_brand",        # str: registered Plotly theme name
+                "template": "pi_journal",        # str: registered Plotly theme name
             }
 
     Examples
@@ -413,7 +413,7 @@ def spe_plot(
                 "show_legend": False,           # bool: show clickable legend
                 "html_image_height": 500,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
-                "template": "pi_brand",         # str: registered Plotly theme name
+                "template": "pi_journal",         # str: registered Plotly theme name
             }
 
     Examples
@@ -561,7 +561,7 @@ def t2_plot(
                 "show_legend": False,           # bool: show clickable legend
                 "html_image_height": 500,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
-                "template": "pi_brand",         # str: registered Plotly theme name
+                "template": "pi_journal",         # str: registered Plotly theme name
             }
 
     Examples
@@ -695,7 +695,7 @@ def explained_variance_plot(
                 "show_legend": True,            # bool: show clickable legend
                 "html_image_height": 500,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
-                "template": "pi_brand",         # str: registered Plotly theme name
+                "template": "pi_journal",         # str: registered Plotly theme name
             }
 
     fig : go.Figure, optional
@@ -834,7 +834,7 @@ def correlation_loadings_plot(  # noqa: C901, PLR0913
                 "show_legend": True,            # bool: show clickable legend (PLS only)
                 "html_image_height": 600,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 1.0,   # float: width as ratio of height
-                "template": "pi_brand",         # str: registered Plotly theme name
+                "template": "pi_journal",         # str: registered Plotly theme name
             }
 
     fig : go.Figure, optional
@@ -984,7 +984,7 @@ def predictions_vs_observed_plot(
                 "reference_color": "#9CA3AF",   # str: colour of the y = x line
                 "html_image_height": 500,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 1.0,   # float: width as ratio of height
-                "template": "pi_brand",         # str: registered Plotly theme name
+                "template": "pi_journal",         # str: registered Plotly theme name
             }
 
     fig : go.Figure, optional
@@ -1101,7 +1101,7 @@ def coefficient_plot(
                 "bar_color": None,              # str|None: bar colour; None uses the theme
                 "html_image_height": 500,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
-                "template": "pi_brand",         # str: registered Plotly theme name
+                "template": "pi_journal",         # str: registered Plotly theme name
             }
 
     fig : go.Figure, optional

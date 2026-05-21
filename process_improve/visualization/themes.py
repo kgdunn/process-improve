@@ -57,7 +57,7 @@ THEME_BRAND: str = "pi_brand"
 THEME_NAMES: tuple[str, ...] = (THEME_TUFTE, THEME_ECONOMIST, THEME_JOURNAL, THEME_BRAND)
 
 #: Theme applied as the Plotly default when the package is imported.
-DEFAULT_THEME: str = THEME_BRAND
+DEFAULT_THEME: str = THEME_JOURNAL
 
 # ---------------------------------------------------------------------------
 # Semantic line colours

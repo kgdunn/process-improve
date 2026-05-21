@@ -17,7 +17,7 @@ those changes.
 
 - A shared Plotly base theme. Four templates are registered with Plotly
   (`pi_tufte`, `pi_economist`, `pi_journal`, `pi_brand`) so every plot in
-  the library shares a consistent, professional look. `pi_brand` is
+  the library shares a consistent, professional look. `pi_journal` is
   applied as the default; switch the global default with
   `process_improve.visualization.set_theme(...)`, or override a single
   plot through its `template` setting.
