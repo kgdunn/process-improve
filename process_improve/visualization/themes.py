@@ -13,7 +13,7 @@ Four themes are provided:
 ``pi_economist``
     Editorial style after *The Economist*: a pale blue-grey panel,
     horizontal-only white gridlines, a heavy sans font and the
-    signature red corner tab.
+    signature Economist colourway (deep blue with a red accent).
 ``pi_journal``
     Scientific-journal style (Nature / IEEE): white background, light
     full grid, a black mirrored box and the Okabe-Ito colourblind-safe
@@ -111,11 +111,14 @@ def _tufte_template() -> go.layout.Template:
 
 
 def _economist_template() -> go.layout.Template:
+    # The Economist red leads the accent palette but is kept out of the first
+    # slot: the first colourway entry styles the primary data series, and a red
+    # series would clash with the red confidence-limit lines (LIMIT_LINE_COLOR).
     return go.layout.Template(
         layout=dict(
             paper_bgcolor="#FFFFFF",
             plot_bgcolor="#D9E9F1",
-            colorway=["#E3120B", "#006BA2", "#3EBCD2", "#379A8B", "#EBB434", "#9A607F"],
+            colorway=["#006BA2", "#E3120B", "#3EBCD2", "#379A8B", "#EBB434", "#9A607F"],
             font=dict(family=FONT_SANS_HEAVY, size=13, color="#121212"),
             title=dict(font=dict(family=FONT_SANS_HEAVY, size=20, color="#121212"), x=0.0, xanchor="left"),
             xaxis=dict(
@@ -148,23 +151,8 @@ def _economist_template() -> go.layout.Template:
                 bgcolor="rgba(0,0,0,0)",
                 borderwidth=0,
             ),
-            margin=dict(l=72, r=40, t=96, b=64),
+            margin=dict(l=72, r=40, t=84, b=64),
             hoverlabel=dict(font=dict(family=FONT_SANS_HEAVY, size=12)),
-            shapes=[
-                # Signature red corner tab in the top-left margin.
-                dict(
-                    type="rect",
-                    xref="paper",
-                    yref="paper",
-                    x0=0.0,
-                    x1=0.05,
-                    y0=1.06,
-                    y1=1.13,
-                    fillcolor="#E3120B",
-                    line=dict(width=0),
-                    layer="above",
-                ),
-            ],
         ),
     )
 
