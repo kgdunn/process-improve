@@ -19,6 +19,7 @@ import pathlib
 import sys
 
 import pandas as pd
+import plotly.graph_objects as go
 
 from process_improve.multivariate.methods import PCA, MCUVScaler
 from process_improve.multivariate.plots import loading_plot, score_plot, spe_plot
@@ -34,7 +35,7 @@ def _fit_model() -> PCA:
     return PCA(n_components=3).fit(x_scaled)
 
 
-def _render(model: PCA, theme: str, plot: str):
+def _render(model: PCA, theme: str, plot: str) -> go.Figure:
     settings = {"template": theme}
     if plot == "score":
         return score_plot(model, settings=settings)
