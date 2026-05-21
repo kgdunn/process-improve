@@ -12,6 +12,12 @@ import plotly.graph_objects as go
 from pydantic import BaseModel, field_validator
 from sklearn.base import BaseEstimator
 
+from process_improve.visualization.themes import (
+    DEFAULT_THEME,
+    LIMIT_LINE_COLOR,
+    REFERENCE_LINE_COLOR,
+)
+
 
 def plot_pre_checks(model: BaseEstimator, pc_horiz: int, pc_vert: int, pc_depth: int) -> bool:
     """Check the inputs for the plot functions are valid."""
@@ -74,6 +80,7 @@ def score_plot(  # noqa: C901, PLR0913
                 "show_legend": True,           # bool: show clickable legend
                 "html_image_height": 500,      # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
+                "template": "pi_brand",        # str: registered Plotly theme name
             }
 
     Examples
@@ -84,7 +91,6 @@ def score_plot(  # noqa: C901, PLR0913
     >>> pca.score_plot(pc_horiz=1, pc_vert=2, pc_depth=3)  # 3D
     """
     plot_pre_checks(model, pc_horiz, pc_vert, pc_depth)
-    margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
     data_to_plot = model.scores_ if hasattr(model, "scores_") else model._parent.t_scores_super
     ellipse_coordinates = (
         model.ellipse_coordinates if hasattr(model, "ellipse_coordinates") else model._parent.ellipse_coordinates
@@ -113,6 +119,7 @@ def score_plot(  # noqa: C901, PLR0913
         show_legend: bool = True
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
+        template: str = DEFAULT_THEME
 
     setdict = Settings(**settings).model_dump() if settings else Settings().model_dump()
     if fig is None:
@@ -142,7 +149,6 @@ def score_plot(  # noqa: C901, PLR0913
                 name=name,
                 mode="markers+text" if setdict["show_labels"] else "markers",
                 marker=dict(
-                    color="darkblue",
                     symbol="circle",
                 ),
                 text=list(default_index),
@@ -173,7 +179,6 @@ def score_plot(  # noqa: C901, PLR0913
                 name=name,
                 mode="markers+text" if setdict["show_labels"] else "markers",
                 marker=dict(
-                    color="darkblue",
                     symbol="circle",
                     size=7,
                 ),
@@ -201,8 +206,8 @@ def score_plot(  # noqa: C901, PLR0913
                 score_vert=pc_vert,
                 conf_level=setdict["ellipse_conf_level"],
             )
-            fig.add_hline(y=0, line_color="black")
-            fig.add_vline(x=0, line_color="black")
+            fig.add_hline(y=0, line_color=REFERENCE_LINE_COLOR)
+            fig.add_vline(x=0, line_color=REFERENCE_LINE_COLOR)
             fig.add_trace(
                 go.Scatter(
                     x=ellipse[0],
@@ -210,40 +215,18 @@ def score_plot(  # noqa: C901, PLR0913
                     name=f"Hotelling's T^2 [{setdict['ellipse_conf_level'] * 100:.4g}%]",
                     mode="lines",
                     line=dict(
-                        color="red",
+                        color=LIMIT_LINE_COLOR,
                         width=2,
                     ),
                 )
             )
 
     fig.update_layout(
+        template=setdict["template"],
         title_text=setdict["title"],
-        margin=margin_dict,
         hovermode="closest",
         showlegend=setdict["show_legend"],
-        legend=dict(
-            orientation="h",
-            traceorder="normal",
-            font=dict(family="sans-serif", size=12, color="#000"),
-            bordercolor="#DDDDDD",
-            borderwidth=1,
-        ),
         autosize=False,
-        xaxis=dict(
-            gridwidth=1,
-            mirror=True,
-            showspikes=True,
-            visible=True,
-        ),
-        yaxis=dict(
-            gridwidth=2,
-            type="linear",
-            autorange=True,
-            showspikes=True,
-            visible=True,
-            showline=True,
-            side="left",
-        ),
         width=setdict["html_aspect_ratio_w_over_h"] * setdict["html_image_height"],
         height=setdict["html_image_height"],
     )
@@ -301,6 +284,7 @@ def loading_plot(  # noqa: PLR0913
                 "show_labels": True,           # bool: add a label for each variable
                 "html_image_height": 500,      # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
+                "template": "pi_brand",        # str: registered Plotly theme name
             }
 
     Examples
@@ -310,7 +294,6 @@ def loading_plot(  # noqa: PLR0913
     >>> pls.loading_plot(loadings_type="w", pc_vert=3)     # W loadings, PC1 vs PC3
     """
     plot_pre_checks(model, pc_horiz, pc_vert, pc_depth=0)
-    margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
 
     class Settings(BaseModel):
         """Validated display settings for the loadings plot."""
@@ -319,6 +302,7 @@ def loading_plot(  # noqa: PLR0913
         show_labels: bool = True
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
+        template: str = DEFAULT_THEME
 
     setdict = Settings(**settings).model_dump() if settings else Settings().model_dump()
     if fig is None:
@@ -348,7 +332,6 @@ def loading_plot(  # noqa: PLR0913
             name="X-space loadings W*",
             mode="markers+text" if setdict["show_labels"] else "markers",
             marker=dict(
-                color="darkblue",
                 symbol="circle",
                 size=7,
             ),
@@ -369,7 +352,6 @@ def loading_plot(  # noqa: PLR0913
                 name="Y-space loadings C",
                 mode="markers+text" if setdict["show_labels"] else "markers",
                 marker=dict(
-                    color="purple",
                     symbol="star",
                     size=8,
                 ),
@@ -379,29 +361,14 @@ def loading_plot(  # noqa: PLR0913
         )
 
     fig.update_layout(xaxis_title_text=f"PC {pc_horiz}", yaxis_title_text=f"PC {pc_vert}")
-    fig.add_hline(y=0, line_color="black")
-    fig.add_vline(x=0, line_color="black")
+    fig.add_hline(y=0, line_color=REFERENCE_LINE_COLOR)
+    fig.add_vline(x=0, line_color=REFERENCE_LINE_COLOR)
     fig.update_layout(
+        template=setdict["template"],
         title_text=setdict["title"],
-        margin=margin_dict,
         hovermode="closest",
         showlegend=add_legend,
         autosize=False,
-        xaxis=dict(
-            gridwidth=1,
-            mirror=True,
-            showspikes=True,
-            visible=True,
-        ),
-        yaxis=dict(
-            gridwidth=2,
-            type="linear",
-            autorange=True,
-            showspikes=True,
-            visible=True,
-            showline=True,
-            side="left",
-        ),
         width=setdict["html_aspect_ratio_w_over_h"] * setdict["html_image_height"],
         height=setdict["html_image_height"],
     )
@@ -441,11 +408,12 @@ def spe_plot(
                 "show_limit": True,            # bool: show the SPE confidence limit line
                 "conf_level": 0.95,            # float: confidence level for limit (< 1.00)
                 "title": "SPE plot ...",        # str: overall plot title
-                "default_marker": {...},        # dict: e.g. dict(color="darkblue", size=7)
+                "default_marker": {...},        # dict: e.g. dict(symbol="circle", size=7)
                 "show_labels": False,           # bool: add a label for each observation
                 "show_legend": False,           # bool: show clickable legend
                 "html_image_height": 500,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
+                "template": "pi_brand",         # str: registered Plotly theme name
             }
 
     Examples
@@ -454,8 +422,6 @@ def spe_plot(
     >>> pca.spe_plot(settings={"conf_level": 0.99, "show_labels": True})
     """
     # TO CONSIDER: allow a setting `as_line`: which connects the points with line segments
-    margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
-
     if with_a < 0:
         # Get the actual name of the last column in the model if negative indexing is used
         with_a = model.spe_.columns[with_a]
@@ -485,13 +451,14 @@ def spe_plot(
             f"fitting {with_a} component{'s' if with_a > 1 else ''}"
             f", with the {conf_level * 100}% confidence limit"
         )
-        default_marker: dict = dict(color="darkblue", symbol="circle", size=7)
+        default_marker: dict = dict(symbol="circle", size=7)
         show_labels: bool = False
         show_legend: bool = False
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
+        template: str = DEFAULT_THEME
 
-    setdict = Settings(**settings).model_dump() if settings else Settings().dict()
+    setdict = Settings(**settings).model_dump() if settings else Settings().model_dump()
     if fig is None:
         fig = go.Figure()
 
@@ -537,41 +504,19 @@ def spe_plot(
     name = f"{setdict['conf_level'] * 100:.3g}% limit"
     fig.add_hline(
         y=limit_SPE_conf_level,
-        line_color="red",
+        line_color=LIMIT_LINE_COLOR,
         annotation_text=name,
         annotation_position="bottom right",
         name=name,
     )
-    fig.add_hline(y=0, line_color="black")
+    fig.add_hline(y=0, line_color=REFERENCE_LINE_COLOR)
     fig.update_layout(
+        template=setdict["template"],
         title_text=setdict["title"],
-        margin=margin_dict,
         hovermode="closest",
         showlegend=setdict["show_legend"],
-        legend=dict(
-            orientation="h",
-            traceorder="normal",
-            font=dict(family="sans-serif", size=12, color="#000"),
-            bordercolor="#DDDDDD",
-            borderwidth=1,
-        ),
         autosize=False,
-        xaxis=dict(
-            gridwidth=1,
-            mirror=True,
-            showspikes=True,
-            visible=True,
-        ),
-        yaxis=dict(
-            title=name,
-            gridwidth=2,
-            type="linear",
-            autorange=True,
-            showspikes=True,
-            visible=True,
-            showline=True,  # show a separating line
-            side="left",  # show on the RHS
-        ),
+        yaxis_title_text=name,
         width=setdict["html_aspect_ratio_w_over_h"] * setdict["html_image_height"],
         height=setdict["html_image_height"],
     )
@@ -611,11 +556,12 @@ def t2_plot(
                 "show_limit": True,            # bool: show the T2 confidence limit line
                 "conf_level": 0.95,            # float: confidence level for limit (< 1.00)
                 "title": "T2 plot ...",         # str: overall plot title
-                "default_marker": {...},        # dict: e.g. dict(color="darkblue", size=7)
+                "default_marker": {...},        # dict: e.g. dict(symbol="circle", size=7)
                 "show_labels": False,           # bool: add a label for each observation
                 "show_legend": False,           # bool: show clickable legend
                 "html_image_height": 500,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
+                "template": "pi_brand",         # str: registered Plotly theme name
             }
 
     Examples
@@ -624,8 +570,6 @@ def t2_plot(
     >>> pca.t2_plot(settings={"conf_level": 0.99, "show_labels": True})
     """
     # TO CONSIDER: allow a setting `as_line`: which connects the points with line segments
-    margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
-
     if with_a < 0:
         with_a = model.hotellings_t2_.columns[with_a]
     elif with_a == 0:
@@ -653,13 +597,14 @@ def t2_plot(
             f"Hotelling's T2 plot after fitting {with_a} component{'s' if with_a > 1 else ''}"
             f", with the {conf_level * 100}% confidence limit"
         )
-        default_marker: dict = dict(color="darkblue", symbol="circle", size=7)
+        default_marker: dict = dict(symbol="circle", size=7)
         show_labels: bool = False
         show_legend: bool = False
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
+        template: str = DEFAULT_THEME
 
-    setdict = Settings(**settings).dict() if settings else Settings().dict()
+    setdict = Settings(**settings).model_dump() if settings else Settings().model_dump()
     if fig is None:
         fig = go.Figure()
 
@@ -705,41 +650,19 @@ def t2_plot(
     name = f"{setdict['conf_level'] * 100:.3g}% limit"
     fig.add_hline(
         y=limit_HT2_conf_level,
-        line_color="red",
+        line_color=LIMIT_LINE_COLOR,
         annotation_text=name,
         annotation_position="bottom right",
         name=name,
     )
-    fig.add_hline(y=0, line_color="black")
+    fig.add_hline(y=0, line_color=REFERENCE_LINE_COLOR)
     fig.update_layout(
+        template=setdict["template"],
         title_text=setdict["title"],
-        margin=margin_dict,
         hovermode="closest",
         showlegend=setdict["show_legend"],
-        legend=dict(
-            orientation="h",
-            traceorder="normal",
-            font=dict(family="sans-serif", size=12, color="#000"),
-            bordercolor="#DDDDDD",
-            borderwidth=1,
-        ),
         autosize=False,
-        xaxis=dict(
-            gridwidth=1,
-            mirror=True,
-            showspikes=True,
-            visible=True,
-        ),
-        yaxis=dict(
-            title_text=name,
-            gridwidth=2,
-            type="linear",
-            autorange=True,
-            showspikes=True,
-            visible=True,
-            showline=True,
-            side="left",
-        ),
+        yaxis_title_text=name,
         width=setdict["html_aspect_ratio_w_over_h"] * setdict["html_image_height"],
         height=setdict["html_image_height"],
     )
@@ -767,11 +690,12 @@ def explained_variance_plot(
             {
                 "as_percentage": True,         # bool: y-axis as a percentage, else a fraction
                 "title": "Variance explained ...",   # str: overall plot title
-                "bar_color": "darkblue",        # str: colour of the per-component bars
-                "line_color": "crimson",        # str: colour of the cumulative line
+                "bar_color": None,              # str|None: bar colour; None uses the theme
+                "line_color": None,             # str|None: line colour; None uses the theme
                 "show_legend": True,            # bool: show clickable legend
                 "html_image_height": 500,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
+                "template": "pi_brand",         # str: registered Plotly theme name
             }
 
     fig : go.Figure, optional
@@ -786,7 +710,6 @@ def explained_variance_plot(
         msg = "Model is not fitted. Call fit() before plotting the explained variance."
         raise ValueError(msg)
 
-    margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
     block_label = "Y-variance" if type(model).__name__ == "PLS" else "X-variance"
 
     class Settings(BaseModel):
@@ -794,11 +717,12 @@ def explained_variance_plot(
 
         as_percentage: bool = True
         title: str = f"{block_label} explained per component"
-        bar_color: str = "darkblue"
-        line_color: str = "crimson"
+        bar_color: str | None = None
+        line_color: str | None = None
         show_legend: bool = True
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
+        template: str = DEFAULT_THEME
 
     setdict = Settings(**settings).model_dump() if settings else Settings().model_dump()
     if fig is None:
@@ -830,34 +754,13 @@ def explained_variance_plot(
         )
     )
     fig.update_layout(
+        template=setdict["template"],
         title_text=setdict["title"],
-        margin=margin_dict,
         hovermode="x",
         showlegend=setdict["show_legend"],
-        legend=dict(
-            orientation="h",
-            traceorder="normal",
-            font=dict(family="sans-serif", size=12, color="#000"),
-            bordercolor="#DDDDDD",
-            borderwidth=1,
-        ),
         autosize=False,
-        xaxis=dict(
-            title_text="Component",
-            type="category",
-            gridwidth=1,
-            mirror=True,
-            visible=True,
-        ),
-        yaxis=dict(
-            title_text=f"Variance explained ({unit})",
-            gridwidth=2,
-            type="linear",
-            rangemode="tozero",
-            visible=True,
-            showline=True,
-            side="left",
-        ),
+        xaxis=dict(title_text="Component", type="category"),
+        yaxis=dict(title_text=f"Variance explained ({unit})", rangemode="tozero"),
         width=setdict["html_aspect_ratio_w_over_h"] * setdict["html_image_height"],
         height=setdict["html_image_height"],
     )
@@ -924,13 +827,14 @@ def correlation_loadings_plot(  # noqa: C901, PLR0913
 
             {
                 "title": "Correlation loadings ...",  # str: overall plot title
-                "x_marker_color": "darkblue",   # str: colour of the X-variable markers
-                "y_marker_color": "crimson",    # str: colour of the Y-variable markers (PLS)
+                "x_marker_color": None,         # str|None: X-variable marker colour; None uses the theme
+                "y_marker_color": None,         # str|None: Y-variable marker colour (PLS); None uses the theme
                 "ellipse_color": "grey",        # str: colour of the variance ellipses
                 "show_labels": True,            # bool: label each variable
                 "show_legend": True,            # bool: show clickable legend (PLS only)
                 "html_image_height": 600,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 1.0,   # float: width as ratio of height
+                "template": "pi_brand",         # str: registered Plotly theme name
             }
 
     fig : go.Figure, optional
@@ -960,7 +864,6 @@ def correlation_loadings_plot(  # noqa: C901, PLR0913
             msg = f"Each value in variance_ellipses must be a fraction in (0, 1]; got {level}."
             raise ValueError(msg)
 
-    margin_dict: dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
     is_pls = hasattr(model, "r2y_per_variable_")
     x_loadings = model.x_loadings_ if is_pls else model.loadings_
 
@@ -968,13 +871,14 @@ def correlation_loadings_plot(  # noqa: C901, PLR0913
         """Validated display settings for the correlation-loadings plot."""
 
         title: str = f"Correlation loadings: components {pc_horiz} and {pc_vert}"
-        x_marker_color: str = "darkblue"
-        y_marker_color: str = "crimson"
+        x_marker_color: str | None = None
+        y_marker_color: str | None = None
         ellipse_color: str = "grey"
         show_labels: bool = True
         show_legend: bool = True
         html_image_height: float = 600.0
         html_aspect_ratio_w_over_h: float = 1.0
+        template: str = DEFAULT_THEME
 
     setdict = Settings(**settings).model_dump() if settings else Settings().model_dump()
     if fig is None:
@@ -1001,8 +905,8 @@ def correlation_loadings_plot(  # noqa: C901, PLR0913
             yshift=9,
             font=dict(color=setdict["ellipse_color"], size=11),
         )
-    fig.add_hline(y=0, line_color="lightgrey", line_width=1)
-    fig.add_vline(x=0, line_color="lightgrey", line_width=1)
+    fig.add_hline(y=0, line_color=REFERENCE_LINE_COLOR, line_width=1)
+    fig.add_vline(x=0, line_color=REFERENCE_LINE_COLOR, line_width=1)
 
     mode = "markers+text" if setdict["show_labels"] else "markers"
     fig.add_trace(
@@ -1033,19 +937,12 @@ def correlation_loadings_plot(  # noqa: C901, PLR0913
         explained = float(model.r2_per_component_[component]) * 100.0
         return f"Component {component} ({explained:.1f}%)"
 
-    axis_common: dict = dict(range=[-1.08, 1.08], zeroline=False, gridwidth=1, mirror=True, visible=True)
+    axis_common: dict = dict(range=[-1.08, 1.08], zeroline=False)
     fig.update_layout(
+        template=setdict["template"],
         title_text=setdict["title"],
-        margin=margin_dict,
         hovermode="closest",
         showlegend=setdict["show_legend"] and is_pls,
-        legend=dict(
-            orientation="h",
-            traceorder="normal",
-            font=dict(family="sans-serif", size=12, color="#000"),
-            bordercolor="#DDDDDD",
-            borderwidth=1,
-        ),
         autosize=False,
         xaxis=dict(title_text=_axis_title(pc_horiz), **axis_common),
         yaxis=dict(title_text=_axis_title(pc_vert), scaleanchor="x", scaleratio=1, **axis_common),
@@ -1083,10 +980,11 @@ def predictions_vs_observed_plot(
 
             {
                 "title": "Observed vs predicted ...",  # str: overall plot title
-                "marker_color": "darkblue",     # str: colour of the data markers
-                "reference_color": "black",     # str: colour of the y = x line
+                "marker_color": None,           # str|None: data-marker colour; None uses the theme
+                "reference_color": "#9CA3AF",   # str: colour of the y = x line
                 "html_image_height": 500,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 1.0,   # float: width as ratio of height
+                "template": "pi_brand",         # str: registered Plotly theme name
             }
 
     fig : go.Figure, optional
@@ -1124,16 +1022,15 @@ def predictions_vs_observed_plot(
     hi = float(max(observed.max(), predicted.max()))
     pad = 0.05 * (hi - lo) if hi > lo else 1.0
 
-    margin_dict: dict = dict(l=10, r=10, b=5, t=80)
-
     class Settings(BaseModel):
         """Validated display settings for the predictions-vs-observed plot."""
 
         title: str = f"Observed vs predicted for {variable}"
-        marker_color: str = "darkblue"
-        reference_color: str = "black"
+        marker_color: str | None = None
+        reference_color: str = REFERENCE_LINE_COLOR
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 1.0
+        template: str = DEFAULT_THEME
 
     setdict = Settings(**settings).model_dump() if settings else Settings().model_dump()
     if fig is None:
@@ -1163,10 +1060,10 @@ def predictions_vs_observed_plot(
         text=f"RMSE = {rmse:.4g}",
         showarrow=False,
     )
-    axis_common: dict = dict(range=[lo - pad, hi + pad], gridwidth=1, mirror=True, visible=True)
+    axis_common: dict = dict(range=[lo - pad, hi + pad])
     fig.update_layout(
+        template=setdict["template"],
         title_text=setdict["title"],
-        margin=margin_dict,
         hovermode="closest",
         showlegend=False,
         autosize=False,
@@ -1201,9 +1098,10 @@ def coefficient_plot(
 
             {
                 "title": "Regression coefficients ...",  # str: overall plot title
-                "bar_color": "darkblue",        # str: colour of the coefficient bars
+                "bar_color": None,              # str|None: bar colour; None uses the theme
                 "html_image_height": 500,       # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
+                "template": "pi_brand",         # str: registered Plotly theme name
             }
 
     fig : go.Figure, optional
@@ -1227,15 +1125,14 @@ def coefficient_plot(
     coefficients = model.beta_coefficients_[variable]
     features = [str(name) for name in coefficients.index]
 
-    margin_dict: dict = dict(l=10, r=10, b=5, t=80)
-
     class Settings(BaseModel):
         """Validated display settings for the regression-coefficient plot."""
 
         title: str = f"Regression coefficients for {variable}"
-        bar_color: str = "darkblue"
+        bar_color: str | None = None
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
+        template: str = DEFAULT_THEME
 
     setdict = Settings(**settings).model_dump() if settings else Settings().model_dump()
     if fig is None:
@@ -1249,15 +1146,15 @@ def coefficient_plot(
             name=f"beta: {variable}",
         )
     )
-    fig.add_hline(y=0, line_color="black", line_width=1)
+    fig.add_hline(y=0, line_color=REFERENCE_LINE_COLOR, line_width=1)
     fig.update_layout(
+        template=setdict["template"],
         title_text=setdict["title"],
-        margin=margin_dict,
         hovermode="x",
         showlegend=False,
         autosize=False,
-        xaxis=dict(title_text="X-variable", type="category", gridwidth=1, mirror=True, visible=True),
-        yaxis=dict(title_text=f"Coefficient ({variable})", gridwidth=2, visible=True, showline=True),
+        xaxis=dict(title_text="X-variable", type="category"),
+        yaxis=dict(title_text=f"Coefficient ({variable})"),
         width=setdict["html_aspect_ratio_w_over_h"] * setdict["html_image_height"],
         height=setdict["html_image_height"],
     )
