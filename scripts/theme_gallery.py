@@ -23,7 +23,7 @@ import plotly.graph_objects as go
 
 from process_improve.multivariate.methods import PCA, MCUVScaler
 from process_improve.multivariate.plots import loading_plot, score_plot, spe_plot
-from process_improve.visualization.themes import THEME_NAMES
+from process_improve.visualization.themes import REFERENCE_LINE_COLOR, THEME_NAMES
 
 PLOTS = ("score", "spe", "loading")
 
@@ -35,10 +35,48 @@ def _fit_model() -> PCA:
     return PCA(n_components=3).fit(x_scaled)
 
 
+def _decorate_score(fig: go.Figure, model: PCA) -> go.Figure:
+    """Label a few extreme observations and add a diagonal reference line.
+
+    These extras let the gallery show how text labels, callout arrows, a
+    shape line and an inline annotation look under each theme.
+    """
+    pc1, pc2 = model.scores_[1], model.scores_[2]
+    for obs in (pc1.pow(2) + pc2.pow(2)).nlargest(3).index:
+        fig.add_annotation(
+            x=float(pc1[obs]),
+            y=float(pc2[obs]),
+            text=f"obs {obs}",
+            showarrow=True,
+            arrowhead=2,
+            arrowwidth=1,
+            ax=24,
+            ay=-28,
+        )
+    extent = float(max(pc1.abs().max(), pc2.abs().max()))
+    fig.add_shape(
+        type="line",
+        x0=-extent,
+        y0=-extent,
+        x1=extent,
+        y1=extent,
+        line=dict(color=REFERENCE_LINE_COLOR, width=2, dash="dash"),
+    )
+    fig.add_annotation(
+        x=extent * 0.55,
+        y=extent * 0.55,
+        text="trend: PC2 = PC1",
+        showarrow=False,
+        textangle=-45,
+        yshift=12,
+    )
+    return fig
+
+
 def _render(model: PCA, theme: str, plot: str) -> go.Figure:
     settings = {"template": theme}
     if plot == "score":
-        return score_plot(model, settings=settings)
+        return _decorate_score(score_plot(model, settings=settings), model)
     if plot == "spe":
         return spe_plot(model, settings=settings)
     return loading_plot(model, settings=settings)
