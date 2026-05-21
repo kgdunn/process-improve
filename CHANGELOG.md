@@ -11,6 +11,14 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.1] - 2026-05-21
+
+### Fixed
+
+- Batch multitags animation: the Pause button now targets the currently
+  running animation with Plotly's `[None]` sentinel instead of the malformed
+  `[[None]]` placeholder, so pausing works.
+
 ## [1.22.0] - 2026-05-21
 
 ### Added
@@ -86,7 +94,8 @@ those changes.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.1...HEAD
+[1.22.1]: https://github.com/kgdunn/process-improve/compare/v1.22.0...v1.22.1
 [1.22.0]: https://github.com/kgdunn/process-improve/compare/v1.21.7...v1.22.0
 [1.21.7]: https://github.com/kgdunn/process-improve/compare/v1.21.6...v1.21.7
 [1.21.6]: https://github.com/kgdunn/process-improve/compare/v1.21.4...v1.21.6
