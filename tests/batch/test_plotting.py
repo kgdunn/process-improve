@@ -59,3 +59,22 @@ def test_plotting_tags(nylon_data: dict) -> None:
 
     fig = plot_multitags(df_dict=batches_scaled)
     assert len(fig["data"]) == len(batches_scaled) * batches_scaled[1].shape[1]
+
+
+def test_plot_multitags_pause_button_targets_current_animation(nylon_data: dict) -> None:
+    """Test the animation pause button uses Plotly's current animation sentinel."""
+    scale_df = determine_scaling(nylon_data, settings={"robust": False})
+    batches_scaled = apply_scaling(nylon_data, scale_df)
+
+    fig = plot_multitags(
+        df_dict=batches_scaled,
+        settings={
+            "animate": True,
+            "animate_batches_to_highlight": [1],
+            "animate_n_frames": 2,
+        },
+    )
+
+    buttons = fig.layout.updatemenus[0].buttons
+    pause_button = next(button for button in buttons if button.label == "Pause")
+    assert pause_button.args[0] == (None,)
