@@ -199,12 +199,12 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
                     )
                 )
 
-    yaxis1_dict = dict(title=tag, gridwidth=2, matches="y1", showticklabels=True, side="left")
+    yaxis1_dict = dict(title=tag, matches="y1", showticklabels=True, side="left")
     if (y1_limits[0] is not None) or (y1_limits[1] is not None):
         yaxis1_dict["autorange"] = False
         yaxis1_dict["range"] = y1_limits
 
-    yaxis2_dict: dict[str, Any] = dict(title=tag_y2, gridwidth=2, matches="y2", showticklabels=True, side="right")
+    yaxis2_dict: dict[str, Any] = dict(title=tag_y2, matches="y2", showticklabels=True, side="right")
     if (y2_limits[0] is not None) or (y2_limits[1] is not None):
         yaxis2_dict["autorange"] = False
         yaxis2_dict["range"] = y2_limits
@@ -215,15 +215,8 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
         + (f" [{extra_info}]" if extra_info else ""),
         hovermode="closest",
         showlegend=True,
-        legend=dict(
-            orientation="h",
-            traceorder="normal",
-            font=dict(family="sans-serif", size=12, color="#000"),
-            bordercolor="#DDDDDD",
-            borderwidth=1,
-        ),
         autosize=False,
-        xaxis=dict(title=x_axis_label, gridwidth=1),
+        xaxis=dict(title=x_axis_label),
         yaxis=yaxis1_dict,
         width=html_aspect_ratio_w_over_h * html_image_height,
         height=html_image_height,
@@ -320,7 +313,6 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
     if batches_to_highlight is None:
         batches_to_highlight = {}
     font_size = 12
-    margin_dict = dict(l=10, r=10, b=5, t=80)  # Defaults: l=80, r=80, t=100, b=80
     hovertemplate = "Time: %{x}\ny: %{y}"
 
     # This will be clumsy, until we have Python 3.9. TODO: use pydantic instead
@@ -587,32 +579,9 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
 
     fig.update_layout(
         title=settings["title"],
-        margin=margin_dict,
         hovermode="closest",
         showlegend=settings["show_legend"],
-        legend=dict(
-            orientation="h",
-            traceorder="normal",
-            font=dict(family="sans-serif", size=12, color="#000"),
-            bordercolor="#DDDDDD",
-            borderwidth=1,
-        ),
         autosize=False,
-        xaxis=dict(
-            gridwidth=1,
-            mirror=True,  # ticks are mirror at the top of the frame also
-            showspikes=True,
-            visible=True,
-        ),
-        yaxis=dict(
-            gridwidth=2,
-            type="linear",
-            autorange=True,
-            showspikes=True,
-            visible=True,
-            showline=True,  # show a separating line
-            side="left",  # show on the RHS
-        ),
         width=settings["html_aspect_ratio_w_over_h"] * settings["html_image_height"],
         height=settings["html_image_height"],
         sliders=[slider_baseline_dict] if settings["animate_show_slider"] else [],

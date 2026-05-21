@@ -22,6 +22,7 @@ from sklearn.utils.validation import check_array, check_is_fitted
 from tqdm import tqdm
 
 from ..univariate.metrics import detect_outliers_esd
+from ..visualization.themes import REFERENCE_LINE_COLOR
 from .plots import (
     coefficient_plot,
     correlation_loadings_plot,
@@ -4792,7 +4793,7 @@ class MBPLS(RegressorMixin, BaseEstimator):
                     x=[lo - pad, hi + pad],
                     y=[lo - pad, hi + pad],
                     mode="lines",
-                    line={"color": "black", "dash": "dash"},
+                    line={"color": REFERENCE_LINE_COLOR, "dash": "dash"},
                     name="y = x",
                 ),
             ]
