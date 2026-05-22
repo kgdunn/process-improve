@@ -259,20 +259,16 @@ def _check_formula_call(node: ast.Call, allowed: set[str], *, allow_numpy: bool)
 
 
 def forg(x: float, prec: int = 3) -> str:
-    """Yanked from the code for Statsmodels / iolib / summary.py and adjusted."""
-    if prec == 3:
-        # for 3 decimals
-        if (abs(x) >= 1e4) or (abs(x) < 1e-4):
-            return f"{x:9.3g}"
-        else:
-            return f"{x:9.3f}"
-    elif prec == 4:
-        if (abs(x) >= 1e4) or (abs(x) < 1e-4):
-            return f"{x:10.4g}"
-        else:
-            return f"{x:10.4f}"
-    else:
-        raise NotImplementedError
+    """Yanked from the code for Statsmodels / iolib / summary.py and adjusted.
+
+    Formats ``x`` with ``prec`` significant/decimal digits, switching to the
+    ``g`` format for very large or very small magnitudes. Any positive ``prec``
+    is supported; ``prec=3`` and ``prec=4`` reproduce the original widths.
+    """
+    width = prec + 6
+    if (abs(x) >= 1e4) or (abs(x) < 1e-4):
+        return f"{x:{width}.{prec}g}"
+    return f"{x:{width}.{prec}f}"
 
 
 class Model(OLS):

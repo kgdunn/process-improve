@@ -372,33 +372,36 @@ def gather(*args: Column, title: str | None = None, **kwargs: Column | list) -> 
 
     expt = gather(A=A, B=B, y=y, title='My experiment in factors A and B')
 
-    """
-    # TODO : handle the case where the shape of an input >= 2 columns:  category
+    A multi-column input (a ``pandas.DataFrame``, e.g. a categorical factor
+    expanded into several indicator columns) is gathered column by column.
 
+    """
     out = Expt(data=None, index=None, columns=None, dtype=None)
     out.pi_source = defaultdict(str)
     out.pi_units = defaultdict(str)
 
-    _ = [len(value) for value in kwargs.values()]
-    index = []
+    # Every input is merged positionally (row i with row i), so they must all
+    # contribute the same number of rows.
+    lengths = {len(value) for value in kwargs.values()}
+    if len(lengths) > 1:
+        msg = f"All inputs to gather() must have the same length; got lengths {sorted(lengths)}."
+        raise ValueError(msg)
+
     for key, value in kwargs.items():
         if isinstance(value, list):
             out[key] = value
+        elif isinstance(value, pd.DataFrame):
+            # A block of two or more columns: gather each column separately.
+            # A single-column frame keeps the original key as its name.
+            for col_name in value.columns:
+                sub_key = str(key) if value.shape[1] == 1 else f"{key}_{col_name}"
+                out[sub_key] = value[col_name].to_numpy()
+                out.pi_source[sub_key] = col_name
+                out.pi_units[sub_key] = getattr(value, "pi_units", "")
         elif isinstance(value, pd.Series):
             out[key] = value.values
             out.pi_source[key] = value.name
             out.pi_units[key] = value.pi_units if hasattr(value, "pi_units") else ""
-
-            if hasattr(value, "pi_index"):
-                index.append(value.index)
-
-        elif isinstance(value, pd.DataFrame):
-            raise NotImplementedError("Handle this case still")
-
-    # TODO : check that all indexes are common, to merge. Or use the pandas
-    #        functionality of merging series with the same index
-    if index:
-        out.index = index[0]
 
     # Drop any missing values:
     out = out.dropna(axis=0, how="any")
