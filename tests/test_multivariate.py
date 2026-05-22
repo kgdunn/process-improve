@@ -1367,6 +1367,35 @@ def test_score_limit_pls() -> None:
     assert np.all(limits > 0)
 
 
+def test_pls_prediction_interval() -> None:
+    """PLS.prediction_interval brackets the predictions and widens with confidence."""
+    rng = np.random.default_rng(7)
+    X = pd.DataFrame(rng.normal(size=(45, 4)))
+    beta = rng.normal(size=(4, 1))
+    Y = pd.DataFrame(X.values @ beta + rng.normal(scale=0.3, size=(45, 1)))
+    X_s = MCUVScaler().fit_transform(X)
+    Y_s = MCUVScaler().fit_transform(Y)
+    model = PLS(n_components=2).fit(X_s, Y_s)
+
+    pi = model.prediction_interval(X_s, conf_level=0.95)
+    assert pi.y_hat.shape == (45, 1)
+    assert (pi.lower.values < pi.y_hat.values).all()
+    assert (pi.y_hat.values < pi.upper.values).all()
+
+    # A higher confidence level widens the interval.
+    pi_99 = model.prediction_interval(X_s, conf_level=0.99)
+    assert ((pi_99.upper - pi_99.lower).values > (pi.upper - pi.lower).values).all()
+
+    # A cross_validate() result can supply the error variance.
+    cv = model.cross_validate(X_s, Y_s, cv="loo", show_progress=False)
+    pi_cv = model.prediction_interval(X_s, cv_result=cv)
+    assert pi_cv.y_hat.shape == (45, 1)
+    assert (pi_cv.lower.values < pi_cv.upper.values).all()
+
+    with pytest.raises(ValueError, match="conf_level"):
+        model.prediction_interval(X_s, conf_level=1.5)
+
+
 def test_pls_get_set_params_and_clone() -> None:
     """PLS follows the sklearn estimator protocol: get_params/set_params/clone."""
     pls = PLS(n_components=2, scale=False, max_iter=321)
