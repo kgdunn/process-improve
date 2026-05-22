@@ -72,6 +72,24 @@ def test_dict_to_wide_group_by_batch(aligned_batch_dict: dict) -> None:
     assert out.shape[0] == 2
 
 
+def test_dict_to_wide_column_index_levels(aligned_batch_dict: dict) -> None:
+    """The wide output has a named 2-level (tag, sequence) column index."""
+    out = dict_to_wide(aligned_batch_dict)
+    assert list(out.columns.names) == ["tag", "sequence"]
+    assert out.shape == (2, 6)
+    # default: tag-major ordering, so the outer level is the tag
+    assert out.columns[0][0] == "press"
+
+
+def test_dict_to_wide_group_by_batch_reorders_columns(aligned_batch_dict: dict) -> None:
+    """group_by_batch swaps the column levels so sequence is the outer level."""
+    out = dict_to_wide(aligned_batch_dict, group_by_batch=True)
+    assert list(out.columns.names) == ["sequence", "tag"]
+    # sequence-major ordering: the first two columns are both sequence 0
+    assert out.columns[0][0] == 0
+    assert out.columns[1][0] == 0
+
+
 def test_melt_df_to_series() -> None:
     """Test melting a DataFrame to a Series."""
     df = pd.DataFrame({"batch_id": ["A", "A"], "temp": [1.0, 2.0], "press": [3.0, 4.0]})
