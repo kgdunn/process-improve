@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Literal
@@ -87,12 +88,12 @@ class Factor(BaseModel):
         return None
 
     @classmethod
-    def from_data(
+    def from_data(  # noqa: PLR0913
         cls,
-        data: Any,
+        data: pd.Series | Sequence[Any],
         *,
         name: str | None = None,
-        type: FactorType | str = FactorType.continuous,
+        type: FactorType | str = FactorType.continuous,  # noqa: A002
         units: str = "",
         low: float | None = None,
         high: float | None = None,
