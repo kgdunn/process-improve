@@ -869,3 +869,45 @@ def test_distribution_check() -> None:
     > ks.test(y1,"pnorm")
     """
     # TODO
+
+
+def test_biweight_midvariance_robust_to_outliers() -> None:
+    """The Mosteller-Tukey robust scale is barely affected by gross outliers."""
+    rng = np.random.default_rng(0)
+    clean = rng.normal(loc=10, scale=2, size=200)
+    contaminated = np.concatenate([clean, [1000.0, -1000.0]])
+
+    bw_clean = univariate.biweight_midvariance(clean)
+    bw_contaminated = univariate.biweight_midvariance(contaminated)
+
+    # The classical variance explodes with the outliers; the robust scale barely moves.
+    assert np.var(contaminated, ddof=1) > 100 * np.var(clean, ddof=1)
+    assert abs(bw_contaminated - bw_clean) / bw_clean < 0.1
+    # For clean normal data with sigma=2 it tracks the true variance (~4).
+    assert 2.0 < bw_clean < 8.0
+
+
+def test_biweight_midvariance_edge_cases() -> None:
+    """Constant and empty samples are handled gracefully."""
+    assert univariate.biweight_midvariance([5.0, 5.0, 5.0]) == 0.0
+    assert np.isnan(univariate.biweight_midvariance([]))
+    assert np.isnan(univariate.biweight_midvariance([1.0, np.nan], nan_policy="propagate"))
+
+
+def test_holm_bonferroni_matches_statsmodels() -> None:
+    """holm_bonferroni reproduces statsmodels' Holm correction."""
+    from statsmodels.stats.multitest import multipletests
+
+    p = np.array([0.001, 0.04, 0.03, 0.2, 0.009])
+    result = univariate.holm_bonferroni(p, alpha=0.05)
+    reject_ref, p_adj_ref, _, _ = multipletests(p, alpha=0.05, method="holm")
+
+    np.testing.assert_allclose(result.p_adjusted, p_adj_ref, rtol=1e-12)
+    np.testing.assert_array_equal(result.reject, reject_ref)
+
+
+def test_holm_bonferroni_empty_input() -> None:
+    """An empty set of p-values yields empty results."""
+    result = univariate.holm_bonferroni([])
+    assert result.p_adjusted.size == 0
+    assert result.reject.size == 0

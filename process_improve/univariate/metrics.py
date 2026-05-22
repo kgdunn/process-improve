@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, NoReturn
 import numpy as np
 import pandas as pd
 from scipy.stats import shapiro, t
+from sklearn.utils import Bunch
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -644,6 +645,102 @@ def median_absolute_deviation(
         mad = np.median(np.abs(x - med), axis=axis)
 
     return mad / scale
+
+
+def biweight_midvariance(x: np.ndarray | pd.Series, nan_policy: str = "omit") -> float:
+    """Return the Mosteller-Tukey robust scale (biweight midvariance) of ``x``.
+
+    The biweight midvariance is a robust, highly efficient estimator of the
+    variance: it down-weights observations far from the median and ignores
+    gross outliers entirely.
+
+    Parameters
+    ----------
+    x : np.ndarray or pd.Series
+        One-dimensional sample of numeric values.
+    nan_policy : {"omit", "propagate"}, optional
+        ``"omit"`` (default) drops missing values; ``"propagate"`` returns
+        ``nan`` if any value is missing.
+
+    Returns
+    -------
+    float
+        The robust variance estimate. Returns ``0.0`` when the MAD is zero
+        (e.g. a constant sample), and ``nan`` for an empty sample.
+
+    References
+    ----------
+    Mosteller and Tukey, *Data Analysis and Regression*, pp. 207-208, 1977.
+    """
+    a = np.asarray(x, dtype=float).ravel()
+    isnan = np.isnan(a)
+    if isnan.any():
+        if nan_policy == "propagate":
+            return float("nan")
+        a = a[~isnan]
+
+    n = a.size
+    if n == 0:
+        return float("nan")
+
+    location = np.median(a)
+    spread_mad = np.median(np.abs(a - location))
+    if spread_mad == 0:
+        return 0.0
+
+    ui = (a - location) / (6.0 * spread_mad)
+    valid = ui**2 <= 1.0
+    a_valid, ui_valid = a[valid], ui[valid]
+
+    numerator = (a_valid - location) ** 2 * (1 - ui_valid**2) ** 4
+    denominator = (1 - ui_valid**2) * (1 - 5 * ui_valid**2)
+    return float(n * numerator.sum() / denominator.sum() ** 2)
+
+
+def holm_bonferroni(p_values: np.ndarray | pd.Series | list, alpha: float = 0.05) -> Bunch:
+    """Holm-Bonferroni step-down correction for multiple comparisons.
+
+    Holm's method controls the family-wise error rate while being uniformly
+    more powerful than the plain Bonferroni correction. It is the recommended
+    post-hoc correction for a family of pairwise comparisons.
+
+    Parameters
+    ----------
+    p_values : array-like
+        The raw (uncorrected) p-values of the individual comparisons.
+    alpha : float, optional
+        Family-wise significance level, by default 0.05.
+
+    Returns
+    -------
+    sklearn.utils.Bunch
+        A bunch with, in the same order as the input:
+
+        * ``p_adjusted``: the Holm-adjusted p-values.
+        * ``reject``: boolean array, ``True`` where the null hypothesis is
+          rejected at level ``alpha``.
+        * ``alpha``: the family-wise level used.
+
+    References
+    ----------
+    Holm, "A simple sequentially rejective multiple test procedure",
+    Scandinavian Journal of Statistics, 6, 65-70, 1979.
+    """
+    p = np.asarray(p_values, dtype=float).ravel()
+    m = p.size
+    if m == 0:
+        return Bunch(p_adjusted=np.array([]), reject=np.array([], dtype=bool), alpha=alpha)
+
+    order = np.argsort(p)
+    p_sorted = p[order]
+
+    # Step-down weights m, m-1, ..., 1; the running max enforces monotonicity.
+    weights = m - np.arange(m)
+    adjusted_sorted = np.minimum(np.maximum.accumulate(weights * p_sorted), 1.0)
+
+    p_adjusted = np.empty(m)
+    p_adjusted[order] = adjusted_sorted
+    return Bunch(p_adjusted=p_adjusted, reject=p_adjusted <= alpha, alpha=alpha)
 
 
 def summary_stats(x: np.ndarray | pd.Series, method: str = "robust") -> dict:

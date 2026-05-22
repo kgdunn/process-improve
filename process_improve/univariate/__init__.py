@@ -2,8 +2,10 @@
 
 from process_improve.univariate.metrics import (
     Sn,
+    biweight_midvariance,
     confidence_interval,
     detect_outliers_esd,
+    holm_bonferroni,
     median_absolute_deviation,
     summary_stats,
     t_value,
@@ -31,12 +33,14 @@ from process_improve.univariate.tools import (
 __all__ = [
     # Core metrics
     "Sn",
+    "biweight_midvariance",
     "confidence_interval",
     # Tool wrappers
     "confidence_interval_tool",
     "detect_outliers",
     "detect_outliers_esd",
     "get_univariate_tool_specs",
+    "holm_bonferroni",
     "median_absolute_deviation",
     "median_absolute_deviation_tool",
     "normality_test",
