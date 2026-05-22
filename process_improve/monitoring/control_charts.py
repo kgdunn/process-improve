@@ -84,13 +84,15 @@ class ControlChart:
         """
         Find for a given vector `y`, the control chart target and limits.
 
-        Only for the Holt-Winters method, and only when there are more than
-            min(20, max(10, np.ceil(0.10 * N))))
+        Works for both the Holt-Winters ('hw') and 'xbar.no.subgroup' variants.
 
-        measurements, where N is the length of the input vector. In other words, the provided
-        target and standard deviation are only used if more than 10 to 20 measurements.
-        If `target` and `s` are numeric, then that target value and that standard deviation value
-        are used, otherwise these values are estimated.
+        For the Holt-Winters variant, when there are fewer than
+            min(20, max(10, np.ceil(0.10 * N)))
+        measurements (where N is the length of the input vector), the target and
+        standard deviation are estimated directly from the data and any provided
+        `target` / `s` are ignored for that small-sample case.
+        Otherwise, if `target` and `s` are numeric, those values are used;
+        if not, they are estimated.
         """
         self._given_target = target
         self._given_s = s
@@ -149,8 +151,8 @@ class ControlChart:
     def _xbar_no_subgroup_fit(self) -> None:
         """
         Fit the control chart from the data samples, assuming each sample is its own subgroup.
-        Variant = 'regulur' | 'robust' switchs how the average and standard deviation are
-        calculated.
+        The `style` attribute ('regular' | 'robust') switches how the average and standard
+        deviation are calculated.
 
         Control chart limits assume the data are normally distributed and independent. In
         particular, this last assumption can have consequences if not actually met. Limits may be

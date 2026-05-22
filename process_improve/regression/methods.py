@@ -85,17 +85,23 @@ def robust_regression(  # noqa: PLR0913, PLR0915
 
     Returns a dictionary of outputs with these keys::
 
-        coefficients:             a vector of K coefficients, one for each column in X
+        N:                        the number of observations used to fit the model
+        coefficients:             a length-1 list containing the regression slope
         intercept:                returned if fit_intercept==True, otherwise 0
-        standard_errors:          a vector of K standard errors, one per column in X
+        standard_errors:          a length-1 list containing the standard error of the slope
         standard_error_intercept: standard error for the intercept (np.nan if fit_intercept=False)
         R2:                       the R^2 value
         SE:                       the model's standard error
+        x_ssq:                    the sum of squares of (x - mean(x))
+        k:                        the number of model parameters (2 if fit_intercept else 1)
         fitted_values:            the N predicted values, one per row in y
         residuals:                the N residuals
         t_value:                  the t-values for the standard errors
         conf_intervals:           K rows x 2 columns (lower, upper) confidence intervals
+        conf_interval_intercept:  (lower, upper) confidence interval for the intercept
         pi_range:                 prediction intervals above and below, over the range of data
+        leverage:                 the hat-matrix diagonal (leverage) for each observation
+        influence:                Cook-style influence values for each observation
     """
 
     out: dict[str, Any] = {

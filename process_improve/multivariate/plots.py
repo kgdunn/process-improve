@@ -29,7 +29,8 @@ def plot_pre_checks(model: BaseEstimator, pc_horiz: int, pc_vert: int, pc_depth:
         f"The model has {n_components} components. Ensure that 1 <= pc_vert<={n_components}."
     )
     assert -1 <= pc_depth <= n_components, (
-        f"The model has {n_components} components. Ensure that 1 <= pc_depth<={n_components}."
+        f"The model has {n_components} components. Ensure that pc_depth is -1 (no depth axis) "
+        f"or 1 <= pc_depth <= {n_components}."
     )
     assert len({pc_horiz, pc_vert, pc_depth}) == 3, "Specify distinct components for each axis"
 

@@ -448,12 +448,12 @@ def f_count(
     """
     Feature:    count.
 
-    The index number of the final value for each tag, for the given tags
+    The number of non-missing observations for each tag, for the given tags
     in ``tags``, for each unique batch in the ``batch_col`` indicator column,
     and within each unique phase, per batch, of the ``phase_col`` column.
 
-    Can be useful to get the 1-based index (it is a count!), and to then
-    use that index for other calculation purposes.
+    For data without internal gaps this count equals the 1-based index of the
+    final row, so it can also be used as that index for other calculations.
 
     See also: f_sum, f_last
     """
@@ -661,7 +661,7 @@ def f_elbow(  # noqa: PLR0913
                 if only_index:
                     output.loc[batch_id][tag] = elbow_index
                 elif np.isnan(elbow_index):
-                    output.loc[batch_id][tag] = np.isnan
+                    output.loc[batch_id][tag] = np.nan
                 else:
                     output.loc[batch_id][tag] = x_vals[elbow_index]
 

@@ -53,7 +53,7 @@ _TIME_FEATURE_MAP = {
         "etc. for each batch and each measurement tag. "
         "The result is a feature matrix with one row per batch, suitable for multivariate "
         "analysis (e.g. PCA on batch data). "
-        "Available features: 'mean', 'median', 'std', 'iqr', 'mad', 'robust_mad', 'sum', "
+        "Available features: 'mean', 'median', 'std', 'iqr', 'sum', "
         "'min', 'max', 'last', 'count'. "
         "Time-dependent features (require time_column): 'area', 'slope'."
     ),
@@ -76,7 +76,7 @@ _TIME_FEATURE_MAP = {
                     "items": {
                         "type": "string",
                         "enum": [
-                            "mean", "median", "std", "iqr", "mad", "robust_mad",
+                            "mean", "median", "std", "iqr",
                             "sum", "min", "max", "last", "count", "area", "slope",
                         ],
                     },
