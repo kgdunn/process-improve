@@ -124,24 +124,16 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
         pd.DataFrame(intersections.median()).T.plot.scatter(x="x_int", y="y_int", color="red", ax=ax)
         ax.grid(True)
 
-    # Elbow point is taken as the average intersection point which is closest
-    # to the raw data. Handle the case for even and odd number of data points
-    if divmod(len(int_x_list), 2)[1] == 0:
-        mid_idx = np.argmin((np.array(int_x_list) - np.nanmedian(int_x_list)) ** 2)
-    else:
-        mid_idx = np.where(int_x_list == np.nanmedian(int_x_list))
-        if mid_idx[0].any():
-            mid_idx = mid_idx[0][0]
-        else:
-            return np.nan
-
+    # The elbow is the raw data point closest to the consensus intersection
+    # point. Taking the median of every accumulated intersection - in both x
+    # and y - keeps the estimate robust to the occasional spurious window fit
+    # (e.g. near-parallel lines yielding a NaN or far-off intersection),
+    # instead of relying on a single, arbitrarily selected intersection.
     mid_x = np.nanmedian(int_x_list)
-    if np.isnan(mid_x):
+    mid_y = np.nanmedian(int_y_list)
+    if np.isnan(mid_x) or np.isnan(mid_y):
         return np.nan
 
-    # TODO: Could robustify it:
-    # np.quantile(calculate_line_length(mid_x, mid_y, xraw, yraw), 0.05)
-    mid_y = int_y_list[int(mid_idx)]
     return int(np.argmin(calculate_line_length(mid_x, mid_y, x, y)))
 
 
