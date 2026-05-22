@@ -7,6 +7,7 @@ import pandas as pd
 import statsmodels.api as sm
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.exceptions import NotFittedError
+from sklearn.utils import Bunch
 
 from ..univariate.metrics import t_value
 
@@ -524,6 +525,10 @@ class OLS(RegressorMixin, BaseEstimator):
         alpha = 1.0 - self.conflevel
         conf = np.asarray(results._results.conf_int(alpha), dtype=float)
 
+        # se^2 * (X'X)^-1 for the design (intercept first, if fitted): needed to
+        # form prediction intervals at arbitrary new x via prediction_interval().
+        self._cov_params_ = np.asarray(results.cov_params(), dtype=float)
+
         # statsmodels returns Series (indexed by column name) when fed a DataFrame,
         # so always go through ``.values`` for positional access.
         params = np.asarray(results.params.values if hasattr(results.params, "values")
@@ -658,6 +663,72 @@ class OLS(RegressorMixin, BaseEstimator):
         intercept = 0.0 if not self.fit_intercept else self.intercept_
         return intercept + X_arr @ self.coefficients_
 
+    def prediction_interval(
+        self,
+        X: np.ndarray | pd.DataFrame | pd.Series | float,
+        conflevel: float | None = None,
+    ) -> Bunch:
+        """Prediction interval for new observations at arbitrary ``X``.
+
+        Unlike the ``pi_range_`` attribute - which is evaluated on a fixed grid
+        spanning the training data - this method evaluates the prediction
+        interval at any predictor value(s) supplied by the caller, including
+        points outside the training range.
+
+        Parameters
+        ----------
+        X : array-like of shape (M, K), (K,) or scalar
+            New predictor value(s). A scalar or 1-D array is interpreted as a
+            list of points when the model has a single feature, or as a single
+            multi-feature point otherwise.
+        conflevel : float or None, default=None
+            Confidence level for the interval. Defaults to the model's own
+            ``conflevel``.
+
+        Returns
+        -------
+        sklearn.utils.Bunch
+            A bunch with three length-M arrays: ``predicted`` (the point
+            prediction), and ``lower`` / ``upper`` (the prediction-interval
+            bounds).
+        """
+        assert getattr(self, "is_fitted_", False), "OLS must be fitted before calling prediction_interval()."
+        cl = self.conflevel if conflevel is None else conflevel
+
+        X_arr = (
+            X.to_numpy(dtype=float)
+            if isinstance(X, pd.Series | pd.DataFrame)
+            else np.asarray(X, dtype=float)
+        )
+
+        if X_arr.ndim == 0:
+            X_arr = X_arr.reshape(1, 1)
+        elif X_arr.ndim == 1:
+            # Single-feature model: a 1-D input is a list of scalar points.
+            # Otherwise it is interpreted as one multi-feature point.
+            X_arr = X_arr.reshape(-1, 1) if self.n_features_in_ == 1 else X_arr.reshape(1, -1)
+
+        if X_arr.shape[1] != self.n_features_in_:
+            msg = f"Expected {self.n_features_in_} feature(s) per row, got {X_arr.shape[1]}."
+            raise ValueError(msg)
+
+        # Design rows must match the fitted design: intercept column first.
+        if self.fit_intercept:
+            design = np.column_stack([np.ones(X_arr.shape[0]), X_arr])
+            full_params = np.concatenate([[self.intercept_], self.coefficients_])
+        else:
+            design = X_arr
+            full_params = self.coefficients_
+
+        predicted = design @ full_params
+        # Variance of the estimated mean response: row @ (se^2 (X'X)^-1) @ row.
+        # The prediction interval adds se^2 for the new observation's own noise.
+        var_mean = np.einsum("ij,jk,ik->i", design, self._cov_params_, design)
+        std_pred = np.sqrt(self.se_**2 + var_mean)
+        c_t = t_value(1 - (1 - cl) / 2, self.df_resid_)
+        half_width = c_t * std_pred
+        return Bunch(predicted=predicted, lower=predicted - half_width, upper=predicted + half_width)
+
     def summary(self) -> str:
         """Return an R-style ``summary(lm(...))`` string for the fitted model."""
         if not getattr(self, "is_fitted_", False):
@@ -746,6 +817,7 @@ class OLS(RegressorMixin, BaseEstimator):
         self.leverage_ = np.array([np.nan])
         self.influence_ = np.array([np.nan])
         self.pi_range_ = float("nan")
+        self._cov_params_ = np.array([[np.nan]])
         self._k_ = 0
 
     @staticmethod
