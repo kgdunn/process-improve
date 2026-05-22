@@ -246,3 +246,24 @@ def test_f_elbow_only_index(batch_data: pd.DataFrame) -> None:
         only_index=True,
     )
     assert result.shape[1] == 1
+
+
+def test_f_elbow_no_elbow_records_nan() -> None:
+    """A straight line has no elbow; f_elbow should record np.nan, not a function."""
+    n = 30
+    straight_line = pd.DataFrame(
+        {
+            "Batch": ["B1"] * n,
+            "time": np.arange(n, dtype=float),
+            "signal": np.arange(n, dtype=float),
+        }
+    )
+    result = features.f_elbow(
+        straight_line,
+        x_axis_tag="time",
+        tags=["signal"],
+        batch_col="Batch",
+    )
+    value = result.iloc[0, 0]
+    assert isinstance(value, float)
+    assert np.isnan(value)

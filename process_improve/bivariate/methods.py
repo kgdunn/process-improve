@@ -16,13 +16,14 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
     Find the elbow point when plotting numeric entries in `x` vs numeric values in list `y`.
 
     Return the index into the vectors `x` and `y` [the vectors must have the same length], where
-    the elbow point occurs.
+    the elbow point occurs. Returns -1 if every value in `x` or `y` is missing.
 
     Using a robust linear fit, sorts the samples in X (independent variable)
-    and takes sample 1:5 from the left, and samples (end-5):end and fits two
-    linear regressions, then computes the intersection of the two fitted lines.
-    Adds a point to each regression, so (1:6) and (end-6:end) and repeats,
-    accumulating one intersection point per iteration.
+    and takes the first 5 samples from the left, and the last 5 from the right,
+    then fits two linear regressions and computes the intersection of the two
+    fitted lines. The window size is then grown over `max_iter` (default 41)
+    evenly spaced steps, via `numpy.linspace`, up to roughly half the data,
+    accumulating one intersection point per step.
 
     The elbow is taken as the data point whose (x, y) location is closest to
     the median of the accumulated intersection points; the median location is

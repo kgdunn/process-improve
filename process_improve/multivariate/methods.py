@@ -2972,16 +2972,21 @@ class TPLS(RegressorMixin, BaseEstimator):
     max_iter : int, optional
         The maximum number of iterations for the TPLS algorithm. Default is 500.
 
+    skip_f_matrix_preprocessing : bool, optional
+        If True, the F (formula) matrices are used as-is, skipping the internal
+        centering and scaling of the F block. Default is False.
+
     Notes
     -----
-    The input ``X`` is a dictionary with 4 keys:
+    The input ``X`` passed to :meth:`fit` and :meth:`predict` is a dictionary with 3 keys:
 
-    - ``D``: Database of DataFrames (properties in columns, materials in rows).
-      ``D = {"Group A": df_props_a, "Group B": df_props_b, ...}``
     - ``F``: Formula matrices (rows = blends, columns = materials).
       ``F = {"Group A": df_formulas_a, "Group B": df_formulas_b, ...}``
     - ``Z``: Process conditions - one row per blend, one column per condition.
     - ``Y``: Product quality indicators - one row per blend, one column per indicator.
+
+    The ``D`` matrix (database of material properties) is supplied once at
+    construction via the ``d_matrix`` argument; it is not part of ``X``.
 
     Attributes
     ----------
@@ -3014,8 +3019,8 @@ class TPLS(RegressorMixin, BaseEstimator):
     >>> }
     >>> process_conditions = {"Conditions": pd.DataFrame(rng.standard_normal((n_formulas, n_conditions)))}
     >>> quality_indicators = {"Quality":    pd.DataFrame(rng.standard_normal((n_formulas, n_outputs)))}
-    >>> all_data = {"Z": process_conditions, "D": properties, "F": formulas, "Y": quality_indicators}
-    >>> estimator = TPLS(n_components=4)
+    >>> all_data = {"Z": process_conditions, "F": formulas, "Y": quality_indicators}
+    >>> estimator = TPLS(n_components=4, d_matrix=properties)
     >>> estimator.fit(all_data)
     """
 
@@ -3063,7 +3068,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         Parameters
         ----------
-        X : {dictionary of dataframes}, keys that must be present: "D", "F", "Z", and "Y"
+        X : {dictionary of dataframes}, keys that must be present: "F", "Z", and "Y"
             The training input samples. See documentation in the class definition for more information on each matrix.
 
         Returns
@@ -3238,7 +3243,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Testing/inference phase:
         new_data = {"Z": ..., "F": ...}  # you need at least the F block for a new prediction. "Z" is optional.
-        predictions = estimator.predict(new_data_pp)
+        predictions = estimator.predict(new_data)
 
         Parameters
         ----------

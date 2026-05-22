@@ -359,7 +359,9 @@ def _steepest_path(  # noqa: PLR0913
     step_size : float
         Step magnitude in coded units (default 0.5).
     n_steps : int
-        Number of steps to generate (default 10).
+        Number of steps to take away from the design centre (default 10).
+        The returned ``steps`` list has ``n_steps + 1`` entries because it
+        also includes step 0 at the centre.
     direction : str
         ``"ascent"`` or ``"descent"``.
     factor_ranges : dict or None

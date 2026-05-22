@@ -11,6 +11,24 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.2] - 2026-05-22
+
+### Fixed
+
+- `f_elbow` (batch features): the per-batch result was written through a
+  chained-indexing assignment that is a no-op under modern pandas, so the
+  function silently returned column sums instead of elbow values. It now
+  writes results correctly, and batches with no detectable elbow record
+  `np.nan` instead of the `np.isnan` function object.
+- Docstring corrections so they match the implementation: the `TPLS` class
+  and its `fit`/`predict` examples (the `X` input has the keys `F`, `Z`, `Y`;
+  `D` is passed at construction), `robust_regression` return-value keys,
+  `find_elbow_point` window-growth description, `f_count` (counts non-missing
+  observations), `ControlChart.calculate_limits` (supports both variants),
+  `_steepest_path` `n_steps`, `colours_per_batch_id` parameter name, and the
+  `extract_batch_features` tool no longer advertises unavailable `mad` /
+  `robust_mad` features.
+
 ## [1.22.1] - 2026-05-21
 
 ### Fixed
@@ -94,7 +112,8 @@ those changes.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.2...HEAD
+[1.22.2]: https://github.com/kgdunn/process-improve/compare/v1.22.1...v1.22.2
 [1.22.1]: https://github.com/kgdunn/process-improve/compare/v1.22.0...v1.22.1
 [1.22.0]: https://github.com/kgdunn/process-improve/compare/v1.21.7...v1.22.0
 [1.21.7]: https://github.com/kgdunn/process-improve/compare/v1.21.6...v1.21.7

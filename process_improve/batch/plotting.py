@@ -237,7 +237,7 @@ def colours_per_batch_id(
     Return a colour to use for each trace in the plot. A dictionary: keys are batch ids, and
     the value is a colour and line width setting for Plotly.
 
-    override_default_colour: bool
+    use_default_colour: bool
         If True, then the default colour is used (grey: 0.5, 0.5, 0.5)
     """
     if colour_map is None:
