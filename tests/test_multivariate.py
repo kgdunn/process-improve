@@ -43,6 +43,7 @@ from process_improve.multivariate.methods import (
     rv2_coefficient,
     rv_coefficient,
     scale,
+    score_limit,
     squared_cosine,
     ssq,
     vip,
@@ -1329,6 +1330,41 @@ def test_pls_compare_api(fixture_pls_simca_2_components: dict) -> None:
         Y_mcuv.inverse_transform(result.y_hat).values.ravel(), abs=1e-5
     )
     assert np.abs(data["T"]) == pytest.approx(np.abs(result.scores), abs=1e-5)
+
+
+def test_score_limit_pca() -> None:
+    """score_limit returns per-component z * std limits for the PCA scores."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.normal(size=(60, 5)))
+    X_scaled = MCUVScaler().fit_transform(X)
+    model = PCA(n_components=3).fit(X_scaled)
+
+    limits = model.score_limit(conf_level=0.95)
+    assert limits.shape == (3,)
+    assert np.all(limits > 0)
+
+    z_95 = 1.959963984540054
+    expected = z_95 * np.asarray(model.scores_).std(axis=0, ddof=1)
+    np.testing.assert_allclose(limits, expected, rtol=1e-9)
+
+    # A higher confidence level widens the limits.
+    assert np.all(model.score_limit(conf_level=0.99) > limits)
+
+    # The bound method and the free function agree.
+    np.testing.assert_allclose(score_limit(model, 0.95), limits, rtol=1e-12)
+
+
+def test_score_limit_pls() -> None:
+    """score_limit also works for a fitted PLS model."""
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame(rng.normal(size=(50, 4)))
+    beta = rng.normal(size=(4, 1))
+    Y = pd.DataFrame(X.values @ beta + rng.normal(scale=0.1, size=(50, 1)))
+    model = PLS(n_components=2).fit(MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y))
+
+    limits = model.score_limit()
+    assert limits.shape == (2,)
+    assert np.all(limits > 0)
 
 
 def test_pls_get_set_params_and_clone() -> None:

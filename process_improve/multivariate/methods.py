@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import ridgeplot
-from scipy.stats import chi2, f
+from scipy.stats import chi2, f, norm
 from scipy.stats import t as t_dist
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, _fit_context, clone
 from sklearn.metrics import r2_score
@@ -771,6 +771,7 @@ class PCA(TransformerMixin, BaseEstimator):
         self.explained_variance_plot = partial(explained_variance_plot, model=self)
         self.correlation_loadings_plot = partial(correlation_loadings_plot, model=self)
         self.spe_limit = partial(spe_limit, model=self)
+        self.score_limit = partial(score_limit, model=self)
         self.vip = partial(vip, model=self)
         self.squared_cosine = partial(squared_cosine, model=self)
         self.observation_contributions = partial(observation_contributions, model=self)
@@ -1772,6 +1773,7 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         )
         self.hotellings_t2_limit = partial(hotellings_t2_limit, n_components=self.n_components, n_rows=N)
         self.spe_limit = partial(spe_limit, model=self)
+        self.score_limit = partial(score_limit, model=self)
         self.spe_plot = partial(spe_plot, model=self)
         self.t2_plot = partial(t2_plot, model=self)
         self.loading_plot = partial(loading_plot, model=self)
@@ -2763,6 +2765,42 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
     h = (2 * (center_spe**2)) / variance_spe
     # Report square root again as SPE limit
     return np.sqrt(chi2.ppf(conf_level, h) * g)
+
+
+def score_limit(model: BaseEstimator, conf_level: float = 0.95) -> np.ndarray:
+    """Return two-sided confidence limits for each score component.
+
+    The scores of component ``a`` have mean zero and are normally distributed,
+    so the symmetric limit at the requested confidence level is
+    ``z * std(score_a)``, with ``z`` the standard-normal quantile. A score
+    outside ``[-limit, +limit]`` is unusual at that confidence level.
+
+    Parameters
+    ----------
+    model : BaseEstimator
+        A fitted PCA or PLS model exposing a ``scores_`` attribute.
+    conf_level : float, optional
+        Fractional confidence level in (0, 1); by default 0.95.
+
+    Returns
+    -------
+    np.ndarray
+        Array of length ``n_components`` with the positive score limit for
+        each component.
+
+    References
+    ----------
+    Score limits: the score ``t_a`` is normally distributed, so the limit is
+    ``z_{(1 + conf_level) / 2} * s_a``. Equivalently ``(t_a / s_a) ** 2``
+    follows an ``F(1, N - 1)`` distribution.
+    """
+    assert 0.0 < conf_level < 1.0, "conf_level must be a value between (0.0, 1.0)"
+    check_is_fitted(model, "scores_")
+
+    scores = np.asarray(model.scores_, dtype=float)
+    std_per_component = scores.std(axis=0, ddof=1)
+    z = norm.ppf(1 - (1 - conf_level) / 2)
+    return z * std_per_component
 
 
 def ellipse_coordinates(  # noqa: PLR0913
