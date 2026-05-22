@@ -28,6 +28,7 @@ from process_improve.visualization.themes import (
     register_themes,
     set_theme,
 )
+from process_improve.visualization.raincloud import raincloud
 from process_improve.visualization.types import (
     AnnotationType,
     MarkType,
@@ -53,6 +54,7 @@ __all__ = [
     "MarkType",
     "PanelSpec",
     "ScaleType",
+    "raincloud",
     "register_themes",
     "set_theme",
 ]
