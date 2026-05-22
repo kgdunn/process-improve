@@ -659,10 +659,10 @@ def f_elbow(  # noqa: PLR0913
                     elbow_index = np.nan
 
                 if only_index:
-                    output.loc[batch_id][tag] = elbow_index
+                    output.loc[batch_id, tag] = elbow_index
                 elif np.isnan(elbow_index):
-                    output.loc[batch_id][tag] = np.nan
+                    output.loc[batch_id, tag] = np.nan
                 else:
-                    output.loc[batch_id][tag] = x_vals[elbow_index]
+                    output.loc[batch_id, tag] = x_vals[elbow_index]
 
     return output.rename(columns=dict(zip(tags, f_names, strict=False)))

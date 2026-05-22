@@ -87,7 +87,9 @@ class ControlChart:
         Works for both the Holt-Winters ('hw') and 'xbar.no.subgroup' variants.
 
         For the Holt-Winters variant, when there are fewer than
+
             min(20, max(10, np.ceil(0.10 * N)))
+
         measurements (where N is the length of the input vector), the target and
         standard deviation are estimated directly from the data and any provided
         `target` / `s` are ignored for that small-sample case.

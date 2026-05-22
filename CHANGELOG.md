@@ -15,7 +15,10 @@ those changes.
 
 ### Fixed
 
-- `f_elbow` (batch features): batches with no detectable elbow now record
+- `f_elbow` (batch features): the per-batch result was written through a
+  chained-indexing assignment that is a no-op under modern pandas, so the
+  function silently returned column sums instead of elbow values. It now
+  writes results correctly, and batches with no detectable elbow record
   `np.nan` instead of the `np.isnan` function object.
 - Docstring corrections so they match the implementation: the `TPLS` class
   and its `fit`/`predict` examples (the `X` input has the keys `F`, `Z`, `Y`;
