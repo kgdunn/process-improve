@@ -70,6 +70,7 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
     html_aspect_ratio_w_over_h: float = 16 / 9,
     y1_limits: tuple = (None, None),
     y2_limits: tuple = (None, None),
+    mode: str = "lines",
 ) -> go.Figure:
     """Plot a particular `tag` over all batches in the given dataframe `df`.
 
@@ -112,6 +113,9 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
         Axis limits enforced on the y2 (right) axis. Default is (None, None) which means the data
         themselves are used to determine the limits. Specify BOTH limits. Plotly requires
         (at the moment https://github.com/plotly/plotly.js/issues/400) that you specify both.
+    mode: str, optional
+        Plotly trace draw mode, by default "lines". Use "lines+markers" to also
+        show a marker at each data point, or "markers" for markers only.
 
 
     Returns
@@ -167,7 +171,7 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
                 y=batch_df[tag],
                 name=batch_id,
                 line=line_styles[batch_id],
-                mode="lines",
+                mode=mode,
                 opacity=0.8,
                 yaxis="y1",
             )
@@ -179,7 +183,7 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
                     y=batch_df[tag_y2],
                     name=batch_id,
                     line=line_styles[batch_id],
-                    mode="lines",
+                    mode=mode,
                     opacity=0.8,
                     yaxis="y2",
                 )
@@ -197,7 +201,7 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
                     y=batch_df[tag],
                     line=line_styles[batch_id],
                     name=batch_id,
-                    mode="lines",
+                    mode=mode,
                     opacity=0.8,
                     yaxis="y1",
                 )
@@ -209,7 +213,7 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
                         y=batch_df[tag_y2],
                         line=line_styles[batch_id],
                         name=batch_id,
-                        mode="lines",
+                        mode=mode,
                         opacity=0.8,
                         yaxis="y2",
                     )
@@ -328,6 +332,8 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
                 "x_axis_label": "Time, grouped per tag",# str: x-axis label
                 "title": "",                            # str: overall plot title
                 "show_legend": True,                    # bool: show legend
+                "mode": "lines",                        # str: Plotly trace mode
+                                                        #      e.g. "lines+markers"
                 "html_image_height": 900,               # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,     # float: width as ratio of height
             }
@@ -354,6 +360,8 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
         title="",
         # Pydantic: bool
         show_legend=True,
+        # Pydantic: str
+        mode="lines",
         # Pydantic: >0
         html_image_height=900,
         # Pydantic: >0
@@ -486,7 +494,7 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
                 x=time_data,
                 y=batch_df[tag],
                 name=batch_id,
-                mode="lines",
+                mode=settings["mode"],
                 hovertemplate=hovertemplate,
                 line=colour_assignment[batch_id],
                 legendgroup=batch_id,
@@ -556,6 +564,7 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
             show_legend=settings["show_legend"],
             hovertemplate=hovertemplate,
             max_columns=settings["ncols"],
+            mode=settings["mode"],
         )
 
         frames.append(go.Frame(data=one_frame, name=frame_name))
@@ -642,6 +651,7 @@ def generate_one_frame(  # noqa: PLR0913
     show_legend: bool = False,
     hovertemplate: str = "",
     max_columns: int = 0,
+    mode: str = "lines",
 ) -> list[dict]:
     """
     Return a list of dictionaries.
@@ -664,7 +674,7 @@ def generate_one_frame(  # noqa: PLR0913
                     x=time_data[0:up_to_index],
                     y=df_dict[batch_id][tag][0:up_to_index],
                     name=batch_id,
-                    mode="lines",
+                    mode=mode,
                     hovertemplate=hovertemplate,
                     line=animation_colour_assignment[batch_id],
                     legendgroup=batch_id,

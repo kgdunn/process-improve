@@ -61,6 +61,26 @@ def test_plotting_tags(nylon_data: dict) -> None:
     assert len(fig["data"]) == len(batches_scaled) * batches_scaled[1].shape[1]
 
 
+def test_plot_all_batches_per_tag_mode(dryer_data: dict) -> None:
+    """The `mode` argument should propagate to every Plotly trace."""
+    fig = plot_all_batches_per_tag(
+        df_dict=dryer_data,
+        tag="JacketTemperature",
+        time_column="ClockTime",
+        mode="lines+markers",
+    )
+    assert all(trace["mode"] == "lines+markers" for trace in fig["data"])
+
+
+def test_plot_multitags_mode(nylon_data: dict) -> None:
+    """The `mode` setting should propagate to every Plotly trace."""
+    scale_df = determine_scaling(nylon_data, settings={"robust": False})
+    batches_scaled = apply_scaling(nylon_data, scale_df)
+
+    fig = plot_multitags(df_dict=batches_scaled, settings={"mode": "lines+markers"})
+    assert all(trace["mode"] == "lines+markers" for trace in fig["data"])
+
+
 def test_plot_multitags_pause_button_targets_current_animation(nylon_data: dict) -> None:
     """Test the animation pause button uses Plotly's current animation sentinel."""
     scale_df = determine_scaling(nylon_data, settings={"robust": False})
