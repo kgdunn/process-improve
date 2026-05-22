@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from sklearn.utils import Bunch
 
 from ..univariate.metrics import Sn
 
@@ -9,7 +10,7 @@ def calculate_cpk(
     which_column: str,
     specifications: tuple[float, float] = (np.nan, np.nan),
     trim_percentile: float = 2.5,
-) -> float:
+) -> Bunch:
     """
     Calculate the process capability, Cpk, near either the lower or the upper limit [will be
     automatically determined which].
@@ -46,8 +47,14 @@ def calculate_cpk(
 
     Returns
     -------
-    float
-        The Cpk value.
+    sklearn.utils.Bunch
+        A bunch with the following fields:
+
+        * ``cpk``: the Cpk value (the limiting, i.e. smaller, of the two sides).
+        * ``center``: the center (mean or median) of the limiting side.
+        * ``spread``: the spread (standard deviation or Sn) of the limiting side.
+        * ``rsd``: the relative standard deviation of the limiting side, as a
+          percentage, ``(spread / center) * 100``.
     """
     if trim_percentile < 0:
         raise ValueError(
@@ -84,10 +91,10 @@ def calculate_cpk(
         spread_lower, spread_upper = metric_lower.std(), metric_upper.std()
 
     # A column with no spread (constant data, or only one non-NaN value)
-    # makes Cpk undefined: the bare division yielded inf / NaN silently.
+    # makes Cpk undefined: a bare division would silently yield inf / NaN.
     # Emit a clear warning and return NaN per side -- callers can then
-    # distinguish "Cpk could not be computed" from a numeric result.
-    # SEC-24 (#273).
+    # distinguish "Cpk could not be computed" from a numeric result. SEC-24
+    # (#273).
     import warnings  # noqa: PLC0415
 
     def _safe_ratio(numer: float, denom: float, side: str) -> float:
@@ -101,11 +108,19 @@ def calculate_cpk(
             return float("nan")
         return numer / (3 * denom)
 
-    # TODO: return the RSD also: rsd = (spread / center) * 100
-    return np.nanmin([
-        _safe_ratio(center_lower, spread_lower, "lower"),
-        _safe_ratio(center_upper, spread_upper, "upper"),
-    ])
+    cpk_lower = _safe_ratio(center_lower, spread_lower, "lower")
+    cpk_upper = _safe_ratio(center_upper, spread_upper, "upper")
+
+    # The Cpk is the smaller (limiting) of the two sides; report the centre,
+    # spread and RSD of whichever side that is. A NaN side never wins over a
+    # finite one.
+    if np.isnan(cpk_upper) or (not np.isnan(cpk_lower) and cpk_lower <= cpk_upper):
+        cpk, center, spread = cpk_lower, center_lower, spread_lower
+    else:
+        cpk, center, spread = cpk_upper, center_upper, spread_upper
+
+    rsd = (spread / center) * 100 if center else float("nan")
+    return Bunch(cpk=cpk, center=center, spread=spread, rsd=rsd)
 
 
 _RENAMED = {"calculate_Cpk": "calculate_cpk"}
