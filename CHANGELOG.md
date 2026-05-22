@@ -11,6 +11,50 @@ those changes.
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-06-02
+
+### Added
+
+- `PCA.score_limit()` / `PLS.score_limit()`: per-component confidence limits
+  for the model scores, ported from the legacy `calc_limits` block.
+- `OLS.prediction_interval()`: prediction intervals for linear regression at
+  arbitrary new `x` values, including points outside the training range.
+- `PLS.prediction_interval()`: prediction intervals for new observations,
+  computed from the residual error variance and each observation's
+  latent-space leverage.
+- `Factor.from_data()`: build a coded `Factor` from a column of historical
+  data, inferring the range (continuous) or levels (categorical).
+- `visualization.raincloud()`: a raincloud plot combining a one-sided violin
+  (the density cloud), a boxplot, and the jittered raw observations.
+- Univariate statistics: `holm_bonferroni()` (Holm step-down
+  multiple-comparisons correction), `biweight_midvariance()` (the
+  Mosteller-Tukey robust scale), `tietjen_moore_test()` (a test for a
+  specified number of outliers), and `distribution_fit()` (a
+  Kolmogorov-Smirnov goodness-of-fit check).
+- Batch feature functions: `f_robust_mad` (a normal-consistency-scaled median
+  absolute deviation) and `f_agemin` / `f_agemax` (the index label at which a
+  tag attained its minimum / maximum).
+- A `mode` argument for the batch plots (`plot_all_batches_per_tag`,
+  `plot_multitags`), so traces can show markers as well as lines.
+- `dict_to_wide(..., group_by_batch=...)`: the wide output carries a named
+  `(tag, sequence)` column index whose levels are swapped when
+  `group_by_batch=True`.
+
+### Changed
+
+- `calculate_cpk()` now returns a `Bunch` with `cpk`, `center`, `spread` and
+  `rsd` (relative standard deviation), instead of a bare float. Callers must
+  read the `cpk` field.
+- The `plot_multitags` settings dictionary is now a `MultiTagPlotSettings`
+  pydantic model.
+- `gather()` accepts multi-column `DataFrame` inputs (one output column per
+  block column) and validates that every input has the same length.
+- `forg()` formats numbers at any precision instead of raising
+  `NotImplementedError` for a precision other than 3 or 4.
+- `find_elbow_point()` selects the elbow against the median of every
+  accumulated intersection point in both `x` and `y`, making it more robust
+  to spurious window fits.
+
 ## [1.22.21] - 2026-06-02
 
 ### Security
@@ -432,7 +476,6 @@ this entry records them together.
 - CI now includes experimental, allow-failure jobs for free-threaded
   Python 3.13t and 3.14t on ubuntu, since numba >= 0.63 ships
   free-threaded wheels (#43).
-
 ## [1.22.2] - 2026-05-22
 
 ### Fixed
@@ -534,7 +577,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.21...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.23.0...HEAD
+[1.23.0]: https://github.com/kgdunn/process-improve/compare/v1.22.21...v1.23.0
 [1.22.21]: https://github.com/kgdunn/process-improve/compare/v1.22.20...v1.22.21
 [1.22.20]: https://github.com/kgdunn/process-improve/compare/v1.22.19...v1.22.20
 [1.22.19]: https://github.com/kgdunn/process-improve/compare/v1.22.18...v1.22.19
