@@ -8,6 +8,10 @@ end (success path) and, where cheap, also exercises its except-branch.
 
 from __future__ import annotations
 
+import pathlib
+
+import pandas as pd
+
 # execute_tool_call calls discover_tools(), which imports
 # process_improve.experiments.tools and triggers all @tool_spec
 # registrations - no explicit import is needed here.
@@ -279,6 +283,35 @@ class TestAnalyzeExperiment:
             },
         )
         assert "error" in result
+
+    def test_end_to_end_on_real_ldpe_dataset(self) -> None:
+        """analyze_experiment runs end-to-end via execute_tool_call on the real LDPE data."""
+        csv_path = (
+            pathlib.Path(__file__).parents[1]
+            / "process_improve" / "datasets" / "multivariate" / "LDPE" / "LDPE.csv"
+        )
+        ldpe = pd.read_csv(csv_path, index_col=0)
+        factors_and_response = ["Tin", "Tmax1", "z1", "Conv"]
+        design_matrix = [
+            {key: float(value) for key, value in row.items()}
+            for row in ldpe[factors_and_response].to_dict(orient="records")
+        ]
+
+        result = execute_tool_call(
+            "analyze_experiment",
+            {
+                "design_matrix": design_matrix,
+                "response_column": "Conv",
+                "model": "main_effects",
+                "analysis_type": ["coefficients", "residual_diagnostics"],
+            },
+        )
+
+        assert "error" not in result, result
+        summary = result["model_summary"]
+        assert summary["n_obs"] == len(ldpe)
+        assert 0.0 <= summary["r_squared"] <= 1.0
+        assert len(result["coefficients"]) > 0
 
 
 # ---------------------------------------------------------------------------
