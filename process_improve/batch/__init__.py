@@ -10,6 +10,8 @@ from process_improve.batch.data_input import (
 )
 from process_improve.batch.features import (
     cross,
+    f_agemax,
+    f_agemin,
     f_area,
     f_count,
     f_crossing,
@@ -20,6 +22,7 @@ from process_improve.batch.features import (
     f_mean,
     f_median,
     f_min,
+    f_robust_mad,
     f_rupture,
     f_slope,
     f_std,
@@ -41,6 +44,8 @@ __all__ = [
     "determine_scaling",
     "dict_to_melted",
     "dict_to_wide",
+    "f_agemax",
+    "f_agemin",
     "f_area",
     "f_count",
     "f_crossing",
@@ -52,6 +57,7 @@ __all__ = [
     "f_mean",
     "f_median",
     "f_min",
+    "f_robust_mad",
     "f_rupture",
     "f_slope",
     "f_std",

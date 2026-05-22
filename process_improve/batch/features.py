@@ -4,7 +4,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
-from scipy.stats import iqr
+from scipy.stats import iqr, median_abs_deviation
 
 from ..bivariate.methods import find_elbow_point
 from ..regression.methods import repeated_median_slope
@@ -226,6 +226,32 @@ def f_iqr(
     return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
+def f_robust_mad(
+    data: pd.DataFrame,
+    tags: list[str] | None = None,
+    batch_col: str | None = None,
+    phase_col: str | None = None,
+) -> pd.DataFrame:
+    """
+    Feature:    robust_mad.
+
+    The Median Absolute Deviation (MAD) for the given tags in ``tags``,
+    for each unique batch in the ``batch_col`` indicator column, and
+    within each unique phase, per batch, of the ``phase_col`` column.
+
+    The MAD is a robust alternative to the standard deviation. It is scaled by
+    the normal-consistency factor (~1.4826), so that for normally distributed
+    data it estimates the same quantity as ``f_std``.
+
+    See also: f_std, f_iqr
+    """
+    base_name = "robust_mad"
+    prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
+    f_names = [(tag + "_" + base_name) for tag in tags]
+    output = prepared.agg(lambda col: median_abs_deviation(col, scale="normal", nan_policy="omit"))
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))
+
+
 # Cumulative features
 # ------------------------------------------
 def f_sum(
@@ -297,16 +323,6 @@ def f_area(
             area = ((left_vals + right_vals) / 2 * half_base_factor).sum()
             output.loc[batch_id, tag] = area
 
-            # TODO: check this out still
-            # Trapezoidal rule for integrated area, still add the "delta X" constant:
-            # # https://en.wikipedia.org/wiki/Trapezoidal_rule
-            # area = (
-            #     this_batch[tag].values[0]
-            #     + 2 * sum(this_batch[tag].values[1:-1])
-            #     + this_batch[tag].values[-1]
-            # ) / 2
-
-    # output.add_suffix('_' + base_name)
     return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
@@ -406,9 +422,22 @@ def f_agemin(
     tags: list[str] | None = None,
     batch_col: str | None = None,
     phase_col: str | None = None,
-) -> None:
-    """Feature: age at minimum value. Not yet implemented."""
-    # TODO
+) -> pd.DataFrame:
+    """
+    Feature:    agemin.
+
+    The age - the index label, i.e. the time stamp or sample number - at which
+    each tag attained its minimum value, for the given tags in ``tags``,
+    for each unique batch in the ``batch_col`` indicator column, and
+    within each unique phase, per batch, of the ``phase_col`` column.
+
+    See also: f_min, f_agemax
+    """
+    base_name = "agemin"
+    prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
+    f_names = [(tag + "_" + base_name) for tag in tags]
+    output = prepared.idxmin()
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
 def f_agemax(
@@ -416,9 +445,22 @@ def f_agemax(
     tags: list[str] | None = None,
     batch_col: str | None = None,
     phase_col: str | None = None,
-) -> None:
-    """Feature: age at maximum value. Not yet implemented."""
-    # TODO
+) -> pd.DataFrame:
+    """
+    Feature:    agemax.
+
+    The age - the index label, i.e. the time stamp or sample number - at which
+    each tag attained its maximum value, for the given tags in ``tags``,
+    for each unique batch in the ``batch_col`` indicator column, and
+    within each unique phase, per batch, of the ``phase_col`` column.
+
+    See also: f_max, f_agemin
+    """
+    base_name = "agemax"
+    prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
+    f_names = [(tag + "_" + base_name) for tag in tags]
+    output = prepared.idxmax()
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
 def f_last(
