@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Literal
 
+import pandas as pd
 from pydantic import BaseModel, model_validator
 
 from process_improve.experiments.structures import Expt
@@ -84,6 +85,70 @@ class Factor(BaseModel):
         if self.low is not None and self.high is not None:
             return (self.low, self.high)
         return None
+
+    @classmethod
+    def from_data(
+        cls,
+        data: Any,
+        *,
+        name: str | None = None,
+        type: FactorType | str = FactorType.continuous,
+        units: str = "",
+        low: float | None = None,
+        high: float | None = None,
+        levels: list[Any] | None = None,
+    ) -> Factor:
+        """Create a Factor from a column of historical / real-world data.
+
+        Parameters
+        ----------
+        data : array-like or pandas.Series
+            Observed values for the factor.
+        name : str or None
+            Factor name. If None, the ``name`` attribute of ``data`` (e.g. a
+            pandas Series column name) is used; an error is raised if neither
+            is available.
+        type : FactorType or str
+            One of "continuous", "categorical", or "mixture". Default
+            "continuous".
+        units : str
+            Engineering units.
+        low, high : float or None
+            Low/high levels for continuous or mixture factors. If not given,
+            they are inferred from the minimum and maximum of ``data``.
+        levels : list or None
+            Explicit levels for categorical factors. If not given, the unique
+            values of ``data`` (in order of first appearance) are used.
+
+        Returns
+        -------
+        Factor
+            A validated Factor instance.
+
+        Examples
+        --------
+        >>> Factor.from_data(df["Temperature"], type="continuous")
+        >>> Factor.from_data(df["Catalyst"], type="categorical")
+        >>> Factor.from_data(df["Pressure"], type="continuous", low=4, high=8)
+        """
+        factor_type = FactorType(type)
+        values = pd.Series(data).dropna()
+
+        if name is None:
+            name = getattr(data, "name", None)
+        if name is None:
+            raise ValueError("`name` must be given when `data` has no `name` attribute.")
+
+        if factor_type == FactorType.categorical:
+            if levels is None:
+                levels = list(pd.unique(values))
+            return cls(name=str(name), type=factor_type, levels=levels, units=units)
+
+        if low is None:
+            low = float(values.min())
+        if high is None:
+            high = float(values.max())
+        return cls(name=str(name), type=factor_type, low=low, high=high, units=units)
 
 
 class Constraint(BaseModel):
