@@ -911,3 +911,44 @@ def test_holm_bonferroni_empty_input() -> None:
     result = univariate.holm_bonferroni([])
     assert result.p_adjusted.size == 0
     assert result.reject.size == 0
+
+
+def test_tietjen_moore_detects_planted_outliers() -> None:
+    """The Tietjen-Moore test flags two planted gross outliers."""
+    rng = np.random.default_rng(0)
+    sample = rng.normal(loc=0.0, scale=1.0, size=40)
+    sample[5] = 12.0
+    sample[20] = -11.0
+
+    result = univariate.tietjen_moore_test(
+        sample, n_outliers=2, n_simulations=2000, random_state=1
+    )
+    assert result.reject is True
+    assert set(result.outlier_indices.tolist()) == {5, 20}
+
+
+def test_tietjen_moore_no_outliers_in_clean_data() -> None:
+    """Clean normal data should not be flagged as containing outliers."""
+    rng = np.random.default_rng(2)
+    sample = rng.normal(size=50)
+    result = univariate.tietjen_moore_test(
+        sample, n_outliers=2, n_simulations=2000, random_state=3
+    )
+    assert result.reject is False
+
+    with pytest.raises(ValueError, match="n_outliers"):
+        univariate.tietjen_moore_test(sample, n_outliers=50)
+
+
+def test_distribution_fit_normal_and_non_normal() -> None:
+    """distribution_fit accepts genuinely normal data and rejects skewed data."""
+    rng = np.random.default_rng(4)
+    normal_sample = rng.normal(loc=5.0, scale=2.0, size=500)
+    fit_normal = univariate.distribution_fit(normal_sample, distribution="norm")
+    assert fit_normal.distribution == "norm"
+    assert fit_normal.n == 500
+    assert fit_normal.fits_well is True
+
+    exponential_sample = rng.exponential(scale=3.0, size=500)
+    fit_bad = univariate.distribution_fit(exponential_sample, distribution="norm")
+    assert fit_bad.fits_well is False

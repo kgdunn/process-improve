@@ -919,6 +919,142 @@ def detect_outliers_esd(
         return [], defaultdict(dict)
 
 
+def tietjen_moore_test(  # noqa: PLR0913
+    x: np.ndarray | pd.Series,
+    n_outliers: int,
+    *,
+    two_sided: bool = True,
+    alpha: float = 0.05,
+    n_simulations: int = 10000,
+    random_state: int | None = None,
+) -> Bunch:
+    """Tietjen-Moore test for a *specified* number of outliers.
+
+    Tests the null hypothesis "there are no outliers" against the alternative
+    "the ``n_outliers`` most extreme observations are outliers". Unlike the
+    generalised ESD test, the number of suspected outliers must be fixed in
+    advance. The test statistic has no closed-form critical value, so it is
+    obtained by simulation under the normal null.
+
+    Parameters
+    ----------
+    x : np.ndarray or pd.Series
+        One-dimensional sample. Missing values are dropped.
+    n_outliers : int
+        The number of suspected outliers to test for (1 <= n_outliers < N).
+    two_sided : bool, optional
+        If ``True`` (default) the test looks for outliers on either tail (the
+        observations with the largest absolute deviation from the mean). If
+        ``False`` it tests only the ``n_outliers`` largest observations.
+    alpha : float, optional
+        Significance level, by default 0.05.
+    n_simulations : int, optional
+        Number of Monte-Carlo samples used to estimate the critical value.
+    random_state : int or None, optional
+        Seed for the simulation, for reproducibility.
+
+    Returns
+    -------
+    sklearn.utils.Bunch
+        With ``statistic``, ``critical_value``, ``reject`` (``True`` when the
+        outliers are significant), ``outlier_indices`` (positions in the
+        missing-value-removed sample), ``n_outliers`` and ``alpha``.
+
+    References
+    ----------
+    Tietjen and Moore, "Some Grubbs-type statistics for the detection of
+    several outliers", Technometrics, 14, 583-597, 1972. See also the NIST
+    handbook, section 3.5.h.3.
+    """
+    a = np.asarray(x, dtype=float).ravel()
+    a = a[~np.isnan(a)]
+    n = a.size
+    if not (1 <= n_outliers < n):
+        raise ValueError(f"n_outliers must be between 1 and {n - 1}, got {n_outliers}.")
+
+    def _statistic(sample: np.ndarray) -> float:
+        ranking = np.argsort(np.abs(sample - sample.mean())) if two_sided else np.argsort(sample)
+        kept = sample[ranking[: n - n_outliers]]
+        denominator = np.sum((sample - sample.mean()) ** 2)
+        return float(np.sum((kept - kept.mean()) ** 2) / denominator)
+
+    observed = _statistic(a)
+
+    # Simulate the null distribution: all observations i.i.d. standard normal.
+    rng = np.random.default_rng(random_state)
+    simulated = np.array([_statistic(rng.standard_normal(n)) for _ in range(n_simulations)])
+    critical_value = float(np.quantile(simulated, alpha))
+
+    outlier_indices = (
+        np.argsort(np.abs(a - a.mean()))[n - n_outliers :]
+        if two_sided
+        else np.argsort(a)[n - n_outliers :]
+    )
+
+    # A small statistic indicates that the removed points really are outliers.
+    return Bunch(
+        statistic=observed,
+        critical_value=critical_value,
+        reject=observed < critical_value,
+        outlier_indices=np.sort(outlier_indices),
+        n_outliers=n_outliers,
+        alpha=alpha,
+    )
+
+
+def distribution_fit(
+    x: np.ndarray | pd.Series,
+    distribution: str = "norm",
+    alpha: float = 0.05,
+) -> Bunch:
+    """Check how well a sample fits a named distribution.
+
+    Fits the parameters of the requested ``scipy.stats`` distribution by
+    maximum likelihood and runs a Kolmogorov-Smirnov goodness-of-fit test
+    (NIST handbook, section 3.5.7).
+
+    Parameters
+    ----------
+    x : np.ndarray or pd.Series
+        One-dimensional sample. Missing values are dropped.
+    distribution : str, optional
+        Name of any continuous ``scipy.stats`` distribution, by default
+        ``"norm"``.
+    alpha : float, optional
+        Significance level for the ``fits_well`` verdict, by default 0.05.
+
+    Returns
+    -------
+    sklearn.utils.Bunch
+        With ``distribution``, fitted ``parameters``, ``ks_statistic``,
+        ``ks_pvalue``, ``fits_well`` (``True`` when the fit is not rejected at
+        level ``alpha``) and the sample size ``n``.
+
+    Notes
+    -----
+    Because the distribution parameters are estimated from the same data, the
+    KS p-value is conservative (the true Type-I error is smaller than
+    ``alpha``); it remains a useful screening check.
+    """
+    from scipy import stats as scipy_stats  # noqa: PLC0415
+
+    a = np.asarray(x, dtype=float).ravel()
+    a = a[~np.isnan(a)]
+
+    dist = getattr(scipy_stats, distribution)
+    parameters = dist.fit(a)
+    ks_statistic, ks_pvalue = scipy_stats.kstest(a, distribution, args=parameters)
+
+    return Bunch(
+        distribution=distribution,
+        parameters=parameters,
+        ks_statistic=float(ks_statistic),
+        ks_pvalue=float(ks_pvalue),
+        fits_well=bool(ks_pvalue > alpha),
+        n=int(a.size),
+    )
+
+
 def variance_decomposition(df: pd.DataFrame, measured: str, repeat: str) -> dict:
     """
     Given a DataFrame `df` of raw data, and an indication of which column is the `measured` value
