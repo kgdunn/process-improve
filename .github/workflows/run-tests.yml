@@ -43,14 +43,31 @@ jobs:
        # Adjust for min and max supported Python versions
         python-version: ["3.13"]
         os: [ubuntu-latest, windows-latest, macos-latest]
+        experimental: [false]
         include:
           - python-version: "3.10"
             os: ubuntu-latest
+            experimental: false
           - python-version: "3.11"
             os: ubuntu-latest
+            experimental: false
           - python-version: "3.12"
             os: ubuntu-latest
+            experimental: false
+          # Free-threaded (no-GIL) Python. numba 0.63+ ships free-threaded
+          # wheels but llvmlite (a numba dependency) does not yet publish
+          # cp31Xt wheels on PyPI, and its sdist needs LLVM 20 which is not
+          # on the GitHub-hosted ubuntu image. Until llvmlite ships
+          # free-threaded wheels these rows are expected to fail at install
+          # time; allow them to fail without blocking the workflow.
+          - python-version: "3.13t"
+            os: ubuntu-latest
+            experimental: true
+          - python-version: "3.14t"
+            os: ubuntu-latest
+            experimental: true
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
     defaults:
       run:
         shell: bash -e {0}
