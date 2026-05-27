@@ -11,6 +11,14 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.3] - 2026-05-27
+
+### Changed
+
+- CI now includes experimental, allow-failure jobs for free-threaded
+  Python 3.13t and 3.14t on ubuntu, since numba >= 0.63 ships
+  free-threaded wheels (#43).
+
 ## [1.22.2] - 2026-05-22
 
 ### Fixed
@@ -112,7 +120,8 @@ those changes.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.2...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.3...HEAD
+[1.22.3]: https://github.com/kgdunn/process-improve/compare/v1.22.2...v1.22.3
 [1.22.2]: https://github.com/kgdunn/process-improve/compare/v1.22.1...v1.22.2
 [1.22.1]: https://github.com/kgdunn/process-improve/compare/v1.22.0...v1.22.1
 [1.22.0]: https://github.com/kgdunn/process-improve/compare/v1.21.7...v1.22.0
