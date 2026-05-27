@@ -55,8 +55,11 @@ jobs:
             os: ubuntu-latest
             experimental: false
           # Free-threaded (no-GIL) Python. numba 0.63+ ships free-threaded
-          # wheels but support is still upstream-experimental, so allow these
-          # rows to fail without blocking the workflow.
+          # wheels but llvmlite (a numba dependency) does not yet publish
+          # cp31Xt wheels on PyPI, and its sdist needs LLVM 20 which is not
+          # on the GitHub-hosted ubuntu image. Until llvmlite ships
+          # free-threaded wheels these rows are expected to fail at install
+          # time; allow them to fail without blocking the workflow.
           - python-version: "3.13t"
             os: ubuntu-latest
             experimental: true
