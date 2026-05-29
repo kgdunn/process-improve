@@ -22,7 +22,7 @@ therefore ranked under two models:
 
 | ID | Title | U | L | Status |
 |----|-------|---|---|--------|
-| SEC-01 | RCE via patsy formula in `fit_linear_model` | Critical | Low | open |
+| SEC-01 | RCE via patsy formula in `fit_linear_model` | Critical | Low | done (#238, v1.22.5) |
 | SEC-02 | Timeout does not terminate runaway worker | High | Low | open |
 | SEC-03 | No per-call worker-pool isolation | Medium | Low | open |
 | SEC-04 | Declared `input_schema` never enforced | High | Low | open |
@@ -37,7 +37,9 @@ therefore ranked under two models:
 
 ---
 
-## SEC-01 - Arbitrary code execution via patsy formula in `fit_linear_model`
+## SEC-01 - Arbitrary code execution via patsy formula in `fit_linear_model` [RESOLVED]
+- **Status:** Fixed in v1.22.5 (issue #238). `validate_formula_is_safe` now
+  rejects any non-Wilkinson formula before it reaches patsy.
 - **Severity:** U = Critical, L = Low
 - **Where:** `process_improve/experiments/tools.py:172` (`fit_linear_model`) ->
   `process_improve/experiments/models.py:178` (`lm`) ->

@@ -11,6 +11,17 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.5] - 2026-05-29
+
+### Security
+
+- `fit_linear_model` tool (`experiments/tools.py`): the user-supplied `formula`
+  was passed straight to statsmodels/patsy, which evaluates formula terms as
+  Python expressions; a crafted formula could execute arbitrary code (SEC-01).
+  Formulas are now validated against a strict Wilkinson-notation allowlist over
+  the data columns (new `validate_formula_is_safe` / `UnsafeFormulaError` in
+  `experiments/models.py`) before they reach patsy.
+
 ## [1.22.4] - 2026-05-29
 
 ### Added
@@ -144,7 +155,8 @@ those changes.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.4...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.5...HEAD
+[1.22.5]: https://github.com/kgdunn/process-improve/compare/v1.22.4...v1.22.5
 [1.22.4]: https://github.com/kgdunn/process-improve/compare/v1.22.3...v1.22.4
 [1.22.3]: https://github.com/kgdunn/process-improve/compare/v1.22.2...v1.22.3
 [1.22.2]: https://github.com/kgdunn/process-improve/compare/v1.22.1...v1.22.2
