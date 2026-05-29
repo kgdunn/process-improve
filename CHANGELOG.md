@@ -11,6 +11,18 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.6] - 2026-05-29
+
+### Security
+
+- Tool dispatch now enforces each tool's declared JSON `input_schema` on the
+  untrusted path (`safe_execute_tool_call`): types, `minimum`/`maximum`,
+  `minItems`/`maxItems`, `enum`, `required`, and rejection of unknown
+  parameters (SEC-04). Previously the schema was advisory and inputs were
+  passed straight through as `**kwargs`. New dependency-free
+  `validate_against_schema` in `tool_safety.py`; the in-process
+  `execute_tool_call` fast path is unchanged.
+
 ## [1.22.5] - 2026-05-29
 
 ### Security
@@ -155,7 +167,8 @@ those changes.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.5...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.6...HEAD
+[1.22.6]: https://github.com/kgdunn/process-improve/compare/v1.22.5...v1.22.6
 [1.22.5]: https://github.com/kgdunn/process-improve/compare/v1.22.4...v1.22.5
 [1.22.4]: https://github.com/kgdunn/process-improve/compare/v1.22.3...v1.22.4
 [1.22.3]: https://github.com/kgdunn/process-improve/compare/v1.22.2...v1.22.3

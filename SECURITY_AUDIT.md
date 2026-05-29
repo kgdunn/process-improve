@@ -25,7 +25,7 @@ therefore ranked under two models:
 | SEC-01 | RCE via patsy formula in `fit_linear_model` | Critical | Low | done (#238, v1.22.5) |
 | SEC-02 | Timeout does not terminate runaway worker | High | Low | open |
 | SEC-03 | No per-call worker-pool isolation | Medium | Low | open |
-| SEC-04 | Declared `input_schema` never enforced | High | Low | open |
+| SEC-04 | Declared `input_schema` never enforced | High | Low | done (#240, v1.22.6) |
 | SEC-05 | Div-by-zero in NIPALS / multiblock methods | High | High | open |
 | SEC-06 | Non-convergence not flagged; `fractional()` 1/0 | Medium | Medium | open |
 | SEC-07 | Matrix inversion without conditioning checks | Medium | Medium | open |
@@ -89,7 +89,10 @@ therefore ranked under two models:
   calls) so each tool call gets a clean process; document the isolation
   guarantee. Can be implemented together with SEC-02 as "pool hardening."
 
-## SEC-04 - Declared `input_schema` is never enforced at dispatch
+## SEC-04 - Declared `input_schema` is never enforced at dispatch [RESOLVED]
+- **Status:** Fixed in v1.22.6 (issue #240). `safe_execute_tool_call` now calls
+  `validate_against_schema` (types, bounds, item counts, enum, required, unknown
+  keys) before dispatch; the in-process `execute_tool_call` fast path is unchanged.
 - **Severity:** U = High, L = Low
 - **Where:** `process_improve/tool_spec.py:310-335` (`execute_tool_call`) and
   `process_improve/tool_safety.py:293-339` (`safe_execute_tool_call`), both ending
