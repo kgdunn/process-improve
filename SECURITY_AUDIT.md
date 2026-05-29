@@ -26,8 +26,8 @@ therefore ranked under two models:
 | SEC-02 | Timeout does not terminate runaway worker | High | Low | done (#239, v1.22.7) |
 | SEC-03 | No per-call worker-pool isolation | Medium | Low | done (#239, v1.22.7) |
 | SEC-04 | Declared `input_schema` never enforced | High | Low | done (#240, v1.22.6) |
-| SEC-05 | Div-by-zero in NIPALS / multiblock methods | High | High | open |
-| SEC-06 | Non-convergence not flagged; `fractional()` 1/0 | Medium | Medium | open |
+| SEC-05 | Div-by-zero in NIPALS / multiblock methods | High | High | done (#241, v1.22.8) |
+| SEC-06 | Non-convergence not flagged; `fractional()` 1/0 | Medium | Medium | done (#241, v1.22.8) |
 | SEC-07 | Matrix inversion without conditioning checks | Medium | Medium | open |
 | SEC-08 | `assert` used for validation (stripped by `-O`) | Medium | Low | open |
 | SEC-09 | Exception suppression; tool errors leak internals | Medium | Low | open |
@@ -115,7 +115,9 @@ therefore ranked under two models:
   `additionalProperties`. This also closes the `_SCALAR_CAPS` bypass. Add tests
   for type/bounds rejection and unknown-key rejection.
 
-## SEC-05 - Unguarded division by zero in multivariate NIPALS / multiblock methods
+## SEC-05 - Unguarded division by zero in multivariate NIPALS / multiblock methods [RESOLVED]
+- **Status:** Fixed in v1.22.8 (issue #241). NIPALS denominators are floored via
+  `_nz`; zero-variance R-squared is reported as NaN.
 - **Severity:** U = High, L = High (correctness)
 - **Where:** `process_improve/multivariate/methods.py` around lines 4444-4458,
   5277-5283, 5435-5439 (e.g. `/(p_b @ p_b)`, `/(t_super @ t_super)`,
@@ -130,7 +132,9 @@ therefore ranked under two models:
   in `fitting_info_` instead of silently substituting `1.0`. Add tests with
   collinear / all-constant columns.
 
-## SEC-06 - Iterative algorithms do not flag non-convergence; `fractional()` divide-by-zero
+## SEC-06 - Iterative algorithms do not flag non-convergence; `fractional()` divide-by-zero [RESOLVED]
+- **Status:** Fixed in v1.22.8 (issue #241). `fitting_info_["converged"]` plus a
+  `SpecificationWarning`; `fractional()` re-validates `fraction_excluded`.
 - **Severity:** U = Medium, L = Medium (correctness)
 - **Where:** `process_improve/multivariate/methods.py:4434`, `5258` (NIPALS
   `while ... and itern < self.max_iter`), `5740`

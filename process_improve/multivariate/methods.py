@@ -38,6 +38,24 @@ DataMatrix: TypeAlias = np.ndarray | pd.DataFrame
 
 epsqrt = np.sqrt(np.finfo(float).eps)
 
+#: Smallest positive float; used to floor NIPALS denominators away from zero.
+_DENOM_FLOOR = float(np.finfo(float).tiny)
+
+
+def _nz(denominator: float) -> float:
+    """Floor a non-negative NIPALS denominator away from zero.
+
+    Sum-of-squares and vector-norm denominators (``v @ v``, ``norm(v)``) are
+    non-negative. When a score or loading vector collapses to (near) zero during
+    NIPALS - a fully-deflated component, or a degenerate / perfectly collinear
+    block - the denominator is ~0 and the division would yield ``inf``/``nan``
+    that silently poisons the fitted model. Flooring to the smallest positive
+    float leaves every well-conditioned value untouched (real denominators are
+    far larger) while turning the degenerate ``0/0`` into a finite (~0)
+    projection, since the numerator collapses with the same vector.
+    """
+    return max(_DENOM_FLOOR, denominator)
+
 
 class SpecificationWarning(UserWarning):
     """Parent warning class."""
@@ -4432,30 +4450,30 @@ class MBPLS(RegressorMixin, BaseEstimator):
                     u_a_col = u_a.reshape(-1, 1)
                     for b_idx, name in enumerate(self.block_names_):
                         w_b = quick_regress(x_def[name], u_a_col).flatten()
-                        w_b = w_b / np.sqrt(ssq(w_b.reshape(-1, 1)))
+                        w_b = w_b / _nz(np.sqrt(ssq(w_b.reshape(-1, 1))))
                         t_b = quick_regress(x_def[name], w_b.reshape(-1, 1)).flatten() / sqrt_kb[name]
                         local_w[name] = w_b
                         local_t[name] = t_b
                         t_b_summary[:, b_idx] = t_b
                 else:
                     for b_idx, name in enumerate(self.block_names_):
-                        w_b = x_def[name].T @ u_a / (u_a @ u_a)
-                        w_b = w_b / np.linalg.norm(w_b)
-                        t_b = x_def[name] @ w_b / (w_b @ w_b) / sqrt_kb[name]
+                        w_b = x_def[name].T @ u_a / _nz(u_a @ u_a)
+                        w_b = w_b / _nz(np.linalg.norm(w_b))
+                        t_b = x_def[name] @ w_b / _nz(w_b @ w_b) / sqrt_kb[name]
                         local_w[name] = w_b
                         local_t[name] = t_b
                         t_b_summary[:, b_idx] = t_b
 
-                w_s = t_b_summary.T @ u_a / (u_a @ u_a)
-                w_s = w_s / np.linalg.norm(w_s)
-                t_super = t_b_summary @ w_s / (w_s @ w_s)
+                w_s = t_b_summary.T @ u_a / _nz(u_a @ u_a)
+                w_s = w_s / _nz(np.linalg.norm(w_s))
+                t_super = t_b_summary @ w_s / _nz(w_s @ w_s)
                 if algo == "nipals":
                     t_super_col = t_super.reshape(-1, 1)
                     c_a = quick_regress(y_def, t_super_col).flatten()
                     u_a = quick_regress(y_def, c_a.reshape(-1, 1)).flatten()
                 else:
-                    c_a = y_def.T @ t_super / (t_super @ t_super)
-                    u_a = y_def @ c_a / (c_a @ c_a)
+                    c_a = y_def.T @ t_super / _nz(t_super @ t_super)
+                    u_a = y_def @ c_a / _nz(c_a @ c_a)
                 itern += 1
 
             # Sign convention: largest |w_super| element positive
@@ -4475,7 +4493,7 @@ class MBPLS(RegressorMixin, BaseEstimator):
                 if algo == "nipals":
                     p_b = quick_regress(x_def[name], t_super_col).flatten()
                 else:
-                    p_b = x_def[name].T @ t_super / (t_super @ t_super)
+                    p_b = x_def[name].T @ t_super / _nz(t_super @ t_super)
                 x_def[name] = x_def[name] - np.outer(t_super, p_b)
                 block_loadings_np[name][:, a] = p_b
                 block_weights_np[name][:, a] = local_w[name]
@@ -4490,15 +4508,24 @@ class MBPLS(RegressorMixin, BaseEstimator):
             # Track per-block cumulative R^2_X and per-Y-variable cumulative R^2_Y
             for b_idx, name in enumerate(self.block_names_):
                 ssq_remain_per_var = np.nansum(x_def[name] ** 2, axis=0)
-                r2_x_block_cum[b_idx, a] = 1 - np.sum(ssq_remain_per_var) / ssq_x_init[name]
-                r2_x_var_cum[name][:, a] = 1 - ssq_remain_per_var / np.where(
-                    ssq_x_init_per_var[name] > 0, ssq_x_init_per_var[name], 1.0
+                # R^2 is undefined for a zero-variance block/column; report NaN
+                # rather than dividing by zero (inf/nan + warning) or returning a
+                # misleading 1.0.
+                r2_x_block_cum[b_idx, a] = (
+                    1 - np.sum(ssq_remain_per_var) / ssq_x_init[name] if ssq_x_init[name] > 0 else np.nan
+                )
+                r2_x_var_cum[name][:, a] = np.where(
+                    ssq_x_init_per_var[name] > 0,
+                    1 - ssq_remain_per_var / np.where(ssq_x_init_per_var[name] > 0, ssq_x_init_per_var[name], 1.0),
+                    np.nan,
                 )
                 block_spe_np[name][:, a] = np.sqrt(np.nansum(x_def[name] ** 2, axis=1))
             ssq_y_remain_per_var = np.nansum(y_def ** 2, axis=0)
-            r2_y_cum[a] = 1 - np.sum(ssq_y_remain_per_var) / ssq_y_init
-            r2_y_var_cum[:, a] = 1 - ssq_y_remain_per_var / np.where(
-                ssq_y_init_per_var > 0, ssq_y_init_per_var, 1.0
+            r2_y_cum[a] = 1 - np.sum(ssq_y_remain_per_var) / ssq_y_init if ssq_y_init > 0 else np.nan
+            r2_y_var_cum[:, a] = np.where(
+                ssq_y_init_per_var > 0,
+                1 - ssq_y_remain_per_var / np.where(ssq_y_init_per_var > 0, ssq_y_init_per_var, 1.0),
+                np.nan,
             )
 
             timing[a] = time.time() - start
@@ -4537,7 +4564,16 @@ class MBPLS(RegressorMixin, BaseEstimator):
         self.scaling_factor_for_super_scores_ = pd.Series(
             np.sqrt(self.explained_variance_), index=component_names, name="Standard deviation per super-score"
         )
-        self.fitting_info_ = {"timing": timing, "iterations": iterations}
+        converged = iterations < self.max_iter
+        self.fitting_info_ = {"timing": timing, "iterations": iterations, "converged": converged}
+        if not np.all(converged):
+            failed = [int(i + 1) for i, ok in enumerate(converged) if not ok]
+            warnings.warn(
+                f"MBPLS NIPALS did not converge within max_iter={self.max_iter} for "
+                f"component(s) {failed}; results for those components may be unreliable.",
+                SpecificationWarning,
+                stacklevel=2,
+            )
 
         # --- Per-component (incremental) R^2 from cumulative ---
         r2_x_block_per_a = np.zeros_like(r2_x_block_cum)
@@ -5265,22 +5301,22 @@ class MBPCA(TransformerMixin, BaseEstimator):
                     t_super_col = t_super.reshape(-1, 1)
                     for b_idx, name in enumerate(self.block_names_):
                         p_b = quick_regress(x_def[name], t_super_col).flatten()
-                        p_b = p_b / np.sqrt(ssq(p_b.reshape(-1, 1)))
+                        p_b = p_b / _nz(np.sqrt(ssq(p_b.reshape(-1, 1))))
                         t_b = quick_regress(x_def[name], p_b.reshape(-1, 1)).flatten() / sqrt_kb[name]
                         local_loadings[name] = p_b
                         local_scores[name] = t_b
                         t_b_summary[:, b_idx] = t_b
                 else:
                     for b_idx, name in enumerate(self.block_names_):
-                        p_b = x_def[name].T @ t_super / (t_super @ t_super)
-                        p_b = p_b / np.linalg.norm(p_b)
-                        t_b = x_def[name] @ p_b / (p_b @ p_b) / sqrt_kb[name]
+                        p_b = x_def[name].T @ t_super / _nz(t_super @ t_super)
+                        p_b = p_b / _nz(np.linalg.norm(p_b))
+                        t_b = x_def[name] @ p_b / _nz(p_b @ p_b) / sqrt_kb[name]
                         local_loadings[name] = p_b
                         local_scores[name] = t_b
                         t_b_summary[:, b_idx] = t_b
-                p_s = t_b_summary.T @ t_super / (t_super @ t_super)
-                p_s = p_s / np.linalg.norm(p_s)
-                t_super = t_b_summary @ p_s / (p_s @ p_s)
+                p_s = t_b_summary.T @ t_super / _nz(t_super @ t_super)
+                p_s = p_s / _nz(np.linalg.norm(p_s))
+                t_super = t_b_summary @ p_s / _nz(p_s @ p_s)
                 itern += 1
 
             # Sign convention: largest |super_loading| element positive
@@ -5305,9 +5341,15 @@ class MBPCA(TransformerMixin, BaseEstimator):
             # Per-block cumulative R²X and SPE
             for b_idx, name in enumerate(self.block_names_):
                 ssq_remain_per_var = np.nansum(x_def[name] ** 2, axis=0)
-                r2_x_block_cum[b_idx, a] = 1 - np.sum(ssq_remain_per_var) / ssq_x_init[name]
-                r2_x_var_cum[name][:, a] = 1 - ssq_remain_per_var / np.where(
-                    ssq_x_init_per_var[name] > 0, ssq_x_init_per_var[name], 1.0
+                # R^2 is undefined for a zero-variance block/column; report NaN
+                # rather than dividing by zero (inf/nan + warning) or 1.0.
+                r2_x_block_cum[b_idx, a] = (
+                    1 - np.sum(ssq_remain_per_var) / ssq_x_init[name] if ssq_x_init[name] > 0 else np.nan
+                )
+                r2_x_var_cum[name][:, a] = np.where(
+                    ssq_x_init_per_var[name] > 0,
+                    1 - ssq_remain_per_var / np.where(ssq_x_init_per_var[name] > 0, ssq_x_init_per_var[name], 1.0),
+                    np.nan,
                 )
                 block_spe_np[name][:, a] = np.sqrt(np.nansum(x_def[name] ** 2, axis=1))
 
@@ -5335,7 +5377,16 @@ class MBPCA(TransformerMixin, BaseEstimator):
         self.scaling_factor_for_super_scores_ = pd.Series(
             np.sqrt(self.explained_variance_), index=component_names, name="Standard deviation per super-score"
         )
-        self.fitting_info_ = {"timing": timing, "iterations": iterations}
+        converged = iterations < self.max_iter
+        self.fitting_info_ = {"timing": timing, "iterations": iterations, "converged": converged}
+        if not np.all(converged):
+            failed = [int(i + 1) for i, ok in enumerate(converged) if not ok]
+            warnings.warn(
+                f"MBPCA NIPALS did not converge within max_iter={self.max_iter} for "
+                f"component(s) {failed}; results for those components may be unreliable.",
+                SpecificationWarning,
+                stacklevel=2,
+            )
 
         # Per-component (incremental) R²X
         r2_x_block_per_a = np.zeros_like(r2_x_block_cum)
@@ -5432,11 +5483,11 @@ class MBPCA(TransformerMixin, BaseEstimator):
             t_b_row = np.zeros((n_new, len(self.block_names_)))
             for b_idx, name in enumerate(self.block_names_):
                 p_b = self.block_loadings_[name].values[:, a]
-                t_b = x_def[name] @ p_b / (p_b @ p_b) / sqrt_kb[name]
+                t_b = x_def[name] @ p_b / _nz(p_b @ p_b) / sqrt_kb[name]
                 block_scores[name][:, a] = t_b
                 t_b_row[:, b_idx] = t_b
             p_s = self.super_loadings_.values[:, a]
-            t_super = t_b_row @ p_s / (p_s @ p_s)
+            t_super = t_b_row @ p_s / _nz(p_s @ p_s)
             super_scores[:, a] = t_super
             for b_idx, name in enumerate(self.block_names_):
                 p_b = self.block_loadings_[name].values[:, a]
@@ -5737,6 +5788,13 @@ class Resampler:
 
         # Generate fractional samples, resample with replacement, in a loop of self.bootstrap_rounds iterations
         rng = np.random.default_rng()
+        # Re-validate here: the __init__ guard can be bypassed by mutating
+        # ``fraction_excluded`` to 0 (or out of range) before calling fractional().
+        if not 0.0 < self.fraction_excluded < 1.0:
+            raise ValueError(
+                f"`fraction_excluded` must be in the open interval (0, 1) to perform fractional "
+                f"resampling, got {self.fraction_excluded}."
+            )
         n_groups = int(1 / self.fraction_excluded)
         for _ in tqdm(range(len(self.x)), desc="Fractional Resampling", disable=not show_progress):
             # Find the indices to leave out

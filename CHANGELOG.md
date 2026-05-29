@@ -11,6 +11,24 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.8] - 2026-05-29
+
+### Fixed
+
+- MBPLS / MBPCA NIPALS no longer silently produce `inf`/`nan` when a score or
+  loading vector collapses (a degenerate or perfectly collinear block, or a
+  fully-deflated component): the sum-of-squares and norm denominators are now
+  floored away from zero (SEC-05). R-squared for a zero-variance block or
+  column is reported as `NaN` (undefined) rather than a misleading `1.0` or a
+  divide-by-zero warning.
+- MBPLS / MBPCA record per-component convergence in `fitting_info_["converged"]`
+  and emit a `SpecificationWarning` when `max_iter` is reached without
+  converging (SEC-06); previously a non-converged solution was returned
+  silently.
+- `Resampler.fractional` re-validates `fraction_excluded` (must be in the open
+  interval `(0, 1)`), so mutating it to `0` after construction raises a clear
+  error instead of `ZeroDivisionError` (SEC-06).
+
 ## [1.22.7] - 2026-05-29
 
 ### Security
@@ -180,7 +198,8 @@ those changes.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.7...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.8...HEAD
+[1.22.8]: https://github.com/kgdunn/process-improve/compare/v1.22.7...v1.22.8
 [1.22.7]: https://github.com/kgdunn/process-improve/compare/v1.22.6...v1.22.7
 [1.22.6]: https://github.com/kgdunn/process-improve/compare/v1.22.5...v1.22.6
 [1.22.5]: https://github.com/kgdunn/process-improve/compare/v1.22.4...v1.22.5
