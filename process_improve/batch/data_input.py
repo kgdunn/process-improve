@@ -64,26 +64,30 @@ def check_valid_batch_dict(in_dict: dict, no_nan: bool = False) -> bool:
     bool
         True, if it passes the checks.
     """
-    assert len(in_dict) >= 1, "At least 1 batch is required in the dataframe dictionary."
+    if len(in_dict) < 1:
+        raise ValueError("At least 1 batch is required in the dataframe dictionary.")
     batch1 = in_dict[next(iter(in_dict.keys()))]
     base_columns = set(batch1.columns)
     check = True
     for bid, batch in in_dict.items():
         # Check 1
         check = check & (base_columns == set(batch.columns))
-        assert check, (
-            f"The column names must be the same in all batches. Differs in {bid}. Base "
-            f"columns = {base_columns}; this batch has: {set(batch.columns)}"
-        )
+        if not check:
+            raise ValueError(
+                f"The column names must be the same in all batches. Differs in {bid}. Base "
+                f"columns = {base_columns}; this batch has: {set(batch.columns)}"
+            )
 
         # Check 2
         check *= batch.select_dtypes(include=[np.number]).shape[1] == batch.shape[1]
-        assert check, f"All columns must be a numeric type. Differs in {bid}."
+        if not check:
+            raise ValueError(f"All columns must be a numeric type. Differs in {bid}.")
 
         # Check 3
         if no_nan:
             check *= batch.isna().values.sum() == 0
-            assert check, f"No missing values allowed. Missing values found in {bid}."
+            if not check:
+                raise ValueError(f"No missing values allowed. Missing values found in {bid}.")
 
     return bool(check)
 
@@ -101,7 +105,8 @@ def dict_to_melted(
         if idx == 0:
             num_rows = batch.shape[0]
             sequence = np.arange(0, num_rows)
-        assert num_rows == batch.shape[0], "All batches must have the same number of samples"
+        if num_rows != batch.shape[0]:
+            raise ValueError("All batches must have the same number of samples")
 
         subset = batch.copy()
 
@@ -143,13 +148,15 @@ def melted_to_dict(in_df: pd.DataFrame, batch_id_col: str) -> dict:
     in a dictionary. The dictionary keys are the batch identifier, and the corresponding value
     is a Pandas dataframe of the batch data for that batch.
     """
-    assert batch_id_col in in_df, "The `batch_id_col` column does not exist in the incoming dataframe."
+    if batch_id_col not in in_df:
+        raise ValueError("The `batch_id_col` column does not exist in the incoming dataframe.")
     return {batch_id: batch for batch_id, batch in in_df.groupby(batch_id_col)}  # noqa: C416
 
 
 def melted_to_wide(in_df: pd.DataFrame, batch_id_col: str) -> dict:
     """Convert aligned melted data to wide format."""
-    assert batch_id_col in in_df
+    if batch_id_col not in in_df:
+        raise ValueError(f"The `batch_id_col` column {batch_id_col!r} does not exist in the incoming dataframe.")
     return {}
 
     # max_places = int(np.ceil(np.log10(aligned_df["_sequence_"].max())))

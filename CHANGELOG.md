@@ -11,6 +11,20 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.11] - 2026-05-29
+
+### Changed
+
+- Input/state validation that used bare `assert` statements is now done with
+  explicit `if ...: raise ValueError`/`NotFittedError` (SEC-08), so the checks
+  remain active when Python runs under `-O` (which strips asserts). Converted
+  sites include `regression.methods` (OLS shape checks and predict-before-fit),
+  `experiments.optimal.point_exchange` bounds, `batch.data_input` validators,
+  `monitoring.control_charts` standard-deviation and lambda checks, and
+  `univariate.metrics` (paired t-test sizes, MAD `axis`, ESD outlier count).
+  Two control-chart parameter checks now raise `ValueError` instead of
+  `AssertionError`.
+
 ## [1.22.10] - 2026-05-29
 
 ### Changed
@@ -229,7 +243,8 @@ those changes.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.10...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.11...HEAD
+[1.22.11]: https://github.com/kgdunn/process-improve/compare/v1.22.10...v1.22.11
 [1.22.10]: https://github.com/kgdunn/process-improve/compare/v1.22.9...v1.22.10
 [1.22.9]: https://github.com/kgdunn/process-improve/compare/v1.22.8...v1.22.9
 [1.22.8]: https://github.com/kgdunn/process-improve/compare/v1.22.7...v1.22.8

@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.exceptions import NotFittedError
 
 from ..univariate.metrics import t_value
 
@@ -64,8 +65,10 @@ def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) ->
     y = y.copy().ravel() if isinstance(y, np.ndarray) else pd.Series(y).values.ravel()
 
     if not (nowarn):
-        assert len(x) > 2, "More than two samples are required for this function."
-        assert len(x) == len(y), "Vectors x and y must have the same length."
+        if len(x) <= 2:
+            raise ValueError("More than two samples are required for this function.")
+        if len(x) != len(y):
+            raise ValueError("Vectors x and y must have the same length.")
 
     for i in np.arange(len(x)):
         inner_medians = []
@@ -503,10 +506,14 @@ class OLS(RegressorMixin, BaseEstimator):
 
         n_samples, n_features = X_.shape
         k_params = n_features + (1 if self.fit_intercept else 0)
-        assert n_samples >= k_params, (
-            "N >= K: You need at least as many rows as there are columns to fit a linear regression."
-        )
-        assert n_samples == y_.size
+        if n_samples < k_params:
+            raise ValueError(
+                "N >= K: You need at least as many rows as there are columns to fit a linear regression."
+            )
+        if n_samples != y_.size:
+            raise ValueError(
+                f"X and y must have the same number of rows: got {n_samples} and {y_.size}."
+            )
 
         # Build the design matrix.
         design = X_.copy()
@@ -632,7 +639,8 @@ class OLS(RegressorMixin, BaseEstimator):
         -------
         y_pred : np.ndarray of shape (N,)
         """
-        assert getattr(self, "is_fitted_", False), "OLS must be fitted before calling predict()."
+        if not getattr(self, "is_fitted_", False):
+            raise NotFittedError("OLS must be fitted before calling predict().")
         if isinstance(X, pd.DataFrame):
             X_arr = X.to_numpy(dtype=float)
         elif isinstance(X, pd.Series):

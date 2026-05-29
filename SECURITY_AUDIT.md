@@ -29,7 +29,7 @@ therefore ranked under two models:
 | SEC-05 | Div-by-zero in NIPALS / multiblock methods | High | High | done (#241, v1.22.8) |
 | SEC-06 | Non-convergence not flagged; `fractional()` 1/0 | Medium | Medium | done (#241, v1.22.8) |
 | SEC-07 | Matrix inversion without conditioning checks | Medium | Medium | done (#242, v1.22.9) |
-| SEC-08 | `assert` used for validation (stripped by `-O`) | Medium | Low | open |
+| SEC-08 | `assert` used for validation (stripped by `-O`) | Medium | Low | done (#243, v1.22.11) |
 | SEC-09 | Exception suppression; tool errors leak internals | Medium | Low | done (#244, v1.22.10) |
 | SEC-10 | Latent path traversal; unverified remote fetch | Low | Low | open |
 | SEC-11 | `discover_tools` swallows all `ImportError`s | Low | Low | open |
@@ -169,7 +169,10 @@ therefore ranked under two models:
   "singular/rank-deficient design" error. Tests with a deliberately singular
   design matrix.
 
-## SEC-08 - `assert` used for input/state validation (stripped under `python -O`)
+## SEC-08 - `assert` used for input/state validation (stripped under `python -O`) [RESOLVED]
+- **Status:** Fixed in v1.22.11 (issue #243). The flagged validation asserts were
+  converted to explicit `raise` statements; remaining asserts are internal
+  invariants.
 - **Severity:** U = Medium, L = Low
 - **Where:** ~105 instances; validation-style examples:
   `process_improve/regression/methods.py:486-489,615`,

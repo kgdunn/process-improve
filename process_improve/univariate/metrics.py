@@ -404,7 +404,11 @@ def ttest_paired_from_df(
             sample_B = data_subset[data_subset[grouper_column].eq(groupB_name)][values_column]
             sample_A = sample_A.astype(np.float64)
             sample_B = sample_B.astype(np.float64)
-            assert sample_A.shape[0] == sample_B.shape[0]
+            if sample_A.shape[0] != sample_B.shape[0]:
+                raise ValueError(
+                    "Paired t-test requires both groups to have the same number of samples; "
+                    f"got {sample_A.shape[0]} and {sample_B.shape[0]}."
+                )
             differences = sample_A - sample_B.values  # only the .values of one vector are needed!
             basic_stats = ttest_paired(differences, conflevel)
             basic_stats.update(
@@ -590,7 +594,8 @@ def median_absolute_deviation(
     >>> stats.median_abs_deviation(x, scale='normal')
     1.9996446978061115
     """
-    assert axis is not None, "axis=None is now depricated. Unraval the array."
+    if axis is None:
+        raise ValueError("axis=None is now deprecated. Unravel the array.")
     if not callable(center):
         raise TypeError(f"The argument 'center' must be callable. The given value {center!r} is not callable.")
 
@@ -740,8 +745,12 @@ def detect_outliers_esd(
         robust_variant = bool(kwargs.get("robust_variant", True))
         alpha = float(kwargs.get("alpha", 0.05))
 
-        assert alpha <= 1.0
-        assert max_outliers_detected <= len(x)
+        if alpha > 1.0:
+            raise ValueError(f"alpha must be <= 1.0, got {alpha}.")
+        if max_outliers_detected > len(x):
+            raise ValueError(
+                f"max_outliers_detected ({max_outliers_detected}) cannot exceed the sample size ({len(x)})."
+            )
 
         # 1. Run K-S test first to check normality
 
