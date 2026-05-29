@@ -11,6 +11,23 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.4] - 2026-05-29
+
+### Fixed
+
+- Docstring corrections so they match the implementation:
+  - `ttest_paired` (`univariate/metrics.py`): the returned dict's
+    `"Standard deviation"` key actually holds the standard error of the
+    mean difference, not the sample standard deviation; the docstring now
+    documents every returned key and calls out the misnomer explicitly.
+  - `calculate_cpk` (`monitoring/metrics.py`): the `trim_percentile`
+    parameter is described accurately - it is used both as the percentile
+    for estimating missing specification limits and as the toggle between
+    classical and robust centre/spread.
+  - `repeated_median_slope` (`regression/methods.py`): added missing
+    Parameters and Returns sections documenting the signature and return
+    type.
+
 ## [1.22.3] - 2026-05-27
 
 ### Changed

@@ -36,8 +36,13 @@ def calculate_cpk(
         Default is ``(np.nan, np.nan)``, which treats both specs as numeric NaN
         and yields NaN for the corresponding side of the Cpk calculation.
     trim_percentile : float, optional
-        If non-zero, then robust alternatives are used. The value specified is the percentile of
-        data that is trimmed away; by default 2.5 percent on the left, and 2.5% on the right.
+        Controls two things. (1) When a specification limit is missing, ``trim_percentile`` is
+        used as a percentile on the data (in percent) to estimate that limit: the lower spec is
+        set to ``np.nanpercentile(data, trim_percentile)`` and the upper spec to
+        ``np.nanpercentile(data, 100 - trim_percentile)``. Default ``2.5`` therefore yields the
+        2.5th and 97.5th percentiles. (2) When ``trim_percentile > 0`` the centre/spread used in
+        the Cpk formula switch from mean/std to robust alternatives (median and ``Sn``); when 0
+        the classical mean/std are used.
 
     Returns
     -------
