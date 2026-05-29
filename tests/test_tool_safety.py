@@ -31,6 +31,7 @@ from process_improve.tool_safety import (
     ToolTimeoutError,
     _apply_memory_limit,
     _count_numeric_leaves,
+    _lookup_input_schema,
     _pool_initializer,
     _worker_run,
     get_pool,
@@ -232,6 +233,25 @@ class TestValidateAgainstSchema:
         validate_against_schema(
             {"data": [1, 2, 3], "n_components": 2, "name": None}, _DEMO_SCHEMA
         )
+
+    def test_non_object_schema_is_noop(self) -> None:
+        # Schemas that are not object-typed are not enforced (no raise).
+        validate_against_schema({"anything": 1}, {"type": "array"})
+
+    def test_property_without_recognised_type_is_skipped(self) -> None:
+        # A property whose subschema declares no (or an unknown) type is accepted
+        # as-is; only enum/bounds, if present, still apply.
+        schema = {"type": "object", "properties": {"x": {"description": "free-form"}}}
+        validate_against_schema({"x": ["whatever", 1, {"k": "v"}]}, schema)
+
+    def test_lookup_input_schema_unknown_returns_none(self) -> None:
+        assert _lookup_input_schema("definitely_not_a_registered_tool") is None
+
+    def test_lookup_input_schema_known_returns_schema(self) -> None:
+        schema = _lookup_input_schema("_safety_test_echo")
+        assert schema is not None
+        assert schema["type"] == "object"
+        assert "value" in schema["properties"]
 
 
 # ---------------------------------------------------------------------------
