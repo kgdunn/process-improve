@@ -11,6 +11,15 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.4] - 2026-05-29
+
+### Added
+
+- `SECURITY_AUDIT.md`: a structured security and robustness audit of the
+  package and its MCP tool-dispatch surface, ranking each finding under both an
+  untrusted and a local-trusted threat model. This is a planning artifact that
+  seeds follow-up hardening issues; no behaviour changes in this release.
+
 ## [1.22.3] - 2026-05-27
 
 ### Changed
@@ -120,7 +129,8 @@ those changes.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.3...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.4...HEAD
+[1.22.4]: https://github.com/kgdunn/process-improve/compare/v1.22.3...v1.22.4
 [1.22.3]: https://github.com/kgdunn/process-improve/compare/v1.22.2...v1.22.3
 [1.22.2]: https://github.com/kgdunn/process-improve/compare/v1.22.1...v1.22.2
 [1.22.1]: https://github.com/kgdunn/process-improve/compare/v1.22.0...v1.22.1
