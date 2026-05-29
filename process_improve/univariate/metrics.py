@@ -319,7 +319,17 @@ def ttest_paired(differences: pd.Series, conflevel: float = 0.995) -> dict:
     Returns
     -------
     dict
-        Outcomes from the statistical test.
+        Outcomes from the statistical test, with keys:
+
+        - ``"Differences mean"``: the mean of the input ``differences``.
+        - ``"z value"``: the test statistic (mean divided by its standard error).
+        - ``"ConfInt: Lo"``, ``"ConfInt: Hi"``: lower and upper bounds of the two-sided
+          confidence interval around the mean difference at the requested ``conflevel``.
+        - ``"p value"``: two-sided p-value from the t-distribution.
+        - ``"Degrees of freedom"``: ``n - 1`` for ``n`` paired observations.
+        - ``"Standard deviation"``: the **standard error of the mean difference**,
+          i.e. ``sample_std / sqrt(n)`` (the scale used to build the confidence interval),
+          NOT the sample standard deviation of ``differences``.
     """
     diff_mean = differences.mean()
     diff_svar = differences.std(ddof=1)
