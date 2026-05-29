@@ -11,6 +11,20 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.9] - 2026-05-29
+
+### Fixed
+
+- Matrix inversions that could silently return overflow-driven garbage on a
+  singular or ill-conditioned matrix are now guarded (SEC-07). New internal
+  `process_improve._linalg` provides `safe_inverse` (raises a clear
+  `LinAlgError` instead of returning `inf`/`nan`) and `is_singular`
+  (condition-number based). The PLS direct-weights inverse `(P'W)^-1` and the
+  TPLS Hotelling's T2 super-score-covariance inverse now use `safe_inverse`;
+  the response-surface and design-quality plots fall back to the pseudo-inverse
+  for ill-conditioned (not only exactly-singular) `X'X`. Well-conditioned inputs
+  are unchanged.
+
 ## [1.22.8] - 2026-05-29
 
 ### Fixed
@@ -198,7 +212,8 @@ those changes.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.8...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.9...HEAD
+[1.22.9]: https://github.com/kgdunn/process-improve/compare/v1.22.8...v1.22.9
 [1.22.8]: https://github.com/kgdunn/process-improve/compare/v1.22.7...v1.22.8
 [1.22.7]: https://github.com/kgdunn/process-improve/compare/v1.22.6...v1.22.7
 [1.22.6]: https://github.com/kgdunn/process-improve/compare/v1.22.5...v1.22.6

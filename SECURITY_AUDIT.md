@@ -28,7 +28,7 @@ therefore ranked under two models:
 | SEC-04 | Declared `input_schema` never enforced | High | Low | done (#240, v1.22.6) |
 | SEC-05 | Div-by-zero in NIPALS / multiblock methods | High | High | done (#241, v1.22.8) |
 | SEC-06 | Non-convergence not flagged; `fractional()` 1/0 | Medium | Medium | done (#241, v1.22.8) |
-| SEC-07 | Matrix inversion without conditioning checks | Medium | Medium | open |
+| SEC-07 | Matrix inversion without conditioning checks | Medium | Medium | done (#242, v1.22.9) |
 | SEC-08 | `assert` used for validation (stripped by `-O`) | Medium | Low | open |
 | SEC-09 | Exception suppression; tool errors leak internals | Medium | Low | open |
 | SEC-10 | Latent path traversal; unverified remote fetch | Low | Low | open |
@@ -149,7 +149,12 @@ therefore ranked under two models:
   inside `fractional()`. Tests: pathological data hitting `max_iter`;
   `fraction_excluded = 0` after init.
 
-## SEC-07 - Matrix inversion without conditioning / singularity checks
+## SEC-07 - Matrix inversion without conditioning / singularity checks [RESOLVED]
+- **Status:** Fixed in v1.22.9 (issue #242). New `process_improve._linalg`
+  (`safe_inverse` / `is_singular`) guards the two previously-unguarded
+  multivariate sites and upgrades the surface/design-quality plot fallbacks to
+  catch ill-conditioning. `optimal.py` and `evaluate.py` were already guarded
+  (try/except and rank check).
 - **Severity:** U = Medium, L = Medium (correctness)
 - **Where:** `process_improve/experiments/optimal.py:21,91`,
   `process_improve/experiments/evaluate.py:137`,
