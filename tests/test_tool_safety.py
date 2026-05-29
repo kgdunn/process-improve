@@ -34,6 +34,7 @@ from process_improve.tool_safety import (
     _count_numeric_leaves,
     _lookup_input_schema,
     _pool_initializer,
+    _terminate_workers,
     _worker_run,
     get_pool,
     safe_execute_tool_call,
@@ -274,6 +275,70 @@ class TestValidateAgainstSchema:
         assert schema is not None
         assert schema["type"] == "object"
         assert "value" in schema["properties"]
+
+
+# ---------------------------------------------------------------------------
+# _terminate_workers: SEC-02 helper, no real subprocesses (runs everywhere)
+# ---------------------------------------------------------------------------
+
+
+class _FakeProc:
+    """A multiprocessing.Process double recording terminate()/kill() calls.
+
+    ``alive`` is a list of booleans consumed by successive ``is_alive()`` calls
+    (first in the terminate loop, then after ``join`` in the kill loop).
+    """
+
+    def __init__(self, alive: list[bool]) -> None:
+        self._alive = alive
+        self.terminated = False
+        self.killed = False
+
+    def is_alive(self) -> bool:
+        return self._alive.pop(0) if self._alive else False
+
+    def terminate(self) -> None:
+        self.terminated = True
+
+    def join(self, timeout: float | None = None) -> None:
+        pass
+
+    def kill(self) -> None:
+        self.killed = True
+
+
+class _FakePool:
+    def __init__(self, procs: list[_FakeProc]) -> None:
+        self._processes = dict(enumerate(procs))
+
+
+class TestTerminateWorkers:
+    def test_no_processes_attr_is_noop(self) -> None:
+        # A pool object without a _processes table is handled gracefully.
+        _terminate_workers(object())  # type: ignore[arg-type]
+
+    def test_empty_process_table_is_noop(self) -> None:
+        _terminate_workers(_FakePool([]))  # type: ignore[arg-type]
+
+    def test_alive_worker_is_terminated_then_killed(self) -> None:
+        # Still alive after terminate() + join -> escalate to kill().
+        proc = _FakeProc(alive=[True, True])
+        _terminate_workers(_FakePool([proc]))  # type: ignore[arg-type]
+        assert proc.terminated
+        assert proc.killed
+
+    def test_terminate_suffices_when_worker_exits(self) -> None:
+        # Alive at first, dead after terminate() -> no kill().
+        proc = _FakeProc(alive=[True, False])
+        _terminate_workers(_FakePool([proc]))  # type: ignore[arg-type]
+        assert proc.terminated
+        assert not proc.killed
+
+    def test_already_dead_worker_untouched(self) -> None:
+        proc = _FakeProc(alive=[False, False])
+        _terminate_workers(_FakePool([proc]))  # type: ignore[arg-type]
+        assert not proc.terminated
+        assert not proc.killed
 
 
 # ---------------------------------------------------------------------------
