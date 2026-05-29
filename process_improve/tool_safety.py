@@ -409,10 +409,42 @@ def get_pool(memory_mb: int = DEFAULT_MEMORY_MB, max_workers: int = 1) -> Proces
     return _pool
 
 
+def _terminate_workers(pool: ProcessPoolExecutor) -> None:
+    """Force-kill a pool's worker processes (best-effort).
+
+    ``ProcessPoolExecutor.shutdown(wait=False, cancel_futures=True)`` does not
+    interrupt a worker that is *already running* a task: ``cancel_futures`` only
+    drops not-yet-started futures. So a runaway tool (infinite loop, pathological
+    input) would keep a CPU core busy after a timeout. Here we reach into the
+    CPython-internal process table and terminate each worker, escalating to
+    ``kill()`` if ``terminate()`` does not take. Guarded with ``suppress`` so that
+    an internal-API change degrades to the old (non-killing) behaviour instead of
+    raising.
+    """
+    processes = getattr(pool, "_processes", None)
+    if not processes:
+        return
+    workers = list(processes.values())
+    for proc in workers:
+        with contextlib.suppress(Exception):
+            if proc.is_alive():
+                proc.terminate()
+    for proc in workers:
+        with contextlib.suppress(Exception):
+            proc.join(timeout=1.0)
+            if proc.is_alive():
+                proc.kill()
+
+
 def shutdown_pool() -> None:
-    """Shut down the module-level pool, if any. Safe to call repeatedly."""
+    """Shut down the module-level pool, if any. Safe to call repeatedly.
+
+    Worker processes are force-terminated first so a runaway task cannot keep
+    holding a CPU after the executor is torn down.
+    """
     global _pool, _pool_memory_mb  # noqa: PLW0603
     if _pool is not None:
+        _terminate_workers(_pool)
         _pool.shutdown(wait=False, cancel_futures=True)
         _pool = None
         _pool_memory_mb = None
@@ -441,8 +473,9 @@ def safe_execute_tool_call(  # noqa: PLR0913
     tool_name, tool_input:
         Same meaning as :func:`process_improve.tool_spec.execute_tool_call`.
     timeout:
-        Wall-clock seconds. On overrun, the current subprocess is terminated
-        and a fresh pool is started; :class:`ToolTimeoutError` is raised.
+        Wall-clock seconds. On overrun the runaway worker is force-terminated
+        (``terminate()`` then ``kill()``) so it cannot keep holding a CPU, and
+        :class:`ToolTimeoutError` is raised.
     max_cells, max_string, max_depth:
         Input-size limits. See :func:`validate_input`.
     memory_mb:
@@ -451,7 +484,10 @@ def safe_execute_tool_call(  # noqa: PLR0913
         is raised.
     executor:
         Optional caller-provided pool. When *None* (default) a module-level
-        singleton is used.
+        singleton is used and is recycled after every call, so each call runs
+        in a fresh worker with isolated process-global state and reclaimed
+        memory. A caller-provided executor is never recycled or terminated by
+        this function - the caller owns its lifecycle.
 
     Raises
     ------
@@ -487,16 +523,11 @@ def safe_execute_tool_call(  # noqa: PLR0913
     try:
         return future.result(timeout=timeout)
     except FuturesTimeoutError as exc:
-        # Kill the whole pool so the runaway worker cannot hold the CPU.
-        if executor is None:
-            shutdown_pool()
         raise ToolTimeoutError(
             f"Tool {tool_name!r} exceeded {timeout}s timeout",
             details={"tool_name": tool_name, "timeout": timeout},
         ) from exc
     except BrokenProcessPool as exc:
-        if executor is None:
-            shutdown_pool()
         raise ToolMemoryExceededError(
             f"Tool {tool_name!r} worker died (likely exceeded memory limit of {memory_mb} MB)",
             details={"tool_name": tool_name, "memory_mb": memory_mb},
@@ -509,3 +540,12 @@ def safe_execute_tool_call(  # noqa: PLR0913
             f"Tool {tool_name!r} exceeded memory limit of {memory_mb} MB",
             details={"tool_name": tool_name, "memory_mb": memory_mb},
         ) from exc
+    finally:
+        # Recycle the module-managed pool after every call: each call then runs in
+        # a fresh worker with clean process-global state (RNG, matplotlib, cached
+        # imports) and reclaimed memory, and any worker that overran the timeout
+        # or hit the memory cap is force-terminated here rather than left holding
+        # a CPU. A caller-provided executor is left untouched - the caller owns
+        # its lifecycle.
+        if executor is None:
+            shutdown_pool()

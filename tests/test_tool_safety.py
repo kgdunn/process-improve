@@ -17,6 +17,7 @@ Windows these tests are skipped.
 from __future__ import annotations
 
 import contextlib
+import os
 import sys
 import time
 
@@ -88,6 +89,27 @@ def _safety_test_memory_bomb(*, megabytes: int) -> dict:
     size = int(megabytes) * 1024 * 1024 // 8
     _ = np.zeros(size, dtype=np.float64)
     return {"allocated_mb": megabytes}
+
+
+@tool_spec(
+    name="_safety_test_busy_loop",
+    description="Spin on the CPU forever. Test-only.",
+    input_schema={"json": {"type": "object", "properties": {}}},
+)
+def _safety_test_busy_loop() -> dict:
+    while True:
+        pass
+
+
+def _pid_alive(pid: int) -> bool:
+    """Return True if a process with *pid* still exists."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 @pytest.fixture(autouse=True)
@@ -293,6 +315,33 @@ class TestSafeExecuteToolCall:
             safe_execute_tool_call("_safety_test_sleep", {"seconds": 5}, timeout=0.2)
         assert exc_info.value.code == "timeout"
         assert exc_info.value.details["tool_name"] == "_safety_test_sleep"
+
+    def test_timeout_force_terminates_runaway_worker(self) -> None:
+        # SEC-02: a CPU-bound runaway must actually be killed on timeout, not
+        # left spinning. Warm the module pool (workers spawn lazily) so we can
+        # record its worker pids, then run an infinite-loop tool through the same
+        # pool and confirm those workers are gone afterwards.
+        pool = get_pool()
+        pool.submit(_worker_run, "_safety_test_echo", {"value": 0}).result(timeout=10)
+        pids = list(getattr(pool, "_processes", {}).keys())
+        assert pids, "expected at least one worker process"
+
+        with pytest.raises(ToolTimeoutError):
+            safe_execute_tool_call("_safety_test_busy_loop", {}, timeout=0.3)
+
+        deadline = time.time() + 5
+        while time.time() < deadline and any(_pid_alive(p) for p in pids):
+            time.sleep(0.05)
+        assert not any(_pid_alive(p) for p in pids), "runaway worker still alive after timeout"
+
+    def test_module_pool_recycled_after_each_call(self) -> None:
+        # SEC-03: the module-managed pool is recycled after every call so each
+        # call runs in a fresh, isolated worker.
+        import process_improve.tool_safety as ts
+
+        result = safe_execute_tool_call("_safety_test_echo", {"value": 1}, timeout=10)
+        assert result == {"value": 1}
+        assert ts._pool is None
 
     def test_error_has_json_serialisable_dict(self) -> None:
         err: ToolSafetyError = ToolTimeoutError("boom", details={"tool_name": "x", "timeout": 1})
