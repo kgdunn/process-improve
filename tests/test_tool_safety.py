@@ -36,6 +36,7 @@ from process_improve.tool_safety import (
     get_pool,
     safe_execute_tool_call,
     shutdown_pool,
+    validate_against_schema,
     validate_input,
 )
 from process_improve.tool_spec import _TOOL_REGISTRY, tool_spec
@@ -149,6 +150,91 @@ class TestValidateInput:
 
 
 # ---------------------------------------------------------------------------
+# validate_against_schema: SEC-04, synchronous, in-process
+# ---------------------------------------------------------------------------
+
+
+_DEMO_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "data": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 5},
+        "n_components": {"type": "integer", "minimum": 1},
+        "conf_level": {"type": "number", "minimum": 0.8, "maximum": 0.999},
+        "method": {"type": "string", "enum": ["a", "b"]},
+        "name": {"type": "string"},
+    },
+    "required": ["data", "n_components"],
+}
+
+
+class TestValidateAgainstSchema:
+    def test_valid_input_passes(self) -> None:
+        validate_against_schema(
+            {"data": [1, 2, 3], "n_components": 2, "conf_level": 0.95, "method": "a"},
+            _DEMO_SCHEMA,
+        )
+
+    def test_int_accepted_for_number_type(self) -> None:
+        # JSON "number" accepts integers.
+        validate_against_schema(
+            {"x": 5},
+            {"type": "object", "properties": {"x": {"type": "number"}}},
+        )
+
+    def test_missing_required_rejected(self) -> None:
+        with pytest.raises(ToolInputInvalidError, match="required"):
+            validate_against_schema({"data": [1, 2, 3]}, _DEMO_SCHEMA)
+
+    def test_unknown_key_rejected(self) -> None:
+        with pytest.raises(ToolInputInvalidError, match="Unknown parameter"):
+            validate_against_schema(
+                {"data": [1, 2, 3], "n_components": 2, "bogus": 1}, _DEMO_SCHEMA
+            )
+
+    def test_wrong_type_rejected(self) -> None:
+        with pytest.raises(ToolInputInvalidError, match="type 'integer'"):
+            validate_against_schema({"data": [1, 2, 3], "n_components": "two"}, _DEMO_SCHEMA)
+
+    def test_float_rejected_for_integer(self) -> None:
+        with pytest.raises(ToolInputInvalidError):
+            validate_against_schema({"data": [1, 2, 3], "n_components": 2.5}, _DEMO_SCHEMA)
+
+    def test_bool_rejected_for_number(self) -> None:
+        with pytest.raises(ToolInputInvalidError):
+            validate_against_schema({"data": [1, 2, 3], "n_components": True}, _DEMO_SCHEMA)
+
+    def test_below_minimum_rejected(self) -> None:
+        with pytest.raises(ToolInputInvalidError, match="minimum"):
+            validate_against_schema({"data": [1, 2, 3], "n_components": 0}, _DEMO_SCHEMA)
+
+    def test_above_maximum_rejected(self) -> None:
+        with pytest.raises(ToolInputInvalidError, match="maximum"):
+            validate_against_schema(
+                {"data": [1, 2, 3], "n_components": 2, "conf_level": 2.0}, _DEMO_SCHEMA
+            )
+
+    def test_too_few_items_rejected(self) -> None:
+        with pytest.raises(ToolInputInvalidError, match="minimum is 3"):
+            validate_against_schema({"data": [1, 2], "n_components": 2}, _DEMO_SCHEMA)
+
+    def test_too_many_items_rejected(self) -> None:
+        with pytest.raises(ToolInputInvalidError, match="maximum is 5"):
+            validate_against_schema({"data": [1, 2, 3, 4, 5, 6], "n_components": 2}, _DEMO_SCHEMA)
+
+    def test_bad_enum_rejected(self) -> None:
+        with pytest.raises(ToolInputInvalidError, match="not one of"):
+            validate_against_schema(
+                {"data": [1, 2, 3], "n_components": 2, "method": "z"}, _DEMO_SCHEMA
+            )
+
+    def test_explicit_null_for_optional_allowed(self) -> None:
+        # An optional parameter passed as null falls back to the tool's default.
+        validate_against_schema(
+            {"data": [1, 2, 3], "n_components": 2, "name": None}, _DEMO_SCHEMA
+        )
+
+
+# ---------------------------------------------------------------------------
 # Subprocess-based tests
 # ---------------------------------------------------------------------------
 
@@ -171,6 +257,16 @@ class TestSafeExecuteToolCall:
                 timeout=10,
                 max_cells=100,
             )
+
+    def test_schema_violation_rejected_before_subprocess(self) -> None:
+        # SEC-04: wrong type for a declared parameter is rejected synchronously,
+        # before any worker runs.
+        with pytest.raises(ToolInputInvalidError):
+            safe_execute_tool_call("_safety_test_echo", {"value": "not-a-number"}, timeout=10)
+
+    def test_schema_unknown_key_rejected_before_subprocess(self) -> None:
+        with pytest.raises(ToolInputInvalidError, match="Unknown parameter"):
+            safe_execute_tool_call("_safety_test_echo", {"value": 1, "rogue": 2}, timeout=10)
 
     def test_timeout_raises_structured_error(self) -> None:
         with pytest.raises(ToolTimeoutError) as exc_info:
