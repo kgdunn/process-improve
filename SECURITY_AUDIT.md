@@ -28,12 +28,12 @@ therefore ranked under two models:
 | SEC-04 | Declared `input_schema` never enforced | High | Low | done (#240, v1.22.6) |
 | SEC-05 | Div-by-zero in NIPALS / multiblock methods | High | High | done (#241, v1.22.8) |
 | SEC-06 | Non-convergence not flagged; `fractional()` 1/0 | Medium | Medium | done (#241, v1.22.8) |
-| SEC-07 | Matrix inversion without conditioning checks | Medium | Medium | open |
-| SEC-08 | `assert` used for validation (stripped by `-O`) | Medium | Low | open |
-| SEC-09 | Exception suppression; tool errors leak internals | Medium | Low | open |
-| SEC-10 | Latent path traversal; unverified remote fetch | Low | Low | open |
-| SEC-11 | `discover_tools` swallows all `ImportError`s | Low | Low | open |
-| SEC-12 | `DataFrame.query` built with f-strings | Low | Low | open |
+| SEC-07 | Matrix inversion without conditioning checks | Medium | Medium | done (#242, v1.22.9) |
+| SEC-08 | `assert` used for validation (stripped by `-O`) | Medium | Low | done (#243, v1.22.9) |
+| SEC-09 | Exception suppression; tool errors leak internals | Medium | Low | done (#244, v1.22.9) |
+| SEC-10 | Latent path traversal; unverified remote fetch | Low | Low | done (#245, v1.22.9) |
+| SEC-11 | `discover_tools` swallows all `ImportError`s | Low | Low | done (#246, v1.22.9) |
+| SEC-12 | `DataFrame.query` built with f-strings | Low | Low | done (#247, v1.22.9) |
 
 ---
 
@@ -149,7 +149,12 @@ therefore ranked under two models:
   inside `fractional()`. Tests: pathological data hitting `max_iter`;
   `fraction_excluded = 0` after init.
 
-## SEC-07 - Matrix inversion without conditioning / singularity checks
+## SEC-07 - Matrix inversion without conditioning / singularity checks [RESOLVED]
+- **Status:** Fixed in v1.22.9 (issue #242). New `process_improve._linalg`
+  (`safe_inverse` / `is_singular`) guards the two previously-unguarded
+  multivariate sites and upgrades the surface/design-quality plot fallbacks to
+  catch ill-conditioning. `optimal.py` and `evaluate.py` were already guarded
+  (try/except and rank check).
 - **Severity:** U = Medium, L = Medium (correctness)
 - **Where:** `process_improve/experiments/optimal.py:21,91`,
   `process_improve/experiments/evaluate.py:137`,
@@ -164,7 +169,10 @@ therefore ranked under two models:
   "singular/rank-deficient design" error. Tests with a deliberately singular
   design matrix.
 
-## SEC-08 - `assert` used for input/state validation (stripped under `python -O`)
+## SEC-08 - `assert` used for input/state validation (stripped under `python -O`) [RESOLVED]
+- **Status:** Fixed in v1.22.9 (issue #243). The flagged validation asserts were
+  converted to explicit `raise` statements; remaining asserts are internal
+  invariants.
 - **Severity:** U = Medium, L = Low
 - **Where:** ~105 instances; validation-style examples:
   `process_improve/regression/methods.py:486-489,615`,
@@ -181,7 +189,12 @@ therefore ranked under two models:
   prefer explicit raises at API boundaries. Tests: invalid input raises even
   under `-O`.
 
-## SEC-09 - Broad exception suppression hides errors; tool errors leak internals
+## SEC-09 - Broad exception suppression hides errors; tool errors leak internals [RESOLVED]
+- **Status:** Fixed in v1.22.9 (issue #244). `analysis.py` and `augment.py`
+  narrow their `except` and log; the MCP server logs unexpected exceptions
+  server-side and returns a generic message instead of `str(exc)`. (Individual
+  tool wrappers already log server-side and mostly carry domain-validation
+  messages; SEC-04 now rejects malformed inputs before dispatch.)
 - **Severity:** U = Medium (information disclosure), L = Low
 - **Where:** `process_improve/experiments/analysis.py:191` (`except Exception` ->
   `None, None`), `process_improve/experiments/augment.py:69` (`except Exception`
@@ -197,7 +210,11 @@ therefore ranked under two models:
   `ToolSafetyError.to_dict()` pattern is a good model). Tests: forced failure
   returns a sanitized error with no path leakage.
 
-## SEC-10 - Latent path traversal in file helpers; unverified remote dataset fetch
+## SEC-10 - Latent path traversal in file helpers; unverified remote dataset fetch [RESOLVED]
+- **Status:** Fixed in v1.22.9 (issue #245). `_load_yaml` confines the resolved
+  path to its data directory; the remote dataset loaders wrap the fetch and raise
+  a clear error. `plot_to_HTML` is an explicit save-to-path API (the path is the
+  intended output), so it is left as-is by design.
 - **Severity:** U = Low, L = Low
 - **Where:** `process_improve/experiments/knowledge/engine.py:35-42`
   (`_load_yaml(filename)` joins `_DATA_DIR / filename`, no traversal check),
@@ -215,7 +232,9 @@ therefore ranked under two models:
   document the trust assumption (optionally checksum-pin). Tests: traversal
   filename rejected.
 
-## SEC-11 - `discover_tools` silently swallows all `ImportError`s
+## SEC-11 - `discover_tools` silently swallows all `ImportError`s [RESOLVED]
+- **Status:** Fixed in v1.22.9 (issue #246). Only `ModuleNotFoundError` is
+  tolerated (and logged); other `ImportError`s propagate.
 - **Severity:** U = Low, L = Low (robustness)
 - **Where:** `process_improve/tool_spec.py:255-269`
   (`contextlib.suppress(ImportError)` around each `import_module`).
@@ -228,7 +247,8 @@ therefore ranked under two models:
   surface unexpected import failures. Test: a module raising a nested ImportError
   surfaces a warning rather than disappearing silently.
 
-## SEC-12 - `pandas.DataFrame.query` built with f-strings
+## SEC-12 - `pandas.DataFrame.query` built with f-strings [RESOLVED]
+- **Status:** Fixed in v1.22.9 (issue #247). Replaced with boolean-mask indexing.
 - **Severity:** U = Low, L = Low (code smell)
 - **Where:** `process_improve/batch/preprocessing.py:637,639`
   (`metrics.query(f"SPE < {pca_second.spe_limit(...)}")`).

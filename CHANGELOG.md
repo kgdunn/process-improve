@@ -11,6 +11,49 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.9] - 2026-05-29
+
+This release lands the second half of the `SECURITY_AUDIT.md` hardening series
+(SEC-07 through SEC-12). Each fix shipped as its own code+tests pull request;
+this entry records them together.
+
+### Security
+
+- The MCP server no longer returns the raw text of an unexpected exception to
+  the caller (SEC-09). Unexpected errors may contain internal detail (file
+  paths, library internals); the full traceback is logged server-side and a
+  generic message is returned. Structured `ToolSafetyError`s keep their curated
+  payload.
+
+### Fixed
+
+- Matrix inversions that could silently return overflow-driven garbage on a
+  singular or ill-conditioned matrix are now guarded (SEC-07). New internal
+  `process_improve._linalg` provides `safe_inverse` (raises a clear
+  `LinAlgError`) and `is_singular`; applied to the PLS direct-weights inverse
+  and the TPLS Hotelling's T2 covariance inverse, with the response-surface and
+  design-quality plots falling back to the pseudo-inverse for ill-conditioned
+  `X'X`. Well-conditioned inputs are unchanged.
+- `discover_tools` no longer silently swallows every `ImportError` (SEC-11): a
+  missing optional dependency is tolerated and logged, while any other
+  `ImportError` propagates instead of dropping a whole tool category.
+- The knowledge-base YAML loader (`experiments/knowledge/engine._load_yaml`)
+  rejects filenames that escape its data directory (SEC-10).
+
+### Changed
+
+- Input/state validation that used bare `assert` statements is now done with
+  explicit `if ...: raise ValueError`/`NotFittedError` (SEC-08), so the checks
+  remain active under `python -O`. Two control-chart parameter checks now raise
+  `ValueError` instead of `AssertionError`.
+- The Breusch-Pagan diagnostic (`experiments/analysis.py`) and design-metric
+  evaluation (`experiments/augment.py`) catch only expected failure types and
+  log, instead of silently swallowing every exception (SEC-09).
+- The remote sample-dataset loaders (`experiments/datasets`) wrap their network
+  fetch and raise a clear `RuntimeError` on failure (SEC-10).
+- `find_reference_batch` (`batch/preprocessing.py`) filters with boolean-mask
+  indexing instead of a `DataFrame.query()` expression string (SEC-12).
+
 ## [1.22.8] - 2026-05-29
 
 ### Fixed
@@ -198,7 +241,8 @@ those changes.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.8...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.9...HEAD
+[1.22.9]: https://github.com/kgdunn/process-improve/compare/v1.22.8...v1.22.9
 [1.22.8]: https://github.com/kgdunn/process-improve/compare/v1.22.7...v1.22.8
 [1.22.7]: https://github.com/kgdunn/process-improve/compare/v1.22.6...v1.22.7
 [1.22.6]: https://github.com/kgdunn/process-improve/compare/v1.22.5...v1.22.6
