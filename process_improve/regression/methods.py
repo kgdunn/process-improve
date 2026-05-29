@@ -28,12 +28,32 @@ def fit_robust_lm(x: np.ndarray, y: np.ndarray) -> np.ndarray:
 
 def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) -> float:
     """
-    Robust slope calculation.
+    Robust slope calculation via Siegel's repeated-median estimator.
 
     https://en.wikipedia.org/wiki/Repeated_median_regression
 
-    An elegant (simple) method to compute the robust slope between a vector `x` and `y`.
+    An elegant (simple) method to compute the robust slope between a vector ``x`` and ``y``.
+    For each point ``i`` the median of the pairwise slopes ``(y[j] - y[i]) / (x[j] - x[i])``
+    over all ``j != i`` is computed; the returned slope is the median of those per-point medians.
 
+    Parameters
+    ----------
+    x : np.ndarray or sequence
+        Independent variable. Coerced to a 1-D numpy array. Must have at least 3 elements
+        (unless ``nowarn=True``).
+    y : np.ndarray or sequence
+        Dependent variable. Must have the same length as ``x`` (unless ``nowarn=True``).
+    nowarn : bool, optional
+        If ``True``, skip the length and equal-length input assertions. Default ``False``.
+
+    Returns
+    -------
+    float
+        The repeated-median estimate of the slope. Returns ``np.nan`` if all inner medians
+        are undefined (e.g. all ``x`` values are equal).
+
+    Notes
+    -----
     INVESTIGATE: algorithm speed-ups via these articles:
     https://link.springer.com/article/10.1007/PL00009190
     http://www.sciencedirect.com/science/article/pii/S0020019003003508
