@@ -176,10 +176,16 @@ def fit_linear_model(
 ) -> dict[str, Any]:
     """Fit a linear model to experimental data; see tool spec for details."""
     try:
-        from process_improve.experiments.models import lm  # noqa: PLC0415
+        from process_improve.experiments.models import lm, validate_formula_is_safe  # noqa: PLC0415
         from process_improve.experiments.structures import Expt  # noqa: PLC0415
 
         df = pd.DataFrame(data)
+
+        # Patsy evaluates formula terms as Python expressions, so a formula from an
+        # untrusted caller is a code-execution vector. Only allow a plain Wilkinson
+        # formula over the columns actually present in the data.
+        validate_formula_is_safe(formula, df.columns)
+
         expt_data = Expt(df)
         expt_data.pi_title = None
         expt_data.pi_source = None

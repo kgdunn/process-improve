@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import re
 import warnings
 from collections import defaultdict
+from collections.abc import Iterable
 from typing import Any
 
 import numpy as np
@@ -11,6 +13,70 @@ import pandas as pd
 import statsmodels.formula.api as smf
 from patsy import ModelDesc
 from statsmodels.regression.linear_model import OLS
+
+
+class UnsafeFormulaError(ValueError):
+    """Raised when a model formula contains tokens outside the safe Wilkinson subset.
+
+    Patsy and statsmodels evaluate each formula term as a Python expression, so a
+    formula coming from an untrusted source (for example the ``fit_linear_model``
+    MCP tool) is a code-execution vector. :func:`validate_formula_is_safe` rejects
+    anything that is not a plain Wilkinson formula over known data columns before it
+    ever reaches patsy.
+    """
+
+
+# Characters permitted in a safe Wilkinson formula: column-name characters,
+# whitespace, and the structural operators (~ + - * : ^) plus grouping parens.
+# Notably excluded: quotes, '.', ',', '[', ']', '=', '!', '@', '%', backslash -
+# i.e. everything needed to build a Python expression, attribute access, string
+# literal, or function-call argument list.
+_FORMULA_ALLOWED_CHARS = re.compile(r"^[A-Za-z0-9_ \t\r\n~+\-*:^()]*$")
+_FORMULA_IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
+
+
+def validate_formula_is_safe(formula: str, allowed_names: Iterable[str]) -> None:
+    """Reject a model ``formula`` that is not a plain Wilkinson formula over *allowed_names*.
+
+    This is the guard for untrusted callers (e.g. the ``fit_linear_model`` tool).
+    Patsy evaluates every formula term as a Python expression with builtins and
+    numpy in scope, so a string such as ``y ~ I(__import__('os').system('id'))``
+    would execute arbitrary code. We forbid that by allowing only:
+
+    * identifiers that name an actual data column,
+    * the operators ``~ + - * : ^`` and grouping parentheses,
+    * integer literals (for powers like ``(A + B)**2``) and whitespace.
+
+    Any quote, dot, comma, dunder, or unknown identifier (``np``, ``I``,
+    ``__import__``, ...) is rejected.
+
+    Parameters
+    ----------
+    formula:
+        The model formula in Wilkinson notation, e.g. ``"y ~ A*B"``.
+    allowed_names:
+        The legal identifier names, i.e. the columns present in the data.
+
+    Raises
+    ------
+    UnsafeFormulaError
+        If *formula* is not a string, contains forbidden characters or a
+        ``__`` dunder, or references an identifier that is not a data column.
+    """
+    if not isinstance(formula, str):
+        raise UnsafeFormulaError(f"formula must be a string, got {type(formula).__name__}.")
+    if "__" in formula:
+        raise UnsafeFormulaError("formula may not contain '__' (dunder access is forbidden).")
+    if not _FORMULA_ALLOWED_CHARS.match(formula):
+        forbidden = sorted({c for c in formula if not _FORMULA_ALLOWED_CHARS.match(c)})
+        raise UnsafeFormulaError(f"formula contains forbidden characters: {forbidden}.")
+    allowed = {str(name) for name in allowed_names}
+    unknown = sorted({tok for tok in _FORMULA_IDENTIFIER.findall(formula) if tok not in allowed})
+    if unknown:
+        raise UnsafeFormulaError(
+            f"formula references unknown name(s) {unknown}; only data columns are allowed: "
+            f"{sorted(allowed)}."
+        )
 
 
 def forg(x: float, prec: int = 3) -> str:

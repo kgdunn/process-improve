@@ -52,6 +52,14 @@ class TestCreateFactorialDesign:
 # ---------------------------------------------------------------------------
 
 
+_SAFE_FIT_DATA = [
+    {"A": -1, "B": -1, "y": 28.0},
+    {"A": 1, "B": -1, "y": 36.0},
+    {"A": -1, "B": 1, "y": 18.0},
+    {"A": 1, "B": 1, "y": 31.0},
+]
+
+
 class TestFitLinearModel:
     def test_two_factor_factorial_fit(self) -> None:
         """A 2^2 factorial should fit cleanly."""
@@ -73,11 +81,49 @@ class TestFitLinearModel:
         assert "summary_text" in result
         assert isinstance(result["summary_text"], str)
 
-    # Note: tests that intentionally trigger a patsy formula error are skipped.
-    # On Python 3.13 the traceback formatter calls ``list(frame.f_locals)``
-    # over patsy's eval namespace, which raises ``KeyError: 0`` and triggers
-    # an INTERNALERROR even when the user-level assertion would pass. The
-    # success-path test above already exercises the wrapper's try block.
+    def test_main_effects_only(self) -> None:
+        """A '+' main-effects formula should still fit."""
+        result = execute_tool_call(
+            "fit_linear_model",
+            {
+                "formula": "y ~ A + B",
+                "data": [
+                    {"A": -1, "B": -1, "y": 28.0},
+                    {"A": 1, "B": -1, "y": 36.0},
+                    {"A": -1, "B": 1, "y": 18.0},
+                    {"A": 1, "B": 1, "y": 31.0},
+                ],
+            },
+        )
+        assert "error" not in result
+        assert "coefficients" in result
+
+    # ---- SEC-01: patsy-formula code-execution guard -----------------------
+    # Patsy evaluates formula terms as Python, so an untrusted formula is an
+    # RCE vector. The wrapper now rejects anything that is not a plain
+    # Wilkinson formula over the data columns, *before* it reaches patsy, so
+    # these never hit patsy's eval (which also avoids the Python 3.13
+    # traceback INTERNALERROR seen previously).
+
+    def test_rce_formula_is_rejected_without_side_effect(self, tmp_path) -> None:
+        """A malicious formula must return an error and must not execute code."""
+        sentinel = tmp_path / "pwned"
+        malicious = f"y ~ A + I(__import__('os').system('touch {sentinel}'))"
+        result = execute_tool_call(
+            "fit_linear_model",
+            {"formula": malicious, "data": _SAFE_FIT_DATA},
+        )
+        assert "error" in result
+        assert not sentinel.exists(), "formula was evaluated - RCE guard failed"
+
+    def test_unknown_identifier_is_rejected(self) -> None:
+        """A formula referencing a non-column name (e.g. numpy) is rejected."""
+        result = execute_tool_call(
+            "fit_linear_model",
+            {"formula": "y ~ A + np", "data": _SAFE_FIT_DATA},
+        )
+        assert "error" in result
+        assert "unknown name" in result["error"]
 
 
 # ---------------------------------------------------------------------------
