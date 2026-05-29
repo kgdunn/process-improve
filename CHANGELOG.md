@@ -11,6 +11,16 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.12] - 2026-05-29
+
+### Fixed
+
+- `discover_tools` no longer silently swallows every `ImportError` (SEC-11). A
+  missing optional dependency (`ModuleNotFoundError`) is tolerated but logged so
+  the dropped tool category is visible; any other `ImportError` (for example a
+  bad name imported inside a tools module) now propagates instead of making the
+  whole category vanish without a trace.
+
 ## [1.22.11] - 2026-05-29
 
 ### Changed
@@ -243,7 +253,8 @@ those changes.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.11...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.12...HEAD
+[1.22.12]: https://github.com/kgdunn/process-improve/compare/v1.22.11...v1.22.12
 [1.22.11]: https://github.com/kgdunn/process-improve/compare/v1.22.10...v1.22.11
 [1.22.10]: https://github.com/kgdunn/process-improve/compare/v1.22.9...v1.22.10
 [1.22.9]: https://github.com/kgdunn/process-improve/compare/v1.22.8...v1.22.9

@@ -32,7 +32,7 @@ therefore ranked under two models:
 | SEC-08 | `assert` used for validation (stripped by `-O`) | Medium | Low | done (#243, v1.22.11) |
 | SEC-09 | Exception suppression; tool errors leak internals | Medium | Low | done (#244, v1.22.10) |
 | SEC-10 | Latent path traversal; unverified remote fetch | Low | Low | open |
-| SEC-11 | `discover_tools` swallows all `ImportError`s | Low | Low | open |
+| SEC-11 | `discover_tools` swallows all `ImportError`s | Low | Low | done (#246, v1.22.12) |
 | SEC-12 | `DataFrame.query` built with f-strings | Low | Low | open |
 
 ---
@@ -228,7 +228,9 @@ therefore ranked under two models:
   document the trust assumption (optionally checksum-pin). Tests: traversal
   filename rejected.
 
-## SEC-11 - `discover_tools` silently swallows all `ImportError`s
+## SEC-11 - `discover_tools` silently swallows all `ImportError`s [RESOLVED]
+- **Status:** Fixed in v1.22.12 (issue #246). Only `ModuleNotFoundError` is
+  tolerated (and logged); other `ImportError`s propagate.
 - **Severity:** U = Low, L = Low (robustness)
 - **Where:** `process_improve/tool_spec.py:255-269`
   (`contextlib.suppress(ImportError)` around each `import_module`).

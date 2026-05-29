@@ -29,11 +29,14 @@ Import the decorated tools and pass the specs to the Anthropic client::
 
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Callable
 from typing import Any
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Registry
@@ -239,6 +242,24 @@ def clean(value: Any) -> Any:  # noqa: PLR0911, ANN401
 # ---------------------------------------------------------------------------
 
 
+def _import_tool_module(module: str) -> None:
+    """Import a single ``tools.py`` module for discovery.
+
+    A genuinely missing module - typically an uninstalled optional third-party
+    dependency that the tools module imports - is tolerated but logged, so the
+    dropped tool category is visible rather than silent. Any other
+    :class:`ImportError` (for example a bad name imported inside the module) is a
+    real bug and is allowed to propagate rather than being silently swallowed,
+    which would make the whole tool category vanish without a trace.
+    """
+    import importlib  # noqa: PLC0415
+
+    try:
+        importlib.import_module(module)
+    except ModuleNotFoundError as exc:
+        logger.warning("Tool module %r not loaded (missing dependency): %s", module, exc)
+
+
 def discover_tools() -> None:
     """Import all ``tools.py`` modules to populate the tool registry.
 
@@ -248,9 +269,6 @@ def discover_tools() -> None:
     global _discovery_done  # noqa: PLW0603
     if _discovery_done:
         return
-
-    import contextlib  # noqa: PLC0415
-    import importlib  # noqa: PLC0415
 
     for module in [
         "process_improve.univariate.tools",
@@ -263,8 +281,7 @@ def discover_tools() -> None:
         "process_improve.visualization.tools",
         "process_improve.simulation.tools",
     ]:
-        with contextlib.suppress(ImportError):
-            importlib.import_module(module)
+        _import_tool_module(module)
 
     _discovery_done = True
 
