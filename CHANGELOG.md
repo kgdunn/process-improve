@@ -11,6 +11,19 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.7] - 2026-05-29
+
+### Security
+
+- `safe_execute_tool_call` now actually terminates a runaway worker on timeout
+  (SEC-02). Previously it called `shutdown(wait=False)`, which does not
+  interrupt a worker already running a task, so a CPU-bound or infinite-loop
+  tool kept holding a core after `ToolTimeoutError` was raised. Workers are now
+  force-terminated (`terminate()` then `kill()`).
+- The module-managed worker pool is recycled after every call (SEC-03), so each
+  call runs in a fresh worker with isolated process-global state and reclaimed
+  memory. Caller-provided executors are left untouched.
+
 ## [1.22.6] - 2026-05-29
 
 ### Security
@@ -167,7 +180,8 @@ those changes.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.6...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.7...HEAD
+[1.22.7]: https://github.com/kgdunn/process-improve/compare/v1.22.6...v1.22.7
 [1.22.6]: https://github.com/kgdunn/process-improve/compare/v1.22.5...v1.22.6
 [1.22.5]: https://github.com/kgdunn/process-improve/compare/v1.22.4...v1.22.5
 [1.22.4]: https://github.com/kgdunn/process-improve/compare/v1.22.3...v1.22.4

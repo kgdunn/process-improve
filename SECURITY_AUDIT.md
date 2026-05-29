@@ -23,8 +23,8 @@ therefore ranked under two models:
 | ID | Title | U | L | Status |
 |----|-------|---|---|--------|
 | SEC-01 | RCE via patsy formula in `fit_linear_model` | Critical | Low | done (#238, v1.22.5) |
-| SEC-02 | Timeout does not terminate runaway worker | High | Low | open |
-| SEC-03 | No per-call worker-pool isolation | Medium | Low | open |
+| SEC-02 | Timeout does not terminate runaway worker | High | Low | done (#239, v1.22.7) |
+| SEC-03 | No per-call worker-pool isolation | Medium | Low | done (#239, v1.22.7) |
 | SEC-04 | Declared `input_schema` never enforced | High | Low | done (#240, v1.22.6) |
 | SEC-05 | Div-by-zero in NIPALS / multiblock methods | High | High | open |
 | SEC-06 | Non-convergence not flagged; `fractional()` 1/0 | Medium | Medium | open |
@@ -59,7 +59,9 @@ therefore ranked under two models:
   `experiments/evaluate.py:95`). Add tests asserting malicious formulas are
   rejected before reaching patsy.
 
-## SEC-02 - Timeout guard does not terminate runaway workers (CPU-exhaustion DoS)
+## SEC-02 - Timeout guard does not terminate runaway workers (CPU-exhaustion DoS) [RESOLVED]
+- **Status:** Fixed in v1.22.7 (issue #239). `shutdown_pool` now force-terminates
+  workers; `safe_execute_tool_call` recycles the pool after every call.
 - **Severity:** U = High, L = Low
 - **Where:** `process_improve/tool_safety.py:344-353` (`safe_execute_tool_call`),
   `shutdown_pool` (`tool_safety.py:279-285`).
@@ -76,7 +78,10 @@ therefore ranked under two models:
   then join) before raising. Correct the docstring. Add a regression test that
   submits a busy-loop tool and asserts the child process is gone after timeout.
 
-## SEC-03 - Worker pool has no per-call isolation / memory reset
+## SEC-03 - Worker pool has no per-call isolation / memory reset [RESOLVED]
+- **Status:** Fixed in v1.22.7 (issue #239). The module pool is recycled after
+  every call. (`max_tasks_per_child=1` is incompatible with the `fork` start
+  method this module uses, so per-call recycling is used instead.)
 - **Severity:** U = Medium, L = Low
 - **Where:** `process_improve/tool_safety.py:259-276` (`get_pool`),
   `_pool_initializer`, `_apply_memory_limit`.
