@@ -30,7 +30,7 @@ therefore ranked under two models:
 | SEC-06 | Non-convergence not flagged; `fractional()` 1/0 | Medium | Medium | done (#241, v1.22.8) |
 | SEC-07 | Matrix inversion without conditioning checks | Medium | Medium | done (#242, v1.22.9) |
 | SEC-08 | `assert` used for validation (stripped by `-O`) | Medium | Low | open |
-| SEC-09 | Exception suppression; tool errors leak internals | Medium | Low | open |
+| SEC-09 | Exception suppression; tool errors leak internals | Medium | Low | done (#244, v1.22.10) |
 | SEC-10 | Latent path traversal; unverified remote fetch | Low | Low | open |
 | SEC-11 | `discover_tools` swallows all `ImportError`s | Low | Low | open |
 | SEC-12 | `DataFrame.query` built with f-strings | Low | Low | open |
@@ -186,7 +186,12 @@ therefore ranked under two models:
   prefer explicit raises at API boundaries. Tests: invalid input raises even
   under `-O`.
 
-## SEC-09 - Broad exception suppression hides errors; tool errors leak internals
+## SEC-09 - Broad exception suppression hides errors; tool errors leak internals [RESOLVED]
+- **Status:** Fixed in v1.22.10 (issue #244). `analysis.py` and `augment.py`
+  narrow their `except` and log; the MCP server logs unexpected exceptions
+  server-side and returns a generic message instead of `str(exc)`. (Individual
+  tool wrappers already log server-side and mostly carry domain-validation
+  messages; SEC-04 now rejects malformed inputs before dispatch.)
 - **Severity:** U = Medium (information disclosure), L = Low
 - **Where:** `process_improve/experiments/analysis.py:191` (`except Exception` ->
   `None, None`), `process_improve/experiments/augment.py:69` (`except Exception`

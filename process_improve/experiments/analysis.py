@@ -12,6 +12,7 @@ precision, and confirmation run testing.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -21,6 +22,8 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from scipy import stats
 from statsmodels.regression.linear_model import RegressionResultsWrapper
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Formula builder
@@ -183,12 +186,15 @@ def _run_residual_diagnostics(ols_result: RegressionResultsWrapper) -> dict[str,
 
     dw = float(durbin_watson(residuals))
 
-    # Breusch-Pagan (homoscedasticity)
+    # Breusch-Pagan (homoscedasticity). The test can legitimately fail to compute
+    # (singular exog, too few residuals); record None but log so the failure is
+    # not silent, and do not swallow unexpected error types.
     try:
         from statsmodels.stats.diagnostic import het_breuschpagan  # noqa: PLC0415
 
         bp_stat, bp_p, _bp_f, _bp_fp = het_breuschpagan(residuals, ols_result.model.exog)
-    except Exception:  # noqa: BLE001
+    except (ImportError, ValueError, ZeroDivisionError, np.linalg.LinAlgError) as exc:
+        logger.warning("Breusch-Pagan test could not be computed: %s", exc)
         bp_stat, bp_p = None, None
 
     # Cook's distance

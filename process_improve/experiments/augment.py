@@ -20,6 +20,7 @@ Example
 from __future__ import annotations
 
 import itertools
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -34,6 +35,8 @@ from process_improve.experiments.evaluate import (
     _word_to_str,
     evaluate_design,
 )
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Internal context shared across augmentation handlers
@@ -66,7 +69,10 @@ def _safe_evaluate(design: pd.DataFrame, generators: list[str] | None, model: st
         if generators:
             metrics.extend(["alias_structure", "resolution"])
         return evaluate_design(design, model=model, metric=metrics)
-    except Exception:  # noqa: BLE001
+    except (ValueError, KeyError, np.linalg.LinAlgError) as exc:
+        # Evaluation may not apply to every design; return no metrics but log so
+        # the failure is not silent, and let unexpected error types propagate.
+        logger.warning("Design evaluation skipped: %s", exc)
         return {}
 
 

@@ -58,6 +58,20 @@ mcp = FastMCP(
 )
 
 
+def _serialise_tool_error(exc: Exception, tool_name: str) -> str:
+    """Return a JSON error string that does not leak internal detail.
+
+    An unexpected exception's message may carry internal detail (filesystem
+    paths, library internals). Over an untrusted MCP transport that is an
+    information-disclosure risk, so the full traceback is logged server-side and
+    only a generic message is returned to the caller. (Structured
+    :class:`ToolSafetyError`s, which have a curated payload, are handled by the
+    caller before reaching here.)
+    """
+    logger.exception("Tool %r raised an unexpected error", tool_name)
+    return json.dumps({"error": "internal error while executing tool", "tool": tool_name})
+
+
 def _register_all_tools() -> None:
     """Register every ``@tool_spec`` tool as an MCP tool."""
     discover_tools()
@@ -89,9 +103,10 @@ def _create_mcp_tool(
                 return json.dumps(result, indent=2, default=str)
             return str(result)
         except ToolSafetyError as exc:
+            # Structured safety errors carry a curated, non-sensitive payload.
             return json.dumps(exc.to_dict())
         except Exception as exc:  # noqa: BLE001
-            return json.dumps({"error": str(exc)})
+            return _serialise_tool_error(exc, tool_name)
 
     # Set proper function metadata for FastMCP
     handler.__name__ = tool_name

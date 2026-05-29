@@ -11,6 +11,23 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.10] - 2026-05-29
+
+### Changed
+
+- The Breusch-Pagan diagnostic (`experiments/analysis.py`) and design metric
+  evaluation (`experiments/augment.py`) no longer swallow every exception: they
+  catch only the expected failure types and log a warning, so unexpected errors
+  surface instead of being silently discarded (SEC-09).
+
+### Security
+
+- The MCP server no longer returns the raw text of an unexpected exception to
+  the caller (SEC-09). Unexpected errors may contain internal detail (file
+  paths, library internals); the full traceback is now logged server-side and a
+  generic message is returned. Structured `ToolSafetyError`s keep their curated
+  payload.
+
 ## [1.22.9] - 2026-05-29
 
 ### Fixed
@@ -212,7 +229,8 @@ those changes.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.9...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.10...HEAD
+[1.22.10]: https://github.com/kgdunn/process-improve/compare/v1.22.9...v1.22.10
 [1.22.9]: https://github.com/kgdunn/process-improve/compare/v1.22.8...v1.22.9
 [1.22.8]: https://github.com/kgdunn/process-improve/compare/v1.22.7...v1.22.8
 [1.22.7]: https://github.com/kgdunn/process-improve/compare/v1.22.6...v1.22.7
