@@ -128,10 +128,10 @@ class TestHoltWintersControlChart:
     # Checks that the required asserts are raised
 
     cc_assert = ControlChart()
-    with pytest.raises(AssertionError, match=r"Lambda_1 must be less than or equal to 1\.0\."):
+    with pytest.raises(ValueError, match=r"Lambda_1 must be less than or equal to 1\.0\."):
         cc_assert.calculate_limits(y, ld_1=1.2, ld_2=0.5)
 
-    with pytest.raises(AssertionError, match=r"Lambda_1 must be greater than or equal to zero\."):
+    with pytest.raises(ValueError, match=r"Lambda_1 must be greater than or equal to zero\."):
         cc_assert.calculate_limits(y, ld_1=-1, ld_2=0.5)
 
     # test_hw_chart_missing_values(self):

@@ -248,7 +248,7 @@ def test_input_transposed_vector(multiple_linear_regression_data: tuple[np.ndarr
     y = pd.DataFrame(y_)
 
     # There is a difference with a transposed array
-    with pytest.raises(AssertionError, match=r"N >= K: You need at least as many rows .*"):
+    with pytest.raises(ValueError, match=r"N >= K: You need at least as many rows .*"):
         _ = multiple_linear_regression(x, y)
 
 
