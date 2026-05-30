@@ -76,8 +76,10 @@ def point_exchange(x: pd.DataFrame, number_points: int = 10) -> tuple[pd.DataFra
         The selected design (sorted by the original row index) and its
         D-optimality value (log-determinant of ``(X'X)^-1``).
     """
-    assert number_points >= x.shape[1], f"`number_point`s must be at least {x.shape[1]} (the number of columns in `x`)"
-    assert number_points <= x.shape[0], f"`number_point`s must be at most {x.shape[0]} (the number of rows in `x`)"
+    if number_points < x.shape[1]:
+        raise ValueError(f"`number_points` must be at least {x.shape[1]} (the number of columns in `x`).")
+    if number_points > x.shape[0]:
+        raise ValueError(f"`number_points` must be at most {x.shape[0]} (the number of rows in `x`).")
     x = pd.DataFrame(x).drop_duplicates()
 
     number_points = min(number_points, x.shape[0])

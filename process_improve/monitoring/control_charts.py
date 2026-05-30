@@ -78,7 +78,7 @@ class ControlChart:
         ]
         self.df = pd.DataFrame(columns=columns, dtype=np.float64)
 
-    def calculate_limits(
+    def calculate_limits(  # noqa: C901  - branch count is mostly simple input-validation guard clauses
         self, y: np.ndarray | pd.Series, target: float | None = None, s: float | None = None, **kwargs,
     ) -> None:
         """
@@ -101,8 +101,11 @@ class ControlChart:
 
         if s is not None:
             self.s = float(s)
-            assert s > 0.0, "The given standard deviation cannot be zero, and must be positive."
-            assert s < 1e300, "The given standard deviation cannot be this large."
+            if not 0.0 < s < 1e300:
+                raise ValueError(
+                    "The given standard deviation must be positive and not excessively large "
+                    f"(0 < s < 1e300); got {s}."
+                )
 
         if target is not None:
             self.target = float(target)
@@ -178,12 +181,11 @@ class ControlChart:
 
         if self.ld_1 and self.ld_2:
             # User has provided their own lambda_1 and lambda_2 values.
-            assert self.ld_1 >= 0.0, "Lambda_1 must be greater than or equal to zero."
-            assert self.ld_2 >= 0.0, "Lambda_2 must be greater than or equal to zero."
-            assert self.ld_s >= 0.0, "Lambda_s must be greater than or equal to zero."
-            assert self.ld_1 <= 1.0, "Lambda_1 must be less than or equal to 1.0."
-            assert self.ld_2 <= 1.0, "Lambda_2 must be less than or equal to 1.0."
-            assert self.ld_s <= 1.0, "Lambda_s must be less than or equal to 1.0."
+            for _name, _val in (("Lambda_1", self.ld_1), ("Lambda_2", self.ld_2), ("Lambda_s", self.ld_s)):
+                if _val < 0.0:
+                    raise ValueError(f"{_name} must be greater than or equal to zero.")
+                if _val > 1.0:
+                    raise ValueError(f"{_name} must be less than or equal to 1.0.")
             self._holt_winters_warmup_fit(ld_1=self.ld_1, ld_2=self.ld_2, ld_s=self.ld_s)
 
         else:
