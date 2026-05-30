@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from process_improve._linalg import is_singular
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
 from process_improve.visualization.colors import DOE_PALETTE
 from process_improve.visualization.spec import (
@@ -39,7 +40,7 @@ class FDSPlot(BasePlot):
     Requires ``design_data`` with factor columns (coded values).
     """
 
-    def to_spec(self) -> ChartSpec:  # noqa: C901, PLR0912
+    def to_spec(self) -> ChartSpec:  # noqa: C901
         """Build an FDS ChartSpec.
 
         Returns
@@ -73,10 +74,11 @@ class FDSPlot(BasePlot):
 
         x_model = np.column_stack(x_terms)
 
-        try:
-            xtx_inv = np.linalg.inv(x_model.T @ x_model)
-        except np.linalg.LinAlgError:
-            xtx_inv = np.linalg.pinv(x_model.T @ x_model)
+        # Fall back to the pseudo-inverse not just for an exactly-singular X'X but
+        # also for an ill-conditioned one, where np.linalg.inv would silently
+        # return overflow-driven garbage.
+        xtx = x_model.T @ x_model
+        xtx_inv = np.linalg.pinv(xtx) if is_singular(xtx) else np.linalg.inv(xtx)
 
         # Sample random points in the design space and compute SPV
         n_samples = 5000

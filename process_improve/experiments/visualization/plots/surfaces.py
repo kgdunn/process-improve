@@ -13,6 +13,7 @@ from typing import Any
 
 import numpy as np
 
+from process_improve._linalg import is_singular
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
 from process_improve.visualization.spec import (
     Annotation,
@@ -470,10 +471,11 @@ class PredictionVariancePlot(BasePlot):
 
         X_model = np.column_stack(X_terms)
 
-        try:
-            XtX_inv = np.linalg.inv(X_model.T @ X_model)
-        except np.linalg.LinAlgError:
-            XtX_inv = np.linalg.pinv(X_model.T @ X_model)
+        # Fall back to the pseudo-inverse not just for an exactly-singular X'X but
+        # also for an ill-conditioned one, where np.linalg.inv would silently
+        # return overflow-driven garbage.
+        XtX = X_model.T @ X_model
+        XtX_inv = np.linalg.pinv(XtX) if is_singular(XtX) else np.linalg.inv(XtX)
 
         # Evaluate scaled prediction variance on a grid
         n_grid = 40

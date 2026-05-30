@@ -21,6 +21,7 @@ from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
 from tqdm import tqdm
 
+from .._linalg import safe_inverse
 from ..univariate.metrics import detect_outliers_esd
 from ..visualization.themes import REFERENCE_LINE_COLOR
 from .plots import (
@@ -1633,7 +1634,9 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         # --- Common post-fit path: wrap numpy arrays into pandas ---
 
         # R = W(P'W)^{-1} [KxA]; useful since T = XR
-        direct_weights = self.x_weights_ @ np.linalg.inv(self.x_loadings_.T @ self.x_weights_)
+        direct_weights = self.x_weights_ @ safe_inverse(
+            self.x_loadings_.T @ self.x_weights_, what="(x_loadings' @ x_weights)"
+        )
         # beta = RC' [KxM]: direct link from k-th X variable to m-th Y variable
         beta_coefficients = direct_weights @ self.y_loadings_.T
 
@@ -3856,7 +3859,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Calculate the Hotelling's T2 values, and limits. Could do a ddof correction (n-1) for the variance matrix.
         variance_matrix = self.t_scores_super.T @ self.t_scores_super / self.t_scores_super.shape[0]
         t2_values = np.sum(
-            (self.t_scores_super.values @ np.linalg.inv(variance_matrix)) * self.t_scores_super.values,
+            (self.t_scores_super.values @ safe_inverse(variance_matrix, what="super-score covariance"))
+            * self.t_scores_super.values,
             axis=1,
         )
         self.hotellings_t2 = pd.DataFrame(
