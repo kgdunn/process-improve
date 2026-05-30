@@ -634,9 +634,11 @@ def find_reference_batch(
     )
     metrics = metrics.sort_values(by=["HT2", "SPE"])
     start_cutoff = 0.5
-    spe_metrics = metrics.query(f"SPE < {pca_second.spe_limit(conf_level=0.5)}")
+    # Boolean-mask indexing instead of a DataFrame.query() expression string built
+    # by f-string (no expression is assembled or evaluated).
+    spe_metrics = metrics[metrics["SPE"] < pca_second.spe_limit(conf_level=0.5)]
     while spe_metrics.shape[0] < int(settings["number_of_reference_batches"]):
-        spe_metrics = metrics.query(f"SPE < {pca_second.spe_limit(conf_level=start_cutoff)}")
+        spe_metrics = metrics[metrics["SPE"] < pca_second.spe_limit(conf_level=start_cutoff)]
         start_cutoff += 0.05
 
     if settings["number_of_reference_batches"] == 1:
