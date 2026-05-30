@@ -9,6 +9,23 @@ import pandas as pd
 _DATASETS_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments"
 
 
+def _read_remote_csv(url: str) -> pd.DataFrame:
+    """Fetch a sample-dataset CSV from a (hard-coded, trusted) remote host.
+
+    The URL is not user-supplied. Network or parse failures are surfaced as a
+    clear ``RuntimeError`` rather than a lower-level ``URLError`` / parser error,
+    so callers get an actionable message. Note that the content is fetched over
+    the network and is therefore trusted only as far as the remote host is.
+    """
+    try:
+        return pd.read_csv(url)
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(
+            f"Could not download the sample dataset from {url!r}: {exc}. "
+            "Check your network connection; this dataset is fetched from a remote host."
+        ) from exc
+
+
 def distillateflow() -> pd.DataFrame:
     """Return the flow rate of distillate from the top of a distillation column.
 
@@ -27,7 +44,7 @@ def distillateflow() -> pd.DataFrame:
 
 
     """
-    return pd.read_csv("https://openmv.net/file/distillate-flow.csv")
+    return _read_remote_csv("https://openmv.net/file/distillate-flow.csv")
 
 
 def pollutant() -> None:
@@ -91,7 +108,7 @@ def oildoe() -> pd.DataFrame:
     Data from a confidential industrial source.
 
     """
-    return pd.read_csv("https://openmv.net/file/oil-company-doe.csv")
+    return _read_remote_csv("https://openmv.net/file/oil-company-doe.csv")
 
 
 def golf() -> None:

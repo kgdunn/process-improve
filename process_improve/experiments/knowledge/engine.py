@@ -33,8 +33,16 @@ _GRAPH: KnowledgeGraph | None = None
 
 
 def _load_yaml(filename: str) -> list[dict[str, Any]]:
-    """Load a YAML file from the data directory and return its contents."""
-    path = _DATA_DIR / filename
+    """Load a YAML file from the data directory and return its contents.
+
+    *filename* is resolved against :data:`_DATA_DIR` and must stay inside it; a
+    value containing ``..`` (or an absolute path) that escapes the data
+    directory raises :class:`ValueError` rather than reading an arbitrary file.
+    """
+    base = _DATA_DIR.resolve()
+    path = (base / filename).resolve()
+    if not path.is_relative_to(base):
+        raise ValueError(f"Refusing to load {filename!r}: path escapes the data directory.")
     if not path.exists():
         return []
     with path.open(encoding="utf-8") as fh:
