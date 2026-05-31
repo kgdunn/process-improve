@@ -34,26 +34,27 @@ therefore ranked under two models:
 | SEC-10 | Latent path traversal; unverified remote fetch | Low | Low | done (#245, v1.22.9) |
 | SEC-11 | `discover_tools` swallows all `ImportError`s | Low | Low | done (#246, v1.22.9) |
 | SEC-12 | `DataFrame.query` built with f-strings | Low | Low | done (#247, v1.22.9) |
-| SEC-13 | RCE via patsy formula in `analyze_experiment`/`evaluate_design`/`augment_design`/`lm` | Critical | Low | open |
-| SEC-14 | `reveal_simulator` confirmation gate bypassable via kwarg injection | Critical | Low | open |
-| SEC-15 | `TPLS.score` raises `NameError` when the `Y` dict is empty | High | High | open |
-| SEC-16 | `assert` for validation in multivariate/bivariate/batch/structures (SEC-08 follow-up) | Medium | Low | open |
-| SEC-17 | Tool wrappers still leak raw exception text via `{"error": str(e)}` | High | Low | open |
-| SEC-18 | MCP DoS - unbounded combinatorial generators, O(N^2) regression, unbounded matrices | High | Medium | open |
-| SEC-19 | `validate_against_schema` gaps (`oneOf`, nested items, str-encoded numerics, non-object root) | High | Low | open |
-| SEC-20 | NaN-poisoning in single-block PCA/PLS/TPLS (SEC-05 follow-up) | High | High | open |
-| SEC-21 | Holt-Winters control chart divides by zero on constant warm-up window | High | High | open |
-| SEC-22 | `regression.OLS.predict` accepts wrong-shape `X` silently | High | Medium | open |
-| SEC-23 | `confidence_interval`, paired `t_value`, and `calculate_cpk` crash on n <= 1 / zero spread | Medium | Medium | open |
-| SEC-24 | `pca_predict` / `pls_predict` accept untrusted `model_params` (no caps, no integrity) | High | Low | open |
-| SEC-25 | `analyze_experiment` `transform="inverse"` divides by user data | Medium | Low | open |
-| SEC-26 | Quadratic-term regex misses the `np.power(A, 2)` form | Low | Medium | open |
-| SEC-27 | Simulator seed entropy truncated to 31 bits | Medium | Low | open |
-| SEC-28 | `_SIGNIFICANT_FACTOR_PATTERN` is O(n^2) on multi-KB input | Medium | Low | open |
-| SEC-29 | Knowledge YAML loader has no file-size cap (anchor-bomb DoS) | Low | Low | open |
-| SEC-30 | `_terminate_workers` relies on CPython private `_processes` attribute | Low | Low | open |
-| SEC-31 | `json.loads(key)` in batch plotting raises unhandled `JSONDecodeError` | Low | Low | open |
-| SEC-32 | Miscellaneous numerical / correctness cleanup | Low | Medium | open |
+| SEC-13 | `find_reference_batch` unbounded cutoff loop crashes `spe_calculation` | Low | Low | open (#261) |
+| SEC-14 | RCE via patsy formula in `analyze_experiment`/`evaluate_design`/`augment_design`/`lm` | Critical | Low | open |
+| SEC-15 | `reveal_simulator` confirmation gate bypassable via kwarg injection | Critical | Low | open |
+| SEC-16 | `TPLS.score` raises `NameError` when the `Y` dict is empty | High | High | open |
+| SEC-17 | `assert` for validation in multivariate/bivariate/batch/structures (SEC-08 follow-up) | Medium | Low | open |
+| SEC-18 | Tool wrappers still leak raw exception text via `{"error": str(e)}` | High | Low | open |
+| SEC-19 | MCP DoS - unbounded combinatorial generators, O(N^2) regression, unbounded matrices | High | Medium | open |
+| SEC-20 | `validate_against_schema` gaps (`oneOf`, nested items, str-encoded numerics, non-object root) | High | Low | open |
+| SEC-21 | NaN-poisoning in single-block PCA/PLS/TPLS (SEC-05 follow-up) | High | High | open |
+| SEC-22 | Holt-Winters control chart divides by zero on constant warm-up window | High | High | open |
+| SEC-23 | `regression.OLS.predict` accepts wrong-shape `X` silently | High | Medium | open |
+| SEC-24 | `confidence_interval`, paired `t_value`, and `calculate_cpk` crash on n <= 1 / zero spread | Medium | Medium | open |
+| SEC-25 | `pca_predict` / `pls_predict` accept untrusted `model_params` (no caps, no integrity) | High | Low | open |
+| SEC-26 | `analyze_experiment` `transform="inverse"` divides by user data | Medium | Low | open |
+| SEC-27 | Quadratic-term regex misses the `np.power(A, 2)` form | Low | Medium | open |
+| SEC-28 | Simulator seed entropy truncated to 31 bits | Medium | Low | open |
+| SEC-29 | `_SIGNIFICANT_FACTOR_PATTERN` is O(n^2) on multi-KB input | Medium | Low | open |
+| SEC-30 | Knowledge YAML loader has no file-size cap (anchor-bomb DoS) | Low | Low | open |
+| SEC-31 | `_terminate_workers` relies on CPython private `_processes` attribute | Low | Low | open |
+| SEC-32 | `json.loads(key)` in batch plotting raises unhandled `JSONDecodeError` | Low | Low | open |
+| SEC-33 | Miscellaneous numerical / correctness cleanup | Low | Medium | open |
 
 ---
 
@@ -279,7 +280,24 @@ therefore ranked under two models:
 - **Fix direction:** Replace with boolean-mask indexing or `@`-variable binding
   so no expression string is assembled. Test: equivalent filtering result.
 
-## SEC-13 - Arbitrary code execution via patsy formula in additional tool sinks
+## SEC-13 - `find_reference_batch` unbounded cutoff loop trips `spe_calculation` assert
+- **Status:** Open. Filed as issue **#261** (out-of-band from the original audit
+  sweep; not re-listed in detail here).
+- **Severity:** U = Low, L = Low (correctness; input is an internal settings
+  dict).
+- **Where:** `process_improve/batch/preprocessing.py:636-642`;
+  `process_improve/multivariate/methods.py:2679` (`assert conf_level < 1.0`).
+- **Issue:** `find_reference_batch` relaxes the SPE cutoff in a `while` loop with
+  no upper bound. If `number_of_reference_batches` exceeds what can ever pass,
+  `start_cutoff` climbs past `1.0` and trips the
+  `assert conf_level < 1.0` in `spe_calculation` (which is also `-O`-strippable,
+  see SEC-17).
+- **Fix direction:** Validate
+  `number_of_reference_batches <= len(batches)` up front; cap `start_cutoff`
+  strictly below `1.0`; convert the `spe_calculation` assert to an explicit
+  `raise ValueError`.
+
+## SEC-14 - Arbitrary code execution via patsy formula in additional tool sinks
 - **Status:** Open. SEC-01 plugged `fit_linear_model`; the same class of bug
   remains in three other tools and in `lm()` itself.
 - **Severity:** U = Critical, L = Low
@@ -316,7 +334,7 @@ therefore ranked under two models:
   formulas, malicious column names, malicious `response_column` are all
   rejected before reaching patsy.
 
-## SEC-14 - `reveal_simulator` confirmation gate bypassable via kwarg injection
+## SEC-15 - `reveal_simulator` confirmation gate bypassable via kwarg injection
 - **Status:** Open.
 - **Severity:** U = Critical, L = Low
 - **Where:** `process_improve/simulation/tools.py:370-414` (and
@@ -343,7 +361,7 @@ therefore ranked under two models:
   `ToolInputInvalidError` (or is silently dropped) and the gate still
   fires.
 
-## SEC-15 - `TPLS.score` raises `NameError` when the `Y` dict is empty
+## SEC-16 - `TPLS.score` raises `NameError` when the `Y` dict is empty
 - **Status:** Open.
 - **Severity:** U = High (crash), L = High (crash on legitimate edge case)
 - **Where:** `process_improve/multivariate/methods.py:~3496-3499`
@@ -362,7 +380,7 @@ therefore ranked under two models:
   empty")` if `count == 0`). Test: `TPLS.score` on an empty Y dict raises
   a clear error.
 
-## SEC-16 - Validation `assert`s missed by SEC-08 (stripped under `python -O`)
+## SEC-17 - Validation `assert`s missed by SEC-08 (stripped under `python -O`)
 - **Status:** Open. SEC-08 swept ~105 sites but the multivariate / batch /
   bivariate / experiments modules still carry validation asserts.
 - **Severity:** U = Medium, L = Low (silent wrong results under `-O`)
@@ -397,7 +415,7 @@ therefore ranked under two models:
   entry point still raises under `python -O` (run the relevant test file
   with `python -O -m pytest`).
 
-## SEC-17 - Tool wrappers still leak raw exception text via `{"error": str(e)}`
+## SEC-18 - Tool wrappers still leak raw exception text via `{"error": str(e)}`
 - **Status:** Open. SEC-09 fixed the MCP server's outer handler and the two
   worst offenders in `analysis.py` / `augment.py`; ~25 individual tool
   wrappers still catch `Exception` and serialise `str(exc)` directly,
@@ -427,7 +445,7 @@ therefore ranked under two models:
   forced library failure (e.g. malformed numeric coercion) returns a
   generic message; the raw message appears only in the server log.
 
-## SEC-18 - MCP DoS surface: unbounded inputs and missing scalar caps
+## SEC-19 - MCP DoS surface: unbounded inputs and missing scalar caps
 - **Status:** Open. SEC-04 plugged the per-tool schema gap for declared
   parameters, but many parameters that drive algorithm cost remain
   unbounded.
@@ -465,7 +483,7 @@ therefore ranked under two models:
   the RHS. Tests: each cap fires with a clear structured error before
   any expensive work starts.
 
-## SEC-19 - `validate_against_schema` / `validate_input` gaps
+## SEC-20 - `validate_against_schema` / `validate_input` gaps
 - **Status:** Open. SEC-04 introduced the validator; the following
   schema features are still silently bypassed.
 - **Severity:** U = High, L = Low
@@ -500,7 +518,7 @@ therefore ranked under two models:
      parameter.
   Tests: each gap rejected with a clear structured error.
 
-## SEC-20 - NaN-poisoning in single-block PCA / PLS / TPLS (SEC-05 follow-up)
+## SEC-21 - NaN-poisoning in single-block PCA / PLS / TPLS (SEC-05 follow-up)
 - **Status:** Open. SEC-05 fixed multiblock NIPALS divisions; the
   single-block PLS and TPLS paths and several adjacent helpers still
   divide by quantities that can be zero on legitimate-but-degenerate
@@ -544,7 +562,7 @@ therefore ranked under two models:
   raise (or are clearly flagged in `fitting_info_`) instead of
   returning NaN.
 
-## SEC-21 - Holt-Winters control chart divides by zero on constant warm-up window
+## SEC-22 - Holt-Winters control chart divides by zero on constant warm-up window
 - **Status:** Open.
 - **Severity:** U = High, L = High (silent wrong control-chart limits)
 - **Where:** `process_improve/monitoring/control_charts.py:~299-302`
@@ -559,7 +577,7 @@ therefore ranked under two models:
   representative data")`. Test: constant warm-up series produces a
   clear error rather than NaN limits.
 
-## SEC-22 - `regression.OLS.predict` accepts wrong-shape `X` silently
+## SEC-23 - `regression.OLS.predict` accepts wrong-shape `X` silently
 - **Status:** Open.
 - **Severity:** U = High, L = Medium
 - **Where:** `process_improve/regression/methods.py:~642-653`
@@ -572,7 +590,7 @@ therefore ranked under two models:
   `ValueError`, mirroring the sklearn-style `check_is_fitted` pattern
   used by PCA / PLS. Test: predict with wrong column count raises.
 
-## SEC-23 - `confidence_interval`, paired `t_value`, and `calculate_cpk` crash on n <= 1 / zero spread
+## SEC-24 - `confidence_interval`, paired `t_value`, and `calculate_cpk` crash on n <= 1 / zero spread
 - **Status:** Open.
 - **Severity:** U = Medium, L = Medium
 - **Where:**
@@ -589,7 +607,7 @@ therefore ranked under two models:
   that returns `inf` (or `NaN`) with a warning. Tests: each function
   raises (or returns a documented value) for degenerate input.
 
-## SEC-24 - `pca_predict` / `pls_predict` accept untrusted `model_params`
+## SEC-25 - `pca_predict` / `pls_predict` accept untrusted `model_params`
 - **Status:** Open.
 - **Severity:** U = High, L = Low
 - **Where:** `process_improve/multivariate/tools.py:430-484, 524-581`.
@@ -608,20 +626,20 @@ therefore ranked under two models:
   Tests: tampered / oversized `model_params` returns a structured
   error before any allocation.
 
-## SEC-25 - `analyze_experiment` `transform="inverse"` divides by user data
+## SEC-26 - `analyze_experiment` `transform="inverse"` divides by user data
 - **Status:** Open.
 - **Severity:** U = Medium, L = Low
 - **Where:** `process_improve/experiments/analysis.py:~703-704`
   (`df[response_col] = 1.0 / df[response_col]`).
 - **Issue:** A zero in the response column produces `inf`; the
   subsequent `LinAlgError` text is currently leaked via the broad
-  `except` in the tool wrapper (compare SEC-17).
+  `except` in the tool wrapper (compare SEC-18).
 - **Fix direction:** Pre-check `(df[response_col] != 0).all()` for the
   `inverse` transform and raise a structured `ValueError`. Test: zero
   response raises a clear error rather than `inf` / leaking
   `LinAlgError` text.
 
-## SEC-26 - Quadratic-term regex misses the `np.power(A, 2)` form
+## SEC-27 - Quadratic-term regex misses the `np.power(A, 2)` form
 - **Status:** Open. Logic bug rather than security issue.
 - **Severity:** U = Low, L = Medium (silent wrong surfaces)
 - **Where:** `process_improve/experiments/optimization.py:~66` and
@@ -634,7 +652,7 @@ therefore ranked under two models:
   and `power(\w+,\s*2)`. Test: surface / optimisation reproduces the
   correct quadratic shape under both term spellings.
 
-## SEC-27 - Simulator seed entropy truncated to 31 bits
+## SEC-28 - Simulator seed entropy truncated to 31 bits
 - **Status:** Open.
 - **Severity:** U = Medium, L = Low
 - **Where:** `process_improve/simulation/model.py:~443`
@@ -648,7 +666,7 @@ therefore ranked under two models:
   `secrets.randbits(63)` if a JSON-int round-trip is required.
   Test: `draw_initial_seed` returns at least 63 bits of entropy.
 
-## SEC-28 - `_SIGNIFICANT_FACTOR_PATTERN` is O(n^2) on multi-KB input
+## SEC-29 - `_SIGNIFICANT_FACTOR_PATTERN` is O(n^2) on multi-KB input
 - **Status:** Open.
 - **Severity:** U = Medium, L = Low
 - **Where:** `process_improve/experiments/strategy/engine.py:~54-57`
@@ -663,7 +681,7 @@ therefore ranked under two models:
   chars at the strategy-tool boundary. Test: a 50KB whitespace-heavy
   payload returns in under N ms.
 
-## SEC-29 - Knowledge YAML loader has no file-size cap
+## SEC-30 - Knowledge YAML loader has no file-size cap
 - **Status:** Open. SEC-10 added path-traversal protection; size is not
   bounded.
 - **Severity:** U = Low, L = Low (defence in depth)
@@ -678,7 +696,7 @@ therefore ranked under two models:
   that disables anchors) for the actual parse. Test: a billion-laughs
   YAML is rejected.
 
-## SEC-30 - `_terminate_workers` relies on CPython private `_processes` attribute
+## SEC-31 - `_terminate_workers` relies on CPython private `_processes` attribute
 - **Status:** Open.
 - **Severity:** U = Low, L = Low (silent timeout-guarantee degradation)
 - **Where:** `process_improve/tool_safety.py:~412-436`
@@ -691,7 +709,7 @@ therefore ranked under two models:
   loudly (not silently degrades) on a future upgrade. Test:
   `assert hasattr(ProcessPoolExecutor(max_workers=1), "_processes")`.
 
-## SEC-31 - `json.loads(key)` on untrusted dict keys in batch plotting
+## SEC-32 - `json.loads(key)` on untrusted dict keys in batch plotting
 - **Status:** Open.
 - **Severity:** U = Low, L = Low (robustness)
 - **Where:** `process_improve/batch/plotting.py:~130, 255`
@@ -704,7 +722,7 @@ therefore ranked under two models:
   try/except that re-raises a documented `ValueError`. Test: a
   non-JSON key raises a clear `ValueError` at the API surface.
 
-## SEC-32 - Miscellaneous numerical / correctness cleanup
+## SEC-33 - Miscellaneous numerical / correctness cleanup
 - **Status:** Open. Bundle of small fixes; each is mechanical.
 - **Severity:** U = Low, L = Medium
 - **Items:**
