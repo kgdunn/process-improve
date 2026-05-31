@@ -35,26 +35,26 @@ therefore ranked under two models:
 | SEC-11 | `discover_tools` swallows all `ImportError`s | Low | Low | done (#246, v1.22.9) |
 | SEC-12 | `DataFrame.query` built with f-strings | Low | Low | done (#247, v1.22.9) |
 | SEC-13 | `find_reference_batch` unbounded cutoff loop crashes `spe_calculation` | Low | Low | open (#261) |
-| SEC-14 | RCE via patsy formula in `analyze_experiment`/`evaluate_design`/`augment_design`/`lm` | Critical | Low | open |
-| SEC-15 | `reveal_simulator` confirmation gate bypassable via kwarg injection | Critical | Low | open |
-| SEC-16 | `TPLS.score` raises `NameError` when the `Y` dict is empty | High | High | open |
-| SEC-17 | `assert` for validation in multivariate/bivariate/batch/structures (SEC-08 follow-up) | Medium | Low | open |
-| SEC-18 | Tool wrappers still leak raw exception text via `{"error": str(e)}` | High | Low | open |
-| SEC-19 | MCP DoS - unbounded combinatorial generators, O(N^2) regression, unbounded matrices | High | Medium | open |
-| SEC-20 | `validate_against_schema` gaps (`oneOf`, nested items, str-encoded numerics, non-object root) | High | Low | open |
-| SEC-21 | NaN-poisoning in single-block PCA/PLS/TPLS (SEC-05 follow-up) | High | High | open |
-| SEC-22 | Holt-Winters control chart divides by zero on constant warm-up window | High | High | open |
-| SEC-23 | `regression.OLS.predict` accepts wrong-shape `X` silently | High | Medium | open |
-| SEC-24 | `confidence_interval`, paired `t_value`, and `calculate_cpk` crash on n <= 1 / zero spread | Medium | Medium | open |
-| SEC-25 | `pca_predict` / `pls_predict` accept untrusted `model_params` (no caps, no integrity) | High | Low | open |
-| SEC-26 | `analyze_experiment` `transform="inverse"` divides by user data | Medium | Low | open |
-| SEC-27 | Quadratic-term regex misses the `np.power(A, 2)` form | Low | Medium | open |
-| SEC-28 | Simulator seed entropy truncated to 31 bits | Medium | Low | open |
-| SEC-29 | `_SIGNIFICANT_FACTOR_PATTERN` is O(n^2) on multi-KB input | Medium | Low | open |
-| SEC-30 | Knowledge YAML loader has no file-size cap (anchor-bomb DoS) | Low | Low | open |
-| SEC-31 | `_terminate_workers` relies on CPython private `_processes` attribute | Low | Low | open |
-| SEC-32 | `json.loads(key)` in batch plotting raises unhandled `JSONDecodeError` | Low | Low | open |
-| SEC-33 | Miscellaneous numerical / correctness cleanup | Low | Medium | open |
+| SEC-14 | RCE via patsy formula in `analyze_experiment`/`evaluate_design`/`augment_design`/`lm` | Critical | Low | open (#263) |
+| SEC-15 | `reveal_simulator` confirmation gate bypassable via kwarg injection | Critical | Low | open (#264) |
+| SEC-16 | `TPLS.score` raises `NameError` when the `Y` dict is empty | High | High | open (#265) |
+| SEC-17 | `assert` for validation in multivariate/bivariate/batch/structures (SEC-08 follow-up) | Medium | Low | open (#266) |
+| SEC-18 | Tool wrappers still leak raw exception text via `{"error": str(e)}` | High | Low | open (#267) |
+| SEC-19 | MCP DoS - unbounded combinatorial generators, O(N^2) regression, unbounded matrices | High | Medium | open (#268) |
+| SEC-20 | `validate_against_schema` gaps (`oneOf`, nested items, str-encoded numerics, non-object root) | High | Low | open (#269) |
+| SEC-21 | NaN-poisoning in single-block PCA/PLS/TPLS (SEC-05 follow-up) | High | High | open (#270) |
+| SEC-22 | Holt-Winters control chart divides by zero on constant warm-up window | High | High | open (#271) |
+| SEC-23 | `regression.OLS.predict` accepts wrong-shape `X` silently | High | Medium | open (#272) |
+| SEC-24 | `confidence_interval`, paired `t_value`, and `calculate_cpk` crash on n <= 1 / zero spread | Medium | Medium | open (#273) |
+| SEC-25 | `pca_predict` / `pls_predict` accept untrusted `model_params` (no caps, no integrity) | High | Low | open (#274) |
+| SEC-26 | `analyze_experiment` `transform="inverse"` divides by user data | Medium | Low | open (#275) |
+| SEC-27 | Quadratic-term regex misses the `np.power(A, 2)` form | Low | Medium | open (#276) |
+| SEC-28 | Simulator seed entropy truncated to 31 bits | Medium | Low | open (#277) |
+| SEC-29 | `_SIGNIFICANT_FACTOR_PATTERN` is O(n^2) on multi-KB input | Medium | Low | open (#278) |
+| SEC-30 | Knowledge YAML loader has no file-size cap (anchor-bomb DoS) | Low | Low | open (#279) |
+| SEC-31 | `_terminate_workers` relies on CPython private `_processes` attribute | Low | Low | open (#280) |
+| SEC-32 | `json.loads(key)` in batch plotting raises unhandled `JSONDecodeError` | Low | Low | open (#281) |
+| SEC-33 | Miscellaneous numerical / correctness cleanup | Low | Medium | open (#282) |
 
 ---
 
