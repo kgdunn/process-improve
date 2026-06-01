@@ -34,7 +34,8 @@ therefore ranked under two models:
 | SEC-10 | Latent path traversal; unverified remote fetch | Low | Low | done (#245, v1.22.9) |
 | SEC-11 | `discover_tools` swallows all `ImportError`s | Low | Low | done (#246, v1.22.9) |
 | SEC-12 | `DataFrame.query` built with f-strings | Low | Low | done (#247, v1.22.9) |
-| SEC-15 | `reveal_simulator` gate bypassable via kwarg injection | Critical | Low | done (#264, v1.22.11) |
+| SEC-14 | RCE via patsy formula in analyze/evaluate/augment/`lm` | Critical | Low | done (#314, v1.22.11) |
+| SEC-15 | `reveal_simulator` gate bypassable via kwarg injection | Critical | Low | done (#264, v1.22.12) |
 
 ---
 
@@ -260,8 +261,42 @@ therefore ranked under two models:
 - **Fix direction:** Replace with boolean-mask indexing or `@`-variable binding
   so no expression string is assembled. Test: equivalent filtering result.
 
+## SEC-14 - Arbitrary code execution via patsy formula in analyze/evaluate/augment/`lm` [RESOLVED]
+- **Status:** Fixed in v1.22.11 (issue #263). The formula guard now runs inside
+  the library functions (the default path) rather than only the
+  `fit_linear_model` wrapper.
+- **Severity:** U = Critical, L = Low
+- **Where:**
+  - `process_improve/experiments/analysis.py` (`analyze_experiment` ->
+    `smf.ols(build_formula(...), data=df).fit()`): `model`, `response_column`,
+    and `design_matrix` dict keys reached patsy.
+  - `process_improve/experiments/evaluate.py` (`_build_model_matrix` ->
+    `dmatrix(rhs, design_df, ...)`): `model` flowed in as `rhs`.
+  - `process_improve/experiments/augment.py` (`_build_model_rhs` ->
+    `_greedy_d_optimal_select` -> `dmatrix(rhs, trial, ...)`): `target_model`
+    flowed in.
+  - `process_improve/experiments/models.py` (`lm`): `smf.ols(model_spec, ...)`
+    with no guard; the SEC-01 check lived only in the tool wrapper.
+- **Issue:** Patsy evaluates each formula term as a Python expression with
+  builtins and numpy in scope, so a string such as
+  `y ~ I(__import__('os').system('id'))` (or a malicious column name /
+  `response_column`) executes arbitrary code. The schema `enum` on `model` is
+  only enforced under `PROCESS_IMPROVE_MCP_SAFE_MODE`; the default stdio MCP path
+  skips it, and even in safe mode `response_column` and dict keys were
+  unconstrained.
+- **Fix:** `validate_formula_is_safe` gained `allow_transforms` / `allow_numpy`
+  flags backed by an AST walker that admits only `I()`/`Q()` and a curated
+  allowlist of element-wise `np.<func>` calls (rejecting attribute access, string
+  literals, dunders, and any other call); the default strict path is unchanged.
+  `validate_identifier_is_safe` rejects non-identifier column / response names.
+  `lm()` validates with transforms+numpy enabled (the textbook API uses
+  `I(np.power(...))` etc.); the three design paths validate the built formula /
+  RHS with transforms enabled (so the `quadratic` shorthand's `I(f ** 2)` still
+  fits). Tests assert malicious formulas, models, and names are rejected before
+  reaching patsy, with sentinel-file checks confirming no side effect runs.
+
 ## SEC-15 - `reveal_simulator` confirmation gate bypassable via kwarg injection [RESOLVED]
-- **Status:** Fixed in v1.22.11 (issue #264). `execute_tool_call` filters
+- **Status:** Fixed in v1.22.12 (issue #264). `execute_tool_call` filters
   `tool_input` down to the keys declared in the tool's `input_schema` before
   dispatch; `simulator_state` / `confirmed` moved off the function signatures
   into a `contextvars` side channel (`simulation/context.py`) only the host
