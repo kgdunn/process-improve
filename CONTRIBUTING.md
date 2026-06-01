@@ -74,7 +74,99 @@ The line length is 120 characters.
 - Open a pull request against `main` with a clear description of the change
   and why it is needed.
 - The version in `pyproject.toml` is bumped with every PR that changes code
-  or configuration (PATCH for fixes and small changes, MINOR for new
-  features).
+  or configuration (see "Versioning policy" below).
 - Bugs and feature requests can also be filed on the
   [issue tracker](https://github.com/kgdunn/process-improve/issues).
+
+## Versioning policy
+
+The package uses three-part semantic versioning: `MAJOR.MINOR.PATCH`.
+
+- **PATCH** (`1.22.8 -> 1.22.9`): bug fixes, CI / workflow changes,
+  documentation updates, dependency bumps, small refactors. Public
+  signatures are unchanged. Behaviour changes are only allowed when
+  fixing a documented bug.
+- **MINOR** (`1.22.9 -> 1.23.0`): new features, new modules,
+  significant API additions, or meaningful behavioural changes.
+  Backwards-compatible by default; deprecations follow the schedule
+  in [`docs/development/deprecation_policy.rst`](docs/development/deprecation_policy.rst).
+- **MAJOR** (`1.x.x -> 2.0.0`): incompatible removals. Anything
+  previously deprecated under the policy can be removed here.
+
+Reset rules:
+
+- Bumping MINOR resets PATCH to 0 (`1.22.9 -> 1.23.0`).
+- Bumping MAJOR resets MINOR and PATCH to 0 (`1.23.4 -> 2.0.0`).
+
+If you are unsure whether a change is a PATCH or a MINOR, ask in the
+PR; the maintainer decides on the boundary case.
+
+### What counts as a breaking change
+
+A change is breaking if any of these are true:
+
+- A documented public name (function, class, attribute, kwarg) is
+  removed, renamed, or moved.
+- A public function's signature changes in a way that fails
+  existing valid call sites (a positional becomes keyword-only,
+  a required kwarg is added without a default, a kwarg default
+  changes meaning).
+- A `Bunch` return type loses or renames a field.
+- A `@tool_spec` tool is renamed, has a schema field removed, or
+  changes the meaning of an existing field.
+- A documented behaviour (e.g. "PCA returns sign-flipped loadings
+  by the Wold convention") is silently changed.
+
+A change is **not** breaking if:
+
+- A new optional kwarg is added with a default that preserves the
+  previous behaviour.
+- A new public function or attribute is added.
+- A `Bunch` return type gains a field.
+- A documented bug is fixed.
+- Internal (`_`-prefixed) code is refactored without affecting any
+  public surface.
+
+Breaking changes always require a deprecation cycle; see the
+linked policy below.
+
+## Performance-regression policy
+
+Public-API algorithms (PCA fit, PLS fit/predict, ``analyze_experiment``,
+``evaluate_design``, batch alignment) are expected not to regress in
+wall-clock time. The rule of thumb:
+
+- A PR that knowingly slows a hot path by more than ~10% must say
+  so in the PR description and justify the trade-off (correctness
+  fix, security guard, deprecation prep).
+- Unknowing regressions are caught by the perf-baseline CI job
+  (planned: [ENG-15](https://github.com/kgdunn/process-improve/issues/297)).
+  Until that job lands, the maintainer eyeballs perf on the hot
+  paths during review.
+- Internal refactors (private modules, internal classes) carry no
+  perf SLA.
+
+If a perf regression is unavoidable, the CHANGELOG entry says so
+under "Changed".
+
+## Policies referenced from this guide
+
+These four documents pin the project's contributor-facing policies.
+They are short, opinionated, and review feedback will reference
+them directly:
+
+- [Error-handling style](docs/development/error_handling.rst)
+  ([ENG-11](https://github.com/kgdunn/process-improve/issues/293)) -- when to
+  raise, when to assert, when to warn, when to use a dedicated
+  exception class.
+- [Reproducibility contract](docs/development/reproducibility.rst)
+  ([ENG-08](https://github.com/kgdunn/process-improve/issues/290)) --
+  ``random_state`` handling for every public function that
+  touches an RNG.
+- [Deprecation policy](docs/development/deprecation_policy.rst)
+  ([ENG-22](https://github.com/kgdunn/process-improve/issues/304)) --
+  the schedule for retiring public API, including the
+  ``DeprecationWarning`` message format.
+- This guide, the "Versioning policy" and "Performance-regression
+  policy" sections above
+  ([ENG-28](https://github.com/kgdunn/process-improve/issues/310)).
