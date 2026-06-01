@@ -11,6 +11,16 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.14] - 2026-06-01
+
+### Added
+
+- New helper `process_improve._random.check_random_state` resolves
+  `int | numpy.random.Generator | None` into a `numpy.random.Generator`,
+  matching the reproducibility contract documented in
+  `docs/development/reproducibility.rst` (ENG-08). Pre-requisite for the
+  Wave 3 RNG sweeps (SEC-21 sub-item 9, SEC-33 sub-item).
+
 ## [1.22.13] - 2026-06-01
 
 ### Fixed
@@ -292,7 +302,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.13...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.14...HEAD
+[1.22.14]: https://github.com/kgdunn/process-improve/compare/v1.22.13...v1.22.14
 [1.22.13]: https://github.com/kgdunn/process-improve/compare/v1.22.12...v1.22.13
 [1.22.12]: https://github.com/kgdunn/process-improve/compare/v1.22.11...v1.22.12
 [1.22.11]: https://github.com/kgdunn/process-improve/compare/v1.22.10...v1.22.11
