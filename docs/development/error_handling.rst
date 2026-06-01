@@ -51,7 +51,7 @@ follow the linked section.
 .. _eng11_caller_error:
 
 1. User-input violations -> ``ValueError`` / ``TypeError``
----------------------------------------------------------
+----------------------------------------------------------
 
 This is the most common case. The caller passed something the
 function cannot work with: a wrong type, an out-of-range scalar, an
