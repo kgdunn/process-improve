@@ -28,36 +28,36 @@ Tracking ID format mirrors `SECURITY_AUDIT.md`: `ENG-NN`.
 
 | ID | Title | Severity |
 |----|-------|----------|
-| ENG-01 | `multivariate/methods.py` is a 5,863-line monolith | Major |
-| ENG-02 | `experiments/tools.py` and `analysis.py` are 1,400-line god modules | Major |
-| ENG-03 | Type system is opt-out (`disallow_untyped_defs = false`, ~370 `Any`) | Major |
-| ENG-04 | `pydantic` is a hard dependency but only the MCP layer uses it | Moderate |
-| ENG-05 | Convenience methods bound via `functools.partial` after `fit()` are not introspectable | Moderate |
-| ENG-06 | Three plotting backends (matplotlib + plotly + echarts) for a small team | Major |
-| ENG-07 | Inheriting from `sklearn.cross_decomposition.PLSRegression` couples to a private layout | Moderate |
-| ENG-08 | RNG handling is inconsistent; "reproducibility" is a vibe, not a contract | Major |
-| ENG-09 | Configuration sprawl: env vars at import time, magic numbers, no central config | Moderate |
-| ENG-10 | Tool-spec decorator duplicates the function signature in JSON Schema | Moderate |
-| ENG-11 | Error-handling style varies wildly across the codebase | Major |
-| ENG-12 | Logging is sparse; no structured logs; no metrics | Major |
-| ENG-13 | 18 hard runtime dependencies; no extras for plotting / experiments / mcp | Major |
-| ENG-14 | Flat package layout (no `src/`); notebooks shipped inside the package | Moderate |
-| ENG-15 | Test suite under-uses property-based testing, `python -O`, perf, and fuzzing | Major |
-| ENG-16 | `Expt` and `Model` mutate state via dynamic attributes (`pi_title`, `data`) | Moderate |
-| ENG-17 | PCA / PLS / TPLS / MBPLS / MBPCA duplicate fit / predict / plot scaffolding | Major |
-| ENG-18 | Pandas-shaped fitted attributes (`scores_` as `DataFrame`) -- ergonomic but slow / dtype-fragile | Moderate |
-| ENG-19 | Every algorithm assumes the whole matrix fits in RAM; no chunking / streaming | Moderate |
-| ENG-20 | CI does not run mypy / pyright; type-check is local-only | Moderate |
-| ENG-21 | Auto-publish-on-version-bump release flow is novel; no signing / SBOM / provenance | Moderate |
-| ENG-22 | No deprecation policy; rename helpers via `__getattr__` will accumulate | Moderate |
-| ENG-23 | `methods.py` is the same generic filename in three packages | Minor |
-| ENG-24 | `pi_` prefix and `Expt` abbreviation are undocumented | Minor |
-| ENG-25 | Many `noqa: C901 / PLR0912 / PLR0915 / PLR0913` suppressions (69 instances) | Moderate |
-| ENG-26 | Sphinx docs and architecture overview are thin | Moderate |
-| ENG-27 | `tool_safety.py` reads env vars at import time -- can't be re-configured at runtime | Minor |
-| ENG-28 | No CONTRIBUTING-level guidance on breaking-change policy or perf regressions | Minor |
-| ENG-29 | `tests/` mixes tier-1 unit, tier-2 integration, and tier-3 dataset tests with no marking | Moderate |
-| ENG-30 | The MCP dispatch path is sync inside an async server | Moderate |
+| ENG-01 | `multivariate/methods.py` is a 5,863-line monolith (#283) | Major |
+| ENG-02 | `experiments/tools.py` and `analysis.py` are 1,400-line god modules (#284) | Major |
+| ENG-03 | Type system is opt-out (`disallow_untyped_defs = false`, ~370 `Any`) (#285) | Major |
+| ENG-04 | `pydantic` is a hard dependency but only the MCP layer uses it (#286) | Moderate |
+| ENG-05 | Convenience methods bound via `functools.partial` after `fit()` are not introspectable (#287) | Moderate |
+| ENG-06 | Three plotting backends (matplotlib + plotly + echarts) for a small team (#288) | Major |
+| ENG-07 | Inheriting from `sklearn.cross_decomposition.PLSRegression` couples to a private layout (#289) | Moderate |
+| ENG-08 | RNG handling is inconsistent; "reproducibility" is a vibe, not a contract (#290) | Major |
+| ENG-09 | Configuration sprawl: env vars at import time, magic numbers, no central config (#291) | Moderate |
+| ENG-10 | Tool-spec decorator duplicates the function signature in JSON Schema (#292) | Moderate |
+| ENG-11 | Error-handling style varies wildly across the codebase (#293) | Major |
+| ENG-12 | Logging is sparse; no structured logs; no metrics (#294) | Major |
+| ENG-13 | 18 hard runtime dependencies; no extras for plotting / experiments / mcp (#295) | Major |
+| ENG-14 | Flat package layout (no `src/`); notebooks shipped inside the package (#296) | Moderate |
+| ENG-15 | Test suite under-uses property-based testing, `python -O`, perf, and fuzzing (#297) | Major |
+| ENG-16 | `Expt` and `Model` mutate state via dynamic attributes (`pi_title`, `data`) (#298) | Moderate |
+| ENG-17 | PCA / PLS / TPLS / MBPLS / MBPCA duplicate fit / predict / plot scaffolding (#299) | Major |
+| ENG-18 | Pandas-shaped fitted attributes (`scores_` as `DataFrame`) -- ergonomic but slow / dtype-fragile (#300) | Moderate |
+| ENG-19 | Every algorithm assumes the whole matrix fits in RAM; no chunking / streaming (#301) | Moderate |
+| ENG-20 | CI does not run mypy / pyright; type-check is local-only (#302) | Moderate |
+| ENG-21 | Auto-publish-on-version-bump release flow is novel; no signing / SBOM / provenance (#303) | Moderate |
+| ENG-22 | No deprecation policy; rename helpers via `__getattr__` will accumulate (#304) | Moderate |
+| ENG-23 | `methods.py` is the same generic filename in three packages (#305) | Minor |
+| ENG-24 | `pi_` prefix and `Expt` abbreviation are undocumented (#306) | Minor |
+| ENG-25 | Many `noqa: C901 / PLR0912 / PLR0915 / PLR0913` suppressions (69 instances) (#307) | Moderate |
+| ENG-26 | Sphinx docs and architecture overview are thin (#308) | Moderate |
+| ENG-27 | `tool_safety.py` reads env vars at import time -- can't be re-configured at runtime (#309) | Minor |
+| ENG-28 | No CONTRIBUTING-level guidance on breaking-change policy or perf regressions (#310) | Minor |
+| ENG-29 | `tests/` mixes tier-1 unit, tier-2 integration, and tier-3 dataset tests with no marking (#311) | Moderate |
+| ENG-30 | The MCP dispatch path is sync inside an async server (#312) | Moderate |
 
 ---
 
@@ -547,24 +547,192 @@ For balance:
 
 ## Suggested triage order
 
-If this list landed on my desk:
+Below is an explicit merge order that integrates the open SEC-NN
+items (#263..#282, see `SECURITY_AUDIT.md`) with the ENG-NN items
+(#283..#312). The order is driven by **dependencies**: an item only
+appears after every item it requires has landed. Within each wave,
+items can land in parallel.
 
-1. **ENG-15** (testing rigour) -- single biggest leverage for
-   shipping quality.
-2. **ENG-03** (turn the type system on) -- unblocks many of the
-   rename / refactor items.
-3. **ENG-13** (split runtime deps into extras) -- one-week task,
-   immediate user benefit, reduces transitive blast radius.
-4. **ENG-11** (error-handling style guide) -- prerequisite for
-   any further SEC-NN sweep.
-5. **ENG-17** + **ENG-01** (factor out a `_LatentVariableModel`
-   base; split `methods.py`) -- compounds with every future
-   numerical fix.
-6. **ENG-10** (pydantic-derive the tool schemas) -- closes a class
-   of MCP-boundary bugs (overlaps with SEC-15 / SEC-20).
-7. **ENG-09** + **ENG-27** (config module) -- enabler for
-   ENG-15-style perf and fuzz tests that need to override caps.
-8. Everything else, opportunistically.
+### Wave 0 -- Drop-in critical security fixes (small PRs, no refactor)
 
-Each of the above is structural; none requires the SEC-NN fixes to
-land first. They can be done in parallel.
+Land these before any refactor. They are pure bug fixes; they don't
+fight any of the ENG-NN refactors because the fixed code paths are
+preserved.
+
+- **SEC-14** (#263) -- patsy formula RCE in `analyze_experiment` /
+  `evaluate_design` / `augment_design` / `lm`.
+- **SEC-15** (#264) -- `reveal_simulator` kwarg-injection bypass.
+- **SEC-16** (#265) -- `TPLS.score` `NameError` on empty Y.
+- **SEC-22** (#271) -- Holt-Winters divide-by-zero.
+- **SEC-23** (#272) -- `OLS.predict` shape validation.
+
+### Wave 1 -- Process / policy enablers (parallel; small docs PRs)
+
+These set the policy that the rest of the merge order assumes.
+
+- **ENG-11** (#293) -- error-handling style guide.
+- **ENG-08** (#290) -- RNG / reproducibility contract.
+- **ENG-22** (#304) -- deprecation policy.
+- **ENG-28** (#310) -- CONTRIBUTING breaking-change & perf policy.
+
+### Wave 2 -- Testing & type-system foundations (parallel)
+
+These enable confident refactoring downstream. None of them touches
+production code; they only add CI, fixtures, and configuration.
+
+- **ENG-15** (#297) -- hypothesis + `python -O` + perf + fuzz tests.
+- **ENG-29** (#311) -- pytest mark tiers.
+- **ENG-03** (#285) -- turn `disallow_untyped_defs = true`.
+- **ENG-20** (#302) -- run mypy in CI.
+
+### Wave 3 -- Remaining straightforward SEC sweeps
+
+With Wave 1's error-handling guide and Wave 2's tests in place,
+these become mechanical sweeps.
+
+- **SEC-17** (#266) -- replace remaining validation `assert`s with
+  raises (depends on **ENG-11**).
+- **SEC-18** (#267) -- narrow tool-wrapper exception handling
+  (depends on **ENG-11**).
+- **SEC-21** (#270) -- single-block PCA/PLS/TPLS NaN-poisoning
+  sweep (depends on **ENG-15** so we have property tests for the
+  fixes).
+- **SEC-24** (#273) -- CI / paired-t / Cpk small-n.
+- **SEC-25** (#274) -- `pca_predict` / `pls_predict` untrusted
+  `model_params` (depends on **ENG-04** + **ENG-10** below).
+- **SEC-26** (#275) -- `analyze_experiment` inverse-transform.
+- **SEC-27** (#276) -- `np.power(A, 2)` regex.
+- **SEC-28** (#277) -- simulator seed entropy.
+- **SEC-29** (#278) -- strategy regex O(n^2).
+- **SEC-30** (#279) -- YAML loader size cap.
+- **SEC-31** (#280) -- `_terminate_workers` private API.
+- **SEC-32** (#281) -- `json.loads(key)` plotting.
+- **SEC-33** (#282) -- misc numerical cleanup.
+- **SEC-19** (#268) -- MCP DoS caps (depends on **ENG-09** for the
+  config knobs, otherwise the caps are hard-coded).
+- **SEC-20** (#269) -- `validate_against_schema` gaps (subsumed by
+  **ENG-10** if pydantic-derive lands first; otherwise patch the
+  hand-written validator).
+
+### Wave 4 -- Dependency hygiene & config (parallel with Wave 3)
+
+- **ENG-13** (#295) -- split runtime deps into extras.
+- **ENG-09** (#291) + **ENG-27** (#309) -- central `config` module.
+- **ENG-04** (#286) -- decide pydantic-everywhere or pydantic-only-MCP.
+- **ENG-14** (#296) -- move to `src/` layout; eject notebooks.
+
+### Wave 5 -- Pydantic at the MCP boundary
+
+Closes a class of MCP-surface bugs at the schema level.
+
+- **ENG-10** (#292) -- pydantic-derive `@tool_spec` schemas.
+  Depends on **ENG-04** (#286) and **ENG-03** (#285).
+- Re-verify that **SEC-14** (#263), **SEC-15** (#264),
+  **SEC-20** (#269) remain closed at the pydantic boundary; remove
+  the now-redundant ad-hoc filters.
+
+### Wave 6 -- Architecture refactors
+
+These are the high-leverage but high-risk refactors. They depend on
+Waves 2 and 3 having shipped first so that property + perf + fuzz
+tests can prove no regression.
+
+- **ENG-17** (#299) -- `_LatentVariableModel` base class.
+- **ENG-07** (#289) -- compose, don't inherit sklearn PLSRegression
+  (depends on **ENG-17**).
+- **ENG-05** (#287) -- `functools.partial` -> real methods
+  (depends on **ENG-17**).
+- **ENG-18** (#300) -- dual ndarray + DataFrame attribute layout
+  (depends on **ENG-17**).
+- **ENG-01** (#283) -- split `multivariate/methods.py` (only
+  *after* the base class and dual-layout land, so the split is
+  along clean seams).
+- **ENG-02** (#284) -- split `experiments/{tools,analysis}.py`
+  (parallel with ENG-01).
+- **ENG-23** (#305) -- rename generic `methods.py` filenames
+  (parallel with ENG-01, ENG-02).
+- **ENG-25** (#307) -- chip away at `noqa: C901` suppressions
+  (continuous, lives forever).
+
+### Wave 7 -- API hygiene & ergonomics
+
+- **ENG-16** (#298) -- `Expt` / `Model` as dataclasses.
+- **ENG-24** (#306) -- document `pi_` prefix; deprecate `Expt`.
+- **ENG-12** (#294) -- structured logging everywhere.
+- **ENG-30** (#312) -- async MCP dispatch.
+- **ENG-06** (#288) -- pick a blessed plotting backend.
+
+### Wave 8 -- Documentation & release
+
+- **ENG-26** (#308) -- flesh out Sphinx docs.
+- **ENG-21** (#303) -- attestations + SBOM + tag-gated publish.
+
+### Wave 9 -- Future-state
+
+- **ENG-19** (#301) -- out-of-core / streaming algorithms (deferred
+  until a real user requests it).
+
+---
+
+## Dependency graph (textual)
+
+```
+Wave 0 (parallel)              Wave 1 (policy, parallel)
+  SEC-14 #263                    ENG-11 #293  -> SEC-17, SEC-18
+  SEC-15 #264                    ENG-08 #290  -> SEC-33 sub-item
+  SEC-16 #265                    ENG-22 #304  -> ENG-24
+  SEC-22 #271                    ENG-28 #310
+  SEC-23 #272
+
+Wave 2 (foundations, parallel)
+  ENG-15 #297  -> SEC-21, all refactors in Wave 6
+  ENG-29 #311  -> ENG-15
+  ENG-03 #285  -> ENG-10, ENG-20
+  ENG-20 #302
+
+Wave 3 (sweeps, parallel)
+  SEC-17 #266 (needs ENG-11)
+  SEC-18 #267 (needs ENG-11)
+  SEC-21 #270 (needs ENG-15)
+  SEC-24..SEC-33 (#273-#282) -- mostly independent
+
+Wave 4 (config, parallel)
+  ENG-13 #295
+  ENG-09 #291 + ENG-27 #309
+  ENG-04 #286
+  ENG-14 #296
+
+Wave 5
+  ENG-10 #292 (needs ENG-04 + ENG-03)
+   |- closes SEC-19 #268, SEC-20 #269 at the schema level
+
+Wave 6 (refactors, sequential within the multivariate stack)
+  ENG-17 #299
+  |- ENG-07 #289
+  |- ENG-05 #287
+  |- ENG-18 #300
+  |- ENG-01 #283
+  ENG-02 #284 (parallel with ENG-01)
+  ENG-23 #305 (parallel)
+  ENG-25 #307 (continuous)
+
+Wave 7 (ergonomics)
+  ENG-16 #298
+  ENG-24 #306 (needs ENG-22)
+  ENG-12 #294
+  ENG-30 #312
+  ENG-06 #288
+
+Wave 8 (release)
+  ENG-26 #308
+  ENG-21 #303
+
+Wave 9 (future)
+  ENG-19 #301
+```
+
+Each wave can begin while the previous wave is still wrapping up
+(only the explicitly noted dependencies are blocking). The point of
+the wave structure is that any single refactor PR can be reviewed
+against a known floor of safety / policy / test infrastructure.
+
