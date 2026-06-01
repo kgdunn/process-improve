@@ -24,3 +24,9 @@ monitoring. Companion to the online textbook
    :caption: Case studies
 
    user_guide/case_studies/index
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Development
+
+   development/index
