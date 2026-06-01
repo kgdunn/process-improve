@@ -61,9 +61,11 @@ def test_robust_scale_sn_does_not_leak_unexpected_exceptions(values: list[float]
             f"_serialise_tool_error and into an MCP response. "
             f"Narrow the tool wrapper's except clause."
         )
-
-    # Result must JSON-serialise (the MCP transport requires it).
-    assert isinstance(result, dict)
-    # `clean()` should already have stripped numpy types, so this
-    # round-trip is the strongest assertion we can cheaply make.
-    json.dumps(result)
+    else:
+        # Reachable only when execute_tool_call returned cleanly; ``result``
+        # is guaranteed bound here. The ``else`` clause also keeps CodeQL
+        # from flagging it as potentially uninitialized.
+        assert isinstance(result, dict)
+        # ``clean()`` should already have stripped numpy types, so this
+        # round-trip is the strongest assertion we can cheaply make.
+        json.dumps(result)
