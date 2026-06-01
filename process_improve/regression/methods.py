@@ -649,6 +649,12 @@ class OLS(RegressorMixin, BaseEstimator):
             X_arr = np.asarray(X, dtype=float)
             if X_arr.ndim == 1:
                 X_arr = X_arr.reshape(-1, 1)
+        n_features = X_arr.shape[1]
+        if n_features != self.n_features_in_:
+            raise ValueError(
+                f"X has {n_features} feature(s), but OLS was fitted with "
+                f"{self.n_features_in_} feature(s)."
+            )
         intercept = 0.0 if not self.fit_intercept else self.intercept_
         return intercept + X_arr @ self.coefficients_
 

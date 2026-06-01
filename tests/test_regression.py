@@ -528,6 +528,23 @@ def test_ols_predict_matches_fitted_values(
     np.testing.assert_allclose(model.predict(x_new), expected, rtol=1e-12)
 
 
+def test_ols_predict_wrong_shape_raises(
+    multiple_linear_regression_data: tuple[np.ndarray, np.ndarray],
+) -> None:
+    """predict() must reject an X whose feature count differs from fit (SEC-23)."""
+    X, y = multiple_linear_regression_data
+    model = OLS().fit(X, y)  # fitted with a single feature
+    assert model.n_features_in_ == 1
+
+    with pytest.raises(ValueError, match=r"X has 2 feature\(s\), but OLS was fitted with 1"):
+        model.predict(np.ones((3, 2)))
+
+    # The correct shape still returns finite predictions.
+    good = model.predict(np.array([[0.05], [0.10]]))
+    assert good.shape == (2,)
+    assert np.all(np.isfinite(good))
+
+
 def test_ols_no_intercept(multiple_linear_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
     """OLS with fit_intercept=False should match R's summary(lm(y~x+0))."""
     X, y = multiple_linear_regression_data
