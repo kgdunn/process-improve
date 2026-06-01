@@ -97,3 +97,25 @@ jobs:
         files: ./coverage.xml
         token: ${{ secrets.CODECOV_TOKEN }}
         fail_ci_if_error: false
+
+  # ENG-15 sub-track: catch validation `assert`s stripped by `python -O`.
+  # SEC-08 already swept ~105 sites; SEC-17 (#266) tracks the remaining
+  # multivariate / bivariate / batch / experiments / monitoring asserts
+  # that are still subject to silent-skip under -O. Until SEC-17 lands,
+  # this job is allowed to fail without blocking the workflow; once SEC-17
+  # is in main, remove `continue-on-error` so a regression turns CI red.
+  test-under-dash-O:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v6
+    - name: Install uv and set the python version
+      uses: astral-sh/setup-uv@v7
+      with:
+        python-version: "3.13"
+    - name: Install the project (editable)
+      run: uv sync --dev --all-extras
+    - name: Test with pytest under python -O
+      # Strip the default --cov / --pdb / -n auto / --exitfirst options;
+      # for -O detection we want the full failure surface, not the first one.
+      run: uv run python -O -m pytest -o "addopts=" -v --tb=short
