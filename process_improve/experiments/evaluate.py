@@ -31,6 +31,7 @@ from scipy.stats import qmc
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 from process_improve.experiments.factor import DesignResult
+from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
 
 # ---------------------------------------------------------------------------
 # Internal context shared across metric computations
@@ -92,6 +93,10 @@ def _build_model_matrix(
     if model is None:
         model = "interactions"
 
+    # Factor names are interpolated into the formula; reject non-identifiers.
+    for name in factor_names:
+        validate_identifier_is_safe(name)
+
     # Map shorthand names to patsy right-hand-side formulas
     joined = " + ".join(factor_names)
     if model == "main_effects":
@@ -108,6 +113,9 @@ def _build_model_matrix(
         # Assume it is already a valid RHS formula
         rhs = model
 
+    # Patsy evaluates each term as Python, so a custom ``model`` is a code-
+    # execution vector. Permit only safe column arithmetic, with I()/Q() (SEC-14).
+    validate_formula_is_safe(rhs, design_df.columns, allow_transforms=True)
     dm = dmatrix(rhs, design_df, return_type="dataframe")
     X = np.asarray(dm, dtype=float)
     column_names = list(dm.columns)

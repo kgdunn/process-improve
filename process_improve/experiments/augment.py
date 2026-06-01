@@ -35,6 +35,7 @@ from process_improve.experiments.evaluate import (
     _word_to_str,
     evaluate_design,
 )
+from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
 
 logger = logging.getLogger(__name__)
 
@@ -413,16 +414,27 @@ def _compute_alpha(
 
 
 def _build_model_rhs(factor_names: list[str], model: str) -> str:
-    """Build a patsy right-hand-side formula string for the given model type."""
+    """Build a patsy right-hand-side formula string for the given model type.
+
+    The returned RHS is validated before it can reach ``patsy.dmatrix`` so a
+    custom ``model`` string cannot smuggle in arbitrary Python (SEC-14).
+    """
+    for name in factor_names:
+        validate_identifier_is_safe(name)
+
     joined = " + ".join(factor_names)
     if model == "main_effects":
-        return joined
-    if model == "interactions":
-        return f"({joined}) ** 2"
-    if model == "quadratic":
+        rhs = joined
+    elif model == "interactions":
+        rhs = f"({joined}) ** 2"
+    elif model == "quadratic":
         squared = " + ".join(f"I({f} ** 2)" for f in factor_names)
-        return f"({joined}) ** 2 + {squared}"
-    return model
+        rhs = f"({joined}) ** 2 + {squared}"
+    else:
+        rhs = model
+
+    validate_formula_is_safe(rhs, factor_names, allow_transforms=True)
+    return rhs
 
 
 def _greedy_d_optimal_select(
