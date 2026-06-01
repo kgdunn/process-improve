@@ -7,6 +7,7 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 import pytest
 
+from process_improve.simulation.context import simulator_host_context
 from process_improve.simulation.model import materialize_model
 from process_improve.simulation.tools import (
     create_simulator,
@@ -14,7 +15,41 @@ from process_improve.simulation.tools import (
     reveal_simulator,
     simulate_process,
 )
+from process_improve.tool_safety import ToolInputInvalidError, safe_execute_tool_call
 from process_improve.tool_spec import execute_tool_call, get_tool_specs
+
+# ---------------------------------------------------------------------------
+# Host-injection helpers
+# ---------------------------------------------------------------------------
+# ``simulator_state`` and ``confirmed`` are no longer kwargs (SEC-15): the host
+# supplies them out of band through ``simulator_host_context``. These thin
+# wrappers let the tests drive that side channel with the old call shape.
+
+
+def _simulate_process(
+    *,
+    sim_id: str,
+    settings: dict[str, float],
+    timestamp_offset_days: float = 0.0,
+    simulator_state: dict | None = None,
+) -> dict:
+    with simulator_host_context(simulator_state=simulator_state):
+        return simulate_process(
+            sim_id=sim_id,
+            settings=settings,
+            timestamp_offset_days=timestamp_offset_days,
+        )
+
+
+def _reveal_simulator(
+    *,
+    sim_id: str,
+    simulator_state: dict | None = None,
+    confirmed: bool = False,
+) -> dict:
+    with simulator_host_context(simulator_state=simulator_state, confirmed=confirmed):
+        return reveal_simulator(sim_id=sim_id)
+
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -124,12 +159,12 @@ class TestCreateSimulator:
 
 class TestSimulateProcess:
     def test_requires_simulator_state(self):
-        result = simulate_process(sim_id="abc", settings=_mid_settings())
+        result = _simulate_process(sim_id="abc", settings=_mid_settings())
         assert result["error"] == "simulator_state_missing"
 
     def test_returns_one_value_per_output(self):
         sim = _make_sim()
-        result = simulate_process(
+        result = _simulate_process(
             sim_id=sim["sim_id"],
             settings=_mid_settings(),
             simulator_state=sim["_private"],
@@ -141,7 +176,7 @@ class TestSimulateProcess:
     def test_fresh_noise_each_call(self):
         sim = _make_sim()
         calls = [
-            simulate_process(
+            _simulate_process(
                 sim_id=sim["sim_id"],
                 settings=_mid_settings(),
                 simulator_state=sim["_private"],
@@ -159,7 +194,7 @@ class TestSimulateProcess:
         samples = 400
         recovery_sum = 0.0
         for _ in range(samples):
-            r = simulate_process(
+            r = _simulate_process(
                 sim_id=sim["sim_id"],
                 settings=_mid_settings(),
                 simulator_state=priv,
@@ -178,7 +213,7 @@ class TestSimulateProcess:
 
     def test_out_of_range_settings_clipped(self):
         sim = _make_sim()
-        result = simulate_process(
+        result = _simulate_process(
             sim_id=sim["sim_id"],
             settings={"flow": 9999.0, "pH": 9.0, "surfactant": 45.0},
             simulator_state=sim["_private"],
@@ -188,7 +223,7 @@ class TestSimulateProcess:
 
     def test_missing_factor_uses_midrange(self):
         sim = _make_sim()
-        result = simulate_process(
+        result = _simulate_process(
             sim_id=sim["sim_id"],
             settings={"pH": 9.0, "surfactant": 45.0},  # no flow
             simulator_state=sim["_private"],
@@ -204,7 +239,7 @@ class TestSimulateProcess:
             return float(
                 np.mean(
                     [
-                        simulate_process(
+                        _simulate_process(
                             sim_id=sim["sim_id"],
                             settings=_mid_settings(),
                             simulator_state=priv,
@@ -239,7 +274,7 @@ class TestSimulateProcess:
         m0 = float(
             np.mean(
                 [
-                    simulate_process(
+                    _simulate_process(
                         sim_id=sim["sim_id"],
                         settings=_mid_settings(),
                         simulator_state=priv,
@@ -252,7 +287,7 @@ class TestSimulateProcess:
         m30 = float(
             np.mean(
                 [
-                    simulate_process(
+                    _simulate_process(
                         sim_id=sim["sim_id"],
                         settings=_mid_settings(),
                         simulator_state=priv,
@@ -275,13 +310,13 @@ class TestSimulateProcess:
 class TestRevealSimulator:
     def test_pending_when_not_confirmed(self):
         sim = _make_sim()
-        out = reveal_simulator(sim_id=sim["sim_id"], simulator_state=sim["_private"])
+        out = _reveal_simulator(sim_id=sim["sim_id"], simulator_state=sim["_private"])
         assert out["status"] == "confirmation_needed"
         assert "model" not in out
 
     def test_returns_full_model_when_confirmed(self):
         sim = _make_sim(seed=9)
-        out = reveal_simulator(
+        out = _reveal_simulator(
             sim_id=sim["sim_id"],
             simulator_state=sim["_private"],
             confirmed=True,
@@ -295,12 +330,12 @@ class TestRevealSimulator:
     def test_same_seed_reveals_identical_model(self):
         a = _make_sim(seed=55)
         b = _make_sim(seed=55)
-        ra = reveal_simulator(
+        ra = _reveal_simulator(
             sim_id=a["sim_id"],
             simulator_state=a["_private"],
             confirmed=True,
         )
-        rb = reveal_simulator(
+        rb = _reveal_simulator(
             sim_id=b["sim_id"],
             simulator_state=b["_private"],
             confirmed=True,
@@ -310,12 +345,12 @@ class TestRevealSimulator:
     def test_different_seeds_different_model(self):
         a = _make_sim(seed=55)
         b = _make_sim(seed=56)
-        ma = reveal_simulator(
+        ma = _reveal_simulator(
             sim_id=a["sim_id"],
             simulator_state=a["_private"],
             confirmed=True,
         )["model"]
-        mb = reveal_simulator(
+        mb = _reveal_simulator(
             sim_id=b["sim_id"],
             simulator_state=b["_private"],
             confirmed=True,
@@ -429,3 +464,76 @@ class TestRegistryIntegration:
         assert "confirmed" not in specs["reveal_simulator"]["input_schema"].get(
             "properties", {}
         )
+
+
+# ---------------------------------------------------------------------------
+# SEC-15: host-only params cannot be injected through the dispatch path
+# ---------------------------------------------------------------------------
+
+
+class TestKwargInjectionGate:
+    """Forging ``simulator_state`` / pre-clearing ``confirmed`` must not work.
+
+    A prompt-injected agent must not be able to smuggle either through the
+    tool input and reach the function.
+    """
+
+    def test_execute_tool_call_drops_injected_confirmed(self):
+        # No host context => the reveal is unconfirmed. A forged ``confirmed``
+        # in the tool input is dropped, so the gate still fires.
+        out = execute_tool_call(
+            "reveal_simulator",
+            {"sim_id": "x", "confirmed": True, "simulator_state": {"factors": []}},
+        )
+        assert out["status"] == "confirmation_needed"
+        assert "model" not in out
+
+    def test_execute_tool_call_drops_injected_state_for_simulate(self):
+        forged = _make_sim()["_private"]
+        out = execute_tool_call(
+            "simulate_process",
+            {"sim_id": "x", "settings": _mid_settings(), "simulator_state": forged},
+        )
+        assert out["error"] == "simulator_state_missing"
+
+    def test_injected_state_ignored_in_favour_of_host_state(self):
+        # The host legitimately confirms and injects its own state; an agent
+        # smuggling a forged ``simulator_state`` through the tool input must not
+        # override it.
+        sim = _make_sim(seed=7)
+        forged_sim = _make_sim(seed=999)
+        legit = _reveal_simulator(
+            sim_id=sim["sim_id"], simulator_state=sim["_private"], confirmed=True
+        )
+        with simulator_host_context(simulator_state=sim["_private"], confirmed=True):
+            out = execute_tool_call(
+                "reveal_simulator",
+                {
+                    "sim_id": sim["sim_id"],
+                    "simulator_state": forged_sim["_private"],
+                    "confirmed": True,
+                },
+            )
+        assert out["status"] == "revealed"
+        assert out["model"] == legit["model"]
+        assert out["model"] != materialize_model(forged_sim["_private"])
+
+    def test_safe_execute_tool_call_rejects_injected_kwargs(self):
+        # The safe (untrusted-transport) path rejects unknown keys outright
+        # rather than silently dropping them.
+        with pytest.raises(ToolInputInvalidError):
+            safe_execute_tool_call(
+                "reveal_simulator",
+                {"sim_id": "x", "confirmed": True},
+                timeout=10,
+            )
+
+    def test_gate_still_fires_for_legitimate_host_calls(self):
+        # The normal two-step gate is unaffected: first call asks for
+        # confirmation, the host-confirmed second call reveals.
+        sim = _make_sim()
+        first = execute_tool_call("reveal_simulator", {"sim_id": sim["sim_id"]})
+        assert first["status"] == "confirmation_needed"
+        with simulator_host_context(simulator_state=sim["_private"], confirmed=True):
+            second = execute_tool_call("reveal_simulator", {"sim_id": sim["sim_id"]})
+        assert second["status"] == "revealed"

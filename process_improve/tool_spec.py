@@ -324,6 +324,37 @@ def get_tool_specs(
     return specs
 
 
+def _filter_to_declared_keys(func: Callable[..., Any], tool_input: dict[str, Any]) -> dict[str, Any]:
+    """Drop ``tool_input`` keys not declared in the tool's ``input_schema``.
+
+    The dispatch path forwards ``tool_input`` straight through as ``**kwargs``.
+    Some tools deliberately keep host-injected parameters (e.g. the simulator's
+    ``simulator_state`` / ``confirmed``) out of the public JSON schema; without
+    this filter a prompt-injected agent could re-introduce them as ordinary
+    kwargs and reach the function (SEC-15). We keep only keys the schema's
+    ``properties`` declare. Tools whose schema is not an ``object`` or declares
+    no ``properties`` are passed through unchanged.
+    """
+    spec = getattr(func, "_tool_spec", None)
+    if not isinstance(spec, dict):
+        return tool_input
+    schema = spec.get("input_schema")
+    if not isinstance(schema, dict) or schema.get("type") != "object":
+        return tool_input
+    properties = schema.get("properties")
+    if not isinstance(properties, dict) or not properties:
+        return tool_input
+    extra = set(tool_input) - set(properties)
+    if not extra:
+        return tool_input
+    logger.warning(
+        "Dropping undeclared key(s) %s from input to tool %r before dispatch.",
+        sorted(extra),
+        spec.get("name", "<unknown>"),
+    )
+    return {k: v for k, v in tool_input.items() if k in properties}
+
+
 def execute_tool_call(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noqa: ANN401
     """Dispatch a single tool call from an Anthropic ``tool_use`` content block.
 
@@ -332,7 +363,10 @@ def execute_tool_call(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noq
     tool_name:
         The ``name`` field from the ``tool_use`` block.
     tool_input:
-        The ``input`` dict from the ``tool_use`` block.
+        The ``input`` dict from the ``tool_use`` block. Keys not declared in the
+        tool's ``input_schema`` ``properties`` are dropped before dispatch so a
+        caller cannot inject host-only parameters as kwargs (see
+        :func:`_filter_to_declared_keys`).
 
     Returns
     -------
@@ -349,7 +383,8 @@ def execute_tool_call(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noq
     if tool_name not in _TOOL_REGISTRY:
         available = sorted(_TOOL_REGISTRY)
         raise ValueError(f"Unknown tool {tool_name!r}. Available tools: {available}")
-    return _TOOL_REGISTRY[tool_name](**tool_input)
+    func = _TOOL_REGISTRY[tool_name]
+    return func(**_filter_to_declared_keys(func, tool_input))
 
 
 # ---------------------------------------------------------------------------

@@ -11,6 +11,19 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.12] - 2026-06-01
+
+### Security
+
+- The `reveal_simulator` double-confirmation gate can no longer be bypassed by
+  injecting `confirmed=True` or a fabricated `simulator_state` through a tool
+  call (SEC-15). `execute_tool_call` now drops any input key not declared in the
+  tool's `input_schema` before dispatch, and the simulator's host-only
+  parameters (`simulator_state`, `confirmed`) have moved off the function
+  signature into a `contextvars` side channel populated via the new
+  `process_improve.simulation.context.simulator_host_context`. Hosts that
+  persist simulator state must wrap their dispatch in that context manager.
+
 ## [1.22.11] - 2026-06-01
 
 ### Security
@@ -267,7 +280,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.11...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.12...HEAD
+[1.22.12]: https://github.com/kgdunn/process-improve/compare/v1.22.11...v1.22.12
 [1.22.11]: https://github.com/kgdunn/process-improve/compare/v1.22.10...v1.22.11
 [1.22.10]: https://github.com/kgdunn/process-improve/compare/v1.22.9...v1.22.10
 [1.22.9]: https://github.com/kgdunn/process-improve/compare/v1.22.8...v1.22.9

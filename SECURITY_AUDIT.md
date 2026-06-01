@@ -35,6 +35,7 @@ therefore ranked under two models:
 | SEC-11 | `discover_tools` swallows all `ImportError`s | Low | Low | done (#246, v1.22.9) |
 | SEC-12 | `DataFrame.query` built with f-strings | Low | Low | done (#247, v1.22.9) |
 | SEC-14 | RCE via patsy formula in analyze/evaluate/augment/`lm` | Critical | Low | done (#314, v1.22.11) |
+| SEC-15 | `reveal_simulator` gate bypassable via kwarg injection | Critical | Low | done (#264, v1.22.12) |
 
 ---
 
@@ -293,6 +294,34 @@ therefore ranked under two models:
   RHS with transforms enabled (so the `quadratic` shorthand's `I(f ** 2)` still
   fits). Tests assert malicious formulas, models, and names are rejected before
   reaching patsy, with sentinel-file checks confirming no side effect runs.
+
+## SEC-15 - `reveal_simulator` confirmation gate bypassable via kwarg injection [RESOLVED]
+- **Status:** Fixed in v1.22.12 (issue #264). `execute_tool_call` filters
+  `tool_input` down to the keys declared in the tool's `input_schema` before
+  dispatch; `simulator_state` / `confirmed` moved off the function signatures
+  into a `contextvars` side channel (`simulation/context.py`) only the host
+  populates.
+- **Severity:** U = Critical, L = Low
+- **Where:** `process_improve/simulation/tools.py` (`reveal_simulator`,
+  `simulate_process`) and `process_improve/tool_spec.py` (`execute_tool_call`),
+  which dispatched via `_TOOL_REGISTRY[tool_name](**tool_input)`.
+- **Issue:** `reveal_simulator` and `simulate_process` accepted `simulator_state`
+  / `confirmed` as keyword arguments deliberately omitted from the JSON schema so
+  the host could inject them server-side. But the dispatch path forwarded
+  `**tool_input` verbatim, and the default (non-safe) MCP path ran no schema
+  validation, so a prompt-injected agent could pass `confirmed=True` plus a
+  fabricated `simulator_state` as ordinary kwargs - bypassing the
+  double-confirmation reveal gate and feeding the function attacker-controlled
+  state.
+- **Fix direction:** (1) Filter `tool_input` to the schema's declared
+  `properties` before invoking the function (the safe path already rejected
+  unknown keys via `validate_against_schema`). (2) Remove `simulator_state` /
+  `confirmed` from the kwarg surface entirely and inject them through a
+  `contextvars.ContextVar` populated by the host before dispatch, so they cannot
+  be re-introduced as kwargs even if the registry filter regresses. Tests:
+  forwarding `confirmed` / `simulator_state` through dispatch is dropped (or
+  raises `ToolInputInvalidError` on the safe path), and the gate still fires for
+  legitimate host calls.
 
 ---
 
