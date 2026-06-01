@@ -11,6 +11,18 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.17] - 2026-06-01
+
+### Added
+
+- New `typecheck` CI job runs `mypy process_improve` on every PR
+  (ENG-20). Initially `continue-on-error: true` because the codebase
+  currently surfaces ~333 mypy errors with the existing permissive
+  config (`disallow_untyped_defs = false`); the job will flip to
+  blocking once a staged ENG-03 (#285) follow-up has paid the debt
+  down. `notebooks_examples/` is excluded from the type-check (the
+  scripts are not production code).
+
 ## [1.22.16] - 2026-06-01
 
 ### Added
@@ -333,7 +345,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.16...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.17...HEAD
+[1.22.17]: https://github.com/kgdunn/process-improve/compare/v1.22.16...v1.22.17
 [1.22.16]: https://github.com/kgdunn/process-improve/compare/v1.22.15...v1.22.16
 [1.22.15]: https://github.com/kgdunn/process-improve/compare/v1.22.14...v1.22.15
 [1.22.14]: https://github.com/kgdunn/process-improve/compare/v1.22.13...v1.22.14

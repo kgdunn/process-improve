@@ -36,6 +36,27 @@ jobs:
     - name: Lint with ruff
       run: uv run ruff check .
 
+  # ENG-20 sub-track: surface type errors on every PR.
+  # The codebase currently has ~333 mypy errors (with the existing
+  # permissive config: `disallow_untyped_defs = false`, plus
+  # `ignore_missing_imports` and `import-untyped` disabled). The job is
+  # `continue-on-error: true` so it does not block merges while a staged
+  # cleanup catches up; once the count reaches zero (per subpackage --
+  # follow-up to ENG-03 #285), flip this flag to `false`.
+  typecheck:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v6
+    - name: Install uv and set the python version
+      uses: astral-sh/setup-uv@v7
+      with:
+        python-version: "3.13"
+    - name: Install the project (editable)
+      run: uv sync --dev --all-extras
+    - name: Type-check with mypy
+      run: uv run mypy process_improve
+
   test:
     strategy:
       fail-fast: false
