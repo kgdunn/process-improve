@@ -46,9 +46,9 @@ The contract
        ) -> ...:
 
 2. **Resolve ``random_state`` once at function entry** using the
-   helper ``process_improve.tool_spec.check_random_state`` (to be
-   added; sklearn's ``check_random_state`` is the reference
-   semantics):
+   helper :func:`process_improve._random.check_random_state`. Its
+   resolution rules match sklearn's ``check_random_state`` but it
+   returns a modern :class:`numpy.random.Generator`:
 
    - ``None`` -> a fresh, unseeded ``np.random.default_rng()``.
    - ``int`` -> ``np.random.default_rng(int)``.
@@ -163,11 +163,10 @@ Open work
 
 Aspects of the contract that are not yet implemented:
 
-- The ``check_random_state`` helper does not yet exist; it
-  will land in the first PR that migrates a production
-  callsite.
-- The ``tests/test_rng_contract.py`` harness will land
-  alongside that helper.
+- The ``tests/test_rng_contract.py`` harness that exercises every
+  ``@tool_spec(rng={"uses_rng": True})`` against its declared
+  ``default_seed`` will land alongside the first sweep that
+  migrates production callsites.
 - Migration of the existing offenders is tracked in
   `SEC-21 sub-item 9 <https://github.com/kgdunn/process-improve/issues/270>`_
   (Resampler), the relevant SEC-33 sub-item
