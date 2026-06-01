@@ -11,6 +11,15 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.10] - 2026-06-01
+
+### Fixed
+
+- `TPLS.score` no longer raises `NameError` when the `Y` block (`X["Y"]`) is an
+  empty dict (SEC-16). The method now raises a clear `ValueError` instead of
+  crashing on a malformed test bundle, and the per-block averaging uses an
+  explicit counter rather than the loop index.
+
 ## [1.22.9] - 2026-05-29
 
 This release lands the second half of the `SECURITY_AUDIT.md` hardening series
@@ -241,7 +250,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.9...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.10...HEAD
+[1.22.10]: https://github.com/kgdunn/process-improve/compare/v1.22.9...v1.22.10
 [1.22.9]: https://github.com/kgdunn/process-improve/compare/v1.22.8...v1.22.9
 [1.22.8]: https://github.com/kgdunn/process-improve/compare/v1.22.7...v1.22.8
 [1.22.7]: https://github.com/kgdunn/process-improve/compare/v1.22.6...v1.22.7

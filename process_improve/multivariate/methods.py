@@ -3492,11 +3492,16 @@ class TPLS(RegressorMixin, BaseEstimator):
         predictions = self.predict(X)
         y_pred = predictions.hat
         y_actual = X["Y"]
+        if not y_actual:
+            msg = "y_actual is empty: X['Y'] must contain at least one block to compute a score."
+            raise ValueError(msg)
         r2_key = 0.0
-        for _idx, key in enumerate(y_actual):
+        count = 0
+        for key in y_actual:
             r2_key += r2_score(y_true=y_actual[key], y_pred=y_pred[key], sample_weight=sample_weight)
             _ = np.corrcoef(y_actual[key].values.ravel(), y_pred[key].values.ravel())
-        return r2_key / (_idx + 1)
+            count += 1
+        return r2_key / count
 
     def help(self) -> str:
         """Help for the TPLS Estimator.
