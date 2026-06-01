@@ -34,7 +34,7 @@ therefore ranked under two models:
 | SEC-10 | Latent path traversal; unverified remote fetch | Low | Low | done (#245, v1.22.9) |
 | SEC-11 | `discover_tools` swallows all `ImportError`s | Low | Low | done (#246, v1.22.9) |
 | SEC-12 | `DataFrame.query` built with f-strings | Low | Low | done (#247, v1.22.9) |
-| SEC-14 | RCE via patsy formula in analyze/evaluate/augment/`lm` | Critical | Low | done (#314, v1.22.10) |
+| SEC-14 | RCE via patsy formula in analyze/evaluate/augment/`lm` | Critical | Low | done (#314, v1.22.11) |
 
 ---
 
@@ -261,7 +261,7 @@ therefore ranked under two models:
   so no expression string is assembled. Test: equivalent filtering result.
 
 ## SEC-14 - Arbitrary code execution via patsy formula in analyze/evaluate/augment/`lm` [RESOLVED]
-- **Status:** Fixed in v1.22.10 (issue #263). The formula guard now runs inside
+- **Status:** Fixed in v1.22.11 (issue #263). The formula guard now runs inside
   the library functions (the default path) rather than only the
   `fit_linear_model` wrapper.
 - **Severity:** U = Critical, L = Low

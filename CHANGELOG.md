@@ -11,7 +11,7 @@ those changes.
 
 ## [Unreleased]
 
-## [1.22.10] - 2026-06-01
+## [1.22.11] - 2026-06-01
 
 ### Security
 
@@ -27,6 +27,15 @@ those changes.
   other call). A new `validate_identifier_is_safe` rejects column and response
   names that are not plain identifiers. Legitimate Wilkinson, `quadratic`
   shorthand, and `I(...)` / numpy-transform models are unaffected.
+
+## [1.22.10] - 2026-06-01
+
+### Fixed
+
+- `TPLS.score` no longer raises `NameError` when the `Y` block (`X["Y"]`) is an
+  empty dict (SEC-16). The method now raises a clear `ValueError` instead of
+  crashing on a malformed test bundle, and the per-block averaging uses an
+  explicit counter rather than the loop index.
 
 ## [1.22.9] - 2026-05-29
 
@@ -258,7 +267,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.10...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.11...HEAD
+[1.22.11]: https://github.com/kgdunn/process-improve/compare/v1.22.10...v1.22.11
 [1.22.10]: https://github.com/kgdunn/process-improve/compare/v1.22.9...v1.22.10
 [1.22.9]: https://github.com/kgdunn/process-improve/compare/v1.22.8...v1.22.9
 [1.22.8]: https://github.com/kgdunn/process-improve/compare/v1.22.7...v1.22.8
