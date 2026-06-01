@@ -11,6 +11,19 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.15] - 2026-06-01
+
+### Added
+
+- Register four pytest marker tiers (`unit`, `integration`, `slow`,
+  `dataset`) in `pytest.ini` (ENG-29). Contributors can now run
+  `pytest -m "not dataset"` (or `-m "not slow"`) to skip the
+  network / slow tests during local iteration; CI still runs the
+  full suite. The convention is documented in `CONTRIBUTING.md`
+  under "Test tiers". The network-backed dataset loaders in
+  `tests/test_experiments_datasets.py` are the first tests tagged
+  with the new `dataset` marker.
+
 ## [1.22.14] - 2026-06-01
 
 ### Added
@@ -302,7 +315,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.14...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.15...HEAD
+[1.22.15]: https://github.com/kgdunn/process-improve/compare/v1.22.14...v1.22.15
 [1.22.14]: https://github.com/kgdunn/process-improve/compare/v1.22.13...v1.22.14
 [1.22.13]: https://github.com/kgdunn/process-improve/compare/v1.22.12...v1.22.13
 [1.22.12]: https://github.com/kgdunn/process-improve/compare/v1.22.11...v1.22.12

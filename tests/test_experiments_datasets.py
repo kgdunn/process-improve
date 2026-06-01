@@ -33,6 +33,7 @@ def test_boilingpot_loads() -> None:
     assert set(df.columns) == {"A", "B", "C", "y"}
 
 
+@pytest.mark.dataset
 def test_oildoe_loads() -> None:
     """``oildoe()`` fetches the openmv.net file (skipped if offline)."""
     df = _load_or_skip(datasets.oildoe)
@@ -40,6 +41,7 @@ def test_oildoe_loads() -> None:
     assert set(df.columns) == {"A", "B", "C", "D", "y"}
 
 
+@pytest.mark.dataset
 def test_distillateflow_loads() -> None:
     """``distillateflow()`` fetches the openmv.net file (skipped if offline)."""
     df = _load_or_skip(datasets.distillateflow)

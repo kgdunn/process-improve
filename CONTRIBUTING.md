@@ -36,6 +36,47 @@ Tests use real datasets (LDPE, SIMCA) alongside synthetic data; please keep
 the real-dataset tests in place when adding new ones. New methods should have
 tests for both basic functionality and edge cases.
 
+### Test tiers
+
+Tests are categorised via pytest markers so contributors can skip the ones
+that are slow or network-dependent during local iteration. The full suite
+runs in CI; the markers exist so a contributor doesn't pay for
+multi-second or network-bound tests on every save.
+
+| Marker | Meaning | Example | When to add |
+|--------|---------|---------|-------------|
+| (none) / `unit` | Fast in-process unit test. The implicit default; no decorator needed. | `test_check_random_state_resolves_int` | Default. |
+| `integration` | Crosses module boundaries or exercises an external library's surface (statsmodels, plotly). | `test_pca_round_trip_via_sklearn_pipeline` | Add when the test wires several modules together. |
+| `slow` | Multi-second wall-clock time, even on a fast laptop. | `test_tpls_full_fit_on_simca_dataset` | Add when the test takes >= 2 s. |
+| `dataset` | Loads a bundled or remote real-world dataset (network or large file). | `test_oildoe_loads` | Add when the test depends on a real-data fixture, especially remote ones. |
+
+Common opt-in / opt-out invocations:
+
+```bash
+# Skip network-dependent dataset tests (useful when offline):
+pytest -m "not dataset" -o "addopts="
+
+# Skip slow tests during local iteration:
+pytest -m "not slow" -o "addopts="
+
+# Run only the network-dependent dataset tests:
+pytest -m dataset -o "addopts="
+
+# CI runs the full suite (no marker filter).
+```
+
+The markers are registered in `pytest.ini`; pytest will warn if you
+typo a marker name. Tag a test by adding the decorator above the
+function (or above the `class` to tag the whole class):
+
+```python
+import pytest
+
+@pytest.mark.dataset
+def test_loads_real_data():
+    ...
+```
+
 ## Linting and formatting
 
 ```bash
