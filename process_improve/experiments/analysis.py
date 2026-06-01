@@ -691,16 +691,16 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
     else:
         response_col = response_column
 
+    # User-supplied names (response_column / design_matrix dict keys) are
+    # interpolated into the patsy formula, so reject anything that is not a
+    # plain identifier before it can become an injection vector (SEC-14).
+    validate_identifier_is_safe(response_col)
+
     if response_col not in df.columns:
         raise ValueError(f"Response column '{response_col}' not found in data.")
 
     # Factor columns = everything except the response
     factor_cols = [c for c in df.columns if c != response_col]
-
-    # User-supplied names (response_column / design_matrix dict keys) are
-    # interpolated into the patsy formula, so reject anything that is not a
-    # plain identifier before it can become an injection vector (SEC-14).
-    validate_identifier_is_safe(response_col)
     for col in factor_cols:
         validate_identifier_is_safe(col)
 
