@@ -12,10 +12,13 @@ Three tools are exposed:
 
 The tools are intentionally stateless: the hidden model lives in a
 ``private_state`` dict that the host (e.g. the factorial web app)
-persists and injects on each call via a hidden ``simulator_state``
-kwarg. The JSON schema advertised to the LLM does not mention
-``simulator_state`` or ``confirmed`` - those are injected server-side
-so the LLM cannot bypass the reveal policy or fabricate state.
+persists and injects on each call. ``simulator_state`` and the reveal
+``confirmed`` flag are not kwargs: the host supplies them out of band
+through :func:`process_improve.simulation.context.simulator_host_context`,
+which stores them in :class:`contextvars.ContextVar` slots. Keeping them
+off the kwarg surface means a prompt-injected agent cannot re-introduce
+them through the dispatch path to forge state or bypass the reveal gate
+(SEC-15).
 """
 
 # ``dict[str, Any]`` is the tool-call contract shape; the real schema
@@ -26,6 +29,10 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from process_improve.simulation.context import (
+    get_injected_simulator_state,
+    get_reveal_confirmed,
+)
 from process_improve.simulation.model import (
     draw_initial_seed,
     materialize_model,
@@ -307,14 +314,15 @@ def simulate_process(
     sim_id: str,
     settings: dict[str, float],
     timestamp_offset_days: float = 0.0,
-    simulator_state: dict[str, Any] | None = None,
 ) -> dict:
     """Evaluate a simulator at *settings*; see tool spec for details.
 
-    ``simulator_state`` is not in the JSON schema: the host injects it
-    from its own persistence layer. If it is missing we return a
-    structured error rather than dispatch with a guessed state.
+    ``simulator_state`` is not a parameter: the host injects it out of band
+    via :func:`process_improve.simulation.context.simulator_host_context`,
+    so it can never arrive as an LLM-supplied kwarg. If it is missing we
+    return a structured error rather than dispatch with a guessed state.
     """
+    simulator_state = get_injected_simulator_state()
     if simulator_state is None:
         return {
             "sim_id": sim_id,
@@ -370,15 +378,16 @@ _register("simulate_process")
 def reveal_simulator(
     *,
     sim_id: str,
-    simulator_state: dict[str, Any] | None = None,
-    confirmed: bool = False,
 ) -> dict:
     """Return the materialised model; see tool spec for details.
 
-    ``simulator_state`` and ``confirmed`` are injected by the host, not
-    by the LLM (their absence from the JSON schema is intentional).
+    ``simulator_state`` and the ``confirmed`` flag are injected by the host
+    out of band via
+    :func:`process_improve.simulation.context.simulator_host_context`, never
+    by the LLM. They are not parameters, so a tool call cannot forge state or
+    pre-clear the double-confirmation gate.
     """
-    if not confirmed:
+    if not get_reveal_confirmed():
         return {
             "sim_id": sim_id,
             "status": "confirmation_needed",
@@ -388,6 +397,7 @@ def reveal_simulator(
                 "confirm."
             ),
         }
+    simulator_state = get_injected_simulator_state()
     if simulator_state is None:
         return {
             "sim_id": sim_id,
