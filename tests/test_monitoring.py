@@ -157,6 +157,17 @@ class TestHoltWintersControlChart:
     assert len(cc_medium.idx_outside_3S) == 0
 
 
+def test_hw_constant_warmup_raises_value_error() -> None:
+    """A constant warm-up window must raise instead of giving NaN limits (SEC-22).
+
+    With sigma_0 = MAD = 0 the control limits would silently collapse to 0/NaN.
+    """
+    cc = ControlChart()
+    constant = np.full(12, 42.0)
+    with pytest.raises(ValueError, match=r"zero.*variance"):
+        cc.calculate_limits(constant, ld_1=0.4, ld_2=0.7)
+
+
 def test_cpk_well_centered_process() -> None:
     """Cpk for a well-centered process with wide specs should be high."""
     rng = np.random.default_rng(42)

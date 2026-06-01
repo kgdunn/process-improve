@@ -277,6 +277,16 @@ class ControlChart:
             self.warm_up["sigma_0"] = median_absolute_deviation(warm_up_residuals, nan_policy="omit")
             self.warm_up["residuals"] = warm_up_residuals
 
+        # A constant (zero-variance) warm-up window gives sigma_0 = MAD = 0, which
+        # would make rho/psi infinite and silently poison every downstream control
+        # limit with 0/NaN. Fail loudly instead of returning meaningless limits.
+        if not np.isfinite(self.warm_up["sigma_0"]) or self.warm_up["sigma_0"] <= 0:
+            raise ValueError(
+                "The Holt-Winters warm-up window has zero (or non-finite) variance "
+                "(sigma_0 = 0), so the control-chart limits would be undefined. "
+                "Supply more representative warm-up data, or pass a positive 's'."
+            )
+
         df.loc[0, "rho_input"] = (
             self.warm_up["y_zero_robust"] - self.warm_up["alpha_0"] - self.warm_up["beta_0"]
         ) / self.warm_up["sigma_0"]

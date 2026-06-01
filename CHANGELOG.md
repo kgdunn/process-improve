@@ -11,6 +11,18 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.13] - 2026-06-01
+
+### Fixed
+
+- The Holt-Winters control chart now raises a clear `ValueError` when the
+  warm-up window has zero (or non-finite) variance, instead of silently
+  dividing by `sigma_0 = 0` and returning `0`/`NaN` control limits (SEC-22).
+- `regression.OLS.predict` now validates that `X` has the same number of
+  features as the fitted model and raises a clear `ValueError` otherwise,
+  rather than relying on a confusing numpy error or silently broadcasting to a
+  wrong-shaped result (SEC-23).
+
 ## [1.22.12] - 2026-06-01
 
 ### Security
@@ -280,7 +292,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.12...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.13...HEAD
+[1.22.13]: https://github.com/kgdunn/process-improve/compare/v1.22.12...v1.22.13
 [1.22.12]: https://github.com/kgdunn/process-improve/compare/v1.22.11...v1.22.12
 [1.22.11]: https://github.com/kgdunn/process-improve/compare/v1.22.10...v1.22.11
 [1.22.10]: https://github.com/kgdunn/process-improve/compare/v1.22.9...v1.22.10

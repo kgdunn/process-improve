@@ -36,6 +36,8 @@ therefore ranked under two models:
 | SEC-12 | `DataFrame.query` built with f-strings | Low | Low | done (#247, v1.22.9) |
 | SEC-14 | RCE via patsy formula in analyze/evaluate/augment/`lm` | Critical | Low | done (#314, v1.22.11) |
 | SEC-15 | `reveal_simulator` gate bypassable via kwarg injection | Critical | Low | done (#264, v1.22.12) |
+| SEC-22 | Holt-Winters chart divides by zero on constant warm-up | High | High | done (#271, v1.22.13) |
+| SEC-23 | `regression.OLS.predict` accepts wrong-shape `X` silently | High | Medium | done (#272, v1.22.13) |
 
 ---
 
@@ -322,6 +324,36 @@ therefore ranked under two models:
   forwarding `confirmed` / `simulator_state` through dispatch is dropped (or
   raises `ToolInputInvalidError` on the safe path), and the gate still fires for
   legitimate host calls.
+
+## SEC-22 - Holt-Winters control chart divides by zero on constant warm-up window [RESOLVED]
+- **Status:** Fixed in v1.22.13 (issue #271). `_holt_winters_warmup_fit` now
+  raises a clear `ValueError` when the warm-up `sigma_0` is zero or non-finite,
+  instead of propagating `inf`/`NaN` into the control limits.
+- **Severity:** U = High, L = High (silent wrong control-chart limits)
+- **Where:** `process_improve/monitoring/control_charts.py` (`_holt_winters_warmup_fit`,
+  around the `rho_input` / `rho_i = error_i / sigma_hat` divisions).
+- **Issue:** A constant (zero-variance) warm-up window makes
+  `sigma_0 = MAD = 0`, so `rho_i = +/-inf` propagates into every downstream
+  control-chart limit, which silently become `0` / `NaN`. No guard existed.
+- **Fix direction:** Validate `sigma_0` immediately after it is computed; raise
+  `ValueError("...variance is zero in warm-up window; supply more representative
+  data...")` rather than dividing by it. Test: a constant warm-up series raises a
+  clear error instead of producing NaN limits.
+
+## SEC-23 - `regression.OLS.predict` accepts wrong-shape `X` silently [RESOLVED]
+- **Status:** Fixed in v1.22.13 (issue #272). `OLS.predict` now checks the
+  feature count against `n_features_in_` and raises a clear `ValueError`.
+- **Severity:** U = High, L = Medium
+- **Where:** `process_improve/regression/methods.py` (`OLS.predict`,
+  `return intercept + X_arr @ self.coefficients_`).
+- **Issue:** `n_features_in_` is stored at fit time but never checked at predict.
+  A wrong column count either raised a confusing numpy `ValueError` or, worse,
+  broadcast shapes (e.g. a 1-column `X` against a scalar coefficient) and
+  produced silently wrong output.
+- **Fix direction:** Validate `X_arr.shape[1] == self.n_features_in_` and raise a
+  clear `ValueError`, mirroring the sklearn-style shape check used by PCA / PLS.
+  Tests: predict with the wrong column count raises a clear `ValueError`; predict
+  with the correct shape still returns finite values.
 
 ---
 
