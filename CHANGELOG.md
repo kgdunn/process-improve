@@ -11,6 +11,23 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.10] - 2026-06-01
+
+### Security
+
+- Closed a patsy-formula code-execution vector (SEC-14, the same class as
+  SEC-01) in the `analyze_experiment`, `evaluate_design` and `augment_design`
+  paths and in the public `lm()` API. Patsy evaluates each formula term as a
+  Python expression, so an untrusted `model` / `target_model` string,
+  `response_column`, or `design_matrix` column name could run arbitrary code.
+  `validate_formula_is_safe` now guards every formula before it reaches patsy
+  and gained `allow_transforms` / `allow_numpy` flags (an AST-based check that
+  permits `I()`/`Q()` and a curated allowlist of element-wise `np.<func>`
+  transforms while rejecting attribute access, string literals, dunders, and any
+  other call). A new `validate_identifier_is_safe` rejects column and response
+  names that are not plain identifiers. Legitimate Wilkinson, `quadratic`
+  shorthand, and `I(...)` / numpy-transform models are unaffected.
+
 ## [1.22.9] - 2026-05-29
 
 This release lands the second half of the `SECURITY_AUDIT.md` hardening series
@@ -241,7 +258,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.9...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.10...HEAD
+[1.22.10]: https://github.com/kgdunn/process-improve/compare/v1.22.9...v1.22.10
 [1.22.9]: https://github.com/kgdunn/process-improve/compare/v1.22.8...v1.22.9
 [1.22.8]: https://github.com/kgdunn/process-improve/compare/v1.22.7...v1.22.8
 [1.22.7]: https://github.com/kgdunn/process-improve/compare/v1.22.6...v1.22.7
