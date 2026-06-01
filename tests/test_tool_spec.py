@@ -13,6 +13,7 @@ import process_improve.multivariate.tools
 import process_improve.univariate.tools  # noqa: F401
 from process_improve.tool_spec import (
     _TOOL_REGISTRY,
+    _filter_to_declared_keys,
     clean,
     execute_tool_call,
     get_tool_specs,
@@ -135,6 +136,54 @@ class TestExecuteToolCall:
         """Verify execute_tool_call raises ValueError for unknown tools."""
         with pytest.raises(ValueError, match="Unknown tool"):
             execute_tool_call("nonexistent_tool_xyz", {})
+
+    def test_drops_keys_not_declared_in_schema(self) -> None:
+        """Undeclared input keys are dropped before dispatch (SEC-15)."""
+        # ``rogue`` is not in robust_summary_stats' schema; if it reached the
+        # function as a kwarg the call would raise TypeError. Dropping it lets
+        # the call succeed.
+        result = execute_tool_call(
+            "robust_summary_stats", {"values": [1, 2, 3], "rogue": "x"}
+        )
+        assert "mean" in result
+
+
+class TestFilterToDeclaredKeys:
+    """Unit tests for the schema-key filter used by execute_tool_call (SEC-15)."""
+
+    def test_keeps_declared_keys_and_drops_others(self) -> None:
+        func = _TOOL_REGISTRY["robust_summary_stats"]
+        filtered = _filter_to_declared_keys(func, {"values": [1], "rogue": 9})
+        assert filtered == {"values": [1]}
+
+    def test_passthrough_when_no_extra_keys(self) -> None:
+        func = _TOOL_REGISTRY["robust_summary_stats"]
+        payload = {"values": [1, 2]}
+        # Returned unchanged (and is the same object: nothing to filter).
+        assert _filter_to_declared_keys(func, payload) is payload
+
+    def test_passthrough_when_no_tool_spec(self) -> None:
+        def bare() -> None:  # no _tool_spec attribute
+            return None
+
+        payload = {"anything": 1}
+        assert _filter_to_declared_keys(bare, payload) is payload
+
+    def test_passthrough_when_schema_not_object(self) -> None:
+        def fn() -> None:
+            return None
+
+        fn._tool_spec = {"name": "fn", "input_schema": {"type": "string"}}
+        payload = {"a": 1}
+        assert _filter_to_declared_keys(fn, payload) is payload
+
+    def test_passthrough_when_no_properties(self) -> None:
+        def fn() -> None:
+            return None
+
+        fn._tool_spec = {"name": "fn", "input_schema": {"type": "object"}}
+        payload = {"a": 1}
+        assert _filter_to_declared_keys(fn, payload) is payload
 
 
 # ---------------------------------------------------------------------------
