@@ -390,7 +390,7 @@ def test_pca_invalid_calls() -> None:
     ):
         model.fit(data)
     data.iloc[0, 0] = np.nan
-    with pytest.raises(AssertionError, match="Tolerance must exceed machine precision"):
+    with pytest.raises(ValueError, match="Tolerance must exceed machine precision"):
         _ = PCA(n_components=A, algorithm="nipals", missing_data_settings=dict(md_tol=0)).fit(data)
 
     with pytest.raises(ValueError, match=r"Algorithm .* is not recognized(.*)"):
@@ -2791,14 +2791,14 @@ def test_t2_plot_with_highlights(fixture_pca_for_plots: PCA) -> None:
 
 def test_t2_plot_rejects_zero_with_a(fixture_pca_for_plots: PCA) -> None:
     """t2_plot should reject `with_a == 0`."""
-    with pytest.raises(AssertionError, match="with_a"):
+    with pytest.raises(ValueError, match="with_a"):
         fixture_pca_for_plots.t2_plot(with_a=0)
 
 
 def test_t2_plot_rejects_with_a_above_components(fixture_pca_for_plots: PCA) -> None:
     """t2_plot should reject `with_a` larger than the number of fitted components."""
     model = fixture_pca_for_plots
-    with pytest.raises(AssertionError, match="with_a"):
+    with pytest.raises(ValueError, match="with_a"):
         model.t2_plot(with_a=model.n_components + 1)
 
 
