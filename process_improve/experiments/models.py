@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import re
 import warnings
 from collections import defaultdict
@@ -33,15 +34,88 @@ class UnsafeFormulaError(ValueError):
 # literal, or function-call argument list.
 _FORMULA_ALLOWED_CHARS = re.compile(r"^[A-Za-z0-9_ \t\r\n~+\-*:^()]*$")
 _FORMULA_IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z_]\w*$")
+
+# Patsy transform helpers that wrap an arithmetic expression without naming a
+# data column: ``I(...)`` (identity / "as-is") and ``Q(...)`` (quote a name).
+_TRANSFORM_FUNCS = frozenset({"I", "Q"})
+
+# Curated allowlist of numpy callables permitted inside a formula when
+# ``allow_numpy=True``. These are pure, element-wise math transforms. We do NOT
+# allow arbitrary ``np.<anything>`` because numpy also exposes dangerous I/O such
+# as ``np.load`` (which deserialises pickles) and ``np.fromfile``.
+_NUMPY_ALLOWED_FUNCS = frozenset(
+    {
+        "log",
+        "log10",
+        "log2",
+        "log1p",
+        "exp",
+        "expm1",
+        "sqrt",
+        "cbrt",
+        "square",
+        "power",
+        "reciprocal",
+        "sign",
+        "abs",
+        "absolute",
+        "sin",
+        "cos",
+        "tan",
+        "arcsin",
+        "arccos",
+        "arctan",
+        "sinh",
+        "cosh",
+        "tanh",
+    }
+)
 
 
-def validate_formula_is_safe(formula: str, allowed_names: Iterable[str]) -> None:
-    """Reject a model ``formula`` that is not a plain Wilkinson formula over *allowed_names*.
+def validate_identifier_is_safe(name: object) -> None:
+    """Reject a column / response name that is not a plain Python identifier.
+
+    User-supplied names (``design_matrix`` dict keys, ``response_column``) are
+    interpolated into a patsy formula, so a name such as ``"A); import os; ("``
+    is an injection vector. We require a bare identifier and forbid dunders.
+
+    Parameters
+    ----------
+    name:
+        The candidate column or response name.
+
+    Raises
+    ------
+    UnsafeFormulaError
+        If *name* is not a string, contains ``__``, or is not a plain identifier.
+    """
+    if not isinstance(name, str):
+        raise UnsafeFormulaError(f"name must be a string, got {type(name).__name__}.")
+    if "__" in name:
+        raise UnsafeFormulaError(f"name {name!r} may not contain '__' (dunder access is forbidden).")
+    if not _IDENTIFIER_RE.match(name):
+        raise UnsafeFormulaError(
+            f"name {name!r} is not a plain identifier; only letters, digits and '_' are allowed "
+            f"(and it may not start with a digit)."
+        )
+
+
+def validate_formula_is_safe(
+    formula: str,
+    allowed_names: Iterable[str],
+    *,
+    allow_transforms: bool = False,
+    allow_numpy: bool = False,
+) -> None:
+    """Reject a model ``formula`` that is not a safe Wilkinson formula over *allowed_names*.
 
     This is the guard for untrusted callers (e.g. the ``fit_linear_model`` tool).
     Patsy evaluates every formula term as a Python expression with builtins and
     numpy in scope, so a string such as ``y ~ I(__import__('os').system('id'))``
-    would execute arbitrary code. We forbid that by allowing only:
+    would execute arbitrary code.
+
+    By default only a plain Wilkinson formula is allowed:
 
     * identifiers that name an actual data column,
     * the operators ``~ + - * : ^`` and grouping parentheses,
@@ -50,33 +124,138 @@ def validate_formula_is_safe(formula: str, allowed_names: Iterable[str]) -> None
     Any quote, dot, comma, dunder, or unknown identifier (``np``, ``I``,
     ``__import__``, ...) is rejected.
 
+    The optional flags relax this for trusted-but-still-validated callers. They
+    switch on an AST-based check that admits a curated set of transforms while
+    still rejecting attribute access, string literals, dunders, and any call
+    other than the allowlisted ones:
+
+    * ``allow_transforms`` - permit ``I(...)`` / ``Q(...)`` wrapping arithmetic
+      over data columns (e.g. the ``quadratic`` shorthand's ``I(A ** 2)``).
+    * ``allow_numpy`` - additionally permit a curated allowlist of element-wise
+      numpy calls such as ``np.log(A)`` or ``np.power(A, 2)``.
+
     Parameters
     ----------
     formula:
         The model formula in Wilkinson notation, e.g. ``"y ~ A*B"``.
     allowed_names:
         The legal identifier names, i.e. the columns present in the data.
+    allow_transforms:
+        If true, permit ``I(...)`` / ``Q(...)`` transforms of column arithmetic.
+    allow_numpy:
+        If true, permit a curated allowlist of element-wise ``np.<func>`` calls.
 
     Raises
     ------
     UnsafeFormulaError
-        If *formula* is not a string, contains forbidden characters or a
-        ``__`` dunder, or references an identifier that is not a data column.
+        If *formula* is not a string, contains a ``__`` dunder, or references a
+        token / construct outside the permitted subset.
     """
     if not isinstance(formula, str):
         raise UnsafeFormulaError(f"formula must be a string, got {type(formula).__name__}.")
     if "__" in formula:
         raise UnsafeFormulaError("formula may not contain '__' (dunder access is forbidden).")
-    if not _FORMULA_ALLOWED_CHARS.match(formula):
-        forbidden = sorted({c for c in formula if not _FORMULA_ALLOWED_CHARS.match(c)})
-        raise UnsafeFormulaError(f"formula contains forbidden characters: {forbidden}.")
+
     allowed = {str(name) for name in allowed_names}
-    unknown = sorted({tok for tok in _FORMULA_IDENTIFIER.findall(formula) if tok not in allowed})
-    if unknown:
-        raise UnsafeFormulaError(
-            f"formula references unknown name(s) {unknown}; only data columns are allowed: "
-            f"{sorted(allowed)}."
-        )
+
+    if not allow_transforms and not allow_numpy:
+        # Strict plain-Wilkinson path (unchanged behaviour).
+        if not _FORMULA_ALLOWED_CHARS.match(formula):
+            forbidden = sorted({c for c in formula if not _FORMULA_ALLOWED_CHARS.match(c)})
+            raise UnsafeFormulaError(f"formula contains forbidden characters: {forbidden}.")
+        unknown = sorted({tok for tok in _FORMULA_IDENTIFIER.findall(formula) if tok not in allowed})
+        if unknown:
+            raise UnsafeFormulaError(
+                f"formula references unknown name(s) {unknown}; only data columns are allowed: "
+                f"{sorted(allowed)}."
+            )
+        return
+
+    _validate_formula_ast(formula, allowed, allow_numpy=allow_numpy)
+
+
+def _validate_formula_ast(formula: str, allowed: set[str], *, allow_numpy: bool) -> None:
+    """AST-based validation of a formula that may contain ``I()``/``np`` transforms.
+
+    Each side of the ``~`` is parsed as a Python expression and walked against a
+    strict node allowlist. The interaction operator ``:`` is rewritten to ``*``
+    so the side parses (the two are structurally equivalent for our purposes).
+    """
+    sides = formula.split("~")
+    if len(sides) > 2:
+        raise UnsafeFormulaError("formula may contain at most one '~'.")
+
+    for side in sides:
+        # ``:`` (interaction) and ``^`` are patsy structural operators; map ``:``
+        # to ``*`` so the side is parseable Python. ``^`` already parses (BitXor).
+        expr = side.replace(":", "*").strip()
+        if not expr:
+            continue
+        try:
+            tree = ast.parse(expr, mode="eval")
+        except SyntaxError as exc:
+            raise UnsafeFormulaError(f"formula side {side.strip()!r} is not a valid expression.") from exc
+        _check_formula_node(tree.body, allowed, allow_numpy=allow_numpy)
+
+
+def _check_formula_node(node: ast.AST, allowed: set[str], *, allow_numpy: bool) -> None:
+    """Recursively validate a single AST node from a formula expression."""
+    if isinstance(node, ast.BinOp):
+        if not isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.BitXor)):
+            raise UnsafeFormulaError(f"operator {type(node.op).__name__} is not allowed in a formula.")
+        _check_formula_node(node.left, allowed, allow_numpy=allow_numpy)
+        _check_formula_node(node.right, allowed, allow_numpy=allow_numpy)
+        return
+
+    if isinstance(node, ast.UnaryOp):
+        if not isinstance(node.op, (ast.UAdd, ast.USub)):
+            raise UnsafeFormulaError(f"unary operator {type(node.op).__name__} is not allowed in a formula.")
+        _check_formula_node(node.operand, allowed, allow_numpy=allow_numpy)
+        return
+
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, bool) or not isinstance(node.value, (int, float)):
+            raise UnsafeFormulaError(f"literal {node.value!r} is not allowed in a formula.")
+        return
+
+    if isinstance(node, ast.Name):
+        if node.id not in allowed:
+            raise UnsafeFormulaError(
+                f"formula references unknown name(s) [{node.id!r}]; only data columns are allowed: "
+                f"{sorted(allowed)}."
+            )
+        return
+
+    if isinstance(node, ast.Call):
+        _check_formula_call(node, allowed, allow_numpy=allow_numpy)
+        return
+
+    raise UnsafeFormulaError(f"construct {type(node).__name__} is not allowed in a formula.")
+
+
+def _check_formula_call(node: ast.Call, allowed: set[str], *, allow_numpy: bool) -> None:
+    """Validate a call node: only ``I()``/``Q()`` or an allowlisted ``np.<func>``."""
+    if node.keywords:
+        raise UnsafeFormulaError("keyword arguments are not allowed in a formula call.")
+
+    func = node.func
+    if isinstance(func, ast.Name) and func.id in _TRANSFORM_FUNCS:
+        pass
+    elif allow_numpy and isinstance(func, ast.Attribute):
+        base = func.value
+        if not (isinstance(base, ast.Name) and base.id == "np"):
+            raise UnsafeFormulaError("only 'np.<func>' attribute calls are allowed in a formula.")
+        if func.attr not in _NUMPY_ALLOWED_FUNCS:
+            raise UnsafeFormulaError(
+                f"numpy function 'np.{func.attr}' is not in the allowed set {sorted(_NUMPY_ALLOWED_FUNCS)}."
+            )
+    else:
+        raise UnsafeFormulaError("only I()/Q() (and, when enabled, np.<func>()) calls are allowed in a formula.")
+
+    for arg in node.args:
+        if isinstance(arg, ast.Starred):
+            raise UnsafeFormulaError("starred arguments are not allowed in a formula call.")
+        _check_formula_node(arg, allowed, allow_numpy=allow_numpy)
 
 
 def forg(x: float, prec: int = 3) -> str:
@@ -339,6 +518,12 @@ def lm(  # noqa: C901, PLR0915
             aliasing[key] = [i[1] for i in alias_len]
 
         return aliasing, list(set(drop_columns))
+
+    # Patsy evaluates each formula term as a Python expression, so an untrusted
+    # ``model_spec`` is a code-execution vector. Allow only a safe Wilkinson
+    # formula over the data columns, optionally with I()/Q() and a curated set of
+    # element-wise numpy transforms (the public textbook API relies on these).
+    validate_formula_is_safe(model_spec, data.columns, allow_transforms=True, allow_numpy=True)
 
     pre_model = smf.ols(model_spec, data=data)
     model_description = ModelDesc.from_formula(model_spec)

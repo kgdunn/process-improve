@@ -23,6 +23,8 @@ import statsmodels.formula.api as smf
 from scipy import stats
 from statsmodels.regression.linear_model import RegressionResultsWrapper
 
+from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -689,11 +691,18 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
     else:
         response_col = response_column
 
+    # User-supplied names (response_column / design_matrix dict keys) are
+    # interpolated into the patsy formula, so reject anything that is not a
+    # plain identifier before it can become an injection vector (SEC-14).
+    validate_identifier_is_safe(response_col)
+
     if response_col not in df.columns:
         raise ValueError(f"Response column '{response_col}' not found in data.")
 
     # Factor columns = everything except the response
     factor_cols = [c for c in df.columns if c != response_col]
+    for col in factor_cols:
+        validate_identifier_is_safe(col)
 
     # --- Apply transform -----------------------------------------------
     if transform == "log":
@@ -711,6 +720,10 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
 
     # --- Build formula and fit -----------------------------------------
     formula = build_formula(response_col, factor_cols, model)
+    # Patsy evaluates formula terms as Python, so a custom ``model`` string is a
+    # code-execution vector. Permit only a safe Wilkinson formula, optionally
+    # with I()/Q() over data columns (the ``quadratic`` shorthand needs it).
+    validate_formula_is_safe(formula, df.columns, allow_transforms=True)
     ols_result = smf.ols(formula, data=df).fit()
 
     # --- Normalize analysis_type to list -------------------------------
