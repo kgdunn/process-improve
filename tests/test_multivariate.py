@@ -2466,6 +2466,33 @@ def test_tpls_cross_validation(fixture_tpls_example: dict) -> None:
     # TODO: tests on the output
 
 
+def test_tpls_score_single_block_y(fixture_tpls_example: dict) -> None:
+    """`TPLS.score` on a single-block `Y` returns a finite float."""
+    n_components = 3
+    d_matrix = fixture_tpls_example.pop("D")
+    tpls_test = TPLS(n_components=n_components, d_matrix=d_matrix)
+    tpls_test.fit(DataFrameDict(fixture_tpls_example))
+
+    # The fixture's Y block has a single block ("Quality"); scoring on the training data
+    # should return a finite float.
+    score = tpls_test.score(DataFrameDict(fixture_tpls_example))
+    assert isinstance(score, float)
+    assert np.isfinite(score)
+
+
+def test_tpls_score_empty_y_raises(fixture_tpls_example: dict) -> None:
+    """`TPLS.score` on an empty `Y` dict raises a clear `ValueError` (not `NameError`)."""
+    n_components = 3
+    d_matrix = fixture_tpls_example.pop("D")
+    tpls_test = TPLS(n_components=n_components, d_matrix=d_matrix)
+    tpls_test.fit(DataFrameDict(fixture_tpls_example))
+
+    # Build a test bundle whose "Y" block is an empty dict; the loop body never runs.
+    malformed = DataFrameDict({**fixture_tpls_example, "Y": {}})
+    with pytest.raises(ValueError, match="y_actual is empty"):
+        tpls_test.score(malformed)
+
+
 def manual_cross_validation(tpls_model: TPLS, full_datadict: dict, cv: int = 5, scoring: str = "r2") -> np.ndarray:
     """Perform manual cross-validation for a TPLS model."""
     kfold = KFold(n_splits=cv, shuffle=True)
