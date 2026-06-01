@@ -11,6 +11,24 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.16] - 2026-06-01
+
+### Added
+
+- Thin scaffolding for the ENG-15 testing rigour push: new
+  `tests/properties/` (hypothesis property tests),
+  `tests/perf/` (pytest-benchmark baselines), and `tests/fuzz/`
+  (MCP boundary fuzz). Each directory ships one example test
+  against `process_improve._random.check_random_state` /
+  `robust_scale_sn` so the pattern is documented in code for
+  contributors who add coverage later.
+- New `test-under-dash-O` CI job runs the full suite with
+  `python -O`. Initially `continue-on-error: true` because
+  SEC-17 (#266) has not yet swept the remaining
+  assert-as-validation sites; the job flips to blocking once
+  SEC-17 lands.
+- `pytest-benchmark>=4.0.0` added to dev deps.
+
 ## [1.22.15] - 2026-06-01
 
 ### Added
@@ -315,7 +333,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.15...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.16...HEAD
+[1.22.16]: https://github.com/kgdunn/process-improve/compare/v1.22.15...v1.22.16
 [1.22.15]: https://github.com/kgdunn/process-improve/compare/v1.22.14...v1.22.15
 [1.22.14]: https://github.com/kgdunn/process-improve/compare/v1.22.13...v1.22.14
 [1.22.13]: https://github.com/kgdunn/process-improve/compare/v1.22.12...v1.22.13
