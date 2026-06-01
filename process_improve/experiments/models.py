@@ -182,7 +182,7 @@ def _validate_formula_ast(formula: str, allowed: set[str], *, allow_numpy: bool)
     so the side parses (the two are structurally equivalent for our purposes).
     """
     sides = formula.split("~")
-    if len(sides) > 2:  # noqa: PLR2004
+    if len(sides) > 2:
         raise UnsafeFormulaError("formula may contain at most one '~'.")
 
     for side in sides:
