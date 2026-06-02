@@ -20,7 +20,6 @@ from process_improve.experiments.optimization import (
     evaluate_model,
     optimize_responses,
 )
-from process_improve.experiments.tools import optimize_responses_tool
 from process_improve.tool_spec import get_tool_specs
 
 # ---------------------------------------------------------------------------
@@ -666,25 +665,35 @@ class TestToolWrapper:
 
     def test_tool_returns_dict(self) -> None:
         """Tool wrapper returns a JSON-serialisable dict."""
-        result = optimize_responses_tool(
-            fitted_models=[{
-                "response_name": "yield",
-                "coefficients": _quadratic_2f_coeffs(),
-                "factor_names": FACTOR_NAMES_2F,
-            }],
-            method="stationary_point",
+        from process_improve.tool_spec import execute_tool_call
+
+        result = execute_tool_call(
+            "optimize_responses",
+            {
+                "fitted_models": [{
+                    "response_name": "yield",
+                    "coefficients": _quadratic_2f_coeffs(),
+                    "factor_names": FACTOR_NAMES_2F,
+                }],
+                "method": "stationary_point",
+            },
         )
         assert isinstance(result, dict)
         assert "method" in result
 
     def test_tool_error_handling(self) -> None:
         """Missing required args returns error dict instead of raising."""
-        result = optimize_responses_tool(
-            fitted_models=[{
-                "coefficients": _linear_2f_coeffs(),
-                "factor_names": FACTOR_NAMES_2F,
-            }],
-            method="desirability",
+        from process_improve.tool_spec import execute_tool_call
+
+        result = execute_tool_call(
+            "optimize_responses",
+            {
+                "fitted_models": [{
+                    "coefficients": _linear_2f_coeffs(),
+                    "factor_names": FACTOR_NAMES_2F,
+                }],
+                "method": "desirability",
+            },
         )
         assert "error" in result
 

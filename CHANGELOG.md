@@ -11,6 +11,47 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.2] - 2026-06-02
+
+### Changed
+
+- Migrated the **experiments** (10 tools) and **multivariate**
+  (6 tools) packages to the pydantic `@tool_spec` contract (ENG-04 /
+  ENG-10; PR3/N of the per-package roll-out). Tools covered:
+  `create_factorial_design`, `fit_linear_model`, `generate_design`,
+  `evaluate_design`, `analyze_experiment`, `optimize_responses`,
+  `augment_design`, `visualize_doe`, `doe_knowledge`,
+  `recommend_strategy`, `fit_pca`, `fit_pls`, `scale_data`,
+  `detect_multivariate_outliers`, `pca_predict`, `pls_predict`.
+  Each tool now declares a `BaseModel` with
+  `ConfigDict(extra="forbid")` and takes the parsed model as its
+  single positional argument. Several previously string-typed
+  inputs are now `Literal[...]` enums, so malformed values are
+  rejected at the dispatch boundary as `ToolInputInvalidError`
+  rather than reaching the underlying call.
+
+### Security
+
+- The pydantic `Literal` constraints on `evaluate_design.model`,
+  `augment_design.target_model`, `augment_design.augmentation_type`,
+  `optimize_responses.method`, and `visualize_doe.plot_type` give
+  SEC-14 (#263) an additional defence-in-depth layer: a malicious
+  formula string injected in those fields is now rejected by the
+  pydantic boundary before patsy / the underlying executor sees it.
+  The behaviour already validated by `validate_formula_is_safe` is
+  unchanged for the few fields that legitimately accept free-form
+  formula strings (e.g. `analyze_experiment.model`).
+
+### Tests
+
+- Call-site tests across `test_design_generation.py`,
+  `test_evaluate_design.py`, `test_augment_design.py`,
+  `test_optimization.py`, `test_sec19_dos_caps.py`,
+  `test_experiments_tools.py`, `test_experiments_security_sec14.py`,
+  `test_recommend_strategy.py`, and `test_tool_spec.py` now drive
+  the tools through `execute_tool_call(name, payload)` and assert
+  `ToolInputInvalidError` for inputs the pydantic contract rejects.
+
 ## [1.24.1] - 2026-06-02
 
 ### Changed
@@ -713,7 +754,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.2...HEAD
+[1.24.2]: https://github.com/kgdunn/process-improve/compare/v1.24.1...v1.24.2
 [1.24.1]: https://github.com/kgdunn/process-improve/compare/v1.24.0...v1.24.1
 [1.24.0]: https://github.com/kgdunn/process-improve/compare/v1.23.2...v1.24.0
 [1.23.2]: https://github.com/kgdunn/process-improve/compare/v1.23.1...v1.23.2

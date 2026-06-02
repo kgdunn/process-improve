@@ -688,33 +688,39 @@ class TestToolSpec:
 
     def test_basic_round_trip(self) -> None:
         """Tool wrapper returns JSON-serializable output."""
-        from process_improve.experiments.tools import evaluate_design_tool
+        from process_improve.tool_spec import execute_tool_call
 
-        result = evaluate_design_tool(
-            design_matrix=[
-                {"A": -1, "B": -1},
-                {"A": 1, "B": -1},
-                {"A": -1, "B": 1},
-                {"A": 1, "B": 1},
-            ],
-            model="main_effects",
-            metric="d_efficiency",
+        result = execute_tool_call(
+            "evaluate_design",
+            {
+                "design_matrix": [
+                    {"A": -1, "B": -1},
+                    {"A": 1, "B": -1},
+                    {"A": -1, "B": 1},
+                    {"A": 1, "B": 1},
+                ],
+                "model": "main_effects",
+                "metric": "d_efficiency",
+            },
         )
         assert "error" not in result
         assert "d_efficiency" in result
 
     def test_multiple_metrics(self) -> None:
         """Tool wrapper supports list of metrics."""
-        from process_improve.experiments.tools import evaluate_design_tool
+        from process_improve.tool_spec import execute_tool_call
 
-        result = evaluate_design_tool(
-            design_matrix=[
-                {"A": -1, "B": -1},
-                {"A": 1, "B": -1},
-                {"A": -1, "B": 1},
-                {"A": 1, "B": 1},
-            ],
-            metric=["d_efficiency", "condition_number"],
+        result = execute_tool_call(
+            "evaluate_design",
+            {
+                "design_matrix": [
+                    {"A": -1, "B": -1},
+                    {"A": 1, "B": -1},
+                    {"A": -1, "B": 1},
+                    {"A": 1, "B": 1},
+                ],
+                "metric": ["d_efficiency", "condition_number"],
+            },
         )
         assert "error" not in result
         assert "d_efficiency" in result
@@ -722,11 +728,11 @@ class TestToolSpec:
 
     def test_error_handling(self) -> None:
         """Bad metric name returns error dict."""
-        from process_improve.experiments.tools import evaluate_design_tool
+        from process_improve.tool_spec import execute_tool_call
 
-        result = evaluate_design_tool(
-            design_matrix=[{"A": -1}, {"A": 1}],
-            metric="nonexistent",
+        result = execute_tool_call(
+            "evaluate_design",
+            {"design_matrix": [{"A": -1}, {"A": 1}], "metric": "nonexistent"},
         )
         assert "error" in result
 

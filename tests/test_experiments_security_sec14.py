@@ -156,35 +156,52 @@ class TestToolBoundaryNoSideEffect:
         assert not sentinel.exists(), "formula was evaluated - RCE guard failed"
 
     def test_evaluate_design_tool_blocks_rce(self, tmp_path) -> None:
+        """ENG-04 pydantic Literal blocks the attack before patsy ever sees it.
+
+        Either path (ToolInputInvalidError or an in-band error dict) satisfies
+        the security invariant: the malicious string must never execute.
+        """
+        from process_improve.tool_safety import ToolInputInvalidError
+
         sentinel = tmp_path / "pwned_evaluate"
         malicious = f"~ A + I(__import__('os').system('touch {sentinel}'))"
-        result = execute_tool_call(
-            "evaluate_design",
-            {
-                "design_matrix": [{"A": -1, "B": -1}, {"A": 1, "B": 1}],
-                "model": malicious,
-                "metric": "d_efficiency",
-            },
-        )
-        assert "error" in result
+        try:
+            result = execute_tool_call(
+                "evaluate_design",
+                {
+                    "design_matrix": [{"A": -1, "B": -1}, {"A": 1, "B": 1}],
+                    "model": malicious,
+                    "metric": "d_efficiency",
+                },
+            )
+            assert "error" in result
+        except ToolInputInvalidError:
+            pass
         assert not sentinel.exists(), "formula was evaluated - RCE guard failed"
 
     def test_augment_design_tool_blocks_rce(self, tmp_path) -> None:
+        """See ``test_evaluate_design_tool_blocks_rce``."""
+        from process_improve.tool_safety import ToolInputInvalidError
+
         sentinel = tmp_path / "pwned_augment"
         malicious = f"I(__import__('os').system('touch {sentinel}'))"
-        result = execute_tool_call(
-            "augment_design",
-            {
-                "existing_design": [
-                    {"A": -1, "B": -1},
-                    {"A": 1, "B": -1},
-                    {"A": -1, "B": 1},
-                    {"A": 1, "B": 1},
-                ],
-                "augmentation_type": "add_runs_optimal",
-                "target_model": malicious,
-                "n_additional_runs": 2,
-            },
-        )
-        assert "error" in result
+        try:
+            result = execute_tool_call(
+                "augment_design",
+                {
+                    "existing_design": [
+                        {"A": -1, "B": -1},
+                        {"A": 1, "B": -1},
+                        {"A": -1, "B": 1},
+                        {"A": 1, "B": 1},
+                    ],
+                    "augmentation_type": "add_runs_optimal",
+                    "target_model": malicious,
+                    "n_additional_runs": 2,
+                },
+            )
+            assert "error" in result
+        except ToolInputInvalidError:
+            pass
+        assert not sentinel.exists(), "formula was evaluated - RCE guard failed"
         assert not sentinel.exists(), "formula was evaluated - RCE guard failed"

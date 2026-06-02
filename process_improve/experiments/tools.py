@@ -1,32 +1,22 @@
-"""(c) Kevin Dunn, 2010-2025. MIT License.
+"""(c) Kevin Dunn, 2010-2026. MIT License.
 
 Agent-callable tool wrappers for designed experiments.
 
-Each function in this module is decorated with ``@tool_spec`` so it can be
-passed directly to an LLM tool-use API (e.g. Anthropic ``tools=``).
-The wrappers accept plain JSON-serialisable inputs (lists of dicts, strings,
-integers) and always return JSON-serialisable ``dict`` results.
-
-Import all specs at once::
-
-    from process_improve.experiments.tools import get_experiments_tool_specs
-    # or get everything registered so far
-    from process_improve.tool_spec import get_tool_specs
-
-Dispatch a tool call returned by the model::
-
-    from process_improve.tool_spec import execute_tool_call
-    result = execute_tool_call(block.name, block.input)
+Pydantic input contract (ENG-04 / ENG-10): each tool pairs its
+``@tool_spec`` decorator with a ``BaseModel`` carrying
+``ConfigDict(extra="forbid")``; the function receives the parsed
+model as its single positional argument.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
 from patsy import PatsyError
+from pydantic import BaseModel, ConfigDict, Field
 
 from process_improve.tool_spec import clean, get_tool_specs, tool_spec
 
@@ -35,20 +25,14 @@ logger = logging.getLogger(__name__)
 # Per the ENG-11 error-handling style guide, every tool wrapper narrows
 # its ``except`` to this canonical set so that anything *outside* this
 # set propagates up to ``mcp_server._serialise_tool_error`` and gets
-# redacted before reaching the caller (SEC-18 / #267). The set covers
-# what the underlying experiments / statsmodels / patsy / numpy stack
-# raises on bad-but-not-malicious input.
+# redacted before reaching the caller (SEC-18 / #267).
 _TOOL_EXPECTED_EXCEPTIONS: tuple[type[BaseException], ...] = (
-    ValueError,         # incl. UnsafeFormulaError (subclass) and most input checks
+    ValueError,
     TypeError,
     KeyError,
     np.linalg.LinAlgError,
-    PatsyError,         # patsy raises this directly (not a ValueError subclass)
+    PatsyError,
 )
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 _EXPERIMENTS_TOOL_NAMES: list[str] = []
 
@@ -58,8 +42,28 @@ def _register(name: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Tools
+# create_factorial_design
 # ---------------------------------------------------------------------------
+
+
+class CreateFactorialDesignInput(BaseModel):
+    """Input contract for ``create_factorial_design``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    n_factors: int = Field(
+        ...,
+        ge=2,
+        le=10,
+        description="Number of factors in the design (2 to 10).",
+    )
+    factor_names: list[str] | None = Field(
+        None,
+        description=(
+            "Optional list of factor names. Must have exactly n_factors entries. "
+            "If not provided, factors are named A, B, C, ..."
+        ),
+    )
 
 
 @tool_spec(
@@ -71,28 +75,7 @@ def _register(name: str) -> None:
         "Use this when planning a designed experiment to systematically explore the effect of "
         "2 to 10 factors, each at two levels."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "n_factors": {
-                    "type": "integer",
-                    "description": "Number of factors in the design (2 to 10).",
-                    "minimum": 2,
-                    "maximum": 10,
-                },
-                "factor_names": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": (
-                        "Optional list of factor names. Must have exactly n_factors entries. "
-                        "If not provided, factors are named A, B, C, ..."
-                    ),
-                },
-            },
-            "required": ["n_factors"],
-        }
-    },
+    input_model=CreateFactorialDesignInput,
     examples="""
     # "Create a 2-factor full factorial design"
         -> ``create_factorial_design(n_factors=2)``
@@ -102,33 +85,56 @@ def _register(name: str) -> None:
     """,
     category="experiments",
 )
-def create_factorial_design(
-    *,
-    n_factors: int,
-    factor_names: list[str] | None = None,
-) -> dict[str, Any]:
-    """Create a full factorial design; see tool spec for details."""
+def create_factorial_design(spec: CreateFactorialDesignInput) -> dict[str, Any]:
+    """Create a full factorial design."""
     try:
         from process_improve.experiments.designs_factorial import full_factorial  # noqa: PLC0415
 
-        columns = full_factorial(n_factors, names=factor_names)
-        # full_factorial returns a list of Series; combine into a DataFrame
+        columns = full_factorial(spec.n_factors, names=spec.factor_names)
         design = pd.concat(columns, axis=1)
         names = list(design.columns)
-        return clean(
-            {
-                "design": design.to_dict(orient="records"),
-                "n_runs": len(design),
-                "n_factors": n_factors,
-                "factor_names": names,
-            }
-        )
+        return clean({
+            "design": design.to_dict(orient="records"),
+            "n_runs": len(design),
+            "n_factors": spec.n_factors,
+            "factor_names": names,
+        })
     except _TOOL_EXPECTED_EXCEPTIONS as e:
         logger.exception("Tool create_factorial_design failed")
         return {"error": str(e)}
 
 
 _register("create_factorial_design")
+
+
+# ---------------------------------------------------------------------------
+# fit_linear_model
+# ---------------------------------------------------------------------------
+
+
+class FitLinearModelInput(BaseModel):
+    """Input contract for ``fit_linear_model``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    formula: str = Field(
+        ...,
+        description=(
+            "Model formula in Wilkinson notation, e.g. 'y ~ A*B*C'. "
+            "The left-hand side is the response variable name, the right-hand "
+            "side specifies the terms. '*' expands to main effects and all "
+            "interactions; ':' denotes a specific interaction; '+' adds terms."
+        ),
+    )
+    data: list[dict[str, Any]] = Field(
+        ...,
+        min_length=2,
+        description=(
+            "List of dictionaries, one per experimental run. Each dict must "
+            "contain keys for every factor and the response variable referenced "
+            "in the formula. Example: [{'A': -1, 'B': -1, 'y': 45.2}, ...]"
+        ),
+    )
 
 
 @tool_spec(
@@ -144,36 +150,7 @@ _register("create_factorial_design")
         "left-hand side of the formula. "
         "Returns the fitted coefficients (name, estimate), R-squared, and a text summary."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "formula": {
-                    "type": "string",
-                    "description": (
-                        "Model formula in Wilkinson notation, e.g. 'y ~ A*B*C'. "
-                        "The left-hand side is the response variable name, the right-hand "
-                        "side specifies the terms. '*' expands to main effects and all "
-                        "interactions; ':' denotes a specific interaction; '+' adds terms."
-                    ),
-                },
-                "data": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "additionalProperties": {"type": "number"},
-                    },
-                    "description": (
-                        "List of dictionaries, one per experimental run. Each dict must "
-                        "contain keys for every factor and the response variable referenced "
-                        "in the formula. Example: [{'A': -1, 'B': -1, 'y': 45.2}, ...]"
-                    ),
-                    "minItems": 2,
-                },
-            },
-            "required": ["formula", "data"],
-        }
-    },
+    input_model=FitLinearModelInput,
     examples="""
     # "Fit a model y ~ A*B to my 2^2 factorial data"
         -> ``fit_linear_model(formula="y ~ A*B",
@@ -185,50 +162,42 @@ _register("create_factorial_design")
     """,
     category="experiments",
 )
-def fit_linear_model(
-    *,
-    formula: str,
-    data: list[dict[str, Any]],
-) -> dict[str, Any]:
-    """Fit a linear model to experimental data; see tool spec for details."""
+def fit_linear_model(spec: FitLinearModelInput) -> dict[str, Any]:
+    """Fit a linear model to experimental data."""
     try:
         from process_improve.config import settings  # noqa: PLC0415
         from process_improve.experiments.models import lm, validate_formula_is_safe  # noqa: PLC0415
         from process_improve.experiments.structures import Expt  # noqa: PLC0415
 
-        # SEC-19 (#268): cap data row count and formula length. The
-        # formula expansion cap (after patsy parses the RHS) lands
-        # inside ``lm()`` below.
-        if len(data) > settings.max_matrix_rows:
+        if len(spec.data) > settings.max_matrix_rows:
             return {
                 "error": (
-                    f"data has {len(data)} rows; the cap is "
+                    f"data has {len(spec.data)} rows; the cap is "
                     f"settings.max_matrix_rows={settings.max_matrix_rows}."
                 )
             }
-        if len(formula) > settings.max_formula_chars:
+        if len(spec.formula) > settings.max_formula_chars:
             return {
                 "error": (
-                    f"formula is {len(formula)} chars; the cap is "
+                    f"formula is {len(spec.formula)} chars; the cap is "
                     f"settings.max_formula_chars={settings.max_formula_chars}."
                 )
             }
 
-        df = pd.DataFrame(data)
+        df = pd.DataFrame(spec.data)
 
         # Patsy evaluates formula terms as Python expressions, so a formula from an
         # untrusted caller is a code-execution vector. Only allow a plain Wilkinson
         # formula over the columns actually present in the data.
-        validate_formula_is_safe(formula, df.columns)
+        validate_formula_is_safe(spec.formula, df.columns)
 
         expt_data = Expt(df)
         expt_data.pi_title = None
         expt_data.pi_source = None
         expt_data.pi_units = None
 
-        model = lm(formula, expt_data)
+        model = lm(spec.formula, expt_data)
 
-        # Get coefficients
         params = model.get_parameters(drop_intercept=True)
         if isinstance(params, pd.Series):
             coefficients = [
@@ -238,26 +207,84 @@ def fit_linear_model(
         else:
             coefficients = params.to_dict(orient="records")
 
-        # Get R-squared from the underlying OLS model
         r2 = float(model._OLS.rsquared)
 
-        # Get summary text
         smry = model.summary(print_to_screen=False)
         summary_text = str(smry)
 
-        return clean(
-            {
-                "coefficients": coefficients,
-                "r2": r2,
-                "summary_text": summary_text,
-            }
-        )
+        return clean({
+            "coefficients": coefficients,
+            "r2": r2,
+            "summary_text": summary_text,
+        })
     except _TOOL_EXPECTED_EXCEPTIONS as e:
         logger.exception("Tool fit_linear_model failed")
         return {"error": str(e)}
 
 
 _register("fit_linear_model")
+
+
+# ---------------------------------------------------------------------------
+# generate_design
+# ---------------------------------------------------------------------------
+
+
+class GenerateDesignInput(BaseModel):
+    """Input contract for ``generate_design``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    factors: list[dict[str, Any]] = Field(
+        ...,
+        min_length=1,
+        description="List of factor specifications (name, type, low/high or levels, units).",
+    )
+    design_type: Literal[
+        "full_factorial",
+        "fractional_factorial",
+        "plackett_burman",
+        "box_behnken",
+        "ccd",
+        "dsd",
+        "d_optimal",
+        "i_optimal",
+        "a_optimal",
+        "mixture",
+        "taguchi",
+    ] | None = Field(
+        None,
+        description="Design type. If omitted, auto-selected based on factors and budget.",
+    )
+    budget: int | None = Field(
+        None,
+        ge=1,
+        description="Maximum number of experimental runs.",
+    )
+    center_points: int = Field(
+        3,
+        ge=0,
+        description="Number of center point replicates (default: 3).",
+    )
+    replicates: int = Field(
+        1,
+        ge=1,
+        description="Number of full replicates (default: 1).",
+    )
+    resolution: int | None = Field(
+        None,
+        ge=3,
+        le=5,
+        description="Minimum resolution for fractional factorials (3, 4, or 5).",
+    )
+    alpha: Literal["rotatable", "face_centered", "orthogonal"] | None = Field(
+        None,
+        description="Axial distance for CCD designs.",
+    )
+    random_seed: int = Field(
+        42,
+        description="Seed for reproducible randomization (default: 42).",
+    )
 
 
 @tool_spec(
@@ -272,87 +299,7 @@ _register("fit_linear_model")
         "If design_type is not specified, one is auto-selected based on the number of factors and budget. "
         "Returns the design matrix in both coded (-1/+1) and actual units, run order, and metadata."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "factors": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string", "description": "Factor name (e.g. 'Temperature')."},
-                            "type": {
-                                "type": "string",
-                                "enum": ["continuous", "categorical", "mixture"],
-                                "description": "Factor type. Default: 'continuous'.",
-                            },
-                            "low": {"type": "number", "description": "Low level (required for continuous)."},
-                            "high": {"type": "number", "description": "High level (required for continuous)."},
-                            "levels": {
-                                "type": "array",
-                                "description": "Explicit levels (required for categorical).",
-                            },
-                            "units": {"type": "string", "description": "Engineering units (optional)."},
-                        },
-                        "required": ["name"],
-                    },
-                    "description": "List of factor specifications.",
-                    "minItems": 1,
-                },
-                "design_type": {
-                    "type": "string",
-                    "enum": [
-                        "full_factorial",
-                        "fractional_factorial",
-                        "plackett_burman",
-                        "box_behnken",
-                        "ccd",
-                        "dsd",
-                        "d_optimal",
-                        "i_optimal",
-                        "a_optimal",
-                        "mixture",
-                        "taguchi",
-                    ],
-                    "description": (
-                        "Design type. If omitted, auto-selected based on factors and budget."
-                    ),
-                },
-                "budget": {
-                    "type": "integer",
-                    "description": "Maximum number of experimental runs.",
-                    "minimum": 1,
-                },
-                "center_points": {
-                    "type": "integer",
-                    "description": "Number of center point replicates (default: 3).",
-                    "minimum": 0,
-                },
-                "replicates": {
-                    "type": "integer",
-                    "description": "Number of full replicates (default: 1).",
-                    "minimum": 1,
-                },
-                "resolution": {
-                    "type": "integer",
-                    "description": "Minimum resolution for fractional factorials (3, 4, or 5).",
-                    "minimum": 3,
-                    "maximum": 5,
-                },
-                "alpha": {
-                    "type": "string",
-                    "enum": ["rotatable", "face_centered", "orthogonal"],
-                    "description": "Axial distance for CCD designs.",
-                },
-                "random_seed": {
-                    "type": "integer",
-                    "description": "Seed for reproducible randomization (default: 42).",
-                },
-            },
-            "required": ["factors"],
-        }
-    },
+    input_model=GenerateDesignInput,
     examples="""
     # "Create a 2-factor CCD for Temperature (150-200 degC) and Pressure (1-5 bar)"
         -> ``generate_design(factors=[{"name": "Temperature", "low": 150, "high": 200, "units": "degC"},
@@ -369,37 +316,25 @@ _register("fit_linear_model")
     """,
     category="experiments",
 )
-def generate_design_tool(  # noqa: PLR0913
-    *,
-    factors: list[dict[str, Any]],
-    design_type: str | None = None,
-    budget: int | None = None,
-    center_points: int = 3,
-    replicates: int = 1,
-    resolution: int | None = None,
-    alpha: str | None = None,
-    random_seed: int = 42,
-) -> dict[str, Any]:
-    """Generate an experimental design; see tool spec for details."""
+def generate_design_tool(spec: GenerateDesignInput) -> dict[str, Any]:
+    """Generate an experimental design."""
     try:
         from process_improve.experiments.designs import generate_design  # noqa: PLC0415
         from process_improve.experiments.factor import Factor  # noqa: PLC0415
 
-        # Convert raw dicts to Factor objects
-        factor_objects = [Factor(**f) for f in factors]
+        factor_objects = [Factor(**f) for f in spec.factors]
 
         result = generate_design(
             factors=factor_objects,
-            design_type=design_type,
-            budget=budget,
-            center_points=center_points,
-            replicates=replicates,
-            resolution=resolution,
-            alpha=alpha,
-            random_seed=random_seed,
+            design_type=spec.design_type,
+            budget=spec.budget,
+            center_points=spec.center_points,
+            replicates=spec.replicates,
+            resolution=spec.resolution,
+            alpha=spec.alpha,
+            random_seed=spec.random_seed,
         )
 
-        # Build JSON-serializable output
         design_coded = result.design.drop(columns=["RunOrder"], errors="ignore")
         design_actual = result.design_actual.drop(columns=["RunOrder"], errors="ignore")
 
@@ -430,6 +365,56 @@ def generate_design_tool(  # noqa: PLR0913
 _register("generate_design")
 
 
+# ---------------------------------------------------------------------------
+# evaluate_design
+# ---------------------------------------------------------------------------
+
+
+class EvaluateDesignInput(BaseModel):
+    """Input contract for ``evaluate_design``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    design_matrix: list[dict[str, Any]] = Field(
+        ...,
+        min_length=2,
+        description=(
+            "List of dictionaries, one per experimental run. Each dict maps "
+            "factor name to coded value. Example: [{'A': -1, 'B': -1}, ...]"
+        ),
+    )
+    model: Literal["main_effects", "interactions", "quadratic"] | None = Field(
+        None,
+        description=(
+            "Model type to evaluate against. 'main_effects' = main effects only, "
+            "'interactions' = main effects + 2-factor interactions (default), "
+            "'quadratic' = interactions + squared terms."
+        ),
+    )
+    metric: str | list[str] = Field(
+        "d_efficiency",
+        description=(
+            "One or more metric names to compute. Default: 'd_efficiency'. "
+            "Options include d_efficiency, i_efficiency, g_efficiency, "
+            "prediction_variance, vif, condition_number, power, "
+            "degrees_of_freedom, alias_structure, confounding, resolution, "
+            "defining_relation, clear_effects, minimum_aberration."
+        ),
+    )
+    effect_size: float | None = Field(
+        None,
+        description="Expected effect size for power calculation.",
+    )
+    alpha: float = Field(
+        0.05,
+        description="Significance level (default 0.05).",
+    )
+    sigma: float | None = Field(
+        None,
+        description="Estimated noise standard deviation.",
+    )
+
+
 @tool_spec(
     name="evaluate_design",
     description=(
@@ -442,77 +427,7 @@ _register("generate_design")
         "Use this after generating a design to check if it meets quality criteria, or to "
         "compare alternative designs."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "design_matrix": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "additionalProperties": {"type": "number"},
-                    },
-                    "description": (
-                        "List of dictionaries, one per experimental run. Each dict maps "
-                        "factor name to coded value. Example: [{'A': -1, 'B': -1}, ...]"
-                    ),
-                    "minItems": 2,
-                },
-                "model": {
-                    "type": "string",
-                    "enum": ["main_effects", "interactions", "quadratic"],
-                    "description": (
-                        "Model type to evaluate against. 'main_effects' = main effects only, "
-                        "'interactions' = main effects + 2-factor interactions (default), "
-                        "'quadratic' = interactions + squared terms."
-                    ),
-                },
-                "metric": {
-                    "oneOf": [
-                        {
-                            "type": "string",
-                            "enum": [
-                                "d_efficiency",
-                                "i_efficiency",
-                                "g_efficiency",
-                                "prediction_variance",
-                                "vif",
-                                "condition_number",
-                                "power",
-                                "degrees_of_freedom",
-                                "alias_structure",
-                                "confounding",
-                                "resolution",
-                                "defining_relation",
-                                "clear_effects",
-                                "minimum_aberration",
-                            ],
-                        },
-                        {
-                            "type": "array",
-                            "items": {"type": "string"},
-                        },
-                    ],
-                    "description": (
-                        "One or more metric names to compute. Default: 'd_efficiency'."
-                    ),
-                },
-                "effect_size": {
-                    "type": "number",
-                    "description": "Expected effect size for power calculation.",
-                },
-                "alpha": {
-                    "type": "number",
-                    "description": "Significance level (default 0.05).",
-                },
-                "sigma": {
-                    "type": "number",
-                    "description": "Estimated noise standard deviation.",
-                },
-            },
-            "required": ["design_matrix", "metric"],
-        }
-    },
+    input_model=EvaluateDesignInput,
     examples="""
     # "What is the D-efficiency of my 2^3 factorial design?"
         -> ``evaluate_design(design_matrix=[{"A":-1,"B":-1,"C":-1}, ...],
@@ -528,27 +443,19 @@ _register("generate_design")
     """,
     category="experiments",
 )
-def evaluate_design_tool(  # noqa: PLR0913
-    *,
-    design_matrix: list[dict[str, Any]],
-    model: str | None = None,
-    metric: str | list[str] = "d_efficiency",
-    effect_size: float | None = None,
-    alpha: float = 0.05,
-    sigma: float | None = None,
-) -> dict[str, Any]:
-    """Evaluate design quality; see tool spec for details."""
+def evaluate_design_tool(spec: EvaluateDesignInput) -> dict[str, Any]:
+    """Evaluate design quality."""
     try:
         from process_improve.experiments.evaluate import evaluate_design  # noqa: PLC0415
 
-        df = pd.DataFrame(design_matrix)
+        df = pd.DataFrame(spec.design_matrix)
         result = evaluate_design(
             df,
-            model=model,
-            metric=metric,
-            effect_size=effect_size,
-            alpha=alpha,
-            sigma=sigma,
+            model=spec.model,
+            metric=spec.metric,
+            effect_size=spec.effect_size,
+            alpha=spec.alpha,
+            sigma=spec.sigma,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:
@@ -557,6 +464,65 @@ def evaluate_design_tool(  # noqa: PLR0913
 
 
 _register("evaluate_design")
+
+
+# ---------------------------------------------------------------------------
+# analyze_experiment
+# ---------------------------------------------------------------------------
+
+
+class AnalyzeExperimentInput(BaseModel):
+    """Input contract for ``analyze_experiment``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    design_matrix: list[dict[str, Any]] = Field(
+        ...,
+        min_length=2,
+        description=(
+            "List of dicts, one per run. Must contain factor columns and "
+            "optionally the response column. Example: "
+            "[{'A': -1, 'B': -1, 'y': 28}, {'A': 1, 'B': -1, 'y': 36}, ...]"
+        ),
+    )
+    response_column: str = Field(
+        ...,
+        description="Name of the response column in the design_matrix.",
+    )
+    model: str | None = Field(
+        None,
+        description=(
+            "Model type ('main_effects', 'interactions' default, or 'quadratic') "
+            "or an explicit Wilkinson formula string (e.g. 'y ~ A*B'). "
+            "Formulas are validated by validate_formula_is_safe at the dispatch site."
+        ),
+    )
+    analysis_type: str | list[str] = Field(
+        "anova",
+        description=(
+            "One or more analysis types to run. Default: 'anova'. "
+            "Options: anova, effects, coefficients, significance, "
+            "residual_diagnostics, lack_of_fit, curvature_test, "
+            "model_selection, box_cox, lenth_method, confidence_intervals, "
+            "prediction, confirmation_test."
+        ),
+    )
+    significance_level: float = Field(
+        0.05,
+        description="Significance level (default 0.05).",
+    )
+    transform: Literal["log", "sqrt", "inverse", "box_cox"] | None = Field(
+        None,
+        description="Optional response transform before fitting.",
+    )
+    new_points: list[dict[str, Any]] | None = Field(
+        None,
+        description="New factor settings for prediction or confirmation.",
+    )
+    observed_at_new: list[float] | None = Field(
+        None,
+        description="Observed values at new_points (for confirmation testing).",
+    )
 
 
 @tool_spec(
@@ -569,84 +535,11 @@ _register("evaluate_design")
         "stepwise model selection (AIC/BIC), Box-Cox transformation, "
         "Lenth's method (PSE for unreplicated factorials), confidence intervals, "
         "prediction with prediction intervals, and confirmation run testing. "
-        "Always returns a model summary with R², adj-R², pred-R², and adequate precision. "
+        "Always returns a model summary with R-squared, adj-R-squared, pred-R-squared, and adequate precision. "
         "The design_matrix should contain factor columns with coded values (-1/+1). "
         "The response can be in a separate column or included in design_matrix."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "design_matrix": {
-                    "type": "array",
-                    "items": {"type": "object", "additionalProperties": {"type": "number"}},
-                    "description": (
-                        "List of dicts, one per run. Must contain factor columns and "
-                        "optionally the response column. Example: "
-                        "[{'A': -1, 'B': -1, 'y': 28}, {'A': 1, 'B': -1, 'y': 36}, ...]"
-                    ),
-                    "minItems": 2,
-                },
-                "response_column": {
-                    "type": "string",
-                    "description": "Name of the response column in the design_matrix.",
-                },
-                "model": {
-                    "type": "string",
-                    "enum": ["main_effects", "interactions", "quadratic"],
-                    "description": (
-                        "Model type. 'main_effects' = main effects only, "
-                        "'interactions' = main effects + 2FI (default), "
-                        "'quadratic' = interactions + squared terms."
-                    ),
-                },
-                "analysis_type": {
-                    "oneOf": [
-                        {
-                            "type": "string",
-                            "enum": [
-                                "anova",
-                                "effects",
-                                "coefficients",
-                                "significance",
-                                "residual_diagnostics",
-                                "lack_of_fit",
-                                "curvature_test",
-                                "model_selection",
-                                "box_cox",
-                                "lenth_method",
-                                "confidence_intervals",
-                                "prediction",
-                                "confirmation_test",
-                            ],
-                        },
-                        {"type": "array", "items": {"type": "string"}},
-                    ],
-                    "description": "One or more analysis types to run. Default: 'anova'.",
-                },
-                "significance_level": {
-                    "type": "number",
-                    "description": "Significance level (default 0.05).",
-                },
-                "transform": {
-                    "type": "string",
-                    "enum": ["log", "sqrt", "inverse", "box_cox"],
-                    "description": "Optional response transform before fitting.",
-                },
-                "new_points": {
-                    "type": "array",
-                    "items": {"type": "object", "additionalProperties": {"type": "number"}},
-                    "description": "New factor settings for prediction or confirmation.",
-                },
-                "observed_at_new": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "Observed values at new_points (for confirmation testing).",
-                },
-            },
-            "required": ["design_matrix", "response_column"],
-        }
-    },
+    input_model=AnalyzeExperimentInput,
     examples="""
     # "Run ANOVA on my 2^2 factorial experiment"
         -> ``analyze_experiment(design_matrix=[{"A":-1,"B":-1,"y":28}, ...],
@@ -662,33 +555,23 @@ _register("evaluate_design")
     """,
     category="experiments",
 )
-def analyze_experiment_tool(  # noqa: PLR0913
-    *,
-    design_matrix: list[dict[str, Any]],
-    response_column: str,
-    model: str | None = None,
-    analysis_type: str | list[str] = "anova",
-    significance_level: float = 0.05,
-    transform: str | None = None,
-    new_points: list[dict[str, Any]] | None = None,
-    observed_at_new: list[float] | None = None,
-) -> dict[str, Any]:
-    """Analyze experimental data; see tool spec for details."""
+def analyze_experiment_tool(spec: AnalyzeExperimentInput) -> dict[str, Any]:
+    """Analyze experimental data."""
     try:
         from process_improve.experiments.analysis import analyze_experiment  # noqa: PLC0415
 
-        df = pd.DataFrame(design_matrix)
-        np_df = pd.DataFrame(new_points) if new_points else None
+        df = pd.DataFrame(spec.design_matrix)
+        np_df = pd.DataFrame(spec.new_points) if spec.new_points else None
 
         result = analyze_experiment(
             design_matrix=df,
-            response_column=response_column,
-            model=model,
-            analysis_type=analysis_type,
-            significance_level=significance_level,
-            transform=transform,
+            response_column=spec.response_column,
+            model=spec.model,
+            analysis_type=spec.analysis_type,
+            significance_level=spec.significance_level,
+            transform=spec.transform,
             new_points=np_df,
-            observed_at_new=observed_at_new,
+            observed_at_new=spec.observed_at_new,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:
@@ -697,6 +580,65 @@ def analyze_experiment_tool(  # noqa: PLR0913
 
 
 _register("analyze_experiment")
+
+
+# ---------------------------------------------------------------------------
+# optimize_responses
+# ---------------------------------------------------------------------------
+
+
+class OptimizeResponsesInput(BaseModel):
+    """Input contract for ``optimize_responses``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    fitted_models: list[dict[str, Any]] = Field(
+        ...,
+        min_length=1,
+        description=(
+            "One or more fitted models from analyze_experiment. Each entry must "
+            "include 'coefficients' (list of {term, coefficient}), 'factor_names' "
+            "(list of strings), and optionally 'response_name', 'mse_residual', 'r_squared'."
+        ),
+    )
+    goals: list[dict[str, Any]] | None = Field(
+        None,
+        description=(
+            "Per-response optimisation goals. Each entry: response (str), "
+            "goal ('maximize'|'minimize'|'target'), low, high, optional target, "
+            "weight, importance. Required for 'desirability' method."
+        ),
+    )
+    method: Literal[
+        "desirability",
+        "steepest_ascent",
+        "steepest_descent",
+        "stationary_point",
+        "canonical_analysis",
+    ] = Field(
+        "desirability",
+        description="Optimisation method (default: 'desirability').",
+    )
+    factor_ranges: dict[str, dict[str, float]] | None = Field(
+        None,
+        description=(
+            'Factor bounds in actual units, e.g. {"Temperature": {"low": 150, "high": 200}}. '
+            "Used to convert coded settings to actual units in the output."
+        ),
+    )
+    step_size: float = Field(
+        0.5,
+        description="Step size in coded units for steepest ascent/descent (default 0.5).",
+    )
+    n_steps: int = Field(
+        10,
+        ge=1,
+        description="Number of steps for steepest ascent/descent (default 10).",
+    )
+    desirability_weights: list[float] | None = Field(
+        None,
+        description="Importance weights for composite desirability (overrides per-goal importance).",
+    )
 
 
 @tool_spec(
@@ -711,141 +653,7 @@ _register("analyze_experiment")
         "analysis_type='coefficients'), factor_names, and response_name. "
         "For desirability, each goal specifies whether to maximize, minimize, or target a value."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "fitted_models": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "response_name": {
-                                "type": "string",
-                                "description": "Name of the response variable.",
-                            },
-                            "coefficients": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "term": {"type": "string"},
-                                        "coefficient": {"type": "number"},
-                                    },
-                                    "required": ["term", "coefficient"],
-                                },
-                                "description": (
-                                    "List of model coefficients as returned by "
-                                    "analyze_experiment(analysis_type='coefficients'). "
-                                    "Each entry has 'term' (e.g. 'Intercept', 'A', 'A:B', "
-                                    "'I(A ** 2)') and 'coefficient' (float)."
-                                ),
-                            },
-                            "factor_names": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": "Ordered list of factor names.",
-                            },
-                            "mse_residual": {
-                                "type": "number",
-                                "description": "Mean squared error of the model (optional).",
-                            },
-                            "r_squared": {
-                                "type": "number",
-                                "description": "R-squared of the model (optional).",
-                            },
-                        },
-                        "required": ["coefficients", "factor_names"],
-                    },
-                    "description": "One or more fitted models from analyze_experiment.",
-                    "minItems": 1,
-                },
-                "goals": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "response": {
-                                "type": "string",
-                                "description": "Response name (must match a fitted_model).",
-                            },
-                            "goal": {
-                                "type": "string",
-                                "enum": ["maximize", "minimize", "target"],
-                                "description": "Optimisation direction.",
-                            },
-                            "target": {
-                                "type": "number",
-                                "description": "Target value (required when goal='target').",
-                            },
-                            "low": {
-                                "type": "number",
-                                "description": "Lower acceptable bound for desirability.",
-                            },
-                            "high": {
-                                "type": "number",
-                                "description": "Upper acceptable bound for desirability.",
-                            },
-                            "weight": {
-                                "type": "number",
-                                "description": "Desirability shape parameter (default 1.0 = linear).",
-                            },
-                            "importance": {
-                                "type": "number",
-                                "description": "Relative importance for composite desirability.",
-                            },
-                        },
-                        "required": ["response", "goal", "low", "high"],
-                    },
-                    "description": (
-                        "Per-response optimisation goals. Required for 'desirability' method."
-                    ),
-                },
-                "method": {
-                    "type": "string",
-                    "enum": [
-                        "desirability",
-                        "steepest_ascent",
-                        "steepest_descent",
-                        "stationary_point",
-                        "canonical_analysis",
-                    ],
-                    "description": "Optimisation method (default: 'desirability').",
-                },
-                "factor_ranges": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "object",
-                        "properties": {
-                            "low": {"type": "number"},
-                            "high": {"type": "number"},
-                        },
-                        "required": ["low", "high"],
-                    },
-                    "description": (
-                        "Factor bounds in actual units, e.g. "
-                        '{"Temperature": {"low": 150, "high": 200}}. '
-                        "Used to convert coded settings to actual units in the output."
-                    ),
-                },
-                "step_size": {
-                    "type": "number",
-                    "description": "Step size in coded units for steepest ascent/descent (default 0.5).",
-                },
-                "n_steps": {
-                    "type": "integer",
-                    "description": "Number of steps for steepest ascent/descent (default 10).",
-                    "minimum": 1,
-                },
-                "desirability_weights": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "Importance weights for composite desirability (overrides per-goal importance).",
-                },
-            },
-            "required": ["fitted_models"],
-        }
-    },
+    input_model=OptimizeResponsesInput,
     examples="""
     # "Find the stationary point of my quadratic model"
         -> ``optimize_responses(fitted_models=[{"response_name": "yield",
@@ -869,28 +677,19 @@ _register("analyze_experiment")
     """,
     category="experiments",
 )
-def optimize_responses_tool(  # noqa: PLR0913
-    *,
-    fitted_models: list[dict[str, Any]],
-    goals: list[dict[str, Any]] | None = None,
-    method: str = "desirability",
-    factor_ranges: dict[str, dict[str, float]] | None = None,
-    step_size: float = 0.5,
-    n_steps: int = 10,
-    desirability_weights: list[float] | None = None,
-) -> dict[str, Any]:
-    """Optimize experimental responses; see tool spec for details."""
+def optimize_responses_tool(spec: OptimizeResponsesInput) -> dict[str, Any]:
+    """Optimize experimental responses."""
     try:
         from process_improve.experiments.optimization import optimize_responses  # noqa: PLC0415
 
         result = optimize_responses(
-            fitted_models=fitted_models,
-            goals=goals,
-            method=method,
-            factor_ranges=factor_ranges,
-            step_size=step_size,
-            n_steps=n_steps,
-            desirability_weights=desirability_weights,
+            fitted_models=spec.fitted_models,
+            goals=spec.goals,
+            method=spec.method,
+            factor_ranges=spec.factor_ranges,
+            step_size=spec.step_size,
+            n_steps=spec.n_steps,
+            desirability_weights=spec.desirability_weights,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:
@@ -899,6 +698,76 @@ def optimize_responses_tool(  # noqa: PLR0913
 
 
 _register("optimize_responses")
+
+
+# ---------------------------------------------------------------------------
+# augment_design
+# ---------------------------------------------------------------------------
+
+
+class AugmentDesignInput(BaseModel):
+    """Input contract for ``augment_design``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    existing_design: list[dict[str, Any]] = Field(
+        ...,
+        min_length=2,
+        description=(
+            "Current design matrix as list of dicts with factor names as keys "
+            "and coded values (-1/+1) as values. "
+            "Example: [{'A': -1, 'B': -1}, {'A': 1, 'B': -1}, ...]"
+        ),
+    )
+    augmentation_type: Literal[
+        "foldover",
+        "semifold",
+        "add_center_points",
+        "add_axial_points",
+        "add_runs_optimal",
+        "upgrade_to_rsm",
+        "add_blocks",
+        "replicate",
+    ] = Field(
+        ...,
+        description="Type of augmentation to apply to the design.",
+    )
+    target_model: Literal["main_effects", "interactions", "quadratic"] | None = Field(
+        None,
+        description=(
+            "Desired model after augmentation. Used by 'add_runs_optimal' "
+            "and 'upgrade_to_rsm'. Default: 'interactions'."
+        ),
+    )
+    n_additional_runs: int | None = Field(
+        None,
+        ge=1,
+        description=(
+            "Budget for additional runs. Interpretation depends on type: "
+            "number of center points, D-optimal runs, replicates, or blocks."
+        ),
+    )
+    fold_on: str | None = Field(
+        None,
+        description=(
+            "Factor name to fold on (semifold only). "
+            "If omitted, the best factor is auto-selected."
+        ),
+    )
+    alpha: str | float | None = Field(
+        None,
+        description=(
+            "Axial distance for add_axial_points or upgrade_to_rsm. "
+            "'rotatable', 'face_centered', 'orthogonal', or a numeric value."
+        ),
+    )
+    generators: list[str] | None = Field(
+        None,
+        description=(
+            "Generator strings from the original fractional factorial design "
+            "(e.g. ['D=ABC']). Needed for foldover/semifold alias analysis."
+        ),
+    )
 
 
 @tool_spec(
@@ -914,85 +783,7 @@ _register("optimize_responses")
         "Always returns the augmented design matrix plus an explanation of what changed in the "
         "alias structure and design properties."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "existing_design": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "additionalProperties": {"type": "number"},
-                    },
-                    "description": (
-                        "Current design matrix as list of dicts with factor names as keys "
-                        "and coded values (-1/+1) as values. "
-                        "Example: [{'A': -1, 'B': -1}, {'A': 1, 'B': -1}, ...]"
-                    ),
-                    "minItems": 2,
-                },
-                "augmentation_type": {
-                    "type": "string",
-                    "enum": [
-                        "foldover",
-                        "semifold",
-                        "add_center_points",
-                        "add_axial_points",
-                        "add_runs_optimal",
-                        "upgrade_to_rsm",
-                        "add_blocks",
-                        "replicate",
-                    ],
-                    "description": "Type of augmentation to apply to the design.",
-                },
-                "target_model": {
-                    "type": "string",
-                    "enum": ["main_effects", "interactions", "quadratic"],
-                    "description": (
-                        "Desired model after augmentation. Used by 'add_runs_optimal' "
-                        "and 'upgrade_to_rsm'. Default: 'interactions'."
-                    ),
-                },
-                "n_additional_runs": {
-                    "type": "integer",
-                    "description": (
-                        "Budget for additional runs. Interpretation depends on type: "
-                        "number of center points, D-optimal runs, replicates, or blocks."
-                    ),
-                    "minimum": 1,
-                },
-                "fold_on": {
-                    "type": "string",
-                    "description": (
-                        "Factor name to fold on (semifold only). "
-                        "If omitted, the best factor is auto-selected."
-                    ),
-                },
-                "alpha": {
-                    "oneOf": [
-                        {
-                            "type": "string",
-                            "enum": ["rotatable", "face_centered", "orthogonal"],
-                        },
-                        {"type": "number"},
-                    ],
-                    "description": (
-                        "Axial distance for add_axial_points or upgrade_to_rsm. "
-                        "'rotatable', 'face_centered', 'orthogonal', or a numeric value."
-                    ),
-                },
-                "generators": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": (
-                        "Generator strings from the original fractional factorial design "
-                        "(e.g. ['D=ABC']). Needed for foldover/semifold alias analysis."
-                    ),
-                },
-            },
-            "required": ["existing_design", "augmentation_type"],
-        }
-    },
+    input_model=AugmentDesignInput,
     examples="""
     # "Fold over my 2^(4-1) design to de-alias two-factor interactions"
         -> ``augment_design(existing_design=[...], augmentation_type="foldover",
@@ -1012,29 +803,20 @@ _register("optimize_responses")
     """,
     category="experiments",
 )
-def augment_design_tool(  # noqa: PLR0913
-    *,
-    existing_design: list[dict[str, Any]],
-    augmentation_type: str,
-    target_model: str | None = None,
-    n_additional_runs: int | None = None,
-    fold_on: str | None = None,
-    alpha: str | float | None = None,
-    generators: list[str] | None = None,
-) -> dict[str, Any]:
-    """Augment an existing design; see tool spec for details."""
+def augment_design_tool(spec: AugmentDesignInput) -> dict[str, Any]:
+    """Augment an existing design."""
     try:
         from process_improve.experiments.augment import augment_design  # noqa: PLC0415
 
-        df = pd.DataFrame(existing_design)
+        df = pd.DataFrame(spec.existing_design)
         result = augment_design(
             existing_design=df,
-            augmentation_type=augmentation_type,
-            target_model=target_model,
-            n_additional_runs=n_additional_runs,
-            fold_on=fold_on,
-            alpha=alpha,
-            generators=generators,
+            augmentation_type=spec.augmentation_type,
+            target_model=spec.target_model,
+            n_additional_runs=spec.n_additional_runs,
+            fold_on=spec.fold_on,
+            alpha=spec.alpha,
+            generators=spec.generators,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:
@@ -1046,8 +828,74 @@ _register("augment_design")
 
 
 # ---------------------------------------------------------------------------
-# Tool 6: Visualise DOE
+# visualize_doe
 # ---------------------------------------------------------------------------
+
+
+class VisualizeDoeInput(BaseModel):
+    """Input contract for ``visualize_doe``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    plot_type: Literal[
+        "pareto", "half_normal", "daniel",
+        "main_effects", "interaction", "perturbation",
+        "residuals_vs_fitted", "normal_probability",
+        "residuals_vs_order", "box_cox",
+        "contour", "surface_3d", "prediction_variance",
+        "cube_plot", "square_plot",
+        "desirability_contour", "overlay",
+        "ridge_trace", "steepest_ascent_path",
+        "fds_plot", "power_curve",
+    ] = Field(
+        ...,
+        description="Type of DOE plot to generate.",
+    )
+    analysis_results: dict[str, Any] | None = Field(
+        None,
+        description=(
+            "Results from fit_linear_model or analyze_experiment. "
+            "Should contain keys like 'coefficients', 'effects', "
+            "'residual_diagnostics', 'lenth_method', 'model_summary'."
+        ),
+    )
+    design_data: list[dict[str, Any]] | None = Field(
+        None,
+        description=(
+            "Raw design matrix as a list of dicts (one per run). "
+            "Factor columns should be coded -1/+1."
+        ),
+    )
+    response_column: str | None = Field(
+        None,
+        description="Name of the response column in design_data.",
+    )
+    factors_to_plot: list[str] | None = Field(
+        None,
+        description=(
+            "Which factors to plot (2 for contour/interaction, "
+            "3 for cube_plot). If omitted, inferred from data."
+        ),
+    )
+    hold_values: dict[str, float] | None = Field(
+        None,
+        description=(
+            "Coded values for factors not being plotted "
+            "(default 0 = centre). E.g. {'C': 0.5}."
+        ),
+    )
+    highlight_significant: bool = Field(
+        True,
+        description="Highlight significant effects on Pareto/half-normal plots.",
+    )
+    confidence_level: float = Field(
+        0.95,
+        description="Confidence level for thresholds (default 0.95).",
+    )
+    backend: Literal["both", "plotly", "echarts"] = Field(
+        "both",
+        description="Which rendering backend(s) to include in output.",
+    )
 
 
 @tool_spec(
@@ -1064,80 +912,7 @@ _register("augment_design")
         "Returns both Plotly and ECharts configurations for dual-backend rendering. "
         "Pass analysis_results from fit_linear_model or analyze_experiment, or raw design_data."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "plot_type": {
-                    "type": "string",
-                    "enum": [
-                        "pareto", "half_normal", "daniel",
-                        "main_effects", "interaction", "perturbation",
-                        "residuals_vs_fitted", "normal_probability",
-                        "residuals_vs_order", "box_cox",
-                        "contour", "surface_3d", "prediction_variance",
-                        "cube_plot", "square_plot",
-                        "desirability_contour", "overlay",
-                        "ridge_trace", "steepest_ascent_path",
-                        "fds_plot", "power_curve",
-                    ],
-                    "description": "Type of DOE plot to generate.",
-                },
-                "analysis_results": {
-                    "type": "object",
-                    "description": (
-                        "Results from fit_linear_model or analyze_experiment. "
-                        "Should contain keys like 'coefficients', 'effects', "
-                        "'residual_diagnostics', 'lenth_method', 'model_summary'."
-                    ),
-                },
-                "design_data": {
-                    "type": "array",
-                    "items": {"type": "object"},
-                    "description": (
-                        "Raw design matrix as a list of dicts (one per run). "
-                        "Factor columns should be coded -1/+1."
-                    ),
-                },
-                "response_column": {
-                    "type": "string",
-                    "description": "Name of the response column in design_data.",
-                },
-                "factors_to_plot": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": (
-                        "Which factors to plot (2 for contour/interaction, "
-                        "3 for cube_plot). If omitted, inferred from data."
-                    ),
-                },
-                "hold_values": {
-                    "type": "object",
-                    "description": (
-                        "Coded values for factors not being plotted "
-                        "(default 0 = centre). E.g. {'C': 0.5}."
-                    ),
-                },
-                "highlight_significant": {
-                    "type": "boolean",
-                    "description": "Highlight significant effects on Pareto/half-normal plots.",
-                    "default": True,
-                },
-                "confidence_level": {
-                    "type": "number",
-                    "description": "Confidence level for thresholds (default 0.95).",
-                    "default": 0.95,
-                },
-                "backend": {
-                    "type": "string",
-                    "enum": ["both", "plotly", "echarts"],
-                    "description": "Which rendering backend(s) to include in output.",
-                    "default": "both",
-                },
-            },
-            "required": ["plot_type"],
-        }
-    },
+    input_model=VisualizeDoeInput,
     examples="""
     # "Show me a Pareto chart of my effects"
         -> ``visualize_doe(plot_type="pareto",
@@ -1147,45 +922,24 @@ _register("augment_design")
         -> ``visualize_doe(plot_type="contour",
                 analysis_results={"coefficients": [...]},
                 factors_to_plot=["Temperature", "Pressure"])``
-
-    # "Show residuals vs fitted values"
-        -> ``visualize_doe(plot_type="residuals_vs_fitted",
-                analysis_results={"residual_diagnostics":
-                    {"residuals": [...], "fitted_values": [...]}})``
-
-    # "Create a cube plot for my 3-factor design"
-        -> ``visualize_doe(plot_type="cube_plot",
-                analysis_results={"coefficients": [...]},
-                factors_to_plot=["A", "B", "C"])``
     """,
     category="experiments",
 )
-def visualize_doe_tool(  # noqa: PLR0913
-    *,
-    plot_type: str,
-    analysis_results: dict[str, Any] | None = None,
-    design_data: list[dict[str, Any]] | None = None,
-    response_column: str | None = None,
-    factors_to_plot: list[str] | None = None,
-    hold_values: dict[str, float] | None = None,
-    highlight_significant: bool = True,
-    confidence_level: float = 0.95,
-    backend: str = "both",
-) -> dict[str, Any]:
-    """Generate a DOE visualisation; see tool spec for details."""
+def visualize_doe_tool(spec: VisualizeDoeInput) -> dict[str, Any]:
+    """Generate a DOE visualisation."""
     try:
         from process_improve.experiments.visualization import visualize_doe  # noqa: PLC0415
 
         result = visualize_doe(
-            plot_type=plot_type,
-            analysis_results=analysis_results,
-            design_data=design_data,
-            response_column=response_column,
-            factors_to_plot=factors_to_plot,
-            hold_values=hold_values,
-            highlight_significant=highlight_significant,
-            confidence_level=confidence_level,
-            backend=backend,
+            plot_type=spec.plot_type,
+            analysis_results=spec.analysis_results,
+            design_data=spec.design_data,
+            response_column=spec.response_column,
+            factors_to_plot=spec.factors_to_plot,
+            hold_values=spec.hold_values,
+            highlight_significant=spec.highlight_significant,
+            confidence_level=spec.confidence_level,
+            backend=spec.backend,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:
@@ -1197,8 +951,52 @@ _register("visualize_doe")
 
 
 # ---------------------------------------------------------------------------
-# Tool 7 - doe_knowledge
+# doe_knowledge
 # ---------------------------------------------------------------------------
+
+
+class DoeKnowledgeInput(BaseModel):
+    """Input contract for ``doe_knowledge``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(
+        "",
+        description=(
+            "Natural-language query, e.g. 'What is design resolution?' or "
+            "'funnel shaped residuals'."
+        ),
+    )
+    topic: Literal[
+        "design_selection",
+        "design_properties",
+        "design_types",
+        "analysis_methods",
+        "interpretation",
+        "troubleshooting",
+        "diagnostics",
+        "optimization",
+        "statistical_concepts",
+        "screening",
+        "response_surface",
+        "worked_examples",
+        "",
+    ] = Field(
+        "",
+        description="Restrict search to a topic. Leave empty for broad search.",
+    )
+    context: dict[str, Any] | None = Field(
+        None,
+        description=(
+            "Experimental context for design-selection queries. "
+            "Keys: n_factors (int), budget (int), goal ('screening'|'optimization'), "
+            "sequential (bool), curvature_important (bool), has_hard_to_change (bool)."
+        ),
+    )
+    detail_level: Literal["novice", "intermediate", "expert"] = Field(
+        "intermediate",
+        description="Depth of explanation: novice, intermediate, or expert.",
+    )
 
 
 @tool_spec(
@@ -1210,59 +1008,7 @@ _register("visualize_doe")
         "Use this tool whenever the user asks a conceptual DOE question, needs help choosing "
         "a design, or wants to understand how to interpret DOE results."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": (
-                        "Natural-language query, e.g. 'What is design resolution?' or "
-                        "'funnel shaped residuals'."
-                    ),
-                },
-                "topic": {
-                    "type": "string",
-                    "description": (
-                        "Restrict search to a topic: design_selection, design_properties, "
-                        "design_types, analysis_methods, interpretation, troubleshooting, "
-                        "diagnostics, optimization, statistical_concepts, screening, "
-                        "response_surface, worked_examples.  Leave empty for broad search."
-                    ),
-                    "enum": [
-                        "design_selection",
-                        "design_properties",
-                        "design_types",
-                        "analysis_methods",
-                        "interpretation",
-                        "troubleshooting",
-                        "diagnostics",
-                        "optimization",
-                        "statistical_concepts",
-                        "screening",
-                        "response_surface",
-                        "worked_examples",
-                        "",
-                    ],
-                },
-                "context": {
-                    "type": "object",
-                    "description": (
-                        "Experimental context for design-selection queries. "
-                        "Keys: n_factors (int), budget (int), goal ('screening'|'optimization'), "
-                        "sequential (bool), curvature_important (bool), has_hard_to_change (bool)."
-                    ),
-                },
-                "detail_level": {
-                    "type": "string",
-                    "description": "Depth of explanation: novice, intermediate, or expert.",
-                    "enum": ["novice", "intermediate", "expert"],
-                    "default": "intermediate",
-                },
-            },
-            "required": [],
-        }
-    },
+    input_model=DoeKnowledgeInput,
     examples="""
     # "Which design should I use for 7 screening factors with a budget of 15 runs?"
         -> ``doe_knowledge(query="screening 7 factors 15 runs",
@@ -1272,33 +1018,19 @@ _register("visualize_doe")
     # "What is design resolution?"
         -> ``doe_knowledge(query="What is design resolution?",
                 topic="statistical_concepts")``
-
-    # "My residuals look like a funnel"
-        -> ``doe_knowledge(query="funnel shaped residuals",
-                topic="troubleshooting")``
-
-    # "Compare Box-Behnken and CCD"
-        -> ``doe_knowledge(query="Box-Behnken CCD comparison",
-                topic="design_types")``
     """,
     category="experiments",
 )
-def doe_knowledge_tool(
-    *,
-    query: str = "",
-    topic: str = "",
-    context: dict[str, Any] | None = None,
-    detail_level: str = "intermediate",
-) -> dict[str, Any]:
-    """Query the DOE knowledge graph; see tool spec for details."""
+def doe_knowledge_tool(spec: DoeKnowledgeInput) -> dict[str, Any]:
+    """Query the DOE knowledge graph."""
     try:
         from process_improve.experiments.knowledge import doe_knowledge  # noqa: PLC0415
 
         return clean(doe_knowledge(
-            query=query,
-            topic=topic,
-            context=context,
-            detail_level=detail_level,
+            query=spec.query,
+            topic=spec.topic,
+            context=spec.context,
+            detail_level=spec.detail_level,
         ))
     except _TOOL_EXPECTED_EXCEPTIONS as e:
         logger.exception("Tool doe_knowledge failed")
@@ -1309,8 +1041,66 @@ _register("doe_knowledge")
 
 
 # ---------------------------------------------------------------------------
-# Tool 8 - recommend_strategy
+# recommend_strategy
 # ---------------------------------------------------------------------------
+
+
+class RecommendStrategyInput(BaseModel):
+    """Input contract for ``recommend_strategy``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    factors: list[dict[str, Any]] = Field(
+        ...,
+        min_length=1,
+        description="All candidate experimental factors.",
+    )
+    responses: list[dict[str, Any]] | None = Field(
+        None,
+        description="Response variables with optimisation goals.",
+    )
+    budget: int | None = Field(
+        None,
+        ge=1,
+        description="Total run budget across all stages. Omit for ideal allocation.",
+    )
+    constraints: list[dict[str, Any]] | None = Field(
+        None,
+        description="Factor-space constraints. Each entry: expression (str), optional type ('linear'|'nonlinear').",
+    )
+    hard_to_change_factors: list[str] | None = Field(
+        None,
+        description="Factor names that are expensive to reset (triggers split-plot).",
+    )
+    prior_knowledge: str | None = Field(
+        None,
+        description=(
+            "Free-text description of prior knowledge, e.g. "
+            "'Published literature confirms Temperature and pH are significant.' "
+            "or 'No prior data - first time running this process.'"
+        ),
+    )
+    existing_data: list[dict[str, Any]] | None = Field(
+        None,
+        description="Prior experimental data as list of dicts (optional).",
+    )
+    domain: Literal[
+        "pharma_formulation",
+        "fermentation",
+        "food_science",
+        "extraction",
+        "analytical_method",
+        "cell_culture",
+        "bioprocess",
+        "general",
+    ] | None = Field(
+        None,
+        description="Application domain for domain-specific adjustments. Default: 'general'.",
+    )
+    detail_level: Literal["novice", "intermediate"] = Field(
+        "intermediate",
+        description="Depth of explanations in the output.",
+    )
 
 
 @tool_spec(
@@ -1319,126 +1109,13 @@ _register("doe_knowledge")
         "Recommend a multi-stage experimental strategy given a DOE problem description. "
         "Given factors, responses, budget, constraints, domain, and prior knowledge, "
         "applies deterministic decision rules to recommend a staged experimental plan "
-        "(screening → optimisation → confirmation). "
+        "(screening then optimisation then confirmation). "
         "Returns a structured strategy with stage-by-stage design types, estimated run counts, "
         "transition rules, budget allocation, assumptions, risks, and alternative approaches. "
         "Use this when the user asks 'How should I plan my experiments?' or 'What design strategy "
         "should I use for N factors?'"
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "factors": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string", "description": "Factor name (e.g. 'Temperature')."},
-                            "type": {
-                                "type": "string",
-                                "enum": ["continuous", "categorical", "mixture"],
-                                "description": "Factor type. Default: 'continuous'.",
-                            },
-                            "low": {"type": "number", "description": "Low level (required for continuous)."},
-                            "high": {"type": "number", "description": "High level (required for continuous)."},
-                            "levels": {
-                                "type": "array",
-                                "description": "Explicit levels (required for categorical).",
-                            },
-                            "units": {"type": "string", "description": "Engineering units (optional)."},
-                        },
-                        "required": ["name"],
-                    },
-                    "description": "All candidate experimental factors.",
-                    "minItems": 1,
-                },
-                "responses": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string", "description": "Response name (e.g. 'Yield')."},
-                            "goal": {
-                                "type": "string",
-                                "enum": ["maximize", "minimize", "target"],
-                                "description": "Optimisation direction. Default: 'maximize'.",
-                            },
-                            "target": {"type": "number", "description": "Target value (for goal='target')."},
-                            "low": {"type": "number", "description": "Lower acceptable bound."},
-                            "high": {"type": "number", "description": "Upper acceptable bound."},
-                            "units": {"type": "string", "description": "Response units (optional)."},
-                            "importance": {
-                                "type": "number",
-                                "description": "Relative importance weight (default 1.0).",
-                            },
-                        },
-                        "required": ["name"],
-                    },
-                    "description": "Response variables with optimisation goals.",
-                },
-                "budget": {
-                    "type": "integer",
-                    "description": "Total run budget across all stages. Omit for ideal allocation.",
-                    "minimum": 1,
-                },
-                "constraints": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "expression": {"type": "string", "description": "e.g. '3*T + 5*D <= 600'."},
-                            "type": {
-                                "type": "string",
-                                "enum": ["linear", "nonlinear"],
-                                "description": "Constraint type. Default: 'linear'.",
-                            },
-                        },
-                        "required": ["expression"],
-                    },
-                    "description": "Factor-space constraints.",
-                },
-                "hard_to_change_factors": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Factor names that are expensive to reset (triggers split-plot).",
-                },
-                "prior_knowledge": {
-                    "type": "string",
-                    "description": (
-                        "Free-text description of prior knowledge, e.g. "
-                        "'Published literature confirms Temperature and pH are significant.' "
-                        "or 'No prior data - first time running this process.'"
-                    ),
-                },
-                "existing_data": {
-                    "type": "array",
-                    "items": {"type": "object"},
-                    "description": "Prior experimental data as list of dicts (optional).",
-                },
-                "domain": {
-                    "type": "string",
-                    "enum": [
-                        "pharma_formulation",
-                        "fermentation",
-                        "food_science",
-                        "extraction",
-                        "analytical_method",
-                        "cell_culture",
-                        "bioprocess",
-                        "general",
-                    ],
-                    "description": "Application domain for domain-specific adjustments. Default: 'general'.",
-                },
-                "detail_level": {
-                    "type": "string",
-                    "enum": ["novice", "intermediate"],
-                    "description": "Depth of explanations in the output. Default: 'intermediate'.",
-                },
-            },
-            "required": ["factors"],
-        }
-    },
+    input_model=RecommendStrategyInput,
     examples="""
     # "I have 7 factors - how do I plan my experiments?"
         -> ``recommend_strategy(factors=[{"name": "A", "low": 0, "high": 100}, ...7 factors...],
@@ -1448,47 +1125,33 @@ _register("doe_knowledge")
         -> ``recommend_strategy(factors=[{"name": "pH", "low": 5, "high": 8}, ...],
                 responses=[{"name": "Yield", "goal": "maximize"}],
                 budget=40, domain="fermentation")``
-
-    # "Expensive cell culture experiments - most efficient approach for 6 factors?"
-        -> ``recommend_strategy(factors=[...6 factors...],
-                responses=[{"name": "Viability", "goal": "maximize"}],
-                domain="cell_culture", detail_level="intermediate")``
     """,
     category="experiments",
 )
-def recommend_strategy_tool(  # noqa: PLR0913
-    *,
-    factors: list[dict[str, Any]],
-    responses: list[dict[str, Any]] | None = None,
-    budget: int | None = None,
-    constraints: list[dict[str, Any]] | None = None,
-    hard_to_change_factors: list[str] | None = None,
-    prior_knowledge: str | None = None,
-    existing_data: list[dict[str, Any]] | None = None,
-    domain: str | None = None,
-    detail_level: str = "intermediate",
-) -> dict[str, Any]:
-    """Recommend a multi-stage experimental strategy; see tool spec for details."""
+def recommend_strategy_tool(spec: RecommendStrategyInput) -> dict[str, Any]:
+    """Recommend a multi-stage experimental strategy."""
     try:
         from process_improve.experiments.factor import Constraint, Factor, Response  # noqa: PLC0415
         from process_improve.experiments.strategy import recommend_strategy  # noqa: PLC0415
 
-        factor_objects = [Factor(**f) for f in factors]
-        response_objects = [Response(**r) for r in responses] if responses else None
-        constraint_objects = [Constraint(**c) for c in constraints] if constraints else None
+        factor_objects = [Factor(**f) for f in spec.factors]
+        response_objects = [Response(**r) for r in spec.responses] if spec.responses else None
+        constraint_objects = (
+            [Constraint(**c) for c in spec.constraints] if spec.constraints else None
+        )
 
-        df = pd.DataFrame(existing_data) if existing_data else None
+        df = pd.DataFrame(spec.existing_data) if spec.existing_data else None
 
         result = recommend_strategy(
             factors=factor_objects,
             responses=response_objects,
-            budget=budget,
+            budget=spec.budget,
             constraints=constraint_objects,
-            hard_to_change_factors=hard_to_change_factors,
-            prior_knowledge=prior_knowledge,
+            hard_to_change_factors=spec.hard_to_change_factors,
+            prior_knowledge=spec.prior_knowledge,
             existing_data=df,
-            domain=domain,
-            detail_level=detail_level,
+            domain=spec.domain,
+            detail_level=spec.detail_level,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

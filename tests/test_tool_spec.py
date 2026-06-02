@@ -789,12 +789,14 @@ class TestScaleData:
         assert len(result["stds"]) == 2
 
     def test_string_data_returns_error(self) -> None:
-        """Non-numeric input should be reported via the error key, not raised."""
-        result = execute_tool_call(
-            "scale_data",
-            {"data": [["x", "y"], ["a", "b"]]},
-        )
-        assert "error" in result
+        """Non-numeric input is rejected by the pydantic float contract."""
+        from process_improve.tool_safety import ToolInputInvalidError
+
+        with pytest.raises(ToolInputInvalidError):
+            execute_tool_call(
+                "scale_data",
+                {"data": [["x", "y"], ["a", "b"]]},
+            )
 
 
 class TestDetectMultivariateOutliers:
@@ -830,8 +832,11 @@ class TestDetectMultivariateOutliers:
         assert result["t2_limit"] >= result_95["t2_limit"]
 
     def test_string_data_returns_error(self) -> None:
-        result = execute_tool_call(
-            "detect_multivariate_outliers",
-            {"data": [["x", "y"], ["a", "b"]], "n_components": 1},
-        )
-        assert "error" in result
+        """Non-numeric input is rejected by the pydantic float contract."""
+        from process_improve.tool_safety import ToolInputInvalidError
+
+        with pytest.raises(ToolInputInvalidError):
+            execute_tool_call(
+                "detect_multivariate_outliers",
+                {"data": [["x", "y"], ["a", "b"]], "n_components": 1},
+            )

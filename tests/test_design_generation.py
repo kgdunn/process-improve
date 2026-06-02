@@ -817,15 +817,18 @@ class TestToolSpec:
 
     def test_generate_design_tool(self) -> None:
         """Tool wrapper should return design as list of dicts."""
-        from process_improve.experiments.tools import generate_design_tool
+        from process_improve.tool_spec import execute_tool_call
 
-        result = generate_design_tool(
-            factors=[
-                {"name": "T", "low": 150, "high": 200, "units": "degC"},
-                {"name": "P", "low": 1, "high": 5, "units": "bar"},
-            ],
-            design_type="full_factorial",
-            center_points=0,
+        result = execute_tool_call(
+            "generate_design",
+            {
+                "factors": [
+                    {"name": "T", "low": 150, "high": 200, "units": "degC"},
+                    {"name": "P", "low": 1, "high": 5, "units": "bar"},
+                ],
+                "design_type": "full_factorial",
+                "center_points": 0,
+            },
         )
         assert "error" not in result
         assert result["n_runs"] == 4
@@ -835,21 +838,24 @@ class TestToolSpec:
 
     def test_generate_design_tool_auto(self) -> None:
         """Tool wrapper with no design_type should auto-select."""
-        from process_improve.experiments.tools import generate_design_tool
+        from process_improve.tool_spec import execute_tool_call
 
-        result = generate_design_tool(
-            factors=[
-                {"name": "A", "low": 0, "high": 10},
-                {"name": "B", "low": 0, "high": 10},
-                {"name": "C", "low": 0, "high": 10},
-            ],
+        result = execute_tool_call(
+            "generate_design",
+            {
+                "factors": [
+                    {"name": "A", "low": 0, "high": 10},
+                    {"name": "B", "low": 0, "high": 10},
+                    {"name": "C", "low": 0, "high": 10},
+                ],
+            },
         )
         assert "error" not in result
         assert result["design_type"] == "full_factorial"
 
     def test_generate_design_tool_error(self) -> None:
         """Tool wrapper should return error dict on invalid input."""
-        from process_improve.experiments.tools import generate_design_tool
+        from process_improve.tool_spec import execute_tool_call
 
-        result = generate_design_tool(factors=[{"name": "T"}])  # missing low/high
+        result = execute_tool_call("generate_design", {"factors": [{"name": "T"}]})
         assert "error" in result
