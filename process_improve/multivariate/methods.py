@@ -818,8 +818,14 @@ class PCA(TransformerMixin, BaseEstimator):
             col_ssx = ssq(Xd, axis=0)
 
             self._spe_np[:, a] = np.sqrt(row_ssx)
-            self._r2_per_var_np[:, a] = 1 - col_ssx / prior_ssx_col
-            self._r2cum_np[a] = 1 - sum(row_ssx) / base_variance
+            # Per-variable R^2 is undefined for a column with no variance to
+            # explain; emit NaN there instead of letting RuntimeWarning
+            # ``invalid value encountered in divide`` poison the output.
+            # SEC-21 (#270) sub-item 4.
+            self._r2_per_var_np[:, a] = np.where(
+                prior_ssx_col > 0, 1 - col_ssx / np.where(prior_ssx_col > 0, prior_ssx_col, 1.0), np.nan
+            )
+            self._r2cum_np[a] = 1 - sum(row_ssx) / base_variance if base_variance > 0 else np.nan
             self._r2_np[a] = self._r2cum_np[a] - self._r2cum_np[a - 1] if a > 0 else self._r2cum_np[a]
 
         self.fitting_info_ = {"timing": np.zeros(A) * np.nan, "iterations": np.zeros(A) * np.nan}
@@ -849,8 +855,15 @@ class PCA(TransformerMixin, BaseEstimator):
                 )
                 raise RuntimeError(emsg)
 
-            # Pick a column from X as the initial guess
-            t_a_guess = Xd[:, [0]]
+            # Pick a column from X as the initial guess.
+            # ``Xd[:, [0]]`` (fancy indexing) already returns a copy in
+            # current numpy, so the in-place ``isnan -> 0`` does not
+            # poison Xd today. The explicit ``.copy()`` here is
+            # defensive: it mirrors the PLS path (~line 1527) and
+            # protects against any future numpy change that flips
+            # fancy indexing to a view-returning variant. SEC-21 (#270)
+            # sub-item 2.
+            t_a_guess = Xd[:, [0]].copy()
             t_a_guess[np.isnan(t_a_guess)] = 0
             t_a = t_a_guess + 1.0
             p_a = np.zeros((K, 1))
@@ -875,8 +888,12 @@ class PCA(TransformerMixin, BaseEstimator):
             col_ssx = ssq(Xd, axis=0)
 
             self._spe_np[:, a] = np.sqrt(row_ssx)
-            self._r2_per_var_np[:, a] = 1 - col_ssx / start_ss_col
-            self._r2cum_np[a] = 1 - sum(row_ssx) / base_variance
+            # Per-variable R^2 is undefined for a column with no variance to
+            # explain; emit NaN there. SEC-21 (#270) sub-item 4.
+            self._r2_per_var_np[:, a] = np.where(
+                start_ss_col > 0, 1 - col_ssx / np.where(start_ss_col > 0, start_ss_col, 1.0), np.nan
+            )
+            self._r2cum_np[a] = 1 - sum(row_ssx) / base_variance if base_variance > 0 else np.nan
             self._r2_np[a] = self._r2cum_np[a] - self._r2cum_np[a - 1] if a > 0 else self._r2cum_np[a]
 
             # Sign convention: largest magnitude element in loading is positive
@@ -1724,8 +1741,14 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
             self.spe_.iloc[:, a] = np.sqrt(row_SSX)
 
-            self.r2_per_variable_.iloc[:, a] = 1 - col_SSX / prior_SSX_col
-            self.r2y_per_variable_.iloc[:, a] = col_SSY / prior_SSY_col
+            # Per-variable R^2 is undefined for a column with no variance to
+            # explain; emit NaN there. SEC-21 (#270) sub-item 4.
+            self.r2_per_variable_.iloc[:, a] = np.where(
+                prior_SSX_col > 0, 1 - col_SSX / np.where(prior_SSX_col > 0, prior_SSX_col, 1.0), np.nan
+            )
+            self.r2y_per_variable_.iloc[:, a] = np.where(
+                prior_SSY_col > 0, col_SSY / np.where(prior_SSY_col > 0, prior_SSY_col, 1.0), np.nan
+            )
             self.rmse_.iloc[:, a] = (Yd.values - y_hat).pow(2).mean().pow(0.5)
 
         # Bind convenience methods
