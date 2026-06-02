@@ -99,6 +99,18 @@ class TestParseTerm:
         """Quadratic I(A ** 2) returns (A, A)."""
         assert _parse_term("I(A ** 2)") == ("A", "A")
 
+    def test_quadratic_np_power_form(self) -> None:
+        """``np.power(A, 2)`` / ``power(A, 2)`` (SEC-27 #276) parse identically to ``I(A ** 2)``.
+
+        Newer statsmodels emits the ``np.power`` form. If the regex misses it,
+        a quadratic term silently falls through to the linear branch and the
+        downstream surface / optimisation produces wrong predictions.
+        """
+        assert _parse_term("np.power(A, 2)") == ("A", "A")
+        assert _parse_term("power(A, 2)") == ("A", "A")
+        # Whitespace tolerance.
+        assert _parse_term("np.power(A,2)") == ("A", "A")
+
     def test_three_way_interaction(self) -> None:
         """Three-way interaction A:B:C returns three-element tuple."""
         assert _parse_term("A:B:C") == ("A", "B", "C")

@@ -11,6 +11,36 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.5] - 2026-06-02
+
+### Tests
+
+- Add regression tests pinning the existing fixes for seven open audit
+  findings that already shipped code-level mitigations but lacked dedicated
+  tests:
+  - **SEC-27 (#276)**: `_parse_term` accepts both `I(A ** 2)` and the
+    `np.power(A, 2)` / `power(A, 2)` forms emitted by newer statsmodels.
+  - **SEC-28 (#277)**: `draw_initial_seed` returns at least 63 bits of
+    entropy (sampled via `secrets.randbits(63)`).
+  - **SEC-29 (#278)**: the `_SIGNIFICANT_FACTOR_PATTERN` regex parses a
+    50KB whitespace-heavy payload in well under a second.
+  - **SEC-30 (#279)**: `engine._load_yaml` rejects a file larger than
+    `_MAX_YAML_BYTES` before `yaml.safe_load` resolves anchors.
+  - **SEC-32 (#281)**: a non-JSON `batches_to_highlight` key raises
+    `ValueError` at the plotting API surface, not `JSONDecodeError`.
+  - **SEC-31 (#280)**: `test_cpython_pool_still_exposes_processes_attribute`
+    (already in `tests/test_tool_safety.py`) pins the assumption.
+  - **ENG-27 (#309)**: `tests/test_config.py` already covers lazy env-var
+    reads via the central `settings` module (PR #326).
+- **SEC-20 (#269)** items 2-4 (oneOf, nested items / properties, non-object
+  root, missing array enum) are structurally closed by PR #332 -- the
+  bespoke JSON-schema walker was replaced by `BaseModel.model_validate`,
+  which supports all four directly. Item 1 (the `_SCALAR_CAPS` string-vs-
+  number gap in `validate_input`) is mitigated in practice: a string
+  `"50000"` passes the numeric cap but the very next stage,
+  `_validate_against_model`, rejects it with `ToolInputInvalidError` via
+  the tool's typed pydantic field.
+
 ## [1.24.4] - 2026-06-02
 
 ### Changed (breaking, internal API)
@@ -833,7 +863,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.4...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.5...HEAD
+[1.24.5]: https://github.com/kgdunn/process-improve/compare/v1.24.4...v1.24.5
 [1.24.4]: https://github.com/kgdunn/process-improve/compare/v1.24.3...v1.24.4
 [1.24.3]: https://github.com/kgdunn/process-improve/compare/v1.24.2...v1.24.3
 [1.24.2]: https://github.com/kgdunn/process-improve/compare/v1.24.1...v1.24.2

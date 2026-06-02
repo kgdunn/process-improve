@@ -166,6 +166,30 @@ class TestPriorKnowledgeParsing:
         pk = _parse_prior_knowledge("Some random text without keywords", [])
         assert 0.1 <= pk.confidence <= 0.5
 
+    def test_significant_factor_regex_runs_in_linear_time(self):
+        r"""SEC-29 (#278) regression guard.
+
+        The previous ``_SIGNIFICANT_FACTOR_PATTERN`` used ``[\\w\\s]*?`` which is
+        O(n^2) on whitespace-heavy input. Combined with the ``max_string``
+        ceiling, a ~50KB whitespace payload burned significant CPU. The fix
+        bounded the capture to ``\\w+(?:\\s\\w+){0,4}`` (linear time). This
+        test sends a 50KB whitespace-heavy payload and asserts the parse
+        completes well under a second.
+        """
+        import time
+
+        # 50KB of mostly whitespace with one trigger phrase at the end.
+        payload = (" " * 49_900) + "Temperature is significant"
+        start = time.perf_counter()
+        pk = _parse_prior_knowledge(payload, ["Temperature"])
+        elapsed = time.perf_counter() - start
+        assert elapsed < 1.0, (
+            f"_SIGNIFICANT_FACTOR_PATTERN took {elapsed:.3f}s on a 50KB "
+            "whitespace payload; the bounded regex should be linear in size."
+        )
+        # Sanity: still extracts the legitimate trigger.
+        assert "Temperature" in pk.known_significant_factors
+
 
 # ---------------------------------------------------------------------------
 # Budget allocation

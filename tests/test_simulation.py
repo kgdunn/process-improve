@@ -99,6 +99,32 @@ def _make_sim(seed: int = 42, **overrides) -> dict:
 # ---------------------------------------------------------------------------
 
 
+class TestDrawInitialSeed:
+    """SEC-28 (#277): seeds must carry at least 63 bits of entropy.
+
+    The previous implementation truncated to 31 bits, which combined with
+    observable simulator outputs allowed brute-forcing the hidden model. The
+    fix uses ``secrets.randbits(63)`` for a JSON-int-safe 63-bit seed.
+    """
+
+    def test_seed_uses_at_least_63_bits(self):
+        from process_improve.simulation.model import draw_initial_seed
+
+        # Sample many seeds and assert the spread occupies the full 63-bit range.
+        # 200 samples is plenty: P(all-bits-below-2**62) when sampling from a
+        # uniform 63-bit space is (1/2)**200, i.e. statistically impossible.
+        samples = [draw_initial_seed() for _ in range(200)]
+        assert all(s >= 0 for s in samples)
+        # At least one sample must exceed 2**31 to prove width > 31 bits.
+        assert max(samples) > 2**31, (
+            f"draw_initial_seed appears truncated to <=31 bits; max={max(samples)}"
+        )
+        # At least one sample must exceed 2**62 to prove width >= 63 bits.
+        assert max(samples) > 2**62, (
+            f"draw_initial_seed appears truncated to <=62 bits; max={max(samples)}"
+        )
+
+
 class TestCreateSimulator:
     def test_returns_sim_id_public_and_private(self):
         sim = _make_sim()
