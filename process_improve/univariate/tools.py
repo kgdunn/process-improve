@@ -571,7 +571,11 @@ def ttest_paired_samples(
     """Paired t-test; see tool spec for details."""
     a = pd.Series(np.asarray(group_a, dtype=float))
     b = pd.Series(np.asarray(group_b, dtype=float))
-    assert len(a) == len(b), "group_a and group_b must have the same length for a paired test."
+    if len(a) != len(b):
+        raise ValueError(
+            f"group_a and group_b must have the same length for a paired test; "
+            f"got len(group_a)={len(a)}, len(group_b)={len(b)}."
+        )
     differences = a - b.values
     differences = differences.dropna()
     raw = ttest_paired(differences, conflevel=confidence_level)
@@ -657,7 +661,11 @@ def within_between_variance(
     groups: list[Any],
 ) -> dict:
     """Within- and between-group variance decomposition; see tool spec for details."""
-    assert len(values) == len(groups), "'values' and 'groups' must have the same length."
+    if len(values) != len(groups):
+        raise ValueError(
+            f"'values' and 'groups' must have the same length; "
+            f"got len(values)={len(values)}, len(groups)={len(groups)}."
+        )
     df = pd.DataFrame({"measured": values, "repeat": groups})
     result = variance_decomposition(df, measured="measured", repeat="repeat")
     return clean(result)

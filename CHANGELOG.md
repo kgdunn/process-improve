@@ -11,6 +11,44 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.18] - 2026-06-01
+
+### Security
+
+- Complete the SEC-17 sweep: every remaining validation `assert` in
+  `multivariate/methods.py`, `multivariate/plots.py`,
+  `bivariate/methods.py`, `univariate/tools.py`,
+  `experiments/structures.py`, `batch/features.py`,
+  `batch/plotting.py`, `batch/preprocessing.py`, and
+  `monitoring/metrics.py` is now an explicit
+  `if not X: raise ValueError(...)` (or `TypeError` / `KeyError` /
+  `NotImplementedError` per the [error-handling style guide](docs/development/error_handling.rst)).
+  Under `python -O` these checks no longer disappear (SEC-17 #266).
+- The `test-under-dash-O` CI job is now a blocking check (was
+  `continue-on-error: true` in v1.22.16; flipped in this release).
+  A future regression that re-introduces a validation `assert`
+  turns CI red.
+
+### Changed
+
+- `PCA.t2_plot` and `PCA.spe_plot` now raise `ValueError` (rather
+  than `AssertionError`) for `with_a == 0` or `with_a >
+  n_components`. Tests updated.
+- `PCA.fit` raises `ValueError` (rather than `AssertionError`) on
+  invalid `missing_data_settings["md_tol"]`. Tests updated.
+- `process_improve.batch.features._make_phase_features` raises
+  `NotImplementedError` when multiple columns are passed, replacing
+  a silent `assert len(columns) == 1`.
+
+### Internal
+
+- Post-preprocessing invariants in `TPLS._learn_center_and_scaling_parameters`
+  (cross-checks on the centered/scaled `z_mats`, `f_mats`, `d_mats`,
+  `y_mats`) remain as `assert`s with explanatory inline comments,
+  per the error-handling guide's "internal invariant" carve-out.
+- Endpoint invariants in `batch.preprocessing` (`new_time_axis.min()
+  == sequence.min()`) likewise remain.
+
 ## [1.22.17] - 2026-06-01
 
 ### Added
@@ -345,7 +383,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.17...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.18...HEAD
+[1.22.18]: https://github.com/kgdunn/process-improve/compare/v1.22.17...v1.22.18
 [1.22.17]: https://github.com/kgdunn/process-improve/compare/v1.22.16...v1.22.17
 [1.22.16]: https://github.com/kgdunn/process-improve/compare/v1.22.15...v1.22.16
 [1.22.15]: https://github.com/kgdunn/process-improve/compare/v1.22.14...v1.22.15

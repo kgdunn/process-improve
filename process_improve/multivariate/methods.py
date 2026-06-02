@@ -629,7 +629,7 @@ class PCA(TransformerMixin, BaseEstimator):
         self.missing_data_settings = missing_data_settings
 
     @_fit_context(prefer_skip_nested_validation=True)
-    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA:  # noqa: ARG002, PLR0915, C901
+    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA:  # noqa: ARG002, PLR0912, PLR0915, C901
         """Fit a principal component analysis (PCA) model to the data.
 
         Parameters
@@ -3274,7 +3274,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.is_fitted_ = True
         return self
 
-    def predict(self, X: DataFrameDict) -> Bunch:  # noqa: C901, PLR0912
+    def predict(self, X: DataFrameDict) -> Bunch:  # noqa: C901, PLR0912, PLR0915
         """
         Model inference on new data.
 
@@ -4004,10 +4004,10 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Note the extra complexity for checking columns that have perfectly zero variance.
         # Internal invariants on the just-preprocessed matrices, not user input.
         for key in self.z_mats:
-            assert np.allclose(np.nanmean(self.z_mats[key], axis=0), 0, atol=1e-6)  # noqa: S101 - post-centering invariant
+            assert np.allclose(np.nanmean(self.z_mats[key], axis=0), 0, atol=1e-6)  # post-centering invariant
             for item in np.nanstd(self.z_mats[key], axis=0, ddof=1):
                 if item != 0:
-                    assert np.isclose(item, 1)  # noqa: S101 - post-scaling invariant
+                    assert np.isclose(item, 1)  # post-scaling invariant
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
@@ -4016,24 +4016,24 @@ class TPLS(RegressorMixin, BaseEstimator):
                 if not self.skip_f_matrix_preprocessing:
                     vector = np.nanmean(self.f_mats[key], axis=0)
                     vector[np.isnan(vector)] = 0
-                    assert np.allclose(vector, 0, atol=1e-6)  # noqa: S101 - post-centering invariant
+                    assert np.allclose(vector, 0, atol=1e-6)  # post-centering invariant
 
                     vector = np.nanstd(self.f_mats[key], axis=0, ddof=1)
                     vector[np.isnan(vector)] = 1
-                    assert np.allclose(vector, 1)  # noqa: S101 - post-scaling invariant
+                    assert np.allclose(vector, 1)  # post-scaling invariant
 
                 vector = np.nanmean(self.d_mats[key], axis=0)
                 vector[np.isnan(vector)] = 0
-                assert np.allclose(vector, 0, atol=1e-6)  # noqa: S101 - post-centering invariant
+                assert np.allclose(vector, 0, atol=1e-6)  # post-centering invariant
                 vector = np.nanstd(self.d_mats[key], axis=0, ddof=1) * self.preproc_["D"][key]["block"].values[0]
                 vector[np.isnan(vector)] = 1
-                assert np.allclose(vector, 1)  # noqa: S101 - post-scaling invariant
+                assert np.allclose(vector, 1)  # post-scaling invariant
 
         # Checks on the Y-block: post-centering / post-scaling invariants.
-        assert all(  # noqa: S101 - post-centering invariant on every Y block
+        assert all(  # post-centering invariant on every Y block
             np.allclose(np.nanmean(self.y_mats[key], axis=0), 0, atol=1e-6) for key in self.y_mats
         )
-        assert all(  # noqa: S101 - post-scaling invariant on every Y block
+        assert all(  # post-scaling invariant on every Y block
             np.allclose(np.where((in_array := np.nanstd(self.y_mats[key], axis=0, ddof=1)) == 0, 1, in_array), 1)
             for key in self.y_mats
         )

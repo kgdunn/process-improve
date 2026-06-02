@@ -64,7 +64,11 @@ def _prepare_data(  # noqa: C901, PLR0912
         tags = [tags]
 
     # Check that all these columns actually exist in the df
-    assert all(column_name in list(df) for column_name in tags)
+    missing_tags = [column_name for column_name in tags if column_name not in df.columns]
+    if missing_tags:
+        raise KeyError(
+            f"Tag(s) not found in the dataframe columns: {missing_tags}."
+        )
 
     # First make a copy! else, it will repeatedly add these. Ensure it is
     # a unique list too.
@@ -322,7 +326,10 @@ def f_rupture(
     within each unique phase, per batch, of the ``phase_col`` column.
     """
     # Handle phase detection based on 1 column for now.
-    assert len(columns) == 1
+    if len(columns) != 1:
+        raise NotImplementedError(
+            f"Phase detection currently supports a single column only; got {len(columns)}."
+        )
 
     # TODO: see https://github.com/deepcharles/ruptures
 
@@ -596,8 +603,10 @@ def f_crossing(  # noqa: PLR0913
     """
     base_name = f"cross-{int(threshold)}" if suffix is None else str(suffix)
 
-    assert isinstance(tag, str)
-    assert tag in data, f"Desired tag ['{tag}'] not found in the dataframe."
+    if not isinstance(tag, str):
+        raise TypeError(f"tag must be a string; got {type(tag).__name__}.")
+    if tag not in data:
+        raise KeyError(f"Desired tag ['{tag}'] not found in the dataframe.")
 
     prepared, _tags, output, _ = _prepare_data(
         data,

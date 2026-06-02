@@ -380,7 +380,7 @@ def loading_plot(  # noqa: PLR0913
     return fig
 
 
-def spe_plot(
+def spe_plot(  # noqa: C901
     model: BaseEstimator,
     with_a: int = -1,
     items_to_highlight: dict[str, list] | None = None,
@@ -532,7 +532,7 @@ def spe_plot(
     return fig
 
 
-def t2_plot(
+def t2_plot(  # noqa: C901
     model: BaseEstimator,
     with_a: int = -1,
     items_to_highlight: dict[str, list] | None = None,

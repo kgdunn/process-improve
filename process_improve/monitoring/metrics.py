@@ -49,8 +49,14 @@ def calculate_cpk(
     float
         The Cpk value.
     """
-    assert trim_percentile >= 0
-    assert trim_percentile < 40  # typically a max of 10 to 20 is advised.
+    if trim_percentile < 0:
+        raise ValueError(
+            f"trim_percentile must be non-negative; got {trim_percentile}."
+        )
+    if trim_percentile >= 40:
+        raise ValueError(
+            f"trim_percentile must be < 40 (typically <= 10-20); got {trim_percentile}."
+        )
     lower_spec, upper_spec = specifications
 
     if lower_spec is None:
