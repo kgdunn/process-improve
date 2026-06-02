@@ -10,10 +10,14 @@ import plotly.graph_objects as go
 import plotly.io as pio
 import pytest
 from scipy.sparse import csr_matrix
+from sklearn import config_context
+from sklearn.base import clone
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.exceptions import NotFittedError
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import KFold, LeaveOneOut, cross_val_score
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 from sklearn.utils import Bunch
 
 from process_improve.multivariate.methods import (
@@ -39,6 +43,7 @@ from process_improve.multivariate.methods import (
     rv2_coefficient,
     rv_coefficient,
     scale,
+    score_limit,
     squared_cosine,
     ssq,
     vip,
@@ -1325,6 +1330,126 @@ def test_pls_compare_api(fixture_pls_simca_2_components: dict) -> None:
         Y_mcuv.inverse_transform(result.y_hat).values.ravel(), abs=1e-5
     )
     assert np.abs(data["T"]) == pytest.approx(np.abs(result.scores), abs=1e-5)
+
+
+def test_score_limit_pca() -> None:
+    """score_limit returns per-component z * std limits for the PCA scores."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.normal(size=(60, 5)))
+    X_scaled = MCUVScaler().fit_transform(X)
+    model = PCA(n_components=3).fit(X_scaled)
+
+    limits = model.score_limit(conf_level=0.95)
+    assert limits.shape == (3,)
+    assert np.all(limits > 0)
+
+    z_95 = 1.959963984540054
+    expected = z_95 * np.asarray(model.scores_).std(axis=0, ddof=1)
+    np.testing.assert_allclose(limits, expected, rtol=1e-9)
+
+    # A higher confidence level widens the limits.
+    assert np.all(model.score_limit(conf_level=0.99) > limits)
+
+    # The bound method and the free function agree.
+    np.testing.assert_allclose(score_limit(model, 0.95), limits, rtol=1e-12)
+
+
+def test_score_limit_pls() -> None:
+    """score_limit also works for a fitted PLS model."""
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame(rng.normal(size=(50, 4)))
+    beta = rng.normal(size=(4, 1))
+    Y = pd.DataFrame(X.values @ beta + rng.normal(scale=0.1, size=(50, 1)))
+    model = PLS(n_components=2).fit(MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y))
+
+    limits = model.score_limit()
+    assert limits.shape == (2,)
+    assert np.all(limits > 0)
+
+
+def test_pls_prediction_interval() -> None:
+    """PLS.prediction_interval brackets the predictions and widens with confidence."""
+    rng = np.random.default_rng(7)
+    X = pd.DataFrame(rng.normal(size=(45, 4)))
+    beta = rng.normal(size=(4, 1))
+    Y = pd.DataFrame(X.values @ beta + rng.normal(scale=0.3, size=(45, 1)))
+    X_s = MCUVScaler().fit_transform(X)
+    Y_s = MCUVScaler().fit_transform(Y)
+    model = PLS(n_components=2).fit(X_s, Y_s)
+
+    pi = model.prediction_interval(X_s, conf_level=0.95)
+    assert pi.y_hat.shape == (45, 1)
+    assert (pi.lower.values < pi.y_hat.values).all()
+    assert (pi.y_hat.values < pi.upper.values).all()
+
+    # A higher confidence level widens the interval.
+    pi_99 = model.prediction_interval(X_s, conf_level=0.99)
+    assert ((pi_99.upper - pi_99.lower).values > (pi.upper - pi.lower).values).all()
+
+    # A cross_validate() result can supply the error variance.
+    cv = model.cross_validate(X_s, Y_s, cv="loo", show_progress=False)
+    pi_cv = model.prediction_interval(X_s, cv_result=cv)
+    assert pi_cv.y_hat.shape == (45, 1)
+    assert (pi_cv.lower.values < pi_cv.upper.values).all()
+
+    with pytest.raises(ValueError, match="conf_level"):
+        model.prediction_interval(X_s, conf_level=1.5)
+
+
+def test_pls_get_set_params_and_clone() -> None:
+    """PLS follows the sklearn estimator protocol: get_params/set_params/clone."""
+    pls = PLS(n_components=2, scale=False, max_iter=321)
+
+    params = pls.get_params()
+    assert params["n_components"] == 2
+    assert params["scale"] is False
+    assert params["max_iter"] == 321
+
+    pls.set_params(n_components=4, max_iter=500)
+    assert pls.n_components == 4
+    assert pls.max_iter == 500
+
+    fresh = clone(pls)
+    assert fresh is not pls
+    assert fresh.get_params() == pls.get_params()
+
+
+def test_pls_in_pipeline_and_clone_matches_plsregression() -> None:
+    """PLS runs inside an sklearn Pipeline, clones, and matches PLSRegression."""
+    rng = np.random.default_rng(42)
+    n_samples, n_features, n_components = 50, 6, 3
+    feature_names = [f"x{i}" for i in range(n_features)]
+    X = pd.DataFrame(rng.normal(size=(n_samples, n_features)), columns=feature_names)
+    beta = rng.normal(size=(n_features, 1))
+    Y = pd.DataFrame(X.values @ beta + rng.normal(scale=0.2, size=(n_samples, 1)), columns=["y"])
+    # PLSRegression centres Y internally; our NIPALS does not, so centre Y up front.
+    Y_scaled = pd.DataFrame(StandardScaler().fit_transform(Y.values), columns=["y"])
+
+    with config_context(transform_output="pandas"):
+        pipe = Pipeline(
+            [("scaler", StandardScaler()), ("pls", PLS(n_components=n_components, scale=False))]
+        )
+        pipe.fit(X, Y_scaled)
+
+        # Cloning yields an unfitted but identically-parametrised pipeline.
+        fresh = clone(pipe)
+        fresh.fit(X, Y_scaled)
+
+    ours = pipe.named_steps["pls"]
+    refit = fresh.named_steps["pls"]
+    # Fitting is deterministic, so clone + refit reproduces the scores exactly.
+    assert ours.scores_.values == pytest.approx(refit.scores_.values, abs=1e-9)
+
+    # Numerical equivalence against sklearn PLSRegression on the same scaled X.
+    X_scaled = StandardScaler().fit_transform(X)
+    ref = PLSRegression(n_components=n_components, scale=False).fit(X_scaled, Y_scaled)
+
+    assert np.abs(ours.scores_.values) == pytest.approx(np.abs(ref.x_scores_), abs=1e-6)
+    assert np.abs(ours.x_loadings_.values) == pytest.approx(np.abs(ref.x_loadings_), abs=1e-6)
+    assert np.abs(ours.x_weights_.values) == pytest.approx(np.abs(ref.x_weights_), abs=1e-6)
+    assert np.abs(ours.beta_coefficients_.values.ravel()) == pytest.approx(
+        np.abs(ref.coef_.ravel()), abs=1e-6
+    )
 
 
 @pytest.fixture

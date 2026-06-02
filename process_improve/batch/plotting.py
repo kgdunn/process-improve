@@ -14,8 +14,43 @@ import numpy as np
 import plotly.graph_objects as go
 import seaborn as sns
 from plotly.offline import plot as plotoffline
+from pydantic import BaseModel, ConfigDict, Field
 
 from .data_input import check_valid_batch_dict
+
+
+class MultiTagPlotSettings(BaseModel):
+    """Settings for :func:`plot_multitags`.
+
+    All fields have sensible defaults; pass a plain dict of overrides to
+    ``plot_multitags(..., settings=...)``.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    nrows: int = 1
+    ncols: int = 0
+    x_axis_label: str = "Time, grouped per tag"
+    title: str = ""
+    show_legend: bool = True
+    mode: str = "lines"
+    html_image_height: int = 900
+    html_aspect_ratio_w_over_h: float = 16 / 9
+    default_line_width: float = 2
+    colour_map: Callable = sns.husl_palette
+    animate: bool = False
+    animate_batches_to_highlight: list = Field(default_factory=list)
+    animate_show_slider: bool = True
+    animate_show_pause: bool = True
+    animate_slider_prefix: str = "Index: "
+    # Fraction of figure height; depends on whether the legend is shown and the
+    # length of the batch names.
+    animate_slider_vertical_offset: float = -0.3
+    # The animated lines are drawn on top of the historical lines.
+    animate_line_width: float = 4
+    # If None, uses the max number of frames needed for one frame per time step.
+    animate_n_frames: int | None = None
+    animate_framerate_milliseconds: int = 0
 
 
 def get_rgba_from_triplet(incolour: list, alpha: float = 1, as_string: bool = False) -> str | list:
@@ -70,6 +105,7 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
     html_aspect_ratio_w_over_h: float = 16 / 9,
     y1_limits: tuple = (None, None),
     y2_limits: tuple = (None, None),
+    mode: str = "lines",
 ) -> go.Figure:
     """Plot a particular `tag` over all batches in the given dataframe `df`.
 
@@ -112,6 +148,9 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
         Axis limits enforced on the y2 (right) axis. Default is (None, None) which means the data
         themselves are used to determine the limits. Specify BOTH limits. Plotly requires
         (at the moment https://github.com/plotly/plotly.js/issues/400) that you specify both.
+    mode: str, optional
+        Plotly trace draw mode, by default "lines". Use "lines+markers" to also
+        show a marker at each data point, or "markers" for markers only.
 
 
     Returns
@@ -167,7 +206,7 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
                 y=batch_df[tag],
                 name=batch_id,
                 line=line_styles[batch_id],
-                mode="lines",
+                mode=mode,
                 opacity=0.8,
                 yaxis="y1",
             )
@@ -179,7 +218,7 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
                     y=batch_df[tag_y2],
                     name=batch_id,
                     line=line_styles[batch_id],
-                    mode="lines",
+                    mode=mode,
                     opacity=0.8,
                     yaxis="y2",
                 )
@@ -197,7 +236,7 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
                     y=batch_df[tag],
                     line=line_styles[batch_id],
                     name=batch_id,
-                    mode="lines",
+                    mode=mode,
                     opacity=0.8,
                     yaxis="y1",
                 )
@@ -209,7 +248,7 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
                         y=batch_df[tag_y2],
                         line=line_styles[batch_id],
                         name=batch_id,
-                        mode="lines",
+                        mode=mode,
                         opacity=0.8,
                         yaxis="y2",
                     )
@@ -328,6 +367,8 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
                 "x_axis_label": "Time, grouped per tag",# str: x-axis label
                 "title": "",                            # str: overall plot title
                 "show_legend": True,                    # bool: show legend
+                "mode": "lines",                        # str: Plotly trace mode
+                                                        #      e.g. "lines+markers"
                 "html_image_height": 900,               # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,     # float: width as ratio of height
             }
@@ -341,74 +382,29 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
     font_size = 12
     hovertemplate = "Time: %{x}\ny: %{y}"
 
-    # This will be clumsy, until we have Python 3.9. TODO: use pydantic instead
-    # This will be clumsy, until we have Python 3.9. TODO: use pydantic instead
-    default_settings: dict[str, Any] = dict(
-        # Pydantic: int
-        nrows=1,
-        # Pydantic: int
-        ncols=0,
-        # Pydantic: str
-        x_axis_label="Time, grouped per tag",
-        # Pydantic: str
-        title="",
-        # Pydantic: bool
-        show_legend=True,
-        # Pydantic: >0
-        html_image_height=900,
-        # Pydantic: >0
-        html_aspect_ratio_w_over_h=16 / 9,
-        # Pydantic: >0
-        default_line_width=2,
-        # Pydantic: callable
-        colour_map=sns.husl_palette,
-        # Pydantic: bool
-        animate=False,
-        # Pydantic: list
-        animate_batches_to_highlight=[],
-        # Pydantic: bool
-        animate_show_slider=True,
-        # Pydantic: bool
-        animate_show_pause=True,
-        # Pydantic: str
-        animate_slider_prefix="Index: ",
-        # Pydantic: bool
-        # fraction of figure height. Default should be OK, but depends if the
-        # legend is show and length of batch names
-        animate_slider_vertical_offset=-0.3,
-        # Pydantic: > 0
-        animate_line_width=4,  # the animated lines are drawn on top of the historical lines
-        # Pydantic: optional or int
-        animate_n_frames=None,  # takes max frames required to give every time step 1 frame.
-        # Pydantic: int >= 0
-        animate_framerate_milliseconds=0,
-    )
-    if settings:
-        default_settings.update(settings)
+    config = MultiTagPlotSettings(**(settings or {}))
 
-    settings = default_settings
-
-    if len(settings["animate_batches_to_highlight"]) == 0:
-        settings["animate"] = False
-    if settings["animate"]:
+    if len(config.animate_batches_to_highlight) == 0:
+        config.animate = False
+    if config.animate:
         # override for animations, because we want to see everything in frame zero
-        settings["default_line_width"] = 0.5
+        config.default_line_width = 0.5
         # Override these settings for animations, because we want to see everything in frame zero
         animation_colour_assignment = colours_per_batch_id(
             batch_ids=list(df_dict.keys()),
             batches_to_highlight=batches_to_highlight or dict(),
-            default_line_width=settings["animate_line_width"],
+            default_line_width=config.animate_line_width,
             use_default_colour=False,
-            colour_map=settings["colour_map"],
+            colour_map=config.colour_map,
         )
 
     else:
         # Adjust the other animate settings in such a way that the regular functionality works
-        settings["animate_show_slider"] = False
-        settings["animate_show_pause"] = False
-        settings["animate_line_width"] = 0
-        settings["animate_n_frames"] = 0
-        settings["animate_batches_to_highlight"] = []
+        config.animate_show_slider = False
+        config.animate_show_pause = False
+        config.animate_line_width = 0
+        config.animate_n_frames = 0
+        config.animate_batches_to_highlight = []
 
     if fig is None:
         fig = go.Figure()
@@ -421,11 +417,11 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
     if batch_list is None:
         batch_list = list(df_dict.keys())
     batch_list = list(batch_list)
-    if settings["animate"]:
-        for batch_id in settings["animate_batches_to_highlight"]:
+    if config.animate:
+        for batch_id in config.animate_batches_to_highlight:
             batch_list.remove(batch_id)
         # Afterwards, add them back, at the end.
-        batch_list.extend(settings["animate_batches_to_highlight"])
+        batch_list.extend(config.animate_batches_to_highlight)
 
     if time_column in tag_list:
         tag_list.remove(time_column)
@@ -437,19 +433,21 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
     ):
         raise ValueError("One or more batches in df_dict failed validation.")
 
-    if settings["ncols"] == 0:
-        settings["ncols"] = int(np.ceil(len(tag_list) / int(settings["nrows"])))
+    if config.ncols == 0:
+        config.ncols = int(np.ceil(len(tag_list) / int(config.nrows)))
 
-    specs = [[{"type": "scatter"}] * int(settings["ncols"])] * int(settings["nrows"])
+    # Build a fresh dict per cell: `[[...] * ncols] * nrows` would alias one
+    # row list across every row, so a placeholder like `[[None]]` does not work.
+    specs = [[{"type": "scatter"} for _ in range(int(config.ncols))] for _ in range(int(config.nrows))]
 
     fig.set_subplots(
-        rows=settings["nrows"],
-        cols=settings["ncols"],
+        rows=config.nrows,
+        cols=config.ncols,
         shared_xaxes="all",
         shared_yaxes=False,
         start_cell="top-left",
-        vertical_spacing=0.2 / settings["nrows"],
-        horizontal_spacing=0.2 / settings["ncols"],
+        vertical_spacing=0.2 / config.nrows,
+        horizontal_spacing=0.2 / config.ncols,
         subplot_titles=tag_list,
         specs=specs,
     )
@@ -457,10 +455,10 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
     colour_assignment = colours_per_batch_id(
         batch_ids=list(df_dict.keys()),
         batches_to_highlight=batches_to_highlight,
-        default_line_width=settings["default_line_width"],
+        default_line_width=config.default_line_width,
         # if animating, yes, use grey for all lines; unless `batches_to_highlight` was specified
-        use_default_colour=settings["animate"] if settings["animate"] and (len(batches_to_highlight) == 0) else False,
-        colour_map=settings["colour_map"],
+        use_default_colour=config.animate if config.animate and (len(batches_to_highlight) == 0) else False,
+        colour_map=config.colour_map,
     )
 
     # Initial plot (what is visible before animation starts)
@@ -475,18 +473,18 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
 
         row = col = 1
         for tag in tag_list:
-            showlegend = settings["show_legend"] if tag == tag_list[0] else False
+            showlegend = config.show_legend if tag == tag_list[0] else False
             # This feels right, but leads to the animated batched taking the places of the
             # first few non-animated batches in the legend.
             # Ugh, even without this, they still overwrite them. Sadly.
-            # if batch_id in settings["animate_batches_to_highlight"]:
+            # if batch_id in config.animate_batches_to_highlight:
             #    showlegend = False  # overridden. If required, we will add it during the animation
 
             trace = go.Scatter(
                 x=time_data,
                 y=batch_df[tag],
                 name=batch_id,
-                mode="lines",
+                mode=config.mode,
                 hovertemplate=hovertemplate,
                 line=colour_assignment[batch_id],
                 legendgroup=batch_id,
@@ -498,7 +496,7 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
             fig.add_trace(trace)
 
             col += 1
-            if col > settings["ncols"]:
+            if col > config.ncols:
                 row += 1
                 col = 1
 
@@ -511,19 +509,19 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
         "font": {"size": font_size},
         "currentvalue": {
             "font": {"size": font_size},
-            "prefix": settings["animate_slider_prefix"],
+            "prefix": config.animate_slider_prefix,
             "visible": True,
             "xanchor": "left",
         },
         "transition": {
-            "duration": settings["animate_framerate_milliseconds"],
+            "duration": config.animate_framerate_milliseconds,
             "easing": "linear",
         },
         "pad": {"b": 0, "t": 0},
         "lenmode": "fraction",
         "len": 0.9,
         "x": 0.05,
-        "y": settings["animate_slider_vertical_offset"],
+        "y": config.animate_slider_vertical_offset,
         "name": "Slider",
         "steps": [],
     }
@@ -531,15 +529,15 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
     frames: list = []
     slider_steps = []
     frame_settings = dict(
-        frame={"duration": settings["animate_framerate_milliseconds"], "redraw": True},
+        frame={"duration": config.animate_framerate_milliseconds, "redraw": True},
         mode="immediate",
         transition={"duration": 0},
     )
-    settings["animate_n_frames"] = (
-        settings["animate_n_frames"] if settings["animate_n_frames"] >= 0 else longest_time_length
+    config.animate_n_frames = (
+        config.animate_n_frames if config.animate_n_frames >= 0 else longest_time_length
     )
 
-    for raw_index in np.linspace(0, longest_time_length, settings["animate_n_frames"]):
+    for raw_index in np.linspace(0, longest_time_length, config.animate_n_frames):
         # TO OPTIMIZE: add hover template only on the last iteration
         # TO OPTIMIZE: can you add only the incremental new piece of animation?
 
@@ -551,11 +549,12 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
             fig,
             up_to_index=index + 1,
             time_column=time_column,
-            batch_ids_to_animate=settings["animate_batches_to_highlight"],
+            batch_ids_to_animate=config.animate_batches_to_highlight,
             animation_colour_assignment=animation_colour_assignment,
-            show_legend=settings["show_legend"],
+            show_legend=config.show_legend,
             hovertemplate=hovertemplate,
-            max_columns=settings["ncols"],
+            max_columns=config.ncols,
+            mode=config.mode,
         )
 
         frames.append(go.Frame(data=one_frame, name=frame_name))
@@ -601,20 +600,20 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
     # OK, pull things together to render the fig
     slider_baseline_dict["steps"] = slider_steps
     button_list: list[Any] = []
-    if settings["animate"]:
+    if config.animate:
         fig.update(frames=frames)
         button_list.append(button_play)
-        if settings["animate_show_pause"]:
+        if config.animate_show_pause:
             button_list.append(button_pause)
 
     fig.update_layout(
-        title=settings["title"],
+        title=config.title,
         hovermode="closest",
-        showlegend=settings["show_legend"],
+        showlegend=config.show_legend,
         autosize=False,
-        width=settings["html_aspect_ratio_w_over_h"] * settings["html_image_height"],
-        height=settings["html_image_height"],
-        sliders=[slider_baseline_dict] if settings["animate_show_slider"] else [],
+        width=config.html_aspect_ratio_w_over_h * config.html_image_height,
+        height=config.html_image_height,
+        sliders=[slider_baseline_dict] if config.animate_show_slider else [],
         updatemenus=[
             dict(
                 type="buttons",
@@ -642,6 +641,7 @@ def generate_one_frame(  # noqa: PLR0913
     show_legend: bool = False,
     hovertemplate: str = "",
     max_columns: int = 0,
+    mode: str = "lines",
 ) -> list[dict]:
     """
     Return a list of dictionaries.
@@ -664,7 +664,7 @@ def generate_one_frame(  # noqa: PLR0913
                     x=time_data[0:up_to_index],
                     y=df_dict[batch_id][tag][0:up_to_index],
                     name=batch_id,
-                    mode="lines",
+                    mode=mode,
                     hovertemplate=hovertemplate,
                     line=animation_colour_assignment[batch_id],
                     legendgroup=batch_id,

@@ -545,6 +545,73 @@ def test_ols_predict_wrong_shape_raises(
     assert np.all(np.isfinite(good))
 
 
+def test_ols_prediction_interval_matches_pi_range_grid(
+    multiple_linear_regression_data: tuple[np.ndarray, np.ndarray],
+) -> None:
+    """prediction_interval() on the pi_range_ grid reproduces the stored grid."""
+    X, y = multiple_linear_regression_data
+    model = OLS().fit(X, y)
+    grid_x = model.pi_range_[:, 0]
+    pi = model.prediction_interval(grid_x)
+    np.testing.assert_allclose(pi.lower, model.pi_range_[:, 1], rtol=1e-9)
+    np.testing.assert_allclose(pi.upper, model.pi_range_[:, 2], rtol=1e-9)
+
+
+def test_ols_prediction_interval_at_arbitrary_x(
+    multiple_linear_regression_data: tuple[np.ndarray, np.ndarray],
+) -> None:
+    """prediction_interval() works at any x, including outside the training range."""
+    X, y = multiple_linear_regression_data
+    model = OLS().fit(X, y)
+    x_new = np.array([-5.0, 0.0, 100.0])
+    pi = model.prediction_interval(x_new)
+
+    np.testing.assert_allclose(pi.predicted, model.predict(x_new.reshape(-1, 1)), rtol=1e-12)
+    assert np.all(pi.lower < pi.predicted)
+    assert np.all(pi.predicted < pi.upper)
+
+    # A higher confidence level widens the interval.
+    pi_99 = model.prediction_interval(x_new, conflevel=0.99)
+    assert np.all((pi_99.upper - pi_99.lower) > (pi.upper - pi.lower))
+
+
+def test_ols_prediction_interval_scalar_and_no_intercept(
+    multiple_linear_regression_data: tuple[np.ndarray, np.ndarray],
+) -> None:
+    """Scalar input is treated as one point, and no-intercept models are supported."""
+    X, y = multiple_linear_regression_data
+
+    # Scalar input.
+    pi_scalar = OLS().fit(X, y).prediction_interval(0.12)
+    assert pi_scalar.predicted.shape == (1,)
+    assert pi_scalar.lower[0] < pi_scalar.upper[0]
+
+    # No-intercept model.
+    model = OLS(fit_intercept=False).fit(X, y)
+    pi = model.prediction_interval(np.array([0.05, 0.10, 0.15]))
+    assert pi.predicted.shape == (3,)
+    assert np.all(pi.lower < pi.upper)
+
+
+def test_ols_prediction_interval_multifeature() -> None:
+    """prediction_interval() supports multi-feature models and single-point input."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.normal(size=(40, 2)), columns=["a", "b"])
+    y = pd.Series(X["a"] * 2.0 - X["b"] + 0.5 + rng.normal(scale=0.1, size=40), name="y")
+    model = OLS().fit(X, y)
+
+    pi = model.prediction_interval([[0.0, 0.0], [1.0, -1.0]])
+    assert pi.predicted.shape == (2,)
+    assert np.all(pi.lower < pi.upper)
+
+    # A bare 1-D array is treated as one multi-feature point.
+    pi_single = model.prediction_interval(np.array([0.5, 0.5]))
+    assert pi_single.predicted.shape == (1,)
+
+    with pytest.raises(ValueError, match="feature"):
+        model.prediction_interval([[1.0, 2.0, 3.0]])
+
+
 def test_ols_no_intercept(multiple_linear_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
     """OLS with fit_intercept=False should match R's summary(lm(y~x+0))."""
     X, y = multiple_linear_regression_data

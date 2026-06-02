@@ -869,3 +869,93 @@ def test_distribution_check() -> None:
     > ks.test(y1,"pnorm")
     """
     # TODO
+
+
+def test_biweight_midvariance_robust_to_outliers() -> None:
+    """The Mosteller-Tukey robust scale is barely affected by gross outliers."""
+    rng = np.random.default_rng(0)
+    clean = rng.normal(loc=10, scale=2, size=200)
+    contaminated = np.concatenate([clean, [1000.0, -1000.0]])
+
+    bw_clean = univariate.biweight_midvariance(clean)
+    bw_contaminated = univariate.biweight_midvariance(contaminated)
+
+    # The classical variance explodes with the outliers; the robust scale barely moves.
+    assert np.var(contaminated, ddof=1) > 100 * np.var(clean, ddof=1)
+    assert abs(bw_contaminated - bw_clean) / bw_clean < 0.1
+    # For clean normal data with sigma=2 it tracks the true variance (~4).
+    assert 2.0 < bw_clean < 8.0
+
+
+def test_biweight_midvariance_edge_cases() -> None:
+    """Constant and empty samples are handled gracefully."""
+    assert univariate.biweight_midvariance([5.0, 5.0, 5.0]) == 0.0
+    assert np.isnan(univariate.biweight_midvariance([]))
+    assert np.isnan(univariate.biweight_midvariance([1.0, np.nan], nan_policy="propagate"))
+    # The default "omit" policy drops NaNs and computes on the remainder.
+    rng = np.random.default_rng(11)
+    clean = rng.normal(loc=0.0, scale=1.0, size=100)
+    with_nan = np.concatenate([clean, [np.nan, np.nan]])
+    omitted = univariate.biweight_midvariance(with_nan)
+    assert np.isfinite(omitted)
+    assert omitted == pytest.approx(univariate.biweight_midvariance(clean), rel=1e-12)
+
+
+def test_holm_bonferroni_matches_statsmodels() -> None:
+    """holm_bonferroni reproduces statsmodels' Holm correction."""
+    from statsmodels.stats.multitest import multipletests
+
+    p = np.array([0.001, 0.04, 0.03, 0.2, 0.009])
+    result = univariate.holm_bonferroni(p, alpha=0.05)
+    reject_ref, p_adj_ref, _, _ = multipletests(p, alpha=0.05, method="holm")
+
+    np.testing.assert_allclose(result.p_adjusted, p_adj_ref, rtol=1e-12)
+    np.testing.assert_array_equal(result.reject, reject_ref)
+
+
+def test_holm_bonferroni_empty_input() -> None:
+    """An empty set of p-values yields empty results."""
+    result = univariate.holm_bonferroni([])
+    assert result.p_adjusted.size == 0
+    assert result.reject.size == 0
+
+
+def test_tietjen_moore_detects_planted_outliers() -> None:
+    """The Tietjen-Moore test flags two planted gross outliers."""
+    rng = np.random.default_rng(0)
+    sample = rng.normal(loc=0.0, scale=1.0, size=40)
+    sample[5] = 12.0
+    sample[20] = -11.0
+
+    result = univariate.tietjen_moore_test(
+        sample, n_outliers=2, n_simulations=2000, random_state=1
+    )
+    assert result.reject is True
+    assert set(result.outlier_indices.tolist()) == {5, 20}
+
+
+def test_tietjen_moore_no_outliers_in_clean_data() -> None:
+    """Clean normal data should not be flagged as containing outliers."""
+    rng = np.random.default_rng(2)
+    sample = rng.normal(size=50)
+    result = univariate.tietjen_moore_test(
+        sample, n_outliers=2, n_simulations=2000, random_state=3
+    )
+    assert result.reject is False
+
+    with pytest.raises(ValueError, match="n_outliers"):
+        univariate.tietjen_moore_test(sample, n_outliers=50)
+
+
+def test_distribution_fit_normal_and_non_normal() -> None:
+    """distribution_fit accepts genuinely normal data and rejects skewed data."""
+    rng = np.random.default_rng(4)
+    normal_sample = rng.normal(loc=5.0, scale=2.0, size=500)
+    fit_normal = univariate.distribution_fit(normal_sample, distribution="norm")
+    assert fit_normal.distribution == "norm"
+    assert fit_normal.n == 500
+    assert fit_normal.fits_well is True
+
+    exponential_sample = rng.exponential(scale=3.0, size=500)
+    fit_bad = univariate.distribution_fit(exponential_sample, distribution="norm")
+    assert fit_bad.fits_well is False

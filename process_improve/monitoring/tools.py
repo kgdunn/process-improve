@@ -179,8 +179,8 @@ def process_capability(
         specs = (lower_spec if lower_spec is not None else np.nan,
                  upper_spec if upper_spec is not None else np.nan)
 
-        cpk = calculate_cpk(df, which_column="value", specifications=specs, trim_percentile=trim)
-        cpk_float = float(cpk)
+        cpk_result = calculate_cpk(df, which_column="value", specifications=specs, trim_percentile=trim)
+        cpk_float = float(cpk_result.cpk)
 
         if cpk_float >= 1.67:
             interpretation = f"Cpk = {cpk_float:.3f}. Excellent capability - process is well within spec limits."
@@ -193,6 +193,7 @@ def process_capability(
 
         return clean({
             "cpk": cpk_float,
+            "rsd": float(cpk_result.rsd),
             "interpretation": interpretation,
             "lower_spec": lower_spec,
             "upper_spec": upper_spec,

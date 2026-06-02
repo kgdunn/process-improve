@@ -72,6 +72,48 @@ class TestFactor:
         assert f.low == 0.0
         assert f.high == 1.0
 
+    def test_from_data_continuous_infers_range(self) -> None:
+        """from_data should infer low/high from the data when not given."""
+        import pandas as pd
+
+        series = pd.Series([4.0, 6.5, 8.0, 5.0], name="Pressure")
+        f = Factor.from_data(series, type="continuous")
+        assert f.name == "Pressure"
+        assert f.type == FactorType.continuous
+        assert f.range == (4.0, 8.0)
+
+    def test_from_data_continuous_explicit_range(self) -> None:
+        """Explicit low/high should override the inferred range."""
+        import pandas as pd
+
+        f = Factor.from_data(pd.Series([5, 6, 7]), name="B", type="continuous", low=4, high=8)
+        assert f.range == (4, 8)
+
+    def test_from_data_categorical_infers_levels(self) -> None:
+        """from_data should infer categorical levels from unique values."""
+        import pandas as pd
+
+        series = pd.Series(["ST", "VD", "ST", "VD"], name="Mode")
+        f = Factor.from_data(series, type="categorical")
+        assert f.type == FactorType.categorical
+        assert f.levels == ["ST", "VD"]
+
+    def test_from_data_categorical_with_explicit_levels(self) -> None:
+        """An explicit `levels` argument overrides the inferred unique values."""
+        import pandas as pd
+
+        f = Factor.from_data(
+            pd.Series(["A", "B"], name="x"),
+            type="categorical",
+            levels=["A", "B", "C"],
+        )
+        assert f.levels == ["A", "B", "C"]
+
+    def test_from_data_requires_name(self) -> None:
+        """from_data should error when no name is available."""
+        with pytest.raises(ValueError, match="name"):
+            Factor.from_data([1, 2, 3], type="continuous")
+
     def test_constraint(self) -> None:
         """Constraint should default to type='linear'."""
         c = Constraint(expression="A + B <= 1.0")

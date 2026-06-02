@@ -123,20 +123,35 @@ def dict_to_melted(
 
 def dict_to_wide(in_df: dict, group_by_batch: bool = False) -> pd.DataFrame:
     """
-    Convert aligned batch data from dict to wide format.
+    Convert aligned batch data from a dict to wide format.
 
-    `group_by_batch`, if True, means that all the data from the first batch is on the left
-    of the output dataframe, and the last batch is collected on the right.
+    Each row of the output is one batch; the columns are a 2-level
+    ``("tag", "sequence")`` index, so the data are only meaningful for aligned
+    batches (every batch has the same number of samples).
 
-    If `group_by_batch` is False, then data for the same tag are grouped together, side-by-side.
+    Parameters
+    ----------
+    in_df : dict
+        Standard batch-data dictionary: keys are batch identifiers, values are
+        per-batch dataframes with identical columns.
+    group_by_batch : bool, optional
+        Controls the ordering of the hierarchical column index.
 
-    TODO: `group_by_batch` is not implemented yet.
+        * ``False`` (default): columns are ordered ``(tag, sequence)``, so all
+          time samples for a tag are grouped together, side-by-side.
+        * ``True``: the levels are swapped to ``(sequence, tag)``, so all tags
+          for a given time sample are grouped together.
+
+    Returns
+    -------
+    pd.DataFrame
+        Wide-format dataframe, one row per batch, with a 2-level column index.
     """
     out_df = dict_to_melted(in_df=in_df, insert_batch_id_column=True, insert_sequence_column=True)
     aligned_wide_df = out_df.pivot_table(index="batch_id", columns="_sequence_")
+    aligned_wide_df.columns = aligned_wide_df.columns.set_names(["tag", "sequence"])
     if group_by_batch:
-        pass
-        # TODO: use the hierarchical indexing and regroup the columns
+        aligned_wide_df = aligned_wide_df.swaplevel("tag", "sequence", axis=1).sort_index(axis=1)
 
     return aligned_wide_df
 

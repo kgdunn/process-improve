@@ -172,8 +172,8 @@ def test_cpk_well_centered_process() -> None:
     """Cpk for a well-centered process with wide specs should be high."""
     rng = np.random.default_rng(42)
     data = pd.DataFrame({"value": rng.normal(loc=50, scale=2, size=500)})
-    cpk = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
-    assert cpk > 1.0, f"Expected Cpk > 1.0 for well-centered process, got {cpk}"
+    result = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
+    assert result.cpk > 1.0, f"Expected Cpk > 1.0 for well-centered process, got {result.cpk}"
 
 
 def test_cpk_classical_vs_robust() -> None:
@@ -182,18 +182,18 @@ def test_cpk_classical_vs_robust() -> None:
     data = pd.DataFrame({"value": rng.normal(loc=50, scale=2, size=500)})
     cpk_classical = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
     cpk_robust = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=2.5)
-    assert cpk_classical > 0
-    assert cpk_robust > 0
+    assert cpk_classical.cpk > 0
+    assert cpk_robust.cpk > 0
 
 
 def test_cpk_shifted_process() -> None:
     """Process shifted toward upper spec should have lower Cpk, limited by upper side."""
     rng = np.random.default_rng(42)
     data = pd.DataFrame({"value": rng.normal(loc=58, scale=2, size=500)})
-    cpk = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
+    result = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
     expected = (60 - data["value"].mean()) / (3 * data["value"].std())
-    assert cpk == pytest.approx(expected, abs=1e-6)
-    assert cpk < 1.0, "Shifted process near spec should have Cpk < 1"
+    assert result.cpk == pytest.approx(expected, abs=1e-6)
+    assert result.cpk < 1.0, "Shifted process near spec should have Cpk < 1"
 
 
 def test_cpk_column_name_specs() -> None:
@@ -204,15 +204,25 @@ def test_cpk_column_name_specs() -> None:
     data["upper"] = 60.0
     cpk_numeric = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
     cpk_col = calculate_cpk(data, "value", specifications=("lower", "upper"), trim_percentile=0)
-    assert cpk_col == pytest.approx(cpk_numeric, abs=0.01)
+    assert cpk_col.cpk == pytest.approx(cpk_numeric.cpk, abs=0.01)
 
 
 def test_cpk_estimates_specs_from_data_when_none() -> None:
     """When a spec is None, it is estimated from the data via trim_percentile."""
     rng = np.random.default_rng(7)
     data = pd.DataFrame({"value": rng.normal(loc=50, scale=2, size=500)})
-    cpk = calculate_cpk(data, "value", specifications=(None, None), trim_percentile=2.5)
-    assert np.isfinite(cpk)
+    result = calculate_cpk(data, "value", specifications=(None, None), trim_percentile=2.5)
+    assert np.isfinite(result.cpk)
+
+
+def test_cpk_returns_rsd() -> None:
+    """calculate_cpk should report the RSD of the limiting side alongside Cpk."""
+    rng = np.random.default_rng(42)
+    data = pd.DataFrame({"value": rng.normal(loc=50, scale=2, size=500)})
+    result = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
+    assert set(result.keys()) >= {"cpk", "center", "spread", "rsd"}
+    assert np.isfinite(result.rsd)
+    assert result.rsd == pytest.approx((result.spread / result.center) * 100, rel=1e-9)
 
 
 def test_metrics_renamed_attribute_raises_helpful_error() -> None:
@@ -235,17 +245,17 @@ def test_calculate_cpk_constant_column_emits_warning_and_returns_nan() -> None:
     """A constant column has zero spread; Cpk is undefined. SEC-24 (#273)."""
     data = pd.DataFrame({"value": [50.0] * 20})
     with pytest.warns(RuntimeWarning, match="spread is zero"):
-        cpk = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
-    assert np.isnan(cpk)
+        result = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
+    assert np.isnan(result.cpk)
 
 
 def test_calculate_cpk_normal_data_still_returns_finite_value() -> None:
     """Regression: SEC-24 changes must not affect the happy path."""
     rng = np.random.default_rng(0)
     data = pd.DataFrame({"value": rng.normal(50, 1, size=200)})
-    cpk = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
-    assert np.isfinite(cpk)
-    assert cpk > 0
+    result = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
+    assert np.isfinite(result.cpk)
+    assert result.cpk > 0
 
 
 class TestHoltWintersControlChartBatchYield:

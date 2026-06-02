@@ -88,6 +88,18 @@ def test__validate_with_synthetic_data_plus_noise(elbow_with_synthetic_data: tup
     assert abs(found_elbow - expected_elbow) < 10
 
 
+def test__robust_to_gross_outliers(elbow_with_synthetic_data: tuple) -> None:
+    """A handful of gross outliers should not move the detected elbow far."""
+    x, y, break_pt = elbow_with_synthetic_data
+    y = y.copy()
+    rng = np.random.default_rng(3)
+    outlier_idx = rng.choice(len(y), size=5, replace=False)
+    y[outlier_idx] += 50.0
+    expected_elbow = np.argmin(np.abs(x - break_pt))
+    found_elbow = find_elbow_point(x, y)
+    assert abs(found_elbow - expected_elbow) < 10
+
+
 def test__corner_case() -> None:
     """Test corner case with all NaN input."""
     found_elbow = find_elbow_point(

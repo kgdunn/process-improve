@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import ridgeplot
-from scipy.stats import chi2, f
+from scipy.stats import chi2, f, norm
 from scipy.stats import t as t_dist
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, _fit_context, clone
 from sklearn.metrics import r2_score
@@ -771,6 +771,7 @@ class PCA(TransformerMixin, BaseEstimator):
         self.explained_variance_plot = partial(explained_variance_plot, model=self)
         self.correlation_loadings_plot = partial(correlation_loadings_plot, model=self)
         self.spe_limit = partial(spe_limit, model=self)
+        self.score_limit = partial(score_limit, model=self)
         self.vip = partial(vip, model=self)
         self.squared_cosine = partial(squared_cosine, model=self)
         self.observation_contributions = partial(observation_contributions, model=self)
@@ -1772,6 +1773,7 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         )
         self.hotellings_t2_limit = partial(hotellings_t2_limit, n_components=self.n_components, n_rows=N)
         self.spe_limit = partial(spe_limit, model=self)
+        self.score_limit = partial(score_limit, model=self)
         self.spe_plot = partial(spe_plot, model=self)
         self.t2_plot = partial(t2_plot, model=self)
         self.loading_plot = partial(loading_plot, model=self)
@@ -2433,6 +2435,74 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
             conf_level=conf_level,
         )
 
+    def prediction_interval(
+        self,
+        X: DataMatrix,
+        *,
+        conf_level: float = 0.95,
+        cv_result: Bunch | None = None,
+    ) -> Bunch:
+        """Prediction interval for the Y predictions of new observations.
+
+        The interval combines the residual error variance with the leverage of
+        each new observation in the latent-variable space. For a new
+        observation the prediction-interval half-width on target ``m`` is
+
+        ``t * s_E[m] * sqrt(1 + 1/N + T2_new / (N - 1))``
+
+        where ``s_E`` is the residual error standard deviation, ``T2_new`` is
+        the Hotelling's T² of the new observation, ``N`` is the number of
+        calibration samples, and ``t`` is the Student-t quantile.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_new, n_features)
+            New observations, pre-processed the same way as the training data.
+        conf_level : float, default=0.95
+            Confidence level for the interval, in (0.5, 1.0).
+        cv_result : sklearn.utils.Bunch or None, default=None
+            The result of :meth:`cross_validate`. When supplied, its
+            cross-validated RMSE (``rmse_cv``) is used for the error variance,
+            which is preferable to the optimistic calibration RMSE used
+            otherwise.
+
+        Returns
+        -------
+        sklearn.utils.Bunch
+            With keys ``y_hat`` (point predictions), ``lower`` and ``upper``
+            (prediction-interval bounds) - each a DataFrame of shape
+            (n_new, n_targets) - and ``conf_level``.
+        """
+        check_is_fitted(self, "beta_coefficients_")
+        if not (0.5 < conf_level < 1.0):
+            raise ValueError(f"conf_level must be between 0.5 and 1.0, got {conf_level}.")
+
+        prediction = self.predict(X)
+        y_hat = prediction.y_hat
+        t2_new = np.asarray(prediction.hotellings_t2, dtype=float)
+
+        n_samples = self.n_samples_
+        n_components = int(self.n_components)
+
+        # Residual error std per Y variable: prefer the cross-validated RMSE
+        # when a cross_validate() result is supplied (calibration RMSE is
+        # optimistic for genuinely new observations).
+        if cv_result is not None:
+            error_std = np.asarray(cv_result.rmse_cv, dtype=float)
+        else:
+            error_std = np.asarray(self.rmse_.iloc[:, -1], dtype=float)
+
+        # Leverage of a new observation in the latent space.
+        leverage = 1.0 / n_samples + t2_new / (n_samples - 1)
+
+        df = max(n_samples - n_components - 1, 1)
+        t_crit = t_dist.ppf(1 - (1 - conf_level) / 2, df)
+        half_width = t_crit * np.sqrt(1.0 + leverage)[:, None] * error_std[None, :]
+
+        lower = pd.DataFrame(y_hat.values - half_width, index=y_hat.index, columns=y_hat.columns)
+        upper = pd.DataFrame(y_hat.values + half_width, index=y_hat.index, columns=y_hat.columns)
+        return Bunch(y_hat=y_hat, lower=lower, upper=upper, conf_level=conf_level)
+
     def __getattr__(self, name: str):
         """Provide helpful error messages for old attribute names."""
         renames = {
@@ -2763,6 +2833,42 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
     h = (2 * (center_spe**2)) / variance_spe
     # Report square root again as SPE limit
     return np.sqrt(chi2.ppf(conf_level, h) * g)
+
+
+def score_limit(model: BaseEstimator, conf_level: float = 0.95) -> np.ndarray:
+    """Return two-sided confidence limits for each score component.
+
+    The scores of component ``a`` have mean zero and are normally distributed,
+    so the symmetric limit at the requested confidence level is
+    ``z * std(score_a)``, with ``z`` the standard-normal quantile. A score
+    outside ``[-limit, +limit]`` is unusual at that confidence level.
+
+    Parameters
+    ----------
+    model : BaseEstimator
+        A fitted PCA or PLS model exposing a ``scores_`` attribute.
+    conf_level : float, optional
+        Fractional confidence level in (0, 1); by default 0.95.
+
+    Returns
+    -------
+    np.ndarray
+        Array of length ``n_components`` with the positive score limit for
+        each component.
+
+    References
+    ----------
+    Score limits: the score ``t_a`` is normally distributed, so the limit is
+    ``z_{(1 + conf_level) / 2} * s_a``. Equivalently ``(t_a / s_a) ** 2``
+    follows an ``F(1, N - 1)`` distribution.
+    """
+    assert 0.0 < conf_level < 1.0, "conf_level must be a value between (0.0, 1.0)"
+    check_is_fitted(model, "scores_")
+
+    scores = np.asarray(model.scores_, dtype=float)
+    std_per_component = scores.std(axis=0, ddof=1)
+    z = norm.ppf(1 - (1 - conf_level) / 2)
+    return z * std_per_component
 
 
 def ellipse_coordinates(  # noqa: PLR0913

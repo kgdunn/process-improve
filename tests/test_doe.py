@@ -175,6 +175,45 @@ def test_gather(structure_data) -> None:
     assert expt.get_title() == "Testing expt name"
 
 
+def test_gather_multicolumn_dataframe_input() -> None:
+    """A multi-column DataFrame input is gathered into prefixed columns."""
+    y = c(10.0, 11.0, 12.0, name="y")
+    block = pd.DataFrame({"lo": [1, 0, 1], "hi": [0, 1, 0]})
+    expt = gather(cat=block, y=y)
+    assert expt.shape == (3, 3)
+    assert {"cat_lo", "cat_hi", "y"} == set(expt.columns)
+
+
+def test_gather_single_column_dataframe_keeps_key() -> None:
+    """A single-column DataFrame keeps the kwarg name as its column name."""
+    y = c(1.0, 2.0, 3.0, name="y")
+    block = pd.DataFrame({"whatever": [4.0, 5.0, 6.0]})
+    expt = gather(x=block, y=y)
+    assert "x" in expt.columns
+    assert list(expt["x"]) == [4.0, 5.0, 6.0]
+
+
+def test_gather_rejects_mismatched_lengths() -> None:
+    """Inputs with different numbers of rows cannot be merged."""
+    a = pd.Series([1, 2, 3])
+    b = pd.Series([4, 5, 6, 7])
+    with pytest.raises(ValueError, match="same length"):
+        gather(A=a, B=b)
+
+
+def test_forg_supports_arbitrary_precision() -> None:
+    """forg() formats with any precision instead of raising for prec not in {3, 4}."""
+    from process_improve.experiments.models import forg
+
+    assert forg(123.456, 3).strip() == "123.456"
+    assert forg(123.4567, 4).strip() == "123.4567"
+    # prec=2 previously raised NotImplementedError
+    assert forg(1.23456, 2).strip() == "1.23"
+    # The g-format branch handles very large and very small magnitudes.
+    assert "e+" in forg(5e6, 3).strip().lower()
+    assert "e-" in forg(1e-6, 3).strip().lower()
+
+
 # ---- Model tests ----
 
 

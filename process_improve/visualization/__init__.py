@@ -11,6 +11,7 @@ This package is the shared substrate used by the DOE plots in
 classes in :mod:`process_improve.visualization.charts`.
 """
 
+from process_improve.visualization.raincloud import raincloud
 from process_improve.visualization.spec import (
     Annotation,
     ChartSpec,
@@ -53,6 +54,7 @@ __all__ = [
     "MarkType",
     "PanelSpec",
     "ScaleType",
+    "raincloud",
     "register_themes",
     "set_theme",
 ]

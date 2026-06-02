@@ -70,8 +70,6 @@ def test_data_preprocessing(batch_data: pd.DataFrame) -> None:
     data.name = None
     assert features.f_mean(data).values[0] == pytest.approx([-47.649381], rel=1e-7)
 
-    # TODO: Test the age column:
-
 
 # Location-based features
 # ------------------------------------------
@@ -98,6 +96,30 @@ def test_scale_features(batch_data: pd.DataFrame) -> None:
     assert features.f_iqr(batch_data, tags=["Temp1", "Temp2", "Pressure1"], batch_col="Batch").values[
         0
     ] == pytest.approx([27.54, 1.85, 0.06666118399999998], rel=1e-7)
+
+
+def test_f_robust_mad(batch_data: pd.DataFrame) -> None:
+    """f_robust_mad returns a positive robust scale estimate per tag and batch."""
+    tags = ["Temp1", "Temp2", "Pressure1"]
+    mad = features.f_robust_mad(batch_data, tags=tags, batch_col="Batch")
+    std = features.f_std(batch_data, tags=tags, batch_col="Batch")
+    assert list(mad.columns) == ["Temp1_robust_mad", "Temp2_robust_mad", "Pressure1_robust_mad"]
+    assert mad.shape == std.shape
+    assert (mad.values > 0).all()
+
+
+def test_f_agemin_agemax(batch_data: pd.DataFrame) -> None:
+    """f_agemin / f_agemax report the index label where the min / max occurs."""
+    agemin = features.f_agemin(batch_data, tags=["Temp1"], batch_col="Batch")
+    agemax = features.f_agemax(batch_data, tags=["Temp1"], batch_col="Batch")
+    assert list(agemin.columns) == ["Temp1_agemin"]
+    assert list(agemax.columns) == ["Temp1_agemax"]
+
+    # Cross-check the first batch against the raw data.
+    first_batch = batch_data["Batch"].iloc[0]
+    sub = batch_data[batch_data["Batch"] == first_batch]
+    assert agemin.iloc[0, 0] == sub["Temp1"].idxmin()
+    assert agemax.iloc[0, 0] == sub["Temp1"].idxmax()
 
 
 # Shape-based features

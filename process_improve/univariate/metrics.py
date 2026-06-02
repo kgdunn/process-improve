@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, NoReturn
 import numpy as np
 import pandas as pd
 from scipy.stats import shapiro, t
+from sklearn.utils import Bunch
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -646,6 +647,102 @@ def median_absolute_deviation(
     return mad / scale
 
 
+def biweight_midvariance(x: np.ndarray | pd.Series, nan_policy: str = "omit") -> float:
+    """Return the Mosteller-Tukey robust scale (biweight midvariance) of ``x``.
+
+    The biweight midvariance is a robust, highly efficient estimator of the
+    variance: it down-weights observations far from the median and ignores
+    gross outliers entirely.
+
+    Parameters
+    ----------
+    x : np.ndarray or pd.Series
+        One-dimensional sample of numeric values.
+    nan_policy : {"omit", "propagate"}, optional
+        ``"omit"`` (default) drops missing values; ``"propagate"`` returns
+        ``nan`` if any value is missing.
+
+    Returns
+    -------
+    float
+        The robust variance estimate. Returns ``0.0`` when the MAD is zero
+        (e.g. a constant sample), and ``nan`` for an empty sample.
+
+    References
+    ----------
+    Mosteller and Tukey, *Data Analysis and Regression*, pp. 207-208, 1977.
+    """
+    a = np.asarray(x, dtype=float).ravel()
+    isnan = np.isnan(a)
+    if isnan.any():
+        if nan_policy == "propagate":
+            return float("nan")
+        a = a[~isnan]
+
+    n = a.size
+    if n == 0:
+        return float("nan")
+
+    location = np.median(a)
+    spread_mad = np.median(np.abs(a - location))
+    if spread_mad == 0:
+        return 0.0
+
+    ui = (a - location) / (6.0 * spread_mad)
+    valid = ui**2 <= 1.0
+    a_valid, ui_valid = a[valid], ui[valid]
+
+    numerator = (a_valid - location) ** 2 * (1 - ui_valid**2) ** 4
+    denominator = (1 - ui_valid**2) * (1 - 5 * ui_valid**2)
+    return float(n * numerator.sum() / denominator.sum() ** 2)
+
+
+def holm_bonferroni(p_values: np.ndarray | pd.Series | list, alpha: float = 0.05) -> Bunch:
+    """Holm-Bonferroni step-down correction for multiple comparisons.
+
+    Holm's method controls the family-wise error rate while being uniformly
+    more powerful than the plain Bonferroni correction. It is the recommended
+    post-hoc correction for a family of pairwise comparisons.
+
+    Parameters
+    ----------
+    p_values : array-like
+        The raw (uncorrected) p-values of the individual comparisons.
+    alpha : float, optional
+        Family-wise significance level, by default 0.05.
+
+    Returns
+    -------
+    sklearn.utils.Bunch
+        A bunch with, in the same order as the input:
+
+        * ``p_adjusted``: the Holm-adjusted p-values.
+        * ``reject``: boolean array, ``True`` where the null hypothesis is
+          rejected at level ``alpha``.
+        * ``alpha``: the family-wise level used.
+
+    References
+    ----------
+    Holm, "A simple sequentially rejective multiple test procedure",
+    Scandinavian Journal of Statistics, 6, 65-70, 1979.
+    """
+    p = np.asarray(p_values, dtype=float).ravel()
+    m = p.size
+    if m == 0:
+        return Bunch(p_adjusted=np.array([]), reject=np.array([], dtype=bool), alpha=alpha)
+
+    order = np.argsort(p)
+    p_sorted = p[order]
+
+    # Step-down weights m, m-1, ..., 1; the running max enforces monotonicity.
+    weights = m - np.arange(m)
+    adjusted_sorted = np.minimum(np.maximum.accumulate(weights * p_sorted), 1.0)
+
+    p_adjusted = np.empty(m)
+    p_adjusted[order] = adjusted_sorted
+    return Bunch(p_adjusted=p_adjusted, reject=p_adjusted <= alpha, alpha=alpha)
+
+
 def summary_stats(x: np.ndarray | pd.Series, method: str = "robust") -> dict:
     """
     Return summary statistics of the numeric values in vector ``x``.
@@ -820,6 +917,142 @@ def detect_outliers_esd(
         return outlier_index, extra_out
     else:
         return [], defaultdict(dict)
+
+
+def tietjen_moore_test(  # noqa: PLR0913
+    x: np.ndarray | pd.Series,
+    n_outliers: int,
+    *,
+    two_sided: bool = True,
+    alpha: float = 0.05,
+    n_simulations: int = 10000,
+    random_state: int | None = None,
+) -> Bunch:
+    """Tietjen-Moore test for a *specified* number of outliers.
+
+    Tests the null hypothesis "there are no outliers" against the alternative
+    "the ``n_outliers`` most extreme observations are outliers". Unlike the
+    generalised ESD test, the number of suspected outliers must be fixed in
+    advance. The test statistic has no closed-form critical value, so it is
+    obtained by simulation under the normal null.
+
+    Parameters
+    ----------
+    x : np.ndarray or pd.Series
+        One-dimensional sample. Missing values are dropped.
+    n_outliers : int
+        The number of suspected outliers to test for (1 <= n_outliers < N).
+    two_sided : bool, optional
+        If ``True`` (default) the test looks for outliers on either tail (the
+        observations with the largest absolute deviation from the mean). If
+        ``False`` it tests only the ``n_outliers`` largest observations.
+    alpha : float, optional
+        Significance level, by default 0.05.
+    n_simulations : int, optional
+        Number of Monte-Carlo samples used to estimate the critical value.
+    random_state : int or None, optional
+        Seed for the simulation, for reproducibility.
+
+    Returns
+    -------
+    sklearn.utils.Bunch
+        With ``statistic``, ``critical_value``, ``reject`` (``True`` when the
+        outliers are significant), ``outlier_indices`` (positions in the
+        missing-value-removed sample), ``n_outliers`` and ``alpha``.
+
+    References
+    ----------
+    Tietjen and Moore, "Some Grubbs-type statistics for the detection of
+    several outliers", Technometrics, 14, 583-597, 1972. See also the NIST
+    handbook, section 3.5.h.3.
+    """
+    a = np.asarray(x, dtype=float).ravel()
+    a = a[~np.isnan(a)]
+    n = a.size
+    if not (1 <= n_outliers < n):
+        raise ValueError(f"n_outliers must be between 1 and {n - 1}, got {n_outliers}.")
+
+    def _statistic(sample: np.ndarray) -> float:
+        ranking = np.argsort(np.abs(sample - sample.mean())) if two_sided else np.argsort(sample)
+        kept = sample[ranking[: n - n_outliers]]
+        denominator = np.sum((sample - sample.mean()) ** 2)
+        return float(np.sum((kept - kept.mean()) ** 2) / denominator)
+
+    observed = _statistic(a)
+
+    # Simulate the null distribution: all observations i.i.d. standard normal.
+    rng = np.random.default_rng(random_state)
+    simulated = np.array([_statistic(rng.standard_normal(n)) for _ in range(n_simulations)])
+    critical_value = float(np.quantile(simulated, alpha))
+
+    outlier_indices = (
+        np.argsort(np.abs(a - a.mean()))[n - n_outliers :]
+        if two_sided
+        else np.argsort(a)[n - n_outliers :]
+    )
+
+    # A small statistic indicates that the removed points really are outliers.
+    return Bunch(
+        statistic=observed,
+        critical_value=critical_value,
+        reject=observed < critical_value,
+        outlier_indices=np.sort(outlier_indices),
+        n_outliers=n_outliers,
+        alpha=alpha,
+    )
+
+
+def distribution_fit(
+    x: np.ndarray | pd.Series,
+    distribution: str = "norm",
+    alpha: float = 0.05,
+) -> Bunch:
+    """Check how well a sample fits a named distribution.
+
+    Fits the parameters of the requested ``scipy.stats`` distribution by
+    maximum likelihood and runs a Kolmogorov-Smirnov goodness-of-fit test
+    (NIST handbook, section 3.5.7).
+
+    Parameters
+    ----------
+    x : np.ndarray or pd.Series
+        One-dimensional sample. Missing values are dropped.
+    distribution : str, optional
+        Name of any continuous ``scipy.stats`` distribution, by default
+        ``"norm"``.
+    alpha : float, optional
+        Significance level for the ``fits_well`` verdict, by default 0.05.
+
+    Returns
+    -------
+    sklearn.utils.Bunch
+        With ``distribution``, fitted ``parameters``, ``ks_statistic``,
+        ``ks_pvalue``, ``fits_well`` (``True`` when the fit is not rejected at
+        level ``alpha``) and the sample size ``n``.
+
+    Notes
+    -----
+    Because the distribution parameters are estimated from the same data, the
+    KS p-value is conservative (the true Type-I error is smaller than
+    ``alpha``); it remains a useful screening check.
+    """
+    from scipy import stats as scipy_stats  # noqa: PLC0415
+
+    a = np.asarray(x, dtype=float).ravel()
+    a = a[~np.isnan(a)]
+
+    dist = getattr(scipy_stats, distribution)
+    parameters = dist.fit(a)
+    ks_statistic, ks_pvalue = scipy_stats.kstest(a, distribution, args=parameters)
+
+    return Bunch(
+        distribution=distribution,
+        parameters=parameters,
+        ks_statistic=float(ks_statistic),
+        ks_pvalue=float(ks_pvalue),
+        fits_well=bool(ks_pvalue > alpha),
+        n=int(a.size),
+    )
 
 
 def variance_decomposition(df: pd.DataFrame, measured: str, repeat: str) -> dict:

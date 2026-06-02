@@ -2,13 +2,17 @@
 
 from process_improve.univariate.metrics import (
     Sn,
+    biweight_midvariance,
     confidence_interval,
     detect_outliers_esd,
+    distribution_fit,
+    holm_bonferroni,
     median_absolute_deviation,
     summary_stats,
     t_value,
     t_value_cdf,
     test_normality,
+    tietjen_moore_test,
     ttest_independent,
     ttest_independent_from_df,
     ttest_paired,
@@ -31,12 +35,15 @@ from process_improve.univariate.tools import (
 __all__ = [
     # Core metrics
     "Sn",
+    "biweight_midvariance",
     "confidence_interval",
     # Tool wrappers
     "confidence_interval_tool",
     "detect_outliers",
     "detect_outliers_esd",
+    "distribution_fit",
     "get_univariate_tool_specs",
+    "holm_bonferroni",
     "median_absolute_deviation",
     "median_absolute_deviation_tool",
     "normality_test",
@@ -46,6 +53,7 @@ __all__ = [
     "t_value",
     "t_value_cdf",
     "test_normality",
+    "tietjen_moore_test",
     "ttest_independent",
     "ttest_independent_from_df",
     "ttest_paired",
