@@ -11,6 +11,39 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.10] - 2026-06-02
+
+### Changed (release infrastructure)
+
+- **ENG-21 (#303)**: the PyPI publish workflow is now **manually
+  gated**. It runs only when a tag matching `v*` is pushed, or when a
+  maintainer triggers `workflow_dispatch` from the Actions tab. A typo
+  in `pyproject.toml` on `main` can no longer ship a release on its
+  own. The maintainer's release procedure is now: (1) bump `version`
+  in a PR, merge it; (2) push the matching `v<version>` tag.
+- The job verifies that the pushed tag matches `pyproject.toml`'s
+  declared version before any build step runs; mismatches fail the
+  workflow loudly.
+- `release.yml` (the auto-tag-on-version-bump workflow) is retired;
+  `publish.yml` is now the single source of truth for PyPI publishing
+  and GitHub release creation.
+
+### Security
+
+- **ENG-21 (#303)**: PyPI uploads now ship a **sigstore attestation**
+  (PEP 740 / "trusted publishing") via
+  `pypa/gh-action-pypi-publish@release/v1` with `attestations: true`.
+- A **CycloneDX SBOM** (`sbom-<version>.cdx.json`) is built from the
+  release's runtime dependency closure and attached to the GitHub
+  release page alongside the wheel / sdist links.
+
+### Documentation
+
+- The GitHub release page now mirrors the matching `CHANGELOG.md`
+  section (extracted between the `## [X.Y.Z]` heading and the next
+  `## [` heading); auto-generated notes are used as a fallback only.
+- CLAUDE.md updated to document the new manual-gate release flow.
+
 ## [1.24.9] - 2026-06-02
 
 ### Tests
@@ -947,7 +980,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.9...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.10...HEAD
+[1.24.10]: https://github.com/kgdunn/process-improve/compare/v1.24.9...v1.24.10
 [1.24.9]: https://github.com/kgdunn/process-improve/compare/v1.24.8...v1.24.9
 [1.24.8]: https://github.com/kgdunn/process-improve/compare/v1.24.7...v1.24.8
 [1.24.7]: https://github.com/kgdunn/process-improve/compare/v1.24.6...v1.24.7
