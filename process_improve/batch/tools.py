@@ -1,13 +1,19 @@
 """(c) Kevin Dunn, 2010-2026. MIT License.
 
 Agent-callable tool wrappers for batch process data analysis.
+
+Pydantic input contract (ENG-04 / ENG-10): each tool pairs its
+``@tool_spec`` decorator with a ``BaseModel`` carrying
+``ConfigDict(extra="forbid")``; the function receives the parsed
+model as its single positional argument.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 import pandas as pd
+from pydantic import BaseModel, ConfigDict, Field
 
 from process_improve.tool_spec import clean, get_tool_specs, tool_spec
 
@@ -41,8 +47,45 @@ _TIME_FEATURE_MAP = {
 
 
 # ---------------------------------------------------------------------------
-# Tools
+# extract_batch_features
 # ---------------------------------------------------------------------------
+
+
+_BatchFeatureName = Literal[
+    "mean", "median", "std", "iqr", "sum", "min", "max", "last", "count", "area", "slope",
+]
+
+
+class ExtractBatchFeaturesInput(BaseModel):
+    """Input contract for ``extract_batch_features``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    data: list[dict[str, Any]] = Field(
+        ...,
+        min_length=2,
+        description=(
+            "Batch data as a list of row-dicts. Each dict must contain the batch_column "
+            "and one or more value columns. Example: "
+            "[{'batch': 'B1', 'time': 0, 'temp': 100}, {'batch': 'B1', 'time': 1, 'temp': 105}, ...]"
+        ),
+    )
+    value_columns: list[str] = Field(
+        ...,
+        description="Column names of the measurement tags to extract features for.",
+    )
+    features: list[_BatchFeatureName] | None = Field(
+        None,
+        description="List of features to extract (default: ['mean', 'std']).",
+    )
+    batch_column: str = Field(
+        "batch",
+        description="Column name identifying each batch (default: 'batch').",
+    )
+    time_column: str | None = Field(
+        None,
+        description="Column name for the time/age axis. Required for 'area' and 'slope' features.",
+    )
 
 
 @tool_spec(
@@ -57,50 +100,7 @@ _TIME_FEATURE_MAP = {
         "'min', 'max', 'last', 'count'. "
         "Time-dependent features (require time_column): 'area', 'slope'."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {"type": "object"},
-                    "description": (
-                        "Batch data as a list of row-dicts. Each dict must contain the batch_column "
-                        "and one or more value columns. Example: "
-                        '[{"batch": "B1", "time": 0, "temp": 100}, {"batch": "B1", "time": 1, "temp": 105}, ...]'
-                    ),
-                    "minItems": 2,
-                },
-                "features": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "enum": [
-                            "mean", "median", "std", "iqr",
-                            "sum", "min", "max", "last", "count", "area", "slope",
-                        ],
-                    },
-                    "description": "List of features to extract (default: ['mean', 'std']).",
-                },
-                "value_columns": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Column names of the measurement tags to extract features for.",
-                },
-                "batch_column": {
-                    "type": "string",
-                    "description": "Column name identifying each batch (default: 'batch').",
-                },
-                "time_column": {
-                    "type": "string",
-                    "description": (
-                        "Column name for the time/age axis. Required for 'area' and 'slope' features."
-                    ),
-                },
-            },
-            "required": ["data", "value_columns"],
-        }
-    },
+    input_model=ExtractBatchFeaturesInput,
     examples="""
     # "Extract mean and std for temperature and pressure from my batch data"
         -> ``extract_batch_features(
@@ -121,34 +121,28 @@ _TIME_FEATURE_MAP = {
     """,
     category="batch",
 )
-def extract_batch_features(
-    *,
-    data: list[dict[str, Any]],
-    value_columns: list[str],
-    features: list[str] | None = None,
-    batch_column: str = "batch",
-    time_column: str | None = None,
-) -> dict[str, Any]:
+def extract_batch_features(spec: ExtractBatchFeaturesInput) -> dict[str, Any]:
     """Extract summary features from batch process data."""
     from process_improve.batch import features as feat_mod  # noqa: PLC0415
 
-    if features is None:
-        features = ["mean", "std"]
+    features = spec.features if spec.features is not None else ["mean", "std"]
 
     try:
-        df = pd.DataFrame(data)
+        df = pd.DataFrame(spec.data)
 
         results: list[pd.DataFrame] = []
         for feature_name in features:
             if feature_name in _FEATURE_MAP:
                 func = getattr(feat_mod, _FEATURE_MAP[feature_name])
-                result_df = func(df, tags=value_columns, batch_col=batch_column)
+                result_df = func(df, tags=spec.value_columns, batch_col=spec.batch_column)
                 results.append(result_df)
             elif feature_name in _TIME_FEATURE_MAP:
-                if time_column is None:
+                if spec.time_column is None:
                     return {"error": f"Feature '{feature_name}' requires time_column to be specified."}
                 func = getattr(feat_mod, _TIME_FEATURE_MAP[feature_name])
-                result_df = func(df, time_tag=time_column, tags=value_columns, batch_col=batch_column)
+                result_df = func(
+                    df, time_tag=spec.time_column, tags=spec.value_columns, batch_col=spec.batch_column
+                )
                 results.append(result_df)
             else:
                 available = sorted(list(_FEATURE_MAP) + list(_TIME_FEATURE_MAP))
@@ -164,7 +158,7 @@ def extract_batch_features(
             "feature_matrix": feature_matrix,
             "n_batches": len(combined) if results else 0,
             "n_features": combined.shape[1] if results else 0,
-            "features_extracted": features,
+            "features_extracted": list(features),
         })
     except (ValueError, TypeError, KeyError) as exc:
         return {"error": str(exc)}

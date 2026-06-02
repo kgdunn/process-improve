@@ -19,15 +19,24 @@ which stores them in :class:`contextvars.ContextVar` slots. Keeping them
 off the kwarg surface means a prompt-injected agent cannot re-introduce
 them through the dispatch path to forge state or bypass the reveal gate
 (SEC-15).
+
+Pydantic input contract (ENG-04 / ENG-10): each tool pairs its
+``@tool_spec`` decorator with a ``BaseModel`` carrying
+``ConfigDict(extra="forbid")``; the function receives the parsed
+model as its single positional argument. ``create_simulator.seed`` is
+declared as ``SkipJsonSchema[int | None]`` so the field is callable
+from Python (tests, notebooks) but does NOT appear in the JSON Schema
+exposed to the LLM.
 """
 
-# ``dict[str, Any]`` is the tool-call contract shape; the real schema
-# lives in the @tool_spec JSON blocks below, not in the Python types.
 from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.json_schema import SkipJsonSchema
 
 from process_improve.simulation.context import (
     get_injected_simulator_state,
@@ -42,10 +51,6 @@ from process_improve.simulation.model import (
     validate_outputs,
 )
 from process_improve.tool_spec import clean, get_tool_specs, tool_spec
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 _SIMULATION_TOOL_NAMES: list[str] = []
 
@@ -78,8 +83,71 @@ def _public_from_private(private: dict[str, Any], process_description: str, crea
 
 
 # ---------------------------------------------------------------------------
-# Tools
+# create_simulator
 # ---------------------------------------------------------------------------
+
+
+class CreateSimulatorInput(BaseModel):
+    """Input contract for ``create_simulator``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    process_description: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "One-sentence description of the process being simulated, "
+            "e.g. 'nickel flotation vessel for recovery and grade'."
+        ),
+    )
+    factors: list[dict[str, Any]] = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Input variables the user can set. Choose plausible low/high "
+            "bounds from your domain expertise; do not ask the user for "
+            "ranges unless they insist."
+        ),
+    )
+    outputs: list[dict[str, Any]] = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Response variables the user wants measured. Confirm with the "
+            "user before calling the tool."
+        ),
+    )
+    structural_hints: list[str] | None = Field(
+        None,
+        description=(
+            "Free-text biases for the hidden model, e.g. 'negative "
+            "interaction between pH and surfactant', 'flow has a "
+            "quadratic effect on recovery'. Unparseable hints are "
+            "silently ignored."
+        ),
+    )
+    noise_level: Literal["low", "medium", "high"] = Field(
+        "medium",
+        description=(
+            "Noise magnitude as a fraction of the output range "
+            "(~1 %, ~5 %, ~15 %). Default 'medium'."
+        ),
+    )
+    time_drift: bool = Field(
+        False,
+        description=(
+            "When true, each output gets a slow linear drift applied "
+            "whenever the user passes 'timestamp_offset_days' to "
+            "'simulate_process'. Default false."
+        ),
+    )
+    # SkipJsonSchema hides the field from the public JSON schema so the LLM
+    # cannot pin a seed it will later try to reason about; Python callers
+    # (tests, notebooks) can still pass it.
+    seed: SkipJsonSchema[int | None] = Field(
+        None,
+        description="Internal: seed for reproducibility. Not exposed to the LLM.",
+    )
 
 
 @tool_spec(
@@ -100,87 +168,7 @@ def _public_from_private(private: dict[str, Any], process_description: str, crea
         "The host application persists the hidden state - do NOT try to store "
         "or paraphrase it yourself."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "process_description": {
-                    "type": "string",
-                    "description": (
-                        "One-sentence description of the process being simulated, "
-                        "e.g. 'nickel flotation vessel for recovery and grade'."
-                    ),
-                },
-                "factors": {
-                    "type": "array",
-                    "description": (
-                        "Input variables the user can set. Choose plausible low/high "
-                        "bounds from your domain expertise; do not ask the user for "
-                        "ranges unless they insist."
-                    ),
-                    "minItems": 1,
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string"},
-                            "low": {"type": "number"},
-                            "high": {"type": "number"},
-                            "units": {"type": "string"},
-                        },
-                        "required": ["name", "low", "high"],
-                    },
-                },
-                "outputs": {
-                    "type": "array",
-                    "description": (
-                        "Response variables the user wants measured. Confirm with the "
-                        "user before calling the tool."
-                    ),
-                    "minItems": 1,
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string"},
-                            "units": {"type": "string"},
-                            "direction": {
-                                "type": "string",
-                                "enum": ["maximize", "minimize", "target"],
-                                "description": "Optional optimisation direction.",
-                            },
-                        },
-                        "required": ["name"],
-                    },
-                },
-                "structural_hints": {
-                    "type": "array",
-                    "description": (
-                        "Free-text biases for the hidden model, e.g. 'negative "
-                        "interaction between pH and surfactant', 'flow has a "
-                        "quadratic effect on recovery'. Unparseable hints are "
-                        "silently ignored."
-                    ),
-                    "items": {"type": "string"},
-                },
-                "noise_level": {
-                    "type": "string",
-                    "enum": ["low", "medium", "high"],
-                    "description": (
-                        "Noise magnitude as a fraction of the output range "
-                        "(~1 %, ~5 %, ~15 %). Default 'medium'."
-                    ),
-                },
-                "time_drift": {
-                    "type": "boolean",
-                    "description": (
-                        "When true, each output gets a slow linear drift applied "
-                        "whenever the user passes 'timestamp_offset_days' to "
-                        "'simulate_process'. Default false."
-                    ),
-                },
-            },
-            "required": ["process_description", "factors", "outputs"],
-        }
-    },
+    input_model=CreateSimulatorInput,
     examples="""
     # "Simulate a Ni flotation vessel with flow, pH, surfactant and the known
     #  negative pH*surfactant interaction; recovery and grade as outputs."
@@ -201,29 +189,16 @@ def _public_from_private(private: dict[str, Any], process_description: str, crea
     """,
     category="simulation",
 )
-def create_simulator(  # noqa: PLR0913
-    *,
-    process_description: str,
-    factors: list[dict[str, Any]],
-    outputs: list[dict[str, Any]],
-    structural_hints: list[str] | None = None,
-    noise_level: str = "medium",
-    time_drift: bool = False,
-    seed: int | None = None,
-) -> dict:
-    """Create a simulator; see tool spec for parameter details.
+def create_simulator(spec: CreateSimulatorInput) -> dict:
+    """Create a simulator; see tool spec for parameter details."""
+    validate_factors(spec.factors)
+    validate_outputs(spec.outputs)
+    validate_noise_level(spec.noise_level)
+    # process_description's str + min_length=1 contract is enforced by pydantic.
+    # All-whitespace strings would slip through pydantic's min_length check, but
+    # the downstream model is content-agnostic, so we accept them here.
 
-    The ``seed`` kwarg is intentionally missing from the public JSON schema
-    so the LLM cannot pin a seed it will later try to reason about; callers
-    that need reproducibility (tests, notebooks) pass it in Python directly.
-    """
-    validate_factors(factors)
-    validate_outputs(outputs)
-    validate_noise_level(noise_level)
-    if not isinstance(process_description, str) or not process_description.strip():
-        raise ValueError("'process_description' must be a non-empty string.")
-
-    seed_value = int(seed) if seed is not None else draw_initial_seed()
+    seed_value = int(spec.seed) if spec.seed is not None else draw_initial_seed()
     sim_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc).isoformat()
 
@@ -236,19 +211,19 @@ def create_simulator(  # noqa: PLR0913
                 "high": float(f["high"]),
                 "units": f.get("units"),
             }
-            for f in factors
+            for f in spec.factors
         ],
         "outputs": [
             {"name": o["name"], "units": o.get("units"), "direction": o.get("direction")}
-            for o in outputs
+            for o in spec.outputs
         ],
-        "structural_hints": list(structural_hints or []),
-        "noise_level": noise_level,
-        "time_drift": bool(time_drift),
+        "structural_hints": list(spec.structural_hints or []),
+        "noise_level": spec.noise_level,
+        "time_drift": bool(spec.time_drift),
         "model_version": 1,
     }
 
-    public = _public_from_private(private_state, process_description, created_at)
+    public = _public_from_private(private_state, spec.process_description, created_at)
 
     # ``_private`` uses a leading underscore so hosts can identify and
     # strip it before forwarding the tool result to the LLM.
@@ -256,6 +231,35 @@ def create_simulator(  # noqa: PLR0913
 
 
 _register("create_simulator")
+
+
+# ---------------------------------------------------------------------------
+# simulate_process
+# ---------------------------------------------------------------------------
+
+
+class SimulateProcessInput(BaseModel):
+    """Input contract for ``simulate_process``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sim_id: str = Field(
+        ...,
+        description="Simulator id returned by 'create_simulator'.",
+    )
+    settings: dict[str, float] = Field(
+        ...,
+        description=(
+            "Mapping of factor-name to numeric value, in the factor's declared units."
+        ),
+    )
+    timestamp_offset_days: float = Field(
+        0.0,
+        description=(
+            "Optional time axis, in days since simulator creation. "
+            "Only meaningful if the simulator was created with time_drift=true."
+        ),
+    )
 
 
 @tool_spec(
@@ -272,34 +276,7 @@ _register("create_simulator")
         "Use 'timestamp_offset_days' only when the simulator was created with "
         "time_drift=true."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "sim_id": {
-                    "type": "string",
-                    "description": "Simulator id returned by 'create_simulator'.",
-                },
-                "settings": {
-                    "type": "object",
-                    "description": (
-                        "Mapping of factor-name to numeric value, in the factor's "
-                        "declared units."
-                    ),
-                    "additionalProperties": {"type": "number"},
-                },
-                "timestamp_offset_days": {
-                    "type": "number",
-                    "description": (
-                        "Optional time axis, in days since simulator creation. "
-                        "Only meaningful if the simulator was created with "
-                        "time_drift=true."
-                    ),
-                },
-            },
-            "required": ["sim_id", "settings"],
-        }
-    },
+    input_model=SimulateProcessInput,
     examples="""
     # "Run the simulator at flow=200, pH=9, surfactant=50"
         -> ``simulate_process(
@@ -309,13 +286,8 @@ _register("create_simulator")
     """,
     category="simulation",
 )
-def simulate_process(
-    *,
-    sim_id: str,
-    settings: dict[str, float],
-    timestamp_offset_days: float = 0.0,
-) -> dict:
-    """Evaluate a simulator at *settings*; see tool spec for details.
+def simulate_process(spec: SimulateProcessInput) -> dict:
+    """Evaluate a simulator at *settings*.
 
     ``simulator_state`` is not a parameter: the host injects it out of band
     via :func:`process_improve.simulation.context.simulator_host_context`,
@@ -325,26 +297,42 @@ def simulate_process(
     simulator_state = get_injected_simulator_state()
     if simulator_state is None:
         return {
-            "sim_id": sim_id,
+            "sim_id": spec.sim_id,
             "error": "simulator_state_missing",
             "message": (
                 "The host did not inject 'simulator_state'. Ensure sim_id refers "
                 "to a simulator created in this conversation."
             ),
         }
-    if not isinstance(settings, dict):
-        raise TypeError("'settings' must be a dict of factor-name to numeric value.")
+    # ``settings`` is constrained to ``dict[str, float]`` by the pydantic model;
+    # the previous isinstance defensive check is now unreachable and removed.
 
     result = simulate(
         simulator_state,
-        settings,
-        timestamp_offset_days=float(timestamp_offset_days),
+        spec.settings,
+        timestamp_offset_days=float(spec.timestamp_offset_days),
     )
-    result["sim_id"] = sim_id
+    result["sim_id"] = spec.sim_id
     return clean(result)
 
 
 _register("simulate_process")
+
+
+# ---------------------------------------------------------------------------
+# reveal_simulator
+# ---------------------------------------------------------------------------
+
+
+class RevealSimulatorInput(BaseModel):
+    """Input contract for ``reveal_simulator``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sim_id: str = Field(
+        ...,
+        description="Simulator id returned by 'create_simulator'.",
+    )
 
 
 @tool_spec(
@@ -357,29 +345,15 @@ _register("simulate_process")
         "set. Only use this when the user explicitly asks to see the underlying "
         "model."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "sim_id": {
-                    "type": "string",
-                    "description": "Simulator id returned by 'create_simulator'.",
-                },
-            },
-            "required": ["sim_id"],
-        }
-    },
+    input_model=RevealSimulatorInput,
     examples="""
     # "Show me the hidden model behind the simulator"
         -> ``reveal_simulator(sim_id="<uuid>")``
     """,
     category="simulation",
 )
-def reveal_simulator(
-    *,
-    sim_id: str,
-) -> dict:
-    """Return the materialised model; see tool spec for details.
+def reveal_simulator(spec: RevealSimulatorInput) -> dict:
+    """Return the materialised model.
 
     ``simulator_state`` and the ``confirmed`` flag are injected by the host
     out of band via
@@ -389,7 +363,7 @@ def reveal_simulator(
     """
     if not get_reveal_confirmed():
         return {
-            "sim_id": sim_id,
+            "sim_id": spec.sim_id,
             "status": "confirmation_needed",
             "message": (
                 "Revealing the simulator will expose the hidden response model. "
@@ -400,7 +374,7 @@ def reveal_simulator(
     simulator_state = get_injected_simulator_state()
     if simulator_state is None:
         return {
-            "sim_id": sim_id,
+            "sim_id": spec.sim_id,
             "error": "simulator_state_missing",
             "message": (
                 "The host did not inject 'simulator_state' even though the "
@@ -412,7 +386,7 @@ def reveal_simulator(
     model = materialize_model(simulator_state)
     return clean(
         {
-            "sim_id": sim_id,
+            "sim_id": spec.sim_id,
             "status": "revealed",
             "factors": simulator_state["factors"],
             "outputs": simulator_state["outputs"],

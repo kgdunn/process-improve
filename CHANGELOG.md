@@ -11,6 +11,44 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.3] - 2026-06-02
+
+### Changed
+
+- Final per-package roll-out of the pydantic `@tool_spec` contract
+  (ENG-04 / ENG-10; PR4/N). Five tools migrate to ``input_model=``
+  with ``ConfigDict(extra="forbid")``:
+  - **batch**: `extract_batch_features`
+  - **visualization**: `boxplot`
+  - **simulation**: `create_simulator`, `simulate_process`,
+    `reveal_simulator`
+  After this release every `@tool_spec` in the codebase uses the
+  pydantic input contract.
+
+### Security
+
+- The `extra="forbid"` boundary on the simulation tools is now the
+  structural closure of SEC-15 for the simulator suite (#264). A
+  prompt-injected agent can no longer smuggle `confirmed=True` or a
+  forged `simulator_state` through the dispatch path: the kwarg is
+  rejected by pydantic before the function runs, so the host-only
+  context-var channel remains the sole way to clear the reveal gate.
+- `create_simulator.seed` uses `SkipJsonSchema[int | None]` so it
+  stays callable from Python (tests, notebooks) but is omitted from
+  the public JSON Schema, preserving the existing intent of hiding
+  the seed from the LLM.
+
+### Tests
+
+- `tests/test_simulation.py` builds the new pydantic input models
+  explicitly; the SEC-15 kwarg-injection tests now assert
+  `ToolInputInvalidError` rather than the old in-band drop-and-fall-
+  through behaviour.
+- `tests/test_viz_boxplot.py` and `tests/batch/test_tools.py`
+  introduce a thin test-local helper that builds the pydantic input
+  from kwargs, so the existing kwarg-style call sites work
+  unchanged.
+
 ## [1.24.2] - 2026-06-02
 
 ### Changed
@@ -754,7 +792,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.2...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.3...HEAD
+[1.24.3]: https://github.com/kgdunn/process-improve/compare/v1.24.2...v1.24.3
 [1.24.2]: https://github.com/kgdunn/process-improve/compare/v1.24.1...v1.24.2
 [1.24.1]: https://github.com/kgdunn/process-improve/compare/v1.24.0...v1.24.1
 [1.24.0]: https://github.com/kgdunn/process-improve/compare/v1.23.2...v1.24.0

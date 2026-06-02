@@ -10,6 +10,9 @@ import pytest
 from process_improve.simulation.context import simulator_host_context
 from process_improve.simulation.model import materialize_model
 from process_improve.simulation.tools import (
+    CreateSimulatorInput,
+    RevealSimulatorInput,
+    SimulateProcessInput,
     create_simulator,
     get_simulation_tool_specs,
     reveal_simulator,
@@ -23,7 +26,8 @@ from process_improve.tool_spec import execute_tool_call, get_tool_specs
 # ---------------------------------------------------------------------------
 # ``simulator_state`` and ``confirmed`` are no longer kwargs (SEC-15): the host
 # supplies them out of band through ``simulator_host_context``. These thin
-# wrappers let the tests drive that side channel with the old call shape.
+# wrappers let the tests drive that side channel with the old call shape and
+# build the pydantic input models on behalf of callers.
 
 
 def _simulate_process(
@@ -35,9 +39,11 @@ def _simulate_process(
 ) -> dict:
     with simulator_host_context(simulator_state=simulator_state):
         return simulate_process(
-            sim_id=sim_id,
-            settings=settings,
-            timestamp_offset_days=timestamp_offset_days,
+            SimulateProcessInput(
+                sim_id=sim_id,
+                settings=settings,
+                timestamp_offset_days=timestamp_offset_days,
+            )
         )
 
 
@@ -48,7 +54,7 @@ def _reveal_simulator(
     confirmed: bool = False,
 ) -> dict:
     with simulator_host_context(simulator_state=simulator_state, confirmed=confirmed):
-        return reveal_simulator(sim_id=sim_id)
+        return reveal_simulator(RevealSimulatorInput(sim_id=sim_id))
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +91,7 @@ def _make_sim(seed: int = 42, **overrides) -> dict:
         "seed": seed,
     }
     payload.update(overrides)
-    return create_simulator(**payload)
+    return create_simulator(CreateSimulatorInput(**payload))
 
 
 # ---------------------------------------------------------------------------
@@ -123,32 +129,42 @@ class TestCreateSimulator:
     def test_duplicate_factor_names_rejected(self):
         with pytest.raises(ValueError, match="Duplicate factor"):
             create_simulator(
-                process_description="x",
-                factors=[
-                    {"name": "A", "low": 0.0, "high": 1.0},
-                    {"name": "A", "low": 0.0, "high": 2.0},
-                ],
-                outputs=_default_outputs(),
+                CreateSimulatorInput(
+                    process_description="x",
+                    factors=[
+                        {"name": "A", "low": 0.0, "high": 1.0},
+                        {"name": "A", "low": 0.0, "high": 2.0},
+                    ],
+                    outputs=_default_outputs(),
+                )
             )
 
     def test_low_must_be_less_than_high(self):
         with pytest.raises(ValueError, match=r"low .* must be"):
             create_simulator(
-                process_description="x",
-                factors=[{"name": "A", "low": 5.0, "high": 5.0}],
-                outputs=_default_outputs(),
+                CreateSimulatorInput(
+                    process_description="x",
+                    factors=[{"name": "A", "low": 5.0, "high": 5.0}],
+                    outputs=_default_outputs(),
+                )
             )
 
     def test_invalid_noise_level_rejected(self):
+        # Pydantic ``Literal`` rejects the bad noise_level via ValidationError
+        # (a ValueError subclass).
         with pytest.raises(ValueError, match="noise_level"):
             _make_sim(noise_level="enormous")
 
     def test_empty_outputs_rejected(self):
+        # Pydantic ``min_length=1`` rejects an empty outputs list via
+        # ValidationError (a ValueError subclass).
         with pytest.raises(ValueError, match="outputs"):
             create_simulator(
-                process_description="x",
-                factors=_default_factors(),
-                outputs=[],
+                CreateSimulatorInput(
+                    process_description="x",
+                    factors=_default_factors(),
+                    outputs=[],
+                )
             )
 
 
@@ -312,6 +328,12 @@ class TestRevealSimulator:
         sim = _make_sim()
         out = _reveal_simulator(sim_id=sim["sim_id"], simulator_state=sim["_private"])
         assert out["status"] == "confirmation_needed"
+        assert "model" not in out
+
+    def test_confirmed_but_missing_state_returns_error(self):
+        """The reveal gate clears via context but no state was injected."""
+        out = _reveal_simulator(sim_id="abc", simulator_state=None, confirmed=True)
+        assert out.get("error") == "simulator_state_missing"
         assert "model" not in out
 
     def test_returns_full_model_when_confirmed(self):
@@ -478,35 +500,35 @@ class TestKwargInjectionGate:
     tool input and reach the function.
     """
 
-    def test_execute_tool_call_drops_injected_confirmed(self):
-        # No host context => the reveal is unconfirmed. A forged ``confirmed``
-        # in the tool input is dropped, so the gate still fires.
-        out = execute_tool_call(
-            "reveal_simulator",
-            {"sim_id": "x", "confirmed": True, "simulator_state": {"factors": []}},
-        )
-        assert out["status"] == "confirmation_needed"
-        assert "model" not in out
+    def test_execute_tool_call_rejects_injected_confirmed(self):
+        # The pydantic ``extra="forbid"`` boundary rejects forged
+        # ``confirmed`` / ``simulator_state`` kwargs before the function ever
+        # runs. This is the structural closure of SEC-15: the reveal gate
+        # cannot be smuggled.
+        with pytest.raises(ToolInputInvalidError):
+            execute_tool_call(
+                "reveal_simulator",
+                {"sim_id": "x", "confirmed": True, "simulator_state": {"factors": []}},
+            )
 
-    def test_execute_tool_call_drops_injected_state_for_simulate(self):
+    def test_execute_tool_call_rejects_injected_state_for_simulate(self):
         forged = _make_sim()["_private"]
-        out = execute_tool_call(
-            "simulate_process",
-            {"sim_id": "x", "settings": _mid_settings(), "simulator_state": forged},
-        )
-        assert out["error"] == "simulator_state_missing"
+        with pytest.raises(ToolInputInvalidError):
+            execute_tool_call(
+                "simulate_process",
+                {"sim_id": "x", "settings": _mid_settings(), "simulator_state": forged},
+            )
 
-    def test_injected_state_ignored_in_favour_of_host_state(self):
-        # The host legitimately confirms and injects its own state; an agent
-        # smuggling a forged ``simulator_state`` through the tool input must not
-        # override it.
+    def test_injected_state_rejected_even_when_host_confirms(self):
+        # Even with a legitimate host context, a forged ``simulator_state``
+        # in the tool input is rejected at the pydantic boundary.
         sim = _make_sim(seed=7)
         forged_sim = _make_sim(seed=999)
-        legit = _reveal_simulator(
-            sim_id=sim["sim_id"], simulator_state=sim["_private"], confirmed=True
-        )
-        with simulator_host_context(simulator_state=sim["_private"], confirmed=True):
-            out = execute_tool_call(
+        with (
+            simulator_host_context(simulator_state=sim["_private"], confirmed=True),
+            pytest.raises(ToolInputInvalidError),
+        ):
+            execute_tool_call(
                 "reveal_simulator",
                 {
                     "sim_id": sim["sim_id"],
@@ -514,9 +536,6 @@ class TestKwargInjectionGate:
                     "confirmed": True,
                 },
             )
-        assert out["status"] == "revealed"
-        assert out["model"] == legit["model"]
-        assert out["model"] != materialize_model(forged_sim["_private"])
 
     def test_safe_execute_tool_call_rejects_injected_kwargs(self):
         # The safe (untrusted-transport) path rejects unknown keys outright
