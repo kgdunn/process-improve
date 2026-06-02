@@ -576,3 +576,18 @@ def summary(
     if show:
         print(out)  # noqa: T201
     return out
+
+
+# ENG-23 (#305): explicit ``__all__`` so the thin re-exporter ``models.py``
+# can do ``from ._lm import *`` without triggering CodeQL's
+# py/polluting-import warning.
+__all__ = [
+    "Model",
+    "UnsafeFormulaError",
+    "forg",
+    "lm",
+    "predict",
+    "summary",
+    "validate_formula_is_safe",
+    "validate_identifier_is_safe",
+]

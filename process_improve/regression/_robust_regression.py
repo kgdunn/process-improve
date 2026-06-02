@@ -961,3 +961,15 @@ class OLS(RegressorMixin, BaseEstimator):
             f"Multiple R-squared:  {self.r2_:.4g},\tAdjusted R-squared:  {self.adj_r2_:.4g}\n"
             f"{f_line}"
         )
+
+
+# ENG-23 (#305): explicit ``__all__`` so the thin re-exporter ``methods.py``
+# can do ``from ._robust_regression import *`` without triggering CodeQL's
+# py/polluting-import warning.
+__all__ = [
+    "OLS",
+    "fit_robust_lm",
+    "multiple_linear_regression",
+    "repeated_median_slope",
+    "robust_regression",
+]

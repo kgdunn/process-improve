@@ -162,3 +162,12 @@ def find_line_intersection(m1: float, b1: float, m2: float, b2: float) -> tuple:
     # Now solve it for y: use either line, because they are equal here:
     y = m1 * x + b1
     return x, y
+
+
+# ENG-23 (#305): explicit ``__all__`` so the thin re-exporter ``methods.py``
+# can do ``from ._elbow_peak import *`` without triggering CodeQL's
+# py/polluting-import warning.
+__all__ = [
+    "find_elbow_point",
+    "find_line_intersection",
+]
