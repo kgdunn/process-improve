@@ -799,8 +799,10 @@ class PCA(TransformerMixin, BaseEstimator):
                 self._loadings_np[:, a] *= -1.0
                 self._scores_np[:, a] *= -1.0
 
-        # Explained variance
-        self.explained_variance_ = np.diag(self._scores_np.T @ self._scores_np) / (N - 1)
+        # Explained variance. ``max(1, N-1)`` mirrors the MBPLS / MBPCA
+        # paths and prevents a division-by-zero / negative-divisor when
+        # the caller fits a model on a single row. SEC-21 (#270) sub-item 6.
+        self.explained_variance_ = np.diag(self._scores_np.T @ self._scores_np) / max(1, N - 1)
 
         # Compute R2 and SPE via deflation
         self._r2_np = np.zeros(A)
@@ -905,8 +907,10 @@ class PCA(TransformerMixin, BaseEstimator):
             self._loadings_np[:, a] = p_a.flatten()
             self._scores_np[:, a] = t_a.flatten()
 
-        # Explained variance
-        self.explained_variance_ = np.diag(self._scores_np.T @ self._scores_np) / (N - 1)
+        # Explained variance. ``max(1, N-1)`` mirrors the MBPLS / MBPCA
+        # paths and prevents a division-by-zero / negative-divisor when
+        # the caller fits a model on a single row. SEC-21 (#270) sub-item 6.
+        self.explained_variance_ = np.diag(self._scores_np.T @ self._scores_np) / max(1, N - 1)
 
     def _fit_tsr(self, X_values: np.ndarray, N: int, K: int, A: int, settings: dict) -> None:
         """Fit PCA using the Trimmed Score Regression algorithm (handles missing data).
@@ -967,8 +971,10 @@ class PCA(TransformerMixin, BaseEstimator):
 
         self.fitting_info_ = {"iterations": itern, "timing": time.time() - start_time}
 
-        # Explained variance
-        self.explained_variance_ = np.diag(self._scores_np.T @ self._scores_np) / (N - 1)
+        # Explained variance. ``max(1, N-1)`` mirrors the MBPLS / MBPCA
+        # paths and prevents a division-by-zero / negative-divisor when
+        # the caller fits a model on a single row. SEC-21 (#270) sub-item 6.
+        self.explained_variance_ = np.diag(self._scores_np.T @ self._scores_np) / max(1, N - 1)
 
     def transform(self, X: DataMatrix) -> pd.DataFrame:
         """Project new data onto the fitted PCA model to obtain scores.
@@ -1228,7 +1234,12 @@ class PCA(TransformerMixin, BaseEstimator):
         dt = t_end[idx] - t_start[idx]
 
         if weighted:
-            dt = dt / np.sqrt(self.explained_variance_[idx])
+            # ``explained_variance_[a] == 0`` for a degenerate component
+            # would silently produce inf/NaN weighted contributions.
+            # Clamp the divisor so weighting is a no-op on such components.
+            # SEC-21 (#270) sub-item 5.
+            ev = np.asarray(self.explained_variance_)[idx]
+            dt = dt / np.sqrt(np.where(ev > epsqrt, ev, 1.0))
 
         P = self.loadings_.values[:, idx].T  # (len(idx), n_features)
         contributions = dt @ P  # (n_features,)
@@ -1675,7 +1686,8 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.predictions_ = pd.DataFrame(self.scores_ @ self.y_loadings_.T, index=Y.index, columns=Y.columns)
         self.direct_weights_ = pd.DataFrame(direct_weights, index=X.columns, columns=component_names)
         self.beta_coefficients_ = pd.DataFrame(beta_coefficients, index=X.columns, columns=Y.columns)
-        self.explained_variance_ = np.diag(self.scores_.T @ self.scores_) / (N - 1)
+        # ``max(1, N-1)`` -- see SEC-21 (#270) sub-item 6.
+        self.explained_variance_ = np.diag(self.scores_.T @ self.scores_) / max(1, N - 1)
         self.scaling_factor_for_scores_ = pd.Series(
             np.sqrt(self.explained_variance_),
             index=component_names,
@@ -1873,7 +1885,7 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         return Bunch(scores=scores, hotellings_t2=t2, spe=spe_values, y_hat=y_hat)
 
     @classmethod
-    def select_n_components(
+    def select_n_components(  # noqa: C901
         cls,
         X: DataMatrix,
         Y: DataMatrix,
@@ -2018,7 +2030,19 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         )
         press = pd.Series(press_y.sum(axis=1), index=component_index, name="PRESS")
 
-        recommended = int(np.argmin(rmsecv["total"].to_numpy())) + 1
+        # If every CV fold produced NaN (e.g. zero-variance Y per fold)
+        # ``np.argmin`` warns and returns 0; the silent ``recommended = 1``
+        # was indistinguishable from a legitimate "1 component is best"
+        # result. Raise instead so the caller knows the CV did not converge
+        # to a recommendation. SEC-21 (#270) sub-item 8.
+        total_rmsecv = rmsecv["total"].to_numpy()
+        if np.all(np.isnan(total_rmsecv)):
+            raise RuntimeError(
+                "Cross-validation produced NaN total-RMSECV for every component count; "
+                "no recommendation can be made. Likely cause: a per-fold zero-variance Y "
+                "column, or every fold trivially degenerate."
+            )
+        recommended = int(np.nanargmin(total_rmsecv)) + 1
         cv_predictions = pd.DataFrame(oof[recommended - 1], index=Y.index, columns=Y.columns)
 
         return Bunch(
@@ -2089,7 +2113,12 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         dt = t_end[idx] - t_start[idx]
 
         if weighted:
-            dt = dt / np.sqrt(self.explained_variance_[idx])
+            # ``explained_variance_[a] == 0`` for a degenerate component
+            # would silently produce inf/NaN weighted contributions.
+            # Clamp the divisor so weighting is a no-op on such components.
+            # SEC-21 (#270) sub-item 5.
+            ev = np.asarray(self.explained_variance_)[idx]
+            dt = dt / np.sqrt(np.where(ev > epsqrt, ev, 1.0))
 
         P = self.x_loadings_.values[:, idx].T
         contributions = dt @ P
@@ -2535,21 +2564,25 @@ def quick_regress(Y: np.ndarray, x: np.ndarray) -> np.ndarray:
     if Ny == Nx:  # Case A: b' = (x'Y)/(x'x): (1xN)(NxK) = (1xK)
         b = np.zeros((K, 1))
         for k in np.arange(K):
-            b[k] = np.sum(x.T * np.nan_to_num(Y[:, k]))
+            numer = np.sum(x.T * np.nan_to_num(Y[:, k]))
             temp = ~np.isnan(Y[:, k]) * x.T
             denom = np.dot(temp, temp.T)[0][0]
-            if np.abs(denom) > epsqrt:
-                b[k] = b[k] / denom
+            # Coefficient is undefined when the effective ``x`` (after
+            # NaN masking in Y) has no signal: ``x`` is all zero, or the
+            # column ``Y[:, k]`` is all NaN. Return 0.0 (no contribution)
+            # rather than the un-normalised numerator, which the previous
+            # code returned silently. SEC-21 (#270) sub-item 7.
+            b[k] = numer / denom if np.abs(denom) > epsqrt else 0.0
         return b
 
     elif Nx == K:  # Case B: b = (Yx)/(x'x): (NxK)(Kx1) = (Nx1)
         b = np.zeros((Ny, 1))
         for n in np.arange(Ny):
-            b[n] = np.sum(x[:, 0] * np.nan_to_num(Y[n, :]))
+            numer = np.sum(x[:, 0] * np.nan_to_num(Y[n, :]))
             # TODO(KGD): check: this denom is usually(always?) equal to 1.0
             denom = ssq(~np.isnan(Y[n, :]) * x.T)
-            if np.abs(denom) > epsqrt:
-                b[n] = b[n] / denom
+            # See sub-item 7 note above (mirror of Case A).
+            b[n] = numer / denom if np.abs(denom) > epsqrt else 0.0
         return b
 
     else:
@@ -2717,6 +2750,13 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
     values = spe_values**2
     center_spe = float(values.mean())
     variance_spe = float(values.var(ddof=1))
+    # A perfect-fit training set (A == K) or all-equal SPE values produces
+    # ``variance_spe == 0`` or ``center_spe == 0``, which would divide by
+    # zero below and yield NaN limits silently. Return the centre as the
+    # limit -- there is no spread to bound, so anything above the centre
+    # is by definition out of family. SEC-21 (#270) sub-item 3.
+    if variance_spe <= epsqrt or center_spe <= epsqrt:
+        return float(np.sqrt(center_spe))
     g = variance_spe / (2 * center_spe)
     h = (2 * (center_spe**2)) / variance_spe
     # Report square root again as SPE limit
@@ -2821,8 +2861,9 @@ def internal_pls_nipals_fit_one_pc(
         # Step 1. w_i = X'u / u'u. Regress the columns of X on u_i, and store the slope coeff in vectors w_i.
         w_i = regress_a_space_on_b_row(x_space.T, u_i.T, x_present_map.T)
 
-        # Step 2. Normalize w to unit length.
-        w_i = w_i / np.linalg.norm(w_i)
+        # Step 2. Normalize w to unit length. Floor the denominator so a
+        # fully-deflated component doesn't divide by zero (SEC-21 #270 sub-item 1).
+        w_i = w_i / _nz(np.linalg.norm(w_i))
 
         # Step 3. t_i = Xw / w'w. Regress rows of X on w_i, and store slope coefficients in t_i.
         t_i = regress_a_space_on_b_row(x_space, w_i.T, x_present_map)
@@ -2833,7 +2874,9 @@ def internal_pls_nipals_fit_one_pc(
         # Step 5. u_new = Yq / q'q. Regress rows of Y on q_i, and store slope coefficients in u_new
         u_new = regress_a_space_on_b_row(y_space, q_i.T, y_present_map)
 
-        if (abs(np.linalg.norm(u_i - u_new)) / np.linalg.norm(u_i)) < epsqrt:
+        # Floor ``||u_i||`` so an all-zero starting vector (degenerate
+        # Y column) doesn't produce NaN here. SEC-21 (#270) sub-item 1.
+        if (abs(np.linalg.norm(u_i - u_new)) / _nz(np.linalg.norm(u_i))) < epsqrt:
             is_converged = True
         if n_iter > max_iter:
             is_converged = True
@@ -3679,8 +3722,13 @@ class TPLS(RegressorMixin, BaseEstimator):
         #. scores converge: the norm between two successive iterations is smaller than a tolerance
         #. maximum number of iterations is reached
         """
+        # Floor ``||starting_vector||`` -- when both vectors collapse to
+        # zero (degenerate block / fully-deflated component) the bare
+        # division produced NaN, the convergence test became permanently
+        # False, and the loop ran to max_iter. SEC-21 (#270) sub-item 1.
         delta_gap = float(
-            np.linalg.norm(starting_vector - revised_vector, ord=None) / np.linalg.norm(starting_vector, ord=None)
+            np.linalg.norm(starting_vector - revised_vector, ord=None)
+            / _nz(np.linalg.norm(starting_vector, ord=None))
         )
         converged = delta_gap < self.tolerance_
         max_iter = iterations >= self.max_iter
@@ -4122,7 +4170,8 @@ class TPLS(RegressorMixin, BaseEstimator):
                     }
 
                     # Step 8: Normalize joint w to unit length. See MB-PLS by Westerhuis et al. 1998. This is normal.
-                    w_i_z = {key: w / np.linalg.norm(w) for key, w in w_i_z.items()}
+                    # Floor each per-block norm so a degenerate Z block doesn't yield NaN. SEC-21 (#270) sub-item 1.
+                    w_i_z = {key: w / _nz(np.linalg.norm(w)) for key, w in w_i_z.items()}
 
                     # Step 9: regress rows of Z on w_i, and store slope coefficients in t_z. There is an error in the
                     #        paper here, but in figure 4 it is clear what should be happening.
@@ -4155,7 +4204,10 @@ class TPLS(RegressorMixin, BaseEstimator):
 
             # After convergance. Step 12: Now store information.
             # =================
-            delta_gap = float(np.linalg.norm(u_prior - u_super_i, ord=None) / np.linalg.norm(u_prior, ord=None))
+            # Floor ``||u_prior||`` -- see SEC-21 (#270) sub-item 1.
+            delta_gap = float(
+                np.linalg.norm(u_prior - u_super_i, ord=None) / _nz(np.linalg.norm(u_prior, ord=None))
+            )
             self.fitting_statistics["iterations"].append(n_iter)
             self.fitting_statistics["convergance_tolerance"].append(delta_gap)
             self.fitting_statistics["milliseconds"].append((time.time() - milliseconds_start) * 1000)
@@ -4835,7 +4887,12 @@ class MBPLS(RegressorMixin, BaseEstimator):
         idx = np.arange(self.n_components) if components is None else np.array(components) - 1
         dt = t_end[idx] - t_start[idx]  # (len(idx),)
         if weighted:
-            dt = dt / np.sqrt(self.explained_variance_[idx])
+            # ``explained_variance_[a] == 0`` for a degenerate component
+            # would silently produce inf/NaN weighted contributions.
+            # Clamp the divisor so weighting is a no-op on such components.
+            # SEC-21 (#270) sub-item 5.
+            ev = np.asarray(self.explained_variance_)[idx]
+            dt = dt / np.sqrt(np.where(ev > epsqrt, ev, 1.0))
 
         out: dict[str, pd.Series] = {}
         for b_idx, name in enumerate(self.block_names_):
@@ -5684,7 +5741,12 @@ class MBPCA(TransformerMixin, BaseEstimator):
         idx = np.arange(self.n_components) if components is None else np.array(components) - 1
         dt = t_end[idx] - t_start[idx]
         if weighted:
-            dt = dt / np.sqrt(self.explained_variance_[idx])
+            # ``explained_variance_[a] == 0`` for a degenerate component
+            # would silently produce inf/NaN weighted contributions.
+            # Clamp the divisor so weighting is a no-op on such components.
+            # SEC-21 (#270) sub-item 5.
+            ev = np.asarray(self.explained_variance_)[idx]
+            dt = dt / np.sqrt(np.where(ev > epsqrt, ev, 1.0))
 
         out: dict[str, pd.Series] = {}
         for b_idx, name in enumerate(self.block_names_):

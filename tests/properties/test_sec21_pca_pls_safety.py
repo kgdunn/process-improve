@@ -26,9 +26,11 @@ from process_improve.multivariate.methods import PCA, MCUVScaler
 
 @pytest.fixture
 def _quiet_runtime_warnings():
-    """The sweeps fix the *poisoning*, not every adjacent warning numpy
-    emits inside a fitting loop. Silence those here so a test asserting
-    on the fitted attribute's shape isn't masked by an unrelated warning.
+    """Silence the adjacent ``RuntimeWarning``s numpy emits in a fitting loop.
+
+    The sweeps fix the *poisoning*, not every adjacent warning numpy
+    emits. Silenced here so a test asserting on the fitted attribute's
+    shape is not masked by an unrelated warning.
     """
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=RuntimeWarning)
@@ -63,7 +65,8 @@ class TestR2PerVariableConstantColumn:
         X[:, constant_col_idx] = 7.5  # the constant
         return pd.DataFrame(X, columns=[f"v{i}" for i in range(n_cols)])
 
-    def test_svd_path_emits_nan_for_constant_column(self, _quiet_runtime_warnings):
+    @pytest.mark.usefixtures("_quiet_runtime_warnings")
+    def test_svd_path_emits_nan_for_constant_column(self):
         df = self._make_df_with_constant_column()
         # SVD path needs MCUV-scaled inputs to be defined.
         scaled = MCUVScaler().fit_transform(df)
@@ -73,7 +76,8 @@ class TestR2PerVariableConstantColumn:
         for v in ["v0", "v2", "v3"]:
             assert np.isfinite(pca.r2_per_variable_.loc[v]).all()
 
-    def test_nipals_path_emits_nan_for_constant_column(self, _quiet_runtime_warnings):
+    @pytest.mark.usefixtures("_quiet_runtime_warnings")
+    def test_nipals_path_emits_nan_for_constant_column(self):
         df = self._make_df_with_constant_column()
         scaled = MCUVScaler().fit_transform(df)
         pca = PCA(n_components=2, algorithm="nipals").fit(scaled)
@@ -124,7 +128,8 @@ class TestNipalsDoesNotMutateInput:
     its original NaN sentinel value (if any).
     """
 
-    def test_nipals_does_not_overwrite_input_column0_nan(self, _quiet_runtime_warnings):
+    @pytest.mark.usefixtures("_quiet_runtime_warnings")
+    def test_nipals_does_not_overwrite_input_column0_nan(self):
         rng = np.random.default_rng(0)
         X = rng.standard_normal((10, 4))
         X[3, 0] = np.nan  # sentinel that the algorithm zeroes internally
