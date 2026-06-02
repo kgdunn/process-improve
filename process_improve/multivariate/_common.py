@@ -15,6 +15,11 @@ from typing import TypeAlias
 import numpy as np
 import pandas as pd
 
+# Names re-exported to the rest of the package. Declared explicitly so CodeQL
+# does not flag the ``DataMatrix`` type alias (only ever referenced in lazy
+# annotation strings under ``from __future__ import annotations``) as unused.
+__all__ = ["DataMatrix", "SpecificationWarning", "epsqrt"]
+
 DataMatrix: TypeAlias = np.ndarray | pd.DataFrame
 
 epsqrt = np.sqrt(np.finfo(float).eps)
