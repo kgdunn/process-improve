@@ -11,6 +11,24 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.6] - 2026-06-02
+
+### Fixed
+
+- **SEC-13 (#261)**: `find_reference_batch` no longer enters an unbounded
+  cutoff-relaxation loop when the caller requests more reference batches
+  than candidates exist. The loop is now bounded at `conf_level <= 0.95`
+  and the function validates `number_of_reference_batches` against the
+  candidate count up front. The previous behaviour eventually tripped a
+  `python -O`-strippable `assert conf_level < 1.0` inside
+  `spe_calculation`; the fix raises a clear `ValueError` instead.
+
+### Tests
+
+- `tests/batch/test_preprocessing.py` adds regression guards for the two
+  newly-validated error paths (`number_of_reference_batches > len(batches)`
+  and `number_of_reference_batches < 1`).
+
 ## [1.24.5] - 2026-06-02
 
 ### Tests
@@ -863,7 +881,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.5...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.6...HEAD
+[1.24.6]: https://github.com/kgdunn/process-improve/compare/v1.24.5...v1.24.6
 [1.24.5]: https://github.com/kgdunn/process-improve/compare/v1.24.4...v1.24.5
 [1.24.4]: https://github.com/kgdunn/process-improve/compare/v1.24.3...v1.24.4
 [1.24.3]: https://github.com/kgdunn/process-improve/compare/v1.24.2...v1.24.3
