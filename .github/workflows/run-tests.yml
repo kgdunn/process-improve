@@ -120,14 +120,11 @@ jobs:
         fail_ci_if_error: false
 
   # ENG-15 sub-track: catch validation `assert`s stripped by `python -O`.
-  # SEC-08 already swept ~105 sites; SEC-17 (#266) tracks the remaining
-  # multivariate / bivariate / batch / experiments / monitoring asserts
-  # that are still subject to silent-skip under -O. Until SEC-17 lands,
-  # this job is allowed to fail without blocking the workflow; once SEC-17
-  # is in main, remove `continue-on-error` so a regression turns CI red.
+  # SEC-08 swept ~105 sites; SEC-17 (#266) swept the multivariate / bivariate /
+  # batch / experiments / monitoring sites that survived. This job now runs as
+  # a blocking check so a regression turns CI red.
   test-under-dash-O:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
     - uses: actions/checkout@v6
     - name: Install uv and set the python version

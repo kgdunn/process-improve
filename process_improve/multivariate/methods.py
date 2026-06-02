@@ -629,7 +629,7 @@ class PCA(TransformerMixin, BaseEstimator):
         self.missing_data_settings = missing_data_settings
 
     @_fit_context(prefer_skip_nested_validation=True)
-    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA:  # noqa: ARG002, PLR0915, C901
+    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA:  # noqa: ARG002, PLR0912, PLR0915, C901
         """Fit a principal component analysis (PCA) model to the data.
 
         Parameters
@@ -687,8 +687,10 @@ class PCA(TransformerMixin, BaseEstimator):
         settings["md_max_iter"] = int(settings["md_max_iter"])
 
         if algo in ("nipals", "tsr"):
-            assert settings["md_tol"] < 10, "Tolerance should not be too large"
-            assert settings["md_tol"] > epsqrt**1.95, "Tolerance must exceed machine precision"
+            if not settings["md_tol"] < 10:
+                raise ValueError("Tolerance should not be too large.")
+            if not settings["md_tol"] > epsqrt**1.95:
+                raise ValueError("Tolerance must exceed machine precision.")
 
         # Storage for numpy results (set by _fit_* methods)
         X_values = np.asarray(X.copy())
@@ -965,7 +967,10 @@ class PCA(TransformerMixin, BaseEstimator):
         check_is_fitted(self, "loadings_")
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
-        assert X.shape[1] == self.n_features_in_, f"New data must have {self.n_features_in_} columns, got {X.shape[1]}."
+        if X.shape[1] != self.n_features_in_:
+            raise ValueError(
+                f"New data must have {self.n_features_in_} columns, got {X.shape[1]}."
+            )
         scores = X.values @ self.loadings_.values
         return pd.DataFrame(scores, index=X.index, columns=self.loadings_.columns)
 
@@ -989,9 +994,10 @@ class PCA(TransformerMixin, BaseEstimator):
         check_is_fitted(self, "loadings_")
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
-        assert X.shape[1] == self.n_features_in_, (
-            f"Prediction data must have {self.n_features_in_} columns, got {X.shape[1]}."
-        )
+        if X.shape[1] != self.n_features_in_:
+            raise ValueError(
+                f"Prediction data must have {self.n_features_in_} columns, got {X.shape[1]}."
+            )
 
         scores = self.transform(X)
 
@@ -1596,9 +1602,10 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.n_features_in_: int = X.shape[1]
         Ny: int = Y.shape[0]
         self.n_targets_: int = Y.shape[1]
-        assert Ny == self.n_samples_, (
-            f"The X and Y arrays must have the same number of rows: X has {self.n_samples_} and Y has {Ny}."
-        )
+        if Ny != self.n_samples_:
+            raise ValueError(
+                f"The X and Y arrays must have the same number of rows: X has {self.n_samples_} and Y has {Ny}."
+            )
 
         N = self.n_samples_
         K = self.n_features_in_
@@ -1820,9 +1827,10 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         check_is_fitted(self, "scores_")
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
-        assert X.shape[1] == self.n_features_in_, (
-            f"Prediction data must have {self.n_features_in_} columns, got {X.shape[1]}."
-        )
+        if X.shape[1] != self.n_features_in_:
+            raise ValueError(
+                f"Prediction data must have {self.n_features_in_} columns, got {X.shape[1]}."
+            )
 
         scores = X @ self.direct_weights_
 
@@ -2622,8 +2630,10 @@ def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows:
         The Hotelling's T2 limit at the given level of confidence. Returns
         ``inf`` when ``n_components == n_rows``.
     """
-    assert 0.0 < conf_level < 1.0
-    assert n_rows > 0
+    if not 0.0 < conf_level < 1.0:
+        raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
+    if n_rows <= 0:
+        raise ValueError(f"n_rows must be positive; got {n_rows}.")
     if n_components == n_rows:
         return float("inf")
     return (
@@ -2675,8 +2685,8 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
         The limit, above which we judge observations in the model to have a different correlation
         structure than those values which were used to build the model.
     """
-    assert conf_level > 0.0, "conf_level must be a value between (0.0, 1.0)"
-    assert conf_level < 1.0, "conf_level must be a value between (0.0, 1.0)"
+    if not 0.0 < conf_level < 1.0:
+        raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
 
     # The limit is for the squares (i.e. the sum of the squared errors)
     # I.e. `spe_values` are square-rooted outside this function, so undo that.
@@ -2749,10 +2759,18 @@ def ellipse_coordinates(  # noqa: PLR0913
 
         where t ranges between 0 and 2*pi.
     """
-    assert 1 <= score_horiz <= n_components
-    assert 1 <= score_vert <= n_components
-    assert 0 < conf_level < 1
-    assert n_rows > 0
+    if not 1 <= score_horiz <= n_components:
+        raise ValueError(
+            f"score_horiz must lie in [1, {n_components}]; got {score_horiz}."
+        )
+    if not 1 <= score_vert <= n_components:
+        raise ValueError(
+            f"score_vert must lie in [1, {n_components}]; got {score_vert}."
+        )
+    if not 0 < conf_level < 1:
+        raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
+    if n_rows <= 0:
+        raise ValueError(f"n_rows must be positive; got {n_rows}.")
     s_h = scaling_factor_for_scores.iloc[score_horiz - 1]
     s_v = scaling_factor_for_scores.iloc[score_vert - 1]
     t2_limit_specific = np.sqrt(hotellings_t2_limit(conf_level, n_components=n_components, n_rows=n_rows))
@@ -3061,16 +3079,21 @@ class TPLS(RegressorMixin, BaseEstimator):
         skip_f_matrix_preprocessing: bool = False,
     ):
         super().__init__()
-        assert n_components > 0, "Number of components must be positive."
+        if n_components <= 0:
+            raise ValueError(f"n_components must be positive; got {n_components}.")
         self.n_components = n_components
 
         self.d_matrix = d_matrix  # This is required input dict containing the properties for each group.
-        assert isinstance(self.d_matrix, dict), "d_matrix must be a dictionary of dataframes."
-
-        assert all(isinstance(df, pd.DataFrame) for df in self.d_matrix.values()), "d_matrix must contain dataframes."
+        if not isinstance(self.d_matrix, dict):
+            raise TypeError(
+                f"d_matrix must be a dict of DataFrames; got {type(self.d_matrix).__name__}."
+            )
+        if not all(isinstance(df, pd.DataFrame) for df in self.d_matrix.values()):
+            raise TypeError("d_matrix must contain pandas DataFrames as values.")
 
         self.max_iter = max_iter
-        assert self.max_iter > 0, "Maximum number of iterations must be positive."
+        if self.max_iter <= 0:
+            raise ValueError(f"max_iter must be positive; got {self.max_iter}.")
 
         self.skip_f_matrix_preprocessing = skip_f_matrix_preprocessing
 
@@ -3097,7 +3120,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         self : object
             Returns self.
         """
-        assert isinstance(X, DataFrameDict)
+        if not isinstance(X, DataFrameDict):
+            raise TypeError(f"X must be a DataFrameDict; got {type(X).__name__}.")
         self._input_data_checks(X)
         group_keys = [str(key) for key in self.d_matrix]
 
@@ -3250,7 +3274,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.is_fitted_ = True
         return self
 
-    def predict(self, X: DataFrameDict) -> Bunch:  # noqa: C901, PLR0912
+    def predict(self, X: DataFrameDict) -> Bunch:  # noqa: C901, PLR0912, PLR0915
         """
         Model inference on new data.
 
@@ -3277,7 +3301,8 @@ class TPLS(RegressorMixin, BaseEstimator):
             Returns an array of prediction objects. More details to come here later. Please ask.
         """
         check_is_fitted(self)  # Check if fit had been called
-        assert isinstance(X, DataFrameDict), "The input 'X' must be a DataFrameDict object."
+        if not isinstance(X, DataFrameDict):
+            raise TypeError(f"X must be a DataFrameDict; got {type(X).__name__}.")
 
         # TODO: Check consistency on the data: the columns names in the new data must match the columns names in the
         # training data.
@@ -3313,16 +3338,26 @@ class TPLS(RegressorMixin, BaseEstimator):
         }
 
         for key, df_f in x_f.items():
-            assert df_f.shape[0] == num_obs, "All formula blocks must have the same number of rows."
-            assert set(df_f.columns) == set(self.material_names[key]), (
-                f"Columns in block F, group [{key}] must match training data column names for each material"
-            )
+            if df_f.shape[0] != num_obs:
+                raise ValueError(
+                    f"All formula blocks must have the same number of rows; "
+                    f"group [{key}] has {df_f.shape[0]} rows, expected {num_obs}."
+                )
+            if set(df_f.columns) != set(self.material_names[key]):
+                raise ValueError(
+                    f"Columns in block F, group [{key}] must match training data column names for each material."
+                )
 
         for key, df_z in x_z.items():
-            assert df_z.shape[0] == num_obs, "All condition blocks must have the same number of rows."
-            assert set(df_z.columns) == set(self.condition_names[key]), (
-                f"Columns names in block Z, group [{key}] must match training data column names."
-            )
+            if df_z.shape[0] != num_obs:
+                raise ValueError(
+                    f"All condition blocks must have the same number of rows; "
+                    f"group [{key}] has {df_z.shape[0]} rows, expected {num_obs}."
+                )
+            if set(df_z.columns) != set(self.condition_names[key]):
+                raise ValueError(
+                    f"Column names in block Z, group [{key}] must match training data column names."
+                )
 
         for pc_a in range(self.n_components):
             # Regress the row of each new formula block on the r_loadings_f, to get the t-score for that pc_a component.
@@ -3543,10 +3578,17 @@ class TPLS(RegressorMixin, BaseEstimator):
 
     def _input_data_checks(self, X: DataFrameDict) -> None:
         """Check the incoming data."""
-        assert isinstance(X, DataFrameDict), "The input data must be a DataFrameDict."
-        assert set(X.keys()) == self.required_inputs_, f"Expected keys: {self.required_inputs_}, got: {set(X.keys())}"
+        if not isinstance(X, DataFrameDict):
+            raise TypeError(
+                f"The input data must be a DataFrameDict; got {type(X).__name__}."
+            )
+        if set(X.keys()) != self.required_inputs_:
+            raise ValueError(
+                f"Expected keys: {self.required_inputs_}, got: {set(X.keys())}."
+            )
         group_keys = [str(key) for key in self.d_matrix]
-        assert set(X["F"]) == set(group_keys), "The keys in F must match the keys in D."
+        if set(X["F"]) != set(group_keys):
+            raise ValueError("The keys in F must match the keys in D.")
 
         for key in X["Y"]:
             self._validate_df(X["Y"][key])
@@ -3554,7 +3596,10 @@ class TPLS(RegressorMixin, BaseEstimator):
             self._validate_df(X["Z"][key])
         for key in self.d_matrix:
             self._validate_df(self.d_matrix[key])
-            assert key in X["F"], f"Block/group name '{key}' in D must also be present in F."
+            if key not in X["F"]:
+                raise ValueError(
+                    f"Block/group name '{key}' in D must also be present in F."
+                )
             self._validate_df(X["F"][key])  # this also ensures the keys in F are the same as in D
 
     def _learn_center_and_scaling_parameters(self, y: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
@@ -3957,11 +4002,12 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Test that all blocks and groups within a block have a mean of 0 and a standard deviation of 1.
         # Note the extra complexity for checking columns that have perfectly zero variance.
+        # Internal invariants on the just-preprocessed matrices, not user input.
         for key in self.z_mats:
-            assert np.allclose(np.nanmean(self.z_mats[key], axis=0), 0, atol=1e-6)
+            assert np.allclose(np.nanmean(self.z_mats[key], axis=0), 0, atol=1e-6)  # post-centering invariant
             for item in np.nanstd(self.z_mats[key], axis=0, ddof=1):
                 if item != 0:
-                    assert np.isclose(item, 1)
+                    assert np.isclose(item, 1)  # post-scaling invariant
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
@@ -3970,22 +4016,24 @@ class TPLS(RegressorMixin, BaseEstimator):
                 if not self.skip_f_matrix_preprocessing:
                     vector = np.nanmean(self.f_mats[key], axis=0)
                     vector[np.isnan(vector)] = 0
-                    assert np.allclose(vector, 0, atol=1e-6)
+                    assert np.allclose(vector, 0, atol=1e-6)  # post-centering invariant
 
                     vector = np.nanstd(self.f_mats[key], axis=0, ddof=1)
                     vector[np.isnan(vector)] = 1
-                    assert np.allclose(vector, 1)
+                    assert np.allclose(vector, 1)  # post-scaling invariant
 
                 vector = np.nanmean(self.d_mats[key], axis=0)
                 vector[np.isnan(vector)] = 0
-                assert np.allclose(vector, 0, atol=1e-6)
+                assert np.allclose(vector, 0, atol=1e-6)  # post-centering invariant
                 vector = np.nanstd(self.d_mats[key], axis=0, ddof=1) * self.preproc_["D"][key]["block"].values[0]
                 vector[np.isnan(vector)] = 1
-                assert np.allclose(vector, 1)
+                assert np.allclose(vector, 1)  # post-scaling invariant
 
-        # Checks on the Y-block
-        assert all(np.allclose(np.nanmean(self.y_mats[key], axis=0), 0, atol=1e-6) for key in self.y_mats)
-        assert all(
+        # Checks on the Y-block: post-centering / post-scaling invariants.
+        assert all(  # post-centering invariant on every Y block
+            np.allclose(np.nanmean(self.y_mats[key], axis=0), 0, atol=1e-6) for key in self.y_mats
+        )
+        assert all(  # post-scaling invariant on every Y block
             np.allclose(np.where((in_array := np.nanstd(self.y_mats[key], axis=0, ddof=1)) == 0, 1, in_array), 1)
             for key in self.y_mats
         )
@@ -4276,8 +4324,10 @@ class MBPLS(RegressorMixin, BaseEstimator):
         missing_data_settings: dict | None = None,
     ):
         super().__init__()
-        assert n_components > 0, "Number of components must be positive."
-        assert max_iter > 0, "max_iter must be positive."
+        if n_components <= 0:
+            raise ValueError(f"n_components must be positive; got {n_components}.")
+        if max_iter <= 0:
+            raise ValueError(f"max_iter must be positive; got {max_iter}.")
         self.n_components = n_components
         self.max_iter = max_iter
         self.tol = tol
@@ -4348,8 +4398,10 @@ class MBPLS(RegressorMixin, BaseEstimator):
             settings.update(self.missing_data_settings)
         settings["md_max_iter"] = int(settings["md_max_iter"])
         if algo == "nipals":
-            assert settings["md_tol"] < 10, "Tolerance should not be too large"
-            assert settings["md_tol"] > epsqrt**1.95, "Tolerance must exceed machine precision"
+            if not settings["md_tol"] < 10:
+                raise ValueError("Tolerance should not be too large.")
+            if not settings["md_tol"] > epsqrt**1.95:
+                raise ValueError("Tolerance must exceed machine precision.")
             # Degeneracy guards: any column or any (block, row) entirely NaN
             # leaves the masked NIPALS denominator at zero, which would
             # silently produce a spurious score or loading. Refuse the fit
@@ -5175,8 +5227,10 @@ class MBPCA(TransformerMixin, BaseEstimator):
         missing_data_settings: dict | None = None,
     ):
         super().__init__()
-        assert n_components > 0, "Number of components must be positive."
-        assert max_iter > 0, "max_iter must be positive."
+        if n_components <= 0:
+            raise ValueError(f"n_components must be positive; got {n_components}.")
+        if max_iter <= 0:
+            raise ValueError(f"max_iter must be positive; got {max_iter}.")
         self.n_components = n_components
         self.max_iter = max_iter
         self.tol = tol
@@ -5233,8 +5287,10 @@ class MBPCA(TransformerMixin, BaseEstimator):
             settings.update(self.missing_data_settings)
         settings["md_max_iter"] = int(settings["md_max_iter"])
         if algo == "nipals":
-            assert settings["md_tol"] < 10, "Tolerance should not be too large"
-            assert settings["md_tol"] > epsqrt**1.95, "Tolerance must exceed machine precision"
+            if not settings["md_tol"] < 10:
+                raise ValueError("Tolerance should not be too large.")
+            if not settings["md_tol"] > epsqrt**1.95:
+                raise ValueError("Tolerance must exceed machine precision.")
             # Degeneracy guards: any column or any (block, row) entirely NaN
             # leaves the masked NIPALS denominator at zero, which would
             # silently produce a spurious score or loading. Refuse the fit

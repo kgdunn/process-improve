@@ -11,7 +11,7 @@ import numpy as np
 from ..regression.methods import fit_robust_lm
 
 
-def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | float:  # noqa: PLR0915
+def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | float:  # noqa: C901, PLR0915
     """
     Find the elbow point when plotting numeric entries in `x` vs numeric values in list `y`.
 
@@ -46,7 +46,10 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
     # Ensure it is a Numpy array: pandas objects and lists are correctly handled.
     x = np.array(x.copy())
     y = np.array(y.copy())
-    assert len(x) == len(y)
+    if len(x) != len(y):
+        raise ValueError(
+            f"x and y must have the same length; got len(x)={len(x)}, len(y)={len(y)}."
+        )
 
     # Stop if everything is missing:
     if np.isnan(np.nanmedian(x)) or np.isnan(np.nanmedian(y)):
@@ -54,7 +57,10 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
 
     # Eliminate missing values in x and y simultaneously.
     x, y = x[~(np.isnan(x) | np.isnan(y))], y[~(np.isnan(x) | np.isnan(y))]
-    assert len(x) > 10, "Requires more than 10 values in the vectors (not including missing data)."
+    if len(x) <= 10:
+        raise ValueError(
+            "Requires more than 10 values in the vectors (not including missing data)."
+        )
     idx_sort = x.argsort()
     x = x[idx_sort]
     y = y[idx_sort]

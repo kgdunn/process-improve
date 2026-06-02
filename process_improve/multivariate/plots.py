@@ -22,17 +22,21 @@ from process_improve.visualization.themes import (
 def plot_pre_checks(model: BaseEstimator, pc_horiz: int, pc_vert: int, pc_depth: int) -> bool:
     """Check the inputs for the plot functions are valid."""
     n_components = model.n_components if hasattr(model, "n_components") else model._parent.n_components
-    assert 0 < pc_horiz <= n_components, (
-        f"The model has {n_components} components. Ensure that 1 <= pc_horiz<={n_components}."
-    )
-    assert 0 < pc_vert <= n_components, (
-        f"The model has {n_components} components. Ensure that 1 <= pc_vert<={n_components}."
-    )
-    assert -1 <= pc_depth <= n_components, (
-        f"The model has {n_components} components. Ensure that pc_depth is -1 (no depth axis) "
-        f"or 1 <= pc_depth <= {n_components}."
-    )
-    assert len({pc_horiz, pc_vert, pc_depth}) == 3, "Specify distinct components for each axis"
+    if not 0 < pc_horiz <= n_components:
+        raise ValueError(
+            f"The model has {n_components} components. Ensure that 1 <= pc_horiz <= {n_components}."
+        )
+    if not 0 < pc_vert <= n_components:
+        raise ValueError(
+            f"The model has {n_components} components. Ensure that 1 <= pc_vert <= {n_components}."
+        )
+    if not -1 <= pc_depth <= n_components:
+        raise ValueError(
+            f"The model has {n_components} components. Ensure that pc_depth is -1 (no depth axis) "
+            f"or 1 <= pc_depth <= {n_components}."
+        )
+    if len({pc_horiz, pc_vert, pc_depth}) != 3:
+        raise ValueError("Specify distinct components for each axis.")
 
     return True
 
@@ -376,7 +380,7 @@ def loading_plot(  # noqa: PLR0913
     return fig
 
 
-def spe_plot(
+def spe_plot(  # noqa: C901
     model: BaseEstimator,
     with_a: int = -1,
     items_to_highlight: dict[str, list] | None = None,
@@ -427,9 +431,13 @@ def spe_plot(
         # Get the actual name of the last column in the model if negative indexing is used
         with_a = model.spe_.columns[with_a]
     elif with_a == 0:
-        raise AssertionError("`with_a` must be >= 1, or specified with negative indexing")
+        raise ValueError("`with_a` must be >= 1, or specified with negative indexing.")
 
-    assert with_a <= model.n_components, "`with_a` must be <= the number of components fitted"
+    if not with_a <= model.n_components:
+        raise ValueError(
+            f"`with_a` must be <= the number of components fitted "
+            f"({model.n_components}); got {with_a}."
+        )
 
     class Settings(BaseModel):
         """Validated display settings for the SPE plot."""
@@ -524,7 +532,7 @@ def spe_plot(
     return fig
 
 
-def t2_plot(
+def t2_plot(  # noqa: C901
     model: BaseEstimator,
     with_a: int = -1,
     items_to_highlight: dict[str, list] | None = None,
@@ -574,9 +582,13 @@ def t2_plot(
     if with_a < 0:
         with_a = model.hotellings_t2_.columns[with_a]
     elif with_a == 0:
-        raise AssertionError("`with_a` must be >= 1, or specified with negative indexing")
+        raise ValueError("`with_a` must be >= 1, or specified with negative indexing.")
 
-    assert with_a <= model.n_components, "`with_a` must be <= the number of components fitted"
+    if not with_a <= model.n_components:
+        raise ValueError(
+            f"`with_a` must be <= the number of components fitted "
+            f"({model.n_components}); got {with_a}."
+        )
 
     class Settings(BaseModel):
         """Validated display settings for the Hotelling's T2 plot."""

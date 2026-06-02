@@ -26,7 +26,10 @@ def get_rgba_from_triplet(incolour: list, alpha: float = 1, as_string: bool = Fa
 
     E.g.    [0.9677975592919913, 0.44127456009157356, 0.5358103155058701] -> 'rgba(246,112,136,1)'
     """
-    assert 3 <= len(incolour) <= 4, "`incolour` must be a list of 3 or 4 values; ignores 4th entry"
+    if not 3 <= len(incolour) <= 4:
+        raise ValueError(
+            f"`incolour` must be a list of 3 or 4 values; got {len(incolour)} entries."
+        )
     colours = [max(0, math.floor(c * 255)) for c in list(incolour)[0:3]]
     if as_string:
         return f"rgba({colours[0]},{colours[1]},{colours[2]},{float(alpha)})"
@@ -138,9 +141,10 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
     fig = go.Figure()
 
     for batch_id, batch_df in df_dict.items():
-        assert tag in batch_df.columns, f"Tag '{tag}' not found in the batch with id {batch_id}."
-        if tag_y2:
-            assert tag_y2 in batch_df.columns, f"Tag '{tag}' not found in the batch with id {batch_id}."
+        if tag not in batch_df.columns:
+            raise KeyError(f"Tag '{tag}' not found in the batch with id {batch_id}.")
+        if tag_y2 and tag_y2 not in batch_df.columns:
+            raise KeyError(f"Tag '{tag_y2}' not found in the batch with id {batch_id}.")
         time_data = batch_df[time_column] if time_column in batch_df.columns else list(range(batch_df.shape[0]))
 
         if batch_id in highlight_list:
@@ -405,7 +409,11 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
         tag_list.remove(time_column)
 
     # Check that the tag_list is present in all batches.
-    assert check_valid_batch_dict({k: v[tag_list] for k, v in df_dict.items() if k in batch_list}, no_nan=False)
+    if not check_valid_batch_dict(
+        {k: v[tag_list] for k, v in df_dict.items() if k in batch_list},
+        no_nan=False,
+    ):
+        raise ValueError("One or more batches in df_dict failed validation.")
 
     if settings["ncols"] == 0:
         settings["ncols"] = int(np.ceil(len(tag_list) / int(settings["nrows"])))

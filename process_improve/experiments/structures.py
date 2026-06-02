@@ -79,7 +79,10 @@ class Column(pd.Series):
 
     def extend(self, values: list) -> Column:
         """Extend the column with the list of new values."""
-        assert isinstance(values, list), "The 'values' must be in a list [...]"
+        if not isinstance(values, list):
+            raise TypeError(
+                f"'values' must be a list; got {type(values).__name__}."
+            )
         prior_n = self.index[-1]
         index = list(range(prior_n + 1, prior_n + len(values) + 1))
         new = pd.Series(data=values, index=index)
@@ -276,7 +279,11 @@ def c(*args, **kwargs) -> Column:  # noqa: C901, PLR0912, PLR0915
             _ = (e for e in out.pi_range)
         except TypeError as err:
             raise TypeError("The `range` input must be an iterable, with 2 values.") from err
-        assert len(out.pi_range) == 2, "The `range` variable must be a tuple, with 2 values."
+        if len(out.pi_range) != 2:
+            raise ValueError(
+                f"The `range` variable must be a tuple with 2 values; "
+                f"got {len(out.pi_range)} value(s)."
+            )
         out.pi_range = tuple(out.pi_range)
 
         try:
@@ -296,9 +303,9 @@ def c(*args, **kwargs) -> Column:  # noqa: C901, PLR0912, PLR0915
             out.pi_is_coded = override_coded
 
     elif "levels" in kwargs:
-        msg = "Levels must be list or tuple of the unique level names."
         levels = kwargs.get("levels")
-        assert isinstance(levels, Iterable), msg
+        if not isinstance(levels, Iterable):
+            raise TypeError("Levels must be list or tuple of the unique level names.")
         levels_list = list(levels)
         raw_values: list = []
         for arg in args:

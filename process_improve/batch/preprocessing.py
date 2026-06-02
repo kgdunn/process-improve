@@ -184,7 +184,11 @@ def dtw_core(test: pd.DataFrame, ref: pd.DataFrame, weight_matrix: np.ndarray) -
     show_plot = False
     nt = test.shape[0]  # 'test' data; will be align to the 'reference' data
     nr = ref.shape[0]
-    assert test.shape[1] == ref.shape[1]
+    if test.shape[1] != ref.shape[1]:
+        raise ValueError(
+            f"test and ref must have the same number of columns; "
+            f"got test.shape[1]={test.shape[1]}, ref.shape[1]={ref.shape[1]}."
+        )
 
     D = distance_matrix(test.values, ref.values, weight_matrix)
     md_path, distance = backtrack_optimal_path(D)
@@ -264,7 +268,7 @@ def one_iteration_dtw(
     return aligned_batches, average_batch
 
 
-def batch_dtw(  # noqa: PLR0915
+def batch_dtw(  # noqa: C901, PLR0915
     batches: dict[str, pd.DataFrame],
     columns_to_align: list,
     reference_batch: str,
@@ -328,10 +332,20 @@ def batch_dtw(  # noqa: PLR0915
     if settings:
         default_settings.update(settings)
     settings = default_settings
-    assert settings["maximum_iterations"] >= 3, "At least 3 iterations are required"
-    assert reference_batch in batches, "`reference_batch` was not found in the dict of batches."
+    if settings["maximum_iterations"] < 3:
+        raise ValueError(
+            f"At least 3 iterations are required; got maximum_iterations={settings['maximum_iterations']}."
+        )
+    if reference_batch not in batches:
+        raise KeyError(
+            f"`reference_batch` was not found in the dict of batches; got {reference_batch!r}."
+        )
 
-    assert check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()}, no_nan=True)
+    if not check_valid_batch_dict(
+        {k: v[columns_to_align] for k, v in batches.items()},
+        no_nan=True,
+    ):
+        raise ValueError("One or more batches in the input dict failed validation.")
 
     scale_df = determine_scaling(batches=batches, columns_to_align=columns_to_align, settings=settings)
     batches_scaled = apply_scaling(batches, scale_df, columns_to_align)
@@ -407,8 +421,9 @@ def batch_dtw(  # noqa: PLR0915
             settings["interpolate_time_axis_maximum"] - settings["interpolate_time_axis_delta"],
             synced.shape[0],
         )
-        assert new_time_axis.min() == sequence.min()
-        assert new_time_axis.max() == sequence.max()
+        # Internal invariants on the just-built axes; not user input.
+        assert new_time_axis.min() == sequence.min()  # post-construction invariant
+        assert new_time_axis.max() == sequence.max()  # post-construction invariant
 
         synced_interpolated = pd.DataFrame()
         for column in synced:
@@ -590,9 +605,14 @@ def find_reference_batch(
         default_settings.update(settings)
     settings = default_settings
 
-    assert isinstance(columns_to_align, list), "`columns_to_align` must be a list of column names."
+    if not isinstance(columns_to_align, list):
+        raise TypeError(
+            f"`columns_to_align` must be a list of column names; "
+            f"got {type(columns_to_align).__name__}."
+        )
 
-    assert check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()})
+    if not check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()}):
+        raise ValueError("One or more batches in the input dict failed validation.")
 
     # Starts with the average duration batch.
     initial_reference_id = find_average_length(batches, settings)
