@@ -118,7 +118,7 @@ def robust_regression(
             out["prediction_interval_upper"] = [row[2] for row in pi]
 
         return clean(out)
-    except Exception as exc:  # noqa: BLE001
+    except (ValueError, TypeError, np.linalg.LinAlgError) as exc:
         return {"error": str(exc)}
 
 
@@ -172,7 +172,7 @@ def repeated_median(
         y_arr = np.asarray(y, dtype=float)
         slope = float(repeated_median_slope(x_arr, y_arr))
         return clean({"slope": slope, "n": len(x)})
-    except Exception as exc:  # noqa: BLE001
+    except (ValueError, TypeError, np.linalg.LinAlgError) as exc:
         return {"error": str(exc)}
 
 

@@ -24,11 +24,27 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import numpy as np
 import pandas as pd
+from patsy import PatsyError
 
 from process_improve.tool_spec import clean, get_tool_specs, tool_spec
 
 logger = logging.getLogger(__name__)
+
+# Per the ENG-11 error-handling style guide, every tool wrapper narrows
+# its ``except`` to this canonical set so that anything *outside* this
+# set propagates up to ``mcp_server._serialise_tool_error`` and gets
+# redacted before reaching the caller (SEC-18 / #267). The set covers
+# what the underlying experiments / statsmodels / patsy / numpy stack
+# raises on bad-but-not-malicious input.
+_TOOL_EXPECTED_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    ValueError,         # incl. UnsafeFormulaError (subclass) and most input checks
+    TypeError,
+    KeyError,
+    np.linalg.LinAlgError,
+    PatsyError,         # patsy raises this directly (not a ValueError subclass)
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -107,7 +123,7 @@ def create_factorial_design(
                 "factor_names": names,
             }
         )
-    except Exception as e:
+    except _TOOL_EXPECTED_EXCEPTIONS as e:
         logger.exception("Tool create_factorial_design failed")
         return {"error": str(e)}
 
@@ -217,7 +233,7 @@ def fit_linear_model(
                 "summary_text": summary_text,
             }
         )
-    except Exception as e:
+    except _TOOL_EXPECTED_EXCEPTIONS as e:
         logger.exception("Tool fit_linear_model failed")
         return {"error": str(e)}
 
@@ -387,7 +403,7 @@ def generate_design_tool(  # noqa: PLR0913
             output["alpha"] = result.alpha
 
         return clean(output)
-    except Exception as e:
+    except _TOOL_EXPECTED_EXCEPTIONS as e:
         logger.exception("Tool generate_design failed")
         return {"error": str(e)}
 
@@ -516,7 +532,7 @@ def evaluate_design_tool(  # noqa: PLR0913
             sigma=sigma,
         )
         return clean(result)
-    except Exception as e:
+    except _TOOL_EXPECTED_EXCEPTIONS as e:
         logger.exception("Tool evaluate_design failed")
         return {"error": str(e)}
 
@@ -656,7 +672,7 @@ def analyze_experiment_tool(  # noqa: PLR0913
             observed_at_new=observed_at_new,
         )
         return clean(result)
-    except Exception as e:
+    except _TOOL_EXPECTED_EXCEPTIONS as e:
         logger.exception("Tool analyze_experiment failed")
         return {"error": str(e)}
 
@@ -858,7 +874,7 @@ def optimize_responses_tool(  # noqa: PLR0913
             desirability_weights=desirability_weights,
         )
         return clean(result)
-    except Exception as e:
+    except _TOOL_EXPECTED_EXCEPTIONS as e:
         logger.exception("Tool optimize_responses failed")
         return {"error": str(e)}
 
@@ -1002,7 +1018,7 @@ def augment_design_tool(  # noqa: PLR0913
             generators=generators,
         )
         return clean(result)
-    except Exception as e:
+    except _TOOL_EXPECTED_EXCEPTIONS as e:
         logger.exception("Tool augment_design failed")
         return {"error": str(e)}
 
@@ -1153,7 +1169,7 @@ def visualize_doe_tool(  # noqa: PLR0913
             backend=backend,
         )
         return clean(result)
-    except Exception as e:
+    except _TOOL_EXPECTED_EXCEPTIONS as e:
         logger.exception("Tool visualize_doe failed")
         return {"error": str(e)}
 
@@ -1265,7 +1281,7 @@ def doe_knowledge_tool(
             context=context,
             detail_level=detail_level,
         ))
-    except Exception as e:
+    except _TOOL_EXPECTED_EXCEPTIONS as e:
         logger.exception("Tool doe_knowledge failed")
         return {"error": str(e)}
 
@@ -1456,7 +1472,8 @@ def recommend_strategy_tool(  # noqa: PLR0913
             detail_level=detail_level,
         )
         return clean(result)
-    except Exception as e:  # noqa: BLE001
+    except _TOOL_EXPECTED_EXCEPTIONS as e:
+        logger.exception("Tool recommend_strategy failed")
         return {"error": str(e)}
 
 

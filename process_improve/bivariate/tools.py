@@ -78,7 +78,7 @@ def find_elbow(
             "elbow_y": y[elbow_idx],
             "n": len(x),
         })
-    except Exception as exc:  # noqa: BLE001
+    except (ValueError, TypeError, IndexError) as exc:
         return {"error": str(exc)}
 
 

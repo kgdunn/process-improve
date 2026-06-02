@@ -111,7 +111,7 @@ def control_chart(
             "chart_type": chart_type,
             "style": style,
         })
-    except Exception as exc:  # noqa: BLE001
+    except (ValueError, TypeError, KeyError) as exc:
         return {"error": str(exc)}
 
 
@@ -199,7 +199,7 @@ def process_capability(
             "n": len(values),
             "robust": robust,
         })
-    except Exception as exc:  # noqa: BLE001
+    except (ValueError, TypeError, KeyError) as exc:
         return {"error": str(exc)}
 
 

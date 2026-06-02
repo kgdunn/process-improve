@@ -53,6 +53,31 @@ def test_create_names() -> None:
 
     assert create_names(3, letters=False, prefix="Q", start_at=9, padded=True) == ["Q09", "Q10", "Q11"]
 
+
+@pytest.mark.parametrize("bad", [0, -1, -10])
+def test_full_factorial_rejects_non_positive_nfactors(bad: int) -> None:
+    """``full_factorial(0)`` (or any non-positive count) must raise a clear
+    ``ValueError`` rather than falling through into a low-level
+    ``ZeroDivisionError`` from numpy (SEC-18 / #267 regression guard).
+
+    The MCP tool wrapper now narrows its ``except`` to a documented set
+    that excludes ``ZeroDivisionError``, so an unvalidated bad
+    ``n_factors`` would otherwise escape as an uncaught exception and
+    be redacted by ``mcp_server._serialise_tool_error``. Validating at
+    ``full_factorial``'s entry keeps the actionable message intact.
+    """
+    with pytest.raises(ValueError, match="nfactors must be >= 1"):
+        full_factorial(bad)
+
+
+def test_full_factorial_one_factor_still_works() -> None:
+    """``full_factorial(1)`` is the boundary case and must still produce a
+    two-row, one-column design.
+    """
+    cols = full_factorial(1)
+    assert len(cols) == 1
+    assert list(cols[0].values) == [-1, +1]
+
     assert create_names(4, letters=False, prefix="Z", start_at=99, padded=True) == [
         "Z099",
         "Z100",

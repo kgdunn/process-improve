@@ -12,6 +12,8 @@ def full_factorial(nfactors: int, names: list | None = None) -> list:
     should be strings. If not provided, the names will be created.
     """
     nfactors = int(nfactors)
+    if nfactors < 1:
+        raise ValueError(f"nfactors must be >= 1; got {nfactors}.")
     if names is None:
         names = create_names(nfactors)
 
