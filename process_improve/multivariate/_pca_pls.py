@@ -6,7 +6,6 @@ import typing
 import warnings
 from collections.abc import Callable, KeysView
 from functools import partial
-from typing import TypeAlias
 
 import numpy as np
 import pandas as pd
@@ -39,6 +38,15 @@ from .._linalg import safe_inverse
 from .._random import check_random_state
 from ..univariate.metrics import detect_outliers_esd
 from ..visualization.themes import REFERENCE_LINE_COLOR
+
+# ENG-01: shared primitives now live in ``_common`` (re-exported here for
+# backward compatibility; see the module docstring above).
+from ._common import (
+    DataMatrix,
+    SpecificationWarning,
+    _nz,
+    epsqrt,
+)
 from .plots import (
     coefficient_plot,
     correlation_loadings_plot,
@@ -49,32 +57,6 @@ from .plots import (
     spe_plot,
     t2_plot,
 )
-
-DataMatrix: TypeAlias = np.ndarray | pd.DataFrame
-
-epsqrt = np.sqrt(np.finfo(float).eps)
-
-#: Smallest positive float; used to floor NIPALS denominators away from zero.
-_DENOM_FLOOR = float(np.finfo(float).tiny)
-
-
-def _nz(denominator: float) -> float:
-    """Floor a non-negative NIPALS denominator away from zero.
-
-    Sum-of-squares and vector-norm denominators (``v @ v``, ``norm(v)``) are
-    non-negative. When a score or loading vector collapses to (near) zero during
-    NIPALS - a fully-deflated component, or a degenerate / perfectly collinear
-    block - the denominator is ~0 and the division would yield ``inf``/``nan``
-    that silently poisons the fitted model. Flooring to the smallest positive
-    float leaves every well-conditioned value untouched (real denominators are
-    far larger) while turning the degenerate ``0/0`` into a finite (~0)
-    projection, since the numerator collapses with the same vector.
-    """
-    return max(_DENOM_FLOOR, denominator)
-
-
-class SpecificationWarning(UserWarning):
-    """Parent warning class."""
 
 
 class MCUVScaler(BaseEstimator, TransformerMixin):
