@@ -64,11 +64,20 @@ prediction?"* The two libraries are designed to be used together;
 ## Installation
 
 ```bash
-pip install process-improve
+pip install process-improve                    # core (numpy, pandas, sklearn, statsmodels, patsy, pydantic, pyyaml, tqdm)
+pip install 'process-improve[plotting]'        # adds matplotlib, plotly, seaborn, ridgeplot
+pip install 'process-improve[expt]'            # adds pyDOE3 (designed experiments / DOE)
+pip install 'process-improve[batch]'           # adds openpyxl, scikit-image (batch process data IO)
+pip install 'process-improve[mcp]'             # adds the MCP server runtime
+pip install 'process-improve[fast]'            # adds numba (JIT speedups for batch alignment)
+pip install 'process-improve[all]'             # everything above (the pre-1.24.11 closure)
 ```
 
-Requires Python 3.10 or newer. Built on `numpy`, `pandas`, `scipy`,
-`scikit-learn`, `statsmodels`, `plotly`, and `pyDOE3`.
+Requires Python 3.10 or newer. The core install pulls in `numpy`, `pandas`,
+`scipy`, `scikit-learn`, `statsmodels`, `patsy`, `pydantic`, `pyyaml`, and
+`tqdm`. Heavier optional surfaces (plotting, designed experiments, batch IO,
+MCP server, numba JIT) live in extras so a caller who only needs, say,
+`detect_multivariate_outliers` does not have to install Plotly or numba.
 
 ## Quick start
 

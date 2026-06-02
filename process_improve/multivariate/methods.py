@@ -10,10 +10,24 @@ from typing import TypeAlias
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
-import ridgeplot
 from scipy.stats import chi2, f, norm
 from scipy.stats import t as t_dist
+
+# ENG-13 (#295): plotting deps live in the ``[plotting]`` extra. The
+# ``_MissingExtra`` stand-in lets module-import succeed for the algorithm
+# surface (``PCA``, ``PLS``, ...) while any actual plot call raises a
+# clear "install the extra" ImportError.
+try:
+    import plotly.graph_objects as go
+except ImportError:  # pragma: no cover - exercised via env-without-plotly
+    from process_improve._extras import _MissingExtra
+    go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
+
+try:
+    import ridgeplot
+except ImportError:  # pragma: no cover - exercised via env-without-plotly
+    from process_improve._extras import _MissingExtra
+    ridgeplot = _MissingExtra("ridgeplot", "plotting")  # type: ignore[assignment]
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, _fit_context, clone
 from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold, check_cv, cross_val_score

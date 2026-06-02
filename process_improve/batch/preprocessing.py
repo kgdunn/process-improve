@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import scipy as sp
 from tqdm import tqdm
+
+try:
+    import plotly.graph_objects as go
+except ImportError:  # pragma: no cover - exercised via env-without-plotly
+    from process_improve._extras import _MissingExtra
+    go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
 from ..multivariate.methods import PCA, MCUVScaler
 from .alignment_helpers import backtrack_optimal_path, distance_matrix

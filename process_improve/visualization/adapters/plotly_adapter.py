@@ -9,8 +9,13 @@ from __future__ import annotations
 
 from typing import Any
 
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+try:
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+except ImportError:  # pragma: no cover - exercised via env-without-plotly
+    from process_improve._extras import _MissingExtra
+    go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
+    make_subplots = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
 from process_improve.visualization.adapters.base import AbstractAdapter
 from process_improve.visualization.colors import (

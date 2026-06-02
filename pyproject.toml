@@ -1,6 +1,6 @@
 [project]
 name = "process-improve"
-version = "1.24.10"
+version = "1.24.11"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = "MIT"
@@ -22,27 +22,69 @@ authors = [
     { name = "Kevin Dunn", email = "kgdunn@gmail.com" },
 ]
 dependencies = [
-    "matplotlib>=3.10.8",
-    "numba>=0.63.1",
+    # ENG-13 (#295): the runtime closure is intentionally trimmed to the
+    # minimum every package in process_improve unconditionally needs.
+    # Optional surfaces (plotting, experiments / DOE, batch image-IO,
+    # MCP server, JIT speedups) live in extras; install
+    # ``process-improve[all]`` to reproduce the pre-1.24.11 closure.
     "numpy>=2.2.6",
-    "openpyxl>=3.1.5",
     "pandas>=2.3.3",
     "patsy>=1.0.2",
-    "plotly>=6.5.2",
     "pydantic>=2.12.5",
     "pyyaml>=6.0",
-    "pyDOE3>=1.0",
-    "ridgeplot>=0.5.0",
-    "scikit-image>=0.25.2",
     "scikit-learn>=1.7.2",
-    "seaborn>=0.13.2",
     "statsmodels>=0.14.6",
     "tqdm>=4.67.1",
 ]
 
 
 [project.optional-dependencies]
+# ENG-13 (#295): every public-API surface that pulls in heavy optional
+# dependencies is gated by an extra. The matching ImportError raised by
+# ``process_improve._extras.require`` tells the caller which extra to
+# install.
+
+# Plotting backends (Plotly + matplotlib + seaborn + ridgeplot).
+plotting = [
+    "matplotlib>=3.10.8",
+    "plotly>=6.5.2",
+    "ridgeplot>=0.5.0",
+    "seaborn>=0.13.2",
+]
+
+# Designed-experiments helpers that need ``pyDOE3``.
+expt = [
+    "pyDOE3>=1.0",
+]
+
+# Batch process data analysis: image-IO + Excel readers used by the
+# batch alignment / fixture loaders.
+batch = [
+    "openpyxl>=3.1.5",
+    "scikit-image>=0.25.2",
+]
+
+# MCP server entry-point.
 mcp = ["mcp>=1.0"]
+
+# JIT-compiled inner loops in ``process_improve.batch.alignment_helpers``.
+# Without numba the module still imports and runs; the ``@jit`` decorator
+# falls back to a no-op so the function executes as plain Python.
+fast = ["numba>=0.63.1"]
+
+# Meta extra: reproduces the pre-ENG-13 install closure.
+all = [
+    "matplotlib>=3.10.8",
+    "mcp>=1.0",
+    "numba>=0.63.1",
+    "openpyxl>=3.1.5",
+    "plotly>=6.5.2",
+    "pyDOE3>=1.0",
+    "ridgeplot>=0.5.0",
+    "scikit-image>=0.25.2",
+    "seaborn>=0.13.2",
+]
+
 dev = [
     "coverage>=7.13.1",
     "hypothesis>=6.100",

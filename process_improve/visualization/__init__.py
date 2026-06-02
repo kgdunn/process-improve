@@ -35,9 +35,18 @@ from process_improve.visualization.types import (
     ScaleType,
 )
 
-# Register the base themes and apply the package default on import.
-register_themes()
-set_theme(DEFAULT_THEME)
+# Register the base themes and apply the package default on import. When
+# the ``[plotting]`` extra is not installed (ENG-13 / #295), plotly is
+# absent and the registration is silently skipped; calling ``raincloud``
+# or any other plot helper will then raise the documented "install the
+# extra" ImportError.
+try:
+    import plotly  # noqa: F401  - presence check
+except ImportError:  # pragma: no cover - exercised via env-without-plotly
+    pass
+else:
+    register_themes()
+    set_theme(DEFAULT_THEME)
 
 __all__ = [
     "DEFAULT_THEME",

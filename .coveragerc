@@ -24,3 +24,9 @@ exclude_lines =
     if __name__ == .__main__.:
     # Don't complain about TYPE_CHECKING-only imports
     if TYPE_CHECKING:
+    # ENG-13 (#295): the fallback branches for each gated optional import
+    # cannot fire under CI (which installs all extras). Exclude them by
+    # matching lines that the fallback bodies use exclusively.
+    pragma: no cover - exercised via env-without-
+    from process_improve._extras import _MissingExtra
+    = _MissingExtra\(

@@ -8,9 +8,14 @@ from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 from pydantic import BaseModel, field_validator
 from sklearn.base import BaseEstimator
+
+try:
+    import plotly.graph_objects as go
+except ImportError:  # pragma: no cover - exercised via env-without-plotly
+    from process_improve._extras import _MissingExtra
+    go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
 from process_improve.visualization.themes import (
     DEFAULT_THEME,

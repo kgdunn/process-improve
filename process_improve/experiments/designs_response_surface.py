@@ -12,7 +12,13 @@ import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
-from pyDOE3 import bbdesign, ccdesign
+
+try:
+    from pyDOE3 import bbdesign, ccdesign
+except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
+    from process_improve._extras import _MissingExtra
+    bbdesign = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
+    ccdesign = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import Factor
