@@ -275,6 +275,6 @@ def boxplot(  # noqa: PLR0911, PLR0913
         result["echarts"] = chart.to_echarts() if backend in ("both", "echarts") else None
 
         return clean(result)
-    except Exception as e:
+    except (ValueError, TypeError, KeyError) as e:
         logger.exception("Tool boxplot failed")
         return {"error": str(e)}

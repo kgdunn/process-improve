@@ -11,6 +11,34 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.19] - 2026-06-02
+
+### Security
+
+- All MCP tool wrappers in `bivariate/tools.py`, `batch/tools.py`,
+  `regression/tools.py`, `monitoring/tools.py`,
+  `visualization/tools.py`, and the ten wrappers in
+  `experiments/tools.py` now narrow their `except` to a documented
+  set (`ValueError`, `TypeError`, `KeyError`,
+  `numpy.linalg.LinAlgError`, and `PatsyError` where applicable),
+  matching the pattern already used by the PCA / PLS tools (SEC-18 #267).
+  Anything outside that set propagates to
+  `mcp_server._serialise_tool_error`, which logs the traceback
+  server-side and returns a generic message to the caller. This
+  closes the last reliable path by which `str(exc)` containing
+  pandas / numpy / statsmodels filesystem paths and internals could
+  reach an MCP caller.
+- `process_improve.experiments.designs_factorial.full_factorial`
+  now raises `ValueError` when `nfactors < 1`, instead of falling
+  through to a deep `ZeroDivisionError` inside numpy's `split`.
+  Regression tested in `tests/test_doe.py::test_full_factorial_rejects_non_positive_nfactors`.
+
+### Internal
+
+- `experiments/tools.py` gains a module-level
+  `_TOOL_EXPECTED_EXCEPTIONS` tuple that the ten wrappers share, so
+  the canonical exception set stays in sync.
+
 ## [1.22.18] - 2026-06-01
 
 ### Security
@@ -383,7 +411,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.18...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.19...HEAD
+[1.22.19]: https://github.com/kgdunn/process-improve/compare/v1.22.18...v1.22.19
 [1.22.18]: https://github.com/kgdunn/process-improve/compare/v1.22.17...v1.22.18
 [1.22.17]: https://github.com/kgdunn/process-improve/compare/v1.22.16...v1.22.17
 [1.22.16]: https://github.com/kgdunn/process-improve/compare/v1.22.15...v1.22.16

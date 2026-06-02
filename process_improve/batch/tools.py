@@ -166,7 +166,7 @@ def extract_batch_features(
             "n_features": combined.shape[1] if results else 0,
             "features_extracted": features,
         })
-    except Exception as exc:  # noqa: BLE001
+    except (ValueError, TypeError, KeyError) as exc:
         return {"error": str(exc)}
 
 
