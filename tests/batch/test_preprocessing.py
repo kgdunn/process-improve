@@ -288,6 +288,29 @@ def test_find_reference_batch_rejects_request_exceeding_candidates(dryer_data: d
         )
 
 
+def test_find_reference_batch_returns_multiple(dryer_data: dict) -> None:
+    """SEC-13 (#261): requesting >1 batches returns a list, exercising the
+    cutoff-relaxation loop body and the multi-batch return path.
+    """
+    columns_to_align = [
+        "AgitatorPower",
+        "AgitatorTorque",
+        "JacketTemperatureSP",
+        "JacketTemperature",
+        "DryerTemp",
+    ]
+    result = find_reference_batch(
+        dryer_data,
+        columns_to_align=columns_to_align,
+        settings={
+            "robust": False,
+            "number_of_reference_batches": 3,
+        },
+    )
+    assert isinstance(result, list)
+    assert len(result) == 3
+
+
 def test_find_reference_batch_rejects_zero_request(dryer_data: dict) -> None:
     """SEC-13 (#261): a non-positive request raises a clear ValueError."""
     columns_to_align = [
