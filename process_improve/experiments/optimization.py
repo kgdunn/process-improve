@@ -62,8 +62,15 @@ def _parse_term(term: str) -> tuple[str, ...]:
     if term == "Intercept":
         return ()
 
-    # Quadratic: I(A ** 2) or np.power(A, 2) patterns
-    m = re.match(r"I\((\w+)\s*\*\*\s*2\)", term)
+    # Quadratic: ``I(A ** 2)`` (older statsmodels) or
+    # ``np.power(A, 2)`` / ``power(A, 2)`` (newer). Both spellings
+    # appear in the wild depending on the installed statsmodels /
+    # patsy version. SEC-27 (#276): if either is missed, the term
+    # silently falls through to the linear branch and the
+    # downstream surface / optimisation produces wrong results.
+    m = re.match(r"I\((\w+)\s*\*\*\s*2\)", term) or re.match(
+        r"(?:np\.)?power\((\w+)\s*,\s*2\)", term
+    )
     if m:
         name = m.group(1)
         return (name, name)
@@ -518,12 +525,13 @@ def _composite_desirability(d_values: list[float], importances: list[float] | No
     return float(np.exp(log_d / w_sum))
 
 
-def _optimize_desirability(
+def _optimize_desirability(  # noqa: PLR0913
     fitted_models: list[dict[str, Any]],
     goals: list[dict[str, Any]],
     factor_names: list[str],
     factor_ranges: dict[str, dict[str, float]] | None = None,
     importances: list[float] | None = None,
+    random_state: int | np.random.Generator | None = 42,
 ) -> dict[str, Any]:
     """Optimise composite desirability using scipy SLSQP.
 
@@ -560,8 +568,13 @@ def _optimize_desirability(
     k = len(factor_names)
     bounds = [(-1.0, 1.0)] * k
 
-    # Multi-start: try centre + random points
-    rng = np.random.default_rng(42)
+    # Multi-start: try centre + random points.
+    # SEC-33 (#282): the hard-coded ``42`` moved to the public signature
+    # ``random_state=42`` (default preserves the previous deterministic
+    # behaviour). Resolved via the ENG-08 helper.
+    from process_improve._random import check_random_state  # noqa: PLC0415
+
+    rng = check_random_state(random_state)
     best_result = None
     best_value = np.inf
 

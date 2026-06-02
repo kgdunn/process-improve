@@ -340,6 +340,33 @@ class TestTerminateWorkers:
         assert not proc.terminated
         assert not proc.killed
 
+    def test_cpython_pool_still_exposes_processes_attribute(self) -> None:
+        """SEC-31 (#280) regression guard.
+
+        ``_terminate_workers`` reaches into ``ProcessPoolExecutor._processes``
+        to enumerate workers it can ``terminate()`` / ``kill()`` after a
+        timeout. That attribute is a CPython implementation detail; if a
+        future Python release renames it, the blanket ``contextlib.suppress``
+        in ``_terminate_workers`` would silently degrade the timeout
+        guarantee back to the pre-SEC-02 behaviour (a runaway worker would
+        keep a CPU after ``ToolTimeoutError``).
+
+        Asserting the attribute exists at the supported Python versions
+        means a future upgrade fails CI loudly instead of regressing
+        invisibly.
+        """
+        from concurrent.futures import ProcessPoolExecutor
+
+        pool = ProcessPoolExecutor(max_workers=1)
+        try:
+            assert hasattr(pool, "_processes"), (
+                "ProcessPoolExecutor lost the _processes attribute on this "
+                "Python version. Update _terminate_workers in tool_safety.py "
+                "before bumping the supported Python range."
+            )
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
+
 
 # ---------------------------------------------------------------------------
 # Subprocess-based tests

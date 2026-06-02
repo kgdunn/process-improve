@@ -710,6 +710,15 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
     elif transform == "sqrt":
         df[response_col] = np.sqrt(df[response_col])
     elif transform == "inverse":
+        # SEC-26 (#275): a zero in the response column would produce
+        # inf, then a downstream LinAlgError whose message would leak
+        # via the tool wrapper. Reject up front with a clear message.
+        if (df[response_col] == 0).any():
+            raise ValueError(
+                f"transform='inverse' is undefined when the response column "
+                f"{response_col!r} contains zero. Remove the zero observations "
+                "or pick a different transform."
+            )
         df[response_col] = 1.0 / df[response_col]
     elif transform == "box_cox":
         from scipy.stats import boxcox  # noqa: PLC0415

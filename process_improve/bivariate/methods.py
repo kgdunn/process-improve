@@ -100,9 +100,16 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
             lft_line_list.append(lft_line)
             rgt_line_list.append(rgt_line)
 
-            angle = (
-                np.arccos((lft_line**2 + rgt_line**2 - hypotenuse_line**2) / (2 * lft_line * rgt_line)) * 180.0 / np.pi
+            # SEC-33 (#282): clamp the ``arccos`` argument to [-1, 1] so a
+            # floating-point excursion (the law-of-cosines numerator
+            # rounding above 1.0 by a few eps) yields the correct boundary
+            # angle rather than a silent NaN.
+            cos_arg = np.clip(
+                (lft_line**2 + rgt_line**2 - hypotenuse_line**2) / (2 * lft_line * rgt_line),
+                -1.0,
+                1.0,
             )
+            angle = np.arccos(cos_arg) * 180.0 / np.pi
             angle_list.append(angle)
 
     # Visualize the elbow point
