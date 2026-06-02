@@ -11,12 +11,8 @@ from process_improve.regression.methods import (
 from process_improve.regression.tools import (
     get_regression_tool_specs,
 )
-from process_improve.regression.tools import (
-    repeated_median as repeated_median_tool,
-)
-from process_improve.regression.tools import (
-    robust_regression as robust_regression_tool,
-)
+from process_improve.tool_safety import ToolInputInvalidError
+from process_improve.tool_spec import execute_tool_call
 
 
 @pytest.fixture
@@ -768,7 +764,7 @@ def test_robust_regression_tool_recovers_known_line() -> None:
     rng = np.random.default_rng(11)
     x = list(np.arange(0.0, 10.0, 0.1))
     y = [2.0 * xi + 1.0 + 0.01 * float(rng.standard_normal()) for xi in x]
-    result = robust_regression_tool(x=x, y=y)
+    result = execute_tool_call("robust_regression", {"x": x, "y": y})
 
     assert "error" not in result
     assert result["slope"] == pytest.approx(2.0, abs=0.05)
@@ -794,7 +790,10 @@ def test_robust_regression_tool_no_intercept() -> None:
     """fit_intercept=False forces the line through the origin."""
     x = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
     y = [3.0, 6.0, 9.0, 12.0, 15.0, 18.0]
-    result = robust_regression_tool(x=x, y=y, fit_intercept=False, confidence_level=0.99)
+    result = execute_tool_call(
+        "robust_regression",
+        {"x": x, "y": y, "fit_intercept": False, "confidence_level": 0.99},
+    )
 
     assert "error" not in result
     assert result["slope"] == pytest.approx(3.0, abs=1e-6)
@@ -803,8 +802,11 @@ def test_robust_regression_tool_no_intercept() -> None:
 
 
 def test_robust_regression_tool_returns_error_on_mismatched_lengths() -> None:
-    """Length-mismatched inputs surface as an error dict, not an exception."""
-    result = robust_regression_tool(x=[1.0, 2.0, 3.0], y=[1.0, 2.0])
+    """Length-mismatched inputs (both above the pydantic min_length) surface as an error dict."""
+    result = execute_tool_call(
+        "robust_regression",
+        {"x": [1.0, 2.0, 3.0, 4.0], "y": [1.0, 2.0, 3.0]},
+    )
     assert "error" in result
 
 
@@ -813,7 +815,7 @@ def test_repeated_median_tool_matches_underlying_method() -> None:
     rng = np.random.default_rng(13)
     x = np.linspace(0.0, 10.0, 50)
     y = 1.5 * x - 4.0 + rng.standard_normal(50) * 0.05
-    result = repeated_median_tool(x=list(x), y=list(y))
+    result = execute_tool_call("repeated_median", {"x": list(x), "y": list(y)})
 
     assert "error" not in result
     assert result["n"] == len(x)
@@ -821,9 +823,9 @@ def test_repeated_median_tool_matches_underlying_method() -> None:
 
 
 def test_repeated_median_tool_returns_error_on_bad_input() -> None:
-    """Non-numeric input should surface as an error dict."""
-    result = repeated_median_tool(x=["a", "b"], y=[1.0, 2.0])  # type: ignore[arg-type]
-    assert "error" in result
+    """Non-numeric input is rejected by the pydantic contract."""
+    with pytest.raises(ToolInputInvalidError):
+        execute_tool_call("repeated_median", {"x": ["a", "b"], "y": [1.0, 2.0]})
 
 
 def test_get_regression_tool_specs_lists_both_tools() -> None:

@@ -1,14 +1,20 @@
 """(c) Kevin Dunn, 2010-2026. MIT License.
 
 Agent-callable tool wrappers for process monitoring.
+
+Pydantic input contract (ENG-04 / ENG-10): each tool pairs its
+``@tool_spec`` decorator with a ``BaseModel`` carrying
+``ConfigDict(extra="forbid")``; the function receives the parsed
+model as its single positional argument.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
+from pydantic import BaseModel, ConfigDict, Field
 
 from process_improve.tool_spec import clean, get_tool_specs, tool_spec
 
@@ -20,8 +26,32 @@ def _register(name: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Tools
+# control_chart
 # ---------------------------------------------------------------------------
+
+
+class ControlChartInput(BaseModel):
+    """Input contract for ``control_chart``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    values: list[float] = Field(
+        ...,
+        min_length=5,
+        description="Time-ordered sequence of numeric observations.",
+    )
+    chart_type: Literal["shewhart", "cusum", "holt_winters"] = Field(
+        "holt_winters",
+        description=(
+            "Type of control chart. 'shewhart': individual observations chart. "
+            "'cusum': cumulative sum chart. 'holt_winters' (default): a blend of "
+            "Shewhart and CUSUM properties."
+        ),
+    )
+    style: Literal["robust", "regular"] = Field(
+        "robust",
+        description="'robust' (default): uses median/MAD. 'regular': uses mean/std.",
+    )
 
 
 @tool_spec(
@@ -34,34 +64,7 @@ def _register(name: str) -> None:
         "Returns the calculated target (center line), upper and lower control limits, and indices of "
         "any out-of-control observations."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "values": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "Time-ordered sequence of numeric observations.",
-                    "minItems": 5,
-                },
-                "chart_type": {
-                    "type": "string",
-                    "enum": ["shewhart", "cusum", "holt_winters"],
-                    "description": (
-                        "Type of control chart. 'shewhart': individual observations chart. "
-                        "'cusum': cumulative sum chart. 'holt_winters' (default): a blend of "
-                        "Shewhart and CUSUM properties."
-                    ),
-                },
-                "style": {
-                    "type": "string",
-                    "enum": ["robust", "regular"],
-                    "description": "'robust' (default): uses median/MAD. 'regular': uses mean/std.",
-                },
-            },
-            "required": ["values"],
-        }
-    },
+    input_model=ControlChartInput,
     examples="""
     # "Are any of these measurements out of control? [10.1, 10.3, 10.2, 10.0, 15.5, 10.1]"
         -> ``control_chart(values=[10.1, 10.3, 10.2, 10.0, 15.5, 10.1])``
@@ -71,12 +74,7 @@ def _register(name: str) -> None:
     """,
     category="monitoring",
 )
-def control_chart(
-    *,
-    values: list[float],
-    chart_type: str = "holt_winters",
-    style: str = "robust",
-) -> dict[str, Any]:
+def control_chart(spec: ControlChartInput) -> dict[str, Any]:
     """Build a control chart and return limits + out-of-control points."""
     from process_improve.monitoring.control_charts import ControlChart  # noqa: PLC0415
 
@@ -85,11 +83,11 @@ def control_chart(
         "cusum": "cusum",
         "holt_winters": "hw",
     }
-    variant = variant_map.get(chart_type, "hw")
+    variant = variant_map.get(spec.chart_type, "hw")
 
     try:
-        cc = ControlChart(style=style, variant=variant)
-        y = pd.Series(np.asarray(values, dtype=float))
+        cc = ControlChart(style=spec.style, variant=variant)
+        y = pd.Series(np.asarray(spec.values, dtype=float))
         cc.calculate_limits(y)
 
         target = cc.target
@@ -97,7 +95,7 @@ def control_chart(
         ucl = target + 3 * s if s is not None and target is not None else None
         lcl = target - 3 * s if s is not None and target is not None else None
         ooc_indices = list(cc.idx_outside_3S) if cc.idx_outside_3S else []
-        ooc_values = [float(values[i]) for i in ooc_indices if i < len(values)]
+        ooc_values = [float(spec.values[i]) for i in ooc_indices if i < len(spec.values)]
 
         return clean({
             "target": target,
@@ -107,15 +105,47 @@ def control_chart(
             "out_of_control_indices": ooc_indices,
             "out_of_control_values": ooc_values,
             "n_out_of_control": len(ooc_indices),
-            "n_observations": len(values),
-            "chart_type": chart_type,
-            "style": style,
+            "n_observations": len(spec.values),
+            "chart_type": spec.chart_type,
+            "style": spec.style,
         })
     except (ValueError, TypeError, KeyError) as exc:
         return {"error": str(exc)}
 
 
 _register("control_chart")
+
+
+# ---------------------------------------------------------------------------
+# process_capability
+# ---------------------------------------------------------------------------
+
+
+class ProcessCapabilityInput(BaseModel):
+    """Input contract for ``process_capability``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    values: list[float] = Field(
+        ...,
+        min_length=5,
+        description="Process measurement values.",
+    )
+    lower_spec: float | None = Field(
+        None,
+        description="Lower specification limit. Omit if there is no lower limit.",
+    )
+    upper_spec: float | None = Field(
+        None,
+        description="Upper specification limit. Omit if there is no upper limit.",
+    )
+    robust: bool = Field(
+        True,
+        description=(
+            "If true (default), use robust statistics (median/Sn) for the calculation. "
+            "Set to false for classical mean/std calculation."
+        ),
+    )
 
 
 @tool_spec(
@@ -128,56 +158,24 @@ _register("control_chart")
         "Cpk < 1.0 means the process is producing out-of-spec output. "
         "Provide at least one of lower_spec or upper_spec."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "values": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "Process measurement values.",
-                    "minItems": 5,
-                },
-                "lower_spec": {
-                    "type": "number",
-                    "description": "Lower specification limit. Omit if there is no lower limit.",
-                },
-                "upper_spec": {
-                    "type": "number",
-                    "description": "Upper specification limit. Omit if there is no upper limit.",
-                },
-                "robust": {
-                    "type": "boolean",
-                    "description": (
-                        "If true (default), use robust statistics (median/Sn) for the calculation. "
-                        "Set to false for classical mean/std calculation."
-                    ),
-                },
-            },
-            "required": ["values"],
-        }
-    },
+    input_model=ProcessCapabilityInput,
     examples="""
     # "What is the Cpk for my data [10.1, 10.2, 9.9, 10.0] with spec limits 9.5 to 10.5?"
         -> ``process_capability(values=[10.1, 10.2, 9.9, 10.0], lower_spec=9.5, upper_spec=10.5)``
     """,
     category="monitoring",
 )
-def process_capability(
-    *,
-    values: list[float],
-    lower_spec: float | None = None,
-    upper_spec: float | None = None,
-    robust: bool = True,
-) -> dict[str, Any]:
+def process_capability(spec: ProcessCapabilityInput) -> dict[str, Any]:
     """Calculate Cpk process capability index."""
     from process_improve.monitoring.metrics import calculate_cpk  # noqa: PLC0415
 
     try:
-        df = pd.DataFrame({"value": np.asarray(values, dtype=float)})
-        trim = 2.5 if robust else 0.0
-        specs = (lower_spec if lower_spec is not None else np.nan,
-                 upper_spec if upper_spec is not None else np.nan)
+        df = pd.DataFrame({"value": np.asarray(spec.values, dtype=float)})
+        trim = 2.5 if spec.robust else 0.0
+        specs = (
+            spec.lower_spec if spec.lower_spec is not None else np.nan,
+            spec.upper_spec if spec.upper_spec is not None else np.nan,
+        )
 
         cpk_result = calculate_cpk(df, which_column="value", specifications=specs, trim_percentile=trim)
         cpk_float = float(cpk_result.cpk)
@@ -195,10 +193,10 @@ def process_capability(
             "cpk": cpk_float,
             "rsd": float(cpk_result.rsd),
             "interpretation": interpretation,
-            "lower_spec": lower_spec,
-            "upper_spec": upper_spec,
-            "n": len(values),
-            "robust": robust,
+            "lower_spec": spec.lower_spec,
+            "upper_spec": spec.upper_spec,
+            "n": len(spec.values),
+            "robust": spec.robust,
         })
     except (ValueError, TypeError, KeyError) as exc:
         return {"error": str(exc)}

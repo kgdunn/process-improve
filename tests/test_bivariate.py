@@ -2,7 +2,9 @@ import numpy as np
 import pytest
 
 from process_improve.bivariate.methods import find_elbow_point
-from process_improve.bivariate.tools import find_elbow, get_bivariate_tool_specs
+from process_improve.bivariate.tools import get_bivariate_tool_specs
+from process_improve.tool_safety import ToolInputInvalidError
+from process_improve.tool_spec import execute_tool_call
 
 
 @pytest.fixture
@@ -117,7 +119,7 @@ def test__corner_case() -> None:
 def test_find_elbow_tool_returns_index_on_clean_data(elbow_with_synthetic_data: tuple) -> None:
     """The tool wrapper returns an integer index plus the (x, y) at the elbow."""
     x, y, break_pt = elbow_with_synthetic_data
-    result = find_elbow(x=list(x), y=list(y))
+    result = execute_tool_call("find_elbow", {"x": list(x), "y": list(y)})
 
     assert "error" not in result
     assert result["n"] == len(x)
@@ -128,10 +130,9 @@ def test_find_elbow_tool_returns_index_on_clean_data(elbow_with_synthetic_data: 
 
 
 def test_find_elbow_tool_reports_error_on_too_few_points() -> None:
-    """The wrapper's `except` branch returns {"error": ...} on bad input."""
-    # The underlying assertion in find_elbow_point requires more than 10 non-NaN values.
-    result = find_elbow(x=[1.0, 2.0, 3.0], y=[1.0, 2.0, 3.0])
-    assert "error" in result
+    """Inputs shorter than the pydantic min_length raise ToolInputInvalidError (ENG-04)."""
+    with pytest.raises(ToolInputInvalidError):
+        execute_tool_call("find_elbow", {"x": [1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0]})
 
 
 def test_get_bivariate_tool_specs_lists_find_elbow() -> None:
