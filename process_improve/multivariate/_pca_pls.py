@@ -6156,14 +6156,18 @@ class Resampler:
         return fig
 
 
+
 # ENG-23 (#305): explicit ``__all__`` so the thin re-exporter ``methods.py``
 # can do ``from ._pca_pls import *`` without triggering CodeQL's
-# py/polluting-import warning.
+# py/polluting-import warning. List enumerated to mirror the public surface
+# the prior ``methods.py`` exposed -- every name visible at module level,
+# minus stdlib / 3rd-party imports and underscore-prefixed helpers.
 __all__ = [
     "MBPCA",
     "MBPLS",
     "PCA",
     "PLS",
+    "REFERENCE_LINE_COLOR",
     "TPLS",
     "DataFrameDict",
     "MCUVScaler",
@@ -6171,24 +6175,36 @@ __all__ = [
     "Resampler",
     "SpecificationWarning",
     "center",
+    "check_random_state",
+    "coefficient_plot",
+    "correlation_loadings_plot",
+    "detect_outliers_esd",
     "eigenvalue_summary",
     "ellipse_coordinates",
+    "epsqrt",
+    "explained_variance_plot",
     "hotellings_t2_limit",
     "internal_pls_nipals_fit_one_pc",
+    "loading_plot",
     "nan_to_zeros",
     "observation_contributions",
+    "predictions_vs_observed_plot",
     "project_variables",
     "quick_regress",
     "randomization_test_mbpls",
     "regress_a_space_on_b_row",
     "rv2_coefficient",
     "rv_coefficient",
+    "safe_inverse",
     "scale",
     "score_limit",
+    "score_plot",
     "spe_calculation",
     "spe_limit",
+    "spe_plot",
     "squared_cosine",
     "ssq",
+    "t2_plot",
     "terminate_check",
     "vip",
 ]

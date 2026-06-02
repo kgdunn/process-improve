@@ -963,6 +963,7 @@ class OLS(RegressorMixin, BaseEstimator):
         )
 
 
+
 # ENG-23 (#305): explicit ``__all__`` so the thin re-exporter ``methods.py``
 # can do ``from ._robust_regression import *`` without triggering CodeQL's
 # py/polluting-import warning.
@@ -972,4 +973,5 @@ __all__ = [
     "multiple_linear_regression",
     "repeated_median_slope",
     "robust_regression",
+    "t_value",
 ]
