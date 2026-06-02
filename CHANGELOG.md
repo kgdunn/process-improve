@@ -11,6 +11,46 @@ those changes.
 
 ## [Unreleased]
 
+## [1.23.2] - 2026-06-02
+
+### Security
+
+- Close the MCP DoS surface tracked in **SEC-19** (#268). Every
+  algorithm input that drives cost is now bounded, with the new
+  caps wired through the central `settings` module (ENG-09 / ENG-27,
+  PR #326) so they are test-overridable and contributors have one
+  place to look. Six new caps default to "comfortably above any
+  legitimate use":
+
+  - `settings.max_factors_combinatorial = 15`. Caps `k` in
+    `full_factorial`, the d-optimal `fullfact([3]*k)` fallback,
+    and the mixture-design generators (`_simplex_centroid`,
+    `_simplex_lattice`). A `k = 40` request no longer asks for
+    `2**40` rows. `_simplex_lattice` also caps
+    `(degree + 1) ** k <= 1_000_000` iterations.
+  - `settings.max_regression_points = 5_000`.
+    `repeated_median_slope` rejects oversize `x` before its
+    O(N^2) inner loop.
+  - `settings.max_matrix_rows = 10_000`,
+    `settings.max_matrix_cols = 500`. `fit_pca`, `fit_pls`,
+    `scale_data`, `detect_multivariate_outliers`, `pca_predict`,
+    and `pls_predict` validate the input matrix shape before
+    allocation.
+  - `settings.max_formula_chars = 4_096`,
+    `settings.max_formula_terms = 100`. `fit_linear_model`
+    rejects oversize `formula` strings up front; `lm()` rejects
+    formulas that expand to more than `max_formula_terms`
+    after patsy parses the RHS.
+- `_SCALAR_CAPS` in `tool_safety` gains five new keys:
+  `n_steps` (100), `n_additional_runs` (500), `center_points` (50),
+  `replicates` (50), and `n_factors` (15). An attacker can no
+  longer drive cost through any of these.
+
+### Tests
+
+- New `tests/test_sec19_dos_caps.py` (19 tests, 5 classes) pins
+  each cap.
+
 ## [1.23.1] - 2026-06-02
 
 ### Added
@@ -612,7 +652,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.23.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.23.2...HEAD
+[1.23.2]: https://github.com/kgdunn/process-improve/compare/v1.23.1...v1.23.2
 [1.23.1]: https://github.com/kgdunn/process-improve/compare/v1.23.0...v1.23.1
 [1.23.0]: https://github.com/kgdunn/process-improve/compare/v1.22.21...v1.23.0
 [1.22.21]: https://github.com/kgdunn/process-improve/compare/v1.22.20...v1.22.21

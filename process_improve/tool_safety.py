@@ -85,7 +85,8 @@ def __getattr__(name: str) -> Any:  # noqa: ANN401
 
 # Keys whose numeric value scales the cost of the underlying algorithm.
 # A malicious caller can otherwise request a huge SVD or a long ESD loop
-# with a tiny input array.
+# with a tiny input array. SEC-19 (#268) extends the historic six keys
+# with caps for the design / experiment cost knobs.
 _SCALAR_CAPS: dict[str, float] = {
     "n_components": 50,
     "max_outliers_to_detect": 20,
@@ -94,6 +95,12 @@ _SCALAR_CAPS: dict[str, float] = {
     "n_boot": 1_000,
     "n_permutations": 1_000,
     "budget": 10_000,
+    # SEC-19 additions.
+    "n_steps": 100,
+    "n_additional_runs": 500,
+    "center_points": 50,
+    "replicates": 50,
+    "n_factors": 15,  # mirrors settings.max_factors_combinatorial
 }
 
 

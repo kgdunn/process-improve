@@ -192,8 +192,27 @@ def fit_linear_model(
 ) -> dict[str, Any]:
     """Fit a linear model to experimental data; see tool spec for details."""
     try:
+        from process_improve.config import settings  # noqa: PLC0415
         from process_improve.experiments.models import lm, validate_formula_is_safe  # noqa: PLC0415
         from process_improve.experiments.structures import Expt  # noqa: PLC0415
+
+        # SEC-19 (#268): cap data row count and formula length. The
+        # formula expansion cap (after patsy parses the RHS) lands
+        # inside ``lm()`` below.
+        if len(data) > settings.max_matrix_rows:
+            return {
+                "error": (
+                    f"data has {len(data)} rows; the cap is "
+                    f"settings.max_matrix_rows={settings.max_matrix_rows}."
+                )
+            }
+        if len(formula) > settings.max_formula_chars:
+            return {
+                "error": (
+                    f"formula is {len(formula)} chars; the cap is "
+                    f"settings.max_formula_chars={settings.max_formula_chars}."
+                )
+            }
 
         df = pd.DataFrame(data)
 
