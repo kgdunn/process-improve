@@ -176,6 +176,8 @@ class TestToolBoundaryNoSideEffect:
             )
             assert "error" in result
         except ToolInputInvalidError:
+            # Pydantic Literal rejected the malicious string at the boundary;
+            # the sentinel assertion below is the only invariant that matters.
             pass
         assert not sentinel.exists(), "formula was evaluated - RCE guard failed"
 
@@ -202,6 +204,8 @@ class TestToolBoundaryNoSideEffect:
             )
             assert "error" in result
         except ToolInputInvalidError:
+            # Pydantic Literal rejected the malicious string at the boundary;
+            # the sentinel assertion below is the only invariant that matters.
             pass
         assert not sentinel.exists(), "formula was evaluated - RCE guard failed"
         assert not sentinel.exists(), "formula was evaluated - RCE guard failed"
