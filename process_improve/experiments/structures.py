@@ -98,9 +98,26 @@ class Column(pd.Series):
 
 
 class Expt(pd.DataFrame):
-    """
-    Dataframe object with experimental data. Builds on the Pandas dataframe,
-    but with some extra attributes.
+    """Dataframe carrying experimental data plus process-improve metadata.
+
+    ``Expt`` (short for "Experiment") is a :class:`pandas.DataFrame` subclass
+    that adds library-managed metadata fields prefixed with ``pi_`` -- short
+    for "process-improve". The prefix is what keeps these reserved attribute
+    names from colliding with column names from a caller-supplied DataFrame.
+
+    Pinned metadata (preserved across subsetting via ``_metadata``):
+
+    - ``pi_title``  -- short human-readable name for the dataset
+    - ``pi_source`` -- provenance string (file path, URL, ...)
+    - ``pi_units``  -- units string for the numeric columns
+
+    Other ``pi_*`` attributes (``pi_range``, ``pi_lo``, ``pi_hi``,
+    ``pi_center``, ``pi_name``) are set by the experiments factory helpers
+    in this module; see :func:`expt` / :func:`create_names`.
+
+    The ``pi_`` prefix is documented in ``CONTRIBUTING.md`` and is part of
+    the package's public API surface; new metadata fields should follow the
+    same prefix.
     """
 
     # Temporary properties

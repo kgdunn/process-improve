@@ -11,6 +11,18 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.7] - 2026-06-02
+
+### Documentation
+
+- **ENG-24 (#306)**: documented the `pi_` prefix used on `Expt` /
+  `Column` metadata attributes. The prefix stands for "process-improve"
+  and namespaces library-managed metadata so it cannot collide with
+  caller-supplied DataFrame column names. CONTRIBUTING.md gains a
+  "Naming conventions" subsection covering the prefix and the `Expt`
+  abbreviation; the `Expt` class docstring now lists the pinned
+  ``_metadata`` fields and points at CONTRIBUTING.md.
+
 ## [1.24.6] - 2026-06-02
 
 ### Fixed
@@ -881,7 +893,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.6...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.7...HEAD
+[1.24.7]: https://github.com/kgdunn/process-improve/compare/v1.24.6...v1.24.7
 [1.24.6]: https://github.com/kgdunn/process-improve/compare/v1.24.5...v1.24.6
 [1.24.5]: https://github.com/kgdunn/process-improve/compare/v1.24.4...v1.24.5
 [1.24.4]: https://github.com/kgdunn/process-improve/compare/v1.24.3...v1.24.4

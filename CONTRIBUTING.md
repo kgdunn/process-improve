@@ -99,6 +99,21 @@ The line length is 120 characters.
 - **Prose:** do not use em-dashes in code, comments, docstrings, or commit
   messages; use a hyphen, a semicolon, or split the sentence.
 
+### Naming conventions
+
+- **`pi_` prefix on attributes** stands for **"process-improve"** and marks
+  library-managed metadata on `Expt` (and related) objects: `pi_title`,
+  `pi_source`, `pi_units`, `pi_range`, `pi_lo`, `pi_hi`, `pi_center`,
+  `pi_name`. The prefix exists to keep these reserved names from colliding
+  with column names from a user-supplied DataFrame. Treat `pi_*` attributes
+  as part of the public API surface; new metadata fields should use the
+  same prefix.
+- **`Expt`** is the canonical (and only) name for the experiment container
+  class, an abbreviation of "Experiment". It is a `pd.DataFrame` subclass
+  carrying the `pi_*` metadata above. The abbreviation predates the rest of
+  the package's spell-out-everything convention; it is retained for backwards
+  compatibility.
+
 ## Adding new methods to PCA / PLS
 
 1. Add the method to the class in `process_improve/multivariate/methods.py`.
