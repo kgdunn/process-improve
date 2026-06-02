@@ -547,6 +547,41 @@ class TestOptimizeDesirability:
         d_result = result["desirability"]
         assert "optimal_actual" in d_result
 
+    def test_random_state_is_configurable(self) -> None:
+        """SEC-33 (#282) sub-item 5: ``random_state`` is now a public kwarg.
+
+        The previous implementation hard-coded ``np.random.default_rng(42)``
+        inside the multi-start loop, which meant callers could not get
+        reproducible *or* truly-random behaviour from a different seed.
+        The fix moves the seed onto the public ``optimize_responses`` /
+        ``_grid_search_desirability`` signature.
+        """
+        from process_improve.experiments.optimization import _optimize_desirability
+
+        model = {
+            "response_name": "yield",
+            "coefficients": _quadratic_2f_coeffs(),
+            "factor_names": FACTOR_NAMES_2F,
+        }
+        goals = [{"response": "yield", "goal": "maximize", "low": 30.0, "high": 50.0}]
+        out_a = _optimize_desirability(
+            [model], goals=goals, factor_names=FACTOR_NAMES_2F, random_state=1
+        )
+        out_b = _optimize_desirability(
+            [model], goals=goals, factor_names=FACTOR_NAMES_2F, random_state=1
+        )
+        out_c = _optimize_desirability(
+            [model], goals=goals, factor_names=FACTOR_NAMES_2F, random_state=2
+        )
+
+        # Same seed -> bit-identical optimum.
+        assert out_a["optimal_coded"] == pytest.approx(out_b["optimal_coded"])
+        # Different seed -> the multi-start may pick a different (still
+        # optimal) point, so the *value* of the composite desirability is
+        # what's reproducible; both should be high.
+        assert out_a["composite_desirability"] > 0.5
+        assert out_c["composite_desirability"] > 0.5
+
 
 # ---------------------------------------------------------------------------
 # Stubs

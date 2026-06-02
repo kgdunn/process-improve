@@ -44,8 +44,10 @@ from process_improve.multivariate.methods import (
     rv_coefficient,
     scale,
     score_limit,
+    spe_calculation,
     squared_cosine,
     ssq,
+    terminate_check,
     vip,
 )
 
@@ -60,6 +62,41 @@ def test_nan_to_zeros() -> None:
     in_array = np.array([[1, 2, np.nan], [4, 5, 6], [float("nan"), 8, 9]])
     out_array = nan_to_zeros(in_array)
     assert pytest.approx(out_array) == np.array([[1, 2, 0], [4, 5, 6], [0, 8, 9]])
+
+
+def test_terminate_check_off_by_one_fixed() -> None:
+    """SEC-33 (#282) sub-item 1: the NIPALS terminate_check uses ``>=`` so the
+    iterative algorithm runs exactly ``md_max_iter`` iterations rather than
+    ``md_max_iter + 1``.
+    """
+
+    # Unconverged scores: a tiny non-zero diff so the tolerance branch is False.
+    t_a_guess = np.array([1.0, 2.0, 3.0])
+    t_a = np.array([1.001, 2.001, 3.001])
+    settings = {"md_tol": 1e-9, "md_max_iter": 5}
+
+    # iterations < md_max_iter -> not terminated.
+    assert terminate_check(t_a_guess, t_a, iterations=4, settings=settings) is False
+    # iterations == md_max_iter -> terminated (post-fix).
+    assert terminate_check(t_a_guess, t_a, iterations=5, settings=settings) is True
+
+
+def test_spe_calculation_handles_empty_negative_slice() -> None:
+    """SEC-33 (#282) sub-item 2: ``np.var`` on an empty negative-only slice
+    returns NaN and emits a RuntimeWarning; the sign-flip comparison now
+    guards with ``.size > 0`` so all-non-negative input takes the non-flip
+    branch cleanly.
+    """
+    import warnings
+
+
+    # All-positive spe_values -> ``neg.size == 0``.
+    spe_values = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", category=RuntimeWarning)
+        limit = spe_calculation(spe_values, conf_level=0.95)
+    assert np.isfinite(limit)
+    assert limit > 0.0
 
 
 def test_regress_y_space_on_x() -> None:

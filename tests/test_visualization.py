@@ -153,6 +153,37 @@ class TestRegistry:
         with pytest.raises(ValueError, match="Unknown plot_type"):
             create_plot("nonexistent_plot_type")
 
+    def test_factor_name_extraction_against_design_data(self) -> None:
+        """SEC-33 (#282) sub-item 6: ``BasePlot._get_factor_names`` cross-
+        references formula tokens against the supplied ``design_data``
+        instead of relying on a static reserved-word blocklist.
+
+        The previous blocklist ``{"I", "np", "power"}`` missed common
+        statsmodels transforms (Q, center, standardize, ...). Whenever
+        ``design_data`` is present, the correct test is "does this token
+        actually correspond to a column in the design?" -- which is what
+        the test below pins.
+        """
+        # ``np.power(A, 2) + center(B)`` -- statsmodels' newer transform
+        # spellings. ``np``, ``power``, and ``center`` are *not* columns;
+        # the cross-reference filter must drop them and keep only A, B.
+        plot = create_plot(
+            "pareto",  # any concrete plot type works; we exercise the base helper.
+            analysis_results={
+                "effects": {"A": 1.0, "B": -2.0},
+                "model_summary": {
+                    "formula": "y ~ np.power(A, 2) + center(B) + A:B",
+                },
+            },
+            design_data=[{"A": -1, "B": -1, "y": 0.0}],
+        )
+        names = plot._get_factor_names()
+        assert "A" in names
+        assert "B" in names
+        # Transforms that aren't columns must be filtered out.
+        for noise in ("np", "power", "center", "y"):
+            assert noise not in names
+
 
 # ---------------------------------------------------------------------------
 # Significance plots

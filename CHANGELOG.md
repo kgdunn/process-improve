@@ -11,6 +11,32 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.9] - 2026-06-02
+
+### Tests
+
+- **SEC-33 (#282)**: pin regression tests for the four numerical /
+  correctness sub-items already fixed in code:
+  - Sub-item 1 -- ``terminate_check`` uses ``>=`` so NIPALS runs
+    exactly ``md_max_iter`` iterations.
+  - Sub-item 2 -- ``spe_calculation`` guards the ``np.var(neg)``
+    sign-flip check with ``neg.size > 0`` (no RuntimeWarning, no
+    silent NaN).
+  - Sub-item 5 -- ``_optimize_desirability`` accepts a public
+    ``random_state`` parameter (the hard-coded seed-42 was moved
+    onto the function signature, resolved via ``check_random_state``).
+  - Sub-item 6 -- ``BasePlot._get_factor_names`` cross-references
+    formula tokens against the supplied ``design_data`` instead of
+    the previous static ``{"I", "np", "power"}`` blocklist; common
+    statsmodels transforms (Q, center, standardize, ...) are now
+    correctly filtered.
+
+  Sub-items 3 (``norm(t)*norm(u)`` eps-snap) and 4 (``arccos`` clamp)
+  are kept open as cross-references in #195 and #206 respectively, per
+  the SEC-33 issue's own deferral plan; their code-level fixes are
+  already in place and are exercised indirectly by the existing PLS
+  permutation and find-elbow tests.
+
 ## [1.24.8] - 2026-06-02
 
 ### Security
@@ -921,7 +947,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.8...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.9...HEAD
+[1.24.9]: https://github.com/kgdunn/process-improve/compare/v1.24.8...v1.24.9
 [1.24.8]: https://github.com/kgdunn/process-improve/compare/v1.24.7...v1.24.8
 [1.24.7]: https://github.com/kgdunn/process-improve/compare/v1.24.6...v1.24.7
 [1.24.6]: https://github.com/kgdunn/process-improve/compare/v1.24.5...v1.24.6
