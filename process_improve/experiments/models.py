@@ -522,6 +522,18 @@ def lm(  # noqa: C901, PLR0915
     validate_formula_is_safe(model_spec, data.columns, allow_transforms=True, allow_numpy=True)
 
     pre_model = smf.ols(model_spec, data=data)
+    # SEC-19 (#268): a formula like ``y ~ (A+B+C+D+E)**5`` expands to
+    # 2**5 terms; combined with a wide ``data`` this is a CPU sink.
+    # Cap the expanded term count after patsy parses the RHS.
+    from process_improve.config import settings  # noqa: PLC0415
+
+    n_terms = len(pre_model.data.xnames)
+    if n_terms > settings.max_formula_terms:
+        raise ValueError(
+            f"formula {model_spec!r} expanded to {n_terms} terms; "
+            f"the SEC-19 cap is settings.max_formula_terms="
+            f"{settings.max_formula_terms}."
+        )
     model_description = ModelDesc.from_formula(model_spec)
     aliasing, drop_columns = find_aliases(pre_model, model_description, threshold_correlation=alias_threshold)
     drop_column_names = [pre_model.data.xnames[i] for i in drop_columns]

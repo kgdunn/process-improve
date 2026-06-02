@@ -70,6 +70,16 @@ def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) ->
             raise ValueError("More than two samples are required for this function.")
         if len(x) != len(y):
             raise ValueError("Vectors x and y must have the same length.")
+        # SEC-19 (#268): O(N^2) kernel; cap N so a 100k-point payload
+        # cannot lock up CPU for many minutes.
+        from process_improve.config import settings  # noqa: PLC0415
+
+        if len(x) > settings.max_regression_points:
+            raise ValueError(
+                f"repeated_median_slope: len(x)={len(x)} exceeds the SEC-19 "
+                f"cap of {settings.max_regression_points}. This is an O(N^2) "
+                "algorithm; increase settings.max_regression_points if intentional."
+            )
 
     for i in np.arange(len(x)):
         inner_medians = []

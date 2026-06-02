@@ -75,7 +75,28 @@ def _simplex_lattice(k: int, degree: int = 2) -> np.ndarray:
     -------
     np.ndarray
         Design matrix of shape (n_points, k) with rows summing to 1.
+
+    Raises
+    ------
+    ValueError
+        If ``(degree + 1) ** k`` exceeds 1,000,000 combinations
+        (SEC-19 #268). ``itertools.product`` would otherwise iterate
+        ~5 x 10^11 tuples for ``k=15, degree=5``.
     """
+    from process_improve.config import settings  # noqa: PLC0415
+
+    if k > settings.max_factors_combinatorial:
+        raise ValueError(
+            f"_simplex_lattice: k={k} exceeds the SEC-19 cap of "
+            f"{settings.max_factors_combinatorial}. "
+            "Increase settings.max_factors_combinatorial if intentional."
+        )
+    estimated_tuples = (degree + 1) ** k
+    if estimated_tuples > 1_000_000:
+        raise ValueError(
+            f"_simplex_lattice: (degree+1)**k = {estimated_tuples} tuples "
+            "exceeds the 1M iteration cap. Reduce k or degree."
+        )
     grid_values = [i / degree for i in range(degree + 1)]
     points = [list(combo) for combo in itertools.product(grid_values, repeat=k) if abs(sum(combo) - 1.0) < 1e-10]
     return np.array(points)
@@ -99,7 +120,23 @@ def _simplex_centroid(k: int) -> np.ndarray:
     -------
     np.ndarray
         Design matrix of shape (2^k - 1, k).
+
+    Raises
+    ------
+    ValueError
+        If ``k`` exceeds ``settings.max_factors_combinatorial``
+        (SEC-19 #268). The design has ``2**k - 1`` rows; ``k=40``
+        would allocate ~1 TiB.
     """
+    from process_improve.config import settings  # noqa: PLC0415
+
+    if k > settings.max_factors_combinatorial:
+        raise ValueError(
+            f"_simplex_centroid: k={k} exceeds the SEC-19 cap of "
+            f"{settings.max_factors_combinatorial}. A k={k} centroid design "
+            f"has 2**{k} - 1 rows. Increase settings.max_factors_combinatorial "
+            "if intentional."
+        )
     points: list[list[float]] = []
 
     # Generate all non-empty subsets of {0, 1, ..., k-1}

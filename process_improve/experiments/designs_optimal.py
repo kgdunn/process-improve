@@ -213,6 +213,18 @@ def _run_point_exchange_fallback(
     tuple[np.ndarray, dict]
     """
     k = len(factors)
+    # SEC-19 (#268): a 3-level full factorial allocates 3**k candidate
+    # rows. Cap k against the central setting so a request for
+    # ``len(factors) >= 20`` (3.5B rows) is rejected before allocation.
+    from process_improve.config import settings  # noqa: PLC0415
+
+    if k > settings.max_factors_combinatorial:
+        raise ValueError(
+            f"d-optimal fallback would build a 3**{k} candidate set; "
+            f"that exceeds the SEC-19 cap of "
+            f"{settings.max_factors_combinatorial} factors. "
+            "Increase settings.max_factors_combinatorial if intentional."
+        )
     # Build candidate set: 3-level full factorial (-1, 0, +1)
     candidates_raw = fullfact([3] * k)
     candidates = candidates_raw - 1.0

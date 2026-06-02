@@ -26,7 +26,32 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from process_improve.config import settings
 from process_improve.tool_spec import clean, get_tool_specs, tool_spec
+
+
+def _validate_matrix_shape(data: list, name: str) -> None:
+    """Reject oversize matrix inputs at the MCP boundary (SEC-19 #268).
+
+    Caps ``len(data)`` against ``settings.max_matrix_rows`` and the
+    first row's width against ``settings.max_matrix_cols``. A 1 x 1M
+    matrix passes the ``max_cells`` budget but blows up SVD; this is
+    the dimension-aware guard.
+    """
+    n_rows = len(data)
+    if n_rows > settings.max_matrix_rows:
+        raise ValueError(
+            f"{name} has {n_rows} rows; the cap is "
+            f"settings.max_matrix_rows={settings.max_matrix_rows}."
+        )
+    if n_rows == 0:
+        return
+    n_cols = len(data[0]) if hasattr(data[0], "__len__") else 1
+    if n_cols > settings.max_matrix_cols:
+        raise ValueError(
+            f"{name} has {n_cols} columns; the cap is "
+            f"settings.max_matrix_cols={settings.max_matrix_cols}."
+        )
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -95,6 +120,7 @@ def fit_pca(
 ) -> dict[str, Any]:
     """Fit a PCA model to the given data; see tool spec for details."""
     try:
+        _validate_matrix_shape(data, "data")
         from process_improve.multivariate.methods import PCA, MCUVScaler  # noqa: PLC0415
 
         df = pd.DataFrame(data, columns=column_names)
@@ -204,6 +230,9 @@ def fit_pls(
 ) -> dict[str, Any]:
     """Fit a PLS model to X and Y data; see tool spec for details."""
     try:
+        _validate_matrix_shape(x_data, "x_data")
+        if y_data and hasattr(y_data[0], "__len__"):
+            _validate_matrix_shape(y_data, "y_data")
         from process_improve.multivariate.methods import PLS, MCUVScaler  # noqa: PLC0415
 
         X = pd.DataFrame(x_data, columns=x_column_names)
@@ -297,6 +326,7 @@ def scale_data(
 ) -> dict[str, Any]:
     """Mean-centre and scale data to unit variance; see tool spec for details."""
     try:
+        _validate_matrix_shape(data, "data")
         from process_improve.multivariate.methods import MCUVScaler  # noqa: PLC0415
 
         df = pd.DataFrame(data, columns=column_names)
@@ -368,6 +398,7 @@ def detect_multivariate_outliers(
 ) -> dict[str, Any]:
     """Detect multivariate outliers via PCA diagnostics; see tool spec for details."""
     try:
+        _validate_matrix_shape(data, "data")
         from process_improve.multivariate.methods import PCA, MCUVScaler  # noqa: PLC0415
 
         df = pd.DataFrame(data)
@@ -434,6 +465,7 @@ def pca_predict(
 ) -> dict[str, Any]:
     """Project new data into a PCA model; see tool spec for details."""
     try:
+        _validate_matrix_shape(new_data, "new_data")
         from process_improve.multivariate.methods import hotellings_t2_limit, spe_calculation  # noqa: PLC0415
 
         means = np.array(model_params["means"])
@@ -528,6 +560,7 @@ def pls_predict(
 ) -> dict[str, Any]:
     """Predict Y from new X data using PLS model params; see tool spec for details."""
     try:
+        _validate_matrix_shape(new_data, "new_data")
         from process_improve.multivariate.methods import hotellings_t2_limit, spe_calculation  # noqa: PLC0415
 
         x_means = np.array(model_params["x_means"])
