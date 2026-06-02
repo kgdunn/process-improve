@@ -11,6 +11,25 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.13] - 2026-06-02
+
+### Changed (internal)
+
+- **ENG-25 (#307) chip-away**: two internal helpers now take a bundled
+  options dataclass instead of nine / six loose arguments, which
+  removes their ``noqa: PLR0913`` suppressions. Net: 2 noqa
+  suppressions deleted, one new internal dataclass per helper. No
+  public API change.
+  - ``process_improve/experiments/evaluate.py::_build_context`` now
+    takes a single ``_EvalRequest`` (9 args -> 1).
+  - ``process_improve/experiments/designs_optimal.py::_run_pyoptex``
+    now takes an optional ``_PyoptexOptions`` (6 args -> 4).
+
+  Combined with PR #340's ``find_elbow_point`` slim-down (-1 noqa),
+  the running ENG-25 count is now **65** suppressions, down from
+  68 at the start of this release window. Per the issue policy
+  ("each release lowers the count"), this is on track.
+
 ## [1.24.12] - 2026-06-02
 
 ### Changed (internal)
@@ -1040,7 +1059,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.12...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.13...HEAD
+[1.24.13]: https://github.com/kgdunn/process-improve/compare/v1.24.12...v1.24.13
 [1.24.12]: https://github.com/kgdunn/process-improve/compare/v1.24.11...v1.24.12
 [1.24.11]: https://github.com/kgdunn/process-improve/compare/v1.24.10...v1.24.11
 [1.24.10]: https://github.com/kgdunn/process-improve/compare/v1.24.9...v1.24.10

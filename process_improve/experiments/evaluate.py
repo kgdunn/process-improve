@@ -39,6 +39,27 @@ from process_improve.experiments.models import validate_formula_is_safe, validat
 
 
 @dataclass
+class _EvalRequest:
+    """Caller-supplied evaluation request.
+
+    Bundles every piece of metric-independent input so
+    :func:`_build_context` can accept a single dataclass instead of
+    nine positional / keyword arguments (ENG-25 / #307: removes one
+    ``noqa: PLR0913``).
+    """
+
+    design_df: pd.DataFrame
+    factor_names: list[str]
+    model: str | None
+    generators: list[str] | None
+    defining_relation: list[str] | None
+    resolution: int | None
+    effect_size: float | None
+    alpha: float
+    sigma: float | None
+
+
+@dataclass
 class _EvalContext:
     """Shared evaluation context, computed once and reused by all metrics."""
 
@@ -122,19 +143,9 @@ def _build_model_matrix(
     return X, column_names
 
 
-def _build_context(  # noqa: PLR0913
-    design_df: pd.DataFrame,
-    factor_names: list[str],
-    model: str | None,
-    generators: list[str] | None,
-    defining_relation: list[str] | None,
-    resolution: int | None,
-    effect_size: float | None,
-    alpha: float,
-    sigma: float | None,
-) -> _EvalContext:
+def _build_context(req: _EvalRequest) -> _EvalContext:
     """Build the shared evaluation context."""
-    X, column_names = _build_model_matrix(design_df, model, factor_names)
+    X, column_names = _build_model_matrix(req.design_df, req.model, req.factor_names)
     N, p = X.shape
     XtX = X.T @ X
 
@@ -147,19 +158,19 @@ def _build_context(  # noqa: PLR0913
     return _EvalContext(
         X=X,
         column_names=column_names,
-        factor_names=factor_names,
-        design_df=design_df,
+        factor_names=req.factor_names,
+        design_df=req.design_df,
         N=N,
         p=p,
         XtX=XtX,
         XtX_inv=XtX_inv,
         is_singular=is_singular,
-        generators=generators,
-        defining_relation=defining_relation,
-        resolution=resolution,
-        effect_size=effect_size,
-        alpha=alpha,
-        sigma=sigma,
+        generators=req.generators,
+        defining_relation=req.defining_relation,
+        resolution=req.resolution,
+        effect_size=req.effect_size,
+        alpha=req.alpha,
+        sigma=req.sigma,
     )
 
 
@@ -789,15 +800,17 @@ def evaluate_design(  # noqa: PLR0913
 
     # --- Build context ---
     ctx = _build_context(
-        design_df=design_df,
-        factor_names=factor_names,
-        model=model,
-        generators=generators,
-        defining_relation=defining_relation,
-        resolution=resolution,
-        effect_size=effect_size,
-        alpha=alpha,
-        sigma=sigma,
+        _EvalRequest(
+            design_df=design_df,
+            factor_names=factor_names,
+            model=model,
+            generators=generators,
+            defining_relation=defining_relation,
+            resolution=resolution,
+            effect_size=effect_size,
+            alpha=alpha,
+            sigma=sigma,
+        )
     )
 
     # --- Compute requested metrics ---
