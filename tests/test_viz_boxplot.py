@@ -9,7 +9,17 @@ import pytest
 
 from process_improve.tool_spec import execute_tool_call, get_tool_specs
 from process_improve.visualization.charts.boxplot import BoxPlot, BoxStats
-from process_improve.visualization.tools import boxplot
+from process_improve.visualization.tools import BoxplotInput
+from process_improve.visualization.tools import boxplot as _boxplot
+
+
+def boxplot(**kwargs):
+    """Test-local convenience wrapper: build the pydantic input from kwargs.
+
+    Lets the existing kwarg-style test call sites work unchanged after the
+    ENG-04 / ENG-10 migration to ``input_model=`` on @tool_spec.
+    """
+    return _boxplot(BoxplotInput(**kwargs))
 
 # ---------------------------------------------------------------------------
 # Fixtures

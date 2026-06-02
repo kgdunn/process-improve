@@ -12,9 +12,19 @@ import pytest
 from process_improve.batch.tools import (
     _FEATURE_MAP,
     _TIME_FEATURE_MAP,
-    extract_batch_features,
+    ExtractBatchFeaturesInput,
     get_batch_tool_specs,
 )
+from process_improve.batch.tools import extract_batch_features as _extract_batch_features
+
+
+def extract_batch_features(**kwargs):
+    """Test-local convenience wrapper: build the pydantic input from kwargs.
+
+    Lets the existing kwarg-style test call sites work unchanged after the
+    ENG-04 / ENG-10 migration to ``input_model=`` on @tool_spec.
+    """
+    return _extract_batch_features(ExtractBatchFeaturesInput(**kwargs))
 
 
 @pytest.fixture
@@ -103,23 +113,30 @@ def test_extract_batch_features_time_feature_without_time_column_returns_error(
 def test_extract_batch_features_unknown_feature_returns_error(
     two_batch_timeseries: list[dict],
 ) -> None:
-    """An unknown feature name surfaces a helpful error listing the valid options."""
-    result = extract_batch_features(
-        data=two_batch_timeseries,
-        value_columns=["temp"],
-        features=["bogus"],
-    )
+    """An unknown feature name is rejected by the pydantic Literal contract.
 
-    assert "error" in result
-    assert "bogus" in result["error"]
-    # The error should mention at least one of the valid feature names.
-    assert "mean" in result["error"]
+    Pydantic validates the ``features`` list against the documented set of
+    keys before the function body ever runs; the resulting ValidationError
+    (a ValueError subclass) mentions the bad value and the allowed
+    alternatives.
+    """
+    with pytest.raises(ValueError, match="bogus"):
+        extract_batch_features(
+            data=two_batch_timeseries,
+            value_columns=["temp"],
+            features=["bogus"],
+        )
 
 
 def test_extract_batch_features_bad_data_returns_error() -> None:
-    """Garbage inputs surface as an error dict, not an exception."""
+    """Garbage inputs are rejected at the pydantic boundary or in-band as an error dict.
+
+    The original single-row payload now fails the ``min_length=2`` constraint
+    on ``data``; with two rows but a missing column, the underlying call
+    raises a KeyError that surfaces as ``{"error": ...}``.
+    """
     result = extract_batch_features(
-        data=[{"batch": "B1"}],  # no value column data at all
+        data=[{"batch": "B1"}, {"batch": "B2"}],
         value_columns=["nonexistent"],
     )
 

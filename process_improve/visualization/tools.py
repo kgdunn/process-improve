@@ -2,21 +2,25 @@
 
 Agent-callable visualization tools.
 
-Each function in this module is decorated with ``@tool_spec`` so it can be
-passed directly to an LLM tool-use API.  The wrappers accept plain
-JSON-serialisable inputs (lists of dicts, strings, numbers) and always
-return JSON-serialisable dict results that match the shape of
-``visualize_doe`` (``plot_type``, ``title``, ``data``, ``plotly``,
-``echarts``), so frontends can render them without dispatch.
+Pydantic input contract (ENG-04 / ENG-10): each tool pairs its
+``@tool_spec`` decorator with a ``BaseModel`` carrying
+``ConfigDict(extra="forbid")``; the function receives the parsed
+model as its single positional argument.
+
+Each function returns a JSON-serialisable dict that matches the
+shape of ``visualize_doe`` (``plot_type``, ``title``, ``data``,
+``plotly``, ``echarts``), so frontends can render them without
+dispatch.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
+from pydantic import BaseModel, ConfigDict, Field
 
 from process_improve.tool_spec import clean, tool_spec
 from process_improve.visualization.charts.boxplot import BoxPlot, BoxStats
@@ -117,6 +121,59 @@ def _collect_boxes(
 # ---------------------------------------------------------------------------
 
 
+class BoxplotInput(BaseModel):
+    """Input contract for ``boxplot``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    data: list[dict[str, Any]] = Field(
+        ...,
+        description="Tabular data as a list of record dicts (one per observation).",
+    )
+    value_columns: list[str] = Field(
+        ...,
+        description=(
+            "Numeric columns to summarise. Without group_by, each column "
+            "becomes a separate box. With group_by, only the first column "
+            "is used and one box is drawn per unique group value."
+        ),
+    )
+    group_by: str | None = Field(
+        None,
+        description=(
+            "Optional column name to group by. When provided, the first "
+            "entry of value_columns is plotted per unique group value."
+        ),
+    )
+    id_column: str | None = Field(
+        None,
+        description=(
+            "Optional stable observation id column. When set together with "
+            "link_group, outlier points carry the id so a brush selection "
+            "can be relayed to other charts in the link group."
+        ),
+    )
+    show_points: bool = Field(
+        True,
+        description="Overlay outlier points on the boxes.",
+    )
+    link_group: str | None = Field(
+        None,
+        description=(
+            "Cross-chart linking key. Charts sharing this key form a "
+            "brushing group on the frontend."
+        ),
+    )
+    title: str = Field(
+        "",
+        description="Chart title.",
+    )
+    backend: Literal["both", "plotly", "echarts"] = Field(
+        "both",
+        description="Which rendering backend(s) to include in output.",
+    )
+
+
 @tool_spec(
     name="boxplot",
     description=(
@@ -127,67 +184,7 @@ def _collect_boxes(
         "If a stable per-row id column exists, pass it as id_column and set link_group "
         "to enable brushing across linked charts."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "array",
-                    "items": {"type": "object"},
-                    "description": (
-                        "Tabular data as a list of record dicts (one per observation)."
-                    ),
-                },
-                "value_columns": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": (
-                        "Numeric columns to summarise. Without group_by, each column "
-                        "becomes a separate box. With group_by, only the first column "
-                        "is used and one box is drawn per unique group value."
-                    ),
-                },
-                "group_by": {
-                    "type": "string",
-                    "description": (
-                        "Optional column name to group by. When provided, the first "
-                        "entry of value_columns is plotted per unique group value."
-                    ),
-                },
-                "id_column": {
-                    "type": "string",
-                    "description": (
-                        "Optional stable observation id column. When set together with "
-                        "link_group, outlier points carry the id so a brush selection "
-                        "can be relayed to other charts in the link group."
-                    ),
-                },
-                "show_points": {
-                    "type": "boolean",
-                    "description": "Overlay outlier points on the boxes.",
-                    "default": True,
-                },
-                "link_group": {
-                    "type": "string",
-                    "description": (
-                        "Cross-chart linking key. Charts sharing this key form a "
-                        "brushing group on the frontend."
-                    ),
-                },
-                "title": {
-                    "type": "string",
-                    "description": "Chart title.",
-                },
-                "backend": {
-                    "type": "string",
-                    "enum": ["both", "plotly", "echarts"],
-                    "description": "Which rendering backend(s) to include in output.",
-                    "default": "both",
-                },
-            },
-            "required": ["data", "value_columns"],
-        },
-    },
+    input_model=BoxplotInput,
     examples="""
     # "Show a boxplot of tensile_strength by lot"
         -> ``boxplot(data=[...], value_columns=["tensile_strength"], group_by="lot")``
@@ -197,64 +194,54 @@ def _collect_boxes(
     """,
     category="visualization",
 )
-def boxplot(  # noqa: PLR0911, PLR0913
-    *,
-    data: list[dict[str, Any]],
-    value_columns: list[str],
-    group_by: str | None = None,
-    id_column: str | None = None,
-    show_points: bool = True,
-    link_group: str | None = None,
-    title: str = "",
-    backend: str = "both",
-) -> dict[str, Any]:
-    """Generate a boxplot; see tool spec for details."""
+def boxplot(spec: BoxplotInput) -> dict[str, Any]:  # noqa: PLR0911
+    """Generate a boxplot."""
     try:
-        if not data:
+        if not spec.data:
             return {"error": "data is empty"}
-        if not value_columns:
+        if not spec.value_columns:
             return {"error": "value_columns is empty"}
 
-        df = pd.DataFrame(data)
+        df = pd.DataFrame(spec.data)
 
-        missing = [c for c in value_columns if c not in df.columns]
+        missing = [c for c in spec.value_columns if c not in df.columns]
         if missing:
             return {"error": f"value_columns not found in data: {missing}"}
-        if group_by is not None and group_by not in df.columns:
-            return {"error": f"group_by column not found in data: {group_by!r}"}
-        if id_column is not None and id_column not in df.columns:
-            return {"error": f"id_column not found in data: {id_column!r}"}
+        if spec.group_by is not None and spec.group_by not in df.columns:
+            return {"error": f"group_by column not found in data: {spec.group_by!r}"}
+        if spec.id_column is not None and spec.id_column not in df.columns:
+            return {"error": f"id_column not found in data: {spec.id_column!r}"}
 
         boxes = _collect_boxes(
             df,
-            value_columns=value_columns,
-            group_by=group_by,
-            id_column=id_column,
+            value_columns=spec.value_columns,
+            group_by=spec.group_by,
+            id_column=spec.id_column,
         )
         if not boxes:
             return {"error": "no non-empty groups to plot"}
 
-        default_title = title
+        default_title = spec.title
         if not default_title:
             default_title = (
-                f"{value_columns[0]} by {group_by}"
-                if group_by is not None
-                else ", ".join(value_columns)
+                f"{spec.value_columns[0]} by {spec.group_by}"
+                if spec.group_by is not None
+                else ", ".join(spec.value_columns)
             )
 
-        y_title = value_columns[0] if group_by is not None else "value"
-        x_title = group_by or "variable"
+        y_title = spec.value_columns[0] if spec.group_by is not None else "value"
+        x_title = spec.group_by or "variable"
 
         chart = BoxPlot(
             boxes=boxes,
             title=default_title,
             x_title=x_title,
             y_title=y_title,
-            show_points=show_points,
-            link_group=link_group,
+            show_points=spec.show_points,
+            link_group=spec.link_group,
         )
 
-        spec = chart.to_spec()
+        chart_spec = chart.to_spec()
 
         result: dict[str, Any] = {
             "plot_type": "boxplot",
@@ -267,12 +254,12 @@ def boxplot(  # noqa: PLR0911, PLR0913
                     {"group": b.group, **o} for b in boxes for o in b.outliers
                 ],
             },
-            "link_group": link_group,
-            "point_ids": spec.point_ids or [],
+            "link_group": spec.link_group,
+            "point_ids": chart_spec.point_ids or [],
         }
 
-        result["plotly"] = chart.to_plotly() if backend in ("both", "plotly") else None
-        result["echarts"] = chart.to_echarts() if backend in ("both", "echarts") else None
+        result["plotly"] = chart.to_plotly() if spec.backend in ("both", "plotly") else None
+        result["echarts"] = chart.to_echarts() if spec.backend in ("both", "echarts") else None
 
         return clean(result)
     except (ValueError, TypeError, KeyError) as e:
