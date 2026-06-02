@@ -35,6 +35,7 @@ from collections.abc import Callable
 from typing import Any
 
 import numpy as np
+from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -107,10 +108,12 @@ def _validate_rng_metadata(name: str, rng: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def tool_spec(  # noqa: PLR0913
+def tool_spec(  # noqa: C901, PLR0913
     name: str,
     description: str,
-    input_schema: dict[str, Any],
+    *,
+    input_model: type[BaseModel] | None = None,
+    input_schema: dict[str, Any] | None = None,
     examples: str = "",
     category: str = "",
     rng: dict[str, Any] | None = None,
@@ -123,69 +126,79 @@ def tool_spec(  # noqa: PLR0913
         Unique tool name exposed to the LLM (snake_case).
     description:
         Natural-language description of what the tool does and when to use it.
-        Good descriptions contain:
-        * What the tool computes.
-        * What the inputs represent.
-        * When *not* to use it (if applicable).
+    input_model:
+        A :class:`pydantic.BaseModel` subclass describing the tool's
+        input. **This is the preferred form** (ENG-04 / ENG-10): the
+        model is the single source of truth for both the function's
+        Python signature and the MCP JSON Schema (derived via
+        :meth:`BaseModel.model_json_schema`). Every input model
+        **must** set ``model_config = ConfigDict(extra="forbid")`` so
+        unknown keys are rejected (closes the SEC-15
+        kwarg-injection vector at the schema layer).
+
+        The decorated function then receives the parsed model as its
+        single positional argument::
+
+            class FooInput(BaseModel):
+                model_config = ConfigDict(extra="forbid")
+                values: list[float] = Field(..., min_length=2)
+
+            @tool_spec(name="foo", description="...", input_model=FooInput)
+            def foo(spec: FooInput) -> dict:
+                return {"n": len(spec.values)}
     input_schema:
-        A dict with a single key ``"json"`` whose value is a valid `JSON Schema
-        <https://json-schema.org>`_ object describing the tool's parameters.
-        This mirrors the Anthropic ``input_schema`` field directly.
+        **Legacy.** A dict with a single ``"json"`` key whose value is
+        a hand-written JSON Schema. Kept while the
+        per-package migration to ``input_model=`` lands; new code
+        must not use this form. Exactly one of ``input_model`` /
+        ``input_schema`` must be provided.
     examples:
-        Optional string with one or more natural-language -> tool-call mappings
-        (plain text, no special format required).  Appended to ``description``
-        so the LLM can see worked examples inside the tool spec.
+        Optional natural-language -> tool-call mappings appended to
+        ``description`` so the LLM sees worked examples.
     category:
-        Optional category string (e.g. ``"univariate"``, ``"multivariate"``).
-        Used for filtering with :func:`get_tool_specs`.
+        Optional category string (e.g. ``"univariate"``). Used for
+        filtering with :func:`get_tool_specs`.
     rng:
-        Optional reproducibility metadata.  Tools that touch RNG should
-        declare whether the seed is user-controllable so downstream
-        reproducible-export tooling can introspect rather than guess.
-
-        Permitted shapes::
-
-            {"uses_rng": False}
-            {"uses_rng": True, "seed_param": "<kwarg-name>",
-             "default_seed": <int>}
-            {"uses_rng": True, "seed_param": None,
-             "note": "<why no user seed>"}
-
-        Omit entirely to leave the spec without an ``rng`` key (legacy
-        behavior; downstream consumers treat that as "unknown - assume
-        deterministic"). The Anthropic API ignores unknown spec keys, so
-        adding ``rng`` is safe.
+        Optional reproducibility metadata; see the prior docstring
+        for the contract.
 
     Returns
     -------
     Callable
-        The original function, unchanged except for an attached ``_tool_spec``
-        attribute and registration in :data:`_TOOL_REGISTRY`.
-
-    Examples
-    --------
-    ::
-
-        @tool_spec(
-            name="add_numbers",
-            description="Add two numbers together.",
-            input_schema={"json": {
-                "type": "object",
-                "properties": {
-                    "a": {"type": "number"},
-                    "b": {"type": "number"},
-                },
-                "required": ["a", "b"],
-            }},
-            examples='# "What is 2 + 3?" -> ``add_numbers(a=2, b=3)``',
-            category="math",
-            rng={"uses_rng": False},
-        )
-        def add_numbers(*, a: float, b: float) -> dict:
-            return {"result": a + b}
+        The original function, with an attached ``_tool_spec`` dict
+        and ``_input_model`` attribute (None for legacy tools).
     """
     if rng is not None:
         _validate_rng_metadata(name, rng)
+
+    # Exactly one input contract -- mutually exclusive, neither defaults.
+    if input_model is None and input_schema is None:
+        raise TypeError(
+            f"@tool_spec(name={name!r}): must provide either input_model= "
+            "(preferred) or input_schema= (legacy)."
+        )
+    if input_model is not None and input_schema is not None:
+        raise TypeError(
+            f"@tool_spec(name={name!r}): pass either input_model= or "
+            "input_schema=, not both."
+        )
+
+    if input_model is not None:
+        # Pydantic-derived path. Enforce the ``extra="forbid"`` contract so
+        # SEC-15's kwarg-injection vector closes at the schema layer rather
+        # than relying on a downstream filter.
+        if not (isinstance(input_model, type) and issubclass(input_model, BaseModel)):
+            raise TypeError(
+                f"@tool_spec(name={name!r}): input_model must be a pydantic "
+                f"BaseModel subclass; got {input_model!r}."
+            )
+        extra_policy = input_model.model_config.get("extra")
+        if extra_policy != "forbid":
+            raise ValueError(
+                f"@tool_spec(name={name!r}): input_model {input_model.__name__} "
+                "must set model_config = ConfigDict(extra='forbid') so unknown "
+                "kwargs are rejected (ENG-04 / SEC-15 contract)."
+            )
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         """Attach the assembled tool spec to ``func`` and return it unchanged."""
@@ -193,10 +206,16 @@ def tool_spec(  # noqa: PLR0913
         if examples:
             full_description = f"{description}\n\nExamples\n--------\n{examples}"
 
+        json_schema = (
+            input_model.model_json_schema()
+            if input_model is not None
+            else input_schema["json"]  # type: ignore[index]
+        )
+
         spec: dict[str, Any] = {
             "name": name,
             "description": full_description,
-            "input_schema": input_schema["json"],
+            "input_schema": json_schema,
         }
         if category:
             spec["category"] = category
@@ -204,6 +223,7 @@ def tool_spec(  # noqa: PLR0913
             spec["rng"] = dict(rng)
 
         func._tool_spec = spec  # type: ignore[attr-defined]
+        func._input_model = input_model  # type: ignore[attr-defined]
         _TOOL_REGISTRY[name] = func
         return func
 
@@ -363,10 +383,16 @@ def execute_tool_call(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noq
     tool_name:
         The ``name`` field from the ``tool_use`` block.
     tool_input:
-        The ``input`` dict from the ``tool_use`` block. Keys not declared in the
-        tool's ``input_schema`` ``properties`` are dropped before dispatch so a
-        caller cannot inject host-only parameters as kwargs (see
-        :func:`_filter_to_declared_keys`).
+        The ``input`` dict from the ``tool_use`` block.
+
+        - **Pydantic tools** (``input_model=``): the dict is validated
+          via ``input_model.model_validate(tool_input)``. Unknown keys
+          raise ``ToolInputInvalidError`` (closes the SEC-15
+          ``confirmed=True`` kwarg-injection at the schema layer).
+        - **Legacy tools** (``input_schema=``): the dict is filtered
+          to the keys declared in ``properties`` before being
+          forwarded as ``**kwargs`` -- the same defence-in-depth
+          filter that has shipped since SEC-15 was first patched.
 
     Returns
     -------
@@ -378,12 +404,24 @@ def execute_tool_call(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noq
     ------
     ValueError
         If *tool_name* is not in the registry.
+    ToolInputInvalidError
+        If a pydantic-tool's input fails validation.
     """
     discover_tools()
     if tool_name not in _TOOL_REGISTRY:
         available = sorted(_TOOL_REGISTRY)
         raise ValueError(f"Unknown tool {tool_name!r}. Available tools: {available}")
     func = _TOOL_REGISTRY[tool_name]
+    model_cls: type[BaseModel] | None = getattr(func, "_input_model", None)
+    if model_cls is not None:
+        try:
+            parsed = model_cls.model_validate(tool_input)
+        except ValidationError as exc:
+            raise ToolInputInvalidError(
+                f"Input to tool {tool_name!r} failed validation: {exc}",
+                details={"tool_name": tool_name, "errors": exc.errors()},
+            ) from exc
+        return func(parsed)
     return func(**_filter_to_declared_keys(func, tool_input))
 
 

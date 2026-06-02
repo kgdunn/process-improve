@@ -23,13 +23,20 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from process_improve.tool_spec import execute_tool_call
-
 # The documented "expected" exception classes for a tool wrapper.
 # Anything outside this set means a wrapper either (a) leaks an
 # implementation exception or (b) raises something undocumented
 # -- both are bugs.
-_EXPECTED = (ValueError, TypeError, KeyError)
+#
+# ``ToolInputInvalidError`` was added when ENG-04 / ENG-10 (PR #328)
+# moved univariate tools onto pydantic input models: pydantic's
+# ``ValidationError`` is translated into a structured
+# ``ToolInputInvalidError`` at the dispatch boundary. That is a
+# documented MCP-boundary exception, not a leak.
+from process_improve.tool_safety import ToolInputInvalidError
+from process_improve.tool_spec import execute_tool_call
+
+_EXPECTED = (ValueError, TypeError, KeyError, ToolInputInvalidError)
 
 
 _finite_floats = st.floats(allow_nan=False, allow_infinity=False, width=64)

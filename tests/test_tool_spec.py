@@ -137,15 +137,22 @@ class TestExecuteToolCall:
         with pytest.raises(ValueError, match="Unknown tool"):
             execute_tool_call("nonexistent_tool_xyz", {})
 
-    def test_drops_keys_not_declared_in_schema(self) -> None:
-        """Undeclared input keys are dropped before dispatch (SEC-15)."""
-        # ``rogue`` is not in robust_summary_stats' schema; if it reached the
-        # function as a kwarg the call would raise TypeError. Dropping it lets
-        # the call succeed.
-        result = execute_tool_call(
-            "robust_summary_stats", {"values": [1, 2, 3], "rogue": "x"}
-        )
-        assert "mean" in result
+    def test_rejects_keys_not_declared_in_pydantic_model(self) -> None:
+        """Undeclared input keys raise ``ToolInputInvalidError`` (SEC-15, ENG-04).
+
+        The pre-PR-#328 contract dropped undeclared keys with a
+        warning. After the pydantic migration the contract is
+        stricter: extra keys are rejected at the boundary thanks to
+        ``ConfigDict(extra="forbid")`` on every input model. This is
+        the structural closure of SEC-15's ``confirmed=True``
+        kwarg-injection vector.
+        """
+        from process_improve.tool_safety import ToolInputInvalidError
+
+        with pytest.raises(ToolInputInvalidError, match="extra_forbidden"):
+            execute_tool_call(
+                "robust_summary_stats", {"values": [1, 2, 3], "rogue": "x"}
+            )
 
 
 class TestFilterToDeclaredKeys:
