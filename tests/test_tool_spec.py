@@ -97,6 +97,29 @@ class TestToolSpecDecorator:
         assert "test_dummy_add" in _TOOL_REGISTRY
         assert "test_dummy_mul" in _TOOL_REGISTRY
 
+    def test_rejects_non_basemodel_input_model(self) -> None:
+        """input_model must be a pydantic BaseModel subclass."""
+        with pytest.raises(TypeError, match="must be a pydantic"):
+            tool_spec(
+                name="_bad_model",
+                description="x",
+                input_model=dict,  # type: ignore[arg-type]
+            )
+
+    def test_rejects_input_model_missing_extra_forbid(self) -> None:
+        """Input models must declare ``ConfigDict(extra='forbid')`` (ENG-04 / SEC-15)."""
+
+        class _NotForbidden(BaseModel):
+            # Default policy is "ignore", not "forbid" -- should be rejected.
+            value: float
+
+        with pytest.raises(ValueError, match="extra='forbid'"):
+            tool_spec(
+                name="_bad_extra",
+                description="x",
+                input_model=_NotForbidden,
+            )
+
 
 class TestGetToolSpecs:
     def test_returns_list_of_dicts(self) -> None:
@@ -122,6 +145,12 @@ class TestGetToolSpecs:
         """Verify an empty names filter returns an empty list."""
         specs = get_tool_specs(names=[])
         assert specs == []
+
+    def test_category_filter(self) -> None:
+        """Verify filtering specs by category returns only matching entries."""
+        specs = get_tool_specs(category="univariate")
+        assert len(specs) > 0
+        assert all(s.get("category") == "univariate" for s in specs)
 
 
 class TestExecuteToolCall:
