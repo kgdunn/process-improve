@@ -11,7 +11,7 @@ import numpy as np
 from ..regression.methods import fit_robust_lm
 
 
-def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | float:  # noqa: PLR0915
+def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | float:
     """
     Find the elbow point when plotting numeric entries in `x` vs numeric values in list `y`.
 
@@ -65,15 +65,9 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
     x = x[idx_sort]
     y = y[idx_sort]
     N = x.size
-    # Left and right anchor points: use median of the 5 points at start and end
-    lft_x_avg = np.median(x[0:start])
-    rgt_x_avg = np.median(x[-start:])
 
-    int_x_list = []
-    int_y_list = []
-    lft_line_list = []  # type: List[float]
-    rgt_line_list = []  # type: List[float]
-    angle_list = []  # type: List[float]
+    int_x_list: list[float] = []
+    int_y_list: list[float] = []
     for i in np.floor(np.linspace(0, int(N / 2 - start) + 1, max_iter)):
         idx = int(start + i)
         lo_x, lo_y = x[0:idx], y[0:idx]
@@ -83,46 +77,6 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
         int_x, int_y = find_line_intersection(lft[1], lft[0], rgt[1], rgt[0])
         int_x_list.append(int_x)
         int_y_list.append(int_y)
-        continue
-
-        # The rest of this code is not reachable. Exploratory code: was used during development
-        # only, and can be used to come up with alternative approaches of finding the elbow.
-        if False:  # pragma: no cover
-            # Left edge: (x=median(left 5 values), y = prediction from regression(x))
-            lft_y = lft[0] + lft[1] * lft_x_avg
-
-            # Right edge: (x=median(right 5 values), y = prediction from regression(x))
-            rgt_y = rgt[0] + rgt[1] * rgt_x_avg
-
-            lft_line = calculate_line_length(int_x, int_y, lft_x_avg, lft_y)
-            rgt_line = calculate_line_length(int_x, int_y, rgt_x_avg, rgt_y)
-            hypotenuse_line = calculate_line_length(lft_x_avg, lft_y, rgt_x_avg, rgt_y)
-            lft_line_list.append(lft_line)
-            rgt_line_list.append(rgt_line)
-
-            # SEC-33 (#282): clamp the ``arccos`` argument to [-1, 1] so a
-            # floating-point excursion (the law-of-cosines numerator
-            # rounding above 1.0 by a few eps) yields the correct boundary
-            # angle rather than a silent NaN.
-            cos_arg = np.clip(
-                (lft_line**2 + rgt_line**2 - hypotenuse_line**2) / (2 * lft_line * rgt_line),
-                -1.0,
-                1.0,
-            )
-            angle = np.arccos(cos_arg) * 180.0 / np.pi
-            angle_list.append(angle)
-
-    # Visualize the elbow point
-    if False:
-        import pandas as pd  # noqa: PLC0415
-
-        data = pd.DataFrame(data={"x": x, "y": y})
-        ax = data.plot.scatter(x="x", y="y")
-
-        intersections = pd.DataFrame(data={"x_int": int_x_list, "y_int": int_y_list})
-        intersections.plot.scatter(x="x_int", y="y_int", ax=ax)
-        pd.DataFrame(intersections.median()).T.plot.scatter(x="x_int", y="y_int", color="red", ax=ax)
-        ax.grid(True)
 
     # The elbow is the raw data point closest to the consensus intersection
     # point. Taking the median of every accumulated intersection - in both x

@@ -342,6 +342,8 @@ class Model(OLS):
             if drop_intercept:
                 params = params.drop("Intercept")
         except KeyError:
+            # Some models (e.g. ``y ~ 0 + ...``) have no Intercept term; the
+            # drop is a no-op in that case.
             pass
 
         return params.dropna()
@@ -441,10 +443,6 @@ def lm(  # noqa: C901, PLR0915
         """
         has_variation = model.exog.std(axis=0) > np.sqrt(np.finfo(float).eps)
 
-        # np.dot(model.exog.T, model.exog)/model.exog.shape[0]
-        # Drop columns which do not have any variation
-        corrcoef = np.corrcoef(model.exog[:, has_variation].T)  # , ddof=0)
-
         # Snippet of code here is from the NumPy "corrcoef" function. Adapted.
         c = np.cov(model.exog.T, None, rowvar=True)
         dot_product = model.exog.T @ model.exog
@@ -475,12 +473,13 @@ def lm(  # noqa: C901, PLR0915
                 # corrcoef = corrcoef / stddev[None, idx]
 
                 candidates = [i for i, val in enumerate(np.abs(corrcoef[idx, :])) if (val > threshold_correlation)]
-                signs = [np.sign(j) for j in corrcoef[idx, :]]
             else:
                 # Columns with no variation
                 candidates = [i for i, j in enumerate(has_variation) if (j <= threshold_correlation)]
 
-            # Track the correlation signs
+            # Track the correlation signs (computed from the raw dot product so
+            # the sign information matches the eventual alias decision below
+            # regardless of which branch built ``candidates``).
             signs = [np.sign(j) for j in dot_product[idx, :]]
 
             # Now drop out the candidates with the longest word lengths

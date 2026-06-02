@@ -10,4 +10,20 @@ Every public name remains importable as before::
     from process_improve.regression.methods import OLS, robust_regression, repeated_median_slope
 """
 
-from process_improve.regression._robust_regression import *  # noqa: F403
+from process_improve.regression._robust_regression import (
+    OLS,
+    fit_robust_lm,
+    multiple_linear_regression,
+    repeated_median_slope,
+    robust_regression,
+    t_value,
+)
+
+__all__ = [
+    "OLS",
+    "fit_robust_lm",
+    "multiple_linear_regression",
+    "repeated_median_slope",
+    "robust_regression",
+    "t_value",
+]

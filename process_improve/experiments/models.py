@@ -10,4 +10,24 @@ Every public name remains importable as before::
     from process_improve.experiments.models import Model, lm, predict, summary, validate_formula_is_safe
 """
 
-from process_improve.experiments._lm import *  # noqa: F403
+from process_improve.experiments._lm import (
+    Model,
+    UnsafeFormulaError,
+    forg,
+    lm,
+    predict,
+    summary,
+    validate_formula_is_safe,
+    validate_identifier_is_safe,
+)
+
+__all__ = [
+    "Model",
+    "UnsafeFormulaError",
+    "forg",
+    "lm",
+    "predict",
+    "summary",
+    "validate_formula_is_safe",
+    "validate_identifier_is_safe",
+]

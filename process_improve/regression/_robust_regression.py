@@ -167,7 +167,6 @@ def robust_regression(  # noqa: PLR0913, PLR0915
     y_ = pd.DataFrame(y.ravel(), copy=True) if isinstance(y, np.ndarray) else pd.DataFrame(y.values, copy=True)
 
     # Removing missing values:
-    missing_idx = y_.isna().any(axis=1)
     if na_rm:
         missing_idx = y_.isna().any(axis=1) | x_.isna().any(axis=1)
         x_ = x_.loc[~missing_idx, :]
@@ -217,7 +216,7 @@ def robust_regression(  # noqa: PLR0913, PLR0915
 
     # Handle degenerate case where x has no variation
     if out["x_ssq"] < __eps:
-        out["standard_error_intercept"] = SE_b0 = np.nan
+        out["standard_error_intercept"] = np.nan
         out["conf_interval_intercept"] = np.array([np.nan, np.nan])
         out["standard_errors"] = [
             np.nan,
