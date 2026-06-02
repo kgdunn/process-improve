@@ -12,7 +12,15 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-from pyDOE3 import fracfact, fracfact_by_res, pbdesign, taguchi_design
+
+try:
+    from pyDOE3 import fracfact, fracfact_by_res, pbdesign, taguchi_design
+except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
+    from process_improve._extras import _MissingExtra
+    fracfact = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
+    fracfact_by_res = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
+    pbdesign = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
+    taguchi_design = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
 if TYPE_CHECKING:
     from process_improve.experiments.factor import Factor

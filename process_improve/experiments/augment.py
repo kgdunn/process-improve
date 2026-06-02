@@ -28,7 +28,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from patsy import dmatrix
-from pyDOE3 import fullfact
+
+try:
+    from pyDOE3 import fullfact
+except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
+    from process_improve._extras import _MissingExtra
+    fullfact = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
 from process_improve.experiments.evaluate import (
     _defining_relation_from_generators,

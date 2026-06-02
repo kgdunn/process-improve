@@ -26,7 +26,12 @@ from collections.abc import Callable
 from typing import Any
 
 import numpy as np
-from pyDOE3 import ff2n
+
+try:
+    from pyDOE3 import ff2n
+except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
+    from process_improve._extras import _MissingExtra
+    ff2n = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
 from process_improve.experiments.designs_utils import build_design_result
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, FactorType

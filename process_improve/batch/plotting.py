@@ -9,12 +9,20 @@ from functools import partial
 from typing import Any
 
 import numpy as np
-
-# Plotting settings
-import plotly.graph_objects as go
-import seaborn as sns
-from plotly.offline import plot as plotoffline
 from pydantic import BaseModel, ConfigDict, Field
+
+# Plotting settings -- ENG-13 (#295): live in the optional ``[plotting]``
+# extra. Module import succeeds without them; any actual plot call raises
+# a clear "install the extra" ImportError via ``_MissingExtra``.
+try:
+    import plotly.graph_objects as go
+    import seaborn as sns
+    from plotly.offline import plot as plotoffline
+except ImportError:  # pragma: no cover - exercised via env-without-plotly
+    from process_improve._extras import _MissingExtra
+    go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
+    sns = _MissingExtra("seaborn", "plotting")  # type: ignore[assignment]
+    plotoffline = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
 from .data_input import check_valid_batch_dict
 

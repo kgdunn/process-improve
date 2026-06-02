@@ -33,8 +33,13 @@ Examples
 
 from __future__ import annotations
 
-import plotly.graph_objects as go
-import plotly.io as pio
+try:
+    import plotly.graph_objects as go
+    import plotly.io as pio
+except ImportError:  # pragma: no cover - exercised via env-without-plotly
+    from process_improve._extras import _MissingExtra
+    go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
+    pio = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
 from process_improve.visualization.colors import (
     FACTOR_COLORS,

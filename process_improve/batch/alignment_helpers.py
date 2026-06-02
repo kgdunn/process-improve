@@ -1,7 +1,26 @@
 """Functions in this files will ONLY use NumPy, and are therefore candidates for speed up with Numba."""
 
 import numpy as np
-from numba import jit
+
+# ENG-13 (#295): numba lives in the optional ``[fast]`` extra. Without it
+# the module still imports and the functions still run; ``@jit`` falls back
+# to a no-op decorator so the code executes as plain Python (slower, but
+# functionally identical).
+try:
+    from numba import jit
+except ImportError:
+    from collections.abc import Callable
+    from typing import Any
+
+    def jit(*args: Any, **kwargs: Any) -> Any:  # type: ignore[no-redef]  # noqa: ANN401
+        """No-op fallback when numba (the 'fast' extra) is not installed."""
+        def _decorator(func: Callable) -> Callable:
+            return func
+
+        # Support both ``@jit`` (no args) and ``@jit(nopython=True)``.
+        if len(args) == 1 and callable(args[0]) and not kwargs:
+            return args[0]
+        return _decorator
 
 
 @jit(nopython=True)

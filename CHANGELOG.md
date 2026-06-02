@@ -11,6 +11,44 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.11] - 2026-06-02
+
+### Changed (breaking: install footprint)
+
+- **ENG-13 (#295)**: the runtime dependency closure is trimmed from
+  16 packages to 8. The core install (``pip install process-improve``)
+  now pulls in only `numpy`, `pandas`, `scikit-learn`, `statsmodels`,
+  `patsy`, `pydantic`, `pyyaml`, and `tqdm`. Heavier optional
+  surfaces (plotting, designed experiments, batch IO, MCP server,
+  numba JIT) live in extras. The new ``[all]`` meta extra reproduces
+  the pre-1.24.11 install closure.
+
+  | Extra        | Packages                                                       |
+  |--------------|----------------------------------------------------------------|
+  | `plotting`   | matplotlib, plotly, seaborn, ridgeplot                         |
+  | `expt`       | pyDOE3                                                         |
+  | `batch`      | openpyxl, scikit-image                                         |
+  | `mcp`        | mcp                                                            |
+  | `fast`       | numba                                                          |
+  | `all`        | union of the above                                             |
+
+  Every top-level import of an extra-only package is gated with a
+  ``try / except ImportError`` that swaps in a ``_MissingExtra``
+  stand-in (``process_improve._extras``); any actual attribute
+  access then raises an ImportError whose message tells the user
+  which extra to install. ``numba``'s ``@jit`` decorator falls back
+  to a no-op so ``process_improve.batch.alignment_helpers`` still
+  imports and runs (as plain Python) without the ``[fast]`` extra.
+
+  CI keeps using ``uv sync --dev --all-extras`` so the test suite
+  exercises the same dependency closure as before. Existing users
+  who relied on the implicit fat install should run
+  ``pip install 'process-improve[all]'`` to keep current behaviour.
+
+### Documentation
+
+- README installation section documents the extras matrix.
+
 ## [1.24.10] - 2026-06-02
 
 ### Changed (release infrastructure)
@@ -980,7 +1018,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.10...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.11...HEAD
+[1.24.11]: https://github.com/kgdunn/process-improve/compare/v1.24.10...v1.24.11
 [1.24.10]: https://github.com/kgdunn/process-improve/compare/v1.24.9...v1.24.10
 [1.24.9]: https://github.com/kgdunn/process-improve/compare/v1.24.8...v1.24.9
 [1.24.8]: https://github.com/kgdunn/process-improve/compare/v1.24.7...v1.24.8
