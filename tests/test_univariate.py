@@ -394,6 +394,34 @@ def test_confidence_interval() -> None:
     # TODO: complete the test for the robust case
 
 
+# ---------------------------------------------------------------------------
+# SEC-24 (#273) -- degenerate-sample-size guards
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("n", [0, 1])
+def test_confidence_interval_rejects_fewer_than_two_samples(n: int) -> None:
+    """``confidence_interval`` requires n >= 2; SEC-24 (#273)."""
+    data = pd.DataFrame({"x": [1.0] * n})
+    with pytest.raises(ValueError, match="at least 2 non-missing values"):
+        univariate.confidence_interval(data, "x", conflevel=0.95, style="regular")
+
+
+def test_confidence_interval_rejects_all_nan_column() -> None:
+    """SEC-24 (#273) -- all-NaN counts as zero non-missing observations."""
+    data = pd.DataFrame({"x": [np.nan, np.nan, np.nan]})
+    with pytest.raises(ValueError, match="at least 2 non-missing values"):
+        univariate.confidence_interval(data, "x", conflevel=0.95, style="regular")
+
+
+@pytest.mark.parametrize("differences", [[], [3.0]])
+def test_ttest_paired_rejects_fewer_than_two_observations(differences: list[float]) -> None:
+    """``ttest_paired`` needs at least 2 differences; SEC-24 (#273)."""
+    diff_series = pd.Series(differences, dtype=float)
+    with pytest.raises(ValueError, match="at least 2 paired observations"):
+        univariate.ttest_paired(diff_series, conflevel=0.95)
+
+
 @pytest.fixture
 def within_between_sd_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     """

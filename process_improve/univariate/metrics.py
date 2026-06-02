@@ -331,6 +331,13 @@ def ttest_paired(differences: pd.Series, conflevel: float = 0.995) -> dict:
           i.e. ``sample_std / sqrt(n)`` (the scale used to build the confidence interval),
           NOT the sample standard deviation of ``differences``.
     """
+    # A paired t-test needs at least 2 differences (so dof >= 1 and the
+    # 1/n term inside sqrt is finite). SEC-24 (#273).
+    if differences.shape[0] < 2:
+        raise ValueError(
+            f"ttest_paired requires at least 2 paired observations; "
+            f"got {differences.shape[0]}."
+        )
     diff_mean = differences.mean()
     diff_svar = differences.std(ddof=1)
     dof = differences.shape[0] - 1  # n-1 d
@@ -441,6 +448,15 @@ def confidence_interval(df: pd.DataFrame, column_name: str, conflevel: float = 0
 
     data = df[column_name]
     n = data.count()
+    # A t-CI needs at least 2 non-missing observations to compute a
+    # spread and (n - 1) > 0 degrees of freedom. ``t.ppf(., -1)`` /
+    # ``spread / sqrt(0)`` silently yielded NaN / inf in earlier
+    # versions; reject up front. SEC-24 (#273).
+    if n < 2:
+        raise ValueError(
+            f"confidence_interval requires at least 2 non-missing values "
+            f"in column {column_name!r}; got {n}."
+        )
 
     if style.lower() == "robust":
         center = data.median()
