@@ -11,6 +11,22 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.14] - 2026-06-02
+
+### Changed (internal)
+
+- **ENG-01 (#342)**: split the 6,210-line
+  ``process_improve/multivariate/_pca_pls.py`` into focused submodules
+  (``_common``, ``_preprocessing``, ``_nipals``, ``_limits``,
+  ``_diagnostics``, ``_pca``, ``_pls``, ``_tpls``, ``_mbpls``, ``_mbpca``,
+  ``_resampling``). ``methods.py`` is now the canonical re-exporter that
+  aggregates these submodules, and ``_pca_pls.py`` is a thin
+  backward-compatibility shim. No public API change: every name remains
+  importable from ``process_improve.multivariate`` and
+  ``process_improve.multivariate.methods`` as before. The ``Plot`` accessor
+  moved to ``plots.py``, and several blocks of long-dead commented-out code
+  were removed along the way.
+
 ## [1.24.13] - 2026-06-02
 
 ### Changed (internal)
@@ -1059,7 +1075,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.13...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.14...HEAD
+[1.24.14]: https://github.com/kgdunn/process-improve/compare/v1.24.13...v1.24.14
 [1.24.13]: https://github.com/kgdunn/process-improve/compare/v1.24.12...v1.24.13
 [1.24.12]: https://github.com/kgdunn/process-improve/compare/v1.24.11...v1.24.12
 [1.24.11]: https://github.com/kgdunn/process-improve/compare/v1.24.10...v1.24.11
