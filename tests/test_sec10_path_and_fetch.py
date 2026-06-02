@@ -32,6 +32,23 @@ class TestLoadYamlTraversal:
         assert engine._load_yaml("does_not_exist.yaml") == []
 
 
+class TestLoadYamlSizeCap:
+    """SEC-30 (#279): an oversize YAML file is rejected before yaml.safe_load
+    resolves anchors, defending against a billion-laughs anchor bomb on a
+    tampered file in the data directory.
+    """
+
+    def test_oversize_yaml_rejected(self, tmp_path, monkeypatch) -> None:
+        # Point the loader at a tmp data dir holding a single very large file.
+        bomb = tmp_path / "bomb.yaml"
+        bomb.write_text("x: " + ("y" * (2 * 1024 * 1024)))  # ~2 MB
+        monkeypatch.setattr(engine, "_DATA_DIR", tmp_path)
+        monkeypatch.setattr(engine, "_MAX_YAML_BYTES", 1024 * 1024)  # 1 MB cap
+
+        with pytest.raises(ValueError, match="exceeds the cap"):
+            engine._load_yaml("bomb.yaml")
+
+
 class TestRemoteCsvErrorHandling:
     def test_network_failure_raises_clear_error(self, monkeypatch) -> None:
         def _boom(_url):

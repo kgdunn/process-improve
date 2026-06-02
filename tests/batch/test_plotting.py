@@ -52,6 +52,21 @@ def test_plotting_nylon(nylon_data: dict) -> None:
     assert len(fig["data"]) == len(dict_df) * 2  # plotting two tags; double the number.
 
 
+def test_plotting_nylon_bad_highlight_key_raises_clear_value_error(nylon_data: dict) -> None:
+    """SEC-32 (#281): a non-JSON ``batches_to_highlight`` key raises ValueError at
+    the API surface, not a confusing ``JSONDecodeError`` from inside a
+    comprehension.
+    """
+    with pytest.raises(ValueError, match="JSON-encoded"):
+        plot_all_batches_per_tag(
+            df_dict=nylon_data,
+            tag="Tag09",
+            x_axis_label="Samples since start of batch",
+            # Plain string instead of a JSON-encoded line-style spec.
+            batches_to_highlight={"not-a-json-key": [2, 3]},
+        )
+
+
 def test_plotting_tags(nylon_data: dict) -> None:
     """Test plotting multiple tags."""
     scale_df = determine_scaling(nylon_data, settings={"robust": False})
