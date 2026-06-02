@@ -11,6 +11,7 @@ built-in ``point_exchange()`` in ``optimal.py`` for D-optimal when
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -131,13 +132,24 @@ def _convert_factors_to_pyoptex(
     return pyoptex_factors
 
 
-def _run_pyoptex(  # noqa: PLR0913
+@dataclass
+class _PyoptexOptions:
+    """Optional knobs for :func:`_run_pyoptex`.
+
+    Pulled into a dataclass so the function signature stays at four
+    parameters (ENG-25 / #307: removes one ``noqa: PLR0913``).
+    """
+
+    model_type: str = "interactions"
+    hard_to_change: list[str] | None = None
+    n_tries: int = 10
+
+
+def _run_pyoptex(
     factors: list[Factor],
     criterion: str,
     budget: int,
-    model_type: str = "interactions",
-    hard_to_change: list[str] | None = None,
-    n_tries: int = 10,
+    options: _PyoptexOptions | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Run pyoptex's coordinate-exchange optimizer.
 
@@ -149,12 +161,9 @@ def _run_pyoptex(  # noqa: PLR0913
         One of ``"d_optimal"``, ``"i_optimal"``, ``"a_optimal"``.
     budget : int
         Number of runs in the design.
-    model_type : str
-        One of ``"main_effects"``, ``"interactions"``, ``"quadratic"``.
-    hard_to_change : list[str] or None
-        Names of hard-to-change factors (triggers split-plot structure).
-    n_tries : int
-        Number of random restarts for the coordinate exchange algorithm.
+    options : _PyoptexOptions or None
+        Optional knobs (model_type, hard_to_change, n_tries). Defaults
+        are interactions / no hard-to-change / 10 restarts.
 
     Returns
     -------
@@ -162,6 +171,11 @@ def _run_pyoptex(  # noqa: PLR0913
         Coded design matrix (-1 / +1 for continuous, labels for categorical)
         and metadata dict.
     """
+    opts = options if options is not None else _PyoptexOptions()
+    model_type = opts.model_type
+    hard_to_change = opts.hard_to_change
+    n_tries = opts.n_tries
+
     pyoptex_factors = _convert_factors_to_pyoptex(
         factors,
         hard_to_change=hard_to_change,
@@ -293,8 +307,7 @@ def dispatch_d_optimal(
             factors,
             criterion="d_optimal",
             budget=budget,
-            model_type=model_type,
-            hard_to_change=hard_to_change,
+            options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change),
         )
 
     if hard_to_change:
@@ -352,8 +365,7 @@ def dispatch_i_optimal(
         factors,
         criterion="i_optimal",
         budget=budget,
-        model_type=model_type,
-        hard_to_change=hard_to_change,
+        options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change),
     )
 
 
@@ -404,6 +416,5 @@ def dispatch_a_optimal(
         factors,
         criterion="a_optimal",
         budget=budget,
-        model_type=model_type,
-        hard_to_change=hard_to_change,
+        options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change),
     )
