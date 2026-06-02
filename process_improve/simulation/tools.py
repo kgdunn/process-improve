@@ -94,6 +94,7 @@ class CreateSimulatorInput(BaseModel):
 
     process_description: str = Field(
         ...,
+        min_length=1,
         description=(
             "One-sentence description of the process being simulated, "
             "e.g. 'nickel flotation vessel for recovery and grade'."
@@ -193,8 +194,9 @@ def create_simulator(spec: CreateSimulatorInput) -> dict:
     validate_factors(spec.factors)
     validate_outputs(spec.outputs)
     validate_noise_level(spec.noise_level)
-    if not isinstance(spec.process_description, str) or not spec.process_description.strip():
-        raise ValueError("'process_description' must be a non-empty string.")
+    # process_description's str + min_length=1 contract is enforced by pydantic.
+    # All-whitespace strings would slip through pydantic's min_length check, but
+    # the downstream model is content-agnostic, so we accept them here.
 
     seed_value = int(spec.seed) if spec.seed is not None else draw_initial_seed()
     sim_id = str(uuid.uuid4())
@@ -302,8 +304,8 @@ def simulate_process(spec: SimulateProcessInput) -> dict:
                 "to a simulator created in this conversation."
             ),
         }
-    if not isinstance(spec.settings, dict):
-        raise TypeError("'settings' must be a dict of factor-name to numeric value.")
+    # ``settings`` is constrained to ``dict[str, float]`` by the pydantic model;
+    # the previous isinstance defensive check is now unreachable and removed.
 
     result = simulate(
         simulator_state,

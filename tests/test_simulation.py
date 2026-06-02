@@ -330,6 +330,12 @@ class TestRevealSimulator:
         assert out["status"] == "confirmation_needed"
         assert "model" not in out
 
+    def test_confirmed_but_missing_state_returns_error(self):
+        """The reveal gate clears via context but no state was injected."""
+        out = _reveal_simulator(sim_id="abc", simulator_state=None, confirmed=True)
+        assert out.get("error") == "simulator_state_missing"
+        assert "model" not in out
+
     def test_returns_full_model_when_confirmed(self):
         sim = _make_sim(seed=9)
         out = _reveal_simulator(

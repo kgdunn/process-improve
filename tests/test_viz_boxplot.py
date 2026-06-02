@@ -232,10 +232,22 @@ def test_empty_data_returns_error() -> None:
     assert "error" in boxplot(data=[], value_columns=["y"])
 
 
+def test_empty_value_columns_returns_error() -> None:
+    res = boxplot(data=[{"y": 1}], value_columns=[])
+    assert "error" in res
+    assert "value_columns" in res["error"]
+
+
 def test_missing_value_column_returns_error() -> None:
     res = boxplot(data=[{"x": 1}], value_columns=["nope"])
     assert "error" in res
     assert "nope" in res["error"]
+
+
+def test_missing_id_column_returns_error() -> None:
+    res = boxplot(data=[{"y": 1}], value_columns=["y"], id_column="missing")
+    assert "error" in res
+    assert "missing" in res["error"]
 
 
 def test_missing_group_by_returns_error() -> None:
