@@ -11,6 +11,70 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.20] - 2026-06-02
+
+### Security
+
+- Complete the SEC-21 sweep: nine numerical sub-items in the
+  single-block PCA / PLS / TPLS / MBPLS / MBPCA paths that
+  previously divided by quantities that can be zero on
+  legitimate-but-degenerate inputs, silently poisoning fitted
+  models with `inf` / `NaN` (#270):
+
+  1. **TPLS inner-PLS `np.linalg.norm` divisions**
+     (`multivariate/methods.py:~2865, ~2876, ~3725-3727, ~4173,
+     ~4206-4209`) -- floor each denominator via `_nz(...)` so a
+     fully-deflated component or all-zero starting vector does not
+     produce NaN convergence ratios.
+  2. **PCA NIPALS initial-guess slice** (`~853`) -- add a defensive
+     `.copy()` to `t_a_guess = Xd[:, [0]].copy()`. Current numpy
+     fancy-indexing returns a copy, so the bug as stated in the
+     audit is not exploitable today; the explicit copy matches the
+     PLS path (~`:1527`) and protects against any future numpy
+     change.
+  3. **`spe_calculation` divide-by-zero** (`~2741-2744`) -- on a
+     perfect-fit training set (`variance_spe == 0`) or all-equal
+     SPE values, return `sqrt(center_spe)` rather than a NaN limit.
+  4. **`r2_per_variable_` divide-by-zero on constant columns**
+     (`~821, ~891, ~1744`) -- emit NaN via `np.where(prior_ssx_col
+     > 0, ..., np.nan)` so callers can distinguish "no signal" from
+     a numeric R^2. Same treatment for `r2y_per_variable_` on the
+     PLS path. `r2cum` now also short-circuits to NaN when
+     `base_variance == 0`.
+  5. **Score-contribution weighting divide-by-zero**
+     (`~1237-1242, ~2111-2116, ~4868-4873, ~5717-5722`) -- clamp
+     `sqrt(explained_variance_)` so a degenerate component
+     contributes nothing rather than `inf` / `NaN`.
+  6. **`explained_variance_` divide-by-`(N-1)`** (`~803, ~909,
+     ~971, ~1678`) -- mirror the MBPLS / MBPCA `max(1, N-1)` idiom
+     so a single-row fit no longer produces `inf` variance.
+  7. **`quick_regress` un-normalised numerator**
+     (`~2554-2572`) -- in the `np.abs(denom) <= epsqrt` branch,
+     return `0.0` rather than the un-normalised `sum(x*y)`. The
+     previous behaviour silently mixed two different quantities
+     into `b`.
+  8. **`np.argmin` on all-NaN RMSECV** (`~2028-2042`) -- raise
+     `RuntimeError` when every CV fold produced NaN total-RMSECV,
+     rather than silently recommending `n_components = 1`.
+  9. **`Resampler.bootstrap` / `.fractional` honor `random_state`**
+     (`~5754-5783, ~5826-5879`) -- the class now accepts
+     `random_state: int | Generator | None`, resolves it once via
+     `process_improve._random.check_random_state` (PR #318), and
+     uses `self._rng` for every draw. Two `Resampler`s built with
+     the same int seed now produce bit-identical bootstrap and
+     fractional resamples.
+
+### Tests
+
+- New `tests/properties/test_sec21_pca_pls_safety.py` covers
+  sub-items 2 and 4 with both example-based and hypothesis-based
+  tests (`TestR2PerVariableConstantColumn`,
+  `TestNipalsDoesNotMutateInput`).
+- `tests/test_multivariate_resampler.py` gains a new
+  `TestResamplerReproducibility` class covering sub-item 9
+  (same-seed identity, different-seed sequences, Generator
+  passthrough, fractional reproducibility).
+
 ## [1.22.19] - 2026-06-02
 
 ### Security
@@ -411,7 +475,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.19...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.20...HEAD
+[1.22.20]: https://github.com/kgdunn/process-improve/compare/v1.22.19...v1.22.20
 [1.22.19]: https://github.com/kgdunn/process-improve/compare/v1.22.18...v1.22.19
 [1.22.18]: https://github.com/kgdunn/process-improve/compare/v1.22.17...v1.22.18
 [1.22.17]: https://github.com/kgdunn/process-improve/compare/v1.22.16...v1.22.17
