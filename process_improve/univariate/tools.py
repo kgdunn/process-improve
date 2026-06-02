@@ -7,6 +7,20 @@ passed directly to an LLM tool-use API (e.g. Anthropic ``tools=``).
 The wrappers accept plain JSON-serialisable inputs (lists of numbers, strings,
 booleans) and always return JSON-serialisable ``dict`` results.
 
+Pydantic input contract (ENG-04 / ENG-10)
+-----------------------------------------
+
+Every tool below pairs its ``@tool_spec`` decorator with a pydantic
+``BaseModel`` subclass that is the single source of truth for both the
+function's call signature and the MCP JSON Schema. The model carries
+``ConfigDict(extra="forbid")`` so unknown kwargs are rejected at
+``execute_tool_call`` time -- closing the SEC-15 kwarg-injection vector
+at the schema layer.
+
+The function then receives the parsed model as its single positional
+argument. Migration from the legacy ``input_schema={...}`` form was
+done in PR #328; subsequent packages follow.
+
 Import all specs at once::
 
     from process_improve.univariate.tools import get_univariate_tool_specs
@@ -21,10 +35,11 @@ Dispatch a tool call returned by the model::
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
+from pydantic import BaseModel, ConfigDict, Field
 
 from process_improve.tool_spec import clean, get_tool_specs, tool_spec
 from process_improve.univariate.metrics import (
@@ -50,8 +65,28 @@ def _register(name: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Tools
+# robust_summary_stats
 # ---------------------------------------------------------------------------
+
+
+class RobustSummaryStatsInput(BaseModel):
+    """Input contract for ``robust_summary_stats``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    values: list[float] = Field(
+        ...,
+        min_length=2,
+        description="List of numeric observations. Missing values should be omitted.",
+    )
+    method: Literal["robust", "classical"] = Field(
+        "robust",
+        description=(
+            "Which method to use for the primary 'center' and 'spread' outputs. "
+            "'robust' uses the median and Sn scale estimator (default). "
+            "'classical' uses the mean and standard deviation."
+        ),
+    )
 
 
 @tool_spec(
@@ -63,29 +98,7 @@ def _register(name: str) -> None:
         "Use the 'robust' method (default) when data may contain outliers. "
         "Use 'classical' only when you are certain the data are clean and normally distributed."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "values": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "List of numeric observations. Missing values should be omitted.",
-                    "minItems": 2,
-                },
-                "method": {
-                    "type": "string",
-                    "enum": ["robust", "classical"],
-                    "description": (
-                        "Which method to use for the primary 'center' and 'spread' outputs. "
-                        "'robust' uses the median and Sn scale estimator (default). "
-                        "'classical' uses the mean and standard deviation."
-                    ),
-                },
-            },
-            "required": ["values"],
-        }
-    },
+    input_model=RobustSummaryStatsInput,
     examples="""
     # "Give me summary statistics for [10, 12, 11, 9, 100]"
         -> ``robust_summary_stats(values=[10, 12, 11, 9, 100])``
@@ -95,14 +108,52 @@ def _register(name: str) -> None:
     """,
     category="univariate",
 )
-def robust_summary_stats(*, values: list[float], method: str = "robust") -> dict:
+def robust_summary_stats(spec: RobustSummaryStatsInput) -> dict:
     """Compute summary statistics; see tool spec for parameter details."""
-    arr = np.asarray(values, dtype=float)
-    result = summary_stats(arr, method=method)
+    arr = np.asarray(spec.values, dtype=float)
+    result = summary_stats(arr, method=spec.method)
     return clean(result)
 
 
 _register("robust_summary_stats")
+
+
+# ---------------------------------------------------------------------------
+# detect_outliers
+# ---------------------------------------------------------------------------
+
+
+class DetectOutliersInput(BaseModel):
+    """Input contract for ``detect_outliers``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    values: list[float] = Field(
+        ...,
+        min_length=3,
+        description="List of numeric observations to test.",
+    )
+    max_outliers_to_detect: int = Field(
+        5,
+        ge=1,
+        description=(
+            "Upper bound on the number of outliers to search for "
+            "(default 5, must be < len(values))."
+        ),
+    )
+    alpha: float = Field(
+        0.05,
+        gt=0,
+        lt=1,
+        description="Significance level for each individual test (default 0.05).",
+    )
+    robust_variant: bool = Field(
+        True,
+        description=(
+            "When true (default), use median and MAD instead of mean and std. "
+            "Recommended when outliers may already be present."
+        ),
+    )
 
 
 @tool_spec(
@@ -116,40 +167,7 @@ _register("robust_summary_stats")
         "Set max_outliers_to_detect to at least the number of outliers you suspect; the algorithm "
         "will find the actual count up to that limit."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "values": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "List of numeric observations to test.",
-                    "minItems": 3,
-                },
-                "max_outliers_to_detect": {
-                    "type": "integer",
-                    "description": (
-                        "Upper bound on the number of outliers to search for (default 5, must be < len(values))."
-                    ),
-                    "minimum": 1,
-                },
-                "alpha": {
-                    "type": "number",
-                    "description": "Significance level for each individual test (default 0.05).",
-                    "exclusiveMinimum": 0,
-                    "exclusiveMaximum": 1,
-                },
-                "robust_variant": {
-                    "type": "boolean",
-                    "description": (
-                        "When true (default), use median and MAD instead of mean and std. "
-                        "Recommended when outliers may already be present."
-                    ),
-                },
-            },
-            "required": ["values"],
-        }
-    },
+    input_model=DetectOutliersInput,
     examples="""
     # "Are there outliers in [1, 2, 2, 3, 2, 100]?"
         -> ``detect_outliers(values=[1, 2, 2, 3, 2, 100])``
@@ -162,34 +180,45 @@ _register("robust_summary_stats")
     """,
     category="univariate",
 )
-def detect_outliers(
-    *,
-    values: list[float],
-    max_outliers_to_detect: int = 5,
-    alpha: float = 0.05,
-    robust_variant: bool = True,
-) -> dict:
+def detect_outliers(spec: DetectOutliersInput) -> dict:
     """Detect outliers using the Generalised ESD test; see tool spec for details."""
-    arr = np.asarray(values, dtype=float)
-    max_k = min(max_outliers_to_detect, len(arr) - 1)
+    arr = np.asarray(spec.values, dtype=float)
+    max_k = min(spec.max_outliers_to_detect, len(arr) - 1)
     outlier_indices, _details = detect_outliers_esd(
         arr,
         algorithm="esd",
         max_outliers_detected=max_k,
-        alpha=alpha,
-        robust_variant=robust_variant,
+        alpha=spec.alpha,
+        robust_variant=spec.robust_variant,
     )
-    outlier_values = [float(values[i]) for i in outlier_indices]
+    outlier_values = [float(spec.values[i]) for i in outlier_indices]
     return {
         "outlier_indices": list(outlier_indices),
         "outlier_values": outlier_values,
         "n_outliers_found": len(outlier_indices),
-        "alpha": alpha,
-        "robust_variant": robust_variant,
+        "alpha": spec.alpha,
+        "robust_variant": spec.robust_variant,
     }
 
 
 _register("detect_outliers")
+
+
+# ---------------------------------------------------------------------------
+# robust_scale_sn
+# ---------------------------------------------------------------------------
+
+
+class RobustScaleSnInput(BaseModel):
+    """Input contract for ``robust_scale_sn``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    values: list[float] = Field(
+        ...,
+        min_length=2,
+        description="List of numeric observations.",
+    )
 
 
 @tool_spec(
@@ -202,29 +231,16 @@ _register("detect_outliers")
         "A large Sn relative to the mean suggests high variability or outliers. "
         "Reference: Rousseeuw & Croux (1993)."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "values": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "List of numeric observations.",
-                    "minItems": 2,
-                },
-            },
-            "required": ["values"],
-        }
-    },
+    input_model=RobustScaleSnInput,
     examples="""
     # "What is the robust spread of [5, 6, 5, 7, 5, 6, 100]?"
         -> ``robust_scale_sn(values=[5, 6, 5, 7, 5, 6, 100])``
     """,
     category="univariate",
 )
-def robust_scale_sn(*, values: list[float]) -> dict:
+def robust_scale_sn(spec: RobustScaleSnInput) -> dict:
     """Compute Sn robust scale estimator; see tool spec for details."""
-    arr = np.asarray(values, dtype=float)
+    arr = np.asarray(spec.values, dtype=float)
     sn_value = float(Sn(arr))
     mean = float(np.nanmean(arr))
     rsd = (sn_value / mean) if mean != 0 else None
@@ -232,6 +248,30 @@ def robust_scale_sn(*, values: list[float]) -> dict:
 
 
 _register("robust_scale_sn")
+
+
+# ---------------------------------------------------------------------------
+# median_absolute_deviation
+# ---------------------------------------------------------------------------
+
+
+class MedianAbsoluteDeviationInput(BaseModel):
+    """Input contract for ``median_absolute_deviation``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    values: list[float] = Field(
+        ...,
+        min_length=2,
+        description="List of numeric observations.",
+    )
+    scale: Literal["normal", "raw"] = Field(
+        "normal",
+        description=(
+            "'normal' (default): normalise so MAD ~ std for Gaussian data. "
+            "'raw': return the raw median of absolute deviations."
+        ),
+    )
 
 
 @tool_spec(
@@ -244,28 +284,7 @@ _register("robust_scale_sn")
         "MAD is more robust than the standard deviation but assumes approximate symmetry. "
         "Prefer Sn (robust_scale_sn) when symmetry cannot be assumed."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "values": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "List of numeric observations.",
-                    "minItems": 2,
-                },
-                "scale": {
-                    "type": "string",
-                    "enum": ["normal", "raw"],
-                    "description": (
-                        "'normal' (default): normalise so MAD ~ std for Gaussian data. "
-                        "'raw': return the raw median of absolute deviations."
-                    ),
-                },
-            },
-            "required": ["values"],
-        }
-    },
+    input_model=MedianAbsoluteDeviationInput,
     examples="""
     # "What is the MAD of [10, 11, 12, 10, 9, 10, 50]?"
         -> ``median_absolute_deviation(values=[10, 11, 12, 10, 9, 10, 50])``
@@ -275,15 +294,38 @@ _register("robust_scale_sn")
     """,
     category="univariate",
 )
-def median_absolute_deviation_tool(*, values: list[float], scale: str = "normal") -> dict:
+def median_absolute_deviation_tool(spec: MedianAbsoluteDeviationInput) -> dict:
     """Compute Median Absolute Deviation; see tool spec for details."""
-    arr = np.asarray(values, dtype=float)
-    scale_arg = "normal" if scale == "normal" else 1.0
+    arr = np.asarray(spec.values, dtype=float)
+    scale_arg: Any = "normal" if spec.scale == "normal" else 1.0
     mad_value = float(median_absolute_deviation(arr, scale=scale_arg))
-    return clean({"mad": mad_value, "scale": scale, "n": int(np.sum(~np.isnan(arr)))})
+    return clean({"mad": mad_value, "scale": spec.scale, "n": int(np.sum(~np.isnan(arr)))})
 
 
 _register("median_absolute_deviation")
+
+
+# ---------------------------------------------------------------------------
+# normality_test
+# ---------------------------------------------------------------------------
+
+
+class NormalityTestInput(BaseModel):
+    """Input contract for ``normality_test``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    values: list[float] = Field(
+        ...,
+        min_length=3,
+        description="List of numeric observations (3 to ~5000 values).",
+    )
+    alpha: float = Field(
+        0.05,
+        gt=0,
+        lt=1,
+        description="Significance level for the decision (default 0.05).",
+    )
 
 
 @tool_spec(
@@ -297,26 +339,7 @@ _register("median_absolute_deviation")
         "not inconsistent with it. "
         "Use this to decide whether robust or classical statistics are more appropriate."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "values": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "List of numeric observations (3 to ~5000 values).",
-                    "minItems": 3,
-                },
-                "alpha": {
-                    "type": "number",
-                    "description": "Significance level for the decision (default 0.05).",
-                    "exclusiveMinimum": 0,
-                    "exclusiveMaximum": 1,
-                },
-            },
-            "required": ["values"],
-        }
-    },
+    input_model=NormalityTestInput,
     examples="""
     # "Is this data normally distributed? [10.1, 9.8, 10.2, 9.9, 10.0]"
         -> ``normality_test(values=[10.1, 9.8, 10.2, 9.9, 10.0])``
@@ -326,24 +349,24 @@ _register("median_absolute_deviation")
     """,
     category="univariate",
 )
-def normality_test(*, values: list[float], alpha: float = 0.05) -> dict:
+def normality_test(spec: NormalityTestInput) -> dict:
     """Shapiro-Wilk normality test; see tool spec for details."""
     from scipy.stats import shapiro  # noqa: PLC0415
 
-    arr = np.asarray(values, dtype=float)
+    arr = np.asarray(spec.values, dtype=float)
     arr_clean = arr[~np.isnan(arr)]
     stat, p_value = shapiro(arr_clean)
-    is_normal = bool(p_value >= alpha)
+    is_normal = bool(p_value >= spec.alpha)
     return clean(
         {
             "statistic": float(stat),
             "p_value": float(p_value),
-            "alpha": alpha,
+            "alpha": spec.alpha,
             "is_normal": is_normal,
             "interpretation": (
-                f"At the {alpha:.0%} significance level, the data appear consistent with a normal distribution."
+                f"At the {spec.alpha:.0%} significance level, the data appear consistent with a normal distribution."
                 if is_normal
-                else f"At the {alpha:.0%} significance level, there is evidence that the data "
+                else f"At the {spec.alpha:.0%} significance level, there is evidence that the data "
                 f"are NOT normally distributed (p={p_value:.4f}). Consider using robust methods."
             ),
         }
@@ -351,6 +374,36 @@ def normality_test(*, values: list[float], alpha: float = 0.05) -> dict:
 
 
 _register("normality_test")
+
+
+# ---------------------------------------------------------------------------
+# confidence_interval
+# ---------------------------------------------------------------------------
+
+
+class ConfidenceIntervalInput(BaseModel):
+    """Input contract for ``confidence_interval``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    values: list[float] = Field(
+        ...,
+        min_length=3,
+        description="List of numeric observations.",
+    )
+    confidence_level: float = Field(
+        0.95,
+        gt=0,
+        lt=1,
+        description="Confidence level between 0 and 1 (default 0.95 -> 95% CI).",
+    )
+    method: Literal["robust", "classical"] = Field(
+        "robust",
+        description=(
+            "'robust' (default): use median +/- t * MAD / sqrt(n). "
+            "'classical': use mean +/- t * std / sqrt(n)."
+        ),
+    )
 
 
 @tool_spec(
@@ -362,34 +415,7 @@ _register("normality_test")
         "The 'classical' method uses the mean and standard deviation. "
         "The interval is computed using the t-distribution to account for small samples."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "values": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "List of numeric observations.",
-                    "minItems": 3,
-                },
-                "confidence_level": {
-                    "type": "number",
-                    "description": "Confidence level between 0 and 1 (default 0.95 -> 95% CI).",
-                    "exclusiveMinimum": 0,
-                    "exclusiveMaximum": 1,
-                },
-                "method": {
-                    "type": "string",
-                    "enum": ["robust", "classical"],
-                    "description": (
-                        "'robust' (default): use median +/- t * MAD / sqrt(n). "
-                        "'classical': use mean +/- t * std / sqrt(n)."
-                    ),
-                },
-            },
-            "required": ["values"],
-        }
-    },
+    input_model=ConfidenceIntervalInput,
     examples="""
     # "What is the 95% confidence interval for [10, 11, 12, 10, 9, 10]?"
         -> ``confidence_interval(values=[10, 11, 12, 10, 9, 10])``
@@ -399,23 +425,18 @@ _register("normality_test")
     """,
     category="univariate",
 )
-def confidence_interval_tool(
-    *,
-    values: list[float],
-    confidence_level: float = 0.95,
-    method: str = "robust",
-) -> dict:
+def confidence_interval_tool(spec: ConfidenceIntervalInput) -> dict:
     """Compute a confidence interval; see tool spec for details."""
-    arr = np.asarray(values, dtype=float)
+    arr = np.asarray(spec.values, dtype=float)
     arr_clean = arr[~np.isnan(arr)]
     n = len(arr_clean)
-    if method == "robust":
+    if spec.method == "robust":
         center = float(np.median(arr_clean))
         spread = float(median_absolute_deviation(arr_clean))
     else:
         center = float(np.mean(arr_clean))
         spread = float(np.std(arr_clean, ddof=1))
-    ct = float(t_value(1 - (1 - confidence_level) / 2, n - 1))
+    ct = float(t_value(1 - (1 - spec.confidence_level) / 2, n - 1))
     margin = ct * spread / np.sqrt(n)
     return clean(
         {
@@ -423,14 +444,42 @@ def confidence_interval_tool(
             "center": center,
             "upper": center + margin,
             "margin_of_error": margin,
-            "confidence_level": confidence_level,
-            "method": method,
+            "confidence_level": spec.confidence_level,
+            "method": spec.method,
             "n": n,
         }
     )
 
 
 _register("confidence_interval")
+
+
+# ---------------------------------------------------------------------------
+# ttest_two_samples
+# ---------------------------------------------------------------------------
+
+
+class TtestTwoSamplesInput(BaseModel):
+    """Input contract for ``ttest_two_samples``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    group_a: list[float] = Field(
+        ...,
+        min_length=2,
+        description="Observations for group A (the reference / baseline group).",
+    )
+    group_b: list[float] = Field(
+        ...,
+        min_length=2,
+        description="Observations for group B (the comparison group).",
+    )
+    confidence_level: float = Field(
+        0.95,
+        gt=0,
+        lt=1,
+        description="Confidence level for the interval (default 0.95).",
+    )
 
 
 @tool_spec(
@@ -443,32 +492,7 @@ _register("confidence_interval")
         "The groups must be independent (different subjects/items). "
         "Use ttest_paired_samples instead when each observation in group A is matched to one in B."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "group_a": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "Observations for group A (the reference / baseline group).",
-                    "minItems": 2,
-                },
-                "group_b": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "Observations for group B (the comparison group).",
-                    "minItems": 2,
-                },
-                "confidence_level": {
-                    "type": "number",
-                    "description": "Confidence level for the interval (default 0.95).",
-                    "exclusiveMinimum": 0,
-                    "exclusiveMaximum": 1,
-                },
-            },
-            "required": ["group_a", "group_b"],
-        }
-    },
+    input_model=TtestTwoSamplesInput,
     examples="""
     # "Is the average yield different between process A [102,98,100] and process B [110,112,108]?"
         -> ``ttest_two_samples(group_a=[102,98,100], group_b=[110,112,108])``
@@ -478,16 +502,11 @@ _register("confidence_interval")
     """,
     category="univariate",
 )
-def ttest_two_samples(
-    *,
-    group_a: list[float],
-    group_b: list[float],
-    confidence_level: float = 0.95,
-) -> dict:
+def ttest_two_samples(spec: TtestTwoSamplesInput) -> dict:
     """Unpaired t-test for two independent samples; see tool spec for details."""
-    a = pd.Series(np.asarray(group_a, dtype=float)).dropna()
-    b = pd.Series(np.asarray(group_b, dtype=float)).dropna()
-    raw = ttest_independent(a, b, conflevel=confidence_level)
+    a = pd.Series(np.asarray(spec.group_a, dtype=float)).dropna()
+    b = pd.Series(np.asarray(spec.group_b, dtype=float)).dropna()
+    raw = ttest_independent(a, b, conflevel=spec.confidence_level)
 
     # Remap keys to snake_case
     result = {
@@ -501,23 +520,51 @@ def ttest_two_samples(
         "p_value": raw["p value"],
         "degrees_of_freedom": raw["Degrees of freedom"],
         "pooled_std": raw["Pooled standard deviation"],
-        "confidence_level": confidence_level,
+        "confidence_level": spec.confidence_level,
     }
-    significant = bool(result["p_value"] < (1 - confidence_level))
+    significant = bool(result["p_value"] < (1 - spec.confidence_level))
     result["significant"] = significant
     diff = result["group_b_mean"] - result["group_a_mean"]
     result["interpretation"] = (
         f"The difference (B - A = {diff:.4g}) "
         + (
-            f"IS statistically significant (p={result['p_value']:.4f} < {1 - confidence_level:.2f})."
+            f"IS statistically significant (p={result['p_value']:.4f} < {1 - spec.confidence_level:.2f})."
             if significant
-            else f"is NOT statistically significant (p={result['p_value']:.4f} >= {1 - confidence_level:.2f})."
+            else f"is NOT statistically significant (p={result['p_value']:.4f} >= {1 - spec.confidence_level:.2f})."
         )
     )
     return clean(result)
 
 
 _register("ttest_two_samples")
+
+
+# ---------------------------------------------------------------------------
+# ttest_paired_samples
+# ---------------------------------------------------------------------------
+
+
+class TtestPairedSamplesInput(BaseModel):
+    """Input contract for ``ttest_paired_samples``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    group_a: list[float] = Field(
+        ...,
+        min_length=2,
+        description="Before / reference measurements (one per subject).",
+    )
+    group_b: list[float] = Field(
+        ...,
+        min_length=2,
+        description="After / comparison measurements (same order as group_a).",
+    )
+    confidence_level: float = Field(
+        0.95,
+        gt=0,
+        lt=1,
+        description="Confidence level for the interval (default 0.95).",
+    )
 
 
 @tool_spec(
@@ -530,47 +577,17 @@ _register("ttest_two_samples")
         "group_b (e.g. before/after measurements on the same individual). "
         "Use ttest_two_samples instead for independent groups."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "group_a": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "Before / reference measurements (one per subject).",
-                    "minItems": 2,
-                },
-                "group_b": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "After / comparison measurements (same order as group_a).",
-                    "minItems": 2,
-                },
-                "confidence_level": {
-                    "type": "number",
-                    "description": "Confidence level for the interval (default 0.95).",
-                    "exclusiveMinimum": 0,
-                    "exclusiveMaximum": 1,
-                },
-            },
-            "required": ["group_a", "group_b"],
-        }
-    },
+    input_model=TtestPairedSamplesInput,
     examples="""
-    # "Did the treatment improve scores? Before: [70,65,80], After: [75,70,82]"
-        -> ``ttest_paired_samples(group_a=[70,65,80], group_b=[75,70,82])``
+    # "Did the new catalyst improve yields? Before [92, 95, 89] After [101, 99, 97]"
+        -> ``ttest_paired_samples(group_a=[92,95,89], group_b=[101,99,97])``
     """,
     category="univariate",
 )
-def ttest_paired_samples(
-    *,
-    group_a: list[float],
-    group_b: list[float],
-    confidence_level: float = 0.95,
-) -> dict:
+def ttest_paired_samples(spec: TtestPairedSamplesInput) -> dict:
     """Paired t-test; see tool spec for details."""
-    a = pd.Series(np.asarray(group_a, dtype=float))
-    b = pd.Series(np.asarray(group_b, dtype=float))
+    a = pd.Series(np.asarray(spec.group_a, dtype=float))
+    b = pd.Series(np.asarray(spec.group_b, dtype=float))
     if len(a) != len(b):
         raise ValueError(
             f"group_a and group_b must have the same length for a paired test; "
@@ -578,37 +595,62 @@ def ttest_paired_samples(
         )
     differences = a - b.values
     differences = differences.dropna()
-    raw = ttest_paired(differences, conflevel=confidence_level)
-
-    # Remap keys to snake_case
+    raw = ttest_paired(differences, conflevel=spec.confidence_level)
     result = {
+        "n_pairs": len(differences),
         "differences_mean": raw["Differences mean"],
+        "differences_std": raw["Standard deviation"],
         "z_value": raw["z value"],
         "conf_int_lower": raw["ConfInt: Lo"],
         "conf_int_upper": raw["ConfInt: Hi"],
         "p_value": raw["p value"],
         "degrees_of_freedom": raw["Degrees of freedom"],
-        "std": raw["Standard deviation"],
-        "group_a_mean": float(a.mean()),
-        "group_b_mean": float(b.mean()),
-        "group_a_n": int(a.count()),
-        "group_b_n": int(b.count()),
-        "confidence_level": confidence_level,
+        "confidence_level": spec.confidence_level,
     }
-    significant = bool(result["p_value"] < (1 - confidence_level))
+    significant = bool(result["p_value"] < (1 - spec.confidence_level))
     result["significant"] = significant
     result["interpretation"] = (
         f"The mean paired difference (A - B = {result['differences_mean']:.4g}) "
         + (
-            f"IS statistically significant (p={result['p_value']:.4f} < {1 - confidence_level:.2f})."
+            f"IS statistically significant (p={result['p_value']:.4f} < {1 - spec.confidence_level:.2f})."
             if significant
-            else f"is NOT statistically significant (p={result['p_value']:.4f} >= {1 - confidence_level:.2f})."
+            else f"is NOT statistically significant (p={result['p_value']:.4f} >= {1 - spec.confidence_level:.2f})."
         )
     )
     return clean(result)
 
 
 _register("ttest_paired_samples")
+
+
+# ---------------------------------------------------------------------------
+# within_between_variance
+# ---------------------------------------------------------------------------
+
+
+class WithinBetweenVarianceInput(BaseModel):
+    """Input contract for ``within_between_variance``.
+
+    ``groups`` is intentionally typed as ``list[Any]`` so the LLM can
+    pass strings, ints, or any hashable group label; pydantic only
+    enforces the list shape.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    values: list[float] = Field(
+        ...,
+        min_length=3,
+        description="Numeric measurement for each observation.",
+    )
+    groups: list[Any] = Field(
+        ...,
+        min_length=3,
+        description=(
+            "Group label for each observation (same length as values). "
+            "Can be strings, integers, or any hashable type."
+        ),
+    )
 
 
 @tool_spec(
@@ -622,29 +664,7 @@ _register("ttest_paired_samples")
         "Supply two parallel lists: 'values' (the measurements) and 'groups' (a group label for "
         "each measurement)."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "values": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "Numeric measurement for each observation.",
-                    "minItems": 3,
-                },
-                "groups": {
-                    "type": "array",
-                    "items": {},
-                    "description": (
-                        "Group label for each observation (same length as values). "
-                        "Can be strings, integers, or any hashable type."
-                    ),
-                    "minItems": 3,
-                },
-            },
-            "required": ["values", "groups"],
-        }
-    },
+    input_model=WithinBetweenVarianceInput,
     examples="""
     # "Measurements on day 1: [101,102] and day 2: [94,95]. How much variation is within vs between days?"
         -> ``within_between_variance(values=[101,102,94,95], groups=[1,1,2,2])``
@@ -655,18 +675,14 @@ _register("ttest_paired_samples")
     """,
     category="univariate",
 )
-def within_between_variance(
-    *,
-    values: list[float],
-    groups: list[Any],
-) -> dict:
+def within_between_variance(spec: WithinBetweenVarianceInput) -> dict:
     """Within- and between-group variance decomposition; see tool spec for details."""
-    if len(values) != len(groups):
+    if len(spec.values) != len(spec.groups):
         raise ValueError(
             f"'values' and 'groups' must have the same length; "
-            f"got len(values)={len(values)}, len(groups)={len(groups)}."
+            f"got len(values)={len(spec.values)}, len(groups)={len(spec.groups)}."
         )
-    df = pd.DataFrame({"measured": values, "repeat": groups})
+    df = pd.DataFrame({"measured": spec.values, "repeat": spec.groups})
     result = variance_decomposition(df, measured="measured", repeat="repeat")
     return clean(result)
 

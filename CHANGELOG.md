@@ -11,6 +11,44 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-06-02
+
+### Changed (breaking)
+
+- `@tool_spec` now requires an `input_model: type[BaseModel]`
+  parameter as the single source of truth for both the function's
+  call signature and the MCP JSON Schema (ENG-04 / ENG-10
+  decision; PR #328 of N). The legacy `input_schema={...}` form
+  is still accepted while the per-package migration completes;
+  new tools must use `input_model=`. Migration of the **univariate
+  package** (9 tools) lands in this release; subsequent packages
+  follow in immediate successor PRs in the same release window.
+- `execute_tool_call` now validates the input dict against
+  `input_model` (when present) via
+  `BaseModel.model_validate(...)` and passes the parsed pydantic
+  model to the tool function as a single positional argument.
+  Pre-pydantic tools still use the legacy `**kwargs` filter.
+- Unknown keys in a tool input now raise
+  `ToolInputInvalidError` instead of being silently dropped with a
+  warning. This is the structural closure of SEC-15's
+  `confirmed=True` kwarg-injection vector (`extra="forbid"` on
+  every input model).
+
+### Security
+
+- The new pydantic boundary catches SEC-15 (#264) again at a
+  deeper layer: even if the runtime filter regressed, every
+  ``extra=`` key now produces `extra_forbidden` validation errors
+  by pydantic's construction.
+
+### Tests
+
+- `tests/test_tool_spec.py::TestExecuteToolCall::test_rejects_keys_not_declared_in_pydantic_model`
+  (renamed from `test_drops_keys_not_declared_in_schema`) pins
+  the new strict behaviour.
+- `tests/fuzz/test_robust_scale_sn_fuzz.py` accepts
+  `ToolInputInvalidError` as a documented MCP-boundary exception.
+
 ## [1.23.2] - 2026-06-02
 
 ### Security
@@ -652,7 +690,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.23.2...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.0...HEAD
+[1.24.0]: https://github.com/kgdunn/process-improve/compare/v1.23.2...v1.24.0
 [1.23.2]: https://github.com/kgdunn/process-improve/compare/v1.23.1...v1.23.2
 [1.23.1]: https://github.com/kgdunn/process-improve/compare/v1.23.0...v1.23.1
 [1.23.0]: https://github.com/kgdunn/process-improve/compare/v1.22.21...v1.23.0
