@@ -1,6 +1,11 @@
 """(c) Kevin Dunn, 2010-2026. MIT License.
 
 Agent-callable tool wrappers for robust regression.
+
+Pydantic input contract (ENG-04 / ENG-10): each tool pairs its
+``@tool_spec`` decorator with a ``BaseModel`` carrying
+``ConfigDict(extra="forbid")``; the function receives the parsed
+model as its single positional argument.
 """
 
 from __future__ import annotations
@@ -8,6 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+from pydantic import BaseModel, ConfigDict, Field
 
 from process_improve.tool_spec import clean, get_tool_specs, tool_spec
 
@@ -19,8 +25,35 @@ def _register(name: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Tools
+# robust_regression
 # ---------------------------------------------------------------------------
+
+
+class RobustRegressionInput(BaseModel):
+    """Input contract for ``robust_regression``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    x: list[float] = Field(
+        ...,
+        min_length=3,
+        description="Independent variable (predictor) values.",
+    )
+    y: list[float] = Field(
+        ...,
+        min_length=3,
+        description="Dependent variable (response) values. Must be same length as x.",
+    )
+    confidence_level: float = Field(
+        0.95,
+        gt=0,
+        lt=1,
+        description="Confidence level for intervals (default 0.95).",
+    )
+    fit_intercept: bool = Field(
+        True,
+        description="If true (default), fit an intercept term. If false, force through origin.",
+    )
 
 
 @tool_spec(
@@ -34,36 +67,7 @@ def _register(name: str) -> None:
         "fitted values. "
         "Use this when you suspect outliers in the data or want a more reliable fit."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "x": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "Independent variable (predictor) values.",
-                    "minItems": 3,
-                },
-                "y": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "Dependent variable (response) values. Must be same length as x.",
-                    "minItems": 3,
-                },
-                "confidence_level": {
-                    "type": "number",
-                    "description": "Confidence level for intervals (default 0.95).",
-                    "exclusiveMinimum": 0,
-                    "exclusiveMaximum": 1,
-                },
-                "fit_intercept": {
-                    "type": "boolean",
-                    "description": "If true (default), fit an intercept term. If false, force through origin.",
-                },
-            },
-            "required": ["x", "y"],
-        }
-    },
+    input_model=RobustRegressionInput,
     examples="""
     # "Fit a robust line to x=[1,2,3,4,5] and y=[2.1,4.0,5.9,8.1,10.0]"
         -> ``robust_regression(x=[1,2,3,4,5], y=[2.1,4.0,5.9,8.1,10.0])``
@@ -73,24 +77,18 @@ def _register(name: str) -> None:
     """,
     category="regression",
 )
-def robust_regression(
-    *,
-    x: list[float],
-    y: list[float],
-    confidence_level: float = 0.95,
-    fit_intercept: bool = True,
-) -> dict[str, Any]:
+def robust_regression(spec: RobustRegressionInput) -> dict[str, Any]:
     """Fit a robust simple linear regression."""
     from process_improve.regression.methods import robust_regression as _robust_regression  # noqa: PLC0415
 
     try:
-        x_arr = np.asarray(x, dtype=float)
-        y_arr = np.asarray(y, dtype=float)
+        x_arr = np.asarray(spec.x, dtype=float)
+        y_arr = np.asarray(spec.y, dtype=float)
 
         result = _robust_regression(
             x_arr, y_arr,
-            fit_intercept=fit_intercept,
-            conflevel=confidence_level,
+            fit_intercept=spec.fit_intercept,
+            conflevel=spec.confidence_level,
         )
 
         out: dict[str, Any] = {
@@ -102,7 +100,7 @@ def robust_regression(
             "n": result["N"],
             "fitted_values": list(result["fitted_values"]),
             "residuals": list(result["residuals"]),
-            "confidence_level": confidence_level,
+            "confidence_level": spec.confidence_level,
         }
 
         if result.get("conf_intervals") is not None:
@@ -125,6 +123,28 @@ def robust_regression(
 _register("robust_regression")
 
 
+# ---------------------------------------------------------------------------
+# repeated_median
+# ---------------------------------------------------------------------------
+
+
+class RepeatedMedianInput(BaseModel):
+    """Input contract for ``repeated_median``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    x: list[float] = Field(
+        ...,
+        min_length=3,
+        description="Independent variable values.",
+    )
+    y: list[float] = Field(
+        ...,
+        min_length=3,
+        description="Dependent variable values. Must be same length as x.",
+    )
+
+
 @tool_spec(
     name="repeated_median",
     description=(
@@ -133,45 +153,22 @@ _register("robust_regression")
         "It gives just the slope (no intercept, no full regression output). "
         "Use robust_regression if you need a complete regression analysis."
     ),
-    input_schema={
-        "json": {
-            "type": "object",
-            "properties": {
-                "x": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "Independent variable values.",
-                    "minItems": 3,
-                },
-                "y": {
-                    "type": "array",
-                    "items": {"type": "number"},
-                    "description": "Dependent variable values. Must be same length as x.",
-                    "minItems": 3,
-                },
-            },
-            "required": ["x", "y"],
-        }
-    },
+    input_model=RepeatedMedianInput,
     examples="""
     # "What is the robust slope between x=[1,2,3,4,5] and y=[2.1,4.0,5.9,8.1,10.0]?"
         -> ``repeated_median(x=[1,2,3,4,5], y=[2.1,4.0,5.9,8.1,10.0])``
     """,
     category="regression",
 )
-def repeated_median(
-    *,
-    x: list[float],
-    y: list[float],
-) -> dict[str, Any]:
+def repeated_median(spec: RepeatedMedianInput) -> dict[str, Any]:
     """Compute the repeated median slope."""
     from process_improve.regression.methods import repeated_median_slope  # noqa: PLC0415
 
     try:
-        x_arr = np.asarray(x, dtype=float)
-        y_arr = np.asarray(y, dtype=float)
+        x_arr = np.asarray(spec.x, dtype=float)
+        y_arr = np.asarray(spec.y, dtype=float)
         slope = float(repeated_median_slope(x_arr, y_arr))
-        return clean({"slope": slope, "n": len(x)})
+        return clean({"slope": slope, "n": len(spec.x)})
     except (ValueError, TypeError, np.linalg.LinAlgError) as exc:
         return {"error": str(exc)}
 

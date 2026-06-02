@@ -11,6 +11,29 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.1] - 2026-06-02
+
+### Changed
+
+- Migrated the **monitoring**, **regression**, and **bivariate**
+  packages to the pydantic `@tool_spec` contract introduced in
+  1.24.0 (ENG-04 / ENG-10; PR2/N of the per-package roll-out).
+  Five tools updated: `control_chart`, `process_capability`,
+  `robust_regression`, `repeated_median`, `find_elbow`. Each pairs
+  its decorator with a `BaseModel` carrying
+  `ConfigDict(extra="forbid")`; functions now take the parsed
+  model as their single positional argument. Unknown keys raise
+  `ToolInputInvalidError` at the dispatch boundary. No
+  behavioural change for valid inputs.
+
+### Tests
+
+- The tool-call tests in `tests/test_bivariate.py`,
+  `tests/test_monitoring.py`, and `tests/test_regression.py` now
+  exercise the dispatch boundary via `execute_tool_call(...)`
+  rather than importing the tool functions directly, mirroring
+  PR1's univariate pattern.
+
 ## [1.24.0] - 2026-06-02
 
 ### Changed (breaking)
@@ -690,7 +713,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.1...HEAD
+[1.24.1]: https://github.com/kgdunn/process-improve/compare/v1.24.0...v1.24.1
 [1.24.0]: https://github.com/kgdunn/process-improve/compare/v1.23.2...v1.24.0
 [1.23.2]: https://github.com/kgdunn/process-improve/compare/v1.23.1...v1.23.2
 [1.23.1]: https://github.com/kgdunn/process-improve/compare/v1.23.0...v1.23.1

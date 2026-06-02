@@ -8,12 +8,10 @@ import pytest
 from process_improve.monitoring.control_charts import ControlChart
 from process_improve.monitoring.metrics import calculate_cpk
 from process_improve.monitoring.tools import (
-    control_chart as control_chart_tool,
-)
-from process_improve.monitoring.tools import (
     get_monitoring_tool_specs,
-    process_capability,
 )
+from process_improve.tool_safety import ToolInputInvalidError
+from process_improve.tool_spec import execute_tool_call
 
 
 class TestValidateAgainstRQccXbarOne:
@@ -294,7 +292,7 @@ def in_control_series_with_one_outlier() -> list[float]:
 
 def test_control_chart_tool_default_holt_winters(in_control_series_with_one_outlier: list[float]) -> None:
     """Default chart_type='holt_winters' returns target, limits, and flags the outlier."""
-    result = control_chart_tool(values=in_control_series_with_one_outlier)
+    result = execute_tool_call("control_chart", {"values": in_control_series_with_one_outlier})
 
     assert "error" not in result
     assert result["chart_type"] == "holt_winters"
@@ -318,7 +316,7 @@ def test_control_chart_tool_supports_each_chart_type(chart_type: str) -> None:
     """
     rng = np.random.default_rng(0)
     values = [float(v) for v in rng.normal(loc=0.0, scale=1.0, size=40)]
-    result = control_chart_tool(values=values, chart_type=chart_type)
+    result = execute_tool_call("control_chart", {"values": values, "chart_type": chart_type})
 
     assert "error" not in result
     assert result["chart_type"] == chart_type
@@ -328,7 +326,7 @@ def test_control_chart_tool_regular_style() -> None:
     """style='regular' uses mean/std and still returns a coherent result."""
     rng = np.random.default_rng(1)
     values = [float(v) for v in rng.normal(loc=5.0, scale=0.5, size=30)]
-    result = control_chart_tool(values=values, style="regular")
+    result = execute_tool_call("control_chart", {"values": values, "style": "regular"})
 
     assert "error" not in result
     assert result["style"] == "regular"
@@ -336,16 +334,19 @@ def test_control_chart_tool_regular_style() -> None:
 
 
 def test_control_chart_tool_returns_error_on_bad_input() -> None:
-    """Non-numeric values surface as an error dict, not an exception."""
-    result = control_chart_tool(values=["not", "numbers"])  # type: ignore[arg-type]
-    assert "error" in result
+    """Non-numeric values are rejected by the pydantic contract."""
+    with pytest.raises(ToolInputInvalidError):
+        execute_tool_call("control_chart", {"values": ["not", "numbers"]})
 
 
 def test_process_capability_tool_excellent() -> None:
     """Tight, centered process should report excellent capability (cpk >= 1.67)."""
     rng = np.random.default_rng(2)
     values = [float(v) for v in rng.normal(loc=10.0, scale=0.1, size=200)]
-    result = process_capability(values=values, lower_spec=9.0, upper_spec=11.0, robust=False)
+    result = execute_tool_call(
+        "process_capability",
+        {"values": values, "lower_spec": 9.0, "upper_spec": 11.0, "robust": False},
+    )
 
     assert "error" not in result
     assert result["cpk"] >= 1.67
@@ -368,7 +369,10 @@ def test_process_capability_tool_interpretation_bands(scale: float, expected: st
     """The interpretation string matches the documented capability bands."""
     rng = np.random.default_rng(3)
     values = [float(v) for v in rng.normal(loc=10.0, scale=scale, size=300)]
-    result = process_capability(values=values, lower_spec=9.0, upper_spec=11.0, robust=False)
+    result = execute_tool_call(
+        "process_capability",
+        {"values": values, "lower_spec": 9.0, "upper_spec": 11.0, "robust": False},
+    )
 
     assert "error" not in result
     assert expected in result["interpretation"]
@@ -378,7 +382,10 @@ def test_process_capability_tool_one_sided_spec() -> None:
     """Omitting one spec limit is allowed."""
     rng = np.random.default_rng(4)
     values = [float(v) for v in rng.normal(loc=10.0, scale=0.5, size=100)]
-    result = process_capability(values=values, lower_spec=8.0, robust=False)
+    result = execute_tool_call(
+        "process_capability",
+        {"values": values, "lower_spec": 8.0, "robust": False},
+    )
 
     assert "error" not in result
     assert result["lower_spec"] == 8.0
@@ -386,9 +393,9 @@ def test_process_capability_tool_one_sided_spec() -> None:
 
 
 def test_process_capability_tool_returns_error_on_bad_input() -> None:
-    """The wrapper's `except` branch returns {"error": ...} on bad input."""
-    result = process_capability(values=["bad", "input"])  # type: ignore[arg-type]
-    assert "error" in result
+    """Non-numeric values are rejected by the pydantic contract."""
+    with pytest.raises(ToolInputInvalidError):
+        execute_tool_call("process_capability", {"values": ["bad", "input"]})
 
 
 def test_get_monitoring_tool_specs_lists_both_tools() -> None:
