@@ -113,17 +113,7 @@ def scale(X: DataMatrix, func: Callable = np.std, axis: int = 0, extra_output: b
     X = scale(center(X), func=my_scale)
 
     """
-    # options = {}
-    # options["markers"] = None
-    # options["variance_tolerance"] = epsqrt
-    # options["low_variance_replacement"] = np.nan
-
     vector = pd.DataFrame(X).apply(func, axis=axis, **kwargs).values
-    # if options["markers"] is None:
-    # options["markers"] = vector < options["variance_tolerance"]
-    # if options["markers"].any():
-    #    options["scale"][options["markers"]] = options["low_variance_replacement"]
-
     vector = 1.0 / vector
 
     if extra_output:
