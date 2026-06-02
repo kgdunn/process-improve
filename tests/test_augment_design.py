@@ -574,17 +574,20 @@ class TestToolSpec:
 
     def test_basic_round_trip(self) -> None:
         """Tool wrapper returns JSON-serializable output."""
-        from process_improve.experiments.tools import augment_design_tool
+        from process_improve.tool_spec import execute_tool_call
 
-        result = augment_design_tool(
-            existing_design=[
-                {"A": -1, "B": -1},
-                {"A": 1, "B": -1},
-                {"A": -1, "B": 1},
-                {"A": 1, "B": 1},
-            ],
-            augmentation_type="add_center_points",
-            n_additional_runs=2,
+        result = execute_tool_call(
+            "augment_design",
+            {
+                "existing_design": [
+                    {"A": -1, "B": -1},
+                    {"A": 1, "B": -1},
+                    {"A": -1, "B": 1},
+                    {"A": 1, "B": 1},
+                ],
+                "augmentation_type": "add_center_points",
+                "n_additional_runs": 2,
+            },
         )
         assert "error" not in result
         assert "augmented_design" in result
@@ -592,29 +595,35 @@ class TestToolSpec:
 
     def test_foldover_via_tool(self) -> None:
         """Foldover works through the tool wrapper."""
-        from process_improve.experiments.tools import augment_design_tool
+        from process_improve.tool_spec import execute_tool_call
 
-        result = augment_design_tool(
-            existing_design=[
-                {"A": -1, "B": -1, "C": -1},
-                {"A": 1, "B": -1, "C": -1},
-                {"A": -1, "B": 1, "C": -1},
-                {"A": 1, "B": 1, "C": 1},
-            ],
-            augmentation_type="foldover",
+        result = execute_tool_call(
+            "augment_design",
+            {
+                "existing_design": [
+                    {"A": -1, "B": -1, "C": -1},
+                    {"A": 1, "B": -1, "C": -1},
+                    {"A": -1, "B": 1, "C": -1},
+                    {"A": 1, "B": 1, "C": 1},
+                ],
+                "augmentation_type": "foldover",
+            },
         )
         assert "error" not in result
         assert result["n_runs_after"] == 8
 
     def test_error_handling(self) -> None:
-        """Bad augmentation_type returns error dict."""
-        from process_improve.experiments.tools import augment_design_tool
+        """Bad augmentation_type is rejected by the pydantic Literal."""
+        import pytest
 
-        result = augment_design_tool(
-            existing_design=[{"A": -1}, {"A": 1}],
-            augmentation_type="nonexistent",
-        )
-        assert "error" in result
+        from process_improve.tool_safety import ToolInputInvalidError
+        from process_improve.tool_spec import execute_tool_call
+
+        with pytest.raises(ToolInputInvalidError):
+            execute_tool_call(
+                "augment_design",
+                {"existing_design": [{"A": -1}, {"A": 1}], "augmentation_type": "nonexistent"},
+            )
 
 
 # ---------------------------------------------------------------------------

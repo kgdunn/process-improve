@@ -99,31 +99,31 @@ class TestRegressionPointsCap:
 
 class TestMatrixDimensionCap:
     def test_fit_pca_too_many_rows_rejected(self) -> None:
-        from process_improve.multivariate.tools import fit_pca
+        from process_improve.tool_spec import execute_tool_call
 
         settings.max_matrix_rows = 5
         rng = np.random.default_rng(0)
         data = rng.standard_normal((10, 3)).tolist()
-        result = fit_pca(data=data, n_components=2)
+        result = execute_tool_call("fit_pca", {"data": data, "n_components": 2})
         assert "error" in result
         assert "max_matrix_rows" in result["error"]
 
     def test_fit_pca_too_many_cols_rejected(self) -> None:
-        from process_improve.multivariate.tools import fit_pca
+        from process_improve.tool_spec import execute_tool_call
 
         settings.max_matrix_cols = 4
         rng = np.random.default_rng(0)
         data = rng.standard_normal((5, 6)).tolist()
-        result = fit_pca(data=data, n_components=2)
+        result = execute_tool_call("fit_pca", {"data": data, "n_components": 2})
         assert "error" in result
         assert "max_matrix_cols" in result["error"]
 
     def test_fit_pca_within_caps_accepted(self) -> None:
-        from process_improve.multivariate.tools import fit_pca
+        from process_improve.tool_spec import execute_tool_call
 
         rng = np.random.default_rng(0)
         data = rng.standard_normal((10, 3)).tolist()
-        result = fit_pca(data=data, n_components=2)
+        result = execute_tool_call("fit_pca", {"data": data, "n_components": 2})
         assert "error" not in result
         assert result["n_components"] == 2
 
@@ -169,26 +169,30 @@ class TestFitLinearModelCaps:
         ]
 
     def test_too_long_formula_rejected(self) -> None:
-        from process_improve.experiments.tools import fit_linear_model
+        from process_improve.tool_spec import execute_tool_call
 
         settings.max_formula_chars = 50
         long_formula = "y ~ " + " + ".join([f"A_{i}" for i in range(40)])
         assert len(long_formula) > 50
-        result = fit_linear_model(formula=long_formula, data=self._make_data())
+        result = execute_tool_call(
+            "fit_linear_model", {"formula": long_formula, "data": self._make_data()}
+        )
         assert "error" in result
         assert "max_formula_chars" in result["error"]
 
     def test_too_many_data_rows_rejected(self) -> None:
-        from process_improve.experiments.tools import fit_linear_model
+        from process_improve.tool_spec import execute_tool_call
 
         settings.max_matrix_rows = 5
         data = self._make_data(n_rows=10)
-        result = fit_linear_model(formula="y ~ A + B + C", data=data)
+        result = execute_tool_call(
+            "fit_linear_model", {"formula": "y ~ A + B + C", "data": data}
+        )
         assert "error" in result
         assert "max_matrix_rows" in result["error"]
 
     def test_too_many_expanded_terms_rejected(self) -> None:
-        from process_improve.experiments.tools import fit_linear_model
+        from process_improve.tool_spec import execute_tool_call
 
         # 5 factors, degree=5 -> 2**5 = 32 terms; cap below that triggers.
         settings.max_formula_terms = 5
@@ -197,15 +201,20 @@ class TestFitLinearModelCaps:
             {**{c: float(rng.standard_normal()) for c in "ABCDE"}, "y": float(rng.standard_normal())}
             for _ in range(20)
         ]
-        result = fit_linear_model(formula="y ~ (A + B + C + D + E) ** 3", data=data)
+        result = execute_tool_call(
+            "fit_linear_model",
+            {"formula": "y ~ (A + B + C + D + E) ** 3", "data": data},
+        )
         # The cap fires; the underlying ValueError is captured and surfaced
         # in result["error"] by the tool wrapper.
         assert "error" in result
         assert "max_formula_terms" in result["error"]
 
     def test_normal_use_still_works(self) -> None:
-        from process_improve.experiments.tools import fit_linear_model
+        from process_improve.tool_spec import execute_tool_call
 
-        result = fit_linear_model(formula="y ~ A + B + C", data=self._make_data())
+        result = execute_tool_call(
+            "fit_linear_model", {"formula": "y ~ A + B + C", "data": self._make_data()}
+        )
         assert "error" not in result
         assert result["r2"] >= 0.0

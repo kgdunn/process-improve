@@ -556,10 +556,14 @@ class TestToolSpecIntegration:
         assert "stages" in result
 
     def test_error_handling(self):
+        """Empty factors list is rejected by pydantic min_length=1."""
+        import pytest
+
+        from process_improve.tool_safety import ToolInputInvalidError
         from process_improve.tool_spec import execute_tool_call
 
-        result = execute_tool_call("recommend_strategy", {"factors": []})
-        assert "error" in result
+        with pytest.raises(ToolInputInvalidError):
+            execute_tool_call("recommend_strategy", {"factors": []})
 
 
 # ---------------------------------------------------------------------------

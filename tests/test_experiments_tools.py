@@ -11,6 +11,7 @@ from __future__ import annotations
 import pathlib
 
 import pandas as pd
+import pytest
 
 # execute_tool_call calls discover_tools(), which imports
 # process_improve.experiments.tools and triggers all @tool_spec
@@ -45,10 +46,11 @@ class TestCreateFactorialDesign:
         assert len(result["factor_names"]) == 2
 
     def test_invalid_n_factors_returns_error(self) -> None:
-        """A bad n_factors should be reported via the error key, not raised."""
-        # n_factors of 0 will trip pyDOE3 / the underlying call.
-        result = execute_tool_call("create_factorial_design", {"n_factors": 0})
-        assert "error" in result
+        """A bad n_factors is rejected by the pydantic Field constraint."""
+        from process_improve.tool_safety import ToolInputInvalidError
+
+        with pytest.raises(ToolInputInvalidError):
+            execute_tool_call("create_factorial_design", {"n_factors": 0})
 
 
 # ---------------------------------------------------------------------------
@@ -345,24 +347,26 @@ class TestOptimizeResponses:
         assert "error" not in result
 
     def test_invalid_method_returns_error(self) -> None:
-        """Unknown method should be reported as an error."""
-        result = execute_tool_call(
-            "optimize_responses",
-            {
-                "fitted_models": [
-                    {
-                        "response_name": "y",
-                        "factor_names": ["A"],
-                        "coefficients": [
-                            {"term": "Intercept", "coefficient": 1.0},
-                            {"term": "A", "coefficient": 2.0},
-                        ],
-                    }
-                ],
-                "method": "definitely_not_a_method",
-            },
-        )
-        assert "error" in result
+        """Unknown method is rejected by the pydantic Literal."""
+        from process_improve.tool_safety import ToolInputInvalidError
+
+        with pytest.raises(ToolInputInvalidError):
+            execute_tool_call(
+                "optimize_responses",
+                {
+                    "fitted_models": [
+                        {
+                            "response_name": "y",
+                            "factor_names": ["A"],
+                            "coefficients": [
+                                {"term": "Intercept", "coefficient": 1.0},
+                                {"term": "A", "coefficient": 2.0},
+                            ],
+                        }
+                    ],
+                    "method": "definitely_not_a_method",
+                },
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -389,18 +393,20 @@ class TestAugmentDesign:
         assert "error" not in result
 
     def test_invalid_augmentation_type_returns_error(self) -> None:
-        """An unknown augmentation type should return an error dict."""
-        result = execute_tool_call(
-            "augment_design",
-            {
-                "existing_design": [
-                    {"A": -1.0, "B": -1.0},
-                    {"A": 1.0, "B": 1.0},
-                ],
-                "augmentation_type": "not_a_real_type",
-            },
-        )
-        assert "error" in result
+        """An unknown augmentation type is rejected by the pydantic Literal."""
+        from process_improve.tool_safety import ToolInputInvalidError
+
+        with pytest.raises(ToolInputInvalidError):
+            execute_tool_call(
+                "augment_design",
+                {
+                    "existing_design": [
+                        {"A": -1.0, "B": -1.0},
+                        {"A": 1.0, "B": 1.0},
+                    ],
+                    "augmentation_type": "not_a_real_type",
+                },
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -423,12 +429,14 @@ class TestVisualizeDoe:
         assert "error" not in result
 
     def test_invalid_plot_type_returns_error(self) -> None:
-        """An unknown plot type should be reported as an error."""
-        result = execute_tool_call(
-            "visualize_doe",
-            {"plot_type": "definitely_not_a_plot", "analysis_results": {}},
-        )
-        assert "error" in result
+        """An unknown plot type is rejected by the pydantic Literal."""
+        from process_improve.tool_safety import ToolInputInvalidError
+
+        with pytest.raises(ToolInputInvalidError):
+            execute_tool_call(
+                "visualize_doe",
+                {"plot_type": "definitely_not_a_plot", "analysis_results": {}},
+            )
 
 
 # ---------------------------------------------------------------------------
