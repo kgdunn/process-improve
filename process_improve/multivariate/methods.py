@@ -19,13 +19,13 @@ from scipy.stats import t as t_dist
 # clear "install the extra" ImportError.
 try:
     import plotly.graph_objects as go
-except ImportError:
+except ImportError:  # pragma: no cover - exercised via env-without-plotly
     from process_improve._extras import _MissingExtra
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
 try:
     import ridgeplot
-except ImportError:
+except ImportError:  # pragma: no cover - exercised via env-without-plotly
     from process_improve._extras import _MissingExtra
     ridgeplot = _MissingExtra("ridgeplot", "plotting")  # type: ignore[assignment]
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, _fit_context, clone

@@ -42,7 +42,7 @@ from process_improve.visualization.types import (
 # extra" ImportError.
 try:
     import plotly  # noqa: F401  - presence check
-except ImportError:
+except ImportError:  # pragma: no cover - exercised via env-without-plotly
     pass
 else:
     register_themes()
