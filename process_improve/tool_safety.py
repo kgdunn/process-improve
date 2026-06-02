@@ -15,26 +15,29 @@ left untouched for callers that trust their input (notebooks, tests,
 the stdio MCP server running on the user's own machine). Hosted
 callers should use :func:`safe_execute_tool_call` instead.
 
-Environment variables (all optional):
+Configuration
+-------------
 
-- ``PROCESS_IMPROVE_TOOL_TIMEOUT`` -- seconds, default 10
-- ``PROCESS_IMPROVE_MAX_CELLS`` -- max numeric leaves in input, default 1_000_000
-- ``PROCESS_IMPROVE_MAX_STRING`` -- max chars in any single string, default 100_000
-- ``PROCESS_IMPROVE_MAX_DEPTH`` -- max nested dict/list depth, default 10
-- ``PROCESS_IMPROVE_MAX_MEMORY_MB`` -- per-subprocess RSS cap, default 1024
+Every knob is read lazily from :mod:`process_improve.config.settings`,
+which in turn picks up the corresponding ``PROCESS_IMPROVE_*``
+environment variable on first access (ENG-09 / ENG-27). Tests can
+override a knob in-process via ``settings.tool_timeout = 5.0``; CI
+deployments can still set env vars at startup. See
+``process_improve/config.py`` for the canonical defaults table.
 """
 
 from __future__ import annotations
 
 import contextlib
 import multiprocessing
-import os
 import sys
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from concurrent.futures.process import BrokenProcessPool
 from typing import Any
+
+from process_improve.config import settings
 
 # Prefer ``fork`` on Linux: the worker inherits the parent's imported
 # numpy/registry/etc., which makes startup and tool-dispatch much cheaper
@@ -51,14 +54,34 @@ if sys.platform.startswith("linux"):
         _DEFAULT_MP_CONTEXT = None
 
 # ---------------------------------------------------------------------------
-# Defaults (read once at import time; tests can override via env before import)
+# Legacy default-name compatibility shims (ENG-22: deprecate, remove in v2.0).
 # ---------------------------------------------------------------------------
+# Some callers imported these by name (``from process_improve.tool_safety
+# import DEFAULT_TIMEOUT_S``). The new home for the actual values is
+# ``process_improve.config.settings``; the shims below stay so existing
+# imports keep resolving, but resolve to whatever the settings object
+# currently reports rather than freezing the value at import time.
 
-DEFAULT_TIMEOUT_S: float = float(os.environ.get("PROCESS_IMPROVE_TOOL_TIMEOUT", "10"))
-DEFAULT_MAX_CELLS: int = int(os.environ.get("PROCESS_IMPROVE_MAX_CELLS", "1000000"))
-DEFAULT_MAX_STRING: int = int(os.environ.get("PROCESS_IMPROVE_MAX_STRING", "100000"))
-DEFAULT_MAX_DEPTH: int = int(os.environ.get("PROCESS_IMPROVE_MAX_DEPTH", "10"))
-DEFAULT_MEMORY_MB: int = int(os.environ.get("PROCESS_IMPROVE_MAX_MEMORY_MB", "1024"))
+
+def __getattr__(name: str) -> Any:  # noqa: ANN401
+    """Forward legacy ``DEFAULT_*`` reads to :data:`settings`.
+
+    Lets ``from process_improve.tool_safety import DEFAULT_TIMEOUT_S``
+    keep working, but the value is no longer frozen at module import:
+    a test that overrides ``settings.tool_timeout`` will see the new
+    value through both the new and the legacy name.
+    """
+    legacy_to_settings = {
+        "DEFAULT_TIMEOUT_S": "tool_timeout",
+        "DEFAULT_MAX_CELLS": "max_cells",
+        "DEFAULT_MAX_STRING": "max_string",
+        "DEFAULT_MAX_DEPTH": "max_depth",
+        "DEFAULT_MEMORY_MB": "max_memory_mb",
+    }
+    if name in legacy_to_settings:
+        return getattr(settings, legacy_to_settings[name])
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 # Keys whose numeric value scales the cost of the underlying algorithm.
 # A malicious caller can otherwise request a huge SVD or a long ESD loop
@@ -164,9 +187,9 @@ def _check_strings(value: Any, limit: int, depth: int, max_depth: int) -> None: 
 def validate_input(
     tool_input: dict[str, Any],
     *,
-    max_cells: int = DEFAULT_MAX_CELLS,
-    max_string: int = DEFAULT_MAX_STRING,
-    max_depth: int = DEFAULT_MAX_DEPTH,
+    max_cells: int | None = None,
+    max_string: int | None = None,
+    max_depth: int | None = None,
     scalar_caps: dict[str, float] | None = None,
 ) -> None:
     """Raise :class:`ToolInputTooLargeError` if *tool_input* breaks any limit.
@@ -189,6 +212,14 @@ def validate_input(
         raise ToolInputInvalidError(
             f"Tool input must be a dict, got {type(tool_input).__name__}",
         )
+
+    # Resolve None sentinels from settings at call time (ENG-09 / ENG-27).
+    if max_cells is None:
+        max_cells = settings.max_cells
+    if max_string is None:
+        max_string = settings.max_string
+    if max_depth is None:
+        max_depth = settings.max_depth
 
     caps = {**_SCALAR_CAPS, **(scalar_caps or {})}
     for key, limit in caps.items():
@@ -389,11 +420,15 @@ _pool: ProcessPoolExecutor | None = None
 _pool_memory_mb: int | None = None
 
 
-def get_pool(memory_mb: int = DEFAULT_MEMORY_MB, max_workers: int = 1) -> ProcessPoolExecutor:
+def get_pool(memory_mb: int | None = None, max_workers: int = 1) -> ProcessPoolExecutor:
     """Return a lazily-initialised module-level :class:`ProcessPoolExecutor`.
 
     The pool is recreated if ``memory_mb`` changes (e.g. tests override it).
+    Passing ``None`` resolves the cap from :data:`settings.max_memory_mb` at
+    call time (ENG-09 / ENG-27).
     """
+    if memory_mb is None:
+        memory_mb = settings.max_memory_mb
     global _pool, _pool_memory_mb  # noqa: PLW0603
     if _pool is None or _pool_memory_mb != memory_mb:
         shutdown_pool()
@@ -459,11 +494,11 @@ def safe_execute_tool_call(  # noqa: PLR0913
     tool_name: str,
     tool_input: dict[str, Any],
     *,
-    timeout: float = DEFAULT_TIMEOUT_S,
-    max_cells: int = DEFAULT_MAX_CELLS,
-    max_string: int = DEFAULT_MAX_STRING,
-    max_depth: int = DEFAULT_MAX_DEPTH,
-    memory_mb: int = DEFAULT_MEMORY_MB,
+    timeout: float | None = None,
+    max_cells: int | None = None,
+    max_string: int | None = None,
+    max_depth: int | None = None,
+    memory_mb: int | None = None,
     executor: ProcessPoolExecutor | None = None,
 ) -> Any:  # noqa: ANN401
     """Execute a tool call with input validation, timeout, and memory cap.
@@ -502,6 +537,16 @@ def safe_execute_tool_call(  # noqa: PLR0913
     ValueError:
         Unknown tool name (propagated from ``execute_tool_call``).
     """
+    # Resolve None sentinels from settings at call time (ENG-09 / ENG-27).
+    # Tests can monkey-patch ``settings.tool_timeout = 5.0`` and the next
+    # call will see the override.
+    if timeout is None:
+        timeout = settings.tool_timeout
+    if memory_mb is None:
+        memory_mb = settings.max_memory_mb
+    # ``max_cells`` / ``max_string`` / ``max_depth`` resolve inside
+    # ``validate_input`` from the same source.
+
     validate_input(
         tool_input,
         max_cells=max_cells,

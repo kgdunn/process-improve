@@ -11,6 +11,41 @@ those changes.
 
 ## [Unreleased]
 
+## [1.23.1] - 2026-06-02
+
+### Added
+
+- New `process_improve.config` module exporting a single `settings`
+  object as the canonical home for every configurable knob
+  (ENG-09 #291, ENG-27 #309). Knobs include the existing
+  `tool_safety` env-var contract (timeout, max cells / strings /
+  depth, memory cap) plus the MCP safe-mode flag. Values are read
+  on first access (not at import time) so tests can override via
+  `settings.tool_timeout = 5.0` or `monkeypatch.setenv(...)` plus
+  `settings.reload()`. The env-var names (`PROCESS_IMPROVE_*`) and
+  default values are unchanged.
+
+### Changed
+
+- `process_improve.tool_safety` reads its five knobs through
+  `settings.*` rather than `os.environ` at import time. The
+  function signatures of `validate_input`,
+  `safe_execute_tool_call`, and `get_pool` now accept `None` as
+  the sentinel that resolves from `settings` at call time
+  (previously the import-time `DEFAULT_*` constants were frozen).
+- `process_improve.mcp_server` reads `mcp_safe_mode` through
+  `settings` so a test fixture can flip safe-mode on/off without
+  re-importing the module.
+
+### Deprecated
+
+- The module-level `DEFAULT_TIMEOUT_S`, `DEFAULT_MAX_CELLS`,
+  `DEFAULT_MAX_STRING`, `DEFAULT_MAX_DEPTH`, and
+  `DEFAULT_MEMORY_MB` names in `tool_safety` are now thin
+  forwarding shims that read from `settings`. Imports keep
+  working; new code should reference `settings.*` directly.
+  Scheduled for removal in v2.0 per the deprecation policy.
+
 ## [1.23.0] - 2026-06-02
 
 ### Added
@@ -577,7 +612,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.23.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.23.1...HEAD
+[1.23.1]: https://github.com/kgdunn/process-improve/compare/v1.23.0...v1.23.1
 [1.23.0]: https://github.com/kgdunn/process-improve/compare/v1.22.21...v1.23.0
 [1.22.21]: https://github.com/kgdunn/process-improve/compare/v1.22.20...v1.22.21
 [1.22.20]: https://github.com/kgdunn/process-improve/compare/v1.22.19...v1.22.20
