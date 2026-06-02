@@ -11,6 +11,34 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.8] - 2026-06-02
+
+### Security
+
+- **SEC-25 (#274)**: `pca_predict` and `pls_predict` now validate every
+  array-like sub-field of the incoming `model_params` dict against
+  `settings.max_matrix_rows` / `settings.max_matrix_cols` **before** any
+  `np.array(...)` allocation. Previously, the `model_params` schema was
+  `{type: object}` with no inner shape; an attacker-controlled
+  `loadings=[[0]*10**6]*10**6` would allocation-bomb numpy before any
+  later check could fire.
+
+  The new internal helper `_validate_model_params` caps the 2-D keys
+  (loadings, weights, beta-coefficients) via the existing
+  `_validate_matrix_shape`, length-caps the 1-D keys (means, stds,
+  spe_values, scaling factors), and bounds the scalar `n_components` /
+  `n_samples` against `settings.max_matrix_cols` /
+  `settings.max_matrix_rows`. A non-integer or negative scalar is
+  rejected outright.
+
+### Tests
+
+- `tests/test_sec19_dos_caps.py` adds a `TestModelParamsCaps` class
+  with six regression tests covering each of: oversize loadings rows,
+  oversize loadings columns, oversize 1-D arrays, oversize
+  `n_components`, negative `n_samples`, and PLS-specific
+  `x_loadings` caps.
+
 ## [1.24.7] - 2026-06-02
 
 ### Documentation
@@ -893,7 +921,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.7...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.8...HEAD
+[1.24.8]: https://github.com/kgdunn/process-improve/compare/v1.24.7...v1.24.8
 [1.24.7]: https://github.com/kgdunn/process-improve/compare/v1.24.6...v1.24.7
 [1.24.6]: https://github.com/kgdunn/process-improve/compare/v1.24.5...v1.24.6
 [1.24.5]: https://github.com/kgdunn/process-improve/compare/v1.24.4...v1.24.5
