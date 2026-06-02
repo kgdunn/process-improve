@@ -11,6 +11,47 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.4] - 2026-06-02
+
+### Changed (breaking, internal API)
+
+- `@tool_spec` no longer accepts the legacy `input_schema=` dict
+  parameter -- `input_model=` (a pydantic `BaseModel` subclass with
+  `ConfigDict(extra="forbid")`) is now the only supported form.
+  This is the cleanup follow-up to PR1-PR4 (#328, #329, #330, #331)
+  of the ENG-04 / ENG-10 migration. Every in-tree `@tool_spec`
+  already uses `input_model=`; external callers that still passed
+  `input_schema={...}` must migrate.
+- `process_improve.tool_safety` drops the bespoke JSON-schema walker:
+  `validate_against_schema()`, `_validate_value()`, `_JSON_TYPE_CHECKS`,
+  and `_lookup_input_schema()` are gone. `safe_execute_tool_call` now
+  validates via `input_model.model_validate(...)` and translates the
+  resulting `pydantic.ValidationError` to `ToolInputInvalidError`.
+  The new internal helpers are `_lookup_input_model()` and
+  `_validate_against_model()`.
+- `process_improve.tool_spec._filter_to_declared_keys` was removed;
+  its job (rejecting undeclared kwargs) is now done structurally by
+  `ConfigDict(extra="forbid")` at the pydantic boundary.
+
+### Security
+
+- SEC-20 (#266) and SEC-25 (#274) are closed by this PR: the
+  "implicit MCP boundary trust" and "silent unknown-key drop hides
+  bugs" findings both relied on the bespoke schema walker as a
+  defence-in-depth backstop. With every `@tool_spec` now built on a
+  pydantic `BaseModel` carrying `extra="forbid"`, those guarantees
+  are part of the single canonical validation path
+  (`execute_tool_call` and `safe_execute_tool_call`).
+
+### Tests
+
+- `tests/test_tool_spec.py` and `tests/test_tool_safety.py`: the
+  synthetic test-only tools and the validation tests are rebuilt
+  on top of pydantic. The previous `TestFilterToDeclaredKeys` and
+  `TestValidateAgainstSchema` classes are replaced by a single
+  `TestValidateAgainstModel` class that pins the new
+  `_validate_against_model` / `_lookup_input_model` surface.
+
 ## [1.24.3] - 2026-06-02
 
 ### Changed
@@ -792,7 +833,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.3...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.4...HEAD
+[1.24.4]: https://github.com/kgdunn/process-improve/compare/v1.24.3...v1.24.4
 [1.24.3]: https://github.com/kgdunn/process-improve/compare/v1.24.2...v1.24.3
 [1.24.2]: https://github.com/kgdunn/process-improve/compare/v1.24.1...v1.24.2
 [1.24.1]: https://github.com/kgdunn/process-improve/compare/v1.24.0...v1.24.1

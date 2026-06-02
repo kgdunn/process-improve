@@ -7,19 +7,29 @@ from collections.abc import Callable
 
 import numpy as np
 import pytest
+from pydantic import BaseModel, ConfigDict
 
 # Importing the univariate tools module triggers @tool_spec registration.
 import process_improve.multivariate.tools
 import process_improve.univariate.tools  # noqa: F401
 from process_improve.tool_spec import (
     _TOOL_REGISTRY,
-    _filter_to_declared_keys,
     clean,
     execute_tool_call,
     get_tool_specs,
     tool_spec,
 )
 from process_improve.univariate.tools import get_univariate_tool_specs
+
+
+class _AddInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    a: float
+    b: float
+
+
+class _EmptyInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
 # ---------------------------------------------------------------------------
 # tool_spec decorator and registry
@@ -33,16 +43,10 @@ class TestToolSpecDecorator:
         @tool_spec(
             name="test_dummy_add",
             description="Add two numbers.",
-            input_schema={
-                "json": {
-                    "type": "object",
-                    "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
-                    "required": ["a", "b"],
-                }
-            },
+            input_model=_AddInput,
         )
-        def _dummy(*, a: float, b: float) -> dict:
-            return {"result": a + b}
+        def _dummy(spec: _AddInput) -> dict:
+            return {"result": spec.a + spec.b}
 
         assert hasattr(_dummy, "_tool_spec")
         assert _dummy._tool_spec["name"] == "test_dummy_add"
@@ -53,18 +57,12 @@ class TestToolSpecDecorator:
         @tool_spec(
             name="test_dummy_mul",
             description="Multiply.",
-            input_schema={
-                "json": {
-                    "type": "object",
-                    "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
-                    "required": ["a", "b"],
-                }
-            },
+            input_model=_AddInput,
         )
-        def _mul(*, a: float, b: float) -> dict:
-            return {"result": a * b}
+        def _mul(spec: _AddInput) -> dict:
+            return {"result": spec.a * spec.b}
 
-        assert _mul(a=3, b=4)["result"] == 12
+        assert _mul(_AddInput(a=3, b=4))["result"] == 12
 
     def test_examples_appended_to_description(self) -> None:
         """Verify examples text is appended to the description."""
@@ -72,10 +70,10 @@ class TestToolSpecDecorator:
         @tool_spec(
             name="test_dummy_examples",
             description="A tool.",
-            input_schema={"json": {"type": "object", "properties": {}, "required": []}},
+            input_model=_EmptyInput,
             examples="# example -> call()",
         )
-        def _ex() -> dict:
+        def _ex(spec: _EmptyInput) -> dict:
             return {}
 
         assert "Examples" in _ex._tool_spec["description"]
@@ -87,9 +85,9 @@ class TestToolSpecDecorator:
         @tool_spec(
             name="test_dummy_no_examples",
             description="Plain description.",
-            input_schema={"json": {"type": "object", "properties": {}, "required": []}},
+            input_model=_EmptyInput,
         )
-        def _plain() -> dict:
+        def _plain(spec: _EmptyInput) -> dict:
             return {}
 
         assert _plain._tool_spec["description"] == "Plain description."
@@ -155,42 +153,10 @@ class TestExecuteToolCall:
             )
 
 
-class TestFilterToDeclaredKeys:
-    """Unit tests for the schema-key filter used by execute_tool_call (SEC-15)."""
-
-    def test_keeps_declared_keys_and_drops_others(self) -> None:
-        func = _TOOL_REGISTRY["robust_summary_stats"]
-        filtered = _filter_to_declared_keys(func, {"values": [1], "rogue": 9})
-        assert filtered == {"values": [1]}
-
-    def test_passthrough_when_no_extra_keys(self) -> None:
-        func = _TOOL_REGISTRY["robust_summary_stats"]
-        payload = {"values": [1, 2]}
-        # Returned unchanged (and is the same object: nothing to filter).
-        assert _filter_to_declared_keys(func, payload) is payload
-
-    def test_passthrough_when_no_tool_spec(self) -> None:
-        def bare() -> None:  # no _tool_spec attribute
-            return None
-
-        payload = {"anything": 1}
-        assert _filter_to_declared_keys(bare, payload) is payload
-
-    def test_passthrough_when_schema_not_object(self) -> None:
-        def fn() -> None:
-            return None
-
-        fn._tool_spec = {"name": "fn", "input_schema": {"type": "string"}}
-        payload = {"a": 1}
-        assert _filter_to_declared_keys(fn, payload) is payload
-
-    def test_passthrough_when_no_properties(self) -> None:
-        def fn() -> None:
-            return None
-
-        fn._tool_spec = {"name": "fn", "input_schema": {"type": "object"}}
-        payload = {"a": 1}
-        assert _filter_to_declared_keys(fn, payload) is payload
+# The pre-pydantic ``_filter_to_declared_keys`` helper was deleted in the
+# ENG-04 / ENG-10 cleanup; its job (dropping undeclared kwargs) is now done by
+# pydantic's ``ConfigDict(extra="forbid")``, exercised end-to-end by
+# ``test_rejects_keys_not_declared_in_pydantic_model`` above.
 
 
 # ---------------------------------------------------------------------------
@@ -642,7 +608,7 @@ class TestValidateRngMetadata:
         return tool_spec(
             name=f"_rng_test_tool_{id(rng_value)}",
             description="x",
-            input_schema={"json": {"type": "object", "properties": {}, "required": []}},
+            input_model=_EmptyInput,
             rng=rng_value,  # type: ignore[arg-type]
         )(dict)
 
@@ -697,7 +663,7 @@ class TestValidateRngMetadata:
         @tool_spec(
             name="_rng_test_valid",
             description="x",
-            input_schema={"json": {"type": "object", "properties": {}, "required": []}},
+            input_model=_EmptyInput,
             rng={"uses_rng": True, "seed_param": "seed", "default_seed": 42},
         )
         def _f() -> dict:
@@ -715,7 +681,7 @@ class TestValidateRngMetadata:
         @tool_spec(
             name="_rng_test_deterministic",
             description="x",
-            input_schema={"json": {"type": "object", "properties": {}, "required": []}},
+            input_model=_EmptyInput,
             rng={"uses_rng": False},
         )
         def _f() -> dict:

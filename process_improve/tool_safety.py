@@ -31,11 +31,12 @@ from __future__ import annotations
 import contextlib
 import multiprocessing
 import sys
-from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from concurrent.futures.process import BrokenProcessPool
 from typing import Any
+
+from pydantic import BaseModel, ValidationError
 
 from process_improve.config import settings
 
@@ -249,135 +250,37 @@ def validate_input(
 
 
 # ---------------------------------------------------------------------------
-# JSON-schema enforcement
+# Pydantic-derived input validation
 # ---------------------------------------------------------------------------
 #
-# Each tool ships an ``input_schema`` (JSON Schema), but the dispatch path
-# passes the input straight through as ``**kwargs`` without checking it. For an
-# untrusted transport that means types, bounds, enums and ``required`` are
-# unenforced and unknown keys reach the function. ``validate_against_schema``
-# enforces the subset of JSON Schema actually used by the tool specs. It is
-# deliberately dependency-free (no ``jsonschema``) so it adds no install/lockfile
-# churn.
-
-# A JSON "number" accepts ints; "integer" rejects floats. ``bool`` is excluded
-# from the numeric types because ``True``/``False`` are ints in Python.
-_JSON_TYPE_CHECKS: dict[str, Callable[[Any], bool]] = {
-    "number": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool),
-    "integer": lambda v: isinstance(v, int) and not isinstance(v, bool),
-    "string": lambda v: isinstance(v, str),
-    "boolean": lambda v: isinstance(v, bool),
-    "array": lambda v: isinstance(v, list),
-    "object": lambda v: isinstance(v, dict),
-}
+# Every tool's input is described by a ``BaseModel`` with
+# ``ConfigDict(extra="forbid")`` (ENG-04 / ENG-10). Validation lives on the
+# model: types, bounds, enums, required fields and "no unknown keys" all come
+# from ``model_validate``. ``safe_execute_tool_call`` runs the model
+# pre-submission so an oversize or malformed payload is rejected before the
+# subprocess pool is even touched.
 
 
-def _validate_value(key: str, value: Any, subschema: dict[str, Any]) -> None:  # noqa: ANN401
-    """Validate a single parameter *value* against its property *subschema*."""
-    # Optional parameters may be supplied as an explicit ``null``; the tool
-    # function then falls back to its own default, so do not type-check None.
-    if value is None:
-        return
+def _lookup_input_model(tool_name: str) -> type[BaseModel] | None:
+    """Return the pydantic input model for *tool_name*, or None if not registered."""
+    from process_improve.tool_spec import _TOOL_REGISTRY, discover_tools  # noqa: PLC0415
 
-    expected = subschema.get("type")
-    check = _JSON_TYPE_CHECKS.get(expected) if isinstance(expected, str) else None
-    if check is not None and not check(value):
+    discover_tools()
+    func = _TOOL_REGISTRY.get(tool_name)
+    if func is None:
+        return None
+    return getattr(func, "_input_model", None)
+
+
+def _validate_against_model(tool_name: str, tool_input: dict[str, Any], model_cls: type[BaseModel]) -> None:
+    """Run ``model_cls.model_validate`` and translate ``ValidationError`` -> ``ToolInputInvalidError``."""
+    try:
+        model_cls.model_validate(tool_input)
+    except ValidationError as exc:
         raise ToolInputInvalidError(
-            f"Parameter {key!r} must be of type {expected!r}, got {type(value).__name__}.",
-            details={"key": key, "expected_type": expected, "observed_type": type(value).__name__},
-        )
-
-    enum = subschema.get("enum")
-    if enum is not None and value not in enum:
-        raise ToolInputInvalidError(
-            f"Parameter {key!r}={value!r} is not one of {enum}.",
-            details={"key": key, "enum": list(enum)},
-        )
-
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        minimum = subschema.get("minimum")
-        if minimum is not None and value < minimum:
-            raise ToolInputInvalidError(
-                f"Parameter {key!r}={value} is below the minimum of {minimum}.",
-                details={"key": key, "minimum": minimum, "observed": value},
-            )
-        maximum = subschema.get("maximum")
-        if maximum is not None and value > maximum:
-            raise ToolInputInvalidError(
-                f"Parameter {key!r}={value} exceeds the maximum of {maximum}.",
-                details={"key": key, "maximum": maximum, "observed": value},
-            )
-
-    if isinstance(value, list):
-        min_items = subschema.get("minItems")
-        if min_items is not None and len(value) < min_items:
-            raise ToolInputInvalidError(
-                f"Parameter {key!r} has {len(value)} items; minimum is {min_items}.",
-                details={"key": key, "min_items": min_items, "observed": len(value)},
-            )
-        max_items = subschema.get("maxItems")
-        if max_items is not None and len(value) > max_items:
-            raise ToolInputInvalidError(
-                f"Parameter {key!r} has {len(value)} items; maximum is {max_items}.",
-                details={"key": key, "max_items": max_items, "observed": len(value)},
-            )
-
-
-def validate_against_schema(tool_input: dict[str, Any], schema: dict[str, Any]) -> None:
-    """Validate *tool_input* against a tool's JSON ``input_schema``.
-
-    Enforces the subset of JSON Schema used by process-improve tool specs:
-    the object's ``required`` keys must be present, parameters not declared in
-    ``properties`` are rejected (no additional keys), and each supplied value is
-    checked against its property ``type``, ``enum``, ``minimum``/``maximum``
-    (numbers) and ``minItems``/``maxItems`` (arrays).
-
-    Parameters
-    ----------
-    tool_input:
-        The ``input`` dict that would be passed as keyword arguments to the tool.
-    schema:
-        The tool's ``input_schema`` (a JSON Schema object).
-
-    Raises
-    ------
-    ToolInputInvalidError
-        On any missing-required, unknown-key, type, enum, bound, or item-count
-        violation.
-    """
-    if schema.get("type") != "object":
-        return
-
-    properties: dict[str, Any] = schema.get("properties", {})
-    required = schema.get("required", [])
-
-    for req_key in required:
-        if req_key not in tool_input:
-            raise ToolInputInvalidError(
-                f"Missing required parameter {req_key!r}.",
-                details={"key": req_key, "required": list(required)},
-            )
-
-    if properties:
-        unknown = sorted(set(tool_input) - set(properties))
-        if unknown:
-            raise ToolInputInvalidError(
-                f"Unknown parameter(s): {unknown}. Allowed: {sorted(properties)}.",
-                details={"unknown": unknown, "allowed": sorted(properties)},
-            )
-
-    for key, value in tool_input.items():
-        subschema = properties.get(key)
-        if isinstance(subschema, dict):
-            _validate_value(key, value, subschema)
-
-
-def _lookup_input_schema(tool_name: str) -> dict[str, Any] | None:
-    """Return the ``input_schema`` for *tool_name*, or None if not registered."""
-    from process_improve.tool_spec import get_tool_specs  # noqa: PLC0415
-
-    specs = get_tool_specs(names=[tool_name])
-    return specs[0]["input_schema"] if specs else None
+            f"Input to tool {tool_name!r} failed validation: {exc}",
+            details={"tool_name": tool_name, "errors": exc.errors()},
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -561,13 +464,14 @@ def safe_execute_tool_call(  # noqa: PLR0913
         max_depth=max_depth,
     )
 
-    # Enforce the tool's declared JSON schema (types, bounds, enums, required,
-    # no unknown keys). Done after the size check so an oversize payload is still
-    # reported as ToolInputTooLargeError. Unknown tools fall through to the
-    # worker, which raises the canonical "Unknown tool" ValueError.
-    schema = _lookup_input_schema(tool_name)
-    if schema is not None:
-        validate_against_schema(tool_input, schema)
+    # Enforce the tool's pydantic input contract (types, bounds, enums,
+    # required, no unknown keys). Done after the size check so an oversize
+    # payload is still reported as ToolInputTooLargeError. Unknown tools
+    # fall through to the worker, which raises the canonical "Unknown tool"
+    # ValueError.
+    model_cls = _lookup_input_model(tool_name)
+    if model_cls is not None:
+        _validate_against_model(tool_name, tool_input, model_cls)
 
     pool = executor if executor is not None else get_pool(memory_mb=memory_mb)
     future = pool.submit(_worker_run, tool_name, tool_input)

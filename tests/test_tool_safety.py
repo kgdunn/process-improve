@@ -23,6 +23,7 @@ import time
 
 import numpy as np
 import pytest
+from pydantic import BaseModel, ConfigDict, Field
 
 from process_improve.tool_safety import (
     ToolInputInvalidError,
@@ -32,14 +33,14 @@ from process_improve.tool_safety import (
     ToolTimeoutError,
     _apply_memory_limit,
     _count_numeric_leaves,
-    _lookup_input_schema,
+    _lookup_input_model,
     _pool_initializer,
     _terminate_workers,
+    _validate_against_model,
     _worker_run,
     get_pool,
     safe_execute_tool_call,
     shutdown_pool,
-    validate_against_schema,
     validate_input,
 )
 from process_improve.tool_spec import _TOOL_REGISTRY, tool_spec
@@ -59,45 +60,62 @@ _skip_if_not_linux = pytest.mark.skipif(
 # ---------------------------------------------------------------------------
 
 
+class _EchoInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    value: float
+
+
 @tool_spec(
     name="_safety_test_echo",
     description="Return the input unchanged. Test-only.",
-    input_schema={"json": {"type": "object", "properties": {"value": {"type": "number"}}, "required": ["value"]}},
+    input_model=_EchoInput,
 )
-def _safety_test_echo(*, value: float) -> dict:
-    return {"value": value}
+def _safety_test_echo(spec: _EchoInput) -> dict:
+    return {"value": spec.value}
+
+
+class _SleepInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    seconds: float
 
 
 @tool_spec(
     name="_safety_test_sleep",
     description="Sleep for the given number of seconds. Test-only.",
-    input_schema={"json": {"type": "object", "properties": {"seconds": {"type": "number"}}, "required": ["seconds"]}},
+    input_model=_SleepInput,
 )
-def _safety_test_sleep(*, seconds: float) -> dict:
-    time.sleep(seconds)
-    return {"slept": seconds}
+def _safety_test_sleep(spec: _SleepInput) -> dict:
+    time.sleep(spec.seconds)
+    return {"slept": spec.seconds}
+
+
+class _MemoryBombInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    megabytes: int
 
 
 @tool_spec(
     name="_safety_test_memory_bomb",
     description="Allocate the given number of megabytes. Test-only.",
-    input_schema={
-        "json": {"type": "object", "properties": {"megabytes": {"type": "integer"}}, "required": ["megabytes"]},
-    },
+    input_model=_MemoryBombInput,
 )
-def _safety_test_memory_bomb(*, megabytes: int) -> dict:
+def _safety_test_memory_bomb(spec: _MemoryBombInput) -> dict:
     # Allocate a NumPy array to force a real RSS increase.
-    size = int(megabytes) * 1024 * 1024 // 8
+    size = int(spec.megabytes) * 1024 * 1024 // 8
     _ = np.zeros(size, dtype=np.float64)
-    return {"allocated_mb": megabytes}
+    return {"allocated_mb": spec.megabytes}
+
+
+class _BusyLoopInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
 
 @tool_spec(
     name="_safety_test_busy_loop",
     description="Spin on the CPU forever. Test-only.",
-    input_schema={"json": {"type": "object", "properties": {}}},
+    input_model=_BusyLoopInput,
 )
-def _safety_test_busy_loop() -> dict:
+def _safety_test_busy_loop(spec: _BusyLoopInput) -> dict:
     while True:
         pass
 
@@ -174,107 +192,97 @@ class TestValidateInput:
 
 
 # ---------------------------------------------------------------------------
-# validate_against_schema: SEC-04, synchronous, in-process
+# _validate_against_model + _lookup_input_model: SEC-04, synchronous, in-process
+#
+# The legacy bespoke ``validate_against_schema`` JSON-schema walker was
+# removed alongside the legacy ``input_schema=`` parameter (ENG-04 / ENG-10
+# cleanup). Validation now lives on the pydantic ``BaseModel`` attached to
+# each tool: types, bounds, enums, ``required`` fields, and "no unknown keys"
+# (via ``ConfigDict(extra="forbid")``) all come from ``model_validate``. The
+# tests below pin that surface through the helpers ``safe_execute_tool_call``
+# actually uses.
 # ---------------------------------------------------------------------------
 
 
-_DEMO_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "data": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 5},
-        "n_components": {"type": "integer", "minimum": 1},
-        "conf_level": {"type": "number", "minimum": 0.8, "maximum": 0.999},
-        "method": {"type": "string", "enum": ["a", "b"]},
-        "name": {"type": "string"},
-    },
-    "required": ["data", "n_components"],
-}
+class _DemoInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    data: list[float] = Field(..., min_length=3, max_length=5)
+    n_components: int = Field(..., ge=1)
+    conf_level: float = Field(0.95, ge=0.8, le=0.999)
+    method: str | None = Field(None, pattern="^[ab]$")
+    name: str | None = None
 
 
-class TestValidateAgainstSchema:
+class TestValidateAgainstModel:
     def test_valid_input_passes(self) -> None:
-        validate_against_schema(
+        _validate_against_model(
+            "demo",
             {"data": [1, 2, 3], "n_components": 2, "conf_level": 0.95, "method": "a"},
-            _DEMO_SCHEMA,
-        )
-
-    def test_int_accepted_for_number_type(self) -> None:
-        # JSON "number" accepts integers.
-        validate_against_schema(
-            {"x": 5},
-            {"type": "object", "properties": {"x": {"type": "number"}}},
+            _DemoInput,
         )
 
     def test_missing_required_rejected(self) -> None:
-        with pytest.raises(ToolInputInvalidError, match="required"):
-            validate_against_schema({"data": [1, 2, 3]}, _DEMO_SCHEMA)
+        with pytest.raises(ToolInputInvalidError, match="n_components"):
+            _validate_against_model("demo", {"data": [1, 2, 3]}, _DemoInput)
 
     def test_unknown_key_rejected(self) -> None:
-        with pytest.raises(ToolInputInvalidError, match="Unknown parameter"):
-            validate_against_schema(
-                {"data": [1, 2, 3], "n_components": 2, "bogus": 1}, _DEMO_SCHEMA
+        with pytest.raises(ToolInputInvalidError, match="bogus"):
+            _validate_against_model(
+                "demo", {"data": [1, 2, 3], "n_components": 2, "bogus": 1}, _DemoInput
             )
 
     def test_wrong_type_rejected(self) -> None:
-        with pytest.raises(ToolInputInvalidError, match="type 'integer'"):
-            validate_against_schema({"data": [1, 2, 3], "n_components": "two"}, _DEMO_SCHEMA)
-
-    def test_float_rejected_for_integer(self) -> None:
-        with pytest.raises(ToolInputInvalidError):
-            validate_against_schema({"data": [1, 2, 3], "n_components": 2.5}, _DEMO_SCHEMA)
-
-    def test_bool_rejected_for_number(self) -> None:
-        with pytest.raises(ToolInputInvalidError):
-            validate_against_schema({"data": [1, 2, 3], "n_components": True}, _DEMO_SCHEMA)
+        with pytest.raises(ToolInputInvalidError, match="n_components"):
+            _validate_against_model(
+                "demo", {"data": [1, 2, 3], "n_components": "two"}, _DemoInput
+            )
 
     def test_below_minimum_rejected(self) -> None:
-        with pytest.raises(ToolInputInvalidError, match="minimum"):
-            validate_against_schema({"data": [1, 2, 3], "n_components": 0}, _DEMO_SCHEMA)
+        with pytest.raises(ToolInputInvalidError, match="greater than or equal to 1"):
+            _validate_against_model(
+                "demo", {"data": [1, 2, 3], "n_components": 0}, _DemoInput
+            )
 
     def test_above_maximum_rejected(self) -> None:
-        with pytest.raises(ToolInputInvalidError, match="maximum"):
-            validate_against_schema(
-                {"data": [1, 2, 3], "n_components": 2, "conf_level": 2.0}, _DEMO_SCHEMA
+        with pytest.raises(ToolInputInvalidError, match=r"less than or equal to 0\.999"):
+            _validate_against_model(
+                "demo",
+                {"data": [1, 2, 3], "n_components": 2, "conf_level": 2.0},
+                _DemoInput,
             )
 
     def test_too_few_items_rejected(self) -> None:
-        with pytest.raises(ToolInputInvalidError, match="minimum is 3"):
-            validate_against_schema({"data": [1, 2], "n_components": 2}, _DEMO_SCHEMA)
+        with pytest.raises(ToolInputInvalidError, match="at least 3 items"):
+            _validate_against_model("demo", {"data": [1, 2], "n_components": 2}, _DemoInput)
 
     def test_too_many_items_rejected(self) -> None:
-        with pytest.raises(ToolInputInvalidError, match="maximum is 5"):
-            validate_against_schema({"data": [1, 2, 3, 4, 5, 6], "n_components": 2}, _DEMO_SCHEMA)
+        with pytest.raises(ToolInputInvalidError, match="at most 5 items"):
+            _validate_against_model(
+                "demo", {"data": [1, 2, 3, 4, 5, 6], "n_components": 2}, _DemoInput
+            )
 
     def test_bad_enum_rejected(self) -> None:
-        with pytest.raises(ToolInputInvalidError, match="not one of"):
-            validate_against_schema(
-                {"data": [1, 2, 3], "n_components": 2, "method": "z"}, _DEMO_SCHEMA
+        with pytest.raises(ToolInputInvalidError, match="method"):
+            _validate_against_model(
+                "demo", {"data": [1, 2, 3], "n_components": 2, "method": "z"}, _DemoInput
             )
 
     def test_explicit_null_for_optional_allowed(self) -> None:
-        # An optional parameter passed as null falls back to the tool's default.
-        validate_against_schema(
-            {"data": [1, 2, 3], "n_components": 2, "name": None}, _DEMO_SCHEMA
+        _validate_against_model(
+            "demo",
+            {"data": [1, 2, 3], "n_components": 2, "name": None},
+            _DemoInput,
         )
 
-    def test_non_object_schema_is_noop(self) -> None:
-        # Schemas that are not object-typed are not enforced (no raise).
-        validate_against_schema({"anything": 1}, {"type": "array"})
+    def test_lookup_input_model_unknown_returns_none(self) -> None:
+        assert _lookup_input_model("definitely_not_a_registered_tool") is None
 
-    def test_property_without_recognised_type_is_skipped(self) -> None:
-        # A property whose subschema declares no (or an unknown) type is accepted
-        # as-is; only enum/bounds, if present, still apply.
-        schema = {"type": "object", "properties": {"x": {"description": "free-form"}}}
-        validate_against_schema({"x": ["whatever", 1, {"k": "v"}]}, schema)
-
-    def test_lookup_input_schema_unknown_returns_none(self) -> None:
-        assert _lookup_input_schema("definitely_not_a_registered_tool") is None
-
-    def test_lookup_input_schema_known_returns_schema(self) -> None:
-        schema = _lookup_input_schema("_safety_test_echo")
-        assert schema is not None
-        assert schema["type"] == "object"
-        assert "value" in schema["properties"]
+    def test_lookup_input_model_known_returns_model(self) -> None:
+        model = _lookup_input_model("_safety_test_echo")
+        assert model is not None
+        assert issubclass(model, BaseModel)
+        assert "value" in model.model_fields
 
 
 # ---------------------------------------------------------------------------
@@ -399,7 +407,9 @@ class TestSafeExecuteToolCall:
             safe_execute_tool_call("_safety_test_echo", {"value": "not-a-number"}, timeout=10)
 
     def test_schema_unknown_key_rejected_before_subprocess(self) -> None:
-        with pytest.raises(ToolInputInvalidError, match="Unknown parameter"):
+        # Pydantic ``extra="forbid"`` rejects undeclared keys; the error message
+        # references the extra-forbidden discriminator and the offending key.
+        with pytest.raises(ToolInputInvalidError, match="extra_forbidden"):
             safe_execute_tool_call("_safety_test_echo", {"value": 1, "rogue": 2}, timeout=10)
 
     def test_timeout_raises_structured_error(self) -> None:
