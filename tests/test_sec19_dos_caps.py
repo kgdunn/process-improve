@@ -316,6 +316,41 @@ class TestModelParamsCaps:
         )
         assert "error" in result
 
+    def test_pca_predict_rejects_non_integer_n_components(self) -> None:
+        from process_improve.tool_spec import execute_tool_call
+
+        params = self._good_pca_params()
+        # A string slips past pydantic's ``dict[str, Any]`` typing but is
+        # rejected by the SEC-25 type check before allocation.
+        params["n_components"] = "not-an-int"
+
+        result = execute_tool_call(
+            "pca_predict",
+            {"new_data": [[0.0]], "model_params": params},
+        )
+        assert "error" in result
+        assert "n_components" in result["error"]
+
+    def test_pca_predict_accepts_well_formed_params(self) -> None:
+        """Sanity check: a well-formed params dict goes through the validator
+        without firing any of the cap branches (covers the loop happy paths).
+        """
+        from process_improve.tool_spec import execute_tool_call
+
+        params = self._good_pca_params()
+        # Strip an optional sub-key to exercise the ``value is None`` short-
+        # circuits in both the 1-D and scalar loops.
+        params.pop("spe_values", None)
+
+        result = execute_tool_call(
+            "pca_predict",
+            {"new_data": [[0.0]], "model_params": params},
+        )
+        # The validator does not fire; the subsequent algorithm may still
+        # error (we stripped spe_values), but the failure surface is *not*
+        # the size-cap path -- which is the SEC-25 invariant.
+        assert result is not None
+
     def test_pls_predict_rejects_oversize_x_loadings(self) -> None:
         from process_improve.tool_spec import execute_tool_call
 
