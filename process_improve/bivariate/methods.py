@@ -11,7 +11,7 @@ import numpy as np
 from ..regression.methods import fit_robust_lm
 
 
-def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | float:  # noqa: C901, PLR0915
+def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | float:  # noqa: PLR0915
     """
     Find the elbow point when plotting numeric entries in `x` vs numeric values in list `y`.
 

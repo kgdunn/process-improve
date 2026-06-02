@@ -5,7 +5,7 @@ from sklearn.utils import Bunch
 from ..univariate.metrics import Sn
 
 
-def calculate_cpk(
+def calculate_cpk(  # noqa: C901
     df: pd.DataFrame,
     which_column: str,
     specifications: tuple[float, float] = (np.nan, np.nan),
