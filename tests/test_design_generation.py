@@ -98,6 +98,17 @@ class TestFactor:
         assert f.type == FactorType.categorical
         assert f.levels == ["ST", "VD"]
 
+    def test_from_data_categorical_with_explicit_levels(self) -> None:
+        """An explicit `levels` argument overrides the inferred unique values."""
+        import pandas as pd
+
+        f = Factor.from_data(
+            pd.Series(["A", "B"], name="x"),
+            type="categorical",
+            levels=["A", "B", "C"],
+        )
+        assert f.levels == ["A", "B", "C"]
+
     def test_from_data_requires_name(self) -> None:
         """from_data should error when no name is available."""
         with pytest.raises(ValueError, match="name"):

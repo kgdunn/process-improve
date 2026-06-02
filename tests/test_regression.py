@@ -575,6 +575,24 @@ def test_ols_prediction_interval_at_arbitrary_x(
     assert np.all((pi_99.upper - pi_99.lower) > (pi.upper - pi.lower))
 
 
+def test_ols_prediction_interval_scalar_and_no_intercept(
+    multiple_linear_regression_data: tuple[np.ndarray, np.ndarray],
+) -> None:
+    """Scalar input is treated as one point, and no-intercept models are supported."""
+    X, y = multiple_linear_regression_data
+
+    # Scalar input.
+    pi_scalar = OLS().fit(X, y).prediction_interval(0.12)
+    assert pi_scalar.predicted.shape == (1,)
+    assert pi_scalar.lower[0] < pi_scalar.upper[0]
+
+    # No-intercept model.
+    model = OLS(fit_intercept=False).fit(X, y)
+    pi = model.prediction_interval(np.array([0.05, 0.10, 0.15]))
+    assert pi.predicted.shape == (3,)
+    assert np.all(pi.lower < pi.upper)
+
+
 def test_ols_prediction_interval_multifeature() -> None:
     """prediction_interval() supports multi-feature models and single-point input."""
     rng = np.random.default_rng(0)

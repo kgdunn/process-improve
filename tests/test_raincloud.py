@@ -52,3 +52,9 @@ def test_raincloud_rejects_bad_orientation() -> None:
     """An unknown orientation is rejected."""
     with pytest.raises(ValueError, match="orientation"):
         raincloud(pd.Series([1.0, 2.0]), orientation="x")
+
+
+def test_raincloud_applies_explicit_template() -> None:
+    """An explicit `template` overrides the package default."""
+    fig = raincloud(pd.Series([1.0, 2.0, 3.0]), template="plotly_white")
+    assert fig.layout.template.layout.plot_bgcolor == "white"
