@@ -209,6 +209,9 @@ def test_forg_supports_arbitrary_precision() -> None:
     assert forg(123.4567, 4).strip() == "123.4567"
     # prec=2 previously raised NotImplementedError
     assert forg(1.23456, 2).strip() == "1.23"
+    # The g-format branch handles very large and very small magnitudes.
+    assert "e+" in forg(5e6, 3).strip().lower()
+    assert "e-" in forg(1e-6, 3).strip().lower()
 
 
 # ---- Model tests ----

@@ -892,6 +892,13 @@ def test_biweight_midvariance_edge_cases() -> None:
     assert univariate.biweight_midvariance([5.0, 5.0, 5.0]) == 0.0
     assert np.isnan(univariate.biweight_midvariance([]))
     assert np.isnan(univariate.biweight_midvariance([1.0, np.nan], nan_policy="propagate"))
+    # The default "omit" policy drops NaNs and computes on the remainder.
+    rng = np.random.default_rng(11)
+    clean = rng.normal(loc=0.0, scale=1.0, size=100)
+    with_nan = np.concatenate([clean, [np.nan, np.nan]])
+    omitted = univariate.biweight_midvariance(with_nan)
+    assert np.isfinite(omitted)
+    assert omitted == pytest.approx(univariate.biweight_midvariance(clean), rel=1e-12)
 
 
 def test_holm_bonferroni_matches_statsmodels() -> None:
