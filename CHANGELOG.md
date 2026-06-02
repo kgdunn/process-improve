@@ -11,6 +11,65 @@ those changes.
 
 ## [Unreleased]
 
+## [1.22.21] - 2026-06-02
+
+### Security
+
+- **SEC-24** (#273) -- `confidence_interval`, paired `t_value`, and
+  `calculate_cpk` now reject degenerate sample sizes (n < 2 / zero
+  spread) up front with a clear `ValueError` or `RuntimeWarning`,
+  instead of silently returning `inf` / `NaN`.
+- **SEC-26** (#275) -- `analyze_experiment(transform="inverse")`
+  rejects a zero in the response column with a clear `ValueError`
+  rather than producing `inf` and a downstream `LinAlgError` whose
+  text was leaked via the broad `except` in the tool wrapper.
+- **SEC-27** (#276) -- the quadratic-term parser in
+  `experiments/optimization.py` and the surface-plot generator now
+  accept both `I(A ** 2)` and `np.power(A, 2)` / `power(A, 2)`.
+  Newer statsmodels emits the latter; the silent fall-through to
+  the linear branch was producing wrong predictions / surfaces.
+- **SEC-28** (#277) -- `draw_initial_seed` now uses
+  `secrets.randbits(63)` instead of truncating `SeedSequence`
+  entropy to 31 bits. Brute-forcing the simulator seed is no
+  longer feasible.
+- **SEC-29** (#278) -- `_SIGNIFICANT_FACTOR_PATTERN` is bounded
+  (`\b(\w+(?:\s\w+){0,4})`) so it matches in linear time. A new
+  4 KiB cap on the `prior_knowledge` text rejects multi-MB payloads
+  at the strategy-tool boundary, closing the regex-DoS surface.
+- **SEC-30** (#279) -- the knowledge YAML loader now refuses files
+  larger than 1 MiB. Defends against a tampered file that ships a
+  YAML anchor bomb (`safe_load` resolves anchors and merges, so a
+  small file can expand to gigabytes during parse).
+- **SEC-32** (#281) -- `batch.plotting` now decodes the JSON dict
+  keys outside the comprehension and re-raises `JSONDecodeError`
+  as a documented `ValueError` at the API surface, rather than
+  letting the decoder error escape from inside a dict-merge.
+
+### Fixed
+
+- **SEC-31** (#280) -- `tests/test_tool_safety.py` now asserts that
+  `concurrent.futures.ProcessPoolExecutor` exposes the
+  `_processes` attribute that `_terminate_workers` depends on. If a
+  future Python release renames it, CI now fails loudly instead of
+  silently degrading the SEC-02 timeout guarantee.
+- **SEC-33** (#282) -- a five-item misc cleanup:
+  - `terminate_check` now uses `>=` against `md_max_iter` (was an
+    off-by-one that ran one extra iteration).
+  - `np.var` on an empty negative-only slice no longer silently
+    skips a sign-flip in `internal_pls_nipals_fit_one_pc`.
+  - Float `==` zero guard on `norm(t)*norm(u)` in the MBPLS
+    permutation test is now `<= epsqrt` (sub-eps near-zero denoms
+    were producing meaningless ratios).
+  - `np.arccos` argument in `bivariate.methods` is now clamped to
+    `[-1, 1]` so floating-point excursions yield the boundary
+    angle instead of silent `NaN`.
+  - `_optimize_desirability` accepts an optional `random_state`
+    parameter (default `42` preserves prior deterministic
+    behaviour) via the ENG-08 `check_random_state` helper.
+  - The registry's factor-name extractor now cross-references
+    names against actual design columns when available, instead
+    of the incomplete static `{"I", "np", "power"}` blocklist.
+
 ## [1.22.20] - 2026-06-02
 
 ### Security
@@ -475,7 +534,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.20...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.22.21...HEAD
+[1.22.21]: https://github.com/kgdunn/process-improve/compare/v1.22.20...v1.22.21
 [1.22.20]: https://github.com/kgdunn/process-improve/compare/v1.22.19...v1.22.20
 [1.22.19]: https://github.com/kgdunn/process-improve/compare/v1.22.18...v1.22.19
 [1.22.18]: https://github.com/kgdunn/process-improve/compare/v1.22.17...v1.22.18

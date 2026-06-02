@@ -226,6 +226,28 @@ def test_metrics_renamed_attribute_raises_helpful_error() -> None:
         _ = metrics_module.does_not_exist
 
 
+# ---------------------------------------------------------------------------
+# SEC-24 (#273) -- Cpk on constant column must not return silent inf / NaN
+# ---------------------------------------------------------------------------
+
+
+def test_calculate_cpk_constant_column_emits_warning_and_returns_nan() -> None:
+    """A constant column has zero spread; Cpk is undefined. SEC-24 (#273)."""
+    data = pd.DataFrame({"value": [50.0] * 20})
+    with pytest.warns(RuntimeWarning, match="spread is zero"):
+        cpk = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
+    assert np.isnan(cpk)
+
+
+def test_calculate_cpk_normal_data_still_returns_finite_value() -> None:
+    """Regression: SEC-24 changes must not affect the happy path."""
+    rng = np.random.default_rng(0)
+    data = pd.DataFrame({"value": rng.normal(50, 1, size=200)})
+    cpk = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
+    assert np.isfinite(cpk)
+    assert cpk > 0
+
+
 class TestHoltWintersControlChartBatchYield:
     """Validate Holt-Winters control chart on batch yield data.
 

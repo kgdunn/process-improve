@@ -2539,7 +2539,9 @@ def terminate_check(t_a_guess: np.ndarray, t_a: np.ndarray, iterations: int, set
     """
     score_tol = np.linalg.norm(t_a_guess - t_a, ord=None)
     converged = score_tol < settings["md_tol"]
-    max_iter = iterations > settings["md_max_iter"]
+    # SEC-33 (#282): use ``>=`` so the loop runs exactly ``md_max_iter``
+    # iterations rather than ``md_max_iter + 1``.
+    max_iter = iterations >= settings["md_max_iter"]
     return bool(np.any([max_iter, converged]))
 
 
@@ -2885,7 +2887,13 @@ def internal_pls_nipals_fit_one_pc(
         u_i = u_new
 
     # We have converged. Keep sign consistency. Fairly arbitrary rule, but ensures we report results consistently.
-    if np.var(t_i[t_i < 0]) > np.var(t_i[t_i >= 0]):
+    # SEC-33 (#282): ``np.var`` on an empty slice returns NaN and emits
+    # a RuntimeWarning; ``NaN > NaN`` is False so the comparison
+    # silently skipped a sign-flip that may have been required. Guard
+    # against the empty-slice case explicitly.
+    neg = t_i[t_i < 0]
+    nonneg = t_i[t_i >= 0]
+    if neg.size > 0 and nonneg.size > 0 and np.var(neg) > np.var(nonneg):
         t_i = -t_i
         u_new = -u_new
         w_i = -w_i
@@ -5167,7 +5175,10 @@ def randomization_test_mbpls(
         for a in range(t.shape[1]):
             num = float(np.abs(t[:, a] @ u[:, a]))
             denom = float(np.linalg.norm(t[:, a]) * np.linalg.norm(u[:, a]))
-            out[a] = 0.0 if denom == 0 else num / denom
+            # SEC-33 (#282): float ``==`` zero only catches the exact-zero
+            # case; a sub-eps near-zero denom produced a meaningless ratio
+            # that the permutation test treated as an observed statistic.
+            out[a] = 0.0 if denom <= epsqrt else num / denom
         return out
 
     observed = _objective(model)

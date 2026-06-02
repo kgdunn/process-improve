@@ -52,9 +52,19 @@ _NO_KEYWORDS = re.compile(
     re.IGNORECASE,
 )
 _SIGNIFICANT_FACTOR_PATTERN = re.compile(
-    r"(\w[\w\s]*?)\s+(?:is|are)\s+(?:known\s+to\s+be\s+)?(?:significant|important|key|critical)",
+    # SEC-29 (#278): bounded the capture group so a multi-KB whitespace
+    # payload can no longer trigger O(n^2) regex matching. ``\w+(?:\s\w+){0,4}``
+    # is the longest realistic factor name we expect ("two-stage reactor
+    # temperature") and matches in linear time.
+    r"\b(\w+(?:\s\w+){0,4})\s+(?:is|are)\s+(?:known\s+to\s+be\s+)?(?:significant|important|key|critical)\b",
     re.IGNORECASE,
 )
+
+# SEC-29 (#278): cap the length of the free-text prior so a caller
+# cannot send a multi-MB string that swamps the regex engine even with
+# the bounded pattern above. 4 KiB comfortably accommodates any
+# realistic prior-knowledge note and slams the door on payload DoS.
+_PRIOR_KNOWLEDGE_MAX_CHARS = 4096
 
 
 def _parse_prior_knowledge(
@@ -66,6 +76,12 @@ def _parse_prior_knowledge(
         return PriorKnowledge(raw_text="", confidence=0.0)
 
     text = text.strip()
+    if len(text) > _PRIOR_KNOWLEDGE_MAX_CHARS:
+        raise ValueError(
+            f"prior_knowledge text is {len(text)} characters; the maximum "
+            f"is {_PRIOR_KNOWLEDGE_MAX_CHARS}. Trim the input to its "
+            "relevant prose."
+        )
 
     # Score based on keyword matching
     confidence = 0.0

@@ -29,6 +29,7 @@ real physical asset.
 from __future__ import annotations
 
 import re
+import secrets
 from typing import Any
 
 import numpy as np
@@ -437,7 +438,14 @@ def simulate(
 
 
 def draw_initial_seed() -> int:
-    """Return a non-negative int suitable for use as a seed in *private_state*."""
-    # Keep it in a comfortable numpy range (< 2**31) so JSON int handling and
-    # SQLAlchemy Integer columns don't need to think about width.
-    return int(np.random.SeedSequence().entropy % (2**31))
+    """Return a non-negative int suitable for use as a seed in *private_state*.
+
+    Uses ``secrets.randbits(63)`` to draw 63 bits of cryptographic entropy.
+    63 (not 64) keeps the value in a positive signed 64-bit int so JSON
+    parsers and SQLAlchemy Integer columns can round-trip it without
+    width worries. Previous versions truncated ``SeedSequence().entropy``
+    to 31 bits, which gave an attacker who could observe simulator
+    outputs a brute-forceable seed space (SEC-28 / #277). With 63 bits,
+    enumerating the seed space is no longer feasible.
+    """
+    return secrets.randbits(63)

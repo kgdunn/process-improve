@@ -130,7 +130,19 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
     line_styles = {k: dict(width=default_line_width, color=v) for k, v in zip(unique_items, colours, strict=False)}
     for key, val in batches_to_highlight.items():
-        line_styles.update({item: json.loads(key) for item in val if item in df_dict})
+        # SEC-32 (#281): each key must be a JSON-encoded plotly line-style
+        # spec. Decode once outside the comprehension so a bad key raises
+        # a clear ValueError at the API surface rather than a confusing
+        # ``JSONDecodeError`` deep inside the comprehension.
+        try:
+            style_spec = json.loads(key)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"batches_to_highlight: each key must be a JSON-encoded "
+                f"plotly line-style spec (e.g. '{{\"width\":4,\"color\":\"red\"}}'). "
+                f"Got {key!r}."
+            ) from exc
+        line_styles.update({item: style_spec for item in val if item in df_dict})
 
     highlight_list = []
     for val in batches_to_highlight.values():
@@ -256,7 +268,17 @@ def colours_per_batch_id(
         for key, val in zip(list(batch_ids), colours, strict=False)
     }
     for key, val in batches_to_highlight.items():
-        colour_assignment.update({item: json.loads(key) for item in val if item in batch_ids})
+        # SEC-32 (#281) -- decode outside the comprehension so a bad key
+        # raises ValueError at the API surface rather than JSONDecodeError
+        # inside the dict-merge.
+        try:
+            colour_spec = json.loads(key)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"batches_to_highlight: each key must be a JSON-encoded "
+                f"colour spec. Got {key!r}."
+            ) from exc
+        colour_assignment.update({item: colour_spec for item in val if item in batch_ids})
     return colour_assignment
 
 

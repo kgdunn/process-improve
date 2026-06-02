@@ -53,8 +53,11 @@ def _evaluate_model(
         if term == "Intercept":
             continue
 
-        # Quadratic: I(A ** 2)
-        m = re.match(r"I\((\w+)\s*\*\*\s*2\)", term)
+        # Quadratic: ``I(A ** 2)`` (older statsmodels) or
+        # ``np.power(A, 2)`` / ``power(A, 2)`` (newer). SEC-27 (#276).
+        m = re.match(r"I\((\w+)\s*\*\*\s*2\)", term) or re.match(
+            r"(?:np\.)?power\((\w+)\s*,\s*2\)", term
+        )
         if m:
             name = m.group(1)
             y_hat += coef * point.get(name, 0.0) ** 2

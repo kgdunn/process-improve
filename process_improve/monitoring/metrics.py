@@ -83,8 +83,29 @@ def calculate_cpk(
         center_lower, center_upper = metric_lower.mean(), metric_upper.mean()
         spread_lower, spread_upper = metric_lower.std(), metric_upper.std()
 
+    # A column with no spread (constant data, or only one non-NaN value)
+    # makes Cpk undefined: the bare division yielded inf / NaN silently.
+    # Emit a clear warning and return NaN per side -- callers can then
+    # distinguish "Cpk could not be computed" from a numeric result.
+    # SEC-24 (#273).
+    import warnings  # noqa: PLC0415
+
+    def _safe_ratio(numer: float, denom: float, side: str) -> float:
+        if not (denom > 0):
+            warnings.warn(
+                f"Cpk_{side}: spread is zero or non-finite; returning NaN. "
+                "Likely cause: constant column or only one non-NaN value.",
+                category=RuntimeWarning,
+                stacklevel=2,
+            )
+            return float("nan")
+        return numer / (3 * denom)
+
     # TODO: return the RSD also: rsd = (spread / center) * 100
-    return np.nanmin([center_lower / (3 * spread_lower), center_upper / (3 * spread_upper)])
+    return np.nanmin([
+        _safe_ratio(center_lower, spread_lower, "lower"),
+        _safe_ratio(center_upper, spread_upper, "upper"),
+    ])
 
 
 _RENAMED = {"calculate_Cpk": "calculate_cpk"}

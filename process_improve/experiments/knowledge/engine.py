@@ -32,12 +32,24 @@ _GRAPH: KnowledgeGraph | None = None
 # ---------------------------------------------------------------------------
 
 
+#: Hard ceiling on YAML file size (SEC-30 / #279). A tampered file or a
+#: package-install mishap could ship a YAML anchor-bomb (the
+#: "billion laughs" attack); ``safe_load`` resolves anchors and merges,
+#: so a small file can expand to gigabytes during parsing. 1 MiB is a
+#: comfortable upper bound for any legitimate knowledge-graph YAML we
+#: ship -- the current biggest file is well under 100 KiB.
+_MAX_YAML_BYTES = 1 * 1024 * 1024
+
+
 def _load_yaml(filename: str) -> list[dict[str, Any]]:
     """Load a YAML file from the data directory and return its contents.
 
     *filename* is resolved against :data:`_DATA_DIR` and must stay inside it; a
     value containing ``..`` (or an absolute path) that escapes the data
     directory raises :class:`ValueError` rather than reading an arbitrary file.
+
+    The file size is capped at :data:`_MAX_YAML_BYTES` to defend against a
+    tampered file that ships a YAML anchor bomb (SEC-30 / #279).
     """
     base = _DATA_DIR.resolve()
     path = (base / filename).resolve()
@@ -45,6 +57,12 @@ def _load_yaml(filename: str) -> list[dict[str, Any]]:
         raise ValueError(f"Refusing to load {filename!r}: path escapes the data directory.")
     if not path.exists():
         return []
+    size = path.stat().st_size
+    if size > _MAX_YAML_BYTES:
+        raise ValueError(
+            f"Refusing to load {filename!r}: file size {size} exceeds the "
+            f"cap of {_MAX_YAML_BYTES} bytes. Possible YAML anchor bomb."
+        )
     with path.open(encoding="utf-8") as fh:
         data = yaml.safe_load(fh)
     return data if isinstance(data, list) else []

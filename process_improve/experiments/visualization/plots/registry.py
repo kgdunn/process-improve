@@ -264,8 +264,16 @@ class BasePlot(ABC):
                 import re  # noqa: PLC0415
 
                 names = re.findall(r"\b([A-Za-z_]\w*)\b", rhs)
-                # Remove reserved words
-                reserved = {"I", "np", "power"}
+                # SEC-33 (#282): the previous static reserved-word filter
+                # ``{"I", "np", "power"}`` missed transforms like ``Q``,
+                # ``center``, ``standardize``, etc. The right test is
+                # 'does this name actually correspond to a design column?'
+                # -- cross-reference against the design data when available
+                # and fall back to the static blocklist otherwise.
+                if self.design_data:
+                    real_cols = set(self.design_data[0].keys())
+                    return list(dict.fromkeys(n for n in names if n in real_cols))
+                reserved = {"I", "np", "power", "Q", "center", "standardize"}
                 return list(dict.fromkeys(n for n in names if n not in reserved))
 
         # From design data
