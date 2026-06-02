@@ -24,6 +24,17 @@ so the caller sees a concrete remediation::
 from __future__ import annotations
 
 
+def _extra_message(missing: str, extra: str) -> str:
+    """Format the canonical 'install the extra' remediation message."""
+    return (
+        f"process_improve needs {missing!r}, which is part of the optional "
+        f"{extra!r} extra. Install it with:\n"
+        f"    pip install 'process-improve[{extra}]'\n"
+        f"or install every optional dependency at once with:\n"
+        f"    pip install 'process-improve[all]'"
+    )
+
+
 def require_extra(missing: str, extra: str) -> ImportError:
     """Return an ``ImportError`` whose message tells the caller which extra to install.
 
@@ -40,21 +51,19 @@ def require_extra(missing: str, extra: str) -> ImportError:
         Name of the process-improve extra that provides it
         (e.g. ``"plotting"``).
     """
-    return ImportError(
-        f"process_improve needs {missing!r}, which is part of the optional "
-        f"{extra!r} extra. Install it with:\n"
-        f"    pip install 'process-improve[{extra}]'\n"
-        f"or install every optional dependency at once with:\n"
-        f"    pip install 'process-improve[all]'"
-    )
+    return ImportError(_extra_message(missing, extra))
 
 
 class _MissingExtra:
     """Stand-in for an optional module that was not installed.
 
-    Attribute access raises the same ``require_extra`` ImportError that a
-    direct ``import`` would have produced. This lets a module top-level
-    write::
+    Attribute access raises :class:`AttributeError` (Python's special-method
+    convention -- ``hasattr(stub, 'Figure')`` returns ``False``) with the
+    canonical "install the extra" remediation message in the body. Direct
+    *calls* on the stub raise :class:`ImportError` because that is the
+    natural error class for "you need to install this dependency".
+
+    Lets a module top-level write::
 
         try:
             import plotly.graph_objects as go
@@ -71,8 +80,18 @@ class _MissingExtra:
         self._missing = missing
         self._extra = extra
 
-    def __getattr__(self, _name: str) -> object:
-        raise require_extra(self._missing, self._extra)
+    def __getattr__(self, name: str) -> object:
+        # __getattr__ must raise AttributeError so ``hasattr`` and friends
+        # behave per the Python data model (CodeQL py/non-standard-exception
+        # -raised-in-special-method). The install-hint message is preserved
+        # in the exception text.
+        raise AttributeError(
+            f"{_extra_message(self._missing, self._extra)}\n"
+            f"(Attempted attribute access: {name!r}.)"
+        )
 
     def __call__(self, *_args: object, **_kwargs: object) -> object:
+        # __call__ has no equivalent convention; raise ImportError here
+        # because callers that try to use the stub directly are asking
+        # for the missing package.
         raise require_extra(self._missing, self._extra)
