@@ -261,6 +261,53 @@ def test_reference_batch_selection_nylon(nylon_data: dict) -> None:
     assert good_reference_candidate == 45
 
 
+def test_find_reference_batch_rejects_request_exceeding_candidates(dryer_data: dict) -> None:
+    """SEC-13 (#261) regression guard.
+
+    Requesting more reference batches than exist used to enter an unbounded
+    cutoff-relaxation loop that eventually tripped ``assert conf_level < 1.0``
+    inside ``spe_calculation`` -- an opaque, ``python -O``-strippable
+    AssertionError. The fix validates up front and raises a clear
+    ValueError.
+    """
+    columns_to_align = [
+        "AgitatorPower",
+        "AgitatorTorque",
+        "JacketTemperatureSP",
+        "JacketTemperature",
+        "DryerTemp",
+    ]
+    with pytest.raises(ValueError, match="exceeds the number of candidate batches"):
+        find_reference_batch(
+            dryer_data,
+            columns_to_align=columns_to_align,
+            settings={
+                "robust": False,
+                "number_of_reference_batches": len(dryer_data) + 100,
+            },
+        )
+
+
+def test_find_reference_batch_rejects_zero_request(dryer_data: dict) -> None:
+    """SEC-13 (#261): a non-positive request raises a clear ValueError."""
+    columns_to_align = [
+        "AgitatorPower",
+        "AgitatorTorque",
+        "JacketTemperatureSP",
+        "JacketTemperature",
+        "DryerTemp",
+    ]
+    with pytest.raises(ValueError, match=r"must be >= 1"):
+        find_reference_batch(
+            dryer_data,
+            columns_to_align=columns_to_align,
+            settings={
+                "robust": False,
+                "number_of_reference_batches": 0,
+            },
+        )
+
+
 # ---- Alignment helper tests (batch/alignment_helpers.py) ----
 
 

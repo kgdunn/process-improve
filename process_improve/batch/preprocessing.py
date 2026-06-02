@@ -653,15 +653,40 @@ def find_reference_batch(
         }
     )
     metrics = metrics.sort_values(by=["HT2", "SPE"])
-    start_cutoff = 0.5
-    # Boolean-mask indexing instead of a DataFrame.query() expression string built
-    # by f-string (no expression is assembled or evaluated).
+    requested = int(settings["number_of_reference_batches"])
+    if requested < 1:
+        raise ValueError(
+            f"number_of_reference_batches must be >= 1, got {requested}."
+        )
+    if requested > len(metrics):
+        # SEC-13 (#261): without this guard the cutoff-relaxation loop below
+        # walks past ``conf_level=1.0``, which trips an ``assert`` inside
+        # ``spe_calculation`` and was -O-strippable. Fail fast with a clear
+        # message instead.
+        raise ValueError(
+            f"number_of_reference_batches={requested} exceeds the number of "
+            f"candidate batches ({len(metrics)}); cannot select that many."
+        )
+
+    # Boolean-mask indexing instead of a DataFrame.query() expression string
+    # built by f-string (no expression is assembled or evaluated).
     spe_metrics = metrics[metrics["SPE"] < pca_second.spe_limit(conf_level=0.5)]
-    while spe_metrics.shape[0] < int(settings["number_of_reference_batches"]):
+    # SEC-13 (#261): bound the cutoff strictly below 1.0. If the loop runs out
+    # of headroom before enough batches pass, give up with a clear error
+    # rather than tripping the inner ``assert conf_level < 1.0`` (which is
+    # ``python -O``-strippable).
+    start_cutoff = 0.5
+    max_cutoff = 0.95
+    while spe_metrics.shape[0] < requested and start_cutoff <= max_cutoff:
         spe_metrics = metrics[metrics["SPE"] < pca_second.spe_limit(conf_level=start_cutoff)]
         start_cutoff += 0.05
+    if spe_metrics.shape[0] < requested:
+        raise ValueError(
+            f"Could not find {requested} reference batches even at "
+            f"conf_level={max_cutoff:.2f}; only {spe_metrics.shape[0]} "
+            "batches passed the SPE cutoff."
+        )
 
-    if settings["number_of_reference_batches"] == 1:
+    if requested == 1:
         return spe_metrics.index[0]  # returns a single entry from the index
-    else:
-        return spe_metrics.index[0 : int(settings["number_of_reference_batches"])].to_list()
+    return spe_metrics.index[0:requested].to_list()
