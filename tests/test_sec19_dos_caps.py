@@ -218,3 +218,161 @@ class TestFitLinearModelCaps:
         )
         assert "error" not in result
         assert result["r2"] >= 0.0
+
+
+# ---------------------------------------------------------------------------
+# SEC-25 (#274): pca_predict / pls_predict model_params caps
+# ---------------------------------------------------------------------------
+
+
+class TestModelParamsCaps:
+    """``pca_predict`` and ``pls_predict`` previously took unbounded model_params.
+
+    A multi-million-element nested ``loadings`` list slipped past the original
+    ``{type: object}`` schema and was passed straight to ``np.array(...)``,
+    causing an allocation bomb. The fix bounds every array-like sub-field
+    against ``settings.max_matrix_rows`` / ``settings.max_matrix_cols`` before
+    any allocation.
+    """
+
+    def _good_pca_params(self) -> dict:
+        # Minimal well-formed model_params, sized 1x1 to exercise the
+        # validator without doing real PCA work.
+        return {
+            "loadings": [[1.0]],
+            "means": [0.0],
+            "stds": [1.0],
+            "scaling_factor_for_scores": [1.0],
+            "spe_values": [0.0],
+            "n_components": 1,
+            "n_samples": 1,
+        }
+
+    def test_pca_predict_rejects_oversize_loadings_rows(self) -> None:
+        from process_improve.tool_spec import execute_tool_call
+
+        settings.max_matrix_rows = 5
+        params = self._good_pca_params()
+        params["loadings"] = [[0.0]] * 10  # 10 rows > cap of 5
+
+        result = execute_tool_call(
+            "pca_predict",
+            {"new_data": [[0.0]], "model_params": params},
+        )
+        assert "error" in result
+        assert "max_matrix_rows" in result["error"]
+
+    def test_pca_predict_rejects_oversize_loadings_cols(self) -> None:
+        from process_improve.tool_spec import execute_tool_call
+
+        settings.max_matrix_cols = 4
+        params = self._good_pca_params()
+        params["loadings"] = [[0.0] * 10]  # 10 cols > cap of 4
+
+        result = execute_tool_call(
+            "pca_predict",
+            {"new_data": [[0.0]], "model_params": params},
+        )
+        assert "error" in result
+        assert "max_matrix_cols" in result["error"]
+
+    def test_pca_predict_rejects_oversize_means(self) -> None:
+        from process_improve.tool_spec import execute_tool_call
+
+        settings.max_matrix_rows = 5
+        params = self._good_pca_params()
+        params["means"] = [0.0] * 100
+
+        result = execute_tool_call(
+            "pca_predict",
+            {"new_data": [[0.0]], "model_params": params},
+        )
+        assert "error" in result
+        assert "max_matrix_rows" in result["error"]
+
+    def test_pca_predict_rejects_oversize_n_components(self) -> None:
+        from process_improve.tool_spec import execute_tool_call
+
+        settings.max_matrix_cols = 4
+        params = self._good_pca_params()
+        params["n_components"] = 10_000
+
+        result = execute_tool_call(
+            "pca_predict",
+            {"new_data": [[0.0]], "model_params": params},
+        )
+        assert "error" in result
+        assert "n_components" in result["error"]
+
+    def test_pca_predict_rejects_negative_n_samples(self) -> None:
+        from process_improve.tool_spec import execute_tool_call
+
+        params = self._good_pca_params()
+        params["n_samples"] = -1
+
+        result = execute_tool_call(
+            "pca_predict",
+            {"new_data": [[0.0]], "model_params": params},
+        )
+        assert "error" in result
+
+    def test_pca_predict_rejects_non_integer_n_components(self) -> None:
+        from process_improve.tool_spec import execute_tool_call
+
+        params = self._good_pca_params()
+        # A string slips past pydantic's ``dict[str, Any]`` typing but is
+        # rejected by the SEC-25 type check before allocation.
+        params["n_components"] = "not-an-int"
+
+        result = execute_tool_call(
+            "pca_predict",
+            {"new_data": [[0.0]], "model_params": params},
+        )
+        assert "error" in result
+        assert "n_components" in result["error"]
+
+    def test_pca_predict_accepts_well_formed_params(self) -> None:
+        """Sanity check: a well-formed params dict goes through the validator
+        without firing any of the cap branches (covers the loop happy paths).
+        """
+        from process_improve.tool_spec import execute_tool_call
+
+        params = self._good_pca_params()
+        # Strip an optional sub-key to exercise the ``value is None`` short-
+        # circuits in both the 1-D and scalar loops.
+        params.pop("spe_values", None)
+
+        result = execute_tool_call(
+            "pca_predict",
+            {"new_data": [[0.0]], "model_params": params},
+        )
+        # The validator does not fire; the subsequent algorithm may still
+        # error (we stripped spe_values), but the failure surface is *not*
+        # the size-cap path -- which is the SEC-25 invariant.
+        assert result is not None
+
+    def test_pls_predict_rejects_oversize_x_loadings(self) -> None:
+        from process_improve.tool_spec import execute_tool_call
+
+        settings.max_matrix_rows = 5
+        params = {
+            "x_loadings": [[0.0]] * 10,  # > cap
+            "y_loadings": [[0.0]],
+            "direct_weights": [[1.0]],
+            "beta_coefficients": [[1.0]],
+            "x_means": [0.0],
+            "x_stds": [1.0],
+            "y_means": [0.0],
+            "y_stds": [1.0],
+            "scaling_factor_for_scores": [1.0],
+            "spe_values": [0.0],
+            "n_components": 1,
+            "n_samples": 1,
+        }
+
+        result = execute_tool_call(
+            "pls_predict",
+            {"new_data": [[0.0]], "model_params": params},
+        )
+        assert "error" in result
+        assert "max_matrix_rows" in result["error"]

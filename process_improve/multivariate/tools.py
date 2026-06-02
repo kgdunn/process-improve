@@ -44,6 +44,72 @@ def _validate_matrix_shape(data: list, name: str) -> None:
         )
 
 
+def _validate_model_params(  # noqa: C901
+    model_params: dict,
+    *,
+    keys_2d: tuple[str, ...],
+    keys_1d: tuple[str, ...],
+    scalar_keys: tuple[str, ...] = ("n_components", "n_samples"),
+) -> None:
+    """Cap every array-like sub-field of a ``model_params`` payload (SEC-25 #274).
+
+    ``pca_predict`` / ``pls_predict`` previously read attacker-controlled
+    sizes straight into ``np.array(...)`` and could be allocation-bombed
+    with a multi-million-element nested list (the input ``model_params``
+    field had no inner schema, no ``properties``, no ``maxItems``).
+
+    This guard runs **before** any ``np.array(...)`` allocation:
+
+    - 2-D keys (loadings, weights, beta-coefficients) are checked via
+      :func:`_validate_matrix_shape`, which caps rows against
+      ``settings.max_matrix_rows`` and cols against
+      ``settings.max_matrix_cols``.
+    - 1-D keys (means, stds, spe_values, scaling factors) are length-
+      capped against ``settings.max_matrix_rows``.
+    - Scalar keys (``n_components``, ``n_samples``) are capped against
+      ``settings.max_matrix_cols`` and ``settings.max_matrix_rows``
+      respectively; non-integer values are rejected outright.
+
+    Missing keys propagate as the natural ``KeyError`` from the caller's
+    own dict access; the goal of this function is solely to bound the
+    sizes, not to enforce the full schema (that lives on the underlying
+    fit_pca / fit_pls output).
+    """
+    for key in keys_2d:
+        value = model_params.get(key)
+        if value is not None:
+            _validate_matrix_shape(value, f"model_params[{key!r}]")
+
+    for key in keys_1d:
+        value = model_params.get(key)
+        if value is None:
+            continue
+        n = len(value)
+        if n > settings.max_matrix_rows:
+            raise ValueError(
+                f"model_params[{key!r}] has {n} entries; the cap is "
+                f"settings.max_matrix_rows={settings.max_matrix_rows}."
+            )
+
+    for key in scalar_keys:
+        if key not in model_params:
+            continue
+        value = model_params[key]
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise TypeError(
+                f"model_params[{key!r}] must be an int, got {type(value).__name__}."
+            )
+        cap = settings.max_matrix_cols if key == "n_components" else settings.max_matrix_rows
+        if value > cap:
+            raise ValueError(
+                f"model_params[{key!r}]={value} exceeds the cap of {cap}."
+            )
+        if value < 0:
+            raise ValueError(
+                f"model_params[{key!r}]={value} must be non-negative."
+            )
+
+
 _MULTIVARIATE_TOOL_NAMES: list[str] = []
 
 
@@ -435,6 +501,13 @@ def pca_predict(spec: PcaPredictInput) -> dict[str, Any]:
     """Project new data into a PCA model."""
     try:
         _validate_matrix_shape(spec.new_data, "new_data")
+        # SEC-25 (#274): cap every array-like sub-field of model_params
+        # before any np.array(...) allocation.
+        _validate_model_params(
+            spec.model_params,
+            keys_2d=("loadings",),
+            keys_1d=("means", "stds", "scaling_factor_for_scores", "spe_values"),
+        )
         from process_improve.multivariate.methods import hotellings_t2_limit, spe_calculation  # noqa: PLC0415
 
         means = np.array(spec.model_params["means"])
@@ -525,6 +598,16 @@ def pls_predict(spec: PlsPredictInput) -> dict[str, Any]:
     """Predict Y from new X data using PLS model params."""
     try:
         _validate_matrix_shape(spec.new_data, "new_data")
+        # SEC-25 (#274): cap every array-like sub-field of model_params
+        # before any np.array(...) allocation.
+        _validate_model_params(
+            spec.model_params,
+            keys_2d=("x_loadings", "y_loadings", "direct_weights", "beta_coefficients"),
+            keys_1d=(
+                "x_means", "x_stds", "y_means", "y_stds",
+                "scaling_factor_for_scores", "spe_values",
+            ),
+        )
         from process_improve.multivariate.methods import hotellings_t2_limit, spe_calculation  # noqa: PLC0415
 
         x_means = np.array(spec.model_params["x_means"])
