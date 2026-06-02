@@ -4,28 +4,30 @@
 Functions that read a *fitted* PCA / PLS model and summarise it: variable
 importance (VIP), squared cosine, observation contributions, the eigenvalue
 summary, supplementary-variable projection, and the RV / modified-RV matrix
-correlation coefficients. They consume model attributes only, so they depend on
-:mod:`process_improve.multivariate._common` and ``center`` from
-:mod:`process_improve.multivariate._preprocessing`; the ``PCA | PLS`` annotations
-are resolved lazily under ``TYPE_CHECKING``.
+correlation coefficients. They consume model attributes only (via duck typing),
+so they depend just on :mod:`process_improve.multivariate._common` and ``center``
+from :mod:`process_improve.multivariate._preprocessing`, and annotate the model
+parameter as ``BaseEstimator`` to avoid importing the estimator modules.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import numpy as np
 import pandas as pd
+from sklearn.base import BaseEstimator
 
 from ._common import DataMatrix
 from ._preprocessing import center
 
-if TYPE_CHECKING:
-    from ._pca import PCA
-    from ._pls import PLS
+# These diagnostics operate on a *fitted* PCA or PLS model via duck typing (they
+# read attributes such as ``scores_`` / ``spe_`` after guarding with
+# ``hasattr``). They are annotated against ``BaseEstimator`` rather than the
+# concrete ``PCA`` / ``PLS`` classes so this leaf module does not import the
+# estimator modules - which import these functions in turn - and so avoids a
+# module-level import cycle.
 
 
-def vip(model: PCA | PLS, n_components: int | None = None) -> pd.Series:
+def vip(model: BaseEstimator, n_components: int | None = None) -> pd.Series:
     r"""Calculate Variable Importance in Projection (VIP) scores.
 
     Works with fitted :class:`PCA` and :class:`PLS` models. For PCA the
@@ -102,7 +104,7 @@ def vip(model: PCA | PLS, n_components: int | None = None) -> pd.Series:
     return pd.Series(vip_values, index=weights.index, name="VIP")
 
 
-def squared_cosine(model: PCA | PLS, n_components: int | None = None) -> pd.DataFrame:
+def squared_cosine(model: BaseEstimator, n_components: int | None = None) -> pd.DataFrame:
     r"""Calculate the squared cosine (cos2): quality of representation of observations.
 
     Works with fitted :class:`PCA` and :class:`PLS` models. The squared cosine
@@ -171,7 +173,7 @@ def squared_cosine(model: PCA | PLS, n_components: int | None = None) -> pd.Data
     return pd.DataFrame(cos2, index=scores.index, columns=scores.columns[:n_components])
 
 
-def observation_contributions(model: PCA | PLS, n_components: int | None = None) -> pd.DataFrame:
+def observation_contributions(model: BaseEstimator, n_components: int | None = None) -> pd.DataFrame:
     r"""Calculate the contribution of each observation to each component.
 
     Works with fitted :class:`PCA` and :class:`PLS` models. The contribution of
@@ -247,7 +249,7 @@ def observation_contributions(model: PCA | PLS, n_components: int | None = None)
     return pd.DataFrame(contributions, index=scores.index, columns=scores.columns[:n_components])
 
 
-def eigenvalue_summary(model: PCA | PLS) -> pd.DataFrame:
+def eigenvalue_summary(model: BaseEstimator) -> pd.DataFrame:
     """Summarize the variance captured by each component as a tidy table.
 
     Works with fitted :class:`PCA` and :class:`PLS` models. Returns one row per
@@ -294,7 +296,7 @@ def eigenvalue_summary(model: PCA | PLS) -> pd.DataFrame:
     return summary
 
 
-def project_variables(model: PCA | PLS, supplementary_data: DataMatrix) -> pd.DataFrame:
+def project_variables(model: BaseEstimator, supplementary_data: DataMatrix) -> pd.DataFrame:
     """Project supplementary (passive) variables onto a fitted model.
 
     Works with fitted :class:`PCA` and :class:`PLS` models. Supplementary
