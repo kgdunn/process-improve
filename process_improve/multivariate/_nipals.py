@@ -185,7 +185,10 @@ def internal_pls_nipals_fit_one_pc(
     nonneg = t_i[t_i >= 0]
     if neg.size > 0 and nonneg.size > 0 and np.var(neg) > np.var(nonneg):
         t_i = -t_i
-        u_new = -u_new
+        # ``u_i`` (the value actually returned) is the converged ``u_new`` and is
+        # only consumed by callers for a sign-invariant convergence check, so it
+        # is intentionally left un-flipped here. (The previous ``u_new = -u_new``
+        # was a dead assignment: ``u_new`` is never read again.)
         w_i = -w_i
         q_i = -q_i
 
