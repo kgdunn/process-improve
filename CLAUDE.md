@@ -34,7 +34,7 @@ The version is defined in `pyproject.toml` under `[project] version`. It uses 3-
 
 **Keep `CITATION.cff` in sync with the version.** Whenever you bump the `version` in `pyproject.toml`, in the *same commit* set the `version:` field in `CITATION.cff` (repo root) to the identical value, and update `date-released:` to the current date. `pyproject.toml` and `CITATION.cff` must never report different versions.
 
-The PyPI publish workflow (`.github/workflows/publish.yml`) automatically detects version changes on push to `main` and publishes to PyPI when the version differs from the previous commit.
+The PyPI publish workflow (`.github/workflows/publish.yml`) is **manually gated** as of ENG-21 (#303). It runs only when a tag matching `v*` is pushed, or when a maintainer triggers `workflow_dispatch` from the Actions tab. Every release carries a sigstore attestation (PEP 740) and a CycloneDX SBOM attached to the GitHub release page; release notes are pulled from the matching `CHANGELOG.md` section. Bumping the version in a PR no longer publishes by itself; the maintainer must push the tag (or click Run workflow) once the PR has merged.
 
 ## Changelog
 

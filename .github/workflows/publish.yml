@@ -1,64 +1,169 @@
 name: Publish to PyPI
 
+# ENG-21 (#303): publishing requires an explicit human action -- either a
+# pushed tag matching ``v*`` or a manual ``workflow_dispatch`` run -- so a
+# typo in pyproject.toml on main can no longer ship a release. Releases
+# carry a sigstore attestation (PEP 740) and a CycloneDX SBOM via the
+# corresponding GitHub release page.
+
 on:
   push:
-    branches: [main]
-    paths:
-      - "pyproject.toml"  # Only run when this file changes
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to publish (tag, branch, or sha). Defaults to the current default branch."
+        required: false
+        default: ""
+
+permissions:
+  id-token: write    # Required for trusted PyPI publishing and sigstore attestations.
+  contents: write    # Required to create / update the GitHub release.
+  attestations: write
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      id-token: write    # Required for trusted publishing
-      contents: write    # Required for creating tags and releases
-
+    outputs:
+      version: ${{ steps.read_version.outputs.version }}
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 2  # Need previous commit to diff
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 0
 
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
-      - name: Check if version changed
-        id: version_check
+      - name: Read version from pyproject.toml
+        id: read_version
         run: |
-          NEW=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
-          git show HEAD~1:pyproject.toml > /tmp/old_pyproject.toml 2>/dev/null || true
-          OLD=$(python -c "import tomllib; print(tomllib.load(open('/tmp/old_pyproject.toml','rb'))['project']['version'])" 2>/dev/null || echo "none")
-          echo "old=$OLD new=$NEW"
-          if [ "$OLD" != "$NEW" ]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "version=$NEW" >> "$GITHUB_OUTPUT"
+          VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Detected version: ${VERSION}"
+
+      - name: Verify tag matches pyproject.toml version
+        if: github.event_name == 'push'
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          EXPECTED="v${{ steps.read_version.outputs.version }}"
+          if [ "${TAG}" != "${EXPECTED}" ]; then
+            echo "::error::Tag ${TAG} does not match pyproject.toml version ${EXPECTED}."
+            exit 1
           fi
 
-      - name: Install uv
-        if: steps.version_check.outputs.changed == 'true'
-        uses: astral-sh/setup-uv@v7
-
-      - name: Build
-        if: steps.version_check.outputs.changed == 'true'
+      - name: Build sdist and wheel
         run: |
           pip install build
           python -m build
 
-      - name: Publish to PyPI
-        if: steps.version_check.outputs.changed == 'true'
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Generate CycloneDX SBOM
+        # ENG-21 (#303) sub-item 3: SBOM ships alongside every release.
+        # cyclonedx-bom builds an SBOM from the installed environment, which
+        # mirrors the wheel's runtime dependency closure.
+        run: |
+          pip install "cyclonedx-bom>=5.0" "."
+          cyclonedx-py environment \
+            --output-format JSON \
+            --outfile "dist/sbom-${{ steps.read_version.outputs.version }}.cdx.json"
 
-      - name: Create GitHub Release
-        if: steps.version_check.outputs.changed == 'true'
+      - name: Upload built artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Download built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Separate SBOM from PyPI artifacts
+        run: |
+          mkdir -p sbom
+          mv dist/sbom-*.cdx.json sbom/
+
+      - name: Publish to PyPI with sigstore attestations
+        # ``attestations: true`` is the default on recent action versions, but
+        # we set it explicitly so the SEC posture is visible in the workflow.
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          attestations: true
+
+      - name: Extract release notes from CHANGELOG.md
+        # ENG-21 (#303) sub-item 4: the GitHub release page mirrors the
+        # CHANGELOG entry for the same version. Falls back to auto-generated
+        # notes if the section is missing.
+        id: notes
+        run: |
+          VERSION="${{ needs.build.outputs.version }}"
+          NOTES_FILE="release-notes.md"
+          python - "${VERSION}" "${NOTES_FILE}" <<'PYEOF'
+          import sys
+          import re
+          import pathlib
+
+          version = sys.argv[1]
+          out_path = pathlib.Path(sys.argv[2])
+          changelog = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
+
+          # Match "## [X.Y.Z] - YYYY-MM-DD" up to (but not including) the next
+          # "## [" heading.
+          pattern = re.compile(
+              rf"^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|\Z)",
+              re.DOTALL | re.MULTILINE,
+          )
+          m = pattern.search(changelog)
+          if m:
+              out_path.write_text(m.group(1).strip() + "\n", encoding="utf-8")
+              print(f"Extracted release notes for v{version} ({len(m.group(1))} chars)")
+              sys.exit(0)
+          out_path.write_text("", encoding="utf-8")
+          print(f"::warning::CHANGELOG.md has no entry for v{version}; "
+                "release will use auto-generated notes.")
+          PYEOF
+          if [ -s "${NOTES_FILE}" ]; then
+            echo "have_notes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "have_notes=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create or update GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="v${{ steps.version_check.outputs.version }}"
+          TAG="v${{ needs.build.outputs.version }}"
+          if [ "${{ steps.notes.outputs.have_notes }}" = "true" ]; then
+            NOTES_FLAG=(--notes-file release-notes.md)
+          else
+            NOTES_FLAG=(--generate-notes)
+          fi
           if gh release view "${TAG}" > /dev/null 2>&1; then
-            echo "Release ${TAG} already exists (created by release workflow), skipping."
+            echo "Release ${TAG} already exists; updating notes and uploading SBOM."
+            if [ "${{ steps.notes.outputs.have_notes }}" = "true" ]; then
+              gh release edit "${TAG}" --notes-file release-notes.md
+            fi
           else
             gh release create "${TAG}" \
               --title "${TAG}" \
-              --generate-notes
+              "${NOTES_FLAG[@]}"
           fi
+          gh release upload "${TAG}" sbom/sbom-*.cdx.json --clobber
