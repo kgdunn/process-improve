@@ -22,6 +22,7 @@ from sklearn.utils.validation import check_array, check_is_fitted
 from tqdm import tqdm
 
 from .._linalg import safe_inverse
+from .._random import check_random_state
 from ..univariate.metrics import detect_outliers_esd
 from ..visualization.themes import REFERENCE_LINE_COLOR
 from .plots import (
@@ -5759,6 +5760,7 @@ class Resampler:
         use_jackknife: bool = True,
         bootstrap_rounds: int = 0,
         fraction_excluded: float = 0.0,
+        random_state: int | np.random.Generator | None = None,
     ):
         """Initialize the resampling method.
 
@@ -5770,6 +5772,15 @@ class Resampler:
             * `fraction_excluded` specifies the fraction of data to exclude in each resample (for fractional resampling)
 
         Only one of these parameters should be set at a time.
+
+        Parameters
+        ----------
+        random_state : int, np.random.Generator, or None, optional
+            Seeds the RNG used by ``bootstrap()`` and ``fractional()``;
+            see ``docs/development/reproducibility.rst`` (ENG-08). Pass
+            the same int twice to get bit-identical resamples; pass
+            ``None`` for fresh entropy on each call. ``jackknife()``
+            is deterministic and ignores this parameter.
         """
         if not isinstance(estimator, BaseEstimator):
             raise TypeError("estimator must be a BaseEstimator instance.")
@@ -5793,6 +5804,12 @@ class Resampler:
                     "Set only one of them.",
                 )
             )
+
+        # Resolve random_state up front so the same instance can be
+        # called twice and produce bit-identical resamples (ENG-08).
+        # Keep the original value for repr / debugging.
+        self.random_state = random_state
+        self._rng = check_random_state(random_state)
 
         self.parameters: list = []
         self.n_resamples = 0
@@ -5827,12 +5844,12 @@ class Resampler:
         """Perform bootstrap resampling on the given estimator."""
         self.parameters = []
 
-        # Generate bootstrap samples, resample with replacement, in a loop of self.bootstrap_rounds iterations
-        rng = np.random.default_rng()
+        # Generate bootstrap samples, resample with replacement, in a loop of self.bootstrap_rounds iterations.
+        # The shared ``self._rng`` is seeded via the constructor's ``random_state`` (ENG-08).
         for _ in tqdm(range(self.bootstrap_rounds), desc="Bootstrap Resampling", disable=not show_progress):
             # Resample indices with replacement
 
-            indices = rng.choice(len(self.x), size=len(self.x), replace=True)
+            indices = self._rng.choice(len(self.x), size=len(self.x), replace=True)
             x_train = self.x[indices]
             parameter = self.accessor(clone(self.estimator).fit(x_train))
             self.parameters.append(parameter)
@@ -5851,8 +5868,7 @@ class Resampler:
         """
         self.parameters = []
 
-        # Generate fractional samples, resample with replacement, in a loop of self.bootstrap_rounds iterations
-        rng = np.random.default_rng()
+        # The shared ``self._rng`` is seeded via the constructor's ``random_state`` (ENG-08).
         # Re-validate here: the __init__ guard can be bypassed by mutating
         # ``fraction_excluded`` to 0 (or out of range) before calling fractional().
         if not 0.0 < self.fraction_excluded < 1.0:
@@ -5864,7 +5880,7 @@ class Resampler:
         for _ in tqdm(range(len(self.x)), desc="Fractional Resampling", disable=not show_progress):
             # Find the indices to leave out
             all_indices = np.arange(len(self.x))
-            rng.shuffle(all_indices)
+            self._rng.shuffle(all_indices)
             groups = np.array_split(all_indices, n_groups)
             rows_to_drop = groups[0]
             train_indices = np.setdiff1d(all_indices, rows_to_drop)
