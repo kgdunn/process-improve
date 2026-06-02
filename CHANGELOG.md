@@ -11,6 +11,28 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.12] - 2026-06-02
+
+### Changed (internal)
+
+- **ENG-23 (#305)**: the four ambiguously-named ``methods.py`` /
+  ``models.py`` files are renamed to domain-specific paths so
+  filename-ranked tooling (Jump-to-File, fuzzy search, codecov
+  reports) is no longer ambiguous about which file is being shown:
+  - ``multivariate/methods.py``  → ``multivariate/_pca_pls.py``
+  - ``regression/methods.py``    → ``regression/_robust_regression.py``
+  - ``bivariate/methods.py``     → ``bivariate/_elbow_peak.py``
+  - ``experiments/models.py``    → ``experiments/_lm.py``
+
+  Each original path remains as a thin re-exporter that does
+  ``from ._new_name import *``, so every public import keeps
+  working (``from process_improve.multivariate.methods import PCA``
+  etc.). Only one in-tree test imported a private underscore-
+  prefixed helper from the old path (``_nz`` from
+  ``multivariate.methods``); it is now imported from
+  ``multivariate._pca_pls`` directly. External callers that
+  reached into private names by name would need the same update.
+
 ## [1.24.11] - 2026-06-02
 
 ### Changed (breaking: install footprint)
@@ -1018,7 +1040,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.11...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.12...HEAD
+[1.24.12]: https://github.com/kgdunn/process-improve/compare/v1.24.11...v1.24.12
 [1.24.11]: https://github.com/kgdunn/process-improve/compare/v1.24.10...v1.24.11
 [1.24.10]: https://github.com/kgdunn/process-improve/compare/v1.24.9...v1.24.10
 [1.24.9]: https://github.com/kgdunn/process-improve/compare/v1.24.8...v1.24.9

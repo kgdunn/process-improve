@@ -17,13 +17,16 @@ import pandas as pd
 import pytest
 from sklearn.base import BaseEstimator
 
+# ``_nz`` is a private helper; import from the implementation module directly
+# rather than via the ``methods.py`` re-exporter (which only exposes public
+# names via ``import *``).
+from process_improve.multivariate._pca_pls import _nz
 from process_improve.multivariate.methods import (
     MBPCA,
     MBPLS,
     DataFrameDict,
     Resampler,
     SpecificationWarning,
-    _nz,
 )
 
 _DENOM_FLOOR = float(np.finfo(float).tiny)
