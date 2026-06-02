@@ -1177,3 +1177,18 @@ def coefficient_plot(
         height=setdict["html_image_height"],
     )
     return fig
+
+
+class Plot:
+    """Create plots of estimators."""
+
+    def __init__(self, parent: BaseEstimator) -> None:
+        self._parent = parent
+
+    def scores(self, pc_horiz: int = 1, pc_vert: int = 2, **kwargs) -> go.Figure:
+        """Generate a score plot."""
+        return score_plot(self, pc_horiz=pc_horiz, pc_vert=pc_vert, **kwargs)
+
+    def loadings(self, pc_horiz: int = 1, pc_vert: int = 2, **kwargs) -> go.Figure:
+        """Generate a loading plot."""
+        return loading_plot(self, pc_horiz=pc_horiz, pc_vert=pc_vert, **kwargs)
