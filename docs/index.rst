@@ -10,6 +10,7 @@ monitoring. Companion to the online textbook
    :caption: Contents
 
    quickstart
+   architecture
    user_guide/index
    api/index
 

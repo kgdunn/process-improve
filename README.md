@@ -14,6 +14,10 @@ Built for chemometrics, manufacturing, and pharma data - the methods that scikit
 
 ---
 
+> **New here?** The [architecture overview](https://kgdunn.github.io/process-improve/architecture.html)
+> ([source](docs/architecture.rst)) is the map of the codebase - package layout, the estimator
+> stack, and the MCP tool layer.
+
 ## What it does
 
 `process-improve` provides production-grade implementations of the methods
