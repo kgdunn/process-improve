@@ -30,8 +30,10 @@ Configuration for Claude Desktop (``claude_desktop_config.json``)::
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -87,22 +89,23 @@ def _register_all_tools() -> None:
         _create_mcp_tool(tool_name, tool_description, tool_schema)
 
 
-def _create_mcp_tool(
-    tool_name: str,
-    tool_description: str,
-    tool_schema: dict[str, Any],
-) -> None:
-    """Create and register a single MCP tool that delegates to execute_tool_call."""
+def _make_tool_handler(tool_name: str) -> Callable[..., Awaitable[str]]:
+    """Build the async MCP handler for ``tool_name``.
 
-    # Define an async handler that calls through to our tool registry
+    ENG-30: the tool execution path is synchronous (in safe mode it blocks on a
+    ``ProcessPoolExecutor`` future; otherwise it runs the tool in-process). To
+    avoid blocking the FastMCP event loop - which would serialise concurrent
+    requests when the server is fronted by HTTP / SSE - the blocking call is
+    offloaded to a worker thread via ``run_in_executor``. Single-call behaviour
+    is unchanged.
+    """
+
     async def handler(**kwargs: Any) -> str:  # noqa: ANN401
         """Run the registered tool and return its result as a JSON string."""
+        loop = asyncio.get_running_loop()
+        sync_call = safe_execute_tool_call if settings.mcp_safe_mode else execute_tool_call
         try:
-            result = (
-                safe_execute_tool_call(tool_name, kwargs)
-                if settings.mcp_safe_mode
-                else execute_tool_call(tool_name, kwargs)
-            )
+            result = await loop.run_in_executor(None, sync_call, tool_name, kwargs)
             if isinstance(result, dict):
                 return json.dumps(result, indent=2, default=str)
             return str(result)
@@ -111,6 +114,17 @@ def _create_mcp_tool(
             return json.dumps(exc.to_dict())
         except Exception as exc:  # noqa: BLE001
             return _serialise_tool_error(exc, tool_name)
+
+    return handler
+
+
+def _create_mcp_tool(
+    tool_name: str,
+    tool_description: str,
+    tool_schema: dict[str, Any],
+) -> None:
+    """Create and register a single MCP tool that delegates to execute_tool_call."""
+    handler = _make_tool_handler(tool_name)
 
     # Set proper function metadata for FastMCP
     handler.__name__ = tool_name
