@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import warnings
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 from scipy.stats import iqr, median_abs_deviation
+
+if TYPE_CHECKING:
+    from pandas.core.groupby import DataFrameGroupBy
 
 from ..bivariate.methods import find_elbow_point
 from ..regression.methods import repeated_median_slope
@@ -19,7 +23,7 @@ def _prepare_data(  # noqa: C901, PLR0912
     batch_col: str | None = None,
     phase_col: str | None = None,
     age_col: str | None = None,
-) -> tuple[pd.core.groupby.DataFrameGroupBy, list[str], pd.DataFrame, pd.DataFrame]:
+) -> tuple[DataFrameGroupBy, list[str], pd.DataFrame, pd.DataFrame]:
     """
     General function, used for all feature extractions.
 
@@ -246,9 +250,13 @@ def f_robust_mad(
     See also: f_std, f_iqr
     """
     base_name = "robust_mad"
+
+    def _mad(col: pd.Series) -> float:
+        return float(median_abs_deviation(col, scale="normal", nan_policy="omit"))
+
     prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
     f_names = [(tag + "_" + base_name) for tag in tags]
-    output = prepared.agg(lambda col: median_abs_deviation(col, scale="normal", nan_policy="omit"))
+    output = prepared.agg(_mad)
     return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
 
@@ -318,8 +326,8 @@ def f_area(
             # heights on the left and the right, multiplied by delta distance on the horizontal
             # index axis. Area = average(parallel lengths) * height
             # where height = delta distance on the horizontal axis.
-            left_vals = this_batch[tag].iloc[0:-1].values
-            right_vals = this_batch[tag].iloc[1:].values
+            left_vals = np.asarray(this_batch[tag].iloc[0:-1].to_numpy())
+            right_vals = np.asarray(this_batch[tag].iloc[1:].to_numpy())
             area = ((left_vals + right_vals) / 2 * half_base_factor).sum()
             output.loc[batch_id, tag] = area
 
@@ -342,9 +350,9 @@ def f_rupture(
     within each unique phase, per batch, of the ``phase_col`` column.
     """
     # Handle phase detection based on 1 column for now.
-    if len(columns) != 1:
+    if columns is None or len(columns) != 1:
         raise NotImplementedError(
-            f"Phase detection currently supports a single column only; got {len(columns)}."
+            f"Phase detection currently supports a single column only; got {columns!r}."
         )
 
     # TODO: see https://github.com/deepcharles/ruptures
@@ -543,8 +551,8 @@ def f_slope(  # noqa: PLR0913
         if x_axis_tag not in batch_data:
             batch_data = batch_data.reset_index()  # noqa: PLW2901
         for tag in tags:
-            x_vals = batch_data[x_axis_tag]
-            output.loc[batch_id, tag] = repeated_median_slope(x_vals, batch_data[tag])
+            x_vals = np.asarray(batch_data[x_axis_tag].to_numpy())
+            output.loc[batch_id, tag] = repeated_median_slope(x_vals, np.asarray(batch_data[tag].to_numpy()))
 
     return output.rename(columns=dict(zip(tags, f_names, strict=False)))
 
@@ -555,7 +563,7 @@ def cross(
     direction: str | None = "cross",
     only_index: bool | None = False,
     first_point_only: bool | None = False,
-) -> list:
+) -> np.ndarray | list:
     """
     Given a Series returns all the index values where the data values equal
     the 'threshold' value. Will first drop all missing values from the series.
@@ -576,11 +584,11 @@ def cross(
     """
     # Find if values are above or bellow y-value crossing:
     series_no_na = series.dropna()
-    above = series_no_na.values > threshold
+    above = np.asarray(series_no_na.to_numpy()) > threshold
     below = np.logical_not(above)
     left_shifted_above = above[1:]
     left_shifted_below = below[1:]
-    x_crossings = []
+    x_crossings: np.ndarray | list = []
     # Find indexes on left side of crossing point
     if direction == "rising":
         idxs = (left_shifted_above & below[0:-1]).nonzero()[0]
@@ -595,10 +603,12 @@ def cross(
         idxs = idxs[0]
 
     # Calculate x crossings with interpolation using formula for a straight line
-    x1 = series_no_na.index.values[idxs]
-    x2 = series_no_na.index.values[idxs + 1]
-    y1 = series_no_na.values[idxs]
-    y2 = series_no_na.values[idxs + 1]
+    index_values = np.asarray(series_no_na.index.to_numpy())
+    data_values = np.asarray(series_no_na.to_numpy())
+    x1 = index_values[idxs]
+    x2 = index_values[idxs + 1]
+    y1 = data_values[idxs]
+    y2 = data_values[idxs + 1]
 
     if only_index:
         return idxs
@@ -660,9 +670,12 @@ def f_crossing(  # noqa: PLR0913
 
     f_name = tag + "_" + base_name
 
-    output = prepared.apply(
-        lambda x: cross(x[tag], threshold, direction, only_index=only_index, first_point_only=True)
-    )
+    def _cross_first(x: pd.DataFrame) -> np.ndarray | list:
+        return cross(x[tag], threshold, direction, only_index=only_index, first_point_only=True)
+
+    # pandas-stubs' DFCallable1 protocol does not include ``np.ndarray`` among the allowed
+    # return types, although groupby.apply accepts array-returning callables at runtime.
+    output = prepared.apply(_cross_first)  # type: ignore[call-overload]
 
     return pd.DataFrame(data={f_name: output})
 
@@ -700,12 +713,12 @@ def f_elbow(  # noqa: PLR0913
         for tag in tags:
             subset = batch_data[[x_axis_tag, tag]]
             subset = subset.dropna()
-            x_vals = subset[x_axis_tag]
+            x_vals = np.asarray(subset[x_axis_tag].to_numpy())
 
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
 
-                elbow_index = find_elbow_point(x_vals, subset[tag])
+                elbow_index = find_elbow_point(x_vals, np.asarray(subset[tag].to_numpy()))
                 if elbow_index < 0:
                     elbow_index = np.nan
 
@@ -714,6 +727,6 @@ def f_elbow(  # noqa: PLR0913
                 elif np.isnan(elbow_index):
                     output.loc[batch_id, tag] = np.nan
                 else:
-                    output.loc[batch_id, tag] = x_vals[elbow_index]
+                    output.loc[batch_id, tag] = x_vals[int(elbow_index)]
 
     return output.rename(columns=dict(zip(tags, f_names, strict=False)))

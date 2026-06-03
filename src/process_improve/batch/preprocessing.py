@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -24,7 +25,7 @@ epsqrt = np.sqrt(np.finfo(float).eps)
 
 def determine_scaling(
     batches: dict[str, pd.DataFrame],
-    columns_to_align: list | None = None,
+    columns_to_align: list | pd.Index | None = None,
     settings: dict | None = None,
 ) -> pd.DataFrame:
     """
@@ -68,7 +69,8 @@ def determine_scaling(
         else:
             rnge = batch[columns_to_align].max() - batch[columns_to_align].min()
 
-        rnge[rnge.values == 0] = 1.0
+        rnge = cast("pd.Series", rnge)
+        rnge[rnge.to_numpy() == 0] = 1.0
         collector_rnge.append(rnge)
         collector_mins.append(batch.min(axis=0))
 
@@ -92,7 +94,7 @@ def determine_scaling(
 def apply_scaling(
     batches: dict[str, pd.DataFrame],
     scale_df: pd.DataFrame,
-    columns_to_align: list | None = None,
+    columns_to_align: list | pd.Index | None = None,
 ) -> dict:
     """Scales the batches according to the information in the scaling dataframe.
 
@@ -121,14 +123,17 @@ def apply_scaling(
     for batch_id, batch in batches.items():
         out[batch_id] = batch[columns_to_align].copy()
         for tag, column in out[batch_id].items():
-            out[batch_id][tag] = (column - scale_df.loc[tag, "Minimum"]) / scale_df.loc[tag, "Range"]
+            tag = cast("str", tag)
+            minimum = cast("float", scale_df.loc[tag, "Minimum"])
+            scale_range = cast("float", scale_df.loc[tag, "Range"])
+            out[batch_id][tag] = (column - minimum) / scale_range
     return out
 
 
 def reverse_scaling(
     batches: dict[str, pd.DataFrame],
     scale_df: pd.DataFrame,
-    columns_to_align: list | None = None,
+    columns_to_align: list | pd.Index | None = None,
 ) -> dict:
     """Reverse the scaling applied by `apply_scaling`."""
     # TODO: handle the case of DataFrames still
@@ -143,7 +148,10 @@ def reverse_scaling(
     for batch_id, batch in batches.items():
         out[batch_id] = batch[columns_to_align].copy()
         for tag, column in out[batch_id].items():
-            out[batch_id][tag] = column * scale_df.loc[tag, "Range"] + scale_df.loc[tag, "Minimum"]
+            tag = cast("str", tag)
+            minimum = cast("float", scale_df.loc[tag, "Minimum"])
+            scale_range = cast("float", scale_df.loc[tag, "Range"])
+            out[batch_id][tag] = column * scale_range + minimum
     return out
 
 
@@ -152,7 +160,7 @@ class DTWresult:
 
     def __init__(  # noqa: PLR0913
         self,
-        synced: np.ndarray,
+        synced: np.ndarray | pd.DataFrame,
         penalty_matrix: np.ndarray,
         md_path: np.ndarray,  # multi-dimensional path through distance mesh D = penalty_matrix
         warping_path: np.ndarray,
@@ -173,7 +181,7 @@ def align_with_path(md_path: np.ndarray, batch: pd.DataFrame, initial_row: pd.Se
     nr = md_path[:, 0].max() + 1  # to account for the zero-based indexing
     synced = pd.DataFrame(np.zeros((nr, batch.shape[1])), columns=batch.columns)
     synced.iloc[row, :] = batch.iloc[md_path[0, 1], :]
-    temp = initial_row
+    temp: pd.Series | np.ndarray = initial_row
     for idx in np.arange(1, md_path.shape[0]):
         if md_path[idx, 0] != md_path[idx - 1, 0]:
             row += 1
@@ -210,9 +218,9 @@ def dtw_core(test: pd.DataFrame, ref: pd.DataFrame, weight_matrix: np.ndarray) -
     synced = align_with_path(md_path=md_path, batch=test, initial_row=initial_row)
 
     if show_plot:  # for debugging
-        X = np.arange(0, nt, 1)
-        Y = np.arange(0, nr, 1)
-        X, Y = np.meshgrid(X, Y)
+        x_axis = np.arange(0, nt, 1)
+        y_axis = np.arange(0, nr, 1)
+        X, Y = np.meshgrid(x_axis, y_axis)
         fig = go.Figure(
             data=[
                 go.Mesh3d(
@@ -363,7 +371,7 @@ def batch_dtw(  # noqa: C901, PLR0915
     weight_matrix = np.diag(weight_vector)
     weight_history = np.zeros_like(weight_vector) * np.nan
     average_batch = None
-    delta_weight = np.linalg.norm(weight_vector)
+    delta_weight: np.floating | np.ndarray = np.linalg.norm(weight_vector)
     iter_step = 0
     while (np.linalg.norm(delta_weight) > settings["tolerance"]) and (iter_step <= settings["maximum_iterations"]):
         if settings["show_progress"]:
@@ -465,7 +473,7 @@ def batch_dtw(  # noqa: C901, PLR0915
     aligned_df = pd.concat(aligned_df_collection)
     aligned_df["batch_id"] = aligned_df["batch_id"].astype(type(batch_id))
 
-    last_average_batch = reverse_scaling(dict(avg=average_batch), scale_df)["avg"]
+    last_average_batch = reverse_scaling(dict(avg=cast("pd.DataFrame", average_batch)), scale_df)["avg"]
     aligned_batch_dfdict = melted_to_dict(aligned_df, batch_id_col="batch_id")
 
     return dict(
@@ -559,13 +567,15 @@ def find_average_length(batches: dict[str, pd.DataFrame], settings: dict | None 
     if settings["robust"]:
         # If multiple batches of the median length, return the last one.
         try:
-            return batch_lengths.index[np.where((batch_lengths == batch_lengths.median()).values)[0][-1]]
+            median_match = np.where((batch_lengths == batch_lengths.median()).to_numpy())[0][-1]
+            return cast("str", batch_lengths.index[int(median_match)])
         except IndexError:
             # Very exceptional: if batch_lengths.median() is computed as the average of 2 numbers
             # and therefore the median length batch doesn't actually exist
             return find_average_length(batches, settings=dict(robust=False))
     else:
-        return batch_lengths.index[(batch_lengths - batch_lengths.mean()).abs().argmin()]
+        closest = int((batch_lengths - batch_lengths.mean()).abs().argmin())
+        return cast("str", batch_lengths.index[closest])
 
 
 def find_reference_batch(
