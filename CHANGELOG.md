@@ -11,6 +11,30 @@ those changes.
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-06-03
+
+### Changed
+
+- **TPLS D-block scaling now matches Garcia-Munoz (2014), section 2.1 (#192).** Each
+  D-block (material properties) is block-scaled by `1/sqrt(P_i * M_i)` (P_i = number of
+  lots/rows, M_i = number of properties/columns) instead of the previous `1/sqrt(M_i)`.
+  After column auto-scaling this makes `trace(X_i^T X_i) ~= 1` for every block, removing
+  bias toward blocks that simply have more lots or properties. The previous factor left
+  `trace = P_i - 1` (e.g. 161 vs 8 across blocks on the pyphi example), over-weighting
+  large blocks. **This changes all fitted TPLS results** (scores, R2, SPE, Hotelling's
+  T2, limits, predictions); affected reference values in the test-suite were re-baselined
+  and an independent `trace ~= 1` invariant test was added.
+
+### Added
+
+- **TPLS `vip(method="deflated")` (#192).** Opt-in deflated direct-weights feature
+  importance: VIP computed on the rotated weights `S(V^T S)^-1` (D-block) and
+  `P(P^T P)^-1` (F-block), which account for the deflation across components (equation 7
+  in the paper). The default `method="vip"` is unchanged and still matches the standard
+  VIP the paper reports. Note that for the D-block the rotation is ~identity
+  (`V^T S ~= I` by construction), so the deflated and default importances coincide there;
+  they differ for the F-block.
+
 ## [1.24.34] - 2026-06-03
 
 ### Changed (internal)
@@ -1341,7 +1365,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.34...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.25.0...HEAD
+[1.25.0]: https://github.com/kgdunn/process-improve/compare/v1.24.34...v1.25.0
 [1.24.34]: https://github.com/kgdunn/process-improve/compare/v1.24.33...v1.24.34
 [1.24.33]: https://github.com/kgdunn/process-improve/compare/v1.24.32...v1.24.33
 [1.24.32]: https://github.com/kgdunn/process-improve/compare/v1.24.31...v1.24.32

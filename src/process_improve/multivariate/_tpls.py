@@ -403,7 +403,12 @@ class TPLS(RegressorMixin, BaseEstimator):
             self.preproc_["D"][key]["center"], self.preproc_["D"][key]["scale"] = (
                 self._learn_center_and_scaling_parameters(df_d)
             )
-            self.preproc_["D"][key]["block"] = pd.Series([np.sqrt(df_d.shape[1])])  # <-- sqrt(number of properties!)
+            # Block-scale each D-block by 1 / sqrt(P_i * M_i), where P_i = number of lots (rows) and
+            # M_i = number of properties (columns). After column-wise auto-scaling this makes
+            # trace(X_i^T X_i) ~= 1 for every block, removing bias toward blocks that simply have more lots
+            # or more properties. See Garcia-Munoz (2014), section 2.1 (https://doi.org/10.1016/j.chemolab.2014.02.006).
+            n_lots, n_properties = df_d.shape
+            self.preproc_["D"][key]["block"] = pd.Series([np.sqrt(n_lots * n_properties)])
             #
             # Also do the same for the formula matrix
             self.preproc_["F"][key] = {}
@@ -1051,20 +1056,37 @@ class TPLS(RegressorMixin, BaseEstimator):
         # For the D-block and F-block: you want to be able to use the VIPs to compare across the entire block, without
         # regards to the banding in groups that might have to be done. So use the total R2 for that block, and do not
         # work per group.
+        # Default ("vip") feature importance: standard VIP computed on the raw block loadings. This matches
+        # the variable importance reported by Garcia-Munoz (2014) (e.g. Table 4). The opt-in "deflated"
+        # variant, exposed through `vip(method="deflated")`, instead uses the direct (rotated) weights
+        # S(V^T S)^-1 and P(P^T P)^-1; see `_feature_importance`.
+        loadings_s = np.concatenate(list(self.s_loadings_d.values()))
+        loadings_f = np.concatenate(list(self.p_loadings_f.values()))
+        vip_split_d, vip_split_f = self._split_block_vip(loadings_s, loadings_f)
+        self.feature_importance["D"] = vip_split_d
+        self.feature_importance["F"] = vip_split_f
+
+    def _split_block_vip(
+        self, loadings_d: np.ndarray, loadings_f: np.ndarray
+    ) -> tuple[dict[str, pd.Series], dict[str, pd.Series]]:
+        """Compute VIP for the D- and F-blocks from (n_features x A) loading/weight matrices.
+
+        The per-component R2 weighting is taken from `self.r2_frac` (the first entry is the pre-fit
+        baseline and is skipped). The flat VIP vector for each block is split back into the original
+        per-group :class:`pandas.Series`, indexed by feature name. Shared by the default VIP (raw block
+        loadings) and the opt-in deflated direct-weights variant.
+        """
         r2_d_a: list[float] = [
             float(np.mean([np.nanmean(r2val) for r2val in r2_frac["D"].values()])) for r2_frac in self.r2_frac
         ]
         r2_f_a: list[float] = [
             float(np.mean([np.nanmean(r2val) for r2val in r2_frac["F"].values()])) for r2_frac in self.r2_frac
         ]
-        loadings_s = np.concatenate(list(self.s_loadings_d.values()))
-        loadings_f = np.concatenate(list(self.p_loadings_f.values()))
-        vip_d = self._calculate_vip(loadings_s, np.array(r2_d_a[1:]))
+        vip_d = self._calculate_vip(loadings_d, np.array(r2_d_a[1:]))
         vip_f = self._calculate_vip(loadings_f, np.array(r2_f_a[1:]))
-        # Split the `vip_d` back into the original groups that it was merged from.
-        # For example: if there are two groups, one with 17 columns, and the second with 3 columns, then there are
-        # a total of 20 values in `vip_d`, and the first 17 values correspond to the first group, and the last 3 values.
-        # Create a dictionary with the group names as keys, and the VIP values as values, split correctly:
+        # Split each flat VIP vector back into the original groups it was concatenated from.
+        # For example: with two groups of 17 and 3 columns, `vip_d` has 20 values; the first 17 belong to
+        # the first group and the last 3 to the second.
         vip_split_d = {}
         start = 0
         for key in self.property_names:
@@ -1078,11 +1100,35 @@ class TPLS(RegressorMixin, BaseEstimator):
             end = start + len(self.material_names[key])
             vip_split_f[key] = pd.Series(vip_f[start:end], index=self.material_names[key])
             start = end
+        return vip_split_d, vip_split_f
 
-        self.feature_importance["D"] = vip_split_d  # TODO: should it not be based on deflated matrices? S(V^TS)^{-1}
-        self.feature_importance["F"] = vip_split_f  # TODO: should it not be based on deflated matrices? P(_^TP)^{-1}
+    def _feature_importance(self, method: str) -> dict[str, dict[str, pd.Series]]:
+        """Return the D-/F-block feature importance for the requested `method`.
 
-    def vip(self, block: str | None = None) -> dict[str, dict[str, pd.Series]] | dict[str, pd.Series]:
+        Parameters
+        ----------
+        method : {"vip", "deflated"}
+            ``"vip"`` returns the standard VIP stored at fit time (computed from the raw block loadings,
+            matching Garcia-Munoz, 2014). ``"deflated"`` computes VIP on the direct (rotated) weights that
+            map the *original* variables onto the scores while accounting for the deflation across
+            components: ``S(V^T S)^-1`` for the D-block and ``P(P^T P)^-1`` for the F-block, where ``S`` and
+            ``V`` are the D-block correlation- and deflation-loadings and ``P`` is the F-block deflation
+            loading (equation 7 in the paper).
+        """
+        if method == "vip":
+            return self.feature_importance
+        s_mat = np.concatenate(list(self.s_loadings_d.values()))  # (K_D x A)
+        v_mat = np.concatenate(list(self.v_loadings_d.values()))  # (K_D x A)
+        p_mat = np.concatenate(list(self.p_loadings_f.values()))  # (K_F x A)
+        # Direct (rotated) weights; `pinv` keeps this well-defined if the A x A core is near-singular.
+        w_d = s_mat @ np.linalg.pinv(v_mat.T @ s_mat)
+        w_f = p_mat @ np.linalg.pinv(p_mat.T @ p_mat)
+        split_d, split_f = self._split_block_vip(w_d, w_f)
+        return {"D": split_d, "F": split_f, "Z": {}, "Y": {}}
+
+    def vip(
+        self, block: str | None = None, method: str = "vip"
+    ) -> dict[str, dict[str, pd.Series]] | dict[str, pd.Series]:
         """Return Variable Importance in Projection (VIP) scores for TPLS blocks.
 
         VIP scores are computed during fitting for the D-block (material properties) and
@@ -1093,6 +1139,15 @@ class TPLS(RegressorMixin, BaseEstimator):
         block : str or None, default=None
             Which block to return. Must be ``"D"`` or ``"F"``, or ``None`` to
             return all blocks.
+        method : {"vip", "deflated"}, default="vip"
+            How importance is measured.
+
+            - ``"vip"`` (default): standard VIP on the raw block loadings, as reported by
+              Garcia-Munoz (2014). These are the values stored in :attr:`feature_importance`.
+            - ``"deflated"``: VIP computed on the direct (rotated) weights that map the *original*
+              variables onto the scores while accounting for the deflation across components,
+              ``S(V^T S)^-1`` for the D-block and ``P(P^T P)^-1`` for the F-block. This is an
+              alternative importance measure; it does not change :attr:`feature_importance`.
 
         Returns
         -------
@@ -1104,21 +1159,27 @@ class TPLS(RegressorMixin, BaseEstimator):
         Raises
         ------
         ValueError
-            If the model is not fitted or *block* is not ``"D"``, ``"F"``, or ``None``.
+            If the model is not fitted, *block* is not ``"D"``, ``"F"``, or ``None``, or *method*
+            is not ``"vip"`` or ``"deflated"``.
 
         Examples
         --------
         >>> tpls = TPLS(...).fit(data)
-        >>> tpls.vip()          # all blocks
-        >>> tpls.vip("D")       # D-block only → {group_name: pd.Series, ...}
+        >>> tpls.vip()                      # all blocks, standard VIP
+        >>> tpls.vip("D")                   # D-block only → {group_name: pd.Series, ...}
+        >>> tpls.vip("D", method="deflated")  # D-block deflated direct-weights importance
         """
         check_is_fitted(self, "feature_importance")
-        if block is None:
-            return self.feature_importance
-        if block not in ("D", "F"):
+        if method not in ("vip", "deflated"):
+            msg = f"method must be 'vip' or 'deflated'; got {method!r}."
+            raise ValueError(msg)
+        if block is not None and block not in ("D", "F"):
             msg = f"block must be 'D', 'F', or None; got {block!r}."
             raise ValueError(msg)
-        return self.feature_importance[block]
+        importance = self._feature_importance(method)
+        if block is None:
+            return importance
+        return importance[block]
 
     def _calculate_vip(self, loadings: np.ndarray, r2_vector: np.ndarray) -> np.ndarray:
         """Calculate the VIP values for the current component.
