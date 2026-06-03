@@ -2332,6 +2332,19 @@ def fixture_tpls_example() -> dict[str, dict[str, pd.DataFrame]]:
     }
 
 
+def test_tpls_pickle_round_trips(fixture_tpls_example: dict) -> None:
+    """ENG-05 (#287): a fitted TPLS model pickles and its hotellings_t2_limit method survives."""
+    import pickle
+
+    d_matrix = fixture_tpls_example.pop("D")
+    tpls_test = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(fixture_tpls_example))
+    reloaded = pickle.loads(pickle.dumps(tpls_test))  # noqa: S301 - trusted round-trip of our own object
+    assert float(reloaded.hotellings_t2_limit()) == float(tpls_test.hotellings_t2_limit())
+    # The spe_limit dict-of-partials API also survives the round-trip.
+    block, group = "Y", next(iter(reloaded.spe_limit["Y"]))
+    assert float(reloaded.spe_limit[block][group](0.95)) == float(tpls_test.spe_limit[block][group](0.95))
+
+
 def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     """
     Test the fitting process of the TPLS model to ensure it functions as expected.

@@ -11,6 +11,21 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.16] - 2026-06-03
+
+### Changed
+
+- **ENG-05 (#287)**: the multivariate estimators (PCA, PLS, TPLS, MBPLS, MBPCA)
+  now expose their convenience callables (``score_plot``, ``spe_limit``,
+  ``vip``, ``hotellings_t2_limit``, ``ellipse_coordinates``, ...) as real
+  methods instead of ``functools.partial`` instances bound in ``fit``. As a
+  result ``help(model.score_plot)`` shows the underlying docstring,
+  ``inspect.signature`` reports the true parameters (minus ``model``), IDEs can
+  autocomplete, the methods are overridable by subclasses, and fitted models
+  pickle robustly. Call sites are unchanged. The standalone functions remain
+  available for advanced callers, and TPLS's ``spe_limit`` dict-of-callables
+  API is unchanged.
+
 ## [1.24.15] - 2026-06-03
 
 ### Changed (internal)
@@ -1092,7 +1107,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.15...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.16...HEAD
+[1.24.16]: https://github.com/kgdunn/process-improve/compare/v1.24.15...v1.24.16
 [1.24.15]: https://github.com/kgdunn/process-improve/compare/v1.24.14...v1.24.15
 [1.24.14]: https://github.com/kgdunn/process-improve/compare/v1.24.13...v1.24.14
 [1.24.13]: https://github.com/kgdunn/process-improve/compare/v1.24.12...v1.24.13

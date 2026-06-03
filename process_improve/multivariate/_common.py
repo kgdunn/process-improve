@@ -10,7 +10,9 @@ sibling submodules, so it sits at the base of the dependency graph.
 
 from __future__ import annotations
 
-from typing import TypeAlias
+import functools
+from collections.abc import Callable
+from typing import Any, TypeAlias
 
 import numpy as np
 import pandas as pd
@@ -45,3 +47,22 @@ def _nz(denominator: float) -> float:
 
 class SpecificationWarning(UserWarning):
     """Parent warning class."""
+
+
+def _model_method(fn: Callable[..., Any]) -> Callable[..., Any]:
+    """Wrap a module-level ``fn(model, ...)`` as an introspectable instance method.
+
+    ENG-05: estimators (PCA / PLS / ...) expose convenience methods such as
+    ``score_plot``, ``spe_limit`` and ``vip`` that forward to the standalone
+    functions with ``self`` supplied as the ``model`` argument. Defining them
+    via this factory at class-body time - rather than binding
+    ``functools.partial`` instances in ``fit`` - means ``help`` and
+    ``inspect.signature`` report the underlying function (minus ``self``), the
+    fitted model stays picklable, and subclasses can override cleanly.
+    """
+
+    @functools.wraps(fn)
+    def method(self: object, *args, **kwargs) -> object:
+        return fn(self, *args, **kwargs)
+
+    return method

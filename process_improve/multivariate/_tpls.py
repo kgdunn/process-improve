@@ -24,7 +24,9 @@ from sklearn.utils.validation import check_array, check_is_fitted
 
 from .._linalg import safe_inverse
 from ._common import _nz
-from ._limits import ellipse_coordinates, hotellings_t2_limit, spe_calculation
+from ._limits import ellipse_coordinates as _ellipse_coordinates
+from ._limits import hotellings_t2_limit as _hotellings_t2_limit
+from ._limits import spe_calculation
 from ._nipals import internal_pls_nipals_fit_one_pc, nan_to_zeros, regress_a_space_on_b_row
 from .plots import Plot
 
@@ -253,6 +255,36 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.required_inputs_ = {"F", "Y", "Z"}
         self.plot = Plot(self)
 
+    # ENG-05: convenience methods forwarding to the standalone functions. These
+    # used to be ``functools.partial`` instances bound in ``fit``; defining them
+    # as real methods keeps ``help`` / ``inspect.signature`` accurate and the
+    # fitted model picklable.
+    def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
+        """Hotelling's T2 limit at the given confidence level (see :func:`hotellings_t2_limit`)."""
+        return _hotellings_t2_limit(
+            conf_level=conf_level,
+            n_components=self.n_components,
+            n_rows=self.hotellings_t2.shape[0],
+        )
+
+    def ellipse_coordinates(
+        self,
+        score_horiz: int,
+        score_vert: int,
+        conf_level: float = 0.95,
+        n_points: int = 100,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Coordinates of the T2 confidence ellipse (see :func:`ellipse_coordinates`)."""
+        return _ellipse_coordinates(
+            score_horiz=score_horiz,
+            score_vert=score_vert,
+            conf_level=conf_level,
+            n_points=n_points,
+            n_components=self.n_components,
+            scaling_factor_for_scores=self.scaling_factor_for_scores,
+            n_rows=self.t_scores_super.shape[0],
+        )
+
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X: DataFrameDict, y: None = None) -> TPLS:  # noqa: ARG002, PLR0915
         """Fit the preprocessing parameters and also the latent variable model from the training data.
@@ -413,9 +445,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # 4. Hotelling's T2 values for each observation, per component
         self.hotellings_t2: pd.DataFrame = pd.DataFrame()
-        self.hotellings_t2_limit: Callable = hotellings_t2_limit
         self.scaling_factor_for_scores = pd.Series()
-        self.ellipse_coordinates: Callable = ellipse_coordinates
 
         self._fit_iterative_regressions()
         self.is_fitted_ = True
@@ -1070,19 +1100,10 @@ class TPLS(RegressorMixin, BaseEstimator):
             index=self.observation_names,
             columns=["Hotelling's T^2"],
         )
-        self.hotellings_t2_limit = partial(
-            hotellings_t2_limit, n_components=self.n_components, n_rows=self.hotellings_t2.shape[0]
-        )
         self.scaling_factor_for_scores = pd.Series(
             np.sqrt(np.diag(variance_matrix)),
             index=[a + 1 for a in range(self.n_components)],
             name="Standard deviation per score",
-        )
-        self.ellipse_coordinates = partial(
-            ellipse_coordinates,
-            n_components=self.n_components,
-            scaling_factor_for_scores=self.scaling_factor_for_scores,
-            n_rows=self.t_scores_super.shape[0],
         )
 
         # Squared prediction error limits. This is a measure of the prediction error = difference between the actual
