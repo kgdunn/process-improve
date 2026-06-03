@@ -11,6 +11,23 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.15] - 2026-06-03
+
+### Changed (internal)
+
+- **ENG-02 (#344)**: split the two large ``experiments`` god modules into
+  focused submodules. ``analysis.py``'s 13 ``_run_*`` analyses (and the two
+  ``_compute_*`` summary helpers) moved to ``experiments/_analyses/``
+  (``ols_extractors``, ``diagnostics``, ``lack_of_fit``, ``curvature``,
+  ``model_selection``, ``box_cox``, ``lenth``, ``prediction``, ``_shared``);
+  ``analysis.py`` keeps ``build_formula``, ``AnalysisResult`` and the
+  ``analyze_experiment`` dispatcher. ``tools.py``'s 10 MCP tool wrappers moved
+  to ``experiments/_tools/<tool>.py`` with shared registration primitives in
+  ``experiments/_tools/__init__.py``; ``tools.py`` is now a thin aggregator.
+  No public API change: ``analyze_experiment``, ``build_formula`` and
+  ``get_experiments_tool_specs`` remain importable from their original paths,
+  and the MCP tool-spec output is byte-identical.
+
 ## [1.24.14] - 2026-06-02
 
 ### Changed (internal)
@@ -1075,7 +1092,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.14...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.15...HEAD
+[1.24.15]: https://github.com/kgdunn/process-improve/compare/v1.24.14...v1.24.15
 [1.24.14]: https://github.com/kgdunn/process-improve/compare/v1.24.13...v1.24.14
 [1.24.13]: https://github.com/kgdunn/process-improve/compare/v1.24.12...v1.24.13
 [1.24.12]: https://github.com/kgdunn/process-improve/compare/v1.24.11...v1.24.12
