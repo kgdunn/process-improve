@@ -189,7 +189,6 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.tol = tol
         self.copy = copy
         self.missing_data_settings = missing_data_settings
-        self.has_missing_data_ = False
 
     # ENG-05: convenience methods forwarding to the standalone functions. These
     # used to be ``functools.partial`` instances bound in ``fit``; defining them
@@ -379,6 +378,10 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         """
         self.n_samples_: int = X.shape[0]
         self.n_features_in_: int = X.shape[1]
+        # Fitted flag, defaulted here (not in __init__) so __init__ sets only the
+        # constructor parameters, per sklearn convention (ENG-07). _fit_nipals
+        # flips it to True if missing data is detected.
+        self.has_missing_data_ = False
         Ny: int = Y.shape[0]
         self.n_targets_: int = Y.shape[1]
         if Ny != self.n_samples_:
