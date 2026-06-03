@@ -11,6 +11,17 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.27] - 2026-06-03
+
+### Changed (internal)
+
+- **CI**: remove the free-threaded (`3.13t` / `3.14t`) test matrix rows. They
+  only ever failed at install - several dependencies still lack free-threaded
+  (cp31Xt) wheels and fall back to source builds that fail on the GitHub images
+  (llvmlite needs LLVM 20; Rust-built deps fail their maturin/cargo builds) - so
+  they produced a permanent non-blocking red check with no useful signal. They
+  can be re-added when the free-threaded wheel ecosystem catches up (issue #43).
+
 ## [1.24.26] - 2026-06-03
 
 ### Changed (internal)
@@ -1229,7 +1240,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.26...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.27...HEAD
+[1.24.27]: https://github.com/kgdunn/process-improve/compare/v1.24.26...v1.24.27
 [1.24.26]: https://github.com/kgdunn/process-improve/compare/v1.24.24...v1.24.26
 [1.24.24]: https://github.com/kgdunn/process-improve/compare/v1.24.23...v1.24.24
 [1.24.23]: https://github.com/kgdunn/process-improve/compare/v1.24.22...v1.24.23

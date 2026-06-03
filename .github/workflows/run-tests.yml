@@ -72,18 +72,16 @@ jobs:
           - python-version: "3.12"
             os: ubuntu-latest
             experimental: false
-          # Free-threaded (no-GIL) Python. numba 0.63+ ships free-threaded
-          # wheels but llvmlite (a numba dependency) does not yet publish
-          # cp31Xt wheels on PyPI, and its sdist needs LLVM 20 which is not
-          # on the GitHub-hosted ubuntu image. Until llvmlite ships
-          # free-threaded wheels these rows are expected to fail at install
-          # time; allow them to fail without blocking the workflow.
-          - python-version: "3.13t"
-            os: ubuntu-latest
-            experimental: true
-          - python-version: "3.14t"
-            os: ubuntu-latest
-            experimental: true
+          # Free-threaded (no-GIL) Python (3.13t / 3.14t) is intentionally NOT
+          # tested yet. Several dependencies still lack free-threaded (cp31Xt)
+          # wheels and fall back to building from source, which fails on the
+          # GitHub-hosted images: llvmlite (via numba / the `fast` extra) needs
+          # LLVM 20, and Rust-built deps (e.g. pydantic-core and some mcp
+          # transitives) fail their maturin/cargo source builds. These rows
+          # only ever failed at install and produced no useful signal, so they
+          # are removed rather than left as a permanent non-blocking red check.
+          # Re-add them once the free-threaded wheel ecosystem has caught up
+          # (tracked in issue #43).
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental }}
     defaults:
