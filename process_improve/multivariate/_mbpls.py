@@ -19,8 +19,8 @@ from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
 from ..visualization.themes import REFERENCE_LINE_COLOR
+from ._base import _HotellingsT2LimitMixin
 from ._common import SpecificationWarning, _nz, epsqrt
-from ._limits import hotellings_t2_limit as _hotellings_t2_limit
 from ._limits import spe_calculation
 from ._nipals import quick_regress, ssq
 from ._preprocessing import MCUVScaler
@@ -33,7 +33,7 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
 
-class MBPLS(RegressorMixin, BaseEstimator):
+class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     r"""Multi-block PLS (hierarchical / superblock formulation).
 
     Generic multi-block PLS as described by Westerhuis, Kourti & MacGregor
@@ -180,17 +180,6 @@ class MBPLS(RegressorMixin, BaseEstimator):
         self.tol = tol
         self.algorithm = algorithm
         self.missing_data_settings = missing_data_settings
-
-    # ENG-05: convenience method forwarding to the standalone function (was a
-    # functools.partial bound in fit; a real method keeps help/inspect.signature
-    # accurate and the fitted model picklable).
-    def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
-        """Hotelling's T2 limit at the given confidence level (see :func:`hotellings_t2_limit`)."""
-        return _hotellings_t2_limit(
-            conf_level=conf_level,
-            n_components=self.n_components,
-            n_rows=self.n_samples_,
-        )
 
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X: dict[str, pd.DataFrame], y: pd.DataFrame) -> MBPLS:  # noqa: C901, PLR0912, PLR0915
