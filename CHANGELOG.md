@@ -11,6 +11,17 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.24] - 2026-06-03
+
+### Added
+
+- **ENG-19 (#301)**: a "Scaling and memory" docs page (``docs/scaling.rst``)
+  documenting the estimators' in-memory assumption, how to estimate RAM
+  (~``rows x cols x 8`` bytes, with 2-4x headroom during ``fit``), what to do
+  for larger-than-RAM data, and the out-of-core roadmap. The README's
+  "production-grade" claim now carries an honest note about scale. The
+  out-of-core code path itself is deferred (demand-driven) per the issue.
+
 ## [1.24.23] - 2026-06-03
 
 ### Changed (internal)
@@ -1203,7 +1214,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.23...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.24...HEAD
+[1.24.24]: https://github.com/kgdunn/process-improve/compare/v1.24.23...v1.24.24
 [1.24.23]: https://github.com/kgdunn/process-improve/compare/v1.24.22...v1.24.23
 [1.24.22]: https://github.com/kgdunn/process-improve/compare/v1.24.21...v1.24.22
 [1.24.21]: https://github.com/kgdunn/process-improve/compare/v1.24.20...v1.24.21
