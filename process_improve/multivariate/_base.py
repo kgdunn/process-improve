@@ -103,7 +103,13 @@ class _LazyFrame:
     def __set_name__(self, owner: type, name: str) -> None:
         self._public_name = name
 
-    def __get__(self, obj: object, objtype: type | None = None) -> object:
+    @typing.overload
+    def __get__(self, obj: None, objtype: type | None = None) -> _LazyFrame: ...
+
+    @typing.overload
+    def __get__(self, obj: object, objtype: type | None = None) -> pd.DataFrame: ...
+
+    def __get__(self, obj: object, objtype: type | None = None) -> _LazyFrame | pd.DataFrame:
         if obj is None:
             return self
         cache = obj.__dict__.get("_frame_cache")

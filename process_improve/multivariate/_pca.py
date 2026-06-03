@@ -21,7 +21,7 @@ from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
 from ..univariate.metrics import detect_outliers_esd
-from ._base import _LatentVariableModel
+from ._base import _LatentVariableModel, _LazyFrame
 from ._common import DataMatrix, SpecificationWarning, epsqrt
 from ._nipals import quick_regress, ssq, terminate_check
 
@@ -110,8 +110,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     }
     _RENAME_CONTEXT: typing.ClassVar[str] = "PCA"
 
+    # ENG-18: public DataFrame views built lazily from the private ndarrays.
+    scores_ = _LazyFrame("_scores", index="_sample_index", columns="_component_names")
+    loadings_ = _LazyFrame("_loadings", index="_feature_names", columns="_component_names")
+    spe_ = _LazyFrame("_spe", index="_sample_index", columns="_component_names")
+
     @_fit_context(prefer_skip_nested_validation=True)
-    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA:  # noqa: ARG002, PLR0912, C901
+    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA:  # noqa: ARG002, PLR0912, PLR0915, C901
         """Fit a principal component analysis (PCA) model to the data.
 
         Parameters
@@ -185,19 +190,17 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         elif algo == "tsr":
             self._fit_tsr(X_values, N, K, A, settings)
 
-        # --- Common post-fit path: wrap numpy arrays into pandas ---
-        component_names = list(range(1, A + 1))
+        # --- Common post-fit path ---
+        # ENG-18: scores_ / loadings_ / spe_ are stored as private ndarrays (the
+        # source of truth); the public DataFrame views are built lazily by the
+        # _LazyFrame descriptors from these arrays plus the index/column metadata
+        # (self._sample_index, self._feature_names, self._component_names).
+        self._component_names = list(range(1, A + 1))
+        component_names = self._component_names
+        self._loadings = self._loadings_np
+        self._scores = self._scores_np
+        self._spe = self._spe_np
 
-        self.loadings_ = pd.DataFrame(
-            self._loadings_np,
-            index=self._feature_names,
-            columns=component_names,
-        )
-        self.scores_ = pd.DataFrame(
-            self._scores_np,
-            index=self._sample_index,
-            columns=component_names,
-        )
         self.r2_per_component_ = pd.Series(
             self._r2_np,
             index=component_names,
@@ -211,11 +214,6 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         self.r2_per_variable_ = pd.DataFrame(
             self._r2_per_var_np,
             index=self._feature_names,
-            columns=component_names,
-        )
-        self.spe_ = pd.DataFrame(
-            self._spe_np,
-            index=self._sample_index,
             columns=component_names,
         )
 
@@ -234,10 +232,11 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         for a in range(A):
             self.hotellings_t2_.iloc[:, a] = (
                 self.hotellings_t2_.iloc[:, max(0, a - 1)]
-                + (self.scores_.iloc[:, a] / self.scaling_factor_for_scores_.iloc[a]) ** 2
+                + (self._scores[:, a] / self.scaling_factor_for_scores_.iloc[a]) ** 2
             )
 
-        # Clean up temporary numpy arrays
+        # Clean up temporary numpy staging names (the kept ndarrays above alias
+        # the same arrays, so they survive these del statements).
         del self._loadings_np, self._scores_np, self._r2_np, self._r2cum_np, self._r2_per_var_np, self._spe_np
 
         return self
@@ -455,8 +454,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             raise ValueError(
                 f"New data must have {self.n_features_in_} columns, got {X.shape[1]}."
             )
-        scores = X.values @ self.loadings_.values
-        return pd.DataFrame(scores, index=X.index, columns=self.loadings_.columns)
+        scores = X.values @ self._loadings
+        return pd.DataFrame(scores, index=X.index, columns=self._component_names)
 
     def fit_transform(self, X: DataMatrix, y: DataMatrix | None = None) -> pd.DataFrame:  # noqa: ARG002
         """Fit the model and return the training scores."""
@@ -486,7 +485,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         scores = self.transform(X)
 
         # Hotelling's T² (cumulative)
-        component_names = self.loadings_.columns
+        component_names = self._component_names
         t2 = pd.DataFrame(np.zeros((X.shape[0], self.n_components)), columns=component_names, index=X.index)
         for a in range(self.n_components):
             t2.iloc[:, a] = (
@@ -494,7 +493,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             )
 
         # SPE: residual after reconstruction
-        X_hat = scores.values @ self.loadings_.values.T
+        X_hat = scores.values @ self._loadings.T
         residuals = X.values - X_hat
         spe_values = pd.Series(np.sqrt(np.sum(residuals**2, axis=1)), index=X.index, name="SPE")
 
@@ -528,7 +527,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
         scores = self.transform(X)
-        X_hat = scores.values @ self.loadings_.values.T
+        X_hat = scores.values @ self._loadings.T
         residuals = X.values - X_hat
         return -float(np.mean(residuals**2))
 
@@ -701,10 +700,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             ev = np.asarray(self.explained_variance_)[idx]
             dt = dt / np.sqrt(np.where(ev > epsqrt, ev, 1.0))
 
-        P = self.loadings_.values[:, idx].T  # (len(idx), n_features)
+        P = self._loadings[:, idx].T  # (len(idx), n_features)
         contributions = dt @ P  # (n_features,)
 
-        return pd.Series(contributions, index=self.loadings_.index, name="score_contributions")
+        return pd.Series(contributions, index=self._feature_names, name="score_contributions")
 
     def detect_outliers(self, conf_level: float = 0.95) -> list[dict]:
         """Detect outlier observations using SPE and Hotelling's T² diagnostics.
