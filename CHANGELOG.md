@@ -11,6 +11,17 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.21] - 2026-06-03
+
+### Added
+
+- **ENG-26 (#308)**: documentation - an architecture overview
+  (``docs/architecture.rst``: package layout, conventions, the multivariate
+  estimator stack, and the MCP tool layer), linked from the top of
+  ``README.md``, and a step-by-step tool-authoring guide
+  (``docs/development/tool_authoring.rst``). Complements the existing
+  error-handling, reproducibility, deprecation-policy, and logging policy pages.
+
 ## [1.24.20] - 2026-06-03
 
 ### Added
@@ -1167,7 +1178,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.20...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.21...HEAD
+[1.24.21]: https://github.com/kgdunn/process-improve/compare/v1.24.20...v1.24.21
 [1.24.20]: https://github.com/kgdunn/process-improve/compare/v1.24.19...v1.24.20
 [1.24.19]: https://github.com/kgdunn/process-improve/compare/v1.24.18...v1.24.19
 [1.24.18]: https://github.com/kgdunn/process-improve/compare/v1.24.17...v1.24.18

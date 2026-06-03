@@ -8,6 +8,7 @@ below are the deeper policy references it links to.
 .. toctree::
    :maxdepth: 1
 
+   tool_authoring
    error_handling
    logging
    reproducibility
