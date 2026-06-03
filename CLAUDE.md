@@ -48,8 +48,15 @@ New changelog lines go under the `## [Unreleased]` heading. When you bump the ve
 
 ### sklearn API Compatibility
 - **PCA** inherits from `sklearn.base.BaseEstimator` and `sklearn.base.TransformerMixin`
-- **PLS** inherits from `sklearn.cross_decomposition.PLSRegression`
+- **PLS** inherits from `sklearn.base.BaseEstimator`, `TransformerMixin`, and `RegressorMixin`.
+  It deliberately does **not** inherit `sklearn.cross_decomposition.PLSRegression` (ENG-07 / #289):
+  the estimators keep the lightweight sklearn *mixins* for API compatibility (`get_params`/`set_params`,
+  `clone`, Pipeline support) but never couple to a concrete sklearn estimator's private attribute
+  layout. The same applies to TPLS / MBPLS / MBPCA. `do not inherit from sklearn` here means the
+  concrete estimators, not the mixins.
 - Fitted attributes use trailing `_` convention (e.g., `scores_`, `loadings_`, `spe_`, `hotellings_t2_`)
+  and are set only in `fit()`, never in `__init__` (sklearn requires `__init__` to set only the
+  constructor parameters).
 - `predict()` returns `sklearn.utils.Bunch` with named fields (not custom classes)
 - `score()` follows sklearn convention (higher is better)
 - `fit()` returns `self`
@@ -61,15 +68,26 @@ New changelog lines go under the `## [Unreleased]` heading. When you bump the ve
 `scores_` (X scores), `y_scores_`, `x_loadings_`, `y_loadings_`, `x_weights_`, `y_weights_`, `direct_weights_`, `beta_coefficients_`, `predictions_`, `spe_`, `hotellings_t2_`, `explained_variance_`, `r2_cumulative_`, `r2_per_component_`, `r2_per_variable_`, `r2y_per_variable_`, `rmse_`, `scaling_factor_for_scores_`, `fitting_info_`, `has_missing_data_`
 
 ### Convenience Method Binding
-After `fit()`, PCA and PLS bind plot and limit methods as `functools.partial`:
+PCA / PLS / TPLS / MBPLS / MBPCA expose plot, limit, and diagnostic convenience methods
+(`score_plot`, `spe_plot`, `loading_plot`, `spe_limit`, `score_limit`, `vip`, `eigenvalue_summary`,
+`hotellings_t2_limit`, `ellipse_coordinates`, ...) that forward to the standalone functions in
+`plots.py` / `_limits.py` / `_diagnostics.py`. As of ENG-05 (#287) these are **real methods defined
+on the class**, not `functools.partial` instances bound in `fit()`:
 ```python
-self.spe_limit = partial(spe_limit, model=self)
-self.hotellings_t2_limit = partial(hotellings_t2_limit, ...)
-self.score_plot = partial(score_plot, model=self)
-self.spe_plot = partial(spe_plot, model=self)
-self.t2_plot = partial(t2_plot, model=self)
-self.loading_plot = partial(loading_plot, model=self)
+from process_improve.multivariate._common import _model_method
+
+# Uniform `model=self` forwarders (defined at class-body time):
+score_plot = _model_method(_score_plot)
+spe_limit = _model_method(_spe_limit)
+vip = _model_method(_vip)
+# Methods that need fitted state are written out explicitly:
+def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
+    return _hotellings_t2_limit(conf_level=conf_level, n_components=self.n_components, n_rows=self.n_samples_)
 ```
+This keeps `help` / `inspect.signature` accurate (they report the underlying function, minus `model`),
+the fitted model picklable, and the methods overridable by subclasses. The standalone functions remain
+importable for advanced callers. (TPLS's `spe_limit` is a separate nested dict-of-callables API and is
+intentionally not a method.)
 
 ### Migration Helpers
 Both PCA and PLS have `__getattr__` methods that raise `AttributeError` with helpful rename messages when old attribute names are used (e.g., `model.x_scores` tells you to use `model.scores_`).
