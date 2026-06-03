@@ -183,7 +183,7 @@ def load_knowledge_graph() -> KnowledgeGraph:
 
     # Decision rules
     for entry in _load_yaml("decision_rules.yaml"):
-        node = DecisionRuleNode(
+        rule_node = DecisionRuleNode(
             id=entry["id"],
             topic=entry["topic"],
             description=entry["description"],
@@ -191,11 +191,11 @@ def load_knowledge_graph() -> KnowledgeGraph:
             recommend=entry.get("recommend", {}),
             explanation=entry.get("explanation", {}),
         )
-        graph.decision_rules.append(node)
+        graph.decision_rules.append(rule_node)
 
     # Diagnostics
     for entry in _load_yaml("diagnostics.yaml"):
-        node = DiagnosticNode(
+        diagnostic_node = DiagnosticNode(
             id=entry["id"],
             display_name=entry["display_name"],
             visual_pattern=entry["visual_pattern"],
@@ -203,11 +203,11 @@ def load_knowledge_graph() -> KnowledgeGraph:
             remedies=entry.get("remedies", []),
             severity=entry.get("severity", "moderate"),
         )
-        graph.diagnostics[node.id] = node
+        graph.diagnostics[diagnostic_node.id] = diagnostic_node
 
     # Concepts
     for entry in _load_yaml("concepts.yaml"):
-        node = ConceptNode(
+        concept_node = ConceptNode(
             id=entry["id"],
             title=entry["title"],
             topic=entry["topic"],
@@ -215,22 +215,22 @@ def load_knowledge_graph() -> KnowledgeGraph:
             related_to=entry.get("related_to", []),
             related_questions=entry.get("related_questions", []),
         )
-        graph.concepts[node.id] = node
+        graph.concepts[concept_node.id] = concept_node
 
     # Interpretation guides
     for entry in _load_yaml("interpretation_guides.yaml"):
-        node = InterpretationGuide(
+        guide_node = InterpretationGuide(
             id=entry["id"],
             topic=entry["topic"],
             title=entry["title"],
             content=entry.get("content", {}),
             related_questions=entry.get("related_questions", []),
         )
-        graph.interpretation_guides[node.id] = node
+        graph.interpretation_guides[guide_node.id] = guide_node
 
     # Worked examples
     for entry in _load_yaml("worked_examples.yaml"):
-        node = WorkedExample(
+        example_node = WorkedExample(
             id=entry["id"],
             title=entry["title"],
             demonstrates=entry.get("demonstrates", []),
@@ -240,7 +240,7 @@ def load_knowledge_graph() -> KnowledgeGraph:
             related_questions=entry.get("related_questions", []),
             detail_level=entry.get("detail_level", "intermediate"),
         )
-        graph.worked_examples[node.id] = node
+        graph.worked_examples[example_node.id] = example_node
 
     # Build indices
     graph.keyword_index = _build_keyword_index(graph)

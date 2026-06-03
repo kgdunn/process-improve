@@ -224,6 +224,8 @@ def _compute_g_efficiency(ctx: _EvalContext) -> dict[str, Any]:
     if ctx.is_singular:
         return {"g_efficiency": None, "note": "Design is rank-deficient for the specified model."}
 
+    # ``XtX_inv`` is non-None whenever the design is not singular (guarded above).
+    assert ctx.XtX_inv is not None
     grid_raw = _generate_evaluation_grid(ctx.factor_names)
     # Determine the model string to rebuild for grid points
     model_str = _infer_model_string(ctx)
@@ -243,6 +245,8 @@ def _compute_i_efficiency(ctx: _EvalContext) -> dict[str, Any]:
     if ctx.is_singular:
         return {"i_efficiency": None, "note": "Design is rank-deficient for the specified model."}
 
+    # ``XtX_inv`` is non-None whenever the design is not singular (guarded above).
+    assert ctx.XtX_inv is not None
     grid_raw = _generate_evaluation_grid(ctx.factor_names)
     model_str = _infer_model_string(ctx)
     X_grid = _expand_grid_points(grid_raw, ctx.factor_names, model_str)
@@ -279,6 +283,8 @@ def _compute_prediction_variance(ctx: _EvalContext) -> dict[str, Any]:
     if ctx.is_singular:
         return {"prediction_variance": None, "note": "Design is rank-deficient for the specified model."}
 
+    # ``XtX_inv`` is non-None whenever the design is not singular (guarded above).
+    assert ctx.XtX_inv is not None
     pv = _prediction_variance_at_points(ctx.X, ctx.XtX_inv)
     pv_list = [float(v) for v in pv]
     return {
@@ -457,7 +463,7 @@ def _defining_relation_from_generators(
     all_words: set[frozenset[int]] = set()
     for r in range(1, len(base_words) + 1):
         for subset in itertools.combinations(base_words, r):
-            product = frozenset()
+            product: frozenset[int] = frozenset()
             for w in subset:
                 product = _multiply_words(product, w)
             if product:  # exclude identity
@@ -510,6 +516,8 @@ def _compute_alias_structure(ctx: _EvalContext) -> dict[str, Any]:
 
 def _alias_structure_from_generators(ctx: _EvalContext) -> dict[str, Any]:
     """Compute alias chains using GF(2) multiplication against the defining relation."""
+    # Only reached when ``ctx.generators`` is truthy (see ``_compute_alias_structure``).
+    assert ctx.generators is not None
     words = _defining_relation_from_generators(ctx.generators, ctx.factor_names)
     if not words:
         return {"alias_structure": []}

@@ -7,13 +7,16 @@ import re
 import warnings
 from collections import defaultdict
 from collections.abc import Iterable
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import pandas as pd
 import statsmodels.formula.api as smf
 from patsy import ModelDesc
 from statsmodels.regression.linear_model import OLS
+
+if TYPE_CHECKING:
+    from process_improve.experiments.structures import Expt
 
 
 class UnsafeFormulaError(ValueError):
@@ -274,6 +277,12 @@ def forg(x: float, prec: int = 3) -> str:
 class Model(OLS):
     """Just a thin wrapper around the OLS class from Statsmodels."""
 
+    # Declared for static typing. ``data`` starts as ``None`` and is replaced by
+    # the fitted :class:`~process_improve.experiments.structures.Expt` in ``lm()``.
+    data: Expt | None
+    aliasing: dict | None
+    name: str | None
+
     def __init__(
         self,
         OLS_instance: Any,  # noqa: ANN401
@@ -312,7 +321,7 @@ class Model(OLS):
             main = "OLS Regression Results"
             if self.name:
                 main += ": " + str(self.name)
-            elif self.data.pi_title:
+            elif self.data is not None and self.data.pi_title:
                 main += ": " + str(self.data.pi_title)
 
             smry = self._OLS.summary(title=main)
@@ -367,6 +376,8 @@ class Model(OLS):
 
     def get_title(self) -> str:
         """Get the model's title, if it has one. Always returns a string."""
+        if self.data is None:
+            return ""
         return self.data.get_title()
 
     def get_aliases(
@@ -389,10 +400,10 @@ class Model(OLS):
             effect.
         """
         alias_strings: list[Any] = []
-        if len(self.aliasing.keys()) == 0:
+        if self.aliasing is None or len(self.aliasing.keys()) == 0:
             return alias_strings
 
-        params = self.get_parameters(drop_intercept=drop_intercept)
+        params = self.get_parameters(drop_intercept=bool(drop_intercept))
         for p_name in params.index.values:
             aliasing = f'<span style="font-size: 130%; font-weight: 700">{p_name}</span>' if websafe else p_name
             suffix = ""
@@ -420,7 +431,7 @@ def predict(model: Model, **kwargs: Any) -> Any:  # noqa: ANN401
 
 def lm(  # noqa: C901, PLR0915
     model_spec: str,
-    data: pd.DataFrame,
+    data: Expt,
     name: str | None = None,
     alias_threshold: float | None = 0.995,
 ) -> Model:
@@ -451,12 +462,12 @@ def lm(  # noqa: C901, PLR0915
         except ValueError:
             # scalar covariance
             # nan if incorrect value (nan, inf, 0), 1 otherwise
-            return c / c
+            return c / c  # type: ignore[return-value]  # degenerate scalar-covariance fallback; preserves original runtime behaviour
         stddev = np.sqrt(d.real)
 
         aliasing = defaultdict(list)
         terms = model_desc.rhs_termlist
-        drop_columns = []
+        drop_columns: list[int] = []
         counter = -1
         corrcoef = c.copy()
         for idx, check in enumerate(has_variation):
@@ -508,9 +519,9 @@ def lm(  # noqa: C901, PLR0915
 
         # Sort the aliases in length:
         for key, val in aliasing.items():
-            alias_len = [(len(i), i) if i[1] != "Intercept" else (1e5, i) for i in val]
-            alias_len.sort()
-            aliasing[key] = [i[1] for i in alias_len]
+            sorted_aliases = [(len(i), i) if i[1] != "Intercept" else (1e5, i) for i in val]
+            sorted_aliases.sort()
+            aliasing[key] = [i[1] for i in sorted_aliases]
 
         return aliasing, list(set(drop_columns))
 
@@ -534,7 +545,12 @@ def lm(  # noqa: C901, PLR0915
             f"{settings.max_formula_terms}."
         )
     model_description = ModelDesc.from_formula(model_spec)
-    aliasing, drop_columns = find_aliases(pre_model, model_description, threshold_correlation=alias_threshold)
+    # ``alias_threshold`` is ``float | None`` at the public boundary; the inner
+    # ``find_aliases`` uses it in numeric comparisons. The cast is a no-op at
+    # runtime (preserving the original behaviour for any value, including None).
+    aliasing, drop_columns = find_aliases(
+        pre_model, model_description, threshold_correlation=cast("float", alias_threshold)
+    )
     drop_column_names = [pre_model.data.xnames[i] for i in drop_columns]
 
     post_model = smf.ols(model_spec, data=data, drop_cols=drop_column_names)
@@ -569,7 +585,7 @@ def summary(
     if len(aliases):
         extra.append("Aliasing pattern")
         for value, alias in zip(values, aliases, strict=False):
-            extra.append(f" {forg(value, 4)} = {alias}")
+            extra.append(f" {forg(float(value), 4)} = {alias}")
 
     out.add_extra_txt(extra)
     if show:
