@@ -11,6 +11,21 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.28] - 2026-06-03
+
+### Added
+
+- **ENG-15 (#297)**: an MCP-boundary fuzz suite (`tests/fuzz/test_mcp_boundary.py`).
+  It derives a `hypothesis` strategy from every registered tool's `input_schema`
+  and asserts that `execute_tool_call` never leaks an undocumented exception (the
+  SEC-14..21 invariant); it is deterministic (`derandomize=True`) so it is a
+  stable CI gate. It surfaced and **fixed two real boundary leaks**: `control_chart`
+  raised `AssertionError` on constant/degenerate data (the `assert`s are now a
+  `ValueError`, which also closes the `python -O` strip-the-assert gap from
+  SEC-17), and the multivariate tools could leak `RuntimeError`/`IndexError` on
+  degenerate input (their boundary `except` clauses now catch these and return an
+  `{"error": ...}` response).
+
 ## [1.24.27] - 2026-06-03
 
 ### Changed (internal)
@@ -1240,7 +1255,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.27...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.28...HEAD
+[1.24.28]: https://github.com/kgdunn/process-improve/compare/v1.24.27...v1.24.28
 [1.24.27]: https://github.com/kgdunn/process-improve/compare/v1.24.26...v1.24.27
 [1.24.26]: https://github.com/kgdunn/process-improve/compare/v1.24.24...v1.24.26
 [1.24.24]: https://github.com/kgdunn/process-improve/compare/v1.24.23...v1.24.24
