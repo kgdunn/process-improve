@@ -806,12 +806,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         .hotellings_t2_limit()      Returns the Hotelling's T2 limit for the model              [float]
         .spe_limit[block]()         Return the SPE limit for the block; e.g. .spe_limit["Y"]() [float]
 
-
-        TODO:
-        self.hotellings_t2: pd.DataFrame = pd.DataFrame()
-        self.hotellings_t2_limit: Callable = hotellings_t2_limit
-        self.scaling_factor_for_scores = pd.Series()
-        self.ellipse_coordinates: Callable = ellipse_coordinates
+        .vip()                      Variable importance (VIP) for the D- and F-blocks          [dict]
 
         """
 
