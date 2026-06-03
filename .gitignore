@@ -38,3 +38,6 @@ docs/_build/
 # mypy
 **/*.mypy_cache/
 uv.lock
+
+# Build artifacts (uv build)
+dist/

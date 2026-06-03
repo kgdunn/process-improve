@@ -25,7 +25,9 @@ def aligned_batch_dict() -> dict:
 @pytest.fixture
 def nylon_raw_melteddata() -> pd.DataFrame:
     """Load raw nylon melted data."""
-    return pd.read_csv(pathlib.Path(__file__).parents[2] / "process_improve" / "datasets" / "batch" / "nylon.csv")
+    return pd.read_csv(
+        pathlib.Path(__file__).parents[2] / "src" / "process_improve" / "datasets" / "batch" / "nylon.csv"
+    )
 
 
 def test_melted_to_dict(nylon_raw_melteddata: pd.DataFrame) -> None:

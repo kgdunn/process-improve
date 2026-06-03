@@ -25,7 +25,7 @@ class TestValidateAgainstRQccXbarOne:
     s = chart$std.dev       # 10.43234
     """
 
-    folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "monitoring"
+    folder = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "monitoring"
     cc_values = pd.read_csv(folder / "rubber-colour.csv")
     y = cc_values["Colour"]
 
@@ -262,7 +262,7 @@ class TestHoltWintersControlChartBatchYield:
     http://openmv.net/info/batch-yield-and-purity (Kevin Dunn, personal data)
     """
 
-    folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "monitoring"
+    folder = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "monitoring"
     cc_values = pd.read_csv(folder / "batch-yield-and-purity.csv")
     subgroups_n = 3
     rounder = int(np.floor(cc_values.shape[0] / 3))

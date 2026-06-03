@@ -5,9 +5,9 @@ from pathlib import Path
 
 import tomllib
 
-# Add project root to path so autodoc can find the package
+# Add the src/ directory to the path so autodoc can find the package (ENG-14).
 _repo_root = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_repo_root))
+sys.path.insert(0, str(_repo_root / "src"))
 
 # -- Project information -----------------------------------------------------
 

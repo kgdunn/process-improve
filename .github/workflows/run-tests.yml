@@ -55,7 +55,7 @@ jobs:
     - name: Install the project (editable)
       run: uv sync --dev --all-extras
     - name: Type-check with mypy
-      run: uv run mypy process_improve
+      run: uv run mypy src/process_improve
 
   test:
     strategy:
