@@ -199,7 +199,7 @@ def fit_pca(spec: FitPcaInput) -> dict[str, Any]:
             "model_params": model_params,
         }
         return clean(result)
-    except (ValueError, TypeError, KeyError, np.linalg.LinAlgError) as exc:
+    except (ValueError, TypeError, KeyError, IndexError, RuntimeError, np.linalg.LinAlgError) as exc:
         return {"error": str(exc)}
 
 
@@ -312,7 +312,7 @@ def fit_pls(spec: FitPlsInput) -> dict[str, Any]:
             "model_params": model_params,
         }
         return clean(result)
-    except (ValueError, TypeError, KeyError, np.linalg.LinAlgError) as exc:
+    except (ValueError, TypeError, KeyError, IndexError, RuntimeError, np.linalg.LinAlgError) as exc:
         return {"error": str(exc)}
 
 
@@ -375,7 +375,7 @@ def scale_data(spec: ScaleDataInput) -> dict[str, Any]:
             "stds": scaler.scale_.values.tolist(),
         }
         return clean(result)
-    except (ValueError, TypeError, KeyError) as exc:
+    except (ValueError, TypeError, KeyError, IndexError, RuntimeError) as exc:
         return {"error": str(exc)}
 
 
@@ -453,7 +453,7 @@ def detect_multivariate_outliers(spec: DetectMultivariateOutliersInput) -> dict[
             "spe_limit": spe_lim,
         }
         return clean(result)
-    except (ValueError, TypeError, KeyError, np.linalg.LinAlgError) as exc:
+    except (ValueError, TypeError, KeyError, IndexError, RuntimeError, np.linalg.LinAlgError) as exc:
         return {"error": str(exc)}
 
 
@@ -549,7 +549,7 @@ def pca_predict(spec: PcaPredictInput) -> dict[str, Any]:
             "spe_limit": float(spe_lim),
         }
         return clean(result)
-    except (ValueError, TypeError, KeyError) as exc:
+    except (ValueError, TypeError, KeyError, IndexError, RuntimeError) as exc:
         return {"error": str(exc)}
 
 
@@ -651,7 +651,7 @@ def pls_predict(spec: PlsPredictInput) -> dict[str, Any]:
             "spe_limit": float(spe_lim),
         }
         return clean(result)
-    except (ValueError, TypeError, KeyError) as exc:
+    except (ValueError, TypeError, KeyError, IndexError, RuntimeError) as exc:
         return {"error": str(exc)}
 
 
