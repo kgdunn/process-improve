@@ -11,6 +11,20 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.32] - 2026-06-03
+
+### Changed (internal)
+
+- **#195**: PCA and PLS NIPALS now seed the iteration from the highest-variance
+  (highest sum-of-squares) column instead of the arbitrary first column. NIPALS
+  converges to the same component for any non-degenerate seed and a
+  deterministic sign convention fixes the sign, so the fitted result is
+  unchanged (the full multivariate suite, including the reference-dataset and
+  property-based invariant tests, is byte-for-byte green). The benefit is purely
+  numerical: the highest-variance column is the best-conditioned seed, needing
+  fewer iterations and avoiding the near-degenerate start when the first column
+  carries little or no variance. This resolves the last open code item in #195.
+
 ## [1.24.31] - 2026-06-03
 
 ### Fixed
@@ -1296,7 +1310,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.31...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.32...HEAD
+[1.24.32]: https://github.com/kgdunn/process-improve/compare/v1.24.31...v1.24.32
 [1.24.31]: https://github.com/kgdunn/process-improve/compare/v1.24.30...v1.24.31
 [1.24.30]: https://github.com/kgdunn/process-improve/compare/v1.24.29...v1.24.30
 [1.24.29]: https://github.com/kgdunn/process-improve/compare/v1.24.28...v1.24.29
