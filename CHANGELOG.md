@@ -11,6 +11,17 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.22] - 2026-06-03
+
+### Changed
+
+- **ENG-30 (#312)**: the MCP server no longer blocks its event loop on tool
+  execution. The FastMCP handler now offloads the synchronous tool call (the
+  ``ProcessPoolExecutor`` future in safe mode, or the in-process call otherwise)
+  to a worker thread via ``loop.run_in_executor``, so a slow tool call no longer
+  serialises other calls when the server is fronted by HTTP / SSE. Single-call
+  behaviour is unchanged; a regression test demonstrates concurrent dispatch.
+
 ## [1.24.21] - 2026-06-03
 
 ### Added
@@ -1178,7 +1189,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.21...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.22...HEAD
+[1.24.22]: https://github.com/kgdunn/process-improve/compare/v1.24.21...v1.24.22
 [1.24.21]: https://github.com/kgdunn/process-improve/compare/v1.24.20...v1.24.21
 [1.24.20]: https://github.com/kgdunn/process-improve/compare/v1.24.19...v1.24.20
 [1.24.19]: https://github.com/kgdunn/process-improve/compare/v1.24.18...v1.24.19
