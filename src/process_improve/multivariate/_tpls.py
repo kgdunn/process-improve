@@ -543,8 +543,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         if not isinstance(X, DataFrameDict):
             raise TypeError(f"X must be a DataFrameDict; got {type(X).__name__}.")
 
-        # TODO: Check consistency on the data: the columns names in the new data must match the columns names in the
-        # training data.
+        # Column-name consistency between the new data and the training data is
+        # validated per block below (see the ``set(df_f.columns) != ...`` checks).
         x_f: dict[str, pd.DataFrame] = {key: X["F"][key].copy() for key in X["F"]}
         x_z: dict[str, pd.DataFrame] = {key: X["Z"][key].copy() for key in X["Z"]}
 

@@ -23,7 +23,7 @@ from sklearn.utils.validation import check_is_fitted
 
 from ..univariate.metrics import detect_outliers_esd
 from ._base import _LatentVariableModel, _LazyFrame
-from ._common import DataMatrix, SpecificationWarning, epsqrt
+from ._common import DataMatrix, SpecificationWarning, _align_to_fit_features, epsqrt
 from ._nipals import quick_regress, ssq, terminate_check
 
 logger = logging.getLogger(__name__)
@@ -468,6 +468,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             raise ValueError(
                 f"New data must have {self.n_features_in_} columns, got {X.shape[1]}."
             )
+        X = _align_to_fit_features(X, self._feature_names)
         scores = X.values @ self._loadings
         return pd.DataFrame(scores, index=X.index, columns=self._component_names)
 
@@ -495,6 +496,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             raise ValueError(
                 f"Prediction data must have {self.n_features_in_} columns, got {X.shape[1]}."
             )
+        X = _align_to_fit_features(X, self._feature_names)
 
         scores = self.transform(X)
 

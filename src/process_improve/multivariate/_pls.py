@@ -26,7 +26,7 @@ from tqdm import tqdm
 from .._linalg import safe_inverse
 from ..univariate.metrics import detect_outliers_esd
 from ._base import _LatentVariableModel, _LazyFrame
-from ._common import DataMatrix, SpecificationWarning, _model_method, epsqrt
+from ._common import DataMatrix, SpecificationWarning, _align_to_fit_features, _model_method, epsqrt
 from ._nipals import quick_regress, ssq, terminate_check
 from .plots import (
     coefficient_plot as _coefficient_plot,
@@ -513,6 +513,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         check_is_fitted(self, "direct_weights_")
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
+        if X.shape[1] != self.n_features_in_:
+            raise ValueError(
+                f"Data to transform must have {self.n_features_in_} columns, got {X.shape[1]}."
+            )
+        X = _align_to_fit_features(X, self._feature_names)
         return X @ self.direct_weights_
 
     def fit_transform(self, X: DataMatrix, Y: DataMatrix | None = None) -> pd.DataFrame:
@@ -575,6 +580,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             raise ValueError(
                 f"Prediction data must have {self.n_features_in_} columns, got {X.shape[1]}."
             )
+        X = _align_to_fit_features(X, self._feature_names)
 
         scores = X @ self.direct_weights_
 
