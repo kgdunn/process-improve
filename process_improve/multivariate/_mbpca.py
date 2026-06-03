@@ -6,6 +6,7 @@ Holds :class:`MBPCA`, the hierarchical / superblock multi-block PCA transformer.
 
 from __future__ import annotations
 
+import logging
 import time
 import typing
 import warnings
@@ -28,6 +29,9 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
     from process_improve._extras import _MissingExtra
 
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
+
+
+logger = logging.getLogger(__name__)
 
 
 class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
@@ -364,6 +368,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         )
         converged = iterations < self.max_iter
         self.fitting_info_ = {"timing": timing, "iterations": iterations, "converged": converged}
+        logger.debug("MBPCA (%s): iterations per component = %s", self.algorithm_, list(iterations))
         if not np.all(converged):
             failed = [int(i + 1) for i, ok in enumerate(converged) if not ok]
             warnings.warn(
