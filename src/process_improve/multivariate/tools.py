@@ -10,7 +10,7 @@ model as its single positional argument.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -290,7 +290,7 @@ def fit_pls(spec: FitPlsInput) -> dict[str, Any]:
 
         model_params = {
             "x_loadings": model.x_loadings_.values.tolist(),
-            "y_loadings": model.y_loadings_.values.tolist(),
+            "y_loadings": cast("pd.DataFrame", model.y_loadings_).values.tolist(),
             "direct_weights": model.direct_weights_.values.tolist(),
             "beta_coefficients": model.beta_coefficients_.values.tolist(),
             "x_means": scaler_x.center_.values.tolist(),

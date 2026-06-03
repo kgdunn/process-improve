@@ -113,6 +113,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     }
     _RENAME_CONTEXT: typing.ClassVar[str] = "PCA"
 
+    # Fitted diagnostics: per-component arrays (NIPALS/TSR) or scalar totals (SVD).
+    fitting_info_: dict[str, np.ndarray | int | float]
+
     # ENG-18: public DataFrame views built lazily from the private ndarrays.
     scores_ = _LazyFrame("_scores", index="_sample_index", columns="_component_names")
     loadings_ = _LazyFrame("_loadings", index="_feature_names", columns="_component_names")
@@ -289,7 +292,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             self._r2_per_var_np[:, a] = np.where(
                 prior_ssx_col > 0, 1 - col_ssx / np.where(prior_ssx_col > 0, prior_ssx_col, 1.0), np.nan
             )
-            self._r2cum_np[a] = 1 - sum(row_ssx) / base_variance if base_variance > 0 else np.nan
+            self._r2cum_np[a] = 1 - np.sum(row_ssx) / base_variance if base_variance > 0 else np.nan
             self._r2_np[a] = self._r2cum_np[a] - self._r2cum_np[a - 1] if a > 0 else self._r2cum_np[a]
 
         self.fitting_info_ = {"timing": np.zeros(A) * np.nan, "iterations": np.zeros(A) * np.nan}
@@ -312,7 +315,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             itern = 0
             start_ss_col = ssq(Xd, axis=0)
 
-            if sum(start_ss_col) < epsqrt:
+            if np.sum(start_ss_col) < epsqrt:
                 emsg = (
                     "There is no variance left in the data array: cannot "
                     f"compute any more components beyond component {a}."
@@ -343,8 +346,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
                 itern += 1
 
-            self.fitting_info_["timing"][a] = time.time() - start_time
-            self.fitting_info_["iterations"][a] = itern
+            timing_arr = typing.cast("np.ndarray", self.fitting_info_["timing"])
+            iterations_arr = typing.cast("np.ndarray", self.fitting_info_["iterations"])
+            timing_arr[a] = time.time() - start_time
+            iterations_arr[a] = itern
             logger.debug(
                 "PCA NIPALS: component %d converged in %d iterations (md_tol=%g)",
                 a + 1,
@@ -363,7 +368,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             self._r2_per_var_np[:, a] = np.where(
                 start_ss_col > 0, 1 - col_ssx / np.where(start_ss_col > 0, start_ss_col, 1.0), np.nan
             )
-            self._r2cum_np[a] = 1 - sum(row_ssx) / base_variance if base_variance > 0 else np.nan
+            self._r2cum_np[a] = 1 - np.sum(row_ssx) / base_variance if base_variance > 0 else np.nan
             self._r2_np[a] = self._r2cum_np[a] - self._r2cum_np[a - 1] if a > 0 else self._r2cum_np[a]
 
             # Sign convention: largest magnitude element in loading is positive
@@ -772,10 +777,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         alpha = 1 - conf_level
 
         spe_outlier_idx, _ = detect_outliers_esd(
-            spe_values.values, algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
+            spe_values.to_numpy(), algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
         )
         t2_outlier_idx, _ = detect_outliers_esd(
-            t2_values.values, algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
+            t2_values.to_numpy(), algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
         )
 
         # Collect all flagged observations: ESD outliers + above-limit

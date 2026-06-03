@@ -34,7 +34,7 @@ def _run_model_selection(  # noqa: C901
         return score, result
 
     if direction == "backward":
-        current_terms = list(all_terms)
+        current_terms: list[str] = list(all_terms)
         best_score, best_result = _fit_and_score(current_terms)
 
         improved = True
@@ -51,7 +51,7 @@ def _run_model_selection(  # noqa: C901
                     break
     else:
         # Forward selection
-        current_terms: list[str] = []
+        current_terms = []
         remaining = list(all_terms)
         best_score, best_result = _fit_and_score(current_terms)
 

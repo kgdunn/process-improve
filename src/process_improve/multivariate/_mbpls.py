@@ -362,30 +362,30 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                     u_a_col = u_a.reshape(-1, 1)
                     for b_idx, name in enumerate(self.block_names_):
                         w_b = quick_regress(x_def[name], u_a_col).flatten()
-                        w_b = w_b / _nz(np.sqrt(ssq(w_b.reshape(-1, 1))))
+                        w_b = w_b / _nz(float(np.sqrt(ssq(w_b.reshape(-1, 1)))))
                         t_b = quick_regress(x_def[name], w_b.reshape(-1, 1)).flatten() / sqrt_kb[name]
                         local_w[name] = w_b
                         local_t[name] = t_b
                         t_b_summary[:, b_idx] = t_b
                 else:
                     for b_idx, name in enumerate(self.block_names_):
-                        w_b = x_def[name].T @ u_a / _nz(u_a @ u_a)
-                        w_b = w_b / _nz(np.linalg.norm(w_b))
-                        t_b = x_def[name] @ w_b / _nz(w_b @ w_b) / sqrt_kb[name]
+                        w_b = x_def[name].T @ u_a / _nz(float(u_a @ u_a))
+                        w_b = w_b / _nz(float(np.linalg.norm(w_b)))
+                        t_b = x_def[name] @ w_b / _nz(float(w_b @ w_b)) / sqrt_kb[name]
                         local_w[name] = w_b
                         local_t[name] = t_b
                         t_b_summary[:, b_idx] = t_b
 
-                w_s = t_b_summary.T @ u_a / _nz(u_a @ u_a)
-                w_s = w_s / _nz(np.linalg.norm(w_s))
-                t_super = t_b_summary @ w_s / _nz(w_s @ w_s)
+                w_s = t_b_summary.T @ u_a / _nz(float(u_a @ u_a))
+                w_s = w_s / _nz(float(np.linalg.norm(w_s)))
+                t_super = t_b_summary @ w_s / _nz(float(w_s @ w_s))
                 if algo == "nipals":
                     t_super_col = t_super.reshape(-1, 1)
                     c_a = quick_regress(y_def, t_super_col).flatten()
                     u_a = quick_regress(y_def, c_a.reshape(-1, 1)).flatten()
                 else:
-                    c_a = y_def.T @ t_super / _nz(t_super @ t_super)
-                    u_a = y_def @ c_a / _nz(c_a @ c_a)
+                    c_a = y_def.T @ t_super / _nz(float(t_super @ t_super))
+                    u_a = y_def @ c_a / _nz(float(c_a @ c_a))
                 itern += 1
 
             # Sign convention: largest |w_super| element positive
@@ -405,7 +405,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 if algo == "nipals":
                     p_b = quick_regress(x_def[name], t_super_col).flatten()
                 else:
-                    p_b = x_def[name].T @ t_super / _nz(t_super @ t_super)
+                    p_b = x_def[name].T @ t_super / _nz(float(t_super @ t_super))
                 x_def[name] = x_def[name] - np.outer(t_super, p_b)
                 block_loadings_np[name][:, a] = p_b
                 block_weights_np[name][:, a] = local_w[name]
@@ -565,14 +565,14 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         check_is_fitted(self, "block_spe_")
         if block not in self.block_spe_:
             raise KeyError(f"Unknown block '{block}'. Known blocks: {list(self.block_spe_)}.")
-        return spe_calculation(self.block_spe_[block].iloc[:, -1].values, conf_level=conf_level)
+        return spe_calculation(self.block_spe_[block].iloc[:, -1].to_numpy(), conf_level=conf_level)
 
     def super_spe_limit(self, conf_level: float = 0.95) -> float:
         """SPE limit for the merged super-block (sum of per-block SPE squared)."""
         check_is_fitted(self, "block_spe_")
         merged_spe_squared = np.zeros(self.n_samples_)
         for name in self.block_names_:
-            merged_spe_squared += self.block_spe_[name].iloc[:, -1].values ** 2
+            merged_spe_squared += self.block_spe_[name].iloc[:, -1].to_numpy() ** 2
         return spe_calculation(np.sqrt(merged_spe_squared), conf_level=conf_level)
 
     def spe_contributions(self, X: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
@@ -684,8 +684,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         a_max = int(self.n_components)
         if not (1 <= pc_horiz <= a_max and 1 <= pc_vert <= a_max):
             raise ValueError(f"pc_horiz and pc_vert must be in 1..{a_max}.")
-        x = self.super_scores_[pc_horiz].values
-        y = self.super_scores_[pc_vert].values
+        x = self.super_scores_[pc_horiz].to_numpy()
+        y = self.super_scores_[pc_vert].to_numpy()
         labels = [str(i) for i in self.super_scores_.index]
         fig = go.Figure(
             data=[
@@ -713,7 +713,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         if not (1 <= component <= a_max):
             raise ValueError(f"component must be in 1..{a_max}.")
         weights = self.super_weights_[component]
-        fig = go.Figure(data=[go.Bar(x=list(weights.index), y=weights.values, name=f"w_super[{component}]")])
+        fig = go.Figure(data=[go.Bar(x=list(weights.index), y=weights.to_numpy(), name=f"w_super[{component}]")])
         fig.update_layout(
             xaxis_title="Block",
             yaxis_title=f"w_super[{component}]",
@@ -738,7 +738,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             raise ValueError(f"Unknown Y-variable '{variable}'. Known: {list(self.predictions_.columns)}.")
         observed = pd.Series(y_observed[variable].values, name="observed").reset_index(drop=True)
         predicted = pd.Series(self.predictions_[variable].values, name="predicted").reset_index(drop=True)
-        rmsee = float(np.sqrt(np.mean((observed.values - predicted.values) ** 2)))
+        rmsee = float(np.sqrt(np.mean((observed.to_numpy() - predicted.to_numpy()) ** 2)))
         lo = float(min(observed.min(), predicted.min()))
         hi = float(max(observed.max(), predicted.max()))
         pad = 0.05 * (hi - lo) if hi > lo else 1.0
@@ -812,7 +812,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
 
         # Preprocess each block
         x_pp: dict[str, np.ndarray] = {}
-        sample_index = None
+        sample_index: pd.Index | None = None
         for name in self.block_names_:
             block = X[name]
             if not isinstance(block, pd.DataFrame):
@@ -857,6 +857,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         }
         y_hat_pp = super_scores @ self.super_y_loadings_.values.T
         predictions = self.y_preproc_.inverse_transform(pd.DataFrame(y_hat_pp, columns=self._y_columns))
+        assert sample_index is not None  # block_names_ is non-empty, so it was set in the loop
         predictions.index = sample_index
 
         # Per-block SPE for new observations (residual after final deflation)

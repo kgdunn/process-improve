@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Any
+from typing import Any, Literal, cast
 
 from process_improve.experiments.factor import Constraint, Factor, Response
 from process_improve.experiments.strategy.budget import (
@@ -708,7 +708,7 @@ def recommend_strategy(  # noqa: C901, PLR0913
         prior_knowledge=pk,
         existing_data_summary=data_summary,
         domain=domain_enum,
-        detail_level=detail_level,
+        detail_level=cast("Literal['novice', 'intermediate']", detail_level),
     )
 
     # --- Get domain template ---

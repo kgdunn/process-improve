@@ -11,6 +11,21 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.26] - 2026-06-03
+
+### Changed (internal)
+
+- **ENG-03 / ENG-20 (#285, #302)**: drive the mypy backlog to zero and make the
+  CI ``typecheck`` job blocking. The historical ~328-error backlog across 36
+  modules (multivariate, experiments, batch, monitoring, univariate,
+  visualization, regression) was cleared with behaviour-preserving, type-only
+  fixes - no ``Any`` annotations and only two documented pandas-stubs
+  ``# type: ignore`` lines. ``mypy src/process_improve`` now reports zero errors,
+  so the ``typecheck`` job dropped ``continue-on-error`` and a new type error
+  now turns CI red. mypy is upper-bounded (``<2.2``) in the dev deps so a future
+  mypy release cannot silently break the gate. No public API or runtime change;
+  the full suite passes at 91% coverage.
+
 ## [1.24.24] - 2026-06-03
 
 ### Added
@@ -1214,7 +1229,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.24...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.26...HEAD
+[1.24.26]: https://github.com/kgdunn/process-improve/compare/v1.24.24...v1.24.26
 [1.24.24]: https://github.com/kgdunn/process-improve/compare/v1.24.23...v1.24.24
 [1.24.23]: https://github.com/kgdunn/process-improve/compare/v1.24.22...v1.24.23
 [1.24.22]: https://github.com/kgdunn/process-improve/compare/v1.24.21...v1.24.22

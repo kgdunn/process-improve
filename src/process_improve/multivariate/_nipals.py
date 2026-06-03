@@ -159,7 +159,7 @@ def internal_pls_nipals_fit_one_pc(
 
         # Step 2. Normalize w to unit length. Floor the denominator so a
         # fully-deflated component doesn't divide by zero (SEC-21 #270 sub-item 1).
-        w_i = w_i / _nz(np.linalg.norm(w_i))
+        w_i = w_i / _nz(float(np.linalg.norm(w_i)))
 
         # Step 3. t_i = Xw / w'w. Regress rows of X on w_i, and store slope coefficients in t_i.
         t_i = regress_a_space_on_b_row(x_space, w_i.T, x_present_map)
@@ -172,7 +172,7 @@ def internal_pls_nipals_fit_one_pc(
 
         # Floor ``||u_i||`` so an all-zero starting vector (degenerate
         # Y column) doesn't produce NaN here. SEC-21 (#270) sub-item 1.
-        if (abs(np.linalg.norm(u_i - u_new)) / _nz(np.linalg.norm(u_i))) < epsqrt:
+        if (abs(np.linalg.norm(u_i - u_new)) / _nz(float(np.linalg.norm(u_i)))) < epsqrt:
             is_converged = True
         if n_iter > max_iter:
             is_converged = True

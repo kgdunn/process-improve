@@ -360,8 +360,9 @@ def generate_design(  # noqa: PLR0913
     # Optimal designs from pyoptex produce a pre-optimized run order
     # (especially important for split-plot).  Skip randomization for these.
     optimal_designs = {"d_optimal", "i_optimal", "a_optimal"}
+    effective_seed: int | None = random_seed
     if design_type in optimal_designs and meta.get("backend") == "pyoptex":
-        random_seed = None  # signal to build_design_result to skip randomization
+        effective_seed = None  # signal to build_design_result to skip randomization
     extra_center_points = 0 if design_type in designs_with_embedded_centers else center_points
 
     # Mixture designs return proportions (actual units), not coded
@@ -379,7 +380,7 @@ def generate_design(  # noqa: PLR0913
         center_points=extra_center_points,
         replicates=replicates,
         blocks=blocks,
-        random_seed=random_seed,
+        random_seed=effective_seed,
         generators=result_generators,
         defining_relation=meta.get("defining_relation"),
         resolution=result_resolution,

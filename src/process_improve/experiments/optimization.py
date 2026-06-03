@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -90,7 +91,7 @@ def _parse_term(term: str) -> tuple[str, ...]:
 def _build_model_evaluator(
     coefficients: list[dict[str, Any]],
     factor_names: list[str],
-) -> callable:
+) -> Callable[[np.ndarray], float]:
     """Return a function ``f(point) -> float`` that evaluates the model.
 
     Parameters
@@ -588,6 +589,10 @@ def _optimize_desirability(  # noqa: PLR0913
         if res.fun < best_value:
             best_value = res.fun
             best_result = res
+
+    if best_result is None:
+        msg = "optimization produced no result"
+        raise RuntimeError(msg)
 
     x_opt = best_result.x
     composite_d = -best_value

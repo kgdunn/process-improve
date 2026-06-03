@@ -604,7 +604,7 @@ class OLS(RegressorMixin, BaseEstimator):
         self.x_ssq_ = float("nan")
         self.leverage_ = np.array([np.nan])
         self.influence_ = np.array([np.nan])
-        self.pi_range_ = float("nan")
+        self.pi_range_: np.ndarray | float = float("nan")
 
         if n_features == 1:
             x_col = X_.iloc[:, 0].to_numpy()

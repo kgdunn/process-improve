@@ -230,4 +230,10 @@ def solar() -> None:
 
 
 def data(dataset: str) -> pd.DataFrame:
-    """Return the ``dataset`` given by the string name."""
+    """Return the ``dataset`` given by the string name.
+
+    This is a planned dispatcher that has not been implemented yet. It is kept
+    as a typed stub so that its public signature is preserved; calling it raises
+    :class:`NotImplementedError` rather than silently returning ``None``.
+    """
+    raise NotImplementedError(f"datasets.data({dataset!r}) is not implemented yet.")

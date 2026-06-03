@@ -5,7 +5,7 @@ from __future__ import annotations
 import itertools
 from collections import defaultdict
 from collections.abc import Iterable
-from typing import ClassVar
+from typing import ClassVar, cast
 
 import numpy as np
 import pandas as pd
@@ -16,7 +16,7 @@ class Column(pd.Series):
 
     # https://pandas.pydata.org/pandas-docs/stable/development/extending.html
     # Temporary properties
-    _internal_names: ClassVar[list[str]] = [*pd.DataFrame._internal_names, "not_used_for_now"]
+    _internal_names: ClassVar[list[str]] = [*pd.DataFrame._internal_names, "not_used_for_now"]  # type: ignore[attr-defined]  # _internal_names exists at runtime but is missing from pandas stubs
     _internal_names_set: ClassVar[set[str]] = set(_internal_names)
 
     # Properties which survive subsetting, etc
@@ -31,6 +31,20 @@ class Column(pd.Series):
         "pi_units",  # string variable, containing the units
         "pi_name",  # name of the column
     ]
+
+    # Declared for static typing only. These are populated at runtime via the
+    # pandas ``_metadata`` mechanism (bare annotations create no class-level
+    # attribute, so the pandas attribute machinery is untouched).
+    pi_index: bool
+    pi_numeric: bool
+    pi_lo: float | None
+    pi_hi: float | None
+    pi_range: tuple | None
+    pi_center: float | None
+    pi_is_coded: bool
+    pi_units: str | None
+    pi_name: str | None
+    pi_levels: dict
 
     @property
     def _constructor(self) -> type[Column]:
@@ -47,7 +61,7 @@ class Column(pd.Series):
 
         # Simply override the values and the `pi_is_coded` flag, but all the
         # rest remains as is.
-        out.iloc[:] = (self.values - x_center) / (0.5 * np.diff(x_range)[0])
+        out.iloc[:] = (np.asarray(self.values) - x_center) / (0.5 * np.diff(np.asarray(x_range))[0])
         out.pi_is_coded = True
         if out.pi_name:
             out.name = f"{out.pi_name} [coded]"
@@ -64,18 +78,18 @@ class Column(pd.Series):
         x_range = range or self.pi_range
         # Simply override the values and the `pi_is_coded` flag, but all the
         # rest remains as is.
-        out.iloc[:] = self.values * (0.5 * np.diff(x_range)[0]) + x_center
+        out.iloc[:] = np.asarray(self.values) * (0.5 * np.diff(np.asarray(x_range))[0]) + x_center
         out.pi_is_coded = False
         if out.pi_name and out.pi_units:
             out.name = f"{out.pi_name} [{out.pi_units}]"
 
         return out
 
-    def copy(self, deep: bool = True) -> Column:
+    def copy(self, deep: bool = True) -> Column:  # type: ignore[misc]  # pandas marks Series.copy @final; subclassing is intentional here
         """Create a copy of this Column, preserving the name."""
         out = pd.Series.copy(self, deep=deep)
         out.name = self.name
-        return out
+        return cast("Column", out)
 
     def extend(self, values: list) -> Column:
         """Extend the column with the list of new values."""
@@ -121,11 +135,18 @@ class Expt(pd.DataFrame):
     """
 
     # Temporary properties
-    _internal_names: ClassVar[list[str]] = [*pd.DataFrame._internal_names, "not_used_for_now"]
+    _internal_names: ClassVar[list[str]] = [*pd.DataFrame._internal_names, "not_used_for_now"]  # type: ignore[attr-defined]  # _internal_names exists at runtime but is missing from pandas stubs
     _internal_names_set: ClassVar[set[str]] = set(_internal_names)
 
     # Properties which survive subsetting, etc
     _metadata: ClassVar[list[str]] = ["pi_source", "pi_title", "pi_units"]
+
+    # Declared for static typing only. These are populated at runtime via the
+    # pandas ``_metadata`` mechanism (bare annotations create no class-level
+    # attribute, so the pandas attribute machinery is untouched).
+    pi_source: dict | None
+    pi_title: str | None
+    pi_units: dict | None
 
     @property
     def _constructor(self) -> type[Expt]:
@@ -219,7 +240,7 @@ def c(*args, **kwargs) -> Column:  # noqa: C901, PLR0912, PLR0915
     M = c("Dry", "Wet", "Dry", "Wet", levels = ("Dry", "Wet"))
 
     """
-    sanitize = []
+    sanitize: list | pd.Series = []
     numeric = True
     override_coded = kwargs.get("coded")
 

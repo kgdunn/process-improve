@@ -13,7 +13,7 @@ def _run_box_cox(design_df: pd.DataFrame, response_col: str) -> dict[str, Any]:
     """Box-Cox transformation using scipy."""
     from scipy.stats import boxcox  # noqa: PLC0415
 
-    y = design_df[response_col].values.astype(float)
+    y = np.asarray(design_df[response_col], dtype=float)
 
     if np.any(y <= 0):
         return {"box_cox": {"error": "Box-Cox requires all positive response values."}}

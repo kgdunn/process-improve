@@ -221,6 +221,7 @@ def ellipse_coordinates(  # noqa: PLR0913
         raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
     if n_rows <= 0:
         raise ValueError(f"n_rows must be positive; got {n_rows}.")
+    assert scaling_factor_for_scores is not None  # required for the ellipse scaling
     s_h = scaling_factor_for_scores.iloc[score_horiz - 1]
     s_v = scaling_factor_for_scores.iloc[score_vert - 1]
     t2_limit_specific = np.sqrt(hotellings_t2_limit(conf_level, n_components=n_components, n_rows=n_rows))

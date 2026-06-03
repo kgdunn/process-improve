@@ -4,9 +4,9 @@ from __future__ import annotations
 import json
 import math
 import random
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from functools import partial
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
@@ -61,7 +61,7 @@ class MultiTagPlotSettings(BaseModel):
     animate_framerate_milliseconds: int = 0
 
 
-def get_rgba_from_triplet(incolour: list, alpha: float = 1, as_string: bool = False) -> str | list:
+def get_rgba_from_triplet(incolour: Sequence[float], alpha: float = 1, as_string: bool = False) -> str | list:
     """
     Convert the input colour triplet (list) to a Plotly rgba(r,g,b,a) string if
     `as_string` is True. If `False` it will return the list of 3 integer RGB
@@ -446,7 +446,9 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
 
     # Build a fresh dict per cell: `[[...] * ncols] * nrows` would alias one
     # row list across every row, so a placeholder like `[[None]]` does not work.
-    specs = [[{"type": "scatter"} for _ in range(int(config.ncols))] for _ in range(int(config.nrows))]
+    specs: list[list[dict[str, str | bool | int | float] | None]] = [
+        [{"type": "scatter"} for _ in range(int(config.ncols))] for _ in range(int(config.nrows))
+    ]
 
     fig.set_subplots(
         rows=config.nrows,
@@ -498,8 +500,8 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
                 legendgroup=batch_id,
                 # Only add batch_id to legend the first time it is plotted (the first subplot)
                 showlegend=showlegend,
-                xaxis=fig.get_subplot(row, col)[1]["anchor"],
-                yaxis=fig.get_subplot(row, col)[0]["anchor"],
+                xaxis=cast("tuple[Any, ...]", fig.get_subplot(row, col))[1]["anchor"],
+                yaxis=cast("tuple[Any, ...]", fig.get_subplot(row, col))[0]["anchor"],
             )
             fig.add_trace(trace)
 
@@ -541,11 +543,14 @@ def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
         mode="immediate",
         transition={"duration": 0},
     )
-    config.animate_n_frames = (
-        config.animate_n_frames if config.animate_n_frames >= 0 else longest_time_length
+    n_frames = (
+        config.animate_n_frames
+        if config.animate_n_frames is not None and config.animate_n_frames >= 0
+        else longest_time_length
     )
+    config.animate_n_frames = n_frames
 
-    for raw_index in np.linspace(0, longest_time_length, config.animate_n_frames):
+    for raw_index in np.linspace(0, longest_time_length, n_frames):
         # TO OPTIMIZE: add hover template only on the last iteration
         # TO OPTIMIZE: can you add only the incremental new piece of animation?
 
@@ -650,7 +655,7 @@ def generate_one_frame(  # noqa: PLR0913
     hovertemplate: str = "",
     max_columns: int = 0,
     mode: str = "lines",
-) -> list[dict]:
+) -> list[go.Scatter]:
     """
     Return a list of dictionaries.
 
@@ -677,8 +682,8 @@ def generate_one_frame(  # noqa: PLR0913
                     line=animation_colour_assignment[batch_id],
                     legendgroup=batch_id,
                     showlegend=show_legend if tag == tag_list[0] else False,
-                    xaxis=fig.get_subplot(row, col)[1]["anchor"],
-                    yaxis=fig.get_subplot(row, col)[0]["anchor"],
+                    xaxis=cast("tuple[Any, ...]", fig.get_subplot(row, col))[1]["anchor"],
+                    yaxis=cast("tuple[Any, ...]", fig.get_subplot(row, col))[0]["anchor"],
                 )
             )
 

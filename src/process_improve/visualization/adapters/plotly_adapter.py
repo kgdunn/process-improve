@@ -7,7 +7,10 @@ serialised to JSON via ``json.dumps``.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from plotly.basedatatypes import BaseTraceType
 
 try:
     import plotly.graph_objects as go
@@ -30,6 +33,11 @@ from process_improve.visualization.spec import (
 )
 from process_improve.visualization.themes import DEFAULT_THEME
 from process_improve.visualization.types import AnnotationType, MarkType
+
+# ``SURFACE_COLORSCALE`` is a ``list[list[float | str]]`` (e.g. ``[[0.0, "#fff"], ...]``),
+# which plotly accepts at runtime. The plotly stubs type the ``colorscale`` argument more
+# narrowly as ``list[tuple[float, str]]``, so we cast for the type checker only.
+_SURFACE_COLORSCALE = cast("list[tuple[float, str]]", SURFACE_COLORSCALE)
 
 
 class PlotlyAdapter(AbstractAdapter):
@@ -155,7 +163,7 @@ class PlotlyAdapter(AbstractAdapter):
     # Layer → Plotly trace
     # ------------------------------------------------------------------
 
-    def _layer_to_trace(self, layer: LayerSpec) -> tuple[go.BaseTraceType, bool]:  # noqa: PLR0911
+    def _layer_to_trace(self, layer: LayerSpec) -> tuple[BaseTraceType, bool]:  # noqa: PLR0911
         """Convert a :class:`LayerSpec` to a Plotly trace.
 
         Returns
@@ -283,7 +291,7 @@ class PlotlyAdapter(AbstractAdapter):
             y=y_vals,
             z=z_matrix,
             name=layer.name,
-            colorscale=SURFACE_COLORSCALE,
+            colorscale=_SURFACE_COLORSCALE,
             contours=dict(showlabels=True),
         )
 
@@ -296,7 +304,7 @@ class PlotlyAdapter(AbstractAdapter):
             y=y_vals,
             z=z_matrix,
             name=layer.name,
-            colorscale=SURFACE_COLORSCALE,
+            colorscale=_SURFACE_COLORSCALE,
         )
 
     def _heatmap_trace(self, layer: LayerSpec) -> go.Heatmap:
@@ -308,7 +316,7 @@ class PlotlyAdapter(AbstractAdapter):
             y=y_vals,
             z=z_matrix,
             name=layer.name,
-            colorscale=SURFACE_COLORSCALE,
+            colorscale=_SURFACE_COLORSCALE,
         )
 
     def _text_trace(

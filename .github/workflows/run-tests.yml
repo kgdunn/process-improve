@@ -36,16 +36,13 @@ jobs:
     - name: Lint with ruff
       run: uv run ruff check .
 
-  # ENG-20 sub-track: surface type errors on every PR.
-  # The codebase currently has ~333 mypy errors (with the existing
-  # permissive config: `disallow_untyped_defs = false`, plus
-  # `ignore_missing_imports` and `import-untyped` disabled). The job is
-  # `continue-on-error: true` so it does not block merges while a staged
-  # cleanup catches up; once the count reaches zero (per subpackage --
-  # follow-up to ENG-03 #285), flip this flag to `false`.
+  # ENG-20 / ENG-03 (#285): mypy runs on every PR as a BLOCKING check.
+  # The historical ~333-error backlog was driven to zero (staged cleanup),
+  # so the job no longer carries `continue-on-error`; a new type error now
+  # turns CI red. mypy is upper-bounded in the dev deps so a future mypy
+  # release cannot silently break this gate.
   typecheck:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
     - uses: actions/checkout@v6
     - name: Install uv and set the python version

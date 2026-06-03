@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import pandas as pd
@@ -67,7 +67,7 @@ def columns_to_expt(columns: list[Column], title: str | None = None) -> Expt:
     -------
     Expt
     """
-    return gather(**{col.pi_name: col for col in columns}, title=title)
+    return gather(**cast("dict[str, Column]", {col.pi_name: col for col in columns}), title=title)
 
 
 def coded_to_actual(columns: list[Column]) -> list[Column]:

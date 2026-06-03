@@ -38,6 +38,8 @@ Characteristics:
 """
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 import pandas as pd
 
@@ -93,7 +95,7 @@ def check_valid_batch_dict(in_dict: dict, no_nan: bool = False) -> bool:
 
 
 def dict_to_melted(
-    in_df: pd.DataFrame,
+    in_df: dict,
     insert_batch_id_column: bool = True,
     insert_sequence_column: bool = False,
 ) -> pd.DataFrame:
@@ -202,6 +204,6 @@ def melt_df_to_series(in_df: pd.DataFrame, exclude_columns: list | None = None, 
     """Return a Series with a multilevel-index, melted from the DataFrame."""
     if exclude_columns is None:
         exclude_columns = ["batch_id"]
-    out = in_df.drop(exclude_columns, axis=1).T.stack()  # noqa: PD013  # noqa: PD013
+    out = cast("pd.Series", in_df.drop(exclude_columns, axis=1).T.stack())  # noqa: PD013  # noqa: PD013
     out.name = name
     return out

@@ -52,7 +52,12 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
         return X * self.scale_ + self.center_
 
 
-def center(X, func: Callable = np.mean, axis: int = 0, extra_output: bool = False) -> DataMatrix:  # noqa: ANN001
+def center(
+    X,  # noqa: ANN001
+    func: Callable = np.mean,
+    axis: int = 0,
+    extra_output: bool = False,
+) -> DataMatrix | tuple[DataMatrix, np.ndarray]:
     """
     Perform centering of data, using a function, `func` (default: np.mean).
     The function, if supplied, but return a vector with as many columns as the matrix X.
@@ -66,14 +71,18 @@ def center(X, func: Callable = np.mean, axis: int = 0, extra_output: bool = Fals
     any missing data, and dividing by N = number of values which are present. Values which were
     missing before, are left as missing after.
     """
-    vector = pd.DataFrame(X).apply(func, axis=axis).values
+    # pandas-stubs types apply()'s axis as a Literal, so a plain ``int`` axis does
+    # not match any overload; the call is valid at runtime.
+    vector = pd.DataFrame(X).apply(func, axis=axis).to_numpy()  # type: ignore[call-overload]  # pandas-stubs axis is Literal
     if extra_output:
         return np.subtract(X, vector), vector
     else:
         return np.subtract(X, vector)
 
 
-def scale(X: DataMatrix, func: Callable = np.std, axis: int = 0, extra_output: bool = False, **kwargs) -> DataMatrix:
+def scale(
+    X: DataMatrix, func: Callable = np.std, axis: int = 0, extra_output: bool = False, **kwargs
+) -> DataMatrix | tuple[DataMatrix, np.ndarray]:
     """
     Scales the data (does NOT do any centering); scales to unit variance by
     default.
@@ -113,7 +122,9 @@ def scale(X: DataMatrix, func: Callable = np.std, axis: int = 0, extra_output: b
     X = scale(center(X), func=my_scale)
 
     """
-    vector = pd.DataFrame(X).apply(func, axis=axis, **kwargs).values
+    # pandas-stubs types apply()'s axis as a Literal, so a plain ``int`` axis does
+    # not match any overload; the call is valid at runtime.
+    vector = pd.DataFrame(X).apply(func, axis=axis, **kwargs).to_numpy()  # type: ignore[call-overload]  # pandas-stubs axis is Literal
     vector = 1.0 / vector
 
     if extra_output:

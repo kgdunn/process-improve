@@ -251,7 +251,7 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
     elif transform == "box_cox":
         from scipy.stats import boxcox  # noqa: PLC0415
 
-        vals = df[response_col].values.astype(float)
+        vals = np.asarray(df[response_col], dtype=float)
         if np.all(vals > 0):
             df[response_col], _ = boxcox(vals)
 

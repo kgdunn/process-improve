@@ -41,11 +41,11 @@ def distance_matrix(test: np.ndarray, ref: np.ndarray, weight_matrix: np.ndarray
     # TODO: Sakoe-Chiba constraints could still be added
     D = np.zeros((nr, nt)) * np.nan
     D[0, 0] = dist[0, 0]
-    for idx in np.arange(1, nt):
-        D[0, idx] = dist[0, idx] + D[0, idx - 1]
+    for jdx in np.arange(1, nt):
+        D[0, jdx] = dist[0, jdx] + D[0, jdx - 1]
 
-    for idx in np.arange(1, nr):
-        D[idx, 0] = dist[idx, 0] + D[idx - 1, 0]
+    for kdx in np.arange(1, nr):
+        D[kdx, 0] = dist[kdx, 0] + D[kdx - 1, 0]
 
     for n in np.arange(1, nt):
         for m in np.arange(max((1, band[n, 0])), band[n, 1]):
@@ -56,7 +56,7 @@ def distance_matrix(test: np.ndarray, ref: np.ndarray, weight_matrix: np.ndarray
 
 
 @jit(nopython=True)
-def backtrack_optimal_path(D: np.ndarray) -> tuple[list, float]:
+def backtrack_optimal_path(D: np.ndarray) -> tuple[np.ndarray, float]:
     """Backtrack through the distance matrix to find the optimal warping path."""
     nr, nt = D.shape
     nr -= 1
@@ -68,10 +68,10 @@ def backtrack_optimal_path(D: np.ndarray) -> tuple[list, float]:
     while (nt + nr) != 0:
         if nt == 0:
             nr -= 1
-            path_sum = path_sum + D[nr, nt]
+            path_sum = path_sum + float(D[nr, nt])
         elif nr == 0:
             nt -= 1
-            path_sum = path_sum + D[nr, nt]
+            path_sum = path_sum + float(D[nr, nt])
         else:
             # Commented-code here is to read, but for Numba JIT, the other code is able to be
             # compiled. They give the same results in regular Python.
