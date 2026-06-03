@@ -258,8 +258,15 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 )
                 raise RuntimeError(emsg)
 
-            # Initialize u_a with the first column of Y (replace NaN with 0)
-            u_a_guess = Yd[:, [0]].copy()
+            # Seed u_a from the column of Y with the greatest sum-of-squares
+            # (variance, for mean-centred data) rather than the arbitrary first
+            # column (#195): NIPALS converges to the same component for any
+            # non-degenerate seed, but the highest-variance column needs fewer
+            # iterations and is more robust. The deterministic sign convention
+            # applied below makes the fitted sign independent of this seed.
+            # (Replace NaN with 0 for the missing-data path.)
+            start_col = int(np.argmax(start_SSY_col))
+            u_a_guess = Yd[:, [start_col]].copy()
             u_a_guess[np.isnan(u_a_guess)] = 0
             u_a = u_a_guess + 1.0
 

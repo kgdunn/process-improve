@@ -322,15 +322,22 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                 )
                 raise RuntimeError(emsg)
 
-            # Pick a column from X as the initial guess.
-            # ``Xd[:, [0]]`` (fancy indexing) already returns a copy in
-            # current numpy, so the in-place ``isnan -> 0`` does not
-            # poison Xd today. The explicit ``.copy()`` here is
-            # defensive: it mirrors the PLS path (~line 1527) and
-            # protects against any future numpy change that flips
-            # fancy indexing to a view-returning variant. SEC-21 (#270)
-            # sub-item 2.
-            t_a_guess = Xd[:, [0]].copy()
+            # Seed the score from the column of X with the greatest
+            # sum-of-squares (variance, for mean-centred data) rather than the
+            # arbitrary first column (#195). NIPALS converges to the same
+            # component for any non-degenerate seed, but the highest-variance
+            # column is closest to the leading component, so it needs fewer
+            # iterations and is far more robust when the first column happens to
+            # be near-orthogonal to it. The deterministic sign convention applied
+            # below makes the fitted sign independent of this seed.
+            #
+            # ``Xd[:, [start_col]]`` (fancy indexing) already returns a copy in
+            # current numpy, so the in-place ``isnan -> 0`` does not poison Xd
+            # today. The explicit ``.copy()`` here is defensive: it mirrors the
+            # PLS path and protects against any future numpy change that flips
+            # fancy indexing to a view-returning variant. SEC-21 (#270) sub-item 2.
+            start_col = int(np.argmax(start_ss_col))
+            t_a_guess = Xd[:, [start_col]].copy()
             t_a_guess[np.isnan(t_a_guess)] = 0
             t_a = t_a_guess + 1.0
             p_a = np.zeros((K, 1))
