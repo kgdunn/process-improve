@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from process_improve.multivariate.methods import DataFrameDict
 
@@ -67,6 +66,7 @@ class TestDataFrameDictEquality:
     def test_remains_unhashable(self) -> None:
         # Defining __eq__ must not accidentally make instances hashable; like
         # the dict base they must stay unhashable so they cannot be silently
-        # used as set members or dict keys.
-        with pytest.raises(TypeError):
-            hash(_make(1.0))
+        # used as set members or dict keys. Assert the contract at the class
+        # level (__hash__ is None) rather than calling hash() on a known-
+        # unhashable instance, which CodeQL flags as py/hash-unhashable-value.
+        assert DataFrameDict.__hash__ is None
