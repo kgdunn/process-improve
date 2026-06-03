@@ -84,11 +84,11 @@ def calculate_cpk(  # noqa: C901
     metric_upper = Cpk_upper_spec - df[which_column]
 
     if trim_percentile > 0:
-        center_lower, center_upper = metric_lower.median(), metric_upper.median()
-        spread_lower, spread_upper = Sn(metric_lower), Sn(metric_upper)
+        center_lower, center_upper = float(metric_lower.median()), float(metric_upper.median())
+        spread_lower, spread_upper = float(Sn(metric_lower)), float(Sn(metric_upper))
     else:
-        center_lower, center_upper = metric_lower.mean(), metric_upper.mean()
-        spread_lower, spread_upper = metric_lower.std(), metric_upper.std()
+        center_lower, center_upper = float(metric_lower.mean()), float(metric_upper.mean())
+        spread_lower, spread_upper = float(metric_lower.std()), float(metric_upper.std())
 
     # A column with no spread (constant data, or only one non-NaN value)
     # makes Cpk undefined: a bare division would silently yield inf / NaN.

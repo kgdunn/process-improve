@@ -11,7 +11,7 @@ DataFrame, and returns a Plotly figure directly.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pandas as pd
 
@@ -192,7 +192,7 @@ def main_effects_plot(
             f"{list(df.columns)}.",
         )
 
-    design_data = df.to_dict(orient="records")
+    design_data = cast("list[dict[str, Any]]", df.to_dict(orient="records"))
 
     result = visualize_doe(
         plot_type="main_effects",

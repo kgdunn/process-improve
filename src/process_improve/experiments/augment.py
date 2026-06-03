@@ -598,7 +598,7 @@ def _augment_add_blocks(ctx: _AugmentContext) -> dict[str, Any]:
                 break
             col_product = np.ones(len(df))
             for idx in combo:
-                col_product *= df.iloc[:, idx].values
+                col_product *= df.iloc[:, idx].to_numpy()
             word = "".join(ctx.factor_names[i] for i in combo)
             confounding_columns.append((word, col_product))
         if len(confounding_columns) >= b:
