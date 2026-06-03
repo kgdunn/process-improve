@@ -11,6 +11,22 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.33] - 2026-06-03
+
+### Fixed
+
+- **#197**: the DTW batch-alignment averaging (`batch.preprocessing.align_with_path`)
+  no longer contaminates the first synced row. When several batch samples map to
+  the same reference index (a compression in the warping path), the synced value
+  is the average of those batch samples; the running accumulator was previously
+  seeded from an `initial_row` argument - a reference row in one caller, an
+  out-of-space batch row in the other - which mixed an unrelated row into the
+  row-0 average. The accumulator is now seeded from the first batch sample for
+  the index (matching the value already written to that row), and the misleading
+  `initial_row` parameter is removed. (The thesis page-181 generalisation of the
+  averaging, plus the Sakoe-Chiba and user-`band` constraints, remain tracked on
+  #197.)
+
 ## [1.24.32] - 2026-06-03
 
 ### Changed (internal)
@@ -1310,7 +1326,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.32...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.33...HEAD
+[1.24.33]: https://github.com/kgdunn/process-improve/compare/v1.24.32...v1.24.33
 [1.24.32]: https://github.com/kgdunn/process-improve/compare/v1.24.31...v1.24.32
 [1.24.31]: https://github.com/kgdunn/process-improve/compare/v1.24.30...v1.24.31
 [1.24.30]: https://github.com/kgdunn/process-improve/compare/v1.24.29...v1.24.30
