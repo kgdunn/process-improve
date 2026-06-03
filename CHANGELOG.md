@@ -11,6 +11,18 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.29] - 2026-06-03
+
+### Fixed
+
+- **#343**: `DataFrameDict` (multivariate T-PLS container) now compares by value.
+  It subclasses `dict` but stores all data in `self.datadict`, leaving the `dict`
+  base empty, so the inherited `dict.__eq__` / `dict.__ne__` reported every
+  instance as equal regardless of its contents (CodeQL `py/missing-equals`). It
+  now defines value-based `__eq__` / `__ne__` (comparing block structure and each
+  contained `DataFrame` via `DataFrame.equals`) and is explicitly unhashable.
+  Surfaced by CodeQL during the ENG-01 module split (#342).
+
 ## [1.24.28] - 2026-06-03
 
 ### Added
@@ -1255,7 +1267,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.28...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.29...HEAD
+[1.24.29]: https://github.com/kgdunn/process-improve/compare/v1.24.28...v1.24.29
 [1.24.28]: https://github.com/kgdunn/process-improve/compare/v1.24.27...v1.24.28
 [1.24.27]: https://github.com/kgdunn/process-improve/compare/v1.24.26...v1.24.27
 [1.24.26]: https://github.com/kgdunn/process-improve/compare/v1.24.24...v1.24.26

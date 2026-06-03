@@ -127,6 +127,49 @@ class DataFrameDict(dict):
         """Return the number of samples in the DataFrameDict."""
         return self.n_samples
 
+    @staticmethod
+    def _value_equal(a: object, b: object) -> bool:
+        """Compare two stored block values, which may be DataFrames or nested dicts of them."""
+        if isinstance(a, pd.DataFrame) and isinstance(b, pd.DataFrame):
+            return a.equals(b)
+        if isinstance(a, dict) and isinstance(b, dict):
+            return a.keys() == b.keys() and all(DataFrameDict._value_equal(a[k], b[k]) for k in a)
+        return type(a) is type(b) and bool(a == b)
+
+    def __eq__(self, other: object) -> bool:
+        """Value-based equality over the held data.
+
+        Two :class:`DataFrameDict` instances are equal when they share the same
+        block structure and every contained :class:`pandas.DataFrame` is equal
+        (via :meth:`pandas.DataFrame.equals`). The inherited ``dict.__eq__``
+        would instead compare the (always-empty) ``dict`` base - all data lives
+        in ``self.datadict`` - and so report every instance as equal regardless
+        of its contents (CodeQL ``py/missing-equals``).
+        """
+        if self is other:
+            return True
+        if not isinstance(other, DataFrameDict):
+            return NotImplemented
+        return (
+            self.partitionable_blocks == other.partitionable_blocks
+            and self.datadict.keys() == other.datadict.keys()
+            and all(self._value_equal(self.datadict[b], other.datadict[b]) for b in self.datadict)
+        )
+
+    def __ne__(self, other: object) -> bool:
+        """Negation of :meth:`__eq__`.
+
+        Defined explicitly because the C-level ``dict.__ne__`` would otherwise
+        bypass the Python ``__eq__`` above and compare the empty ``dict`` bases.
+        """
+        result = self.__eq__(other)
+        return result if result is NotImplemented else not result
+
+    # All data lives in ``self.datadict`` and instances are mutable, so a
+    # ``DataFrameDict`` is deliberately unhashable (matching ``dict``); make the
+    # intent explicit now that ``__eq__`` is defined.
+    __hash__ = None  # type: ignore[assignment]  # reason: intentionally unhashable, mirrors dict
+
     def __repr__(self):
         """Return a string representation of the DataFrameDict."""
         groups_in_block_f = list(self.datadict["F"].keys())
