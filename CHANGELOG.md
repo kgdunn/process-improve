@@ -11,6 +11,21 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.20] - 2026-06-03
+
+### Added
+
+- **ENG-12 (#294)**: diagnostic logging for the modules that do real work.
+  Module-level loggers (``logging.getLogger(__name__)``) were added to the
+  multivariate estimators (PCA / PLS / TPLS / MBPLS / MBPCA and the shared
+  NIPALS inner loop), the experiments ``analysis`` / ``evaluate`` /
+  ``optimization`` modules, the batch DTW alignment, and the monitoring control
+  charts. Long-running algorithms emit a ``logger.debug`` per major step (e.g.
+  NIPALS per-component convergence, DTW per-iteration norm). The library emits
+  records but never configures handlers, so output stays silent by default. A
+  new docs page (``docs/development/logging.rst``) explains how to enable
+  verbose logging.
+
 ## [1.24.19] - 2026-06-03
 
 ### Changed
@@ -1152,7 +1167,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.19...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.20...HEAD
+[1.24.20]: https://github.com/kgdunn/process-improve/compare/v1.24.19...v1.24.20
 [1.24.19]: https://github.com/kgdunn/process-improve/compare/v1.24.18...v1.24.19
 [1.24.18]: https://github.com/kgdunn/process-improve/compare/v1.24.17...v1.24.18
 [1.24.17]: https://github.com/kgdunn/process-improve/compare/v1.24.16...v1.24.17
