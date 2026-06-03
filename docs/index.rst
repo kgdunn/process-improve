@@ -11,6 +11,7 @@ monitoring. Companion to the online textbook
 
    quickstart
    architecture
+   scaling
    user_guide/index
    api/index
 
