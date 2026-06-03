@@ -11,6 +11,21 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.18] - 2026-06-03
+
+### Changed (internal)
+
+- **ENG-17 (#299)**: factor the duplicated latent-variable scaffolding into a
+  shared base. New ``multivariate/_base.py`` provides ``_LatentVariableModel``
+  (the ENG-05 convenience methods + ``ellipse_coordinates``), a
+  ``_HotellingsT2LimitMixin`` (the ``hotellings_t2_limit`` shared by
+  PCA/PLS/MBPLS/MBPCA), and a ``_RenameGetattrMixin`` (the migration
+  ``__getattr__`` driven by a per-class ``_ATTRIBUTE_RENAMES`` map). PCA and PLS
+  inherit ``_LatentVariableModel``; MBPLS/MBPCA inherit only the T2-limit mixin;
+  TPLS is unchanged (it reads differently-named fitted attributes). No public
+  API change: each class's public method set is byte-identical, and the fit /
+  predict / transform algorithms are untouched.
+
 ## [1.24.17] - 2026-06-03
 
 ### Changed
@@ -1121,7 +1136,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.17...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.18...HEAD
+[1.24.18]: https://github.com/kgdunn/process-improve/compare/v1.24.17...v1.24.18
 [1.24.17]: https://github.com/kgdunn/process-improve/compare/v1.24.16...v1.24.17
 [1.24.16]: https://github.com/kgdunn/process-improve/compare/v1.24.15...v1.24.16
 [1.24.15]: https://github.com/kgdunn/process-improve/compare/v1.24.14...v1.24.15
