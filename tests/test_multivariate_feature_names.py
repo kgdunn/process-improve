@@ -106,3 +106,10 @@ class TestPLSFeatureNames:
         got = pls.predict(X.to_numpy())
         assert not np.isnan(got.y_hat.to_numpy()).any()
         np.testing.assert_allclose(got.y_hat.to_numpy(), base.y_hat.to_numpy(), rtol=1e-10, atol=1e-10)
+
+    def test_transform_wrong_column_count_raises(self, xy: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+        # PLS.transform previously had no count check at all.
+        X, Y = xy
+        pls = PLS(n_components=2).fit(X, Y)
+        with pytest.raises(ValueError, match="columns"):
+            pls.transform(X.iloc[:, :3])
