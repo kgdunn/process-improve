@@ -18,7 +18,7 @@ from patsy import PatsyError
 # Shared registration primitives consumed by the per-tool submodules. Declared
 # in __all__ so CodeQL does not flag them as unused globals (they are used from
 # sibling modules, not within this package __init__).
-__all__ = ["logger", "_TOOL_EXPECTED_EXCEPTIONS", "_register", "_EXPERIMENTS_TOOL_NAMES"]
+__all__ = ["_EXPERIMENTS_TOOL_NAMES", "_TOOL_EXPECTED_EXCEPTIONS", "_register", "logger"]
 
 # Keep the logger name byte-identical to the pre-split ``experiments.tools``
 # module so log output and any name-based filtering are unaffected.
