@@ -9,7 +9,6 @@ from __future__ import annotations
 import time
 import typing
 import warnings
-from functools import partial
 
 import numpy as np
 import pandas as pd
@@ -18,7 +17,8 @@ from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
 from ._common import SpecificationWarning, _nz, epsqrt
-from ._limits import hotellings_t2_limit, spe_calculation
+from ._limits import hotellings_t2_limit as _hotellings_t2_limit
+from ._limits import spe_calculation
 from ._nipals import quick_regress, ssq
 from ._preprocessing import MCUVScaler
 
@@ -156,6 +156,17 @@ class MBPCA(TransformerMixin, BaseEstimator):
         self.tol = tol
         self.algorithm = algorithm
         self.missing_data_settings = missing_data_settings
+
+    # ENG-05: convenience method forwarding to the standalone function (was a
+    # functools.partial bound in fit; a real method keeps help/inspect.signature
+    # accurate and the fitted model picklable).
+    def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
+        """Hotelling's T2 limit at the given confidence level (see :func:`hotellings_t2_limit`)."""
+        return _hotellings_t2_limit(
+            conf_level=conf_level,
+            n_components=self.n_components,
+            n_rows=self.n_samples_,
+        )
 
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X: dict[str, pd.DataFrame], y: None = None) -> MBPCA:  # noqa: ARG002, C901, PLR0912, PLR0915
@@ -420,7 +431,6 @@ class MBPCA(TransformerMixin, BaseEstimator):
         super_t2 = np.cumsum((super_scores_np**2) / super_score_var, axis=1)
         self.super_hotellings_t2_ = pd.DataFrame(super_t2, index=self._sample_index, columns=component_names)
 
-        self.hotellings_t2_limit = partial(hotellings_t2_limit, n_components=n_components, n_rows=n_samples)
         return self
 
     def transform(self, X: dict[str, pd.DataFrame]) -> pd.DataFrame:
