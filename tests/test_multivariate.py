@@ -2468,25 +2468,25 @@ def test_tpls_model_fitting(fixture_tpls_example: dict) -> None:
     # Test various R2 values for columns in blocks
     # For the last component, for the Z block:
     assert pytest.approx(tpls_test.r2_frac[-1]["Z"]["Conditions"].round(3)) == np.array(
-        [0.411, 0.0, 0.004, 0.262, 0.049, 0.001, 0.028, 0.001, 0.015, 0.015]
+        [0.414, 0.001, 0.004, 0.259, 0.05, 0.0, 0.028, 0.001, 0.014, 0.014]
     ).astype(np.float64)
     # For the D-block
     assert pytest.approx(tpls_test.r2_frac[-1]["D"]["Group 1"].round(3)) == np.array(
-        [0.285, 0.054, 0.437, 0.001, 0.021, 0.143, 0.138]
+        [0.296, 0.051, 0.432, 0.0, 0.015, 0.131, 0.128]
     ).astype(np.float64)
     # For the F-block
     assert pytest.approx(tpls_test.r2_frac[-1]["F"]["Group 2"].round(3)) == np.array(
-        [0.047, 0.0, 0.011, 0.0, 0.047, 0.025, 0.0, 0.003, 0.052]
+        [0.046, 0.0, 0.01, 0.0, 0.048, 0.026, 0.0, 0.003, 0.052]
     ).astype(np.float64)
     # For the Y-block after 1 component, 2 components, and 3 components:
     assert pytest.approx(tpls_test.r2_frac[1]["Y"]["Quality"].round(3)) == np.array(
-        [0.005, 0.079, 0.288, 0.329, 0.332, 0.153]
+        [0.005, 0.078, 0.293, 0.329, 0.337, 0.153]
     ).astype(np.float64)
     assert pytest.approx(tpls_test.r2_frac[2]["Y"]["Quality"].round(3)) == np.array(
-        [0.135, 0.0, 0.039, 0.023, 0.007, 0.051]
+        [0.135, 0.0, 0.039, 0.023, 0.007, 0.052]
     ).astype(np.float64)
     assert pytest.approx(tpls_test.r2_frac[-1]["Y"]["Quality"].round(3)) == np.array(
-        [0.017, 0.073, 0.018, 0.0, 0.005, 0.0]
+        [0.017, 0.074, 0.018, 0.0, 0.005, 0.0]
     ).astype(np.float64)
 
 
@@ -2523,7 +2523,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
 
     # Test the predicted values are what were expected:
     assert pytest.approx(predictions["hat"]["Quality"].iloc[0, :]) == np.array(
-        [33.09434113, 3.15224246, 58.76423934, 3.29991258, 79.90201127, 2.67042528]
+        [33.08751115, 3.15312493, 58.74578748, 3.2956403, 79.89017742, 2.66773621]
     )
     # Compare the predictions to what is stored in the training data
     assert pytest.approx(predictions["hat"]["Quality"].iloc[0, :]) == np.array(
@@ -2532,16 +2532,16 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
 
     # Test that the SPE_z values:
     assert pytest.approx([predictions["spe"]["Z"][key].values[0, -1] for key in predictions["spe"]["Z"]]) == [
-        1.87201925670
+        1.87556907
     ]
 
     # Test that the SPE_f values are correct:
     assert pytest.approx([predictions["spe"]["F"][key].values[0, -1] for key in predictions["spe"]["F"]]) == [
-        12.9399977,
-        6.92978457,
-        5.56504553,
-        5.59028493,
-        5.54400785,
+        12.94216819,
+        6.93294692,
+        5.56820559,
+        5.59365285,
+        5.54739917,
     ]
     # Check that the Hotelling's T2 matches what would have been calculated by the model.
     assert pytest.approx(tpls_test.hotellings_t2.loc[testing_samples]) == predictions["hotellings_t2"].values[
@@ -2552,17 +2552,17 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
 
     # scores = cross_val_score(tpls_test, transformed_data, None, cv=5)
     # Ensure model is fitted appropriately, with the expected number of iterations
-    assert tpls_test.fitting_statistics["iterations"] == [11, 8, 26]
+    assert tpls_test.fitting_statistics["iterations"] == [11, 9, 27]
     assert all(tol < epsqrt for tol in tpls_test.fitting_statistics["convergance_tolerance"])
 
     # Model parameters tested
     assert pytest.approx(tpls_test.hotellings_t2.iloc[0:5].values.ravel()) == np.array(
         [
-            2.51977572,
-            2.96430904,
-            2.90972389,
-            4.52220244,
-            5.08398872,
+            2.49885911,
+            2.961537,
+            2.88846366,
+            4.58151729,
+            5.06621405,
         ]
     )
 
@@ -2571,46 +2571,46 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     assert tpls_test.hotellings_t2_limit(0.99) == pytest.approx(12.288844, rel=1e-6)
 
     assert np.square(tpls_test.spe["Y"]["Quality"].iloc[0:4].values) == pytest.approx(
-        [5.60884167, 2.79520778, 1.61201577, 3.44436535], rel=1e-8
+        [5.60356584, 2.82414766, 1.69358176, 3.4829089], rel=1e-8
     )
     # Test the last 4 observations
     assert np.square(tpls_test.spe["Z"]["Conditions"].iloc[-4:].values) == pytest.approx(
-        [2.79721437, 2.00803271, 10.77913002, 3.26386299], rel=1e-8
+        [2.79253124, 2.00872637, 10.80292179, 3.26432946], rel=1e-8
     )
     assert np.square(tpls_test.spe["F"]["Group 1"].iloc[0:4].values) == pytest.approx(
-        [167.44354056, 132.23399455, 201.50643669, 198.14628337], rel=1e-8
+        [167.49971736, 132.25813164, 201.56460235, 198.02742727], rel=1e-8
     )
     assert np.square(tpls_test.spe["F"]["Group 2"].iloc[0:4].values) == pytest.approx(
-        [48.02191422, 100.16264439, 47.73820238, 1.7668637], rel=1e-8
+        [48.065753, 100.17604529, 47.80010992, 1.71302689], rel=1e-8
     )
     assert np.square(tpls_test.spe["F"]["Group 3"].iloc[0:4].values) == pytest.approx(
-        [30.96973174, 31.45714235, 30.79004185, 4.45674311], rel=1e-8
+        [31.00491349, 31.47060518, 30.82518225, 4.42512332], rel=1e-8
     )
     assert np.square(tpls_test.spe["F"]["Group 4"].iloc[0:4].values) == pytest.approx(
-        [31.25128561, 31.83840754, 31.03634115, 28.89802456], rel=1e-8
+        [31.28895219, 31.85278369, 31.07114402, 28.82708874], rel=1e-8
     )
     assert np.square(tpls_test.spe["F"]["Group 5"].iloc[0:4].values) == pytest.approx(
-        [30.73602305, 31.60159978, 30.49536591, 97.95906999], rel=1e-8
+        [30.77363754, 31.61877076, 30.53696788, 97.88805239], rel=1e-8
     )
     assert np.square(tpls_test.spe["D"]["Group 3"].iloc[0:4].values) == pytest.approx(
-        [0.340689483, 0.04463833, 1.06575724, 0.0511916], rel=1e-7
+        [0.015504765277819974, 0.002021083231104291, 0.04795499280275304, 0.0024131901105140696], rel=1e-7
     )
     # Is this is all zero because there are only 3 columns of data, and we fit 3 components?
     assert np.square(tpls_test.spe["D"]["Group 5"].iloc[0:4].values) == pytest.approx([0, 0, 0, 0], rel=1e-8)
 
     # Test case uses a different method to calculate the chi2 value, so we use a different tolerance
-    assert tpls_test.spe_limit["Y"]["Quality"](0.95) == pytest.approx(3.7078381486450, rel=1e-8)
-    assert tpls_test.spe_limit["Y"]["Quality"](0.99) == pytest.approx(4.6381115504, rel=1e-8)
-    assert tpls_test.spe_limit["D"]["Group 1"](0.95) == pytest.approx(1.10682253690, rel=1e-8)
-    assert tpls_test.spe_limit["D"]["Group 2"](0.95) == pytest.approx(0.67468300994, rel=1e-8)
-    assert tpls_test.spe_limit["D"]["Group 3"](0.95) == pytest.approx(0.91134417, rel=1e-8)
-    assert tpls_test.spe_limit["D"]["Group 4"](0.95) == pytest.approx(1.0866787434, rel=1e-8)
+    assert tpls_test.spe_limit["Y"]["Quality"](0.95) == pytest.approx(3.70131535, rel=1e-8)
+    assert tpls_test.spe_limit["Y"]["Quality"](0.99) == pytest.approx(4.62900976, rel=1e-8)
+    assert tpls_test.spe_limit["D"]["Group 1"](0.95) == pytest.approx(0.08789854, rel=1e-7)
+    assert tpls_test.spe_limit["D"]["Group 2"](0.95) == pytest.approx(0.22412007, rel=1e-7)
+    assert tpls_test.spe_limit["D"]["Group 3"](0.95) == pytest.approx(0.19404685, rel=1e-7)
+    assert tpls_test.spe_limit["D"]["Group 4"](0.95) == pytest.approx(0.24915518, rel=1e-7)
     assert tpls_test.spe_limit["D"]["Group 5"](0.95) == pytest.approx(0, rel=1e-8)
-    assert tpls_test.spe_limit["F"]["Group 1"](0.99) == pytest.approx(16.180926707, rel=1e-8)
-    assert tpls_test.spe_limit["F"]["Group 2"](0.99) == pytest.approx(8.4753865788, rel=1e-8)
-    assert tpls_test.spe_limit["F"]["Group 3"](0.99) == pytest.approx(9.1176685583, rel=1e-8)
-    assert tpls_test.spe_limit["F"]["Group 4"](0.99) == pytest.approx(8.7773163687, rel=1e-8)
-    assert tpls_test.spe_limit["F"]["Group 5"](0.99) == pytest.approx(7.8446720428, rel=1e-8)
+    assert tpls_test.spe_limit["F"]["Group 1"](0.99) == pytest.approx(16.17958502, rel=1e-8)
+    assert tpls_test.spe_limit["F"]["Group 2"](0.99) == pytest.approx(8.47783716, rel=1e-8)
+    assert tpls_test.spe_limit["F"]["Group 3"](0.99) == pytest.approx(9.11819153, rel=1e-8)
+    assert tpls_test.spe_limit["F"]["Group 4"](0.99) == pytest.approx(8.77664292, rel=1e-8)
+    assert tpls_test.spe_limit["F"]["Group 5"](0.99) == pytest.approx(7.84401832, rel=1e-8)
 
     # Test building the model without the "Z" block.
     fixture_tpls_example.pop("Z")
