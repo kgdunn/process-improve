@@ -367,7 +367,10 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Storage for pre-processing and the raw matrices
         self.fitting_statistics: dict[str, list] = {"iterations": [], "convergance_tolerance": [], "milliseconds": []}
-        self.preproc_: dict[str, dict[str, dict[str, pd.Series]]] = {key: {} for key in self.required_blocks_}
+        # Per block / per group preprocessing parameters. "center" and "scale" are pd.Series (one entry
+        # per column); the D-block additionally stores a scalar "block" factor (float). The heterogeneous
+        # value types make `Any` the honest inner annotation here. See `_preprocess`.
+        self.preproc_: dict[str, dict[str, dict[str, typing.Any]]] = {key: {} for key in self.required_blocks_}
         self.sums_of_squares_: list[dict[str, dict[str, np.ndarray]]] = [{key: {} for key in self.required_blocks_}]
         # These are *fractional* R2 values, i.e. always less than or equal to 1.0.
         # As a list: entry 0 is zeros; entry 1 is after fitting the first component, and so on.
@@ -408,7 +411,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             # trace(X_i^T X_i) ~= 1 for every block, removing bias toward blocks that simply have more lots
             # or more properties. See Garcia-Munoz (2014), section 2.1 (https://doi.org/10.1016/j.chemolab.2014.02.006).
             n_lots, n_properties = df_d.shape
-            self.preproc_["D"][key]["block"] = pd.Series([np.sqrt(n_lots * n_properties)])
+            self.preproc_["D"][key]["block"] = float(np.sqrt(n_lots * n_properties))
             #
             # Also do the same for the formula matrix
             self.preproc_["F"][key] = {}
@@ -1181,6 +1184,28 @@ class TPLS(RegressorMixin, BaseEstimator):
             return importance
         return importance[block]
 
+    @property
+    def d_block_scaling_(self) -> dict[str, float]:
+        """Block-scaling factor applied to each D-block (read-only).
+
+        After column-wise centring and auto-scaling, every D-block ``X_i`` is additionally divided by
+        ``sqrt(P_i * M_i)`` (``P_i`` = number of lots/rows, ``M_i`` = number of properties/columns) so that
+        ``trace(X_i^T X_i) ~= 1``, removing bias toward blocks with more lots or properties
+        (Garcia-Munoz, 2014, section 2.1).
+
+        Returns
+        -------
+        dict[str, float]
+            Mapping of D-block group name to its scalar block-scaling factor.
+
+        Raises
+        ------
+        AttributeError
+            If the model has not been fitted yet.
+        """
+        check_is_fitted(self, "preproc_")
+        return {key: self.preproc_["D"][key]["block"] for key in self.preproc_["D"]}
+
     def _calculate_vip(self, loadings: np.ndarray, r2_vector: np.ndarray) -> np.ndarray:
         """Calculate the VIP values for the current component.
 
@@ -1287,7 +1312,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             self.d_mats[key] = (
                 (self.d_mats[key] - self.preproc_["D"][key]["center"].to_numpy()[None, :])
                 / self.preproc_["D"][key]["scale"].to_numpy()[None, :]
-                / self.preproc_["D"][key]["block"][0]  # scalar!
+                / self.preproc_["D"][key]["block"]  # scalar block-scaling factor
             )
         for key in self.z_mats:
             self.z_mats[key] = (
@@ -1324,7 +1349,7 @@ class TPLS(RegressorMixin, BaseEstimator):
                 vector = np.nanmean(self.d_mats[key], axis=0)
                 vector[np.isnan(vector)] = 0
                 assert np.allclose(vector, 0, atol=1e-6)  # post-centering invariant
-                vector = np.nanstd(self.d_mats[key], axis=0, ddof=1) * self.preproc_["D"][key]["block"].values[0]
+                vector = np.nanstd(self.d_mats[key], axis=0, ddof=1) * self.preproc_["D"][key]["block"]
                 vector[np.isnan(vector)] = 1
                 assert np.allclose(vector, 1)  # post-scaling invariant
 

@@ -34,6 +34,9 @@ those changes.
   VIP the paper reports. Note that for the D-block the rotation is ~identity
   (`V^T S ~= I` by construction), so the deflated and default importances coincide there;
   they differ for the F-block.
+- **TPLS `d_block_scaling_` accessor (#192).** The D-block block-scaling factor is now stored as a
+  plain scalar (previously a one-element `pd.Series` accessed via `[0]`) and exposed through the
+  read-only `d_block_scaling_` property, returning `{group: factor}`.
 
 ## [1.24.34] - 2026-06-03
 

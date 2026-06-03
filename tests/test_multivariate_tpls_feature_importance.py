@@ -139,7 +139,16 @@ class TestTPLSDBlockScaling:
         for group, df_d in d_matrix.items():
             n_lots, n_properties = df_d.shape
             expected = np.sqrt(n_lots * n_properties)
-            assert model.preproc_["D"][group]["block"][0] == pytest.approx(expected)
+            # Stored as a plain scalar (not a one-element Series) and exposed read-only.
+            factor = model.preproc_["D"][group]["block"]
+            assert isinstance(factor, float)
+            assert factor == pytest.approx(expected)
+            assert model.d_block_scaling_[group] == pytest.approx(expected)
+
+    def test_d_block_scaling_property_requires_fit(self, tpls_pyphi_data: dict) -> None:
+        model = TPLS(n_components=2, d_matrix=tpls_pyphi_data["D"])
+        with pytest.raises((RuntimeError, ValueError, AttributeError)):
+            _ = model.d_block_scaling_
 
     def test_scaling_equalises_block_trace(self, tpls_pyphi_data: dict) -> None:
         """After centring, auto-scaling and block-scaling, trace(X_i^T X_i) ~= 1 for every D-block.
