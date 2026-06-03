@@ -198,7 +198,6 @@ def align_with_path(md_path: np.ndarray, batch: pd.DataFrame, initial_row: pd.Se
 
 def dtw_core(test: pd.DataFrame, ref: pd.DataFrame, weight_matrix: np.ndarray) -> DTWresult:
     """Compute DTW alignment of test batch against reference batch."""
-    show_plot = False
     nt = test.shape[0]  # 'test' data; will be align to the 'reference' data
     nr = ref.shape[0]
     if test.shape[1] != ref.shape[1]:
@@ -216,23 +215,6 @@ def dtw_core(test: pd.DataFrame, ref: pd.DataFrame, weight_matrix: np.ndarray) -
     # Now align the `test` batch:
     initial_row = ref.iloc[md_path[0, 0], :].copy()
     synced = align_with_path(md_path=md_path, batch=test, initial_row=initial_row)
-
-    if show_plot:  # for debugging
-        x_axis = np.arange(0, nt, 1)
-        y_axis = np.arange(0, nr, 1)
-        X, Y = np.meshgrid(x_axis, y_axis)
-        fig = go.Figure(
-            data=[
-                go.Mesh3d(
-                    x=X.ravel(),
-                    y=Y.ravel(),
-                    z=D.ravel(),
-                    color="lightpink",
-                    opacity=0.90,
-                )
-            ]
-        )
-        fig.show()
 
     return DTWresult(
         synced,

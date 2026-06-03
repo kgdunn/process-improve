@@ -83,12 +83,14 @@ class DataFrameDict(dict):
         self.datadict[key] = value  # type: ignore[assignment]  # reason: legacy bare-DataFrame storage
 
     @typing.overload
-    def __getitem__(self, lookup: str) -> dict[str, pd.DataFrame]: ...
+    def __getitem__(self, lookup: str) -> dict[str, pd.DataFrame]:
+        pass
 
     @typing.overload
     def __getitem__(
         self, lookup: int | list[int] | list[np.int64] | np.ndarray | tuple
-    ) -> DataFrameDict: ...
+    ) -> DataFrameDict:
+        pass
 
     def __getitem__(
         self, lookup: int | list[int] | list[np.int64] | str | np.ndarray | tuple

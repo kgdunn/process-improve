@@ -708,7 +708,7 @@ def recommend_strategy(  # noqa: C901, PLR0913
         prior_knowledge=pk,
         existing_data_summary=data_summary,
         domain=domain_enum,
-        detail_level=cast('Literal["novice", "intermediate"]', detail_level),
+        detail_level=cast("Literal['novice', 'intermediate']", detail_level),
     )
 
     # --- Get domain template ---
