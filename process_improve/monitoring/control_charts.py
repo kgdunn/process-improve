@@ -1,10 +1,14 @@
 """Class for ControlChart: robust control charts with a balance between CUSUM and Shewhart properties."""
 
+import logging
+
 import numpy as np
 import pandas as pd
 
 from ..regression.methods import repeated_median_slope
 from ..univariate.metrics import median_absolute_deviation
+
+logger = logging.getLogger(__name__)
 
 
 def rho(x: float, k: float = 2.52) -> float:
@@ -98,6 +102,13 @@ class ControlChart:
         """
         self._given_target = target
         self._given_s = s
+        logger.debug(
+            "ControlChart.calculate_limits: variant=%s, style=%s, given target=%s, s=%s",
+            self.variant,
+            self.style,
+            target,
+            s,
+        )
 
         if s is not None:
             self.s = float(s)

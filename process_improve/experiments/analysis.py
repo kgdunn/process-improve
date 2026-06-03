@@ -12,6 +12,7 @@ precision, and confirmation run testing.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -43,6 +44,8 @@ from process_improve.experiments._analyses.ols_extractors import (
 )
 from process_improve.experiments._analyses.prediction import _run_confirmation_test, _run_prediction
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Formula builder
@@ -262,6 +265,7 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
 
     # --- Normalize analysis_type to list -------------------------------
     types = [analysis_type] if isinstance(analysis_type, str) else list(analysis_type)
+    logger.debug("analyze_experiment: fitted %r on %d observations; analyses=%s", formula, len(df), types)
 
     # Validate
     unknown = [t for t in types if t not in _ANALYSIS_REGISTRY]

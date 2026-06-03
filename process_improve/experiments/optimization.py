@@ -24,11 +24,14 @@ Stubs (not yet implemented)
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
 import numpy as np
 from scipy import optimize
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -778,6 +781,7 @@ def optimize_responses(  # noqa: PLR0913, C901
     >>> result["stationary_point"]["classification"]
     'maximum'
     """
+    logger.debug("optimize_responses: method=%r, %d fitted model(s)", method, len(fitted_models))
     if method not in _METHODS:
         available = sorted(_METHODS)
         msg = f"Unknown method {method!r}. Available: {available}"

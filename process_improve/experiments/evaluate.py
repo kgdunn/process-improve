@@ -19,6 +19,7 @@ Example
 from __future__ import annotations
 
 import itertools
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -32,6 +33,8 @@ from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 from process_improve.experiments.factor import DesignResult
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Internal context shared across metric computations
@@ -791,6 +794,7 @@ def evaluate_design(  # noqa: PLR0913
 
     # --- Normalize metric to list ---
     metrics = [metric] if isinstance(metric, str) else list(metric)
+    logger.debug("evaluate_design: model=%r, metrics=%s", model, metrics)
 
     # Validate metric names
     unknown = [m for m in metrics if m not in _METRIC_REGISTRY]

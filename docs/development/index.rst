@@ -9,5 +9,6 @@ below are the deeper policy references it links to.
    :maxdepth: 1
 
    error_handling
+   logging
    reproducibility
    deprecation_policy

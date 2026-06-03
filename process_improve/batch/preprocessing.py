@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pandas as pd
 import scipy as sp
@@ -14,6 +16,8 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
 from ..multivariate.methods import PCA, MCUVScaler
 from .alignment_helpers import backtrack_optimal_path, distance_matrix
 from .data_input import check_valid_batch_dict, dict_to_wide, melted_to_dict
+
+logger = logging.getLogger(__name__)
 
 epsqrt = np.sqrt(np.finfo(float).eps)
 
@@ -366,6 +370,12 @@ def batch_dtw(  # noqa: C901, PLR0915
             print(f"Iter = {iter_step} and norm = {np.linalg.norm(delta_weight)}")  # noqa: T201
 
         iter_step += 1
+        logger.debug(
+            "batch_dtw: iteration %d, weight-delta norm=%g (tolerance=%g)",
+            iter_step,
+            float(np.linalg.norm(delta_weight)),
+            settings["tolerance"],
+        )
         weight_matrix = np.diag(weight_vector)
         weight_history = np.vstack((weight_history, weight_vector.copy()))
 
