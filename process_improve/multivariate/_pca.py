@@ -21,56 +21,12 @@ from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
 from ..univariate.metrics import detect_outliers_esd
-from ._common import DataMatrix, SpecificationWarning, _model_method, epsqrt
-from ._diagnostics import (
-    eigenvalue_summary as _eigenvalue_summary,
-)
-from ._diagnostics import (
-    observation_contributions as _observation_contributions,
-)
-from ._diagnostics import (
-    project_variables as _project_variables,
-)
-from ._diagnostics import (
-    squared_cosine as _squared_cosine,
-)
-from ._diagnostics import (
-    vip as _vip,
-)
-from ._limits import (
-    ellipse_coordinates as _ellipse_coordinates,
-)
-from ._limits import (
-    hotellings_t2_limit as _hotellings_t2_limit,
-)
-from ._limits import (
-    score_limit as _score_limit,
-)
-from ._limits import (
-    spe_limit as _spe_limit,
-)
+from ._base import _LatentVariableModel
+from ._common import DataMatrix, SpecificationWarning, epsqrt
 from ._nipals import quick_regress, ssq, terminate_check
-from .plots import (
-    correlation_loadings_plot as _correlation_loadings_plot,
-)
-from .plots import (
-    explained_variance_plot as _explained_variance_plot,
-)
-from .plots import (
-    loading_plot as _loading_plot,
-)
-from .plots import (
-    score_plot as _score_plot,
-)
-from .plots import (
-    spe_plot as _spe_plot,
-)
-from .plots import (
-    t2_plot as _t2_plot,
-)
 
 
-class PCA(TransformerMixin, BaseEstimator):
+class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     """Principal Component Analysis with support for missing data.
 
     Parameters
@@ -134,50 +90,25 @@ class PCA(TransformerMixin, BaseEstimator):
         self.algorithm = algorithm
         self.missing_data_settings = missing_data_settings
 
-    # ENG-05: convenience methods forwarding to the standalone functions. These
-    # used to be ``functools.partial`` instances bound in ``fit``; defining them
-    # as real methods keeps ``help`` / ``inspect.signature`` accurate, the fitted
-    # model picklable, and the methods overridable by subclasses. The standalone
-    # functions remain available for advanced callers.
-    score_plot = _model_method(_score_plot)
-    spe_plot = _model_method(_spe_plot)
-    t2_plot = _model_method(_t2_plot)
-    loading_plot = _model_method(_loading_plot)
-    explained_variance_plot = _model_method(_explained_variance_plot)
-    correlation_loadings_plot = _model_method(_correlation_loadings_plot)
-    spe_limit = _model_method(_spe_limit)
-    score_limit = _model_method(_score_limit)
-    vip = _model_method(_vip)
-    squared_cosine = _model_method(_squared_cosine)
-    observation_contributions = _model_method(_observation_contributions)
-    eigenvalue_summary = _model_method(_eigenvalue_summary)
-    project_variables = _model_method(_project_variables)
-
-    def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
-        """Hotelling's T2 limit at the given confidence level (see :func:`hotellings_t2_limit`)."""
-        return _hotellings_t2_limit(
-            conf_level=conf_level,
-            n_components=self.n_components,
-            n_rows=self.n_samples_,
-        )
-
-    def ellipse_coordinates(
-        self,
-        score_horiz: int,
-        score_vert: int,
-        conf_level: float = 0.95,
-        n_points: int = 100,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Coordinates of the T2 confidence ellipse (see :func:`ellipse_coordinates`)."""
-        return _ellipse_coordinates(
-            score_horiz=score_horiz,
-            score_vert=score_vert,
-            conf_level=conf_level,
-            n_points=n_points,
-            n_components=self.n_components,
-            scaling_factor_for_scores=self.scaling_factor_for_scores_,
-            n_rows=self.n_samples_,
-        )
+    # ENG-17: the convenience methods (score_plot, vip, spe_limit, ...),
+    # hotellings_t2_limit, ellipse_coordinates and the rename __getattr__ are
+    # inherited from _LatentVariableModel. PCA supplies only its rename map.
+    _ATTRIBUTE_RENAMES: typing.ClassVar[dict[str, str]] = {
+        "x_scores": "scores_",
+        "loadings": "loadings_",
+        "x_loadings": "loadings_",
+        "squared_prediction_error": "spe_",
+        "R2": "r2_per_component_",
+        "R2cum": "r2_cumulative_",
+        "R2X_cum": "r2_per_variable_",
+        "hotellings_t2": "hotellings_t2_",
+        "scaling_factor_for_scores": "scaling_factor_for_scores_",
+        "N": "n_samples_",
+        "K": "n_features_in_",
+        "A": "n_components",
+        "extra_info": "fitting_info_",
+    }
+    _RENAME_CONTEXT: typing.ClassVar[str] = "PCA"
 
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA:  # noqa: ARG002, PLR0912, C901
@@ -878,27 +809,3 @@ class PCA(TransformerMixin, BaseEstimator):
 
         results.sort(key=lambda d: d["severity"], reverse=True)
         return results
-
-    def __getattr__(self, name: str):
-        """Provide helpful error messages for old attribute names."""
-        renames = {
-            "x_scores": "scores_",
-            "loadings": "loadings_",
-            "x_loadings": "loadings_",
-            "squared_prediction_error": "spe_",
-            "R2": "r2_per_component_",
-            "R2cum": "r2_cumulative_",
-            "R2X_cum": "r2_per_variable_",
-            "hotellings_t2": "hotellings_t2_",
-            "scaling_factor_for_scores": "scaling_factor_for_scores_",
-            "N": "n_samples_",
-            "K": "n_features_in_",
-            "A": "n_components",
-            "extra_info": "fitting_info_",
-        }
-        if name in renames:
-            raise AttributeError(
-                f"'{name}' was renamed to '{renames[name]}' in the PCA refactoring. "
-                f"Please update your code to use '{renames[name]}'."
-            )
-        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
