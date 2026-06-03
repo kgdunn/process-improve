@@ -9,6 +9,7 @@ methods after ``fit()``.
 
 from __future__ import annotations
 
+import logging
 import time
 import typing
 import warnings
@@ -24,6 +25,8 @@ from ..univariate.metrics import detect_outliers_esd
 from ._base import _LatentVariableModel, _LazyFrame
 from ._common import DataMatrix, SpecificationWarning, epsqrt
 from ._nipals import quick_regress, ssq, terminate_check
+
+logger = logging.getLogger(__name__)
 
 
 class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
@@ -342,6 +345,12 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
             self.fitting_info_["timing"][a] = time.time() - start_time
             self.fitting_info_["iterations"][a] = itern
+            logger.debug(
+                "PCA NIPALS: component %d converged in %d iterations (md_tol=%g)",
+                a + 1,
+                itern,
+                settings["md_tol"],
+            )
 
             # Deflate
             Xd = Xd - np.dot(t_a, p_a.T)

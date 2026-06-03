@@ -9,6 +9,7 @@ or "Three-way PLS".)
 
 from __future__ import annotations
 
+import logging
 import time
 import typing
 import warnings
@@ -122,6 +123,9 @@ class DataFrameDict(dict):
         output += f"\n  Z groups: {groups_in_block_z}"
         output += f"\n  Y groups: {groups_in_block_y}"
         return output
+
+
+logger = logging.getLogger(__name__)
 
 
 class TPLS(RegressorMixin, BaseEstimator):
@@ -1302,6 +1306,8 @@ class TPLS(RegressorMixin, BaseEstimator):
                 t_super_i = inner_pls["t_i"]
                 q_super_i = inner_pls["q_i"]
                 w_super_i = inner_pls["w_i"]
+
+            logger.debug("TPLS: super-component %d converged in %d iterations", pc_a + 1, n_iter)
 
             # After convergance. Step 12: Now store information.
             # =================

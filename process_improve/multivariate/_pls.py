@@ -8,6 +8,7 @@ plotting bound as convenience methods after ``fit()``.
 
 from __future__ import annotations
 
+import logging
 import time
 import typing
 import warnings
@@ -33,6 +34,8 @@ from .plots import (
 from .plots import (
     predictions_vs_observed_plot as _predictions_vs_observed_plot,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator):
@@ -274,6 +277,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
             self.fitting_info_["timing"][a] = time.time() - start_time
             self.fitting_info_["iterations"][a] = itern
+            logger.debug(
+                "PLS NIPALS: component %d converged in %d iterations (md_tol=%g)",
+                a + 1,
+                itern,
+                settings["md_tol"],
+            )
 
             if itern > settings["md_max_iter"]:
                 warnings.warn(

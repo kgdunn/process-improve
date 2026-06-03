@@ -10,9 +10,13 @@ single-component PLS NIPALS inner loop. Depends only on
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 
 from ._common import _nz, epsqrt
+
+logger = logging.getLogger(__name__)
 
 
 def nan_to_zeros(in_array: np.ndarray) -> np.ndarray:
@@ -175,6 +179,8 @@ def internal_pls_nipals_fit_one_pc(
 
         n_iter += 1
         u_i = u_new
+
+    logger.debug("PLS NIPALS inner loop converged in %d iterations (max_iter=%d)", n_iter, max_iter)
 
     # We have converged. Keep sign consistency. Fairly arbitrary rule, but ensures we report results consistently.
     # SEC-33 (#282): ``np.var`` on an empty slice returns NaN and emits
