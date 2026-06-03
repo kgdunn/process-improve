@@ -104,10 +104,12 @@ class _LazyFrame:
         self._public_name = name
 
     @typing.overload
-    def __get__(self, obj: None, objtype: type | None = None) -> _LazyFrame: ...
+    def __get__(self, obj: None, objtype: type | None = None) -> _LazyFrame:
+        pass
 
     @typing.overload
-    def __get__(self, obj: object, objtype: type | None = None) -> pd.DataFrame: ...
+    def __get__(self, obj: object, objtype: type | None = None) -> pd.DataFrame:
+        pass
 
     def __get__(self, obj: object, objtype: type | None = None) -> _LazyFrame | pd.DataFrame:
         if obj is None:
