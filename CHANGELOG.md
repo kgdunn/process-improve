@@ -11,6 +11,22 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.19] - 2026-06-03
+
+### Changed
+
+- **ENG-18 (#300)**: PCA and PLS now store their hot-path fitted attributes
+  (PCA ``scores_`` / ``loadings_`` / ``spe_``; PLS ``scores_`` / ``spe_`` /
+  ``x_loadings_`` / ``x_weights_``) as private numpy ndarrays, exposing the
+  public ``pd.DataFrame`` as a lazily-built, cached view (a ``_LazyFrame``
+  descriptor on the shared base). Internal math reads the ndarrays directly,
+  avoiding a ``DataFrame.values`` conversion on every ``transform`` / ``predict``
+  / ``score_contributions`` call; the cache is excluded from pickling, so a
+  pickled model stores only the ndarrays and rebuilds the views on load. The
+  public DataFrame views are byte-identical (values, index, columns, dtype), and
+  ``check_is_fitted`` / ``NotFittedError`` behaviour is unchanged. A perf
+  baseline is added under ``tests/perf/``.
+
 ## [1.24.18] - 2026-06-03
 
 ### Changed (internal)
@@ -1136,7 +1152,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.18...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.19...HEAD
+[1.24.19]: https://github.com/kgdunn/process-improve/compare/v1.24.18...v1.24.19
 [1.24.18]: https://github.com/kgdunn/process-improve/compare/v1.24.17...v1.24.18
 [1.24.17]: https://github.com/kgdunn/process-improve/compare/v1.24.16...v1.24.17
 [1.24.16]: https://github.com/kgdunn/process-improve/compare/v1.24.15...v1.24.16

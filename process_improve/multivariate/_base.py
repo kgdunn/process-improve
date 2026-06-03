@@ -24,9 +24,8 @@ from __future__ import annotations
 import typing
 
 import numpy as np
-
-if typing.TYPE_CHECKING:
-    import pandas as pd
+import pandas as pd
+from sklearn.base import BaseEstimator
 
 from ._common import _model_method
 from ._diagnostics import (
@@ -76,6 +75,60 @@ from .plots import (
 )
 
 
+class _LazyFrame:
+    """Expose a private ndarray as a lazily-built, cached :class:`pandas.DataFrame` (ENG-18).
+
+    Declared as a class attribute, e.g.::
+
+        scores_   = _LazyFrame("_scores",   index="_sample_index",  columns="_component_names")
+        loadings_ = _LazyFrame("_loadings", index="_feature_names", columns="_component_names")
+
+    The private ndarray (``self._scores``) is the source of truth; the public
+    ``DataFrame`` is built on first access from the ndarray plus the index/column
+    metadata attributes, cached in ``self.__dict__["_frame_cache"]`` (so repeated
+    access returns the same object and is cheap), and excluded from pickling by
+    :meth:`_LatentVariableModel.__getstate__`. Internal math reads the ndarray
+    directly and avoids the per-call ``.values`` conversion.
+
+    On an unfitted model the backing ndarray is absent, so ``getattr`` raises
+    ``AttributeError`` - the same "not fitted" signal as before this change, so
+    ``hasattr`` / ``check_is_fitted`` behave identically.
+    """
+
+    def __init__(self, source: str, *, index: str, columns: str) -> None:
+        self._source = source
+        self._index = index
+        self._columns = columns
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        self._public_name = name
+
+    @typing.overload
+    def __get__(self, obj: None, objtype: type | None = None) -> _LazyFrame:
+        pass
+
+    @typing.overload
+    def __get__(self, obj: object, objtype: type | None = None) -> pd.DataFrame:
+        pass
+
+    def __get__(self, obj: object, objtype: type | None = None) -> _LazyFrame | pd.DataFrame:
+        if obj is None:
+            return self
+        cache = obj.__dict__.get("_frame_cache")
+        if cache is None:
+            cache = obj.__dict__["_frame_cache"] = {}
+        cached = cache.get(self._public_name)
+        if cached is not None:
+            return cached
+        frame = pd.DataFrame(
+            getattr(obj, self._source),
+            index=getattr(obj, self._index),
+            columns=getattr(obj, self._columns),
+        )
+        cache[self._public_name] = frame
+        return frame
+
+
 class _RenameGetattrMixin:
     """``__getattr__`` that raises a helpful message for renamed attributes.
 
@@ -117,7 +170,7 @@ class _HotellingsT2LimitMixin:
         )
 
 
-class _LatentVariableModel(_RenameGetattrMixin, _HotellingsT2LimitMixin):
+class _LatentVariableModel(_RenameGetattrMixin, _HotellingsT2LimitMixin, BaseEstimator):
     """Convenience-method scaffolding shared by :class:`PCA` and :class:`PLS`.
 
     Hosts the ENG-05 convenience methods that forward to the standalone functions
@@ -129,6 +182,20 @@ class _LatentVariableModel(_RenameGetattrMixin, _HotellingsT2LimitMixin):
 
     if typing.TYPE_CHECKING:  # fitted attribute provided by concrete subclasses
         scaling_factor_for_scores_: pd.Series
+
+    def __getstate__(self) -> dict:
+        """Exclude the lazily-built DataFrame cache from pickling (ENG-18).
+
+        Only the private ndarrays and their index/column metadata are pickled;
+        the public DataFrame views are rebuilt on demand after unpickling.
+        """
+        state = super().__getstate__()
+        if isinstance(state, dict):
+            state.pop("_frame_cache", None)
+        return state
+
+    def __setstate__(self, state: dict) -> None:
+        super().__setstate__(state)
 
     score_plot = _model_method(_score_plot)
     spe_plot = _model_method(_spe_plot)

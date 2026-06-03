@@ -24,7 +24,7 @@ from tqdm import tqdm
 
 from .._linalg import safe_inverse
 from ..univariate.metrics import detect_outliers_esd
-from ._base import _LatentVariableModel
+from ._base import _LatentVariableModel, _LazyFrame
 from ._common import DataMatrix, SpecificationWarning, _model_method, epsqrt
 from ._nipals import quick_regress, ssq, terminate_check
 from .plots import (
@@ -182,6 +182,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     }
     _RENAME_CONTEXT: typing.ClassVar[str] = "PLS"
 
+    # ENG-18: public DataFrame views built lazily from the private ndarrays.
+    scores_ = _LazyFrame("_scores", index="_sample_index", columns="_component_names")
+    spe_ = _LazyFrame("_spe", index="_sample_index", columns="_component_names")
+    x_loadings_ = _LazyFrame("_x_loadings", index="_feature_names", columns="_component_names")
+    x_weights_ = _LazyFrame("_x_weights", index="_feature_names", columns="_component_names")
+
     def _fit_nipals(self, X: DataMatrix, Y: DataMatrix, A: int, settings: dict) -> None:  # noqa: PLR0915
         """Fit PLS via the NIPALS algorithm, handling missing data transparently.
 
@@ -209,11 +215,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Xd = np.asarray(X, dtype=float).copy()
         Yd = np.asarray(Y, dtype=float).copy()
 
-        self.x_scores_ = np.zeros((N, A))
+        self._scores = np.zeros((N, A))
         self.y_scores_ = np.zeros((N, A))
-        self.x_weights_ = np.zeros((K, A))
+        self._x_weights = np.zeros((K, A))
         self.y_weights_ = np.zeros((M, A))
-        self.x_loadings_ = np.zeros((K, A))
+        self._x_loadings = np.zeros((K, A))
         self.y_loadings_ = np.zeros((M, A))
 
         self.fitting_info_ = {
@@ -290,10 +296,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 p_a *= -1.0
                 c_a *= -1.0
 
-            self.x_scores_[:, a] = t_a.flatten()
+            self._scores[:, a] = t_a.flatten()
             self.y_scores_[:, a] = u_a.flatten()
-            self.x_weights_[:, a] = w_a.flatten()
-            self.x_loadings_[:, a] = p_a.flatten()
+            self._x_weights[:, a] = w_a.flatten()
+            self._x_loadings[:, a] = p_a.flatten()
             self.y_loadings_[:, a] = c_a.flatten()
             # In PLS mode A (PLSRegression), y_weights == y_loadings
             self.y_weights_[:, a] = c_a.flatten()
@@ -368,24 +374,27 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # --- Common post-fit path: wrap numpy arrays into pandas ---
 
         # R = W(P'W)^{-1} [KxA]; useful since T = XR
-        direct_weights = self.x_weights_ @ safe_inverse(
-            self.x_loadings_.T @ self.x_weights_, what="(x_loadings' @ x_weights)"
+        direct_weights = self._x_weights @ safe_inverse(
+            self._x_loadings.T @ self._x_weights, what="(x_loadings' @ x_weights)"
         )
         # beta = RC' [KxM]: direct link from k-th X variable to m-th Y variable
         beta_coefficients = direct_weights @ self.y_loadings_.T
 
         component_names = list(range(1, A + 1))
-        self.scores_ = pd.DataFrame(self.x_scores_, index=X.index, columns=component_names)
+        # ENG-18: scores_ / x_weights_ / x_loadings_ / spe_ are stored as private
+        # ndarrays (the source of truth); their public DataFrame views are built
+        # lazily by the _LazyFrame descriptors from the metadata attrs below.
+        self._sample_index = X.index
+        self._feature_names = X.columns
+        self._component_names = component_names
         self.y_scores_ = pd.DataFrame(self.y_scores_, index=Y.index, columns=component_names)
-        self.x_weights_ = pd.DataFrame(self.x_weights_, index=X.columns, columns=component_names)
         self.y_weights_ = pd.DataFrame(self.y_weights_, index=Y.columns, columns=component_names)
-        self.x_loadings_ = pd.DataFrame(self.x_loadings_, index=X.columns, columns=component_names)
         self.y_loadings_ = pd.DataFrame(self.y_loadings_, index=Y.columns, columns=component_names)
-        self.predictions_ = pd.DataFrame(self.scores_ @ self.y_loadings_.T, index=Y.index, columns=Y.columns)
+        self.predictions_ = pd.DataFrame(self._scores @ self.y_loadings_.values.T, index=Y.index, columns=Y.columns)
         self.direct_weights_ = pd.DataFrame(direct_weights, index=X.columns, columns=component_names)
         self.beta_coefficients_ = pd.DataFrame(beta_coefficients, index=X.columns, columns=Y.columns)
         # ``max(1, N-1)`` -- see SEC-21 (#270) sub-item 6.
-        self.explained_variance_ = np.diag(self.scores_.T @ self.scores_) / max(1, N - 1)
+        self.explained_variance_ = np.diag(self._scores.T @ self._scores) / max(1, N - 1)
         self.scaling_factor_for_scores_ = pd.Series(
             np.sqrt(self.explained_variance_),
             index=component_names,
@@ -396,11 +405,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             columns=component_names,
             index=X.index.copy(),
         )
-        self.spe_ = pd.DataFrame(
-            np.zeros((N, A)),
-            columns=component_names,
-            index=X.index.copy(),
-        )
+        self._spe = np.zeros((N, A))
         self.r2_per_component_ = pd.Series(
             np.zeros(shape=(A)),
             index=component_names,
@@ -449,7 +454,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             else:
                 self.r2_per_component_.iloc[a] = self.r2_cumulative_.iloc[a]
 
-            self.spe_.iloc[:, a] = np.sqrt(row_SSX)
+            self._spe[:, a] = np.sqrt(row_SSX)
 
             # Per-variable R^2 is undefined for a column with no variance to
             # explain; emit NaN there. SEC-21 (#270) sub-item 4.
@@ -550,7 +555,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         t2 = pd.Series(t2_values, index=X.index, name="Hotelling's T²")
 
         # SPE: residual after X reconstruction
-        X_hat = scores @ self.x_loadings_.T
+        X_hat = scores @ self._x_loadings.T
         residuals = X - X_hat
         spe_values = pd.Series(np.sqrt(np.power(residuals, 2).sum(axis=1)), index=X.index, name="SPE")
 
@@ -795,10 +800,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             ev = np.asarray(self.explained_variance_)[idx]
             dt = dt / np.sqrt(np.where(ev > epsqrt, ev, 1.0))
 
-        P = self.x_loadings_.values[:, idx].T
+        P = self._x_loadings[:, idx].T
         contributions = dt @ P
 
-        return pd.Series(contributions, index=self.x_loadings_.index, name="score_contributions")
+        return pd.Series(contributions, index=self._feature_names, name="score_contributions")
 
     def detect_outliers(self, conf_level: float = 0.95) -> list[dict]:
         """Detect outlier observations using SPE and Hotelling's T² diagnostics.
