@@ -25,6 +25,9 @@ import typing
 
 import numpy as np
 
+if typing.TYPE_CHECKING:
+    import pandas as pd
+
 from ._common import _model_method
 from ._diagnostics import (
     eigenvalue_summary as _eigenvalue_summary,
@@ -101,6 +104,10 @@ class _HotellingsT2LimitMixin:
     four estimators. (TPLS reads a differently-named row count and keeps its own.)
     """
 
+    if typing.TYPE_CHECKING:  # fitted attributes provided by concrete subclasses
+        n_components: int
+        n_samples_: int
+
     def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
         """Hotelling's T2 limit at the given confidence level (see :func:`hotellings_t2_limit`)."""
         return _hotellings_t2_limit(
@@ -119,6 +126,9 @@ class _LatentVariableModel(_RenameGetattrMixin, _HotellingsT2LimitMixin):
     mixins (``TransformerMixin`` / ``RegressorMixin``) and ``BaseEstimator``, and
     provide the algorithm-specific ``fit`` / ``predict`` / ``transform``.
     """
+
+    if typing.TYPE_CHECKING:  # fitted attribute provided by concrete subclasses
+        scaling_factor_for_scores_: pd.Series
 
     score_plot = _model_method(_score_plot)
     spe_plot = _model_method(_spe_plot)
