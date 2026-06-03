@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import time
 import warnings
-from functools import partial
 
 import numpy as np
 import pandas as pd
@@ -24,25 +23,58 @@ from tqdm import tqdm
 
 from .._linalg import safe_inverse
 from ..univariate.metrics import detect_outliers_esd
-from ._common import DataMatrix, SpecificationWarning, epsqrt
+from ._common import DataMatrix, SpecificationWarning, _model_method, epsqrt
 from ._diagnostics import (
-    eigenvalue_summary,
-    observation_contributions,
-    project_variables,
-    squared_cosine,
-    vip,
+    eigenvalue_summary as _eigenvalue_summary,
 )
-from ._limits import ellipse_coordinates, hotellings_t2_limit, score_limit, spe_limit
+from ._diagnostics import (
+    observation_contributions as _observation_contributions,
+)
+from ._diagnostics import (
+    project_variables as _project_variables,
+)
+from ._diagnostics import (
+    squared_cosine as _squared_cosine,
+)
+from ._diagnostics import (
+    vip as _vip,
+)
+from ._limits import (
+    ellipse_coordinates as _ellipse_coordinates,
+)
+from ._limits import (
+    hotellings_t2_limit as _hotellings_t2_limit,
+)
+from ._limits import (
+    score_limit as _score_limit,
+)
+from ._limits import (
+    spe_limit as _spe_limit,
+)
 from ._nipals import quick_regress, ssq, terminate_check
 from .plots import (
-    coefficient_plot,
-    correlation_loadings_plot,
-    explained_variance_plot,
-    loading_plot,
-    predictions_vs_observed_plot,
-    score_plot,
-    spe_plot,
-    t2_plot,
+    coefficient_plot as _coefficient_plot,
+)
+from .plots import (
+    correlation_loadings_plot as _correlation_loadings_plot,
+)
+from .plots import (
+    explained_variance_plot as _explained_variance_plot,
+)
+from .plots import (
+    loading_plot as _loading_plot,
+)
+from .plots import (
+    predictions_vs_observed_plot as _predictions_vs_observed_plot,
+)
+from .plots import (
+    score_plot as _score_plot,
+)
+from .plots import (
+    spe_plot as _spe_plot,
+)
+from .plots import (
+    t2_plot as _t2_plot,
 )
 
 
@@ -158,6 +190,53 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.copy = copy
         self.missing_data_settings = missing_data_settings
         self.has_missing_data_ = False
+
+    # ENG-05: convenience methods forwarding to the standalone functions. These
+    # used to be ``functools.partial`` instances bound in ``fit``; defining them
+    # as real methods keeps ``help`` / ``inspect.signature`` accurate, the fitted
+    # model picklable, and the methods overridable by subclasses. The standalone
+    # functions remain available for advanced callers.
+    score_plot = _model_method(_score_plot)
+    spe_plot = _model_method(_spe_plot)
+    t2_plot = _model_method(_t2_plot)
+    loading_plot = _model_method(_loading_plot)
+    explained_variance_plot = _model_method(_explained_variance_plot)
+    correlation_loadings_plot = _model_method(_correlation_loadings_plot)
+    predictions_vs_observed_plot = _model_method(_predictions_vs_observed_plot)
+    coefficient_plot = _model_method(_coefficient_plot)
+    spe_limit = _model_method(_spe_limit)
+    score_limit = _model_method(_score_limit)
+    vip = _model_method(_vip)
+    squared_cosine = _model_method(_squared_cosine)
+    observation_contributions = _model_method(_observation_contributions)
+    eigenvalue_summary = _model_method(_eigenvalue_summary)
+    project_variables = _model_method(_project_variables)
+
+    def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
+        """Hotelling's T2 limit at the given confidence level (see :func:`hotellings_t2_limit`)."""
+        return _hotellings_t2_limit(
+            conf_level=conf_level,
+            n_components=self.n_components,
+            n_rows=self.n_samples_,
+        )
+
+    def ellipse_coordinates(
+        self,
+        score_horiz: int,
+        score_vert: int,
+        conf_level: float = 0.95,
+        n_points: int = 100,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Coordinates of the T2 confidence ellipse (see :func:`ellipse_coordinates`)."""
+        return _ellipse_coordinates(
+            score_horiz=score_horiz,
+            score_vert=score_vert,
+            conf_level=conf_level,
+            n_points=n_points,
+            n_components=self.n_components,
+            scaling_factor_for_scores=self.scaling_factor_for_scores_,
+            n_rows=self.n_samples_,
+        )
 
     def _fit_nipals(self, X: DataMatrix, Y: DataMatrix, A: int, settings: dict) -> None:  # noqa: PLR0915
         """Fit PLS via the NIPALS algorithm, handling missing data transparently.
@@ -433,30 +512,6 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
                 prior_SSY_col > 0, col_SSY / np.where(prior_SSY_col > 0, prior_SSY_col, 1.0), np.nan
             )
             self.rmse_.iloc[:, a] = (Yd.values - y_hat).pow(2).mean().pow(0.5)
-
-        # Bind convenience methods
-        self.ellipse_coordinates = partial(
-            ellipse_coordinates,
-            n_components=self.n_components,
-            scaling_factor_for_scores=self.scaling_factor_for_scores_,
-            n_rows=N,
-        )
-        self.hotellings_t2_limit = partial(hotellings_t2_limit, n_components=self.n_components, n_rows=N)
-        self.spe_limit = partial(spe_limit, model=self)
-        self.score_limit = partial(score_limit, model=self)
-        self.spe_plot = partial(spe_plot, model=self)
-        self.t2_plot = partial(t2_plot, model=self)
-        self.loading_plot = partial(loading_plot, model=self)
-        self.score_plot = partial(score_plot, model=self)
-        self.explained_variance_plot = partial(explained_variance_plot, model=self)
-        self.correlation_loadings_plot = partial(correlation_loadings_plot, model=self)
-        self.predictions_vs_observed_plot = partial(predictions_vs_observed_plot, model=self)
-        self.coefficient_plot = partial(coefficient_plot, model=self)
-        self.vip = partial(vip, model=self)
-        self.squared_cosine = partial(squared_cosine, model=self)
-        self.observation_contributions = partial(observation_contributions, model=self)
-        self.eigenvalue_summary = partial(eigenvalue_summary, model=self)
-        self.project_variables = partial(project_variables, self)
 
         return self
 
