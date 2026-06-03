@@ -11,6 +11,21 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.34] - 2026-06-03
+
+### Changed (internal)
+
+- **#192 (partial)**: TPLS housekeeping. Removed a stale `TODO:` scratch block
+  that was leaking into `TPLS.help()` output (the attributes it referenced are
+  now methods, per ENG-05) and added a `.vip()` line in its place. Added test
+  coverage for the previously-untested `feature_importance` / `vip()` surface
+  (structure, finite non-negative VIPs, feature-name indexing, the `vip()`
+  accessor and its error cases). This pins the current VIP-based behaviour so the
+  open question in #192 - whether the D/F feature importance should instead use
+  the deflated matrices `S(VᵀS)⁻¹` / `P(PᵀP)⁻¹` - can be settled as a deliberate,
+  reviewed change. The scaling-vector and deflated-matrix items of #192 remain
+  open.
+
 ## [1.24.33] - 2026-06-03
 
 ### Fixed
@@ -1326,7 +1341,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.33...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.34...HEAD
+[1.24.34]: https://github.com/kgdunn/process-improve/compare/v1.24.33...v1.24.34
 [1.24.33]: https://github.com/kgdunn/process-improve/compare/v1.24.32...v1.24.33
 [1.24.32]: https://github.com/kgdunn/process-improve/compare/v1.24.31...v1.24.32
 [1.24.31]: https://github.com/kgdunn/process-improve/compare/v1.24.30...v1.24.31
