@@ -9,6 +9,7 @@ plotting bound as convenience methods after ``fit()``.
 from __future__ import annotations
 
 import time
+import typing
 import warnings
 
 import numpy as np
@@ -23,62 +24,18 @@ from tqdm import tqdm
 
 from .._linalg import safe_inverse
 from ..univariate.metrics import detect_outliers_esd
+from ._base import _LatentVariableModel
 from ._common import DataMatrix, SpecificationWarning, _model_method, epsqrt
-from ._diagnostics import (
-    eigenvalue_summary as _eigenvalue_summary,
-)
-from ._diagnostics import (
-    observation_contributions as _observation_contributions,
-)
-from ._diagnostics import (
-    project_variables as _project_variables,
-)
-from ._diagnostics import (
-    squared_cosine as _squared_cosine,
-)
-from ._diagnostics import (
-    vip as _vip,
-)
-from ._limits import (
-    ellipse_coordinates as _ellipse_coordinates,
-)
-from ._limits import (
-    hotellings_t2_limit as _hotellings_t2_limit,
-)
-from ._limits import (
-    score_limit as _score_limit,
-)
-from ._limits import (
-    spe_limit as _spe_limit,
-)
 from ._nipals import quick_regress, ssq, terminate_check
 from .plots import (
     coefficient_plot as _coefficient_plot,
 )
 from .plots import (
-    correlation_loadings_plot as _correlation_loadings_plot,
-)
-from .plots import (
-    explained_variance_plot as _explained_variance_plot,
-)
-from .plots import (
-    loading_plot as _loading_plot,
-)
-from .plots import (
     predictions_vs_observed_plot as _predictions_vs_observed_plot,
 )
-from .plots import (
-    score_plot as _score_plot,
-)
-from .plots import (
-    spe_plot as _spe_plot,
-)
-from .plots import (
-    t2_plot as _t2_plot,
-)
 
 
-class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
+class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator):
     """Projection to Latent Structures (PLS) regression with diagnostics.
 
     Implements PLS via the NIPALS algorithm with production diagnostics: SPE,
@@ -190,52 +147,40 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.copy = copy
         self.missing_data_settings = missing_data_settings
 
-    # ENG-05: convenience methods forwarding to the standalone functions. These
-    # used to be ``functools.partial`` instances bound in ``fit``; defining them
-    # as real methods keeps ``help`` / ``inspect.signature`` accurate, the fitted
-    # model picklable, and the methods overridable by subclasses. The standalone
-    # functions remain available for advanced callers.
-    score_plot = _model_method(_score_plot)
-    spe_plot = _model_method(_spe_plot)
-    t2_plot = _model_method(_t2_plot)
-    loading_plot = _model_method(_loading_plot)
-    explained_variance_plot = _model_method(_explained_variance_plot)
-    correlation_loadings_plot = _model_method(_correlation_loadings_plot)
+    # ENG-17: the 13 shared convenience methods, hotellings_t2_limit,
+    # ellipse_coordinates and the rename __getattr__ are inherited from
+    # _LatentVariableModel. PLS keeps only its two PLS-specific plot methods and
+    # supplies its own rename map.
     predictions_vs_observed_plot = _model_method(_predictions_vs_observed_plot)
     coefficient_plot = _model_method(_coefficient_plot)
-    spe_limit = _model_method(_spe_limit)
-    score_limit = _model_method(_score_limit)
-    vip = _model_method(_vip)
-    squared_cosine = _model_method(_squared_cosine)
-    observation_contributions = _model_method(_observation_contributions)
-    eigenvalue_summary = _model_method(_eigenvalue_summary)
-    project_variables = _model_method(_project_variables)
 
-    def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
-        """Hotelling's T2 limit at the given confidence level (see :func:`hotellings_t2_limit`)."""
-        return _hotellings_t2_limit(
-            conf_level=conf_level,
-            n_components=self.n_components,
-            n_rows=self.n_samples_,
-        )
-
-    def ellipse_coordinates(
-        self,
-        score_horiz: int,
-        score_vert: int,
-        conf_level: float = 0.95,
-        n_points: int = 100,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Coordinates of the T2 confidence ellipse (see :func:`ellipse_coordinates`)."""
-        return _ellipse_coordinates(
-            score_horiz=score_horiz,
-            score_vert=score_vert,
-            conf_level=conf_level,
-            n_points=n_points,
-            n_components=self.n_components,
-            scaling_factor_for_scores=self.scaling_factor_for_scores_,
-            n_rows=self.n_samples_,
-        )
+    _ATTRIBUTE_RENAMES: typing.ClassVar[dict[str, str]] = {
+        "x_scores": "scores_",
+        "y_scores": "y_scores_",
+        "x_weights": "x_weights_",
+        "y_weights": "y_weights_",
+        "x_loadings": "x_loadings_",
+        "y_loadings": "y_loadings_",
+        "direct_weights": "direct_weights_",
+        "beta_coefficients": "beta_coefficients_",
+        "predictions": "predictions_",
+        "squared_prediction_error": "spe_",
+        "hotellings_t2": "hotellings_t2_",
+        "R2": "r2_per_component_",
+        "R2cum": "r2_cumulative_",
+        "R2X_cum": "r2_per_variable_",
+        "R2Y_cum": "r2y_per_variable_",
+        "RMSE": "rmse_",
+        "explained_variance": "explained_variance_",
+        "scaling_factor_for_scores": "scaling_factor_for_scores_",
+        "extra_info": "fitting_info_",
+        "has_missing_data": "has_missing_data_",
+        "N": "n_samples_",
+        "K": "n_features_in_",
+        "M": "n_targets_",
+        "A": "n_components",
+    }
+    _RENAME_CONTEXT: typing.ClassVar[str] = "PLS"
 
     def _fit_nipals(self, X: DataMatrix, Y: DataMatrix, A: int, settings: dict) -> None:  # noqa: PLR0915
         """Fit PLS via the NIPALS algorithm, handling missing data transparently.
@@ -1230,39 +1175,4 @@ class PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         lower = pd.DataFrame(y_hat.values - half_width, index=y_hat.index, columns=y_hat.columns)
         upper = pd.DataFrame(y_hat.values + half_width, index=y_hat.index, columns=y_hat.columns)
         return Bunch(y_hat=y_hat, lower=lower, upper=upper, conf_level=conf_level)
-
-    def __getattr__(self, name: str):
-        """Provide helpful error messages for old attribute names."""
-        renames = {
-            "x_scores": "scores_",
-            "y_scores": "y_scores_",
-            "x_weights": "x_weights_",
-            "y_weights": "y_weights_",
-            "x_loadings": "x_loadings_",
-            "y_loadings": "y_loadings_",
-            "direct_weights": "direct_weights_",
-            "beta_coefficients": "beta_coefficients_",
-            "predictions": "predictions_",
-            "squared_prediction_error": "spe_",
-            "hotellings_t2": "hotellings_t2_",
-            "R2": "r2_per_component_",
-            "R2cum": "r2_cumulative_",
-            "R2X_cum": "r2_per_variable_",
-            "R2Y_cum": "r2y_per_variable_",
-            "RMSE": "rmse_",
-            "explained_variance": "explained_variance_",
-            "scaling_factor_for_scores": "scaling_factor_for_scores_",
-            "extra_info": "fitting_info_",
-            "has_missing_data": "has_missing_data_",
-            "N": "n_samples_",
-            "K": "n_features_in_",
-            "M": "n_targets_",
-            "A": "n_components",
-        }
-        if name in renames:
-            raise AttributeError(
-                f"'{name}' was renamed to '{renames[name]}' in the PLS refactoring. "
-                f"Please update your code to use '{renames[name]}'."
-            )
-        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
