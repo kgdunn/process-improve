@@ -62,13 +62,14 @@ class ControlChart:
         self.variant = variant.strip().lower()
 
         # Will be calculated by the self.calculate_limits() function
-        self.target = None
-        self._given_target = None
-        self._given_s = None
-        self.s = None
+        self.target: float | None = None
+        self._given_target: float | None = None
+        self._given_s: float | None = None
+        self.s: float | None = None
         # index of elements which are found to be outside +/- 3S
-        self.idx_outside_3S = []
-        self.warm_up = {}
+        self.idx_outside_3S: list[int] = []
+        self.warm_up: dict[str, float | np.ndarray | pd.Series] = {}
+        self.warm_up_M: int = 0
 
         columns = [
             "y",
@@ -125,9 +126,9 @@ class ControlChart:
         self.N = self.df.shape[0]
 
         # Between M = 10 and 20 samples required to warm-up (calculate summary statistics)
-        self.warm_up["M"] = int(min(20, max(10, np.ceil(0.10 * self.N))))
+        self.warm_up["M"] = self.warm_up_M = int(min(20, max(10, np.ceil(0.10 * self.N))))
 
-        if (self.warm_up["M"] > self.N) and self.variant.strip().lower() == "hw":
+        if (self.warm_up_M > self.N) and self.variant.strip().lower() == "hw":
             # TO CHECK: Completely handle the case with very few samples. Is everything filled in?
             # Also check case when some of these samples are NAN, you might have even fewer still.
             self.target = self._target_calculated_best = self.df["y"].median()
@@ -140,10 +141,10 @@ class ControlChart:
             return
 
         # Check if there are enough training samples:
-        if 2 * self.warm_up["M"] > self.N:
-            self.train_samples = list(np.arange(0, self.N))
+        if 2 * self.warm_up_M > self.N:
+            self.train_samples: list[int] = [int(i) for i in np.arange(0, self.N)]
         else:
-            self.train_samples = list(np.arange(self.warm_up["M"], self.N))
+            self.train_samples = [int(i) for i in np.arange(self.warm_up_M, self.N)]
 
         for key, val in kwargs.items():
             setattr(self, key, val)
@@ -161,6 +162,8 @@ class ControlChart:
             self._xbar_no_subgroup_fit()
 
         # After whichever fit is completed, check which are outside +/- 3S:
+        assert self.target is not None
+        assert self.s is not None
         idx_bool = (self.df["y"] - self.target).abs() > 3.0 * self.s
         self.idx_outside_3S = np.nonzero(idx_bool.to_numpy())[0].tolist()
 
@@ -212,7 +215,7 @@ class ControlChart:
 
                     # Apply equation 16 from the paper to the residuals in the 'training' period,
                     # that is the samples after the warm-up period.
-                    future_errors = self.df["error"][self.train_samples]
+                    future_errors = self.df["error"].iloc[np.asarray(self.train_samples, dtype=int)]
                     S_T_median_error = 1.48 * np.median(abs(future_errors))
                     residuals[i, j] = np.power(S_T_median_error, 2) * np.average(
                         rho_func(future_errors / S_T_median_error)
@@ -229,7 +232,7 @@ class ControlChart:
             self._holt_winters_warmup_fit(ld_1=best_ld_1, ld_2=best_ld_2, ld_s=ld_s)
 
         # Common code for both branches of if-else above
-        future_errors = self.df["error"][self.train_samples]
+        future_errors = self.df["error"].iloc[np.asarray(self.train_samples, dtype=int)]
         S_T_median_error = 1.48 * future_errors.abs().median()  # must handle NaNs!
         resids = np.power(S_T_median_error, 2) * np.nanmean(rho_func(future_errors / S_T_median_error))
 
@@ -266,7 +269,7 @@ class ControlChart:
         The ideal lambda values (ld_1, ld_2, ld_s) can be found from a grid search.
         """
         df = self.df
-        y_warm_up = df["y"].iloc[0 : self.warm_up["M"]]
+        y_warm_up = df["y"].iloc[0 : self.warm_up_M]
         self.warm_up["y_zero_robust"] = y_warm_up.median()
 
         if isinstance(self.target, float):
@@ -274,8 +277,8 @@ class ControlChart:
             self.warm_up["beta_0"] = 0.0
         else:
             # p 290 of the paper, https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125
-            self.warm_up["beta_0"] = repeated_median_slope(np.arange(self.warm_up["M"]), y_warm_up)
-            self.warm_up["alpha_0"] = np.nanmedian(y_warm_up - self.warm_up["beta_0"] * np.arange(self.warm_up["M"]))
+            self.warm_up["beta_0"] = repeated_median_slope(np.arange(self.warm_up_M), y_warm_up.to_numpy())
+            self.warm_up["alpha_0"] = np.nanmedian(y_warm_up - self.warm_up["beta_0"] * np.arange(self.warm_up_M))
 
         if isinstance(self.s, float):
             self.warm_up["sigma_0"] = self.s
@@ -285,7 +288,9 @@ class ControlChart:
             warm_up_residuals = y_warm_up - self.warm_up["alpha_0"] - self.warm_up["beta_0"]
 
             # Some other method that does not rely on SciPy for 1 function.
-            self.warm_up["sigma_0"] = median_absolute_deviation(warm_up_residuals, nan_policy="omit")
+            self.warm_up["sigma_0"] = median_absolute_deviation(
+                np.asarray(warm_up_residuals), nan_policy="omit"
+            )
             self.warm_up["residuals"] = warm_up_residuals
 
         # A constant (zero-variance) warm-up window gives sigma_0 = MAD = 0, which

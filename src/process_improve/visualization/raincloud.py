@@ -62,7 +62,7 @@ def raincloud(  # noqa: PLR0913
         raise ValueError(f"orientation must be 'h' or 'v', got {orientation!r}.")
 
     if isinstance(data, pd.Series):
-        column = value or (data.name if data.name is not None else "value")
+        column = value or (str(data.name) if data.name is not None else "value")
         frame = data.to_frame(name=column)
         value = column
     else:

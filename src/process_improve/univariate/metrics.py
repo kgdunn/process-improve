@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import warnings
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, NoReturn
+from typing import TYPE_CHECKING, Any, Literal, NoReturn
 
 import numpy as np
 import pandas as pd
@@ -215,8 +215,8 @@ def ttest_independent(sample_A: pd.Series, sample_B: pd.Series, conflevel: float
     dict
         Outcomes from the statistical test.
     """
-    axis = 0
-    v1, v2 = sample_A.var(axis, ddof=1), sample_B.var(axis, ddof=1)
+    axis: Literal[0] = 0
+    v1, v2 = sample_A.var(axis=axis, ddof=1), sample_B.var(axis=axis, ddof=1)
     n_A, n_B = sample_A.shape[axis], sample_B.shape[axis]
     m1, m2 = sample_A.mean(), sample_B.mean()
     df = n_A + n_B - 2.0
@@ -284,9 +284,8 @@ def ttest_independent_from_df(
 
     data_subset = df[[grouper_column, values_column]].copy()
     data_subset = data_subset.dropna()
-    groups = df[grouper_column].unique()
     output = pd.DataFrame()
-    groups = list(groups)
+    groups = list(df[grouper_column].unique())
     while len(groups) > 0:
         groupA_name = groups.pop(0)
         for groupB_name in groups:
@@ -402,9 +401,8 @@ def ttest_paired_from_df(
     """
     data_subset = df[[grouper_column, values_column]].copy()
     data_subset = data_subset.dropna()
-    groups = df[grouper_column].unique()
     output = pd.DataFrame()
-    groups = list(groups)
+    groups = list(df[grouper_column].unique())
     while len(groups) > 0:
         groupA_name = groups.pop(0)
         for groupB_name in groups:
@@ -417,7 +415,7 @@ def ttest_paired_from_df(
                     "Paired t-test requires both groups to have the same number of samples; "
                     f"got {sample_A.shape[0]} and {sample_B.shape[0]}."
                 )
-            differences = sample_A - sample_B.values  # only the .values of one vector are needed!
+            differences = sample_A - sample_B.to_numpy()  # only the values of one vector are needed!
             basic_stats = ttest_paired(differences, conflevel)
             basic_stats.update(
                 {
@@ -461,7 +459,7 @@ def confidence_interval(df: pd.DataFrame, column_name: str, conflevel: float = 0
 
     if style.lower() == "robust":
         center = data.median()
-        spread = median_absolute_deviation(data.values, nan_policy="omit")
+        spread = median_absolute_deviation(data.to_numpy(), nan_policy="omit")
     else:
         center = data.mean()
         spread = data.std()
@@ -765,12 +763,13 @@ def summary_stats(x: np.ndarray | pd.Series, method: str = "robust") -> dict:
         estimate for the robust method).
     """
     if isinstance(x, pd.Series):
-        x = x.copy(deep=True).values
+        values = x.copy(deep=True).to_numpy()
     elif isinstance(x, np.ndarray):
-        x = x.ravel()
+        values = x.ravel()
     else:
         raise TypeError("Expecting a NumPy vector or Pandas series.")
 
+    x = values
     out = {}
     out["mean"] = np.nanmean(x)
     out["std_ddof0"] = np.nanstd(x, ddof=0)
@@ -869,7 +868,7 @@ def detect_outliers_esd(
 
         # 2. https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h3.htm
         x = x.copy(deep=True)
-        extra_out = defaultdict(list)
+        extra_out: defaultdict[str, list[Any]] = defaultdict(list)
         N = x.shape[0] - pd.isna(x).sum()
 
         for k in range(max_outliers_detected):
@@ -877,7 +876,7 @@ def detect_outliers_esd(
             extra_out["i"].append(i)
 
             if robust_variant:
-                variation = median_absolute_deviation(x)
+                variation = median_absolute_deviation(x.to_numpy())
                 R = ((x - x.median()) / variation).abs()
             else:
                 variation = x.std()
