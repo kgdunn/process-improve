@@ -185,6 +185,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     }
     _RENAME_CONTEXT: typing.ClassVar[str] = "PLS"
 
+    # Y-side fitted attributes: ndarrays while NIPALS fills them in, then wrapped
+    # into the documented public DataFrames at the end of fit().
+    y_scores_: np.ndarray | pd.DataFrame
+    y_weights_: np.ndarray | pd.DataFrame
+    y_loadings_: np.ndarray | pd.DataFrame
+    # Fitted diagnostics: per-component arrays or scalar totals.
+    fitting_info_: dict[str, np.ndarray | int | float]
+
     # ENG-18: public DataFrame views built lazily from the private ndarrays.
     scores_ = _LazyFrame("_scores", index="_sample_index", columns="_component_names")
     spe_ = _LazyFrame("_spe", index="_sample_index", columns="_component_names")
@@ -237,13 +245,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             start_SSX_col = ssq(Xd, axis=0)
             start_SSY_col = ssq(Yd, axis=0)
 
-            if sum(start_SSX_col) < epsqrt:
+            if np.sum(start_SSX_col) < epsqrt:
                 emsg = (
                     "There is no variance left in the data array for X: cannot "
                     f"compute any more components beyond component {a}."
                 )
                 raise RuntimeError(emsg)
-            if sum(start_SSY_col) < epsqrt:
+            if np.sum(start_SSY_col) < epsqrt:
                 emsg = (
                     "There is no variance left in the data array for Y: cannot "
                     f"compute any more components beyond component {a}."
@@ -275,8 +283,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
                 itern += 1
 
-            self.fitting_info_["timing"][a] = time.time() - start_time
-            self.fitting_info_["iterations"][a] = itern
+            timing_arr = typing.cast("np.ndarray", self.fitting_info_["timing"])
+            iterations_arr = typing.cast("np.ndarray", self.fitting_info_["iterations"])
+            timing_arr[a] = time.time() - start_time
+            iterations_arr[a] = itern
             logger.debug(
                 "PLS NIPALS: component %d converged in %d iterations (md_tol=%g)",
                 a + 1,
@@ -352,6 +362,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         N = self.n_samples_
         K = self.n_features_in_
         M = self.n_targets_
+
+        # The remainder of fit() uses the pandas DataFrame API (.isna / .index /
+        # .columns); the NIPALS core in _fit_nipals already np.asarray-copies the
+        # numeric values. Narrow the static type accordingly (the DataFrame path
+        # is unchanged at runtime).
+        assert isinstance(X, pd.DataFrame)
+        assert isinstance(Y, pd.DataFrame)
 
         # Check if number of components is supported against maximum requested
         min_dim = min(N, K)
@@ -457,7 +474,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             col_SSX = ssq(Xd.values, axis=0)
             row_SSY = ssq(y_hat.values, axis=1)
             col_SSY = ssq(y_hat.values, axis=0)
-            self.r2_cumulative_.iloc[a] = sum(row_SSY) / base_variance_Y
+            self.r2_cumulative_.iloc[a] = np.sum(row_SSY) / base_variance_Y
             if a > 0:
                 self.r2_per_component_.iloc[a] = self.r2_cumulative_.iloc[a] - self.r2_cumulative_.iloc[a - 1]
             else:
@@ -473,7 +490,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             self.r2y_per_variable_.iloc[:, a] = np.where(
                 prior_SSY_col > 0, col_SSY / np.where(prior_SSY_col > 0, prior_SSY_col, 1.0), np.nan
             )
-            self.rmse_.iloc[:, a] = (Yd.values - y_hat).pow(2).mean().pow(0.5)
+            residuals_y = Yd.to_numpy() - y_hat.to_numpy()
+            self.rmse_.iloc[:, a] = np.sqrt(np.mean(residuals_y**2, axis=0))
 
         return self
 
@@ -509,6 +527,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         -------
         X_scores : pd.DataFrame of shape (n_samples, n_components)
         """
+        assert Y is not None, "PLS requires Y to be supplied to fit_transform."
         self.fit(X, Y)
         return self.scores_
 
@@ -560,7 +579,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         scores = X @ self.direct_weights_
 
         # Hotelling's T² (cumulative over all components)
-        t2_values = np.sum(np.power((scores / self.scaling_factor_for_scores_.values), 2), axis=1)
+        t2_values = np.sum(np.power((scores / self.scaling_factor_for_scores_.to_numpy()), 2), axis=1)
         t2 = pd.Series(t2_values, index=X.index, name="Hotelling's T²")
 
         # SPE: residual after X reconstruction
@@ -684,7 +703,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             scores_test = X.iloc[test_idx].to_numpy() @ model.direct_weights_.to_numpy()
             y_test = Y.iloc[test_idx].to_numpy()
             x_test = X.iloc[test_idx].to_numpy()
-            y_loadings = model.y_loadings_.to_numpy()  # shape (M, A)
+            # After fit(), y_loadings_ is always the public DataFrame.
+            y_loadings = typing.cast("pd.DataFrame", model.y_loadings_).to_numpy()  # shape (M, A)
             x_loadings = model.x_loadings_.to_numpy()  # shape (K, A)
             for a in range(1, A + 1):
                 y_hat = scores_test[:, :a] @ y_loadings[:, :a].T
@@ -855,10 +875,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         alpha = 1 - conf_level
 
         spe_outlier_idx, _ = detect_outliers_esd(
-            spe_values.values, algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
+            spe_values.to_numpy(), algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
         )
         t2_outlier_idx, _ = detect_outliers_esd(
-            t2_values.values, algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
+            t2_values.to_numpy(), algorithm="esd", max_outliers_detected=max_outliers, alpha=alpha
         )
 
         spe_flagged = set(spe_outlier_idx)
@@ -1029,6 +1049,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 beta_collection.append(sub_model.beta_coefficients_.values)
 
         elif method == "jackknife":
+            assert y_hat_cv is not None  # only None when use_bootstrap is True
             iterator = tqdm(range(N), desc="Jackknife (LOO)", disable=not show_progress)
             for i in iterator:
                 train_idx = np.concatenate([np.arange(i), np.arange(i + 1, N)])
@@ -1038,6 +1059,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 y_hat_cv[i, :] = pred.y_hat.values.ravel()
 
         else:  # K-fold
+            assert y_hat_cv is not None  # only None when use_bootstrap is True
             n_resamples = int(cv)
             kf = KFold(n_splits=n_resamples, shuffle=True, random_state=random_state)
             desc = f"{n_resamples}-Fold CV"

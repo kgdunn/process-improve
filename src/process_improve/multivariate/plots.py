@@ -785,9 +785,9 @@ def explained_variance_plot(
     return fig
 
 
-def _per_component_r2(cumulative: object, component: int) -> np.ndarray:
+def _per_component_r2(cumulative: pd.DataFrame, component: int) -> np.ndarray:
     """Per-component R2 (per variable) from a cumulative-R2-per-variable table."""
-    columns = list(cumulative.columns)
+    columns: list[object] = list(cumulative.columns)
     position = columns.index(component)
     values = cumulative.iloc[:, position].to_numpy(dtype=float)
     if position == 0:
@@ -795,7 +795,7 @@ def _per_component_r2(cumulative: object, component: int) -> np.ndarray:
     return values - cumulative.iloc[:, position - 1].to_numpy(dtype=float)
 
 
-def _correlation_loadings(cumulative_r2: object, loadings: object, component: int) -> np.ndarray:
+def _correlation_loadings(cumulative_r2: pd.DataFrame, loadings: pd.DataFrame, component: int) -> np.ndarray:
     """Correlation of each variable with one component's scores.
 
     The squared correlation loading equals the fraction of a variable's
@@ -973,7 +973,7 @@ def correlation_loadings_plot(  # noqa: C901, PLR0913
 def predictions_vs_observed_plot(
     model: BaseEstimator,
     *,
-    y_observed: object,
+    y_observed: pd.DataFrame | np.ndarray,
     variable: str | None = None,
     settings: dict | None = None,
     fig: go.Figure | None = None,

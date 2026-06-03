@@ -290,22 +290,22 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
                     t_super_col = t_super.reshape(-1, 1)
                     for b_idx, name in enumerate(self.block_names_):
                         p_b = quick_regress(x_def[name], t_super_col).flatten()
-                        p_b = p_b / _nz(np.sqrt(ssq(p_b.reshape(-1, 1))))
+                        p_b = p_b / _nz(float(np.sqrt(ssq(p_b.reshape(-1, 1)))))
                         t_b = quick_regress(x_def[name], p_b.reshape(-1, 1)).flatten() / sqrt_kb[name]
                         local_loadings[name] = p_b
                         local_scores[name] = t_b
                         t_b_summary[:, b_idx] = t_b
                 else:
                     for b_idx, name in enumerate(self.block_names_):
-                        p_b = x_def[name].T @ t_super / _nz(t_super @ t_super)
-                        p_b = p_b / _nz(np.linalg.norm(p_b))
-                        t_b = x_def[name] @ p_b / _nz(p_b @ p_b) / sqrt_kb[name]
+                        p_b = x_def[name].T @ t_super / _nz(float(t_super @ t_super))
+                        p_b = p_b / _nz(float(np.linalg.norm(p_b)))
+                        t_b = x_def[name] @ p_b / _nz(float(p_b @ p_b)) / sqrt_kb[name]
                         local_loadings[name] = p_b
                         local_scores[name] = t_b
                         t_b_summary[:, b_idx] = t_b
-                p_s = t_b_summary.T @ t_super / _nz(t_super @ t_super)
-                p_s = p_s / _nz(np.linalg.norm(p_s))
-                t_super = t_b_summary @ p_s / _nz(p_s @ p_s)
+                p_s = t_b_summary.T @ t_super / _nz(float(t_super @ t_super))
+                p_s = p_s / _nz(float(np.linalg.norm(p_s)))
+                t_super = t_b_summary @ p_s / _nz(float(p_s @ p_s))
                 itern += 1
 
             # Sign convention: largest |super_loading| element positive
@@ -511,14 +511,14 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         check_is_fitted(self, "block_spe_")
         if block not in self.block_spe_:
             raise KeyError(f"Unknown block '{block}'. Known blocks: {list(self.block_spe_)}.")
-        return spe_calculation(self.block_spe_[block].iloc[:, -1].values, conf_level=conf_level)
+        return spe_calculation(self.block_spe_[block].iloc[:, -1].to_numpy(), conf_level=conf_level)
 
     def super_spe_limit(self, conf_level: float = 0.95) -> float:
         """SPE limit for the merged super-block."""
         check_is_fitted(self, "block_spe_")
         merged_spe_squared = np.zeros(self.n_samples_)
         for name in self.block_names_:
-            merged_spe_squared += self.block_spe_[name].iloc[:, -1].values ** 2
+            merged_spe_squared += self.block_spe_[name].iloc[:, -1].to_numpy() ** 2
         return spe_calculation(np.sqrt(merged_spe_squared), conf_level=conf_level)
 
     def spe_contributions(self, X: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
@@ -607,8 +607,8 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         a_max = int(self.n_components)
         if not (1 <= pc_horiz <= a_max and 1 <= pc_vert <= a_max):
             raise ValueError(f"pc_horiz and pc_vert must be in 1..{a_max}.")
-        x = self.super_scores_[pc_horiz].values
-        y = self.super_scores_[pc_vert].values
+        x = self.super_scores_[pc_horiz].to_numpy()
+        y = self.super_scores_[pc_vert].to_numpy()
         labels = [str(i) for i in self.super_scores_.index]
         fig = go.Figure(
             data=[
@@ -636,7 +636,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         if not (1 <= component <= a_max):
             raise ValueError(f"component must be in 1..{a_max}.")
         loadings = self.super_loadings_[component]
-        fig = go.Figure(data=[go.Bar(x=list(loadings.index), y=loadings.values, name=f"p_super[{component}]")])
+        fig = go.Figure(data=[go.Bar(x=list(loadings.index), y=loadings.to_numpy(), name=f"p_super[{component}]")])
         fig.update_layout(
             xaxis_title="Block",
             yaxis_title=f"p_super[{component}]",

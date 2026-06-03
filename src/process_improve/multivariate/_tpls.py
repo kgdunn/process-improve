@@ -62,7 +62,7 @@ class DataFrameDict(dict):
                         f"Group {group} has {df.shape[0]} rows."
                     )
 
-    def keys(self) -> KeysView[str]:
+    def keys(self) -> KeysView[str]:  # type: ignore[override]  # reason: narrows dict.keys to str view
         """Return the keys of the DataFrameDict."""
         return self.datadict.keys()
 
@@ -78,9 +78,21 @@ class DataFrameDict(dict):
                 f"DataFrames in block {key} must have the same number of rows ({self.n_samples}). "
                 f"Provided DataFrame has {value.shape[0]} rows."
             )
-        self.datadict[key] = value
+        # The setter intentionally stores a bare DataFrame here (not the nested
+        # dict[str, DataFrame] used at construction); preserve that behaviour.
+        self.datadict[key] = value  # type: ignore[assignment]  # reason: legacy bare-DataFrame storage
 
-    def __getitem__(self, lookup: int | list[int] | list[np.int64] | str) -> DataFrameDict | dict[str, pd.DataFrame]:
+    @typing.overload
+    def __getitem__(self, lookup: str) -> dict[str, pd.DataFrame]: ...
+
+    @typing.overload
+    def __getitem__(
+        self, lookup: int | list[int] | list[np.int64] | np.ndarray | tuple
+    ) -> DataFrameDict: ...
+
+    def __getitem__(
+        self, lookup: int | list[int] | list[np.int64] | str | np.ndarray | tuple
+    ) -> DataFrameDict | dict[str, pd.DataFrame]:
         """Return a new DataFrameDict with partitioned data."""
 
         if isinstance(lookup, str):
@@ -94,7 +106,7 @@ class DataFrameDict(dict):
                     case int() | np.integer():
                         datadict[block][group] = df.iloc[[lookup]]
                     case list():
-                        datadict[block][group] = df.iloc[lookup]
+                        datadict[block][group] = df.iloc[typing.cast("list[int]", lookup)]
                     case np.ndarray():
                         datadict[block][group] = df.iloc[lookup.tolist()]
                     case tuple():
@@ -444,7 +456,8 @@ class TPLS(RegressorMixin, BaseEstimator):
             for key in self.y_mats
         }
         # 3. Squared prediction error (SPE) for each observation, per component, per block
-        self.spe: dict[str, dict[str, pd.DataFrame]] = {key: {} for key in self.required_blocks_}
+        # Most blocks store a (N x 1) DataFrame of SPE values; the D-space stores a Series.
+        self.spe: dict[str, dict[str, pd.DataFrame | pd.Series]] = {key: {} for key in self.required_blocks_}
         self.spe_limit: dict[str, dict[str, Callable]] = {key: {} for key in self.required_blocks_}
 
         # 4. Hotelling's T2 values for each observation, per component
@@ -574,7 +587,7 @@ class TPLS(RegressorMixin, BaseEstimator):
                 ).reshape(-1, 1)
             else:
                 # The w_loadings_super are just "1" or "-1" in this case
-                super_score_a = score_f_a.reshape(-1, 1) * self.w_loadings_super.iloc[:, pc_a].values
+                super_score_a = score_f_a.reshape(-1, 1) * self.w_loadings_super.iloc[:, pc_a].to_numpy()
 
             # Deflate each block (key) in x_f matrices with the super_scores, to get values for the next iteration,
             # and to compute SPE.
@@ -601,14 +614,18 @@ class TPLS(RegressorMixin, BaseEstimator):
         # After the loop has repeated `self.n_components` times: calculate the predictions using the full set of super
         # scores and the q-loadings for the Y-space.
         for key in self.y_mats:
-            hat[key].iloc[:, :] = (t_scores_super.values @ self.q_loadings_y[key].values.T) * self.preproc_["Y"][key][
-                "scale"
-            ].values[None, :] + self.preproc_["Y"][key]["center"].values[None, :]
+            hat[key].iloc[:, :] = (
+                t_scores_super.to_numpy() @ self.q_loadings_y[key].to_numpy().T
+            ) * self.preproc_["Y"][key]["scale"].to_numpy()[None, :] + self.preproc_["Y"][key][
+                "center"
+            ].to_numpy()[None, :]
 
         # Calculate the T2 values: for all the spaces
         hotellings_t2.iloc[:, :] = (
             # Last item in the statement here is not super_scores.values !! we want the result back as a DataFrame
-            t_scores_super.values @ np.diag(np.power(1 / self.scaling_factor_for_scores.values, 2), 0) * t_scores_super
+            t_scores_super.to_numpy()
+            @ np.diag(np.power(1 / self.scaling_factor_for_scores.to_numpy(), 2), 0)
+            * t_scores_super
         ).cumsum(axis="columns")
 
         return Bunch(
@@ -755,7 +772,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Return this function's docstring as the help text.
         # Dedent the self.__docs__ string and return that
-        return self.help.__doc__.replace("        ", "").replace("\n\n", "\n").strip()
+        return (self.help.__doc__ or "").replace("        ", "").replace("\n\n", "\n").strip()
 
     def _input_data_checks(self, X: DataFrameDict) -> None:
         """Check the incoming data."""
@@ -842,7 +859,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         # False, and the loop ran to max_iter. SEC-21 (#270) sub-item 1.
         delta_gap = float(
             np.linalg.norm(starting_vector - revised_vector, ord=None)
-            / _nz(np.linalg.norm(starting_vector, ord=None))
+            / _nz(float(np.linalg.norm(starting_vector, ord=None)))
         )
         converged = delta_gap < self.tolerance_
         max_iter = iterations >= self.max_iter
@@ -1095,8 +1112,8 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Calculate the Hotelling's T2 values, and limits. Could do a ddof correction (n-1) for the variance matrix.
         variance_matrix = self.t_scores_super.T @ self.t_scores_super / self.t_scores_super.shape[0]
         t2_values = np.sum(
-            (self.t_scores_super.values @ safe_inverse(variance_matrix, what="super-score covariance"))
-            * self.t_scores_super.values,
+            (self.t_scores_super.to_numpy() @ safe_inverse(variance_matrix.to_numpy(), what="super-score covariance"))
+            * self.t_scores_super.to_numpy(),
             axis=1,
         )
         self.hotellings_t2 = pd.DataFrame(
@@ -1122,7 +1139,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             )
             for key in self.y_mats
         }
-        self.spe_limit["Y"] = {key: partial(spe_calculation, self.spe["Y"][key].values) for key in self.y_mats}
+        self.spe_limit["Y"] = {key: partial(spe_calculation, self.spe["Y"][key].to_numpy()) for key in self.y_mats}
         self.spe["Z"] = {
             key: pd.DataFrame(
                 np.sqrt(np.sum(np.square(self.z_mats[key]), axis=1, keepdims=True)),
@@ -1131,11 +1148,15 @@ class TPLS(RegressorMixin, BaseEstimator):
             )
             for key in self.z_mats
         }
-        self.spe_limit["Z"] = {key: partial(spe_calculation, self.spe["Z"][key].values) for key in self.z_mats}
+        self.spe_limit["Z"] = {key: partial(spe_calculation, self.spe["Z"][key].to_numpy()) for key in self.z_mats}
 
         # SPE for the D-space. There are two options: per property feature, or per material feature.
-        self.spe["D"] = {key: self.d_mats[key].pow(2).sum(axis="columns").pow(0.5) for key in self.d_mats}
-        self.spe_limit["D"] = {key: partial(spe_calculation, self.spe["D"][key].values) for key in self.d_mats}
+        # By this point d_mats holds DataFrames (reassigned during preprocessing/deflation).
+        self.spe["D"] = {
+            key: typing.cast("pd.DataFrame", self.d_mats[key]).pow(2).sum(axis="columns").pow(0.5)
+            for key in self.d_mats
+        }
+        self.spe_limit["D"] = {key: partial(spe_calculation, self.spe["D"][key].to_numpy()) for key in self.d_mats}
         self.spe["F"] = {
             key: pd.DataFrame(
                 np.sqrt(np.sum(np.square(self.f_mats[key]), axis=1, keepdims=True)),
@@ -1144,14 +1165,14 @@ class TPLS(RegressorMixin, BaseEstimator):
             )
             for key in self.f_mats
         }
-        self.spe_limit["F"] = {key: partial(spe_calculation, self.spe["F"][key].values) for key in self.f_mats}
+        self.spe_limit["F"] = {key: partial(spe_calculation, self.spe["F"][key].to_numpy()) for key in self.f_mats}
 
         # Y-space predictions
         for key in self.y_mats:
             # The Y-space predictions are already in the pre-processed space, so we need to scale them back to the
             self.hat[key] = pd.DataFrame(self.hat_[key], index=self.observation_names, columns=self.quality_names[key])
-            self.hat[key] = self.hat[key].multiply(self.preproc_["Y"][key]["scale"].values[None, :], axis=1)
-            self.hat[key] += self.preproc_["Y"][key]["center"].values[None, :]
+            self.hat[key] = self.hat[key].multiply(self.preproc_["Y"][key]["scale"].to_numpy()[None, :], axis=1)
+            self.hat[key] += self.preproc_["Y"][key]["center"].to_numpy()[None, :]
 
     def _preprocess_data(self) -> None:
         """Pre-process the training data."""
@@ -1159,23 +1180,23 @@ class TPLS(RegressorMixin, BaseEstimator):
         for key in self.f_mats:
             if not self.skip_f_matrix_preprocessing:
                 self.f_mats[key] = (
-                    self.f_mats[key] - self.preproc_["F"][key]["center"].values[None, :]
-                ) / self.preproc_["F"][key]["scale"].values[None, :]
+                    self.f_mats[key] - self.preproc_["F"][key]["center"].to_numpy()[None, :]
+                ) / self.preproc_["F"][key]["scale"].to_numpy()[None, :]
 
             self.d_mats[key] = (
-                (self.d_mats[key] - self.preproc_["D"][key]["center"].values[None, :])
-                / self.preproc_["D"][key]["scale"].values[None, :]
+                (self.d_mats[key] - self.preproc_["D"][key]["center"].to_numpy()[None, :])
+                / self.preproc_["D"][key]["scale"].to_numpy()[None, :]
                 / self.preproc_["D"][key]["block"][0]  # scalar!
             )
         for key in self.z_mats:
-            self.z_mats[key] = (self.z_mats[key] - self.preproc_["Z"][key]["center"].values[None, :]) / self.preproc_[
-                "Z"
-            ][key]["scale"].values[None, :]
+            self.z_mats[key] = (
+                self.z_mats[key] - self.preproc_["Z"][key]["center"].to_numpy()[None, :]
+            ) / self.preproc_["Z"][key]["scale"].to_numpy()[None, :]
 
         for key in self.y_mats:
-            self.y_mats[key] = (self.y_mats[key] - self.preproc_["Y"][key]["center"].values[None, :]) / self.preproc_[
-                "Y"
-            ][key]["scale"].values[None, :]
+            self.y_mats[key] = (
+                self.y_mats[key] - self.preproc_["Y"][key]["center"].to_numpy()[None, :]
+            ) / self.preproc_["Y"][key]["scale"].to_numpy()[None, :]
 
         # Test that all blocks and groups within a block have a mean of 0 and a standard deviation of 1.
         # Note the extra complexity for checking columns that have perfectly zero variance.
@@ -1276,7 +1297,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
                     # Step 8: Normalize joint w to unit length. See MB-PLS by Westerhuis et al. 1998. This is normal.
                     # Floor each per-block norm so a degenerate Z block doesn't yield NaN. SEC-21 (#270) sub-item 1.
-                    w_i_z = {key: w / _nz(np.linalg.norm(w)) for key, w in w_i_z.items()}
+                    w_i_z = {key: w / _nz(float(np.linalg.norm(w))) for key, w in w_i_z.items()}
 
                     # Step 9: regress rows of Z on w_i, and store slope coefficients in t_z. There is an error in the
                     #        paper here, but in figure 4 it is clear what should be happening.
@@ -1313,7 +1334,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             # =================
             # Floor ``||u_prior||`` -- see SEC-21 (#270) sub-item 1.
             delta_gap = float(
-                np.linalg.norm(u_prior - u_super_i, ord=None) / _nz(np.linalg.norm(u_prior, ord=None))
+                np.linalg.norm(u_prior - u_super_i, ord=None) / _nz(float(np.linalg.norm(u_prior, ord=None)))
             )
             self.fitting_statistics["iterations"].append(n_iter)
             self.fitting_statistics["convergance_tolerance"].append(delta_gap)
