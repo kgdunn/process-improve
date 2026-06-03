@@ -11,6 +11,19 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.30] - 2026-06-03
+
+### Changed (internal)
+
+- **ENG-25 (#307)**: chip away the in-line complexity suppressions. Refactored
+  `_select_screening_design` (`experiments/strategy/engine.py`) - which carried
+  `# noqa: C901, PLR0912, PLR0915` - into four focused helpers
+  (`_mixture_screening_stage`, `_factorial_screening_stage`,
+  `_large_factor_screening_choice`, `_screening_design_params`) and removed a
+  dead local `reasoning` list (the user-facing reasoning is built separately by
+  `_build_reasoning`). The suppression is gone and the decision logic is
+  unchanged; suppression count drops from 68 to 67.
+
 ## [1.24.29] - 2026-06-03
 
 ### Fixed
@@ -1267,7 +1280,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.29...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.30...HEAD
+[1.24.30]: https://github.com/kgdunn/process-improve/compare/v1.24.29...v1.24.30
 [1.24.29]: https://github.com/kgdunn/process-improve/compare/v1.24.28...v1.24.29
 [1.24.28]: https://github.com/kgdunn/process-improve/compare/v1.24.27...v1.24.28
 [1.24.27]: https://github.com/kgdunn/process-improve/compare/v1.24.26...v1.24.27

@@ -156,110 +156,108 @@ def _classify_problem(spec: DOEProblemSpec) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _select_screening_design(  # noqa: C901, PLR0912, PLR0915
+def _mixture_screening_stage(spec: DOEProblemSpec, n: int) -> ExperimentalStage:
+    """Screening stage when all factors are mixture components (simplex lattice)."""
+    return ExperimentalStage(
+        stage_number=1,
+        stage_name="Screening",
+        design_type="simplex_lattice",
+        design_params={"model": "scheffe_linear"},
+        factors=spec.factor_names,
+        estimated_runs=max(n + 1, 6),  # Minimum for simplex lattice
+        purpose="Screen mixture components to identify significant proportions.",
+        success_criteria={"min_significant_factors": 1},
+        transition_rules=_screening_transition_rules(),
+    )
+
+
+def _factorial_screening_stage(spec: DOEProblemSpec, n: int) -> ExperimentalStage:
+    """Screening stage for 3-5 all-continuous factors (full or fractional factorial)."""
+    if n <= 4:
+        design_type = "full_factorial"
+        runs = 2**n + 3  # + center points
+    else:
+        design_type = "fractional_factorial"
+        runs = estimate_screening_runs(n, "fractional_factorial") + 3
+    return ExperimentalStage(
+        stage_number=1,
+        stage_name="Screening",
+        design_type=design_type,
+        design_params={"center_points": 3, "resolution": 4 if n >= 5 else None},
+        factors=spec.factor_names,
+        estimated_runs=runs,
+        purpose=f"Screen {n} factors to identify significant main effects and interactions.",
+        success_criteria={"min_significant_factors": 1},
+        transition_rules=_screening_transition_rules(),
+    )
+
+
+def _large_factor_screening_choice(
+    n: int, classification: dict[str, Any], template: dict[str, Any]
+) -> tuple[str, int]:
+    """Choose (design_type, estimated_runs) when the factorial/mixture rules do not apply.
+
+    Preserves the original ordered decision chain: definitive screening (very tight
+    budget, curvature preference, or moderate prior confidence) takes precedence, then
+    Plackett-Burman (explicit preference or 6+ factors with adequate budget), then an
+    explicit fractional-factorial preference, with Plackett-Burman as the default.
+    """
+    prefer_curvature = template.get("prefer_curvature_detection", False)
+    domain_pref = template.get("screening_preference")
+
+    if (
+        classification["is_very_tight_budget"]
+        or prefer_curvature
+        or domain_pref == "definitive_screening"
+        or classification["prior_confidence"] >= 0.6
+    ):
+        return "definitive_screening", estimate_screening_runs(n, "definitive_screening")
+    if domain_pref == "plackett_burman" or (n >= 6 and not classification["is_tight_budget"]):
+        return "plackett_burman", estimate_screening_runs(n, "plackett_burman")
+    if domain_pref == "fractional_factorial":
+        return "fractional_factorial", estimate_screening_runs(n, "fractional_factorial") + 3
+    return "plackett_burman", estimate_screening_runs(n, "plackett_burman")
+
+
+def _screening_design_params(design_type: str, n: int) -> dict[str, Any]:
+    """Build the design-specific parameter dict for a large-factor screening stage."""
+    if design_type == "fractional_factorial":
+        return {"resolution": 4, "center_points": 3}
+    if design_type == "plackett_burman":
+        return {"center_points": 0}  # PB typically without center points
+    if design_type == "definitive_screening":
+        return {"fake_factor": n % 2 == 0}  # DSD needs odd factor count
+    return {}
+
+
+def _select_screening_design(
     spec: DOEProblemSpec,
     classification: dict[str, Any],
     template: dict[str, Any],
 ) -> ExperimentalStage | None:
     """Select the appropriate screening design based on decision rules."""
     n = classification["n_factors"]
-    reasoning: list[str] = []
 
-    # Rule: 2 or fewer factors - no screening needed
+    # Rule: 2 or fewer factors - no screening needed.
     if n <= 2:
         return None
-
-    # Rule: High prior confidence - skip screening
+    # Rule: high prior confidence - skip screening.
     if classification["prior_confidence"] >= 0.8:
         return None
-
-    # Rule: Mixture factors only - use mixture design path
+    # Rule: mixture factors only - use the mixture design path.
     if spec.has_mixture and spec.n_continuous == 0:
-        design_type = "simplex_lattice"
-        runs = max(n + 1, 6)  # Minimum for simplex lattice
-        reasoning.append(f"All {n} factors are mixture components → simplex lattice design.")
-        return ExperimentalStage(
-            stage_number=1,
-            stage_name="Screening",
-            design_type=design_type,
-            design_params={"model": "scheffe_linear"},
-            factors=spec.factor_names,
-            estimated_runs=runs,
-            purpose="Screen mixture components to identify significant proportions.",
-            success_criteria={"min_significant_factors": 1},
-            transition_rules=_screening_transition_rules(),
-        )
-
-    # Rule: 3-5 factors, all continuous - full/fractional factorial
+        return _mixture_screening_stage(spec, n)
+    # Rule: 3-5 factors, all continuous - full/fractional factorial.
     if 3 <= n <= 5 and spec.n_continuous == n:
-        if n <= 4:
-            design_type = "full_factorial"
-            runs = 2**n + 3  # + center points
-            reasoning.append(f"{n} continuous factors → full factorial (2^{n} = {2**n} runs + 3 center points).")
-        else:
-            design_type = "fractional_factorial"
-            runs = estimate_screening_runs(n, "fractional_factorial") + 3
-            reasoning.append(f"{n} factors → fractional factorial + center points.")
+        return _factorial_screening_stage(spec, n)
 
-        return ExperimentalStage(
-            stage_number=1,
-            stage_name="Screening",
-            design_type=design_type,
-            design_params={"center_points": 3, "resolution": 4 if n >= 5 else None},
-            factors=spec.factor_names,
-            estimated_runs=runs,
-            purpose=f"Screen {n} factors to identify significant main effects and interactions.",
-            success_criteria={"min_significant_factors": 1},
-            transition_rules=_screening_transition_rules(),
-        )
-
-    # Rule: 6+ factors - PB, DSD, or fractional factorial
-    # Sub-rule: Domain or user prefers curvature detection → DSD
-    prefer_curvature = template.get("prefer_curvature_detection", False)
-    domain_pref = template.get("screening_preference")
-
-    if classification["is_very_tight_budget"]:
-        design_type = "definitive_screening"
-        runs = estimate_screening_runs(n, "definitive_screening")
-        reasoning.append(f"Very tight budget with {n} factors → DSD ({runs} runs) combines screening + curvature.")
-    elif prefer_curvature or (domain_pref == "definitive_screening"):
-        design_type = "definitive_screening"
-        runs = estimate_screening_runs(n, "definitive_screening")
-        reasoning.append(f"Domain prefers curvature detection → DSD ({runs} runs).")
-    elif classification["prior_confidence"] >= 0.6:
-        # Medium confidence - DSD to screen + detect curvature
-        design_type = "definitive_screening"
-        runs = estimate_screening_runs(n, "definitive_screening")
-        conf = classification["prior_confidence"]
-        reasoning.append(f"Moderate prior confidence ({conf:.1f}) -- DSD for dual purpose.")
-    elif domain_pref == "plackett_burman" or (n >= 6 and not classification["is_tight_budget"]):
-        design_type = "plackett_burman"
-        runs = estimate_screening_runs(n, "plackett_burman")
-        reasoning.append(f"{n} factors with adequate budget → PB design ({runs} runs).")
-    elif domain_pref == "fractional_factorial":
-        design_type = "fractional_factorial"
-        runs = estimate_screening_runs(n, "fractional_factorial") + 3
-        reasoning.append(f"Domain prefers fractional factorial → Res IV fraction ({runs} runs).")
-    else:
-        # Default for 6+ factors
-        design_type = "plackett_burman"
-        runs = estimate_screening_runs(n, "plackett_burman")
-        reasoning.append(f"{n} factors → PB design ({runs} runs) for efficient screening.")
-
-    params: dict[str, Any] = {}
-    if design_type == "fractional_factorial":
-        params["resolution"] = 4
-        params["center_points"] = 3
-    elif design_type == "plackett_burman":
-        params["center_points"] = 0  # PB typically without center points
-    elif design_type == "definitive_screening":
-        params["fake_factor"] = n % 2 == 0  # DSD needs odd factor count
-
+    # Remaining cases (typically 6+ factors): Plackett-Burman, DSD, or fractional factorial.
+    design_type, runs = _large_factor_screening_choice(n, classification, template)
     return ExperimentalStage(
         stage_number=1,
         stage_name="Screening",
         design_type=design_type,
-        design_params=params,
+        design_params=_screening_design_params(design_type, n),
         factors=spec.factor_names,
         estimated_runs=runs,
         purpose=f"Screen {n} candidate factors to identify the vital few.",
