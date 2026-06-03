@@ -11,6 +11,20 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.17] - 2026-06-03
+
+### Changed
+
+- **ENG-07 (#289)**: enforce sklearn API compatibility without coupling to a
+  concrete sklearn estimator. ``PLS`` keeps the sklearn mixins
+  (``BaseEstimator`` / ``TransformerMixin`` / ``RegressorMixin``) but does not
+  inherit ``sklearn.cross_decomposition.PLSRegression``; a regression test locks
+  this in across PCA / PLS / TPLS / MBPLS / MBPCA, and numerical-consistency
+  tests cross-check our PCA against ``sklearn.decomposition.PCA`` and our PLS
+  against ``PLSRegression``. ``PLS.has_missing_data_`` is now set in ``fit()``
+  rather than ``__init__`` (sklearn requires ``__init__`` to set only the
+  constructor parameters). No public API change.
+
 ## [1.24.16] - 2026-06-03
 
 ### Changed
@@ -1107,7 +1121,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.16...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.17...HEAD
+[1.24.17]: https://github.com/kgdunn/process-improve/compare/v1.24.16...v1.24.17
 [1.24.16]: https://github.com/kgdunn/process-improve/compare/v1.24.15...v1.24.16
 [1.24.15]: https://github.com/kgdunn/process-improve/compare/v1.24.14...v1.24.15
 [1.24.14]: https://github.com/kgdunn/process-improve/compare/v1.24.13...v1.24.14
