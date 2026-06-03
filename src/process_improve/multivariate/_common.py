@@ -49,6 +49,77 @@ class SpecificationWarning(UserWarning):
     """Parent warning class."""
 
 
+def _align_to_fit_features(X: pd.DataFrame, fit_feature_names: pd.Index) -> pd.DataFrame:
+    """Validate and align new-data columns against the features seen during ``fit``.
+
+    PCA / PLS only checked that data passed to ``transform`` / ``predict`` had the
+    right *number* of columns. A correctly-shaped frame whose columns are renamed
+    or reordered would otherwise be projected positionally (PCA, ``X.values @ P``)
+    or silently label-aligned to all-``NaN`` (PLS, ``X @ direct_weights_``),
+    producing wrong scores with no error raised (issue #195). This helper makes
+    that consistency explicit, mirroring scikit-learn's ``feature_names_in_``
+    handling:
+
+    * If both the training data and ``X`` carry string feature names, the *set*
+      of names must match (otherwise :class:`ValueError`); columns supplied in a
+      different order are reordered to the training order.
+    * If the training data had names but ``X`` does not (e.g. a bare ndarray was
+      passed), the columns are taken to correspond positionally and are labelled
+      with the training names, so downstream label-aligned arithmetic stays
+      correct rather than collapsing to ``NaN``.
+    * If the training data itself had no (string) feature names, there is nothing
+      to validate and ``X`` is returned unchanged.
+
+    The caller is expected to have already validated the column *count*.
+
+    Parameters
+    ----------
+    X : pd.DataFrame
+        New data passed to ``transform`` / ``predict`` (already coerced to a
+        DataFrame and count-checked by the caller).
+    fit_feature_names : pd.Index
+        The ``X.columns`` captured during ``fit`` (``self._feature_names``).
+
+    Returns
+    -------
+    pd.DataFrame
+        ``X`` with columns aligned to the training feature order.
+
+    Raises
+    ------
+    ValueError
+        If both sides carry string names but the sets of names differ.
+    """
+    fit_names = list(fit_feature_names)
+    if not (fit_names and all(isinstance(name, str) for name in fit_names)):
+        # Training data had no string feature names (e.g. fitted from an ndarray);
+        # only the column count is meaningful, which the caller already checked.
+        return X
+
+    new_names = list(X.columns)
+    if not all(isinstance(name, str) for name in new_names):
+        # New data carries default positional columns (e.g. came in as an
+        # ndarray). Assume positional correspondence and label it with the
+        # training names so label-aligned operations behave correctly.
+        X = X.copy()
+        X.columns = pd.Index(fit_names)
+        return X
+
+    if set(new_names) != set(fit_names):
+        missing = [name for name in fit_names if name not in set(new_names)]
+        unexpected = [name for name in new_names if name not in set(fit_names)]
+        raise ValueError(
+            "Feature names of the data passed to predict/transform do not match "
+            "those seen during fit. "
+            f"Missing columns: {missing}; unexpected columns: {unexpected}."
+        )
+    if new_names != fit_names:
+        # Same names, different order: reorder to the training order so the
+        # positional projection lines up.
+        X = X[fit_names]
+    return X
+
+
 def _model_method(fn: Callable[..., Any]) -> Callable[..., Any]:
     """Wrap a module-level ``fn(model, ...)`` as an introspectable instance method.
 

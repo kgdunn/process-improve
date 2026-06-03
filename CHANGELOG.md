@@ -11,6 +11,22 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.31] - 2026-06-03
+
+### Fixed
+
+- **#195**: PCA and PLS now validate feature-name consistency between `fit` and
+  `transform` / `predict`, not just the column count. Previously a
+  correctly-shaped frame with reordered or renamed columns was projected
+  positionally (PCA) or silently label-aligned to all-`NaN` (PLS
+  `X @ direct_weights_`), producing wrong results with no error. Now: columns
+  supplied in a different order are realigned to the training order; renamed or
+  unexpected columns raise a clear `ValueError`; and unnamed (ndarray) input is
+  taken positionally and works (in particular `PLS.transform` on an ndarray no
+  longer returns all-`NaN`). `PLS.transform` also gained the column-count check
+  the other paths already had. Models fitted from unnamed (ndarray) data are
+  unaffected (count-only validation, as before).
+
 ## [1.24.30] - 2026-06-03
 
 ### Changed (internal)
@@ -1280,7 +1296,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.30...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.31...HEAD
+[1.24.31]: https://github.com/kgdunn/process-improve/compare/v1.24.30...v1.24.31
 [1.24.30]: https://github.com/kgdunn/process-improve/compare/v1.24.29...v1.24.30
 [1.24.29]: https://github.com/kgdunn/process-improve/compare/v1.24.28...v1.24.29
 [1.24.28]: https://github.com/kgdunn/process-improve/compare/v1.24.27...v1.24.28
