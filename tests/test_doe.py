@@ -38,7 +38,7 @@ def half_fraction_model():
 @pytest.fixture
 def api_dataframe():
     """Load the test_doe1.csv dataset for API usage tests."""
-    folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "experiments"
+    folder = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "experiments"
     return pd.read_csv(folder / "test_doe1.csv").set_index("Run order")
 
 

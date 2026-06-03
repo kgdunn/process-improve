@@ -19,7 +19,7 @@ from process_improve.multivariate.methods import TPLS, DataFrameDict
 @pytest.fixture
 def tpls_pyphi_data() -> dict[str, dict[str, pd.DataFrame]]:
     """Load the pyphi TPLS example dataset."""
-    folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "multivariate" / "tpls-pyphi"
+    folder = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate" / "tpls-pyphi"
     properties = {
         f"Group {i}": pd.read_csv(folder / f"properties_Group{i}.csv", sep=",", index_col=0, header=0).astype("float64")
         for i in range(1, 6)

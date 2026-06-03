@@ -42,7 +42,7 @@ test:		## run tests quickly with the default Python
 	rm -f .coverage
 	rm -fr htmlcov/
 	rm -fr .pytest_cache
-	uv run python -W ignore -m pytest -v  -r=s -r=a -n auto --cov=.
+	uv run python -W ignore -m pytest -v  -r=s -r=a -n auto --cov=process_improve
 
 # TODO: single test: ['-p', 'vscode_pytest', '--rootdir=/rootdir', '--capture=no', '/rootdir/tests/test_file.py::test_func']
 

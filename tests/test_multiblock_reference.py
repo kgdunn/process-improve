@@ -999,7 +999,7 @@ class TestMBPLSOnLDPE:
     def ldpe(self) -> tuple[dict, pd.DataFrame]:
         import pathlib
 
-        folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "multivariate" / "LDPE"
+        folder = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate" / "LDPE"
         values = pd.read_csv(folder / "LDPE.csv", index_col=0)
         # Natural 4-block split: block 1 = zone-1 vars (incl. Tin), block 2 =
         # zone-2 vars, block 3 = pressure, Y = quality.
@@ -1274,7 +1274,7 @@ class TestMBPLSOnLDPEMissingData:
     def ldpe(self) -> tuple[dict, pd.DataFrame]:
         import pathlib
 
-        folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "multivariate" / "LDPE"
+        folder = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate" / "LDPE"
         values = pd.read_csv(folder / "LDPE.csv", index_col=0)
         # Same natural 4-block split as TestMBPLSOnLDPE.
         zone_1_idx = [0, 1, 2, 5, 7, 9, 11]
@@ -1351,7 +1351,9 @@ class TestMBPLSOnDTUPectin:
     def pectin(self) -> tuple[dict, pd.DataFrame]:
         import pathlib
 
-        folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "multivariate" / "dtu-pectin"
+        folder = (
+            pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate" / "dtu-pectin"
+        )
         ftir = pd.concat([pd.read_csv(folder / f"ftir{i}.csv", index_col=0) for i in (1, 2, 3)])
         micro = pd.concat([pd.read_csv(folder / f"extraction{i}.csv", index_col=0) for i in (1, 2, 3)])
         # Yield (the row index of every CSV) is the single Y target. After

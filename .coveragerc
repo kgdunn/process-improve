@@ -4,13 +4,12 @@ branch = True
 omit =
     */tests/*
     setup.py
-    process_improve/notebooks_examples/*
-    process_improve/mcp_server.py
+    */process_improve/mcp_server.py
     # alignment_helpers.py is compiled by numba @jit(nopython=True); coverage.py
     # cannot trace into JIT-compiled machine code, so its line coverage is always
     # reported as ~0% even though the functions are exercised by the batch DTW
     # tests in tests/batch/test_preprocessing.py.
-    process_improve/batch/alignment_helpers.py
+    */process_improve/batch/alignment_helpers.py
 
 [report]
 show_missing = True

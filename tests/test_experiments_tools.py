@@ -290,7 +290,7 @@ class TestAnalyzeExperiment:
         """analyze_experiment runs end-to-end via execute_tool_call on the real LDPE data."""
         csv_path = (
             pathlib.Path(__file__).parents[1]
-            / "process_improve" / "datasets" / "multivariate" / "LDPE" / "LDPE.csv"
+            / "src" / "process_improve" / "datasets" / "multivariate" / "LDPE" / "LDPE.csv"
         )
         ldpe = pd.read_csv(csv_path, index_col=0)
         factors_and_response = ["Tin", "Tmax1", "z1", "Conv"]

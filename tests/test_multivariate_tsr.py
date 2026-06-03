@@ -19,7 +19,7 @@ from process_improve.multivariate.methods import PCA, MCUVScaler
 @pytest.fixture
 def kamyr_with_missing() -> pd.DataFrame:
     """Load the Kamyr dataset, which contains missing values."""
-    folder = pathlib.Path(__file__).parents[1] / "process_improve" / "datasets" / "multivariate"
+    folder = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate"
     return pd.read_csv(folder / "kamyr.csv", index_col=None, header=None)
 
 
