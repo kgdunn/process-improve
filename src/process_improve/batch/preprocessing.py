@@ -175,13 +175,23 @@ class DTWresult:
         self.normalized_distance = normalized_distance
 
 
-def align_with_path(md_path: np.ndarray, batch: pd.DataFrame, initial_row: pd.Series) -> pd.DataFrame:
-    """Align a batch to the reference using the DTW path."""
+def align_with_path(md_path: np.ndarray, batch: pd.DataFrame) -> pd.DataFrame:
+    """Align a batch to the reference using the DTW path.
+
+    Where several samples of ``batch`` map to the same reference index (a
+    compression in the warping path), the synced value for that index is the
+    average of those batch samples. The running ``temp`` accumulator is therefore
+    seeded with the first batch sample for the current index - the same value
+    assigned to ``synced`` row 0 just below - not with a reference row. A former
+    ``initial_row`` argument seeded it from the reference row (in one caller) or
+    from an out-of-space batch index (in the other), which mixed an unrelated row
+    into the row-0 average (#197).
+    """
     row = 0
     nr = md_path[:, 0].max() + 1  # to account for the zero-based indexing
     synced = pd.DataFrame(np.zeros((nr, batch.shape[1])), columns=batch.columns)
     synced.iloc[row, :] = batch.iloc[md_path[0, 1], :]
-    temp: pd.Series | np.ndarray = initial_row
+    temp: pd.Series | np.ndarray = batch.iloc[md_path[0, 1], :]
     for idx in np.arange(1, md_path.shape[0]):
         if md_path[idx, 0] != md_path[idx - 1, 0]:
             row += 1
@@ -213,8 +223,7 @@ def dtw_core(test: pd.DataFrame, ref: pd.DataFrame, weight_matrix: np.ndarray) -
         warping_path[idx] = md_path[np.where(md_path[:, 0] == idx)[0][-1], 1]
 
     # Now align the `test` batch:
-    initial_row = ref.iloc[md_path[0, 0], :].copy()
-    synced = align_with_path(md_path=md_path, batch=test, initial_row=initial_row)
+    synced = align_with_path(md_path=md_path, batch=test)
 
     return DTWresult(
         synced,
@@ -414,11 +423,9 @@ def batch_dtw(  # noqa: C901, PLR0915
         desc="Interpolating",
         disable=not (settings["show_progress"]),
     ):
-        initial_row = batches[batch_id].iloc[result.md_path[0, 0], :].copy()
         synced = align_with_path(
             result.md_path,
             batches[batch_id].iloc[:: int(settings["subsample"]), :],
-            initial_row=initial_row,
         )
         # Resample the trajectories of the aligned data now along this sequence.
         sequence = np.linspace(
