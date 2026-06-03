@@ -1,6 +1,6 @@
 [project]
 name = "process-improve"
-version = "1.24.22"
+version = "1.24.23"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = "MIT"
@@ -155,10 +155,10 @@ disallow_untyped_defs = false
 warn_unused_ignores = false
 # Specifically disable import-untyped errors
 disable_error_code = ["import-untyped"]
-# Example scripts under notebooks_examples/ are not production code and
-# are already exempted from many strict ruff rules; they pull in
-# notebook-flavoured patterns (untyped locals, dynamic axis manipulation)
-# that are noise under type checking.
+# Example scripts under examples/ are not production code and are already
+# exempted from many strict ruff rules; they pull in notebook-flavoured
+# patterns (untyped locals, dynamic axis manipulation) that are noise under
+# type checking.
 exclude = [
     "examples/",
 ]

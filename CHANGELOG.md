@@ -11,6 +11,20 @@ those changes.
 
 ## [Unreleased]
 
+## [1.24.23] - 2026-06-03
+
+### Changed (internal)
+
+- **ENG-14 (#296)**: adopt a ``src/`` layout. The package moved from
+  ``process_improve/`` to ``src/process_improve/`` (no import changes - it is
+  still imported as ``process_improve``), so running Python from the repo root
+  imports the installed package rather than accidentally shadowing it with the
+  source tree. The ``notebooks_examples/`` folder moved out of the package to a
+  top-level ``examples/`` directory and is no longer shipped in the wheel.
+  Tooling (uv build backend, mypy/ruff excludes, coverage globs, CI mypy target,
+  docs autodoc path, and repo-relative test dataset paths) was updated
+  accordingly. No public API or behavioural change.
+
 ## [1.24.22] - 2026-06-03
 
 ### Changed
@@ -1189,7 +1203,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.22...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.24.23...HEAD
+[1.24.23]: https://github.com/kgdunn/process-improve/compare/v1.24.22...v1.24.23
 [1.24.22]: https://github.com/kgdunn/process-improve/compare/v1.24.21...v1.24.22
 [1.24.21]: https://github.com/kgdunn/process-improve/compare/v1.24.20...v1.24.21
 [1.24.20]: https://github.com/kgdunn/process-improve/compare/v1.24.19...v1.24.20
