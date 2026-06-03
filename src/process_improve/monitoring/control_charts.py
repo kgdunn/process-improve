@@ -161,9 +161,14 @@ class ControlChart:
         if self.variant.strip().lower() == "xbar.no.subgroup":
             self._xbar_no_subgroup_fit()
 
-        # After whichever fit is completed, check which are outside +/- 3S:
-        assert self.target is not None
-        assert self.s is not None
+        # After whichever fit is completed, check which are outside +/- 3S.
+        # Explicit validation (not assert) so the guard survives `python -O`
+        # and surfaces as a documented ValueError at the tool boundary (SEC-17).
+        if self.target is None or self.s is None:
+            raise ValueError(
+                "Control chart limits could not be estimated; the input is likely "
+                "constant or too short to fit the chosen variant."
+            )
         idx_bool = (self.df["y"] - self.target).abs() > 3.0 * self.s
         self.idx_outside_3S = np.nonzero(idx_bool.to_numpy())[0].tolist()
 
