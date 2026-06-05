@@ -11,6 +11,35 @@ those changes.
 
 ## [Unreleased]
 
+## [1.25.2] - 2026-06-05
+
+### Added
+
+- **PEP 561 `py.typed` marker (SEC-36).** The package is fully type-annotated
+  and `mypy src/process_improve` runs as a blocking CI check, but the
+  distribution shipped no `py.typed` marker, so downstream type-checkers
+  (mypy / pyright) silently treated `process-improve` as untyped. The marker is
+  now bundled in the wheel and consumers get the published annotations.
+- **Security disclosure policy (`SECURITY.md`, SEC-37).** Documents the
+  supported version, the private vulnerability-reporting channels (GitHub
+  private advisories and email), the expected response timeline, and the
+  threat-model scope. Complements the existing `SECURITY_AUDIT.md` catalogue.
+
+### Fixed
+
+- **Malformed `items_to_highlight` keys now raise a clear error in the
+  multivariate plots (SEC-34).** `score_plot`, `spe_plot`, and `t2_plot` parsed
+  each highlight key with a bare `json.loads`, so a non-JSON key surfaced as a
+  confusing `json.JSONDecodeError` deep inside the trace loop. They now decode
+  via a shared helper that raises a clear `ValueError` at the API surface,
+  matching the SEC-32 guard already in `batch.plotting`.
+- **`ControlChart.calculate_limits` no longer accepts arbitrary keyword
+  arguments (SEC-35).** A blanket `setattr(self, key, val)` over `**kwargs` let
+  a caller silently overwrite internal state (`s`, `target`, `train_samples`,
+  even a bound method) and swallowed typos. Only the documented Holt-Winters
+  smoothing lambdas (`ld_1`, `ld_2`) are accepted now; any other keyword raises
+  a clear `ValueError`.
+
 ## [1.25.1] - 2026-06-05
 
 ### Fixed
@@ -1396,7 +1425,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.25.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.25.2...HEAD
+[1.25.2]: https://github.com/kgdunn/process-improve/compare/v1.25.1...v1.25.2
 [1.25.1]: https://github.com/kgdunn/process-improve/compare/v1.25.0...v1.25.1
 [1.25.0]: https://github.com/kgdunn/process-improve/compare/v1.24.34...v1.25.0
 [1.24.34]: https://github.com/kgdunn/process-improve/compare/v1.24.33...v1.24.34
