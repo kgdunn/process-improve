@@ -313,7 +313,15 @@ class Model(OLS):
         return spec.describe()
 
     def summary(self, alpha: float = 0.05, print_to_screen: bool = True) -> Any:  # noqa: ARG002, ANN401
-        """Side effect: prints to the screen."""
+        """Build the OLS summary table for this model and return it.
+
+        The returned object is the statsmodels summary instance, with the
+        underlying ``self._OLS.summary()`` adjusted to label the residual
+        standard error row. The method does NOT print anything by itself;
+        the top-level :func:`summary` wrapper handles screen output via its
+        own ``show`` flag. The ``alpha`` and ``print_to_screen`` arguments
+        are unused and kept for backwards compatibility.
+        """
         # Taken from statsmodels.regression.linear_model.py
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
