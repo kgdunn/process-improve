@@ -11,6 +11,34 @@ those changes.
 
 ## [Unreleased]
 
+## [1.25.1] - 2026-06-05
+
+### Fixed
+
+- **Docstring/implementation mismatches across the public API (docs-only).**
+  - `univariate.metrics.median_absolute_deviation`: docstring claimed the
+    default for `scale` was `1.0`, but the signature default is `"normal"`.
+    The docstring now documents the actual default and what the normal
+    consistency factor does.
+  - `experiments.structures.c`: docstring said the helper returns a
+    `DataFrame` and converts every entry to a float. It actually returns a
+    `Column` (a `pandas.Series` subclass) and only coerces numeric entries;
+    categorical entries (via `levels=` or when `float()` raises) are kept
+    as-is.
+  - `multivariate._mbpls.MBPLS.predict`: docstring listed only 3 of the 5
+    fields returned in the result `Bunch`. The full field list now
+    documents `block_spe` and the cumulative `hotellings_t2` series.
+  - `multivariate._tpls.TPLS.predict`: docstring described the return as
+    "dict / Returns an array of prediction objects. More details to come
+    here later." The method actually returns a `sklearn.utils.Bunch` with
+    four well-defined fields (`hat`, `t_scores_super`, `spe`,
+    `hotellings_t2`); they are now described.
+  - `experiments._lm.Model.summary`: docstring said "Side effect: prints to
+    the screen", but the method only returns the statsmodels summary
+    instance and never prints. Replaced with an accurate description that
+    also notes the unused `alpha` / `print_to_screen` arguments are kept
+    for backwards compatibility.
+
 ## [1.25.0] - 2026-06-03
 
 ### Changed
@@ -1368,7 +1396,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.25.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.25.1...HEAD
+[1.25.1]: https://github.com/kgdunn/process-improve/compare/v1.25.0...v1.25.1
 [1.25.0]: https://github.com/kgdunn/process-improve/compare/v1.24.34...v1.25.0
 [1.24.34]: https://github.com/kgdunn/process-improve/compare/v1.24.33...v1.24.34
 [1.24.33]: https://github.com/kgdunn/process-improve/compare/v1.24.32...v1.24.33
