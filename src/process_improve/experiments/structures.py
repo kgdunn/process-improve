@@ -203,7 +203,9 @@ def create_names(n: int, letters: bool = True, prefix: str = "X", start_at: int 
 def c(*args, **kwargs) -> Column:  # noqa: C901, PLR0912, PLR0915
     """
     Perform the equivalent of the R function "c(...)", to combine data elements
-    into a DataFrame. Convert every entry into a floating point object.
+    into a :class:`Column`. Numeric entries are converted to floating point;
+    entries are left as-is for categorical columns (when ``levels=...`` is
+    passed, or when the entries cannot be coerced to float).
 
     Inputs
     ------
