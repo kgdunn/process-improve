@@ -2927,6 +2927,17 @@ def test_score_plot_with_highlights(fixture_pca_for_plots: PCA) -> None:
     assert len(fig.data) >= 3
 
 
+def test_score_plot_3d_with_highlights(fixture_pca_for_plots: PCA) -> None:
+    """A 3D score plot must also decode and apply highlight styling."""
+    model = fixture_pca_for_plots
+    idx = model.scores_.index[:5].tolist()
+    highlights = {'{"color": "red", "symbol": "cross"}': idx}
+    fig = model.score_plot(pc_horiz=1, pc_vert=2, pc_depth=3, items_to_highlight=highlights)
+    assert isinstance(fig, go.Figure)
+    # Default scores trace + the highlighted trace (3D path has no ellipse).
+    assert len(fig.data) >= 2
+
+
 @pytest.mark.parametrize("plot_method", ["score_plot", "spe_plot", "t2_plot"])
 def test_highlight_key_must_be_json(fixture_pca_for_plots: PCA, plot_method: str) -> None:
     """A non-JSON ``items_to_highlight`` key raises a clear ValueError.
