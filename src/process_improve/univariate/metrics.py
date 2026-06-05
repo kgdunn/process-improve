@@ -524,13 +524,14 @@ def median_absolute_deviation(
         function signature ``func(arr, axis)``.
     scale : scalar or str, optional
         The numerical value of scale will be divided out of the final
-        result. The default is 1.0. The string "normal" is also accepted,
-        and results in `scale` being the inverse of the standard normal
-        quantile function at 0.75, which is approximately 0.67449.
-        Array-like scale is also allowed, as long as it broadcasts correctly
-        to the output such that ``out / scale`` is a valid operation. The
-        output dimensions depend on the input array, `x`, and the `axis`
-        argument.
+        result. The default is ``"normal"``, which results in `scale` being
+        the inverse of the standard normal quantile function at 0.75,
+        which is approximately 0.67449 (so the returned value is
+        consistent with the standard deviation for normally distributed
+        data). Any positive float may also be passed. Array-like scale is
+        also allowed, as long as it broadcasts correctly to the output
+        such that ``out / scale`` is a valid operation. The output
+        dimensions depend on the input array, `x`, and the `axis` argument.
     nan_policy : {'propagate', 'raise', 'omit'}, optional
         Defines how to handle when input contains nan.
         The following options are available (default is 'omit'):

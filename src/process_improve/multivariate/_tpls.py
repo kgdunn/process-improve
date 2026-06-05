@@ -544,8 +544,21 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         Returns
         -------
-        y : dict
-            Returns an array of prediction objects. More details to come here later. Please ask.
+        sklearn.utils.Bunch
+            A bunch with the following fields:
+
+            - ``hat`` (dict[str, DataFrame]) : predicted Y per Y-group, on
+              the original (un-scaled) scale, indexed by the observation
+              names of ``X``.
+            - ``t_scores_super`` (DataFrame, shape ``(n_new, n_components)``)
+              : super-scores for the new observations.
+            - ``spe`` (dict[str, dict[str, DataFrame]]) : per-component
+              squared prediction error for the ``"Z"`` and ``"F"`` blocks,
+              keyed first by block name and then by group; each inner
+              DataFrame has shape ``(n_new, n_components)``.
+            - ``hotellings_t2`` (DataFrame, shape
+              ``(n_new, n_components)``) : cumulative Hotelling's T² per
+              new observation after each component.
         """
         check_is_fitted(self)  # Check if fit had been called
         if not isinstance(X, DataFrameDict):

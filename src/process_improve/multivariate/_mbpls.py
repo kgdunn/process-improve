@@ -796,9 +796,12 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     def predict(self, X: dict[str, pd.DataFrame]) -> Bunch:
         """Project new data and predict Y on the original scale.
 
-        Returns a :class:`sklearn.utils.Bunch` with fields ``super_scores``,
-        ``block_scores`` (dict[str, DataFrame]) and ``predictions`` (DataFrame
-        on original Y scale).
+        Returns a :class:`sklearn.utils.Bunch` with fields ``super_scores``
+        (DataFrame, n_samples x n_components), ``block_scores`` (dict[str,
+        DataFrame]), ``predictions`` (DataFrame on original Y scale),
+        ``block_spe`` (dict[str, Series], per-block SPE of the new
+        observations) and ``hotellings_t2`` (Series of cumulative
+        Hotelling's T² over all components, per new observation).
         """
         check_is_fitted(self, "super_weights_")
         return self._project(X)
