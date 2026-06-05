@@ -2927,6 +2927,21 @@ def test_score_plot_with_highlights(fixture_pca_for_plots: PCA) -> None:
     assert len(fig.data) >= 3
 
 
+@pytest.mark.parametrize("plot_method", ["score_plot", "spe_plot", "t2_plot"])
+def test_highlight_key_must_be_json(fixture_pca_for_plots: PCA, plot_method: str) -> None:
+    """A non-JSON ``items_to_highlight`` key raises a clear ValueError.
+
+    Mirrors the SEC-32 guard in ``batch.plotting``: a malformed style key must
+    surface a clear ``ValueError`` at the API boundary instead of a confusing
+    ``json.JSONDecodeError`` deep inside the trace-building loop.
+    """
+    model = fixture_pca_for_plots
+    idx = model.scores_.index[:3].tolist()
+    bad_highlights = {"not-json": idx}  # plain string, not a JSON style spec
+    with pytest.raises(ValueError, match="JSON-encoded"):
+        getattr(model, plot_method)(items_to_highlight=bad_highlights)
+
+
 def test_loading_plot_pca(fixture_pca_for_plots: PCA) -> None:
     """loading_plot for PCA should return a Figure with P loadings."""
     fig = fixture_pca_for_plots.loading_plot()
