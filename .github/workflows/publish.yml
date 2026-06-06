@@ -67,7 +67,7 @@ jobs:
           pip install "cyclonedx-bom>=5.0" "."
           cyclonedx-py environment \
             --output-format JSON \
-            --outfile "dist/sbom-${{ steps.read_version.outputs.version }}.cdx.json"
+            --output-file "dist/sbom-${{ steps.read_version.outputs.version }}.cdx.json"
 
       - name: Upload built artifacts
         uses: actions/upload-artifact@v7
