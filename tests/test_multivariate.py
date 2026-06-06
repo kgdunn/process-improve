@@ -789,6 +789,10 @@ def test_pca_t2_spe_contributions() -> None:
         assert t2_contributions(pca, Xs).to_numpy() == pytest.approx(t2c.to_numpy())
         assert spe_contributions(pca, Xs).to_numpy() == pytest.approx(spec.to_numpy())
 
+        # Array-like input is accepted and gives the same result as the frame.
+        assert pca.t2_contributions(Xs.to_numpy()).to_numpy() == pytest.approx(t2c.to_numpy())
+        assert pca.spe_contributions(Xs.to_numpy()).to_numpy() == pytest.approx(spec.to_numpy())
+
     # --- Error handling ---
     with pytest.raises(ValueError, match="not fitted"):
         PCA(n_components=2).t2_contributions(Xs)
