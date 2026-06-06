@@ -20,7 +20,7 @@ import pandas as pd
 # Names re-exported to the rest of the package. Declared explicitly so CodeQL
 # does not flag the ``DataMatrix`` type alias (only ever referenced in lazy
 # annotation strings under ``from __future__ import annotations``) as unused.
-__all__ = ["DataMatrix", "SpecificationWarning", "epsqrt"]
+__all__ = ["DataMatrix", "NotEnoughVarianceError", "SpecificationWarning", "epsqrt"]
 
 DataMatrix: TypeAlias = np.ndarray | pd.DataFrame
 
@@ -47,6 +47,20 @@ def _nz(denominator: float) -> float:
 
 class SpecificationWarning(UserWarning):
     """Parent warning class."""
+
+
+class NotEnoughVarianceError(RuntimeError):
+    """Raised when more components are requested than the data's variance supports.
+
+    During NIPALS extraction (PCA / PLS) the deflated data array can run out of
+    variance before the requested number of components is reached, even when that
+    count is within ``min(N, K)`` - for example with rank-deficient or perfectly
+    collinear data. The model cannot compute any further components in that case.
+
+    Subclasses :class:`RuntimeError` so existing ``except RuntimeError`` handlers
+    keep working, while callers that want to react specifically (e.g. trimming the
+    component count during cross-validation) can catch this narrower type.
+    """
 
 
 def _align_to_fit_features(X: pd.DataFrame, fit_feature_names: pd.Index) -> pd.DataFrame:

@@ -18,7 +18,7 @@ import pandas as pd
 from scipy.stats import t as t_dist
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, clone
 from sklearn.metrics import r2_score
-from sklearn.model_selection import KFold, check_cv
+from sklearn.model_selection import BaseCrossValidator, KFold, check_cv
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 from tqdm import tqdm
@@ -26,7 +26,14 @@ from tqdm import tqdm
 from .._linalg import safe_inverse
 from ..univariate.metrics import detect_outliers_esd
 from ._base import _LatentVariableModel, _LazyFrame
-from ._common import DataMatrix, SpecificationWarning, _align_to_fit_features, _model_method, epsqrt
+from ._common import (
+    DataMatrix,
+    NotEnoughVarianceError,
+    SpecificationWarning,
+    _align_to_fit_features,
+    _model_method,
+    epsqrt,
+)
 from ._nipals import quick_regress, ssq, terminate_check
 from .plots import (
     coefficient_plot as _coefficient_plot,
@@ -250,13 +257,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                     "There is no variance left in the data array for X: cannot "
                     f"compute any more components beyond component {a}."
                 )
-                raise RuntimeError(emsg)
+                raise NotEnoughVarianceError(emsg)
             if np.sum(start_SSY_col) < epsqrt:
                 emsg = (
                     "There is no variance left in the data array for Y: cannot "
                     f"compute any more components beyond component {a}."
                 )
-                raise RuntimeError(emsg)
+                raise NotEnoughVarianceError(emsg)
 
             # Seed u_a from the column of Y with the greatest sum-of-squares
             # (variance, for mean-centred data) rather than the arbitrary first
@@ -612,7 +619,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Y: DataMatrix,
         *,
         max_components: int | None = None,
-        cv: int = 5,
+        cv: int | BaseCrossValidator = 5,
         **pls_kwargs,
     ) -> Bunch:
         """Select the number of PLS components via cross-validation.

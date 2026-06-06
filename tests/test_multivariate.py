@@ -26,6 +26,7 @@ from process_improve.multivariate.methods import (
     TPLS,
     DataFrameDict,
     MCUVScaler,
+    NotEnoughVarianceError,
     SpecificationWarning,
     center,
     coefficient_plot,
@@ -344,6 +345,48 @@ def test_mcuv_scaling(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarra
     assert pytest.approx(X_mcuv.std(), 1e-10) == 1
 
 
+def test_scale_ddof_matches_mcuvscaler() -> None:
+    """``scale(center(X), ddof=1)`` must reproduce ``MCUVScaler`` (both use N-1)."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.normal(size=(8, 4)))
+
+    from_scale = np.asarray(scale(center(X), ddof=1), dtype=float)
+    from_mcuv = np.asarray(MCUVScaler().fit_transform(X), dtype=float)
+    assert np.allclose(from_scale, from_mcuv)
+
+    # The default (ddof=0) divides by N, i.e. the population standard deviation.
+    _, divisor = scale(center(X), extra_output=True)
+    assert np.allclose(1.0 / divisor, np.asarray(center(X)).std(axis=0, ddof=0))
+
+
+def test_scale_with_custom_func() -> None:
+    """A custom scaling ``func`` is honoured and ``ddof`` is ignored for it."""
+    rng = np.random.default_rng(3)
+    X = pd.DataFrame(rng.normal(size=(6, 3)))
+
+    # Scale each column by its mean absolute value rather than the std. ``ddof``
+    # only applies to the default ``np.std`` path, so passing it here is a no-op
+    # and must not be forwarded to the (ddof-unaware) custom function.
+    mad = lambda col: np.abs(col).mean()  # noqa: E731
+    scaled, divisor = scale(X, func=mad, extra_output=True, ddof=1)
+
+    expected_divisor = X.apply(mad, axis=0).to_numpy()
+    assert np.allclose(1.0 / divisor, expected_divisor)
+    assert np.allclose(np.asarray(scaled, dtype=float), X.to_numpy() / expected_divisor)
+
+
+def test_scale_zero_variance_column_is_finite() -> None:
+    """A constant (zero-variance) column is left as-is, not turned into inf/NaN."""
+    X = pd.DataFrame({"varies": [1.0, 2.0, 3.0, 4.0], "constant": [5.0, 5.0, 5.0, 5.0]})
+    scaled, divisor = scale(center(X), extra_output=True)
+
+    assert np.isfinite(np.asarray(scaled, dtype=float)).all()
+    # The constant column maps to a scaling factor of 1.0 (divisor stored as 1/std).
+    assert divisor[1] == pytest.approx(1.0)
+    # ... and is therefore unchanged from its (already centred) input: all zeros.
+    assert np.allclose(np.asarray(scaled, dtype=float)[:, 1], 0.0)
+
+
 def test_pca_tablet_spectra(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarray]) -> None:
     r"""
     Check PCA characteristics.
@@ -617,7 +660,7 @@ def test_pca_select_n_components() -> None:
 
     # Returns a Bunch with the expected keys
     assert isinstance(result, Bunch)
-    assert set(result.keys()) == {"n_components", "press", "press_ratio", "cv_scores"}
+    assert set(result.keys()) == {"n_components", "press", "press_ratio", "q2", "cv_scores"}
 
     # With 2 true components and N < K, should recommend 2 (or at most 3)
     assert 2 <= result.n_components <= 3
@@ -635,6 +678,19 @@ def test_pca_select_n_components() -> None:
     assert isinstance(result.press_ratio, pd.Series)
     assert len(result.press_ratio) == max_comp - 1
     assert list(result.press_ratio.index) == list(range(2, max_comp + 1))
+
+    # Q2 (cross-validated R2 of X) is a Series indexed 1..max_components,
+    # finite, bounded above by 1, and increasing as the first true components
+    # are added (mirrors PLS.select_n_components's r2y_validated).
+    assert isinstance(result.q2, pd.Series)
+    assert len(result.q2) == max_comp
+    assert list(result.q2.index) == list(range(1, max_comp + 1))
+    assert np.isfinite(result.q2.to_numpy()).all()
+    assert (result.q2 <= 1.0 + 1e-9).all()
+    assert result.q2[2] > result.q2[1]
+    # Q2 is exactly the normalised PRESS, so it must match the manual computation.
+    null_model_ss = float(np.nanmean(np.asarray(X, dtype=float) ** 2))
+    assert result.q2.to_numpy() == pytest.approx(1.0 - result.press.to_numpy() / null_model_ss)
 
     # cv_scores is a DataFrame
     assert isinstance(result.cv_scores, pd.DataFrame)
@@ -2131,6 +2187,30 @@ def test_pls_select_n_components_caps_max_components() -> None:
     result = PLS.select_n_components(X_s, Y_s, max_components=1000, cv=5)
     assert len(result.rmsecv) == 24
     assert result.n_components <= 24
+
+
+def test_not_enough_variance_error_is_typed_and_runtimeerror() -> None:
+    """Rank overflow raises NotEnoughVarianceError, still catchable as RuntimeError."""
+    # NotEnoughVarianceError subclasses RuntimeError so existing broad
+    # ``except RuntimeError`` handlers keep working while callers can catch the
+    # narrower type (e.g. to trim the component count during cross-validation).
+    assert issubclass(NotEnoughVarianceError, RuntimeError)
+
+    # PLS: rank-1 X (two identical columns) cannot support a 2nd component.
+    X = pd.DataFrame({"a": [1.0, 2.0, 3.0, 4.0, 5.0], "b": [1.0, 2.0, 3.0, 4.0, 5.0]})
+    Y = pd.DataFrame({"y": [1.0, 2.0, 3.0, 4.0, 5.0]})
+    with pytest.raises(NotEnoughVarianceError):
+        PLS(n_components=2).fit(X, Y)
+    with pytest.raises(RuntimeError):  # the same error, caught broadly
+        PLS(n_components=2).fit(X, Y)
+
+    # PCA NIPALS path: rank-2 data (3rd column is a linear combination) has no
+    # variance left for a 3rd component even though 3 <= min(N, K).
+    a = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    b = np.array([2.0, 1.0, 4.0, 3.0, 6.0])
+    X3 = pd.DataFrame({"a": a, "b": b, "c": a + 2.0 * b})
+    with pytest.raises(NotEnoughVarianceError):
+        PCA(n_components=3, algorithm="nipals").fit(X3)
 
 
 def test_pls_cross_validate_jackknife() -> None:

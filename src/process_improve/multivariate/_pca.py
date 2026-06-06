@@ -17,13 +17,13 @@ import warnings
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin, _fit_context
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import BaseCrossValidator, cross_val_score
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
 from ..univariate.metrics import detect_outliers_esd
 from ._base import _LatentVariableModel, _LazyFrame
-from ._common import DataMatrix, SpecificationWarning, _align_to_fit_features, epsqrt
+from ._common import DataMatrix, NotEnoughVarianceError, SpecificationWarning, _align_to_fit_features, epsqrt
 from ._nipals import quick_regress, ssq, terminate_check
 
 logger = logging.getLogger(__name__)
@@ -320,7 +320,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                     "There is no variance left in the data array: cannot "
                     f"compute any more components beyond component {a}."
                 )
-                raise RuntimeError(emsg)
+                raise NotEnoughVarianceError(emsg)
 
             # Seed the score from the column of X with the greatest
             # sum-of-squares (variance, for mean-centred data) rather than the
@@ -560,7 +560,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         X: DataMatrix,
         *,
         max_components: int | None = None,
-        cv: int = 5,
+        cv: int | BaseCrossValidator = 5,
         threshold: float = 0.95,
         **pca_kwargs,
     ) -> Bunch:
@@ -597,7 +597,23 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             - ``n_components`` - recommended number of components (int)
             - ``press`` - PRESS per component count (pd.Series, indexed 1..A_max)
             - ``press_ratio`` - PRESS_a / PRESS_{a-1} (pd.Series, indexed 2..A_max)
+            - ``q2`` - cross-validated R2 of X per component count, i.e. the
+              cross-validation analogue of ``r2_cumulative_``
+              (pd.Series, indexed 1..A_max). Computed as
+              ``1 - press / null_model_ss`` where ``null_model_ss`` is the
+              mean-cell sum-of-squares of ``X`` (which, for mean-centred data,
+              is the variance the model has to explain). Higher is better;
+              values near 1 indicate good predictive performance and negative
+              values indicate the component predicts worse than the column mean.
+              This mirrors ``PLS.select_n_components``'s ``r2y_validated`` and
+              saves callers from normalising ``press`` themselves.
             - ``cv_scores`` - per-fold scores (pd.DataFrame, A_max rows x cv cols)
+
+        Notes
+        -----
+        ``X`` is expected to be pre-centred (and usually scaled, e.g. with
+        ``MCUVScaler``); the ``q2`` normalisation uses the mean-cell
+        sum-of-squares of ``X`` as the null-model reference.
         """
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
@@ -617,6 +633,14 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
         press = pd.Series(press_values, name="PRESS")
         press.index.name = "n_components"
+
+        # Cross-validated R2 of X (Q2): normalise the mean-cell PRESS by the
+        # null-model mean-cell sum-of-squares, so it is directly comparable to
+        # the calibration ``r2_cumulative_`` and to PLS's ``r2y_validated``.
+        null_model_ss = float(np.nanmean(np.asarray(X, dtype=float) ** 2))
+        q2 = (1.0 - press / null_model_ss) if null_model_ss > epsqrt else press * np.nan
+        q2 = q2.rename("Q2")
+        q2.index.name = "n_components"
 
         # Wold's criterion: ratio of consecutive PRESS values
         ratio_values = {a: press[a] / press[a - 1] for a in range(2, max_components + 1)}
@@ -639,6 +663,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             n_components=recommended,
             press=press,
             press_ratio=press_ratio,
+            q2=q2,
             cv_scores=cv_scores,
         )
 
