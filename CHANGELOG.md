@@ -11,6 +11,39 @@ those changes.
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-06-06
+
+### Added
+
+- `scale()` (`multivariate`) now takes an explicit `ddof` argument. It is
+  forwarded to `np.std` when the default scaling function is used, so callers
+  can request the sample standard deviation with `scale(center(X), ddof=1)`
+  (matching `MCUVScaler`) instead of relying on `**kwargs`.
+- `PCA.select_n_components` now returns a `q2` field: the cross-validated R2 of
+  X per component count (mean-cell PRESS normalised by the null-model
+  sum-of-squares). This mirrors `PLS.select_n_components`'s `r2y_validated` and
+  saves callers from normalising `press` by hand.
+- New `NotEnoughVarianceError` exception (exported from
+  `process_improve.multivariate`). It is raised by PCA / PLS NIPALS fitting when
+  the data runs out of variance before the requested number of components is
+  reached. It subclasses `RuntimeError`, so existing `except RuntimeError`
+  handlers keep working while callers can catch the narrower type.
+
+### Fixed
+
+- `scale()` no longer produces `inf` / `NaN` for constant (zero-variance)
+  columns; such columns are left unchanged, matching `MCUVScaler`.
+- `scale()`'s docstring no longer claims it divides by N-1 by default. The
+  default (`ddof=0`) divides by N; the docstring now documents this and points
+  to `MCUVScaler` / `ddof=1` for the sample standard deviation.
+
+### Changed
+
+- The `cv` parameter of `PCA.select_n_components` and
+  `PLS.select_n_components` is now type-annotated as
+  `int | BaseCrossValidator`, matching the documented (and already working)
+  behaviour of passing an sklearn splitter object.
+
 ## [1.25.1] - 2026-06-05
 
 ### Fixed
@@ -1396,7 +1429,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.25.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.26.0...HEAD
+[1.26.0]: https://github.com/kgdunn/process-improve/compare/v1.25.1...v1.26.0
 [1.25.1]: https://github.com/kgdunn/process-improve/compare/v1.25.0...v1.25.1
 [1.25.0]: https://github.com/kgdunn/process-improve/compare/v1.24.34...v1.25.0
 [1.24.34]: https://github.com/kgdunn/process-improve/compare/v1.24.33...v1.24.34
