@@ -23,7 +23,9 @@ from ._diagnostics import (
     project_variables,
     rv2_coefficient,
     rv_coefficient,
+    spe_contributions,
     squared_cosine,
+    t2_contributions,
     vip,
 )
 from ._limits import (
@@ -99,10 +101,12 @@ __all__ = [
     "score_limit",
     "score_plot",
     "spe_calculation",
+    "spe_contributions",
     "spe_limit",
     "spe_plot",
     "squared_cosine",
     "ssq",
+    "t2_contributions",
     "t2_plot",
     "terminate_check",
     "vip",

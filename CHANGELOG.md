@@ -11,6 +11,20 @@ those changes.
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-06-06
+
+### Added
+
+- Canonical per-variable MSPC contributions for PCA and PLS:
+  `t2_contributions(model, X)` and `spe_contributions(model, X)`, also available
+  as methods (`model.t2_contributions(X)` / `model.spe_contributions(X)`).
+  `t2_contributions` decomposes each observation's Hotelling's T2 onto the
+  variables (signed; row sums equal the observation's T2, with an optional
+  1-based `components` subset), and `spe_contributions` returns the signed
+  per-variable residuals whose squares sum to the observation's SPE. Both work
+  for PCA (SVD and NIPALS) and PLS and reproduce the model's stored
+  `hotellings_t2_` / `spe_` when passed the training data.
+
 ## [1.26.1] - 2026-06-06
 
 ### Added
@@ -1462,7 +1476,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.26.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.27.0...HEAD
+[1.27.0]: https://github.com/kgdunn/process-improve/compare/v1.26.1...v1.27.0
 [1.26.1]: https://github.com/kgdunn/process-improve/compare/v1.26.0...v1.26.1
 [1.26.0]: https://github.com/kgdunn/process-improve/compare/v1.25.1...v1.26.0
 [1.25.1]: https://github.com/kgdunn/process-improve/compare/v1.25.0...v1.25.1

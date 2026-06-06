@@ -46,8 +46,10 @@ from process_improve.multivariate.methods import (
     scale,
     score_limit,
     spe_calculation,
+    spe_contributions,
     squared_cosine,
     ssq,
+    t2_contributions,
     terminate_check,
     vip,
 )
@@ -750,6 +752,85 @@ def test_pca_score_contributions() -> None:
     dt_w1 = -obs.values[0] / np.sqrt(pca.explained_variance_[0])
     expected_w1 = dt_w1 * P[:, 0]
     assert contrib_w2.values == pytest.approx(expected_w1, abs=1e-12)
+
+
+def test_pca_t2_spe_contributions() -> None:
+    """t2_contributions sum to T2; spe_contributions squares sum to SPE (PCA)."""
+    rng = np.random.default_rng(7)
+    X = pd.DataFrame(rng.standard_normal((35, 6)), columns=[f"V{i}" for i in range(1, 7)])
+    Xs = MCUVScaler().fit_transform(X)
+
+    for algorithm in ("svd", "nipals"):
+        pca = PCA(n_components=3, algorithm=algorithm).fit(Xs)
+
+        t2c = pca.t2_contributions(Xs)
+        spec = pca.spe_contributions(Xs)
+
+        # Shape / labels mirror the input block.
+        assert t2c.shape == (35, 6)
+        assert spec.shape == (35, 6)
+        assert list(t2c.columns) == list(Xs.columns)
+        assert list(t2c.index) == list(Xs.index)
+
+        # Invariant 1: per-observation T2 contributions sum to Hotelling's T2.
+        assert t2c.sum(axis=1).to_numpy() == pytest.approx(
+            pca.hotellings_t2_.iloc[:, -1].to_numpy(), abs=1e-9
+        )
+        # Invariant 2: squared SPE contributions sum to SPE**2.
+        assert (spec**2).sum(axis=1).to_numpy() == pytest.approx(
+            pca.spe_.iloc[:, -1].to_numpy() ** 2, abs=1e-9
+        )
+
+        # A component subset sums to the cumulative T2 of those components.
+        sub = pca.t2_contributions(Xs, components=[1, 2]).sum(axis=1).to_numpy()
+        assert sub == pytest.approx(pca.hotellings_t2_.iloc[:, 1].to_numpy(), abs=1e-9)
+
+        # The standalone functions match the bound methods.
+        assert t2_contributions(pca, Xs).to_numpy() == pytest.approx(t2c.to_numpy())
+        assert spe_contributions(pca, Xs).to_numpy() == pytest.approx(spec.to_numpy())
+
+        # Array-like input is accepted and gives the same result as the frame.
+        assert pca.t2_contributions(Xs.to_numpy()).to_numpy() == pytest.approx(t2c.to_numpy())
+        assert pca.spe_contributions(Xs.to_numpy()).to_numpy() == pytest.approx(spec.to_numpy())
+
+    # --- Error handling ---
+    with pytest.raises(ValueError, match="not fitted"):
+        PCA(n_components=2).t2_contributions(Xs)
+    with pytest.raises(ValueError, match="components"):
+        PCA(n_components=3).fit(Xs).t2_contributions(Xs, components=[1, 9])
+
+
+def test_pls_t2_spe_contributions(
+    fixture_pls_ldpe_example: dict[str, pd.DataFrame | np.ndarray | float | int],
+) -> None:
+    """t2/spe contributions hold for PLS, on synthetic and the real LDPE data."""
+    # Synthetic PLS data with a known coefficient matrix.
+    rng = np.random.default_rng(21)
+    X = pd.DataFrame(rng.standard_normal((40, 6)), columns=[f"x{i}" for i in range(6)])
+    beta = rng.standard_normal((6, 2))
+    Y = pd.DataFrame(X.values @ beta + 0.3 * rng.standard_normal((40, 2)), columns=["y0", "y1"])
+    Xs = MCUVScaler().fit_transform(X)
+    Ys = MCUVScaler().fit_transform(Y)
+    pls = PLS(n_components=3).fit(Xs, Ys)
+
+    t2c = pls.t2_contributions(Xs)
+    spec = pls.spe_contributions(Xs)
+    assert t2c.sum(axis=1).to_numpy() == pytest.approx(pls.hotellings_t2_.iloc[:, -1].to_numpy(), abs=1e-9)
+    assert (spec**2).sum(axis=1).to_numpy() == pytest.approx(pls.spe_.iloc[:, -1].to_numpy() ** 2, abs=1e-9)
+    # SPE contributions carry signs (they are residuals, not magnitudes).
+    assert (spec.to_numpy() < 0).any()
+
+    # Real LDPE dataset (SIMCA reference data) - exercise the same invariants.
+    data = fixture_pls_ldpe_example
+    X_ldpe = MCUVScaler().fit_transform(data["X"])
+    Y_ldpe = MCUVScaler().fit_transform(data["Y"])
+    pls_ldpe = PLS(n_components=data["A"]).fit(X_ldpe, Y_ldpe)
+    assert pls_ldpe.t2_contributions(X_ldpe).sum(axis=1).to_numpy() == pytest.approx(
+        pls_ldpe.hotellings_t2_.iloc[:, -1].to_numpy(), abs=1e-6
+    )
+    assert (pls_ldpe.spe_contributions(X_ldpe) ** 2).sum(axis=1).to_numpy() == pytest.approx(
+        pls_ldpe.spe_.iloc[:, -1].to_numpy() ** 2, abs=1e-6
+    )
 
 
 def test_pca_detect_outliers() -> None:

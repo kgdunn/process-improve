@@ -38,7 +38,13 @@ from ._diagnostics import (
     project_variables as _project_variables,
 )
 from ._diagnostics import (
+    spe_contributions as _spe_contributions,
+)
+from ._diagnostics import (
     squared_cosine as _squared_cosine,
+)
+from ._diagnostics import (
+    t2_contributions as _t2_contributions,
 )
 from ._diagnostics import (
     vip as _vip,
@@ -208,6 +214,8 @@ class _LatentVariableModel(_RenameGetattrMixin, _HotellingsT2LimitMixin, BaseEst
     vip = _model_method(_vip)
     squared_cosine = _model_method(_squared_cosine)
     observation_contributions = _model_method(_observation_contributions)
+    t2_contributions = _model_method(_t2_contributions)
+    spe_contributions = _model_method(_spe_contributions)
     eigenvalue_summary = _model_method(_eigenvalue_summary)
     project_variables = _model_method(_project_variables)
 

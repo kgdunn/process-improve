@@ -12,7 +12,9 @@ from process_improve.multivariate.methods import (
     rv2_coefficient,
     rv_coefficient,
     scale,
+    spe_contributions,
     squared_cosine,
+    t2_contributions,
     vip,
 )
 from process_improve.multivariate.plots import (
@@ -44,8 +46,10 @@ __all__ = [
     "rv_coefficient",
     "scale",
     "score_plot",
+    "spe_contributions",
     "spe_plot",
     "squared_cosine",
+    "t2_contributions",
     "t2_plot",
     "vip",
 ]
