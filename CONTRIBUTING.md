@@ -4,6 +4,10 @@ Bug reports, feature requests, and pull requests are welcome. This guide
 covers how to set up a development environment and the conventions the
 project follows.
 
+By participating in this project you agree to abide by its
+[Code of Conduct](CODE_OF_CONDUCT.md). To report a security vulnerability,
+follow the [security policy](SECURITY.md) instead of opening a public issue.
+
 ## Development setup
 
 Clone the repository and install it in editable mode with the development

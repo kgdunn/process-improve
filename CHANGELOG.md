@@ -15,6 +15,10 @@ those changes.
 
 ### Added
 
+- **`CODE_OF_CONDUCT.md`.** Adopts the Contributor Covenant 2.1, with the
+  maintainer as the enforcement contact, and is referenced from
+  `CONTRIBUTING.md`. Rounds out the community-health files alongside the new
+  `SECURITY.md`.
 - **PEP 561 `py.typed` marker (SEC-36).** The package is fully type-annotated
   and `mypy src/process_improve` runs as a blocking CI check, but the
   distribution shipped no `py.typed` marker, so downstream type-checkers

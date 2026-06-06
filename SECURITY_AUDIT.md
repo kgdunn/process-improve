@@ -434,11 +434,10 @@ These are lower-priority maintenance / contribution-health items surfaced
 during the v1.26.1 audit pass. They are documented here rather than fixed in the
 same change because each is a maintainer judgement call.
 
-- **`CODE_OF_CONDUCT.md` is absent.** A code of conduct is a standard
-  community-health file that GitHub surfaces and that many contributors look for
-  before engaging. Adopting the Contributor Covenant (with the maintainer's
-  contact as the enforcement channel) would round out the community files
-  alongside `CONTRIBUTING.md` and the new `SECURITY.md`.
+- **`CODE_OF_CONDUCT.md`** (done, v1.26.1). Adopted the Contributor Covenant 2.1
+  with the maintainer as the enforcement contact, referenced from
+  `CONTRIBUTING.md`. Rounds out the community-health files alongside the new
+  `SECURITY.md`.
 - **`.pre-commit-config.yaml` runs `flake8` and `isort` alongside `ruff`.**
   `ruff` already replaces both (lint + import sorting via the `I` rules), and CI
   only runs `ruff`. Keeping `flake8` (plus a separate `.flake8` config) and
