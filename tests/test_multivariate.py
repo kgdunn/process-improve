@@ -2270,6 +2270,98 @@ def test_pls_select_n_components_caps_max_components() -> None:
     assert result.n_components <= 24
 
 
+def test_recommend_n_components_q2_rule() -> None:
+    """The shared Q2-increment rule stops at the first non-meaningful component."""
+    from process_improve.multivariate._common import Q2_MIN_INCREMENT, _recommend_n_components
+
+    # Two systematic components, then a plateau and a drop: stop at 2, never 4.
+    assert _recommend_n_components([0.40, 0.62, 0.625, 0.50]) == 2
+    # A single strong component then a fractional (noise-level) gain: stop at 1.
+    assert _recommend_n_components([0.55, 0.553]) == 1
+    # Monotonically improving but each step below the threshold: still stop at 1.
+    assert _recommend_n_components([0.30, 0.305, 0.309, 0.312]) == 1
+    # A genuinely worthless first component recommends 1 (a model needs >= 1).
+    assert _recommend_n_components([0.0001, -0.2]) == 1
+    # NaN (degenerate fold) stops the search.
+    assert _recommend_n_components([0.4, np.nan, 0.9]) == 1
+    # min_increment=0 reproduces the old permissive "any improvement" behaviour.
+    assert _recommend_n_components([0.30, 0.305, 0.309, 0.312], min_increment=0.0) == 4
+    # A larger threshold is more conservative.
+    assert _recommend_n_components([0.40, 0.62, 0.70], min_increment=0.1) == 2
+    assert Q2_MIN_INCREMENT == 0.01
+
+
+def test_pls_select_n_components_does_not_run_to_max() -> None:
+    """Noise-level extra components must not be selected (the reported bug).
+
+    Eight latent factors of geometrically decaying influence drive Y; later
+    factors contribute progressively less. The cross-validated RMSECV keeps
+    drifting down by noise-level amounts after the systematic factors are
+    captured, so the old ``argmin(RMSECV)`` rule chases that minimum far up the
+    curve. The Q2-increment rule stops once the marginal Q2 gain falls below the
+    threshold, near the true effective rank.
+    """
+    rng = np.random.default_rng(0)
+    N, K, n_factors = 80, 50, 8
+    scales = np.array([6.0, 5.0, 4.0, 3.0, 2.0, 1.2, 0.8, 0.5])
+    T_true = rng.normal(size=(N, n_factors)) * scales
+    P_true = rng.normal(size=(K, n_factors))
+    X = pd.DataFrame(T_true @ P_true.T + 0.4 * rng.normal(size=(N, K)), columns=[f"x{i}" for i in range(K)])
+    gamma = rng.normal(size=(n_factors, 1))
+    Y = pd.DataFrame(T_true @ gamma + 0.3 * rng.normal(size=(N, 1)), columns=["y"])
+    X_s = MCUVScaler().fit_transform(X)
+    Y_s = MCUVScaler().fit_transform(Y)
+
+    max_comp = 12
+    folds = KFold(7, shuffle=True, random_state=0)
+    result = PLS.select_n_components(X_s, Y_s, max_components=max_comp, cv=folds)
+
+    # The global RMSECV minimum lies far up the curve (the old behaviour); the
+    # Q2-increment rule recommends meaningfully fewer components.
+    argmin_choice = int(np.nanargmin(result.rmsecv["total"].to_numpy())) + 1
+    assert argmin_choice >= 8  # argmin chases noise-level improvements
+    assert result.n_components < argmin_choice  # the regression guard
+    assert result.n_components <= 6
+
+    # Every retained component cleared the Q2 bar; the next one did not.
+    q2 = result.r2y_validated["total"].to_numpy()
+    rec = result.n_components
+    increments = np.diff(np.concatenate([[0.0], q2]))
+    assert (increments[:rec] >= 0.01 - 1e-12).all()
+    assert increments[rec] < 0.01
+
+    # The permissive setting (any improvement) reverts to the over-fit choice,
+    # confirming the threshold is what trims the noise components.
+    permissive = PLS.select_n_components(X_s, Y_s, max_components=max_comp, cv=folds, min_q2_increase=0.0)
+    assert permissive.n_components > result.n_components
+
+
+def test_pca_select_n_components_does_not_run_to_max() -> None:
+    """PCA selection stops once extra components stop lifting Q2X meaningfully."""
+    rng = np.random.default_rng(2025)
+    N, K = 60, 40
+    T_true = rng.standard_normal((N, 3)) * np.array([12.0, 7.0, 4.0])
+    P_true = rng.standard_normal((3, K))
+    P_true /= np.linalg.norm(P_true, axis=1, keepdims=True)
+    X = pd.DataFrame(T_true @ P_true + rng.standard_normal((N, K)))
+    X_s = MCUVScaler().fit_transform(X)
+
+    max_comp = 20
+    result = PCA.select_n_components(X_s, max_components=max_comp, cv=KFold(7, shuffle=True, random_state=0))
+    assert result.n_components < max_comp
+    assert result.n_components <= 5  # near the true rank of 3
+
+
+def test_pca_select_n_components_threshold_is_deprecated() -> None:
+    """Passing the legacy Wold-ratio ``threshold`` warns but still returns a result."""
+    rng = np.random.default_rng(5)
+    X = pd.DataFrame(rng.standard_normal((30, 8)))
+    X_s = MCUVScaler().fit_transform(X)
+    with pytest.warns(DeprecationWarning, match="threshold"):
+        result = PCA.select_n_components(X_s, max_components=4, cv=3, threshold=0.95)
+    assert 1 <= result.n_components <= 4
+
+
 def test_not_enough_variance_error_is_typed_and_runtimeerror() -> None:
     """Rank overflow raises NotEnoughVarianceError, still catchable as RuntimeError."""
     # NotEnoughVarianceError subclasses RuntimeError so existing broad

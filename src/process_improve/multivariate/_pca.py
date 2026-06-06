@@ -23,7 +23,15 @@ from sklearn.utils.validation import check_is_fitted
 
 from ..univariate.metrics import detect_outliers_esd
 from ._base import _LatentVariableModel, _LazyFrame
-from ._common import DataMatrix, NotEnoughVarianceError, SpecificationWarning, _align_to_fit_features, epsqrt
+from ._common import (
+    Q2_MIN_INCREMENT,
+    DataMatrix,
+    NotEnoughVarianceError,
+    SpecificationWarning,
+    _align_to_fit_features,
+    _recommend_n_components,
+    epsqrt,
+)
 from ._nipals import quick_regress, ssq, terminate_check
 
 logger = logging.getLogger(__name__)
@@ -561,15 +569,27 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         *,
         max_components: int | None = None,
         cv: int | BaseCrossValidator = 5,
-        threshold: float = 0.95,
+        min_q2_increase: float = Q2_MIN_INCREMENT,
+        threshold: float | None = None,
         **pca_kwargs,
     ) -> Bunch:
         """Select the number of components via PRESS cross-validation.
 
         Fits PCA models with 1, 2, ..., ``max_components`` components,
-        evaluates each with K-fold cross-validation, and recommends the
-        optimal number using Wold's criterion: stop adding components when
-        PRESS_a / PRESS_{a-1} > ``threshold``.
+        evaluates each with K-fold cross-validation, and recommends a component
+        count using the sequential :math:`Q^2`-increment rule (see
+        :func:`~process_improve.multivariate._common._recommend_n_components`):
+        keep adding components while each meaningfully raises the
+        cross-validated :math:`Q^2_X`, and stop at the first one that does not.
+
+        This replaces the earlier recommendation based purely on Wold's
+        PRESS-ratio (``PRESS_a / PRESS_{a-1}``). The PRESS ratio is *relative* to
+        the shrinking residual, so a fixed ratio cutoff keeps accepting
+        components whose absolute predictive gain has become negligible, and the
+        selection tends to run on too far. Requiring a real :math:`Q^2`
+        increment is the scientifically defensible criterion and is consistent
+        with :meth:`PLS.select_n_components`. The ``press_ratio`` series is still
+        returned for inspection.
 
         Parameters
         ----------
@@ -581,10 +601,18 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         cv : int or sklearn CV splitter, default 5
             Number of cross-validation folds, or an sklearn splitter object
             (e.g., ``KFold(n_splits=10, shuffle=True)``).
-        threshold : float, default 0.95
-            Wold's criterion threshold. If PRESS_a / PRESS_{a-1} exceeds
-            this value, component ``a`` is deemed not significant. Lower
-            values are more aggressive (fewer components).
+        min_q2_increase : float, default ``0.01``
+            Smallest increase in the cumulative cross-validated :math:`Q^2_X`
+            (the ``q2`` series) that justifies keeping an extra component.
+            Components whose marginal :math:`Q^2` gain falls below this are
+            judged to fit noise and stop the search. ``0`` reproduces the old
+            permissive "any improvement" behaviour; larger values are more
+            conservative (fewer components).
+        threshold : float, optional
+            Deprecated and ignored. Previously the Wold PRESS-ratio cutoff used
+            to pick the component count; the recommendation now uses
+            ``min_q2_increase`` instead. Passing this emits a
+            :class:`DeprecationWarning`.
         **pca_kwargs
             Additional keyword arguments passed to the ``PCA()`` constructor
             (e.g., ``algorithm="nipals"`` for data with missing values).
@@ -615,6 +643,16 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         ``MCUVScaler``); the ``q2`` normalisation uses the mean-cell
         sum-of-squares of ``X`` as the null-model reference.
         """
+        if threshold is not None:
+            warnings.warn(
+                "The `threshold` (Wold PRESS-ratio) argument of "
+                "PCA.select_n_components is deprecated and ignored; the "
+                "recommendation now uses the `min_q2_increase` Q2-increment "
+                "rule. Remove `threshold` and tune `min_q2_increase` instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
 
@@ -642,18 +680,15 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         q2 = q2.rename("Q2")
         q2.index.name = "n_components"
 
-        # Wold's criterion: ratio of consecutive PRESS values
+        # Wold's PRESS ratio (consecutive PRESS values) is still reported for
+        # inspection, but the recommendation no longer keys off it.
         ratio_values = {a: press[a] / press[a - 1] for a in range(2, max_components + 1)}
         press_ratio = pd.Series(ratio_values, name="PRESS ratio")
         press_ratio.index.name = "n_components"
 
-        # Recommend: last component where ratio <= threshold
-        recommended = 1
-        for a in range(2, max_components + 1):
-            if press_ratio[a] <= threshold:
-                recommended = a
-            else:
-                break
+        # Sequential Q^2-increment rule: keep components while each meaningfully
+        # raises the cross-validated Q^2_X, and stop at the first that does not.
+        recommended = _recommend_n_components(q2.to_numpy(), min_increment=min_q2_increase)
 
         cv_scores = pd.DataFrame(all_cv_scores).T
         cv_scores.index.name = "n_components"

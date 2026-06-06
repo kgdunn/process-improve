@@ -11,6 +11,36 @@ those changes.
 
 ## [Unreleased]
 
+## [1.28.0] - 2026-06-06
+
+### Changed
+
+- **Cross-validated component selection now uses a sequential Q2-increment
+  rule** for both `PCA.select_n_components` and `PLS.select_n_components`. A
+  component is kept only if it raises the cumulative cross-validated Q2 by at
+  least `min_q2_increase` (default `0.01`, i.e. one percentage point of
+  predicted variance); the search stops at the first component that does not.
+  This follows the guidance in *Process Improvement using Data* (keep
+  components while Q2 meaningfully increases; stop when it plateaus or
+  decreases) and is consistent across PCA and PLS.
+
+  Previously `PLS.select_n_components` recommended the component count with the
+  single lowest RMSECV (`argmin`). Because the cross-validated error keeps
+  drifting down by noise-level amounts after the systematic components are
+  exhausted, that minimum routinely landed at (or near) the maximum component
+  count, recommending models padded with components that predict no better than
+  the column mean. `PCA.select_n_components` previously used Wold's PRESS-ratio
+  cutoff, which is relative to the shrinking residual and has the same tendency
+  to over-select. Both now require a real Q2 increment, which is the
+  scientifically defensible criterion.
+
+- `PCA.select_n_components` and `PLS.select_n_components` gain a
+  `min_q2_increase` parameter (default `0.01`) to tune that threshold; pass
+  `0.0` to recover the old permissive "any improvement" behaviour. The
+  `threshold` (Wold PRESS-ratio) argument of `PCA.select_n_components` is
+  **deprecated and ignored**; passing it emits a `DeprecationWarning`. The
+  `press_ratio` series is still returned for inspection.
+
 ## [1.27.1] - 2026-06-06
 
 ### Fixed
@@ -1486,7 +1516,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.27.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.28.0...HEAD
+[1.28.0]: https://github.com/kgdunn/process-improve/compare/v1.27.1...v1.28.0
 [1.27.1]: https://github.com/kgdunn/process-improve/compare/v1.27.0...v1.27.1
 [1.27.0]: https://github.com/kgdunn/process-improve/compare/v1.26.1...v1.27.0
 [1.26.1]: https://github.com/kgdunn/process-improve/compare/v1.26.0...v1.26.1

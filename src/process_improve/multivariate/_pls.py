@@ -27,11 +27,13 @@ from .._linalg import safe_inverse
 from ..univariate.metrics import detect_outliers_esd
 from ._base import _LatentVariableModel, _LazyFrame
 from ._common import (
+    Q2_MIN_INCREMENT,
     DataMatrix,
     NotEnoughVarianceError,
     SpecificationWarning,
     _align_to_fit_features,
     _model_method,
+    _recommend_n_components,
     epsqrt,
 )
 from ._nipals import quick_regress, ssq, terminate_check
@@ -620,6 +622,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         *,
         max_components: int | None = None,
         cv: int | BaseCrossValidator = 5,
+        min_q2_increase: float = Q2_MIN_INCREMENT,
         **pls_kwargs,
     ) -> Bunch:
         """Select the number of PLS components via cross-validation.
@@ -627,7 +630,19 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Fits PLS models on cross-validation training folds and evaluates the
         out-of-fold prediction error for every component count ``1, 2, ...,
         max_components``. Reports RMSECV and validated explained variance, and
-        recommends the component count with the lowest overall RMSECV.
+        recommends a component count using the sequential :math:`Q^2`-increment
+        rule (see :func:`~process_improve.multivariate._common._recommend_n_components`):
+        keep adding components while each meaningfully raises the cross-validated
+        :math:`Q^2_Y`, and stop at the first one that does not.
+
+        The recommendation deliberately does **not** pick the single lowest
+        RMSECV (the ``argmin``). On many data sets the cross-validated error
+        keeps drifting down by noise-level amounts after the systematic
+        components are exhausted, so the global minimum sits at (or near) the
+        maximum component count even though those last components predict no
+        better than the column mean. Requiring a real :math:`Q^2` increment at
+        each step is the scientifically defensible criterion and avoids that
+        over-fitting.
 
         Unlike the calibration statistics stored on a fitted model
         (``rmse_``, ``r2_cumulative_``), these metrics estimate performance on
@@ -646,6 +661,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         cv : int or sklearn CV splitter, default 5
             Number of K-fold splits, or an sklearn splitter object (e.g.
             ``KFold(n_splits=10, shuffle=True)`` or ``LeaveOneOut()``).
+        min_q2_increase : float, default ``0.01``
+            Smallest increase in the cumulative cross-validated :math:`Q^2_Y`
+            (the ``"total"`` column of ``r2y_validated``) that justifies keeping
+            an extra component. Components whose marginal :math:`Q^2` gain falls
+            below this threshold are judged to fit noise and stop the search.
+            ``0`` reproduces the old permissive "any improvement" behaviour;
+            larger values are more conservative (fewer components).
         **pls_kwargs
             Additional keyword arguments passed to the ``PLS()`` constructor
             (e.g. ``missing_data_settings``).
@@ -656,7 +678,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             With keys:
 
             - ``n_components`` - recommended number of components (int): the
-              count with the lowest overall RMSECV.
+              largest count reached before the cross-validated :math:`Q^2_Y`
+              stops improving by at least ``min_q2_increase``.
             - ``rmsecv`` - root-mean-square error of cross-validation
               (pd.DataFrame, indexed 1..A; columns are the Y-variable names
               plus ``"total"``).
@@ -677,10 +700,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         dataset, which makes the reported errors slightly optimistic compared
         with scaling each training fold independently.
 
-        The recommendation uses the minimum overall RMSECV. A more
-        conservative choice is Wold's criterion: stop adding components once
-        RMSECV stops improving appreciably. That can be applied directly to
-        the returned ``rmsecv["total"]`` curve.
+        The recommendation applies the sequential :math:`Q^2`-increment rule to
+        the cumulative validated :math:`Q^2_Y` (the ``"total"`` column of
+        ``r2y_validated``). The full ``rmsecv`` and ``r2y_validated`` curves are
+        returned so callers can apply their own stopping rule or inspect a few
+        components either side of the recommendation, as good practice
+        suggests.
 
         Examples
         --------
@@ -759,11 +784,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         )
         press = pd.Series(press_y.sum(axis=1), index=component_index, name="PRESS")
 
-        # If every CV fold produced NaN (e.g. zero-variance Y per fold)
-        # ``np.argmin`` warns and returns 0; the silent ``recommended = 1``
-        # was indistinguishable from a legitimate "1 component is best"
-        # result. Raise instead so the caller knows the CV did not converge
-        # to a recommendation. SEC-21 (#270) sub-item 8.
+        # If every CV fold produced NaN (e.g. zero-variance Y per fold) the
+        # cross-validation never converged to anything we can judge. Raise so
+        # the caller knows, rather than silently returning ``1``. SEC-21 (#270)
+        # sub-item 8.
         total_rmsecv = rmsecv["total"].to_numpy()
         if np.all(np.isnan(total_rmsecv)):
             raise RuntimeError(
@@ -771,7 +795,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 "no recommendation can be made. Likely cause: a per-fold zero-variance Y "
                 "column, or every fold trivially degenerate."
             )
-        recommended = int(np.nanargmin(total_rmsecv)) + 1
+        # Sequential Q^2-increment rule on the cumulative validated Q^2_Y, not
+        # the global RMSECV minimum (which over-fits to the maximum component
+        # count when the error keeps drifting down by noise-level amounts).
+        recommended = _recommend_n_components(
+            r2y_validated["total"].to_numpy(), min_increment=min_q2_increase
+        )
         cv_predictions = pd.DataFrame(oof[recommended - 1], index=Y.index, columns=Y.columns)
 
         return Bunch(

@@ -20,11 +20,84 @@ import pandas as pd
 # Names re-exported to the rest of the package. Declared explicitly so CodeQL
 # does not flag the ``DataMatrix`` type alias (only ever referenced in lazy
 # annotation strings under ``from __future__ import annotations``) as unused.
-__all__ = ["DataMatrix", "NotEnoughVarianceError", "SpecificationWarning", "epsqrt"]
+__all__ = [
+    "Q2_MIN_INCREMENT",
+    "DataMatrix",
+    "NotEnoughVarianceError",
+    "SpecificationWarning",
+    "epsqrt",
+]
 
 DataMatrix: TypeAlias = np.ndarray | pd.DataFrame
 
 epsqrt = np.sqrt(np.finfo(float).eps)
+
+#: Default minimum increase in the cross-validated :math:`Q^2` for an extra
+#: component to be judged worth keeping. A component that lifts the cumulative
+#: :math:`Q^2` by less than this (or lowers it) is treated as fitting noise,
+#: not systematic variation. ``0.01`` means "must add at least one percentage
+#: point of cross-validated explained variance". See
+#: :func:`_recommend_n_components`.
+Q2_MIN_INCREMENT = 0.01
+
+
+def _recommend_n_components(
+    q2_cumulative: np.ndarray | pd.Series | list[float],
+    *,
+    min_increment: float = Q2_MIN_INCREMENT,
+) -> int:
+    r"""Recommend a component count from a cumulative cross-validated :math:`Q^2` curve.
+
+    Implements the cross-validation stopping rule taught in *Process Improvement
+    using Data* (`Determining the number of components ... with cross-validation
+    <https://learnche.org/pid/latent-variable-modelling/principal-component-analysis/determining-the-number-of-components-to-use-in-the-model-with-cross-validation>`_):
+    keep adding components while each one *meaningfully* raises the
+    cross-validated :math:`Q^2`, and stop as soon as one does not, because a
+    component that fails to lift :math:`Q^2` is fitting noise rather than
+    systematic variation.
+
+    Walking outward from a single component, component ``a`` is retained only if
+    it increases the cumulative :math:`Q^2` over ``a - 1`` components by at least
+    ``min_increment`` (with an implied :math:`Q^2` of ``0`` before any
+    component). The first component that fails that test - a plateau or a drop -
+    stops the search, and the recommendation is the last component that passed
+    (never fewer than one, since a model needs at least one component).
+
+    This is deliberately a *sequential* rule, not a global optimum. Choosing the
+    component count with the single best :math:`Q^2` (equivalently the lowest
+    PRESS or RMSECV via ``argmin`` / ``argmax``) routinely runs to the maximum,
+    because the cross-validated curve keeps drifting by noise-level amounts after
+    the systematic components are exhausted; a near-zero or fractional final
+    improvement is then enough to select one more component. Requiring a real
+    increment at every step rejects those non-systematic components and is the
+    scientifically defensible criterion.
+
+    Parameters
+    ----------
+    q2_cumulative : array-like of shape (A,)
+        Cumulative cross-validated :math:`Q^2` after ``1, 2, ..., A``
+        components. Non-finite entries (``NaN``/``inf``) are treated as "no
+        improvement" and stop the search.
+    min_increment : float, default :data:`Q2_MIN_INCREMENT`
+        Smallest increase in cumulative :math:`Q^2` that justifies keeping the
+        next component. ``0`` reproduces the permissive "any improvement"
+        behaviour; larger values are more conservative (fewer components).
+
+    Returns
+    -------
+    int
+        Recommended number of components, at least 1.
+    """
+    q2 = np.asarray(q2_cumulative, dtype=float)
+    recommended = 1
+    previous = 0.0
+    for a, value in enumerate(q2, start=1):
+        if not np.isfinite(value) or (value - previous) < min_increment:
+            break
+        recommended = a
+        previous = float(value)
+    return recommended
+
 
 #: Smallest positive float; used to floor NIPALS denominators away from zero.
 _DENOM_FLOOR = float(np.finfo(float).tiny)
