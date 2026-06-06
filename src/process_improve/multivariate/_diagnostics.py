@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
 
-from ._common import DataMatrix
+from ._common import DataMatrix, _align_to_fit_features, epsqrt
 from ._preprocessing import center
 
 # These diagnostics operate on a *fitted* PCA or PLS model via duck typing (they
@@ -247,6 +247,154 @@ def observation_contributions(model: BaseEstimator, n_components: int | None = N
     contributions[~np.isfinite(contributions)] = 0.0
 
     return pd.DataFrame(contributions, index=scores.index, columns=scores.columns[:n_components])
+
+
+def _contribution_inputs(model: BaseEstimator, X: DataMatrix) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+    """Align ``X`` to the fitted features and return ``(X_aligned, R, P)``.
+
+    ``R`` generates the scores (``T = X @ R``) and ``P`` reconstructs the X-block
+    (``X_hat = T @ P.T``). For PCA both are the loadings; for PLS ``R`` is the
+    direct (rotated) weights ``direct_weights_`` and ``P`` is ``x_loadings_``.
+    PLS is recognised by the presence of ``direct_weights_``.
+    """
+    if not hasattr(model, "scores_"):
+        msg = "Model is not fitted. Call fit() before computing contributions."
+        raise ValueError(msg)
+
+    is_pls = hasattr(model, "direct_weights_")
+    reconstruction = model.x_loadings_ if is_pls else model.loadings_
+    directions = model.direct_weights_ if is_pls else model.loadings_
+    P = np.asarray(reconstruction, dtype=float)
+    R = np.asarray(directions, dtype=float)
+
+    if not isinstance(X, pd.DataFrame):
+        X = pd.DataFrame(X)
+    X = _align_to_fit_features(X, reconstruction.index)
+    return X, R, P
+
+
+def t2_contributions(
+    model: BaseEstimator, X: DataMatrix, components: list[int] | None = None
+) -> pd.DataFrame:
+    r"""Per-variable contributions to Hotelling's :math:`T^2`.
+
+    Works with fitted :class:`PCA` and :class:`PLS` models. Decomposes each
+    observation's :math:`T^2` onto the original variables. The contribution of
+    variable :math:`k` for observation :math:`i` is
+
+    .. math::
+
+        c^{T^2}_{ik} = x_{ik} \sum_{a} \frac{t_{ia}}{s_a^2}\, R_{ka},
+
+    where :math:`t_{ia}` are the scores, :math:`s_a^2` is the score variance of
+    component :math:`a` (``scaling_factor_for_scores_`` squared) and :math:`R` is
+    the score-generating matrix (loadings for PCA, ``direct_weights_`` for PLS,
+    so that :math:`T = XR`). Summed over the variables this telescopes to
+    :math:`\sum_a t_{ia}^2 / s_a^2`, i.e. the observation's :math:`T^2`. The
+    values are signed; a large magnitude flags a variable that drives the
+    observation away from the model centre. This is the standard MSPC
+    diagnostic (Westerhuis, Gurden and Smilde, 2000).
+
+    Parameters
+    ----------
+    model : PCA or PLS
+        A fitted PCA or PLS model.
+    X : array-like of shape (n_samples, n_features)
+        Preprocessed data, scaled the same way as the training data (for
+        example with :class:`MCUVScaler`). Passing the training data reproduces
+        the model's stored ``hotellings_t2_``.
+    components : list of int, optional
+        **1-based** component indices to decompose over, matching the model's
+        column convention. ``None`` (default) uses all fitted components, so the
+        row sums equal the cumulative :math:`T^2`.
+
+    Returns
+    -------
+    pd.DataFrame
+        Signed contributions of shape (n_samples, n_features). Each row sums to
+        the observation's :math:`T^2` over the selected components.
+
+    Examples
+    --------
+    >>> pca = PCA(n_components=3).fit(X_scaled)
+    >>> contrib = pca.t2_contributions(X_scaled)
+    >>> contrib.sum(axis=1)  # equals pca.hotellings_t2_.iloc[:, -1]
+
+    See Also
+    --------
+    spe_contributions : The residual-space counterpart.
+    PCA.score_contributions : Decomposes a single score-space movement.
+    """
+    X_df, R, _ = _contribution_inputs(model, X)
+    X_values = X_df.to_numpy(dtype=float)
+    A = R.shape[1]
+
+    if components is None:
+        idx = np.arange(A)
+    else:
+        idx = np.asarray(components, dtype=int) - 1
+        if idx.size == 0 or idx.min() < 0 or idx.max() >= A:
+            msg = f"components must be 1-based indices within 1..{A}, got {components}."
+            raise ValueError(msg)
+
+    s = np.asarray(model.scaling_factor_for_scores_, dtype=float)[idx]
+    # ``s_a == 0`` for a degenerate component would give inf/NaN; clamp the
+    # divisor so such a component contributes nothing rather than poisoning the
+    # result (mirrors ``score_contributions(weighted=True)``).
+    s2 = np.where(s**2 > epsqrt, s**2, 1.0)
+
+    scores = X_values @ R[:, idx]  # (n, len(idx))
+    contributions = X_values * ((scores / s2) @ R[:, idx].T)
+    return pd.DataFrame(contributions, index=X_df.index, columns=X_df.columns)
+
+
+def spe_contributions(model: BaseEstimator, X: DataMatrix) -> pd.DataFrame:
+    r"""Per-variable squared-prediction-error (SPE / DModX) contributions.
+
+    Works with fitted :class:`PCA` and :class:`PLS` models. Returns the signed
+    residual of each variable after reconstructing the X-block from the full
+    model:
+
+    .. math::
+
+        e_{ik} = x_{ik} - \hat{x}_{ik}, \qquad \hat{X} = T P^\top,
+
+    where :math:`P` is the reconstruction loadings (``loadings_`` for PCA,
+    ``x_loadings_`` for PLS). The squared residuals sum across variables to the
+    observation's SPE; equivalently ``(spe_contributions(X) ** 2).sum(axis=1)``
+    equals the stored ``spe_`` (final column) squared. The signs show whether a
+    variable sits above or below its reconstruction, which is the standard SPE
+    contribution plot used to diagnose why an observation has a high residual.
+
+    Parameters
+    ----------
+    model : PCA or PLS
+        A fitted PCA or PLS model.
+    X : array-like of shape (n_samples, n_features)
+        Preprocessed data, scaled the same way as the training data. Passing the
+        training data reproduces the model's stored ``spe_``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Signed per-variable residuals of shape (n_samples, n_features). The
+        squared row sums equal the observation's SPE.
+
+    Examples
+    --------
+    >>> pca = PCA(n_components=2).fit(X_scaled)
+    >>> resid = pca.spe_contributions(X_scaled)
+    >>> (resid ** 2).sum(axis=1)  # equals pca.spe_.iloc[:, -1] ** 2
+
+    See Also
+    --------
+    t2_contributions : The :math:`T^2` (score-space) counterpart.
+    """
+    X_df, R, P = _contribution_inputs(model, X)
+    X_values = X_df.to_numpy(dtype=float)
+    scores = X_values @ R
+    residuals = X_values - scores @ P.T
+    return pd.DataFrame(residuals, index=X_df.index, columns=X_df.columns)
 
 
 def eigenvalue_summary(model: BaseEstimator) -> pd.DataFrame:
