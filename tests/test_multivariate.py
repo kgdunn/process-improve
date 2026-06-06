@@ -359,6 +359,22 @@ def test_scale_ddof_matches_mcuvscaler() -> None:
     assert np.allclose(1.0 / divisor, np.asarray(center(X)).std(axis=0, ddof=0))
 
 
+def test_scale_with_custom_func() -> None:
+    """A custom scaling ``func`` is honoured and ``ddof`` is ignored for it."""
+    rng = np.random.default_rng(3)
+    X = pd.DataFrame(rng.normal(size=(6, 3)))
+
+    # Scale each column by its mean absolute value rather than the std. ``ddof``
+    # only applies to the default ``np.std`` path, so passing it here is a no-op
+    # and must not be forwarded to the (ddof-unaware) custom function.
+    mad = lambda col: np.abs(col).mean()  # noqa: E731
+    scaled, divisor = scale(X, func=mad, extra_output=True, ddof=1)
+
+    expected_divisor = X.apply(mad, axis=0).to_numpy()
+    assert np.allclose(1.0 / divisor, expected_divisor)
+    assert np.allclose(np.asarray(scaled, dtype=float), X.to_numpy() / expected_divisor)
+
+
 def test_scale_zero_variance_column_is_finite() -> None:
     """A constant (zero-variance) column is left as-is, not turned into inf/NaN."""
     X = pd.DataFrame({"varies": [1.0, 2.0, 3.0, 4.0], "constant": [5.0, 5.0, 5.0, 5.0]})
