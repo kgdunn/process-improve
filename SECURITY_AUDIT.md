@@ -38,6 +38,14 @@ therefore ranked under two models:
 | SEC-15 | `reveal_simulator` gate bypassable via kwarg injection | Critical | Low | done (#264, v1.22.12) |
 | SEC-22 | Holt-Winters chart divides by zero on constant warm-up | High | High | done (#271, v1.22.13) |
 | SEC-23 | `regression.OLS.predict` accepts wrong-shape `X` silently | High | Medium | done (#272, v1.22.13) |
+| SEC-34 | Unguarded `json.loads` of highlight keys in multivariate plots | Low | Low | done (v1.26.1) |
+| SEC-35 | Blanket `setattr(**kwargs)` in `ControlChart.calculate_limits` | Low | Low | done (v1.26.1) |
+| SEC-36 | No PEP 561 `py.typed` marker; published types invisible | Low | Low | done (v1.26.1) |
+| SEC-37 | No security disclosure policy (`SECURITY.md`) | Low | Low | done (v1.26.1) |
+
+> Note: SEC-16 through SEC-33 were tracked in their own PRs / CHANGELOG
+> entries and are not all transcribed into this table; the rows above resume
+> the running ledger from the latest audit pass.
 
 ---
 
@@ -355,7 +363,90 @@ therefore ranked under two models:
   Tests: predict with the wrong column count raises a clear `ValueError`; predict
   with the correct shape still returns finite values.
 
+## SEC-34 - Unguarded `json.loads` of highlight keys in multivariate plots [RESOLVED]
+- **Status:** Fixed in v1.26.1. The three plot helpers decode highlight keys via
+  a shared `_decode_highlight_style` helper that raises a clear `ValueError`,
+  matching the SEC-32 guard already applied in `batch/plotting.py`.
+- **Severity:** U = Low, L = Low (robustness)
+- **Where:** `process_improve/multivariate/plots.py` `score_plot` (2D + 3D
+  branches), `spe_plot`, `t2_plot`.
+- **Issue:** Each `items_to_highlight` key is a JSON-encoded Plotly style spec
+  decoded with a bare `json.loads(key)`. A malformed key raised an uncaught
+  `json.JSONDecodeError` from deep inside the trace-building loop rather than a
+  clear error at the API boundary. SEC-32 (#281) fixed the identical pattern in
+  `batch/plotting.py` but the multivariate plot sites were missed.
+- **Fix:** Introduced `_decode_highlight_style(key)` which wraps `json.loads`
+  and re-raises as a `ValueError` with the offending key and an example of the
+  expected format. All four call sites now use it. Regression test:
+  `test_highlight_key_must_be_json` (parametrised over score/spe/t2).
+
+## SEC-35 - Blanket `setattr(**kwargs)` in `ControlChart.calculate_limits` [RESOLVED]
+- **Status:** Fixed in v1.26.1. `**kwargs` is now validated against an allowlist
+  (`ld_1`, `ld_2`) before any attribute is set.
+- **Severity:** U = Low, L = Low (defensive programming / footgun)
+- **Where:** `process_improve/monitoring/control_charts.py`
+  (`ControlChart.calculate_limits` -> `for key, val in kwargs.items():
+  setattr(self, key, val)`).
+- **Issue:** The method copied every keyword argument onto the instance with an
+  unrestricted `setattr`. The only legitimate kwargs are the Holt-Winters
+  smoothing lambdas `ld_1` / `ld_2`; any other key (a typo, or a deliberately
+  crafted name such as `target`, `s`, `train_samples`, or a method name) would
+  silently overwrite internal state and corrupt the fitted limits with no error.
+  The current tool wrapper passes no kwargs, so it was not reachable from the
+  MCP surface, but it is a footgun for direct API users.
+- **Fix:** Extracted `_apply_tuning_kwargs`, which rejects any key outside the
+  `_TUNING_KWARGS` allowlist with a clear `ValueError` before applying the
+  remaining (allowlisted) values. Regression test:
+  `test_calculate_limits_rejects_unknown_kwargs`.
+
+## SEC-36 - No PEP 561 `py.typed` marker; published types invisible [RESOLVED]
+- **Status:** Fixed in v1.26.1. `src/process_improve/py.typed` is added and ships
+  in the wheel (verified: the `uv_build` backend bundles all non-`.py` files in
+  the package tree).
+- **Severity:** U = Low, L = Low (maintenance / downstream usability)
+- **Where:** packaging (`src/process_improve/`).
+- **Issue:** The project is fully type-annotated and `mypy src/process_improve`
+  runs as a blocking CI gate (ENG-03 / ENG-20), yet the distribution carried no
+  `py.typed` marker. Under PEP 561 a type-checker therefore treated
+  `process-improve` as an untyped third-party package and ignored every
+  annotation, so downstream users got none of the benefit of the typing work.
+- **Fix:** Added the marker file. Downstream mypy / pyright now consume the
+  published annotations.
+
+## SEC-37 - No security disclosure policy (`SECURITY.md`) [RESOLVED]
+- **Status:** Fixed in v1.26.1. `SECURITY.md` added at the repo root.
+- **Severity:** U = Low, L = Low (process / community)
+- **Where:** repository root.
+- **Issue:** The project ships an agent-callable MCP tool surface and maintains
+  this detailed `SECURITY_AUDIT.md`, but provided no private channel for a
+  security researcher to report a vulnerability and no statement of supported
+  versions or response expectations. GitHub surfaces a repo's `SECURITY.md` as
+  its "Security policy"; its absence pushes reporters toward public issues.
+- **Fix:** Added `SECURITY.md` documenting private reporting (GitHub private
+  advisories + email), supported versions, response timeline, threat-model
+  scope, and out-of-scope items, cross-linked with this file.
+
 ---
+
+## Recommendations (not yet actioned)
+
+These are lower-priority maintenance / contribution-health items surfaced
+during the v1.26.1 audit pass. They are documented here rather than fixed in the
+same change because each is a maintainer judgement call.
+
+- **`CODE_OF_CONDUCT.md`** (done, v1.26.1). Adopted the Contributor Covenant 2.1
+  with the maintainer as the enforcement contact, referenced from
+  `CONTRIBUTING.md`. Rounds out the community-health files alongside the new
+  `SECURITY.md`.
+- **`.pre-commit-config.yaml` runs `flake8` and `isort` alongside `ruff`.**
+  `ruff` already replaces both (lint + import sorting via the `I` rules), and CI
+  only runs `ruff`. Keeping `flake8` (plus a separate `.flake8` config) and
+  `mirrors-isort` in the pre-commit hooks is redundant and can produce
+  conflicting fixups. The stale comment `# Remove MyPy: conflicts in python 3.9
+  with pytz` also no longer applies (the project requires Python >= 3.10 and
+  mypy is an active hook). Consider trimming pre-commit to `ruff` + `ruff-format`
+  + the hygiene hooks, and either dropping `.flake8` or aligning it with the
+  120-character line length.
 
 ## Out of scope / checked clean
 

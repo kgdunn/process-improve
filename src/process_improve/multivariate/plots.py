@@ -24,6 +24,25 @@ from process_improve.visualization.themes import (
 )
 
 
+def _decode_highlight_style(key: str) -> dict:
+    """Decode an ``items_to_highlight`` key into a Plotly marker-style dict.
+
+    Each key must be a JSON-encoded Plotly marker/line-style spec. Decoding it
+    here (rather than calling ``json.loads`` inline) means a malformed key
+    raises a clear ``ValueError`` at the API surface instead of a confusing
+    ``json.JSONDecodeError`` deep inside the trace-building loop. Mirrors the
+    SEC-32 guard already applied in ``process_improve.batch.plotting``.
+    """
+    try:
+        return json.loads(key)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"items_to_highlight: each key must be a JSON-encoded Plotly "
+            f'style spec (e.g. \'{{"color": "red", "symbol": "cross"}}\'). '
+            f"Got {key!r}."
+        ) from exc
+
+
 def plot_pre_checks(model: BaseEstimator, pc_horiz: int, pc_vert: int, pc_depth: int) -> bool:
     """Check the inputs for the plot functions are valid."""
     n_components = model.n_components if hasattr(model, "n_components") else model._parent.n_components
@@ -167,7 +186,7 @@ def score_plot(  # noqa: C901, PLR0913
         )
         # Items to highlight, if any
         for key, index in highlights.items():
-            styling = json.loads(key)
+            styling = _decode_highlight_style(key)
             fig.add_trace(
                 go.Scatter3d(
                     x=data_to_plot.loc[index, pc_horiz],
@@ -198,7 +217,7 @@ def score_plot(  # noqa: C901, PLR0913
         )
         # Items to highlight, if any
         for key, index in highlights.items():
-            styling = json.loads(key)
+            styling = _decode_highlight_style(key)
             fig.add_trace(
                 go.Scatter(
                     x=data_to_plot.loc[index, pc_horiz],
@@ -501,7 +520,7 @@ def spe_plot(  # noqa: C901
     )
     # Items to highlight, if any
     for key, index in highlights.items():
-        styling = json.loads(key)
+        styling = _decode_highlight_style(key)
         fig.add_trace(
             go.Scatter(
                 x=index,
@@ -651,7 +670,7 @@ def t2_plot(  # noqa: C901
     )
     # Items to highlight, if any
     for key, index in highlights.items():
-        styling = json.loads(key)
+        styling = _decode_highlight_style(key)
         fig.add_trace(
             go.Scatter(
                 x=index,

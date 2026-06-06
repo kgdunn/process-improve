@@ -166,6 +166,33 @@ def test_hw_constant_warmup_raises_value_error() -> None:
         cc.calculate_limits(constant, ld_1=0.4, ld_2=0.7)
 
 
+def test_calculate_limits_rejects_unknown_kwargs() -> None:
+    """Only the Holt-Winters lambdas may be pinned via ``**kwargs``.
+
+    A blanket ``setattr`` previously let any kwarg silently overwrite internal
+    state (``s``, ``target``, ``train_samples``, even a method) and swallowed
+    typos. Unknown kwargs must now raise a clear ``ValueError`` and must not
+    mutate the instance.
+    """
+    rng = np.random.default_rng(0)
+    y = 50.0 + rng.standard_normal(40)
+
+    cc = ControlChart()
+    with pytest.raises(ValueError, match="unexpected keyword argument"):
+        cc.calculate_limits(y, ld_1=0.4, ld_2=0.7, train_samples=[0, 1])
+
+    # A typo of a real attribute is rejected rather than silently shadowing it.
+    cc2 = ControlChart()
+    with pytest.raises(ValueError, match="unexpected keyword argument"):
+        cc2.calculate_limits(y, target_value=999)
+
+    # The legitimate lambdas still flow through and fit succeeds.
+    cc3 = ControlChart()
+    cc3.calculate_limits(y, ld_1=0.4, ld_2=0.7)
+    assert cc3.ld_1 == pytest.approx(0.4)
+    assert cc3.ld_2 == pytest.approx(0.7)
+
+
 def test_cpk_well_centered_process() -> None:
     """Cpk for a well-centered process with wide specs should be high."""
     rng = np.random.default_rng(42)

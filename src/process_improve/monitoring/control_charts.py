@@ -1,6 +1,7 @@
 """Class for ControlChart: robust control charts with a balance between CUSUM and Shewhart properties."""
 
 import logging
+from typing import ClassVar
 
 import numpy as np
 import pandas as pd
@@ -146,8 +147,7 @@ class ControlChart:
         else:
             self.train_samples = [int(i) for i in np.arange(self.warm_up_M, self.N)]
 
-        for key, val in kwargs.items():
-            setattr(self, key, val)
+        self._apply_tuning_kwargs(kwargs)
 
         if self.variant.strip().lower() == "hw":
             if not hasattr(self, "ld_1"):
@@ -171,6 +171,28 @@ class ControlChart:
             )
         idx_bool = (self.df["y"] - self.target).abs() > 3.0 * self.s
         self.idx_outside_3S = np.nonzero(idx_bool.to_numpy())[0].tolist()
+
+    #: Instance attributes a caller may pin via ``calculate_limits(**kwargs)``:
+    #: the Holt-Winters smoothing lambdas. Everything else is internal state.
+    _TUNING_KWARGS: ClassVar[frozenset[str]] = frozenset({"ld_1", "ld_2"})
+
+    def _apply_tuning_kwargs(self, kwargs: dict[str, object]) -> None:
+        """Set caller-pinned tuning parameters, rejecting anything off the allowlist.
+
+        A blanket ``setattr(self, key, val)`` over ``**kwargs`` would let a caller
+        silently overwrite internal state (``self.s``, ``self.target``,
+        ``self.train_samples``, even a bound method) and would swallow typos. We
+        therefore accept only the documented Holt-Winters smoothing lambdas and
+        raise a clear ``ValueError`` otherwise.
+        """
+        unknown = set(kwargs) - self._TUNING_KWARGS
+        if unknown:
+            raise ValueError(
+                f"calculate_limits() got unexpected keyword argument(s) {sorted(unknown)}; "
+                f"only {sorted(self._TUNING_KWARGS)} (Holt-Winters smoothing lambdas) are accepted."
+            )
+        for key, val in kwargs.items():
+            setattr(self, key, val)
 
     def _xbar_no_subgroup_fit(self) -> None:
         """
