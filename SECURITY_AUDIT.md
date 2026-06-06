@@ -38,10 +38,10 @@ therefore ranked under two models:
 | SEC-15 | `reveal_simulator` gate bypassable via kwarg injection | Critical | Low | done (#264, v1.22.12) |
 | SEC-22 | Holt-Winters chart divides by zero on constant warm-up | High | High | done (#271, v1.22.13) |
 | SEC-23 | `regression.OLS.predict` accepts wrong-shape `X` silently | High | Medium | done (#272, v1.22.13) |
-| SEC-34 | Unguarded `json.loads` of highlight keys in multivariate plots | Low | Low | done (v1.25.2) |
-| SEC-35 | Blanket `setattr(**kwargs)` in `ControlChart.calculate_limits` | Low | Low | done (v1.25.2) |
-| SEC-36 | No PEP 561 `py.typed` marker; published types invisible | Low | Low | done (v1.25.2) |
-| SEC-37 | No security disclosure policy (`SECURITY.md`) | Low | Low | done (v1.25.2) |
+| SEC-34 | Unguarded `json.loads` of highlight keys in multivariate plots | Low | Low | done (v1.26.1) |
+| SEC-35 | Blanket `setattr(**kwargs)` in `ControlChart.calculate_limits` | Low | Low | done (v1.26.1) |
+| SEC-36 | No PEP 561 `py.typed` marker; published types invisible | Low | Low | done (v1.26.1) |
+| SEC-37 | No security disclosure policy (`SECURITY.md`) | Low | Low | done (v1.26.1) |
 
 > Note: SEC-16 through SEC-33 were tracked in their own PRs / CHANGELOG
 > entries and are not all transcribed into this table; the rows above resume
@@ -364,7 +364,7 @@ therefore ranked under two models:
   with the correct shape still returns finite values.
 
 ## SEC-34 - Unguarded `json.loads` of highlight keys in multivariate plots [RESOLVED]
-- **Status:** Fixed in v1.25.2. The three plot helpers decode highlight keys via
+- **Status:** Fixed in v1.26.1. The three plot helpers decode highlight keys via
   a shared `_decode_highlight_style` helper that raises a clear `ValueError`,
   matching the SEC-32 guard already applied in `batch/plotting.py`.
 - **Severity:** U = Low, L = Low (robustness)
@@ -381,7 +381,7 @@ therefore ranked under two models:
   `test_highlight_key_must_be_json` (parametrised over score/spe/t2).
 
 ## SEC-35 - Blanket `setattr(**kwargs)` in `ControlChart.calculate_limits` [RESOLVED]
-- **Status:** Fixed in v1.25.2. `**kwargs` is now validated against an allowlist
+- **Status:** Fixed in v1.26.1. `**kwargs` is now validated against an allowlist
   (`ld_1`, `ld_2`) before any attribute is set.
 - **Severity:** U = Low, L = Low (defensive programming / footgun)
 - **Where:** `process_improve/monitoring/control_charts.py`
@@ -400,7 +400,7 @@ therefore ranked under two models:
   `test_calculate_limits_rejects_unknown_kwargs`.
 
 ## SEC-36 - No PEP 561 `py.typed` marker; published types invisible [RESOLVED]
-- **Status:** Fixed in v1.25.2. `src/process_improve/py.typed` is added and ships
+- **Status:** Fixed in v1.26.1. `src/process_improve/py.typed` is added and ships
   in the wheel (verified: the `uv_build` backend bundles all non-`.py` files in
   the package tree).
 - **Severity:** U = Low, L = Low (maintenance / downstream usability)
@@ -414,7 +414,7 @@ therefore ranked under two models:
   published annotations.
 
 ## SEC-37 - No security disclosure policy (`SECURITY.md`) [RESOLVED]
-- **Status:** Fixed in v1.25.2. `SECURITY.md` added at the repo root.
+- **Status:** Fixed in v1.26.1. `SECURITY.md` added at the repo root.
 - **Severity:** U = Low, L = Low (process / community)
 - **Where:** repository root.
 - **Issue:** The project ships an agent-callable MCP tool surface and maintains
@@ -431,7 +431,7 @@ therefore ranked under two models:
 ## Recommendations (not yet actioned)
 
 These are lower-priority maintenance / contribution-health items surfaced
-during the v1.25.2 audit pass. They are documented here rather than fixed in the
+during the v1.26.1 audit pass. They are documented here rather than fixed in the
 same change because each is a maintainer judgement call.
 
 - **`CODE_OF_CONDUCT.md` is absent.** A code of conduct is a standard

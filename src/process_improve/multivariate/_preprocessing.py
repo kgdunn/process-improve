@@ -81,7 +81,12 @@ def center(
 
 
 def scale(
-    X: DataMatrix, func: Callable = np.std, axis: int = 0, extra_output: bool = False, **kwargs
+    X: DataMatrix,
+    func: Callable = np.std,
+    axis: int = 0,
+    extra_output: bool = False,
+    ddof: int = 0,
+    **kwargs,
 ) -> DataMatrix | tuple[DataMatrix, np.ndarray]:
     """
     Scales the data (does NOT do any centering); scales to unit variance by
@@ -89,42 +94,48 @@ def scale(
 
 
     `func` [optional; default=np.std] {a function}
-        The default (np.std) will use NumPy to calculate the sample standard
-        deviation of the data, and use that as `scale`.
-
-        TODO: provide a scaling vector.
-        The sample standard deviation is computed along the required `axis`,
-        skipping over any missing data, and dividing by N-1, where N = number
-        of values which are present, i.e. not counting missing values.
+        The default (np.std) uses NumPy to calculate the standard deviation of
+        the data along the required `axis`, skipping over any missing data, and
+        uses that as `scale`.
 
     `axis` [optional; default=0] {integer}
         Transformations are applied on slices of data.  This specifies the
         axis along which the transformation will be applied.
 
-    #`markers` [optional; default=None]
-    #    A vector (or slice) used to store indices (the markers) where the
-    ##    variance needs to be replaced with the `low_variance_replacement`
-    #
-    #`variance_tolerance` [optional; default=1E-7] {floating point}
-    #    A slice is considered to have no variance when the actual variance of
-    #    that slice is smaller than this value.
-    #
-    #`low_variance_replacement` [optional; default=0.0] {floating point}
-    #    Used to replace values in the output where the `markers` indicates no
-    #    or low variance.
+    `ddof` [optional; default=0] {integer}
+        Delta degrees of freedom, forwarded to `np.std` when `func` is the
+        default `np.std`. The standard deviation is computed by dividing by
+        ``N - ddof``, where N is the number of values which are present. The
+        default (``ddof=0``) divides by N (the population standard deviation);
+        pass ``ddof=1`` for the sample standard deviation (dividing by N-1).
+
+        Note: :class:`MCUVScaler` uses ``ddof=1`` and is the preferred scaler
+        for fitting PCA / PLS models. Use ``scale(center(X), ddof=1)`` here to
+        match it. The ``ddof`` argument is ignored when a custom `func` is
+        supplied (forward your own keyword arguments via ``**kwargs`` instead).
+
+    Constant (zero-variance) columns are left unchanged: a zero entry in the
+    computed scaling vector is replaced by 1.0 before inversion, mirroring
+    :class:`MCUVScaler`, so no ``inf`` / ``NaN`` is introduced.
 
     Usage
     =====
 
     X = ...  # data matrix
     X = scale(center(X))
+    X = scale(center(X), ddof=1)  # sample standard deviation, matches MCUVScaler
     my_scale = np.mad
     X = scale(center(X), func=my_scale)
 
     """
+    if func is np.std and "ddof" not in kwargs:
+        kwargs["ddof"] = ddof
     # pandas-stubs types apply()'s axis as a Literal, so a plain ``int`` axis does
     # not match any overload; the call is valid at runtime.
     vector = pd.DataFrame(X).apply(func, axis=axis, **kwargs).to_numpy()  # type: ignore[call-overload]  # pandas-stubs axis is Literal
+    # Zero-variance (constant) columns are left as-is, mirroring MCUVScaler, so
+    # that ``1.0 / vector`` does not introduce inf/NaN.
+    vector = np.where(vector == 0, 1.0, vector)
     vector = 1.0 / vector
 
     if extra_output:

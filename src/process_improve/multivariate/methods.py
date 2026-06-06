@@ -16,7 +16,7 @@ from .._linalg import safe_inverse
 from .._random import check_random_state
 from ..univariate.metrics import detect_outliers_esd
 from ..visualization.themes import REFERENCE_LINE_COLOR
-from ._common import SpecificationWarning, epsqrt
+from ._common import NotEnoughVarianceError, SpecificationWarning, epsqrt
 from ._diagnostics import (
     eigenvalue_summary,
     observation_contributions,
@@ -69,6 +69,7 @@ __all__ = [
     "TPLS",
     "DataFrameDict",
     "MCUVScaler",
+    "NotEnoughVarianceError",
     "Plot",
     "Resampler",
     "SpecificationWarning",
