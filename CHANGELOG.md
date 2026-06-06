@@ -11,6 +11,16 @@ those changes.
 
 ## [Unreleased]
 
+## [1.27.1] - 2026-06-06
+
+### Fixed
+
+- **PyPI publish workflow (`publish.yml`).** The CycloneDX SBOM step called
+  `cyclonedx-py environment --outfile ...`, but `cyclonedx-bom` 6+ renamed that
+  flag, so the step failed (`unrecognized arguments: --outfile`) and blocked
+  every release. It now uses `--output-file`. CI/tooling only; no library
+  changes from 1.27.0.
+
 ## [1.27.0] - 2026-06-06
 
 ### Added
@@ -1476,7 +1486,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.27.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.27.1...HEAD
+[1.27.1]: https://github.com/kgdunn/process-improve/compare/v1.27.0...v1.27.1
 [1.27.0]: https://github.com/kgdunn/process-improve/compare/v1.26.1...v1.27.0
 [1.26.1]: https://github.com/kgdunn/process-improve/compare/v1.26.0...v1.26.1
 [1.26.0]: https://github.com/kgdunn/process-improve/compare/v1.25.1...v1.26.0
