@@ -3635,8 +3635,8 @@ def manual_cross_validation(tpls_model: TPLS, full_datadict: dict, cv: int = 5, 
 # ---- Additional coverage tests for multivariate/methods.py ----
 
 
-def test_pca_predict_new_data() -> None:
-    """PCA.predict() should return scores, T2, and SPE for new observations."""
+def test_pca_diagnose_new_data() -> None:
+    """PCA.diagnose() should return scores, T2, and SPE for new observations."""
     rng = np.random.default_rng(42)
     N, K = 100, 5
     X = pd.DataFrame(rng.standard_normal((N, K)), columns=[f"V{i}" for i in range(K)])
@@ -3646,9 +3646,9 @@ def test_pca_predict_new_data() -> None:
     model = PCA(n_components=2)
     model.fit(X_scaled)
 
-    # Predict on a subset of the data
+    # Diagnose on a subset of the data
     X_new = scaler.transform(X.iloc[:10])
-    result = model.predict(X_new)
+    result = model.diagnose(X_new)
 
     assert isinstance(result, Bunch)
     assert result.scores.shape == (10, 2)
@@ -3657,8 +3657,8 @@ def test_pca_predict_new_data() -> None:
     assert (result.spe >= 0).all()
 
 
-def test_pca_predict_numpy_input() -> None:
-    """PCA.predict() should accept numpy arrays as well as DataFrames."""
+def test_pca_diagnose_numpy_input() -> None:
+    """PCA.diagnose() should accept numpy arrays as well as DataFrames."""
     rng = np.random.default_rng(42)
     X = pd.DataFrame(rng.standard_normal((50, 4)))
     X_scaled = MCUVScaler().fit_transform(X)
@@ -3666,8 +3666,25 @@ def test_pca_predict_numpy_input() -> None:
     model = PCA(n_components=2)
     model.fit(X_scaled)
 
-    result = model.predict(X_scaled.values[:5])
+    result = model.diagnose(X_scaled.values[:5])
     assert result.scores.shape == (5, 2)
+
+
+def test_pca_predict_is_deprecated_alias_for_diagnose() -> None:
+    """PCA.predict still works but emits a DeprecationWarning and returns the same Bunch."""
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(rng.standard_normal((50, 4)), columns=list("ABCD"))
+    X_scaled = MCUVScaler().fit_transform(X)
+    model = PCA(n_components=2).fit(X_scaled)
+
+    with pytest.warns(DeprecationWarning, match=r"PCA\.predict.*deprecated.*diagnose"):
+        deprecated = model.predict(X_scaled.iloc[:5])
+    canonical = model.diagnose(X_scaled.iloc[:5])
+
+    # Identical Bunch contents.
+    np.testing.assert_allclose(deprecated.scores.values, canonical.scores.values)
+    np.testing.assert_allclose(deprecated.hotellings_t2.values, canonical.hotellings_t2.values)
+    np.testing.assert_allclose(deprecated.spe.values, canonical.spe.values)
 
 
 def test_pca_score_method() -> None:

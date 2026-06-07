@@ -11,6 +11,22 @@ those changes.
 
 ## [Unreleased]
 
+## [1.38.1] - 2026-06-07
+
+### Added
+
+- **`PCA.diagnose(X)`** as the canonical name for the existing diagnostics
+  Bunch (`scores`, `hotellings_t2`, `spe`). Matches `PLS.diagnose`.
+
+### Deprecated
+
+- **`PCA.predict(X)`** is now a thin shim that forwards to
+  `PCA.diagnose(X)` and emits a `DeprecationWarning`. Behaviour and return
+  shape are unchanged; the rename clears the `predict` name for a future
+  contract that matches its sklearn-convention meaning (regression-style
+  prediction), and removes the asymmetry with `PLS.predict` / `PLS.diagnose`
+  (#396). Slated for removal in 2.0.0.
+
 ## [1.38.0] - 2026-06-07
 
 ### Added
@@ -1838,7 +1854,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.38.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.38.1...HEAD
+[1.38.1]: https://github.com/kgdunn/process-improve/compare/v1.38.0...v1.38.1
 [1.38.0]: https://github.com/kgdunn/process-improve/compare/v1.37.0...v1.38.0
 [1.37.0]: https://github.com/kgdunn/process-improve/compare/v1.36.0...v1.37.0
 [1.36.0]: https://github.com/kgdunn/process-improve/compare/v1.35.0...v1.36.0

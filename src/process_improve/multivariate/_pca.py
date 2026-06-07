@@ -738,8 +738,14 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         self.fit(X)
         return self.scores_
 
-    def predict(self, X: DataMatrix) -> Bunch:
+    def diagnose(self, X: DataMatrix) -> Bunch:
         """Project new data and compute diagnostics (scores, Hotelling's T², SPE).
+
+        The same logic that historically lived in :meth:`predict`. The rename
+        (since 1.38.1, #396) matches :meth:`PLS.diagnose` and clears the
+        ``predict`` name for a future return-type contract that does what its
+        sklearn-convention name implies (a regression-style prediction).
+        :meth:`predict` is kept as a deprecation shim for now.
 
         Parameters
         ----------
@@ -751,10 +757,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             With keys ``scores``, ``hotellings_t2``, ``spe``.
         """
         check_is_fitted(self, "loadings_")
-        # predict() delegates to transform() which already runs validate_data;
-        # call it once here so the rest of predict can work with the aligned
+        # diagnose() delegates to transform() which already runs validate_data;
+        # call it once here so the rest can work with the aligned
         # DataFrame view (and so the validate_data error pathways fire on
-        # the predict() call directly, not on the recursive transform() one).
+        # the diagnose() call directly, not on the recursive transform() one).
         scores = self.transform(X)
         # transform's output is indexed by the validated X's row index;
         # recover an aligned DataFrame for the diagnostics below.
@@ -777,6 +783,23 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         spe_values = pd.Series(np.sqrt(np.sum(residuals**2, axis=1)), index=X.index, name="SPE")
 
         return Bunch(scores=scores, hotellings_t2=t2, spe=spe_values)
+
+    def predict(self, X: DataMatrix) -> Bunch:
+        """Forward to :meth:`diagnose`; emits a :class:`DeprecationWarning`.
+
+        .. deprecated:: 1.38.1
+            Use :meth:`PCA.diagnose` instead. ``predict`` matches the
+            sklearn-convention name (a regression-style prediction), but PCA
+            isn't a regressor; the historical return is a diagnostics Bunch.
+            The rename aligns with :meth:`PLS.diagnose` and frees the name
+            for a future contract. Will be removed in 2.0.0.
+        """
+        warnings.warn(
+            "PCA.predict is deprecated and will be removed in 2.0.0; use PCA.diagnose instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.diagnose(X)
 
     def score(self, X: DataMatrix, y: DataMatrix | None = None) -> float:  # noqa: ARG002
         """Negative mean squared reconstruction error (higher is better).
