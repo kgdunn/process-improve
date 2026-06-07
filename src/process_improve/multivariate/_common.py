@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import functools
 from collections.abc import Callable
-from typing import Any, TypeAlias
+from typing import Any, Literal, TypeAlias
 
 import numpy as np
 import pandas as pd
@@ -20,7 +20,39 @@ import pandas as pd
 # Names re-exported to the rest of the package. Declared explicitly so CodeQL
 # does not flag the ``DataMatrix`` type alias (only ever referenced in lazy
 # annotation strings under ``from __future__ import annotations``) as unused.
-__all__ = ["DataMatrix", "NotEnoughVarianceError", "SpecificationWarning", "epsqrt"]
+__all__ = [
+    "Q2_MIN_INCREMENT",
+    "DataMatrix",
+    "NotEnoughVarianceError",
+    "SelectionRule",
+    "SpecificationWarning",
+    "epsqrt",
+]
+
+#: Component-selection rules supported by ``PLS.select_n_components``.
+#:
+#: ``"1se"`` (the current default) applies the one-standard-error rule of
+#: Breiman, Friedman, Olshen & Stone (1984, *CART* sec.3.4.3), endorsed by
+#: Hastie, Tibshirani & Friedman (*The Elements of Statistical Learning*,
+#: sec.7.10): pick the smallest component count whose mean cross-validated
+#: error is within one standard error of the lowest. Needs per-fold errors,
+#: so repeated K-fold is recommended.
+#:
+#: ``"min"`` returns the component count with the lowest cross-validated error.
+#: On data sets where the validated error keeps drifting down by noise-level
+#: amounts after the systematic components are exhausted, this routinely runs
+#: to (or near) the maximum component count.
+#:
+#: ``"q2_increment"`` keeps adding components while each one raises the
+#: cumulative cross-validated :math:`Q^2` by at least ``min_q2_increase``;
+#: it is a Wold's-R-style heuristic with an absolute (not relative) threshold.
+SelectionRule = Literal["1se", "min", "q2_increment"]
+
+#: Default minimum increase in the cross-validated :math:`Q^2` for an extra
+#: component to be judged worth keeping under the ``"q2_increment"`` selection
+#: rule. ``0.01`` means "must add at least one percentage point of
+#: cross-validated explained variance".
+Q2_MIN_INCREMENT = 0.01
 
 DataMatrix: TypeAlias = np.ndarray | pd.DataFrame
 
@@ -132,6 +164,116 @@ def _align_to_fit_features(X: pd.DataFrame, fit_feature_names: pd.Index) -> pd.D
         # positional projection lines up.
         X = X[fit_names]
     return X
+
+
+def _recommend_n_components_q2(
+    q2_cumulative: np.ndarray | pd.Series | list[float],
+    *,
+    min_increment: float = Q2_MIN_INCREMENT,
+) -> int:
+    r"""Recommend a component count from a cumulative cross-validated :math:`Q^2` curve.
+
+    Walks outward from one component, keeping component ``a`` only if it lifts
+    the cumulative :math:`Q^2` by at least ``min_increment`` (with an implied
+    :math:`Q^2` of ``0`` before any component). The first component that fails
+    that test - a plateau, a drop, or a non-finite entry - stops the search,
+    and the recommendation is the last component that passed (never fewer than
+    one, since a model needs at least one component).
+
+    This is a Wold's-R-style heuristic: parsimonious and cheap, but the
+    threshold is absolute and hand-tuned. Prefer the 1-SE rule
+    (:func:`_recommend_n_components_one_se`) when per-fold errors are available.
+    """
+    q2 = np.asarray(q2_cumulative, dtype=float)
+    recommended = 1
+    previous = 0.0
+    for a, value in enumerate(q2, start=1):
+        if not np.isfinite(value) or (value - previous) < min_increment:
+            break
+        recommended = a
+        previous = float(value)
+    return recommended
+
+
+def _recommend_n_components_one_se(
+    mean_error: np.ndarray | pd.Series | list[float],
+    se_error: np.ndarray | pd.Series | list[float],
+) -> int:
+    r"""Recommend a component count by the one-standard-error rule.
+
+    Given the mean cross-validated error per component count (``mean_error``,
+    e.g. RMSECV across folds and repeats) and its standard error
+    (``se_error``), find ``a* = nanargmin(mean_error)`` and return the
+    *smallest* component count ``a`` whose ``mean_error[a]`` is no larger than
+    ``mean_error[a*] + se_error[a*]``.
+
+    The 1-SE rule (Breiman, Friedman, Olshen & Stone 1984, *CART* sec.3.4.3;
+    Hastie, Tibshirani & Friedman, *ESL* sec.7.10) trades a tiny amount of
+    fit for a more parsimonious model whose error is statistically
+    indistinguishable from the best. It is the cheapest robustness upgrade for
+    integer hyperparameters like the number of latent variables.
+
+    Non-finite entries in ``mean_error`` are skipped. The selection always
+    returns at least ``1``. If ``se_error`` at the minimum is non-finite or
+    zero, the rule degenerates to the argmin.
+    """
+    mean = np.asarray(mean_error, dtype=float)
+    se = np.asarray(se_error, dtype=float)
+    if mean.shape != se.shape:
+        raise ValueError(
+            f"mean_error and se_error must have the same shape; "
+            f"got {mean.shape} and {se.shape}."
+        )
+    if mean.ndim != 1:
+        raise ValueError("mean_error must be 1-D.")
+    finite = np.isfinite(mean)
+    if not finite.any():
+        # Caller should already have raised before now; fall through to 1 so
+        # this helper never returns a sentinel.
+        return 1
+    masked = np.where(finite, mean, np.inf)
+    best = int(np.argmin(masked))
+    se_best = se[best] if np.isfinite(se[best]) else 0.0
+    threshold = masked[best] + se_best
+    for a, value in enumerate(masked, start=1):
+        if value <= threshold:
+            return a
+    return best + 1
+
+
+def _select_n_components(
+    rule: SelectionRule,
+    *,
+    mean_error: np.ndarray | pd.Series | list[float],
+    se_error: np.ndarray | pd.Series | list[float] | None = None,
+    q2_cumulative: np.ndarray | pd.Series | list[float] | None = None,
+    min_q2_increase: float = Q2_MIN_INCREMENT,
+) -> int:
+    """Dispatch component selection to one of the supported rules.
+
+    See :data:`SelectionRule` for the rule semantics. Raises ``ValueError`` if
+    a rule is requested without the data it needs (``"1se"`` needs
+    ``se_error``; ``"q2_increment"`` needs ``q2_cumulative``).
+    """
+    if rule == "min":
+        mean = np.asarray(mean_error, dtype=float)
+        if not np.isfinite(mean).any():
+            return 1
+        return int(np.nanargmin(mean)) + 1
+    if rule == "1se":
+        if se_error is None:
+            raise ValueError("selection_rule='1se' requires per-component standard errors.")
+        return _recommend_n_components_one_se(mean_error, se_error)
+    if rule == "q2_increment":
+        if q2_cumulative is None:
+            raise ValueError(
+                "selection_rule='q2_increment' requires a cumulative Q^2 curve."
+            )
+        return _recommend_n_components_q2(q2_cumulative, min_increment=min_q2_increase)
+    raise ValueError(
+        f"Unknown selection_rule {rule!r}; expected one of "
+        f"'1se', 'min', 'q2_increment'."
+    )
 
 
 def _model_method(fn: Callable[..., Any]) -> Callable[..., Any]:
