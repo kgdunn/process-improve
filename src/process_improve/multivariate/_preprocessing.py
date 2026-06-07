@@ -27,16 +27,22 @@ class MCUVScaler(BaseEstimator, TransformerMixin):
     def __init__(self):
         pass
 
-    def fit(self, X: DataMatrix) -> MCUVScaler:
-        """Get the centering and scaling object constants."""
+    def fit(self, X: DataMatrix, y=None) -> MCUVScaler:  # noqa: ANN001, ARG002
+        """Get the centering and scaling object constants.
+
+        ``y`` is accepted (and ignored) so the scaler plugs into
+        ``sklearn.pipeline.Pipeline``: every Pipeline step's ``fit`` is
+        called with both ``X`` and ``y``, even when (as for a transformer)
+        the ``y`` is unused.
+        """
         self.center_ = pd.DataFrame(X).mean()
         # this is the key difference with "preprocessing.StandardScaler"
         self.scale_ = pd.DataFrame(X).std(ddof=1)
         self.scale_[self.scale_ == 0] = 1.0  # columns with no variance are left as-is.
         return self
 
-    def transform(self, X: DataMatrix) -> pd.DataFrame:
-        """Do work of the transformation."""
+    def transform(self, X: DataMatrix, y=None) -> pd.DataFrame:  # noqa: ANN001, ARG002
+        """Do work of the transformation. ``y`` is accepted and ignored (Pipeline interop)."""
         check_is_fitted(self, "center_")
         check_is_fitted(self, "scale_")
 

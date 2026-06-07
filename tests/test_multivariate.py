@@ -2772,6 +2772,119 @@ def test_pls_nested_cv_accepts_custom_outer_splitter() -> None:
     assert result.cv_predictions.shape == (N, 1)
 
 
+# -----------------------------------------------------------------------------
+# sklearn Pipeline / cross_val_score / GridSearchCV interop (#383)
+# -----------------------------------------------------------------------------
+
+
+def _make_pls_pipeline_data(seed: int = 0, *, n_targets: int = 1):
+    rng = np.random.default_rng(seed)
+    N, K, true_rank = 50, 10, 2
+    T = rng.standard_normal((N, true_rank)) * np.array([6.0, 3.5])
+    P = rng.standard_normal((true_rank, K))
+    X = pd.DataFrame(
+        T @ P + 0.3 * rng.standard_normal((N, K)),
+        columns=[f"x{i}" for i in range(K)],
+    )
+    gamma = rng.standard_normal((true_rank, n_targets))
+    Y = pd.DataFrame(
+        T @ gamma + 0.25 * rng.standard_normal((N, n_targets)),
+        columns=[f"y{i}" for i in range(n_targets)],
+    )
+    return X, Y
+
+
+def test_pipeline_mcuv_pca_fit_transform() -> None:
+    """Pipeline([MCUVScaler, PCA]).fit_transform returns the PCA scores."""
+    from sklearn.pipeline import Pipeline
+
+    X, _ = _make_pls_pipeline_data(seed=1)
+    pipe = Pipeline([("sc", MCUVScaler()), ("pca", PCA(n_components=2))])
+    scores = pipe.fit_transform(X)
+    assert scores.shape == (X.shape[0], 2)
+    # Roundtrip: transform reproduces fit_transform's result.
+    np.testing.assert_allclose(np.asarray(scores), np.asarray(pipe.transform(X)))
+
+
+@pytest.mark.xfail(
+    reason=(
+        "PLS.predict returns a rich Bunch (scores, T2, SPE, y_hat) instead of "
+        "the ndarray the sklearn RegressorMixin contract requires. Pending the "
+        "API decision tracked under #383."
+    ),
+    strict=True,
+)
+def test_pipeline_mcuv_pls_fit_predict() -> None:
+    """Pipeline([MCUVScaler, PLS]).fit / predict works end-to-end."""
+    from sklearn.pipeline import Pipeline
+
+    X, Y = _make_pls_pipeline_data(seed=2)
+    Y_arr = Y.to_numpy()
+    pipe = Pipeline([("sc", MCUVScaler()), ("pls", PLS(n_components=2))])
+    pipe.fit(X, Y_arr)
+    pred = pipe.predict(X)
+    assert np.asarray(pred).shape == (X.shape[0], Y_arr.shape[1])
+
+
+def test_pipeline_clone_round_trip() -> None:
+    """clone(pipe) reproduces the same fitted result given the same data."""
+    from sklearn.base import clone
+    from sklearn.pipeline import Pipeline
+
+    X, _ = _make_pls_pipeline_data(seed=3)
+    pipe = Pipeline([("sc", MCUVScaler()), ("pca", PCA(n_components=3))])
+    a = clone(pipe).fit(X)
+    b = clone(pipe).fit(X)
+    # Loadings agree up to sign; compare absolute values for robustness.
+    np.testing.assert_allclose(
+        np.abs(a.named_steps["pca"].loadings_.to_numpy()),
+        np.abs(b.named_steps["pca"].loadings_.to_numpy()),
+    )
+
+
+@pytest.mark.xfail(
+    reason="Blocked on PLS.predict's Bunch return; see #383.",
+    strict=True,
+)
+def test_pipeline_cross_val_score_pls() -> None:
+    """cross_val_score over Pipeline([MCUVScaler, PLS]) avoids leakage by construction."""
+    from sklearn.model_selection import RepeatedKFold, cross_val_score
+    from sklearn.pipeline import Pipeline
+
+    X, Y = _make_pls_pipeline_data(seed=4)
+    Y_arr = Y.to_numpy().ravel()
+    pipe = Pipeline([("sc", MCUVScaler()), ("pls", PLS(n_components=2))])
+    cv = RepeatedKFold(n_splits=5, n_repeats=2, random_state=0)
+    scores = cross_val_score(pipe, X, Y_arr, cv=cv, scoring="r2")
+    assert scores.shape == (10,)
+    # On clean rank-2 data the R^2 over folds should be solidly positive.
+    assert scores.mean() > 0.5
+
+
+@pytest.mark.xfail(
+    reason="Blocked on PLS.predict's Bunch return; see #383.",
+    strict=True,
+)
+def test_pipeline_gridsearchcv_selects_components() -> None:
+    """GridSearchCV picks n_components for the PLS step inside a Pipeline."""
+    from sklearn.model_selection import GridSearchCV, KFold
+    from sklearn.pipeline import Pipeline
+
+    X, Y = _make_pls_pipeline_data(seed=5)
+    Y_arr = Y.to_numpy().ravel()
+    pipe = Pipeline([("sc", MCUVScaler()), ("pls", PLS(n_components=1))])
+    grid = GridSearchCV(
+        pipe,
+        param_grid={"pls__n_components": [1, 2, 3, 4]},
+        cv=KFold(5, shuffle=True, random_state=0),
+        scoring="r2",
+    )
+    grid.fit(X, Y_arr)
+    # On clean rank-2 data the best fit lands at or near 2 components.
+    assert grid.best_params_["pls__n_components"] in {2, 3}
+    assert grid.best_score_ > 0.5
+
+
 def test_pls_select_n_components_randomization_rule() -> None:
     """Van der Voet's randomization test picks a parsimonious model."""
     rng = np.random.default_rng(2026)

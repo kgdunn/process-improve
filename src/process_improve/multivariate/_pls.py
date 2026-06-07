@@ -448,6 +448,16 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Abdi, "Partial least squares regression and projection on latent structure
         regression (PLS Regression)", 2010, DOI: 10.1002/wics.51
         """
+        # Accept 1-D Y (the shape sklearn Pipelines pass for single-target
+        # regression) by promoting to (N, 1) so the rest of fit can rely on
+        # the 2-D shape.
+        if hasattr(Y, "ndim") and Y.ndim == 1:
+            Y = Y.to_frame() if isinstance(Y, pd.Series) else pd.DataFrame(np.asarray(Y).reshape(-1, 1))
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+        if not isinstance(Y, pd.DataFrame):
+            Y = pd.DataFrame(Y)
+
         self.n_samples_: int = X.shape[0]
         self.n_features_in_: int = X.shape[1]
         # Fitted flag, defaulted here (not in __init__) so __init__ sets only the
