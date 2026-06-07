@@ -38,13 +38,15 @@ from ._nipals import quick_regress, ssq, terminate_check
 logger = logging.getLogger(__name__)
 
 
-def _pca_ekf_press(  # noqa: PLR0913
+def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
     X: np.ndarray,
     max_components: int,
     *,
     n_folds: int = 5,
+    n_repeats: int = 1,
     n_iter: int = 50,
     tol: float = 1e-6,
+    scale_inside_folds: bool = True,
     random_state: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Element-wise k-fold (ekf) PCA cross-validation.
@@ -62,29 +64,46 @@ def _pca_ekf_press(  # noqa: PLR0913
     Parameters
     ----------
     X : np.ndarray of shape (n_samples, n_features)
-        Data matrix. Should already be on the analysis scale (e.g. mean-
-        centred and unit-variance via :class:`MCUVScaler`).
+        Data matrix. With the default ``scale_inside_folds=True`` the raw
+        unscaled matrix may be passed; with ``False`` the caller is expected
+        to have mean-centred (and usually unit-variance scaled) it.
     max_components : int
         Maximum number of components to evaluate; PRESS is computed for
         ``1 .. max_components``.
     n_folds : int, default 5
         Number of element-folds. Bro 2008 uses 7 as a typical default; 5 is
         a faster choice that still gives a stable curve.
+    n_repeats : int, default 1
+        Number of times to repeat the ekf pass with a fresh random fold
+        permutation. Each repeat covers every cell exactly once; ``n_repeats
+        > 1`` averages over different element-fold partitions, narrowing
+        the per-component PRESS standard error at extra runtime.
     n_iter : int, default 50
         Maximum number of EM iterations per fold and component count.
     tol : float, default 1e-6
         Relative change in the held-out cell predictions below which EM
         stops early.
+    scale_inside_folds : bool, default True
+        If True, fit per-column mean and unit-variance constants on each
+        fold's in-fold cells and apply them to the whole matrix before
+        running EM; predictions are inverse-transformed before PRESS is
+        accumulated. This removes the centring/scaling leakage of the
+        previous default (which used a single set of constants iteratively
+        recomputed from the imputed matrix). If False, the scheme reverts
+        to the prior behaviour (caller is responsible for scaling, and the
+        in-loop column-mean is allowed to drift with the EM imputation).
     random_state : int, optional
-        Seed for the element-fold permutation, for reproducibility.
+        Seed for the element-fold permutation, for reproducibility across
+        repeats.
 
     Returns
     -------
     press : np.ndarray of shape (max_components,)
-        Pooled PRESS per component count.
-    per_fold_press : np.ndarray of shape (max_components, n_folds)
-        Per-fold PRESS contributions; columns sum to ``press`` and drive
-        the 1-SE rule's standard error.
+        Per-cell PRESS per component count, averaged over ``n_repeats``
+        passes so the scale is comparable to a single-pass run.
+    per_fold_press : np.ndarray of shape (max_components, n_folds * n_repeats)
+        Per-fold PRESS contributions across every fold of every repeat;
+        drives the 1-SE rule's standard error.
 
     References
     ----------
@@ -100,62 +119,97 @@ def _pca_ekf_press(  # noqa: PLR0913
     n, p = X.shape
     rng = np.random.default_rng(random_state)
 
-    # Element-fold assignment: a balanced permutation so every fold has
-    # ~n*p/n_folds cells (not all the same column, not all the same row).
+    total_folds = n_folds * n_repeats
+    per_fold_press = np.zeros((max_components, total_folds))
+    fold_counter = 0
+
     n_cells = n * p
-    perm = rng.permutation(n_cells)
-    fold = np.empty(n_cells, dtype=np.int64)
     fold_size = n_cells // n_folds
-    for k in range(n_folds):
-        start = k * fold_size
-        end = (k + 1) * fold_size if k < n_folds - 1 else n_cells
-        fold[perm[start:end]] = k
-    fold = fold.reshape(n, p)
 
-    per_fold_press = np.zeros((max_components, n_folds))
+    for _ in range(n_repeats):
+        # Assign cells to folds via a balanced random permutation so every
+        # fold has ~n*p/n_folds cells (not all the same column, not the
+        # same row).
+        perm = rng.permutation(n_cells)
+        fold = np.empty(n_cells, dtype=np.int64)
+        for k in range(n_folds):
+            start = k * fold_size
+            end = (k + 1) * fold_size if k < n_folds - 1 else n_cells
+            fold[perm[start:end]] = k
+        fold = fold.reshape(n, p)
 
-    for k in range(n_folds):
-        mask = fold == k  # (n, p) bool, True where the cell is held out
-        if not mask.any():
-            continue
-        # Initial imputation: in-fold column means. A column where every cell
-        # is held out (degenerate; very rare with n_folds > 1 unless p < n_folds)
-        # is initialised to zero, which is the centred column mean.
-        Xtr = X.copy()
-        for j in range(p):
-            m_j = mask[:, j]
-            if m_j.any():
-                in_fold_vals = X[~m_j, j]
-                Xtr[m_j, j] = in_fold_vals.mean() if in_fold_vals.size > 0 else 0.0
+        for k in range(n_folds):
+            mask = fold == k  # (n, p) bool, True where the cell is held out
+            if not mask.any():
+                fold_counter += 1
+                continue
 
-        # For this fold, refine the imputation for each component count
-        # *separately*: lower a's converge to a coarser reconstruction than
-        # higher a's, and chaining them would couple their errors.
-        for a in range(1, max_components + 1):
-            Xa = Xtr.copy()
-            prev_held = Xa[mask].copy()
-            for _ in range(n_iter):
-                col_mean = Xa.mean(axis=0)
-                Xc = Xa - col_mean
-                # SciPy / NumPy SVD: economical (full_matrices=False).
-                _, S, Vt = np.linalg.svd(Xc, full_matrices=False)
-                # Re-project Xc onto its rank-a truncation. Using ``Xc @ Vt[:a].T``
-                # rather than ``U[:, :a] * S[:a]`` is mathematically identical
-                # for the truncated SVD but slightly more numerically stable
-                # when later S values are small.
-                rank = min(a, S.shape[0])
-                recon_centred = (Xc @ Vt[:rank].T) @ Vt[:rank]
-                recon = recon_centred + col_mean
-                Xa[mask] = recon[mask]
-                delta = np.linalg.norm(Xa[mask] - prev_held)
-                scale = max(1.0, float(np.linalg.norm(prev_held)))
-                if delta < tol * scale:
-                    break
+            # Fit per-column centring/scaling on the in-fold cells. Only
+            # consumed under scale_inside_folds=True; the False path uses
+            # in_fold_vals.mean() for the initial imputation and recomputes
+            # the column mean inside EM, so we skip the work here.
+            col_centre = np.zeros(p)
+            col_scale = np.ones(p)
+            if scale_inside_folds:
+                for j in range(p):
+                    in_fold = X[~mask[:, j], j]
+                    if in_fold.size > 1:
+                        col_centre[j] = float(in_fold.mean())
+                        sd = float(in_fold.std(ddof=1))
+                        col_scale[j] = sd if sd > epsqrt else 1.0
+                    elif in_fold.size == 1:
+                        col_centre[j] = float(in_fold[0])
+
+            # Initial imputation in original space: held-out cells take the
+            # in-fold column mean (which is ``col_centre`` under
+            # ``scale_inside_folds=True``, and the same value under False).
+            Xtr = X.copy()
+            for j in range(p):
+                m_j = mask[:, j]
+                if m_j.any():
+                    if scale_inside_folds:
+                        Xtr[m_j, j] = col_centre[j]
+                    else:
+                        in_fold_vals = X[~m_j, j]
+                        Xtr[m_j, j] = in_fold_vals.mean() if in_fold_vals.size > 0 else 0.0
+
+            for a in range(1, max_components + 1):
+                Xa = Xtr.copy()
                 prev_held = Xa[mask].copy()
+                for _iteration in range(n_iter):
+                    if scale_inside_folds:
+                        # Centre and scale by the FIXED in-fold constants; the
+                        # in-fold cells now sit on the analysis scale and the
+                        # held-out cells move under EM.
+                        Xs = (Xa - col_centre) / col_scale
+                        _, S, Vt = np.linalg.svd(Xs, full_matrices=False)
+                        rank = min(a, S.shape[0])
+                        recon_s = (Xs @ Vt[:rank].T) @ Vt[:rank]
+                        recon = recon_s * col_scale + col_centre
+                    else:
+                        # Prior behaviour: recompute the column mean each
+                        # iteration. The mean drifts slightly as the held-out
+                        # cells are updated.
+                        col_mean = Xa.mean(axis=0)
+                        Xc = Xa - col_mean
+                        _, S, Vt = np.linalg.svd(Xc, full_matrices=False)
+                        rank = min(a, S.shape[0])
+                        recon_centred = (Xc @ Vt[:rank].T) @ Vt[:rank]
+                        recon = recon_centred + col_mean
+                    Xa[mask] = recon[mask]
+                    delta = np.linalg.norm(Xa[mask] - prev_held)
+                    scale = max(1.0, float(np.linalg.norm(prev_held)))
+                    if delta < tol * scale:
+                        break
+                    prev_held = Xa[mask].copy()
 
-            per_fold_press[a - 1, k] = float(np.sum((X[mask] - Xa[mask]) ** 2))
+                per_fold_press[a - 1, fold_counter] = float(
+                    np.sum((X[mask] - Xa[mask]) ** 2)
+                )
+            fold_counter += 1
 
-    press = per_fold_press.sum(axis=1)
+    # Average over repeats so PRESS stays on the per-cell scale.
+    press = per_fold_press.sum(axis=1) / max(1, n_repeats)
     return press, per_fold_press
 
 
@@ -692,8 +746,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         max_components: int | None = None,
         cv: int | BaseCrossValidator = 5,
         cv_scheme: typing.Literal["row_wise", "ekf"] = "ekf",
+        n_repeats: int = 1,
         selection_rule: SelectionRule = "min",
         min_q2_increase: float = Q2_MIN_INCREMENT,
+        scale_inside_folds: bool = True,
         n_iter: int = 50,
         tol: float = 1e-6,
         random_state: int | None = None,
@@ -730,6 +786,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             ``"row_wise"`` scheme is preserved for back-compat but emits a
             :class:`SpecificationWarning` because it over-selects (see the
             warning admonition below).
+        n_repeats : int, default 1
+            Repeat the ekf pass with a fresh random fold permutation this
+            many times. Each repeat covers every cell exactly once;
+            ``n_repeats > 1`` narrows the per-component PRESS standard
+            error (helpful when the 1-SE rule sits on a borderline) at
+            roughly linear extra runtime. Ignored under
+            ``cv_scheme="row_wise"``.
         selection_rule : {"min", "1se", "q2_increment"}, default "min"
             How the recommended component count is chosen. ``"min"`` is the
             GlobalMin criterion Bro 2008 pairs with ekf - the component
@@ -740,6 +803,15 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             sets the threshold.
         min_q2_increase : float, default 0.01
             Threshold used only when ``selection_rule="q2_increment"``.
+        scale_inside_folds : bool, default True
+            With the default, mean-centring and unit-variance scaling
+            constants are fit on each fold's in-fold cells and applied to
+            the whole matrix before EM, removing the centring/scaling
+            leakage of the prior implementation. Set to ``False`` to
+            reproduce the previous behaviour (column mean recomputed each
+            EM iteration from the imputed matrix, no scaling); this is
+            useful only when ``X`` is already pre-scaled. Ignored under
+            ``cv_scheme="row_wise"``.
         n_iter, tol : int and float, default 50 and 1e-6
             EM iteration cap and convergence tolerance for the ekf imputation
             step. Ignored under ``cv_scheme="row_wise"``.
@@ -827,19 +899,25 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
         if cv_scheme == "ekf":
             n_folds = cv if isinstance(cv, int) else 5
+            if n_repeats < 1:
+                raise ValueError(f"n_repeats must be >= 1; got {n_repeats}.")
             press_arr, per_fold_press_arr = _pca_ekf_press(
                 X_arr,
                 max_components,
                 n_folds=n_folds,
+                n_repeats=n_repeats,
                 n_iter=n_iter,
                 tol=tol,
+                scale_inside_folds=scale_inside_folds,
                 random_state=random_state,
             )
             press = pd.Series(press_arr, index=component_index, name="PRESS")
             per_fold_press = pd.DataFrame(
                 per_fold_press_arr,
                 index=component_index,
-                columns=[f"fold_{i + 1}" for i in range(n_folds)],
+                columns=[
+                    f"fold_{i + 1}" for i in range(per_fold_press_arr.shape[1])
+                ],
             )
             cv_scores = per_fold_press
             # Q^2 normalisation: total sum-of-squares of X (the null-model
