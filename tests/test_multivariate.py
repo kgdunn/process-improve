@@ -2390,6 +2390,7 @@ def test_pls_select_n_components_synthetic() -> None:
         "r2y_validated",
         "r2x_validated",
         "press",
+        "randomization_pvalues",
         "cv_predictions",
         "selection_rule",
     }
@@ -2615,6 +2616,58 @@ def test_pls_select_n_components_q2_increment_rule() -> None:
     # Unknown rule -> ValueError from the dispatcher.
     with pytest.raises(ValueError, match="Unknown selection_rule"):
         PLS.select_n_components(X, Y, max_components=3, cv=3, selection_rule="bogus")  # type: ignore[arg-type]
+
+
+def test_pls_select_n_components_randomization_rule() -> None:
+    """Van der Voet's randomization test picks a parsimonious model."""
+    rng = np.random.default_rng(2026)
+    N, K, n_factors = 80, 30, 4
+    scales = np.array([6.0, 4.0, 2.5, 1.5])
+    T = rng.normal(size=(N, n_factors)) * scales
+    P = rng.normal(size=(K, n_factors))
+    X = pd.DataFrame(T @ P.T + 0.4 * rng.normal(size=(N, K)), columns=[f"x{i}" for i in range(K)])
+    gamma = rng.normal(size=(n_factors, 1))
+    Y = pd.DataFrame(T @ gamma + 0.3 * rng.normal(size=(N, 1)), columns=["y"])
+
+    res = PLS.select_n_components(
+        X, Y, max_components=10, cv=5, n_repeats=2, random_state=0,
+        selection_rule="randomization", n_permutations=399, alpha=0.01,
+    )
+    assert res.selection_rule == "randomization"
+    assert res.randomization_pvalues is not None
+    assert list(res.randomization_pvalues.index) == list(range(1, 11))
+    # The reference (argmin-RMSECV) model has p-value exactly 1.0.
+    a_ref = int(np.nanargmin(res.rmsecv["total"].to_numpy())) + 1
+    assert res.randomization_pvalues.loc[a_ref] == 1.0
+    # Recommendation is no larger than the argmin reference and at least 1.
+    assert 1 <= res.n_components <= a_ref
+
+    # Reproducible given a fixed seed.
+    again = PLS.select_n_components(
+        X, Y, max_components=10, cv=5, n_repeats=2, random_state=0,
+        selection_rule="randomization", n_permutations=399, alpha=0.01,
+    )
+    np.testing.assert_allclose(
+        res.randomization_pvalues.to_numpy(),
+        again.randomization_pvalues.to_numpy(),
+    )
+
+    # A more permissive alpha (closer to 1) walks further up the curve
+    # before declaring a model "equivalent", so it can pick MORE components
+    # than a stricter alpha.
+    res_strict = PLS.select_n_components(
+        X, Y, max_components=10, cv=5, n_repeats=2, random_state=0,
+        selection_rule="randomization", n_permutations=399, alpha=0.001,
+    )
+    res_lax = PLS.select_n_components(
+        X, Y, max_components=10, cv=5, n_repeats=2, random_state=0,
+        selection_rule="randomization", n_permutations=399, alpha=0.5,
+    )
+    assert res_strict.n_components <= res_lax.n_components
+
+    # Without the randomization rule, randomization_pvalues is None.
+    plain = PLS.select_n_components(X, Y, max_components=4, cv=5, random_state=0)
+    assert plain.randomization_pvalues is None
 
 
 def test_recommend_n_components_q2_rule() -> None:
