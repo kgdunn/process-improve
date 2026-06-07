@@ -11,6 +11,31 @@ those changes.
 
 ## [Unreleased]
 
+## [1.31.0] - 2026-06-07
+
+### Added
+
+- **`PCA.minka_mle(X)`** classmethod: Minka (2000) automatic-dimensionality
+  estimate via the PPCA evidence (Laplace approximation on the covariance
+  eigenvalues). Cheap closed-form cross-check for the ekf-CV
+  recommendation. Mean-centres `X` internally but does *not* unit-variance
+  scale, because the MLE's eigenvalue model misreads scaled noise as
+  additional signal.
+- **`PCA.parallel_analysis(X)`** classmethod: Horn (1965) parallel
+  analysis. Generates `n_simulations` random matrices of the same shape,
+  retains every observed component whose eigenvalue exceeds the
+  `quantile` (default 95th-percentile) of the null distribution at the
+  same rank. Returns a Bunch with the observed eigenvalues and null
+  threshold so callers can inspect the spectrum.
+- **`PCA.select_n_components(..., return_consensus=True)`**: alongside
+  the ekf recommendation, also reports Minka MLE and Horn parallel
+  analysis counts on the returned Bunch as `minka_n_components`,
+  `parallel_analysis_n_components`, `consensus_counts` (3-tuple) and
+  `consensus` (`"agree"` when all three counts sit within 1 of each other,
+  `"disagree"` otherwise). A clean low-rank dataset typically returns
+  `consensus="agree"`; downstream tooling can use that as a high-
+  confidence signal and route disagreements to human review.
+
 ## [1.30.0] - 2026-06-07
 
 ### Changed
@@ -1580,7 +1605,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.30.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.31.0...HEAD
+[1.31.0]: https://github.com/kgdunn/process-improve/compare/v1.30.0...v1.31.0
 [1.30.0]: https://github.com/kgdunn/process-improve/compare/v1.29.0...v1.30.0
 [1.29.0]: https://github.com/kgdunn/process-improve/compare/v1.28.0...v1.29.0
 [1.28.0]: https://github.com/kgdunn/process-improve/compare/v1.27.1...v1.28.0

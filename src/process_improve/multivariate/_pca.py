@@ -17,6 +17,7 @@ import warnings
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin, _fit_context
+from sklearn.decomposition import PCA as _SkPCA  # noqa: N811
 from sklearn.model_selection import BaseCrossValidator, cross_val_score
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
@@ -34,6 +35,7 @@ from ._common import (
     epsqrt,
 )
 from ._nipals import quick_regress, ssq, terminate_check
+from ._preprocessing import MCUVScaler
 
 logger = logging.getLogger(__name__)
 
@@ -739,7 +741,158 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         return -float(np.mean(residuals**2))
 
     @classmethod
-    def select_n_components(  # noqa: PLR0913, PLR0915
+    def minka_mle(cls, X: DataMatrix) -> int:
+        """Minka (2000) automatic-dimensionality estimate for PCA.
+
+        Closed-form Bayesian model selection on the PPCA evidence (Minka,
+        T. P. 2000. *Automatic Choice of Dimensionality for PCA*. NIPS 13,
+        pp. 598-604). Operates only on the covariance eigenvalues of ``X``
+        and is therefore very cheap; in the simulations Minka reports it
+        beats cross-validation. Use it alongside the ekf-CV recommendation
+        from :meth:`select_n_components` as a fast cross-check.
+
+        Internally ``X`` is mean-centred before estimation (a PPCA
+        assumption); it is **not** unit-variance scaled, because dividing
+        each column by its standard deviation compresses the noise
+        eigenvalues to near-zero values the MLE misreads as additional
+        latent signal. If your columns are on wildly different scales,
+        pass the analysis-scale ``X`` produced by your own preprocessing
+        (e.g. SNV for spectral data) and accept the centring this method
+        applies.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Data matrix.
+
+        Returns
+        -------
+        n_components : int
+            The MLE estimate of the effective dimensionality.
+
+        References
+        ----------
+        Minka, T. P. (2000). Automatic Choice of Dimensionality for PCA.
+        Advances in Neural Information Processing Systems, 13, 598-604.
+
+        See Also
+        --------
+        parallel_analysis : Horn (1965) eigenvalue-vs-null retention.
+        select_n_components : ekf cross-validation; pass
+            ``return_consensus=True`` to report all three side by side.
+        """
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+        X_arr = np.asarray(X, dtype=float)
+        Xc = X_arr - X_arr.mean(axis=0)
+        # ``svd_solver="full"`` is the only solver that supports
+        # ``n_components="mle"`` in sklearn.
+        sk = _SkPCA(n_components="mle", svd_solver="full")
+        sk.fit(Xc)
+        return int(sk.n_components_)
+
+    @classmethod
+    def parallel_analysis(
+        cls,
+        X: DataMatrix,
+        *,
+        n_simulations: int = 200,
+        quantile: float = 0.95,
+        scale: bool = True,
+        random_state: int | None = None,
+    ) -> Bunch:
+        """Horn (1965) parallel analysis component-count estimate.
+
+        Generates ``n_simulations`` random matrices of the same shape as
+        ``X``, computes their eigenvalues, and retains every observed
+        component whose eigenvalue exceeds the ``quantile`` of the null
+        distribution at the same rank. Widely regarded in psychometrics
+        as the best simple retention rule for PCA.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Data matrix.
+        n_simulations : int, default 200
+            Number of random matrices drawn to build the null
+            eigenvalue distribution.
+        quantile : float, default 0.95
+            Quantile of the null eigenvalues used as the retention
+            threshold. Horn's original proposal was the mean (0.5);
+            the more conservative 95th-percentile threshold is the
+            modern recommendation.
+        scale : bool, default True
+            Mean-centre and unit-variance scale ``X`` before estimation
+            (matches :meth:`minka_mle`).
+        random_state : int, optional
+            Seed for the null-matrix simulations.
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With keys:
+
+            - ``n_components`` - number of components retained (can be 0
+              on pure noise).
+            - ``observed_eigenvalues`` - eigenvalues of ``X`` after
+              centring/scaling (np.ndarray of length ``min(n, p)``).
+            - ``null_threshold`` - per-rank ``quantile`` of the null
+              eigenvalue distribution (same length as
+              ``observed_eigenvalues``).
+
+        References
+        ----------
+        Horn, J. L. (1965). A rationale and test for the number of
+        factors in factor analysis. *Psychometrika*, 30(2), 179-185.
+
+        See Also
+        --------
+        minka_mle : closed-form PPCA evidence rule.
+        select_n_components : ekf cross-validation; pass
+            ``return_consensus=True`` to report all three side by side.
+        """
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+        if scale:
+            X = MCUVScaler().fit_transform(X)
+        X_arr = np.asarray(X, dtype=float)
+        n, p = X_arr.shape
+        k = min(n, p)
+
+        # Observed eigenvalues from the centred X. Centring removes one DoF
+        # so the smallest singular value is at-or-near zero; that's expected.
+        Xc = X_arr - X_arr.mean(axis=0)
+        _, S, _ = np.linalg.svd(Xc, full_matrices=False)
+        observed = (S**2) / max(1, n - 1)
+
+        rng = np.random.default_rng(random_state)
+        null_eigs = np.zeros((n_simulations, k))
+        for i in range(n_simulations):
+            R = rng.standard_normal((n, p))
+            Rc = R - R.mean(axis=0)
+            _, S_r, _ = np.linalg.svd(Rc, full_matrices=False)
+            null_eigs[i, : S_r.shape[0]] = (S_r**2) / max(1, n - 1)
+
+        null_threshold = np.quantile(null_eigs, quantile, axis=0)
+        # Standard PA: retain consecutive components from the top while
+        # observed > null. Components past the first failure are not
+        # retained even if their observed eigenvalue happens to exceed
+        # the null (a rare numerical coincidence on real data).
+        n_retained = 0
+        for obs, thr in zip(observed, null_threshold, strict=False):
+            if obs > thr:
+                n_retained += 1
+            else:
+                break
+
+        return Bunch(
+            n_components=int(n_retained),
+            observed_eigenvalues=observed,
+            null_threshold=null_threshold,
+        )
+
+    @classmethod
+    def select_n_components(  # noqa: PLR0913, PLR0915, C901
         cls,
         X: DataMatrix,
         *,
@@ -753,6 +906,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         n_iter: int = 50,
         tol: float = 1e-6,
         random_state: int | None = None,
+        return_consensus: bool = False,
         threshold: float | None = None,
         **pca_kwargs,
     ) -> Bunch:
@@ -987,6 +1141,24 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             min_q2_increase=min_q2_increase,
         )
 
+        consensus_fields: dict[str, object] = {}
+        if return_consensus:
+            # Two cheap cross-checks: Minka's PPCA MLE (mean-centred input,
+            # no unit-variance scaling) and Horn's parallel analysis (which
+            # accepts the same scaling convention as the rest of the method).
+            minka_n = cls.minka_mle(X)
+            pa_result = cls.parallel_analysis(
+                X, scale=scale_inside_folds, random_state=random_state
+            )
+            counts = (int(recommended), int(minka_n), int(pa_result.n_components))
+            consensus = "agree" if max(counts) - min(counts) <= 1 else "disagree"
+            consensus_fields = {
+                "minka_n_components": int(minka_n),
+                "parallel_analysis_n_components": int(pa_result.n_components),
+                "consensus": consensus,
+                "consensus_counts": counts,
+            }
+
         return Bunch(
             n_components=recommended,
             press=press,
@@ -997,6 +1169,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             cv_scores=cv_scores,
             cv_scheme=cv_scheme,
             selection_rule=selection_rule,
+            **consensus_fields,
         )
 
     def score_contributions(

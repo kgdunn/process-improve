@@ -843,6 +843,72 @@ def test_pca_select_n_components_scale_inside_folds_no_leakage() -> None:
     assert 1 <= legacy.n_components <= 6
 
 
+def test_pca_minka_mle_recovers_known_rank() -> None:
+    """Minka's MLE picks a plausible rank on clean low-rank data."""
+    rng = np.random.default_rng(1)
+    N, K, true_rank = 60, 25, 3
+    T = rng.standard_normal((N, true_rank)) * np.array([8.0, 5.0, 3.0])
+    P = rng.standard_normal((true_rank, K))
+    X = pd.DataFrame(T @ P + 0.3 * rng.standard_normal((N, K)))
+    # MLE should sit close to the true rank; sklearn is conservative on noisy
+    # data so allow a 2-component slack on either side.
+    n = PCA.minka_mle(X)
+    assert isinstance(n, int)
+    assert true_rank - 1 <= n <= true_rank + 2
+
+
+def test_pca_parallel_analysis_recovers_known_rank() -> None:
+    """Horn's parallel analysis picks the true rank on a clean dataset."""
+    rng = np.random.default_rng(2)
+    N, K, true_rank = 60, 20, 3
+    T = rng.standard_normal((N, true_rank)) * np.array([7.0, 5.0, 3.0])
+    P = rng.standard_normal((true_rank, K))
+    X = pd.DataFrame(T @ P + 0.3 * rng.standard_normal((N, K)))
+    pa = PCA.parallel_analysis(X, n_simulations=100, random_state=0)
+    assert pa.n_components == true_rank
+    assert pa.observed_eigenvalues.shape == (min(N, K),)
+    assert pa.null_threshold.shape == (min(N, K),)
+    # The first ``true_rank`` observed eigenvalues exceed the null.
+    assert (pa.observed_eigenvalues[:true_rank] > pa.null_threshold[:true_rank]).all()
+
+
+def test_pca_parallel_analysis_pure_noise_returns_zero() -> None:
+    """On pure noise PA correctly retains few components (and may return 0)."""
+    rng = np.random.default_rng(3)
+    X = pd.DataFrame(rng.standard_normal((50, 15)))
+    pa = PCA.parallel_analysis(X, n_simulations=100, random_state=0)
+    # On a Gaussian noise matrix the first observed eigenvalue is at or
+    # below the 95th-percentile null - parallel analysis correctly trims to
+    # a handful of components at most.
+    assert pa.n_components <= 1
+
+
+def test_pca_select_n_components_consensus_mode() -> None:
+    """return_consensus=True surfaces Minka MLE + parallel analysis alongside ekf."""
+    rng = np.random.default_rng(4)
+    N, K, true_rank = 60, 20, 3
+    T = rng.standard_normal((N, true_rank)) * np.array([7.0, 5.0, 3.0])
+    P = rng.standard_normal((true_rank, K))
+    X = pd.DataFrame(T @ P + 0.3 * rng.standard_normal((N, K)))
+
+    result = PCA.select_n_components(
+        X, max_components=8, cv=5, n_repeats=2, random_state=0,
+        return_consensus=True,
+    )
+    assert {"minka_n_components", "parallel_analysis_n_components",
+            "consensus", "consensus_counts"} <= set(result.keys())
+    assert result.consensus in {"agree", "disagree"}
+    # On clean low-rank data the three rules should agree.
+    assert result.consensus == "agree"
+    assert result.consensus_counts[0] == result.n_components
+
+    # Backwards compat: without return_consensus the consensus fields are
+    # absent (the existing API is unchanged).
+    plain = PCA.select_n_components(X, max_components=8, cv=5, random_state=0)
+    assert "minka_n_components" not in plain
+    assert "consensus" not in plain
+
+
 def test_pca_score_contributions() -> None:
     """Test score_contributions method on a simple dataset."""
     rng = np.random.default_rng(42)
