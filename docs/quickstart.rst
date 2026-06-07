@@ -55,8 +55,11 @@ PLS Example
    # Fit model
    pls = PLS(n_components=3).fit(X_scaled, Y_scaled)
 
-   # Predict new observations
-   result = pls.predict(scaler_x.transform(X_new))
+   # Predict new observations (sklearn-compatible: returns the y_hat array)
+   y_pred = pls.predict(scaler_x.transform(X_new))
+
+   # Predict with full per-row diagnostics (scores, T², SPE, plus y_hat)
+   result = pls.diagnose(scaler_x.transform(X_new))
    result.y_hat  # Predicted Y
    result.spe  # SPE diagnostics
    result.hotellings_t2  # Hotelling's T² diagnostics

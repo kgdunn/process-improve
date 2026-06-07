@@ -127,8 +127,11 @@ print(pls.beta_coefficients_)     # regression coefficients (K x M)
 print(pls.r2_cumulative_)         # cumulative R² for Y
 print(pls.vip())                  # VIP scores per X variable
 
-# Predict new observations, with diagnostics on the prediction
-result = pls.predict(scaler_x.transform(X_new))
+# Predict new observations (sklearn-compatible: returns just y_hat)
+y_pred = pls.predict(scaler_x.transform(X_new))
+
+# Predict with full per-row diagnostics (scores, T², SPE, plus y_hat)
+result = pls.diagnose(scaler_x.transform(X_new))
 result.y_hat                      # point predictions
 result.spe                        # squared prediction error
 result.hotellings_t2              # Hotelling's T² for new observations
