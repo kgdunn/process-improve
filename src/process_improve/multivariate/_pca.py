@@ -687,7 +687,6 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         if isinstance(X, pd.DataFrame):
             X = _align_to_fit_features(X, self._feature_names)
         sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
-        feature_columns: pd.Index | None = X.columns if isinstance(X, pd.DataFrame) else None
         X_arr = validate_data(
             self,
             X,
@@ -696,10 +695,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             dtype="numeric",
             ensure_all_finite="allow-nan",
         )
-        if feature_columns is None:
-            feature_columns = self._feature_names
         if sample_index is None:
-            sample_index = pd.RangeIndex(X_arr.shape[0])
+            sample_index = pd.RangeIndex(X_arr.shape[0])  # type: ignore[assignment]
         scores = X_arr @ self._loadings
         return pd.DataFrame(scores, index=sample_index, columns=self._component_names)
 
