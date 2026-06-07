@@ -65,7 +65,7 @@ def test_pls_converges_when_first_x_column_is_constant() -> None:
     assert np.isfinite(pls.x_loadings_.to_numpy()).all()
     assert np.isfinite(pls.beta_coefficients_.to_numpy()).all()
     # The model predicts the strongly-correlated Y well.
-    y_hat = pls.predict(_centre(X)).y_hat
+    y_hat = pls.predict(_centre(X))
     assert np.isfinite(y_hat.to_numpy()).all()
 
 

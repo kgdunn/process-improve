@@ -11,6 +11,52 @@ those changes.
 
 ## [Unreleased]
 
+## [1.35.0] - 2026-06-07
+
+### Changed
+
+- **`PLS.predict(X)` now returns the predicted Y as a `pd.DataFrame`**
+  instead of a rich `Bunch(scores, hotellings_t2, spe, y_hat)`. This
+  satisfies the scikit-learn `RegressorMixin` contract so a fitted
+  `PLS` composes cleanly inside `Pipeline`, `cross_val_score`, and
+  `GridSearchCV`. The rich diagnostic view moves to a new method:
+  `PLS.diagnose(X) -> Bunch` (same fields as the pre-1.35.0
+  `predict()` return).
+
+  This is a **breaking change** for callers that read
+  `predict(X).y_hat` / `predict(X).scores` / `predict(X).spe` /
+  `predict(X).hotellings_t2`. The migration is mechanical:
+
+  ```python
+  # before
+  result = pls.predict(X)
+  y_hat = result.y_hat
+  spe = result.spe
+
+  # after
+  y_hat = pls.predict(X)           # sklearn-compatible
+  result = pls.diagnose(X)         # rich Bunch view
+  spe = result.spe
+  ```
+
+  The internal `PLS.score(X, Y)` (sklearn's R² scorer) is unaffected.
+
+### Added
+
+- **sklearn `Pipeline` interop for `MCUVScaler` + `PCA` / `PLS`.**
+  - `MCUVScaler.fit` and `MCUVScaler.transform` now accept (and ignore)
+    an optional `y` keyword argument so the scaler can be a step in
+    `sklearn.pipeline.Pipeline` (sklearn threads `y` through every
+    step's `fit`).
+  - `PLS.fit(X, Y)` accepts a 1-D `Y` (the shape sklearn passes for
+    single-target regression) and promotes it to `(N, 1)` internally.
+  - Together with the `predict()` shape change above, these unblock:
+    `Pipeline([MCUVScaler(), PCA(n_components=k)]).fit_transform(X)`;
+    `Pipeline([MCUVScaler(), PLS(n_components=k)]).fit(X, y).predict(X)`;
+    `cross_val_score(pipe, X, y, cv=RepeatedKFold(...))`;
+    `GridSearchCV(pipe, {"pls__n_components": ...}, cv=...).fit(X, y)`;
+    `clone(pipe).fit(X, y)`.
+
 ## [1.34.0] - 2026-06-07
 
 ### Added
@@ -1670,7 +1716,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.34.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.35.0...HEAD
+[1.35.0]: https://github.com/kgdunn/process-improve/compare/v1.34.0...v1.35.0
 [1.34.0]: https://github.com/kgdunn/process-improve/compare/v1.33.0...v1.34.0
 [1.33.0]: https://github.com/kgdunn/process-improve/compare/v1.32.0...v1.33.0
 [1.32.0]: https://github.com/kgdunn/process-improve/compare/v1.31.0...v1.32.0

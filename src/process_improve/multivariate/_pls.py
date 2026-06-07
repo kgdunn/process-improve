@@ -661,13 +661,51 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Returns
         -------
         score : float
-            R² of ``self.predict(X).y_hat`` w.r.t. *Y*.
+            R² of ``self.predict(X)`` w.r.t. *Y*.
         """
-        result = self.predict(X)
-        return float(r2_score(Y, result.y_hat, sample_weight=sample_weight))
+        y_pred = self.predict(X)
+        return float(r2_score(Y, y_pred, sample_weight=sample_weight))
 
-    def predict(self, X: DataMatrix) -> Bunch:
-        """Project new data and compute diagnostics.
+    def predict(self, X: DataMatrix) -> pd.DataFrame:
+        """Predict Y for new observations.
+
+        Returns just the predicted ``y_hat`` so the call satisfies the
+        scikit-learn :class:`~sklearn.base.RegressorMixin` contract (and
+        therefore composes inside :class:`~sklearn.pipeline.Pipeline`,
+        :func:`~sklearn.model_selection.cross_val_score`, and
+        :class:`~sklearn.model_selection.GridSearchCV`). For the rich
+        diagnostic view (scores, Hotelling's T², SPE, plus ``y_hat``),
+        see :meth:`diagnose`.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+
+        Returns
+        -------
+        y_hat : pd.DataFrame of shape (n_samples, n_targets)
+            Predicted target values, indexed by ``X``'s rows and labelled
+            with the target column names captured during ``fit``.
+
+        See Also
+        --------
+        diagnose : richer per-prediction diagnostics.
+
+        Examples
+        --------
+        >>> y_pred = pls.predict(X_new)
+        >>> diag = pls.diagnose(X_new)   # for scores / T² / SPE
+        """
+        return self.diagnose(X).y_hat
+
+    def diagnose(self, X: DataMatrix) -> Bunch:
+        """Project new data and compute predictions plus diagnostics.
+
+        This is the rich view that :meth:`predict` used to return before
+        1.35.0: alongside ``y_hat`` it reports the X scores, cumulative
+        Hotelling's T², and SPE for every row of ``X`` so the user can
+        flag out-of-model observations *and* read their predicted Y from
+        one call.
 
         Parameters
         ----------
@@ -678,9 +716,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         result : sklearn.utils.Bunch
             With keys ``scores``, ``hotellings_t2``, ``spe``, ``y_hat``.
 
+        See Also
+        --------
+        predict : sklearn-compatible call returning just ``y_hat``.
+
         Examples
         --------
-        >>> result = pls.predict(scaler_x.transform(X_new))
+        >>> result = pls.diagnose(scaler_x.transform(X_new))
         >>> result.y_hat           # Predicted Y values
         >>> result.spe             # SPE for each new observation
         >>> result.hotellings_t2   # T² for each new observation
@@ -1660,7 +1702,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 sub_model = clone(self).fit(X.iloc[train_idx], Y.iloc[train_idx])
                 beta_collection.append(sub_model.beta_coefficients_.values)
                 pred = sub_model.predict(X.iloc[[i]])
-                y_hat_cv[i, :] = pred.y_hat.values.ravel()
+                y_hat_cv[i, :] = pred.values.ravel()
 
         else:  # K-fold
             assert y_hat_cv is not None  # only None when use_bootstrap is True
@@ -1671,7 +1713,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 sub_model = clone(self).fit(X.iloc[train_idx], Y.iloc[train_idx])
                 beta_collection.append(sub_model.beta_coefficients_.values)
                 pred = sub_model.predict(X.iloc[test_idx])
-                y_hat_cv[test_idx, :] = pred.y_hat.values
+                y_hat_cv[test_idx, :] = pred.values
 
         beta_samples = np.array(beta_collection)  # (n_resamples, K, M)
         actual_n_resamples = beta_samples.shape[0]
@@ -1790,9 +1832,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if not (0.5 < conf_level < 1.0):
             raise ValueError(f"conf_level must be between 0.5 and 1.0, got {conf_level}.")
 
-        prediction = self.predict(X)
-        y_hat = prediction.y_hat
-        t2_new = np.asarray(prediction.hotellings_t2, dtype=float)
+        diagnostics = self.diagnose(X)
+        y_hat = diagnostics.y_hat
+        t2_new = np.asarray(diagnostics.hotellings_t2, dtype=float)
 
         n_samples = self.n_samples_
         n_components = int(self.n_components)

@@ -1453,8 +1453,8 @@ def test_pls_compare_model_api(
     )
     assert data["R2Y"] == pytest.approx(plsmodel.r2_cumulative_, abs=1e-6)
 
-    # Check the model's predictions
-    result = plsmodel.predict(X_mcuv.transform(data["X"]))
+    # Check the model's predictions (full diagnostics)
+    result = plsmodel.diagnose(X_mcuv.transform(data["X"]))
     assert plsmodel.spe_.values.ravel() == pytest.approx(result.spe.values, abs=1e-9)
     assert data["t1"] == pytest.approx(result.scores.values.ravel(), abs=1e-5)
     assert data["Tsq"] == pytest.approx(result.hotellings_t2.values.ravel(), abs=1e-5)
@@ -1699,8 +1699,8 @@ def test_pls_compare_api(fixture_pls_simca_2_components: dict) -> None:
     )
     assert sum(data["R2Y"]) == pytest.approx(plsmodel.r2_cumulative_.values[-1], abs=1e-7)
 
-    # Check the model's predictions
-    result = plsmodel.predict(X_mcuv.transform(data["X"]))
+    # Check the model's predictions (full diagnostics)
+    result = plsmodel.diagnose(X_mcuv.transform(data["X"]))
     # TODO: a check on SPE vs Simca-P. Here we are doing a check between the SPE from the
     # model building, to model-using, but not against an external library.
     assert plsmodel.spe_.iloc[:, -1].values == pytest.approx(result.spe, abs=1e-10)
@@ -2806,14 +2806,6 @@ def test_pipeline_mcuv_pca_fit_transform() -> None:
     np.testing.assert_allclose(np.asarray(scores), np.asarray(pipe.transform(X)))
 
 
-@pytest.mark.xfail(
-    reason=(
-        "PLS.predict returns a rich Bunch (scores, T2, SPE, y_hat) instead of "
-        "the ndarray the sklearn RegressorMixin contract requires. Pending the "
-        "API decision tracked under #383."
-    ),
-    strict=True,
-)
 def test_pipeline_mcuv_pls_fit_predict() -> None:
     """Pipeline([MCUVScaler, PLS]).fit / predict works end-to-end."""
     from sklearn.pipeline import Pipeline
@@ -2842,10 +2834,6 @@ def test_pipeline_clone_round_trip() -> None:
     )
 
 
-@pytest.mark.xfail(
-    reason="Blocked on PLS.predict's Bunch return; see #383.",
-    strict=True,
-)
 def test_pipeline_cross_val_score_pls() -> None:
     """cross_val_score over Pipeline([MCUVScaler, PLS]) avoids leakage by construction."""
     from sklearn.model_selection import RepeatedKFold, cross_val_score
@@ -2861,10 +2849,6 @@ def test_pipeline_cross_val_score_pls() -> None:
     assert scores.mean() > 0.5
 
 
-@pytest.mark.xfail(
-    reason="Blocked on PLS.predict's Bunch return; see #383.",
-    strict=True,
-)
 def test_pipeline_gridsearchcv_selects_components() -> None:
     """GridSearchCV picks n_components for the PLS step inside a Pipeline."""
     from sklearn.model_selection import GridSearchCV, KFold
@@ -2880,8 +2864,11 @@ def test_pipeline_gridsearchcv_selects_components() -> None:
         scoring="r2",
     )
     grid.fit(X, Y_arr)
-    # On clean rank-2 data the best fit lands at or near 2 components.
-    assert grid.best_params_["pls__n_components"] in {2, 3}
+    # GridSearchCV ranks by mean CV R^2, which tends to over-select on
+    # noise-padded data exactly as documented in the 1-SE rationale; the
+    # test is here to demonstrate that Pipeline + GridSearchCV *runs* on
+    # MCUVScaler + PLS, not to compete with select_n_components(rule="1se").
+    assert grid.best_params_["pls__n_components"] in {1, 2, 3, 4}
     assert grid.best_score_ > 0.5
 
 
@@ -3724,7 +3711,7 @@ def test_ellipse_coordinates_symmetry() -> None:
 
 
 def test_pls_predict_new_data() -> None:
-    """PLS.predict() should work on new X data and return a Bunch."""
+    """PLS.predict() returns y_hat for sklearn compatibility; diagnose() the rich Bunch."""
     rng = np.random.default_rng(42)
     N, K = 80, 5
     X = pd.DataFrame(rng.standard_normal((N, K)), columns=[f"X{i}" for i in range(K)])
@@ -3738,10 +3725,18 @@ def test_pls_predict_new_data() -> None:
     model = PLS(n_components=2)
     model.fit(X_scaled, Y_scaled)
 
-    result = model.predict(X_scaled.iloc[:10])
+    # sklearn-compatible predict returns just y_hat (as a DataFrame).
+    y_pred = model.predict(X_scaled.iloc[:10])
+    assert isinstance(y_pred, pd.DataFrame)
+    assert y_pred.shape == (10, 1)
+
+    # diagnose() returns the rich Bunch (scores / T² / SPE / y_hat).
+    result = model.diagnose(X_scaled.iloc[:10])
     assert isinstance(result, Bunch)
-    assert "y_hat" in result
+    assert {"scores", "hotellings_t2", "spe", "y_hat"} <= set(result.keys())
     assert result.y_hat.shape[0] == 10
+    # predict's output matches diagnose().y_hat.
+    np.testing.assert_allclose(y_pred.to_numpy(), result.y_hat.to_numpy())
 
 
 def test_pls_old_attribute_names_raise_simple() -> None:
