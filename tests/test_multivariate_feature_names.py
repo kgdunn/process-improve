@@ -75,8 +75,8 @@ class TestPLSFeatureNames:
         X, Y = xy
         pls = PLS(n_components=2).fit(X, Y)
         reordered = X[X.columns[::-1]]
-        base = pls.predict(X)
-        got = pls.predict(reordered)
+        base = pls.diagnose(X)
+        got = pls.diagnose(reordered)
         np.testing.assert_allclose(got.scores.to_numpy(), base.scores.to_numpy(), rtol=1e-10, atol=1e-10)
         np.testing.assert_allclose(got.y_hat.to_numpy(), base.y_hat.to_numpy(), rtol=1e-10, atol=1e-10)
 
@@ -102,10 +102,11 @@ class TestPLSFeatureNames:
     def test_ndarray_predict_works(self, xy: tuple[pd.DataFrame, pd.DataFrame]) -> None:
         X, Y = xy
         pls = PLS(n_components=2).fit(X, Y)
+        # predict() returns a y_hat DataFrame directly.
         base = pls.predict(X)
         got = pls.predict(X.to_numpy())
-        assert not np.isnan(got.y_hat.to_numpy()).any()
-        np.testing.assert_allclose(got.y_hat.to_numpy(), base.y_hat.to_numpy(), rtol=1e-10, atol=1e-10)
+        assert not np.isnan(got.to_numpy()).any()
+        np.testing.assert_allclose(got.to_numpy(), base.to_numpy(), rtol=1e-10, atol=1e-10)
 
     def test_transform_wrong_column_count_raises(self, xy: tuple[pd.DataFrame, pd.DataFrame]) -> None:
         # PLS.transform previously had no count check at all.
