@@ -11,6 +11,38 @@ those changes.
 
 ## [Unreleased]
 
+## [1.29.0] - 2026-06-07
+
+### Changed
+
+- **`PCA.select_n_components` rebuilt around the element-wise k-fold (ekf)
+  cross-validation algorithm** of Bro, Kjeldahl, Smilde & Kiers (2008,
+  *Anal. Bioanal. Chem.* 390:1241-1251). The legacy row-wise scheme it
+  replaces suffered from the *trivial-fit* problem: holding out whole
+  rows and projecting them back via `transform()` lets the held-out
+  row's own values reach its own prediction, so PRESS shrunk
+  monotonically with the component count and the recommendation tended
+  to run to the maximum.
+  - New `cv_scheme` kwarg: `"ekf"` (default) holds out individual cells
+    of `X` and predicts them via EM-style imputation from a model that
+    never sees their true values - the prediction-independence the
+    row-wise scheme violates. `"row_wise"` is preserved for back-compat
+    but emits a `SpecificationWarning`.
+  - New `selection_rule` kwarg (`"min"` (default, GlobalMin per Bro
+    2008), `"1se"`, `"q2_increment"`), mirroring `PLS.select_n_components`.
+  - New `min_q2_increase`, `n_iter`, `tol`, `random_state` kwargs;
+    `threshold` (the legacy Wold PRESS-ratio cutoff) is deprecated and
+    ignored, emitting a `DeprecationWarning`.
+  - The returned `Bunch` gains `per_fold_press`, `se_press`,
+    `cv_scheme`, and `selection_rule` fields; the existing `press`,
+    `press_ratio`, `q2`, `cv_scores` keys keep their semantics (under
+    ekf, `cv_scores` aliases `per_fold_press`). The Q² normalisation
+    switches from mean-cell SS to total SS so it stays comparable to
+    `r2_cumulative_`.
+
+  Callers who relied on the old recommendation can opt in via
+  `cv_scheme="row_wise"` (which warns).
+
 ## [1.28.0] - 2026-06-07
 
 ### Changed
@@ -1522,7 +1554,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.28.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.29.0...HEAD
+[1.29.0]: https://github.com/kgdunn/process-improve/compare/v1.28.0...v1.29.0
 [1.28.0]: https://github.com/kgdunn/process-improve/compare/v1.27.1...v1.28.0
 [1.27.1]: https://github.com/kgdunn/process-improve/compare/v1.27.0...v1.27.1
 [1.27.0]: https://github.com/kgdunn/process-improve/compare/v1.26.1...v1.27.0
