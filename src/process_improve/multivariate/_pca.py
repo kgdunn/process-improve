@@ -307,6 +307,21 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     loadings_ = _LazyFrame("_loadings", index="_feature_names", columns="_component_names")
     spe_ = _LazyFrame("_spe", index="_sample_index", columns="_component_names")
 
+    def __sklearn_tags__(self):
+        """Declare sklearn capability tags (sklearn 1.6+).
+
+        ``allow_nan=True`` because the NIPALS / TSR algorithm paths
+        thread missing data through; the SVD path raises explicitly
+        when NaN is supplied. The default for any one ``PCA(...)``
+        instance therefore allows NaN at the Pipeline / ``check_array``
+        boundary and lets the fitting algorithm reject it later if
+        needed (the user-facing error message is more informative than
+        the sklearn check-array one).
+        """
+        tags = super().__sklearn_tags__()
+        tags.input_tags.allow_nan = True
+        return tags
+
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA:  # noqa: ARG002, PLR0912, PLR0915, C901
         """Fit a principal component analysis (PCA) model to the data.
