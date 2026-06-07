@@ -2278,6 +2278,28 @@ def test_pls_select_n_components_caps_max_components() -> None:
     assert result.n_components <= 23
 
 
+def test_recommend_n_components_one_se_rejects_non_1d() -> None:
+    """2-D mean_error fails fast - the helper is 1-D only."""
+    from process_improve.multivariate._common import _recommend_n_components_one_se
+
+    with pytest.raises(ValueError, match="1-D"):
+        _recommend_n_components_one_se(
+            np.array([[0.5, 0.4], [0.3, 0.2]]),
+            np.array([[0.05, 0.05], [0.05, 0.05]]),
+        )
+
+
+def test_pls_select_n_components_argument_validation() -> None:
+    """The new kwargs validate their inputs up front."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.standard_normal((20, 4)), columns=[f"x{i}" for i in range(4)])
+    Y = pd.DataFrame(rng.standard_normal((20, 1)), columns=["y"])
+    with pytest.raises(ValueError, match=">= 2"):
+        PLS.select_n_components(X, Y, cv=1)
+    with pytest.raises(ValueError, match="n_repeats must be >= 1"):
+        PLS.select_n_components(X, Y, cv=5, n_repeats=0)
+
+
 def test_pls_select_n_components_1se_default_picks_parsimony() -> None:
     """The default (1-SE rule) is more parsimonious than argmin RMSECV on noise-padded data.
 
