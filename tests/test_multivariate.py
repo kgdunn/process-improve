@@ -2738,6 +2738,40 @@ def test_pls_nested_cv_validates_outer_cv() -> None:
         PLS.nested_cv(X, Y, max_components=2, outer_cv=1, inner_cv=3, n_inner_repeats=1)
 
 
+def test_pls_nested_cv_scale_inside_folds_false() -> None:
+    """The leakage-prone scale_inside_folds=False path still works on pre-scaled data."""
+    rng = np.random.default_rng(13)
+    N, K = 40, 8
+    T = rng.standard_normal((N, 2))
+    P = rng.standard_normal((2, K))
+    X = pd.DataFrame(T @ P + 0.3 * rng.standard_normal((N, K)))
+    Y = pd.DataFrame(T @ rng.standard_normal((2, 1)) + 0.2 * rng.standard_normal((N, 1)), columns=["y"])
+    X_s = MCUVScaler().fit_transform(X)
+    Y_s = MCUVScaler().fit_transform(Y)
+    with pytest.warns(SpecificationWarning):
+        result = PLS.nested_cv(
+            X_s, Y_s, max_components=4, outer_cv=3, inner_cv=3, n_inner_repeats=1,
+            random_state=0, scale_inside_folds=False,
+        )
+    assert (result.rmsep > 0).all()
+    assert result.cv_predictions.shape == (N, 1)
+
+
+def test_pls_nested_cv_accepts_custom_outer_splitter() -> None:
+    """outer_cv can be any sklearn splitter, not just an int."""
+    rng = np.random.default_rng(17)
+    N, K = 40, 6
+    X = pd.DataFrame(rng.standard_normal((N, K)))
+    Y = pd.DataFrame(rng.standard_normal((N, 1)), columns=["y"])
+    splitter = KFold(n_splits=4, shuffle=True, random_state=0)
+    result = PLS.nested_cv(
+        X, Y, max_components=3, outer_cv=splitter, inner_cv=3,
+        n_inner_repeats=1, random_state=0,
+    )
+    assert len(result.selected_components_per_fold) == 4
+    assert result.cv_predictions.shape == (N, 1)
+
+
 def test_pls_select_n_components_randomization_rule() -> None:
     """Van der Voet's randomization test picks a parsimonious model."""
     rng = np.random.default_rng(2026)
