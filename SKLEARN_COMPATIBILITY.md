@@ -63,16 +63,19 @@ The following compositions are verified by tests in
 
 ## What doesn't work yet
 
-### `check_estimator` baseline (v1.35.0)
+### `check_estimator` baseline (v1.36.0)
 
 Run `python tools/check_estimator_audit.py` (preserved in
-`tools/check_estimator_audit_main.log`) to refresh. As of v1.35.0:
+`tools/check_estimator_audit_main.log`) to refresh. As of v1.36.0
+(after the `validate_data` sweep in #401):
 
-| Estimator | Passing | Total | Pass % | Issues that close failures |
+| Estimator | Passing | Total | Pass % | Issues that close remaining |
 |---|---|---|---|---|
-| `MCUVScaler` | 18 | 29 | 62% | #401, #393 |
-| `PCA(n_components=2)` | 28 | 47 | 60% | #401, #391, #393, #396 |
-| `PLS(n_components=2)` | 19 | 29 | 66% | #401, #393 |
+| `MCUVScaler` | 44 | 47 | 94% | #391, #393 |
+| `PCA(n_components=2)` | 38 | 47 | 81% | #391, #393, #396 |
+| `PLS(n_components=2)` | 24 | 29 | 83% | #391, #393 |
+
+(Pre-#401 baseline was 18/29, 28/47, 19/29.)
 
 `TPLS` / `MBPLS` / `MBPCA` are not in this audit — they take
 `dict[str, DataFrame]` for X, which is outside `check_estimator`'s

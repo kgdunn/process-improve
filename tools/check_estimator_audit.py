@@ -24,11 +24,11 @@ ESTIMATORS = [
 ]
 
 
-def audit(name: str, est):  # noqa: ANN001
+def audit(name: str, est):
     """Run check_estimator with a callback that records each check's outcome."""
     results: list[tuple[str, str, str]] = []  # (check_name, status, reason)
 
-    def callback(*, estimator, check_name, exception=None, status=None, **_) -> None:  # noqa: ANN001, ANN003, ARG001
+    def callback(*, estimator, check_name, exception=None, status=None, **_) -> None:
         if exception is None:
             results.append((check_name, "PASS", ""))
         else:
@@ -61,8 +61,7 @@ def main() -> None:
                 failure_details[name].append((check_name, reason))
 
     print("\n\n===== SUMMARY =====")
-    for name in summary:
-        s = summary[name]
+    for name, s in summary.items():
         total = s["pass"] + s["fail"]
         pct = (s["pass"] / total * 100) if total else 0.0
         print(f"{name}: {s['pass']}/{total} passed ({pct:.1f}%)")

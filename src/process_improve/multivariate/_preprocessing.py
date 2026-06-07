@@ -13,49 +13,105 @@ from collections.abc import Callable
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.utils.validation import check_is_fitted
+from sklearn.utils.validation import check_is_fitted, validate_data
 
 from ._common import DataMatrix
 
 
-class MCUVScaler(BaseEstimator, TransformerMixin):
-    """
-    Create our own mean centering and scaling to unit variance (MCUV) class
-    The default scaler in sklearn does not handle small datasets accurately, with ddof.
+class MCUVScaler(TransformerMixin, BaseEstimator):
+    """Mean-centre, unit-variance (MCUV) scaler.
+
+    Unlike ``sklearn.preprocessing.StandardScaler`` this uses the sample
+    standard deviation (``ddof=1``), the convention for chemometric data
+    analysis where the population is the training set itself rather than a
+    sampled super-population.
+
+    The estimator follows the standard sklearn contract: ``n_features_in_``
+    and ``feature_names_in_`` are populated by ``fit``; sparse / complex /
+    object dtype / empty input are rejected with sklearn-style errors;
+    NaN values pass through (the chemometric preprocessing pipeline expects
+    to thread missing-data through to the downstream NIPALS estimator).
     """
 
     def __init__(self):
         pass
 
     def fit(self, X: DataMatrix, y=None) -> MCUVScaler:  # noqa: ANN001, ARG002
-        """Get the centering and scaling object constants.
+        """Compute the column means and sample standard deviations.
 
         ``y`` is accepted (and ignored) so the scaler plugs into
-        ``sklearn.pipeline.Pipeline``: every Pipeline step's ``fit`` is
-        called with both ``X`` and ``y``, even when (as for a transformer)
-        the ``y`` is unused.
+        :class:`sklearn.pipeline.Pipeline`, which threads ``y`` through every
+        step's ``fit`` even when (as for a transformer) it is unused.
         """
-        self.center_ = pd.DataFrame(X).mean()
-        # this is the key difference with "preprocessing.StandardScaler"
-        self.scale_ = pd.DataFrame(X).std(ddof=1)
-        self.scale_[self.scale_ == 0] = 1.0  # columns with no variance are left as-is.
+        # Convenience: accept a 1-D Series (a single-column y, common when
+        # the scaler is used for the target side of a PLS fit). validate_data
+        # itself requires 2-D input, so promote here before it sees X.
+        if isinstance(X, pd.Series):
+            X = X.to_frame()
+        X_arr = validate_data(
+            self,
+            X,
+            reset=True,
+            accept_sparse=False,
+            ensure_min_samples=2,
+            ensure_min_features=1,
+            dtype="numeric",
+            ensure_all_finite="allow-nan",
+        )
+        feature_names = getattr(self, "feature_names_in_", None)
+        index = pd.Index(feature_names) if feature_names is not None else pd.RangeIndex(X_arr.shape[1])
+
+        # nanmean / nanstd so NaN cells pass through with the right
+        # column-level statistics (the chemometric pipeline's missing-data
+        # contract). std uses ddof=1: this is the difference from
+        # sklearn.preprocessing.StandardScaler.
+        center = np.nanmean(X_arr, axis=0)
+        scale = np.nanstd(X_arr, axis=0, ddof=1)
+        # Constant columns are left as-is (scale to 1.0) rather than
+        # producing inf / nan when transform divides.
+        scale = np.where(scale == 0, 1.0, scale)
+
+        self.center_ = pd.Series(center, index=index)
+        self.scale_ = pd.Series(scale, index=index)
         return self
 
     def transform(self, X: DataMatrix, y=None) -> pd.DataFrame:  # noqa: ANN001, ARG002
-        """Do work of the transformation. ``y`` is accepted and ignored (Pipeline interop)."""
-        check_is_fitted(self, "center_")
-        check_is_fitted(self, "scale_")
+        """Mean-centre and unit-variance scale ``X``.
 
-        X = pd.DataFrame(X).copy()
-        return (X - self.center_) / self.scale_
+        ``y`` is accepted (and ignored) for :class:`Pipeline` compatibility.
+        """
+        check_is_fitted(self, ("center_", "scale_"))
+        # Mirror fit()'s Series convenience for symmetric round-tripping.
+        if isinstance(X, pd.Series):
+            X = X.to_frame()
+        # Preserve the row index for DataFrame input; ndarray input falls
+        # back to a RangeIndex.
+        index = X.index if isinstance(X, pd.DataFrame) else None
+        X_arr = validate_data(
+            self,
+            X,
+            reset=False,
+            accept_sparse=False,
+            dtype="numeric",
+            ensure_all_finite="allow-nan",
+        )
+        out = (X_arr - self.center_.to_numpy()) / self.scale_.to_numpy()
+        return pd.DataFrame(out, index=index, columns=self.center_.index)
 
     def inverse_transform(self, X: DataMatrix) -> pd.DataFrame:
-        """Do the inverse transformation."""
-        check_is_fitted(self, "center_")
-        check_is_fitted(self, "scale_")
-
-        X = pd.DataFrame(X).copy()
-        return X * self.scale_ + self.center_
+        """Inverse the mean-centring and unit-variance scaling."""
+        check_is_fitted(self, ("center_", "scale_"))
+        index = X.index if isinstance(X, pd.DataFrame) else None
+        # inverse_transform is intentionally NOT routed through validate_data:
+        # callers (TransformedTargetRegressor included) pass ndarray output
+        # from a downstream estimator that may have a different shape than
+        # the fit-time X (typical: 1-D y_pred for a single-target regressor).
+        # We coerce to 2-D, scale back, and return a DataFrame.
+        X_arr = np.asarray(X, dtype=float)
+        if X_arr.ndim == 1:
+            X_arr = X_arr.reshape(-1, 1)
+        out = X_arr * self.scale_.to_numpy() + self.center_.to_numpy()
+        return pd.DataFrame(out, index=index, columns=self.center_.index)
 
 
 def center(

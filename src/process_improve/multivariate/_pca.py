@@ -20,7 +20,7 @@ from sklearn.base import BaseEstimator, TransformerMixin, _fit_context
 from sklearn.decomposition import PCA as _SkPCA  # noqa: N811
 from sklearn.model_selection import BaseCrossValidator, cross_val_score
 from sklearn.utils import Bunch
-from sklearn.utils.validation import check_is_fitted
+from sklearn.utils.validation import check_is_fitted, validate_data
 
 from ..univariate.metrics import detect_outliers_esd
 from ._base import _LatentVariableModel, _LazyFrame
@@ -314,18 +314,41 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            Training data. May contain NaN values for missing data.
+            Training data. May contain NaN values for missing data (the
+            NIPALS / TSR algorithms thread them through; the SVD path
+            rejects them).
         y : ignored
 
         Returns
         -------
         self : PCA
         """
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
+        # Capture the original DataFrame's index/columns before validate_data
+        # converts X to an ndarray, then rebuild the DataFrame view downstream
+        # code expects. validate_data also sets n_features_in_ / feature_
+        # names_in_ and runs the sklearn input rejections (sparse, complex,
+        # empty, dtype-object) with the standard error messages.
+        sample_index = X.index if isinstance(X, pd.DataFrame) else None
+        feature_columns = X.columns if isinstance(X, pd.DataFrame) else None
+        X_arr = validate_data(
+            self,
+            X,
+            reset=True,
+            accept_sparse=False,
+            ensure_min_samples=2,
+            ensure_min_features=1,
+            dtype="numeric",
+            ensure_all_finite="allow-nan",
+        )
+        if feature_columns is None:
+            feature_columns = pd.RangeIndex(X_arr.shape[1])  # type: ignore[assignment]
+        if sample_index is None:
+            sample_index = pd.RangeIndex(X_arr.shape[0])  # type: ignore[assignment]
+        X = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)
 
         N, K = X.shape
         self.n_samples_ = N
+        # n_features_in_ already set by validate_data; reassert for clarity.
         self.n_features_in_ = K
         self._feature_names = X.columns
         self._sample_index = X.index
@@ -648,22 +671,34 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            New data to project. Must have the same number of features as the training data.
+            New data to project. Must have the same number of features as
+            the training data.
 
         Returns
         -------
         scores : pd.DataFrame of shape (n_samples, n_components)
         """
         check_is_fitted(self, "loadings_")
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
-        if X.shape[1] != self.n_features_in_:
-            raise ValueError(
-                f"New data must have {self.n_features_in_} columns, got {X.shape[1]}."
-            )
-        X = _align_to_fit_features(X, self._feature_names)
-        scores = X.values @ self._loadings
-        return pd.DataFrame(scores, index=X.index, columns=self._component_names)
+        # sklearn's validate_data(reset=False) checks feature-name *order*
+        # strictly, while _align_to_fit_features only needs set equality.
+        # Realign reordered DataFrame columns first so validate_data sees a
+        # name-ordered view; ndarrays / un-named DataFrames pass straight
+        # through.
+        if isinstance(X, pd.DataFrame):
+            X = _align_to_fit_features(X, self._feature_names)
+        sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
+        X_arr = validate_data(
+            self,
+            X,
+            reset=False,
+            accept_sparse=False,
+            dtype="numeric",
+            ensure_all_finite="allow-nan",
+        )
+        if sample_index is None:
+            sample_index = pd.RangeIndex(X_arr.shape[0])  # type: ignore[assignment]
+        scores = X_arr @ self._loadings
+        return pd.DataFrame(scores, index=sample_index, columns=self._component_names)
 
     def fit_transform(self, X: DataMatrix, y: DataMatrix | None = None) -> pd.DataFrame:  # noqa: ARG002
         """Fit the model and return the training scores."""
@@ -683,15 +718,17 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             With keys ``scores``, ``hotellings_t2``, ``spe``.
         """
         check_is_fitted(self, "loadings_")
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
-        if X.shape[1] != self.n_features_in_:
-            raise ValueError(
-                f"Prediction data must have {self.n_features_in_} columns, got {X.shape[1]}."
-            )
-        X = _align_to_fit_features(X, self._feature_names)
-
+        # predict() delegates to transform() which already runs validate_data;
+        # call it once here so the rest of predict can work with the aligned
+        # DataFrame view (and so the validate_data error pathways fire on
+        # the predict() call directly, not on the recursive transform() one).
         scores = self.transform(X)
+        # transform's output is indexed by the validated X's row index;
+        # recover an aligned DataFrame for the diagnostics below.
+        sample_index: pd.Index = X.index if isinstance(X, pd.DataFrame) else scores.index
+        feature_columns: pd.Index = X.columns if isinstance(X, pd.DataFrame) else self._feature_names
+        X = pd.DataFrame(np.asarray(X, dtype=float), index=sample_index, columns=feature_columns)
+        X = _align_to_fit_features(X, self._feature_names)
 
         # Hotelling's T² (cumulative)
         component_names = self._component_names
@@ -733,11 +770,14 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         >>> print(f"Mean CV score: {scores.mean():.4f}")
         """
         check_is_fitted(self, "loadings_")
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
+        # transform() runs validate_data; build a DataFrame view here for
+        # the residual computation that matches its shape.
         scores = self.transform(X)
+        X_arr = np.asarray(X, dtype=float)
+        if X_arr.ndim == 1:
+            X_arr = X_arr.reshape(1, -1)
         X_hat = scores.values @ self._loadings.T
-        residuals = X.values - X_hat
+        residuals = X_arr - X_hat
         return -float(np.mean(residuals**2))
 
     @classmethod
