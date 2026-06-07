@@ -614,6 +614,22 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         ``X`` is expected to be pre-centred (and usually scaled, e.g. with
         ``MCUVScaler``); the ``q2`` normalisation uses the mean-cell
         sum-of-squares of ``X`` as the null-model reference.
+
+        .. warning::
+
+           The row-wise CV scheme used here suffers from the *trivial-fit*
+           problem identified by Bro, Kjeldahl, Smilde & Kiers (2008,
+           *Anal. Bioanal. Chem.* 390:1241-1251): the held-out row's own
+           values flow into the prediction through :meth:`transform`, so
+           PRESS shrinks monotonically with the component count and the
+           recommendation tends to over-select. A robust replacement
+           requires element-wise k-fold (ekf) CV with EM-style imputation
+           of the held-out cells. Until that lands (see the project issue
+           tracker), prefer comparing this result with cross-checks such as
+           variance-explained thresholds, Horn's parallel analysis, or
+           Minka's MLE, and treat the recommendation as a starting point
+           rather than a closing verdict. The PLS analogue at
+           :meth:`PLS.select_n_components` is not affected by this issue.
         """
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)

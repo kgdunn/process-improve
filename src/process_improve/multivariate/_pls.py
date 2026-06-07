@@ -37,8 +37,8 @@ from ._common import (
     _select_n_components,
     epsqrt,
 )
-from ._preprocessing import MCUVScaler
 from ._nipals import quick_regress, ssq, terminate_check
+from ._preprocessing import MCUVScaler
 from .plots import (
     coefficient_plot as _coefficient_plot,
 )
@@ -617,7 +617,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         return Bunch(scores=scores, hotellings_t2=t2, spe=spe_values, y_hat=y_hat)
 
     @classmethod
-    def select_n_components(  # noqa: C901, PLR0913, PLR0915
+    def select_n_components(  # noqa: C901, PLR0912, PLR0913, PLR0915
         cls,
         X: DataMatrix,
         Y: DataMatrix,

@@ -2308,7 +2308,8 @@ def test_pls_select_n_components_1se_default_picks_parsimony() -> None:
 
 def test_pls_select_n_components_repeated_kfold_stability() -> None:
     """Repeated K-fold gives reproducible answers given a random_state and
-    narrows the per-component standard error as repeats grow."""
+    narrows the per-component standard error as repeats grow.
+    """
     rng = np.random.default_rng(13)
     N, K = 50, 12
     X = pd.DataFrame(rng.standard_normal((N, K)), columns=[f"x{i}" for i in range(K)])
@@ -2343,7 +2344,10 @@ def test_pls_select_n_components_in_fold_scaling_no_leakage() -> None:
         (T_true @ P_true + 0.4 * rng.standard_normal((N, K))) * column_scales + 7.0,
         columns=[f"x{i}" for i in range(K)],
     )
-    Y_raw = pd.DataFrame(T_true @ rng.standard_normal((n_factors, 1)) + 0.3 * rng.standard_normal((N, 1)) + 50.0, columns=["y"])
+    Y_raw = pd.DataFrame(
+        T_true @ rng.standard_normal((n_factors, 1)) + 0.3 * rng.standard_normal((N, 1)) + 50.0,
+        columns=["y"],
+    )
 
     # Default: scale inside folds. Caller passes raw data.
     raw = PLS.select_n_components(X_raw, Y_raw, max_components=5, cv=5, n_repeats=4, random_state=0)

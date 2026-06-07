@@ -11,6 +11,42 @@ those changes.
 
 ## [Unreleased]
 
+## [1.28.0] - 2026-06-07
+
+### Changed
+
+- **`PLS.select_n_components` rebuilt around the one-standard-error rule on
+  repeated, shuffled K-fold CV with in-fold scaling**, replacing the
+  pre-1.28 argmin-RMSECV rule (which routinely ran to the maximum
+  component count because the validated error keeps drifting down by
+  noise-level amounts past the systematic components).
+  - New `selection_rule` kwarg: `"1se"` (default; Breiman/Friedman/
+    Olshen/Stone 1984; Hastie/Tibshirani/Friedman *ESL* sec.7.10),
+    `"min"` (the pre-1.28 default, preserved for explicit opt-in), and
+    `"q2_increment"` (a Wold's-R-style cumulative-:math:`Q^2` threshold).
+  - New `n_repeats` kwarg (default `10` when `cv` is an `int`) wires up
+    `sklearn.model_selection.RepeatedKFold` so the 1-SE rule's standard
+    error is estimated across `n_splits * n_repeats` fold errors;
+    `random_state` makes that selection reproducible.
+  - New `scale_inside_folds` kwarg (default `True`) fits `MCUVScaler` on
+    each training fold and inverse-transforms predictions to the
+    original Y scale, removing the centring/scaling leakage of the prior
+    implementation. Passing `False` emits a `SpecificationWarning`.
+  - The returned `Bunch` gains `per_fold_rmsecv`, `se_rmsecv` and
+    `selection_rule` fields; the existing fields keep their semantics.
+
+  Callers who relied on the old argmin behaviour can opt in via
+  `selection_rule="min"`; callers who relied on the pre-1.28 leaky
+  scaling can opt in via `scale_inside_folds=False` (which warns).
+
+- **`PCA.select_n_components` docstring now flags the trivial-fit
+  limitation** (Bro, Kjeldahl, Smilde & Kiers 2008, *Anal. Bioanal. Chem.*
+  390:1241-1251): the row-wise CV scheme makes PRESS shrink monotonically
+  with components, so the recommendation tends to over-select. A
+  proper element-wise k-fold (ekf) rewrite is tracked as a follow-up; for
+  now the docstring recommends cross-checking with parallel analysis or
+  Minka's MLE.
+
 ## [1.27.1] - 2026-06-06
 
 ### Fixed
@@ -1486,7 +1522,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.27.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.28.0...HEAD
+[1.28.0]: https://github.com/kgdunn/process-improve/compare/v1.27.1...v1.28.0
 [1.27.1]: https://github.com/kgdunn/process-improve/compare/v1.27.0...v1.27.1
 [1.27.0]: https://github.com/kgdunn/process-improve/compare/v1.26.1...v1.27.0
 [1.26.1]: https://github.com/kgdunn/process-improve/compare/v1.26.0...v1.26.1
