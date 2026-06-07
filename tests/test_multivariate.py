@@ -2670,6 +2670,108 @@ def test_pls_select_n_components_stability_signal() -> None:
     assert strict.selection_is_stable is False
 
 
+def test_pls_nested_cv_recovers_known_rank_and_reports_rmsep() -> None:
+    """Nested CV converges on the true rank and reports honest RMSEP."""
+    rng = np.random.default_rng(7)
+    N, K, true_rank = 80, 20, 2
+    T = rng.standard_normal((N, true_rank)) * np.array([6.0, 3.5])
+    P = rng.standard_normal((true_rank, K))
+    X = pd.DataFrame(T @ P + 0.3 * rng.standard_normal((N, K)), columns=[f"x{i}" for i in range(K)])
+    Y = pd.DataFrame(
+        T @ rng.standard_normal((true_rank, 1)) + 0.25 * rng.standard_normal((N, 1)),
+        columns=["y"],
+    )
+
+    result = PLS.nested_cv(
+        X, Y, max_components=6, outer_cv=5, inner_cv=5,
+        n_inner_repeats=3, random_state=0,
+    )
+
+    # Bunch shape.
+    assert {"rmsep", "q2y", "cv_predictions",
+            "selected_components_per_fold",
+            "selected_components_distribution"} <= set(result.keys())
+    assert isinstance(result.rmsep, pd.Series)
+    assert list(result.rmsep.index) == ["y", "total"]
+    assert (result.rmsep > 0).all()
+    assert isinstance(result.q2y, pd.Series)
+    # On a clean rank-2 dataset Q2Y should be solidly positive.
+    assert result.q2y["total"] > 0.5
+
+    # 5 outer folds -> 5 inner picks, each in [1, max_components].
+    assert len(result.selected_components_per_fold) == 5
+    assert all(1 <= a <= 6 for a in result.selected_components_per_fold)
+    # On clean rank-2 data the inner CV consistently picks around 2.
+    assert all(a <= 4 for a in result.selected_components_per_fold)
+
+    # Every row covered exactly once (KFold).
+    assert result.cv_predictions.shape == (N, 1)
+    assert not result.cv_predictions.isna().any().any()
+
+    # Vote distribution sums to 1.
+    assert np.isclose(result.selected_components_distribution.sum(), 1.0)
+
+
+def test_pls_nested_cv_is_reproducible() -> None:
+    """Same random_state -> identical nested-CV result."""
+    rng = np.random.default_rng(11)
+    N, K = 60, 15
+    X = pd.DataFrame(rng.standard_normal((N, K)), columns=[f"x{i}" for i in range(K)])
+    Y = pd.DataFrame(rng.standard_normal((N, 1)), columns=["y"])
+
+    a = PLS.nested_cv(
+        X, Y, max_components=4, outer_cv=4, inner_cv=4, n_inner_repeats=2, random_state=0,
+    )
+    b = PLS.nested_cv(
+        X, Y, max_components=4, outer_cv=4, inner_cv=4, n_inner_repeats=2, random_state=0,
+    )
+    np.testing.assert_allclose(a.rmsep.to_numpy(), b.rmsep.to_numpy())
+    assert a.selected_components_per_fold == b.selected_components_per_fold
+
+
+def test_pls_nested_cv_validates_outer_cv() -> None:
+    """outer_cv < 2 is rejected."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.standard_normal((20, 4)))
+    Y = pd.DataFrame(rng.standard_normal((20, 1)))
+    with pytest.raises(ValueError, match=">= 2"):
+        PLS.nested_cv(X, Y, max_components=2, outer_cv=1, inner_cv=3, n_inner_repeats=1)
+
+
+def test_pls_nested_cv_scale_inside_folds_false() -> None:
+    """The leakage-prone scale_inside_folds=False path still works on pre-scaled data."""
+    rng = np.random.default_rng(13)
+    N, K = 40, 8
+    T = rng.standard_normal((N, 2))
+    P = rng.standard_normal((2, K))
+    X = pd.DataFrame(T @ P + 0.3 * rng.standard_normal((N, K)))
+    Y = pd.DataFrame(T @ rng.standard_normal((2, 1)) + 0.2 * rng.standard_normal((N, 1)), columns=["y"])
+    X_s = MCUVScaler().fit_transform(X)
+    Y_s = MCUVScaler().fit_transform(Y)
+    with pytest.warns(SpecificationWarning):
+        result = PLS.nested_cv(
+            X_s, Y_s, max_components=4, outer_cv=3, inner_cv=3, n_inner_repeats=1,
+            random_state=0, scale_inside_folds=False,
+        )
+    assert (result.rmsep > 0).all()
+    assert result.cv_predictions.shape == (N, 1)
+
+
+def test_pls_nested_cv_accepts_custom_outer_splitter() -> None:
+    """outer_cv can be any sklearn splitter, not just an int."""
+    rng = np.random.default_rng(17)
+    N, K = 40, 6
+    X = pd.DataFrame(rng.standard_normal((N, K)))
+    Y = pd.DataFrame(rng.standard_normal((N, 1)), columns=["y"])
+    splitter = KFold(n_splits=4, shuffle=True, random_state=0)
+    result = PLS.nested_cv(
+        X, Y, max_components=3, outer_cv=splitter, inner_cv=3,
+        n_inner_repeats=1, random_state=0,
+    )
+    assert len(result.selected_components_per_fold) == 4
+    assert result.cv_predictions.shape == (N, 1)
+
+
 def test_pls_select_n_components_randomization_rule() -> None:
     """Van der Voet's randomization test picks a parsimonious model."""
     rng = np.random.default_rng(2026)

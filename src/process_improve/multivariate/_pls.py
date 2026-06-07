@@ -1144,6 +1144,219 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             selection_is_stable=selection_is_stable,
         )
 
+    @classmethod
+    def nested_cv(  # noqa: PLR0913, PLR0915
+        cls,
+        X: DataMatrix,
+        Y: DataMatrix,
+        *,
+        max_components: int | None = None,
+        outer_cv: int | BaseCrossValidator = 5,
+        inner_cv: int = 5,
+        n_inner_repeats: int = 10,
+        selection_rule: SelectionRule = "1se",
+        scale_inside_folds: bool = True,
+        min_q2_increase: float = Q2_MIN_INCREMENT,
+        n_permutations: int = 999,
+        alpha: float = 0.01,
+        random_state: int | None = None,
+        **pls_kwargs,
+    ) -> Bunch:
+        """Nested cross-validation for an honest PLS performance estimate.
+
+        Outer loop splits the data into outer-train / outer-test; the inner
+        loop runs :meth:`select_n_components` on the outer-train (with the
+        configured ``selection_rule`` over ``inner_cv * n_inner_repeats``
+        folds) to pick the component count; a final PLS is fit on the
+        outer-train at that count and used to predict the outer-test. The
+        accumulated out-of-fold predictions give RMSEP that is *not*
+        optimism-biased by the selection decision - the headline number to
+        report when a clean test set is not available.
+
+        Parameters
+        ----------
+        X, Y : array-like
+            Training data. Treated as in :meth:`select_n_components` (raw
+            if ``scale_inside_folds=True``, pre-scaled otherwise).
+        max_components : int, optional
+            Forwarded to the inner :meth:`select_n_components`.
+        outer_cv : int or sklearn splitter, default 5
+            Number of outer folds (or a custom splitter).
+        inner_cv : int, default 5
+            Number of inner folds passed to :meth:`select_n_components`.
+        n_inner_repeats : int, default 10
+            Number of inner-CV repeats per outer fold; the inner
+            ``random_state`` is offset by the outer-fold index so each
+            outer fold sees a fresh inner shuffle.
+        selection_rule : str, default "1se"
+            Selection rule applied inside the inner loop. See
+            :data:`~process_improve.multivariate._common.SelectionRule`.
+        scale_inside_folds : bool, default True
+            Mirrors :meth:`select_n_components`. Also applied to the final
+            outer-train fit, with the test-fold predictions inverse-
+            transformed to the original Y scale before RMSEP accumulates.
+        min_q2_increase, n_permutations, alpha
+            Forwarded to the inner :meth:`select_n_components` per rule.
+        random_state : int, optional
+            Seed for the outer-fold shuffle and the inner CV. The inner
+            seed is offset per outer fold so each outer split sees a fresh
+            shuffled inner CV.
+        **pls_kwargs
+            Forwarded to :class:`PLS` for both the inner CV and the final
+            outer-train fits.
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With keys:
+
+            - ``rmsep`` - honest held-out RMSEP per Y column plus a
+              ``"total"`` entry (pd.Series).
+            - ``q2y`` - validated :math:`Q^2_Y` per Y column plus
+              ``"total"`` (pd.Series).
+            - ``cv_predictions`` - out-of-fold predictions of Y at the
+              per-outer-fold selected component counts (pd.DataFrame on
+              the original Y scale).
+            - ``selected_components_per_fold`` - list of inner
+              recommendations, one per outer fold.
+            - ``selected_components_distribution`` - vote share over
+              candidate counts (pd.Series).
+
+        Notes
+        -----
+        Runtime is roughly ``outer_cv * inner_cv * n_inner_repeats *
+        max_components`` PLS fits. With the defaults that is 5 * 5 * 10 *
+        max_components fits per call; for ``max_components=10`` and a
+        moderate dataset that completes in seconds. Drop ``n_inner_repeats``
+        if you need to bring it down further.
+
+        Examples
+        --------
+        >>> from process_improve.multivariate import PLS
+        >>> result = PLS.nested_cv(X, Y, max_components=8, random_state=0)
+        >>> result.rmsep["total"]
+        """
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+        if isinstance(Y, pd.Series):
+            Y = Y.to_frame()
+        elif not isinstance(Y, pd.DataFrame):
+            Y = pd.DataFrame(Y)
+
+        N = X.shape[0]
+        M = Y.shape[1]
+
+        if isinstance(outer_cv, int):
+            if outer_cv < 2:
+                raise ValueError(f"outer_cv must be >= 2 when given as an int; got {outer_cv}.")
+            outer_splitter: BaseCrossValidator = KFold(
+                n_splits=outer_cv, shuffle=True, random_state=random_state
+            )
+        else:
+            outer_splitter = outer_cv
+        outer_splits = list(outer_splitter.split(X, Y))
+        if not outer_splits:
+            raise ValueError("The outer cross-validation splitter produced no folds.")
+
+        y_columns = list(Y.columns)
+        y_values = Y.to_numpy()
+        oof_predictions = np.full((N, M), np.nan)
+        selected_components_per_fold: list[int] = []
+
+        for outer_idx, (train_idx, test_idx) in enumerate(outer_splits):
+            X_outer_train = X.iloc[train_idx]
+            Y_outer_train = Y.iloc[train_idx]
+            X_outer_test = X.iloc[test_idx]
+
+            inner_seed = None if random_state is None else int(random_state) + outer_idx
+            inner_result = cls.select_n_components(
+                X_outer_train,
+                Y_outer_train,
+                max_components=max_components,
+                cv=inner_cv,
+                n_repeats=n_inner_repeats,
+                selection_rule=selection_rule,
+                scale_inside_folds=scale_inside_folds,
+                min_q2_increase=min_q2_increase,
+                n_permutations=n_permutations,
+                alpha=alpha,
+                random_state=inner_seed,
+                **pls_kwargs,
+            )
+            n_comp_inner = int(inner_result.n_components)
+            selected_components_per_fold.append(n_comp_inner)
+
+            # Final outer-train fit at the inner-selected component count.
+            if scale_inside_folds:
+                scaler_x = MCUVScaler().fit(X_outer_train)
+                scaler_y = MCUVScaler().fit(Y_outer_train)
+                X_train_s = scaler_x.transform(X_outer_train)
+                Y_train_s = scaler_y.transform(Y_outer_train)
+                X_test_s = scaler_x.transform(X_outer_test).to_numpy()
+                y_centre = scaler_y.center_.to_numpy()
+                y_scale = scaler_y.scale_.to_numpy()
+            else:
+                X_train_s = X_outer_train
+                Y_train_s = Y_outer_train
+                X_test_s = X_outer_test.to_numpy()
+                y_centre = np.zeros(M)
+                y_scale = np.ones(M)
+
+            model = cls(n_components=n_comp_inner, **pls_kwargs).fit(X_train_s, Y_train_s)
+            scores_test = X_test_s @ model.direct_weights_.to_numpy()
+            y_loadings = typing.cast("pd.DataFrame", model.y_loadings_).to_numpy()
+            y_hat_scaled = scores_test @ y_loadings.T
+            oof_predictions[test_idx, :] = y_hat_scaled * y_scale + y_centre
+
+        # RMSEP from the out-of-fold predictions (each row is predicted by
+        # exactly one outer fold).
+        residuals = y_values - oof_predictions
+        mask = ~np.isnan(oof_predictions).any(axis=1)
+        n_valid = int(mask.sum())
+        if n_valid == 0:
+            raise RuntimeError(
+                "Nested CV produced no covered observations; check the outer splitter."
+            )
+        per_y_press = np.nansum(residuals[mask] ** 2, axis=0)
+        rmsep_per_y = np.sqrt(per_y_press / n_valid)
+        rmsep_total = np.sqrt(np.nansum(residuals[mask] ** 2) / (n_valid * M))
+        rmsep = pd.Series(
+            np.concatenate([rmsep_per_y, [rmsep_total]]),
+            index=[*y_columns, "total"],
+            name="RMSEP",
+        )
+
+        # Validated Q^2_Y per column and total, against the column mean.
+        col_means = np.nanmean(y_values, axis=0)
+        tss_per_y = np.nansum((y_values - col_means) ** 2, axis=0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            q2y_per_y = np.where(tss_per_y > 0, 1.0 - per_y_press / tss_per_y, np.nan)
+            q2y_total = (
+                1.0 - residuals[mask].astype(float).__pow__(2).sum() / tss_per_y.sum()
+                if tss_per_y.sum() > 0
+                else np.nan
+            )
+        q2y = pd.Series(
+            np.concatenate([q2y_per_y, [q2y_total]]),
+            index=[*y_columns, "total"],
+            name="Q2Y",
+        )
+
+        cv_predictions = pd.DataFrame(oof_predictions, index=Y.index, columns=Y.columns)
+        counts = pd.Series(selected_components_per_fold).value_counts().sort_index()
+        distribution = counts / counts.sum()
+        distribution.name = "vote_share"
+        distribution.index.name = "n_components"
+
+        return Bunch(
+            rmsep=rmsep,
+            q2y=q2y,
+            cv_predictions=cv_predictions,
+            selected_components_per_fold=selected_components_per_fold,
+            selected_components_distribution=distribution,
+        )
+
     def score_contributions(
         self,
         t_start: np.ndarray | pd.Series,

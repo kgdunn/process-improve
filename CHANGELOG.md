@@ -11,6 +11,29 @@ those changes.
 
 ## [Unreleased]
 
+## [1.34.0] - 2026-06-07
+
+### Added
+
+- **`PLS.nested_cv(X, Y, ...)`** classmethod: an honest, optimism-free
+  performance estimate via nested cross-validation. The outer loop
+  splits the data; the inner loop runs `PLS.select_n_components`
+  (`inner_cv * n_inner_repeats` folds) on each outer-train to pick the
+  component count for that fold; a final PLS is fit on the outer-train
+  at that count and predicts the outer-test. Accumulated out-of-fold
+  predictions give RMSEP that is *not* biased by the selection rule.
+  - kwargs: `max_components`, `outer_cv` (default 5), `inner_cv`
+    (default 5), `n_inner_repeats` (default 10), `selection_rule`
+    (default `"1se"`), `scale_inside_folds`, `min_q2_increase`,
+    `n_permutations`, `alpha`, `random_state`. The inner seed is
+    offset per outer fold so every outer split sees a fresh inner
+    shuffle.
+  - Returned `Bunch`: `rmsep` (per-Y plus `"total"`),
+    `q2y` (per-Y plus `"total"`), `cv_predictions` (on the original Y
+    scale), `selected_components_per_fold` (list, one int per outer
+    fold), `selected_components_distribution` (vote share, a stability
+    signal across the outer folds).
+
 ## [1.33.0] - 2026-06-07
 
 ### Added
@@ -1647,7 +1670,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.33.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.34.0...HEAD
+[1.34.0]: https://github.com/kgdunn/process-improve/compare/v1.33.0...v1.34.0
 [1.33.0]: https://github.com/kgdunn/process-improve/compare/v1.32.0...v1.33.0
 [1.32.0]: https://github.com/kgdunn/process-improve/compare/v1.31.0...v1.32.0
 [1.31.0]: https://github.com/kgdunn/process-improve/compare/v1.30.0...v1.31.0
