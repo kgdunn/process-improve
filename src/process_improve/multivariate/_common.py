@@ -46,7 +46,15 @@ __all__ = [
 #: ``"q2_increment"`` keeps adding components while each one raises the
 #: cumulative cross-validated :math:`Q^2` by at least ``min_q2_increase``;
 #: it is a Wold's-R-style heuristic with an absolute (not relative) threshold.
-SelectionRule = Literal["1se", "min", "q2_increment"]
+#:
+#: ``"randomization"`` is Van der Voet's (1994, *Chemom. Intell. Lab. Syst.*
+#: 25(2):313-323) randomization test: under the null that two PLS models have
+#: the same predictive ability, randomly flip the sign of each observation's
+#: paired squared-residual difference between a candidate model and the
+#: argmin-RMSECV reference. The smallest model whose *p*-value exceeds
+#: ``alpha`` (i.e. fails to reject the null) is chosen - statistically
+#: indistinguishable from the best, but more parsimonious.
+SelectionRule = Literal["1se", "min", "q2_increment", "randomization"]
 
 #: Default minimum increase in the cross-validated :math:`Q^2` for an extra
 #: component to be judged worth keeping under the ``"q2_increment"`` selection

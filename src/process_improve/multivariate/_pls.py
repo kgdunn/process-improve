@@ -49,6 +49,90 @@ from .plots import (
 logger = logging.getLogger(__name__)
 
 
+def _vandervoet_randomization(
+    per_obs_sse: np.ndarray,
+    *,
+    total_rmsecv: np.ndarray,
+    n_permutations: int = 999,
+    alpha: float = 0.01,
+    random_state: int | None = None,
+) -> tuple[int, np.ndarray]:
+    """Van der Voet (1994) randomization test for PLS component selection.
+
+    Compares every candidate model against the reference (argmin-RMSECV)
+    model under the null that the two have the same predictive ability.
+    For each observation the paired difference of squared residuals
+    ``D_i = sse[a, i] - sse[a*, i]`` is computed; under the null its sign
+    is random, so the permutation distribution of ``T = sum_i D_i`` is
+    obtained by flipping each ``D_i``'s sign with probability 1/2 over
+    ``n_permutations`` draws. The *p*-value is the right-tail probability
+    of seeing a sum as large as the observed one (``T_obs >= T_perm``);
+    the recommendation is the smallest ``a`` whose ``p > alpha`` -
+    statistically indistinguishable from the reference, but more
+    parsimonious.
+
+    Parameters
+    ----------
+    per_obs_sse : np.ndarray of shape (n_components, n_samples)
+        Out-of-fold per-observation squared total residual at every
+        component count, summed across Y columns. Rows that are NaN
+        (observation never held out) are dropped.
+    total_rmsecv : np.ndarray of shape (n_components,)
+        Pooled total RMSECV per component count; used to pick the
+        reference model ``a*`` = ``nanargmin(total_rmsecv) + 1``.
+    n_permutations : int, default 999
+        Number of sign-flip permutations.
+    alpha : float, default 0.01
+        Significance level. Smaller values are more parsimonious.
+    random_state : int, optional
+        Seed for reproducible permutations.
+
+    Returns
+    -------
+    recommended : int
+        Smallest 1-based component count with ``p > alpha``.
+    p_values : np.ndarray of shape (n_components,)
+        Right-tail *p*-value per candidate; the reference model gets
+        ``1.0`` by construction (paired differences are all zero).
+
+    References
+    ----------
+    Van der Voet, H. (1994). Comparing the predictive accuracy of
+    models using a simple randomization test. *Chemom. Intell. Lab.
+    Syst.*, 25(2), 313-323.
+    """
+    a_count = per_obs_sse.shape[0]
+    a_ref = int(np.nanargmin(total_rmsecv))
+    rng = np.random.default_rng(random_state)
+    p_values = np.zeros(a_count)
+    p_values[a_ref] = 1.0
+    sse_ref = per_obs_sse[a_ref]
+    for a in range(a_count):
+        if a == a_ref:
+            continue
+        d = per_obs_sse[a] - sse_ref
+        # Drop observations with NaN (a custom splitter may have left some
+        # rows unheld), since the paired difference is undefined there.
+        d = d[np.isfinite(d)]
+        if d.size == 0:
+            p_values[a] = 1.0
+            continue
+        t_obs = float(d.sum())
+        signs = rng.choice([-1.0, 1.0], size=(n_permutations, d.size))
+        t_perm = (signs * d).sum(axis=1)
+        # Right-tail probability under the null. Add 1 to both numerator
+        # and denominator (the "permutation test +1" correction) so the
+        # p-value is strictly positive even at the extreme.
+        p_values[a] = float((np.sum(t_perm >= t_obs) + 1) / (n_permutations + 1))
+
+    recommended = a_ref + 1  # fall back to the reference if nothing qualifies
+    for a in range(a_count):
+        if p_values[a] > alpha:
+            recommended = a + 1
+            break
+    return recommended, p_values
+
+
 class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator):
     """Projection to Latent Structures (PLS) regression with diagnostics.
 
@@ -629,6 +713,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         selection_rule: SelectionRule = "1se",
         scale_inside_folds: bool = True,
         min_q2_increase: float = Q2_MIN_INCREMENT,
+        n_permutations: int = 999,
+        alpha: float = 0.01,
         **pls_kwargs,
     ) -> Bunch:
         """Select the number of PLS components via cross-validation.
@@ -679,13 +765,17 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         random_state : int, optional
             Seed forwarded to ``KFold`` / ``RepeatedKFold`` for reproducible
             shuffling. Ignored when ``cv`` is a pre-built splitter.
-        selection_rule : {"1se", "min", "q2_increment"}, default "1se"
-            How the recommended component count is chosen from the per-fold
-            RMSECV curve. See :data:`~process_improve.multivariate._common.SelectionRule`
+        selection_rule : {"1se", "min", "q2_increment", "randomization"}, default "1se"
+            How the recommended component count is chosen.
+            See :data:`~process_improve.multivariate._common.SelectionRule`
             for the rule semantics. ``"1se"`` is the default; ``"min"`` is the
             argmin RMSECV (the pre-1.28 default, prone to running to the
             maximum component count); ``"q2_increment"`` is the Wold's-R-style
-            cumulative-Q² threshold.
+            cumulative-Q² threshold; ``"randomization"`` is Van der Voet's
+            (1994) permutation test (uses ``n_permutations`` and ``alpha``)
+            that picks the smallest model whose predictive ability is
+            statistically indistinguishable from the reference (argmin
+            RMSECV) one.
         scale_inside_folds : bool, default True
             When True (the default), fit a fresh :class:`MCUVScaler` on each
             training fold's X and Y, apply it to the held-out rows, fit PLS in
@@ -698,6 +788,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             Threshold used only when ``selection_rule="q2_increment"``: the
             smallest increase in cumulative validated :math:`Q^2_Y` that
             justifies keeping an extra component.
+        n_permutations : int, default 999
+            Used only when ``selection_rule="randomization"``: number of
+            sign-flip permutations driving the Van der Voet test.
+        alpha : float, default 0.01
+            Used only when ``selection_rule="randomization"``: significance
+            level. The smallest component count whose Van der Voet *p*-value
+            exceeds ``alpha`` is recommended. R's ``pls::selectNcomp`` uses
+            the same default; smaller values pick more parsimonious models.
         **pls_kwargs
             Additional keyword arguments passed to the ``PLS()`` constructor
             (e.g. ``missing_data_settings``).
@@ -729,6 +827,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
               held-out predictions are reported so each row appears exactly
               once.
             - ``selection_rule`` - the rule used to pick ``n_components``.
+            - ``randomization_pvalues`` - per-component Van der Voet
+              right-tail *p*-values when ``selection_rule="randomization"``;
+              ``None`` otherwise.
 
         Notes
         -----
@@ -931,13 +1032,33 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 "no recommendation can be made. Likely cause: a per-fold zero-variance Y "
                 "column, or every fold trivially degenerate."
             )
-        recommended = _select_n_components(
-            selection_rule,
-            mean_error=total_rmsecv,
-            se_error=se_values,
-            q2_cumulative=r2y_validated["total"].to_numpy(),
-            min_q2_increase=min_q2_increase,
-        )
+        # Per-observation squared total residual at every component count.
+        # Drives Van der Voet's randomization test; cheap to compute and
+        # otherwise diagnostic (rows of oof[a] that are NaN - typically
+        # because some custom splitter never held them out - are skipped via
+        # nansum).
+        per_obs_sse = np.nansum((y_values[None, :, :] - oof) ** 2, axis=2)  # (A, N)
+
+        randomization_pvalues: pd.Series | None = None
+        if selection_rule == "randomization":
+            recommended, p_values = _vandervoet_randomization(
+                per_obs_sse,
+                total_rmsecv=total_rmsecv,
+                n_permutations=n_permutations,
+                alpha=alpha,
+                random_state=random_state,
+            )
+            randomization_pvalues = pd.Series(
+                p_values, index=component_index, name="p-value (Van der Voet)"
+            )
+        else:
+            recommended = _select_n_components(
+                selection_rule,
+                mean_error=total_rmsecv,
+                se_error=se_values,
+                q2_cumulative=r2y_validated["total"].to_numpy(),
+                min_q2_increase=min_q2_increase,
+            )
         cv_predictions = pd.DataFrame(oof[recommended - 1], index=Y.index, columns=Y.columns)
 
         return Bunch(
@@ -950,6 +1071,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             press=press,
             cv_predictions=cv_predictions,
             selection_rule=selection_rule,
+            randomization_pvalues=randomization_pvalues,
         )
 
     def score_contributions(

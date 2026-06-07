@@ -11,6 +11,27 @@ those changes.
 
 ## [Unreleased]
 
+## [1.32.0] - 2026-06-07
+
+### Added
+
+- **`PLS.select_n_components(..., selection_rule="randomization")`**:
+  Van der Voet's (1994, *Chemom. Intell. Lab. Syst.* 25(2):313-323)
+  randomization test as a new fourth selection rule, joining `"1se"`,
+  `"min"`, and `"q2_increment"`.
+  - For each candidate model, the paired squared-residual differences
+    against the argmin-RMSECV reference model are randomly sign-flipped
+    `n_permutations` (default 999) times; the right-tail *p*-value is
+    the share of permutation sums at least as large as observed (with
+    the standard `+1`/`+1` correction so *p* is strictly positive).
+  - The smallest component count whose *p*-value exceeds `alpha`
+    (default 0.01, matching R's `pls::selectNcomp`) is recommended -
+    statistically indistinguishable from the best, but more parsimonious.
+  - Smaller `alpha` is more parsimonious; the reference model itself has
+    `p = 1` by construction.
+  - Returned `Bunch` gains `randomization_pvalues` (`pd.Series`,
+    indexed 1..A) when the rule is selected, `None` otherwise.
+
 ## [1.31.0] - 2026-06-07
 
 ### Added
@@ -1605,7 +1626,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.31.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.32.0...HEAD
+[1.32.0]: https://github.com/kgdunn/process-improve/compare/v1.31.0...v1.32.0
 [1.31.0]: https://github.com/kgdunn/process-improve/compare/v1.30.0...v1.31.0
 [1.30.0]: https://github.com/kgdunn/process-improve/compare/v1.29.0...v1.30.0
 [1.29.0]: https://github.com/kgdunn/process-improve/compare/v1.28.0...v1.29.0
