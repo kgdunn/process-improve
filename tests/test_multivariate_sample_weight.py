@@ -165,3 +165,30 @@ def test_sample_weight_rejects_wrong_length() -> None:
     Xs, Ys = MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y)
     with pytest.raises(ValueError, match=r"sample_weight has"):
         PLS(n_components=2).fit(Xs, Ys, sample_weight=np.ones(len(X) - 1))
+
+
+def test_cross_validate_threads_sample_weight_per_fold() -> None:
+    """``PLS.cross_validate(X, Y, sample_weight=w)`` subsets ``w`` by training fold.
+
+    Validation: weights of the wrong length raise; ``sample_weight=ones(N)``
+    reproduces the unweighted CV (the per-fold subset of ones is still
+    ones, so each refit is unweighted).
+    """
+    X, Y = _latent_xy(40, 5, 2, seed=3)
+    Xs, Ys = MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y)
+
+    model = PLS(n_components=2).fit(Xs, Ys)
+
+    # Length validation reaches into cross_validate too.
+    with pytest.raises(ValueError, match=r"sample_weight has"):
+        model.cross_validate(Xs, Ys, cv=5, random_state=0, show_progress=False,
+                             sample_weight=np.ones(len(X) - 1))
+
+    # Equivalence: ones-weighted CV matches the unweighted CV (per-fold
+    # subset of ones is still ones, so each refit is unweighted).
+    cv_unweighted = model.cross_validate(Xs, Ys, cv=5, random_state=0, show_progress=False)
+    cv_weighted = model.cross_validate(
+        Xs, Ys, cv=5, random_state=0, show_progress=False, sample_weight=np.ones(len(X)),
+    )
+    np.testing.assert_allclose(cv_unweighted.beta_mean.values, cv_weighted.beta_mean.values, atol=1e-10)
+    np.testing.assert_allclose(cv_unweighted.q_squared.values, cv_weighted.q_squared.values, atol=1e-10)

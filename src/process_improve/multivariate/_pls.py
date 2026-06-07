@@ -1756,6 +1756,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         conf_level: float = 0.95,
         random_state: int | None = None,
         show_progress: bool = True,
+        sample_weight: np.ndarray | None = None,
     ) -> Bunch:
         """Cross-validate the PLS model and compute error bars for beta coefficients.
 
@@ -1864,6 +1865,19 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         else:
             method = "kfold"
 
+        # Validate sample_weight up front (#394). The per-fold fits below
+        # subset it by training index, so the user's weights stay
+        # row-aligned to X / Y throughout.
+        if sample_weight is not None:
+            sample_weight = np.asarray(sample_weight, dtype=float).ravel()
+            if sample_weight.shape[0] != N:
+                raise ValueError(
+                    f"sample_weight has {sample_weight.shape[0]} entries; expected {N} to match X / Y."
+                )
+
+        def _fold_weights(idx: np.ndarray) -> np.ndarray | None:
+            return None if sample_weight is None else sample_weight[idx]
+
         # --- Collect beta coefficients (and out-of-fold predictions for CV) ---
         beta_collection: list[np.ndarray] = []
         y_hat_cv = np.full((N, M), np.nan) if not use_bootstrap else None
@@ -1873,7 +1887,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             iterator = tqdm(range(n_bootstrap), desc="Bootstrap", disable=not show_progress)
             for _ in iterator:
                 train_idx = rng.choice(N, size=N, replace=True)
-                sub_model = clone(self).fit(X.iloc[train_idx], Y.iloc[train_idx])
+                sub_model = clone(self).fit(
+                    X.iloc[train_idx], Y.iloc[train_idx], sample_weight=_fold_weights(train_idx),
+                )
                 beta_collection.append(sub_model.beta_coefficients_.values)
 
         elif method == "jackknife":
@@ -1881,7 +1897,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             iterator = tqdm(range(N), desc="Jackknife (LOO)", disable=not show_progress)
             for i in iterator:
                 train_idx = np.concatenate([np.arange(i), np.arange(i + 1, N)])
-                sub_model = clone(self).fit(X.iloc[train_idx], Y.iloc[train_idx])
+                sub_model = clone(self).fit(
+                    X.iloc[train_idx], Y.iloc[train_idx], sample_weight=_fold_weights(train_idx),
+                )
                 beta_collection.append(sub_model.beta_coefficients_.values)
                 pred = sub_model.predict(X.iloc[[i]])
                 y_hat_cv[i, :] = pred.values.ravel()
@@ -1892,7 +1910,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             kf = KFold(n_splits=n_resamples, shuffle=True, random_state=random_state)
             desc = f"{n_resamples}-Fold CV"
             for train_idx, test_idx in tqdm(kf.split(X), total=n_resamples, desc=desc, disable=not show_progress):
-                sub_model = clone(self).fit(X.iloc[train_idx], Y.iloc[train_idx])
+                sub_model = clone(self).fit(
+                    X.iloc[train_idx], Y.iloc[train_idx], sample_weight=_fold_weights(train_idx),
+                )
                 beta_collection.append(sub_model.beta_coefficients_.values)
                 pred = sub_model.predict(X.iloc[test_idx])
                 y_hat_cv[test_idx, :] = pred.values

@@ -11,6 +11,52 @@ those changes.
 
 ## [Unreleased]
 
+## [1.40.0] - 2026-06-07
+
+### Added
+
+- **`PLS.fit(X, Y, sample_weight=...)`** for weighted PLS regression
+  (#394). Implemented via the `sqrt(w)`-rescale identity at NIPALS
+  entry: row-rescaling X and Y by `sqrt(w)` makes every cross-product
+  in the NIPALS inner loop weighted (`X' W u`, `Y' W t`, `X' W X`),
+  while loadings, weights, and beta fall out unchanged. Scores are
+  rebuilt on the original sample scale via the `T = X @ R` direct-
+  weights identity, which correctly handles zero-weight rows
+  (`sample_weight=[1, 1, 0, 0, 1]` produces a fit identical to one on
+  rows `[0, 1, 4]` only).
+
+  Validation up front: non-negative, finite, length matches `X` / `Y`.
+
+  - **`PLS.cross_validate(..., sample_weight=...)`** threads the
+    weights through to each per-fold refit (the weights are subset by
+    the training index of each fold, never globally normalised - so
+    1-SE-style component selection stays well-defined). Length
+    validation matches `fit()`.
+  - **`PLS.score(X, Y, sample_weight=...)`** already forwarded
+    `sample_weight` to `sklearn.metrics.r2_score`; this version's
+    weighted fit makes the trio (fit + score + cross_validate)
+    consistent end-to-end.
+
+  Eight tests in `tests/test_multivariate_sample_weight.py` cover:
+  - Identity (`sample_weight=ones(N)` reproduces the unweighted fit
+    to `1e-10` on every fitted attribute).
+  - Half-zero collapse (`sample_weight=[1..., 0...]` matches a fit on
+    the surviving rows to `1e-9`).
+  - Heteroscedastic recovery (`1/sigma_i**2` weights produce a beta
+    meaningfully closer to a clean-data oracle than the unweighted
+    full-data fit).
+  - sklearn Pipeline routing
+    (`pipe.fit(X, y, pls__sample_weight=w)` reaches the inner PLS).
+  - Three rejection paths (negative, NaN/inf, wrong length).
+  - `cross_validate` thread-through (ones-weighted CV matches the
+    unweighted CV's beta_mean and q_squared).
+
+  Not yet threaded (follow-up): `PLS.select_n_components` and
+  `PLS.nested_cv` don't accept `sample_weight` in this release. The
+  per-fold subsetting pattern that landed in `cross_validate` is the
+  template; doing the same in those two entry points is mechanical
+  but tedious and was left as a future scope.
+
 ## [1.39.0] - 2026-06-07
 
 ### Added
@@ -1937,7 +1983,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.39.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.40.0...HEAD
+[1.40.0]: https://github.com/kgdunn/process-improve/compare/v1.39.0...v1.40.0
 [1.39.0]: https://github.com/kgdunn/process-improve/compare/v1.38.4...v1.39.0
 [1.38.4]: https://github.com/kgdunn/process-improve/compare/v1.38.3...v1.38.4
 [1.38.3]: https://github.com/kgdunn/process-improve/compare/v1.38.2...v1.38.3
