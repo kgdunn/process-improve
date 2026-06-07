@@ -952,6 +952,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
               Drives the 1-SE rule.
             - ``se_rmsecv`` - standard error of the per-fold RMSECV per
               component count (pd.Series, indexed ``1..A``).
+            - ``q2_se`` - standard error on the Q2 scale (the per-fold total
+              PRESS standard error divided by the total Y sum-of-squares),
+              i.e. the half-width of a +/-1 SE band around
+              ``r2y_validated["total"]`` (pd.Series, indexed ``1..A``).
             - ``r2y_validated`` - validated cumulative :math:`R^2_Y`
               (pd.DataFrame, same shape as ``rmsecv``).
             - ``r2x_validated`` - validated cumulative :math:`R^2_X`
@@ -1062,6 +1066,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # Per-fold total-RMSECV across every fold-fit (n_folds_total columns).
         # Drives the 1-SE rule's standard error.
         per_fold_rmse = np.full((A, n_folds_total), np.nan)
+        # Per-fold total PRESS (sum of squared Y residuals over the fold), on the
+        # same linear scale as the Q2 normalisation; used to put a +/-1 SE band
+        # on the Q2 curve, mirroring PCA's se_press -> q2_se rescaling.
+        per_fold_press_total = np.full((A, n_folds_total), np.nan)
         # Out-of-fold predictions: with repeated K-fold each row appears in
         # multiple test folds, so populate only from the *first* repeat (which
         # covers every row exactly once) to preserve the existing semantic that
@@ -1112,11 +1120,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 y_hat = y_hat_scaled * y_scale + y_centre
                 x_hat = x_hat_scaled * x_scale + x_centre
                 residuals_y = y_test - y_hat
+                fold_press = float(np.nansum(residuals_y ** 2))
                 press_y[a - 1] += np.nansum(residuals_y ** 2, axis=0)
                 press_x[a - 1] += np.nansum((x_test - x_hat) ** 2, axis=0)
-                per_fold_rmse[a - 1, fold_idx] = np.sqrt(
-                    np.nansum(residuals_y ** 2) / max(1, n_test * M)
-                )
+                per_fold_rmse[a - 1, fold_idx] = np.sqrt(fold_press / max(1, n_test * M))
+                per_fold_press_total[a - 1, fold_idx] = fold_press
                 if fold_idx < first_repeat_fold_count:
                     oof[a - 1, test_idx, :] = y_hat
 
@@ -1169,6 +1177,20 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 np.maximum(1, np.sum(~np.isnan(per_fold_rmse), axis=1))
             )
         se_rmsecv = pd.Series(se_values, index=component_index, name="SE(RMSECV)")
+
+        # Q2 standard error: the standard error of the per-fold total PRESS,
+        # rescaled by the same total Y sum-of-squares that normalises the
+        # validated Q2 (Q2_Y_total = 1 - PRESS / tss_y.sum()). This is the
+        # half-width of a +/-1 SE band around the ``r2y_validated["total"]``
+        # curve, computed the same way as PCA's ``q2_se``.
+        ss_y_total = float(tss_y.sum())
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            se_press_total = np.nanstd(per_fold_press_total, axis=1, ddof=1) / np.sqrt(
+                np.maximum(1, np.sum(~np.isnan(per_fold_press_total), axis=1))
+            )
+        q2_se_values = se_press_total / ss_y_total if ss_y_total > 0 else se_press_total * np.nan
+        q2_se = pd.Series(q2_se_values, index=component_index, name="SE(Q2)")
 
         # If every CV fold produced NaN (e.g. zero-variance Y per fold) the
         # cross-validation never converged to anything we can judge. Raise so
@@ -1262,6 +1284,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             rmsecv=rmsecv,
             per_fold_rmsecv=per_fold_rmsecv,
             se_rmsecv=se_rmsecv,
+            q2_se=q2_se,
             r2y_validated=r2y_validated,
             r2x_validated=r2x_validated,
             press=press,
