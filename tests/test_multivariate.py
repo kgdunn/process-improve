@@ -3265,6 +3265,22 @@ def fixture_tpls_example() -> dict[str, dict[str, pd.DataFrame]]:
     }
 
 
+def test_tpls_predict_is_deprecated_alias_for_diagnose(fixture_tpls_example: dict) -> None:
+    """#395: TPLS.predict warns and forwards to TPLS.diagnose (same Bunch contents)."""
+    fixture = dict(fixture_tpls_example)  # don't mutate the shared fixture
+    d_matrix = fixture.pop("D")
+    model = TPLS(n_components=2, d_matrix=d_matrix).fit(DataFrameDict(fixture))
+    # Use the same data for inference; we only care that the two methods agree.
+    canonical = model.diagnose(DataFrameDict(fixture))
+    with pytest.warns(DeprecationWarning, match=r"TPLS\.predict.*deprecated.*diagnose"):
+        deprecated = model.predict(DataFrameDict(fixture))
+    assert set(deprecated.keys()) == set(canonical.keys())
+    np.testing.assert_allclose(
+        deprecated.t_scores_super.values.astype(float),
+        canonical.t_scores_super.values.astype(float),
+    )
+
+
 def test_tpls_pickle_round_trips(fixture_tpls_example: dict) -> None:
     """ENG-05 (#287): a fitted TPLS model pickles and its hotellings_t2_limit method survives."""
     import pickle

@@ -11,6 +11,33 @@ those changes.
 
 ## [Unreleased]
 
+## [1.38.4] - 2026-06-07
+
+### Added
+
+- **`diagnose(X)`** on `MBPLS`, `MBPCA`, and `TPLS` as the canonical
+  name for the existing diagnostics `Bunch` (#395). Matches
+  `PLS.diagnose` and `PCA.diagnose` (added in #406).
+  - `MBPLS.diagnose(X)` → `Bunch(super_scores, block_scores,
+    predictions, block_spe, hotellings_t2)`.
+  - `MBPCA.diagnose(X)` → `Bunch(super_scores, block_scores,
+    block_spe, hotellings_t2)`.
+  - `TPLS.diagnose(X)` → `Bunch(hat, t_scores_super, spe,
+    hotellings_t2)`.
+
+### Deprecated
+
+- **`MBPLS.predict(X)` / `MBPCA.predict(X)` / `TPLS.predict(X)`** are
+  now thin shims that forward to `diagnose(X)` and emit a
+  `DeprecationWarning`. Behaviour and return shape are unchanged; the
+  rename clears the `predict` name for a future contract that matches
+  its sklearn-convention meaning (regression-style prediction), and
+  removes the asymmetry with `PLS.predict` / `PLS.diagnose`. Slated
+  for removal in 2.0.0.
+
+  `TPLS.score` was migrated to call `diagnose` internally so the
+  package itself doesn't emit the new warning.
+
 ## [1.38.3] - 2026-06-07
 
 ### Added
@@ -1898,7 +1925,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.38.3...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.38.4...HEAD
+[1.38.4]: https://github.com/kgdunn/process-improve/compare/v1.38.3...v1.38.4
 [1.38.3]: https://github.com/kgdunn/process-improve/compare/v1.38.2...v1.38.3
 [1.38.2]: https://github.com/kgdunn/process-improve/compare/v1.38.1...v1.38.2
 [1.38.1]: https://github.com/kgdunn/process-improve/compare/v1.38.0...v1.38.1

@@ -801,8 +801,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         check_is_fitted(self, "super_weights_")
         return self._project(X).super_scores
 
-    def predict(self, X: dict[str, pd.DataFrame]) -> Bunch:
-        """Project new data and predict Y on the original scale.
+    def diagnose(self, X: dict[str, pd.DataFrame]) -> Bunch:
+        """Project new data and return the full diagnostics Bunch.
 
         Returns a :class:`sklearn.utils.Bunch` with fields ``super_scores``
         (DataFrame, n_samples x n_components), ``block_scores`` (dict[str,
@@ -810,9 +810,30 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         ``block_spe`` (dict[str, Series], per-block SPE of the new
         observations) and ``hotellings_t2`` (Series of cumulative
         Hotelling's T² over all components, per new observation).
+
+        The rename (since 1.38.4, #395) matches :meth:`PLS.diagnose`
+        and PCA.diagnose; :meth:`predict` is kept as a deprecation shim.
         """
         check_is_fitted(self, "super_weights_")
         return self._project(X)
+
+    def predict(self, X: dict[str, pd.DataFrame]) -> Bunch:
+        """Forward to :meth:`diagnose`; emits a :class:`DeprecationWarning`.
+
+        .. deprecated:: 1.38.4
+            Use :meth:`MBPLS.diagnose` instead. The sklearn-convention
+            ``predict`` name suggests a regression-style ndarray return,
+            but the historical return is the rich diagnostics Bunch. The
+            rename aligns with :meth:`PLS.diagnose` and :meth:`PCA.diagnose`
+            and frees the name for a future contract that returns just
+            the ``predictions`` field. Will be removed in 2.0.0.
+        """
+        warnings.warn(
+            "MBPLS.predict is deprecated and will be removed in 2.0.0; use MBPLS.diagnose instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.diagnose(X)
 
     def _project(self, X: dict[str, pd.DataFrame]) -> Bunch:
         if not isinstance(X, dict):

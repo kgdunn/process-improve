@@ -88,6 +88,30 @@ def test_mbpca_feature_names_in_block_order_is_dict_order() -> None:
     np.testing.assert_array_equal(model_ba.feature_names_in_, ["b0", "b1", "a0", "a1", "a2"])
 
 
+def test_mbpls_predict_is_deprecated_alias_for_diagnose() -> None:
+    """#395: MBPLS.predict warns and forwards to MBPLS.diagnose (same Bunch contents)."""
+    model = _fitted_mbpls()
+    X_new = _two_block()
+    canonical = model.diagnose(X_new)
+    with pytest.warns(DeprecationWarning, match=r"MBPLS\.predict.*deprecated.*diagnose"):
+        deprecated = model.predict(X_new)
+    # Same Bunch fields, identical values.
+    assert set(deprecated.keys()) == set(canonical.keys())
+    np.testing.assert_allclose(deprecated.super_scores.values, canonical.super_scores.values)
+    np.testing.assert_allclose(deprecated.predictions.values, canonical.predictions.values)
+
+
+def test_mbpca_predict_is_deprecated_alias_for_diagnose() -> None:
+    """#395: MBPCA.predict warns and forwards to MBPCA.diagnose (same Bunch contents)."""
+    model = _fitted_mbpca()
+    X_new = _two_block()
+    canonical = model.diagnose(X_new)
+    with pytest.warns(DeprecationWarning, match=r"MBPCA\.predict.*deprecated.*diagnose"):
+        deprecated = model.predict(X_new)
+    assert set(deprecated.keys()) == set(canonical.keys())
+    np.testing.assert_allclose(deprecated.super_scores.values, canonical.super_scores.values)
+
+
 @pytest.mark.parametrize("factory", [_fitted_pca, _fitted_pls, _fitted_mbpca, _fitted_mbpls])
 def test_fitted_model_pickle_round_trips(factory) -> None:
     """A fitted model pickles and the reloaded model's limit method agrees."""
