@@ -245,6 +245,21 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         self.copy = copy
         self.missing_data_settings = missing_data_settings
 
+    def __sklearn_tags__(self):
+        """Declare sklearn capability tags (sklearn 1.6+).
+
+        - ``input_tags.allow_nan=True`` because the NIPALS fit threads
+          missing data through; ``fit`` and ``predict`` both pass
+          ``ensure_all_finite="allow-nan"`` to ``validate_data``.
+        - ``target_tags.multi_output=True`` because the X / Y blocks
+          can both be multi-column (multi-target Y is the default
+          chemometric PLS case).
+        """
+        tags = super().__sklearn_tags__()
+        tags.input_tags.allow_nan = True
+        tags.target_tags.multi_output = True
+        return tags
+
     # ENG-17: the 13 shared convenience methods, hotellings_t2_limit,
     # ellipse_coordinates and the rename __getattr__ are inherited from
     # _LatentVariableModel. PLS keeps only its two PLS-specific plot methods and
@@ -516,7 +531,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         if np.any(Y.isna()) or np.any(X.isna()):
             self.has_missing_data_ = True
-            default_mds = dict(md_method="tsr", md_tol=epsqrt, md_max_iter=self.max_iter)
+            # Default to the NIPALS path because TSR / PMP for PLS are still
+            # NotImplementedError in _fit_nipals; NIPALS handles per-cell NaN
+            # directly via skipna sums inside the NIPALS iterations.
+            default_mds = dict(md_method="nipals", md_tol=epsqrt, md_max_iter=self.max_iter)
             if isinstance(self.missing_data_settings, dict):
                 default_mds.update(self.missing_data_settings)
             self.missing_data_settings = default_mds

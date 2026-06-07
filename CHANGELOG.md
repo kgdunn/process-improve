@@ -11,6 +11,50 @@ those changes.
 
 ## [Unreleased]
 
+## [1.37.0] - 2026-06-07
+
+### Added
+
+- **`__sklearn_tags__` declarations on `MCUVScaler`, `PCA`, and `PLS`**
+  for sklearn 1.6+ capability dispatch:
+  - `MCUVScaler`: `input_tags.allow_nan = True`. `fit` / `transform`
+    use `np.nanmean` / `np.nanstd` and pass NaN through unchanged.
+  - `PCA`: `input_tags.allow_nan = True`. The NIPALS / TSR algorithm
+    paths handle missing data; the SVD path still raises explicitly.
+    Inside a `Pipeline`, sklearn's `check_array` no longer rejects
+    NaN before the algorithm has a chance to see it.
+  - `PLS`: `input_tags.allow_nan = True` and
+    `target_tags.multi_output = True`. The first unblocks the missing-
+    data path through a Pipeline; the second tells multi-output scorers
+    and cross-validators to dispatch correctly on multi-target Y (the
+    default chemometric PLS case).
+
+### Fixed
+
+- **`PLS.fit` on data with missing values no longer raises
+  `NotImplementedError`.** When NaN was detected in X or Y, the missing-
+  data settings defaulted to `md_method="tsr"`, but TSR for PLS is
+  raised as `NotImplementedError` in `_fit_nipals`. The default now
+  routes to `md_method="nipals"`, which handles per-cell NaN directly
+  via skipna sums inside the NIPALS iterations and was the intended
+  behaviour all along. Surfaced by `check_estimator` when the new
+  `allow_nan=True` tag let sklearn send NaN-containing data through to
+  `PLS.fit`.
+
+### Audit movement (`tools/check_estimator_audit.py`)
+
+| Estimator | Before #393 | After #393 |
+|---|---|---|
+| `MCUVScaler` | 44/47 (94%) | 44/46 (96%) |
+| `PCA(n_components=2)` | 38/47 (81%) | 38/46 (83%) |
+| `PLS(n_components=2)` | 24/29 (83%) | 24/28 (86%) |
+
+Total check counts drop by 1 each because `__sklearn_tags__` declares
+`allow_nan=True`, so sklearn skips the "do you reject NaN?" check
+(it's no longer the contract). Net behavioural change: the NaN-
+through-Pipeline path that #391 / #393 unblock now actually works
+on PLS too (not just MCUVScaler / PCA).
+
 ## [1.36.0] - 2026-06-07
 
 ### Changed
@@ -1759,7 +1803,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.36.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.37.0...HEAD
+[1.37.0]: https://github.com/kgdunn/process-improve/compare/v1.36.0...v1.37.0
 [1.36.0]: https://github.com/kgdunn/process-improve/compare/v1.35.0...v1.36.0
 [1.35.0]: https://github.com/kgdunn/process-improve/compare/v1.34.0...v1.35.0
 [1.34.0]: https://github.com/kgdunn/process-improve/compare/v1.33.0...v1.34.0

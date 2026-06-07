@@ -7,16 +7,13 @@
 
 
 ===== SUMMARY =====
-MCUVScaler: 44/47 passed (93.6%)
-PCA(n_components=2): 38/47 passed (80.9%)
-PLS(n_components=2): 24/29 passed (82.8%)
+MCUVScaler: 44/46 passed (95.7%)
+PCA(n_components=2): 38/46 passed (82.6%)
+PLS(n_components=2): 24/28 passed (85.7%)
 
 ===== FAILURES (grouped by reason) =====
 
---- MCUVScaler (3 failures) ---
-
-  [1x] AssertionError: Estimator MCUVScaler doesn't check for NaN and inf in fit.
-     - check_estimators_nan_inf
+--- MCUVScaler (2 failures) ---
 
   [1x] SkipTest: SCIPY_ARRAY_API is not set: not checking array_api input
      - check_array_api_input
@@ -24,23 +21,20 @@ PLS(n_components=2): 24/29 passed (82.8%)
   [1x] AttributeError: 'DataFrame' object has no attribute 'dtype'
      - check_transformer_preserve_dtypes
 
---- PCA(n_components=2) (9 failures) ---
+--- PCA(n_components=2) (8 failures) ---
 
   [3x] TypeError: unsupported operand type(s) for -: 'Bunch' and 'Bunch'
      - check_estimators_pickle
      - check_estimators_pickle
      - check_fit_idempotent
 
-  [1x] AssertionError: Estimator PCA doesn't check for NaN and inf in fit.
-     - check_estimators_nan_inf
-
   [1x] SkipTest: SCIPY_ARRAY_API is not set: not checking array_api input
      - check_array_api_input
 
   [1x] AttributeError: 'DataFrame' object has no attribute 'dtype'
      - check_transformer_preserve_dtypes
 
-  [1x] KeyError: np.int64(6)
+  [1x] KeyError: np.int64(1)
      - check_methods_sample_order_invariance
 
   [1x] AssertionError: 
@@ -49,16 +43,13 @@ PLS(n_components=2): 24/29 passed (82.8%)
   [1x] AssertionError: Estimator changes __dict__ during predict
      - check_dict_unchanged
 
---- PLS(n_components=2) (5 failures) ---
+--- PLS(n_components=2) (4 failures) ---
 
   [1x] AssertionError: `PLS.score()` does not check for consistency between input number
      - check_n_features_in_after_fitting
 
   [1x] AssertionError: y with unknown label type is passed, but an error with no proper message is raised. You can use `type_of_target(..., raise_unknown=True)` to check and raise the right error, or include 'Unknown label type' in the error message.
      - check_dtype_object
-
-  [1x] AssertionError: Estimator PLS doesn't check for NaN and inf in fit.
-     - check_estimators_nan_inf
 
   [1x] SkipTest: SCIPY_ARRAY_API is not set: not checking array_api input
      - check_array_api_input

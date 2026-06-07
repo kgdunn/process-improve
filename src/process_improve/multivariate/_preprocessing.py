@@ -36,6 +36,18 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
     def __init__(self):
         pass
 
+    def __sklearn_tags__(self):
+        """Declare sklearn capability tags (sklearn 1.6+).
+
+        ``allow_nan=True`` because :meth:`fit` and :meth:`transform` use
+        ``np.nanmean`` / ``np.nanstd``: NaN cells flow through, get
+        re-NaN'd by the centring/scaling arithmetic, and reach the
+        downstream NIPALS estimator that knows how to handle them.
+        """
+        tags = super().__sklearn_tags__()
+        tags.input_tags.allow_nan = True
+        return tags
+
     def fit(self, X: DataMatrix, y=None) -> MCUVScaler:  # noqa: ANN001, ARG002
         """Compute the column means and sample standard deviations.
 

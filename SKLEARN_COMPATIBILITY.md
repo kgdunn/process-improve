@@ -63,19 +63,19 @@ The following compositions are verified by tests in
 
 ## What doesn't work yet
 
-### `check_estimator` baseline (v1.36.0)
+### `check_estimator` baseline (v1.37.0)
 
 Run `python tools/check_estimator_audit.py` (preserved in
-`tools/check_estimator_audit_main.log`) to refresh. As of v1.36.0
-(after the `validate_data` sweep in #401):
+`tools/check_estimator_audit_main.log`) to refresh. As of v1.37.0
+(after the `__sklearn_tags__` declarations in #393):
 
 | Estimator | Passing | Total | Pass % | Issues that close remaining |
 |---|---|---|---|---|
-| `MCUVScaler` | 44 | 47 | 94% | #391, #393 |
-| `PCA(n_components=2)` | 38 | 47 | 81% | #391, #393, #396 |
-| `PLS(n_components=2)` | 24 | 29 | 83% | #391, #393 |
+| `MCUVScaler` | 44 | 46 | 96% | #391 |
+| `PCA(n_components=2)` | 38 | 46 | 83% | #391, #396 |
+| `PLS(n_components=2)` | 24 | 28 | 86% | (small remaining: `score()` validation, `dtype_object`) |
 
-(Pre-#401 baseline was 18/29, 28/47, 19/29.)
+(Pre-#401 baseline was 18/29, 28/47, 19/29; pre-#393 was 44/47, 38/47, 24/29. Total counts drop slightly when `__sklearn_tags__` declares `allow_nan=True` because sklearn skips the "do you reject NaN?" check.)
 
 `TPLS` / `MBPLS` / `MBPCA` are not in this audit — they take
 `dict[str, DataFrame]` for X, which is outside `check_estimator`'s
