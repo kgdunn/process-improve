@@ -788,6 +788,61 @@ def test_pca_select_n_components_rule_dispatch() -> None:
         PCA.select_n_components(X_s, max_components=3, cv=3, cv_scheme="bogus")  # type: ignore[arg-type]
 
 
+def test_pca_select_n_components_n_repeats_narrows_se() -> None:
+    """Repeated ekf gives reproducible answers and a narrower per-component SE."""
+    rng = np.random.default_rng(2026)
+    N, K, true_rank = 50, 25, 3
+    T = rng.standard_normal((N, true_rank)) * np.array([6.0, 4.0, 2.5])
+    P = rng.standard_normal((true_rank, K))
+    X = pd.DataFrame(T @ P + 0.4 * rng.standard_normal((N, K)))
+    X_s = MCUVScaler().fit_transform(X)
+
+    one = PCA.select_n_components(X_s, max_components=8, cv=5, n_repeats=1, random_state=0)
+    many = PCA.select_n_components(X_s, max_components=8, cv=5, n_repeats=8, random_state=0)
+    # 1 repeat -> 5 fold columns; 8 repeats -> 40.
+    assert one.per_fold_press.shape == (8, 5)
+    assert many.per_fold_press.shape == (8, 40)
+    # PRESS stays on the per-cell scale (averaged over repeats).
+    assert (many.press > 0).all()
+    # SE narrows with more repeats (more samples of fold-PRESS).
+    assert (many.se_press <= one.se_press + 1e-9).all()
+    # Reproducible given a fixed seed.
+    again = PCA.select_n_components(X_s, max_components=8, cv=5, n_repeats=8, random_state=0)
+    np.testing.assert_allclose(many.press.to_numpy(), again.press.to_numpy())
+    np.testing.assert_allclose(many.per_fold_press.to_numpy(), again.per_fold_press.to_numpy())
+
+    with pytest.raises(ValueError, match="n_repeats must be >= 1"):
+        PCA.select_n_components(X_s, max_components=3, cv=3, n_repeats=0)
+
+
+def test_pca_select_n_components_scale_inside_folds_no_leakage() -> None:
+    """In-fold scaling lets the caller pass raw (unscaled) X without leakage."""
+    rng = np.random.default_rng(0)
+    N, K, true_rank = 40, 12, 2
+    T = rng.standard_normal((N, true_rank))
+    P = rng.standard_normal((true_rank, K))
+    # X on an arbitrary, non-zero-mean / non-unit-variance scale per column.
+    column_scales = np.array([10.0, 0.1, 100.0, 1.0, 5.0, 0.5, 2.0, 20.0, 0.3, 7.0, 1.5, 0.05])
+    X_raw = pd.DataFrame(
+        (T @ P + 0.3 * rng.standard_normal((N, K))) * column_scales + 5.0,
+    )
+
+    # Default: scale inside folds. Caller passes the raw matrix.
+    raw = PCA.select_n_components(X_raw, max_components=6, cv=5, n_repeats=2, random_state=0)
+    assert (raw.press > 0).all()
+    assert 1 <= raw.n_components <= 6
+
+    # Opt-out path: caller pre-scales (the prior contract) and asks for the
+    # legacy iterative-recentering EM behaviour. Both should converge to a
+    # comparable recommendation on this clean low-rank data.
+    X_s = MCUVScaler().fit_transform(X_raw)
+    legacy = PCA.select_n_components(
+        X_s, max_components=6, cv=5, n_repeats=2, random_state=0,
+        scale_inside_folds=False,
+    )
+    assert 1 <= legacy.n_components <= 6
+
+
 def test_pca_score_contributions() -> None:
     """Test score_contributions method on a simple dataset."""
     rng = np.random.default_rng(42)

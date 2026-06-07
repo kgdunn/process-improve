@@ -11,6 +11,32 @@ those changes.
 
 ## [Unreleased]
 
+## [1.30.0] - 2026-06-07
+
+### Changed
+
+- **`PCA.select_n_components` (under `cv_scheme="ekf"`) gains repeated-CV
+  averaging and in-fold scaling**, finishing the port of PR #376's PLS CV
+  upgrades to PCA.
+  - New `n_repeats` kwarg (default `1`). Each repeat re-shuffles the
+    element-fold permutation and contributes a fresh batch of
+    per-fold PRESS columns; the pooled PRESS is averaged across repeats
+    so it stays on the per-cell scale. `n_repeats > 1` narrows the
+    per-component standard error (helpful on borderline 1-SE
+    selections) at roughly linear extra runtime.
+  - New `scale_inside_folds` kwarg (default `True`). Mean-centring and
+    unit-variance scaling constants are now fit per-column on each
+    fold's in-fold cells and applied to the whole matrix before EM,
+    removing the centring/scaling leakage of the prior implementation.
+    Set to `False` to reproduce the previous behaviour (the column mean
+    is recomputed each EM iteration from the imputed matrix; no unit-
+    variance scaling).
+  - Callers who relied on the prior contract ("X must be pre-scaled,
+    EM recomputes centring each iteration") can opt in via
+    `scale_inside_folds=False`; the pre-existing scaled-input flow keeps
+    working without code changes because per-fold MCUVScaler on already-
+    centred-and-scaled data is approximately a no-op.
+
 ## [1.29.0] - 2026-06-07
 
 ### Changed
@@ -1554,7 +1580,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.29.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.30.0...HEAD
+[1.30.0]: https://github.com/kgdunn/process-improve/compare/v1.29.0...v1.30.0
 [1.29.0]: https://github.com/kgdunn/process-improve/compare/v1.28.0...v1.29.0
 [1.28.0]: https://github.com/kgdunn/process-improve/compare/v1.27.1...v1.28.0
 [1.27.1]: https://github.com/kgdunn/process-improve/compare/v1.27.0...v1.27.1
