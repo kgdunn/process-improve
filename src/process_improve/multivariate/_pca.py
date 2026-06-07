@@ -341,9 +341,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             ensure_all_finite="allow-nan",
         )
         if feature_columns is None:
-            feature_columns = pd.RangeIndex(X_arr.shape[1])
+            feature_columns = pd.RangeIndex(X_arr.shape[1])  # type: ignore[assignment]
         if sample_index is None:
-            sample_index = pd.RangeIndex(X_arr.shape[0])
+            sample_index = pd.RangeIndex(X_arr.shape[0])  # type: ignore[assignment]
         X = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)
 
         N, K = X.shape
@@ -679,8 +679,15 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         scores : pd.DataFrame of shape (n_samples, n_components)
         """
         check_is_fitted(self, "loadings_")
-        sample_index = X.index if isinstance(X, pd.DataFrame) else None
-        feature_columns = X.columns if isinstance(X, pd.DataFrame) else None
+        # sklearn's validate_data(reset=False) checks feature-name *order*
+        # strictly, while _align_to_fit_features only needs set equality.
+        # Realign reordered DataFrame columns first so validate_data sees a
+        # name-ordered view; ndarrays / un-named DataFrames pass straight
+        # through.
+        if isinstance(X, pd.DataFrame):
+            X = _align_to_fit_features(X, self._feature_names)
+        sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
+        feature_columns: pd.Index | None = X.columns if isinstance(X, pd.DataFrame) else None
         X_arr = validate_data(
             self,
             X,
@@ -689,18 +696,12 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             dtype="numeric",
             ensure_all_finite="allow-nan",
         )
-        # _align_to_fit_features handles the renamed-columns / reordered-
-        # columns paths that validate_data leaves alone (it only checks names
-        # match if feature_names_in_ is present, doesn't reorder). Run it on
-        # a DataFrame view so the existing logic still applies.
         if feature_columns is None:
             feature_columns = self._feature_names
         if sample_index is None:
             sample_index = pd.RangeIndex(X_arr.shape[0])
-        X_df = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)
-        X_df = _align_to_fit_features(X_df, self._feature_names)
-        scores = X_df.values @ self._loadings
-        return pd.DataFrame(scores, index=X_df.index, columns=self._component_names)
+        scores = X_arr @ self._loadings
+        return pd.DataFrame(scores, index=sample_index, columns=self._component_names)
 
     def fit_transform(self, X: DataMatrix, y: DataMatrix | None = None) -> pd.DataFrame:  # noqa: ARG002
         """Fit the model and return the training scores."""
@@ -727,8 +728,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         scores = self.transform(X)
         # transform's output is indexed by the validated X's row index;
         # recover an aligned DataFrame for the diagnostics below.
-        sample_index = X.index if isinstance(X, pd.DataFrame) else scores.index
-        feature_columns = X.columns if isinstance(X, pd.DataFrame) else self._feature_names
+        sample_index: pd.Index = X.index if isinstance(X, pd.DataFrame) else scores.index
+        feature_columns: pd.Index = X.columns if isinstance(X, pd.DataFrame) else self._feature_names
         X = pd.DataFrame(np.asarray(X, dtype=float), index=sample_index, columns=feature_columns)
         X = _align_to_fit_features(X, self._feature_names)
 

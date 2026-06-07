@@ -456,8 +456,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         # Capture DataFrame metadata before validate_data converts X to ndarray
         # so the downstream DataFrame view keeps its row/column labels.
-        sample_index = X.index if isinstance(X, pd.DataFrame) else None
-        feature_columns = X.columns if isinstance(X, pd.DataFrame) else None
+        sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
+        feature_columns: pd.Index | None = X.columns if isinstance(X, pd.DataFrame) else None
         X_arr = validate_data(
             self,
             X,
@@ -469,9 +469,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             ensure_all_finite="allow-nan",
         )
         if feature_columns is None:
-            feature_columns = pd.RangeIndex(X_arr.shape[1])
+            feature_columns = pd.RangeIndex(X_arr.shape[1])  # type: ignore[assignment]
         if sample_index is None:
-            sample_index = pd.RangeIndex(X_arr.shape[0])
+            sample_index = pd.RangeIndex(X_arr.shape[0])  # type: ignore[assignment]
         X = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)
         if not isinstance(Y, pd.DataFrame):
             Y = pd.DataFrame(Y, index=sample_index)
@@ -642,8 +642,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             Projected X data (scores).
         """
         check_is_fitted(self, "direct_weights_")
-        sample_index = X.index if isinstance(X, pd.DataFrame) else None
-        feature_columns = X.columns if isinstance(X, pd.DataFrame) else None
+        # Realign reordered columns before validate_data (sklearn checks
+        # feature-name *order*, _align_to_fit_features only needs set equality).
+        if isinstance(X, pd.DataFrame):
+            X = _align_to_fit_features(X, self._feature_names)
+        sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
+        feature_columns: pd.Index | None = X.columns if isinstance(X, pd.DataFrame) else None
         X_arr = validate_data(
             self,
             X,
@@ -655,9 +659,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if feature_columns is None:
             feature_columns = self._feature_names
         if sample_index is None:
-            sample_index = pd.RangeIndex(X_arr.shape[0])
+            sample_index = pd.RangeIndex(X_arr.shape[0])  # type: ignore[assignment]
         X_df = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)
-        X_df = _align_to_fit_features(X_df, self._feature_names)
         return X_df @ self.direct_weights_
 
     def fit_transform(self, X: DataMatrix, Y: DataMatrix | None = None) -> pd.DataFrame:
@@ -756,8 +759,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         >>> result.hotellings_t2   # T² for each new observation
         """
         check_is_fitted(self, "scores_")
-        sample_index = X.index if isinstance(X, pd.DataFrame) else None
-        feature_columns = X.columns if isinstance(X, pd.DataFrame) else None
+        # Realign reordered DataFrame columns before validate_data.
+        if isinstance(X, pd.DataFrame):
+            X = _align_to_fit_features(X, self._feature_names)
+        sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
+        feature_columns: pd.Index | None = X.columns if isinstance(X, pd.DataFrame) else None
         X_arr = validate_data(
             self,
             X,
@@ -769,9 +775,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if feature_columns is None:
             feature_columns = self._feature_names
         if sample_index is None:
-            sample_index = pd.RangeIndex(X_arr.shape[0])
+            sample_index = pd.RangeIndex(X_arr.shape[0])  # type: ignore[assignment]
         X = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)
-        X = _align_to_fit_features(X, self._feature_names)
 
         scores = X @ self.direct_weights_
 
