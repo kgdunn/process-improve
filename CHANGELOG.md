@@ -11,6 +11,28 @@ those changes.
 
 ## [Unreleased]
 
+## [1.38.3] - 2026-06-07
+
+### Added
+
+- **sklearn-interop verification tests** for three sklearn compositions
+  spun out of the audit in #383:
+  - `TransformedTargetRegressor(regressor=Pipeline([MCUVScaler, PLS]),
+    transformer=MCUVScaler())` round-trips Y through scaling and
+    predicts on the original Y scale (#397).
+  - `make_column_transformer((MCUVScaler, numeric_cols),
+    (OneHotEncoder, cat_cols))` feeding into `Pipeline([..., PLS])`
+    fits and predicts; `get_feature_names_out` composes correctly
+    through the ColumnTransformer (#399).
+  - `HalvingGridSearchCV` and `HalvingRandomSearchCV` over
+    `Pipeline([MCUVScaler, PLS])` finish and pick a sensible
+    `n_components` (#398).
+
+  No source-code changes were required - the foundational work in
+  #391 (`get_feature_names_out`), #392 (`feature_names_in_`), #402
+  (`validate_data` routing) and #393 (`__sklearn_tags__`) was
+  sufficient. These tests lock the working compositions in.
+
 ## [1.38.2] - 2026-06-07
 
 ### Added
@@ -1876,7 +1898,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.38.2...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.38.3...HEAD
+[1.38.3]: https://github.com/kgdunn/process-improve/compare/v1.38.2...v1.38.3
 [1.38.2]: https://github.com/kgdunn/process-improve/compare/v1.38.1...v1.38.2
 [1.38.1]: https://github.com/kgdunn/process-improve/compare/v1.38.0...v1.38.1
 [1.38.0]: https://github.com/kgdunn/process-improve/compare/v1.37.0...v1.38.0
