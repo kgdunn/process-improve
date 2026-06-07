@@ -144,12 +144,13 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
                 fold_counter += 1
                 continue
 
-            # Fit per-column centring/scaling on the in-fold cells. With
-            # scale_inside_folds=False the constants degenerate to (0, 1) and
-            # the algorithm reduces to the prior behaviour.
+            # Fit per-column centring/scaling on the in-fold cells. Only
+            # consumed under scale_inside_folds=True; the False path uses
+            # in_fold_vals.mean() for the initial imputation and recomputes
+            # the column mean inside EM, so we skip the work here.
+            col_centre = np.zeros(p)
+            col_scale = np.ones(p)
             if scale_inside_folds:
-                col_centre = np.zeros(p)
-                col_scale = np.ones(p)
                 for j in range(p):
                     in_fold = X[~mask[:, j], j]
                     if in_fold.size > 1:
@@ -158,9 +159,6 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
                         col_scale[j] = sd if sd > epsqrt else 1.0
                     elif in_fold.size == 1:
                         col_centre[j] = float(in_fold[0])
-            else:
-                col_centre = np.zeros(p)
-                col_scale = np.ones(p)
 
             # Initial imputation in original space: held-out cells take the
             # in-fold column mean (which is ``col_centre`` under
