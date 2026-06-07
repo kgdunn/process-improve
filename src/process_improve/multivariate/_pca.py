@@ -23,10 +23,140 @@ from sklearn.utils.validation import check_is_fitted
 
 from ..univariate.metrics import detect_outliers_esd
 from ._base import _LatentVariableModel, _LazyFrame
-from ._common import DataMatrix, NotEnoughVarianceError, SpecificationWarning, _align_to_fit_features, epsqrt
+from ._common import (
+    Q2_MIN_INCREMENT,
+    DataMatrix,
+    NotEnoughVarianceError,
+    SelectionRule,
+    SpecificationWarning,
+    _align_to_fit_features,
+    _select_n_components,
+    epsqrt,
+)
 from ._nipals import quick_regress, ssq, terminate_check
 
 logger = logging.getLogger(__name__)
+
+
+def _pca_ekf_press(  # noqa: PLR0913
+    X: np.ndarray,
+    max_components: int,
+    *,
+    n_folds: int = 5,
+    n_iter: int = 50,
+    tol: float = 1e-6,
+    random_state: int | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Element-wise k-fold (ekf) PCA cross-validation.
+
+    Partitions the elements of ``X`` into ``n_folds`` element-folds (each cell
+    is held out exactly once across folds); for each fold and each candidate
+    component count, the held-out cells are masked, initialised from the
+    in-fold column means, and refined by iterating SVD reconstruction
+    (Expectation-Maximisation style). The fitted model never sees the
+    held-out true values, so the squared error of the prediction is an honest
+    out-of-sample PRESS - the independence requirement of Bro, Kjeldahl,
+    Smilde & Kiers (2008, *Anal. Bioanal. Chem.* 390:1241-1251) that the
+    row-wise CV scheme violates.
+
+    Parameters
+    ----------
+    X : np.ndarray of shape (n_samples, n_features)
+        Data matrix. Should already be on the analysis scale (e.g. mean-
+        centred and unit-variance via :class:`MCUVScaler`).
+    max_components : int
+        Maximum number of components to evaluate; PRESS is computed for
+        ``1 .. max_components``.
+    n_folds : int, default 5
+        Number of element-folds. Bro 2008 uses 7 as a typical default; 5 is
+        a faster choice that still gives a stable curve.
+    n_iter : int, default 50
+        Maximum number of EM iterations per fold and component count.
+    tol : float, default 1e-6
+        Relative change in the held-out cell predictions below which EM
+        stops early.
+    random_state : int, optional
+        Seed for the element-fold permutation, for reproducibility.
+
+    Returns
+    -------
+    press : np.ndarray of shape (max_components,)
+        Pooled PRESS per component count.
+    per_fold_press : np.ndarray of shape (max_components, n_folds)
+        Per-fold PRESS contributions; columns sum to ``press`` and drive
+        the 1-SE rule's standard error.
+
+    References
+    ----------
+    Bro, R., Kjeldahl, K., Smilde, A. K., & Kiers, H. A. L. (2008).
+    Cross-validation of component models: a critical look at current
+    methods. *Anal. Bioanal. Chem.*, 390(5), 1241-1251. PMID 18214448.
+
+    Camacho, J., & Ferrer, A. (2012). Cross-validation in PCA models with
+    the element-wise k-fold (ekf) algorithm: theoretical aspects.
+    *J. Chemometrics*, 26(7), 361-373. DOI 10.1002/cem.2440.
+    """
+    X = np.asarray(X, dtype=float)
+    n, p = X.shape
+    rng = np.random.default_rng(random_state)
+
+    # Element-fold assignment: a balanced permutation so every fold has
+    # ~n*p/n_folds cells (not all the same column, not all the same row).
+    n_cells = n * p
+    perm = rng.permutation(n_cells)
+    fold = np.empty(n_cells, dtype=np.int64)
+    fold_size = n_cells // n_folds
+    for k in range(n_folds):
+        start = k * fold_size
+        end = (k + 1) * fold_size if k < n_folds - 1 else n_cells
+        fold[perm[start:end]] = k
+    fold = fold.reshape(n, p)
+
+    per_fold_press = np.zeros((max_components, n_folds))
+
+    for k in range(n_folds):
+        mask = fold == k  # (n, p) bool, True where the cell is held out
+        if not mask.any():
+            continue
+        # Initial imputation: in-fold column means. A column where every cell
+        # is held out (degenerate; very rare with n_folds > 1 unless p < n_folds)
+        # is initialised to zero, which is the centred column mean.
+        Xtr = X.copy()
+        for j in range(p):
+            m_j = mask[:, j]
+            if m_j.any():
+                in_fold_vals = X[~m_j, j]
+                Xtr[m_j, j] = in_fold_vals.mean() if in_fold_vals.size > 0 else 0.0
+
+        # For this fold, refine the imputation for each component count
+        # *separately*: lower a's converge to a coarser reconstruction than
+        # higher a's, and chaining them would couple their errors.
+        for a in range(1, max_components + 1):
+            Xa = Xtr.copy()
+            prev_held = Xa[mask].copy()
+            for _ in range(n_iter):
+                col_mean = Xa.mean(axis=0)
+                Xc = Xa - col_mean
+                # SciPy / NumPy SVD: economical (full_matrices=False).
+                _, S, Vt = np.linalg.svd(Xc, full_matrices=False)
+                # Re-project Xc onto its rank-a truncation. Using ``Xc @ Vt[:a].T``
+                # rather than ``U[:, :a] * S[:a]`` is mathematically identical
+                # for the truncated SVD but slightly more numerically stable
+                # when later S values are small.
+                rank = min(a, S.shape[0])
+                recon_centred = (Xc @ Vt[:rank].T) @ Vt[:rank]
+                recon = recon_centred + col_mean
+                Xa[mask] = recon[mask]
+                delta = np.linalg.norm(Xa[mask] - prev_held)
+                scale = max(1.0, float(np.linalg.norm(prev_held)))
+                if delta < tol * scale:
+                    break
+                prev_held = Xa[mask].copy()
+
+            per_fold_press[a - 1, k] = float(np.sum((X[mask] - Xa[mask]) ** 2))
+
+    press = per_fold_press.sum(axis=1)
+    return press, per_fold_press
 
 
 class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
@@ -555,132 +685,240 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         return -float(np.mean(residuals**2))
 
     @classmethod
-    def select_n_components(
+    def select_n_components(  # noqa: PLR0913, PLR0915
         cls,
         X: DataMatrix,
         *,
         max_components: int | None = None,
         cv: int | BaseCrossValidator = 5,
-        threshold: float = 0.95,
+        cv_scheme: typing.Literal["row_wise", "ekf"] = "ekf",
+        selection_rule: SelectionRule = "min",
+        min_q2_increase: float = Q2_MIN_INCREMENT,
+        n_iter: int = 50,
+        tol: float = 1e-6,
+        random_state: int | None = None,
+        threshold: float | None = None,
         **pca_kwargs,
     ) -> Bunch:
-        """Select the number of components via PRESS cross-validation.
+        """Select the number of PCA components via cross-validation.
 
-        Fits PCA models with 1, 2, ..., ``max_components`` components,
-        evaluates each with K-fold cross-validation, and recommends the
-        optimal number using Wold's criterion: stop adding components when
-        PRESS_a / PRESS_{a-1} > ``threshold``.
+        Evaluates every component count ``1, 2, ..., max_components`` and
+        recommends one via the configured ``selection_rule``. The default
+        ``cv_scheme="ekf"`` is the element-wise k-fold algorithm of Bro,
+        Kjeldahl, Smilde & Kiers (2008, *Anal. Bioanal. Chem.* 390:1241-1251),
+        which holds out individual cells of ``X`` and predicts them via
+        EM-style imputation from a model that never sees their true values.
+        This restores the prediction-independence requirement the legacy
+        row-wise scheme violates, fixing the trivial-fit pathology where
+        PRESS shrinks monotonically with components.
 
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            Training data.
+            Training data. Should already be on the analysis scale (e.g.
+            mean-centred and unit-variance via :class:`MCUVScaler`).
         max_components : int, optional
             Maximum number of components to evaluate. Default is
             ``min(n_samples - 1, n_features)``.
         cv : int or sklearn CV splitter, default 5
-            Number of cross-validation folds, or an sklearn splitter object
-            (e.g., ``KFold(n_splits=10, shuffle=True)``).
-        threshold : float, default 0.95
-            Wold's criterion threshold. If PRESS_a / PRESS_{a-1} exceeds
-            this value, component ``a`` is deemed not significant. Lower
-            values are more aggressive (fewer components).
+            For ``cv_scheme="ekf"``: the integer number of element-folds
+            (splitter objects are ignored). For ``cv_scheme="row_wise"``:
+            either an integer K (fed to ``KFold``) or any sklearn splitter.
+        cv_scheme : {"ekf", "row_wise"}, default "ekf"
+            ``"ekf"`` is the element-wise k-fold scheme of Bro et al. 2008
+            with EM imputation; the research-recommended default. The legacy
+            ``"row_wise"`` scheme is preserved for back-compat but emits a
+            :class:`SpecificationWarning` because it over-selects (see the
+            warning admonition below).
+        selection_rule : {"min", "1se", "q2_increment"}, default "min"
+            How the recommended component count is chosen. ``"min"`` is the
+            GlobalMin criterion Bro 2008 pairs with ekf - the component
+            count with the lowest pooled PRESS. ``"1se"`` is the one-
+            standard-error rule (needs ``per_fold_press``, available under
+            both schemes). ``"q2_increment"`` is the Wold's-R-style
+            cumulative-:math:`Q^2` threshold from PR #371; ``min_q2_increase``
+            sets the threshold.
+        min_q2_increase : float, default 0.01
+            Threshold used only when ``selection_rule="q2_increment"``.
+        n_iter, tol : int and float, default 50 and 1e-6
+            EM iteration cap and convergence tolerance for the ekf imputation
+            step. Ignored under ``cv_scheme="row_wise"``.
+        random_state : int, optional
+            Seed for the ekf element-fold permutation.
+        threshold : float, optional
+            Deprecated. The original Wold PRESS-ratio cutoff. Passing it
+            emits a :class:`DeprecationWarning`; the value is ignored. Use
+            ``selection_rule="q2_increment"`` (and tune ``min_q2_increase``)
+            for a comparable parsimony preference.
         **pca_kwargs
             Additional keyword arguments passed to the ``PCA()`` constructor
-            (e.g., ``algorithm="nipals"`` for data with missing values).
+            under ``cv_scheme="row_wise"`` (e.g. ``algorithm="nipals"``).
+            Ignored under ``cv_scheme="ekf"`` because ekf runs its own SVD
+            loop.
 
         Returns
         -------
         result : sklearn.utils.Bunch
             With keys:
 
-            - ``n_components`` - recommended number of components (int)
-            - ``press`` - PRESS per component count (pd.Series, indexed 1..A_max)
-            - ``press_ratio`` - PRESS_a / PRESS_{a-1} (pd.Series, indexed 2..A_max)
-            - ``q2`` - cross-validated R2 of X per component count, i.e. the
-              cross-validation analogue of ``r2_cumulative_``
-              (pd.Series, indexed 1..A_max). Computed as
-              ``1 - press / null_model_ss`` where ``null_model_ss`` is the
-              mean-cell sum-of-squares of ``X`` (which, for mean-centred data,
-              is the variance the model has to explain). Higher is better;
-              values near 1 indicate good predictive performance and negative
-              values indicate the component predicts worse than the column mean.
-              This mirrors ``PLS.select_n_components``'s ``r2y_validated`` and
-              saves callers from normalising ``press`` themselves.
-            - ``cv_scores`` - per-fold scores (pd.DataFrame, A_max rows x cv cols)
+            - ``n_components`` - recommended number of components (int).
+            - ``press`` - pooled PRESS per component count (pd.Series,
+              indexed ``1..A_max``).
+            - ``per_fold_press`` - per-fold PRESS contributions
+              (pd.DataFrame, ``A_max`` rows x ``n_folds`` columns).
+            - ``se_press`` - standard error of the per-fold PRESS curve
+              (pd.Series, indexed ``1..A_max``). Drives the 1-SE rule.
+            - ``press_ratio`` - ``PRESS_a / PRESS_{a-1}`` for inspection
+              (pd.Series, indexed ``2..A_max``).
+            - ``q2`` - cross-validated :math:`R^2_X` per component count
+              (pd.Series, indexed ``1..A_max``). Computed as
+              ``1 - press / (n_samples * n_features * mean_cell_ss)``,
+              so it is directly comparable to ``r2_cumulative_`` and to
+              PLS's ``r2y_validated``.
+            - ``cv_scores`` - alias of ``per_fold_press`` under ekf, or
+              per-fold negative MSE from ``cross_val_score`` under row-wise
+              (preserved for back-compat).
+            - ``cv_scheme`` - the scheme used (``"ekf"`` or ``"row_wise"``).
+            - ``selection_rule`` - the rule used to pick ``n_components``.
 
-        Notes
-        -----
-        ``X`` is expected to be pre-centred (and usually scaled, e.g. with
-        ``MCUVScaler``); the ``q2`` normalisation uses the mean-cell
-        sum-of-squares of ``X`` as the null-model reference.
+        References
+        ----------
+        Bro, R., Kjeldahl, K., Smilde, A. K., & Kiers, H. A. L. (2008).
+        Cross-validation of component models: a critical look at current
+        methods. *Anal. Bioanal. Chem.*, 390(5), 1241-1251.
+
+        Camacho, J., & Ferrer, A. (2012). Cross-validation in PCA models
+        with the element-wise k-fold (ekf) algorithm: theoretical aspects.
+        *J. Chemometrics*, 26(7), 361-373.
 
         .. warning::
 
-           The row-wise CV scheme used here suffers from the *trivial-fit*
-           problem identified by Bro, Kjeldahl, Smilde & Kiers (2008,
-           *Anal. Bioanal. Chem.* 390:1241-1251): the held-out row's own
-           values flow into the prediction through :meth:`transform`, so
-           PRESS shrinks monotonically with the component count and the
-           recommendation tends to over-select. A robust replacement
-           requires element-wise k-fold (ekf) CV with EM-style imputation
-           of the held-out cells. Until that lands (see the project issue
-           tracker), prefer comparing this result with cross-checks such as
-           variance-explained thresholds, Horn's parallel analysis, or
-           Minka's MLE, and treat the recommendation as a starting point
-           rather than a closing verdict. The PLS analogue at
-           :meth:`PLS.select_n_components` is not affected by this issue.
+           ``cv_scheme="row_wise"`` is preserved only for back-compat and
+           emits a :class:`SpecificationWarning`. It suffers from the
+           *trivial-fit* problem: holding out whole rows and projecting them
+           back via :meth:`transform` lets the held-out row's own values
+           reach its prediction, so PRESS shrinks monotonically with the
+           component count and the recommendation tends to run to the
+           maximum. Prefer the default ``"ekf"``.
         """
+        if threshold is not None:
+            warnings.warn(
+                "The `threshold` (Wold PRESS-ratio) argument of "
+                "PCA.select_n_components is deprecated and ignored; the "
+                "recommendation now uses `selection_rule`. Pass "
+                "`selection_rule='q2_increment'` (and tune `min_q2_increase`) "
+                "for a comparable parsimony preference.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
 
         N, K = X.shape
         if max_components is None:
             max_components = min(N - 1, K)
-        max_components = min(max_components, N - 1, K)
+        max_components = min(int(max_components), N - 1, K)
+        if max_components < 1:
+            raise ValueError("No components can be evaluated; the data is too small.")
 
-        press_values = {}
-        all_cv_scores = {}
+        component_index = pd.Index(range(1, max_components + 1), name="n_components")
+        X_arr = np.asarray(X, dtype=float)
 
-        for a in range(1, max_components + 1):
-            scores_a = cross_val_score(cls(n_components=a, **pca_kwargs), X, cv=cv)
-            all_cv_scores[a] = scores_a
-            press_values[a] = -scores_a.mean()  # undo negation from score()
+        if cv_scheme == "ekf":
+            n_folds = cv if isinstance(cv, int) else 5
+            press_arr, per_fold_press_arr = _pca_ekf_press(
+                X_arr,
+                max_components,
+                n_folds=n_folds,
+                n_iter=n_iter,
+                tol=tol,
+                random_state=random_state,
+            )
+            press = pd.Series(press_arr, index=component_index, name="PRESS")
+            per_fold_press = pd.DataFrame(
+                per_fold_press_arr,
+                index=component_index,
+                columns=[f"fold_{i + 1}" for i in range(n_folds)],
+            )
+            cv_scores = per_fold_press
+            # Q^2 normalisation: total sum-of-squares of X (the null-model
+            # "predict the column mean" reference, which on mean-centred data
+            # is the total variance). Bro 2008's q^2_x normalisation.
+            null_model_ss = float(np.nansum(X_arr**2))
+            q2 = 1.0 - press / null_model_ss if null_model_ss > epsqrt else press * np.nan
+        elif cv_scheme == "row_wise":
+            warnings.warn(
+                "cv_scheme='row_wise' uses the legacy whole-row CV scheme that "
+                "Bro et al. 2008 flagged as invalid: held-out row values flow "
+                "back through transform() into their own prediction, so PRESS "
+                "shrinks monotonically and the recommendation tends to run to "
+                "the maximum component count. Prefer cv_scheme='ekf' (the new "
+                "default).",
+                SpecificationWarning,
+                stacklevel=2,
+            )
+            press_values = {}
+            all_cv_scores = {}
+            for a in range(1, max_components + 1):
+                scores_a = cross_val_score(cls(n_components=a, **pca_kwargs), X, cv=cv)
+                all_cv_scores[a] = scores_a
+                press_values[a] = -scores_a.mean()
+            press = pd.Series(press_values, name="PRESS", index=component_index)
+            cv_scores = pd.DataFrame(all_cv_scores).T
+            cv_scores.index = component_index
+            cv_scores.columns = [f"fold_{i + 1}" for i in range(cv_scores.shape[1])]
+            # The row_wise per-fold values are negative MSE means, not raw
+            # PRESS contributions, so don't pretend they are. Build a parallel
+            # per_fold_press by undoing the negation.
+            per_fold_press = -cv_scores
+            null_model_ss = float(np.nanmean(X_arr**2))
+            q2 = 1.0 - press / null_model_ss if null_model_ss > epsqrt else press * np.nan
+        else:
+            raise ValueError(
+                f"Unknown cv_scheme {cv_scheme!r}; expected 'ekf' or 'row_wise'."
+            )
 
-        press = pd.Series(press_values, name="PRESS")
-        press.index.name = "n_components"
-
-        # Cross-validated R2 of X (Q2): normalise the mean-cell PRESS by the
-        # null-model mean-cell sum-of-squares, so it is directly comparable to
-        # the calibration ``r2_cumulative_`` and to PLS's ``r2y_validated``.
-        null_model_ss = float(np.nanmean(np.asarray(X, dtype=float) ** 2))
-        q2 = (1.0 - press / null_model_ss) if null_model_ss > epsqrt else press * np.nan
         q2 = q2.rename("Q2")
-        q2.index.name = "n_components"
+        q2.index = component_index
 
-        # Wold's criterion: ratio of consecutive PRESS values
+        # PRESS ratio: still computable under either scheme, kept for inspection.
         ratio_values = {a: press[a] / press[a - 1] for a in range(2, max_components + 1)}
         press_ratio = pd.Series(ratio_values, name="PRESS ratio")
         press_ratio.index.name = "n_components"
 
-        # Recommend: last component where ratio <= threshold
-        recommended = 1
-        for a in range(2, max_components + 1):
-            if press_ratio[a] <= threshold:
-                recommended = a
-            else:
-                break
+        # Per-component standard error across folds.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            per_fold_arr = per_fold_press.to_numpy()
+            n_folds_per_a = np.maximum(1, np.sum(~np.isnan(per_fold_arr), axis=1))
+            se_values = np.nanstd(per_fold_arr, axis=1, ddof=1) / np.sqrt(n_folds_per_a)
+        se_press = pd.Series(se_values, index=component_index, name="SE(PRESS)")
 
-        cv_scores = pd.DataFrame(all_cv_scores).T
-        cv_scores.index.name = "n_components"
-        cv_scores.columns = [f"fold_{i + 1}" for i in range(cv_scores.shape[1])]
+        press_arr_final = press.to_numpy()
+        if np.all(np.isnan(press_arr_final)):
+            raise RuntimeError(
+                "Cross-validation produced NaN PRESS for every component count; "
+                "no recommendation can be made."
+            )
+        recommended = _select_n_components(
+            selection_rule,
+            mean_error=press_arr_final,
+            se_error=se_values,
+            q2_cumulative=q2.to_numpy(),
+            min_q2_increase=min_q2_increase,
+        )
 
         return Bunch(
             n_components=recommended,
             press=press,
+            per_fold_press=per_fold_press,
+            se_press=se_press,
             press_ratio=press_ratio,
             q2=q2,
             cv_scores=cv_scores,
+            cv_scheme=cv_scheme,
+            selection_rule=selection_rule,
         )
 
     def score_contributions(

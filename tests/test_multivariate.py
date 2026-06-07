@@ -658,11 +658,15 @@ def test_pca_select_n_components() -> None:
     X = MCUVScaler().fit_transform(X)
 
     max_comp = 6
-    result = PCA.select_n_components(X, max_components=max_comp, cv=5)
+    result = PCA.select_n_components(X, max_components=max_comp, cv=5, random_state=0)
 
-    # Returns a Bunch with the expected keys
+    # Returns a Bunch including both the back-compat fields and the new
+    # ekf bookkeeping (per_fold_press, se_press, cv_scheme, selection_rule).
     assert isinstance(result, Bunch)
-    assert set(result.keys()) == {"n_components", "press", "press_ratio", "q2", "cv_scores"}
+    assert {"n_components", "press", "press_ratio", "q2", "cv_scores"} <= set(result.keys())
+    assert {"per_fold_press", "se_press", "cv_scheme", "selection_rule"} <= set(result.keys())
+    assert result.cv_scheme == "ekf"
+    assert result.selection_rule == "min"
 
     # With 2 true components and N < K, should recommend 2 (or at most 3)
     assert 2 <= result.n_components <= 3
@@ -690,18 +694,98 @@ def test_pca_select_n_components() -> None:
     assert np.isfinite(result.q2.to_numpy()).all()
     assert (result.q2 <= 1.0 + 1e-9).all()
     assert result.q2[2] > result.q2[1]
-    # Q2 is exactly the normalised PRESS, so it must match the manual computation.
-    null_model_ss = float(np.nanmean(np.asarray(X, dtype=float) ** 2))
+    # Q2 is exactly the normalised PRESS under ekf (total SS rather than
+    # mean-cell SS so it stays directly comparable to r2_cumulative_).
+    null_model_ss = float(np.nansum(np.asarray(X, dtype=float) ** 2))
     assert result.q2.to_numpy() == pytest.approx(1.0 - result.press.to_numpy() / null_model_ss)
 
-    # cv_scores is a DataFrame
+    # cv_scores aliases per_fold_press under ekf; shape (A, n_folds).
     assert isinstance(result.cv_scores, pd.DataFrame)
     assert result.cv_scores.shape == (max_comp, 5)
+    assert isinstance(result.per_fold_press, pd.DataFrame)
+    assert result.per_fold_press.shape == (max_comp, 5)
 
-    # Works with KFold splitter too
-    result2 = PCA.select_n_components(X, max_components=4, cv=KFold(n_splits=3, shuffle=True, random_state=0))
+    # Works with an integer for n_folds (and ignores splitter objects under ekf).
+    result2 = PCA.select_n_components(X, max_components=4, cv=3, random_state=0)
     assert isinstance(result2.n_components, int)
-    assert 1 <= result2.n_components <= 4
+    assert result2.per_fold_press.shape == (4, 3)
+
+
+def test_pca_select_n_components_ekf_recovers_known_rank() -> None:
+    """Ekf does not over-select on a clean low-rank dataset (the row-wise pathology)."""
+    rng = np.random.default_rng(2025)
+    N, K, true_rank = 50, 30, 3
+    T = rng.standard_normal((N, true_rank)) * np.array([8.0, 5.0, 3.0])
+    P = rng.standard_normal((true_rank, K))
+    P /= np.linalg.norm(P, axis=1, keepdims=True)
+    X = pd.DataFrame(T @ P + 0.3 * rng.standard_normal((N, K)))
+    X_s = MCUVScaler().fit_transform(X)
+
+    result = PCA.select_n_components(X_s, max_components=10, cv=5, random_state=0)
+    # ekf with GlobalMin recovers the true rank (or one beside it).
+    assert true_rank - 1 <= result.n_components <= true_rank + 1
+    # PRESS rises again past the true rank when extra components fit noise.
+    a_star = int(np.argmin(result.press.to_numpy())) + 1
+    assert a_star <= true_rank + 1
+
+
+def test_pca_select_n_components_row_wise_warns_and_overselects() -> None:
+    """The legacy row-wise scheme is preserved with a SpecificationWarning."""
+    rng = np.random.default_rng(7)
+    N, K, true_rank = 40, 30, 2
+    T = rng.standard_normal((N, true_rank)) * np.array([6.0, 4.0])
+    P = rng.standard_normal((true_rank, K))
+    X = pd.DataFrame(T @ P + 0.4 * rng.standard_normal((N, K)))
+    X_s = MCUVScaler().fit_transform(X)
+
+    with pytest.warns(SpecificationWarning, match="row_wise"):
+        legacy = PCA.select_n_components(
+            X_s, max_components=8, cv=5, cv_scheme="row_wise", random_state=0
+        )
+    assert legacy.cv_scheme == "row_wise"
+    # The row-wise scheme over-fits monotonically; argmin sits at (or near) the
+    # maximum even though the true rank is 2.
+    a_star_legacy = int(np.argmin(legacy.press.to_numpy())) + 1
+    assert a_star_legacy >= 6
+    # The ekf scheme on the same data lands much closer to the true rank.
+    ekf = PCA.select_n_components(X_s, max_components=8, cv=5, random_state=0)
+    a_star_ekf = int(np.argmin(ekf.press.to_numpy())) + 1
+    assert a_star_ekf <= a_star_legacy
+
+
+def test_pca_select_n_components_threshold_deprecated() -> None:
+    """The legacy ``threshold`` kwarg emits a DeprecationWarning and is ignored."""
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(MCUVScaler().fit_transform(pd.DataFrame(rng.standard_normal((30, 8)))))
+    with pytest.warns(DeprecationWarning, match="threshold"):
+        result = PCA.select_n_components(X, max_components=4, cv=3, threshold=0.95, random_state=0)
+    assert 1 <= result.n_components <= 4
+
+
+def test_pca_select_n_components_rule_dispatch() -> None:
+    """The 1-SE and Q2-increment rules are exposed under PCA too."""
+    rng = np.random.default_rng(3)
+    N, K, true_rank = 45, 25, 2
+    T = rng.standard_normal((N, true_rank)) * np.array([6.0, 4.0])
+    P = rng.standard_normal((true_rank, K))
+    X = pd.DataFrame(T @ P + 0.35 * rng.standard_normal((N, K)))
+    X_s = MCUVScaler().fit_transform(X)
+
+    res_min = PCA.select_n_components(X_s, max_components=6, cv=5, random_state=0)
+    res_1se = PCA.select_n_components(
+        X_s, max_components=6, cv=5, random_state=0, selection_rule="1se"
+    )
+    res_q2 = PCA.select_n_components(
+        X_s, max_components=6, cv=5, random_state=0,
+        selection_rule="q2_increment", min_q2_increase=0.01,
+    )
+    # 1-SE is never less parsimonious than argmin.
+    assert res_1se.n_components <= res_min.n_components
+    # All three rules return at least 1.
+    assert 1 <= res_q2.n_components <= 6
+
+    with pytest.raises(ValueError, match="Unknown cv_scheme"):
+        PCA.select_n_components(X_s, max_components=3, cv=3, cv_scheme="bogus")  # type: ignore[arg-type]
 
 
 def test_pca_score_contributions() -> None:
