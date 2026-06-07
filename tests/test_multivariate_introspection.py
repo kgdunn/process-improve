@@ -55,6 +55,39 @@ def _fitted_mbpls() -> MBPLS:
     return MBPLS(n_components=2).fit(_two_block(), y)
 
 
+def test_mbpca_feature_names_in_is_flat_concat_in_block_order() -> None:
+    """Issue #392: MBPCA exposes feature_names_in_ as a flat concat of blocks."""
+    model = _fitted_mbpca()
+    expected = np.array(
+        [f"a{i}" for i in range(6)] + [f"b{i}" for i in range(4)],
+        dtype=object,
+    )
+    np.testing.assert_array_equal(model.feature_names_in_, expected)
+    assert model.n_features_in_ == len(expected)
+
+
+def test_mbpls_feature_names_in_is_flat_concat_in_block_order() -> None:
+    """Issue #392: MBPLS exposes feature_names_in_ as a flat concat of X-blocks."""
+    model = _fitted_mbpls()
+    expected = np.array(
+        [f"a{i}" for i in range(6)] + [f"b{i}" for i in range(4)],
+        dtype=object,
+    )
+    np.testing.assert_array_equal(model.feature_names_in_, expected)
+    assert model.n_features_in_ == len(expected)
+
+
+def test_mbpca_feature_names_in_block_order_is_dict_order() -> None:
+    """Issue #392: changing the block-insertion order changes feature_names_in_ order."""
+    rng = np.random.default_rng(7)
+    a = pd.DataFrame(rng.standard_normal((20, 3)), columns=["a0", "a1", "a2"])
+    b = pd.DataFrame(rng.standard_normal((20, 2)), columns=["b0", "b1"])
+    model_ab = MBPCA(n_components=2).fit({"A": a, "B": b})
+    model_ba = MBPCA(n_components=2).fit({"B": b, "A": a})
+    np.testing.assert_array_equal(model_ab.feature_names_in_, ["a0", "a1", "a2", "b0", "b1"])
+    np.testing.assert_array_equal(model_ba.feature_names_in_, ["b0", "b1", "a0", "a1", "a2"])
+
+
 @pytest.mark.parametrize("factory", [_fitted_pca, _fitted_pls, _fitted_mbpca, _fitted_mbpls])
 def test_fitted_model_pickle_round_trips(factory) -> None:
     """A fitted model pickles and the reloaded model's limit method agrees."""
