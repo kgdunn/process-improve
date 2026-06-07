@@ -326,7 +326,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     x_loadings_ = _LazyFrame("_x_loadings", index="_feature_names", columns="_component_names")
     x_weights_ = _LazyFrame("_x_weights", index="_feature_names", columns="_component_names")
 
-    def _fit_nipals(self, X: DataMatrix, Y: DataMatrix, A: int, settings: dict) -> None:  # noqa: PLR0915
+    def _fit_nipals(  # noqa: PLR0915, C901
+        self,
+        X: DataMatrix,
+        Y: DataMatrix,
+        A: int,
+        settings: dict,
+        sample_weight: np.ndarray | None = None,
+    ) -> None:
         """Fit PLS via the NIPALS algorithm, handling missing data transparently.
 
         Parameters
@@ -339,6 +346,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             Number of components to extract.
         settings : dict
             Algorithm settings with keys ``md_method``, ``md_tol``, ``md_max_iter``.
+        sample_weight : np.ndarray of shape (N,), optional
+            Row weights, non-negative finite floats. When provided, X and Y
+            are ``sqrt(w)``-rescaled at NIPALS entry so the cross-products
+            ``X' u`` and ``Y' t`` become weighted (see #394). Loadings,
+            weights, and beta are invariant under the rescale; scores are
+            restored to the original sample scale at the end via
+            ``X @ direct_weights`` (cleaner than dividing by ``sqrt(w)``,
+            which would NaN at zero-weight rows).
         """
         N = self.n_samples_
         K = self.n_features_in_
@@ -352,6 +367,22 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         Xd = np.asarray(X, dtype=float).copy()
         Yd = np.asarray(Y, dtype=float).copy()
+
+        # Weighted fit (#394): sqrt(w)-rescale X and Y up front. The NIPALS
+        # cross-products X' u, Y' t, X' X etc. all become weighted sums; the
+        # inner loop is otherwise unchanged. We keep X_orig / Y_orig around
+        # so we can rebuild original-scale scores after the loop (the
+        # alternative -- dividing the NIPALS-recovered scores by sqrt(w) --
+        # NaNs out at zero-weight rows, which the test plan explicitly
+        # requires to behave like "fit on the remaining half").
+        X_orig: np.ndarray | None = None
+        Y_orig: np.ndarray | None = None
+        if sample_weight is not None:
+            sqrt_w = np.sqrt(sample_weight).reshape(-1, 1)
+            X_orig = Xd.copy()
+            Y_orig = Yd.copy()
+            Xd = Xd * sqrt_w
+            Yd = Yd * sqrt_w
 
         self._scores = np.zeros((N, A))
         self.y_scores_ = np.zeros((N, A))
@@ -457,7 +488,34 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             # In PLS mode A (PLSRegression), y_weights == y_loadings
             self.y_weights_[:, a] = c_a.flatten()
 
-    def fit(self, X: DataMatrix, Y: DataMatrix) -> PLS:  # noqa: PLR0915, C901
+        # Weighted fit post-fix (#394): the NIPALS scores stored above are on
+        # the sqrt(w)-rescaled rows (T_w = sqrt(W) @ T_orig). Recover
+        # original-scale scores by re-projecting the unweighted X / Y via the
+        # converged loadings: T = X @ W (P'W)^{-1}, the same identity that
+        # makes direct_weights_ meaningful. This rebuild correctly handles
+        # zero-weight rows (which NIPALS leaves as identically zero, but
+        # whose natural projected score is X[i] @ direct_weights).
+        if sample_weight is not None:
+            assert X_orig is not None
+            assert Y_orig is not None
+            direct_weights = self._x_weights @ safe_inverse(
+                self._x_loadings.T @ self._x_weights, what="(x_loadings' @ x_weights)"
+            )
+            self._scores = X_orig @ direct_weights
+            # y_scores are diagnostic only; the deflation identity
+            # u_a = Y_a c_a / (c_a' c_a) gives the natural y-side scores
+            # using the unweighted (deflated) Y.
+            Y_deflated = Y_orig.copy()
+            for a in range(A):
+                c_a = self.y_loadings_[:, [a]]
+                denom = float((c_a.T @ c_a).item())
+                if denom > 0:
+                    self.y_scores_[:, a] = (Y_deflated @ c_a / denom).flatten()
+                Y_deflated = Y_deflated - (self._scores[:, [a]] @ c_a.T)
+
+    def fit(  # noqa: PLR0912, PLR0915, C901
+        self, X: DataMatrix, Y: DataMatrix, sample_weight: np.ndarray | None = None,
+    ) -> PLS:
         """
         Fit a projection to latent structures (PLS) model to the data.
 
@@ -469,6 +527,15 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Y : array-like, shape (n_samples, n_targets)
             Training data, where `n_samples` is the number of samples (rows)
             and `n_targets` is the number of target outputs (columns).
+        sample_weight : array-like of shape (n_samples,), optional
+            Non-negative row weights for a weighted PLS fit (#394). NIPALS
+            is run on ``sqrt(w)``-rescaled X and Y, which is equivalent to
+            weighting the cross-products ``X' W u`` and ``Y' W t``. Loadings,
+            weights and beta are computed correctly; scores are returned on
+            the original sample scale. Zero weights effectively exclude the
+            corresponding rows (``sample_weight=[1,1,0,0,1]`` reproduces the
+            unweighted fit on rows ``[0,1,4]``). Forwarded to ``score()`` /
+            ``r2_score`` for any caller that also threads it through.
 
         Returns
         -------
@@ -485,6 +552,17 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # the 2-D shape.
         if hasattr(Y, "ndim") and Y.ndim == 1:
             Y = Y.to_frame() if isinstance(Y, pd.Series) else pd.DataFrame(np.asarray(Y).reshape(-1, 1))
+
+        # Validate sample_weight up front so the error path is the same
+        # regardless of whether the caller passes ndarray or list / scalar.
+        # We defer the row-count check until after validate_data has set
+        # n_samples_.
+        if sample_weight is not None:
+            sample_weight = np.asarray(sample_weight, dtype=float).ravel()
+            if not np.all(np.isfinite(sample_weight)):
+                raise ValueError("sample_weight must be finite (no NaN / inf).")
+            if np.any(sample_weight < 0):
+                raise ValueError("sample_weight must be non-negative.")
 
         # Capture DataFrame metadata before validate_data converts X to ndarray
         # so the downstream DataFrame view keeps its row/column labels.
@@ -520,6 +598,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if Ny != self.n_samples_:
             raise ValueError(
                 f"The X and Y arrays must have the same number of rows: X has {self.n_samples_} and Y has {Ny}."
+            )
+        if sample_weight is not None and sample_weight.shape[0] != self.n_samples_:
+            raise ValueError(
+                f"sample_weight has {sample_weight.shape[0]} entries; expected {self.n_samples_} to match X / Y."
             )
 
         N = self.n_samples_
@@ -561,7 +643,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             "md_tol": self.tol,
             "md_max_iter": self.max_iter,
         }
-        self._fit_nipals(X, Y, A, settings)
+        self._fit_nipals(X, Y, A, settings, sample_weight=sample_weight)
 
         # --- Common post-fit path: wrap numpy arrays into pandas ---
 
