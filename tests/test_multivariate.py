@@ -2872,6 +2872,48 @@ def test_pipeline_gridsearchcv_selects_components() -> None:
     assert grid.best_score_ > 0.5
 
 
+def test_get_feature_names_out_mcuv_pca_pls() -> None:
+    """get_feature_names_out works on each estimator and threads through Pipeline.set_output."""
+    from sklearn.pipeline import Pipeline
+
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(rng.standard_normal((30, 4)), columns=["A", "B", "C", "D"])
+    Y = pd.DataFrame(rng.standard_normal((30, 1)), columns=["y"])
+
+    # MCUVScaler is column-preserving: returns the fit-time feature names.
+    sc = MCUVScaler().fit(X)
+    assert list(sc.get_feature_names_out()) == ["A", "B", "C", "D"]
+    # Passing matching input_features explicitly also works (sklearn convention).
+    assert list(sc.get_feature_names_out(["A", "B", "C", "D"])) == ["A", "B", "C", "D"]
+
+    # PCA labels its scores PC1..PCn.
+    pca = PCA(n_components=3).fit(MCUVScaler().fit_transform(X))
+    assert list(pca.get_feature_names_out()) == ["PC1", "PC2", "PC3"]
+
+    # PLS labels its X-scores T1..Tn.
+    pls = PLS(n_components=2).fit(
+        MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y),
+    )
+    assert list(pls.get_feature_names_out()) == ["T1", "T2"]
+
+    # Pipeline introspection: composed get_feature_names_out follows the last
+    # transform step's labels.
+    pipe = Pipeline([("sc", MCUVScaler()), ("pca", PCA(n_components=2))])
+    pipe.fit(X)
+    assert list(pipe.get_feature_names_out()) == ["PC1", "PC2"]
+
+    # set_output(transform="pandas") wraps the ndarray transform output in a
+    # DataFrame labelled with our get_feature_names_out.
+    pipe_pd = (
+        Pipeline([("sc", MCUVScaler()), ("pca", PCA(n_components=2))])
+        .set_output(transform="pandas")
+    )
+    out = pipe_pd.fit_transform(X)
+    assert isinstance(out, pd.DataFrame)
+    assert list(out.columns) == ["PC1", "PC2"]
+    assert out.shape == (30, 2)
+
+
 def test_pls_select_n_components_randomization_rule() -> None:
     """Van der Voet's randomization test picks a parsimonious model."""
     rng = np.random.default_rng(2026)

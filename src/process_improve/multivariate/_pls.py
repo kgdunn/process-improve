@@ -260,6 +260,23 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         tags.target_tags.multi_output = True
         return tags
 
+    def get_feature_names_out(self, input_features=None) -> np.ndarray:  # noqa: ANN001, ARG002
+        """Return the output column names of :meth:`transform`.
+
+        :class:`PLS`'s ``transform`` returns the X scores (T matrix),
+        labelled ``["T1", "T2", ..., "T{n_components}"]``. The
+        ``input_features`` argument is accepted (Pipeline introspection
+        passes it through) but unused: the output column count is the
+        fitted ``n_components``, not the input feature count.
+
+        Used by :meth:`set_output` (sklearn 1.2+) to label the
+        :class:`~pandas.DataFrame` view of the scores when
+        ``set_output(transform="pandas")`` is on, and by Pipeline
+        introspection.
+        """
+        check_is_fitted(self, "direct_weights_")
+        return np.asarray([f"T{a}" for a in self._component_names])
+
     # ENG-17: the 13 shared convenience methods, hotellings_t2_limit,
     # ellipse_coordinates and the rename __getattr__ are inherited from
     # _LatentVariableModel. PLS keeps only its two PLS-specific plot methods and
