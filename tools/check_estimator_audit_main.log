@@ -1,0 +1,130 @@
+
+===== MCUVScaler =====
+
+===== PCA(n_components=2) =====
+
+===== PLS(n_components=2) =====
+
+
+===== SUMMARY =====
+MCUVScaler: 18/29 passed (62.1%)
+PCA(n_components=2): 28/47 passed (59.6%)
+PLS(n_components=2): 19/29 passed (65.5%)
+
+===== FAILURES (grouped by reason) =====
+
+--- MCUVScaler (11 failures) ---
+
+  [2x] AssertionError: Estimator MCUVScaler doesn't seem to fail gracefully on sparse data: error message should state explicitly that sparse input is not supported if this is not the case, e.g. by using check_array(X, accept_sparse=False).
+     - check_estimator_sparse_array
+     - check_estimator_sparse_matrix
+
+  [1x] AssertionError: `MCUVScaler.fit()` does not set the `n_features_in_` attribute. You might want to use `sklearn.utils.validation.validate_data` instead of `check_array` in `MCUVScaler.fit()` which takes care of setting the attribute.
+     - check_n_features_in_after_fitting
+
+  [1x] AssertionError: MCUVScaler is inheriting from mixins in the wrong order. In general, in mixin inheritance, more specialized mixins must come before more general ones. This means, for instance, `BaseEstimator` should be on the right side of most other mixin
+     - check_mixin_order
+
+  [1x] AssertionError: Did not raise: [<class 'ValueError'>]
+     - check_complex_data
+
+  [1x] AssertionError: The error message should contain one of the following patterns:
+     - check_dtype_object
+
+  [1x] AssertionError: The estimator MCUVScaler does not raise a ValueError when an empty data is used to train. Perhaps use check_array in train.
+     - check_estimators_empty_data_messages
+
+  [1x] AssertionError: Estimator MCUVScaler doesn't check for NaN and inf in fit.
+     - check_estimators_nan_inf
+
+  [1x] AssertionError: Estimator MCUVScaler didn't fail when fitted on sparse data but should have according to its tag self.input_tags.sparse=False. The tag is inconsistent and must be fixed.
+     - check_estimator_sparse_tag
+
+  [1x] SkipTest: SCIPY_ARRAY_API is not set: not checking array_api input
+     - check_array_api_input
+
+  [1x] RuntimeError: Estimator MCUVScaler seems to be a Transformer, but the `transformer_tags` tag is not set. Either set the tag manually or inherit from the TransformerMixin. Note that the order of inheritance matters, the TransformerMixin should come before BaseEstimator.
+     - <setup>
+
+--- PCA(n_components=2) (19 failures) ---
+
+  [3x] TypeError: unsupported operand type(s) for -: 'Bunch' and 'Bunch'
+     - check_estimators_pickle
+     - check_estimators_pickle
+     - check_fit_idempotent
+
+  [2x] AssertionError: Estimator PCA doesn't seem to fail gracefully on sparse data: error message should state explicitly that sparse input is not supported if this is not the case, e.g. by using check_array(X, accept_sparse=False).
+     - check_estimator_sparse_array
+     - check_estimator_sparse_matrix
+
+  [1x] AssertionError: `PCA.predict()` does not check for consistency between input number
+     - check_n_features_in_after_fitting
+
+  [1x] TypeError: Invalid value '0    0.076203-0.219042j
+     - check_complex_data
+
+  [1x] UFuncTypeError: Cannot cast ufunc 'svd_s' input from dtype('O') to dtype('float64') with casting rule 'same_kind'
+     - check_dtype_object
+
+  [1x] AssertionError: The estimator PCA does not raise a ValueError when an empty data is used to train. Perhaps use check_array in train.
+     - check_estimators_empty_data_messages
+
+  [1x] AssertionError: Estimator PCA doesn't check for NaN and inf in fit.
+     - check_estimators_nan_inf
+
+  [1x] AssertionError: Estimator PCA didn't fail when fitted on sparse data but should have according to its tag self.input_tags.sparse=False. The tag is inconsistent and must be fixed.
+     - check_estimator_sparse_tag
+
+  [1x] SkipTest: SCIPY_ARRAY_API is not set: not checking array_api input
+     - check_array_api_input
+
+  [1x] ValueError: DataFrame constructor not properly called!
+     - check_transformer_data_not_an_array
+
+  [1x] AttributeError: 'DataFrame' object has no attribute 'dtype'
+     - check_transformer_preserve_dtypes
+
+  [1x] KeyError: np.int64(6)
+     - check_methods_sample_order_invariance
+
+  [1x] AssertionError: 
+     - check_methods_subset_invariance
+
+  [1x] AssertionError: Estimator changes __dict__ during predict
+     - check_dict_unchanged
+
+  [1x] AssertionError: Did not raise: [<class 'ValueError'>]
+     - check_fit1d
+
+  [1x] AssertionError: The error message should contain one of the following patterns:
+     - check_fit2d_predict1d
+
+--- PLS(n_components=2) (10 failures) ---
+
+  [2x] AssertionError: Estimator PLS doesn't seem to fail gracefully on sparse data: error message should state explicitly that sparse input is not supported if this is not the case, e.g. by using check_array(X, accept_sparse=False).
+     - check_estimator_sparse_array
+     - check_estimator_sparse_matrix
+
+  [1x] AssertionError: `PLS.predict()` does not check for consistency between input number
+     - check_n_features_in_after_fitting
+
+  [1x] TypeError: Invalid value '[0.32721032+0.81147437j]' for dtype 'float64'
+     - check_complex_data
+
+  [1x] TypeError: loop of ufunc does not support argument 0 of type float which has no callable sqrt method
+     - check_dtype_object
+
+  [1x] AssertionError: The error message should contain one of the following patterns:
+     - check_estimators_empty_data_messages
+
+  [1x] AssertionError: Estimator PLS doesn't check for NaN and inf in fit.
+     - check_estimators_nan_inf
+
+  [1x] AssertionError: Estimator PLS didn't fail when fitted on sparse data but should have according to its tag self.input_tags.sparse=False. The tag is inconsistent and must be fixed.
+     - check_estimator_sparse_tag
+
+  [1x] SkipTest: SCIPY_ARRAY_API is not set: not checking array_api input
+     - check_array_api_input
+
+  [1x] IndexError: list index out of range
+     - <setup>
