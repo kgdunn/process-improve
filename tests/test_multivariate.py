@@ -2270,6 +2270,76 @@ def test_pls_select_n_components_caps_max_components() -> None:
     assert result.n_components <= 24
 
 
+def test_recommend_n_components_q2_rule() -> None:
+    """Q2-increment helper stops at the first non-meaningful component."""
+    from process_improve.multivariate._common import (
+        Q2_MIN_INCREMENT,
+        _recommend_n_components_q2,
+    )
+
+    # Two systematic components, then a plateau and a drop: stop at 2.
+    assert _recommend_n_components_q2([0.40, 0.62, 0.625, 0.50]) == 2
+    # A single strong component then a fractional (noise-level) gain: stop at 1.
+    assert _recommend_n_components_q2([0.55, 0.553]) == 1
+    # Monotonically improving but each step below the threshold: still stop at 1.
+    assert _recommend_n_components_q2([0.30, 0.305, 0.309, 0.312]) == 1
+    # NaN stops the search.
+    assert _recommend_n_components_q2([0.4, np.nan, 0.9]) == 1
+    # min_increment=0 reproduces the permissive "any improvement" behaviour.
+    assert _recommend_n_components_q2([0.30, 0.305, 0.309, 0.312], min_increment=0.0) == 4
+    # A larger threshold is more conservative.
+    assert _recommend_n_components_q2([0.40, 0.62, 0.70], min_increment=0.1) == 2
+    assert Q2_MIN_INCREMENT == 0.01
+
+
+def test_recommend_n_components_one_se_rule() -> None:
+    """1-SE helper picks the smallest model within one SE of the best."""
+    from process_improve.multivariate._common import _recommend_n_components_one_se
+
+    # Argmin is at 3; SE at the argmin is 0.05; components 2 and 3 both lie at
+    # or below 0.40 + 0.05 = 0.45, so the parsimonious 2 wins.
+    mean = [0.60, 0.42, 0.40, 0.41, 0.40, 0.405]
+    se = [0.04, 0.03, 0.05, 0.05, 0.05, 0.05]
+    assert _recommend_n_components_one_se(mean, se) == 2
+
+    # If only the argmin itself is within 1 SE, the 1-SE rule returns argmin.
+    mean = [0.80, 0.70, 0.40, 0.55]
+    se = [0.02, 0.02, 0.02, 0.02]
+    assert _recommend_n_components_one_se(mean, se) == 3
+
+    # A degenerate (zero) SE collapses to argmin.
+    assert _recommend_n_components_one_se([0.5, 0.4, 0.3], [0.0, 0.0, 0.0]) == 3
+
+    # NaN entries in mean_error are skipped, not allowed to win.
+    assert _recommend_n_components_one_se([0.5, np.nan, 0.4, 0.41], [0.05, np.nan, 0.05, 0.05]) == 3
+
+    # All-NaN input falls back to 1 (callers should have raised already).
+    assert _recommend_n_components_one_se([np.nan, np.nan], [np.nan, np.nan]) == 1
+
+    with pytest.raises(ValueError, match="same shape"):
+        _recommend_n_components_one_se([0.4, 0.3], [0.05])
+
+
+def test_select_n_components_dispatcher() -> None:
+    """The selection-rule dispatcher routes to the right helper and validates inputs."""
+    from process_improve.multivariate._common import _select_n_components
+
+    mean = [0.60, 0.42, 0.40, 0.41]
+    se = [0.03, 0.03, 0.05, 0.05]
+    q2 = [0.30, 0.62, 0.625, 0.50]
+
+    assert _select_n_components("min", mean_error=mean) == 3
+    assert _select_n_components("1se", mean_error=mean, se_error=se) == 2
+    assert _select_n_components("q2_increment", mean_error=mean, q2_cumulative=q2) == 2
+
+    with pytest.raises(ValueError, match="standard errors"):
+        _select_n_components("1se", mean_error=mean)
+    with pytest.raises(ValueError, match="Q\\^2 curve"):
+        _select_n_components("q2_increment", mean_error=mean)
+    with pytest.raises(ValueError, match="Unknown selection_rule"):
+        _select_n_components("not_a_rule", mean_error=mean)  # type: ignore[arg-type]
+
+
 def test_not_enough_variance_error_is_typed_and_runtimeerror() -> None:
     """Rank overflow raises NotEnoughVarianceError, still catchable as RuntimeError."""
     # NotEnoughVarianceError subclasses RuntimeError so existing broad
