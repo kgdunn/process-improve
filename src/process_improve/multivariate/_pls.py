@@ -18,7 +18,7 @@ import pandas as pd
 from scipy.stats import t as t_dist
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, clone
 from sklearn.metrics import r2_score
-from sklearn.model_selection import BaseCrossValidator, KFold, check_cv
+from sklearn.model_selection import BaseCrossValidator, KFold, RepeatedKFold, check_cv
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 from tqdm import tqdm
@@ -27,13 +27,17 @@ from .._linalg import safe_inverse
 from ..univariate.metrics import detect_outliers_esd
 from ._base import _LatentVariableModel, _LazyFrame
 from ._common import (
+    Q2_MIN_INCREMENT,
     DataMatrix,
     NotEnoughVarianceError,
+    SelectionRule,
     SpecificationWarning,
     _align_to_fit_features,
     _model_method,
+    _select_n_components,
     epsqrt,
 )
+from ._preprocessing import MCUVScaler
 from ._nipals import quick_regress, ssq, terminate_check
 from .plots import (
     coefficient_plot as _coefficient_plot,
@@ -613,39 +617,87 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         return Bunch(scores=scores, hotellings_t2=t2, spe=spe_values, y_hat=y_hat)
 
     @classmethod
-    def select_n_components(  # noqa: C901
+    def select_n_components(  # noqa: C901, PLR0913, PLR0915
         cls,
         X: DataMatrix,
         Y: DataMatrix,
         *,
         max_components: int | None = None,
         cv: int | BaseCrossValidator = 5,
+        n_repeats: int | None = None,
+        random_state: int | None = None,
+        selection_rule: SelectionRule = "1se",
+        scale_inside_folds: bool = True,
+        min_q2_increase: float = Q2_MIN_INCREMENT,
         **pls_kwargs,
     ) -> Bunch:
         """Select the number of PLS components via cross-validation.
 
         Fits PLS models on cross-validation training folds and evaluates the
-        out-of-fold prediction error for every component count ``1, 2, ...,
-        max_components``. Reports RMSECV and validated explained variance, and
-        recommends the component count with the lowest overall RMSECV.
+        out-of-fold prediction error for every component count
+        ``1, 2, ..., max_components``. Reports per-fold and pooled RMSECV plus
+        the validated cumulative R² curves, and recommends a component count
+        from one of three rules (see ``selection_rule`` below).
+
+        The defaults are the research-backed combination: the
+        one-standard-error rule on top of repeated, shuffled K-fold CV, with
+        :class:`MCUVScaler` re-fit inside every training fold so test data
+        never leaks into the centring/scaling estimates.
 
         Unlike the calibration statistics stored on a fitted model
-        (``rmse_``, ``r2_cumulative_``), these metrics estimate performance on
-        unseen data and are therefore suitable for choosing ``n_components``.
+        (``rmse_``, ``r2_cumulative_``), the metrics returned here estimate
+        performance on unseen data and are therefore suitable for choosing
+        ``n_components``.
 
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            Training data. Should already be scaled (e.g. with ``MCUVScaler``).
+            Training X. With the default ``scale_inside_folds=True`` the raw,
+            unscaled X may be passed; scaling is fit inside every training
+            fold.
         Y : array-like of shape (n_samples, n_targets)
-            Target data, scaled in the same way as ``X``.
+            Training Y. Same treatment as ``X`` under ``scale_inside_folds``.
         max_components : int, optional
             Maximum number of components to evaluate. Default is the largest
             value supported by every cross-validation training fold,
             ``min(min_fold_size, n_features)``.
         cv : int or sklearn CV splitter, default 5
-            Number of K-fold splits, or an sklearn splitter object (e.g.
-            ``KFold(n_splits=10, shuffle=True)`` or ``LeaveOneOut()``).
+            If an integer, used as the ``n_splits`` of a shuffled
+            :class:`~sklearn.model_selection.KFold` (or
+            :class:`~sklearn.model_selection.RepeatedKFold` when
+            ``n_repeats > 1``). Any sklearn splitter object (e.g.
+            ``KFold(10, shuffle=True)`` or ``LeaveOneOut()``) is also accepted
+            and is used as-is (``n_repeats`` is then ignored).
+        n_repeats : int, optional
+            Number of times the K-fold split is repeated with a fresh shuffle,
+            used only when ``cv`` is an integer. Default ``10`` (giving a
+            ``cv * 10`` per-fold sample for the 1-SE rule); pass ``1`` to
+            disable repeats. Repeated K-fold's standard errors are slightly
+            optimistic because test folds overlap across repeats; that is fine
+            for the 1-SE *selection* rule but should not be reported as an
+            unbiased generalisation variance.
+        random_state : int, optional
+            Seed forwarded to ``KFold`` / ``RepeatedKFold`` for reproducible
+            shuffling. Ignored when ``cv`` is a pre-built splitter.
+        selection_rule : {"1se", "min", "q2_increment"}, default "1se"
+            How the recommended component count is chosen from the per-fold
+            RMSECV curve. See :data:`~process_improve.multivariate._common.SelectionRule`
+            for the rule semantics. ``"1se"`` is the default; ``"min"`` is the
+            argmin RMSECV (the pre-1.28 default, prone to running to the
+            maximum component count); ``"q2_increment"`` is the Wold's-R-style
+            cumulative-Q² threshold.
+        scale_inside_folds : bool, default True
+            When True (the default), fit a fresh :class:`MCUVScaler` on each
+            training fold's X and Y, apply it to the held-out rows, fit PLS in
+            scaled space, then inverse-transform the predictions so RMSECV is
+            reported on the original Y scale. This removes the centring /
+            scaling leakage of the prior default. Set to False to keep the
+            pre-1.28 behaviour, in which case ``X`` and ``Y`` should already
+            be scaled; a :class:`SpecificationWarning` is emitted.
+        min_q2_increase : float, default 0.01
+            Threshold used only when ``selection_rule="q2_increment"``: the
+            smallest increase in cumulative validated :math:`Q^2_Y` that
+            justifies keeping an extra component.
         **pls_kwargs
             Additional keyword arguments passed to the ``PLS()`` constructor
             (e.g. ``missing_data_settings``).
@@ -655,40 +707,53 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         result : sklearn.utils.Bunch
             With keys:
 
-            - ``n_components`` - recommended number of components (int): the
-              count with the lowest overall RMSECV.
-            - ``rmsecv`` - root-mean-square error of cross-validation
-              (pd.DataFrame, indexed 1..A; columns are the Y-variable names
-              plus ``"total"``).
-            - ``r2y_validated`` - validated cumulative R² of Y (pd.DataFrame,
-              same shape as ``rmsecv``).
-            - ``r2x_validated`` - validated cumulative R² of X (pd.DataFrame,
-              indexed 1..A; columns are the X-variable names plus ``"total"``).
-            - ``press`` - overall Y prediction error sum of squares per
-              component count (pd.Series, indexed 1..A).
+            - ``n_components`` - recommended number of components (int).
+            - ``rmsecv`` - pooled RMSECV per component count
+              (pd.DataFrame, indexed ``1..A``; columns are the Y-variable
+              names plus ``"total"``).
+            - ``per_fold_rmsecv`` - per-fold total RMSECV (pd.DataFrame,
+              indexed ``1..A``; one column per fold across all repeats).
+              Drives the 1-SE rule.
+            - ``se_rmsecv`` - standard error of the per-fold RMSECV per
+              component count (pd.Series, indexed ``1..A``).
+            - ``r2y_validated`` - validated cumulative :math:`R^2_Y`
+              (pd.DataFrame, same shape as ``rmsecv``).
+            - ``r2x_validated`` - validated cumulative :math:`R^2_X`
+              (pd.DataFrame, indexed ``1..A``; columns are the X-variable
+              names plus ``"total"``).
+            - ``press`` - pooled Y prediction error sum of squares per
+              component count (pd.Series, indexed ``1..A``).
             - ``cv_predictions`` - out-of-fold predictions of Y at the
-              recommended component count (pd.DataFrame).
+              recommended component count, on the original Y scale
+              (pd.DataFrame). For repeated K-fold, the *first* repeat's
+              held-out predictions are reported so each row appears exactly
+              once.
+            - ``selection_rule`` - the rule used to pick ``n_components``.
 
         Notes
         -----
-        Like :meth:`PCA.select_n_components`, this expects ``X`` and ``Y`` to
-        be pre-scaled and refits PLS on each fold without re-deriving the
-        scaling inside the fold. Folds therefore share the scaling of the full
-        dataset, which makes the reported errors slightly optimistic compared
-        with scaling each training fold independently.
+        The pooled RMSECV in ``rmsecv["total"]`` is the square root of the
+        total PRESS over all fold-test rows divided by ``(N_eff * M)`` where
+        ``N_eff = N * n_repeats`` under repeated CV; the ``per_fold_rmsecv``
+        column for fold *f* is the square root of fold-*f*'s sum-of-squared
+        residuals over its own test rows.
 
-        The recommendation uses the minimum overall RMSECV. A more
-        conservative choice is Wold's criterion: stop adding components once
-        RMSECV stops improving appreciably. That can be applied directly to
-        the returned ``rmsecv["total"]`` curve.
+        References
+        ----------
+        Breiman, Friedman, Olshen & Stone (1984), *CART*, sec.3.4.3 (1-SE rule).
+        Hastie, Tibshirani & Friedman, *ESL*, sec.7.10. Kohavi (1995, IJCAI)
+        recommends 10-fold stratified CV for model selection.
 
         Examples
         --------
         >>> from sklearn.model_selection import KFold
-        >>> result = PLS.select_n_components(X_scaled, Y_scaled, max_components=6)
-        >>> result.n_components
-        >>> result.rmsecv["total"]
-        >>> PLS.select_n_components(X_scaled, Y_scaled, cv=KFold(10, shuffle=True))
+        >>> # Default: 1-SE on 10 x 5-fold repeated CV with in-fold scaling.
+        >>> result = PLS.select_n_components(X, Y, max_components=6, random_state=0)
+        >>> result.n_components, result.selection_rule
+        >>> # Opt-in to the older argmin-RMSECV rule:
+        >>> PLS.select_n_components(X, Y, max_components=6, selection_rule="min")
+        >>> # Caller-supplied splitter (n_repeats is ignored here):
+        >>> PLS.select_n_components(X, Y, cv=KFold(10, shuffle=True, random_state=0))
         """
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
@@ -697,15 +762,43 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         elif not isinstance(Y, pd.DataFrame):
             Y = pd.DataFrame(Y)
 
+        if not scale_inside_folds:
+            warnings.warn(
+                "scale_inside_folds=False leaks centring/scaling estimated on the "
+                "full dataset into every CV fold, making the reported RMSECV "
+                "optimistic. The default scale_inside_folds=True is preferred.",
+                SpecificationWarning,
+                stacklevel=2,
+            )
+
         N, K = X.shape
         M = Y.shape[1]
 
-        splits = list(check_cv(cv).split(X, Y))
+        if isinstance(cv, int):
+            if cv < 2:
+                raise ValueError(f"cv must be >= 2 when given as an int; got {cv}.")
+            repeats = 10 if n_repeats is None else int(n_repeats)
+            if repeats < 1:
+                raise ValueError(f"n_repeats must be >= 1; got {repeats}.")
+            splitter: BaseCrossValidator
+            if repeats == 1:
+                splitter = KFold(n_splits=cv, shuffle=True, random_state=random_state)
+            else:
+                splitter = RepeatedKFold(n_splits=cv, n_repeats=repeats, random_state=random_state)
+            splits = list(splitter.split(X, Y))
+            first_repeat_fold_count = cv
+        else:
+            splits = list(check_cv(cv).split(X, Y))
+            first_repeat_fold_count = len(splits)
         if not splits:
             raise ValueError("The cross-validation splitter produced no folds.")
+        n_folds_total = len(splits)
         min_train_size = min(len(train_idx) for train_idx, _ in splits)
 
-        upper = min(min_train_size, K)
+        # Centring inside a fold removes one DoF, so a globally-centred matrix
+        # restricted to (min_train_size) rows and re-centred has rank at most
+        # min_train_size - 1. Cap A accordingly when in-fold scaling is on.
+        upper = min(min_train_size - (1 if scale_inside_folds else 0), K)
         if max_components is None:
             max_components = upper
         A = min(int(max_components), upper)
@@ -716,54 +809,121 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         press_y = np.zeros((A, M))
         press_x = np.zeros((A, K))
+        # Per-fold total-RMSECV across every fold-fit (n_folds_total columns).
+        # Drives the 1-SE rule's standard error.
+        per_fold_rmse = np.full((A, n_folds_total), np.nan)
+        # Out-of-fold predictions: with repeated K-fold each row appears in
+        # multiple test folds, so populate only from the *first* repeat (which
+        # covers every row exactly once) to preserve the existing semantic that
+        # cv_predictions has one row per observation.
         oof = np.full((A, N, M), np.nan)
 
-        for train_idx, test_idx in splits:
-            model = cls(n_components=A, **pls_kwargs).fit(X.iloc[train_idx], Y.iloc[train_idx])
-            scores_test = X.iloc[test_idx].to_numpy() @ model.direct_weights_.to_numpy()
-            y_test = Y.iloc[test_idx].to_numpy()
-            x_test = X.iloc[test_idx].to_numpy()
-            # After fit(), y_loadings_ is always the public DataFrame.
+        x_columns = list(X.columns)
+        y_columns = list(Y.columns)
+        x_values = X.to_numpy()
+        y_values = Y.to_numpy()
+        for fold_idx, (train_idx, test_idx) in enumerate(splits):
+            X_train_raw = X.iloc[train_idx]
+            Y_train_raw = Y.iloc[train_idx]
+            X_test_raw = X.iloc[test_idx]
+            if scale_inside_folds:
+                scaler_x = MCUVScaler().fit(X_train_raw)
+                scaler_y = MCUVScaler().fit(Y_train_raw)
+                X_train = scaler_x.transform(X_train_raw)
+                Y_train = scaler_y.transform(Y_train_raw)
+                X_test_scaled = scaler_x.transform(X_test_raw).to_numpy()
+                y_centre = scaler_y.center_.to_numpy()
+                y_scale = scaler_y.scale_.to_numpy()
+                x_centre = scaler_x.center_.to_numpy()
+                x_scale = scaler_x.scale_.to_numpy()
+            else:
+                X_train = X_train_raw
+                Y_train = Y_train_raw
+                X_test_scaled = X_test_raw.to_numpy()
+                y_centre = np.zeros(M)
+                y_scale = np.ones(M)
+                x_centre = np.zeros(K)
+                x_scale = np.ones(K)
+
+            model = cls(n_components=A, **pls_kwargs).fit(X_train, Y_train)
+            scores_test = X_test_scaled @ model.direct_weights_.to_numpy()
+            # ``y_values`` and ``x_values`` are on the ORIGINAL (un-scaled)
+            # input data: RMSECV / r2y_validated / r2x_validated are all
+            # reported on the input scale.
+            y_test = y_values[test_idx]
+            x_test = x_values[test_idx]
+            n_test = len(test_idx)
             y_loadings = typing.cast("pd.DataFrame", model.y_loadings_).to_numpy()  # shape (M, A)
             x_loadings = model.x_loadings_.to_numpy()  # shape (K, A)
             for a in range(1, A + 1):
-                y_hat = scores_test[:, :a] @ y_loadings[:, :a].T
-                x_hat = scores_test[:, :a] @ x_loadings[:, :a].T
-                press_y[a - 1] += np.nansum((y_test - y_hat) ** 2, axis=0)
+                y_hat_scaled = scores_test[:, :a] @ y_loadings[:, :a].T
+                x_hat_scaled = scores_test[:, :a] @ x_loadings[:, :a].T
+                # inverse-transform: x_scale[None, :] broadcasts (n_test, K).
+                y_hat = y_hat_scaled * y_scale + y_centre
+                x_hat = x_hat_scaled * x_scale + x_centre
+                residuals_y = y_test - y_hat
+                press_y[a - 1] += np.nansum(residuals_y ** 2, axis=0)
                 press_x[a - 1] += np.nansum((x_test - x_hat) ** 2, axis=0)
-                oof[a - 1, test_idx, :] = y_hat
+                per_fold_rmse[a - 1, fold_idx] = np.sqrt(
+                    np.nansum(residuals_y ** 2) / max(1, n_test * M)
+                )
+                if fold_idx < first_repeat_fold_count:
+                    oof[a - 1, test_idx, :] = y_hat
 
-        tss_y = np.nansum((Y.to_numpy() - np.nanmean(Y.to_numpy(), axis=0)) ** 2, axis=0)
-        tss_x = np.nansum((X.to_numpy() - np.nanmean(X.to_numpy(), axis=0)) ** 2, axis=0)
+        # With repeated CV the total PRESS sums residuals across n_repeats
+        # passes over every observation; divide by N_eff = N * n_repeats to
+        # keep the RMSECV scale comparable to a single-pass CV.
+        n_eff = N * max(1, n_folds_total // max(1, first_repeat_fold_count))
+
+        tss_y = np.nansum((y_values - np.nanmean(y_values, axis=0)) ** 2, axis=0)
+        tss_x = np.nansum((x_values - np.nanmean(x_values, axis=0)) ** 2, axis=0)
 
         rmsecv = pd.DataFrame(
-            np.column_stack([np.sqrt(press_y / N), np.sqrt(press_y.sum(axis=1) / (N * M))]),
+            np.column_stack([np.sqrt(press_y / n_eff), np.sqrt(press_y.sum(axis=1) / (n_eff * M))]),
             index=component_index,
-            columns=[*Y.columns, "total"],
+            columns=[*y_columns, "total"],
         )
 
         def _validated_r2(press: np.ndarray, tss: np.ndarray) -> np.ndarray:
-            per_var = np.where(tss > 0, 1.0 - press / tss, np.nan)
-            total = np.where(tss.sum() > 0, 1.0 - press.sum(axis=1) / tss.sum(), np.nan)
+            per_var = np.where(tss > 0, 1.0 - press / (tss * max(1, n_folds_total // first_repeat_fold_count)), np.nan)
+            total = np.where(
+                tss.sum() > 0,
+                1.0 - press.sum(axis=1) / (tss.sum() * max(1, n_folds_total // first_repeat_fold_count)),
+                np.nan,
+            )
             return np.column_stack([per_var, total])
 
         r2y_validated = pd.DataFrame(
             _validated_r2(press_y, tss_y),
             index=component_index,
-            columns=[*Y.columns, "total"],
+            columns=[*y_columns, "total"],
         )
         r2x_validated = pd.DataFrame(
             _validated_r2(press_x, tss_x),
             index=component_index,
-            columns=[*X.columns, "total"],
+            columns=[*x_columns, "total"],
         )
         press = pd.Series(press_y.sum(axis=1), index=component_index, name="PRESS")
 
-        # If every CV fold produced NaN (e.g. zero-variance Y per fold)
-        # ``np.argmin`` warns and returns 0; the silent ``recommended = 1``
-        # was indistinguishable from a legitimate "1 component is best"
-        # result. Raise instead so the caller knows the CV did not converge
-        # to a recommendation. SEC-21 (#270) sub-item 8.
+        per_fold_rmsecv = pd.DataFrame(
+            per_fold_rmse,
+            index=component_index,
+            columns=[f"fold_{i + 1}" for i in range(n_folds_total)],
+        )
+        # Standard error across folds (and repeats). ``ddof=1`` for the
+        # sample SE; with a single fold (n_folds_total == 1) the SE is NaN
+        # and the 1-SE rule degenerates to argmin gracefully.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            se_values = np.nanstd(per_fold_rmse, axis=1, ddof=1) / np.sqrt(
+                np.maximum(1, np.sum(~np.isnan(per_fold_rmse), axis=1))
+            )
+        se_rmsecv = pd.Series(se_values, index=component_index, name="SE(RMSECV)")
+
+        # If every CV fold produced NaN (e.g. zero-variance Y per fold) the
+        # cross-validation never converged to anything we can judge. Raise so
+        # the caller knows, rather than silently returning ``1``.
+        # SEC-21 (#270) sub-item 8.
         total_rmsecv = rmsecv["total"].to_numpy()
         if np.all(np.isnan(total_rmsecv)):
             raise RuntimeError(
@@ -771,16 +931,25 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 "no recommendation can be made. Likely cause: a per-fold zero-variance Y "
                 "column, or every fold trivially degenerate."
             )
-        recommended = int(np.nanargmin(total_rmsecv)) + 1
+        recommended = _select_n_components(
+            selection_rule,
+            mean_error=total_rmsecv,
+            se_error=se_values,
+            q2_cumulative=r2y_validated["total"].to_numpy(),
+            min_q2_increase=min_q2_increase,
+        )
         cv_predictions = pd.DataFrame(oof[recommended - 1], index=Y.index, columns=Y.columns)
 
         return Bunch(
             n_components=recommended,
             rmsecv=rmsecv,
+            per_fold_rmsecv=per_fold_rmsecv,
+            se_rmsecv=se_rmsecv,
             r2y_validated=r2y_validated,
             r2x_validated=r2x_validated,
             press=press,
             cv_predictions=cv_predictions,
+            selection_rule=selection_rule,
         )
 
     def score_contributions(

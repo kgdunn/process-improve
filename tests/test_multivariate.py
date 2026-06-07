@@ -2174,17 +2174,21 @@ def test_pls_select_n_components_synthetic() -> None:
     X_s = MCUVScaler().fit_transform(X)
     Y_s = MCUVScaler().fit_transform(Y)
 
-    result = PLS.select_n_components(X_s, Y_s, max_components=10)
+    result = PLS.select_n_components(X_s, Y_s, max_components=10, random_state=0)
 
     assert isinstance(result, Bunch)
     assert set(result.keys()) == {
         "n_components",
         "rmsecv",
+        "per_fold_rmsecv",
+        "se_rmsecv",
         "r2y_validated",
         "r2x_validated",
         "press",
         "cv_predictions",
+        "selection_rule",
     }
+    assert result.selection_rule == "1se"
 
     # The clear RMSECV minimum is at the true rank of 2.
     assert result.n_components == 2
@@ -2263,11 +2267,123 @@ def test_pls_select_n_components_caps_max_components() -> None:
     X_s = MCUVScaler().fit_transform(X)
     Y_s = MCUVScaler().fit_transform(Y)
 
-    # 5-fold CV leaves a training fold of 24 rows, so at most 24 components
-    # can be evaluated despite the absurdly large request.
-    result = PLS.select_n_components(X_s, Y_s, max_components=1000, cv=5)
-    assert len(result.rmsecv) == 24
-    assert result.n_components <= 24
+    # 5-fold CV leaves a training fold of 24 rows; in-fold mean-centring
+    # removes one DoF, so at most 23 components can be evaluated despite the
+    # absurdly large request. (n_repeats=1 keeps the cap-vs-singularity test
+    # focused on the cap; the rank-boundary fit is fragile by nature.)
+    result = PLS.select_n_components(
+        X_s, Y_s, max_components=1000, cv=5, n_repeats=1, random_state=0
+    )
+    assert len(result.rmsecv) == 23
+    assert result.n_components <= 23
+
+
+def test_pls_select_n_components_1se_default_picks_parsimony() -> None:
+    """The default (1-SE rule) is more parsimonious than argmin RMSECV on noise-padded data.
+
+    Eight latent factors of geometrically decaying influence drive Y; later
+    factors contribute progressively less. Argmin chases noise-level
+    improvements; the 1-SE rule should land near the true effective rank.
+    """
+    rng = np.random.default_rng(0)
+    N, K, n_factors = 80, 50, 8
+    scales = np.array([6.0, 5.0, 4.0, 3.0, 2.0, 1.2, 0.8, 0.5])
+    T_true = rng.normal(size=(N, n_factors)) * scales
+    P_true = rng.normal(size=(K, n_factors))
+    X = pd.DataFrame(T_true @ P_true.T + 0.4 * rng.normal(size=(N, K)), columns=[f"x{i}" for i in range(K)])
+    gamma = rng.normal(size=(n_factors, 1))
+    Y = pd.DataFrame(T_true @ gamma + 0.3 * rng.normal(size=(N, 1)), columns=["y"])
+
+    res_1se = PLS.select_n_components(X, Y, max_components=12, cv=7, n_repeats=5, random_state=0)
+    res_min = PLS.select_n_components(
+        X, Y, max_components=12, cv=7, n_repeats=5, random_state=0, selection_rule="min"
+    )
+    assert res_1se.selection_rule == "1se"
+    assert res_min.selection_rule == "min"
+    # The 1-SE rule never picks more components than argmin RMSECV, and on this
+    # noise-padded design it picks meaningfully fewer.
+    assert res_1se.n_components <= res_min.n_components
+    assert res_1se.n_components <= 8
+
+
+def test_pls_select_n_components_repeated_kfold_stability() -> None:
+    """Repeated K-fold gives reproducible answers given a random_state and
+    narrows the per-component standard error as repeats grow."""
+    rng = np.random.default_rng(13)
+    N, K = 50, 12
+    X = pd.DataFrame(rng.standard_normal((N, K)), columns=[f"x{i}" for i in range(K)])
+    beta = rng.standard_normal((K, 1))
+    Y = pd.DataFrame(X.values @ beta + 0.4 * rng.standard_normal((N, 1)), columns=["y"])
+
+    a = PLS.select_n_components(X, Y, max_components=6, cv=5, n_repeats=3, random_state=42)
+    b = PLS.select_n_components(X, Y, max_components=6, cv=5, n_repeats=3, random_state=42)
+    # Same seed -> identical numerical result.
+    np.testing.assert_allclose(a.rmsecv.to_numpy(), b.rmsecv.to_numpy())
+    np.testing.assert_allclose(a.se_rmsecv.to_numpy(), b.se_rmsecv.to_numpy())
+
+    few = PLS.select_n_components(X, Y, max_components=6, cv=5, n_repeats=2, random_state=0)
+    many = PLS.select_n_components(X, Y, max_components=6, cv=5, n_repeats=20, random_state=0)
+    # 2 repeats -> 10 folds; 20 repeats -> 100 folds; SE narrows ~sqrt(10).
+    assert few.per_fold_rmsecv.shape == (6, 10)
+    assert many.per_fold_rmsecv.shape == (6, 100)
+    assert (many.se_rmsecv < few.se_rmsecv).all()
+
+
+def test_pls_select_n_components_in_fold_scaling_no_leakage() -> None:
+    """In-fold scaling is the default; raw, unscaled X/Y produce sensible RMSECV."""
+    rng = np.random.default_rng(99)
+    N, K, n_factors = 40, 8, 3
+    # Low-rank X on an arbitrary, non-zero-mean / non-unit-variance scale; Y
+    # depends on the latent factors plus noise. Keeping K > n_factors and well
+    # under N avoids the rank-boundary fragility this test isn't about.
+    T_true = rng.standard_normal((N, n_factors))
+    P_true = rng.standard_normal((n_factors, K))
+    column_scales = np.array([10.0, 0.1, 100.0, 1.0, 5.0, 0.5, 2.0, 20.0])
+    X_raw = pd.DataFrame(
+        (T_true @ P_true + 0.4 * rng.standard_normal((N, K))) * column_scales + 7.0,
+        columns=[f"x{i}" for i in range(K)],
+    )
+    Y_raw = pd.DataFrame(T_true @ rng.standard_normal((n_factors, 1)) + 0.3 * rng.standard_normal((N, 1)) + 50.0, columns=["y"])
+
+    # Default: scale inside folds. Caller passes raw data.
+    raw = PLS.select_n_components(X_raw, Y_raw, max_components=5, cv=5, n_repeats=4, random_state=0)
+    # RMSECV is reported on the original Y scale.
+    assert (raw.rmsecv["total"] > 0).all()
+    assert raw.cv_predictions.shape == (N, 1)
+    # First-repeat predictions cover every row.
+    assert not raw.cv_predictions.isna().any().any()
+
+    # Opt-out: scale outside, warn, and reproduce the leakage-prone path.
+    X_s = MCUVScaler().fit_transform(X_raw)
+    Y_s = MCUVScaler().fit_transform(Y_raw)
+    with pytest.warns(SpecificationWarning, match="leaks"):
+        leaky = PLS.select_n_components(
+            X_s, Y_s, max_components=5, cv=5, n_repeats=4, random_state=0,
+            scale_inside_folds=False,
+        )
+    # Both runs choose sensible component counts under the 1-SE default.
+    assert 1 <= raw.n_components <= 5
+    assert 1 <= leaky.n_components <= 5
+
+
+def test_pls_select_n_components_q2_increment_rule() -> None:
+    """The Q2-increment rule (from PR #371) is preserved as an opt-in."""
+    rng = np.random.default_rng(2025)
+    N, K = 60, 20
+    T = rng.standard_normal((N, 3)) * np.array([5.0, 3.0, 1.5])
+    P = rng.standard_normal((3, K))
+    X = pd.DataFrame(T @ P + 0.3 * rng.standard_normal((N, K)), columns=[f"x{i}" for i in range(K)])
+    Y = pd.DataFrame(T @ rng.standard_normal((3, 1)) + 0.2 * rng.standard_normal((N, 1)), columns=["y"])
+    res = PLS.select_n_components(
+        X, Y, max_components=8, cv=5, n_repeats=3, random_state=0,
+        selection_rule="q2_increment", min_q2_increase=0.02,
+    )
+    assert res.selection_rule == "q2_increment"
+    assert 1 <= res.n_components <= 4
+
+    # Unknown rule -> ValueError from the dispatcher.
+    with pytest.raises(ValueError, match="Unknown selection_rule"):
+        PLS.select_n_components(X, Y, max_components=3, cv=3, selection_rule="bogus")  # type: ignore[arg-type]
 
 
 def test_recommend_n_components_q2_rule() -> None:
