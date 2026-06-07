@@ -1090,6 +1090,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
               (pd.DataFrame, ``A_max`` rows x ``n_folds`` columns).
             - ``se_press`` - standard error of the per-fold PRESS curve
               (pd.Series, indexed ``1..A_max``). Drives the 1-SE rule.
+            - ``q2_se`` - the same standard error rescaled onto the Q2 scale
+              (``se_press / null_model_ss``, pd.Series indexed ``1..A_max``),
+              i.e. the half-width of a +/-1 SE band around ``q2``.
             - ``press_ratio`` - ``PRESS_a / PRESS_{a-1}`` for inspection
               (pd.Series, indexed ``2..A_max``).
             - ``q2`` - cross-validated :math:`R^2_X` per component count
@@ -1223,6 +1226,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             se_values = np.nanstd(per_fold_arr, axis=1, ddof=1) / np.sqrt(n_folds_per_a)
         se_press = pd.Series(se_values, index=component_index, name="SE(PRESS)")
 
+        # The same constant null-model sum-of-squares that normalises Q2
+        # (Q2 = 1 - PRESS / null_model_ss) also rescales the PRESS standard
+        # error onto the Q2 scale, giving a directly usable +/-1 SE band around
+        # the Q2 curve without callers having to re-derive the normalisation.
+        q2_se_values = se_values / null_model_ss if null_model_ss > epsqrt else se_values * np.nan
+        q2_se = pd.Series(q2_se_values, index=component_index, name="SE(Q2)")
+
         press_arr_final = press.to_numpy()
         if np.all(np.isnan(press_arr_final)):
             raise RuntimeError(
@@ -1260,6 +1270,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             press=press,
             per_fold_press=per_fold_press,
             se_press=se_press,
+            q2_se=q2_se,
             press_ratio=press_ratio,
             q2=q2,
             cv_scores=cv_scores,

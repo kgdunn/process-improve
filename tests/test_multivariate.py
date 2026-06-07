@@ -668,6 +668,15 @@ def test_pca_select_n_components() -> None:
     assert result.cv_scheme == "ekf"
     assert result.selection_rule == "min"
 
+    # q2_se is the per-component Q2-scale standard error (the +/-1 SE band): an
+    # exact rescale of se_press by the constant null-model sum-of-squares.
+    assert "q2_se" in result
+    assert (result.q2_se >= 0).all()
+    null_ss = float(np.nansum(np.asarray(X, dtype=float) ** 2))
+    np.testing.assert_allclose(
+        result.q2_se.to_numpy(), result.se_press.to_numpy() / null_ss, rtol=1e-9
+    )
+
     # With 2 true components and N < K, should recommend 2 (or at most 3)
     assert 2 <= result.n_components <= 3
 
@@ -2387,6 +2396,7 @@ def test_pls_select_n_components_synthetic() -> None:
         "rmsecv",
         "per_fold_rmsecv",
         "se_rmsecv",
+        "q2_se",
         "r2y_validated",
         "r2x_validated",
         "press",
@@ -2398,6 +2408,12 @@ def test_pls_select_n_components_synthetic() -> None:
         "selection_rule",
     }
     assert result.selection_rule == "1se"
+
+    # q2_se is the per-component +/-1 SE band on the Q2 scale: a finite,
+    # non-negative series aligned to the r2y_validated["total"] curve.
+    assert isinstance(result.q2_se, pd.Series)
+    assert list(result.q2_se.index) == list(range(1, 11))
+    assert ((result.q2_se >= 0) & np.isfinite(result.q2_se)).all()
 
     # The clear RMSECV minimum is at the true rank of 2.
     assert result.n_components == 2

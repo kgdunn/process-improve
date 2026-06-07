@@ -11,6 +11,18 @@ those changes.
 
 ## [Unreleased]
 
+## [1.39.0] - 2026-06-07
+
+### Added
+
+- **`q2_se` in the component selectors.** `PCA.select_n_components` and
+  `PLS.select_n_components` now return a per-component `q2_se` series: the
+  standard error on the Q2 scale (the half-width of a +/-1 SE band around the
+  validated Q2 curve). For PCA it is the existing `se_press` rescaled by the
+  constant null-model sum-of-squares; for PLS it is the per-fold total-PRESS
+  standard error divided by the total Y sum-of-squares. This lets callers draw
+  a Q2 uncertainty band without re-deriving the normalisation themselves.
+
 ## [1.38.4] - 2026-06-07
 
 ### Added
@@ -1925,7 +1937,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.38.4...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.39.0...HEAD
+[1.39.0]: https://github.com/kgdunn/process-improve/compare/v1.38.4...v1.39.0
 [1.38.4]: https://github.com/kgdunn/process-improve/compare/v1.38.3...v1.38.4
 [1.38.3]: https://github.com/kgdunn/process-improve/compare/v1.38.2...v1.38.3
 [1.38.2]: https://github.com/kgdunn/process-improve/compare/v1.38.1...v1.38.2
