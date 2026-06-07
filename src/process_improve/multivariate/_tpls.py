@@ -521,7 +521,27 @@ class TPLS(RegressorMixin, BaseEstimator):
         self.is_fitted_ = True
         return self
 
-    def predict(self, X: DataFrameDict) -> Bunch:  # noqa: C901, PLR0912, PLR0915
+    def predict(self, X: DataFrameDict) -> Bunch:
+        """Forward to :meth:`diagnose`; emits a :class:`DeprecationWarning`.
+
+        .. deprecated:: 1.38.4
+            Use :meth:`TPLS.diagnose` instead. ``predict`` matches the
+            sklearn-convention name (regression-style ndarray return),
+            but TPLS's natural return is the rich per-group / per-block
+            diagnostics Bunch and TPLS cannot be placed in a standard
+            sklearn Pipeline anyway (its input is a nested
+            :class:`DataFrameDict`). The rename aligns with
+            :meth:`PLS.diagnose` and :meth:`PCA.diagnose`. Will be
+            removed in 2.0.0.
+        """
+        warnings.warn(
+            "TPLS.predict is deprecated and will be removed in 2.0.0; use TPLS.diagnose instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.diagnose(X)
+
+    def diagnose(self, X: DataFrameDict) -> Bunch:  # noqa: C901, PLR0912, PLR0915
         """
         Model inference on new data.
 
@@ -786,9 +806,11 @@ class TPLS(RegressorMixin, BaseEstimator):
         Returns
         -------
         score : float
-            :math:`R^2` of ``self.predict(X)``.
+            :math:`R^2` of ``self.diagnose(X)``.
         """
-        predictions = self.predict(X)
+        # Use diagnose() directly to avoid emitting the predict()
+        # DeprecationWarning from inside the package's own score path.
+        predictions = self.diagnose(X)
         y_pred = predictions.hat
         y_actual = X["Y"]
         if not y_actual:
