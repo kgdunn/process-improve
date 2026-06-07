@@ -11,6 +11,28 @@ those changes.
 
 ## [Unreleased]
 
+## [1.38.2] - 2026-06-07
+
+### Added
+
+- **`feature_names_in_` on `MBPCA` and `MBPLS`** (#392). Set on the
+  fitted estimator as a flat ndarray that concatenates each X-block's
+  column names in block-iteration order, matching the sklearn
+  convention. Lets downstream tooling (SHAP, eli5, model-card
+  libraries, ad-hoc introspection) treat a multiblock fit through the
+  same surface as a single-block estimator.
+
+  `n_features_in_` was already set; this commit pairs the public
+  feature-name vector with it. The `block_widths_`, `block_names_`,
+  and `_block_columns` per-block surfaces are unchanged - the flat
+  vector is additional, not a replacement.
+
+  `PCA`, `PLS`, and `MCUVScaler` already set `feature_names_in_` as a
+  side-effect of `validate_data(reset=True)` (landed in #402). `TPLS`
+  is deliberately not included: its nested input (`{"F", "Z", "Y"}`,
+  each sub-keyed by group) has no clean single feature-name vector
+  and it cannot be placed in a standard sklearn Pipeline.
+
 ## [1.38.1] - 2026-06-07
 
 ### Added
@@ -1854,7 +1876,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.38.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.38.2...HEAD
+[1.38.2]: https://github.com/kgdunn/process-improve/compare/v1.38.1...v1.38.2
 [1.38.1]: https://github.com/kgdunn/process-improve/compare/v1.38.0...v1.38.1
 [1.38.0]: https://github.com/kgdunn/process-improve/compare/v1.37.0...v1.38.0
 [1.37.0]: https://github.com/kgdunn/process-improve/compare/v1.36.0...v1.37.0

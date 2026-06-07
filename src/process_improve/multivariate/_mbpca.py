@@ -186,6 +186,14 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
 
         self.n_samples_ = int(n_samples)
         self.n_features_in_ = int(sum(self.block_widths_.values()))
+        # feature_names_in_: sklearn convention (#392). Flat concatenation of
+        # all blocks' column names in block-iteration order. Lets
+        # ``Pipeline.get_feature_names_out`` and SHAP / eli5 / model-card
+        # tooling introspect a multiblock fit through the same surface as a
+        # single-block estimator.
+        self.feature_names_in_ = np.concatenate(
+            [self._block_columns[name].to_numpy() for name in self.block_names_]
+        )
         n_components = int(self.n_components)
         n_blocks = len(self.block_names_)
 
