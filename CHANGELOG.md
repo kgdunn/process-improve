@@ -11,6 +11,49 @@ those changes.
 
 ## [Unreleased]
 
+## [1.36.0] - 2026-06-07
+
+### Changed
+
+- **`MCUVScaler`, `PCA`, and `PLS` route input through
+  `sklearn.utils.validation.validate_data`.** That helper, called from
+  every `fit` / `predict` / `transform`, standardises sklearn-style
+  input handling in one place:
+  - Sets `n_features_in_` on `fit` and validates it on subsequent calls.
+  - Captures `feature_names_in_` when the input is a DataFrame.
+  - Rejects sparse / complex / object-dtype / empty input with the
+    sklearn-standard error messages that `check_estimator` expects.
+  - Preserves NaN tolerance (`ensure_all_finite="allow-nan"`) so the
+    NIPALS path keeps working - the chemometric preprocessing contract
+    threads missing data through the downstream estimator.
+- **`MCUVScaler` mixin inheritance order flipped** from
+  `(BaseEstimator, TransformerMixin)` to
+  `(TransformerMixin, BaseEstimator)`. sklearn 1.6+ requires the more-
+  specialised mixin first; without the flip the `check_estimator`
+  audit aborts at setup with a `transformer_tags` `RuntimeError`. The
+  fix belongs to #393 but is the only thing gating the audit from
+  completing on `MCUVScaler` so it lands here.
+
+### Audit movement (`tools/check_estimator_audit.py`)
+
+| Estimator | Before | After |
+|---|---|---|
+| `MCUVScaler` | 18/29 (62%) | 44/47 (94%) |
+| `PCA(n_components=2)` | 28/47 (60%) | 38/47 (81%) |
+| `PLS(n_components=2)` | 19/29 (66%) | 24/29 (83%) |
+
+Total checks rose because the mixin-order fix unlocked checks that
+were previously skipped behind the setup error. Net new passes:
++26 on MCUVScaler, +10 on PCA, +5 on PLS.
+
+Remaining failures are scoped to existing follow-up issues:
+- `__sklearn_tags__` for `allow_nan` and `multi_output` declarations
+  (#393).
+- `PCA.predict` returning `Bunch` + `_LazyFrame` `__dict__` mutation
+  (#396).
+- `transform()` returning DataFrame instead of ndarray, blocking the
+  transformer-dtype checks (#391).
+
 ## [1.35.0] - 2026-06-07
 
 ### Changed
@@ -1716,7 +1759,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.35.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.36.0...HEAD
+[1.36.0]: https://github.com/kgdunn/process-improve/compare/v1.35.0...v1.36.0
 [1.35.0]: https://github.com/kgdunn/process-improve/compare/v1.34.0...v1.35.0
 [1.34.0]: https://github.com/kgdunn/process-improve/compare/v1.33.0...v1.34.0
 [1.33.0]: https://github.com/kgdunn/process-improve/compare/v1.32.0...v1.33.0

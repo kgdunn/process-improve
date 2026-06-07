@@ -20,7 +20,7 @@ from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, clone
 from sklearn.metrics import r2_score
 from sklearn.model_selection import BaseCrossValidator, KFold, RepeatedKFold, check_cv
 from sklearn.utils import Bunch
-from sklearn.utils.validation import check_is_fitted
+from sklearn.utils.validation import check_is_fitted, validate_data
 from tqdm import tqdm
 
 from .._linalg import safe_inverse
@@ -425,7 +425,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             # In PLS mode A (PLSRegression), y_weights == y_loadings
             self.y_weights_[:, a] = c_a.flatten()
 
-    def fit(self, X: DataMatrix, Y: DataMatrix) -> PLS:  # noqa: PLR0915
+    def fit(self, X: DataMatrix, Y: DataMatrix) -> PLS:  # noqa: PLR0915, C901
         """
         Fit a projection to latent structures (PLS) model to the data.
 
@@ -453,12 +453,31 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # the 2-D shape.
         if hasattr(Y, "ndim") and Y.ndim == 1:
             Y = Y.to_frame() if isinstance(Y, pd.Series) else pd.DataFrame(np.asarray(Y).reshape(-1, 1))
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
+
+        # Capture DataFrame metadata before validate_data converts X to ndarray
+        # so the downstream DataFrame view keeps its row/column labels.
+        sample_index = X.index if isinstance(X, pd.DataFrame) else None
+        feature_columns = X.columns if isinstance(X, pd.DataFrame) else None
+        X_arr = validate_data(
+            self,
+            X,
+            reset=True,
+            accept_sparse=False,
+            ensure_min_samples=2,
+            ensure_min_features=1,
+            dtype="numeric",
+            ensure_all_finite="allow-nan",
+        )
+        if feature_columns is None:
+            feature_columns = pd.RangeIndex(X_arr.shape[1])
+        if sample_index is None:
+            sample_index = pd.RangeIndex(X_arr.shape[0])
+        X = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)
         if not isinstance(Y, pd.DataFrame):
-            Y = pd.DataFrame(Y)
+            Y = pd.DataFrame(Y, index=sample_index)
 
         self.n_samples_: int = X.shape[0]
+        # n_features_in_ is set by validate_data; reassert for clarity.
         self.n_features_in_: int = X.shape[1]
         # Fitted flag, defaulted here (not in __init__) so __init__ sets only the
         # constructor parameters, per sklearn convention (ENG-07). _fit_nipals
@@ -623,14 +642,23 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             Projected X data (scores).
         """
         check_is_fitted(self, "direct_weights_")
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
-        if X.shape[1] != self.n_features_in_:
-            raise ValueError(
-                f"Data to transform must have {self.n_features_in_} columns, got {X.shape[1]}."
-            )
-        X = _align_to_fit_features(X, self._feature_names)
-        return X @ self.direct_weights_
+        sample_index = X.index if isinstance(X, pd.DataFrame) else None
+        feature_columns = X.columns if isinstance(X, pd.DataFrame) else None
+        X_arr = validate_data(
+            self,
+            X,
+            reset=False,
+            accept_sparse=False,
+            dtype="numeric",
+            ensure_all_finite="allow-nan",
+        )
+        if feature_columns is None:
+            feature_columns = self._feature_names
+        if sample_index is None:
+            sample_index = pd.RangeIndex(X_arr.shape[0])
+        X_df = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)
+        X_df = _align_to_fit_features(X_df, self._feature_names)
+        return X_df @ self.direct_weights_
 
     def fit_transform(self, X: DataMatrix, Y: DataMatrix | None = None) -> pd.DataFrame:
         """Fit the model and return X scores.
@@ -728,12 +756,21 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         >>> result.hotellings_t2   # T² for each new observation
         """
         check_is_fitted(self, "scores_")
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
-        if X.shape[1] != self.n_features_in_:
-            raise ValueError(
-                f"Prediction data must have {self.n_features_in_} columns, got {X.shape[1]}."
-            )
+        sample_index = X.index if isinstance(X, pd.DataFrame) else None
+        feature_columns = X.columns if isinstance(X, pd.DataFrame) else None
+        X_arr = validate_data(
+            self,
+            X,
+            reset=False,
+            accept_sparse=False,
+            dtype="numeric",
+            ensure_all_finite="allow-nan",
+        )
+        if feature_columns is None:
+            feature_columns = self._feature_names
+        if sample_index is None:
+            sample_index = pd.RangeIndex(X_arr.shape[0])
+        X = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)
         X = _align_to_fit_features(X, self._feature_names)
 
         scores = X @ self.direct_weights_
