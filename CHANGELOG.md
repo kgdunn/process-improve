@@ -11,6 +11,41 @@ those changes.
 
 ## [Unreleased]
 
+## [1.38.0] - 2026-06-07
+
+### Added
+
+- **`get_feature_names_out` on `MCUVScaler`, `PCA`, and `PLS`** for
+  sklearn 1.2+ `set_output` and Pipeline introspection. Three small
+  additions, no breaking changes:
+  - `MCUVScaler.get_feature_names_out()` is column-preserving:
+    returns the fit-time `feature_names_in_` (sklearn's standard
+    fallback when an `input_features` argument is supplied).
+  - `PCA.get_feature_names_out()` returns
+    `np.array(["PC1", "PC2", ..., "PC{n_components}"])` - the score
+    column names.
+  - `PLS.get_feature_names_out()` returns
+    `np.array(["T1", "T2", ..., "T{n_components}"])` - the X-score
+    column names.
+
+  These unblock:
+  - `pipe.get_feature_names_out()` for any Pipeline containing one of
+    these estimators (previously would raise `AttributeError`).
+  - `pipe.set_output(transform="pandas")` correctly labels the
+    resulting DataFrame's columns; sklearn's `_SetOutputMixin` wraps
+    the ndarray with our component names.
+  - SHAP / eli5 / model-card libraries that introspect output column
+    names of pipeline components.
+
+  Note: `transform()` itself still returns a `pd.DataFrame` by default
+  (the chemometric idiom this package has used since v1.0). Users who
+  prefer sklearn-canonical ndarray output can opt in via
+  `pca.set_output(transform="default")` or work through a
+  `Pipeline(...).set_output(transform="pandas")` and let sklearn drive
+  the type. A future major-version revisit may flip the default; the
+  scaffolding (`get_feature_names_out`) is in place so the switch is
+  one-line when chosen.
+
 ## [1.37.0] - 2026-06-07
 
 ### Added
@@ -1803,7 +1838,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.37.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.38.0...HEAD
+[1.38.0]: https://github.com/kgdunn/process-improve/compare/v1.37.0...v1.38.0
 [1.37.0]: https://github.com/kgdunn/process-improve/compare/v1.36.0...v1.37.0
 [1.36.0]: https://github.com/kgdunn/process-improve/compare/v1.35.0...v1.36.0
 [1.35.0]: https://github.com/kgdunn/process-improve/compare/v1.34.0...v1.35.0

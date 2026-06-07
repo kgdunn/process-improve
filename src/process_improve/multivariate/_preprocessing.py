@@ -13,7 +13,7 @@ from collections.abc import Callable
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.utils.validation import check_is_fitted, validate_data
+from sklearn.utils.validation import _check_feature_names_in, check_is_fitted, validate_data
 
 from ._common import DataMatrix
 
@@ -47,6 +47,23 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
         tags = super().__sklearn_tags__()
         tags.input_tags.allow_nan = True
         return tags
+
+    def get_feature_names_out(self, input_features=None) -> np.ndarray:  # noqa: ANN001
+        """Return the output column names of :meth:`transform`.
+
+        :class:`MCUVScaler` is column-preserving (centring + scaling
+        leave the X column layout unchanged), so the returned names
+        mirror those captured during :meth:`fit` (or the
+        ``input_features`` argument when no ``feature_names_in_`` was
+        captured - the standard sklearn fallback for ndarray-fit
+        estimators).
+
+        Used by :meth:`set_output` (sklearn 1.2+) to label the
+        :class:`~pandas.DataFrame` view of the output when
+        ``set_output(transform="pandas")`` is on, and by Pipeline
+        introspection.
+        """
+        return _check_feature_names_in(self, input_features)
 
     def fit(self, X: DataMatrix, y=None) -> MCUVScaler:  # noqa: ANN001, ARG002
         """Compute the column means and sample standard deviations.

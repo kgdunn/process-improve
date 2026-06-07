@@ -34,7 +34,7 @@ PLS(n_components=2): 24/28 passed (85.7%)
   [1x] AttributeError: 'DataFrame' object has no attribute 'dtype'
      - check_transformer_preserve_dtypes
 
-  [1x] KeyError: np.int64(1)
+  [1x] KeyError: np.int64(7)
      - check_methods_sample_order_invariance
 
   [1x] AssertionError: 

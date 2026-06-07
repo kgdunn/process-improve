@@ -322,6 +322,24 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         tags.input_tags.allow_nan = True
         return tags
 
+    def get_feature_names_out(self, input_features=None) -> np.ndarray:  # noqa: ANN001, ARG002
+        """Return the output column names of :meth:`transform`.
+
+        :class:`PCA`'s ``transform`` produces scores, one column per
+        component, named ``["PC1", "PC2", ..., "PC{n_components}"]``.
+        The ``input_features`` argument is accepted (Pipeline
+        introspection passes it through) but unused: the output column
+        count is the fitted ``n_components``, not the input feature
+        count.
+
+        Used by :meth:`set_output` (sklearn 1.2+) to label the
+        :class:`~pandas.DataFrame` view of the scores when
+        ``set_output(transform="pandas")`` is on, and by Pipeline
+        introspection.
+        """
+        check_is_fitted(self, "loadings_")
+        return np.asarray([f"PC{a}" for a in self._component_names])
+
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA:  # noqa: ARG002, PLR0912, PLR0915, C901
         """Fit a principal component analysis (PCA) model to the data.

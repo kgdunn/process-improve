@@ -63,19 +63,29 @@ The following compositions are verified by tests in
 
 ## What doesn't work yet
 
-### `check_estimator` baseline (v1.37.0)
+### `check_estimator` baseline (v1.38.0)
 
 Run `python tools/check_estimator_audit.py` (preserved in
-`tools/check_estimator_audit_main.log`) to refresh. As of v1.37.0
-(after the `__sklearn_tags__` declarations in #393):
+`tools/check_estimator_audit_main.log`) to refresh. As of v1.38.0
+(after `get_feature_names_out` added in #391):
 
 | Estimator | Passing | Total | Pass % | Issues that close remaining |
 |---|---|---|---|---|
-| `MCUVScaler` | 44 | 46 | 96% | #391 |
-| `PCA(n_components=2)` | 38 | 46 | 83% | #391, #396 |
-| `PLS(n_components=2)` | 24 | 28 | 86% | (small remaining: `score()` validation, `dtype_object`) |
+| `MCUVScaler` | 44 | 46 | 96% | #391-leftover (transformer-dtype: ndarray transform) |
+| `PCA(n_components=2)` | 38 | 46 | 83% | #391-leftover, #396 |
+| `PLS(n_components=2)` | 24 | 28 | 86% | (small: `score()` validation, `dtype_object`) |
 
-(Pre-#401 baseline was 18/29, 28/47, 19/29; pre-#393 was 44/47, 38/47, 24/29. Total counts drop slightly when `__sklearn_tags__` declares `allow_nan=True` because sklearn skips the "do you reject NaN?" check.)
+`get_feature_names_out` itself doesn't close audit failures (it's purely
+additive ecosystem support), but it unblocks
+`pipe.set_output(transform="pandas")`, `pipe.get_feature_names_out()`,
+SHAP / eli5 introspection, and similar tooling that keys off output
+column names. The two remaining transformer failures
+(`check_transformer_data_not_an_array`,
+`check_transformer_preserve_dtypes`) require `transform()` to return an
+ndarray by default - that's a breaking change to the package's
+DataFrame-everywhere idiom and is left for a future major-version
+refactor; the scaffolding (`get_feature_names_out`) is in place so the
+switch lands cleanly when chosen.
 
 `TPLS` / `MBPLS` / `MBPCA` are not in this audit — they take
 `dict[str, DataFrame]` for X, which is outside `check_estimator`'s
