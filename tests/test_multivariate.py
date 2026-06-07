@@ -2391,6 +2391,9 @@ def test_pls_select_n_components_synthetic() -> None:
         "r2x_validated",
         "press",
         "randomization_pvalues",
+        "selection_distribution",
+        "selection_mode",
+        "selection_is_stable",
         "cv_predictions",
         "selection_rule",
     }
@@ -2616,6 +2619,55 @@ def test_pls_select_n_components_q2_increment_rule() -> None:
     # Unknown rule -> ValueError from the dispatcher.
     with pytest.raises(ValueError, match="Unknown selection_rule"):
         PLS.select_n_components(X, Y, max_components=3, cv=3, selection_rule="bogus")  # type: ignore[arg-type]
+
+
+def test_pls_select_n_components_stability_signal() -> None:
+    """Per-repeat vote distribution flags confident vs. uncertain recommendations."""
+    rng = np.random.default_rng(0)
+    N, K, true_rank = 60, 12, 2
+    T = rng.standard_normal((N, true_rank)) * np.array([6.0, 3.5])
+    P = rng.standard_normal((true_rank, K))
+    X = pd.DataFrame(T @ P + 0.3 * rng.standard_normal((N, K)), columns=[f"x{i}" for i in range(K)])
+    Y = pd.DataFrame(T @ rng.standard_normal((true_rank, 1)) + 0.2 * rng.standard_normal((N, 1)), columns=["y"])
+
+    # Multiple repeats + clean signal -> the distribution concentrates and
+    # the recommendation is stable.
+    confident = PLS.select_n_components(
+        X, Y, max_components=6, cv=5, n_repeats=8, random_state=0,
+    )
+    assert confident.selection_distribution is not None
+    assert isinstance(confident.selection_distribution, pd.Series)
+    assert list(confident.selection_distribution.index) == list(range(1, 7))
+    assert np.isclose(confident.selection_distribution.sum(), 1.0)
+    assert confident.selection_mode == confident.n_components
+    assert confident.selection_is_stable is True
+
+    # A single repeat: no per-repeat distribution to report.
+    single = PLS.select_n_components(
+        X, Y, max_components=6, cv=5, n_repeats=1, random_state=0,
+    )
+    assert single.selection_distribution is None
+    assert single.selection_mode is None
+    assert single.selection_is_stable is None
+
+    # q2_increment doesn't decompose per repeat in this implementation -
+    # stability is None even with many repeats. (Documented in the docstring.)
+    q2 = PLS.select_n_components(
+        X, Y, max_components=6, cv=5, n_repeats=5, random_state=0,
+        selection_rule="q2_increment",
+    )
+    assert q2.selection_distribution is None
+    assert q2.selection_is_stable is None
+
+    # The threshold knob: a > 1 threshold trips ``is_stable`` to False even
+    # on a fully concentrated distribution. (Exercised here because the
+    # synthetic data is clean enough that every repeat votes for the same
+    # count; ``stability_threshold > 1.0`` is the only way to force False.)
+    strict = PLS.select_n_components(
+        X, Y, max_components=6, cv=5, n_repeats=8, random_state=0,
+        stability_threshold=1.01,
+    )
+    assert strict.selection_is_stable is False
 
 
 def test_pls_select_n_components_randomization_rule() -> None:

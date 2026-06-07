@@ -715,6 +715,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         min_q2_increase: float = Q2_MIN_INCREMENT,
         n_permutations: int = 999,
         alpha: float = 0.01,
+        stability_threshold: float = 0.6,
         **pls_kwargs,
     ) -> Bunch:
         """Select the number of PLS components via cross-validation.
@@ -796,6 +797,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             level. The smallest component count whose Van der Voet *p*-value
             exceeds ``alpha`` is recommended. R's ``pls::selectNcomp`` uses
             the same default; smaller values pick more parsimonious models.
+        stability_threshold : float, default 0.6
+            For the per-repeat stability-selection diagnostic (``"1se"`` /
+            ``"min"`` rules with ``n_repeats > 1`` only): the recommendation
+            is judged ``selection_is_stable=True`` iff the modal vote share
+            in ``selection_distribution`` is at least this fraction.
+            Meinshausen & Bühlmann (2010, *JRSS-B*) suggest 0.6-0.9 for
+            their variable-selection analogue; we default to the
+            permissive end.
         **pls_kwargs
             Additional keyword arguments passed to the ``PLS()`` constructor
             (e.g. ``missing_data_settings``).
@@ -830,6 +839,17 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             - ``randomization_pvalues`` - per-component Van der Voet
               right-tail *p*-values when ``selection_rule="randomization"``;
               ``None`` otherwise.
+            - ``selection_distribution`` - per-repeat *vote share* over
+              candidate component counts (pd.Series indexed ``1..A``).
+              Populated only for ``selection_rule in {"1se", "min"}`` and
+              ``n_repeats > 1``; ``None`` otherwise. A concentrated
+              distribution signals a confident recommendation; a flat or
+              multi-modal one flags it for review.
+            - ``selection_mode`` - the most-voted component count, or
+              ``None`` when ``selection_distribution`` is.
+            - ``selection_is_stable`` - ``True`` iff the modal vote share
+              meets ``stability_threshold``; ``None`` when no distribution
+              was computed.
 
         Notes
         -----
@@ -1061,6 +1081,53 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             )
         cv_predictions = pd.DataFrame(oof[recommended - 1], index=Y.index, columns=Y.columns)
 
+        # Stability selection: re-apply the chosen rule per repeat and
+        # tabulate how often each component count wins. A multi-modal or
+        # flat distribution flags the recommendation as low-confidence.
+        # Only meaningful when the rule operates on the per-fold RMSE
+        # curve (1se/min) and we ran more than one repeat; q2_increment
+        # and randomization don't decompose per repeat without more
+        # bookkeeping than they're worth at this stage.
+        n_repeats_effective = max(1, n_folds_total // max(1, first_repeat_fold_count))
+        selection_distribution: pd.Series | None = None
+        selection_mode: int | None = None
+        selection_is_stable: bool | None = None
+        if (
+            selection_rule in ("1se", "min")
+            and n_repeats_effective > 1
+            and not np.all(np.isnan(per_fold_rmse))
+        ):
+            votes: list[int] = []
+            for r in range(n_repeats_effective):
+                cols = slice(r * first_repeat_fold_count, (r + 1) * first_repeat_fold_count)
+                fold_subset = per_fold_rmse[:, cols]
+                if np.all(np.isnan(fold_subset)):
+                    continue
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
+                    mean_r = np.nanmean(fold_subset, axis=1)
+                    se_r = np.nanstd(fold_subset, axis=1, ddof=1) / np.sqrt(
+                        np.maximum(1, np.sum(~np.isnan(fold_subset), axis=1))
+                    )
+                # The dispatcher needs q2_cumulative even for non-q2 rules;
+                # pass a dummy zeros array since 1se/min don't read it.
+                pick = _select_n_components(
+                    selection_rule,
+                    mean_error=mean_r,
+                    se_error=se_r,
+                    q2_cumulative=np.zeros_like(mean_r),
+                    min_q2_increase=min_q2_increase,
+                )
+                votes.append(int(pick))
+            if votes:
+                counts = pd.Series(votes).value_counts().sort_index()
+                dist = (counts / counts.sum()).reindex(component_index, fill_value=0.0)
+                dist.name = "vote_share"
+                dist.index.name = "n_components"
+                selection_distribution = dist
+                selection_mode = int(dist.idxmax())
+                selection_is_stable = bool(dist.max() >= stability_threshold)
+
         return Bunch(
             n_components=recommended,
             rmsecv=rmsecv,
@@ -1072,6 +1139,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             cv_predictions=cv_predictions,
             selection_rule=selection_rule,
             randomization_pvalues=randomization_pvalues,
+            selection_distribution=selection_distribution,
+            selection_mode=selection_mode,
+            selection_is_stable=selection_is_stable,
         )
 
     def score_contributions(

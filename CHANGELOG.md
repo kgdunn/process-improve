@@ -11,6 +11,27 @@ those changes.
 
 ## [Unreleased]
 
+## [1.33.0] - 2026-06-07
+
+### Added
+
+- **Stability-selection diagnostic on `PLS.select_n_components`**:
+  when ``selection_rule`` is ``"1se"`` or ``"min"`` and ``n_repeats > 1``,
+  the chosen rule is re-applied to each repeat's slice of per-fold RMSE
+  values and the distribution of votes is reported. A concentrated
+  distribution flags a confident recommendation; a flat or multi-modal
+  one flags it for review (Meinshausen & Bühlmann 2010 stability
+  selection, adapted from the variable-selection setting to the
+  component-count setting).
+  - Returned `Bunch` gains `selection_distribution` (per-component
+    vote share, `pd.Series` indexed `1..A`), `selection_mode` (the
+    most-voted count), and `selection_is_stable` (`True` iff the modal
+    share meets ``stability_threshold``).
+  - New ``stability_threshold`` kwarg (default `0.6`); fields are `None`
+    when stability is not computed (single repeat, or rules that don't
+    decompose cleanly per repeat: ``"q2_increment"`` /
+    ``"randomization"``).
+
 ## [1.32.0] - 2026-06-07
 
 ### Added
@@ -1626,7 +1647,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.32.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.33.0...HEAD
+[1.33.0]: https://github.com/kgdunn/process-improve/compare/v1.32.0...v1.33.0
 [1.32.0]: https://github.com/kgdunn/process-improve/compare/v1.31.0...v1.32.0
 [1.31.0]: https://github.com/kgdunn/process-improve/compare/v1.30.0...v1.31.0
 [1.30.0]: https://github.com/kgdunn/process-improve/compare/v1.29.0...v1.30.0
