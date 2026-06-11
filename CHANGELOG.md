@@ -11,6 +11,20 @@ those changes.
 
 ## [Unreleased]
 
+## [1.40.1] - 2026-06-11
+
+### Fixed
+
+- Importing `process_improve` (or `process_improve.visualization`) no
+  longer changes Plotly's global default template. Previously the
+  package set `plotly.io.templates.default = "pi_journal"` on import,
+  which silently restyled every other Plotly figure created in the same
+  process. The `pi_*` themes are still registered on import (additive,
+  namespaced), and the library's own plots are unchanged because they
+  request the `pi_journal` template explicitly. Call
+  `process_improve.visualization.set_theme()` to opt a whole session
+  into a process-improve theme as before.
+
 ## [1.40.0] - 2026-06-07
 
 ### Added
@@ -1983,7 +1997,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.40.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.40.1...HEAD
+[1.40.1]: https://github.com/kgdunn/process-improve/compare/v1.40.0...v1.40.1
 [1.40.0]: https://github.com/kgdunn/process-improve/compare/v1.39.0...v1.40.0
 [1.39.0]: https://github.com/kgdunn/process-improve/compare/v1.38.4...v1.39.0
 [1.38.4]: https://github.com/kgdunn/process-improve/compare/v1.38.3...v1.38.4
