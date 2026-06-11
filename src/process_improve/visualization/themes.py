@@ -2,8 +2,11 @@
 
 This module registers a small family of Plotly templates so that every
 figure produced by the library shares a consistent, professional look.
-Importing :mod:`process_improve.visualization` registers the templates and
-sets the package default.
+Importing :mod:`process_improve.visualization` registers the templates but
+does **not** change ``plotly.io.templates.default``: doing so would
+silently restyle every other Plotly figure in the same process. The
+library's own plots request :data:`DEFAULT_THEME` explicitly. Call
+:func:`set_theme` to opt a whole session into a process-improve theme.
 
 Four themes are provided:
 
@@ -38,6 +41,7 @@ try:
     import plotly.io as pio
 except ImportError:  # pragma: no cover - exercised via env-without-plotly
     from process_improve._extras import _MissingExtra
+
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
     pio = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -34,9 +37,29 @@ def test_all_themes_registered() -> None:
         assert isinstance(pio.templates[name], go.layout.Template)
 
 
-def test_default_theme_applied_on_import() -> None:
-    """Importing the package sets the default Plotly template."""
-    assert pio.templates.default == DEFAULT_THEME
+def test_import_does_not_change_global_default() -> None:
+    """Importing the package registers themes but leaves the global default alone.
+
+    Run in a subprocess so the check is immune to other tests (or this
+    module's own imports) having already touched ``pio.templates.default``.
+    """
+    code = (
+        "import plotly.io as pio;"
+        "before = pio.templates.default;"
+        "import process_improve;"  # triggers the visualization package import
+        "import process_improve.visualization;"
+        "assert pio.templates.default == before, ("
+        "    f'import changed default: {before!r} -> {pio.templates.default!r}');"
+        # registration is still additive and must have happened
+        "assert 'pi_journal' in pio.templates"
+    )
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_set_theme_changes_default() -> None:

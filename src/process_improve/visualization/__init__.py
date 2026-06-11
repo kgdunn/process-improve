@@ -35,8 +35,16 @@ from process_improve.visualization.types import (
     ScaleType,
 )
 
-# Register the base themes and apply the package default on import. When
-# the ``[plotting]`` extra is not installed (ENG-13 / #295), plotly is
+# Register the base themes on import, but deliberately do NOT change
+# ``plotly.io.templates.default``. Setting the global default would
+# silently restyle every other Plotly figure in the same process (the
+# library's own plots pass ``template="pi_journal"`` explicitly, so they
+# never relied on the global default). Registration is additive and the
+# theme names are ``pi_``-namespaced, so it is safe on import. Callers who
+# want a process-improve theme as their global default can opt in with
+# :func:`set_theme`.
+#
+# When the ``[plotting]`` extra is not installed (ENG-13 / #295), plotly is
 # absent and the registration is silently skipped; calling ``raincloud``
 # or any other plot helper will then raise the documented "install the
 # extra" ImportError.
@@ -46,7 +54,6 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
     pass
 else:
     register_themes()
-    set_theme(DEFAULT_THEME)
 
 __all__ = [
     "DEFAULT_THEME",
