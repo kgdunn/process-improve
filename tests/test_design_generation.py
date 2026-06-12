@@ -6,6 +6,12 @@ import numpy as np
 import pytest
 
 from process_improve.experiments.designs import _auto_select, generate_design
+from process_improve.experiments.designs_optimal import (
+    _convert_factors_to_pyoptex,
+    dispatch_a_optimal,
+    dispatch_d_optimal,
+    dispatch_i_optimal,
+)
 from process_improve.experiments.factor import Constraint, Factor, FactorType
 
 _HAS_PYOPTEX = False
@@ -617,6 +623,105 @@ class TestSplitPlot:
         )
         assert result.metadata.get("hard_to_change") == ["A"]
         assert result.metadata.get("backend") == "pyoptex"
+
+
+# ---------------------------------------------------------------------------
+# pyoptex adapter and dispatch coverage (categorical, multi split-plot,
+# model-type variants, criterion differentiation)
+# ---------------------------------------------------------------------------
+
+
+@_skip_no_pyoptex
+class TestConvertFactorsToPyoptex:
+    """Unit tests for the ``_convert_factors_to_pyoptex`` adapter."""
+
+    def test_hard_to_change_gets_random_effect(self) -> None:
+        """Only the hard-to-change factor carries a RandomEffect."""
+        factors = _continuous_factors(3, "ABC")
+        pyoptex_factors = _convert_factors_to_pyoptex(factors, hard_to_change=["A"], n_runs=12)
+        by_name = {f.name: f for f in pyoptex_factors}
+        assert by_name["A"].re is not None
+        assert by_name["B"].re is None
+        assert by_name["C"].re is None
+
+    def test_whole_plots_are_balanced(self) -> None:
+        """The whole-plot assignment groups runs into equal consecutive blocks."""
+        factors = _continuous_factors(2, "AB")
+        pyoptex_factors = _convert_factors_to_pyoptex(
+            factors, hard_to_change=["A"], n_runs=12, n_whole_plots=4
+        )
+        z = np.asarray({f.name: f for f in pyoptex_factors}["A"].re.Z)
+        # 12 runs / 4 plots -> [0,0,0, 1,1,1, 2,2,2, 3,3,3]
+        assert z.tolist() == [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3]
+
+    def test_categorical_factor_conversion(self) -> None:
+        """Categorical factors carry their type and levels into pyoptex."""
+        factors = [
+            Factor(name="Cat", type="categorical", levels=["x", "y", "z"]),
+            Factor(name="B", low=0, high=10),
+        ]
+        pyoptex_factors = _convert_factors_to_pyoptex(factors)
+        cat = {f.name: f for f in pyoptex_factors}["Cat"]
+        assert cat.type == "categorical"
+        assert cat.levels == ["x", "y", "z"]
+
+
+@_skip_no_pyoptex
+class TestOptimalCategorical:
+    """Optimal designs with a mix of categorical and continuous factors."""
+
+    def test_d_optimal_with_categorical(self) -> None:
+        factors = [
+            Factor(name="Cat", type="categorical", levels=["x", "y", "z"]),
+            Factor(name="B", low=0, high=10),
+        ]
+        design, meta = dispatch_d_optimal(factors, budget=9)
+        assert design.shape == (9, 2)
+        assert meta["backend"] == "pyoptex"
+
+
+@_skip_no_pyoptex
+class TestMultipleHardToChange:
+    """Split-plot designs with more than one hard-to-change factor."""
+
+    def test_two_hard_to_change_factors(self) -> None:
+        factors = _continuous_factors(3, "ABC")
+        design, meta = dispatch_d_optimal(factors, budget=12, hard_to_change=["A", "B"])
+        assert design.shape[0] == 12
+        assert meta["hard_to_change"] == ["A", "B"]
+        assert meta["backend"] == "pyoptex"
+
+
+@_skip_no_pyoptex
+class TestModelTypeVariants:
+    """Each model_type maps to a valid pyoptex RSM and produces a design."""
+
+    @pytest.mark.parametrize("model_type", ["main_effects", "interactions", "quadratic"])
+    def test_model_type_produces_finite_metric(self, model_type: str) -> None:
+        factors = _continuous_factors(3, "ABC")
+        _design, meta = dispatch_d_optimal(factors, budget=12, model_type=model_type)
+        assert meta["model_type"] == model_type
+        assert np.isfinite(meta["metric_value"])
+
+
+@_skip_no_pyoptex
+class TestCriterionDifferentiation:
+    """D/I/A-optimal each report their own criterion and a finite metric."""
+
+    @pytest.mark.parametrize(
+        ("dispatch", "criterion"),
+        [
+            (dispatch_d_optimal, "d_optimal"),
+            (dispatch_i_optimal, "i_optimal"),
+            (dispatch_a_optimal, "a_optimal"),
+        ],
+    )
+    def test_metadata_reports_criterion(self, dispatch, criterion: str) -> None:
+        factors = _continuous_factors(3, "ABC")
+        _design, meta = dispatch(factors, budget=10)
+        assert meta["optimality_criterion"] == criterion
+        # I/A-optimal metric values are routinely negative, so check finiteness.
+        assert np.isfinite(meta["metric_value"])
 
 
 # ---------------------------------------------------------------------------
