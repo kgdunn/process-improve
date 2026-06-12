@@ -58,6 +58,48 @@ All 14 metrics live in `experiments/evaluate.py` behind the `_METRIC_REGISTRY`:
 - **Optimal designs without `pyoptex`.** D-optimal has a point-exchange fallback; I/A-optimal raise `ImportError` instead. Hard-to-change factors (split-plot structure) are currently ignored with a `logger.warning` when `pyoptex` is not available.
 - **Taguchi OA auto-selection** picks the smallest standard array that covers the requested factor count and level counts, but the underlying `pyDOE3.taguchi_design` requires the number of `levels_per_factor` entries to match the OA column count exactly, so requesting a Taguchi design with fewer factors than any available OA will fail. Users typically pick *k* to match one of the standard arrays (3, 4, 7, 11, 15, …).
 
+## Reliance on `pyoptex`
+
+`pyoptex` (github.com/mborn1/pyoptex) powers the high-quality optimal designs
+(D/I/A-optimal coordinate exchange and split-plot structures) in
+`designs_optimal.py`. It is an **optional, undeclared** dependency: the core
+install never pulls it in, and the integration degrades cleanly when it is
+absent (D-optimal falls back to point exchange; I/A-optimal raise a clear
+`ImportError`; hard-to-change factors are ignored with a warning). This keeps
+our coupling to a single, well-isolated adapter module.
+
+We deliberately keep that coupling loose, for two reasons.
+
+- **Release cadence.** `pyoptex` is updated infrequently. The compatibility fix
+  that lets it coexist with our `plotly>=6.5.2` (loosened `plotly`/`pandas`/
+  `scikit-learn` pins, upstream PR #49) is merged but not yet released to PyPI;
+  the latest release (`pyoptex==1.2.1`) still pins `plotly~=5.24` and therefore
+  cannot be resolved alongside our stack. Until a compatible release ships,
+  `pyoptex` cannot be added to the `expt`/`all` extras without breaking the
+  `uv sync --all-extras` resolution that CI relies on.
+- **Where the value lives.** The slice we use (`doe/fixed_structure`) is
+  Cython-compiled (the coordinate-exchange optimizer and split-plot formula
+  evaluation ship as C extensions). Vendoring it is permitted (`pyoptex` is
+  BSD-3-Clause) but would add a C build toolchain to an otherwise pure-Python
+  package and hand us the maintenance of numerically delicate optimizer code.
+  The current friction is a packaging release lag, not a code problem, so
+  vendoring is the wrong trade.
+
+**How the gated tests still get exercised.** Because the main CI job never
+installs `pyoptex`, the `@_skip_no_pyoptex` tests would skip everywhere. A
+dedicated, **non-blocking** `test-with-pyoptex` job in `run-tests.yml` installs
+`pyoptex` from git `main` (PR #49) on top of the normal sync and runs the
+optimal-design tests, so the real `pyoptex` paths get coverage without coupling
+core resolution to an unreleased upstream. If upstream main breaks, that job
+goes yellow, never red.
+
+**Exit criterion.** Once `pyoptex` publishes a `plotly>=6`-compatible release,
+move it into the `expt`/`all` extras as a normal pinned dependency and promote
+the `test-with-pyoptex` job to a blocking check. If `pyoptex` instead goes
+unmaintained, the clean replacement is to write a minimal coordinate-exchange
+for I/A-optimal in numpy (reusing the existing `point_exchange` pattern in
+`optimal.py`), not to transplant the upstream Cython.
+
 ## No Silent Fallbacks
 
 `generate_design` does **not** silently substitute a different design type when the requested one is infeasible. Unknown `design_type` values raise `ValueError` in `designs.py:328-331`; individual dispatchers validate their own inputs (e.g. BBD and DSD require `k ≥ 3`). Errors surface through the tool wrapper as `{"error": ...}` and reach agent callers as HTTP 422.
