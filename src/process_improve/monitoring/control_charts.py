@@ -16,8 +16,24 @@ def rho(x: float, k: float = 2.52) -> float:
     """
     Bi-weight rho function.
 
-    Fixed constant of k=2.52 is from p 289 of the paper
+    Parameters
+    ----------
+    x : float
+        Value at which to evaluate the bi-weight rho function.
+    k : float, optional
+        Bi-weight tuning constant. The default of 2.52 is from p 289 of the
+        referenced paper.
+
+    Returns
+    -------
+    float
+        The value of the bi-weight rho function evaluated at `x` with tuning
+        constant `k`. For ``|x| > k`` the function saturates at `k`.
+
+    References
+    ----------
     https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125
+
     """
     return k if np.abs(x) > k else k * (1 - np.power(1 - np.power(x / k, 2), 3))
 
