@@ -15,9 +15,6 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
     """
     Find the elbow point when plotting numeric entries in `x` vs numeric values in list `y`.
 
-    Return the index into the vectors `x` and `y` [the vectors must have the same length], where
-    the elbow point occurs. Returns -1 if every value in `x` or `y` is missing.
-
     Using a robust linear fit, sorts the samples in X (independent variable)
     and takes the first 5 samples from the left, and the last 5 from the right,
     then fits two linear regressions and computes the intersection of the two
@@ -31,6 +28,38 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
 
     Will probably not work well on few data points. If so, try fitting a spline
     to the raw data and then repeat with the interpolated data.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Independent-variable values. Must have the same length as `y`. NaN
+        entries are dropped pairwise with `y` before fitting. After dropping
+        missing values, more than 10 finite values must remain.
+    y : np.ndarray
+        Dependent-variable values. Must have the same length as `x`. NaN
+        entries are dropped pairwise with `x` before fitting.
+    max_iter : int, optional
+        Number of evenly spaced window sizes to sweep when accumulating
+        intersection points. Default is 41.
+
+    Returns
+    -------
+    int or float
+        The integer index into the (sorted, NaN-stripped) `x` / `y` vectors of
+        the data point closest to the consensus elbow location. Two non-integer
+        sentinel return values are possible:
+
+        * ``-1`` is returned when every value in `x` or `y` is missing (the
+          median of `x` or `y` is NaN), so no elbow can be estimated.
+        * ``np.nan`` is returned when the accumulated intersection points are
+          themselves degenerate (every fitted pair of lines was effectively
+          parallel, so the median intersection in `x` or `y` is NaN).
+
+    Raises
+    ------
+    ValueError
+        If `x` and `y` have different lengths, or if fewer than 11 finite
+        values remain after NaN entries are dropped.
 
     """
     start = 5
