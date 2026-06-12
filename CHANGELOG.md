@@ -11,6 +11,20 @@ those changes.
 
 ## [Unreleased]
 
+## [1.40.2] - 2026-06-12
+
+### Fixed
+
+- Docstring inconsistencies in three numerical helpers (no behaviour
+  change): `bivariate.find_elbow_point` now documents both of its
+  non-integer return sentinels (`-1` when every value in `x` or `y` is
+  missing, `np.nan` when the accumulated intersection points are
+  degenerate) in a proper NumPy-style `Returns` section, alongside a
+  new `Parameters` and `Raises` section; `monitoring.control_charts.rho`
+  and `monitoring.control_charts.psi` gain NumPy-style `Parameters`,
+  `Returns`, and `References` sections documenting `x`, the tuning
+  constant `k`, and the return value (the paper reference is preserved).
+
 ## [1.40.1] - 2026-06-11
 
 ### Fixed
@@ -1997,7 +2011,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.40.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.40.2...HEAD
+[1.40.2]: https://github.com/kgdunn/process-improve/compare/v1.40.1...v1.40.2
 [1.40.1]: https://github.com/kgdunn/process-improve/compare/v1.40.0...v1.40.1
 [1.40.0]: https://github.com/kgdunn/process-improve/compare/v1.39.0...v1.40.0
 [1.39.0]: https://github.com/kgdunn/process-improve/compare/v1.38.4...v1.39.0
