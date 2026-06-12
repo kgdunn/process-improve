@@ -76,9 +76,7 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
     x = np.array(x.copy())
     y = np.array(y.copy())
     if len(x) != len(y):
-        raise ValueError(
-            f"x and y must have the same length; got len(x)={len(x)}, len(y)={len(y)}."
-        )
+        raise ValueError(f"x and y must have the same length; got len(x)={len(x)}, len(y)={len(y)}.")
 
     # Stop if everything is missing:
     if np.isnan(np.nanmedian(x)) or np.isnan(np.nanmedian(y)):
@@ -87,9 +85,7 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
     # Eliminate missing values in x and y simultaneously.
     x, y = x[~(np.isnan(x) | np.isnan(y))], y[~(np.isnan(x) | np.isnan(y))]
     if len(x) <= 10:
-        raise ValueError(
-            "Requires more than 10 values in the vectors (not including missing data)."
-        )
+        raise ValueError("Requires more than 10 values in the vectors (not including missing data).")
     idx_sort = x.argsort()
     x = x[idx_sort]
     y = y[idx_sort]
@@ -145,7 +141,6 @@ def find_line_intersection(m1: float, b1: float, m2: float, b2: float) -> tuple:
     # Now solve it for y: use either line, because they are equal here:
     y = m1 * x + b1
     return x, y
-
 
 
 # ENG-23 (#305): explicit ``__all__`` so the thin re-exporter ``methods.py``

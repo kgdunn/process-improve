@@ -118,7 +118,11 @@ class ControlChart:
         self.df = pd.DataFrame(columns=columns, dtype=np.float64)
 
     def calculate_limits(  # noqa: C901  - branch count is mostly simple input-validation guard clauses
-        self, y: np.ndarray | pd.Series, target: float | None = None, s: float | None = None, **kwargs,
+        self,
+        y: np.ndarray | pd.Series,
+        target: float | None = None,
+        s: float | None = None,
+        **kwargs,
     ) -> None:
         """
         Find for a given vector `y`, the control chart target and limits.
@@ -149,8 +153,7 @@ class ControlChart:
             self.s = float(s)
             if not 0.0 < s < 1e300:
                 raise ValueError(
-                    "The given standard deviation must be positive and not excessively large "
-                    f"(0 < s < 1e300); got {s}."
+                    f"The given standard deviation must be positive and not excessively large (0 < s < 1e300); got {s}."
                 )
 
         if target is not None:
@@ -348,9 +351,7 @@ class ControlChart:
             warm_up_residuals = y_warm_up - self.warm_up["alpha_0"] - self.warm_up["beta_0"]
 
             # Some other method that does not rely on SciPy for 1 function.
-            self.warm_up["sigma_0"] = median_absolute_deviation(
-                np.asarray(warm_up_residuals), nan_policy="omit"
-            )
+            self.warm_up["sigma_0"] = median_absolute_deviation(np.asarray(warm_up_residuals), nan_policy="omit")
             self.warm_up["residuals"] = warm_up_residuals
 
         # A constant (zero-variance) warm-up window gives sigma_0 = MAD = 0, which
