@@ -114,6 +114,36 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         fail_ci_if_error: false
 
+  # Optional-dependency coverage: exercise the pyoptex-backed optimal-design
+  # paths (D/I/A-optimal coordinate exchange, split-plot). pyoptex is an
+  # optional, undeclared dependency, so the main `test` job skips every
+  # pyoptex-gated test. We install pyoptex separately here to get real signal.
+  #
+  # This job is NON-BLOCKING (`continue-on-error: true`) on purpose: the
+  # plotly>=6 compatibility fix (mborn1/pyoptex#49) is merged upstream but not
+  # yet on PyPI, so the latest release conflicts with our `plotly>=6.5.2`. We
+  # therefore install pyoptex from git `main` on top of the normal sync; if
+  # upstream main breaks or stops building, this job goes yellow, never red.
+  # Promote it to a blocking check (and move pyoptex into the `expt`/`all`
+  # extras) once a plotly>=6-compatible pyoptex is published to PyPI.
+  test-with-pyoptex:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+    - name: Install uv and set the python version
+      uses: astral-sh/setup-uv@v7
+      with:
+        python-version: "3.13"
+    - name: Install the project (editable)
+      run: uv sync --dev --all-extras
+    - name: Install pyoptex from git main (PR #49, unreleased)
+      run: uv pip install "pyoptex @ git+https://github.com/mborn1/pyoptex.git@main"
+    - name: Run the optimal-design tests with pyoptex present
+      run: uv run pytest tests/test_design_generation.py tests/test_designs_screening_optimal.py -o "addopts=" -v
+
   # ENG-15 sub-track: catch validation `assert`s stripped by `python -O`.
   # SEC-08 swept ~105 sites; SEC-17 (#266) swept the multivariate / bivariate /
   # batch / experiments / monitoring sites that survived. This job now runs as
