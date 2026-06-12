@@ -11,6 +11,19 @@ those changes.
 
 ## [Unreleased]
 
+## [1.40.2] - 2026-06-12
+
+### Fixed
+
+- `ControlChart` Holt-Winters warm-up: when the warm-up residuals have
+  genuine variability but a zero median-absolute-deviation (for example,
+  values symmetrically distributed around the median), `sigma_0` now
+  falls back to the standard deviation instead of staying at zero. This
+  avoids spuriously raising the "zero-variance warm-up window" error (or
+  producing undefined limits) for data that actually carries
+  information. A genuinely constant warm-up window still raises, as
+  before.
+
 ## [1.40.1] - 2026-06-11
 
 ### Fixed
@@ -1997,7 +2010,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.40.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.40.2...HEAD
+[1.40.2]: https://github.com/kgdunn/process-improve/compare/v1.40.1...v1.40.2
 [1.40.1]: https://github.com/kgdunn/process-improve/compare/v1.40.0...v1.40.1
 [1.40.0]: https://github.com/kgdunn/process-improve/compare/v1.39.0...v1.40.0
 [1.39.0]: https://github.com/kgdunn/process-improve/compare/v1.38.4...v1.39.0

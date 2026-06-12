@@ -85,7 +85,11 @@ class ControlChart:
         self.df = pd.DataFrame(columns=columns, dtype=np.float64)
 
     def calculate_limits(  # noqa: C901  - branch count is mostly simple input-validation guard clauses
-        self, y: np.ndarray | pd.Series, target: float | None = None, s: float | None = None, **kwargs,
+        self,
+        y: np.ndarray | pd.Series,
+        target: float | None = None,
+        s: float | None = None,
+        **kwargs,
     ) -> None:
         """
         Find for a given vector `y`, the control chart target and limits.
@@ -116,8 +120,7 @@ class ControlChart:
             self.s = float(s)
             if not 0.0 < s < 1e300:
                 raise ValueError(
-                    "The given standard deviation must be positive and not excessively large "
-                    f"(0 < s < 1e300); got {s}."
+                    f"The given standard deviation must be positive and not excessively large (0 < s < 1e300); got {s}."
                 )
 
         if target is not None:
@@ -315,10 +318,20 @@ class ControlChart:
             warm_up_residuals = y_warm_up - self.warm_up["alpha_0"] - self.warm_up["beta_0"]
 
             # Some other method that does not rely on SciPy for 1 function.
-            self.warm_up["sigma_0"] = median_absolute_deviation(
-                np.asarray(warm_up_residuals), nan_policy="omit"
-            )
+            self.warm_up["sigma_0"] = median_absolute_deviation(np.asarray(warm_up_residuals), nan_policy="omit")
             self.warm_up["residuals"] = warm_up_residuals
+
+            # A constant (zero-variance) warm-up window gives sigma_0 = MAD = 0, which
+            # would make rho/psi infinite and silently poison every downstream control
+            # limit with 0/NaN. Fail loudly instead of returning meaningless limits.
+            _residuals_array = warm_up_residuals.dropna().to_numpy()
+            _is_constant = _residuals_array.shape[0] == 0 or (_residuals_array[0] == _residuals_array).all()
+            if not _is_constant and self.warm_up["sigma_0"] == 0:
+                # Corner case: if there are multiple unique values in the warm-up residuals, but the MAD is zero,
+                # then sigma_0 is set to regular standard deviation instead, which is non-zero.
+                # This can happen when the warm-up residuals are symmetrically distributed around the median,
+                # leading to a MAD of zero, but still have variability that can be captured by the standard deviation.
+                self.warm_up["sigma_0"] = warm_up_residuals.std()
 
         # A constant (zero-variance) warm-up window gives sigma_0 = MAD = 0, which
         # would make rho/psi infinite and silently poison every downstream control
