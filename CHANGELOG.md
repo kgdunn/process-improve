@@ -11,6 +11,25 @@ those changes.
 
 ## [Unreleased]
 
+## [1.40.3] - 2026-06-12
+
+### Added
+
+- Expanded test coverage for the optimal-design generators
+  (`experiments/designs_optimal.py`): the D-optimal point-exchange fallback
+  edge cases (SEC-19 candidate-set cap, `n_points` floor, budget capping) and,
+  on the `pyoptex` path, categorical-factor conversion, multiple
+  hard-to-change factors, model-type variants, and D/I/A criterion
+  differentiation.
+
+### Changed
+
+- CI now runs a dedicated, non-blocking `test-with-pyoptex` job that installs
+  `pyoptex` from git `main` and exercises the optimal-design tests, so the
+  `pyoptex`-gated paths get real coverage. `pyoptex` remains an optional,
+  undeclared dependency; see the "Reliance on pyoptex" note in the DOE
+  coverage docs for the rationale.
+
 ## [1.40.2] - 2026-06-12
 
 ### Fixed
@@ -2010,7 +2029,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.40.2...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.40.3...HEAD
+[1.40.3]: https://github.com/kgdunn/process-improve/compare/v1.40.2...v1.40.3
 [1.40.2]: https://github.com/kgdunn/process-improve/compare/v1.40.1...v1.40.2
 [1.40.1]: https://github.com/kgdunn/process-improve/compare/v1.40.0...v1.40.1
 [1.40.0]: https://github.com/kgdunn/process-improve/compare/v1.39.0...v1.40.0
