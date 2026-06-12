@@ -43,8 +43,25 @@ def psi(x: float, k: float = 2.0) -> float:
     Pre-clean based on the Huber y-function.
 
     Can be interpreted as replacing unexpected high or low values by a more likely value.
-    From p 288 of the paper
+
+    Parameters
+    ----------
+    x : float
+        Value to clean.
+    k : float, optional
+        Huber tuning constant: the threshold beyond which `x` is clipped to
+        ``k * sign(x)``. The default of 2.0 follows p 288 of the referenced
+        paper.
+
+    Returns
+    -------
+    float
+        ``x`` itself when ``|x| < k``; otherwise ``k * sign(x)``.
+
+    References
+    ----------
     https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125
+
     """
     return x if abs(x) < k else k * np.sign(x)
 
