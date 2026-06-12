@@ -16,8 +16,24 @@ def rho(x: float, k: float = 2.52) -> float:
     """
     Bi-weight rho function.
 
-    Fixed constant of k=2.52 is from p 289 of the paper
+    Parameters
+    ----------
+    x : float
+        Value at which to evaluate the bi-weight rho function.
+    k : float, optional
+        Bi-weight tuning constant. The default of 2.52 is from p 289 of the
+        referenced paper.
+
+    Returns
+    -------
+    float
+        The value of the bi-weight rho function evaluated at `x` with tuning
+        constant `k`. For ``|x| > k`` the function saturates at `k`.
+
+    References
+    ----------
     https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125
+
     """
     return k if np.abs(x) > k else k * (1 - np.power(1 - np.power(x / k, 2), 3))
 
@@ -27,8 +43,25 @@ def psi(x: float, k: float = 2.0) -> float:
     Pre-clean based on the Huber y-function.
 
     Can be interpreted as replacing unexpected high or low values by a more likely value.
-    From p 288 of the paper
+
+    Parameters
+    ----------
+    x : float
+        Value to clean.
+    k : float, optional
+        Huber tuning constant: the threshold beyond which `x` is clipped to
+        ``k * sign(x)``. The default of 2.0 follows p 288 of the referenced
+        paper.
+
+    Returns
+    -------
+    float
+        ``x`` itself when ``|x| < k``; otherwise ``k * sign(x)``.
+
+    References
+    ----------
     https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125
+
     """
     return x if abs(x) < k else k * np.sign(x)
 
@@ -85,7 +118,11 @@ class ControlChart:
         self.df = pd.DataFrame(columns=columns, dtype=np.float64)
 
     def calculate_limits(  # noqa: C901  - branch count is mostly simple input-validation guard clauses
-        self, y: np.ndarray | pd.Series, target: float | None = None, s: float | None = None, **kwargs,
+        self,
+        y: np.ndarray | pd.Series,
+        target: float | None = None,
+        s: float | None = None,
+        **kwargs,
     ) -> None:
         """
         Find for a given vector `y`, the control chart target and limits.
@@ -116,8 +153,7 @@ class ControlChart:
             self.s = float(s)
             if not 0.0 < s < 1e300:
                 raise ValueError(
-                    "The given standard deviation must be positive and not excessively large "
-                    f"(0 < s < 1e300); got {s}."
+                    f"The given standard deviation must be positive and not excessively large (0 < s < 1e300); got {s}."
                 )
 
         if target is not None:
@@ -315,9 +351,7 @@ class ControlChart:
             warm_up_residuals = y_warm_up - self.warm_up["alpha_0"] - self.warm_up["beta_0"]
 
             # Some other method that does not rely on SciPy for 1 function.
-            self.warm_up["sigma_0"] = median_absolute_deviation(
-                np.asarray(warm_up_residuals), nan_policy="omit"
-            )
+            self.warm_up["sigma_0"] = median_absolute_deviation(np.asarray(warm_up_residuals), nan_policy="omit")
             self.warm_up["residuals"] = warm_up_residuals
 
         # A constant (zero-variance) warm-up window gives sigma_0 = MAD = 0, which
