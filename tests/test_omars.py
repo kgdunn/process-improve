@@ -238,3 +238,66 @@ def test_missing_values_raise() -> None:
     y[0] = np.nan
     with pytest.raises(ValueError, match="missing or infinite"):
         analyze_omars(design, y)
+
+
+def test_constant_factor_raises() -> None:
+    design = pd.DataFrame({"A": [1, 1, 1, 1], "B": [-1, 1, -1, 1]})
+    with pytest.raises(ValueError, match="constant"):
+        analyze_omars(design, [1.0, 2.0, 3.0, 4.0])
+
+
+# ---------------------------------------------------------------------------
+# Heredity variants and subset-size limit
+# ---------------------------------------------------------------------------
+
+
+def test_weak_interaction_heredity_runs() -> None:
+    design = _fccd()
+    result = analyze_omars(design, _response(design), interaction_heredity="weak")
+
+    # Weak heredity keeps interactions with at least one active parent (A or B),
+    # so the true A:B interaction is still recovered.
+    assert "A:B" in result.active_interactions
+    assert "A^2" in result.active_quadratics
+
+
+def test_user_subset_limit_is_respected() -> None:
+    design = _fccd()
+    result = analyze_omars(design, _response(design), max_subset_terms=2)
+
+    assert result.subset_limit == 2
+    assert "user specified" in result.subset_limit_reason
+    # No more than the cap of second-order terms may be declared active.
+    assert len(result.active_interactions) + len(result.active_quadratics) <= 2
+
+
+# ---------------------------------------------------------------------------
+# Designs without a full second-order structure
+# ---------------------------------------------------------------------------
+
+
+def test_two_level_design_has_no_quadratics() -> None:
+    # A replicated 2^3 factorial: two levels only, so no quadratic terms exist;
+    # only interactions populate the second-order space.
+    corners = np.array(list(itertools.product([-1, 1], repeat=3)), dtype=float)
+    design = pd.DataFrame(np.vstack([corners, corners]), columns=list("ABC"))
+    x = design.to_numpy()
+    rng = np.random.default_rng(5)
+    y = 5 * x[:, 0] + 4 * (x[:, 1] * x[:, 2]) + rng.normal(0, 0.2, size=x.shape[0])
+
+    result = analyze_omars(design, y)
+
+    assert result.active_quadratics == []
+    assert "B:C" in result.active_interactions
+
+
+def test_single_factor_has_no_second_order_space() -> None:
+    # One factor: the second-order space is empty (rank 0), so the gate cannot open.
+    design = pd.DataFrame({"A": [-1, 1, -1, 1, -1, 1]})
+    result = analyze_omars(design, [1.0, 5.0, 2.0, 6.0, 1.0, 5.0])
+
+    assert result.success is True
+    assert result.details["full_second_order_rank"] == 0
+    assert np.isnan(result.second_order_overall_p_value)
+    assert result.active_interactions == []
+    assert result.active_quadratics == []
