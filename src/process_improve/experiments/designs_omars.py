@@ -77,7 +77,7 @@ def _second_order_terms(matrix: np.ndarray) -> tuple[np.ndarray, list[str]]:
     for i, j in itertools.combinations(range(n_factors), 2):
         columns.append(matrix[:, i] * matrix[:, j])
         names.append(f"x{i + 1}*x{j + 1}")
-    if not columns:  # pragma: no cover - guarded by callers (k >= 1)
+    if not columns:  # defensive: a zero-factor matrix has no second-order terms
         return np.empty((matrix.shape[0], 0)), names
     return np.column_stack(columns), names
 
@@ -178,7 +178,7 @@ def omars_properties(matrix: np.ndarray, *, tol: float = _DEFAULT_TOL) -> dict:
     if second_order.shape[1] > 0:
         cross = matrix.T @ second_order
         max_me_vs_so = float(np.abs(cross).max())
-    else:  # pragma: no cover - k >= 1 always yields a quadratic term
+    else:  # defensive: a zero-factor matrix has no second-order terms
         max_me_vs_so = 0.0
     main_effects_clear = max_me_vs_so <= tol
 

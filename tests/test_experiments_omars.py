@@ -91,6 +91,35 @@ class TestOMARSProperties:
         assert is_omars(perturbed, tol=1e-12) is False
 
 
+class TestOMARSVerifierEdgeCases:
+    """Edge cases that exercise the verifier's defensive branches."""
+
+    def test_single_factor_is_trivially_omars(self) -> None:
+        """A single three-level factor has no aliasing and is trivially OMARS."""
+        props = omars_properties(np.array([[-1.0], [0.0], [1.0]]))
+        assert props["n_factors"] == 1
+        # Only one quadratic term, so there is no second-order correlation.
+        assert props["max_second_order_correlation"] == 0.0
+        assert props["is_omars"] is True
+
+    def test_all_constant_second_order_terms(self) -> None:
+        """An all-zero design has only constant second-order terms (no correlation)."""
+        props = omars_properties(np.zeros((4, 2)))
+        assert props["max_second_order_correlation"] == 0.0
+
+    def test_zero_factor_matrix(self) -> None:
+        """A matrix with no factors has no second-order terms to alias."""
+        props = omars_properties(np.zeros((3, 0)))
+        assert props["n_factors"] == 0
+        assert props["max_main_vs_second_order_inner_product"] == 0.0
+
+    def test_verify_false_skips_verification(self) -> None:
+        """dispatch_omars(verify=False) does not record the omars_verified flag."""
+        _, meta = dispatch_omars(_continuous_factors(4), verify=False)
+        assert "omars_verified" not in meta
+        assert meta["family"] == "conference_foldover"
+
+
 class TestOMARSDispatch:
     """Tests for dispatch_omars and the generate_design integration."""
 
