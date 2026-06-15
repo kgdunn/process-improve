@@ -11,6 +11,19 @@ those changes.
 
 ## [Unreleased]
 
+## [1.41.0] - 2026-06-15
+
+### Added
+
+- `analyze_omars()` in `process_improve.experiments`: a staged analysis for
+  data from OMARS designs (orthogonal minimally aliased response surface).
+  It resolves the main effects with t-tests, pools the inactive main effects
+  to sharpen the error estimate, gates the second-order space with an overall
+  F-test, and then runs a heredity-constrained best-subset search over the
+  interaction and quadratic terms. Design-source agnostic: it accepts any
+  coded two- or three-level design matrix and a response. Returns a structured
+  `OmarsResult`.
+
 ## [1.40.2] - 2026-06-12
 
 ### Fixed
@@ -2010,7 +2023,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.40.2...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.41.0...HEAD
+[1.41.0]: https://github.com/kgdunn/process-improve/compare/v1.40.2...v1.41.0
 [1.40.2]: https://github.com/kgdunn/process-improve/compare/v1.40.1...v1.40.2
 [1.40.1]: https://github.com/kgdunn/process-improve/compare/v1.40.0...v1.40.1
 [1.40.0]: https://github.com/kgdunn/process-improve/compare/v1.39.0...v1.40.0
