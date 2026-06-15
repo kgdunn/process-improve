@@ -324,3 +324,57 @@
   references:
     - "Jones & Nachtsheim (2011)"
     - "Jones & Nachtsheim (2013) - categorical factors"
+
+- id: omars
+  display_name: "Orthogonal Minimally Aliased Response Surface (OMARS)"
+  category: response_surface
+  description:
+    novice: >
+      A three-level design that keeps every main effect cleanly separated from
+      curvature and interaction effects, while using fewer runs than a full
+      response-surface design.
+    intermediate: >
+      OMARS designs (Núñez Ares & Goos, 2020) are three-level designs in which
+      all main effects are mutually orthogonal and orthogonal to every
+      second-order term (pure quadratics and two-factor interactions). Aliasing
+      is confined to the second-order block, so screening and response-surface
+      goals can be pursued in a single design with a flexible run count.
+    expert: >
+      OMARS designs generalise definitive screening designs: the DSD
+      (conference-matrix foldover) is the minimal member of the OMARS family.
+      The full family is obtained by enumeration, trading off run size against
+      second-order aliasing, projection, and estimation efficiency. This
+      package constructs the conference-foldover family directly and provides
+      omars_properties() / is_omars() to verify the defining orthogonality
+      properties of any candidate design.
+  suitable_for:
+    - "3+ continuous factors needing both screening and curvature information"
+    - "When main effects must be clear of all two-factor interactions and quadratics"
+    - "When a flexible run count between screening and full RSM is desired"
+  properties:
+    resolution: "Main effects clear of all second-order terms"
+    orthogonal: "Main effects mutually orthogonal and orthogonal to 2FI and quadratic"
+    rotatable: false
+    supports_quadratic: "Partial (depends on run size and active factors)"
+    supports_interaction: "Partial (second-order terms are mutually aliased)"
+  min_runs:
+    formula: "2k + 1 (even k) or 2k + 3 (odd k) for the minimal conference-foldover member"
+    examples: {"3": 13, "4": 9, "5": 13, "6": 13}
+  supports_models:
+    - main_effects
+    - "quadratic (limited active factors)"
+  can_augment_to:
+    - {target: ccd, method: "Follow up active factors with RSM"}
+  advantages:
+    - "Main effects orthogonal to each other and to all second-order terms"
+    - "Three-level, so curvature is detectable"
+    - "Flexible run count across the enumerated family"
+  disadvantages:
+    - "Requires three levels per factor"
+    - "Second-order terms are mutually aliased"
+    - "Larger members require enumeration rather than a closed-form construction"
+  common_misconceptions:
+    - "OMARS designs are unrelated to DSDs - in fact the DSD is the minimal OMARS design"
+  references:
+    - "Núñez Ares & Goos (2020), Technometrics 62(1):21-36"
+    - "Jones & Nachtsheim (2011)"
