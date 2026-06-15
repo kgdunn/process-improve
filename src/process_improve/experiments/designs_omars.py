@@ -27,7 +27,7 @@ let a user cross-check a generated design against such a catalogue offline.
 
 References
 ----------
-.. [1] Nunez Ares, J. and Goos, P. (2020).  "Enumeration and multicriteria
+.. [1] Núñez Ares, J. and Goos, P. (2020).  "Enumeration and multicriteria
    selection of orthogonal minimally aliased response surface designs."
    *Technometrics*, 62(1):21-36.
 .. [2] Jones, B. and Nachtsheim, C. J. (2011).  "A class of three-level

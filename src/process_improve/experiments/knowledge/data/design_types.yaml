@@ -334,7 +334,7 @@
       curvature and interaction effects, while using fewer runs than a full
       response-surface design.
     intermediate: >
-      OMARS designs (Nunez Ares & Goos, 2020) are three-level designs in which
+      OMARS designs (Núñez Ares & Goos, 2020) are three-level designs in which
       all main effects are mutually orthogonal and orthogonal to every
       second-order term (pure quadratics and two-factor interactions). Aliasing
       is confined to the second-order block, so screening and response-surface
@@ -376,5 +376,5 @@
   common_misconceptions:
     - "OMARS designs are unrelated to DSDs - in fact the DSD is the minimal OMARS design"
   references:
-    - "Nunez Ares & Goos (2020), Technometrics 62(1):21-36"
+    - "Núñez Ares & Goos (2020), Technometrics 62(1):21-36"
     - "Jones & Nachtsheim (2011)"
