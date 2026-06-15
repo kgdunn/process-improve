@@ -11,6 +11,20 @@ those changes.
 
 ## [Unreleased]
 
+## [1.41.0] - 2026-06-15
+
+### Added
+
+- OMARS (Orthogonal Minimally Aliased Response Surface) designs are now a
+  first-class design type: `generate_design(..., design_type="omars")`
+  constructs the conference-matrix foldover family (the definitive screening
+  design is its minimal member). New `omars_properties()` and `is_omars()`
+  verifiers check the defining OMARS properties (three-level, balanced, main
+  effects mutually orthogonal and orthogonal to all second-order terms) on any
+  coded design matrix, so generated or externally supplied designs can be
+  validated without network access. An `omars` knowledge node is included in
+  the DOE knowledge base.
+
 ## [1.40.2] - 2026-06-12
 
 ### Fixed
@@ -2010,7 +2024,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.40.2...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.41.0...HEAD
+[1.41.0]: https://github.com/kgdunn/process-improve/compare/v1.40.2...v1.41.0
 [1.40.2]: https://github.com/kgdunn/process-improve/compare/v1.40.1...v1.40.2
 [1.40.1]: https://github.com/kgdunn/process-improve/compare/v1.40.0...v1.40.1
 [1.40.0]: https://github.com/kgdunn/process-improve/compare/v1.39.0...v1.40.0
