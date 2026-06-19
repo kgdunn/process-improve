@@ -247,7 +247,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     r2_per_variable_ : pd.DataFrame of shape (n_features, n_components)
         Per-variable cumulative R² after each component.
     spe_ : pd.DataFrame of shape (n_samples, n_components)
-        Squared Prediction Error (stored as sqrt of row sum-of-squares).
+        Per-row SPE diagnostic; stored as the square root of the row
+        sum-of-squared X-residuals (so it is on the residual scale, not the
+        squared scale).
     hotellings_t2_ : pd.DataFrame of shape (n_samples, n_components)
         Cumulative Hotelling's T² statistic.
     explained_variance_ : np.ndarray of shape (n_components,)

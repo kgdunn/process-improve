@@ -11,6 +11,24 @@ those changes.
 
 ## [Unreleased]
 
+## [1.42.1] - 2026-06-19
+
+### Fixed
+
+- Clarified PCA/PLS `spe_` attribute docstring (it stores the square root of
+  the row sum-of-squared X-residuals, so it is on the residual scale, not the
+  squared scale).
+- Corrected the TPLS `d_matrix` docstring type from
+  `dict[str, dict[str, pd.DataFrame]]` to `dict[str, pd.DataFrame]` so it
+  matches the flat-dict shape that the constructor actually validates.
+- Fixed a typo in the `center()` docstring ("but return" -> "must return")
+  and added a NumPy-style Returns section to `scale()` describing the two
+  return shapes (with and without `extra_output=True`).
+- Documented `ControlChart` variant strings in lowercase (`'hw'`,
+  `'xbar.no.subgroup'`, `'cusum'`) and noted that the comparison is
+  case-insensitive, matching the `.strip().lower()` normalisation applied on
+  assignment.
+
 ## [1.42.0] - 2026-06-19
 
 ### Added
@@ -2036,7 +2054,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.42.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.42.1...HEAD
+[1.42.1]: https://github.com/kgdunn/process-improve/compare/v1.42.0...v1.42.1
 [1.42.0]: https://github.com/kgdunn/process-improve/compare/v1.41.0...v1.42.0
 [1.41.0]: https://github.com/kgdunn/process-improve/compare/v1.40.2...v1.41.0
 [1.40.2]: https://github.com/kgdunn/process-improve/compare/v1.40.1...v1.40.2

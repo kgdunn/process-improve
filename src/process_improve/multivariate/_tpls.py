@@ -212,7 +212,7 @@ class TPLS(RegressorMixin, BaseEstimator):
     n_components : int
         A parameter used to specify the number of components.
 
-    d_matrix : dict[str, dict[str, pd.DataFrame]]
+    d_matrix : dict[str, pd.DataFrame]
         A dictionary containing the properties of each group of materials.
         Keys are group names; values are DataFrames with properties as columns and materials as rows.
         This "D" matrix is provided once at construction and reused for fitting, prediction and

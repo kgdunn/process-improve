@@ -183,7 +183,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     predictions_ : pd.DataFrame of shape (n_samples, n_targets)
         Y predictions from the training data.
     spe_ : pd.DataFrame of shape (n_samples, n_components)
-        Squared Prediction Error (stored as sqrt of row sum-of-squares).
+        Per-row SPE diagnostic; stored as the square root of the row
+        sum-of-squared X-residuals (so it is on the residual scale, not the
+        squared scale).
     hotellings_t2_ : pd.DataFrame of shape (n_samples, n_components)
         Cumulative Hotelling's T² statistic.
     r2_per_component_ : pd.Series of length n_components
