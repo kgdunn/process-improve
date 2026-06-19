@@ -11,6 +11,18 @@ those changes.
 
 ## [Unreleased]
 
+## [1.42.0] - 2026-06-19
+
+### Added
+
+- `generate_design(design_type="ccd", cube="fractional")` builds the cube
+  (factorial) portion of a central composite design from a resolution-V (or
+  higher) fractional factorial instead of the full 2^k factorial, keeping the
+  run count practical for k >= 5 (for example, a five-factor CCD with a 16-run
+  cube + 10 axial + 6 centre = 32 runs). An optional `generators=[...]` pins the
+  cube fraction; the chosen generators, defining relation, and resolution are
+  recorded on the returned `DesignResult`. `cube="full"` remains the default.
+
 ## [1.41.0] - 2026-06-15
 
 ### Added
@@ -2024,7 +2036,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.41.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.42.0...HEAD
+[1.42.0]: https://github.com/kgdunn/process-improve/compare/v1.41.0...v1.42.0
 [1.41.0]: https://github.com/kgdunn/process-improve/compare/v1.40.2...v1.41.0
 [1.40.2]: https://github.com/kgdunn/process-improve/compare/v1.40.1...v1.40.2
 [1.40.1]: https://github.com/kgdunn/process-improve/compare/v1.40.0...v1.40.1

@@ -31,6 +31,7 @@ try:
     from pyDOE3 import ff2n
 except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
     from process_improve._extras import _MissingExtra
+
     ff2n = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
 from process_improve.experiments.designs_utils import build_design_result
@@ -352,10 +353,7 @@ def generate_design(  # noqa: PLR0913
         design_type = _auto_select(factors, budget, constraints, hard_to_change)
 
     if design_type not in _DESIGN_REGISTRY:
-        raise ValueError(
-            f"Unknown design_type={design_type!r}.  "
-            f"Choose from: {', '.join(sorted(_DESIGN_REGISTRY))}."
-        )
+        raise ValueError(f"Unknown design_type={design_type!r}.  Choose from: {', '.join(sorted(_DESIGN_REGISTRY))}.")
 
     # --- Dispatch ----------------------------------------------------------
     dispatch_fn = _DESIGN_REGISTRY[design_type]

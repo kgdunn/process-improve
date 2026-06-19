@@ -17,6 +17,7 @@ try:
     from pyDOE3 import bbdesign, ccdesign
 except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
     from process_improve._extras import _MissingExtra
+
     bbdesign = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
     ccdesign = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
@@ -26,7 +27,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def dispatch_ccd(
+def dispatch_ccd(  # noqa: PLR0913
     factors: list[Factor],
     center_points: int = 3,
     alpha: str | float | None = None,
