@@ -433,6 +433,53 @@ class TestCCD:
         result = generate_design(factors, design_type="ccd", center_points=6)
         assert result.n_runs == 48
 
+    def test_fractional_cube_numeric_alpha(self) -> None:
+        """A numeric alpha is used directly as the axial distance of a fractional CCD."""
+        factors = _continuous_factors(5, "ABCDE")
+        result = generate_design(
+            factors, design_type="ccd", cube="fractional", alpha=1.75, center_points=6
+        )
+        assert result.alpha == pytest.approx(1.75)
+
+    def test_fractional_cube_orthogonal_alpha(self) -> None:
+        """An orthogonal fractional CCD computes a finite axial distance (string and default)."""
+        factors = _continuous_factors(5, "ABCDE")
+        explicit = generate_design(
+            factors, design_type="ccd", cube="fractional", alpha="orthogonal", center_points=6
+        )
+        default = generate_design(factors, design_type="ccd", cube="fractional", center_points=6)
+        assert explicit.alpha is not None
+        assert explicit.alpha > 0
+        # alpha=None falls through to the same orthogonal default.
+        assert default.alpha == pytest.approx(explicit.alpha)
+
+    def test_fractional_cube_inscribed_rejected(self) -> None:
+        """'inscribed' is not supported with a fractional cube."""
+        factors = _continuous_factors(5, "ABCDE")
+        with pytest.raises(ValueError, match="inscribed"):
+            generate_design(factors, design_type="ccd", cube="fractional", alpha="inscribed")
+
+    def test_fractional_cube_requires_three_factors(self) -> None:
+        """A fractional-cube CCD needs at least 3 factors."""
+        factors = _continuous_factors(2, "AB")
+        with pytest.raises(ValueError, match="at least 3 factors"):
+            generate_design(factors, design_type="ccd", cube="fractional")
+
+    def test_fractional_cube_by_resolution(self) -> None:
+        """A fractional cube can be requested by resolution instead of explicit generators."""
+        factors = _continuous_factors(6, "ABCDEF")
+        result = generate_design(
+            factors,
+            design_type="ccd",
+            cube="fractional",
+            resolution=5,
+            alpha="face_centered",
+            center_points=6,
+        )
+        # 2^(6-1)=32-run cube + 12 axial + 6 centre.
+        assert result.n_runs == 32 + 12 + 6
+        assert result.resolution == 5
+
     def test_invalid_cube_value(self) -> None:
         """An unknown cube value is rejected."""
         factors = _continuous_factors(3, "ABC")
