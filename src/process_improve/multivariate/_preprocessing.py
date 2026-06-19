@@ -151,7 +151,7 @@ def center(
 ) -> DataMatrix | tuple[DataMatrix, np.ndarray]:
     """
     Perform centering of data, using a function, `func` (default: np.mean).
-    The function, if supplied, but return a vector with as many columns as the matrix X.
+    The function, if supplied, must return a vector with as many columns as the matrix X.
 
     `axis` [optional; default=0] {integer or None}
 
@@ -217,6 +217,16 @@ def scale(
     X = scale(center(X), ddof=1)  # sample standard deviation, matches MCUVScaler
     my_scale = np.mad
     X = scale(center(X), func=my_scale)
+
+    Returns
+    -------
+    scaled : DataMatrix
+        The scaled data, returned when ``extra_output=False`` (the default).
+    (scaled, scale_vector) : tuple[DataMatrix, np.ndarray]
+        When ``extra_output=True``, a tuple of the scaled data and the
+        per-column scaling vector (the reciprocal of `func` applied along
+        `axis`, with zero entries replaced by 1.0 to leave constant columns
+        unchanged) is returned instead.
 
     """
     if func is np.std and "ddof" not in kwargs:
