@@ -45,19 +45,21 @@ class ControlChart:
             Other choice is 'regular' (i.e. not-robust) calculations. User should then ensure that
             no outliers are present in the data.
 
-            variant (str, optional): Many variants of control charts are available.
+            variant (str, optional): Many variants of control charts are available. The variant
+                string is compared case-insensitively (it is normalised via ``.strip().lower()``
+                on assignment), so ``'HW'``, ``'hw'``, and ``'Hw'`` are all equivalent.
 
-                The default is a Holt-Winters (HW) chart, with automatic determination of control
-                chart parameters. This chart is a blend of infinite history (CUSUM) charts, and an
-                instantaneous (no history taken into account) Shewhart chart. The exact blend is
-                specified by parameters `ld_1` (lambda 1) and `ld_2` (lambda 2).
+                The default is a Holt-Winters (`'hw'`) chart, with automatic determination of
+                control chart parameters. This chart is a blend of infinite history (CUSUM)
+                charts, and an instantaneous (no history taken into account) Shewhart chart. The
+                exact blend is specified by parameters `ld_1` (lambda 1) and `ld_2` (lambda 2).
 
                 Other variants are:
 
                 'xbar.no.subgroup' [Shewhart chart, with no subgroups]. In other words, each
                 observation is independently plotted on the control chart.
 
-                'CUSUM' (CUmulative SUM) chart, which uses all the history of the chart.
+                'cusum' (CUmulative SUM) chart, which uses all the history of the chart.
         """
         self.style = style.strip()
         self.variant = variant.strip().lower()
