@@ -218,6 +218,16 @@ def scale(
     my_scale = np.mad
     X = scale(center(X), func=my_scale)
 
+    Returns
+    -------
+    scaled : DataMatrix
+        The scaled data, returned when ``extra_output=False`` (the default).
+    (scaled, scale_vector) : tuple[DataMatrix, np.ndarray]
+        When ``extra_output=True``, a tuple of the scaled data and the
+        per-column scaling vector (the reciprocal of `func` applied along
+        `axis`, with zero entries replaced by 1.0 to leave constant columns
+        unchanged) is returned instead.
+
     """
     if func is np.std and "ddof" not in kwargs:
         kwargs["ddof"] = ddof
