@@ -92,6 +92,9 @@ def _dispatch_ccd(
         factors,
         center_points=kwargs.get("center_points", 3),
         alpha=kwargs.get("alpha"),
+        cube=kwargs.get("cube", "full"),
+        generators=kwargs.get("generators"),
+        resolution=kwargs.get("resolution"),
     )
 
 
@@ -265,6 +268,7 @@ def generate_design(  # noqa: PLR0913
     resolution: int | None = None,
     generators: list[str] | None = None,
     alpha: str | float | None = None,
+    cube: str = "full",
     constraints: list[Constraint] | None = None,
     hard_to_change: list[str] | None = None,
     random_seed: int = 42,
@@ -303,6 +307,13 @@ def generate_design(  # noqa: PLR0913
     alpha : str, float, or None
         Axial distance for CCD designs: ``"rotatable"``,
         ``"face_centered"``, ``"orthogonal"``, or a numeric value.
+    cube : str
+        For CCD designs, how to build the cube (factorial) portion:
+        ``"full"`` (default) uses the complete 2^k factorial; ``"fractional"``
+        uses a resolution-V (or higher) fractional factorial, keeping the run
+        count practical for k >= 5.  When ``"fractional"`` and *generators* is
+        given, those generators define the cube; otherwise a minimum-aberration
+        half-fraction is chosen automatically.
     constraints : list[Constraint] or None
         Constraints on the factor space.
     hard_to_change : list[str] or None
@@ -356,6 +367,7 @@ def generate_design(  # noqa: PLR0913
         "resolution": resolution,
         "generators": generators,
         "alpha": alpha,
+        "cube": cube,
         "hard_to_change": hard_to_change,
         "constraints": constraints,
     }
