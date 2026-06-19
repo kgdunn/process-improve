@@ -11,6 +11,36 @@ those changes.
 
 ## [Unreleased]
 
+## [1.43.0] - 2026-06-19
+
+### Added
+
+- `evaluate_design` gains four model-aware metrics and a convenience aggregate:
+  `a_optimality` (`trace((XᵀX)⁻¹)`) and `e_optimality` (smallest eigenvalue of
+  `XᵀX`), each with an optional normalised efficiency; `correlation`, the
+  coding-invariant residualised maximum and mean absolute correlation among the
+  second-order terms plus the full matrix; `alias_matrix`, the general bias
+  matrix `A = (X1ᵀX1)⁻¹ X1ᵀX2` (default `X2` = the two-factor interactions
+  outside the model) with its worst single bias, main-effect-row maximum, and
+  Frobenius norm; and `fds`, the fraction-of-design-space distribution of the
+  prediction variance over the design region with the region average (I) and
+  maximum (G) in σ² units and the run-count-scaled SPV variants. `metric="all"`
+  and a thin `evaluate_all(...)` wrapper return every metric in one call.
+- Region-based metrics take `region` (`"cuboidal"` or `"spherical"`),
+  `n_samples`, `include_vertices`, and `random_seed` parameters; all sampling is
+  seeded and the region and sample size are echoed in the `fds` payload, and the
+  `2**k` cube vertices are always included so the worst-case G value at a corner
+  is represented.
+
+### Fixed
+
+- `i_efficiency` / `g_efficiency` no longer raise a matmul size mismatch (for
+  example `size 11 is different from 21`) when evaluated against an explicit
+  reduced formula such as `"A+B+C+D+E+I(A**2)+...+I(E**2)"`. The region
+  evaluation grid is now expanded through the exact fitted model matrix instead
+  of a re-inferred shorthand, and `i_efficiency` / `g_efficiency` derive from
+  the same region machinery as `fds`.
+
 ## [1.42.0] - 2026-06-19
 
 ### Added
@@ -2036,7 +2066,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.42.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.43.0...HEAD
+[1.43.0]: https://github.com/kgdunn/process-improve/compare/v1.42.0...v1.43.0
 [1.42.0]: https://github.com/kgdunn/process-improve/compare/v1.41.0...v1.42.0
 [1.41.0]: https://github.com/kgdunn/process-improve/compare/v1.40.2...v1.41.0
 [1.40.2]: https://github.com/kgdunn/process-improve/compare/v1.40.1...v1.40.2
