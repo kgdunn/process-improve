@@ -122,9 +122,7 @@ class TestDEfficiency:
     def test_fractional_less_than_full(self) -> None:
         """Fractional factorial should have lower D-eff than full factorial for same model."""
         factors = _continuous_factors(4, "ABCD")
-        frac = generate_design(
-            factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0
-        )
+        frac = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0)
         full = generate_design(factors, design_type="full_factorial", center_points=0)
         d_frac = evaluate_design(frac, model="main_effects", metric="d_efficiency")["d_efficiency"]
         d_full = evaluate_design(full, model="main_effects", metric="d_efficiency")["d_efficiency"]
@@ -292,9 +290,7 @@ class TestPower:
     def test_large_effect_near_one(self) -> None:
         """Large effect size produces power near 1.0."""
         df = _full_factorial_df(3)
-        result = evaluate_design(
-            df, model="main_effects", metric="power", effect_size=10.0, sigma=1.0
-        )
+        result = evaluate_design(df, model="main_effects", metric="power", effect_size=10.0, sigma=1.0)
         power = result["power"]
         for name, pwr in power.items():
             assert pwr > 0.99, f"Power for {name} should be near 1.0 for large effect"
@@ -302,9 +298,7 @@ class TestPower:
     def test_small_effect_low(self) -> None:
         """Small effect size produces low power."""
         df = _full_factorial_df(2)
-        result = evaluate_design(
-            df, model="main_effects", metric="power", effect_size=0.01, sigma=1.0
-        )
+        result = evaluate_design(df, model="main_effects", metric="power", effect_size=0.01, sigma=1.0)
         power = result["power"]
         for name, pwr in power.items():
             assert pwr < 0.5, f"Power for {name} should be low for small effect"
@@ -396,9 +390,7 @@ class TestAliasStructure:
     def test_half_fraction(self) -> None:
         """2^(4-1) with D=ABC: main effects are aliased with 3FI."""
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C", "D"]]
-        result = generate_design(
-            factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0
-        )
+        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0)
         metrics = evaluate_design(result, metric="alias_structure")
         aliases = metrics["alias_structure"]
         assert len(aliases) > 0
@@ -419,9 +411,7 @@ class TestAliasStructure:
     def test_raw_dataframe_correlation_fallback(self) -> None:
         """Raw DataFrame without generators should use correlation fallback."""
         # Create a fractional factorial manually: 2^(3-1) with C=AB
-        df = pd.DataFrame(
-            {"A": [-1, 1, -1, 1], "B": [-1, -1, 1, 1], "C": [1, -1, -1, 1]}
-        )
+        df = pd.DataFrame({"A": [-1, 1, -1, 1], "B": [-1, -1, 1, 1], "C": [1, -1, -1, 1]})
         # C = A*B, so aliasing should be detected
         metrics = evaluate_design(df, metric="alias_structure")
         aliases = metrics["alias_structure"]
@@ -440,9 +430,7 @@ class TestConfounding:
         """Resolution III design has main effects confounded with 2FI."""
         # 2^(3-1) with C=AB is resolution III
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C"]]
-        result = generate_design(
-            factors, design_type="fractional_factorial", generators=["C=AB"], center_points=0
-        )
+        result = generate_design(factors, design_type="fractional_factorial", generators=["C=AB"], center_points=0)
         metrics = evaluate_design(result, metric="confounding")
         confounding = metrics["confounding"]
         assert len(confounding) > 0
@@ -463,18 +451,14 @@ class TestResolution:
     def test_from_design_result(self) -> None:
         """Resolution should be passed through from DesignResult metadata."""
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C", "D", "E"]]
-        result = generate_design(
-            factors, design_type="fractional_factorial", resolution=3, center_points=0
-        )
+        result = generate_design(factors, design_type="fractional_factorial", resolution=3, center_points=0)
         metrics = evaluate_design(result, metric="resolution")
         assert metrics["resolution"] is not None
 
     def test_from_generators(self) -> None:
         """Resolution computed from generators."""
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C", "D"]]
-        result = generate_design(
-            factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0
-        )
+        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0)
         # D=ABC → I=ABCD → resolution IV
         metrics = evaluate_design(result, metric="resolution")
         res = metrics["resolution"]
@@ -500,9 +484,7 @@ class TestDefiningRelation:
     def test_single_generator(self) -> None:
         """D=ABC gives I=ABCD."""
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C", "D"]]
-        result = generate_design(
-            factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0
-        )
+        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0)
         metrics = evaluate_design(result, metric="defining_relation")
         dr = metrics["defining_relation"]
         assert dr is not None
@@ -540,9 +522,7 @@ class TestClearEffects:
     def test_res_iv_clear_main_effects(self) -> None:
         """In a Resolution IV design, all main effects should be clear."""
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C", "D"]]
-        result = generate_design(
-            factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0
-        )
+        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0)
         metrics = evaluate_design(result, metric="clear_effects")
         clear = metrics["clear_effects"]
         # Resolution IV: main effects aliased only with 3FI → all main effects clear
@@ -560,9 +540,7 @@ class TestMinimumAberration:
     def test_wordlength_pattern(self) -> None:
         """D=ABC gives I=ABCD (length 4), so WLP = [0, 1] for A_3=0, A_4=1."""
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C", "D"]]
-        result = generate_design(
-            factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0
-        )
+        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0)
         metrics = evaluate_design(result, metric="minimum_aberration")
         ma = metrics["minimum_aberration"]
         wlp = ma["wordlength_pattern"]
@@ -649,9 +627,7 @@ class TestDispatcher:
     def test_multiple_metrics_list(self) -> None:
         """metric=['d_efficiency', 'vif'] returns both."""
         df = _full_factorial_df(3)
-        result = evaluate_design(
-            df, model="main_effects", metric=["d_efficiency", "vif"]
-        )
+        result = evaluate_design(df, model="main_effects", metric=["d_efficiency", "vif"])
         assert "d_efficiency" in result
         assert "vif" in result
 
@@ -767,18 +743,22 @@ class TestIntegration:
         """CCD with quadratic model should have valid metrics."""
         factors = _continuous_factors(3, "ABC")
         result = generate_design(factors, design_type="ccd", alpha="face_centered", center_points=3)
-        metrics = evaluate_design(
-            result, model="quadratic", metric=["d_efficiency", "degrees_of_freedom"]
-        )
+        metrics = evaluate_design(result, model="quadratic", metric=["d_efficiency", "degrees_of_freedom"])
         assert metrics["d_efficiency"] is not None
         assert metrics["degrees_of_freedom"]["residual"] > 0
+
+    def test_fractional_cube_ccd_quadratic_full_rank(self) -> None:
+        """A fractional-cube CCD is full-rank for the full second-order model."""
+        factors = _continuous_factors(5, "ABCDE")
+        result = generate_design(factors, design_type="ccd", cube="fractional", alpha="face_centered", center_points=6)
+        metrics = evaluate_design(result, model="quadratic", metric=["d_efficiency", "vif", "power"])
+        assert metrics["d_efficiency"] is not None
+        assert metrics["vif"] is not None
 
     def test_fractional_factorial_aliases(self) -> None:
         """Fractional factorial should report alias structure and resolution."""
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C", "D"]]
-        result = generate_design(
-            factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0
-        )
+        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0)
         metrics = evaluate_design(
             result,
             metric=["alias_structure", "resolution", "defining_relation", "clear_effects", "minimum_aberration"],
