@@ -1009,3 +1009,122 @@ class TestGoldenMetrics:
 
         assert _OMARS_25.shape == (25, 5)
         assert is_omars(_OMARS_25.to_numpy())
+
+
+# ---------------------------------------------------------------------------
+# Edge-branch coverage for the new region / metric machinery
+# ---------------------------------------------------------------------------
+
+
+class TestRegionAndMetricEdgeCases:
+    """Cover the error/edge branches of the new model-aware metrics."""
+
+    def test_spherical_region(self) -> None:
+        """region='spherical' samples the circumscribing ball and returns finite I/G."""
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        result = evaluate_design(
+            df, model=_PURE_QUADRATIC_5, metric="fds", region="spherical", n_samples=2000, random_seed=1
+        )
+        assert result["fds"]["region"] == "spherical"
+        assert result["fds"]["max_prediction_variance"] >= result["fds"]["average_prediction_variance"] > 0
+
+    def test_unknown_region_raises(self) -> None:
+        """An unknown region name raises ValueError."""
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        with pytest.raises(ValueError, match="Unknown region"):
+            evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", region="bogus")
+
+    def test_include_vertices_false(self) -> None:
+        """include_vertices=False omits the cube corners from the region sample."""
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        fds = evaluate_design(
+            df, model=_PURE_QUADRATIC_5, metric="fds", include_vertices=False, n_samples=2000, random_seed=1
+        )["fds"]
+        assert fds["include_vertices"] is False
+        assert fds["max_prediction_variance"] > 0
+
+    def test_i_efficiency_singular_returns_none(self) -> None:
+        """i_efficiency is None for a rank-deficient design."""
+        df = _full_factorial_df(2)
+        result = evaluate_design(df, model="quadratic", metric="i_efficiency")
+        assert result["i_efficiency"] is None
+
+    def test_alias_and_fds_singular_return_none(self) -> None:
+        """alias_matrix and fds are None for a rank-deficient design."""
+        df = _full_factorial_df(2)
+        result = evaluate_design(df, model="quadratic", metric=["alias_matrix", "fds"])
+        assert result["alias_matrix"] is None
+        assert result["fds"] is None
+
+    def test_correlation_fewer_than_two_second_order(self) -> None:
+        """A main-effects model has no second-order block: max|r| is 0 with a note."""
+        df = _full_factorial_df(3)
+        result = evaluate_design(df, model="main_effects", metric="correlation")
+        corr = result["correlation"]
+        assert corr["max_abs_r"] == 0.0
+        assert "note" in corr
+
+    def test_alias_matrix_all_interactions_present(self) -> None:
+        """When every 2fi is already in the model there is nothing to alias against."""
+        df = _full_factorial_df(3)
+        # ``interactions`` includes all two-factor interactions, so the omitted set is empty.
+        result = evaluate_design(df, model="interactions", metric=["alias_matrix", "correlation"])
+        am = result["alias_matrix"]
+        assert am["alias_terms"] == []
+        assert am["max_abs"] == 0.0
+        # ``correlation`` exercises the ":" interaction branch of the term classifier.
+        assert result["correlation"]["max_abs_r"] >= 0.0
+
+    def test_block_column_in_factor_names_is_dropped(self) -> None:
+        """A raw DataFrame carrying a Block column drops it from the factor set."""
+        df = _full_factorial_df(2)
+        df = df.assign(Block=1)
+        result = evaluate_design(df, model="main_effects", metric="degrees_of_freedom")
+        assert result["degrees_of_freedom"]["model"] == 2  # only A and B count as factors
+
+
+class TestFDSResolution:
+    """Test the tunable-resolution FDS curve."""
+
+    def test_default_is_coarse_quantiles_only(self) -> None:
+        """With fds_resolution=None the output is the backward-compatible summary."""
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_seed=1)["fds"]
+        assert "curve" not in fds
+        assert len(fds["quantiles"]) == 11
+        assert fds["fds_resolution"] is None
+
+    def test_dense_curve(self) -> None:
+        """fds_resolution=200 returns length-200 monotone arrays with min/max endpoints."""
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        n = df.shape[0]
+        fds = evaluate_design(
+            df, model=_PURE_QUADRATIC_5, metric="fds", fds_resolution=200, random_seed=1
+        )["fds"]
+        curve = fds["curve"]
+        pv = np.asarray(curve["prediction_variance"])
+        frac = np.asarray(curve["fraction"])
+        scaled = np.asarray(curve["scaled_prediction_variance"])
+        assert pv.shape == frac.shape == scaled.shape == (200,)
+        assert frac[0] == 0.0
+        assert frac[-1] == pytest.approx(1.0)
+        assert np.all(np.diff(pv) >= -1e-12)  # non-decreasing
+        assert pv[-1] == pytest.approx(fds["max_prediction_variance"])
+        assert pv[0] == pytest.approx(pv.min())
+        assert np.allclose(scaled, pv * n)
+        # The coarse quantile summary is still present for backward compatibility.
+        assert len(fds["quantiles"]) == 11
+
+    def test_resolution_below_two_raises(self) -> None:
+        """fds_resolution must be at least 2."""
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        with pytest.raises(ValueError, match="fds_resolution must be at least 2"):
+            evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", fds_resolution=1)
+
+    def test_max_reproducible_and_published_values(self) -> None:
+        """A fixed (n_samples, seed) is reproducible; 120k/seed-1 hits the published maxima."""
+        bbd = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        first = evaluate_design(bbd, model=_PURE_QUADRATIC_5, metric="fds", n_samples=120_000, random_seed=1)
+        second = evaluate_design(bbd, model=_PURE_QUADRATIC_5, metric="fds", n_samples=120_000, random_seed=1)
+        assert first["fds"]["max_prediction_variance"] == second["fds"]["max_prediction_variance"]
+        assert first["fds"]["max_prediction_variance"] == pytest.approx(0.84, abs=0.01)

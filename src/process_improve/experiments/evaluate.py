@@ -64,6 +64,7 @@ class _EvalRequest:
     n_samples: int = 100_000
     include_vertices: bool = True
     random_seed: int = 42
+    fds_resolution: int | None = None
 
 
 @dataclass
@@ -90,6 +91,7 @@ class _EvalContext:
     n_samples: int = 100_000
     include_vertices: bool = True
     random_seed: int = 42
+    fds_resolution: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -192,6 +194,7 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
         n_samples=req.n_samples,
         include_vertices=req.include_vertices,
         random_seed=req.random_seed,
+        fds_resolution=req.fds_resolution,
     )
 
 
@@ -531,6 +534,13 @@ def _compute_fds(ctx: _EvalContext) -> dict[str, Any]:
     (G-optimality) in ``sigma^2`` units, plus the run-count-scaled SPV variants
     (multiplied by ``N``).  The region settings are echoed back for
     reproducibility.
+
+    When ``ctx.fds_resolution`` is set, a dense ``curve`` sub-dict is added with
+    ``fraction``, ``prediction_variance``, and ``scaled_prediction_variance``
+    arrays of that length, evaluated on evenly spaced fractions in ``[0, 1]``
+    (the endpoints are the minimum and maximum prediction variance) - suitable
+    for drawing a smooth FDS plot.  The coarse 11-point ``quantiles`` summary is
+    always present for backward compatibility.
     """
     if ctx.is_singular:
         return {"fds": None, "note": "Design is rank-deficient for the specified model."}
@@ -539,19 +549,29 @@ def _compute_fds(ctx: _EvalContext) -> dict[str, Any]:
     avg = float(pv.mean())
     mx = float(pv.max())
     quantiles = {f"{q:g}": float(v) for q, v in zip(_FDS_QUANTILES, np.quantile(pv, _FDS_QUANTILES), strict=True)}
-    return {
-        "fds": {
-            "region": ctx.region,
-            "n_samples": ctx.n_samples,
-            "include_vertices": ctx.include_vertices,
-            "random_seed": ctx.random_seed,
-            "quantiles": quantiles,
-            "average_prediction_variance": avg,
-            "max_prediction_variance": mx,
-            "scaled_average_prediction_variance": avg * ctx.N,
-            "scaled_max_prediction_variance": mx * ctx.N,
-        }
+    payload: dict[str, Any] = {
+        "region": ctx.region,
+        "n_samples": ctx.n_samples,
+        "include_vertices": ctx.include_vertices,
+        "random_seed": ctx.random_seed,
+        "fds_resolution": ctx.fds_resolution,
+        "quantiles": quantiles,
+        "average_prediction_variance": avg,
+        "max_prediction_variance": mx,
+        "scaled_average_prediction_variance": avg * ctx.N,
+        "scaled_max_prediction_variance": mx * ctx.N,
     }
+    if ctx.fds_resolution is not None:
+        if ctx.fds_resolution < 2:
+            raise ValueError(f"fds_resolution must be at least 2, got {ctx.fds_resolution}.")
+        fractions = np.linspace(0.0, 1.0, ctx.fds_resolution)
+        curve = np.quantile(pv, fractions)  # non-decreasing; endpoints are min and max
+        payload["curve"] = {
+            "fraction": fractions.tolist(),
+            "prediction_variance": curve.tolist(),
+            "scaled_prediction_variance": (curve * ctx.N).tolist(),
+        }
+    return {"fds": payload}
 
 
 def _compute_prediction_variance(ctx: _EvalContext) -> dict[str, Any]:
@@ -1019,6 +1039,7 @@ def evaluate_design(  # noqa: PLR0913
     n_samples: int = 100_000,
     include_vertices: bool = True,
     random_seed: int = 42,
+    fds_resolution: int | None = None,
 ) -> dict[str, Any]:
     """Compute quality metrics for an experimental design.
 
@@ -1060,6 +1081,13 @@ def evaluate_design(  # noqa: PLR0913
         region sample so the worst-case (G) value at a corner is represented.
     random_seed : int
         Seed for the region sampler (full reproducibility).
+    fds_resolution : int or None
+        Resolution of the dense FDS curve.  When *None* (default) the ``fds``
+        metric returns only the coarse 11-point ``quantiles`` summary.  When set
+        (e.g. 200), a ``curve`` sub-dict with length-``fds_resolution``
+        ``fraction`` / ``prediction_variance`` / ``scaled_prediction_variance``
+        arrays is added for smooth plotting; the endpoints are the minimum and
+        maximum prediction variance.
 
     Returns
     -------
@@ -1130,6 +1158,7 @@ def evaluate_design(  # noqa: PLR0913
             n_samples=n_samples,
             include_vertices=include_vertices,
             random_seed=random_seed,
+            fds_resolution=fds_resolution,
         )
     )
 
@@ -1152,6 +1181,7 @@ def evaluate_all(  # noqa: PLR0913
     n_samples: int = 100_000,
     include_vertices: bool = True,
     random_seed: int = 42,
+    fds_resolution: int | None = None,
 ) -> dict[str, Any]:
     """Compute *every* available metric for a design in one call.
 
@@ -1179,4 +1209,5 @@ def evaluate_all(  # noqa: PLR0913
         n_samples=n_samples,
         include_vertices=include_vertices,
         random_seed=random_seed,
+        fds_resolution=fds_resolution,
     )
