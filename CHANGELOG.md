@@ -11,6 +11,22 @@ those changes.
 
 ## [Unreleased]
 
+## [1.44.0] - 2026-06-20
+
+### Added
+
+- `evaluate_design` and `evaluate_all` gain an `fds_resolution` parameter. When
+  set (e.g. `200`), the `fds` metric adds a dense `curve` sub-dict with
+  length-`fds_resolution` `fraction`, `prediction_variance`, and
+  `scaled_prediction_variance` (run-count-scaled SPV) arrays over evenly spaced
+  fractions in `[0, 1]`, with the endpoints equal to the minimum and maximum
+  prediction variance, suitable for smooth FDS plots. When `None` (default) the
+  output is unchanged (the coarse 11-point quantile summary), and the resolution
+  actually used is echoed back in the payload. The region-sampling controls
+  (`region`, `n_samples`, `include_vertices`, `random_seed`) added in 1.43.0
+  continue to govern the underlying Monte-Carlo sample, so a fixed
+  `(n_samples, random_seed)` makes the region maximum (G) reproducible.
+
 ## [1.43.0] - 2026-06-19
 
 ### Added
@@ -2084,7 +2100,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.43.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.44.0...HEAD
+[1.44.0]: https://github.com/kgdunn/process-improve/compare/v1.43.0...v1.44.0
 [1.43.0]: https://github.com/kgdunn/process-improve/compare/v1.42.1...v1.43.0
 [1.42.1]: https://github.com/kgdunn/process-improve/compare/v1.42.0...v1.42.1
 [1.42.0]: https://github.com/kgdunn/process-improve/compare/v1.41.0...v1.42.0
