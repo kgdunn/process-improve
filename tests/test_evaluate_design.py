@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -49,14 +51,14 @@ class TestModelMatrix:
     def test_main_effects_shape(self) -> None:
         """2^3 factorial with main_effects produces (8, 4) matrix."""
         df = _full_factorial_df(3)
-        X, cols = _build_model_matrix(df, "main_effects", ["A", "B", "C"])
+        X, cols, _ = _build_model_matrix(df, "main_effects", ["A", "B", "C"])
         assert X.shape == (8, 4)  # intercept + 3 main effects
         assert "Intercept" in cols
 
     def test_interactions_shape(self) -> None:
         """2^3 factorial with interactions produces (8, 7+1) columns."""
         df = _full_factorial_df(3)
-        X, _cols = _build_model_matrix(df, "interactions", ["A", "B", "C"])
+        X, _cols, _ = _build_model_matrix(df, "interactions", ["A", "B", "C"])
         # intercept + 3 main + 3 two-factor interactions = 7
         assert X.shape == (8, 7)
 
@@ -66,27 +68,27 @@ class TestModelMatrix:
         factors = _continuous_factors(2, "AB")
         result = generate_design(factors, design_type="ccd", alpha="face_centered")
         df = pd.DataFrame(result.design[["A", "B"]])
-        X, _cols = _build_model_matrix(df, "quadratic", ["A", "B"])
+        X, _cols, _ = _build_model_matrix(df, "quadratic", ["A", "B"])
         # intercept + 2 main + 1 interaction + 2 squared = 6
         assert X.shape[1] == 6
 
     def test_none_defaults_to_interactions(self) -> None:
         """model=None should default to interactions."""
         df = _full_factorial_df(3)
-        X_none, _cols_none = _build_model_matrix(df, None, ["A", "B", "C"])
-        X_int, _cols_int = _build_model_matrix(df, "interactions", ["A", "B", "C"])
+        X_none, _cols_none, _ = _build_model_matrix(df, None, ["A", "B", "C"])
+        X_int, _cols_int, _ = _build_model_matrix(df, "interactions", ["A", "B", "C"])
         np.testing.assert_array_equal(X_none, X_int)
 
     def test_explicit_formula_with_tilde(self) -> None:
         """Explicit formula with ~ should strip the LHS."""
         df = _full_factorial_df(2)
-        X, _cols = _build_model_matrix(df, "y ~ A + B", ["A", "B"])
+        X, _cols, _ = _build_model_matrix(df, "y ~ A + B", ["A", "B"])
         assert X.shape == (4, 3)  # intercept + 2 main
 
     def test_explicit_rhs_formula(self) -> None:
         """Explicit RHS formula (no ~) should work directly."""
         df = _full_factorial_df(2)
-        X, _cols = _build_model_matrix(df, "A * B", ["A", "B"])
+        X, _cols, _ = _build_model_matrix(df, "A * B", ["A", "B"])
         assert X.shape[1] == 4  # intercept + A + B + A:B
 
 
@@ -768,3 +770,242 @@ class TestIntegration:
         assert any("ABCD" in w for w in metrics["defining_relation"])
         assert "A" in metrics["clear_effects"]["main_effects"]
         assert metrics["minimum_aberration"]["wordlength_pattern"] == [0, 1]
+
+
+# ---------------------------------------------------------------------------
+# New model-aware metrics: A/E-optimality, correlation, alias matrix, FDS
+# ---------------------------------------------------------------------------
+
+# Five-factor pure main-effects-plus-quadratics model (11 terms incl. intercept).
+_FACTORS_5 = list("ABCDE")
+_PURE_QUADRATIC_5 = "+".join(_FACTORS_5) + "+" + "+".join(f"I({n}**2)" for n in _FACTORS_5)
+
+
+def _rsm_factors() -> list[Factor]:
+    """Five continuous factors coded on [-1, 1]."""
+    return [Factor(name=n, low=-1, high=1) for n in _FACTORS_5]
+
+
+def _coded(result: object) -> pd.DataFrame:
+    """Extract the coded factor columns of a DesignResult as a plain DataFrame."""
+    df = pd.DataFrame(result.design)  # type: ignore[attr-defined]
+    return df[[c for c in df.columns if c in _FACTORS_5]].reset_index(drop=True).astype(float)
+
+
+# A 25-run OMARS design for five factors, reproducing the published reference
+# row (A=2.34, E=0.93, max|r|=0.00, I=0.51, G=0.84).  It is the conference-matrix
+# foldover [C; -C; C; -C; 0] (a doubled DSD core plus one centre run) and is
+# verified by ``is_omars``.  The enumerated OMARS catalogue is not shipped with
+# the package; constructive generation of OMARS designs for small factor counts
+# is planned, at which point this hand-embedded fixture can be replaced.
+_OMARS_25 = pd.DataFrame(
+    [
+        [0, 1, 1, 1, 1], [-1, 0, -1, 1, 1], [-1, 1, 1, -1, 0], [-1, 1, -1, 0, -1],
+        [1, 1, -1, -1, 1], [1, 1, 0, 1, -1], [0, -1, -1, -1, -1], [1, 0, 1, -1, -1],
+        [1, -1, -1, 1, 0], [1, -1, 1, 0, 1], [-1, -1, 1, 1, -1], [-1, -1, 0, -1, 1],
+        [0, 1, 1, 1, 1], [-1, 0, -1, 1, 1], [-1, 1, 1, -1, 0], [-1, 1, -1, 0, -1],
+        [1, 1, -1, -1, 1], [1, 1, 0, 1, -1], [0, -1, -1, -1, -1], [1, 0, 1, -1, -1],
+        [1, -1, -1, 1, 0], [1, -1, 1, 0, 1], [-1, -1, 1, 1, -1], [-1, -1, 0, -1, 1],
+        [0, 0, 0, 0, 0],
+    ],
+    columns=_FACTORS_5,
+    dtype=float,
+)
+
+
+class TestAOptimality:
+    """Test A-optimality (trace of the inverse information matrix)."""
+
+    def test_orthogonal_design(self) -> None:
+        """Orthogonal 2^3 design: A = trace((X'X)^-1) is positive and small."""
+        df = _full_factorial_df(3)
+        result = evaluate_design(df, model="main_effects", metric="a_optimality")
+        # Orthogonal: X'X = 8 I, so trace((X'X)^-1) = 4 / 8 = 0.5.
+        assert result["a_optimality"] == pytest.approx(0.5, abs=1e-9)
+        assert result["a_efficiency"] is not None
+
+    def test_singular_returns_none(self) -> None:
+        """Rank-deficient design returns None for A-optimality."""
+        df = _full_factorial_df(2)
+        result = evaluate_design(df, model="quadratic", metric="a_optimality")
+        assert result["a_optimality"] is None
+
+
+class TestEOptimality:
+    """Test E-optimality (smallest eigenvalue of X'X)."""
+
+    def test_orthogonal_design(self) -> None:
+        """Orthogonal 2^3 design: every eigenvalue of X'X equals N = 8."""
+        df = _full_factorial_df(3)
+        result = evaluate_design(df, model="main_effects", metric="e_optimality")
+        assert result["e_optimality"] == pytest.approx(8.0, abs=1e-9)
+
+    def test_reported_even_when_singular(self) -> None:
+        """E-optimality is defined (near zero) even for a rank-deficient design."""
+        df = _full_factorial_df(2)
+        result = evaluate_design(df, model="quadratic", metric="e_optimality")
+        assert result["e_optimality"] == pytest.approx(0.0, abs=1e-9)
+
+
+class TestCorrelation:
+    """Test the residualised second-order correlation summary."""
+
+    def test_keys_present(self) -> None:
+        """Correlation result exposes max/mean |r|, matrix, and terms."""
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="correlation")
+        corr = result["correlation"]
+        assert {"max_abs_r", "mean_abs_r", "matrix", "terms"} <= set(corr)
+        assert 0.0 <= corr["max_abs_r"] <= 1.0
+
+    def test_omars_second_order_orthogonal(self) -> None:
+        """The OMARS fixture has an orthogonal second-order block (max|r| = 0)."""
+        result = evaluate_design(_OMARS_25, model=_PURE_QUADRATIC_5, metric="correlation")
+        assert result["correlation"]["max_abs_r"] == pytest.approx(0.0, abs=1e-9)
+
+
+class TestAliasMatrix:
+    """Test the general alias (bias) matrix."""
+
+    def test_keys_present(self) -> None:
+        """Alias-matrix result exposes the matrix, terms, and summary norms."""
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="alias_matrix")
+        am = result["alias_matrix"]
+        assert {"matrix", "model_terms", "alias_terms", "max_abs", "max_abs_main_effect_rows", "frobenius_norm"} <= set(
+            am
+        )
+        # Box-Behnken aliases no two-factor interactions into the pure-quadratic model.
+        assert am["max_abs"] == pytest.approx(0.0, abs=1e-9)
+
+    def test_main_effect_rows_unbiased_for_omars(self) -> None:
+        """OMARS keeps main effects clear of the omitted 2fi (main-row alias = 0)."""
+        result = evaluate_design(_OMARS_25, model=_PURE_QUADRATIC_5, metric="alias_matrix")
+        assert result["alias_matrix"]["max_abs_main_effect_rows"] == pytest.approx(0.0, abs=1e-9)
+
+
+class TestFDS:
+    """Test the fraction-of-design-space (FDS) curve."""
+
+    def test_payload_and_scaling(self) -> None:
+        """FDS reports region metadata, quantiles, I/G, and the xN SPV variants."""
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_seed=1)
+        fds = result["fds"]
+        assert fds["region"] == "cuboidal"
+        assert fds["include_vertices"] is True
+        assert fds["random_seed"] == 1
+        n = df.shape[0]
+        assert fds["scaled_average_prediction_variance"] == pytest.approx(fds["average_prediction_variance"] * n)
+        assert fds["scaled_max_prediction_variance"] == pytest.approx(fds["max_prediction_variance"] * n)
+        # The maximum prediction variance is at least the region average.
+        assert fds["max_prediction_variance"] >= fds["average_prediction_variance"]
+
+    def test_quantiles_monotone(self) -> None:
+        """FDS quantiles are non-decreasing in the fraction of design space."""
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_seed=1)["fds"]
+        keys = sorted(fds["quantiles"], key=float)
+        values = [fds["quantiles"][k] for k in keys]
+        assert values == sorted(values)
+
+
+class TestReducedFormulaRegression:
+    """Regression: explicit reduced formulas must not crash the region metrics."""
+
+    def test_i_g_efficiency_explicit_pure_quadratic(self) -> None:
+        """i/g efficiency for an 11-term reduced formula no longer raises (size 11 vs 21)."""
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        result = evaluate_design(
+            df, model=_PURE_QUADRATIC_5, metric=["i_efficiency", "g_efficiency"], random_seed=1
+        )
+        assert result["i_efficiency"] is not None
+        assert result["g_efficiency"] is not None
+        assert result["average_prediction_variance"] > 0
+        assert result["max_prediction_variance"] >= result["average_prediction_variance"]
+
+
+class TestAggregate:
+    """Test metric='all' and the evaluate_all wrapper."""
+
+    def test_metric_all_includes_every_metric(self) -> None:
+        """metric='all' returns keys for every registered metric family."""
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="all", effect_size=1.0, random_seed=1)
+        for key in ("d_efficiency", "a_optimality", "e_optimality", "correlation", "alias_matrix", "fds", "power"):
+            assert key in result
+
+    def test_evaluate_all_matches_metric_all(self) -> None:
+        """evaluate_all is a thin wrapper over evaluate_design(metric='all')."""
+        from process_improve.experiments.evaluate import evaluate_all
+
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        a = evaluate_all(df, model=_PURE_QUADRATIC_5, effect_size=1.0, random_seed=1)
+        b = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="all", effect_size=1.0, random_seed=1)
+        assert set(a) == set(b)
+        assert a["a_optimality"] == pytest.approx(b["a_optimality"])
+
+
+class TestGoldenMetrics:
+    """Golden-value regression against an independent numpy/scipy implementation.
+
+    Five factors on the 11-term main-effects-plus-pure-quadratics model, all
+    designs confined to [-1, 1]^5, region cuboidal with uniform sampling plus
+    the 2^5 vertices (random_seed=1).  Stable/deterministic metrics (A, E,
+    max|r|, region-average I, VIF, alias, power) are asserted tightly; the
+    Monte-Carlo region maximum (G) is asserted with a modest tolerance.
+    """
+
+    # design name -> (A, E, max|r|, region-I, region-G, max VIF,
+    #                 alias max|A|, main-row alias, power main, power quad)
+    GOLDEN: ClassVar[dict[str, tuple[float, ...]]] = {
+        "BBD": (1.05, 2.54, 0.15, 0.18, 0.84, 1.20, 0.00, 0.00, 0.97, 0.82),
+        "CCD": (2.39, 2.00, 0.75, 0.31, 0.77, 3.20, 0.00, 0.00, 0.98, 0.32),
+        "OMARS": (2.34, 0.93, 0.00, 0.51, 0.84, 1.00, 1.00, 0.00, 0.99, 0.46),
+        "DSD": (3.70, 0.85, 0.13, 0.71, 1.05, 1.05, 1.09, 0.00, 0.42, 0.15),
+    }
+
+    def _design(self, name: str) -> pd.DataFrame:
+        if name == "BBD":
+            return _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        if name == "CCD":
+            return _coded(
+                generate_design(
+                    _rsm_factors(), design_type="ccd", cube="fractional", alpha="face_centered", center_points=6
+                )
+            )
+        if name == "DSD":
+            return _coded(generate_design(_rsm_factors(), design_type="dsd"))
+        return _OMARS_25
+
+    @pytest.mark.parametrize("name", ["BBD", "CCD", "OMARS", "DSD"])
+    def test_golden_row(self, name: str) -> None:
+        df = self._design(name)
+        gA, gE, gR, gI, gG, gVIF, gAlias, gMain, gPM, gPQ = self.GOLDEN[name]
+        res = evaluate_design(
+            df,
+            model=_PURE_QUADRATIC_5,
+            metric=["a_optimality", "e_optimality", "correlation", "fds", "vif", "alias_matrix", "power"],
+            effect_size=1.0,
+            random_seed=1,
+            n_samples=100_000,
+        )
+        assert res["a_optimality"] == pytest.approx(gA, abs=0.01)
+        assert res["e_optimality"] == pytest.approx(gE, abs=0.01)
+        assert res["correlation"]["max_abs_r"] == pytest.approx(gR, abs=0.01)
+        assert res["fds"]["average_prediction_variance"] == pytest.approx(gI, abs=0.01)
+        assert res["fds"]["max_prediction_variance"] == pytest.approx(gG, abs=0.05)
+        assert max(res["vif"].values()) == pytest.approx(gVIF, abs=0.01)
+        assert res["alias_matrix"]["max_abs"] == pytest.approx(gAlias, abs=0.01)
+        assert res["alias_matrix"]["max_abs_main_effect_rows"] == pytest.approx(gMain, abs=0.01)
+        power_main = np.mean([res["power"][n] for n in _FACTORS_5])
+        power_quad = np.mean([res["power"][c] for c in res["power"] if c.startswith("I(")])
+        assert power_main == pytest.approx(gPM, abs=0.01)
+        assert power_quad == pytest.approx(gPQ, abs=0.01)
+
+    def test_omars_fixture_is_valid(self) -> None:
+        """The embedded 25-run OMARS fixture really is an OMARS design."""
+        from process_improve.experiments.designs_omars import is_omars
+
+        assert _OMARS_25.shape == (25, 5)
+        assert is_omars(_OMARS_25.to_numpy())
