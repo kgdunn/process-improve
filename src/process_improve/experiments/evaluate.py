@@ -26,9 +26,9 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from patsy import dmatrix
+from patsy import build_design_matrices, dmatrix
+from patsy.design_info import DesignInfo
 from scipy import stats
-from scipy.stats import qmc
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 from process_improve.experiments.factor import DesignResult
@@ -60,6 +60,11 @@ class _EvalRequest:
     effect_size: float | None
     alpha: float
     sigma: float | None
+    region: str = "cuboidal"
+    n_samples: int = 100_000
+    include_vertices: bool = True
+    random_seed: int = 42
+    fds_resolution: int | None = None
 
 
 @dataclass
@@ -70,6 +75,7 @@ class _EvalContext:
     column_names: list[str]
     factor_names: list[str]
     design_df: pd.DataFrame
+    design_info: DesignInfo  # patsy DesignInfo of the fitted model matrix
     N: int
     p: int
     XtX: np.ndarray
@@ -81,6 +87,11 @@ class _EvalContext:
     effect_size: float | None
     alpha: float
     sigma: float | None
+    region: str = "cuboidal"
+    n_samples: int = 100_000
+    include_vertices: bool = True
+    random_seed: int = 42
+    fds_resolution: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -94,7 +105,7 @@ def _build_model_matrix(
     design_df: pd.DataFrame,
     model: str | None,
     factor_names: list[str],
-) -> tuple[np.ndarray, list[str]]:
+) -> tuple[np.ndarray, list[str], DesignInfo]:
     """Build the expanded model matrix *X* using patsy.
 
     Parameters
@@ -113,6 +124,10 @@ def _build_model_matrix(
         The model matrix including the intercept column.
     column_names : list[str]
         Human-readable names for each column of *X*.
+    design_info : patsy.DesignInfo
+        The patsy design info describing the expansion.  Pass it to
+        :func:`patsy.build_design_matrices` to expand *new* factor-space points
+        through the identical model (see :func:`_expand_points`).
     """
     if model is None:
         model = "interactions"
@@ -143,12 +158,12 @@ def _build_model_matrix(
     dm = dmatrix(rhs, design_df, return_type="dataframe")
     X = np.asarray(dm, dtype=float)
     column_names = list(dm.columns)
-    return X, column_names
+    return X, column_names, dm.design_info
 
 
 def _build_context(req: _EvalRequest) -> _EvalContext:
     """Build the shared evaluation context."""
-    X, column_names = _build_model_matrix(req.design_df, req.model, req.factor_names)
+    X, column_names, design_info = _build_model_matrix(req.design_df, req.model, req.factor_names)
     N, p = X.shape
     XtX = X.T @ X
 
@@ -163,6 +178,7 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
         column_names=column_names,
         factor_names=req.factor_names,
         design_df=req.design_df,
+        design_info=design_info,
         N=N,
         p=p,
         XtX=XtX,
@@ -174,6 +190,11 @@ def _build_context(req: _EvalRequest) -> _EvalContext:
         effect_size=req.effect_size,
         alpha=req.alpha,
         sigma=req.sigma,
+        region=req.region,
+        n_samples=req.n_samples,
+        include_vertices=req.include_vertices,
+        random_seed=req.random_seed,
+        fds_resolution=req.fds_resolution,
     )
 
 
@@ -199,24 +220,105 @@ def _prediction_variance_at_points(X_points: np.ndarray, XtX_inv: np.ndarray) ->
     return np.sum((X_points @ XtX_inv) * X_points, axis=1)
 
 
-def _generate_evaluation_grid(factor_names: list[str], n_points: int = 5000) -> np.ndarray:
-    """Generate points in [-1, 1]^k for evaluating prediction variance.
+def _expand_points(ctx: _EvalContext, points: np.ndarray) -> np.ndarray:
+    """Expand raw factor-space points through the *fitted* model matrix.
 
-    Uses Sobol sequences for efficient space-filling coverage.
+    Uses the stored patsy :class:`~patsy.design_info.DesignInfo` so the columns
+    of the returned matrix match :attr:`_EvalContext.X` exactly (same terms,
+    same order).  This is what keeps region / grid evaluation consistent with
+    the fit; rebuilding from an inferred shorthand model is what previously
+    produced a column-count mismatch for explicit reduced formulas.
+
+    Parameters
+    ----------
+    ctx : _EvalContext
+        The shared evaluation context (carries the fitted ``design_info``).
+    points : ndarray of shape (M, k)
+        Raw factor-space points, one column per factor in ``ctx.factor_names``.
+
+    Returns
+    -------
+    ndarray of shape (M, p)
+        The model matrix for *points*, with the same columns as ``ctx.X``.
+    """
+    df_points = pd.DataFrame(np.asarray(points, dtype=float), columns=ctx.factor_names)
+    (expanded,) = build_design_matrices([ctx.design_info], df_points, return_type="matrix")
+    return np.asarray(expanded, dtype=float)
+
+
+def _cube_vertices(k: int) -> np.ndarray:
+    """Return all ``2**k`` cube vertices (corners) of ``[-1, 1]^k``."""
+    return np.array(list(itertools.product([-1.0, 1.0], repeat=k)), dtype=float)
+
+
+def _region_points(
+    factor_names: list[str],
+    region: str,
+    n_samples: int,
+    include_vertices: bool,
+    random_seed: int,
+) -> np.ndarray:
+    """Sample raw factor-space points over the design region.
+
+    Parameters
+    ----------
+    factor_names : list[str]
+        Ordered factor names (only the count ``k`` matters here).
+    region : {"cuboidal", "spherical"}
+        ``"cuboidal"`` samples uniformly in ``[-1, 1]^k``; ``"spherical"``
+        samples uniformly inside the ball of radius ``sqrt(k)`` (the sphere
+        that circumscribes the unit cube).
+    n_samples : int
+        Number of random interior samples to draw.
+    include_vertices : bool
+        When *True*, append all ``2**k`` cube vertices to the sample set.  The
+        worst-case prediction variance for second-order models very often sits
+        at (or near) a corner, so the corners are always represented in the
+        G / FDS statistics.
+    random_seed : int
+        Seed for the NumPy random generator (full reproducibility).
+
+    Returns
+    -------
+    ndarray of shape (M, k)
+        The sampled points, with the cube vertices appended last when
+        *include_vertices* is set.
     """
     k = len(factor_names)
-    sampler = qmc.Sobol(d=k, scramble=True, seed=42)
-    # Power-of-2 samples for Sobol balance
-    m = max(10, int(np.ceil(np.log2(n_points))))
-    points_01 = sampler.random_base2(m)  # in [0, 1]^k
-    return points_01 * 2.0 - 1.0  # scale to [-1, 1]^k
+    rng = np.random.default_rng(random_seed)
+    if region == "cuboidal":
+        pts = rng.uniform(-1.0, 1.0, size=(n_samples, k))
+    elif region == "spherical":
+        # Uniform in the radius-sqrt(k) ball: direction * radius, radius ~ U^(1/k).
+        directions = rng.normal(size=(n_samples, k))
+        directions /= np.linalg.norm(directions, axis=1, keepdims=True)
+        radii = np.sqrt(k) * rng.uniform(0.0, 1.0, size=(n_samples, 1)) ** (1.0 / k)
+        pts = directions * radii
+    else:
+        raise ValueError(f"Unknown region={region!r}.  Choose 'cuboidal' or 'spherical'.")
+
+    if include_vertices and k > 0:
+        pts = np.vstack([pts, _cube_vertices(k)])
+    return pts
 
 
-def _expand_grid_points(grid_raw: np.ndarray, factor_names: list[str], model: str | None) -> np.ndarray:
-    """Expand raw grid points through the model formula to get X_grid."""
-    df_grid = pd.DataFrame(grid_raw, columns=factor_names)
-    X_grid, _ = _build_model_matrix(df_grid, model, factor_names)
-    return X_grid
+def _region_prediction_variance(ctx: _EvalContext) -> np.ndarray:
+    """Prediction variance ``d(x) = x' (X'X)^-1 x`` over the design region.
+
+    Single source of truth for the region-based metrics (I / G efficiency and
+    the FDS curve): all of them read from this one sorted array, sampled with
+    the region settings carried on *ctx*.
+    """
+    assert ctx.XtX_inv is not None  # callers guard on ``ctx.is_singular``
+    points = _region_points(
+        ctx.factor_names,
+        region=ctx.region,
+        n_samples=ctx.n_samples,
+        include_vertices=ctx.include_vertices,
+        random_seed=ctx.random_seed,
+    )
+    X_region = _expand_points(ctx, points)
+    return _prediction_variance_at_points(X_region, ctx.XtX_inv)
 
 
 def _compute_g_efficiency(ctx: _EvalContext) -> dict[str, Any]:
@@ -224,13 +326,7 @@ def _compute_g_efficiency(ctx: _EvalContext) -> dict[str, Any]:
     if ctx.is_singular:
         return {"g_efficiency": None, "note": "Design is rank-deficient for the specified model."}
 
-    # ``XtX_inv`` is non-None whenever the design is not singular (guarded above).
-    assert ctx.XtX_inv is not None
-    grid_raw = _generate_evaluation_grid(ctx.factor_names)
-    # Determine the model string to rebuild for grid points
-    model_str = _infer_model_string(ctx)
-    X_grid = _expand_grid_points(grid_raw, ctx.factor_names, model_str)
-    pv = _prediction_variance_at_points(X_grid, ctx.XtX_inv)
+    pv = _region_prediction_variance(ctx)
     max_pv = float(np.max(pv))
 
     g_eff = 100.0 * ctx.p / (ctx.N * max_pv) if max_pv > 0 else None
@@ -245,12 +341,7 @@ def _compute_i_efficiency(ctx: _EvalContext) -> dict[str, Any]:
     if ctx.is_singular:
         return {"i_efficiency": None, "note": "Design is rank-deficient for the specified model."}
 
-    # ``XtX_inv`` is non-None whenever the design is not singular (guarded above).
-    assert ctx.XtX_inv is not None
-    grid_raw = _generate_evaluation_grid(ctx.factor_names)
-    model_str = _infer_model_string(ctx)
-    X_grid = _expand_grid_points(grid_raw, ctx.factor_names, model_str)
-    pv = _prediction_variance_at_points(X_grid, ctx.XtX_inv)
+    pv = _region_prediction_variance(ctx)
     avg_pv = float(np.mean(pv))
 
     i_eff = 100.0 * ctx.p / (ctx.N * avg_pv) if avg_pv > 0 else None
@@ -260,22 +351,227 @@ def _compute_i_efficiency(ctx: _EvalContext) -> dict[str, Any]:
     }
 
 
-def _infer_model_string(ctx: _EvalContext) -> str | None:
-    """Reconstruct the model string from the context for grid expansion.
+def _term_order(name: str) -> int:
+    """Classify a model-matrix column by its polynomial order.
 
-    We need to re-apply the same model transformation to grid points.  Since
-    the context stores only the expanded column names, we reconstruct the
-    model shorthand by checking the column structure.
+    Returns ``0`` for the intercept, ``1`` for a main effect, and ``2`` for a
+    second-order term (a pure quadratic ``I(x ** 2)`` or a two-factor
+    interaction ``x:y``).  Sufficient for the response-surface models this
+    module evaluates; higher powers are reported as their interaction depth.
     """
-    cols = set(ctx.column_names)
-    has_interactions = any(":" in c for c in cols)
-    has_squared = any("**" in c or c.startswith("I(") for c in cols)
+    if name.lower() == "intercept" or name == "1":
+        return 0
+    if ":" in name:
+        return name.count(":") + 1
+    if "**" in name or name.startswith("I("):
+        return 2
+    return 1
 
-    if has_squared:
-        return "quadratic"
-    if has_interactions:
-        return "interactions"
-    return "main_effects"
+
+def _compute_a_optimality(ctx: _EvalContext) -> dict[str, Any]:
+    """A-optimality: ``trace((X'X)^-1)`` (lower is better).
+
+    The trace of the inverse information matrix is the sum (so, up to a
+    constant, the average) of the coefficient variances.  ``a_efficiency`` is a
+    normalised score in the same spirit as ``d_efficiency`` (higher is better).
+    """
+    if ctx.is_singular:
+        return {"a_optimality": None, "note": "Design is rank-deficient for the specified model."}
+
+    assert ctx.XtX_inv is not None
+    trace = float(np.trace(ctx.XtX_inv))
+    a_eff = 100.0 * ctx.p / (ctx.N * trace) if trace > 0 else None
+    return {
+        "a_optimality": trace,
+        "a_efficiency": float(a_eff) if a_eff is not None else None,
+    }
+
+
+def _compute_e_optimality(ctx: _EvalContext) -> dict[str, Any]:
+    """E-optimality: smallest eigenvalue of ``X'X`` (higher is better).
+
+    The minimum eigenvalue measures how well the worst-estimated direction in
+    parameter space is supported by the design.  ``e_efficiency`` scales it by
+    the run count for comparison across designs of different size.
+    """
+    min_eig = float(np.linalg.eigvalsh(ctx.XtX).min())
+    return {
+        "e_optimality": min_eig,
+        "e_efficiency": 100.0 * min_eig / ctx.N if ctx.N > 0 else None,
+    }
+
+
+def _compute_correlation(ctx: _EvalContext) -> dict[str, Any]:
+    """Pairwise correlation summary among the model's second-order terms.
+
+    The pure-quadratic columns ``x_i^2`` have a non-zero mean, so a raw Pearson
+    correlation between them is inflated by that shared offset and depends on
+    the coding.  To get a coding-invariant measure, each second-order column is
+    first residualised against the intercept-and-main-effect block (the
+    content those columns share by construction) and the correlations are taken
+    on the residuals.
+
+    Returns ``max_abs_r``, ``mean_abs_r``, the full correlation ``matrix`` (as
+    nested lists), and the ordered ``terms``.
+    """
+    second_idx = [i for i, c in enumerate(ctx.column_names) if _term_order(c) == 2]
+    base_idx = [i for i, c in enumerate(ctx.column_names) if _term_order(c) in (0, 1)]
+    if len(second_idx) < 2:
+        return {
+            "correlation": {
+                "max_abs_r": 0.0,
+                "mean_abs_r": 0.0,
+                "matrix": [[1.0]] if second_idx else [],
+                "terms": [ctx.column_names[i] for i in second_idx],
+                "note": "Fewer than two second-order terms; no pairwise correlation.",
+            }
+        }
+
+    second = ctx.X[:, second_idx]
+    base = ctx.X[:, base_idx]
+    # Residualise the second-order columns against [intercept, main effects].
+    resid = second - base @ (np.linalg.pinv(base) @ second)
+
+    with np.errstate(invalid="ignore", divide="ignore"):
+        corr = np.corrcoef(resid, rowvar=False)
+    corr = np.nan_to_num(corr, nan=0.0)
+    corr = np.atleast_2d(corr)
+
+    m = corr.shape[0]
+    iu = np.triu_indices(m, k=1)
+    off_diag = np.abs(corr[iu])
+    max_abs = float(off_diag.max()) if off_diag.size else 0.0
+    mean_abs = float(off_diag.mean()) if off_diag.size else 0.0
+    return {
+        "correlation": {
+            "max_abs_r": max_abs,
+            "mean_abs_r": mean_abs,
+            "matrix": corr.tolist(),
+            "terms": [ctx.column_names[i] for i in second_idx],
+        }
+    }
+
+
+def _omitted_two_factor_interactions(ctx: _EvalContext) -> tuple[np.ndarray, list[str]]:
+    """Build the two-factor-interaction columns *not* already in the model.
+
+    Returns the ``(N, q)`` matrix of raw ``x_i * x_j`` products and the matching
+    ``"A:B"`` term names, for every factor pair whose interaction is absent from
+    the fitted model matrix.
+    """
+    present = {c.replace(" ", "") for c in ctx.column_names}
+    cols: list[np.ndarray] = []
+    names: list[str] = []
+    factors = ctx.factor_names
+    values = {f: ctx.design_df[f].to_numpy(dtype=float) for f in factors}
+    for a, b in itertools.combinations(factors, 2):
+        if f"{a}:{b}" in present or f"{b}:{a}" in present:
+            continue
+        cols.append(values[a] * values[b])
+        names.append(f"{a}:{b}")
+    if not cols:
+        return np.empty((ctx.N, 0)), []
+    return np.column_stack(cols), names
+
+
+def _compute_alias_matrix(ctx: _EvalContext) -> dict[str, Any]:
+    """General alias (bias) matrix ``A = (X1'X1)^-1 X1' X2``.
+
+    With the fitted model ``X1`` and a set of potential extra terms ``X2``
+    (default: the two-factor interactions not already in the model), the least
+    squares estimate of the fitted coefficients is biased by
+    ``E[b1] = beta1 + A @ beta2``.  This generalises :func:`alias_structure`
+    (which only handles two-level fractional factorials) to any design / model.
+
+    Returns the ``matrix`` (nested lists), the ``model_terms`` (rows) and
+    ``alias_terms`` (columns), the worst single bias ``max_abs``, the maximum
+    over the main-effect rows ``max_abs_main_effect_rows``, and the Frobenius
+    norm ``frobenius_norm``.
+    """
+    if ctx.is_singular:
+        return {"alias_matrix": None, "note": "Design is rank-deficient for the specified model."}
+
+    assert ctx.XtX_inv is not None
+    X2, alias_terms = _omitted_two_factor_interactions(ctx)
+    if X2.shape[1] == 0:
+        return {
+            "alias_matrix": {
+                "matrix": [],
+                "model_terms": list(ctx.column_names),
+                "alias_terms": [],
+                "max_abs": 0.0,
+                "max_abs_main_effect_rows": 0.0,
+                "frobenius_norm": 0.0,
+                "note": "No two-factor interactions outside the model to alias against.",
+            }
+        }
+
+    alias = ctx.XtX_inv @ ctx.X.T @ X2
+    main_rows = [i for i, c in enumerate(ctx.column_names) if _term_order(c) == 1]
+    max_abs = float(np.max(np.abs(alias)))
+    max_main = float(np.max(np.abs(alias[main_rows, :]))) if main_rows else 0.0
+    return {
+        "alias_matrix": {
+            "matrix": alias.tolist(),
+            "model_terms": list(ctx.column_names),
+            "alias_terms": alias_terms,
+            "max_abs": max_abs,
+            "max_abs_main_effect_rows": max_main,
+            "frobenius_norm": float(np.linalg.norm(alias)),
+        }
+    }
+
+
+_FDS_QUANTILES = (0.0, 0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 1.0)
+
+
+def _compute_fds(ctx: _EvalContext) -> dict[str, Any]:
+    """Fraction-of-design-space (FDS) distribution of the prediction variance.
+
+    Samples the scaled prediction variance ``d(x) = x' (X'X)^-1 x`` over the
+    whole design region (not just the design points), returning quantiles of
+    the curve together with the region average (I / V-optimality) and maximum
+    (G-optimality) in ``sigma^2`` units, plus the run-count-scaled SPV variants
+    (multiplied by ``N``).  The region settings are echoed back for
+    reproducibility.
+
+    When ``ctx.fds_resolution`` is set, a dense ``curve`` sub-dict is added with
+    ``fraction``, ``prediction_variance``, and ``scaled_prediction_variance``
+    arrays of that length, evaluated on evenly spaced fractions in ``[0, 1]``
+    (the endpoints are the minimum and maximum prediction variance) - suitable
+    for drawing a smooth FDS plot.  The coarse 11-point ``quantiles`` summary is
+    always present for backward compatibility.
+    """
+    if ctx.is_singular:
+        return {"fds": None, "note": "Design is rank-deficient for the specified model."}
+
+    pv = np.sort(_region_prediction_variance(ctx))
+    avg = float(pv.mean())
+    mx = float(pv.max())
+    quantiles = {f"{q:g}": float(v) for q, v in zip(_FDS_QUANTILES, np.quantile(pv, _FDS_QUANTILES), strict=True)}
+    payload: dict[str, Any] = {
+        "region": ctx.region,
+        "n_samples": ctx.n_samples,
+        "include_vertices": ctx.include_vertices,
+        "random_seed": ctx.random_seed,
+        "fds_resolution": ctx.fds_resolution,
+        "quantiles": quantiles,
+        "average_prediction_variance": avg,
+        "max_prediction_variance": mx,
+        "scaled_average_prediction_variance": avg * ctx.N,
+        "scaled_max_prediction_variance": mx * ctx.N,
+    }
+    if ctx.fds_resolution is not None:
+        if ctx.fds_resolution < 2:
+            raise ValueError(f"fds_resolution must be at least 2, got {ctx.fds_resolution}.")
+        fractions = np.linspace(0.0, 1.0, ctx.fds_resolution)
+        curve = np.quantile(pv, fractions)  # non-decreasing; endpoints are min and max
+        payload["curve"] = {
+            "fraction": fractions.tolist(),
+            "prediction_variance": curve.tolist(),
+            "scaled_prediction_variance": (curve * ctx.N).tolist(),
+        }
+    return {"fds": payload}
 
 
 def _compute_prediction_variance(ctx: _EvalContext) -> dict[str, Any]:
@@ -708,6 +1004,11 @@ _METRIC_REGISTRY: dict[str, Callable[[_EvalContext], Any]] = {
     "d_efficiency": _compute_d_efficiency,
     "i_efficiency": _compute_i_efficiency,
     "g_efficiency": _compute_g_efficiency,
+    "a_optimality": _compute_a_optimality,
+    "e_optimality": _compute_e_optimality,
+    "correlation": _compute_correlation,
+    "alias_matrix": _compute_alias_matrix,
+    "fds": _compute_fds,
     "prediction_variance": _compute_prediction_variance,
     "vif": _compute_vif,
     "condition_number": _compute_condition_number,
@@ -734,6 +1035,11 @@ def evaluate_design(  # noqa: PLR0913
     effect_size: float | None = None,
     alpha: float = 0.05,
     sigma: float | None = None,
+    region: str = "cuboidal",
+    n_samples: int = 100_000,
+    include_vertices: bool = True,
+    random_seed: int = 42,
+    fds_resolution: int | None = None,
 ) -> dict[str, Any]:
     """Compute quality metrics for an experimental design.
 
@@ -747,11 +1053,13 @@ def evaluate_design(  # noqa: PLR0913
         Model type: ``"main_effects"``, ``"interactions"``, ``"quadratic"``,
         or an explicit patsy formula.  ``None`` defaults to ``"interactions"``.
     metric : str or list[str]
-        One or more metric names to compute.  Valid names:
-        ``"alias_structure"``, ``"confounding"``, ``"resolution"``,
-        ``"defining_relation"``, ``"power"``, ``"d_efficiency"``,
-        ``"i_efficiency"``, ``"g_efficiency"``, ``"prediction_variance"``,
-        ``"degrees_of_freedom"``, ``"vif"``, ``"condition_number"``,
+        One or more metric names to compute, or the special value ``"all"`` to
+        compute every metric.  Valid names: ``"d_efficiency"``,
+        ``"i_efficiency"``, ``"g_efficiency"``, ``"a_optimality"``,
+        ``"e_optimality"``, ``"correlation"``, ``"alias_matrix"``, ``"fds"``,
+        ``"prediction_variance"``, ``"vif"``, ``"condition_number"``,
+        ``"power"``, ``"degrees_of_freedom"``, ``"alias_structure"``,
+        ``"confounding"``, ``"resolution"``, ``"defining_relation"``,
         ``"clear_effects"``, ``"minimum_aberration"``.
     effect_size : float or None
         Expected effect size for power calculation.  When *None*, a power
@@ -761,6 +1069,25 @@ def evaluate_design(  # noqa: PLR0913
     sigma : float or None
         Estimated noise standard deviation.  Defaults to 1.0 when needed
         but not provided.
+    region : {"cuboidal", "spherical"}
+        Design region over which the region-based metrics (``i_efficiency``,
+        ``g_efficiency``, ``fds``) integrate the prediction variance.
+        ``"cuboidal"`` (default) is ``[-1, 1]^k``; ``"spherical"`` is the ball
+        of radius ``sqrt(k)``.
+    n_samples : int
+        Number of random samples drawn over the region (default 100,000).
+    include_vertices : bool
+        When *True* (default), all ``2**k`` cube vertices are added to the
+        region sample so the worst-case (G) value at a corner is represented.
+    random_seed : int
+        Seed for the region sampler (full reproducibility).
+    fds_resolution : int or None
+        Resolution of the dense FDS curve.  When *None* (default) the ``fds``
+        metric returns only the coarse 11-point ``quantiles`` summary.  When set
+        (e.g. 200), a ``curve`` sub-dict with length-``fds_resolution``
+        ``fraction`` / ``prediction_variance`` / ``scaled_prediction_variance``
+        arrays is added for smooth plotting; the endpoints are the minimum and
+        maximum prediction variance.
 
     Returns
     -------
@@ -801,7 +1128,12 @@ def evaluate_design(  # noqa: PLR0913
             design_df = design_df.drop(columns=[col])
 
     # --- Normalize metric to list ---
-    metrics = [metric] if isinstance(metric, str) else list(metric)
+    if metric == "all":
+        metrics = list(_METRIC_REGISTRY)
+    elif isinstance(metric, str):
+        metrics = [metric]
+    else:
+        metrics = list(metric)
     logger.debug("evaluate_design: model=%r, metrics=%s", model, metrics)
 
     # Validate metric names
@@ -822,6 +1154,11 @@ def evaluate_design(  # noqa: PLR0913
             effect_size=effect_size,
             alpha=alpha,
             sigma=sigma,
+            region=region,
+            n_samples=n_samples,
+            include_vertices=include_vertices,
+            random_seed=random_seed,
+            fds_resolution=fds_resolution,
         )
     )
 
@@ -832,3 +1169,45 @@ def evaluate_design(  # noqa: PLR0913
         results.update(result)
 
     return results
+
+
+def evaluate_all(  # noqa: PLR0913
+    design_matrix: pd.DataFrame | DesignResult,
+    model: str | None = None,
+    effect_size: float | None = None,
+    alpha: float = 0.05,
+    sigma: float | None = None,
+    region: str = "cuboidal",
+    n_samples: int = 100_000,
+    include_vertices: bool = True,
+    random_seed: int = 42,
+    fds_resolution: int | None = None,
+) -> dict[str, Any]:
+    """Compute *every* available metric for a design in one call.
+
+    Thin convenience wrapper around :func:`evaluate_design` with
+    ``metric="all"`` so callers need not enumerate the metric list.  All
+    parameters have the same meaning as in :func:`evaluate_design`.
+
+    Returns
+    -------
+    dict[str, Any]
+        Results keyed by metric name (the union of every registered metric).
+
+    See Also
+    --------
+    evaluate_design : Compute one or more named metrics.
+    """
+    return evaluate_design(
+        design_matrix,
+        model=model,
+        metric="all",
+        effect_size=effect_size,
+        alpha=alpha,
+        sigma=sigma,
+        region=region,
+        n_samples=n_samples,
+        include_vertices=include_vertices,
+        random_seed=random_seed,
+        fds_resolution=fds_resolution,
+    )

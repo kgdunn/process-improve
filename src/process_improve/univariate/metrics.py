@@ -1043,7 +1043,11 @@ def distribution_fit(
 
     dist = getattr(scipy_stats, distribution)
     parameters = dist.fit(a)
-    ks_statistic, ks_pvalue = scipy_stats.kstest(a, distribution, args=parameters)
+    # Compare against the frozen, fully-parameterised distribution.  Passing the
+    # frozen ``.cdf`` (which applies loc/scale internally) rather than the
+    # distribution name plus ``args`` keeps this working across scipy versions,
+    # where the latter form can forward loc/scale positionally to the raw cdf.
+    ks_statistic, ks_pvalue = scipy_stats.kstest(a, dist(*parameters).cdf)
 
     return Bunch(
         distribution=distribution,

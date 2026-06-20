@@ -8,3 +8,4 @@ User Guide
    cross_validation
    showcase
    doe_strategy
+   design_evaluation

@@ -11,7 +11,7 @@ those changes.
 
 ## [Unreleased]
 
-## [1.41.0] - 2026-06-15
+## [1.45.0] - 2026-06-20
 
 ### Added
 
@@ -23,6 +23,108 @@ those changes.
   interaction and quadratic terms. Design-source agnostic: it accepts any
   coded two- or three-level design matrix and a response. Returns a structured
   `OmarsResult`.
+
+## [1.44.1] - 2026-06-20
+
+### Documentation
+
+- Added a "Evaluating Design Quality" user-guide page covering the
+  `evaluate_design` metrics (D/I/G efficiency, A/E-optimality, the term
+  correlation summary, the alias/bias matrix, prediction variance and the FDS
+  curve, power), the seeded region-sampling controls and their reproducibility,
+  and the tunable `fds_resolution` curve. Refreshed the `evaluate_design` entry
+  in the DOE tool reference with the full metric list, `metric="all"`, and the
+  region / FDS parameters.
+
+## [1.44.0] - 2026-06-20
+
+### Added
+
+- `evaluate_design` and `evaluate_all` gain an `fds_resolution` parameter. When
+  set (e.g. `200`), the `fds` metric adds a dense `curve` sub-dict with
+  length-`fds_resolution` `fraction`, `prediction_variance`, and
+  `scaled_prediction_variance` (run-count-scaled SPV) arrays over evenly spaced
+  fractions in `[0, 1]`, with the endpoints equal to the minimum and maximum
+  prediction variance, suitable for smooth FDS plots. When `None` (default) the
+  output is unchanged (the coarse 11-point quantile summary), and the resolution
+  actually used is echoed back in the payload. The region-sampling controls
+  (`region`, `n_samples`, `include_vertices`, `random_seed`) added in 1.43.0
+  continue to govern the underlying Monte-Carlo sample, so a fixed
+  `(n_samples, random_seed)` makes the region maximum (G) reproducible.
+
+## [1.43.0] - 2026-06-19
+
+### Added
+
+- `evaluate_design` gains four model-aware metrics and a convenience aggregate:
+  `a_optimality` (`trace((XᵀX)⁻¹)`) and `e_optimality` (smallest eigenvalue of
+  `XᵀX`), each with an optional normalised efficiency; `correlation`, the
+  coding-invariant residualised maximum and mean absolute correlation among the
+  second-order terms plus the full matrix; `alias_matrix`, the general bias
+  matrix `A = (X1ᵀX1)⁻¹ X1ᵀX2` (default `X2` = the two-factor interactions
+  outside the model) with its worst single bias, main-effect-row maximum, and
+  Frobenius norm; and `fds`, the fraction-of-design-space distribution of the
+  prediction variance over the design region with the region average (I) and
+  maximum (G) in σ² units and the run-count-scaled SPV variants. `metric="all"`
+  and a thin `evaluate_all(...)` wrapper return every metric in one call.
+- Region-based metrics take `region` (`"cuboidal"` or `"spherical"`),
+  `n_samples`, `include_vertices`, and `random_seed` parameters; all sampling is
+  seeded and the region and sample size are echoed in the `fds` payload, and the
+  `2**k` cube vertices are always included so the worst-case G value at a corner
+  is represented.
+
+### Fixed
+
+- `i_efficiency` / `g_efficiency` no longer raise a matmul size mismatch (for
+  example `size 11 is different from 21`) when evaluated against an explicit
+  reduced formula such as `"A+B+C+D+E+I(A**2)+...+I(E**2)"`. The region
+  evaluation grid is now expanded through the exact fitted model matrix instead
+  of a re-inferred shorthand, and `i_efficiency` / `g_efficiency` derive from
+  the same region machinery as `fds`.
+
+## [1.42.1] - 2026-06-19
+
+### Fixed
+
+- Clarified PCA/PLS `spe_` attribute docstring (it stores the square root of
+  the row sum-of-squared X-residuals, so it is on the residual scale, not the
+  squared scale).
+- Corrected the TPLS `d_matrix` docstring type from
+  `dict[str, dict[str, pd.DataFrame]]` to `dict[str, pd.DataFrame]` so it
+  matches the flat-dict shape that the constructor actually validates.
+- Fixed a typo in the `center()` docstring ("but return" -> "must return")
+  and added a NumPy-style Returns section to `scale()` describing the two
+  return shapes (with and without `extra_output=True`).
+- Documented `ControlChart` variant strings in lowercase (`'hw'`,
+  `'xbar.no.subgroup'`, `'cusum'`) and noted that the comparison is
+  case-insensitive, matching the `.strip().lower()` normalisation applied on
+  assignment.
+
+## [1.42.0] - 2026-06-19
+
+### Added
+
+- `generate_design(design_type="ccd", cube="fractional")` builds the cube
+  (factorial) portion of a central composite design from a resolution-V (or
+  higher) fractional factorial instead of the full 2^k factorial, keeping the
+  run count practical for k >= 5 (for example, a five-factor CCD with a 16-run
+  cube + 10 axial + 6 centre = 32 runs). An optional `generators=[...]` pins the
+  cube fraction; the chosen generators, defining relation, and resolution are
+  recorded on the returned `DesignResult`. `cube="full"` remains the default.
+
+## [1.41.0] - 2026-06-15
+
+### Added
+
+- OMARS (Orthogonal Minimally Aliased Response Surface) designs are now a
+  first-class design type: `generate_design(..., design_type="omars")`
+  constructs the conference-matrix foldover family (the definitive screening
+  design is its minimal member). New `omars_properties()` and `is_omars()`
+  verifiers check the defining OMARS properties (three-level, balanced, main
+  effects mutually orthogonal and orthogonal to all second-order terms) on any
+  coded design matrix, so generated or externally supplied designs can be
+  validated without network access. An `omars` knowledge node is included in
+  the DOE knowledge base.
 
 ## [1.40.2] - 2026-06-12
 
@@ -2023,7 +2125,13 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.41.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.45.0...HEAD
+[1.45.0]: https://github.com/kgdunn/process-improve/compare/v1.44.1...v1.45.0
+[1.44.1]: https://github.com/kgdunn/process-improve/compare/v1.44.0...v1.44.1
+[1.44.0]: https://github.com/kgdunn/process-improve/compare/v1.43.0...v1.44.0
+[1.43.0]: https://github.com/kgdunn/process-improve/compare/v1.42.1...v1.43.0
+[1.42.1]: https://github.com/kgdunn/process-improve/compare/v1.42.0...v1.42.1
+[1.42.0]: https://github.com/kgdunn/process-improve/compare/v1.41.0...v1.42.0
 [1.41.0]: https://github.com/kgdunn/process-improve/compare/v1.40.2...v1.41.0
 [1.40.2]: https://github.com/kgdunn/process-improve/compare/v1.40.1...v1.40.2
 [1.40.1]: https://github.com/kgdunn/process-improve/compare/v1.40.0...v1.40.1

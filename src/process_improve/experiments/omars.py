@@ -33,10 +33,18 @@ The procedure, summarised:
 
 References
 ----------
-The staged OMARS analysis methodology is described in the response-surface
-design literature on orthogonal minimally aliased designs (Schoen, Eendebak,
-Goos, and co-workers).  This is an independent implementation of that
-published method.
+The staged analysis generalises the design-based model-selection approach for
+definitive screening designs to the wider OMARS family.  This is an independent
+implementation of that published methodology.
+
+* Jones, B. and Nachtsheim, C. J. (2017). "Effective Design-Based Model
+  Selection for Definitive Screening Designs." Technometrics 59(3), 319-329.
+* Ismail Hameed, M. S., Nunez Ares, J. and Goos, P. (2023). "Analysis of data
+  from orthogonal minimally aliased response surface designs." Journal of
+  Quality Technology 55(3).
+* Nunez Ares, J. and Goos, P. (2020). "Enumeration and Multicriteria Selection
+  of Orthogonal Minimally Aliased Response Surface Designs." Technometrics
+  62(1), 21-36.
 """
 
 from __future__ import annotations

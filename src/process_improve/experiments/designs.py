@@ -31,6 +31,7 @@ try:
     from pyDOE3 import ff2n
 except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
     from process_improve._extras import _MissingExtra
+
     ff2n = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
 from process_improve.experiments.designs_utils import build_design_result
@@ -92,6 +93,9 @@ def _dispatch_ccd(
         factors,
         center_points=kwargs.get("center_points", 3),
         alpha=kwargs.get("alpha"),
+        cube=kwargs.get("cube", "full"),
+        generators=kwargs.get("generators"),
+        resolution=kwargs.get("resolution"),
     )
 
 
@@ -102,6 +106,15 @@ def _dispatch_dsd(
     from process_improve.experiments.designs_response_surface import dispatch_dsd  # noqa: PLC0415
 
     return dispatch_dsd(factors)
+
+
+def _dispatch_omars(
+    factors: list[Factor],
+    **kwargs: Any,  # noqa: ANN401
+) -> tuple[np.ndarray, dict]:
+    from process_improve.experiments.designs_omars import dispatch_omars  # noqa: PLC0415
+
+    return dispatch_omars(factors)
 
 
 def _dispatch_d_optimal(
@@ -178,6 +191,7 @@ _DESIGN_REGISTRY: dict[str, Callable[..., tuple[np.ndarray, dict]]] = {
     "box_behnken": _dispatch_box_behnken,
     "ccd": _dispatch_ccd,
     "dsd": _dispatch_dsd,
+    "omars": _dispatch_omars,
     "d_optimal": _dispatch_d_optimal,
     "i_optimal": _dispatch_i_optimal,
     "a_optimal": _dispatch_a_optimal,
@@ -255,6 +269,7 @@ def generate_design(  # noqa: PLR0913
     resolution: int | None = None,
     generators: list[str] | None = None,
     alpha: str | float | None = None,
+    cube: str = "full",
     constraints: list[Constraint] | None = None,
     hard_to_change: list[str] | None = None,
     random_seed: int = 42,
@@ -271,8 +286,8 @@ def generate_design(  # noqa: PLR0913
     design_type : str or None
         One of ``"full_factorial"``, ``"fractional_factorial"``,
         ``"plackett_burman"``, ``"box_behnken"``, ``"ccd"``, ``"dsd"``,
-        ``"d_optimal"``, ``"i_optimal"``, ``"a_optimal"``, ``"mixture"``,
-        ``"taguchi"``.
+        ``"omars"``, ``"d_optimal"``, ``"i_optimal"``, ``"a_optimal"``,
+        ``"mixture"``, ``"taguchi"``.
         If ``None``, the design type is chosen automatically based on the
         factor count, budget, and constraints.
     budget : int or None
@@ -293,6 +308,13 @@ def generate_design(  # noqa: PLR0913
     alpha : str, float, or None
         Axial distance for CCD designs: ``"rotatable"``,
         ``"face_centered"``, ``"orthogonal"``, or a numeric value.
+    cube : str
+        For CCD designs, how to build the cube (factorial) portion:
+        ``"full"`` (default) uses the complete 2^k factorial; ``"fractional"``
+        uses a resolution-V (or higher) fractional factorial, keeping the run
+        count practical for k >= 5.  When ``"fractional"`` and *generators* is
+        given, those generators define the cube; otherwise a minimum-aberration
+        half-fraction is chosen automatically.
     constraints : list[Constraint] or None
         Constraints on the factor space.
     hard_to_change : list[str] or None
@@ -331,10 +353,7 @@ def generate_design(  # noqa: PLR0913
         design_type = _auto_select(factors, budget, constraints, hard_to_change)
 
     if design_type not in _DESIGN_REGISTRY:
-        raise ValueError(
-            f"Unknown design_type={design_type!r}.  "
-            f"Choose from: {', '.join(sorted(_DESIGN_REGISTRY))}."
-        )
+        raise ValueError(f"Unknown design_type={design_type!r}.  Choose from: {', '.join(sorted(_DESIGN_REGISTRY))}.")
 
     # --- Dispatch ----------------------------------------------------------
     dispatch_fn = _DESIGN_REGISTRY[design_type]
@@ -346,6 +365,7 @@ def generate_design(  # noqa: PLR0913
         "resolution": resolution,
         "generators": generators,
         "alpha": alpha,
+        "cube": cube,
         "hard_to_change": hard_to_change,
         "constraints": constraints,
     }
@@ -355,7 +375,16 @@ def generate_design(  # noqa: PLR0913
     # --- Determine center-point handling -----------------------------------
     # Designs that embed their own center points (CCD, Box-Behnken)
     # already include them; don't add more.
-    designs_with_embedded_centers = {"ccd", "box_behnken", "dsd", "mixture", "d_optimal", "i_optimal", "a_optimal"}
+    designs_with_embedded_centers = {
+        "ccd",
+        "box_behnken",
+        "dsd",
+        "omars",
+        "mixture",
+        "d_optimal",
+        "i_optimal",
+        "a_optimal",
+    }
 
     # Optimal designs from pyoptex produce a pre-optimized run order
     # (especially important for split-plot).  Skip randomization for these.
