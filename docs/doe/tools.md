@@ -54,12 +54,19 @@ Compute properties and quality metrics of an existing design.
 |---|---|---|
 | `design_matrix` | DataFrame | Design to evaluate |
 | `model` | str or None | `"main_effects"`, `"interactions"`, `"quadratic"`, or explicit formula |
-| `metric` | str or list | `"alias_structure"`, `"confounding"`, `"resolution"`, `"defining_relation"`, `"power"`, `"d_efficiency"`, `"i_efficiency"`, `"g_efficiency"`, `"prediction_variance"`, `"degrees_of_freedom"`, `"vif"`, `"condition_number"`, `"clear_effects"`, `"minimum_aberration"` |
+| `metric` | str or list | Any of `"d_efficiency"`, `"i_efficiency"`, `"g_efficiency"`, `"a_optimality"`, `"e_optimality"`, `"correlation"`, `"alias_matrix"`, `"fds"`, `"prediction_variance"`, `"vif"`, `"condition_number"`, `"power"`, `"degrees_of_freedom"`, `"alias_structure"`, `"confounding"`, `"resolution"`, `"defining_relation"`, `"clear_effects"`, `"minimum_aberration"`; or `"all"` to compute every metric |
 | `effect_size` | float or None | For power calculation |
 | `alpha` | float | Significance level (default 0.05) |
 | `sigma` | float or None | Estimated noise SD |
+| `region` | str | Region for the region-integrated metrics: `"cuboidal"` (default) or `"spherical"` |
+| `n_samples` | int | Monte-Carlo points over the region (default 100000) |
+| `include_vertices` | bool | Append the `2**k` cube corners to the region sample (default `True`) |
+| `random_seed` | int | Seed for the region sampler (default 42); fix it to reproduce the region maximum (G) |
+| `fds_resolution` | int or None | When set, the `fds` metric adds a dense `curve` sub-dict of that length; `None` (default) keeps the coarse 11-point quantile summary |
 
-**Outputs:** Requested metrics - alias chains, power curves, efficiency values, etc.
+**Outputs:** Requested metrics - efficiency and optimality values, the term-correlation summary, the alias (bias) matrix, the FDS curve, alias chains, power curves, etc.
+
+**Convenience:** `metric="all"` (or the `evaluate_all(...)` wrapper) returns every metric in one call.
 
 **Handles 7 questions as primary tool.** See [mapping](tool-question-mapping.md#evaluate_design).
 

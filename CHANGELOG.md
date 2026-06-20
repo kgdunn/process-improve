@@ -11,6 +11,18 @@ those changes.
 
 ## [Unreleased]
 
+## [1.44.1] - 2026-06-20
+
+### Documentation
+
+- Added a "Evaluating Design Quality" user-guide page covering the
+  `evaluate_design` metrics (D/I/G efficiency, A/E-optimality, the term
+  correlation summary, the alias/bias matrix, prediction variance and the FDS
+  curve, power), the seeded region-sampling controls and their reproducibility,
+  and the tunable `fds_resolution` curve. Refreshed the `evaluate_design` entry
+  in the DOE tool reference with the full metric list, `metric="all"`, and the
+  region / FDS parameters.
+
 ## [1.44.0] - 2026-06-20
 
 ### Added
@@ -2100,7 +2112,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.44.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.44.1...HEAD
+[1.44.1]: https://github.com/kgdunn/process-improve/compare/v1.44.0...v1.44.1
 [1.44.0]: https://github.com/kgdunn/process-improve/compare/v1.43.0...v1.44.0
 [1.43.0]: https://github.com/kgdunn/process-improve/compare/v1.42.1...v1.43.0
 [1.42.1]: https://github.com/kgdunn/process-improve/compare/v1.42.0...v1.42.1
