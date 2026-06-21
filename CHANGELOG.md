@@ -11,6 +11,23 @@ those changes.
 
 ## [Unreleased]
 
+## [1.46.0] - 2026-06-21
+
+### Added
+
+- `generate_omars()`: an integer-programming generator for OMARS designs
+  (also available as `generate_design(design_type="omars_ilp")`). It builds
+  foldover OMARS designs large enough to leave error degrees of freedom for a
+  full second-order model, so they can be analysed with `analyze_omars()`,
+  unlike the minimal conference-foldover member from `design_type="omars"`.
+  The construction selects a half-design with a small integer linear program
+  (only the main-effect orthogonality conditions are needed; the foldover makes
+  the rest automatic) and chooses among feasible designs by a
+  satisficing-and-dominance rule over D-efficiency and the maximum second-order
+  correlation: optional `satisfice` thresholds discard designs below the
+  acceptability bars before the Pareto-dominance step. Requires the new optional
+  `[ilp]` extra (PuLP).
+
 ## [1.45.1] - 2026-06-20
 
 ### Added
@@ -2133,7 +2150,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.45.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.46.0...HEAD
+[1.46.0]: https://github.com/kgdunn/process-improve/compare/v1.45.1...v1.46.0
 [1.45.1]: https://github.com/kgdunn/process-improve/compare/v1.45.0...v1.45.1
 [1.45.0]: https://github.com/kgdunn/process-improve/compare/v1.44.1...v1.45.0
 [1.44.1]: https://github.com/kgdunn/process-improve/compare/v1.44.0...v1.44.1

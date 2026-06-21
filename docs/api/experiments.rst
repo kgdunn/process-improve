@@ -11,6 +11,10 @@ Designed Experiments
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: process_improve.experiments.designs_omars_ilp
+   :members: generate_omars, solve_omars_ilp, OmarsSearchReport
+   :show-inheritance:
+
 .. automodule:: process_improve.experiments.designs_factorial
    :members:
    :undoc-members:

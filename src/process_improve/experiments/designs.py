@@ -117,6 +117,15 @@ def _dispatch_omars(
     return dispatch_omars(factors)
 
 
+def _dispatch_omars_ilp(
+    factors: list[Factor],
+    **kwargs: Any,  # noqa: ANN401
+) -> tuple[np.ndarray, dict]:
+    from process_improve.experiments.designs_omars_ilp import _dispatch_omars_ilp as _run  # noqa: PLC0415
+
+    return _run(factors, budget=kwargs.get("budget"))
+
+
 def _dispatch_d_optimal(
     factors: list[Factor],
     **kwargs: Any,  # noqa: ANN401
@@ -192,6 +201,7 @@ _DESIGN_REGISTRY: dict[str, Callable[..., tuple[np.ndarray, dict]]] = {
     "ccd": _dispatch_ccd,
     "dsd": _dispatch_dsd,
     "omars": _dispatch_omars,
+    "omars_ilp": _dispatch_omars_ilp,
     "d_optimal": _dispatch_d_optimal,
     "i_optimal": _dispatch_i_optimal,
     "a_optimal": _dispatch_a_optimal,
@@ -286,8 +296,8 @@ def generate_design(  # noqa: PLR0913
     design_type : str or None
         One of ``"full_factorial"``, ``"fractional_factorial"``,
         ``"plackett_burman"``, ``"box_behnken"``, ``"ccd"``, ``"dsd"``,
-        ``"omars"``, ``"d_optimal"``, ``"i_optimal"``, ``"a_optimal"``,
-        ``"mixture"``, ``"taguchi"``.
+        ``"omars"``, ``"omars_ilp"``, ``"d_optimal"``, ``"i_optimal"``,
+        ``"a_optimal"``, ``"mixture"``, ``"taguchi"``.
         If ``None``, the design type is chosen automatically based on the
         factor count, budget, and constraints.
     budget : int or None
@@ -380,6 +390,7 @@ def generate_design(  # noqa: PLR0913
         "box_behnken",
         "dsd",
         "omars",
+        "omars_ilp",
         "mixture",
         "d_optimal",
         "i_optimal",
