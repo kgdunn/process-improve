@@ -46,12 +46,12 @@ non-foldover members are a documented future extension.
 
 References
 ----------
-.. [1] Nunez Ares, J. and Goos, P. (2020).  "Enumeration and multicriteria
-   selection of orthogonal minimally aliased response surface designs."
-   *Technometrics*, 62(1):21-36.
-.. [2] Nunez Ares, J. and Goos, P. (2019).  "An integer linear programming
-   approach to find trend-robust run orders of experimental designs."
-   *Journal of Quality Technology*.
+* Nunez Ares, J. and Goos, P. (2020).  "Enumeration and multicriteria
+  selection of orthogonal minimally aliased response surface designs."
+  *Technometrics*, 62(1):21-36.
+* Nunez Ares, J. and Goos, P. (2019).  "An integer linear programming
+  approach to find trend-robust run orders of experimental designs."
+  *Journal of Quality Technology*.
 """
 
 from __future__ import annotations
