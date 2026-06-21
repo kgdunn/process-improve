@@ -159,6 +159,34 @@ def test_selection_criteria_all_yield_valid_omars() -> None:
         assert is_omars(_coded(result))
 
 
+def test_satisfice_thresholds_are_applied() -> None:
+    from process_improve.experiments import generate_omars
+
+    # A permissive ceiling keeps the candidates; the winner must honour it.
+    result = generate_omars(
+        _factors(3),
+        satisfice={"max_second_order_correlation": 0.8},
+        solver_options=_SOLVER,
+    )
+    assert is_omars(_coded(result))
+    assert result.metadata["satisfice"] == {"max_second_order_correlation": 0.8}
+    assert result.metadata["max_second_order_correlation"] <= 0.8
+
+
+def test_satisfice_unreachable_threshold_raises() -> None:
+    from process_improve.experiments import generate_omars
+
+    with pytest.raises(ValueError, match="satisfice thresholds"):
+        generate_omars(_factors(3), satisfice={"d_efficiency": 999.0}, solver_options=_SOLVER)
+
+
+def test_satisfice_unknown_key_raises() -> None:
+    from process_improve.experiments import generate_omars
+
+    with pytest.raises(ValueError, match="satisfice keys"):
+        generate_omars(_factors(3), satisfice={"g_efficiency": 50.0}, solver_options=_SOLVER)
+
+
 # ---------------------------------------------------------------------------
 # Integration and dependency gating
 # ---------------------------------------------------------------------------

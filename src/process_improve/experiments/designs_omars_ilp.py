@@ -80,6 +80,11 @@ if TYPE_CHECKING:
 # Selection criteria understood by :func:`generate_omars`.
 _CRITERIA = ("dominance", "d_efficiency", "min_second_order_correlation")
 
+# Attributes that ``satisfice`` thresholds may constrain.  ``d_efficiency`` is a
+# lower bound (higher is better); ``max_second_order_correlation`` is an upper
+# bound (lower is better).
+_SATISFICE_KEYS = ("d_efficiency", "max_second_order_correlation")
+
 
 @dataclass
 class _Candidate:
@@ -298,6 +303,26 @@ def _is_dominated(candidate: _Candidate, others: list[_Candidate]) -> bool:
     return False
 
 
+def _satisfice(candidates: list[_Candidate], thresholds: dict[str, float]) -> list[_Candidate]:
+    """Keep only the designs meeting every acceptability threshold.
+
+    ``d_efficiency`` is treated as a minimum (higher is better) and
+    ``max_second_order_correlation`` as a maximum (lower is better).
+    """
+    unknown = set(thresholds) - set(_SATISFICE_KEYS)
+    if unknown:
+        msg = f"satisfice keys must be a subset of {_SATISFICE_KEYS}, got unknown {sorted(unknown)}."
+        raise ValueError(msg)
+    d_min = thresholds.get("d_efficiency")
+    correlation_max = thresholds.get("max_second_order_correlation")
+    return [
+        candidate
+        for candidate in candidates
+        if (d_min is None or candidate.d_efficiency >= d_min)
+        and (correlation_max is None or candidate.max_second_order_correlation <= correlation_max)
+    ]
+
+
 def _select(candidates: list[_Candidate], criterion: str) -> _Candidate:
     """Pick the winning design under the requested multicriteria rule."""
     if criterion == "d_efficiency":
@@ -324,12 +349,13 @@ def _sparsity(coded: np.ndarray) -> tuple[int, int]:
     return n_me0, n_ie0
 
 
-def _search_best_omars(  # noqa: C901, PLR0913, PLR0915
+def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
     factors: list[Factor],
     *,
     n_runs: int | None,
     n_runs_range: tuple[int, int] | None,
     selection_criterion: str,
+    satisfice: dict[str, float] | None,
     max_candidates: int,
     solver_options: dict[str, Any] | None,
     tol: float,
@@ -422,7 +448,23 @@ def _search_best_omars(  # noqa: C901, PLR0913, PLR0915
         msg = f"No feasible OMARS design was found for {target}. Try a larger or odd n_runs, or a wider n_runs_range."
         raise ValueError(msg)
 
-    winner = _select(candidates, selection_criterion)
+    # Satisfice first (drop designs below the acceptability thresholds), then
+    # pick from the survivors by dominance / the chosen criterion.
+    eligible = candidates
+    if satisfice:
+        eligible = _satisfice(candidates, satisfice)
+        if not eligible:
+            best_d = max(c.d_efficiency for c in candidates)
+            best_corr = min(c.max_second_order_correlation for c in candidates)
+            msg = (
+                f"No feasible OMARS design met the satisfice thresholds {satisfice}. "
+                f"The best among {len(candidates)} candidate(s) reached d_efficiency={best_d:.3f} and "
+                f"max_second_order_correlation={best_corr:.3f}. Relax the thresholds, raise max_candidates, "
+                "or widen n_runs_range."
+            )
+            raise ValueError(msg)
+
+    winner = _select(eligible, selection_criterion)
     report.run_size = winner.n_runs
     metadata = {
         "family": "omars_ilp",
@@ -434,6 +476,7 @@ def _search_best_omars(  # noqa: C901, PLR0913, PLR0915
         "expected_error_df": winner.n_runs - n_params,
         "sparsity": _sparsity(winner.coded),
         "selection_criterion": selection_criterion,
+        "satisfice": dict(satisfice) if satisfice else None,
         "d_efficiency": winner.d_efficiency,
         "max_second_order_correlation": winner.max_second_order_correlation,
         "solver": (solver_options or {}).get("solver", "pulp"),
@@ -450,6 +493,7 @@ def generate_omars(  # noqa: PLR0913
     n_runs: int | None = None,
     n_runs_range: tuple[int, int] | None = None,
     selection_criterion: str = "dominance",
+    satisfice: dict[str, float] | None = None,
     center_runs: int = 1,
     max_candidates: int = 6,
     solver_options: dict[str, Any] | None = None,
@@ -479,6 +523,13 @@ def generate_omars(  # noqa: PLR0913
         (default) keeps the Pareto front on D-efficiency and the maximum
         second-order correlation, then prefers the smallest, most efficient
         design.
+    satisfice : dict, optional
+        Acceptability thresholds applied *before* selection: a design is kept
+        only if it clears every threshold.  Supported keys are
+        ``"d_efficiency"`` (a minimum, higher is better) and
+        ``"max_second_order_correlation"`` (a maximum, lower is better), for
+        example ``{"d_efficiency": 5.0, "max_second_order_correlation": 0.7}``.
+        A ``ValueError`` is raised if no enumerated design meets the thresholds.
     center_runs : int, optional
         Number of centre runs in the design (at least one; the foldover already
         contributes one).  Default 1.
@@ -528,6 +579,7 @@ def generate_omars(  # noqa: PLR0913
         n_runs=n_runs,
         n_runs_range=n_runs_range,
         selection_criterion=selection_criterion,
+        satisfice=satisfice,
         max_candidates=max_candidates,
         solver_options=solver_options,
         tol=tol,
@@ -554,6 +606,7 @@ def _dispatch_omars_ilp(factors: list[Factor], **kwargs: Any) -> tuple[np.ndarra
         n_runs=kwargs.get("budget"),
         n_runs_range=None,
         selection_criterion="dominance",
+        satisfice=None,
         max_candidates=6,
         solver_options=None,
         tol=1e-9,

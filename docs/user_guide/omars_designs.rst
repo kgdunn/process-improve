@@ -96,12 +96,22 @@ Choosing the run size and the design
 
   - ``"dominance"`` (default) keeps the Pareto front on D-efficiency (higher is
     better) and the maximum second-order correlation (lower is better), then
-    prefers the smallest, most efficient design.  This satisficing-and-dominance
-    approach follows the multicriteria selection philosophy of Nunez Ares and
-    Goos (2020) rather than a single weighted score.
+    prefers the smallest, most efficient design.
   - ``"d_efficiency"`` maximises the D-efficiency of the full second-order model.
   - ``"min_second_order_correlation"`` minimises the largest second-order
     correlation.
+
+- Optionally, ``satisfice`` sets *acceptability thresholds* that are applied
+  **before** the dominance/criterion step: a design is kept only if it clears
+  every threshold.  Supported keys are ``"d_efficiency"`` (a minimum) and
+  ``"max_second_order_correlation"`` (a maximum), e.g.
+  ``satisfice={"d_efficiency": 5.0, "max_second_order_correlation": 0.7}``.
+  Together these implement the **satisficing-and-dominance** multicriteria
+  selection of Nunez Ares and Goos (2020): first discard designs that fail the
+  minimum bars (satisficing), then drop dominated designs and choose from the
+  Pareto front (dominance).  This deliberately avoids collapsing several
+  criteria into a single weighted score, which would hide the trade-offs.  A
+  ``ValueError`` is raised if no enumerated design meets the thresholds.
 
 The returned :class:`~process_improve.experiments.DesignResult` records the
 provenance and a search report under ``metadata`` (``family``, ``sparsity``,

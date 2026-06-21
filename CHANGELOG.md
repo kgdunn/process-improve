@@ -24,7 +24,9 @@ those changes.
   (only the main-effect orthogonality conditions are needed; the foldover makes
   the rest automatic) and chooses among feasible designs by a
   satisficing-and-dominance rule over D-efficiency and the maximum second-order
-  correlation. Requires the new optional `[ilp]` extra (PuLP).
+  correlation: optional `satisfice` thresholds discard designs below the
+  acceptability bars before the Pareto-dominance step. Requires the new optional
+  `[ilp]` extra (PuLP).
 
 ## [1.45.1] - 2026-06-20
 
