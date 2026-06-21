@@ -38,6 +38,22 @@ def _response(design: pd.DataFrame, *, seed: int = 3, noise: float = 0.2) -> np.
     return 6 * x[:, 0] + 5 * x[:, 1] + 4 * (x[:, 0] * x[:, 1]) + 4 * (x[:, 0] ** 2) + noise_vec
 
 
+def _orthogonal_three_level() -> pd.DataFrame:
+    """Full 3-level factorial for three factors: 27 runs, levels in {-1, 0, 1}.
+
+    On the full factorial grid every second-order column (each quadratic and
+    each two-factor interaction) is mutually orthogonal: the off-diagonal of
+    the second-order Gram matrix is exactly zero.  This is the zero-aliasing
+    limit of the minimal aliasing that OMARS designs are built to achieve, so
+    it is the cleanest available stand-in for a true OMARS design until a
+    catalogued OMARS generator is available.  Because there is no aliasing,
+    the staged analysis can recover the *exact* set of active terms, with no
+    spurious ones.
+    """
+    grid = np.array(list(itertools.product([-1, 0, 1], repeat=3)), dtype=float)
+    return pd.DataFrame(grid, columns=list("ABC"))
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -106,6 +122,55 @@ def test_strong_heredity_gives_clean_recovery() -> None:
     assert result.active_interactions == ["A:B"]
     assert "A^2" in result.active_quadratics
     assert set(result.active_quadratics) <= {"A^2", "B^2"}
+
+
+# ---------------------------------------------------------------------------
+# Exact recovery on a fully orthogonal three-level design
+#
+# Unlike the CCD above (whose quadratics are aliased), this design has
+# mutually orthogonal second-order terms, so the staged analysis must recover
+# the active terms exactly, with no spurious extras.
+# ---------------------------------------------------------------------------
+
+
+def test_orthogonal_design_has_zero_second_order_aliasing() -> None:
+    from process_improve.experiments.omars import _full_second_order, _quadratic_columns
+
+    coded = _orthogonal_three_level().to_numpy()
+    second_order = _full_second_order(coded, _quadratic_columns(coded))
+    gram = second_order.T @ second_order
+    off_diagonal = np.abs(gram - np.diag(np.diag(gram)))
+    assert off_diagonal.max() == pytest.approx(0.0, abs=1e-9)
+
+
+def test_exact_recovery_on_orthogonal_design() -> None:
+    design = _orthogonal_three_level()
+    x = design.to_numpy()
+    rng = np.random.default_rng(0)
+    # Active: main effects A and B, the A:B interaction, and the A^2 quadratic.
+    y = 6 * x[:, 0] + 5 * x[:, 1] + 4 * (x[:, 0] * x[:, 1]) + 4 * (x[:, 0] ** 2) + rng.normal(0, 0.3, x.shape[0])
+
+    result = analyze_omars(design, y)
+
+    # With no aliasing, recovery is exact: precisely the true terms, nothing more.
+    assert result.active_main_effects == ["A", "B"]
+    assert result.active_interactions == ["A:B"]
+    assert result.active_quadratics == ["A^2"]
+
+
+def test_exact_recovery_of_pure_quadratic_without_parent_main_effect() -> None:
+    design = _orthogonal_three_level()
+    x = design.to_numpy()
+    rng = np.random.default_rng(1)
+    # Active: main effect A, and a pure C^2 curvature whose factor C has no
+    # linear main effect. Under no heredity the quadratic is still recovered.
+    y = 6 * x[:, 0] + 5 * (x[:, 2] ** 2) + rng.normal(0, 0.3, x.shape[0])
+
+    result = analyze_omars(design, y)
+
+    assert result.active_main_effects == ["A"]
+    assert result.active_interactions == []
+    assert result.active_quadratics == ["C^2"]
 
 
 def test_gate_stays_shut_without_curvature() -> None:

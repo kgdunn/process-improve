@@ -11,6 +11,14 @@ those changes.
 
 ## [Unreleased]
 
+## [1.45.1] - 2026-06-20
+
+### Added
+
+- Test coverage for `analyze_omars()` exact term recovery on a fully
+  orthogonal three-level design (zero second-order aliasing), complementing
+  the existing aliased-CCD tests.
+
 ## [1.45.0] - 2026-06-20
 
 ### Added
@@ -2125,7 +2133,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.45.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.45.1...HEAD
+[1.45.1]: https://github.com/kgdunn/process-improve/compare/v1.45.0...v1.45.1
 [1.45.0]: https://github.com/kgdunn/process-improve/compare/v1.44.1...v1.45.0
 [1.44.1]: https://github.com/kgdunn/process-improve/compare/v1.44.0...v1.44.1
 [1.44.0]: https://github.com/kgdunn/process-improve/compare/v1.43.0...v1.44.0
