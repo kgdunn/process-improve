@@ -80,6 +80,17 @@ if TYPE_CHECKING:
 # Selection criteria understood by :func:`generate_omars`.
 _CRITERIA = ("dominance", "d_efficiency", "min_second_order_correlation")
 
+# Analysis models a design can be *sized* for.  The OMARS construction is
+# identical either way - the main effects stay clear of every second-order term
+# (quadratics and interactions both) - so this choice does not change the design
+# family.  It only sets how many runs the design must have to leave error
+# degrees of freedom, and which model matrix the D-efficiency is read from.
+# "full_second_order" keeps room for all two-factor interactions;
+# "main_quadratic" drops them from the analysis model, so it admits smaller
+# designs (for example a thirteen-run, four-factor OMARS) that can still fit the
+# main effects and pure quadratics with error df to spare.
+_MODELS = ("full_second_order", "main_quadratic")
+
 # Attributes that ``satisfice`` thresholds may constrain.  ``d_efficiency`` is a
 # lower bound (higher is better); ``max_second_order_correlation`` is an upper
 # bound (lower is better).
@@ -149,19 +160,26 @@ def _foldover(half: np.ndarray) -> np.ndarray:
     return np.vstack([half, -half, np.zeros((1, half.shape[1]))])
 
 
-def _model_matrix(coded: np.ndarray) -> np.ndarray:
-    """Full second-order model matrix ``[1 | main effects | second-order terms]``."""
-    second_order, _ = _second_order_terms(coded)
+def _model_matrix(coded: np.ndarray, model: str = "full_second_order") -> np.ndarray:
+    """Model matrix the design is sized for: ``[1 | main effects | second-order terms]``.
+
+    For ``model="main_quadratic"`` the two-factor interactions are dropped,
+    leaving ``[1 | main effects | pure quadratics]``.
+    """
+    second_order, names = _second_order_terms(coded)
+    if model == "main_quadratic":
+        keep = [t for t, name in enumerate(names) if "^2" in name]
+        second_order = second_order[:, keep]
     return np.column_stack([np.ones(coded.shape[0]), coded, second_order])
 
 
-def _d_efficiency(coded: np.ndarray) -> float:
-    """D-efficiency of the full second-order model: ``100 * |X'X|^(1/p) / n``."""
-    model = _model_matrix(coded)
-    n_runs, n_params = model.shape
+def _d_efficiency(coded: np.ndarray, model: str = "full_second_order") -> float:
+    """D-efficiency of the sizing model: ``100 * |X'X|^(1/p) / n``."""
+    model_matrix = _model_matrix(coded, model)
+    n_runs, n_params = model_matrix.shape
     if n_runs < n_params:
         return 0.0
-    sign, log_det = np.linalg.slogdet(model.T @ model)
+    sign, log_det = np.linalg.slogdet(model_matrix.T @ model_matrix)
     if sign <= 0:
         return 0.0
     return float(100.0 * math.exp(log_det / n_params) / n_runs)
@@ -170,6 +188,20 @@ def _d_efficiency(coded: np.ndarray) -> float:
 def _full_second_order_params(n_factors: int) -> int:
     """Return the column count of the full second-order model (including the intercept)."""
     return 1 + 2 * n_factors + n_factors * (n_factors - 1) // 2
+
+
+def _model_params(n_factors: int, model: str) -> int:
+    """Column count (including the intercept) of the model a design is sized for.
+
+    ``"full_second_order"`` counts ``1 + 2k + k(k-1)/2`` (intercept, main
+    effects, pure quadratics, and the two-factor interactions).
+    ``"main_quadratic"`` counts ``1 + 2k`` (intercept, main effects, and pure
+    quadratics only), because the two-factor interactions are not in the
+    analysis model.
+    """
+    if model == "main_quadratic":
+        return 1 + 2 * n_factors
+    return _full_second_order_params(n_factors)
 
 
 def solve_omars_ilp(  # noqa: PLR0913
@@ -357,6 +389,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
     selection_criterion: str,
     satisfice: dict[str, float] | None,
     max_candidates: int,
+    model: str,
     solver_options: dict[str, Any] | None,
     tol: float,
     verify: bool,
@@ -371,6 +404,9 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
     if selection_criterion not in _CRITERIA:
         msg = f"selection_criterion must be one of {_CRITERIA}, got {selection_criterion!r}."
         raise ValueError(msg)
+    if model not in _MODELS:
+        msg = f"model must be one of {_MODELS}, got {model!r}."
+        raise ValueError(msg)
     n_factors = len(factors)
     if n_factors < 3:
         raise ValueError("OMARS designs require at least 3 factors.")
@@ -382,12 +418,12 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         )
         raise ValueError(msg)
 
-    n_params = _full_second_order_params(n_factors)
+    n_params = _model_params(n_factors, model)
     target_half: int | None = None
     if n_runs is not None:
         if n_runs <= n_params:
             msg = (
-                f"n_runs={n_runs} leaves no error degrees of freedom: the full second-order model has "
+                f"n_runs={n_runs} leaves no error degrees of freedom: the {model} model has "
                 f"{n_params} parameters, so n_runs must exceed {n_params}."
             )
             raise ValueError(msg)
@@ -418,7 +454,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 coded=coded,
                 n_runs=coded.shape[0],
                 half_indices=indices,
-                d_efficiency=_d_efficiency(coded),
+                d_efficiency=_d_efficiency(coded, model),
                 max_second_order_correlation=float(properties["max_second_order_correlation"]),
                 solver_status=status,
             )
@@ -472,7 +508,9 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         "foldover": True,
         "half_pool_size": pool.shape[0],
         "n_runs_selected": winner.n_runs,
-        "full_second_order_params": n_params,
+        "sizing_model": model,
+        "model_params": n_params,
+        "full_second_order_params": _full_second_order_params(n_factors),
         "expected_error_df": winner.n_runs - n_params,
         "sparsity": _sparsity(winner.coded),
         "selection_criterion": selection_criterion,
@@ -496,6 +534,7 @@ def generate_omars(  # noqa: PLR0913
     satisfice: dict[str, float] | None = None,
     center_runs: int = 1,
     max_candidates: int = 6,
+    model: str = "full_second_order",
     solver_options: dict[str, Any] | None = None,
     tol: float = 1e-9,
     random_seed: int = 42,
@@ -504,17 +543,20 @@ def generate_omars(  # noqa: PLR0913
     """Generate a foldover OMARS design by integer-programming run selection.
 
     Builds a three-level OMARS design large enough to leave error degrees of
-    freedom for a full second-order model, so it can be analysed with
+    freedom for the chosen analysis *model*, so it can be analysed with
     :func:`process_improve.experiments.analyze_omars`.  The design is a foldover
-    ``[H; -H; 0]`` with ``2*h + 1`` runs (an odd run count).
+    ``[H; -H; 0]`` with ``2*h + 1`` runs (an odd run count).  Regardless of
+    *model*, the design is a genuine OMARS design: the main effects stay
+    orthogonal to every second-order term (quadratics and interactions alike).
 
     Parameters
     ----------
     factors : list[Factor]
         At least three continuous factors.
     n_runs : int, optional
-        Exact (odd) run size.  Must exceed the number of second-order parameters
-        ``1 + 2k + k(k-1)/2``.  If ``None`` a size is chosen automatically.
+        Exact (odd) run size.  Must exceed the number of parameters in the chosen
+        *model* (``1 + 2k + k(k-1)/2`` for ``"full_second_order"``, ``1 + 2k`` for
+        ``"main_quadratic"``).  If ``None`` a size is chosen automatically.
     n_runs_range : tuple[int, int], optional
         Inclusive ``(min, max)`` run-size window to search when *n_runs* is
         ``None``; the smallest feasible size is used.
@@ -536,6 +578,16 @@ def generate_omars(  # noqa: PLR0913
     max_candidates : int, optional
         Maximum number of distinct designs to enumerate (via no-good cuts)
         before selecting.  Default 6.
+    model : {"full_second_order", "main_quadratic"}, optional
+        The analysis model the design is sized for.  ``"full_second_order"``
+        (default) leaves room for every two-factor interaction, so the smallest
+        feasible design must exceed ``1 + 2k + k(k-1)/2`` runs.
+        ``"main_quadratic"`` sizes for only the main effects and pure quadratics
+        (``1 + 2k`` parameters), admitting smaller designs such as a
+        thirteen-run, four-factor OMARS; the interactions are still present in
+        the design and confined to the second-order block, they are simply not
+        part of the model the run count is chosen for.  The D-efficiency reported
+        in the metadata is read from this same model.
     solver_options : dict, optional
         Passed to the solver: ``{"msg": bool, "time_limit": int seconds}``.
     tol : float, optional
@@ -556,8 +608,8 @@ def generate_omars(  # noqa: PLR0913
     ------
     ValueError
         If fewer than three factors are given, the factor count exceeds the
-        combinatorial cap, *n_runs* is too small or even, or no feasible design
-        is found.
+        combinatorial cap, *model* is not recognised, *n_runs* is too small or
+        even, or no feasible design is found.
     ImportError
         If PuLP (the ``ilp`` extra) is not installed.
 
@@ -581,6 +633,7 @@ def generate_omars(  # noqa: PLR0913
         selection_criterion=selection_criterion,
         satisfice=satisfice,
         max_candidates=max_candidates,
+        model=model,
         solver_options=solver_options,
         tol=tol,
         verify=verify,
@@ -608,6 +661,7 @@ def _dispatch_omars_ilp(factors: list[Factor], **kwargs: Any) -> tuple[np.ndarra
         selection_criterion="dominance",
         satisfice=None,
         max_candidates=6,
+        model="full_second_order",
         solver_options=None,
         tol=1e-9,
         verify=True,

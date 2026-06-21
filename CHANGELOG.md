@@ -11,6 +11,28 @@ those changes.
 
 ## [Unreleased]
 
+## [1.47.0] - 2026-06-21
+
+### Added
+
+- `generate_omars(..., model="main_quadratic")`: the ILP generator can now size
+  a design for the main-effects-plus-quadratics model (`1 + 2k` parameters)
+  instead of the full second-order model (`1 + 2k + k(k-1)/2`). This admits
+  smaller OMARS members, such as a thirteen-run four-factor design, that leave
+  error degrees of freedom for the reduced model. The design is still a genuine
+  OMARS design (main effects clear of every second-order term); only the run-size
+  floor and the reported D-efficiency follow the chosen model. The default
+  remains `model="full_second_order"`. New metadata keys `sizing_model` and
+  `model_params` record the choice.
+
+### Changed
+
+- `generate_design(design_type="omars", budget=N)` now routes to the ILP
+  enumerator (equivalent to `design_type="omars_ilp"`), returning a larger OMARS
+  member sized for the full second-order model. Without a `budget` it is
+  unchanged: it still returns the minimal conference-foldover member (the
+  definitive screening design).
+
 ## [1.46.0] - 2026-06-21
 
 ### Added
@@ -2150,7 +2172,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.46.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.47.0...HEAD
+[1.47.0]: https://github.com/kgdunn/process-improve/compare/v1.46.0...v1.47.0
 [1.46.0]: https://github.com/kgdunn/process-improve/compare/v1.45.1...v1.46.0
 [1.45.1]: https://github.com/kgdunn/process-improve/compare/v1.45.0...v1.45.1
 [1.45.0]: https://github.com/kgdunn/process-improve/compare/v1.44.1...v1.45.0
