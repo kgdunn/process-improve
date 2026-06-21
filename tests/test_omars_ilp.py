@@ -1,0 +1,152 @@
+"""Tests for the ILP-based OMARS design generator (generate_omars)."""
+
+from __future__ import annotations
+
+import importlib.util
+
+import numpy as np
+import pytest
+
+from process_improve.experiments import Factor, analyze_omars, generate_design
+from process_improve.experiments.designs_omars import is_omars
+
+_HAS_PULP = importlib.util.find_spec("pulp") is not None
+pytestmark = pytest.mark.skipif(not _HAS_PULP, reason="pulp (the 'ilp' extra) is not installed")
+
+# Keep the solver fast and deterministic across the suite.
+_SOLVER = {"time_limit": 30, "msg": False}
+
+
+def _factors(k: int) -> list[Factor]:
+    return [Factor(name=chr(65 + i), low=-1, high=1) for i in range(k)]
+
+
+def _coded(result) -> np.ndarray:
+    names = result.factor_names
+    return result.design[names].to_numpy(dtype=float)
+
+
+# ---------------------------------------------------------------------------
+# Core behaviour
+# ---------------------------------------------------------------------------
+
+
+def test_exposed_in_experiments_namespace() -> None:
+    from process_improve.experiments import generate_omars as exported
+    from process_improve.experiments.designs_omars_ilp import generate_omars
+
+    assert exported is generate_omars
+
+
+@pytest.mark.parametrize("k", [3, 4])
+def test_generated_design_is_omars(k: int) -> None:
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(k), solver_options=_SOLVER)
+    assert is_omars(_coded(result))
+    assert result.metadata["omars_verified"] is True
+    assert result.metadata["family"] == "omars_ilp"
+
+
+@pytest.mark.parametrize("k", [3, 4])
+def test_design_supports_analyze_omars(k: int) -> None:
+    """The headline reason the generator exists: the design must leave error df."""
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(k), solver_options=_SOLVER)
+    names = result.factor_names
+    design = result.design[names]
+    x = design.to_numpy(dtype=float)
+    rng = np.random.default_rng(0)
+    y = 5 * x[:, 0] + 4 * x[:, 1] + 3 * (x[:, 0] * x[:, 1]) + 3 * (x[:, 0] ** 2) + rng.normal(0, 0.3, x.shape[0])
+
+    analysis = analyze_omars(design, y)
+    assert analysis.success is True
+    assert analysis.initial_error_df >= 1
+    assert result.metadata["expected_error_df"] >= 1
+
+
+def test_exact_run_size_is_respected() -> None:
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(3), n_runs=15, solver_options=_SOLVER)
+    assert result.metadata["n_runs_selected"] == 15
+    assert is_omars(_coded(result))
+
+
+def test_run_size_below_parameters_raises() -> None:
+    from process_improve.experiments import generate_omars
+
+    # k=3: full second-order model has 1 + 6 + 3 = 10 params; n_runs must exceed it.
+    with pytest.raises(ValueError, match="error degrees of freedom"):
+        generate_omars(_factors(3), n_runs=10, solver_options=_SOLVER)
+
+
+def test_even_run_size_raises() -> None:
+    from process_improve.experiments import generate_omars
+
+    # Foldover designs have an odd run count (2*h + 1).
+    with pytest.raises(ValueError, match="must be odd"):
+        generate_omars(_factors(3), n_runs=16, solver_options=_SOLVER)
+
+
+def test_too_few_factors_raises() -> None:
+    from process_improve.experiments import generate_omars
+
+    with pytest.raises(ValueError, match="at least 3 factors"):
+        generate_omars(_factors(2), solver_options=_SOLVER)
+
+
+def test_unknown_selection_criterion_raises() -> None:
+    from process_improve.experiments import generate_omars
+
+    with pytest.raises(ValueError, match="selection_criterion"):
+        generate_omars(_factors(3), selection_criterion="best", solver_options=_SOLVER)
+
+
+def test_reproducible_for_fixed_seed() -> None:
+    from process_improve.experiments import generate_omars
+
+    a = generate_omars(_factors(3), random_seed=7, solver_options=_SOLVER)
+    b = generate_omars(_factors(3), random_seed=7, solver_options=_SOLVER)
+    np.testing.assert_array_equal(_coded(a), _coded(b))
+
+
+def test_selection_criteria_all_yield_valid_omars() -> None:
+    from process_improve.experiments import generate_omars
+
+    for criterion in ("dominance", "d_efficiency", "min_second_order_correlation"):
+        result = generate_omars(_factors(3), selection_criterion=criterion, solver_options=_SOLVER)
+        assert is_omars(_coded(result))
+
+
+# ---------------------------------------------------------------------------
+# Integration and dependency gating
+# ---------------------------------------------------------------------------
+
+
+def test_registry_integration() -> None:
+    result = generate_design(_factors(4), design_type="omars_ilp", budget=21)
+    assert is_omars(result.design[result.factor_names].to_numpy(dtype=float))
+    assert result.metadata["n_runs_selected"] == 21
+
+
+def test_missing_solver_raises_install_hint(monkeypatch: pytest.MonkeyPatch) -> None:
+    from process_improve.experiments import designs_omars_ilp as module
+
+    monkeypatch.setattr(module, "_PULP_AVAILABLE", False)
+    pool = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+    with pytest.raises(ImportError, match="ilp"):
+        module.solve_omars_ilp(pool, n_half=1)
+
+
+def test_search_report_records_diagnostics() -> None:
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(3), solver_options=_SOLVER)
+    report = result.metadata["omars_search"]
+    assert report.n_factors == 3
+    assert report.half_pool_size == (3**3 - 1) // 2
+    assert report.ilp_iterations >= 1
+    assert report.feasible_designs >= 1
+    assert report.total_solve_seconds >= 0.0

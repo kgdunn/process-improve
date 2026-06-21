@@ -9,3 +9,4 @@ User Guide
    showcase
    doe_strategy
    design_evaluation
+   omars_designs

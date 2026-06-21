@@ -5,6 +5,7 @@ from process_improve.experiments.augment import augment_design
 from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_factorial import full_factorial
 from process_improve.experiments.designs_omars import is_omars, omars_properties
+from process_improve.experiments.designs_omars_ilp import generate_omars
 from process_improve.experiments.evaluate import evaluate_all, evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
 from process_improve.experiments.knowledge import doe_knowledge
@@ -43,6 +44,7 @@ __all__ = [
     "full_factorial",
     "gather",
     "generate_design",
+    "generate_omars",
     "is_omars",
     "lm",
     "main_effects_plot",

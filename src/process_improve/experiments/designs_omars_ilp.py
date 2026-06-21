@@ -1,0 +1,561 @@
+# (c) Kevin Dunn, 2010-2026. MIT License.
+
+"""Integer-programming generator for OMARS designs.
+
+The constructive generator in :mod:`process_improve.experiments.designs_omars`
+(``dispatch_omars``) only builds the minimal conference-foldover member of the
+OMARS family (``2k + 1`` / ``2k + 3`` runs).  That design is saturated for a
+full second-order model, so :func:`process_improve.experiments.analyze_omars`
+has no error degrees of freedom to work with.  This module builds *larger*
+OMARS designs that leave error degrees of freedom, by selecting runs with an
+integer linear program (ILP).
+
+Method
+------
+Every design here is a **foldover** ``[H; -H; 0]``: a half-design ``H``, its
+mirror image ``-H``, and a single centre run.  The foldover structure makes
+three of the four OMARS-defining conditions hold automatically:
+
+* balance - ``h`` and ``-h`` cancel, so every main-effect column sums to zero;
+* main effects clear of the two-factor interactions - ``x_i x_a x_b`` is an odd
+  function, so its contributions from ``h`` and ``-h`` cancel;
+* main effects clear of the pure quadratics - ``x_i x_j^2`` is odd in ``x_i``,
+  so those contributions cancel too;
+
+and the centre run makes every pure quadratic estimable (each ``x_i^2`` column
+takes the value 0 there).  The only condition that is *not* automatic is the
+mutual orthogonality of the main effects, which is linear in the binary
+"include this half-run" variables ``s_r``: for each pair ``i < j``,
+``sum_r (x[r,i] x[r,j]) s_r = 0``.  The run count is ``2 * sum_r s_r + 1``.
+
+So the ILP selects a half-design from the ``(3**k - 1) / 2`` distinct non-mirror
+three-level runs subject to a handful of linear equalities - only ``k(k-1)/2``
+of them - which keeps it tractable up to seven factors.  Because the
+coefficients are integers, the equalities are exact; the floating-point
+:func:`is_omars` re-check only guards against mistakes.  Multiple designs are
+obtained by re-solving with no-good cuts, and the best is chosen by a
+satisficing-and-dominance rule over D-efficiency and the maximum second-order
+correlation, following the selection philosophy of Nunez Ares and Goos (2020).
+
+This realises, for OMARS designs, the integer-programming construction of Nunez
+Ares and Goos (2020); the ILP-over-design-points framing is shared with their
+trend-robust run-order work (Nunez Ares and Goos, 2019).  An exhaustively
+enumerated OMARS catalogue exists but is unlicensed and is not redistributed
+here.  Only the (dominant) foldover OMARS family is generated; the rarer
+non-foldover members are a documented future extension.
+
+References
+----------
+.. [1] Nunez Ares, J. and Goos, P. (2020).  "Enumeration and multicriteria
+   selection of orthogonal minimally aliased response surface designs."
+   *Technometrics*, 62(1):21-36.
+.. [2] Nunez Ares, J. and Goos, P. (2019).  "An integer linear programming
+   approach to find trend-robust run orders of experimental designs."
+   *Journal of Quality Technology*.
+"""
+
+from __future__ import annotations
+
+import itertools
+import math
+import time
+import warnings
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+import numpy as np
+
+from process_improve.experiments.designs_omars import _second_order_terms, is_omars, omars_properties
+
+try:
+    import pulp
+
+    _PULP_AVAILABLE = True
+except ImportError:  # pragma: no cover - exercised via env-without-pulp
+    _PULP_AVAILABLE = False
+
+if TYPE_CHECKING:
+    from process_improve.experiments.factor import DesignResult, Factor
+
+# Selection criteria understood by :func:`generate_omars`.
+_CRITERIA = ("dominance", "d_efficiency", "min_second_order_correlation")
+
+
+@dataclass
+class _Candidate:
+    """A single feasible OMARS design found by the ILP, with its quality metrics."""
+
+    coded: np.ndarray
+    n_runs: int
+    half_indices: list[int]
+    d_efficiency: float
+    max_second_order_correlation: float
+    solver_status: str
+
+
+@dataclass
+class OmarsSearchReport:
+    """Diagnostics from the ILP search, recorded on ``DesignResult.metadata``.
+
+    Attributes
+    ----------
+    n_factors : int
+        Number of factors.
+    half_pool_size : int
+        Number of distinct non-mirror three-level runs the ILP chose from.
+    ilp_iterations : int
+        Number of ILP solves (the outer search iterations): the minimize-size
+        probe plus every no-good-cut re-solve.
+    feasible_designs : int
+        Number of distinct verified OMARS designs found and ranked.
+    run_size : int
+        Run count of the winning design.
+    total_solve_seconds : float
+        Cumulative wall-clock time spent inside the ILP solver.
+    """
+
+    n_factors: int = 0
+    half_pool_size: int = 0
+    ilp_iterations: int = 0
+    feasible_designs: int = 0
+    run_size: int = 0
+    total_solve_seconds: float = 0.0
+
+
+def _half_pool(n_factors: int) -> np.ndarray:
+    """Return the distinct non-mirror three-level runs (one per ``+/-`` pair).
+
+    These are the candidate half-runs: every nonzero run of the ``3**k`` grid
+    whose first nonzero coordinate is ``+1``.  The full foldover design adds the
+    mirror ``-H`` and a centre run.
+    """
+    grid = itertools.product((-1.0, 0.0, 1.0), repeat=n_factors)
+    reps = []
+    for run in grid:
+        run_array = np.asarray(run, dtype=float)
+        nonzero = np.flatnonzero(run_array)
+        if nonzero.size and run_array[nonzero[0]] > 0:
+            reps.append(run_array)
+    return np.array(reps, dtype=float)
+
+
+def _foldover(half: np.ndarray) -> np.ndarray:
+    """Assemble the foldover design ``[H; -H; 0]`` from a half-design ``H``."""
+    return np.vstack([half, -half, np.zeros((1, half.shape[1]))])
+
+
+def _model_matrix(coded: np.ndarray) -> np.ndarray:
+    """Full second-order model matrix ``[1 | main effects | second-order terms]``."""
+    second_order, _ = _second_order_terms(coded)
+    return np.column_stack([np.ones(coded.shape[0]), coded, second_order])
+
+
+def _d_efficiency(coded: np.ndarray) -> float:
+    """D-efficiency of the full second-order model: ``100 * |X'X|^(1/p) / n``."""
+    model = _model_matrix(coded)
+    n_runs, n_params = model.shape
+    if n_runs < n_params:
+        return 0.0
+    sign, log_det = np.linalg.slogdet(model.T @ model)
+    if sign <= 0:
+        return 0.0
+    return float(100.0 * math.exp(log_det / n_params) / n_runs)
+
+
+def _full_second_order_params(n_factors: int) -> int:
+    """Return the column count of the full second-order model (including the intercept)."""
+    return 1 + 2 * n_factors + n_factors * (n_factors - 1) // 2
+
+
+def solve_omars_ilp(  # noqa: PLR0913
+    half_pool: np.ndarray,
+    *,
+    n_half: int | None = None,
+    half_bounds: tuple[int, int] | None = None,
+    minimize_size: bool = False,
+    exclude_solutions: list[list[int]] | None = None,
+    solver_options: dict[str, Any] | None = None,
+) -> tuple[np.ndarray | None, str, list[int]]:
+    """Select a half-design from *half_pool* and return the foldover OMARS design.
+
+    Exactly one of *n_half* (exact half count) or *half_bounds* (inclusive
+    ``(min, max)`` half count) sets the size constraint.  The returned design
+    has ``2 * n_half + 1`` runs.
+
+    Parameters
+    ----------
+    half_pool : np.ndarray
+        Candidate half-runs of shape ``(n_candidates, n_factors)``, coded to
+        ``{-1, 0, +1}`` (see :func:`_half_pool`).
+    n_half : int, optional
+        Exact number of half-runs to select.
+    half_bounds : tuple[int, int], optional
+        Inclusive ``(min, max)`` half-run count.
+    minimize_size : bool, optional
+        When ``True`` the objective minimises the half-run count (smallest
+        feasible design); otherwise the solve is a pure feasibility search.
+    exclude_solutions : list[list[int]], optional
+        Previously found half-index sets to forbid via no-good cuts.
+    solver_options : dict, optional
+        ``{"msg": bool, "time_limit": int seconds}``.
+
+    Returns
+    -------
+    tuple
+        ``(design or None, solver_status, chosen_half_indices)``.  ``None`` means
+        the solver returned no feasible selection.
+
+    Raises
+    ------
+    ImportError
+        If PuLP (the ``ilp`` extra) is not installed.
+    """
+    if not _PULP_AVAILABLE:
+        from process_improve._extras import require_extra  # noqa: PLC0415
+
+        raise require_extra("pulp", "ilp")
+
+    options = solver_options or {}
+    n_candidates, n_factors = half_pool.shape
+
+    # PuLP 3.x deprecates the LpVariable constructor and PULP_CBC_CMD in favour
+    # of a 4.0 API; both still work and keep us compatible back to pulp 2.8, so
+    # silence the (very repetitive) deprecation noise here.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        s = [pulp.LpVariable(f"s_{r}", cat="Binary") for r in range(n_candidates)]
+    problem = pulp.LpProblem("omars_foldover", pulp.LpMinimize)
+    problem += (pulp.lpSum(s) if minimize_size else 0), "objective"
+
+    # Main-effect orthogonality over the half-design (the only non-automatic
+    # OMARS condition; balance and clear-of-second-order hold by the foldover).
+    for i, j in itertools.combinations(range(n_factors), 2):
+        coefficients = half_pool[:, i] * half_pool[:, j]
+        nonzero = np.flatnonzero(coefficients)
+        if nonzero.size:
+            problem.addConstraint(pulp.lpSum(float(coefficients[r]) * s[r] for r in nonzero) == 0, f"me_orth_{i}_{j}")
+
+    if n_half is not None:
+        problem += pulp.lpSum(s) == n_half, "half_size"
+    elif half_bounds is not None:
+        low, high = half_bounds
+        problem += pulp.lpSum(s) >= low, "half_size_lo"
+        problem += pulp.lpSum(s) <= high, "half_size_hi"
+    else:  # pragma: no cover - defensive: caller always sets one
+        raise ValueError("solve_omars_ilp requires either n_half or half_bounds.")
+
+    for cut, excluded in enumerate(exclude_solutions or []):
+        problem += pulp.lpSum(s[r] for r in excluded) <= len(excluded) - 1, f"nogood_{cut}"
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        solver = pulp.PULP_CBC_CMD(msg=bool(options.get("msg", False)), timeLimit=int(options.get("time_limit", 60)))
+        problem.solve(solver)
+    status = pulp.LpStatus[problem.status]
+
+    # Accept only a genuine feasible/optimal integer solution (sol_status > 0);
+    # a time-limited "no solution found" leaves the variables meaningless.
+    if problem.sol_status <= 0:
+        return None, status, []
+    chosen = [r for r in range(n_candidates) if (s[r].value() or 0) > 0.5]
+    if not chosen:
+        return None, status, []
+    return _foldover(half_pool[chosen]), status, chosen
+
+
+def _half_bounds(
+    n_runs_range: tuple[int, int] | None,
+    n_params: int,
+    half_pool_size: int,
+) -> tuple[int, int]:
+    """Inclusive ``(min, max)`` half-run window so the design beats ``n_params``."""
+    if n_runs_range is not None:
+        low, high = n_runs_range
+        half_low = max(1, math.ceil((max(low, n_params + 1) - 1) / 2))
+        half_high = max(half_low, (high - 1) // 2)
+    else:
+        n_floor = n_params + max(2, math.ceil(0.25 * n_params))
+        half_low = max(1, math.ceil((n_floor - 1) / 2))
+        half_high = half_low + 6
+    return half_low, min(half_high, half_pool_size)
+
+
+def _is_dominated(candidate: _Candidate, others: list[_Candidate]) -> bool:
+    """Pareto dominance on (D-efficiency up, max second-order correlation down)."""
+    for other in others:
+        if other is candidate:
+            continue
+        not_worse = (
+            other.d_efficiency >= candidate.d_efficiency
+            and other.max_second_order_correlation <= candidate.max_second_order_correlation
+        )
+        strictly_better = (
+            other.d_efficiency > candidate.d_efficiency
+            or other.max_second_order_correlation < candidate.max_second_order_correlation
+        )
+        if not_worse and strictly_better:
+            return True
+    return False
+
+
+def _select(candidates: list[_Candidate], criterion: str) -> _Candidate:
+    """Pick the winning design under the requested multicriteria rule."""
+    if criterion == "d_efficiency":
+        return max(candidates, key=lambda c: (c.d_efficiency, -c.n_runs))
+    if criterion == "min_second_order_correlation":
+        return min(candidates, key=lambda c: (c.max_second_order_correlation, -c.d_efficiency, c.n_runs))
+    # "dominance": keep the Pareto front, then prefer the smallest, most efficient design.
+    front = [c for c in candidates if not _is_dominated(c, candidates)] or candidates
+    return min(front, key=lambda c: (c.n_runs, -c.d_efficiency, c.max_second_order_correlation))
+
+
+def _sparsity(coded: np.ndarray) -> tuple[int, int]:
+    """Return the OMARS sparsity pair ``(n_ME0, n_IE0)``.
+
+    ``n_ME0`` is the number of zeros in a main-effect column and ``n_IE0`` the
+    number of zeros in a two-factor-interaction column, each reported as the
+    minimum across the relevant columns.
+    """
+    n_me0 = int(np.min(np.sum(np.abs(coded) < 0.5, axis=0)))
+    second_order, names = _second_order_terms(coded)
+    interaction_cols = [t for t, name in enumerate(names) if "*" in name]
+    # There is always at least one interaction column here (k >= 3).
+    n_ie0 = int(np.min([np.sum(np.abs(second_order[:, t]) < 0.5) for t in interaction_cols])) if interaction_cols else 0
+    return n_me0, n_ie0
+
+
+def _search_best_omars(  # noqa: C901, PLR0913, PLR0915
+    factors: list[Factor],
+    *,
+    n_runs: int | None,
+    n_runs_range: tuple[int, int] | None,
+    selection_criterion: str,
+    max_candidates: int,
+    solver_options: dict[str, Any] | None,
+    tol: float,
+    verify: bool,
+) -> tuple[np.ndarray, dict]:
+    """Run the ILP search and return ``(coded_matrix, metadata)`` for the winner.
+
+    The returned matrix is a foldover design and already contains exactly one
+    centre run; callers add any further centre runs during post-processing.
+    """
+    from process_improve.config import settings  # noqa: PLC0415
+
+    if selection_criterion not in _CRITERIA:
+        msg = f"selection_criterion must be one of {_CRITERIA}, got {selection_criterion!r}."
+        raise ValueError(msg)
+    n_factors = len(factors)
+    if n_factors < 3:
+        raise ValueError("OMARS designs require at least 3 factors.")
+    if n_factors > settings.max_factors_combinatorial:
+        msg = (
+            f"{n_factors} factors exceeds the combinatorial cap "
+            f"max_factors_combinatorial={settings.max_factors_combinatorial} (SEC-19); the 3**k candidate pool "
+            "would be too large."
+        )
+        raise ValueError(msg)
+
+    n_params = _full_second_order_params(n_factors)
+    target_half: int | None = None
+    if n_runs is not None:
+        if n_runs <= n_params:
+            msg = (
+                f"n_runs={n_runs} leaves no error degrees of freedom: the full second-order model has "
+                f"{n_params} parameters, so n_runs must exceed {n_params}."
+            )
+            raise ValueError(msg)
+        if n_runs % 2 == 0:
+            msg = f"n_runs={n_runs} must be odd: a foldover OMARS design has 2*h+1 runs (a centre run plus +/-H)."
+            raise ValueError(msg)
+        target_half = (n_runs - 1) // 2
+
+    pool = _half_pool(n_factors)
+    report = OmarsSearchReport(n_factors=n_factors, half_pool_size=pool.shape[0])
+    candidates: list[_Candidate] = []
+    excluded: list[list[int]] = []
+
+    def _solve(**solve_kwargs: Any) -> tuple[np.ndarray | None, str, list[int]]:  # noqa: ANN401
+        started = time.perf_counter()
+        result = solve_omars_ilp(pool, solver_options=solver_options, **solve_kwargs)
+        report.ilp_iterations += 1
+        report.total_solve_seconds += time.perf_counter() - started
+        return result
+
+    def _record(coded: np.ndarray, indices: list[int], status: str) -> None:
+        excluded.append(indices)
+        if verify and not is_omars(coded, tol=tol):
+            return
+        properties = omars_properties(coded, tol=tol)
+        candidates.append(
+            _Candidate(
+                coded=coded,
+                n_runs=coded.shape[0],
+                half_indices=indices,
+                d_efficiency=_d_efficiency(coded),
+                max_second_order_correlation=float(properties["max_second_order_correlation"]),
+                solver_status=status,
+            )
+        )
+
+    # Find the target half-size: pinned exactly, or the smallest feasible size in
+    # the window (the minimize-size solution becomes the first candidate).
+    if target_half is None:
+        coded, status, indices = _solve(
+            half_bounds=_half_bounds(n_runs_range, n_params, pool.shape[0]), minimize_size=True
+        )
+        if coded is not None:
+            target_half = len(indices)
+            _record(coded, indices, status)
+
+    if target_half is not None:
+        report.run_size = 2 * target_half + 1
+        while len(excluded) < max_candidates:
+            coded, status, indices = _solve(n_half=target_half, exclude_solutions=excluded)
+            if coded is None:
+                break
+            _record(coded, indices, status)
+
+    report.feasible_designs = len(candidates)
+    if not candidates:
+        target = f"n_runs={n_runs}" if n_runs is not None else f"n_runs_range={n_runs_range}"
+        msg = f"No feasible OMARS design was found for {target}. Try a larger or odd n_runs, or a wider n_runs_range."
+        raise ValueError(msg)
+
+    winner = _select(candidates, selection_criterion)
+    report.run_size = winner.n_runs
+    metadata = {
+        "family": "omars_ilp",
+        "construction": "foldover_ilp_selection",
+        "foldover": True,
+        "half_pool_size": pool.shape[0],
+        "n_runs_selected": winner.n_runs,
+        "full_second_order_params": n_params,
+        "expected_error_df": winner.n_runs - n_params,
+        "sparsity": _sparsity(winner.coded),
+        "selection_criterion": selection_criterion,
+        "d_efficiency": winner.d_efficiency,
+        "max_second_order_correlation": winner.max_second_order_correlation,
+        "solver": (solver_options or {}).get("solver", "pulp"),
+        "solver_status": winner.solver_status,
+        "omars_verified": is_omars(winner.coded, tol=tol),
+        "omars_search": report,
+    }
+    return winner.coded, metadata
+
+
+def generate_omars(  # noqa: PLR0913
+    factors: list[Factor],
+    *,
+    n_runs: int | None = None,
+    n_runs_range: tuple[int, int] | None = None,
+    selection_criterion: str = "dominance",
+    center_runs: int = 1,
+    max_candidates: int = 6,
+    solver_options: dict[str, Any] | None = None,
+    tol: float = 1e-9,
+    random_seed: int = 42,
+    verify: bool = True,
+) -> DesignResult:
+    """Generate a foldover OMARS design by integer-programming run selection.
+
+    Builds a three-level OMARS design large enough to leave error degrees of
+    freedom for a full second-order model, so it can be analysed with
+    :func:`process_improve.experiments.analyze_omars`.  The design is a foldover
+    ``[H; -H; 0]`` with ``2*h + 1`` runs (an odd run count).
+
+    Parameters
+    ----------
+    factors : list[Factor]
+        At least three continuous factors.
+    n_runs : int, optional
+        Exact (odd) run size.  Must exceed the number of second-order parameters
+        ``1 + 2k + k(k-1)/2``.  If ``None`` a size is chosen automatically.
+    n_runs_range : tuple[int, int], optional
+        Inclusive ``(min, max)`` run-size window to search when *n_runs* is
+        ``None``; the smallest feasible size is used.
+    selection_criterion : {"dominance", "d_efficiency", "min_second_order_correlation"}
+        How to choose among the feasible designs found.  ``"dominance"``
+        (default) keeps the Pareto front on D-efficiency and the maximum
+        second-order correlation, then prefers the smallest, most efficient
+        design.
+    center_runs : int, optional
+        Number of centre runs in the design (at least one; the foldover already
+        contributes one).  Default 1.
+    max_candidates : int, optional
+        Maximum number of distinct designs to enumerate (via no-good cuts)
+        before selecting.  Default 6.
+    solver_options : dict, optional
+        Passed to the solver: ``{"msg": bool, "time_limit": int seconds}``.
+    tol : float, optional
+        Tolerance for the floating-point :func:`is_omars` re-check.
+    random_seed : int, optional
+        Seed for run-order randomisation in the returned design.
+    verify : bool, optional
+        When ``True`` (default) every selected design is re-checked with
+        :func:`is_omars` before it is accepted.
+
+    Returns
+    -------
+    DesignResult
+        The OMARS design, with ILP provenance and search diagnostics under
+        ``metadata`` (``family``, ``sparsity``, ``omars_search`` report, ...).
+
+    Raises
+    ------
+    ValueError
+        If fewer than three factors are given, the factor count exceeds the
+        combinatorial cap, *n_runs* is too small or even, or no feasible design
+        is found.
+    ImportError
+        If PuLP (the ``ilp`` extra) is not installed.
+
+    Examples
+    --------
+    >>> from process_improve.experiments import Factor, generate_omars, analyze_omars
+    >>> factors = [Factor(name=n, low=-1, high=1) for n in "ABCDE"]
+    >>> result = generate_omars(factors)              # doctest: +SKIP
+    >>> result.metadata["omars_verified"]             # doctest: +SKIP
+    True
+    """
+    from process_improve.experiments.designs_utils import build_design_result  # noqa: PLC0415
+
+    if center_runs < 1:
+        raise ValueError("center_runs must be at least 1.")
+
+    coded, metadata = _search_best_omars(
+        factors,
+        n_runs=n_runs,
+        n_runs_range=n_runs_range,
+        selection_criterion=selection_criterion,
+        max_candidates=max_candidates,
+        solver_options=solver_options,
+        tol=tol,
+        verify=verify,
+    )
+    return build_design_result(
+        coded_matrix=coded,
+        factors=factors,
+        design_type="omars",
+        center_points=center_runs - 1,
+        random_seed=random_seed,
+        metadata=metadata,
+    )
+
+
+def _dispatch_omars_ilp(factors: list[Factor], **kwargs: Any) -> tuple[np.ndarray, dict]:  # noqa: ANN401
+    """Registry handler: ``generate_design(design_type="omars_ilp", budget=N)``.
+
+    Returns the raw coded matrix (with its single centre run) and metadata;
+    :func:`process_improve.experiments.generate_design` handles post-processing.
+    """
+    return _search_best_omars(
+        factors,
+        n_runs=kwargs.get("budget"),
+        n_runs_range=None,
+        selection_criterion="dominance",
+        max_candidates=6,
+        solver_options=None,
+        tol=1e-9,
+        verify=True,
+    )
