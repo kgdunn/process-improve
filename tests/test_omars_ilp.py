@@ -104,6 +104,45 @@ def test_unknown_selection_criterion_raises() -> None:
         generate_omars(_factors(3), selection_criterion="best", solver_options=_SOLVER)
 
 
+def test_run_size_range_is_searched() -> None:
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(3), n_runs_range=(13, 17), solver_options=_SOLVER)
+    n = result.metadata["n_runs_selected"]
+    assert 13 <= n <= 17
+    assert is_omars(_coded(result))
+
+
+def test_extra_center_runs_are_added() -> None:
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(3), center_runs=3, solver_options=_SOLVER)
+    coded = _coded(result)
+    n_center = int(np.sum(np.all(coded == 0, axis=1)))
+    assert n_center == 3
+    assert is_omars(coded)
+
+
+def test_center_runs_below_one_raises() -> None:
+    from process_improve.experiments import generate_omars
+
+    with pytest.raises(ValueError, match="center_runs"):
+        generate_omars(_factors(3), center_runs=0, solver_options=_SOLVER)
+
+
+def test_factor_count_above_cap_raises() -> None:
+    from process_improve.config import settings
+    from process_improve.experiments import generate_omars
+
+    original = settings.max_factors_combinatorial
+    settings.max_factors_combinatorial = 4
+    try:
+        with pytest.raises(ValueError, match="combinatorial cap"):
+            generate_omars(_factors(5), solver_options=_SOLVER)
+    finally:
+        settings.max_factors_combinatorial = original
+
+
 def test_reproducible_for_fixed_seed() -> None:
     from process_improve.experiments import generate_omars
 
