@@ -32,10 +32,16 @@ So the ILP selects a half-design from the ``(3**k - 1) / 2`` distinct non-mirror
 three-level runs subject to a handful of linear equalities - only ``k(k-1)/2``
 of them - which keeps it tractable up to seven factors.  Because the
 coefficients are integers, the equalities are exact; the floating-point
-:func:`is_omars` re-check only guards against mistakes.  Multiple designs are
-obtained by re-solving with no-good cuts, and the best is chosen by a
-satisficing-and-dominance rule over D-efficiency and the maximum second-order
-correlation, following the selection philosophy of Nunez Ares and Goos (2020).
+:func:`is_omars` re-check only guards against mistakes.  A pure feasibility
+solve, however, returns an arbitrary OMARS design that is usually far from the
+most efficient member.  To search for a high-quality design the solve is
+repeated with random linear objectives (a multistart): each random objective
+sends the solver to a different vertex of the feasibility polytope, so the
+retained designs span the high-D-efficiency / low-A members.  The best is then
+chosen by a satisficing-and-dominance rule over D-efficiency and the maximum
+second-order correlation, following the selection philosophy of Nunez Ares and
+Goos (2020).  This makes the generator competitive with their enumerated
+catalogue without consulting it.
 
 This realises, for OMARS designs, the integer-programming construction of Nunez
 Ares and Goos (2020); the ILP-over-design-points framing is shared with their
@@ -96,6 +102,11 @@ _MODELS = ("full_second_order", "main_quadratic")
 # bound (lower is better).
 _SATISFICE_KEYS = ("d_efficiency", "max_second_order_correlation")
 
+# Early-stop the randomized multistart once this many consecutive solves fail to
+# turn up a new distinct design: the feasible set is effectively exhausted (small
+# factor counts) and further solves only repeat designs already retained.
+_RESTART_PATIENCE = 25
+
 
 @dataclass
 class _Candidate:
@@ -120,9 +131,13 @@ class OmarsSearchReport:
         Number of factors.
     half_pool_size : int
         Number of distinct non-mirror three-level runs the ILP chose from.
+    n_restarts : int
+        Number of randomized-objective ILP solves the multistart was allowed
+        (the actual count can be lower when early-stopping ends it).
     ilp_iterations : int
         Number of ILP solves (the outer search iterations): the minimize-size
-        probe plus every no-good-cut re-solve.
+        probe, the baseline feasibility solve, and every randomized-objective
+        restart.
     feasible_designs : int
         Number of distinct verified OMARS designs found and ranked.
     run_size : int
@@ -133,6 +148,7 @@ class OmarsSearchReport:
 
     n_factors: int = 0
     half_pool_size: int = 0
+    n_restarts: int = 0
     ilp_iterations: int = 0
     feasible_designs: int = 0
     run_size: int = 0
@@ -224,6 +240,7 @@ def solve_omars_ilp(  # noqa: PLR0913
     n_half: int | None = None,
     half_bounds: tuple[int, int] | None = None,
     minimize_size: bool = False,
+    objective: np.ndarray | None = None,
     exclude_solutions: list[list[int]] | None = None,
     solver_options: dict[str, Any] | None = None,
 ) -> tuple[np.ndarray | None, str, list[int]]:
@@ -245,6 +262,13 @@ def solve_omars_ilp(  # noqa: PLR0913
     minimize_size : bool, optional
         When ``True`` the objective minimises the half-run count (smallest
         feasible design); otherwise the solve is a pure feasibility search.
+    objective : np.ndarray, optional
+        Per-candidate linear cost of shape ``(n_candidates,)``.  When given, the
+        solver minimises ``sum_r objective[r] * s_r`` instead of running a pure
+        feasibility (or minimise-size) search.  A random objective drives the
+        solver to a different vertex of the OMARS-feasibility polytope, which is
+        how :func:`generate_omars` samples diverse, high-quality designs.  Takes
+        precedence over *minimize_size*.
     exclude_solutions : list[list[int]], optional
         Previously found half-index sets to forbid via no-good cuts.
     solver_options : dict, optional
@@ -276,7 +300,10 @@ def solve_omars_ilp(  # noqa: PLR0913
         warnings.simplefilter("ignore", DeprecationWarning)
         s = [pulp.LpVariable(f"s_{r}", cat="Binary") for r in range(n_candidates)]
     problem = pulp.LpProblem("omars_foldover", pulp.LpMinimize)
-    problem += (pulp.lpSum(s) if minimize_size else 0), "objective"
+    if objective is not None:
+        problem += pulp.lpSum(float(objective[r]) * s[r] for r in range(n_candidates)), "objective"
+    else:
+        problem += (pulp.lpSum(s) if minimize_size else 0), "objective"
 
     # Main-effect orthogonality over the half-design (the only non-automatic
     # OMARS condition; balance and clear-of-second-order hold by the foldover).
@@ -406,11 +433,12 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
     n_runs_range: tuple[int, int] | None,
     selection_criterion: str,
     satisfice: dict[str, float] | None,
-    max_candidates: int,
+    n_restarts: int,
     model: str,
     solver_options: dict[str, Any] | None,
     tol: float,
     verify: bool,
+    random_seed: int,
 ) -> tuple[np.ndarray, dict]:
     """Run the ILP search and return ``(coded_matrix, metadata)`` for the winner.
 
@@ -451,9 +479,9 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         target_half = (n_runs - 1) // 2
 
     pool = _half_pool(n_factors)
-    report = OmarsSearchReport(n_factors=n_factors, half_pool_size=pool.shape[0])
+    report = OmarsSearchReport(n_factors=n_factors, half_pool_size=pool.shape[0], n_restarts=n_restarts)
     candidates: list[_Candidate] = []
-    excluded: list[list[int]] = []
+    seen: set[frozenset[int]] = set()
 
     def _solve(**solve_kwargs: Any) -> tuple[np.ndarray | None, str, list[int]]:  # noqa: ANN401
         started = time.perf_counter()
@@ -462,10 +490,14 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         report.total_solve_seconds += time.perf_counter() - started
         return result
 
-    def _record(coded: np.ndarray, indices: list[int], status: str) -> None:
-        excluded.append(indices)
+    def _record(coded: np.ndarray, indices: list[int], status: str) -> bool:
+        """Verify and retain a distinct OMARS design; return True if it was new."""
+        key = frozenset(indices)
+        if key in seen:
+            return False
+        seen.add(key)
         if verify and not is_omars(coded, tol=tol):
-            return
+            return False
         properties = omars_properties(coded, tol=tol)
         candidates.append(
             _Candidate(
@@ -478,6 +510,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 solver_status=status,
             )
         )
+        return True
 
     # Find the target half-size: pinned exactly, or the smallest feasible size in
     # the window (the minimize-size solution becomes the first candidate).
@@ -491,11 +524,28 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
 
     if target_half is not None:
         report.run_size = 2 * target_half + 1
-        while len(excluded) < max_candidates:
-            coded, status, indices = _solve(n_half=target_half, exclude_solutions=excluded)
-            if coded is None:
-                break
+
+        # A plain feasibility solve guarantees at least one design at this size,
+        # even when n_restarts is 0 or every random objective turns out degenerate.
+        coded, status, indices = _solve(n_half=target_half)
+        if coded is not None:
             _record(coded, indices, status)
+
+        # Randomized-objective multistart.  Each random linear objective sends the
+        # solver to a different vertex of the OMARS-feasibility polytope, so the
+        # retained set spans the high-D-efficiency / low-A members a pure
+        # feasibility search never reaches.  Deterministic for a fixed random_seed.
+        # Early-stop once the feasible set stops yielding new designs.
+        rng = np.random.default_rng(random_seed)
+        stall = 0
+        for _ in range(n_restarts):
+            if stall >= _RESTART_PATIENCE:
+                break
+            coded, status, indices = _solve(n_half=target_half, objective=rng.standard_normal(pool.shape[0]))
+            if coded is not None and _record(coded, indices, status):
+                stall = 0
+            else:
+                stall += 1
 
     report.feasible_designs = len(candidates)
     if not candidates:
@@ -553,6 +603,7 @@ def generate_omars(  # noqa: PLR0913
     selection_criterion: str = "dominance",
     satisfice: dict[str, float] | None = None,
     center_runs: int = 1,
+    n_restarts: int = 50,
     max_candidates: int = 6,
     model: str = "full_second_order",
     solver_options: dict[str, Any] | None = None,
@@ -598,9 +649,21 @@ def generate_omars(  # noqa: PLR0913
     center_runs : int, optional
         Number of centre runs in the design (at least one; the foldover already
         contributes one).  Default 1.
+    n_restarts : int, optional
+        Number of randomized-objective ILP solves used to search for a
+        high-quality design.  Each restart drives the solver to a different
+        feasible OMARS design; the best one (by *selection_criterion*) is kept.
+        Higher values explore more of the feasible set and approach the
+        catalogue-optimal designs more closely, at a roughly linear cost in
+        runtime.  The search early-stops once the feasible set stops yielding new
+        designs, so small factor counts finish quickly regardless.  Default 50,
+        which reaches catalogue-competitive D-efficiency for up to seven factors.
+        Deterministic for a fixed *random_seed*.
     max_candidates : int, optional
-        Maximum number of distinct designs to enumerate (via no-good cuts)
-        before selecting.  Default 6.
+        Legacy alias retained for backward compatibility.  It now sets a floor on
+        *n_restarts* (the effective restart budget is ``max(n_restarts,
+        max_candidates)``), so calls that raised it to enumerate more designs
+        still explore at least that many.  Default 6.
     model : {"full_second_order", "main_quadratic"}, optional
         The analysis model the design is sized for.  ``"full_second_order"``
         (default) leaves room for every two-factor interaction, so the smallest
@@ -616,7 +679,9 @@ def generate_omars(  # noqa: PLR0913
     tol : float, optional
         Tolerance for the floating-point :func:`is_omars` re-check.
     random_seed : int, optional
-        Seed for run-order randomisation in the returned design.
+        Seed for both the randomized-objective search (which design is found) and
+        the run-order randomisation of the returned design.  A fixed seed makes
+        the whole call reproducible.
     verify : bool, optional
         When ``True`` (default) every selected design is re-checked with
         :func:`is_omars` before it is accepted.
@@ -655,11 +720,12 @@ def generate_omars(  # noqa: PLR0913
         n_runs_range=n_runs_range,
         selection_criterion=selection_criterion,
         satisfice=satisfice,
-        max_candidates=max_candidates,
+        n_restarts=max(n_restarts, max_candidates),
         model=model,
         solver_options=solver_options,
         tol=tol,
         verify=verify,
+        random_seed=random_seed,
     )
     return build_design_result(
         coded_matrix=coded,
@@ -683,9 +749,10 @@ def _dispatch_omars_ilp(factors: list[Factor], **kwargs: Any) -> tuple[np.ndarra
         n_runs_range=None,
         selection_criterion="dominance",
         satisfice=None,
-        max_candidates=6,
+        n_restarts=50,
         model="full_second_order",
         solver_options=None,
         tol=1e-9,
         verify=True,
+        random_seed=42,
     )

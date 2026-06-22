@@ -188,6 +188,89 @@ def test_satisfice_unknown_key_raises() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Quality-driven multistart search
+# ---------------------------------------------------------------------------
+
+
+def test_multistart_reaches_catalogue_quality() -> None:
+    """The randomized multistart finds a high-D-efficiency 25-run, 5-factor OMARS design.
+
+    A pure feasibility search (the old behaviour) topped out near D-efficiency 37
+    for this cell, while the enumerated OMARS catalogue reaches roughly 39 to 40.6.
+    The multistart must clear a catalogue-competitive bar; this is the regression
+    guard for the old feasibility-only ceiling.
+    """
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(
+        _factors(5),
+        n_runs=25,
+        model="main_quadratic",
+        selection_criterion="d_efficiency",
+        n_restarts=40,
+        solver_options=_SOLVER,
+    )
+    assert is_omars(_coded(result))
+    assert result.metadata["d_efficiency"] >= 39.0
+    report = result.metadata["omars_search"]
+    assert report.n_restarts == 40
+    # The search retains many distinct designs, not the handful the old no-good cuts found.
+    assert report.feasible_designs > 1
+
+
+def test_more_restarts_is_never_worse() -> None:
+    """Adding restarts can only match or improve the selected design's quality.
+
+    Both calls run the same deterministic baseline feasibility solve first, so the
+    multistart's candidate set is a superset and its D-efficiency cannot be lower.
+    """
+    from process_improve.experiments import generate_omars
+
+    baseline = generate_omars(
+        _factors(5),
+        n_runs=25,
+        model="main_quadratic",
+        selection_criterion="d_efficiency",
+        n_restarts=0,
+        solver_options=_SOLVER,
+    )
+    searched = generate_omars(
+        _factors(5),
+        n_runs=25,
+        model="main_quadratic",
+        selection_criterion="d_efficiency",
+        n_restarts=40,
+        solver_options=_SOLVER,
+    )
+    assert searched.metadata["d_efficiency"] >= baseline.metadata["d_efficiency"]
+    assert searched.metadata["d_efficiency"] >= 39.0  # and it clears the catalogue-competitive bar
+
+
+def test_multistart_is_deterministic_for_seed() -> None:
+    """The multistart path reproduces the same design for a fixed seed (k=5)."""
+    from process_improve.experiments import generate_omars
+
+    a = generate_omars(
+        _factors(5), n_runs=25, model="main_quadratic", n_restarts=20, random_seed=1, solver_options=_SOLVER
+    )
+    b = generate_omars(
+        _factors(5), n_runs=25, model="main_quadratic", n_restarts=20, random_seed=1, solver_options=_SOLVER
+    )
+    np.testing.assert_array_equal(_coded(a), _coded(b))
+
+
+def test_legacy_max_candidates_sets_restart_floor() -> None:
+    """max_candidates is retained as a floor on the effective restart budget."""
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(
+        _factors(4), n_runs=13, model="main_quadratic", n_restarts=1, max_candidates=30, solver_options=_SOLVER
+    )
+    assert is_omars(_coded(result))
+    assert result.metadata["omars_search"].n_restarts == 30
+
+
+# ---------------------------------------------------------------------------
 # Reduced-model sizing (model="main_quadratic")
 # ---------------------------------------------------------------------------
 
