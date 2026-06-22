@@ -188,6 +188,93 @@ def test_satisfice_unknown_key_raises() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Reduced-model sizing (model="main_quadratic")
+# ---------------------------------------------------------------------------
+
+
+def test_main_quadratic_builds_sub_full_model_design() -> None:
+    """A four-factor OMARS can be sized for the main-effects-plus-quadratics model.
+
+    The full second-order model has 1 + 8 + 6 = 15 parameters, so it needs at
+    least 17 runs; the main-quadratic model has only 1 + 8 = 9, so a thirteen-run
+    design (like the one used in the book) is feasible.
+    """
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(4), n_runs=13, model="main_quadratic", solver_options=_SOLVER)
+    assert result.metadata["n_runs_selected"] == 13
+    assert result.metadata["sizing_model"] == "main_quadratic"
+    assert result.metadata["model_params"] == 9
+    # The full-model parameter count is still reported for reference, and the
+    # design still leaves error df for the model it was sized for.
+    assert result.metadata["full_second_order_params"] == 15
+    assert result.metadata["expected_error_df"] == 13 - 9
+    assert is_omars(_coded(result))
+
+
+def test_main_quadratic_auto_size_is_smaller_than_full() -> None:
+    from process_improve.experiments import generate_omars
+
+    reduced = generate_omars(_factors(4), model="main_quadratic", solver_options=_SOLVER)
+    full = generate_omars(_factors(4), model="full_second_order", solver_options=_SOLVER)
+    assert reduced.n_runs < full.n_runs
+    assert reduced.metadata["sizing_model"] == "main_quadratic"
+    assert full.metadata["sizing_model"] == "full_second_order"
+
+
+def test_main_quadratic_run_size_floor() -> None:
+    """The reduced model still needs error df: 13 runs is fine, 9 is not."""
+    from process_improve.experiments import generate_omars
+
+    # k=4 main-quadratic has 9 parameters, so n_runs must exceed 9.
+    with pytest.raises(ValueError, match="main_quadratic model has 9 parameters"):
+        generate_omars(_factors(4), n_runs=9, model="main_quadratic", solver_options=_SOLVER)
+
+
+def test_unknown_model_raises() -> None:
+    from process_improve.experiments import generate_omars
+
+    with pytest.raises(ValueError, match="model must be one of"):
+        generate_omars(_factors(4), model="cubic", solver_options=_SOLVER)
+
+
+def test_default_model_is_full_second_order() -> None:
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(_factors(3), solver_options=_SOLVER)
+    assert result.metadata["sizing_model"] == "full_second_order"
+
+
+def test_a_optimal_selects_minimum_coefficient_variance() -> None:
+    """The a_optimal criterion returns the lowest trace((X'X)^-1) design enumerated.
+
+    This is the criterion that reproduces the precision-optimal four-factor OMARS
+    member used as the book's running example (lower average prediction variance,
+    which is why that design sits below the DSD on the FDS plot).
+    """
+    import numpy as np
+
+    from process_improve.experiments import generate_omars
+    from process_improve.experiments.designs_omars_ilp import _a_optimality
+
+    result = generate_omars(
+        _factors(4),
+        n_runs=13,
+        model="main_quadratic",
+        selection_criterion="a_optimal",
+        max_candidates=40,
+        solver_options=_SOLVER,
+    )
+    coded = _coded(result)
+    assert is_omars(coded)
+    # The reported A-optimality matches a direct recomputation, and it is the known
+    # optimum (A = 2.52) for the 13-run four-factor main-quadratic OMARS family.
+    assert result.metadata["a_optimality"] == pytest.approx(_a_optimality(coded, "main_quadratic"))
+    assert result.metadata["a_optimality"] == pytest.approx(2.517, abs=0.01)
+    assert np.isclose(result.metadata["max_second_order_correlation"], 0.570, atol=0.005)
+
+
+# ---------------------------------------------------------------------------
 # Integration and dependency gating
 # ---------------------------------------------------------------------------
 
@@ -196,6 +283,21 @@ def test_registry_integration() -> None:
     result = generate_design(_factors(4), design_type="omars_ilp", budget=21)
     assert is_omars(result.design[result.factor_names].to_numpy(dtype=float))
     assert result.metadata["n_runs_selected"] == 21
+
+
+def test_omars_with_budget_reaches_ilp() -> None:
+    """design_type="omars" with a budget routes to the ILP enumerator."""
+    result = generate_design(_factors(4), design_type="omars", budget=21, center_points=0)
+    assert result.metadata["family"] == "omars_ilp"
+    assert result.metadata["n_runs_selected"] == 21
+    assert is_omars(result.design[result.factor_names].to_numpy(dtype=float))
+
+
+def test_omars_without_budget_is_minimal_foldover() -> None:
+    """design_type="omars" with no budget keeps the minimal conference-foldover member."""
+    result = generate_design(_factors(4), design_type="omars", center_points=0)
+    assert result.metadata["family"] == "conference_foldover"
+    assert result.n_runs == 9  # the minimal four-factor member (the DSD)
 
 
 def test_missing_solver_raises_install_hint(monkeypatch: pytest.MonkeyPatch) -> None:

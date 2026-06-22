@@ -112,6 +112,14 @@ def _dispatch_omars(
     factors: list[Factor],
     **kwargs: Any,  # noqa: ANN401
 ) -> tuple[np.ndarray, dict]:
+    # With a run budget, reach the ILP enumerator (a larger OMARS member that
+    # leaves error degrees of freedom for a full second-order model); without a
+    # budget, return the minimal conference-foldover member, which is identical
+    # to the definitive screening design.  This is a thin wrapper over
+    # ``design_type="omars_ilp"`` so both spellings reach the same enumerator.
+    if kwargs.get("budget") is not None:
+        return _dispatch_omars_ilp(factors, **kwargs)
+
     from process_improve.experiments.designs_omars import dispatch_omars  # noqa: PLC0415
 
     return dispatch_omars(factors)
