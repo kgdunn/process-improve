@@ -11,6 +11,29 @@ those changes.
 
 ## [Unreleased]
 
+## [1.48.0] - 2026-06-22
+
+### Changed
+
+- `generate_omars()` now searches for a high-quality design with a
+  randomized-objective multistart instead of a pure feasibility search. Each
+  restart solves the same OMARS-feasibility integer program with a random linear
+  objective, sending the solver to a different feasible design; the best one (by
+  the chosen `selection_criterion`) is kept. This makes the generator competitive
+  with the published OMARS catalogue: for a 25-run, five-factor design it now
+  reaches D-efficiency around 40.5 (and A around 1.6), where the old search
+  topped out near 37. The search is deterministic for a fixed `random_seed` and
+  early-stops once the feasible set stops yielding new designs, so small factor
+  counts stay fast.
+
+### Added
+
+- `generate_omars(..., n_restarts=...)`: controls the number of
+  randomized-objective restarts (default 50; higher explores more of the feasible
+  set). The legacy `max_candidates` argument is retained and now sets a floor on
+  the effective restart budget. New metadata records `n_restarts` on the
+  `omars_search` report.
+
 ## [1.47.0] - 2026-06-21
 
 ### Added
@@ -2177,7 +2200,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.47.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.48.0...HEAD
+[1.48.0]: https://github.com/kgdunn/process-improve/compare/v1.47.0...v1.48.0
 [1.47.0]: https://github.com/kgdunn/process-improve/compare/v1.46.0...v1.47.0
 [1.46.0]: https://github.com/kgdunn/process-improve/compare/v1.45.1...v1.46.0
 [1.45.1]: https://github.com/kgdunn/process-improve/compare/v1.45.0...v1.45.1
