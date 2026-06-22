@@ -24,6 +24,11 @@ those changes.
   floor and the reported D-efficiency follow the chosen model. The default
   remains `model="full_second_order"`. New metadata keys `sizing_model` and
   `model_params` record the choice.
+- `generate_omars(..., selection_criterion="a_optimal")`: a new A-optimal
+  selection criterion that minimises the summed coefficient variance
+  `trace((X'X)^-1)` of the sizing model. This selects the precision-optimal
+  member (lowest average prediction variance), reported under the new
+  `a_optimality` metadata key.
 
 ### Changed
 

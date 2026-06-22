@@ -78,7 +78,7 @@ if TYPE_CHECKING:
     from process_improve.experiments.factor import DesignResult, Factor
 
 # Selection criteria understood by :func:`generate_omars`.
-_CRITERIA = ("dominance", "d_efficiency", "min_second_order_correlation")
+_CRITERIA = ("dominance", "d_efficiency", "min_second_order_correlation", "a_optimal")
 
 # Analysis models a design can be *sized* for.  The OMARS construction is
 # identical either way - the main effects stay clear of every second-order term
@@ -105,6 +105,7 @@ class _Candidate:
     n_runs: int
     half_indices: list[int]
     d_efficiency: float
+    a_optimality: float
     max_second_order_correlation: float
     solver_status: str
 
@@ -183,6 +184,19 @@ def _d_efficiency(coded: np.ndarray, model: str = "full_second_order") -> float:
     if sign <= 0:
         return 0.0
     return float(100.0 * math.exp(log_det / n_params) / n_runs)
+
+
+def _a_optimality(coded: np.ndarray, model: str = "full_second_order") -> float:
+    """A-optimality of the sizing model: ``trace((X'X)^-1)``, the summed coefficient variance.
+
+    Lower is better.  Returns ``inf`` for a rank-deficient model matrix (the
+    coefficients are then not jointly estimable).
+    """
+    model_matrix = _model_matrix(coded, model)
+    n_runs, n_params = model_matrix.shape
+    if n_runs < n_params or np.linalg.matrix_rank(model_matrix) < n_params:
+        return float("inf")
+    return float(np.trace(np.linalg.inv(model_matrix.T @ model_matrix)))
 
 
 def _full_second_order_params(n_factors: int) -> int:
@@ -361,6 +375,10 @@ def _select(candidates: list[_Candidate], criterion: str) -> _Candidate:
         return max(candidates, key=lambda c: (c.d_efficiency, -c.n_runs))
     if criterion == "min_second_order_correlation":
         return min(candidates, key=lambda c: (c.max_second_order_correlation, -c.d_efficiency, c.n_runs))
+    if criterion == "a_optimal":
+        # Minimum summed coefficient variance trace((X'X)^-1); ties broken towards
+        # the smaller, lower-aliasing design.
+        return min(candidates, key=lambda c: (c.a_optimality, c.n_runs, c.max_second_order_correlation))
     # "dominance": keep the Pareto front, then prefer the smallest, most efficient design.
     front = [c for c in candidates if not _is_dominated(c, candidates)] or candidates
     return min(front, key=lambda c: (c.n_runs, -c.d_efficiency, c.max_second_order_correlation))
@@ -455,6 +473,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 n_runs=coded.shape[0],
                 half_indices=indices,
                 d_efficiency=_d_efficiency(coded, model),
+                a_optimality=_a_optimality(coded, model),
                 max_second_order_correlation=float(properties["max_second_order_correlation"]),
                 solver_status=status,
             )
@@ -516,6 +535,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         "selection_criterion": selection_criterion,
         "satisfice": dict(satisfice) if satisfice else None,
         "d_efficiency": winner.d_efficiency,
+        "a_optimality": winner.a_optimality,
         "max_second_order_correlation": winner.max_second_order_correlation,
         "solver": (solver_options or {}).get("solver", "pulp"),
         "solver_status": winner.solver_status,
@@ -560,11 +580,14 @@ def generate_omars(  # noqa: PLR0913
     n_runs_range : tuple[int, int], optional
         Inclusive ``(min, max)`` run-size window to search when *n_runs* is
         ``None``; the smallest feasible size is used.
-    selection_criterion : {"dominance", "d_efficiency", "min_second_order_correlation"}
+    selection_criterion : {"dominance", "d_efficiency", "min_second_order_correlation", "a_optimal"}
         How to choose among the feasible designs found.  ``"dominance"``
         (default) keeps the Pareto front on D-efficiency and the maximum
         second-order correlation, then prefers the smallest, most efficient
-        design.
+        design.  ``"a_optimal"`` minimises the summed coefficient variance
+        ``trace((X'X)^-1)`` of the sizing model (lower prediction variance on
+        average), which is the natural choice when the design is judged on
+        precision rather than on aliasing.
     satisfice : dict, optional
         Acceptability thresholds applied *before* selection: a design is kept
         only if it clears every threshold.  Supported keys are

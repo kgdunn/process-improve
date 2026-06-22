@@ -245,6 +245,35 @@ def test_default_model_is_full_second_order() -> None:
     assert result.metadata["sizing_model"] == "full_second_order"
 
 
+def test_a_optimal_selects_minimum_coefficient_variance() -> None:
+    """The a_optimal criterion returns the lowest trace((X'X)^-1) design enumerated.
+
+    This is the criterion that reproduces the precision-optimal four-factor OMARS
+    member used as the book's running example (lower average prediction variance,
+    which is why that design sits below the DSD on the FDS plot).
+    """
+    import numpy as np
+
+    from process_improve.experiments import generate_omars
+    from process_improve.experiments.designs_omars_ilp import _a_optimality
+
+    result = generate_omars(
+        _factors(4),
+        n_runs=13,
+        model="main_quadratic",
+        selection_criterion="a_optimal",
+        max_candidates=40,
+        solver_options=_SOLVER,
+    )
+    coded = _coded(result)
+    assert is_omars(coded)
+    # The reported A-optimality matches a direct recomputation, and it is the known
+    # optimum (A = 2.52) for the 13-run four-factor main-quadratic OMARS family.
+    assert result.metadata["a_optimality"] == pytest.approx(_a_optimality(coded, "main_quadratic"))
+    assert result.metadata["a_optimality"] == pytest.approx(2.517, abs=0.01)
+    assert np.isclose(result.metadata["max_second_order_correlation"], 0.570, atol=0.005)
+
+
 # ---------------------------------------------------------------------------
 # Integration and dependency gating
 # ---------------------------------------------------------------------------
