@@ -323,8 +323,10 @@ def main() -> None:
     model, usable = run_pca(features, n_components=args.components)
     comp_t = [f"t{i + 1}" for i in range(args.components)]
     comp_p = [f"p{i + 1}" for i in range(args.components)]
-    scores = pd.DataFrame(model.scores_, index=usable.index, columns=comp_t)
-    loadings = pd.DataFrame(model.loadings_, index=usable.columns, columns=comp_p)
+    # ``scores_`` / ``loadings_`` carry their own integer index; convert to plain
+    # arrays first so the design / characteristic labels are not realigned to NaN.
+    scores = pd.DataFrame(np.asarray(model.scores_), index=usable.index, columns=comp_t)
+    loadings = pd.DataFrame(np.asarray(model.loadings_), index=usable.columns, columns=comp_p)
     scores.to_csv(args.outdir / "pca_scores.csv")
     loadings.to_csv(args.outdir / "pca_loadings.csv")
 
