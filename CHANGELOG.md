@@ -11,6 +11,19 @@ those changes.
 
 ## [Unreleased]
 
+## [1.48.1] - 2026-06-24
+
+### Added
+
+- `scripts/characterize_4factor_omars.py`: a standalone analysis script that
+  enumerates the complete catalogue of 41 non-isomorphic four-factor basic
+  OMARS designs (Nunez Ares and Goos, 2020, Table 2) with an integer program,
+  adds one centre run to each, characterises every design under both the ME+IE
+  and full second-order models (via `omars_properties` and `evaluate_design`),
+  and maps the resulting characteristics matrix into a low-dimensional space
+  with the package `PCA` (using its native missing-data path for designs that
+  are rank-deficient under a given model).
+
 ## [1.48.0] - 2026-06-22
 
 ### Changed
@@ -2200,7 +2213,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.48.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.48.1...HEAD
+[1.48.1]: https://github.com/kgdunn/process-improve/compare/v1.48.0...v1.48.1
 [1.48.0]: https://github.com/kgdunn/process-improve/compare/v1.47.0...v1.48.0
 [1.47.0]: https://github.com/kgdunn/process-improve/compare/v1.46.0...v1.47.0
 [1.46.0]: https://github.com/kgdunn/process-improve/compare/v1.45.1...v1.46.0
