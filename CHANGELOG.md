@@ -11,6 +11,22 @@ those changes.
 
 ## [Unreleased]
 
+## [1.49.0] - 2026-06-29
+
+### Added
+
+- New `process_improve.sensory` subpackage: a generic descriptive panel-data
+  pipeline. `validate_descriptive` enforces the `descriptive_long` schema and a
+  product-covariate table (designed or observational mode); `panel_scorecard`
+  rates and flags anomalous panelists; `analyze_descriptive` relates each
+  attribute to the product, regressing on the design factors (designed mode,
+  via `analyze_experiment`) or relating to measured descriptors with PLS and
+  correlations (observational mode), with Benjamini-Hochberg correction,
+  product means with confidence intervals, and a PCA map. Exposed to agents as
+  the `sensory_validate_descriptive` and `sensory_analyze_descriptive` tools.
+- `benjamini_hochberg` false-discovery-rate correction in
+  `process_improve.univariate`, alongside the existing `holm_bonferroni`.
+
 ## [1.48.0] - 2026-06-22
 
 ### Changed
@@ -2200,7 +2216,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.48.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.49.0...HEAD
+[1.49.0]: https://github.com/kgdunn/process-improve/compare/v1.48.0...v1.49.0
 [1.48.0]: https://github.com/kgdunn/process-improve/compare/v1.47.0...v1.48.0
 [1.47.0]: https://github.com/kgdunn/process-improve/compare/v1.46.0...v1.47.0
 [1.46.0]: https://github.com/kgdunn/process-improve/compare/v1.45.1...v1.46.0
