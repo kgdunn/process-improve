@@ -323,3 +323,50 @@ def test_analyze_correction_align_changes_means_and_reports_mam():
         aligned.product_means, on=["product", "attribute"], suffixes=("_none", "_align")
     )
     assert not np.allclose(merged["mean_none"], merged["mean_align"])
+
+
+# ---------------------------------------------------------------------------
+# Agent tools
+# ---------------------------------------------------------------------------
+
+
+def test_tool_panel_check_returns_scorecard_and_mam():
+    import json
+
+    from process_improve.tool_spec import execute_tool_call
+
+    panel = _scaling_panel().to_dict(orient="records")
+    out = execute_tool_call("sensory_panel_check", {"panel": panel, "align": True})
+    json.dumps(out)  # must be JSON-serialisable for the front end
+    assert out["ok"]
+    beta = {r["panelist_id"]: r["beta"] for r in out["mam"]["scaling"]}
+    assert beta["P0"] < 0.7  # compressor recovered through the tool
+    assert beta["P1"] > 1.3  # expander
+    assert "aligned_panel" in out
+    assert {"scorecard", "ftests"}.issubset({*out, *out["mam"]})
+
+
+def test_tool_panel_check_missing_columns():
+    from process_improve.tool_spec import execute_tool_call
+
+    out = execute_tool_call("sensory_panel_check", {"panel": [{"panelist_id": "P1", "score": 5}]})
+    assert not out["ok"]
+    assert any("missing required columns" in e for e in out["errors"])
+
+
+def test_tool_analyze_exposes_correction_and_mam():
+    from process_improve.tool_spec import execute_tool_call
+
+    panel = _scaling_panel()
+    products = sorted(panel["product"].unique())
+    payload = {
+        "panel": panel.to_dict(orient="records"),
+        "covariates": [{"product": p, "d": i} for i, p in enumerate(products)],
+        "mode": "observational",
+        "correction": "align",
+    }
+    out = execute_tool_call("sensory_analyze_descriptive", payload)
+    assert out["ok"]
+    assert out["correction"] == "align"
+    ftest = out["mam"]["ftests"][0]
+    assert ftest["f_product_mam"] > ftest["f_product_classical"]

@@ -32,7 +32,10 @@ those changes.
   vs classical product-effect F-tests, and `align_scores` harmonizes all
   panelists onto a common scale (location and/or scale levers). Exposed on
   `analyze_descriptive` via a `correction="none"|"align"|"drop"` option and an
-  `mam` field on the result. Pure Python; a SensMixed/lmerTest variant is
+  `mam` field on the result, and to agents via the new `sensory_panel_check`
+  tool (scorecard plus MAM from the panel alone, optionally returning the
+  aligned panel) and the `correction` / `mam` additions to
+  `sensory_analyze_descriptive`. Pure Python; a SensMixed/lmerTest variant is
   tracked for later.
 
 ### Changed

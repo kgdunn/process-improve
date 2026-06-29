@@ -124,12 +124,60 @@ sensory map of the products over the attributes).
 The designed-mode relate (factor *effects* rather than associations) is planned;
 ``mode="designed"`` raises ``NotImplementedError`` for now.
 
+Correcting the panel: the Mixed Assessor Model
+----------------------------------------------
+
+Panelists differ in how they use the scale: some compress it into a narrow
+range, some expand it, some sit consistently high or low. The Mixed Assessor
+Model (MAM) separates this *scale usage* from genuine *disagreement* about the
+products. For each attribute it regresses every panelist's product scores on the
+panel consensus; the slope is the panelist's scaling coefficient ``beta``:
+
+- ``beta`` near 1: uses the scale like the panel;
+- ``beta`` < 1: compresses; ``beta`` > 1: expands.
+
+:func:`~process_improve.sensory.mixed_assessor_model` returns these coefficients
+per panelist and attribute, plus two product-effect F-tests: the MAM one (using
+the leftover disagreement as the error term) and the classical one (using the
+raw interaction). Removing the scale-usage differences from the error makes the
+MAM F-test more powerful.
+
+Instead of dropping a panelist who merely scales differently, you can *align*
+the panel: :func:`~process_improve.sensory.align_scores` rescales every panelist
+onto a common scale (a location lever removes their offset, a scale lever
+divides by ``beta``), keeping their data while removing the scale-usage
+artefact. ``analyze_descriptive`` exposes this through ``correction``:
+
+.. code-block:: python
+
+   from process_improve.sensory import mixed_assessor_model, align_scores
+
+   mam = mixed_assessor_model(validated.normalized_df)
+   print(mam.scaling.sort_values("beta").head())   # who compresses / expands
+   print(mam.ftests)                                # MAM vs classical F per attribute
+
+   # Align all panelists onto a common scale, then relate to the product.
+   result = analyze_descriptive(validated, correction="align")
+   print(result.correction, result.mam.scaling.head())
+
+Rescaling does not remove genuine disagreement, so a panelist who truly ranks
+the products differently is better handled by dropping (``drop_panelists`` or
+``correction="drop"``); align and drop can be combined.
+
 Using the tools from an agent
 -----------------------------
 
-The same two steps are exposed as agent-callable tools,
-``sensory_validate_descriptive`` and ``sensory_analyze_descriptive`` (see
-:func:`process_improve.sensory.tools.get_sensory_tool_specs`). They take the
-panel and covariate tables as lists of row-records and return JSON. The analyze
-tool validates first and refuses to run if validation fails, so an agent cannot
-skip the gate.
+The steps are exposed as agent-callable tools (see
+:func:`process_improve.sensory.tools.get_sensory_tool_specs`), taking the panel
+and covariate tables as lists of row-records and returning JSON:
+
+- ``sensory_validate_descriptive`` - validate the inputs.
+- ``sensory_panel_check`` - panel quality from the panel alone (no covariates):
+  the scorecard with flags, the MAM scaling coefficients and F-tests, and,
+  with ``align=true``, the rescaled panel.
+- ``sensory_analyze_descriptive`` - the full pipeline, with a ``correction``
+  option (``"none"`` / ``"align"`` / ``"drop"``) and the MAM results in its
+  output.
+
+The analyze tool validates first and refuses to run if validation fails, so an
+agent cannot skip the gate.
