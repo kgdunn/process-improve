@@ -195,7 +195,7 @@ Worked example
 --------------
 
 This example runs the whole pipeline on a small synthetic panel. Ten assessors
-(J01-J10) scored twelve products (Product A-L) on nine attributes (Aroma
+(J01-J10) scored eighteen products (Product A-R) on nine attributes (Aroma
 intensity, Sweetness, Sourness, Bitterness, Firmness, Juiciness, Colour
 intensity, Aftertaste, Liking). The scores came out of the scoring software in
 the wide layout, with an extra ``site`` column we do not need and a few missing
