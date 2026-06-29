@@ -2,6 +2,7 @@
 
 from process_improve.univariate.metrics import (
     Sn,
+    benjamini_hochberg,
     biweight_midvariance,
     confidence_interval,
     detect_outliers_esd,
@@ -35,6 +36,7 @@ from process_improve.univariate.tools import (
 __all__ = [
     # Core metrics
     "Sn",
+    "benjamini_hochberg",
     "biweight_midvariance",
     "confidence_interval",
     # Tool wrappers

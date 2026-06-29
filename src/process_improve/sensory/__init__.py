@@ -15,4 +15,32 @@ The public entry points are :func:`validate_descriptive` and
 ``process_improve.sensory.tools``.
 """
 
-__all__: list[str] = []
+from process_improve.sensory.analysis import (
+    AnalysisResult,
+    aggregate_to_product,
+    analyze_descriptive,
+    product_means,
+    relate_designed,
+    relate_observational,
+)
+from process_improve.sensory.panel import PanelScorecard, apply_correction, panel_scorecard
+from process_improve.sensory.validation import (
+    DESCRIPTIVE_LONG_COLUMNS,
+    ValidationResult,
+    validate_descriptive,
+)
+
+__all__ = [
+    "DESCRIPTIVE_LONG_COLUMNS",
+    "AnalysisResult",
+    "PanelScorecard",
+    "ValidationResult",
+    "aggregate_to_product",
+    "analyze_descriptive",
+    "apply_correction",
+    "panel_scorecard",
+    "product_means",
+    "relate_designed",
+    "relate_observational",
+    "validate_descriptive",
+]
