@@ -31,6 +31,12 @@ from process_improve.univariate.metrics import detect_outliers_esd
 #: regardless of the panel size (anti-correlation is unambiguous).
 _AGREEMENT_FLOOR = 0.0
 
+#: A panelist is only flagged when it is both a relative outlier (ESD) and below
+#: one of these absolute levels, so a tight, healthy cluster is not flagged just
+#: because one member sits at its low edge.
+_AGREEMENT_SUSPECT = 0.5
+_DISCRIMINATION_SUSPECT = 0.5
+
 #: Minimum number of panelists before the Extreme Studentised Deviate test is
 #: used to flag low-tail outliers; below this the floor rules apply alone.
 _MIN_PANELISTS_FOR_ESD = 4
@@ -91,7 +97,7 @@ def _low_tail_outliers(values: pd.Series) -> set[str]:
     return {str(clean.index[i]) for i in indices if arr[i] < median}
 
 
-def panel_scorecard(panel: pd.DataFrame) -> PanelScorecard:  # noqa: C901
+def panel_scorecard(panel: pd.DataFrame) -> PanelScorecard:
     """Score each panelist and flag anomalies.
 
     Parameters
@@ -129,17 +135,24 @@ def panel_scorecard(panel: pd.DataFrame) -> PanelScorecard:  # noqa: C901
         pan_panel = panel[panel["panelist_id"] == pid]
         pan_cell = cell[cell["panelist_id"] == pid]
 
-        # Discrimination and agreement, averaged over attributes.
-        etas: list[float] = []
-        corrs: list[float] = []
-        for _attr, grp in pan_panel.groupby("attribute", observed=True):
-            etas.append(_eta_squared(grp["score"], grp["product"]))
-        for attr, grp in pan_cell.groupby("attribute", observed=True):
-            own = grp.set_index("product")["score"]
-            ref = consensus.xs(attr, level="attribute")
-            joined = pd.concat([own, ref], axis=1, join="inner").dropna()
-            if joined.shape[0] >= 2 and joined.iloc[:, 0].std() > 0 and joined.iloc[:, 1].std() > 0:
-                corrs.append(float(joined.iloc[:, 0].corr(joined.iloc[:, 1])))
+        # Discrimination: mean eta-squared of the product effect across
+        # attributes (an attribute with no real product effect simply
+        # contributes a low value to everyone, which does not bias flagging).
+        etas = [
+            _eta_squared(grp["score"], grp["product"])
+            for _attr, grp in pan_panel.groupby("attribute", observed=True)
+        ]
+        # Agreement: a single correlation of the panelist's product-by-attribute
+        # cell means with the panel consensus over the whole space. Stacking the
+        # attributes lets those with real product variation dominate and avoids
+        # the meaningless per-attribute correlations a near-flat attribute would
+        # otherwise contribute.
+        own_vec = pan_cell.set_index(["product", "attribute"])["score"]
+        pair = pd.concat([own_vec, consensus], axis=1, join="inner").dropna()
+        if pair.shape[0] >= 2 and pair.iloc[:, 0].std() > 0 and pair.iloc[:, 1].std() > 0:
+            agreement = float(pair.iloc[:, 0].corr(pair.iloc[:, 1]))
+        else:
+            agreement = float("nan")
 
         pan_scores = pan_panel["score"]
         # Drift: association of session order with the panelist's mean score.
@@ -152,7 +165,7 @@ def panel_scorecard(panel: pd.DataFrame) -> PanelScorecard:  # noqa: C901
 
         records[str(pid)] = {
             "discrimination": float(np.nanmean(etas)) if etas else float("nan"),
-            "agreement": float(np.nanmean(corrs)) if corrs else float("nan"),
+            "agreement": agreement,
             "scale_shift": float(pan_scores.mean() - grand_mean),
             "scale_spread": float(pan_scores.std() / grand_sd) if grand_sd and grand_sd > 0 else float("nan"),
             "drift": drift,
@@ -172,9 +185,11 @@ def panel_scorecard(panel: pd.DataFrame) -> PanelScorecard:  # noqa: C901
 
     for pid in table.index:
         why: list[str] = []
-        if pid in low_agree or table.loc[pid, "agreement"] <= _AGREEMENT_FLOOR:
+        agreement = table.loc[pid, "agreement"]
+        discrimination = table.loc[pid, "discrimination"]
+        if (pid in low_agree and agreement < _AGREEMENT_SUSPECT) or agreement <= _AGREEMENT_FLOOR:
             why.append("low agreement with the panel")
-        if pid in low_discrim:
+        if pid in low_discrim and discrimination < _DISCRIMINATION_SUSPECT:
             why.append("low discrimination between products")
         if why:
             reasons[str(pid)] = why
