@@ -10,11 +10,16 @@ produced them?*
 The :mod:`process_improve.sensory` subpackage answers that with a small,
 generic pipeline. The data is described only as panelist, product, attribute,
 replicate, and score; nothing about the pipeline is specific to any particular
-kind of product. The flow has three steps:
+kind of product. The flow is:
 
+0. **reshape** a raw wide export into the long schema, if the data does not
+   already arrive in it;
 1. **validate** the panel data and a product-covariate table;
-2. **check the panel** and optionally drop anomalous panelists;
+2. **check the panel**, then either correct each panelist's scale use (the
+   Mixed Assessor Model) or drop anomalous panelists;
 3. **relate** each attribute back to the product.
+
+The worked example near the end runs all of these on a synthetic dataset.
 
 The data contract
 -----------------
@@ -237,8 +242,9 @@ per-attribute, and per-assessor means are unchanged.
 
 Any out-of-range or missing-cell issues are surfaced as warnings.
 
-**Step 3, check the panel.** The scorecard flags J07 (low agreement and
-discrimination). The Mixed Assessor Model reports each assessor's scaling
+**Step 3, check the panel.** The scorecard flags J07 (low agreement with the
+panel: its random scores do not track the consensus). The Mixed Assessor Model
+reports each assessor's scaling
 coefficient ``beta``: about 1 for most, well below 1 for the compressor J09, and
 a large offset for the high rater J03. Once the random assessor is removed, the
 leftover assessor-by-product interaction is mostly scale usage, so the MAM
@@ -265,12 +271,14 @@ measurements.
 The genuine correlates are significant (``brix`` with Sweetness,
 ``titratable_acidity`` with Sourness, ``price`` with Liking, each with a
 Benjamini-Hochberg q-value), but so are the spurious proxies (``refractive_index``
-and ``specific_gravity`` with Sweetness), because within one dataset they all
-correlate.
+and ``specific_gravity`` with Sweetness). Both of those ride on ``brix`` by
+construction (refractive index and specific gravity rise with dissolved sugar,
+not with perceived sweetness), so within this one dataset they track Sweetness
+just as strongly as ``brix`` itself.
 This is the trap to watch: a within-sample correlation is not a transferable,
-causal link. Telling a genuine correlate apart from a lazy proxy needs
-out-of-sample evidence (cross-validated Q-squared, a Van der Voet test, or a
-selectivity ratio), which is covered separately.
+causal link. Telling a genuine correlate apart from a proxy that merely rides
+on it needs out-of-sample evidence (cross-validated Q-squared, a Van der Voet
+test, or a selectivity ratio), which is covered separately.
 
 The full runnable scenario is in the test suite
 (``tests/test_sensory_end_to_end.py``).
