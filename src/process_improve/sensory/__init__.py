@@ -23,6 +23,7 @@ from process_improve.sensory.analysis import (
     relate_designed,
     relate_observational,
 )
+from process_improve.sensory.mam import MAMResult, align_scores, mixed_assessor_model
 from process_improve.sensory.panel import PanelScorecard, apply_correction, panel_scorecard
 from process_improve.sensory.validation import (
     DESCRIPTIVE_LONG_COLUMNS,
@@ -33,11 +34,14 @@ from process_improve.sensory.validation import (
 __all__ = [
     "DESCRIPTIVE_LONG_COLUMNS",
     "AnalysisResult",
+    "MAMResult",
     "PanelScorecard",
     "ValidationResult",
     "aggregate_to_product",
+    "align_scores",
     "analyze_descriptive",
     "apply_correction",
+    "mixed_assessor_model",
     "panel_scorecard",
     "product_means",
     "relate_designed",

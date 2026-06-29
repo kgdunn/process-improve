@@ -30,6 +30,7 @@ import pandas as pd
 from scipy.stats import pearsonr
 
 from process_improve.multivariate.methods import PCA, PLS, vip
+from process_improve.sensory.mam import MAMResult, align_scores, mixed_assessor_model
 from process_improve.sensory.panel import PanelScorecard, apply_correction, panel_scorecard
 from process_improve.sensory.validation import ValidationResult
 from process_improve.univariate.metrics import benjamini_hochberg, confidence_interval
@@ -47,6 +48,12 @@ class AnalysisResult:
         The per-panelist scorecard and flags.
     dropped : list of str
         Panelists removed before the relate step.
+    mam : MAMResult
+        Mixed Assessor Model: per-panelist scaling coefficients and the MAM vs
+        classical product-effect F-tests.
+    correction : str
+        The panel correction applied before relating: ``"none"``, ``"align"``,
+        or ``"drop"``.
     relate : dict
         Mode-specific relate results; see :func:`analyze_descriptive`.
     product_means : pandas.DataFrame
@@ -60,6 +67,8 @@ class AnalysisResult:
     mode: str
     panel: PanelScorecard
     dropped: list[str]
+    mam: MAMResult
+    correction: str
     relate: dict[str, Any]
     product_means: pd.DataFrame
     pca: dict[str, Any]
@@ -198,6 +207,8 @@ def analyze_descriptive(  # noqa: PLR0913
     validated: ValidationResult,
     *,
     drop_panelists: str | list[str] | None = None,
+    correction: str = "none",
+    align_method: str = "both",
     model: str = "main_effects",
     n_components: int = 2,
     conf_level: float = 0.95,
@@ -213,6 +224,14 @@ def analyze_descriptive(  # noqa: PLR0913
     drop_panelists : {"auto", None} or list of str
         ``"auto"`` drops every flagged panelist; a list drops exactly those
         ids; ``None`` keeps all panelists.
+    correction : {"none", "align", "drop"}
+        Panel correction before relating. ``"none"`` (default) leaves scores as
+        is; ``"align"`` applies the Mixed Assessor Model scale alignment to all
+        panelists (:func:`process_improve.sensory.mam.align_scores`); ``"drop"``
+        is a synonym for using ``drop_panelists``. Alignment and dropping
+        compose: panelists are aligned first, then any dropped.
+    align_method : {"both", "location", "scale"}
+        Which MAM lever to apply when ``correction="align"``.
     model : str
         Design model for the ``designed`` relate step (default
         ``"main_effects"``).
@@ -242,14 +261,17 @@ def analyze_descriptive(  # noqa: PLR0913
 
     panel = validated.normalized_df
     card = panel_scorecard(panel)
+    mam = mixed_assessor_model(panel)
 
+    # Correction: align all panelists onto a common scale (MAM), then drop.
+    working = align_scores(panel, method=align_method) if correction == "align" else panel
     if drop_panelists == "auto":
         dropped = list(card.flagged)
     elif isinstance(drop_panelists, list):
         dropped = drop_panelists
     else:
         dropped = []
-    clean = apply_correction(panel, dropped)
+    clean = apply_correction(working, dropped)
 
     agg = aggregate_to_product(clean)
     if validated.mode == "designed":
@@ -261,11 +283,15 @@ def analyze_descriptive(  # noqa: PLR0913
         mode=validated.mode,
         panel=card,
         dropped=dropped,
+        mam=mam,
+        correction=correction,
         relate=relate,
         product_means=product_means(clean, conf_level=conf_level),
         pca=_pca_map(agg, n_components=n_components),
         config={
             "model": model,
+            "correction": correction,
+            "align_method": align_method,
             "n_components": n_components,
             "conf_level": conf_level,
             "alpha": alpha,

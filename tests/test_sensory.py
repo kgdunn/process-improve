@@ -12,7 +12,9 @@ import pytest
 
 from process_improve.sensory import (
     DESCRIPTIVE_LONG_COLUMNS,
+    align_scores,
     analyze_descriptive,
+    mixed_assessor_model,
     panel_scorecard,
     validate_descriptive,
 )
@@ -232,3 +234,92 @@ def test_analyze_refuses_unvalidated():
     bad = validate_descriptive(_panel().drop(columns=["score"]), _obs(), mode="observational")
     with pytest.raises(ValueError, match="requires a validated dataset"):
         analyze_descriptive(bad)
+
+
+# ---------------------------------------------------------------------------
+# Mixed Assessor Model: scaling and alignment
+# ---------------------------------------------------------------------------
+
+
+def _scaling_panel(*, seed: int = 0, n_products: int = 8):
+    """Panel where P0 compresses (beta<1), P1 expands (beta>1), P2 rates high."""
+    rng = np.random.default_rng(seed)
+    products = [f"prod{i}" for i in range(n_products)]
+    effect = dict(zip(products, rng.normal(0, 2, n_products), strict=True))
+    betas = {"P0": 0.4, "P1": 1.6}
+    offsets = {"P2": 2.0}
+    rows = []
+    for pid in [f"P{i}" for i in range(8)]:
+        slope = betas.get(pid, 1.0)
+        off = offsets.get(pid, 0.0)
+        for prod in products:
+            for rep in (1, 2):
+                rows.append(  # noqa: PERF401
+                    {
+                        "panelist_id": pid,
+                        "session": 1,
+                        "product": prod,
+                        "attribute": "A",
+                        "replicate": rep,
+                        "score": 5 + off + slope * (2 * effect[prod]) + rng.normal(0, 0.25),
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
+def test_mam_recovers_scaling_coefficients():
+    mam = mixed_assessor_model(_scaling_panel())
+    beta = mam.scaling.set_index("panelist_id")["beta"]
+    assert beta["P0"] < 0.7  # compressor
+    assert beta["P1"] > 1.3  # expander
+    others = beta.drop(["P0", "P1"])
+    assert (others.abs().sub(1).abs() < 0.3).all()  # the rest use the scale like the panel
+    offset = mam.scaling.set_index("panelist_id")["offset"]
+    assert offset["P2"] == max(offset)  # the high rater has the largest offset
+
+
+def test_mam_ftest_more_powerful_than_classical():
+    mam = mixed_assessor_model(_scaling_panel())
+    row = mam.ftests.iloc[0]
+    # Removing scaling heterogeneity shrinks the error term, so the MAM product
+    # F-statistic exceeds the classical one.
+    assert row["f_product_mam"] > row["f_product_classical"]
+
+
+def test_align_harmonizes_all_panelists():
+    panel = _scaling_panel()
+    aligned = align_scores(panel, method="both")
+    beta_after = mixed_assessor_model(aligned).scaling.set_index("panelist_id")["beta"]
+    # After alignment everyone uses the scale like the panel (beta ~ 1).
+    assert (beta_after.sub(1).abs() < 0.2).all()
+
+
+def test_align_is_approximately_idempotent():
+    # A second alignment barely moves the scores: the first pass already brought
+    # every panelist's scaling to ~1, so re-aligning applies only a tiny residual.
+    panel = _scaling_panel()
+    once = align_scores(panel, method="both")
+    twice = align_scores(once, method="both")
+    merged = once.merge(
+        twice, on=["panelist_id", "product", "attribute", "replicate", "session"], suffixes=("_1", "_2")
+    )
+    assert np.allclose(merged["score_1"], merged["score_2"], atol=0.05)
+
+
+def test_align_invalid_method_raises():
+    with pytest.raises(ValueError, match="method must be"):
+        align_scores(_scaling_panel(), method="nonsense")
+
+
+def test_analyze_correction_align_changes_means_and_reports_mam():
+    panel = _scaling_panel()
+    obs = pd.DataFrame({"product": sorted(panel["product"].unique()), "d": range(panel["product"].nunique())})
+    validated = validate_descriptive(panel, obs, mode="observational")
+    none = analyze_descriptive(validated, correction="none")
+    aligned = analyze_descriptive(validated, correction="align")
+    assert aligned.correction == "align"
+    assert not aligned.mam.scaling.empty
+    merged = none.product_means.merge(
+        aligned.product_means, on=["product", "attribute"], suffixes=("_none", "_align")
+    )
+    assert not np.allclose(merged["mean_none"], merged["mean_align"])

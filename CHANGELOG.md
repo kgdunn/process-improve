@@ -27,6 +27,13 @@ those changes.
   stubbed (raises `NotImplementedError`) and planned for a later release.
 - `benjamini_hochberg` false-discovery-rate correction in
   `process_improve.univariate`, alongside the existing `holm_bonferroni`.
+- Mixed Assessor Model in `process_improve.sensory.mam`: `mixed_assessor_model`
+  reports each panelist's scaling coefficient (beta) per attribute and the MAM
+  vs classical product-effect F-tests, and `align_scores` harmonizes all
+  panelists onto a common scale (location and/or scale levers). Exposed on
+  `analyze_descriptive` via a `correction="none"|"align"|"drop"` option and an
+  `mam` field on the result. Pure Python; a SensMixed/lmerTest variant is
+  tracked for later.
 
 ### Changed
 
