@@ -45,22 +45,37 @@ class _ReshapeInput(BaseModel):
             "(by the front end or a code sandbox); this tool only reshapes, it does not read files."
         ),
     )
-    layout: Literal["long", "wide_by_attribute"] = Field(
+    layout: Literal["long", "wide_by_attribute", "wide_by_product"] = Field(
         ...,
         description=(
             "'wide_by_attribute' when there is one column per attribute (rows are panelist x product x "
-            "replicate); 'long' when there is already one row per score with attribute and score columns."
+            "replicate); 'wide_by_product' when there is one column per product and an attribute label "
+            "column (one panelist x product matrix per attribute, stacked); 'long' when there is already "
+            "one row per score with attribute and score columns."
         ),
     )
     panelist_id: str = Field(..., description="Name of the column holding the panelist / assessor id.")
-    product: str = Field(..., description="Name of the column holding the product / sample id.")
+    product: str | None = Field(
+        None,
+        description="Column holding the product / sample id. Required for long and wide_by_attribute.",
+    )
     session: str | None = Field(None, description="Optional column holding the session; defaults to 1 if absent.")
     replicate: str | None = Field(None, description="Optional column holding the replicate; defaults to 1 if absent.")
     attributes: list[str] | None = Field(
         None,
         description="wide_by_attribute: the attribute column names. If omitted, all non-id columns are attributes.",
     )
-    attribute: str | None = Field(None, description="long: the column holding the attribute names.")
+    products: list[str] | None = Field(
+        None,
+        description="wide_by_product: the product column names. If omitted, all non-id columns are products.",
+    )
+    attribute: str | None = Field(
+        None,
+        description=(
+            "The attribute column: the attribute-names column for 'long', or the block-label column "
+            "for 'wide_by_product'."
+        ),
+    )
     score: str | None = Field(None, description="long: the column holding the score.")
 
 
@@ -85,6 +100,7 @@ def sensory_reshape_to_long(spec: _ReshapeInput) -> dict:
         "session": spec.session,
         "replicate": spec.replicate,
         "attributes": spec.attributes,
+        "products": spec.products,
         "attribute": spec.attribute,
         "score": spec.score,
     }

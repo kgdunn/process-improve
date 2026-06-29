@@ -392,6 +392,30 @@ def test_reshape_wide_to_long_roundtrip():
     pd.testing.assert_frame_equal(long_df, canonical)
 
 
+def test_reshape_wide_by_product_roundtrip():
+    # One panelist x product matrix per attribute, stacked with an attribute label column.
+    rng = np.random.default_rng(1)
+    rows = []
+    for attr in ("Salty", "Bitter"):
+        for pid in ("P1", "P2", "P3"):
+            for rep in (1, 2):
+                rows.append(  # noqa: PERF401
+                    {"Assessor": pid, "Attribute": attr, "Rep": rep, "A": rng.normal(5, 1), "B": rng.normal(4, 1)}
+                )
+    matrices = pd.DataFrame(rows)
+    long_df, checks = reshape_to_long(
+        matrices,
+        layout="wide_by_product",
+        mapping={"panelist_id": "Assessor", "attribute": "Attribute", "replicate": "Rep"},
+    )
+    assert checks["ok"]
+    assert list(long_df.columns) == list(DESCRIPTIVE_LONG_COLUMNS)
+    assert long_df.shape[0] == 2 * 3 * 2 * 2  # attributes x panelists x reps x products
+    assert set(long_df["product"]) == {"A", "B"}
+    assert set(long_df["attribute"]) == {"Salty", "Bitter"}
+    assert checks["grand_mean_before"] == pytest.approx(checks["grand_mean_after"])
+
+
 def test_reshape_defaults_session_and_replicate():
     wide = _wide_panel().drop(columns=["Rep"])
     long_df, _ = reshape_to_long(
