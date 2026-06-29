@@ -28,6 +28,13 @@ those changes.
 - `benjamini_hochberg` false-discovery-rate correction in
   `process_improve.univariate`, alongside the existing `holm_bonferroni`.
 
+### Changed
+
+- Pin `pandas>=2.3.3,<3.0`. pandas 3.0.x segfaults in CI when numba (the `fast`
+  extra) is also installed, a numba/llvmlite vs numpy ABI interaction;
+  constraining to pandas 2.x avoids the crash. Revisit once a numba build
+  supports the pandas 3 / numpy 2.4 stack.
+
 ## [1.48.0] - 2026-06-22
 
 ### Changed

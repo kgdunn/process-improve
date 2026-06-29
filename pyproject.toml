@@ -28,7 +28,11 @@ dependencies = [
     # MCP server, JIT speedups) live in extras; install
     # ``process-improve[all]`` to reproduce the pre-1.24.11 closure.
     "numpy>=2.2.6",
-    "pandas>=2.3.3",
+    # Upper-bounded below pandas 3.0: pandas 3.0.x segfaults in CI when numba
+    # (the `fast` extra) is also installed, a numba/llvmlite vs numpy ABI
+    # interaction. Revisit once a numba build supports the pandas 3 / numpy 2.4
+    # stack.
+    "pandas>=2.3.3,<3.0",
     "patsy>=1.0.2",
     "pydantic>=2.12.5",
     "pyyaml>=6.0",
