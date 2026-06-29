@@ -157,11 +157,11 @@ def relate_observational(
     pls = PLS(n_components=max_comp).fit(x_block, y_block)
     vips = vip(pls)
 
-    drivers = [
+    drivers: list[dict[str, Any]] = [
         {"descriptor": str(name), "vip": float(value)}
         for name, value in vips.items()
     ]
-    drivers.sort(key=lambda r: r["vip"], reverse=True)
+    drivers.sort(key=lambda r: float(r["vip"]), reverse=True)
 
     # Per (attribute, descriptor) association, BH-corrected across the family.
     assoc: list[dict[str, Any]] = []
@@ -250,7 +250,7 @@ def analyze_descriptive(  # noqa: PLR0913
     ValueError
         If ``validated`` did not pass validation.
     """
-    if not validated.ok or validated.normalized_df is None:
+    if not validated.ok or validated.normalized_df is None or validated.covariates is None:
         raise ValueError(
             "analyze_descriptive requires a validated dataset; "
             "validate_descriptive reported errors: "

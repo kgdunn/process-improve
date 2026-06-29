@@ -270,6 +270,7 @@ def discover_tools() -> None:
         "process_improve.batch.tools",
         "process_improve.visualization.tools",
         "process_improve.simulation.tools",
+        "process_improve.sensory.tools",
     ]:
         _import_tool_module(module)
 
