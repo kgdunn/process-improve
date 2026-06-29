@@ -191,6 +191,88 @@ Rescaling does not remove genuine disagreement, so a panelist who truly ranks
 the products differently is better handled by dropping (``drop_panelists`` or
 ``correction="drop"``); align and drop can be combined.
 
+Worked example
+--------------
+
+This example runs the whole pipeline on a small synthetic panel. Ten assessors
+(J01-J10) scored twelve products (Product A-L) on nine attributes (Aroma
+intensity, Sweetness, Sourness, Bitterness, Firmness, Juiciness, Colour
+intensity, Aftertaste, Liking). The scores came out of the scoring software in
+the wide layout, with an extra ``site`` column we do not need and a few missing
+cells. We also have instrumental measurements per product, split on purpose
+into two kinds: genuine mechanistic correlates (``brix`` for sweetness,
+``titratable_acidity`` for sourness, ``polyphenols`` for bitterness,
+``volatile_oav`` for aroma) and spurious proxies or artifacts
+(``refractive_index`` and ``density`` ride on ``brix``;
+``total_dissolved_solids`` is an aggregate; ``price_tier`` tracks Liking only
+through the sample frame).
+
+Three assessors were constructed to misbehave: J07 scores at random, J03 rates
+everything high, and J09 uses only the middle of the scale.
+
+**Step 1, reshape.** The export is wide, so melt the attribute columns to the
+long schema and ignore ``site``. The round-trip check confirms the grand,
+per-attribute, and per-assessor means are unchanged.
+
+.. code-block:: python
+
+   from process_improve.sensory import (
+       reshape_to_long, validate_descriptive, panel_scorecard,
+       mixed_assessor_model, analyze_descriptive,
+   )
+
+   long_df, checks = reshape_to_long(
+       wide_table,
+       layout="wide_by_attribute",
+       mapping={"panelist_id": "Assessor", "product": "Product", "ignore": ["site"]},
+   )
+   assert checks["ok"]
+
+**Step 2, validate.**
+
+.. code-block:: python
+
+   validated = validate_descriptive(long_df, covariates, mode="observational")
+
+Any out-of-range or missing-cell issues are surfaced as warnings.
+
+**Step 3, check the panel.** The scorecard flags J07 (low agreement and
+discrimination). The Mixed Assessor Model reports each assessor's scaling
+coefficient ``beta``: about 1 for most, well below 1 for the compressor J09, and
+a large offset for the high rater J03. Once the random assessor is removed, the
+leftover assessor-by-product interaction is mostly scale usage, so the MAM
+product F-test exceeds the classical one (the disagreement error term shrinks).
+
+.. code-block:: python
+
+   card = panel_scorecard(long_df)
+   print(card.flagged)                       # ['J07']
+   mam = mixed_assessor_model(long_df)
+   print(mam.scaling.sort_values("beta").head())
+
+**Step 4, correct and relate.** Align all assessors onto a common scale (J03 is
+brought down, J09's range is stretched), then relate the attributes to the
+measurements.
+
+.. code-block:: python
+
+   result = analyze_descriptive(validated, correction="align")
+   import pandas as pd
+   assoc = pd.DataFrame(result.relate["associations"])
+   print(assoc[assoc["significant"]])
+
+The genuine correlates are significant (``brix`` with Sweetness,
+``titratable_acidity`` with Sourness, ``price_tier`` with Liking, each with a
+Benjamini-Hochberg q-value), but so are the spurious proxies (``refractive_index``
+and ``density`` with Sweetness), because within one dataset they all correlate.
+This is the trap to watch: a within-sample correlation is not a transferable,
+causal link. Telling a genuine correlate apart from a lazy proxy needs
+out-of-sample evidence (cross-validated Q-squared, a Van der Voet test, or a
+selectivity ratio), which is covered separately.
+
+The full runnable scenario is in the test suite
+(``tests/test_sensory_end_to_end.py``).
+
 Using the tools from an agent
 -----------------------------
 

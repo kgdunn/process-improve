@@ -11,6 +11,21 @@ those changes.
 
 ## [Unreleased]
 
+## [1.49.1] - 2026-06-29
+
+### Added
+
+- `reshape_to_long` (and the `sensory_reshape_to_long` tool) gain an optional
+  `ignore` list to drop nuisance columns before the melt, so wide exports that
+  carry extra non-schema columns reshape via "all remaining columns except
+  these".
+- A descriptive-panel tutorial worked example in the user guide, backed by an
+  end-to-end test (`tests/test_sensory_end_to_end.py`) on a synthetic panel:
+  reshape -> validate -> panel check / Mixed Assessor Model -> relate. The
+  example also demonstrates that genuine and spurious covariates both correlate
+  within a single dataset, so a within-sample correlation is not a transferable,
+  causal link.
+
 ## [1.49.0] - 2026-06-29
 
 ### Added
@@ -2241,7 +2256,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.49.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.49.1...HEAD
+[1.49.1]: https://github.com/kgdunn/process-improve/compare/v1.49.0...v1.49.1
 [1.49.0]: https://github.com/kgdunn/process-improve/compare/v1.48.0...v1.49.0
 [1.48.0]: https://github.com/kgdunn/process-improve/compare/v1.47.0...v1.48.0
 [1.47.0]: https://github.com/kgdunn/process-improve/compare/v1.46.0...v1.47.0
