@@ -742,6 +742,59 @@ def holm_bonferroni(p_values: np.ndarray | pd.Series | list, alpha: float = 0.05
     return Bunch(p_adjusted=p_adjusted, reject=p_adjusted <= alpha, alpha=alpha)
 
 
+def benjamini_hochberg(p_values: np.ndarray | pd.Series | list, alpha: float = 0.05) -> Bunch:
+    """Benjamini-Hochberg step-up correction controlling the false discovery rate.
+
+    The Benjamini-Hochberg (BH) procedure controls the expected proportion of
+    false positives among the rejected hypotheses (the false discovery rate),
+    rather than the family-wise error rate that :func:`holm_bonferroni`
+    controls. BH is the conventional choice when a family contains many
+    comparisons and a few false positives are tolerable, for example testing
+    one product effect across many sensory attributes.
+
+    Parameters
+    ----------
+    p_values : array-like
+        The raw (uncorrected) p-values of the individual comparisons.
+    alpha : float, optional
+        Target false-discovery rate, by default 0.05.
+
+    Returns
+    -------
+    sklearn.utils.Bunch
+        A bunch with, in the same order as the input:
+
+        * ``p_adjusted``: the BH-adjusted p-values (q-values), monotone in the
+          rank order of the input p-values.
+        * ``reject``: boolean array, ``True`` where the hypothesis is rejected
+          at the target false-discovery rate ``alpha``.
+        * ``alpha``: the target false-discovery rate used.
+
+    References
+    ----------
+    Benjamini and Hochberg, "Controlling the false discovery rate: a practical
+    and powerful approach to multiple testing", Journal of the Royal
+    Statistical Society B, 57, 289-300, 1995.
+    """
+    p = np.asarray(p_values, dtype=float).ravel()
+    m = p.size
+    if m == 0:
+        return Bunch(p_adjusted=np.array([]), reject=np.array([], dtype=bool), alpha=alpha)
+
+    order = np.argsort(p)
+    p_sorted = p[order]
+    ranks = np.arange(1, m + 1)
+
+    # Step-up: q_(i) = min over k >= i of (m / k) * p_(k); the reverse running
+    # minimum enforces the required monotonicity.
+    scaled = (m / ranks) * p_sorted
+    adjusted_sorted = np.minimum(np.minimum.accumulate(scaled[::-1])[::-1], 1.0)
+
+    p_adjusted = np.empty(m)
+    p_adjusted[order] = adjusted_sorted
+    return Bunch(p_adjusted=p_adjusted, reject=p_adjusted <= alpha, alpha=alpha)
+
+
 def summary_stats(x: np.ndarray | pd.Series, method: str = "robust") -> dict:
     """
     Return summary statistics of the numeric values in vector ``x``.

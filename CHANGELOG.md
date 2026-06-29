@@ -11,6 +11,47 @@ those changes.
 
 ## [Unreleased]
 
+## [1.49.0] - 2026-06-29
+
+### Added
+
+- New `process_improve.sensory` subpackage: a generic descriptive panel-data
+  pipeline. `validate_descriptive` enforces the `descriptive_long` schema and an
+  observational product-covariate table; `panel_scorecard` rates and flags
+  anomalous panelists; `analyze_descriptive` relates each attribute to the
+  product by relating the attribute block to measured descriptors with PLS and
+  per-descriptor correlations (observational mode), with Benjamini-Hochberg
+  correction, product means with confidence intervals, and a PCA map. Exposed
+  to agents as the `sensory_validate_descriptive` and
+  `sensory_analyze_descriptive` tools. The designed (DoE/OMARS) relate mode is
+  stubbed (raises `NotImplementedError`) and planned for a later release.
+- `benjamini_hochberg` false-discovery-rate correction in
+  `process_improve.univariate`, alongside the existing `holm_bonferroni`.
+- `process_improve.sensory.reshape_to_long` and the `sensory_reshape_to_long`
+  agent tool: deterministically reshape parsed panel data (already-long or
+  wide-by-attribute) into the `descriptive_long` schema from an explicit column
+  mapping, with round-trip invariant checks (grand mean, per-attribute and
+  per-panelist means, and cell count preserved) that fail loudly on a wrong
+  mapping. `validate_descriptive` now canonicalises row order so the content
+  hash is independent of input order.
+- Mixed Assessor Model in `process_improve.sensory.mam`: `mixed_assessor_model`
+  reports each panelist's scaling coefficient (beta) per attribute and the MAM
+  vs classical product-effect F-tests, and `align_scores` harmonizes all
+  panelists onto a common scale (location and/or scale levers). Exposed on
+  `analyze_descriptive` via a `correction="none"|"align"|"drop"` option and an
+  `mam` field on the result, and to agents via the new `sensory_panel_check`
+  tool (scorecard plus MAM from the panel alone, optionally returning the
+  aligned panel) and the `correction` / `mam` additions to
+  `sensory_analyze_descriptive`. Pure Python; a SensMixed/lmerTest variant is
+  tracked for later.
+
+### Changed
+
+- Pin `pandas>=2.3.3,<3.0`. pandas 3.0.x segfaults in CI when numba (the `fast`
+  extra) is also installed, a numba/llvmlite vs numpy ABI interaction;
+  constraining to pandas 2.x avoids the crash. Revisit once a numba build
+  supports the pandas 3 / numpy 2.4 stack.
+
 ## [1.48.0] - 2026-06-22
 
 ### Changed
@@ -2200,7 +2241,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.48.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.49.0...HEAD
+[1.49.0]: https://github.com/kgdunn/process-improve/compare/v1.48.0...v1.49.0
 [1.48.0]: https://github.com/kgdunn/process-improve/compare/v1.47.0...v1.48.0
 [1.47.0]: https://github.com/kgdunn/process-improve/compare/v1.46.0...v1.47.0
 [1.46.0]: https://github.com/kgdunn/process-improve/compare/v1.45.1...v1.46.0

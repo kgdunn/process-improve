@@ -10,3 +10,4 @@ User Guide
    doe_strategy
    design_evaluation
    omars_designs
+   sensory_panel
