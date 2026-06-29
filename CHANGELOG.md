@@ -26,6 +26,13 @@ those changes.
   within a single dataset, so a within-sample correlation is not a transferable,
   causal link.
 
+### Fixed
+
+- The Mixed Assessor Model and `align_scores` used a NaN-propagating mean for an
+  attribute's grand mean, so any attribute with a missing cell was turned to
+  all-NaN by alignment and then silently dropped from the relate step. Use a
+  NaN-aware mean so attributes with missing cells are kept.
+
 ## [1.49.0] - 2026-06-29
 
 ### Added

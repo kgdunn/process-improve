@@ -119,7 +119,7 @@ def mixed_assessor_model(panel: pd.DataFrame) -> MAMResult:
         matrix = _cell_means(panel, attribute)
         n_assessors, n_products = matrix.shape
         beta, means, _tau, ssq_tau = _assessor_scaling(matrix)
-        grand = float(matrix.to_numpy().mean())
+        grand = float(np.nanmean(matrix.to_numpy()))
 
         scaling_rows.extend(
             {
@@ -205,7 +205,7 @@ def align_scores(panel: pd.DataFrame, *, method: AlignMethod = "both", robust: b
     for attribute in panel["attribute"].unique():
         matrix = _cell_means(panel, attribute)
         beta, means, _tau, ssq_tau = _assessor_scaling(matrix)
-        grand = float(matrix.to_numpy().mean())
+        grand = float(np.nanmean(matrix.to_numpy()))
         if robust and ssq_tau > 0:
             consensus = matrix.mean(axis=0)
             centred_tau = (consensus - consensus.mean()).to_numpy()

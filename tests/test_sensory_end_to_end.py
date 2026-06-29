@@ -27,7 +27,7 @@ from process_improve.sensory import (
     validate_descriptive,
 )
 
-PRODUCTS = [f"Product {chr(ord('A') + i)}" for i in range(12)]
+PRODUCTS = [f"Product {chr(ord('A') + i)}" for i in range(18)]
 ATTRIBUTES = [
     "Aroma intensity",
     "Sweetness",
@@ -158,6 +158,10 @@ def test_pipeline_end_to_end():
     assert _assoc_row(assoc, "Sweetness", "density")["significant"]
     # A descriptor with no causal path to an unrelated attribute stays non-significant.
     assert not _assoc_row(assoc, "Sourness", "brix")["significant"]
+    # Every attribute is related, including the ones with missing cells - a NaN
+    # cell must not silently drop an attribute (regression guard).
+    assert set(assoc["attribute"]) == set(ATTRIBUTES)
+    assert _assoc_row(assoc, "Bitterness", "polyphenols")["significant"]
 
 
 def test_means_only_table_is_refused():
