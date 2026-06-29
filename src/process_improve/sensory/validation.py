@@ -190,7 +190,7 @@ def validate_descriptive(  # noqa: PLR0912, PLR0913, PLR0915, C901
     for col in _LABEL_COLUMNS:
         df[col] = df[col].astype(str).str.strip()
     n_before = df["score"].notna().sum()
-    df["score"] = pd.to_numeric(df["score"], errors="coerce")
+    df["score"] = pd.to_numeric(df["score"], errors="coerce").astype("float64")
     n_unparsed = int(n_before - df["score"].notna().sum())
     if n_unparsed:
         warnings.append(f"{n_unparsed} score value(s) could not be parsed as numeric and became missing.")
