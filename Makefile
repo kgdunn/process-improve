@@ -21,9 +21,9 @@ clean:		## Remove build artifacts
 	rm -fr .mypy_cache/
 	rm -fr docs/_build/
 
-setup: clean	## Clean, then set up a fresh dev environment
+setup: clean	## Clean, then set up a fresh dev environment (incl. all optional extras)
 	curl -LsSf https://astral.sh/uv/install.sh | sh
-	uv sync --dev
+	uv sync --dev --all-extras
 	uv run pre-commit install
 
 check:		## if the first command gives a return, then stage those files, then run pre-commit
@@ -65,5 +65,5 @@ release: check test  	## release to PyPI
 	uv build
 	uv publish
 
-install: 	## install the package in dev mode
-	uv sync --dev
+install: 	## install the package in dev mode (incl. all optional extras)
+	uv sync --dev --all-extras
