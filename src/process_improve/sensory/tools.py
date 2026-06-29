@@ -17,6 +17,7 @@ import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
 
 from process_improve.sensory.analysis import analyze_descriptive as _analyze_descriptive
+from process_improve.sensory.ingest import reshape_to_long as _reshape_to_long
 from process_improve.sensory.mam import align_scores as _align_scores
 from process_improve.sensory.mam import mixed_assessor_model as _mixed_assessor_model
 from process_improve.sensory.panel import panel_scorecard as _panel_scorecard
@@ -29,6 +30,69 @@ _SENSORY_TOOL_NAMES: list[str] = []
 
 def _register(name: str) -> None:
     _SENSORY_TOOL_NAMES.append(name)
+
+
+class _ReshapeInput(BaseModel):
+    """Input contract for ``sensory_reshape_to_long``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    data: list[dict[str, Any]] = Field(
+        ...,
+        min_length=1,
+        description=(
+            "The parsed panel table as row-records. The spreadsheet should already be read into rows "
+            "(by the front end or a code sandbox); this tool only reshapes, it does not read files."
+        ),
+    )
+    layout: Literal["long", "wide_by_attribute"] = Field(
+        ...,
+        description=(
+            "'wide_by_attribute' when there is one column per attribute (rows are panelist x product x "
+            "replicate); 'long' when there is already one row per score with attribute and score columns."
+        ),
+    )
+    panelist_id: str = Field(..., description="Name of the column holding the panelist / assessor id.")
+    product: str = Field(..., description="Name of the column holding the product / sample id.")
+    session: str | None = Field(None, description="Optional column holding the session; defaults to 1 if absent.")
+    replicate: str | None = Field(None, description="Optional column holding the replicate; defaults to 1 if absent.")
+    attributes: list[str] | None = Field(
+        None,
+        description="wide_by_attribute: the attribute column names. If omitted, all non-id columns are attributes.",
+    )
+    attribute: str | None = Field(None, description="long: the column holding the attribute names.")
+    score: str | None = Field(None, description="long: the column holding the score.")
+
+
+@tool_spec(
+    name="sensory_reshape_to_long",
+    description=(
+        "Deterministically reshape parsed panel data into the descriptive_long schema (panelist_id, "
+        "session, product, attribute, replicate, score). Handles already-long data and the common "
+        "wide-by-attribute layout (one column per attribute). You supply an explicit column mapping; "
+        "the tool melts if needed and verifies round-trip invariants (grand mean, per-attribute and "
+        "per-panelist means, and cell count are identical before and after), failing if the mapping is "
+        "wrong rather than silently corrupting the data. Run this before sensory_validate_descriptive."
+    ),
+    input_model=_ReshapeInput,
+    category="sensory",
+)
+def sensory_reshape_to_long(spec: _ReshapeInput) -> dict:
+    """Reshape to descriptive_long with round-trip checks; see tool spec for details."""
+    mapping = {
+        "panelist_id": spec.panelist_id,
+        "product": spec.product,
+        "session": spec.session,
+        "replicate": spec.replicate,
+        "attributes": spec.attributes,
+        "attribute": spec.attribute,
+        "score": spec.score,
+    }
+    try:
+        long_df, checks = _reshape_to_long(pd.DataFrame(spec.data), layout=spec.layout, mapping=mapping)
+    except ValueError as exc:
+        return clean({"ok": False, "errors": [str(exc)]})
+    return clean({"ok": True, "checks": checks, "long": long_df.to_dict(orient="records")})
 
 
 class _ValidateInput(BaseModel):
@@ -261,6 +325,7 @@ def sensory_panel_check(spec: _PanelCheckInput) -> dict:
     return clean(out)
 
 
+_register("sensory_reshape_to_long")
 _register("sensory_validate_descriptive")
 _register("sensory_analyze_descriptive")
 _register("sensory_panel_check")

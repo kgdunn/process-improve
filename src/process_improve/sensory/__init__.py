@@ -23,6 +23,7 @@ from process_improve.sensory.analysis import (
     relate_designed,
     relate_observational,
 )
+from process_improve.sensory.ingest import reshape_to_long
 from process_improve.sensory.mam import MAMResult, align_scores, mixed_assessor_model
 from process_improve.sensory.panel import PanelScorecard, apply_correction, panel_scorecard
 from process_improve.sensory.validation import (
@@ -46,5 +47,6 @@ __all__ = [
     "product_means",
     "relate_designed",
     "relate_observational",
+    "reshape_to_long",
     "validate_descriptive",
 ]

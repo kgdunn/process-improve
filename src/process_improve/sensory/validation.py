@@ -195,6 +195,12 @@ def validate_descriptive(  # noqa: PLR0912, PLR0913, PLR0915, C901
     if n_unparsed:
         warnings.append(f"{n_unparsed} score value(s) could not be parsed as numeric and became missing.")
 
+    # Canonical (sample-major) order so the content hash is independent of the
+    # caller's row order. Ordering does not affect any downstream analysis.
+    df = df.sort_values(
+        ["product", "attribute", "panelist_id", "session", "replicate"], kind="stable"
+    ).reset_index(drop=True)
+
     # --- Encoding sanity ----------------------------------------------
     for col in ("product", "attribute"):
         warnings.extend(_collapsed_label_warnings(df[col], col))

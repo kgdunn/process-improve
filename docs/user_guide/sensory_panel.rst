@@ -61,6 +61,33 @@ Keep the interpretation in mind: an observational analysis supports only "this
 descriptor is associated with this attribute", whereas the future designed
 analysis will support "increasing this factor raises this attribute".
 
+Step 0: get the data into long form
+-----------------------------------
+
+Panel data usually arrives wide (one column per attribute) rather than in the
+long schema. :func:`~process_improve.sensory.reshape_to_long` turns a parsed
+table into ``descriptive_long`` from an explicit column mapping, melting the
+attribute columns when needed. It verifies round-trip invariants (the grand
+mean, the mean per attribute, the mean per panelist, and the cell count are
+identical before and after), so a wrong mapping fails loudly instead of
+corrupting the analysis silently.
+
+.. code-block:: python
+
+   from process_improve.sensory import reshape_to_long
+
+   # wide_table: rows are assessor x sample x replicate, one column per attribute.
+   long_df, checks = reshape_to_long(
+       wide_table,
+       layout="wide_by_attribute",
+       mapping={"panelist_id": "Assessor", "product": "Sample", "replicate": "Rep"},
+   )
+   assert checks["ok"]   # grand / per-attribute / per-panelist means preserved
+
+Already-long data passes through with ``layout="long"`` and an ``attribute`` /
+``score`` mapping. Means-only tables (no panelist column) are refused, since the
+Mixed Assessor Model needs panelist-level scores.
+
 Step 1: validate
 ----------------
 
@@ -171,6 +198,8 @@ The steps are exposed as agent-callable tools (see
 :func:`process_improve.sensory.tools.get_sensory_tool_specs`), taking the panel
 and covariate tables as lists of row-records and returning JSON:
 
+- ``sensory_reshape_to_long`` - reshape a parsed wide/long table into the
+  ``descriptive_long`` schema with round-trip checks.
 - ``sensory_validate_descriptive`` - validate the inputs.
 - ``sensory_panel_check`` - panel quality from the panel alone (no covariates):
   the scorecard with flags, the MAM scaling coefficients and F-tests, and,

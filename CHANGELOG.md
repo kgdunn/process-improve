@@ -27,6 +27,13 @@ those changes.
   stubbed (raises `NotImplementedError`) and planned for a later release.
 - `benjamini_hochberg` false-discovery-rate correction in
   `process_improve.univariate`, alongside the existing `holm_bonferroni`.
+- `process_improve.sensory.reshape_to_long` and the `sensory_reshape_to_long`
+  agent tool: deterministically reshape parsed panel data (already-long or
+  wide-by-attribute) into the `descriptive_long` schema from an explicit column
+  mapping, with round-trip invariant checks (grand mean, per-attribute and
+  per-panelist means, and cell count preserved) that fail loudly on a wrong
+  mapping. `validate_descriptive` now canonicalises row order so the content
+  hash is independent of input order.
 - Mixed Assessor Model in `process_improve.sensory.mam`: `mixed_assessor_model`
   reports each panelist's scaling coefficient (beta) per attribute and the MAM
   vs classical product-effect F-tests, and `align_scores` harmonizes all

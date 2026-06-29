@@ -19,6 +19,7 @@ from process_improve.sensory import (
     validate_descriptive,
 )
 from process_improve.sensory.analysis import relate_designed
+from process_improve.sensory.ingest import reshape_to_long
 from process_improve.univariate.metrics import benjamini_hochberg
 
 PRODUCTS = list("UVWXYZT")
@@ -352,6 +353,126 @@ def test_tool_panel_check_missing_columns():
     out = execute_tool_call("sensory_panel_check", {"panel": [{"panelist_id": "P1", "score": 5}]})
     assert not out["ok"]
     assert any("missing required columns" in e for e in out["errors"])
+
+
+def _wide_panel(*, seed: int = 0):
+    """Wide-by-attribute table: rows = assessor x sample x rep, one column per attribute."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for pid in ["P1", "P2", "P3"]:
+        for prod in ["A", "B", "C"]:
+            for rep in (1, 2):
+                rows.append(  # noqa: PERF401
+                    {
+                        "Assessor": pid,
+                        "Sample": prod,
+                        "Rep": rep,
+                        "Salty": rng.normal(5, 1),
+                        "Bitter": rng.normal(3, 1),
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
+def test_reshape_wide_to_long_roundtrip():
+    wide = _wide_panel()
+    long_df, checks = reshape_to_long(
+        wide,
+        layout="wide_by_attribute",
+        mapping={"panelist_id": "Assessor", "product": "Sample", "replicate": "Rep"},
+    )
+    assert checks["ok"]
+    assert list(long_df.columns) == list(DESCRIPTIVE_LONG_COLUMNS)
+    assert long_df.shape[0] == 3 * 3 * 2 * 2  # panelists x products x reps x attributes
+    # Grand mean preserved and rows in canonical sample-major order.
+    assert checks["grand_mean_before"] == pytest.approx(checks["grand_mean_after"])
+    canonical = long_df.sort_values(
+        ["product", "attribute", "panelist_id", "session", "replicate"], kind="stable"
+    ).reset_index(drop=True)
+    pd.testing.assert_frame_equal(long_df, canonical)
+
+
+def test_reshape_defaults_session_and_replicate():
+    wide = _wide_panel().drop(columns=["Rep"])
+    long_df, _ = reshape_to_long(
+        wide, layout="wide_by_attribute", mapping={"panelist_id": "Assessor", "product": "Sample"}
+    )
+    assert (long_df["session"] == 1).all()
+    assert (long_df["replicate"] == 1).all()
+
+
+def test_reshape_long_passthrough_is_canonical():
+    panel = _panel(anomalous=None).rename(
+        columns={"panelist_id": "who", "product": "sample", "attribute": "attr", "score": "value"}
+    )
+    long_df, checks = reshape_to_long(
+        panel,
+        layout="long",
+        mapping={
+            "panelist_id": "who",
+            "product": "sample",
+            "attribute": "attr",
+            "score": "value",
+            "session": "session",
+            "replicate": "replicate",
+        },
+    )
+    assert checks["ok"]
+    assert set(long_df["attribute"]) == {"A", "B"}
+
+
+def test_reshape_means_only_is_refused():
+    with pytest.raises(ValueError, match="panelist"):
+        reshape_to_long(
+            pd.DataFrame({"Sample": ["A", "B"], "Salty": [5.0, 6.0]}),
+            layout="wide_by_attribute",
+            mapping={"product": "Sample", "attributes": ["Salty"]},
+        )
+
+
+def test_reshape_missing_attribute_column_raises():
+    with pytest.raises(ValueError, match="not in the data"):
+        reshape_to_long(
+            _wide_panel(),
+            layout="wide_by_attribute",
+            mapping={"panelist_id": "Assessor", "product": "Sample", "attributes": ["Salty", "Sweetness"]},
+        )
+
+
+def test_validate_hash_is_order_independent():
+    wide = _wide_panel()
+    long_df, _ = reshape_to_long(
+        wide, layout="wide_by_attribute", mapping={"panelist_id": "Assessor", "product": "Sample", "replicate": "Rep"}
+    )
+    cov = pd.DataFrame({"product": ["A", "B", "C"], "d": [1.0, 2.0, 3.0]})
+    h1 = validate_descriptive(long_df, cov, mode="observational").content_hash
+    shuffled = long_df.sample(frac=1, random_state=3).reset_index(drop=True)
+    h2 = validate_descriptive(shuffled, cov, mode="observational").content_hash
+    assert h1 == h2
+
+
+def test_tool_reshape_to_long_dispatch():
+    from process_improve.tool_spec import execute_tool_call
+
+    wide = _wide_panel().to_dict(orient="records")
+    out = execute_tool_call(
+        "sensory_reshape_to_long",
+        {
+            "data": wide,
+            "layout": "wide_by_attribute",
+            "panelist_id": "Assessor",
+            "product": "Sample",
+            "replicate": "Rep",
+        },
+    )
+    assert out["ok"]
+    assert out["checks"]["ok"]
+    assert len(out["long"]) == 36
+    bad = execute_tool_call(
+        "sensory_reshape_to_long",
+        {"data": wide, "layout": "wide_by_attribute", "panelist_id": "Assessor", "product": "Missing"},
+    )
+    assert not bad["ok"]
 
 
 def test_tool_analyze_exposes_correction_and_mam():
