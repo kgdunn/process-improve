@@ -77,6 +77,13 @@ class _ReshapeInput(BaseModel):
         ),
     )
     score: str | None = Field(None, description="long: the column holding the score.")
+    ignore: list[str] | None = Field(
+        None,
+        description=(
+            "Optional nuisance columns to drop before reshaping (e.g. a site or batch code). When the "
+            "attribute / product list is omitted, all remaining columns excludes these."
+        ),
+    )
 
 
 @tool_spec(
@@ -103,6 +110,7 @@ def sensory_reshape_to_long(spec: _ReshapeInput) -> dict:
         "products": spec.products,
         "attribute": spec.attribute,
         "score": spec.score,
+        "ignore": spec.ignore,
     }
     try:
         long_df, checks = _reshape_to_long(pd.DataFrame(spec.data), layout=spec.layout, mapping=mapping)

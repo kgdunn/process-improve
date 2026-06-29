@@ -80,6 +80,9 @@ def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
           column) and ``products`` (the list of product columns; if omitted,
           all non-id columns).
         * For ``long``: ``product``, ``attribute`` and ``score`` column names.
+        * ``ignore`` (optional): columns to drop before reshaping (nuisance
+          columns such as a site or batch code). When the attribute/product
+          list is omitted, "all remaining columns" excludes these.
 
     Returns
     -------
@@ -100,6 +103,12 @@ def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
         raise ValueError(
             f"layout must be 'long', 'wide_by_attribute', or 'wide_by_product', got {layout!r}."
         )
+
+    # Drop any nuisance columns up front, so "all remaining columns" (when the
+    # attribute/product list is omitted) automatically excludes them.
+    ignore = mapping.get("ignore") or []
+    if ignore:
+        data = data.drop(columns=[c for c in ignore if c in data.columns])
 
     panelist_col = mapping.get("panelist_id")
     if not panelist_col:
