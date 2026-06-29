@@ -6,18 +6,18 @@ Relate descriptive panel attributes to the product.
 dataset: score and (optionally) correct the panel, then relate each sensory
 attribute to the product. The relate step dispatches on the validation mode:
 
-* **designed** - the product is a controlled experimental run, so each
-  attribute is regressed on the design factors via
-  :func:`process_improve.experiments.analyze_experiment`, yielding factor
-  effects and significance (causal language is appropriate).
-* **observational** - the product has measured descriptors but unknown
-  formulation, so the attribute block is related to the descriptors with PLS
-  (:class:`process_improve.multivariate.PLS` plus VIP) and per-descriptor
-  correlations, reported as association rather than causation.
+* **observational** (supported) - the product has measured descriptors but
+  unknown formulation, so the attribute block is related to the descriptors
+  with PLS (:class:`process_improve.multivariate.PLS` plus VIP) and
+  per-descriptor correlations, reported as association rather than causation.
+* **designed** (stub, not implemented yet) - the product is a controlled
+  experimental run; the plan is to regress each attribute on the design factors
+  via :func:`process_improve.experiments.analyze_experiment` for factor effects.
+  See :func:`relate_designed`; it raises ``NotImplementedError`` for now.
 
-Both modes correct across the family of tests with Benjamini-Hochberg FDR, and
-both return supporting product means with confidence intervals and a PCA
-sensory map.
+The observational relate corrects across the family of tests with
+Benjamini-Hochberg FDR and returns supporting product means with confidence
+intervals and a PCA sensory map.
 """
 
 from __future__ import annotations
@@ -29,7 +29,6 @@ import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
 
-from process_improve.experiments.analysis import analyze_experiment
 from process_improve.multivariate.methods import PCA, PLS, vip
 from process_improve.sensory.panel import PanelScorecard, apply_correction, panel_scorecard
 from process_improve.sensory.validation import ValidationResult
@@ -108,39 +107,23 @@ def relate_designed(
     model: str = "main_effects",
     alpha: float = 0.05,
 ) -> dict[str, Any]:
-    """Regress each attribute on the design factors and collect factor effects."""
-    factors = list(covariates.columns)
-    # Patsy-safe placeholder names; the originals are restored for reporting.
-    factor_map = {f"f{i}": orig for i, orig in enumerate(factors)}
-    inv_factor = {orig: safe for safe, orig in factor_map.items()}
+    """Relate attributes to controlled design factors (not implemented yet).
 
-    records: list[dict[str, Any]] = []
-    for j, attr in enumerate(agg.columns):
-        resp = f"y{j}"
-        design = covariates.rename(columns=inv_factor).copy()
-        design[resp] = agg[attr].reindex(covariates.index).to_numpy()
-        design = design.dropna(subset=[resp]).reset_index(drop=True)
-        if design[resp].nunique() < 2:
-            continue
-        result = analyze_experiment(
-            design, response_column=resp, analysis_type="coefficients", model=model
-        )
-        for term in result.get("coefficients", []):
-            if term["term"] == "Intercept":
-                continue
-            label = factor_map.get(term["term"], term["term"])
-            records.append(
-                {
-                    "attribute": str(attr),
-                    "factor": label,
-                    "effect": 2.0 * float(term["coefficient"]),
-                    "coefficient": float(term["coefficient"]),
-                    "p_value": float(term["p_value"]),
-                }
-            )
+    Stub for a later release. The plan is to regress each attribute on the
+    design factors via :func:`process_improve.experiments.analyze_experiment`
+    (or ``analyze_omars`` for DSD/OMARS designs) and report factor effects with
+    Benjamini-Hochberg correction. For now use ``mode="observational"``.
 
-    records = _attach_fdr(records, alpha)
-    return {"mode": "designed", "model": model, "alpha": alpha, "terms": records}
+    Raises
+    ------
+    NotImplementedError
+        Always, until the designed-mode relate step is built.
+    """
+    del agg, covariates, model, alpha
+    raise NotImplementedError(
+        "Designed (DoE/OMARS) relate is not implemented yet; use "
+        "mode='observational'. Planned for a later release."
+    )
 
 
 def relate_observational(

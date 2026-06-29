@@ -4,10 +4,12 @@ Schema validation for descriptive panel data.
 
 Every analysis in this subpackage enters through :func:`validate_descriptive`,
 which coerces a caller-supplied table into the canonical ``descriptive_long``
-schema and validates a product-covariate table alongside it. The covariate
-table is marked as either ``designed`` (controlled factor levels) or
-``observational`` (measured descriptors of products whose formulation is
-unknown); the mode is recorded on the result and decides how
+schema and validates a product-covariate table alongside it. For now only the
+``observational`` mode is supported: the covariate columns are measured
+descriptors of products whose formulation is unknown. The ``designed`` mode
+(covariate columns being controlled factor levels, analysed as effects) is
+stubbed and raises ``NotImplementedError``; it is planned for a later release.
+The mode is recorded on the result and decides how
 :func:`process_improve.sensory.analysis.analyze_descriptive` relates the
 attributes back to the product.
 
@@ -136,10 +138,13 @@ def validate_descriptive(  # noqa: PLR0912, PLR0913, PLR0915, C901
         :data:`DESCRIPTIVE_LONG_COLUMNS`.
     covariates : pandas.DataFrame
         Product-covariate table. Either has a ``product`` column or is indexed
-        by product. In ``designed`` mode the remaining columns are factor
-        levels; in ``observational`` mode they are measured descriptors.
-    mode : {"designed", "observational"}
-        How the covariate table is interpreted.
+        by product. In ``observational`` mode the remaining columns are measured
+        numeric descriptors. ``designed`` mode (the columns being controlled
+        factor levels) is not implemented yet.
+    mode : {"observational"}
+        How the covariate table is interpreted. Only ``"observational"`` is
+        supported for now; ``"designed"`` raises ``NotImplementedError`` and is
+        planned for a later release.
     score_min, score_max : float or None
         Optional inclusive bounds for the ``score`` column; out-of-range values
         are reported as a warning.
@@ -155,12 +160,18 @@ def validate_descriptive(  # noqa: PLR0912, PLR0913, PLR0915, C901
 
     Examples
     --------
-    >>> result = validate_descriptive(panel_df, design_df, mode="designed")
+    >>> result = validate_descriptive(panel_df, descriptors_df, mode="observational")
     >>> result.ok
     True
     """
     if mode not in ("designed", "observational"):
         raise ValueError(f"mode must be 'designed' or 'observational', got {mode!r}.")
+    if mode == "designed":
+        raise NotImplementedError(
+            "Designed (DoE) covariate handling is not implemented yet; use "
+            "mode='observational'. Designed-mode validation and the OMARS-based "
+            "relate step are planned for a later release."
+        )
 
     warnings: list[str] = []
     errors: list[str] = []
@@ -230,24 +241,14 @@ def validate_descriptive(  # noqa: PLR0912, PLR0913, PLR0915, C901
     if absent:
         errors.append(f"These products have no row in the covariate table: {absent}.")
 
-    if mode == "observational":
-        non_numeric = [c for c in cov.columns if not pd.api.types.is_numeric_dtype(cov[c])]
-        if non_numeric:
-            errors.append(
-                f"Observational descriptors must be numeric; non-numeric columns: {non_numeric}."
-            )
-        else:
-            n_missing_cov = int(cov.isna().sum().sum())
-            if n_missing_cov:
-                warnings.append(f"Covariate table has {n_missing_cov} missing descriptor value(s).")
-    else:  # designed
-        from process_improve.experiments.factor import Factor  # noqa: PLC0415
-
-        for col in cov.columns:
-            try:
-                Factor.from_data(cov[col], name=str(col))
-            except (ValueError, TypeError) as exc:  # noqa: PERF203
-                warnings.append(f"Design factor {col!r} could not be validated as a Factor: {exc}")
+    # Observational mode only for now (designed mode is rejected above).
+    non_numeric = [c for c in cov.columns if not pd.api.types.is_numeric_dtype(cov[c])]
+    if non_numeric:
+        errors.append(f"Observational descriptors must be numeric; non-numeric columns: {non_numeric}.")
+    else:
+        n_missing_cov = int(cov.isna().sum().sum())
+        if n_missing_cov:
+            warnings.append(f"Covariate table has {n_missing_cov} missing descriptor value(s).")
 
     ok = not errors
     content_hash = _content_hash(df, cov, mode) if ok else None

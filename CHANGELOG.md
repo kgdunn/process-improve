@@ -16,14 +16,15 @@ those changes.
 ### Added
 
 - New `process_improve.sensory` subpackage: a generic descriptive panel-data
-  pipeline. `validate_descriptive` enforces the `descriptive_long` schema and a
-  product-covariate table (designed or observational mode); `panel_scorecard`
-  rates and flags anomalous panelists; `analyze_descriptive` relates each
-  attribute to the product, regressing on the design factors (designed mode,
-  via `analyze_experiment`) or relating to measured descriptors with PLS and
-  correlations (observational mode), with Benjamini-Hochberg correction,
-  product means with confidence intervals, and a PCA map. Exposed to agents as
-  the `sensory_validate_descriptive` and `sensory_analyze_descriptive` tools.
+  pipeline. `validate_descriptive` enforces the `descriptive_long` schema and an
+  observational product-covariate table; `panel_scorecard` rates and flags
+  anomalous panelists; `analyze_descriptive` relates each attribute to the
+  product by relating the attribute block to measured descriptors with PLS and
+  per-descriptor correlations (observational mode), with Benjamini-Hochberg
+  correction, product means with confidence intervals, and a PCA map. Exposed
+  to agents as the `sensory_validate_descriptive` and
+  `sensory_analyze_descriptive` tools. The designed (DoE/OMARS) relate mode is
+  stubbed (raises `NotImplementedError`) and planned for a later release.
 - `benjamini_hochberg` false-discovery-rate correction in
   `process_improve.univariate`, alongside the existing `holm_bonferroni`.
 

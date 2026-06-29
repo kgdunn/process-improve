@@ -49,9 +49,12 @@ class _ValidateInput(BaseModel):
             "(observational mode)."
         ),
     )
-    mode: Literal["designed", "observational"] = Field(
+    mode: Literal["observational"] = Field(
         ...,
-        description="'designed' for controlled factor levels; 'observational' for measured descriptors.",
+        description=(
+            "Only 'observational' (measured product descriptors) is supported for now. "
+            "Designed (controlled factor levels) is planned for a later release."
+        ),
     )
     score_min: float | None = Field(None, description="Optional lower bound for the score scale.")
     score_max: float | None = Field(None, description="Optional upper bound for the score scale.")
@@ -98,7 +101,10 @@ class _AnalyzeInput(BaseModel):
     covariates: list[dict[str, Any]] = Field(
         ..., min_length=1, description="Product-covariate row-records (see validate)."
     )
-    mode: Literal["designed", "observational"] = Field(..., description="Covariate-table interpretation.")
+    mode: Literal["observational"] = Field(
+        ...,
+        description="Only 'observational' is supported for now; designed mode is planned for later.",
+    )
     drop_flagged: bool = Field(
         False,
         description="When true, drop every panelist the scorecard flags before relating to the product.",
@@ -119,11 +125,10 @@ class _AnalyzeInput(BaseModel):
     name="sensory_analyze_descriptive",
     description=(
         "Run the descriptive panel pipeline: validate, score and optionally drop anomalous panelists, "
-        "then relate each attribute to the product. Designed mode regresses attributes on the design "
-        "factors (effects); observational mode relates them to measured descriptors with PLS and "
-        "correlations (association). Returns the panel scorecard flags, dropped panelists, the relate "
-        "results with Benjamini-Hochberg q-values, product means with CIs, and a PCA map. Refuses to run "
-        "if validation fails."
+        "then relate each attribute to the product. Observational mode relates attributes to measured "
+        "descriptors with PLS and correlations (association). Returns the panel scorecard flags, dropped "
+        "panelists, the relate results with Benjamini-Hochberg q-values, product means with CIs, and a "
+        "PCA map. Refuses to run if validation fails. (Designed/DoE mode is planned for a later release.)"
     ),
     input_model=_AnalyzeInput,
     category="sensory",

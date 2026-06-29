@@ -42,26 +42,24 @@ Designed versus observational
 The covariate table is one of two kinds, and you must say which with the
 ``mode`` argument:
 
-- **Designed** (``mode="designed"``). You controlled the formulation, so each
-  product is an experimental run and the covariates are the *design factors*
-  set during the experiment. Because the factors were deliberately varied, the
-  relate step can speak of *effects*: each attribute is regressed on the
-  factors and the factor coefficients estimate how changing a factor changes
-  the attribute.
-
-- **Observational** (``mode="observational"``). You did not set the
-  formulation (for example the products are existing market products), but you
-  measured each one, for example by chemical or instrumental analysis. These
+- **Observational** (``mode="observational"``) - *implemented*. You did not set
+  the formulation (for example the products are existing market products), but
+  you measured each one, for example by chemical or instrumental analysis. These
   measured *descriptors* are correlated covariates, not a designed matrix, so
   the relate step reports *association*, not causation: the attribute block is
   related to the descriptors with PLS, and per-descriptor correlations show
   which descriptors track which attributes.
 
-The same panel data can be analysed either way; only the covariate table and
-the ``mode`` change. Keep the interpretation in mind: a designed analysis
-supports "increasing this factor raises this attribute", while an
-observational analysis supports only "this descriptor is associated with this
-attribute".
+- **Designed** (``mode="designed"``) - *planned, not implemented yet*. You
+  controlled the formulation, so each product is an experimental run and the
+  covariates are the *design factors*. Because the factors were deliberately
+  varied, the relate step will speak of *effects*: each attribute regressed on
+  the factors, so a coefficient estimates how changing a factor changes the
+  attribute. For now ``mode="designed"`` raises ``NotImplementedError``.
+
+Keep the interpretation in mind: an observational analysis supports only "this
+descriptor is associated with this attribute", whereas the future designed
+analysis will support "increasing this factor raises this attribute".
 
 Step 1: validate
 ----------------
@@ -78,12 +76,13 @@ returns a result whose ``ok`` flag gates the rest of the pipeline.
    from process_improve.sensory import validate_descriptive, analyze_descriptive
 
    # panel: a DataFrame in the descriptive_long schema (loaded from your data).
-   # design: one row per product, with the design factors that were varied.
-   design = pd.DataFrame(
-       {"product": ["A", "B", "C", "D"], "f1": [-1, 1, -1, 1], "f2": [-1, -1, 1, 1]}
+   # descriptors: one row per product, with the measured (e.g. instrumental)
+   # covariates for each product.
+   descriptors = pd.DataFrame(
+       {"product": ["A", "B", "C", "D"], "sodium": [0.2, 0.5, 0.8, 1.0], "fat": [3.1, 3.0, 2.9, 3.2]}
    )
 
-   validated = validate_descriptive(panel, design, mode="designed", score_min=0, score_max=10)
+   validated = validate_descriptive(panel, descriptors, mode="observational", score_min=0, score_max=10)
    print(validated.ok, validated.warnings)
 
 Step 2 and 3: check the panel and relate
@@ -106,36 +105,24 @@ product conclusions.
    print(result.panel.flagged)          # panelists flagged as anomalous
    print(result.dropped)                # panelists actually removed
 
-   # Designed mode: factor effects per attribute, with Benjamini-Hochberg
-   # q-values across the whole family of (attribute, factor) tests.
-   terms = pd.DataFrame(result.relate["terms"])
-   print(terms[terms["significant"]])
-
-The relate output depends on the mode:
-
-- **designed**: ``result.relate["terms"]`` lists, per attribute and factor, the
-  effect, coefficient, raw p-value, Benjamini-Hochberg ``q_value``, and a
-  ``significant`` flag.
-- **observational**: ``result.relate["vip"]`` ranks descriptors by their PLS
-  variable-importance, and ``result.relate["associations"]`` gives the
-  per-(attribute, descriptor) correlation with BH ``q_value`` and a
-  ``significant`` flag.
-
-Either way the result also carries supporting context: ``result.product_means``
-(each product-by-attribute mean with a confidence interval) and ``result.pca``
-(a PCA sensory map of the products over the attributes).
-
-The observational call is identical except for the covariate table and mode:
-
-.. code-block:: python
-
-   # descriptors: one row per product, measured (e.g. instrumental) covariates.
-   validated = validate_descriptive(panel, descriptors, mode="observational")
-   result = analyze_descriptive(validated)
-
-   drivers = pd.DataFrame(result.relate["vip"])             # descriptor importance
+   # Observational relate: which descriptors are associated with which attributes.
+   drivers = pd.DataFrame(result.relate["vip"])             # PLS descriptor importance
    assoc = pd.DataFrame(result.relate["associations"])      # attribute-descriptor links
    print(assoc[assoc["significant"]])
+
+The observational relate output is:
+
+- ``result.relate["vip"]`` ranks descriptors by their PLS variable-importance.
+- ``result.relate["associations"]`` gives the per-(attribute, descriptor)
+  correlation with a raw p-value, a Benjamini-Hochberg ``q_value`` across the
+  whole family of tests, and a ``significant`` flag.
+
+The result also carries supporting context: ``result.product_means`` (each
+product-by-attribute mean with a confidence interval) and ``result.pca`` (a PCA
+sensory map of the products over the attributes).
+
+The designed-mode relate (factor *effects* rather than associations) is planned;
+``mode="designed"`` raises ``NotImplementedError`` for now.
 
 Using the tools from an agent
 -----------------------------
