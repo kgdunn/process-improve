@@ -181,8 +181,8 @@ def test_scorecard_clean_panel_has_no_flags():
 
 def test_dropping_panelist_changes_means():
     validated = validate_descriptive(_panel(), _obs(), mode="observational")
-    kept = analyze_descriptive(validated, drop_panelists=None)
-    dropped = analyze_descriptive(validated, drop_panelists="auto")
+    kept = analyze_descriptive(validated, drop_panelists=None, discriminator=False)
+    dropped = analyze_descriptive(validated, drop_panelists="auto", discriminator=False)
     assert "P8" in dropped.dropped
     assert kept.product_means.shape == dropped.product_means.shape
     merged = kept.product_means.merge(
@@ -208,7 +208,7 @@ def test_relate_designed_is_stub():
 
 def test_relate_observational_finds_descriptor():
     validated = validate_descriptive(_panel(), _obs(), mode="observational")
-    result = analyze_descriptive(validated)
+    result = analyze_descriptive(validated, discriminator=False)
     assoc = pd.DataFrame(result.relate["associations"])
     a_sodium = assoc[(assoc["attribute"] == "A") & (assoc["descriptor"] == "sodium")].iloc[0]
     a_fat = assoc[(assoc["attribute"] == "A") & (assoc["descriptor"] == "fat")].iloc[0]
@@ -219,7 +219,7 @@ def test_relate_observational_finds_descriptor():
 
 def test_relate_observational_q_values_monotone():
     validated = validate_descriptive(_panel(), _obs(), mode="observational")
-    result = analyze_descriptive(validated)
+    result = analyze_descriptive(validated, discriminator=False)
     assoc = pd.DataFrame(result.relate["associations"]).sort_values("p_value")
     assert np.all(np.diff(assoc["q_value"].to_numpy()) >= -1e-12)
 
@@ -316,8 +316,8 @@ def test_analyze_correction_align_changes_means_and_reports_mam():
     panel = _scaling_panel()
     obs = pd.DataFrame({"product": sorted(panel["product"].unique()), "d": range(panel["product"].nunique())})
     validated = validate_descriptive(panel, obs, mode="observational")
-    none = analyze_descriptive(validated, correction="none")
-    aligned = analyze_descriptive(validated, correction="align")
+    none = analyze_descriptive(validated, correction="none", discriminator=False)
+    aligned = analyze_descriptive(validated, correction="align", discriminator=False)
     assert aligned.correction == "align"
     assert not aligned.mam.scaling.empty
     merged = none.product_means.merge(
