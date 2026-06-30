@@ -94,7 +94,11 @@ class _ReshapeInput(BaseModel):
         "wide-by-attribute layout (one column per attribute). You supply an explicit column mapping; "
         "the tool melts if needed and verifies round-trip invariants (grand mean, per-attribute and "
         "per-panelist means, and cell count are identical before and after), failing if the mapping is "
-        "wrong rather than silently corrupting the data. Run this before sensory_validate_descriptive."
+        "wrong rather than silently corrupting the data. Run this before sensory_validate_descriptive. "
+        "Returns: on success {ok: true, checks, long}, where 'long' is the reshaped rows in the "
+        "descriptive_long schema and 'checks' holds the round-trip invariants (ok, grand_mean_before, "
+        "grand_mean_after, grand_mean_diff, per_attribute_max_diff, per_panelist_max_diff, "
+        "n_cells_before, n_cells_after). On a bad mapping it returns {ok: false, errors: [str]}."
     ),
     input_model=_ReshapeInput,
     category="sensory",
@@ -157,8 +161,10 @@ class _ValidateInput(BaseModel):
     description=(
         "Validate descriptive panel data against the descriptive_long schema and a product-covariate "
         "table. Checks required columns, dtypes, score range, panel balance, and label encoding, plus "
-        "mode-specific covariate checks. Returns ok/warnings/errors, a content hash, and summary counts. "
-        "Run this before sensory_analyze_descriptive."
+        "mode-specific covariate checks. Run this before sensory_analyze_descriptive. "
+        "Returns: {ok: bool, mode, warnings: [str], errors: [str], content_hash: str, stats: object}. "
+        "'ok' gates the rest of the pipeline; 'errors' is non-empty only when ok is false, while "
+        "'warnings' (for example panel-imbalance notes) can appear even when ok is true."
     ),
     input_model=_ValidateInput,
     category="sensory",
@@ -249,7 +255,20 @@ class _AnalyzeInput(BaseModel):
         "gate, a selectivity ratio per descriptor with a permutation q-value, and collinear-cluster ids "
         "that mark proxies which cannot be separated from a genuine driver. Also returns product means "
         "with CIs and a PCA map. Refuses to run if validation fails. "
-        "(Designed/DoE mode is planned for a later release.)"
+        "(Designed/DoE mode is planned for a later release.) "
+        "Returns: on validation failure {ok: false, errors: [str], warnings: [str]}. On success "
+        "{ok: true, mode, warnings, flagged, flag_reasons, dropped, correction, mam, relate, "
+        "product_means, pca}. 'flagged'/'dropped' are panelist-id lists; 'mam' has 'scaling' and "
+        "'ftests' (as in sensory_panel_check); 'product_means' is rows of product, attribute, mean, "
+        "ci_low, ci_high; 'pca' has 'explained_variance' and 'scores'. 'relate' (observational) holds "
+        "{mode, n_components, alpha, vip, associations, discriminator}: 'vip' is rows of descriptor, vip; "
+        "'associations' is the marginal table, rows of attribute, descriptor, r, p_value, q_value, "
+        "significant. 'discriminator' (present unless disabled) holds {per_attribute, descriptors, "
+        "clusters, alpha, n_permutations, cluster_threshold}: 'per_attribute' is rows of attribute, "
+        "n_components_cv, q2_cv, rmsep_cv, predictable; 'descriptors' is rows of attribute, descriptor, "
+        "selectivity_ratio, p_value, q_value, discriminator_significant, cluster_id; 'clusters' maps "
+        "each descriptor to an integer collinear-cluster id (descriptors sharing an id cannot be told "
+        "apart, so a significant one may be a proxy for another in the same cluster)."
     ),
     input_model=_AnalyzeInput,
     category="sensory",
@@ -335,7 +354,15 @@ class _PanelCheckInput(BaseModel):
         "flagged panelists and reasons, and the Mixed Assessor Model results: each panelist's scaling "
         "coefficient beta per attribute (beta<1 compresses the scale, >1 expands it) and the MAM versus "
         "classical product-effect F-tests. With align=true, also returns the panel rescaled onto a "
-        "common scale so scale-usage differences are removed while genuine disagreement is preserved."
+        "common scale so scale-usage differences are removed while genuine disagreement is preserved. "
+        "Returns: {ok: true, scorecard, flagged, flag_reasons, mam}. 'scorecard' is one row per "
+        "panelist (panelist_id, discrimination, agreement, scale_shift, scale_spread, drift); 'flagged' "
+        "is the list of anomalous panelist ids and 'flag_reasons' maps each to its list of reasons; "
+        "'mam' has "
+        "'scaling' (rows of attribute, panelist_id, beta, offset, mean) and 'ftests' (rows of attribute, "
+        "f_product_mam, p_product_mam, f_product_classical, p_product_classical, df_product, "
+        "df_disagreement). With align=true an 'aligned_panel' (rescaled descriptive_long rows) is added. "
+        "On missing columns it returns {ok: false, errors: [str]}."
     ),
     input_model=_PanelCheckInput,
     category="sensory",
