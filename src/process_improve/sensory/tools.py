@@ -221,6 +221,18 @@ class _AnalyzeInput(BaseModel):
     n_components: int = Field(2, ge=1, description="Components for the PLS relate step and PCA map.")
     conf_level: float = Field(0.95, gt=0, lt=1, description="Confidence level for product-mean intervals.")
     alpha: float = Field(0.05, gt=0, lt=1, description="Target false-discovery rate for the relate step.")
+    discriminator: bool = Field(
+        True,
+        description=(
+            "Run the cross-validated discriminator: a per-attribute out-of-sample Q-squared gate, a "
+            "selectivity ratio per descriptor with a permutation test, and collinear-cluster grouping. "
+            "Set false to skip it (faster)."
+        ),
+    )
+    n_permutations: int = Field(
+        199, ge=1, description="Permutations for the discriminator's selectivity-ratio null."
+    )
+    random_state: int = Field(0, description="Seed for the discriminator's permutations and CV folds.")
     score_min: float | None = Field(None, description="Optional lower bound for the score scale.")
     score_max: float | None = Field(None, description="Optional upper bound for the score scale.")
 
@@ -233,7 +245,10 @@ class _AnalyzeInput(BaseModel):
         "attribute to the product. Observational mode relates attributes to measured descriptors with "
         "PLS and correlations (association). Returns the panel scorecard flags, dropped panelists, the "
         "MAM scaling coefficients and product F-tests, the relate results with Benjamini-Hochberg "
-        "q-values, product means with CIs, and a PCA map. Refuses to run if validation fails. "
+        "q-values, and (unless disabled) a cross-validated discriminator: a per-attribute Q-squared "
+        "gate, a selectivity ratio per descriptor with a permutation q-value, and collinear-cluster ids "
+        "that mark proxies which cannot be separated from a genuine driver. Also returns product means "
+        "with CIs and a PCA map. Refuses to run if validation fails. "
         "(Designed/DoE mode is planned for a later release.)"
     ),
     input_model=_AnalyzeInput,
@@ -261,6 +276,9 @@ def sensory_analyze_descriptive(spec: _AnalyzeInput) -> dict:
         n_components=spec.n_components,
         conf_level=spec.conf_level,
         alpha=spec.alpha,
+        discriminator=spec.discriminator,
+        n_permutations=spec.n_permutations,
+        random_state=spec.random_state,
     )
     scores = result.pca["scores"].reset_index().rename(columns={"index": "product"})
     return clean(

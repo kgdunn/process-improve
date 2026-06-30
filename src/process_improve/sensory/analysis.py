@@ -229,7 +229,7 @@ def discriminate_observational(  # noqa: PLR0913
         if n_rows >= 5 and y_attr.std() > 0:
             sel = PLS.select_n_components(
                 x_attr,
-                y_attr,
+                y_attr.to_frame(),
                 max_components=cap,
                 cv=5,
                 n_repeats=3,
@@ -257,6 +257,7 @@ def discriminate_observational(  # noqa: PLR0913
         y_scaled = MCUVScaler().fit_transform(y_attr.to_frame())
         pls = PLS(n_components=a).fit(x_scaled, y_scaled)
         sr_obs = selectivity_ratio(pls, x_scaled).reindex(descriptors)
+        sr_values = sr_obs.to_numpy()
         if predictable:
             y_values = y_scaled.to_numpy().ravel()
             ge_counts = np.zeros(len(descriptors))
@@ -266,7 +267,7 @@ def discriminate_observational(  # noqa: PLR0913
                 )
                 pls_p = PLS(n_components=a).fit(x_scaled, permuted)
                 sr_p = selectivity_ratio(pls_p, x_scaled).reindex(descriptors).to_numpy()
-                ge_counts += sr_p >= sr_obs.to_numpy()
+                ge_counts += sr_p >= sr_values
             perm_p = (ge_counts + 1.0) / (n_permutations + 1.0)
         else:
             perm_p = np.ones(len(descriptors))
@@ -275,7 +276,7 @@ def discriminate_observational(  # noqa: PLR0913
                 {
                     "attribute": str(attr),
                     "descriptor": str(desc),
-                    "selectivity_ratio": float(sr_obs[desc]),
+                    "selectivity_ratio": float(sr_values[i]),
                     "p_value": float(perm_p[i]),
                     "cluster_id": clusters[str(desc)],
                     "_predictable": bool(predictable),

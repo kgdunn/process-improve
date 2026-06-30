@@ -509,6 +509,7 @@ def test_tool_analyze_exposes_correction_and_mam():
         "covariates": [{"product": p, "d": i} for i, p in enumerate(products)],
         "mode": "observational",
         "correction": "align",
+        "discriminator": False,
     }
     out = execute_tool_call("sensory_analyze_descriptive", payload)
     assert out["ok"]
