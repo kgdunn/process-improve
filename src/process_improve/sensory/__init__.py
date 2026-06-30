@@ -27,6 +27,7 @@ from process_improve.sensory.analysis import (
 from process_improve.sensory.ingest import reshape_to_long
 from process_improve.sensory.mam import MAMResult, align_scores, mixed_assessor_model
 from process_improve.sensory.panel import PanelScorecard, apply_correction, panel_scorecard
+from process_improve.sensory.recipes import SENSORY_RECIPES
 from process_improve.sensory.validation import (
     DESCRIPTIVE_LONG_COLUMNS,
     ValidationResult,
@@ -35,6 +36,7 @@ from process_improve.sensory.validation import (
 
 __all__ = [
     "DESCRIPTIVE_LONG_COLUMNS",
+    "SENSORY_RECIPES",
     "AnalysisResult",
     "MAMResult",
     "PanelScorecard",
