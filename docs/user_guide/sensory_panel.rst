@@ -199,6 +199,29 @@ So the discriminator demotes coincidences (they fail the gate or the
 selectivity-ratio test) and groups proxies with their driver, but it does not,
 and cannot, rank descriptors within a collinear cluster.
 
+Under the hood, the two predictive-importance steps are the standalone
+diagnostics :func:`~process_improve.multivariate.target_projection` and
+:func:`~process_improve.multivariate.selectivity_ratio` (also available as PLS
+methods). Target projection rotates the fitted PLS so that one component lies
+along the regression vector :math:`b` for the chosen attribute: the weight is
+:math:`w_{\text{TP}} = b / \lVert b \rVert` and the scores are
+:math:`t_{\text{TP}} = X\, w_{\text{TP}}`. The selectivity ratio of descriptor
+:math:`j` is the ratio of its explained to its residual sum of squares on that
+single component,
+:math:`\text{SR}_j = \text{SS}_{\text{explained},j} / \text{SS}_{\text{residual},j}`,
+so it is large only for descriptors aligned with the predictive direction. Two
+collinear descriptors carry near-identical selectivity ratios, which is why the
+clustering step is needed alongside it.
+
+.. rubric:: References
+
+- Kvalheim, O. M. and Karstang, T. V. (1989). Interpretation of latent-variable
+  regression models. *Chemometrics and Intelligent Laboratory Systems*, 7(1-2),
+  39-51. (target projection)
+- Rajalahti, T. et al. (2009). Biomarker discovery in mass spectral profiles by
+  means of selectivity ratio plot. *Chemometrics and Intelligent Laboratory
+  Systems*, 95(1), 35-48. (selectivity ratio)
+
 Correcting the panel: the Mixed Assessor Model
 ----------------------------------------------
 
