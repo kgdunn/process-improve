@@ -23,9 +23,11 @@ from ._diagnostics import (
     project_variables,
     rv2_coefficient,
     rv_coefficient,
+    selectivity_ratio,
     spe_contributions,
     squared_cosine,
     t2_contributions,
+    target_projection,
     vip,
 )
 from ._limits import (
@@ -100,6 +102,7 @@ __all__ = [
     "scale",
     "score_limit",
     "score_plot",
+    "selectivity_ratio",
     "spe_calculation",
     "spe_contributions",
     "spe_limit",
@@ -108,6 +111,7 @@ __all__ = [
     "ssq",
     "t2_contributions",
     "t2_plot",
+    "target_projection",
     "terminate_check",
     "vip",
 ]

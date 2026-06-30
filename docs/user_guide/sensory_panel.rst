@@ -17,7 +17,9 @@ kind of product. The flow is:
 1. **validate** the panel data and a product-covariate table;
 2. **check the panel**, then either correct each panelist's scale use (the
    Mixed Assessor Model) or drop anomalous panelists;
-3. **relate** each attribute back to the product.
+3. **relate** each attribute back to the product, and **discriminate** the
+   descriptors that carry out-of-sample predictive signal from those that only
+   correlate in this one sample.
 
 The worked example near the end runs all of these on a synthetic dataset.
 
@@ -148,6 +150,8 @@ The observational relate output is:
 - ``result.relate["associations"]`` gives the per-(attribute, descriptor)
   correlation with a raw p-value, a Benjamini-Hochberg ``q_value`` across the
   whole family of tests, and a ``significant`` flag.
+- ``result.relate["discriminator"]`` adds the out-of-sample evidence described
+  in the next section.
 
 The result also carries supporting context: ``result.product_means`` (each
 product-by-attribute mean with a confidence interval) and ``result.pca`` (a PCA
@@ -155,6 +159,68 @@ sensory map of the products over the attributes).
 
 The designed-mode relate (factor *effects* rather than associations) is planned;
 ``mode="designed"`` raises ``NotImplementedError`` for now.
+
+Telling genuine drivers from proxies: the discriminator
+-------------------------------------------------------
+
+The ``associations`` table reports *marginal* correlations: each
+attribute-descriptor pair on its own. A pair can be significant for three
+different reasons, which a marginal correlation cannot tell apart: the
+descriptor genuinely drives the attribute; the descriptor only rides on a
+genuine driver (a proxy); or the descriptor happens to line up with the
+attribute in this particular set of products (a coincidence). The
+``discriminator`` adds out-of-sample evidence to separate these:
+
+- a per-attribute **cross-validated** :math:`Q^2` (leave-one-out): is the
+  attribute predictable from the descriptor block at all, on products the model
+  did not see? ``result.relate["discriminator"]["per_attribute"]`` reports
+  ``q2_cv`` and a ``predictable`` flag. A coincidence does not predict held-out
+  products, so its attribute often fails this gate.
+- a **selectivity ratio** per descriptor, computed on the *target-projected*
+  predictive direction (the single PLS component aligned with the attribute).
+  The selectivity ratio is the share of a descriptor's variance that the
+  predictive direction explains; unlike the marginal correlation it is judged
+  *given the other descriptors*, so a descriptor that adds nothing beyond the
+  real drivers scores low. Significance is assessed with a permutation test that
+  controls for testing many descriptors at once (a max-statistic null), gated on
+  the attribute being predictable. ``result.relate["discriminator"]["descriptors"]``
+  reports ``selectivity_ratio``, a permutation ``q_value`` and a
+  ``discriminator_significant`` flag.
+- a **collinear cluster id** per descriptor (``cluster_id``): descriptors whose
+  absolute correlation exceeds a threshold are grouped. Two descriptors in the
+  same cluster carry the same information, so they predict equally well and the
+  discriminator keeps them both. This is the honest limit of an observational
+  analysis: it can report that a group of descriptors is predictive, but it
+  cannot say *which one* inside a collinear cluster is the cause. Separating
+  them needs an external dataset that breaks the collinearity, a designed
+  experiment, or mechanistic knowledge.
+
+So the discriminator demotes coincidences (they fail the gate or the
+selectivity-ratio test) and groups proxies with their driver, but it does not,
+and cannot, rank descriptors within a collinear cluster.
+
+Under the hood, the two predictive-importance steps are the standalone
+diagnostics :func:`~process_improve.multivariate.target_projection` and
+:func:`~process_improve.multivariate.selectivity_ratio` (also available as PLS
+methods). Target projection rotates the fitted PLS so that one component lies
+along the regression vector :math:`b` for the chosen attribute: the weight is
+:math:`w_{\text{TP}} = b / \lVert b \rVert` and the scores are
+:math:`t_{\text{TP}} = X\, w_{\text{TP}}`. The selectivity ratio of descriptor
+:math:`j` is the ratio of its explained to its residual sum of squares on that
+single component,
+:math:`\text{SR}_j = \text{SS}_{\text{explained},j} / \text{SS}_{\text{residual},j}`,
+so it is large only for descriptors aligned with the predictive direction. Two
+collinear descriptors carry near-identical selectivity ratios, which is why the
+clustering step is needed alongside it.
+
+.. rubric:: References
+
+- Kvalheim, O. M. and Karstang, T. V. (1989). Interpretation of latent-variable
+  regression models. *Chemometrics and Intelligent Laboratory Systems*, 7(1-2),
+  39-51. (target projection)
+- Rajalahti, T. et al. (2009). Biomarker discovery in mass spectral profiles by
+  means of selectivity ratio plot. *Chemometrics and Intelligent Laboratory
+  Systems*, 95(1), 35-48. (selectivity ratio)
 
 Correcting the panel: the Mixed Assessor Model
 ----------------------------------------------
@@ -205,13 +271,18 @@ intensity, Sweetness, Sourness, Bitterness, Firmness, Juiciness, Colour
 intensity, Aftertaste, Liking), as integers on a 0-10 scale. The scores came out
 of the scoring software in the wide layout, with an extra ``site`` column we do
 not need and a few missing cells. We also have instrumental measurements per
-product, in realistic physical units, split on purpose into two kinds: genuine
-mechanistic correlates (``brix`` for sweetness, ``titratable_acidity`` for
-sourness, ``polyphenols`` for bitterness, ``aroma_oav`` for aroma, ``viscosity``
-for firmness) and spurious proxies or artifacts (``refractive_index`` and
-``specific_gravity`` ride on ``brix``; ``conductivity`` rides on the acid ions;
-``total_dissolved_solids`` is an aggregate; ``price`` tracks Liking only through
-the sample frame; ``serving_temperature`` is unrelated).
+product, in realistic physical units, split on purpose into three kinds:
+
+- genuine mechanistic correlates: ``brix`` for sweetness, ``titratable_acidity``
+  for sourness, ``polyphenols`` for bitterness, ``aroma_oav`` for aroma,
+  ``viscosity`` for firmness;
+- proxies that ride on a genuine driver: ``refractive_index`` and
+  ``specific_gravity`` rise with dissolved sugar (``brix``); ``conductivity``
+  rides on the acid ions; ``total_dissolved_solids`` is an aggregate; ``price``
+  tracks Liking through the sample frame;
+- unrelated measurement-condition nuisances with no causal link to any
+  attribute: ``serving_temperature``, ``headspace_volume``, ``sample_mass`` and
+  ``lab_humidity``.
 
 Three assessors were constructed to misbehave: J07 scores at random, J03 rates
 everything high, and J09 uses only the middle of the scale.
@@ -268,17 +339,43 @@ measurements.
    assoc = pd.DataFrame(result.relate["associations"])
    print(assoc[assoc["significant"]])
 
-The genuine correlates are significant (``brix`` with Sweetness,
-``titratable_acidity`` with Sourness, ``price`` with Liking, each with a
-Benjamini-Hochberg q-value), but so are the spurious proxies (``refractive_index``
-and ``specific_gravity`` with Sweetness). Both of those ride on ``brix`` by
-construction (refractive index and specific gravity rise with dissolved sugar,
-not with perceived sweetness), so within this one dataset they track Sweetness
-just as strongly as ``brix`` itself.
-This is the trap to watch: a within-sample correlation is not a transferable,
-causal link. Telling a genuine correlate apart from a proxy that merely rides
-on it needs out-of-sample evidence (cross-validated Q-squared, a Van der Voet
-test, or a selectivity ratio), which is covered separately.
+The marginal test flags sixteen pairs. The genuine correlates are there
+(``brix`` with Sweetness, ``titratable_acidity`` with Sourness, ``price`` with
+Liking), but so are the proxies (``refractive_index`` and ``specific_gravity``
+with Sweetness, which ride on ``brix``) and even a coincidence: ``lab_humidity``
+correlates with Liking (r about -0.67) purely by chance in these eighteen
+products. A within-sample correlation on its own cannot tell these three cases
+apart.
+
+**Step 5, discriminate.** The discriminator adds the out-of-sample evidence.
+
+.. code-block:: python
+
+   disc = result.relate["discriminator"]
+   gate = pd.DataFrame(disc["per_attribute"])      # cross-validated Q-squared per attribute
+   drivers = pd.DataFrame(disc["descriptors"])     # selectivity ratio, q-value, cluster id
+   print(drivers[drivers["discriminator_significant"]])
+
+It narrows the sixteen marginal hits to twelve:
+
+- The cross-validated :math:`Q^2` gate keeps Sweetness (``q2_cv`` about 0.95) and
+  Liking (about 0.94) but rejects Juiciness, Colour intensity and Aftertaste,
+  for which no covariate predicts held-out products.
+- ``lab_humidity`` is demoted: although it correlates with Liking in-sample, it
+  carries no predictive selectivity, so the permutation test does not keep it,
+  while the genuine ``brix`` and ``price`` for Liking remain significant. This is
+  the coincidence caught.
+- ``brix``, ``refractive_index`` and ``specific_gravity`` all stay significant
+  for Sweetness and share one ``cluster_id``. The discriminator reports them as a
+  single inseparable group: from these data you cannot say which of the three is
+  the cause, because each carries the same information.
+
+This is the trap, stated precisely: a within-sample correlation is not a
+transferable, causal link. Cross-validation demotes coincidences, and the
+selectivity ratio plus clustering groups proxies with their driver, but ranking
+descriptors *within* a collinear cluster needs evidence this single panel cannot
+supply: an external dataset that breaks the collinearity, a designed experiment,
+or mechanistic knowledge.
 
 The full runnable scenario is in the test suite
 (``tests/test_sensory_end_to_end.py``).
@@ -297,7 +394,8 @@ and covariate tables as lists of row-records and returning JSON:
   the scorecard with flags, the MAM scaling coefficients and F-tests, and,
   with ``align=true``, the rescaled panel.
 - ``sensory_analyze_descriptive`` - the full pipeline, with a ``correction``
-  option (``"none"`` / ``"align"`` / ``"drop"``) and the MAM results in its
+  option (``"none"`` / ``"align"`` / ``"drop"``), the MAM results, and (unless
+  ``discriminator`` is set false) the cross-validated discriminator in its
   output.
 
 The analyze tool validates first and refuses to run if validation fails, so an

@@ -22,6 +22,7 @@ intervals and a PCA sensory map.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -29,7 +30,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
 
-from process_improve.multivariate.methods import PCA, PLS, vip
+from process_improve.multivariate.methods import PCA, PLS, MCUVScaler, selectivity_ratio, vip
 from process_improve.sensory.mam import MAMResult, align_scores, mixed_assessor_model
 from process_improve.sensory.panel import PanelScorecard, apply_correction, panel_scorecard
 from process_improve.sensory.validation import ValidationResult
@@ -109,6 +110,227 @@ def _attach_fdr(records: list[dict[str, Any]], alpha: float) -> list[dict[str, A
     return records
 
 
+def _fit_pls_safe(x: pd.DataFrame, y: pd.DataFrame, n_components: int) -> tuple[PLS | None, int]:
+    """Fit PLS, stepping the component count down on a near-collinear (singular) block.
+
+    Near-duplicate descriptor columns (a proxy that is almost an exact function
+    of a driver) can make the high-order PLS deflation singular. Retry with one
+    fewer component until the fit succeeds, returning ``(model, components_used)``
+    or ``(None, 0)`` if even a single component fails.
+    """
+    for k in range(max(1, n_components), 0, -1):
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                return PLS(n_components=k).fit(x, y), k
+        except np.linalg.LinAlgError:  # noqa: PERF203 - retry on singular block; loop is a few iterations
+            continue
+    return None, 0
+
+
+def _collinear_clusters(x_block: pd.DataFrame, threshold: float) -> dict[str, int]:
+    """Group descriptors into clusters of mutually high absolute correlation.
+
+    Single-linkage connected components on the descriptor ``|corr|`` matrix:
+    two descriptors join the same cluster when their absolute Pearson
+    correlation is at least ``threshold``. Returns ``{descriptor: cluster_id}``
+    with cluster ids assigned in column order (a singleton descriptor gets its
+    own id). Collinear proxies therefore share an id, which is how the
+    discriminator reports that they cannot be told apart.
+    """
+    cols = list(x_block.columns)
+    n = len(cols)
+    corr = np.nan_to_num(x_block.corr().abs().to_numpy(), nan=0.0)
+    parent = list(range(n))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            if corr[i, j] >= threshold:
+                ri, rj = find(i), find(j)
+                if ri != rj:
+                    parent[max(ri, rj)] = min(ri, rj)
+
+    roots: dict[int, int] = {}
+    cluster_of: dict[str, int] = {}
+    for i, name in enumerate(cols):
+        root = find(i)
+        if root not in roots:
+            roots[root] = len(roots)
+        cluster_of[str(name)] = roots[root]
+    return cluster_of
+
+
+def discriminate_observational(  # noqa: PLR0913, PLR0915
+    agg: pd.DataFrame,
+    covariates: pd.DataFrame,
+    *,
+    n_components: int = 2,
+    alpha: float = 0.05,
+    n_permutations: int = 199,
+    random_state: int = 0,
+    cluster_threshold: float = 0.95,
+    max_components_cv: int = 4,
+) -> dict[str, Any]:
+    """Cross-validated discriminator of which descriptors carry predictive signal.
+
+    The marginal associations (:func:`relate_observational`) flag every
+    descriptor that correlates with an attribute in-sample, genuine drivers and
+    proxies alike. This step adds out-of-sample evidence:
+
+    1. a per-attribute cross-validated Q-squared gate (is the attribute
+       predictable from the descriptor block at all),
+    2. a selectivity ratio per descriptor on the target-projected predictive
+       direction, with a permutation p-value (Benjamini-Hochberg corrected
+       across the whole family), so a descriptor that merely correlates by
+       chance but does not enter the predictive direction is demoted, and
+    3. a collinear-cluster id per descriptor.
+
+    What it cannot do is rank descriptors *within* a collinear cluster: two
+    descriptors that carry the same information predict equally well out of
+    sample, so they share a cluster id and both stay significant. Separating
+    them needs an external dataset or a designed experiment.
+
+    Parameters
+    ----------
+    agg : pandas.DataFrame
+        Product-by-attribute mean table (index ``product``).
+    covariates : pandas.DataFrame
+        One row per product with the measured descriptors (plus a ``product``
+        column, which is dropped here).
+    n_components : int
+        Latent components for the in-sample selectivity-ratio fit.
+    alpha : float
+        Target false-discovery rate for the permutation family.
+    n_permutations : int
+        Number of label permutations for the selectivity-ratio null.
+    random_state : int
+        Seed for the permutations and the cross-validation folds.
+    cluster_threshold : float
+        Absolute-correlation threshold for the collinear clustering.
+    max_components_cv : int
+        Cap on the component count the Q-squared gate may select.
+
+    Returns
+    -------
+    dict
+        ``per_attribute`` (the Q-squared gate per attribute), ``descriptors``
+        (the per attribute-descriptor selectivity ratio, permutation q-value,
+        ``discriminator_significant`` flag and ``cluster_id``), ``clusters``
+        (the descriptor-to-cluster map), and the settings used.
+    """
+    x_all = covariates.loc[agg.index]
+    descriptors = [c for c in x_all.columns if c != "product" and pd.api.types.is_numeric_dtype(x_all[c])]
+    x_block = x_all[descriptors].astype(float)
+    clusters = _collinear_clusters(x_block, cluster_threshold)
+
+    rng = np.random.default_rng(random_state)
+    per_attribute: list[dict[str, Any]] = []
+    records: list[dict[str, Any]] = []
+    for attr in agg.columns:
+        y = agg[attr].astype(float)
+        mask = y.notna()
+        x_attr = x_block.loc[mask]
+        y_attr = y.loc[mask]
+        n_rows = x_attr.shape[0]
+        cap = max(1, min(max_components_cv, x_attr.shape[1], n_rows - 2))
+        a = max(1, min(n_components, cap))
+
+        # Fit one PLS for this attribute, reused for the Q-squared gate and the
+        # selectivity ratio. ``_fit_pls_safe`` steps the component count down if
+        # the near-collinear descriptor block makes the fit singular.
+        x_scaled = MCUVScaler().fit_transform(x_attr)
+        y_scaled = MCUVScaler().fit_transform(y_attr.to_frame())
+        pls, a = _fit_pls_safe(x_scaled, y_scaled, a)
+
+        # 1. Leave-one-out cross-validated Q-squared gate: is the attribute
+        #    predictable from the descriptor block out of sample?
+        predictable = False
+        q2_cv = float("nan")
+        rmsep_cv = float("nan")
+        if pls is not None and n_rows >= 5 and y_attr.std() > 0:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                cv = pls.cross_validate(x_scaled, y_scaled, cv="loo", show_progress=False)
+            q2_cv = float(cv.q_squared.iloc[0])
+            rmsep_cv = float(cv.rmse_cv.iloc[0])
+            predictable = q2_cv > 0.0
+        per_attribute.append(
+            {
+                "attribute": str(attr),
+                "n_components_cv": a if pls is not None else 0,
+                "q2_cv": q2_cv,
+                "rmsep_cv": rmsep_cv,
+                "predictable": bool(predictable),
+            }
+        )
+
+        # 2. Selectivity ratio on the predictive direction, with a permutation
+        #    null. Multiplicity across descriptors is controlled by the
+        #    max-statistic (Westfall-Young) permutation: for each label
+        #    permutation, the *largest* selectivity ratio over all descriptors
+        #    forms the null. An observed SR above that null is significant after
+        #    correction, so even a single genuine driver is detectable without
+        #    the resolution loss of a per-test Benjamini-Hochberg floor. The
+        #    permutation loop is skipped for attributes the Q-squared gate found
+        #    unpredictable: none of their descriptors can be flagged anyway.
+        k = len(descriptors)
+        if pls is None:  # degenerate block: nothing to relate for this attribute
+            sr_values = np.zeros(k)
+            p_raw = np.ones(k)
+            p_maxt = np.ones(k)
+        else:
+            sr_values = np.asarray(selectivity_ratio(pls, x_scaled).reindex(descriptors), dtype=float)
+            if predictable:
+                y_values = y_scaled.to_numpy().ravel()
+                ge_each = np.zeros(k)  # per-descriptor null exceedances
+                ge_max = np.zeros(k)  # exceedances of the family-wide max null
+                done = 0
+                for _ in range(n_permutations):
+                    permuted = pd.DataFrame(
+                        y_values[rng.permutation(n_rows)], index=x_scaled.index, columns=y_scaled.columns
+                    )
+                    pls_p, _ = _fit_pls_safe(x_scaled, permuted, a)
+                    if pls_p is None:
+                        continue  # a degenerate permutation contributes nothing to the null
+                    sr_p = selectivity_ratio(pls_p, x_scaled).reindex(descriptors).to_numpy()
+                    ge_each += sr_p >= sr_values
+                    ge_max += np.nanmax(sr_p) >= sr_values
+                    done += 1
+                denom = done + 1.0
+                p_raw = (ge_each + 1.0) / denom
+                p_maxt = (ge_max + 1.0) / denom
+            else:
+                p_raw = np.ones(k)
+                p_maxt = np.ones(k)
+        for i, desc in enumerate(descriptors):
+            records.append(
+                {
+                    "attribute": str(attr),
+                    "descriptor": str(desc),
+                    "selectivity_ratio": float(sr_values[i]),
+                    "p_value": float(p_raw[i]),
+                    "q_value": float(p_maxt[i]),
+                    "discriminator_significant": bool(p_maxt[i] <= alpha and predictable),
+                    "cluster_id": clusters[str(desc)],
+                }
+            )
+
+    return {
+        "per_attribute": per_attribute,
+        "descriptors": records,
+        "clusters": clusters,
+        "alpha": alpha,
+        "n_permutations": n_permutations,
+        "cluster_threshold": cluster_threshold,
+    }
+
+
 def relate_designed(
     agg: pd.DataFrame,
     covariates: pd.DataFrame,
@@ -135,12 +357,15 @@ def relate_designed(
     )
 
 
-def relate_observational(
+def relate_observational(  # noqa: PLR0913
     agg: pd.DataFrame,
     covariates: pd.DataFrame,
     *,
     n_components: int = 2,
     alpha: float = 0.05,
+    discriminator: bool = True,
+    n_permutations: int = 199,
+    random_state: int = 0,
 ) -> dict[str, Any]:
     """Relate the attribute block to measured descriptors with PLS plus correlations."""
     x_block = covariates.loc[agg.index].astype(float)
@@ -166,13 +391,23 @@ def relate_observational(
                     {"attribute": str(attr), "descriptor": str(desc), "r": float(r), "p_value": float(p)}
                 )
     assoc = _attach_fdr(assoc, alpha)
-    return {
+    result: dict[str, Any] = {
         "mode": "observational",
         "n_components": max_comp,
         "alpha": alpha,
         "vip": drivers,
         "associations": assoc,
     }
+    if discriminator:
+        result["discriminator"] = discriminate_observational(
+            agg,
+            covariates.loc[agg.index],
+            n_components=max_comp,
+            alpha=alpha,
+            n_permutations=n_permutations,
+            random_state=random_state,
+        )
+    return result
 
 
 def product_means(panel: pd.DataFrame, conf_level: float = 0.95) -> pd.DataFrame:
@@ -213,6 +448,9 @@ def analyze_descriptive(  # noqa: PLR0913
     n_components: int = 2,
     conf_level: float = 0.95,
     alpha: float = 0.05,
+    discriminator: bool = True,
+    n_permutations: int = 199,
+    random_state: int = 0,
 ) -> AnalysisResult:
     """Run the descriptive pipeline: panel check, correction, and relate.
 
@@ -241,6 +479,13 @@ def analyze_descriptive(  # noqa: PLR0913
         Confidence level for the product-mean intervals.
     alpha : float
         Target false-discovery rate for the relate step.
+    discriminator : bool
+        Whether to run the cross-validated discriminator
+        (:func:`discriminate_observational`) in the observational relate step.
+    n_permutations : int
+        Permutations for the discriminator's selectivity-ratio null.
+    random_state : int
+        Seed for the discriminator's permutations and cross-validation folds.
 
     Returns
     -------
@@ -277,7 +522,15 @@ def analyze_descriptive(  # noqa: PLR0913
     if validated.mode == "designed":
         relate = relate_designed(agg, validated.covariates, model=model, alpha=alpha)
     else:
-        relate = relate_observational(agg, validated.covariates, n_components=n_components, alpha=alpha)
+        relate = relate_observational(
+            agg,
+            validated.covariates,
+            n_components=n_components,
+            alpha=alpha,
+            discriminator=discriminator,
+            n_permutations=n_permutations,
+            random_state=random_state,
+        )
 
     return AnalysisResult(
         mode=validated.mode,
@@ -295,6 +548,9 @@ def analyze_descriptive(  # noqa: PLR0913
             "n_components": n_components,
             "conf_level": conf_level,
             "alpha": alpha,
+            "discriminator": discriminator,
+            "n_permutations": n_permutations,
+            "random_state": random_state,
             "content_hash": validated.content_hash,
         },
     )

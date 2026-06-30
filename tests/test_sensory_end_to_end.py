@@ -2,14 +2,19 @@
 
 A single synthetic scenario drives both this test and the documentation worked
 example, so the two stay in agreement. The data is entirely synthetic and
-generic: ten assessors score six products on nine attributes (wide layout, with
-a nuisance ``site`` column and a few missing cells), and a per-product table of
-instrumental covariates carries both genuine mechanistic correlates and
-spurious proxies/artifacts. Three assessors are planted to misbehave:
+generic: ten assessors score eighteen products on nine attributes (wide layout,
+with a nuisance ``site`` column and a few missing cells), and a per-product
+table of instrumental covariates carries genuine mechanistic correlates,
+spurious proxies that ride on a driver, and unrelated measurement-condition
+nuisances. Three assessors are planted to misbehave:
 
 * ``J07`` scores at random (disagrees with the panel),
 * ``J03`` rates everything high (a location shift),
 * ``J09`` uses only the middle of the scale (a compressed range).
+
+The covariate families exercise the cross-validated discriminator: it keeps the
+genuine drivers, reports the collinear proxies as one inseparable cluster, and
+demotes a nuisance that correlates with an attribute only by chance.
 """
 
 from __future__ import annotations
@@ -103,6 +108,15 @@ def make_panel_and_covariates(seed: int = 0) -> tuple[pd.DataFrame, pd.DataFrame
         }
     )
 
+    # Three unrelated measurement-condition nuisances (no causal link to any
+    # attribute). A dedicated RNG seed is chosen so one of them (lab_humidity)
+    # lands a chance correlation with an attribute in this small sample, which
+    # the marginal test flags but the cross-validated discriminator demotes.
+    noise_rng = np.random.default_rng(16)
+    covariates["headspace_volume"] = _sig(noise_rng.uniform(5.0, 25.0, n), 3)  # mL
+    covariates["sample_mass"] = _sig(noise_rng.uniform(180.0, 260.0, n), 3)  # g
+    covariates["lab_humidity"] = _sig(noise_rng.uniform(30.0, 70.0, n), 3)  # %RH
+
     # Panel: integer 0-10 scores, with three planted atypical assessors.
     offset = dict(zip(ASSESSORS, rng.normal(0, 0.3, len(ASSESSORS)), strict=True))
     rows = []
@@ -140,7 +154,7 @@ def _assoc_row(assoc: pd.DataFrame, attribute: str, descriptor: str) -> pd.Serie
     return assoc[(assoc["attribute"] == attribute) & (assoc["descriptor"] == descriptor)].iloc[0]
 
 
-def test_pipeline_end_to_end():
+def test_pipeline_end_to_end():  # noqa: PLR0915
     panel, covariates = make_panel_and_covariates()
 
     # Step 1: reshape wide -> long, ignoring the nuisance 'site' column.
@@ -196,6 +210,52 @@ def test_pipeline_end_to_end():
     # cell must not silently drop an attribute (regression guard).
     assert set(assoc["attribute"]) == set(ATTRIBUTES)
     assert _assoc_row(assoc, "Bitterness", "polyphenols")["significant"]
+
+    # Step 5: the cross-validated discriminator separates predictive structure
+    # from in-sample coincidence.
+    disc = result.relate["discriminator"]
+    gate = pd.DataFrame(disc["per_attribute"]).set_index("attribute")
+    desc = pd.DataFrame(disc["descriptors"])
+    clusters = disc["clusters"]
+
+    def _disc(attribute: str, descriptor: str) -> bool:
+        row = desc[(desc["attribute"] == attribute) & (desc["descriptor"] == descriptor)].iloc[0]
+        return bool(row["discriminator_significant"])
+
+    # Q-squared gate: attributes with a real driver are predictable out of
+    # sample; attributes with none are not.
+    assert gate.loc["Sweetness", "q2_cv"] > 0.8
+    assert gate.loc["Liking", "q2_cv"] > 0.8
+    assert bool(gate.loc["Sweetness", "predictable"])
+    assert not bool(gate.loc["Juiciness", "predictable"])  # no covariate drives it
+
+    # Trap B: the proxies that ride on brix cannot be separated from it. They
+    # share one collinear cluster and all stay significant for Sweetness.
+    assert clusters["brix"] == clusters["refractive_index"] == clusters["specific_gravity"]
+    assert _disc("Sweetness", "brix")
+    assert _disc("Sweetness", "refractive_index")
+    assert _disc("Sweetness", "specific_gravity")
+
+    # Genuine lone drivers survive (and sit in their own clusters).
+    assert _disc("Sourness", "titratable_acidity")
+    assert _disc("Bitterness", "polyphenols")
+    assert clusters["titratable_acidity"] != clusters["brix"]
+
+    # Trap A: a nuisance that correlates with an attribute only by chance is
+    # flagged by the marginal test but demoted by the discriminator, while the
+    # genuine drivers of that same attribute survive.
+    assert _assoc_row(assoc, "Liking", "lab_humidity")["significant"]
+    assert not _disc("Liking", "lab_humidity")
+    assert _disc("Liking", "brix")
+    assert _disc("Liking", "price")
+
+    # No measurement-condition nuisance is ever discriminator-significant, and
+    # the discriminator flags strictly fewer pairs than the marginal test.
+    nuisances = {"headspace_volume", "sample_mass", "lab_humidity", "serving_temperature"}
+    assert not desc[desc["descriptor"].isin(nuisances)]["discriminator_significant"].any()
+    marginal_pairs = set(map(tuple, assoc[assoc["significant"]][["attribute", "descriptor"]].to_numpy()))
+    disc_pairs = set(map(tuple, desc[desc["discriminator_significant"]][["attribute", "descriptor"]].to_numpy()))
+    assert disc_pairs < marginal_pairs  # strict subset: the discriminator narrows the findings
 
 
 def test_means_only_table_is_refused():

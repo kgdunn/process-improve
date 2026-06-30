@@ -45,11 +45,13 @@ from process_improve.multivariate.methods import (
     rv_coefficient,
     scale,
     score_limit,
+    selectivity_ratio,
     spe_calculation,
     spe_contributions,
     squared_cosine,
     ssq,
     t2_contributions,
+    target_projection,
     terminate_check,
     vip,
 )
@@ -2224,6 +2226,124 @@ def test_vip_unfitted_raises() -> None:
     pca_unfitted = PCA(n_components=2)
     with pytest.raises(ValueError, match="not fitted"):
         vip(pca_unfitted)
+
+
+def _driver_proxy_noise(seed: int = 0, n: int = 40) -> tuple[pd.DataFrame, pd.Series]:
+    """Synthetic block: a driver of y, a collinear proxy of the driver, and pure noise."""
+    rng = np.random.default_rng(seed)
+    driver = rng.standard_normal(n)
+    X = pd.DataFrame(
+        {
+            "driver": driver,
+            "proxy": driver + 0.02 * rng.standard_normal(n),  # collinear with driver
+            "noise1": rng.standard_normal(n),
+            "noise2": rng.standard_normal(n),
+        }
+    )
+    y = pd.Series(2.0 * driver + 0.3 * rng.standard_normal(n), name="y")
+    return X, y
+
+
+def test_selectivity_ratio_ranks_driver_and_proxy_above_noise() -> None:
+    """SR is high for the predictive direction (driver and its collinear proxy), low for noise."""
+    X, y = _driver_proxy_noise()
+    Xs = MCUVScaler().fit_transform(X)
+    ys = MCUVScaler().fit_transform(y.to_frame())
+    pls = PLS(n_components=2).fit(Xs, ys)
+
+    sr_standalone = selectivity_ratio(pls, Xs)
+    sr_bound = pls.selectivity_ratio(Xs)
+    assert sr_standalone.equals(sr_bound)
+
+    assert isinstance(sr_standalone, pd.Series)
+    assert sr_standalone.name == "selectivity_ratio"
+    assert list(sr_standalone.index) == list(X.columns)
+    assert (sr_standalone >= 0).all()
+    assert np.isfinite(sr_standalone).all()
+
+    # Driver and its collinear proxy carry the predictive signal; noise does not.
+    assert sr_standalone["driver"] > 1.0
+    assert sr_standalone["proxy"] > 1.0
+    assert sr_standalone["noise1"] < 0.5
+    assert sr_standalone["noise2"] < 0.5
+
+    # The selectivity ratio does NOT separate two collinear features (the key
+    # limitation that the discriminator narrative rests on).
+    assert sr_standalone["driver"] == pytest.approx(sr_standalone["proxy"], rel=0.5)
+
+    # The advisory F-based critical value is attached and exceeded by the signal.
+    assert sr_standalone.attrs["conf_level"] == pytest.approx(0.95)
+    assert sr_standalone["driver"] > sr_standalone.attrs["f_critical"]
+    assert sr_standalone["noise1"] < sr_standalone.attrs["f_critical"]
+
+
+def test_target_projection_aligns_with_response() -> None:
+    """The TP scores reproduce the predictive direction (correlate ~1 with y)."""
+    X, y = _driver_proxy_noise()
+    Xs = MCUVScaler().fit_transform(X)
+    ys = MCUVScaler().fit_transform(y.to_frame())
+    pls = PLS(n_components=2).fit(Xs, ys)
+
+    tp = pls.target_projection(Xs)
+    assert tp.scores.equals(target_projection(pls, Xs).scores)  # bound and standalone agree
+    assert set(tp) >= {"scores", "loadings", "weights", "response"}
+    assert list(tp.loadings.index) == list(X.columns)
+    assert tp.weights.to_numpy() @ tp.weights.to_numpy() == pytest.approx(1.0)  # unit TP weight
+
+    corr = np.corrcoef(tp.scores.to_numpy(), ys.to_numpy().ravel())[0, 1]
+    assert abs(corr) > 0.95
+
+
+def test_selectivity_ratio_multi_response_and_errors(
+    fixture_pls_ldpe_example: dict[str, pd.DataFrame | np.ndarray | float | int],
+) -> None:
+    """Multi-response SR returns a feature-by-response frame; errors are guarded; LDPE smoke."""
+    # Multi-response: a feature-by-response DataFrame, with each column finite.
+    rng = np.random.default_rng(7)
+    X = pd.DataFrame(rng.standard_normal((40, 5)), columns=[f"x{i}" for i in range(5)])
+    beta = rng.standard_normal((5, 2))
+    Y = pd.DataFrame(X.values @ beta + 0.3 * rng.standard_normal((40, 2)), columns=["y0", "y1"])
+    Xs = MCUVScaler().fit_transform(X)
+    Ys = MCUVScaler().fit_transform(Y)
+    pls = PLS(n_components=3).fit(Xs, Ys)
+
+    sr_frame = pls.selectivity_ratio(Xs)
+    assert isinstance(sr_frame, pd.DataFrame)
+    assert list(sr_frame.columns) == ["y0", "y1"]
+    assert list(sr_frame.index) == list(X.columns)
+    assert np.isfinite(sr_frame.to_numpy()).all()
+
+    # Selecting one response by name or integer position gives a Series.
+    assert isinstance(pls.selectivity_ratio(Xs, response="y0"), pd.Series)
+    assert isinstance(pls.selectivity_ratio(Xs, response=1), pd.Series)
+    with pytest.raises(ValueError, match="response"):
+        pls.selectivity_ratio(Xs, response="not_a_response")
+    with pytest.raises(ValueError, match="out of range"):
+        pls.selectivity_ratio(Xs, response=9)
+    with pytest.raises(ValueError, match=r"not fitted|beta_coefficients_"):
+        selectivity_ratio(PLS(n_components=2), Xs)
+
+    # target_projection on a multi-response model needs an explicit response,
+    # and refuses an unfitted model.
+    with pytest.raises(ValueError, match="several responses"):
+        target_projection(pls, Xs)
+    with pytest.raises(ValueError, match=r"not fitted|beta_coefficients_"):
+        target_projection(PLS(n_components=2), Xs)
+
+    # With only three samples the F-based critical value is undefined (NaN).
+    tiny = MCUVScaler().fit_transform(X.iloc[:3])
+    tiny_y = MCUVScaler().fit_transform(Y.iloc[:3, [0]])
+    sr_tiny = PLS(n_components=1).fit(tiny, tiny_y).selectivity_ratio(tiny)
+    assert np.isnan(sr_tiny.attrs["f_critical"])
+
+    # Real LDPE dataset (SIMCA reference data): SR is finite and non-negative.
+    data = fixture_pls_ldpe_example
+    X_ldpe = MCUVScaler().fit_transform(data["X"])
+    Y_ldpe = MCUVScaler().fit_transform(data["Y"])
+    pls_ldpe = PLS(n_components=data["A"]).fit(X_ldpe, Y_ldpe)
+    sr_values = pls_ldpe.selectivity_ratio(X_ldpe).to_numpy()
+    assert np.isfinite(sr_values).all()
+    assert (sr_values >= 0).all()
 
 
 def test_vip_formula_correctness() -> None:

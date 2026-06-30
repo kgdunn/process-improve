@@ -37,6 +37,12 @@ from ._common import (
     _select_n_components,
     epsqrt,
 )
+from ._diagnostics import (
+    selectivity_ratio as _selectivity_ratio,
+)
+from ._diagnostics import (
+    target_projection as _target_projection,
+)
 from ._nipals import quick_regress, ssq, terminate_check
 from ._preprocessing import MCUVScaler
 from .plots import (
@@ -285,6 +291,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     # supplies its own rename map.
     predictions_vs_observed_plot = _model_method(_predictions_vs_observed_plot)
     coefficient_plot = _model_method(_coefficient_plot)
+    # PLS-specific predictive-importance diagnostics (need beta_coefficients_).
+    target_projection = _model_method(_target_projection)
+    selectivity_ratio = _model_method(_selectivity_ratio)
 
     _ATTRIBUTE_RENAMES: typing.ClassVar[dict[str, str]] = {
         "x_scores": "scores_",
