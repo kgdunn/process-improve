@@ -11,6 +11,21 @@ those changes.
 
 ## [Unreleased]
 
+## [1.51.0] - 2026-06-30
+
+### Added
+
+- A reusable analysis-recipe framework (`process_improve.recipes`): frozen
+  `RecipeStep` / `AnalysisRecipe` dataclasses, a `register_recipe` registry with
+  lazy `discover_recipes`, a substring matcher `select_recipe`, and a general
+  `select_analysis_recipe` agent tool that maps a free-text request to a guided,
+  step-by-step workflow chaining existing tools. Any subpackage can register its
+  own recipes.
+- Sensory analysis recipes (`process_improve.sensory.recipes`): guided workflows
+  for data intake, panel consistency / scale-use correction, and relating
+  attributes to product covariates (with the genuine / proxy / coincidence
+  separation), plus a parked placeholder for a future visualisation workflow.
+
 ## [1.50.0] - 2026-06-30
 
 ### Added
@@ -2282,7 +2297,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.50.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.51.0...HEAD
+[1.51.0]: https://github.com/kgdunn/process-improve/compare/v1.50.0...v1.51.0
 [1.50.0]: https://github.com/kgdunn/process-improve/compare/v1.49.1...v1.50.0
 [1.49.1]: https://github.com/kgdunn/process-improve/compare/v1.49.0...v1.49.1
 [1.49.0]: https://github.com/kgdunn/process-improve/compare/v1.48.0...v1.49.0
