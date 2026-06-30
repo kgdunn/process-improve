@@ -18,7 +18,7 @@ from process_improve.sensory import (
     panel_scorecard,
     validate_descriptive,
 )
-from process_improve.sensory.analysis import relate_designed
+from process_improve.sensory.analysis import _collinear_clusters, discriminate_observational, relate_designed
 from process_improve.sensory.ingest import reshape_to_long
 from process_improve.univariate.metrics import benjamini_hochberg
 
@@ -222,6 +222,44 @@ def test_relate_observational_q_values_monotone():
     result = analyze_descriptive(validated, discriminator=False)
     assoc = pd.DataFrame(result.relate["associations"]).sort_values("p_value")
     assert np.all(np.diff(assoc["q_value"].to_numpy()) >= -1e-12)
+
+
+def test_collinear_clusters_groups_correlated_descriptors():
+    rng = np.random.default_rng(0)
+    base = rng.standard_normal(20)
+    block = pd.DataFrame(
+        {"a": base, "b": base + 0.001 * rng.standard_normal(20), "c": rng.standard_normal(20)}
+    )
+    clusters = _collinear_clusters(block, threshold=0.95)
+    assert clusters["a"] == clusters["b"]  # near-identical columns group together
+    assert clusters["c"] != clusters["a"]  # an independent column is its own cluster
+
+
+def test_discriminator_gate_and_clusters():
+    products = [f"P{i}" for i in range(9)]
+    rng = np.random.default_rng(3)
+    u = np.linspace(0.0, 1.0, 9) + rng.normal(0, 0.02, 9)
+    agg = pd.DataFrame(
+        {"A": 2.0 * u + rng.normal(0, 0.05, 9), "B": rng.normal(0, 1, 9)}, index=products
+    )
+    cov = pd.DataFrame(
+        {"d1": u, "d2": u + 0.005 * rng.normal(0, 1, 9), "d3": rng.normal(0, 1, 9)}, index=products
+    )
+    disc = discriminate_observational(agg, cov, n_components=1, n_permutations=49, random_state=0)
+
+    # The collinear pair shares a cluster; the noise descriptor does not.
+    assert disc["clusters"]["d1"] == disc["clusters"]["d2"] != disc["clusters"]["d3"]
+
+    gate = pd.DataFrame(disc["per_attribute"]).set_index("attribute")
+    assert bool(gate.loc["A", "predictable"])  # A is driven by d1/d2
+    assert not bool(gate.loc["B", "predictable"])  # B is noise, not predictable
+
+    desc = pd.DataFrame(disc["descriptors"])
+    assert set(desc.columns) >= {"selectivity_ratio", "p_value", "q_value", "discriminator_significant"}
+    # Nothing is flagged for the unpredictable attribute, and the noise
+    # descriptor is never flagged.
+    assert not desc[desc["attribute"] == "B"]["discriminator_significant"].any()
+    assert not desc[desc["descriptor"] == "d3"]["discriminator_significant"].any()
 
 
 def test_relate_observational_requires_numeric_descriptors():

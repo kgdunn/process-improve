@@ -11,6 +11,25 @@ those changes.
 
 ## [Unreleased]
 
+## [1.50.0] - 2026-06-30
+
+### Added
+
+- `target_projection` and `selectivity_ratio` PLS diagnostics (in
+  `process_improve.multivariate`, bound as PLS convenience methods): the
+  target-projected predictive component (Kvalheim and Karstang, 1989) and each
+  feature's explained-to-residual variance ratio on it (Rajalahti et al., 2009),
+  a better-behaved alternative to VIP for ranking predictive relevance.
+- A cross-validated discriminator for the observational relate step
+  (`discriminate_observational`, surfaced as `result.relate["discriminator"]`
+  and through the `sensory_analyze_descriptive` tool): a per-attribute
+  leave-one-out Q-squared gate, a selectivity ratio per descriptor with a
+  max-statistic permutation test, and collinear-cluster grouping. It demotes
+  descriptors that only correlate in-sample and reports proxies that ride on a
+  driver as one inseparable cluster, while stating that ranking within a
+  collinear cluster needs an external dataset or a designed experiment. The
+  user-guide tutorial is reframed around this.
+
 ## [1.49.1] - 2026-06-29
 
 ### Added
@@ -2263,7 +2282,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.49.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.50.0...HEAD
+[1.50.0]: https://github.com/kgdunn/process-improve/compare/v1.49.1...v1.50.0
 [1.49.1]: https://github.com/kgdunn/process-improve/compare/v1.49.0...v1.49.1
 [1.49.0]: https://github.com/kgdunn/process-improve/compare/v1.48.0...v1.49.0
 [1.48.0]: https://github.com/kgdunn/process-improve/compare/v1.47.0...v1.48.0

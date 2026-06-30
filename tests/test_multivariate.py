@@ -2313,12 +2313,28 @@ def test_selectivity_ratio_multi_response_and_errors(
     assert list(sr_frame.index) == list(X.columns)
     assert np.isfinite(sr_frame.to_numpy()).all()
 
-    # Selecting one response gives a Series; an unknown response raises.
+    # Selecting one response by name or integer position gives a Series.
     assert isinstance(pls.selectivity_ratio(Xs, response="y0"), pd.Series)
+    assert isinstance(pls.selectivity_ratio(Xs, response=1), pd.Series)
     with pytest.raises(ValueError, match="response"):
         pls.selectivity_ratio(Xs, response="not_a_response")
+    with pytest.raises(ValueError, match="out of range"):
+        pls.selectivity_ratio(Xs, response=9)
     with pytest.raises(ValueError, match=r"not fitted|beta_coefficients_"):
         selectivity_ratio(PLS(n_components=2), Xs)
+
+    # target_projection on a multi-response model needs an explicit response,
+    # and refuses an unfitted model.
+    with pytest.raises(ValueError, match="several responses"):
+        target_projection(pls, Xs)
+    with pytest.raises(ValueError, match=r"not fitted|beta_coefficients_"):
+        target_projection(PLS(n_components=2), Xs)
+
+    # With only three samples the F-based critical value is undefined (NaN).
+    tiny = MCUVScaler().fit_transform(X.iloc[:3])
+    tiny_y = MCUVScaler().fit_transform(Y.iloc[:3, [0]])
+    sr_tiny = PLS(n_components=1).fit(tiny, tiny_y).selectivity_ratio(tiny)
+    assert np.isnan(sr_tiny.attrs["f_critical"])
 
     # Real LDPE dataset (SIMCA reference data): SR is finite and non-negative.
     data = fixture_pls_ldpe_example
