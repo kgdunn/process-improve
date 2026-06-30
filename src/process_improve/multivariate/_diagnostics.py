@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from scipy.stats import f as f_dist
 from sklearn.base import BaseEstimator
+from sklearn.utils import Bunch
 
 from ._common import DataMatrix, _align_to_fit_features, epsqrt
 from ._preprocessing import center
@@ -102,6 +104,239 @@ def vip(model: BaseEstimator, n_components: int | None = None) -> pd.Series:
     vip_values = np.sqrt(n_features * np.sum(r2_row * w**2, axis=1) / np.sum(r2))
 
     return pd.Series(vip_values, index=weights.index, name="VIP")
+
+
+def _select_response(beta: pd.DataFrame, response: str | int | None) -> str:
+    """Resolve a response selector to a single column label of ``beta``."""
+    columns = list(beta.columns)
+    if response is None:
+        if len(columns) != 1:
+            msg = (
+                "This model has several responses "
+                f"({columns}); pass response=<name> to pick one."
+            )
+            raise ValueError(msg)
+        return columns[0]
+    if isinstance(response, (int, np.integer)) and response not in columns:
+        if not (0 <= int(response) < len(columns)):
+            msg = f"response index {response} is out of range for {len(columns)} responses."
+            raise ValueError(msg)
+        return columns[int(response)]
+    if response not in columns:
+        msg = f"response {response!r} is not one of the model responses {columns}."
+        raise ValueError(msg)
+    return response  # type: ignore[return-value]
+
+
+def _target_projection_arrays(
+    model: BaseEstimator, X: DataMatrix, response: str | int | None
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, np.ndarray, str]:
+    """Return ``(X_aligned, t_tp, p_tp, w_tp, response_label)`` for the TP component.
+
+    The target-projection direction is the (unit-normalised) regression vector
+    ``b`` for the chosen response, read from ``model.beta_coefficients_``; the
+    scores are ``t = X w_tp`` and the loadings ``p = X^T t / (t^T t)``. ``X``
+    must be preprocessed the same way as the training data (the same convention
+    as :func:`t2_contributions` / :func:`spe_contributions`).
+    """
+    if not hasattr(model, "beta_coefficients_"):
+        msg = "Model is not fitted, or is not a PLS model with 'beta_coefficients_'."
+        raise ValueError(msg)
+    beta = model.beta_coefficients_
+    label = _select_response(beta, response)
+    b = beta[label].to_numpy(dtype=float)
+    norm_b = float(np.sqrt(b @ b))
+    if norm_b <= epsqrt:
+        msg = f"The regression vector for response {label!r} is ~0; it is not predicted by X."
+        raise ValueError(msg)
+    w_tp = b / norm_b
+
+    if not isinstance(X, pd.DataFrame):
+        X = pd.DataFrame(X)
+    X = _align_to_fit_features(X, beta.index)
+    X_values = X.to_numpy(dtype=float)
+    t_tp = X_values @ w_tp
+    ttt = float(t_tp @ t_tp)
+    if ttt <= epsqrt:
+        msg = "The target-projected scores have ~0 variance; cannot form the TP loading."
+        raise ValueError(msg)
+    p_tp = (X_values.T @ t_tp) / ttt
+    return X, t_tp, p_tp, w_tp, label
+
+
+def target_projection(model: BaseEstimator, X: DataMatrix, response: str | int | None = None) -> Bunch:
+    r"""Target-projected (TP) component of a fitted PLS model for one response.
+
+    Target projection (Kvalheim and Karstang, 1989) rotates the PLS solution so
+    that a *single* latent component carries all of the predictive information
+    for one response. The component points along the regression vector
+    :math:`b` (the column of ``beta_coefficients_`` for that response):
+
+    .. math::
+
+        w_{\text{TP}} = \frac{b}{\lVert b \rVert}, \qquad
+        t_{\text{TP}} = X\, w_{\text{TP}}, \qquad
+        p_{\text{TP}} = \frac{X^\top t_{\text{TP}}}{t_{\text{TP}}^\top t_{\text{TP}}}.
+
+    The TP component is the basis for the selectivity ratio
+    (:func:`selectivity_ratio`).
+
+    Parameters
+    ----------
+    model : PLS
+        A fitted PLS model (must expose ``beta_coefficients_``).
+    X : array-like of shape (n_samples, n_features)
+        Preprocessed data, scaled the same way as the training data (for
+        example with :class:`MCUVScaler`).
+    response : str or int or None, default=None
+        Which response (Y column) to project onto. ``None`` is allowed only for
+        a single-response model; otherwise pass the response label (or its
+        integer position).
+
+    Returns
+    -------
+    sklearn.utils.Bunch
+        With fields ``scores`` (pd.Series, the TP scores per sample),
+        ``loadings`` (pd.Series, the TP loading per feature), ``weights``
+        (pd.Series, the unit TP weight per feature) and ``response`` (the
+        resolved response label).
+
+    Raises
+    ------
+    ValueError
+        If the model is not a fitted PLS, the response selector is invalid, or
+        the regression vector / TP scores are degenerate (~0).
+
+    References
+    ----------
+    Kvalheim, O. M. and Karstang, T. V. (1989). Interpretation of latent-variable
+    regression models. *Chemometrics and Intelligent Laboratory Systems*, 7(1-2),
+    39-51.
+
+    Examples
+    --------
+    >>> pls = PLS(n_components=3).fit(X_scaled, y_scaled)
+    >>> tp = pls.target_projection(X_scaled)        # bound convenience method
+    >>> tp.scores.head()
+
+    See Also
+    --------
+    selectivity_ratio : Per-variable explained/residual ratio on the TP component.
+    """
+    X_df, t_tp, p_tp, w_tp, label = _target_projection_arrays(model, X, response)
+    return Bunch(
+        scores=pd.Series(t_tp, index=X_df.index, name="TP score"),
+        loadings=pd.Series(p_tp, index=X_df.columns, name="TP loading"),
+        weights=pd.Series(w_tp, index=X_df.columns, name="TP weight"),
+        response=label,
+    )
+
+
+def _selectivity_ratio_one(
+    model: BaseEstimator, X: DataMatrix, response: str | int | None, conf_level: float
+) -> pd.Series:
+    """Compute the selectivity ratio per feature for a single response (public-API helper)."""
+    X_df, t_tp, p_tp, _w_tp, label = _target_projection_arrays(model, X, response)
+    X_values = X_df.to_numpy(dtype=float)
+    ttt = float(t_tp @ t_tp)
+    ss_explained = (p_tp**2) * ttt  # per-feature explained sum of squares on the TP component
+    residuals = X_values - np.outer(t_tp, p_tp)
+    ss_residual = (residuals**2).sum(axis=0)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        sr = ss_explained / ss_residual
+    sr[~np.isfinite(sr)] = 0.0  # a feature with no residual (or no signal) gets 0 here
+
+    series = pd.Series(sr, index=X_df.columns, name="selectivity_ratio")
+    # F-based critical value (Rajalahti et al., 2009): SR_j above this is
+    # "significant" at conf_level, with N-2 and N-3 degrees of freedom. The
+    # sensory layer prefers a permutation test, so this is advisory metadata.
+    n_samples = X_values.shape[0]
+    if n_samples > 3:
+        series.attrs["f_critical"] = float(f_dist.ppf(conf_level, dfn=n_samples - 2, dfd=n_samples - 3))
+    else:
+        series.attrs["f_critical"] = float("nan")
+    series.attrs["conf_level"] = float(conf_level)
+    series.attrs["response"] = label
+    return series
+
+
+def selectivity_ratio(
+    model: BaseEstimator,
+    X: DataMatrix,
+    response: str | int | None = None,
+    *,
+    conf_level: float = 0.95,
+) -> pd.Series | pd.DataFrame:
+    r"""Compute the selectivity ratio of each feature on the target-projected component.
+
+    The selectivity ratio (Rajalahti et al., 2009) ranks each feature by how
+    much of its variance the *predictive* (target-projected) direction explains.
+    On the TP component (:func:`target_projection`), for feature :math:`j`:
+
+    .. math::
+
+        \text{SR}_j = \frac{\text{SS}_{\text{explained},j}}
+                           {\text{SS}_{\text{residual},j}}
+                    = \frac{p_{\text{TP},j}^2\, (t_{\text{TP}}^\top t_{\text{TP}})}
+                           {\sum_i (x_{ij} - t_{\text{TP},i}\, p_{\text{TP},j})^2}.
+
+    A large SR means the feature is well aligned with the predictive direction.
+    Unlike VIP, it is a true explained/residual variance ratio and can be
+    compared against an F distribution. Note that two collinear features carry
+    near-identical SR: the selectivity ratio ranks predictive relevance, it does
+    not break ties between mutually collinear features.
+
+    Parameters
+    ----------
+    model : PLS
+        A fitted PLS model (must expose ``beta_coefficients_``).
+    X : array-like of shape (n_samples, n_features)
+        Preprocessed data, scaled the same way as the training data (for
+        example with :class:`MCUVScaler`).
+    response : str or int or None, default=None
+        Which response to compute SR for. ``None`` returns a feature-by-response
+        DataFrame when the model has several responses, or a Series for a
+        single-response model.
+    conf_level : float, default=0.95
+        Confidence level for the advisory F-based critical value, attached to
+        the result's ``.attrs["f_critical"]``.
+
+    Returns
+    -------
+    pd.Series or pd.DataFrame
+        Selectivity ratios indexed by feature. A Series for one response (with
+        ``f_critical`` / ``conf_level`` / ``response`` in ``.attrs``), or a
+        feature-by-response DataFrame when ``response`` is ``None`` and the
+        model has several responses.
+
+    Raises
+    ------
+    ValueError
+        If the model is not a fitted PLS or the response selector is invalid.
+
+    References
+    ----------
+    Rajalahti, T., Arneberg, R., Berven, F. S., Myhr, K.-M., Ulvik, R. J. and
+    Kvalheim, O. M. (2009). Biomarker discovery in mass spectral profiles by
+    means of selectivity ratio plot. *Chemometrics and Intelligent Laboratory
+    Systems*, 95(1), 35-48.
+
+    Examples
+    --------
+    >>> pls = PLS(n_components=3).fit(X_scaled, y_scaled)
+    >>> pls.selectivity_ratio(X_scaled).sort_values(ascending=False).head()
+
+    See Also
+    --------
+    target_projection : The target-projected component the ratio is built on.
+    vip : Variable Importance in Projection, an alternative importance measure.
+    """
+    beta = getattr(model, "beta_coefficients_", None)
+    if response is None and beta is not None and beta.shape[1] > 1:
+        return pd.DataFrame(
+            {col: _selectivity_ratio_one(model, X, col, conf_level) for col in beta.columns}
+        )
+    return _selectivity_ratio_one(model, X, response, conf_level)
 
 
 def squared_cosine(model: BaseEstimator, n_components: int | None = None) -> pd.DataFrame:
