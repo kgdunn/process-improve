@@ -80,6 +80,9 @@ def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
           column) and ``products`` (the list of product columns; if omitted,
           all non-id columns).
         * For ``long``: ``product``, ``attribute`` and ``score`` column names.
+        * ``ignore`` (optional): columns to drop before reshaping (nuisance
+          columns such as a site or batch code). When the attribute/product
+          list is omitted, "all remaining columns" excludes these.
 
     Returns
     -------
@@ -100,6 +103,12 @@ def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
         raise ValueError(
             f"layout must be 'long', 'wide_by_attribute', or 'wide_by_product', got {layout!r}."
         )
+
+    # Drop any nuisance columns up front, so "all remaining columns" (when the
+    # attribute/product list is omitted) automatically excludes them.
+    ignore = mapping.get("ignore") or []
+    if ignore:
+        data = data.drop(columns=[c for c in ignore if c in data.columns])
 
     panelist_col = mapping.get("panelist_id")
     if not panelist_col:
@@ -130,7 +139,7 @@ def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
                 **({replicate_col: "replicate"} if replicate_col else {}),
             }
         ).copy()
-        long_df["score"] = pd.to_numeric(long_df["score"], errors="coerce")
+        long_df["score"] = pd.to_numeric(long_df["score"], errors="coerce").astype("float64")
         grand_before = float(np.nanmean(long_df["score"].to_numpy()))
         n_cells_before = int(long_df["score"].notna().sum())
         attr_mean_before = _series_mean_map(long_df, "attribute", "score")
@@ -162,7 +171,7 @@ def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
 
         wide = data.copy()
         for col in value_cols:
-            wide[col] = pd.to_numeric(wide[col], errors="coerce")
+            wide[col] = pd.to_numeric(wide[col], errors="coerce").astype("float64")
         cell_block = wide[value_cols]
         grand_before = float(np.nanmean(cell_block.to_numpy()))
         n_cells_before = int(cell_block.notna().to_numpy().sum())
@@ -194,7 +203,7 @@ def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
         long_df["replicate"] = 1
     for col in ("panelist_id", "product", "attribute"):
         long_df[col] = long_df[col].astype(str).str.strip()
-    long_df["score"] = pd.to_numeric(long_df["score"], errors="coerce")
+    long_df["score"] = pd.to_numeric(long_df["score"], errors="coerce").astype("float64")
 
     # --- Post-reshape marginal aggregates ------------------------------
     grand_after = float(np.nanmean(long_df["score"].to_numpy()))
