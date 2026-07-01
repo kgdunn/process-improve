@@ -208,6 +208,18 @@ def _band_panel():
     return pd.DataFrame(rows)
 
 
+def test_tail_bands_guards_and_outliers():
+    from process_improve.sensory.panel import _tail_bands
+
+    # Fewer panelists than the outlier-test minimum -> everyone normal.
+    assert set(_tail_bands(pd.Series([1.0, 5.0, 9.0], index=list("abc")))) == {"normal"}
+    # No spread (IQR == 0) -> everyone normal, no divide-by-zero.
+    assert set(_tail_bands(pd.Series([2.0] * 8, index=list("abcdefgh")))) == {"normal"}
+    # A clear high-side outlier is banded 'high'.
+    vals = pd.Series([1.0, 1.1, 0.9, 1.05, 0.95, 1.02, 0.98, 5.0], index=list("abcdefgh"))
+    assert _tail_bands(vals)["h"] == "high"
+
+
 def test_scorecard_reports_two_sided_scale_bands():
     card = panel_scorecard(_band_panel())
     t = card.table
