@@ -257,8 +257,10 @@ class _AnalyzeInput(BaseModel):
         "with CIs and a PCA map. Refuses to run if validation fails. "
         "(Designed/DoE mode is planned for a later release.) "
         "Returns: on validation failure {ok: false, errors: [str], warnings: [str]}. On success "
-        "{ok: true, mode, warnings, flagged, flag_reasons, dropped, correction, mam, relate, "
-        "product_means, pca}. 'flagged'/'dropped' are panelist-id lists; 'mam' has 'scaling' and "
+        "{ok: true, mode, warnings, flagged, flag_reasons, scale_bands, dropped, correction, mam, relate, "
+        "product_means, pca}. 'flagged'/'dropped' are panelist-id lists; 'scale_bands' is rows of "
+        "panelist_id, scale_use_band, offset_band (each 'low'/'normal'/'high') for colouring a panel map; "
+        "'mam' has 'scaling' and "
         "'ftests' (as in sensory_panel_check); 'product_means' is rows of product, attribute, mean, "
         "ci_low, ci_high; 'pca' has 'explained_variance' and 'scores'. 'relate' (observational) holds "
         "{mode, n_components, alpha, vip, associations, discriminator}: 'vip' is rows of descriptor, vip; "
@@ -307,6 +309,9 @@ def sensory_analyze_descriptive(spec: _AnalyzeInput) -> dict:
             "warnings": validated.warnings,
             "flagged": result.panel.flagged,
             "flag_reasons": result.panel.reasons,
+            "scale_bands": result.panel.table[["scale_use_band", "offset_band"]]
+            .reset_index()
+            .to_dict(orient="records"),
             "dropped": result.dropped,
             "correction": result.correction,
             "mam": {
@@ -356,7 +361,11 @@ class _PanelCheckInput(BaseModel):
         "classical product-effect F-tests. With align=true, also returns the panel rescaled onto a "
         "common scale so scale-usage differences are removed while genuine disagreement is preserved. "
         "Returns: {ok: true, scorecard, flagged, flag_reasons, mam}. 'scorecard' is one row per "
-        "panelist (panelist_id, discrimination, agreement, scale_shift, scale_spread, drift); 'flagged' "
+        "panelist (panelist_id, discrimination, agreement, scale_shift, scale_spread, drift, plus the "
+        "two-sided outlier bands scale_use_band and offset_band, each 'low' / 'normal' / 'high'); use the "
+        "bands to colour or label a panel map (low/high scale_use_band = compresses/expands the range; "
+        "low/high offset_band = rates consistently low/high) instead of re-deriving thresholds, and only "
+        "call out the non-normal ones. 'flagged' "
         "is the list of anomalous panelist ids and 'flag_reasons' maps each to its list of reasons; "
         "'mam' has "
         "'scaling' (rows of attribute, panelist_id, beta, offset, mean) and 'ftests' (rows of attribute, "

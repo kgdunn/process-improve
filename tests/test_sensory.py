@@ -179,6 +179,61 @@ def test_scorecard_clean_panel_has_no_flags():
     assert card.flagged == []
 
 
+def _band_panel():
+    """Build a panel of typical panelists plus one clear expander, compressor, and high rater."""
+    rng = np.random.default_rng(0)
+    products = [f"P{i}" for i in range(6)]
+    attrs = [f"A{j}" for j in range(4)]
+    truth = {(p, a): rng.uniform(2, 8) for p in products for a in attrs}
+    gains = {f"N{k}": 1.0 for k in range(8)}
+    gains["STR"] = 3.0  # expander: wide range
+    gains["CMP"] = 0.12  # compressor: narrow range
+    centre = 5.0
+    rows = []
+    for pid, gain in gains.items():
+        offset = 3.0 if pid == "N0" else 0.0  # N0 rates systematically high
+        for p in products:
+            for a in attrs:
+                score = centre + offset + gain * (truth[(p, a)] - centre) + rng.normal(0, 0.2)
+                rows.append(
+                    {
+                        "panelist_id": pid,
+                        "session": 1,
+                        "product": p,
+                        "attribute": a,
+                        "replicate": 1,
+                        "score": float(np.clip(score, 0, 10)),
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
+def test_tail_bands_guards_and_outliers():
+    from process_improve.sensory.panel import _tail_bands
+
+    # Fewer panelists than the outlier-test minimum -> everyone normal.
+    assert set(_tail_bands(pd.Series([1.0, 5.0, 9.0], index=list("abc")))) == {"normal"}
+    # No spread (IQR == 0) -> everyone normal, no divide-by-zero.
+    assert set(_tail_bands(pd.Series([2.0] * 8, index=list("abcdefgh")))) == {"normal"}
+    # A clear high-side outlier is banded 'high'.
+    vals = pd.Series([1.0, 1.1, 0.9, 1.05, 0.95, 1.02, 0.98, 5.0], index=list("abcdefgh"))
+    assert _tail_bands(vals)["h"] == "high"
+
+
+def test_scorecard_reports_two_sided_scale_bands():
+    card = panel_scorecard(_band_panel())
+    t = card.table
+    assert {"scale_use_band", "offset_band"}.issubset(t.columns)
+    assert set(t["scale_use_band"].unique()) <= {"low", "normal", "high"}
+    assert set(t["offset_band"].unique()) <= {"low", "normal", "high"}
+    # The expander / compressor surface on the two sides of scale use; a typical
+    # panelist stays normal; the high rater surfaces on offset.
+    assert t.loc["STR", "scale_use_band"] == "high"
+    assert t.loc["CMP", "scale_use_band"] == "low"
+    assert t.loc["N1", "scale_use_band"] == "normal"
+    assert t.loc["N0", "offset_band"] == "high"
+
+
 def test_dropping_panelist_changes_means():
     validated = validate_descriptive(_panel(), _obs(), mode="observational")
     kept = analyze_descriptive(validated, drop_panelists=None, discriminator=False)
@@ -554,3 +609,8 @@ def test_tool_analyze_exposes_correction_and_mam():
     assert out["correction"] == "align"
     ftest = out["mam"]["ftests"][0]
     assert ftest["f_product_mam"] > ftest["f_product_classical"]
+    # The scale-use / offset bands are exposed for the front-end to colour from.
+    bands = out["scale_bands"]
+    assert bands
+    assert {"panelist_id", "scale_use_band", "offset_band"} <= set(bands[0])
+    assert all(b["scale_use_band"] in {"low", "normal", "high"} for b in bands)
