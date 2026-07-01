@@ -11,6 +11,18 @@ those changes.
 
 ## [Unreleased]
 
+## [1.52.0] - 2026-07-01
+
+### Added
+
+- The panel scorecard now reports two-sided outlier bands per panelist:
+  `scale_use_band` and `offset_band`, each `low` / `normal` / `high` (Tukey
+  1.5*IQR fences). They surface both tails symmetrically (a compressor is
+  reported like an expander) and are exposed through `sensory_panel_check`
+  (scorecard rows) and `sensory_analyze_descriptive` (a `scale_bands` block), so
+  a front-end can colour or label a panel map from a stable classification
+  instead of re-deriving thresholds from the raw numbers.
+
 ## [1.51.0] - 2026-06-30
 
 ### Added
@@ -2297,7 +2309,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.51.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.52.0...HEAD
+[1.52.0]: https://github.com/kgdunn/process-improve/compare/v1.51.0...v1.52.0
 [1.51.0]: https://github.com/kgdunn/process-improve/compare/v1.50.0...v1.51.0
 [1.50.0]: https://github.com/kgdunn/process-improve/compare/v1.49.1...v1.50.0
 [1.49.1]: https://github.com/kgdunn/process-improve/compare/v1.49.0...v1.49.1

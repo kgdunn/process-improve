@@ -51,7 +51,8 @@ class PanelScorecard:
     table : pandas.DataFrame
         One row per panelist, indexed by ``panelist_id``, with the columns
         ``discrimination``, ``agreement``, ``scale_shift``, ``scale_spread``,
-        and ``drift``.
+        ``drift``, and the two-sided outlier bands ``scale_use_band`` and
+        ``offset_band`` (each ``"low"`` / ``"normal"`` / ``"high"``).
     flagged : list of str
         Panelist ids flagged as anomalous.
     reasons : dict
@@ -95,6 +96,33 @@ def _low_tail_outliers(values: pd.Series) -> set[str]:
     )
     median = float(np.median(arr))
     return {str(clean.index[i]) for i in indices if arr[i] < median}
+
+
+def _tail_bands(values: pd.Series) -> pd.Series:
+    """Classify each panelist as ``"low"`` / ``"normal"`` / ``"high"`` on ``values``.
+
+    Uses two-sided Tukey fences: below ``Q1 - 1.5 * IQR`` is ``"low"``, above
+    ``Q3 + 1.5 * IQR`` is ``"high"``, everything between is ``"normal"``. A
+    caller (for example a front-end colouring a panel map) can act on this stable
+    label instead of re-deriving thresholds from the raw numbers, and both tails
+    are surfaced symmetrically so a compressor is reported just like an expander.
+    The IQR fence is deliberately looser than the ESD test used for dropping,
+    because scale use and offset are corrected by alignment rather than dropped,
+    so the aim is to surface the genuine tails, not to withhold all but the most
+    extreme.
+    """
+    bands = pd.Series("normal", index=values.index, dtype=object)
+    clean = values.dropna()
+    if clean.size < _MIN_PANELISTS_FOR_ESD:
+        return bands
+    q1, q3 = (float(clean.quantile(q)) for q in (0.25, 0.75))
+    iqr = q3 - q1
+    if iqr <= 0:
+        return bands
+    low_fence, high_fence = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+    bands.loc[clean.index[clean < low_fence]] = "low"
+    bands.loc[clean.index[clean > high_fence]] = "high"
+    return bands
 
 
 def panel_scorecard(panel: pd.DataFrame) -> PanelScorecard:
@@ -173,6 +201,12 @@ def panel_scorecard(panel: pd.DataFrame) -> PanelScorecard:
 
     table = pd.DataFrame.from_dict(records, orient="index")
     table.index.name = "panelist_id"
+
+    # Two-sided outlier band per scale metric, so a caller can colour / label
+    # a panelist without re-deriving thresholds. Scale use and offset are
+    # correctable by alignment, so they are reported as bands here, not flagged.
+    table["scale_use_band"] = _tail_bands(table["scale_spread"])
+    table["offset_band"] = _tail_bands(table["scale_shift"])
 
     # --- Flagging ------------------------------------------------------
     # Flag only the two axes that threaten product validity: a panelist who
