@@ -49,7 +49,7 @@ try:
     from pyoptex.utils.model import model2Y2X, partial_rsm_names
 
     _PYOPTEX_AVAILABLE = True
-except ImportError:
+except ImportError:  # pragma: no cover - exercised via env-without-pyoptex
     pass
 
 # ---------------------------------------------------------------------------
@@ -65,7 +65,7 @@ _PYOPTEX_MODEL_MAP = {
 
 #: Map our optimality-criterion strings to pyoptex metric constructors.
 _PYOPTEX_METRIC_MAP: dict = {}
-if _PYOPTEX_AVAILABLE:
+if _PYOPTEX_AVAILABLE:  # pragma: no branch - false only in env-without-pyoptex
     _PYOPTEX_METRIC_MAP = {
         "d_optimal": Dopt,
         "i_optimal": Iopt,
