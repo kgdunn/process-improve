@@ -193,6 +193,74 @@ def test_calculate_limits_rejects_unknown_kwargs() -> None:
     assert cc3.ld_2 == pytest.approx(0.7)
 
 
+def test_calculate_limits_rejects_non_positive_s() -> None:
+    """A zero or negative standard deviation is rejected up front."""
+    rng = np.random.default_rng(1)
+    y = 50.0 + rng.standard_normal(40)
+    cc = ControlChart()
+    with pytest.raises(ValueError, match="must be positive"):
+        cc.calculate_limits(y, s=-1.0)
+
+
+def test_unsupported_variant_cannot_estimate_limits() -> None:
+    """A variant with no fitting routine (e.g. cusum) leaves target/s unset and raises."""
+    rng = np.random.default_rng(2)
+    y = 50.0 + rng.standard_normal(100)
+    cc = ControlChart(variant="cusum")
+    with pytest.raises(ValueError, match="could not be estimated"):
+        cc.calculate_limits(y)
+
+
+def test_unknown_style_for_xbar_no_subgroup_raises() -> None:
+    """An unrecognized style leaves the xbar fit incomplete, which raises."""
+    rng = np.random.default_rng(3)
+    y = 50.0 + rng.standard_normal(40)
+    cc = ControlChart(style="banana", variant="xbar.no.subgroup")
+    with pytest.raises(ValueError, match="could not be estimated"):
+        cc.calculate_limits(y)
+
+
+def test_hw_zero_mad_but_nonconstant_warmup_falls_back_to_std() -> None:
+    """Symmetric warm-up residuals give MAD = 0 without being constant.
+
+    sigma_0 must then fall back to the regular standard deviation instead of
+    raising the constant-warm-up ValueError or poisoning the limits with 0.
+    """
+    rng = np.random.default_rng(4)
+    warm_up = [5.0] * 8 + [1.0, 9.0]  # median 5, residuals symmetric: MAD = 0
+    tail = (5.0 + rng.standard_normal(20)).tolist()
+    y = np.array(warm_up + tail)
+
+    cc = ControlChart()
+    cc.calculate_limits(y, target=5.0, ld_1=0.5, ld_2=0.8)
+
+    residuals = np.array(warm_up) - 5.0
+    expected_std = float(pd.Series(residuals).std())
+    assert cc.warm_up["sigma_0"] == pytest.approx(expected_std)
+    assert cc.s is not None
+    assert np.isfinite(cc.s)
+
+
+def test_rho_boundary_values() -> None:
+    """Bi-weight rho: zero at 0, capped at k beyond |x| > k, continuous at k."""
+    from process_improve.monitoring.control_charts import rho
+
+    assert rho(0.0) == pytest.approx(0.0)
+    assert rho(5.0) == pytest.approx(2.52)
+    assert rho(-5.0) == pytest.approx(2.52)
+    assert rho(2.52) == pytest.approx(2.52)
+
+
+def test_psi_boundary_values() -> None:
+    """Huber psi: identity inside |x| < k, clipped to k * sign(x) outside."""
+    from process_improve.monitoring.control_charts import psi
+
+    assert psi(1.5) == pytest.approx(1.5)
+    assert psi(3.0) == pytest.approx(2.0)
+    assert psi(-3.0) == pytest.approx(-2.0)
+    assert psi(2.0) == pytest.approx(2.0)
+
+
 def test_cpk_well_centered_process() -> None:
     """Cpk for a well-centered process with wide specs should be high."""
     rng = np.random.default_rng(42)
