@@ -107,7 +107,8 @@ class TestDOptimalDispatch:
 
     def test_sec19_cap_rejects_large_candidate_set(self) -> None:
         """More factors than settings.max_factors_combinatorial is rejected
-        before the 3**k candidate set is allocated (SEC-19 / #268)."""
+        before the 3**k candidate set is allocated (SEC-19 / #268).
+        """
         with pytest.raises(ValueError, match="SEC-19 cap"):
             dispatch_d_optimal(_continuous(16), budget=40)
 
