@@ -6,10 +6,9 @@ paths that the high-level ``generate_design`` API does not reach.
 
 from __future__ import annotations
 
-import importlib.util
-
 import pytest
 
+from process_improve.experiments import designs_optimal
 from process_improve.experiments.designs_optimal import (
     dispatch_a_optimal,
     dispatch_d_optimal,
@@ -21,9 +20,16 @@ from process_improve.experiments.designs_screening import (
 )
 from process_improve.experiments.factor import Factor
 
-_HAS_PYOPTEX = importlib.util.find_spec("pyoptex") is not None
 
-_skip_with_pyoptex = pytest.mark.skipif(_HAS_PYOPTEX, reason="behaviour differs when pyoptex installed")
+@pytest.fixture
+def no_pyoptex(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force the no-pyoptex code paths regardless of installation.
+
+    The dispatch functions read the module-level ``_PYOPTEX_AVAILABLE`` flag
+    at call time, so patching the attribute is sufficient to exercise the
+    point-exchange fallback and the ImportError branches in any environment.
+    """
+    monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
 
 
 def _continuous(n: int) -> list[Factor]:
@@ -71,16 +77,16 @@ class TestTaguchiDispatch:
             dispatch_taguchi(factors)
 
 
+@pytest.mark.usefixtures("no_pyoptex")
 class TestDOptimalDispatch:
-    """D-optimal dispatch fallback paths (no pyoptex required)."""
+    """D-optimal dispatch fallback paths (pyoptex forced off)."""
 
-    @_skip_with_pyoptex
     def test_fallback_returns_design_and_metadata(self) -> None:
         design, meta = dispatch_d_optimal(_continuous(3), budget=8)
         assert design.shape[1] == 3
         assert meta["backend"] == "point_exchange_fallback"
+        assert isinstance(meta["d_optimality"], float)
 
-    @_skip_with_pyoptex
     def test_default_budget(self) -> None:
         design, _meta = dispatch_d_optimal(_continuous(2))
         assert design.shape[0] > 0
@@ -94,14 +100,24 @@ class TestDOptimalDispatch:
             dispatch_d_optimal(_continuous(2), budget=6, constraints=constraints)
         assert any("Constraint enforcement" in rec.message for rec in caplog.records)
 
-    @_skip_with_pyoptex
     def test_hard_to_change_without_pyoptex_warns(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level("WARNING"):
             dispatch_d_optimal(_continuous(2), budget=6, hard_to_change=["X1"])
         assert any("pyoptex is not installed" in rec.message for rec in caplog.records)
 
+    def test_sec19_cap_rejects_large_candidate_set(self) -> None:
+        """More factors than settings.max_factors_combinatorial is rejected
+        before the 3**k candidate set is allocated (SEC-19 / #268)."""
+        with pytest.raises(ValueError, match="SEC-19 cap"):
+            dispatch_d_optimal(_continuous(16), budget=40)
 
-@_skip_with_pyoptex
+    def test_budget_clamped_to_minimum_model_size(self) -> None:
+        """A budget below k + 1 is raised to k + 1 so the model is estimable."""
+        design, _meta = dispatch_d_optimal(_continuous(3), budget=2)
+        assert design.shape[0] >= 4
+
+
+@pytest.mark.usefixtures("no_pyoptex")
 class TestOptimalRequiresPyoptex:
     """I-optimal and A-optimal raise a clear error without pyoptex."""
 
