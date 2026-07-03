@@ -11,6 +11,40 @@ those changes.
 
 ## [Unreleased]
 
+## [1.51.1] - 2026-07-03
+
+### Fixed
+
+- Docstring drift surfaced by an audit pass, across multiple modules
+  (docstring-only changes; no runtime behaviour changes):
+  - `MBPCA` class docstring in `_mbpca.py`: remove the phantom `super_vip_`
+    entry from the fitted-attributes list (only `block_vip_` is set).
+  - `TPLS` class docstring `Example` in `_tpls.py`: wrap the `all_data`
+    dict in `DataFrameDict(all_data)` before calling `estimator.fit(...)`,
+    matching the runtime type check.
+  - `TPLS.diagnose` docstring `Example` in `_tpls.py`: swap the illustrative
+    `estimator.predict(new_data)` call to `estimator.diagnose(new_data)`
+    since `predict` is deprecated.
+  - `TPLS.help()` text in `_tpls.py`: point users at
+    `tpls.diagnose(X_new)` (not the deprecated `predict`) and correct the
+    `spe_limit` call shape to `.spe_limit["Y"][group]()` to match the
+    nested dict-of-dicts populated by `fit()`.
+  - `variance_decomposition` docstring in `univariate/metrics.py`: the
+    example was still calling `within_between_standard_deviation(...)`; update
+    to the current name.
+  - `ttest_paired_from_df` docstring in `univariate/metrics.py`: the
+    Output bullets (6-9) said "B minus A"; the implementation computes
+    `A - B`, so the bullets now say "A minus B" to match.
+  - `robust_regression` returns block in `regression/_robust_regression.py`:
+    drop the `t_value` entry - `out["t_value"]` is only ever initialised
+    to `np.nan`.
+  - `analyze_experiment` Parameters block in `experiments/analysis.py`:
+    remove the `coding` parameter documentation (the parameter is present
+    in the signature but never referenced in the body).
+  - `PLS.cross_validate` docstring in `multivariate/_pls.py`: add the
+    previously-undocumented `sample_weight` parameter (threaded into every
+    sub-fit).
+
 ## [1.51.0] - 2026-06-30
 
 ### Added
@@ -2297,7 +2331,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.51.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.51.1...HEAD
+[1.51.1]: https://github.com/kgdunn/process-improve/compare/v1.51.0...v1.51.1
 [1.51.0]: https://github.com/kgdunn/process-improve/compare/v1.50.0...v1.51.0
 [1.50.0]: https://github.com/kgdunn/process-improve/compare/v1.49.1...v1.50.0
 [1.49.1]: https://github.com/kgdunn/process-improve/compare/v1.49.0...v1.49.1

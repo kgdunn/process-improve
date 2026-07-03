@@ -270,7 +270,7 @@ class TPLS(RegressorMixin, BaseEstimator):
     >>> quality_indicators = {"Quality":    pd.DataFrame(rng.standard_normal((n_formulas, n_outputs)))}
     >>> all_data = {"Z": process_conditions, "F": formulas, "Y": quality_indicators}
     >>> estimator = TPLS(n_components=4, d_matrix=properties)
-    >>> estimator.fit(all_data)
+    >>> estimator.fit(DataFrameDict(all_data))
     """
 
     # This is a dictionary allowing to define the type of parameters.
@@ -555,7 +555,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Testing/inference phase:
         new_data = {"Z": ..., "F": ...}  # you need at least the F block for a new prediction. "Z" is optional.
-        predictions = estimator.predict(new_data)
+        predictions = estimator.diagnose(new_data)
 
         Parameters
         ----------
@@ -834,7 +834,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         ----------
         Build model:                tpls = TPLS(n_components=2, d_matrix=d_matrix).fit(X)
         Get model's predictions:    tpls.hat            <-- the hat-matrix, i.e., the predictions
-        Predict on new data:        tpls.predict(X_new)
+        Predict on new data:        tpls.diagnose(X_new)
         See model summary:          tpls.display_results()
         This help page:             tpls.help()
 
@@ -847,7 +847,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
 
         .hotellings_t2_limit()      Returns the Hotelling's T2 limit for the model              [float]
-        .spe_limit[block]()         Return the SPE limit for the block; e.g. .spe_limit["Y"]() [float]
+        .spe_limit[block][group]()  Return the SPE limit for a group in a block; e.g. .spe_limit["Y"][group]() [float]
 
         .vip()                      Variable importance (VIP) for the D- and F-blocks          [dict]
 
