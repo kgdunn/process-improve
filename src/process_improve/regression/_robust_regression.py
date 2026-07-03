@@ -130,7 +130,6 @@ def robust_regression(  # noqa: PLR0913, PLR0915
         k:                        the number of model parameters (2 if fit_intercept else 1)
         fitted_values:            the N predicted values, one per row in y
         residuals:                the N residuals
-        t_value:                  the t-values for the standard errors
         conf_intervals:           K rows x 2 columns (lower, upper) confidence intervals
         conf_interval_intercept:  (lower, upper) confidence interval for the intercept
         pi_range:                 prediction intervals above and below, over the range of data

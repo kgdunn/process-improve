@@ -173,8 +173,6 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
         Default 0.05.
     transform : str or None
         ``"log"``, ``"sqrt"``, ``"inverse"``, ``"box_cox"``, or ``None``.
-    coding : str
-        ``"coded"`` or ``"actual"``.
     new_points : DataFrame or None
         For prediction or confirmation testing.
     observed_at_new : list[float] or None
