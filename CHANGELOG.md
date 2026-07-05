@@ -11,6 +11,16 @@ those changes.
 
 ## [Unreleased]
 
+## [1.51.1] - 2026-07-03
+
+### Added
+
+- `OLS` and `fit_robust_lm` are now importable from
+  `process_improve.regression` directly (previously only from
+  `process_improve.regression.methods`), matching the package-level
+  exports of the other regression helpers. Used by the least squares
+  chapter of the PID book.
+
 ## [1.51.0] - 2026-06-30
 
 ### Added
@@ -2297,7 +2307,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.51.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.51.1...HEAD
+[1.51.1]: https://github.com/kgdunn/process-improve/compare/v1.51.0...v1.51.1
 [1.51.0]: https://github.com/kgdunn/process-improve/compare/v1.50.0...v1.51.0
 [1.50.0]: https://github.com/kgdunn/process-improve/compare/v1.49.1...v1.50.0
 [1.49.1]: https://github.com/kgdunn/process-improve/compare/v1.49.0...v1.49.1
