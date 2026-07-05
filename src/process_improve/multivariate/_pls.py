@@ -1797,6 +1797,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             Random seed for reproducibility (K-fold shuffle and bootstrap).
         show_progress : bool, default True
             Whether to display a ``tqdm`` progress bar.
+        sample_weight : np.ndarray of shape (n_samples,), optional
+            Per-sample non-negative weights. Threaded into every sub-fit so
+            each resample's PLS uses the same weighting scheme as the parent
+            model. Default ``None`` (all samples weighted equally).
 
         Returns
         -------
