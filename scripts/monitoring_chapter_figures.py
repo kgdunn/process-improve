@@ -48,13 +48,16 @@ SHIFT_AT = 150
 CUSUM_SHIFT_FRACTION = 0.4  # a 1.2 unit shift: almost invisible in raw data
 EWMA_SHIFT_FRACTION = 1.0  # a 3 unit shift: visible to the EWMA chart
 
-# Settings for the introductory demonstration chart.
-SEED_DEMO = 7
-DEMO_N = 40
-DEMO_TARGET = 50.0
-DEMO_SD = 4.0
-DEMO_DRIFT_FROM = 32
-DEMO_DRIFT_STEP = 2.0
+# Settings for the introductory demonstration chart. These keep the
+# character of the original figure: a tank temperature (tag TC241)
+# around 10 degC, in control for 150 samples, then a slow upward
+# drift that ends beyond the upper control limit.
+SEED_DEMO = 0
+DEMO_N = 200
+DEMO_TARGET = 10.0
+DEMO_SD = 1.5
+DEMO_DRIFT_FROM = 150
+DEMO_DRIFT_STEP = 0.09
 
 DPI = 300
 
@@ -248,13 +251,15 @@ def figure_demo(out: pathlib.Path) -> None:
     ucl, lcl = DEMO_TARGET + 3 * DEMO_SD, DEMO_TARGET - 3 * DEMO_SD
 
     fig, ax = plt.subplots(figsize=(12, 4))
-    ax.plot(series, "-o", ms=4, color="black")
-    ax.axhline(DEMO_TARGET, color="grey", ls=":", label="Target")
-    ax.axhline(ucl, color="red", label="UCL")
-    ax.axhline(lcl, color="red", label="LCL")
-    ax.set_xlabel("Sample number")
-    ax.set_ylabel("Monitored value")
-    ax.legend(loc="upper left")
+    ax.plot(series, "-", color="black", lw=1.2)
+    ax.axhline(DEMO_TARGET, color="grey", ls=":")
+    ax.axhline(ucl, color="red")
+    ax.axhline(lcl, color="red")
+    ax.text(2, ucl + 0.25, "UCL", fontsize=12)
+    ax.text(2, lcl + 0.25, "LCL", fontsize=12)
+    ax.set_title("Tank temperature, TC241 [degC]")
+    ax.set_xlabel("Time sequence order")
+    ax.set_ylabel("TC241 [degC]")
     fig.tight_layout()
     fig.savefig(out / "demo-of-monitoring-chart.png", dpi=DPI)
     plt.close(fig)
