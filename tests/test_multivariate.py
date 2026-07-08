@@ -1891,9 +1891,13 @@ def test_pls_scale_true_scales_x_and_y_blocks() -> None:
     assert model.predict(X).values == pytest.approx(ref.predict(X.values), rel=1e-3, abs=1e-3)
 
     # scale=False stays a pass-through: feeding pre-scaled data is not re-scaled.
+    # predict() exercises the diagnose() pass-through; transform() the other one.
     passthrough = PLS(n_components=n_comp, scale=False).fit(x_scaler.transform(X), y_scaler.transform(Y))
     assert passthrough.predict(x_scaler.transform(X)).values == pytest.approx(
         manual.predict(x_scaler.transform(X)).values, abs=1e-12
+    )
+    assert passthrough.transform(x_scaler.transform(X)).values == pytest.approx(
+        manual.transform(x_scaler.transform(X)).values, abs=1e-12
     )
 
 
