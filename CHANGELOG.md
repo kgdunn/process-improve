@@ -11,6 +11,23 @@ those changes.
 
 ## [Unreleased]
 
+## [1.51.3] - 2026-07-08
+
+### Fixed
+
+- `PLS(scale=True)` now actually mean-centers and unit-variance-scales the
+  X **and** Y blocks before fitting, matching its docstring and
+  `sklearn.cross_decomposition.PLSRegression`. The `scale` flag was
+  previously inert (stored but never used), so `fit()` ran NIPALS on the
+  raw data. A caller who relied on `scale=True` and did not pre-scale got a
+  silently degraded fit whenever the Y columns had unequal variances,
+  because the high-variance columns dominated the latent extraction.
+  Predictions, `predictions_` and `beta_coefficients_` are returned on the
+  original data scale. `scale=False` is unchanged and remains the correct
+  setting when scaling externally (e.g. with `MCUVScaler`); a weighted fit
+  scales on the positive-weight rows only, so a zero weight stays
+  equivalent to dropping that row.
+
 ## [1.51.2] - 2026-07-05
 
 ### Added
@@ -2341,7 +2358,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.51.2...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.51.3...HEAD
+[1.51.3]: https://github.com/kgdunn/process-improve/compare/v1.51.2...v1.51.3
 [1.51.2]: https://github.com/kgdunn/process-improve/compare/v1.51.1...v1.51.2
 [1.51.1]: https://github.com/kgdunn/process-improve/compare/v1.51.0...v1.51.1
 [1.51.0]: https://github.com/kgdunn/process-improve/compare/v1.50.0...v1.51.0

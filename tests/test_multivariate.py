@@ -1842,6 +1842,61 @@ def test_pls_in_pipeline_and_clone_matches_plsregression() -> None:
     )
 
 
+def test_pls_scale_true_scales_x_and_y_blocks() -> None:
+    """PLS(scale=True) mean-centers and unit-variance-scales both X and Y.
+
+    Regression guard for the ``scale`` flag, which was previously inert (X and Y
+    were fed to NIPALS unscaled). On a multi-target Y whose columns have very
+    different variances, an estimator that fails to scale Y lets the
+    high-variance columns dominate the latent extraction and fits poorly. The
+    fixed ``scale=True`` must:
+
+    (a) reproduce the manual ``MCUVScaler`` + ``scale=False`` path exactly (same
+        NIPALS, scaling only relocated), with predictions on the original scale;
+    (b) match ``sklearn.cross_decomposition.PLSRegression(scale=True)``; and
+    (c) leave the fit genuinely good (R2 was ~0.1x when Y went unscaled).
+    """
+    rng = np.random.default_rng(7)
+    n, n_comp = 60, 4
+    X = pd.DataFrame(rng.normal(size=(n, 5)), columns=[f"x{i}" for i in range(5)])
+    beta = rng.normal(size=(5, 4))
+    core = X.values @ beta
+    # Deliberately heterogeneous Y-column variances and non-zero offsets.
+    Y = pd.DataFrame(
+        core * np.array([0.05, 1.0, 5.0, 20.0])
+        + np.array([10.0, -3.0, 100.0, 0.2])
+        + rng.normal(0, 0.02, (n, 4)),
+        columns=[f"y{i}" for i in range(4)],
+    )
+
+    model = PLS(n_components=n_comp, scale=True).fit(X, Y)
+
+    # (a) Exact equivalence to explicit external scaling, inverse-transformed.
+    x_scaler = MCUVScaler().fit(X)
+    y_scaler = MCUVScaler().fit(Y)
+    manual = PLS(n_components=n_comp, scale=False).fit(x_scaler.transform(X), y_scaler.transform(Y))
+    manual_pred = y_scaler.inverse_transform(manual.predict(x_scaler.transform(X)))
+    assert model.predict(X).values == pytest.approx(manual_pred.values, abs=1e-9)
+    assert model.predictions_.values == pytest.approx(manual_pred.values, abs=1e-9)
+    # transform() reproduces the fitted scores (projection uses the same scaling).
+    assert model.transform(X).values == pytest.approx(model.scores_.values, abs=1e-9)
+
+    # (c) The fit is genuinely good; the inert flag scored ~0.1 here.
+    r2 = r2_score(Y, model.predict(X), multioutput="variance_weighted")
+    assert r2 > 0.99
+
+    # (b) Parity with sklearn PLSRegression(scale=True) on the raw data. Its
+    # coef_ is (n_targets, n_features); ours is (n_features, n_targets).
+    ref = PLSRegression(n_components=n_comp, scale=True).fit(X.values, Y.values)
+    assert model.predict(X).values == pytest.approx(ref.predict(X.values), rel=1e-3, abs=1e-3)
+
+    # scale=False stays a pass-through: feeding pre-scaled data is not re-scaled.
+    passthrough = PLS(n_components=n_comp, scale=False).fit(x_scaler.transform(X), y_scaler.transform(Y))
+    assert passthrough.predict(x_scaler.transform(X)).values == pytest.approx(
+        manual.predict(x_scaler.transform(X)).values, abs=1e-12
+    )
+
+
 @pytest.fixture
 def fixture_pls_ldpe_example() -> dict[str, pd.DataFrame | np.ndarray | float | int]:
     """
