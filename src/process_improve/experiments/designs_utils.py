@@ -39,16 +39,27 @@ def matrix_to_columns(
     list[Column]
         One ``Column`` per factor, with ``pi_*`` metadata set from the ``Factor``.
     """
+    from process_improve.experiments.factor import FactorType  # noqa: PLC0415
+
     columns: list[Column] = []
     for i, factor in enumerate(factors):
-        col = c(
-            matrix[:, i].tolist(),
-            name=factor.name,
-            lo=factor.low,
-            hi=factor.high,
-            units=factor.units,
-            coded=not is_actual,
-        )
+        values = matrix[:, i].tolist()
+        if factor.type == FactorType.categorical:
+            # A categorical factor carries labels, not coded numbers. Build it
+            # from its levels and mark it not-coded so the coded<->actual affine
+            # map (which assumes a numeric low/high range) is skipped and the
+            # labels pass straight through to both the coded and actual designs.
+            col = c(values, name=factor.name, levels=factor.levels, units=factor.units)
+            col.pi_is_coded = False
+        else:
+            col = c(
+                matrix[:, i].tolist(),
+                name=factor.name,
+                lo=factor.low,
+                hi=factor.high,
+                units=factor.units,
+                coded=not is_actual,
+            )
         columns.append(col)
     return columns
 
