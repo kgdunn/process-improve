@@ -210,7 +210,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     r2y_per_variable_ : pd.DataFrame of shape (n_targets, n_components)
         Per-variable R² for Y after each component.
     rmse_ : pd.DataFrame of shape (n_targets, n_components)
-        Root mean squared error of Y predictions per component.
+        Root mean squared error of Y predictions per component, on the original
+        (un-scaled) Y scale, consistent with ``predictions_`` and
+        ``prediction_interval``.
     explained_variance_ : np.ndarray of shape (n_components,)
         Variance explained by each component in X.
     scaling_factor_for_scores_ : pd.Series of length n_components
@@ -796,8 +798,16 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             self.r2y_per_variable_.iloc[:, a] = np.where(
                 prior_SSY_col > 0, col_SSY / np.where(prior_SSY_col > 0, prior_SSY_col, 1.0), np.nan
             )
+            # rmse_ is reported on the ORIGINAL Y scale. NIPALS runs in the
+            # (optionally) scaled space, so rescale each target's RMSE by its Y
+            # standard deviation when scale=True. This keeps rmse_ consistent
+            # with predictions_ / diagnose().y_hat (also original-scale) and with
+            # prediction_interval(), which uses rmse_ as the residual error term.
             residuals_y = Yd.to_numpy() - y_hat.to_numpy()
-            self.rmse_.iloc[:, a] = np.sqrt(np.mean(residuals_y**2, axis=0))
+            rmse_a = np.sqrt(np.mean(residuals_y**2, axis=0))
+            if self._y_scaler is not None:
+                rmse_a = rmse_a * self._y_scaler.scale_.to_numpy()
+            self.rmse_.iloc[:, a] = rmse_a
 
         return self
 

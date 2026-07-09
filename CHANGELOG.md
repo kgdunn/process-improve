@@ -11,6 +11,21 @@ those changes.
 
 ## [Unreleased]
 
+## [1.51.4] - 2026-07-09
+
+### Fixed
+
+- `PLS.rmse_` is now reported on the original (un-scaled) Y scale when
+  `scale=True`, consistent with `predictions_` and `beta_coefficients_`.
+  Previously it was left in the internally standardized space, so a
+  `scale=True` fit on unscaled data returned an RMSE in units of a Y
+  standard deviation rather than the original response units. As a direct
+  consequence `PLS.prediction_interval()` (which uses `rmse_` as its
+  residual error term when no cross-validation result is supplied) now
+  produces intervals on the correct scale; previously its two branches
+  disagreed, since the cross-validated branch was already on the original
+  scale. Fits with `scale=False` (data scaled externally) are unaffected.
+
 ## [1.51.3] - 2026-07-08
 
 ### Fixed
@@ -2358,7 +2373,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.51.3...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.51.4...HEAD
+[1.51.4]: https://github.com/kgdunn/process-improve/compare/v1.51.3...v1.51.4
 [1.51.3]: https://github.com/kgdunn/process-improve/compare/v1.51.2...v1.51.3
 [1.51.2]: https://github.com/kgdunn/process-improve/compare/v1.51.1...v1.51.2
 [1.51.1]: https://github.com/kgdunn/process-improve/compare/v1.51.0...v1.51.1
