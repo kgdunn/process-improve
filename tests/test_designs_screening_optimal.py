@@ -131,3 +131,26 @@ class TestOptimalRequiresPyoptex:
     def test_a_optimal_raises_import_error(self) -> None:
         with pytest.raises(ImportError, match="pyoptex"):
             dispatch_a_optimal(_continuous(3), budget=8)
+
+
+class TestOptimalMissingExtraMessage:
+    """The not-installed error points at the ``[pyoptex]`` extra.
+
+    Forcing the availability flag off lets this run regardless of whether
+    pyoptex is present in the test environment, so the remediation message is
+    always covered.
+    """
+
+    def test_i_optimal_error_names_the_extra(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from process_improve.experiments import designs_optimal
+
+        monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
+        with pytest.raises(ImportError, match=r"process-improve\[pyoptex\]"):
+            dispatch_i_optimal(_continuous(3), budget=8)
+
+    def test_a_optimal_error_names_the_extra(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from process_improve.experiments import designs_optimal
+
+        monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
+        with pytest.raises(ImportError, match=r"process-improve\[pyoptex\]"):
+            dispatch_a_optimal(_continuous(3), budget=8)

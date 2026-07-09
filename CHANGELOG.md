@@ -11,6 +11,22 @@ those changes.
 
 ## [Unreleased]
 
+## [1.52.1] - 2026-07-09
+
+### Added
+
+- `pyoptex` is now a declared optional-dependency extra
+  (`pip install 'process-improve[pyoptex]'`, also included in `[all]`). It
+  powers the coordinate-exchange I-/A-optimal and `hard_to_change` split-plot
+  designs in `experiments.designs_optimal`; D-optimal still works without it
+  via the built-in point-exchange fallback. The "not installed" errors and the
+  fallback warning now name the extra instead of a bare `pip install pyoptex`.
+- `evaluate_design` accepts the opposite suffix as an alias for the
+  optimality-criterion metrics (for example `"d_optimality"` for
+  `"d_efficiency"`, or `"a_efficiency"` for `"a_optimality"`), resolving to the
+  canonical metric so either spelling works. The result is still keyed under
+  the canonical name.
+
 ## [1.52.0] - 2026-07-09
 
 ### Added
@@ -2425,7 +2441,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.52.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.52.1...HEAD
+[1.52.1]: https://github.com/kgdunn/process-improve/compare/v1.52.0...v1.52.1
 [1.52.0]: https://github.com/kgdunn/process-improve/compare/v1.51.5...v1.52.0
 [1.51.5]: https://github.com/kgdunn/process-improve/compare/v1.51.4...v1.51.5
 [1.51.4]: https://github.com/kgdunn/process-improve/compare/v1.51.3...v1.51.4

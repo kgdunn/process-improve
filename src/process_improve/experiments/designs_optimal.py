@@ -5,7 +5,9 @@
 Uses ``pyoptex`` (coordinate exchange) when available for high-quality
 optimal designs with support for split-plot structures.  Falls back to the
 built-in ``point_exchange()`` in ``optimal.py`` for D-optimal when
-``pyoptex`` is not installed.
+``pyoptex`` is not installed.  Install the optional dependency with
+``pip install 'process-improve[pyoptex]'``; without it, I-/A-optimal and
+``hard_to_change`` split-plot requests are unavailable.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
     from process_improve._extras import _MissingExtra
     fullfact = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
+from process_improve._extras import require_extra
 from process_improve.experiments.optimal import point_exchange
 
 if TYPE_CHECKING:
@@ -331,7 +334,7 @@ def dispatch_d_optimal(
     if hard_to_change:
         logger.warning(
             "pyoptex is not installed - hard_to_change factors will be ignored. "
-            "Install with: pip install pyoptex"
+            "Install it with: pip install 'process-improve[pyoptex]'"
         )
     matrix, meta = _run_point_exchange_fallback(factors, budget)
     if constraints:
@@ -377,10 +380,7 @@ def dispatch_i_optimal(
         If pyoptex is not installed.
     """
     if not _PYOPTEX_AVAILABLE:
-        raise ImportError(
-            "I-optimal design generation requires pyoptex. "
-            "Install with: pip install pyoptex"
-        )
+        raise require_extra("pyoptex", "pyoptex")
 
     k = len(factors)
     if budget is None:
@@ -431,10 +431,7 @@ def dispatch_a_optimal(
         If pyoptex is not installed.
     """
     if not _PYOPTEX_AVAILABLE:
-        raise ImportError(
-            "A-optimal design generation requires pyoptex. "
-            "Install with: pip install pyoptex"
-        )
+        raise require_extra("pyoptex", "pyoptex")
 
     k = len(factors)
     if budget is None:
