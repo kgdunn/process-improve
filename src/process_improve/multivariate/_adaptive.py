@@ -337,16 +337,28 @@ class _AdaptiveModel(_LatentVariableModel):
             self.update(X_df.iloc[pos].to_numpy(dtype=float), y_row=y_row, label=idx)
         return self
 
-    # ---- history views ------------------------------------------------------
+    # ---- history views (built lazily on access, so update() stays O(1)) ------
 
-    def _refresh_history_frames(self) -> None:
-        """Rebuild the public ``scores_`` / ``spe_`` / ``hotellings_t2_`` / ``distance_`` frames."""
-        cols = self._component_names
-        index = self._hist_index
-        self.scores_ = pd.DataFrame(np.array(self._hist_scores).reshape(-1, len(cols)), index=index, columns=cols)
-        self.spe_ = pd.DataFrame({self.n_components: self._hist_spe}, index=index)
-        self.hotellings_t2_ = pd.DataFrame({self.n_components: self._hist_t2}, index=index)
-        self.distance_ = pd.Series(self._hist_distance, index=index, name="Subspace overlap (components)")
+    @property
+    def scores_(self) -> pd.DataFrame:
+        """Per-observation scores accumulated by :meth:`update` (rows x components)."""
+        data = np.array(self._hist_scores, dtype=float).reshape(-1, len(self._component_names))
+        return pd.DataFrame(data, index=self._hist_index, columns=self._component_names)
+
+    @property
+    def spe_(self) -> pd.DataFrame:
+        """Per-observation SPE history (single column, keyed by the component count)."""
+        return pd.DataFrame({self.n_components: self._hist_spe}, index=self._hist_index)
+
+    @property
+    def hotellings_t2_(self) -> pd.DataFrame:
+        """Per-observation Hotelling's T2 history (single column, keyed by the component count)."""
+        return pd.DataFrame({self.n_components: self._hist_t2}, index=self._hist_index)
+
+    @property
+    def distance_(self) -> pd.Series:
+        """Per-observation subspace overlap with the seed model, in units of components."""
+        return pd.Series(self._hist_distance, index=self._hist_index, name="Subspace overlap (components)")
 
 
 # -----------------------------------------------------------------------------
@@ -488,7 +500,6 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         self._spe_buffer.extend((seed_spe**2).tolist())
 
         self._init_history()
-        self._refresh_history_frames()
         return self
 
     @property
@@ -596,7 +607,6 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         self._hist_spe.append(spe)
         self._hist_distance.append(distance)
         self._hist_index.append(label if label is not None else len(self._hist_index))
-        self._refresh_history_frames()
         return Bunch(
             scores=t,
             hotellings_t2=t2,
@@ -774,7 +784,6 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
 
         self._hist_pred: list[np.ndarray] = []
         self._init_history()
-        self._refresh_history_frames()
         return self
 
     def _recompute_from_kernels(self, align_to: np.ndarray | None) -> None:
@@ -921,7 +930,6 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self._hist_pred.append(y_hat)
         self._hist_distance.append(distance)
         self._hist_index.append(label if label is not None else len(self._hist_index))
-        self._refresh_history_frames()
         return Bunch(
             scores=t,
             prediction=y_hat,
@@ -934,14 +942,11 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
             distance=distance,
         )
 
-    def _refresh_history_frames(self) -> None:
-        """Extend the base history frames with the Y-prediction history."""
-        super()._refresh_history_frames()
-        self.predictions_ = pd.DataFrame(
-            np.array(self._hist_pred).reshape(-1, self.n_targets_),
-            index=self._hist_index,
-            columns=self._target_names,
-        )
+    @property
+    def predictions_(self) -> pd.DataFrame:
+        """Per-observation response predictions accumulated by :meth:`update`."""
+        data = np.array(self._hist_pred, dtype=float).reshape(-1, self.n_targets_)
+        return pd.DataFrame(data, index=self._hist_index, columns=self._target_names)
 
     def transform(self, X: DataMatrix) -> pd.DataFrame:
         """Project data onto the *current* model, returning the X scores (no update)."""
