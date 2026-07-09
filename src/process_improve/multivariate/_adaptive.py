@@ -65,7 +65,6 @@ from ._base import _LatentVariableModel
 from ._common import DataMatrix, epsqrt
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
 from ._limits import spe_calculation
-from ._pca import PCA
 from ._pls import PLS
 from ._preprocessing import MCUVScaler
 
@@ -457,27 +456,32 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         self.lambda_center_ = self._as_vector(self.lambda_center, K, "lambda_center")
         self.alpha_scale_ = self._as_vector(self.alpha_scale, K, "alpha_scale")
 
-        # Seed preprocessing from MCUVScaler; seed loadings from the batch PCA so
-        # the i = 0 model matches the rest of the package byte-for-byte.
+        # Seed preprocessing from MCUVScaler, then build the kernel and loadings
+        # from the *scaled* data so every downstream projection (which scales the
+        # incoming observation) lives in the same space. Seeding the loadings from
+        # the same eigendecomposition that later updates use keeps the distance
+        # metric at exactly A until the model actually adapts.
         self._scaler = MCUVScaler().fit(X_df)
         self.mx_ = self._scaler.center_.to_numpy(dtype=float).copy()
         self.sx_ = self._scaler.scale_.to_numpy(dtype=float).copy()
-        seed = PCA(n_components=A).fit(X_df)
 
-        Xs = self._scaler.transform(X_df).to_numpy(dtype=float)
-        Xs = np.nan_to_num(Xs, nan=0.0)
+        Xs = np.nan_to_num(self._scaler.transform(X_df).to_numpy(dtype=float), nan=0.0)
         self.XtX0_ = Xs.T @ Xs
         self.XtX_ = self.XtX0_.copy()
         self._norm_xx0 = float(np.linalg.norm(self.XtX0_))
 
-        self.loadings0_ = seed.loadings_.to_numpy(dtype=float).copy()
-        self._loadings = self.loadings0_.copy()
-        self.explained_variance_ = np.asarray(seed.explained_variance_, dtype=float).copy()
+        loadings, eigenvalues = _kernel_pca(self.XtX0_, A)
+        self.loadings0_ = loadings.copy()
+        self._loadings = loadings.copy()
+        self.explained_variance_ = eigenvalues / max(1, N - 1)
         self._update_scaling_factor()
 
-        # Seed the limits, and the rolling SPE window with the training SPE.
+        # Seed the limits, and the rolling SPE window, from the training SPE
+        # computed with the seed loadings on the scaled data.
         self._t2_limit_0 = _hotellings_t2_limit(conf_level=self.conf_level, n_components=A, n_rows=N)
-        seed_spe = seed.spe_.iloc[:, A - 1].to_numpy(dtype=float)
+        scores = Xs @ self._loadings
+        residual = Xs - scores @ self._loadings.T
+        seed_spe = np.sqrt(np.sum(residual**2, axis=1))
         self._spe_limit_0 = spe_calculation(seed_spe, conf_level=self.conf_level)
         self._min_spe_window = max(20, A + 2)
         self._spe_buffer: deque[float] = deque(maxlen=int(self.spe_limit_window))

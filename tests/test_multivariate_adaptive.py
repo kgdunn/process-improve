@@ -1,0 +1,348 @@
+# (c) Kevin Dunn, 2010-2026. MIT License.
+"""Tests for the adaptive (recursive) PCA and PLS estimators.
+
+Covers, for both estimators:
+
+* seed correctness - the kernel-seeded model reproduces the batch PCA loadings
+  and the batch PLS beta coefficients on synthetic and real (LDPE) data;
+* the Krzanowski subspace distance metric bounds and sign invariance;
+* the injection term semantics (``gamma = 0`` recovers the plain recursive
+  update; ``gamma > 0`` improves conditioning under rank-poor operation);
+* numerical stability of the norm-rescaled kernel;
+* drift tracking versus a frozen model;
+* the infrequently-sampled response path for PLS;
+* sklearn estimator conventions (``get_params`` / ``set_params`` / ``clone``).
+"""
+
+from __future__ import annotations
+
+import pathlib
+
+import numpy as np
+import pandas as pd
+import pytest
+from sklearn.base import clone
+
+from process_improve.multivariate import PCA, PLS, AdaptivePCA, AdaptivePLS, MCUVScaler
+from process_improve.multivariate._adaptive import (
+    _kernel_pca,
+    _kernel_pls,
+    _subspace_distance,
+)
+
+DATASETS = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate"
+
+
+# --------------------------------------------------------------------------- #
+# Fixtures
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture
+def synthetic_pca_data() -> pd.DataFrame:
+    """Return a correlated, full-rank block for PCA seeding and streaming tests."""
+    rng = np.random.default_rng(42)
+    n, k, a = 250, 8, 3
+    loadings = rng.standard_normal((k, a))
+    scores = rng.standard_normal((n, a))
+    values = scores @ loadings.T + 0.1 * rng.standard_normal((n, k))
+    return pd.DataFrame(values, columns=[f"v{i}" for i in range(k)])
+
+
+@pytest.fixture
+def synthetic_pls_data() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return a synthetic single-response regression block for PLS seeding tests."""
+    rng = np.random.default_rng(7)
+    n, k = 180, 6
+    beta = rng.standard_normal((k, 1))
+    X = pd.DataFrame(rng.standard_normal((n, k)), columns=[f"x{i}" for i in range(k)])
+    Y = pd.DataFrame(X.to_numpy() @ beta + 0.1 * rng.standard_normal((n, 1)), columns=["y"])
+    return X, Y
+
+
+@pytest.fixture
+def ldpe_data() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Load the real LDPE dataset (54 x 14 predictors, 5 responses).
+
+    The first 50 rows are common-cause; the last 4 show a developing fault.
+    """
+    values = pd.read_csv(DATASETS / "LDPE" / "LDPE.csv", index_col=0)
+    X = values.iloc[:, :14]
+    Y = values.iloc[:, 14:]
+    return X, Y
+
+
+# --------------------------------------------------------------------------- #
+# Kernel-helper unit tests
+# --------------------------------------------------------------------------- #
+
+
+def test_kernel_pca_matches_svd(synthetic_pca_data: pd.DataFrame) -> None:
+    """``_kernel_pca`` eigenvectors match the SVD loadings of the scaled data."""
+    scaled = MCUVScaler().fit_transform(synthetic_pca_data)
+    Xs = scaled.to_numpy()
+    loadings, eigenvalues = _kernel_pca(Xs.T @ Xs, n_components=3)
+    # Batch PCA on the same scaled data (AdaptivePCA scales internally).
+    batch = PCA(n_components=3).fit(scaled)
+    np.testing.assert_allclose(np.abs(loadings), np.abs(batch.loadings_.to_numpy()), atol=1e-8)
+    np.testing.assert_allclose(eigenvalues / (len(Xs) - 1), batch.explained_variance_, rtol=1e-8)
+
+
+def test_kernel_pls_reconstructs_beta(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """``_kernel_pls`` yields the same scaled beta as the batch NIPALS PLS."""
+    X, Y = synthetic_pls_data
+    xs = MCUVScaler().fit(X)
+    ys = MCUVScaler().fit(Y)
+    Xs = xs.transform(X).to_numpy()
+    Ys = ys.transform(Y).to_numpy()
+    _, _, direct, y_load, _ = _kernel_pls(Xs.T @ Xs, Xs.T @ Ys, n_components=3)
+    beta_scaled = direct @ y_load.T
+    beta_raw = beta_scaled * (ys.scale_.to_numpy()[np.newaxis, :] / xs.scale_.to_numpy()[:, np.newaxis])
+    batch = PLS(n_components=3, scale=True).fit(X, Y)
+    np.testing.assert_allclose(beta_raw, batch.beta_coefficients_.to_numpy(), atol=1e-9)
+
+
+# --------------------------------------------------------------------------- #
+# Seed correctness
+# --------------------------------------------------------------------------- #
+
+
+def test_adaptive_pca_seed_matches_batch(synthetic_pca_data: pd.DataFrame) -> None:
+    """AdaptivePCA seeds an i=0 model identical to batch PCA on the scaled data."""
+    model = AdaptivePCA(n_components=3).fit(synthetic_pca_data)
+    batch = PCA(n_components=3).fit(MCUVScaler().fit_transform(synthetic_pca_data))
+    np.testing.assert_allclose(np.abs(model.loadings0_), np.abs(batch.loadings_.to_numpy()), atol=1e-8)
+    np.testing.assert_allclose(model.explained_variance_, batch.explained_variance_, rtol=1e-8)
+
+
+def test_adaptive_pls_seed_matches_batch_ldpe(ldpe_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """AdaptivePLS seeds beta identical to the batch PLS on the real LDPE data."""
+    X, Y = ldpe_data
+    model = AdaptivePLS(n_components=6).fit(X, Y)
+    batch = PLS(n_components=6, scale=True).fit(X, Y)
+    np.testing.assert_allclose(
+        model.beta_coefficients_.to_numpy(), batch.beta_coefficients_.to_numpy(), atol=1e-7
+    )
+    # Predictions with the freshly-seeded model equal the batch predictions.
+    np.testing.assert_allclose(
+        model.predict(X).to_numpy(), batch.predictions_.to_numpy(), atol=1e-6
+    )
+
+
+def test_adaptive_pls_seed_matches_batch_synthetic(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame],
+) -> None:
+    """AdaptivePLS seeds beta to machine precision on well-conditioned synthetic data."""
+    X, Y = synthetic_pls_data
+    model = AdaptivePLS(n_components=3).fit(X, Y)
+    batch = PLS(n_components=3, scale=True).fit(X, Y)
+    np.testing.assert_allclose(
+        model.beta_coefficients_.to_numpy(), batch.beta_coefficients_.to_numpy(), atol=1e-12
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Distance metric
+# --------------------------------------------------------------------------- #
+
+
+def test_distance_metric_bounds_and_sign_invariance() -> None:
+    """The distance is A for identical spaces, 0 for orthogonal, sign-invariant."""
+    rng = np.random.default_rng(0)
+    q, _ = np.linalg.qr(rng.standard_normal((6, 6)))
+    p = q[:, :3]
+    assert _subspace_distance(p, p) == pytest.approx(3.0)
+    # Sign flips of any column leave the metric unchanged.
+    flipped = p.copy()
+    flipped[:, 1] *= -1
+    assert _subspace_distance(p, flipped) == pytest.approx(3.0)
+    # An orthogonal complement gives zero overlap.
+    other = q[:, 3:6]
+    assert _subspace_distance(p, other) == pytest.approx(0.0, abs=1e-12)
+
+
+def test_distance_stays_at_a_without_updates(synthetic_pca_data: pd.DataFrame) -> None:
+    """With no kernel adaptation the distance stays exactly at A."""
+    model = AdaptivePCA(n_components=3, forgetting_factor=0.0, gamma=0.0).fit(synthetic_pca_data)
+    model.update(synthetic_pca_data.iloc[0].to_numpy())
+    assert model.distance_.iloc[-1] == pytest.approx(3.0)
+
+
+# --------------------------------------------------------------------------- #
+# Injection term (gamma) semantics
+# --------------------------------------------------------------------------- #
+
+
+def test_gamma_zero_recovers_plain_recursion(synthetic_pca_data: pd.DataFrame) -> None:
+    """gamma=0 makes the kernel update the plain (1-mu) X'X + mu x x' recursion."""
+    stream = synthetic_pca_data.iloc[:20]
+    # Freeze the EWMA preprocessing (lambda = alpha = 0) so the scaled observation
+    # is a fixed function of the raw row and the recursion is reproducible here.
+    model = AdaptivePCA(
+        n_components=3,
+        forgetting_factor=0.1,
+        gamma=0.0,
+        lambda_center=0.0,
+        alpha_scale=0.0,
+        update_when_out_of_control=True,
+    ).fit(synthetic_pca_data)
+    kernel = model.XtX0_.copy()
+    norm0 = float(np.linalg.norm(kernel))
+    mu = 0.1
+    for _, row in stream.iterrows():
+        x = np.nan_to_num((row.to_numpy() - model.mx_) / model.sx_)
+        model.update(row.to_numpy())
+        kernel = (1 - mu) * kernel + mu * np.outer(x, x)
+        kernel *= norm0 / float(np.linalg.norm(kernel))
+    np.testing.assert_allclose(model.XtX_, kernel, atol=1e-8)
+
+
+def test_gamma_improves_conditioning_under_quiet_operation() -> None:
+    """Under rank-poor excitation, gamma>0 keeps X'X better conditioned than gamma=0."""
+    rng = np.random.default_rng(5)
+    # A well-excited training block, then a "quiet" stream living in a 2-D subspace.
+    n, k = 200, 6
+    train = pd.DataFrame(rng.standard_normal((n, k)), columns=[f"v{i}" for i in range(k)])
+    basis = rng.standard_normal((2, k))
+    quiet = pd.DataFrame(
+        rng.standard_normal((400, 2)) @ basis + 0.01 * rng.standard_normal((400, k)),
+        columns=train.columns,
+    )
+    kwargs = dict(n_components=3, forgetting_factor=0.05, update_when_out_of_control=True)
+    m0 = AdaptivePCA(gamma=0.0, **kwargs).fit(train)
+    mg = AdaptivePCA(gamma=0.2, **kwargs).fit(train)
+    for _, row in quiet.iterrows():
+        m0.update(row.to_numpy())
+        mg.update(row.to_numpy())
+    assert np.linalg.cond(mg.XtX_) < np.linalg.cond(m0.XtX_)
+
+
+# --------------------------------------------------------------------------- #
+# Numerical stability
+# --------------------------------------------------------------------------- #
+
+
+def test_kernel_norm_stays_constant(synthetic_pca_data: pd.DataFrame) -> None:
+    """The norm-rescaling holds ||X'X|| at its seed value over many updates."""
+    model = AdaptivePCA(
+        n_components=3, forgetting_factor=0.1, gamma=0.1, update_when_out_of_control=True
+    ).fit(synthetic_pca_data)
+    norm0 = float(np.linalg.norm(model.XtX0_))
+    rng = np.random.default_rng(1)
+    for _ in range(500):
+        model.update(synthetic_pca_data.iloc[rng.integers(len(synthetic_pca_data))].to_numpy())
+    assert float(np.linalg.norm(model.XtX_)) == pytest.approx(norm0, rel=1e-6)
+
+
+# --------------------------------------------------------------------------- #
+# Drift tracking
+# --------------------------------------------------------------------------- #
+
+
+def test_adaptive_tracks_mean_drift_where_frozen_alarms() -> None:
+    """A slow drift of the operating point alarms a frozen model far more than an adaptive one.
+
+    The stream keeps the training correlation structure but slowly moves the
+    operating point along the first latent direction. An adaptive model tracks
+    the moving centre (and re-learns the kernel from the in-control observations),
+    so it raises substantially fewer alarms than a model frozen at the seed.
+    """
+    rng = np.random.default_rng(11)
+    n, k, a = 300, 5, 2
+    noise = 0.3
+    loadings = rng.standard_normal((k, a))
+    train = pd.DataFrame(
+        rng.standard_normal((n, a)) @ loadings.T + noise * rng.standard_normal((n, k)),
+        columns=[f"v{i}" for i in range(k)],
+    )
+    steps = 400
+    drift = np.linspace(0, 5.0, steps)[:, None] * loadings[:, 0][None, :]
+    stream = pd.DataFrame(
+        rng.standard_normal((steps, a)) @ loadings.T + noise * rng.standard_normal((steps, k)) + drift,
+        columns=train.columns,
+    )
+    adaptive = AdaptivePCA(n_components=a, forgetting_factor=0.05, gamma=0.1, lambda_center=0.25).fit(train)
+    frozen = AdaptivePCA(n_components=a, forgetting_factor=0.0, gamma=0.0, lambda_center=0.0).fit(train)
+    adaptive_alarms = sum(not adaptive.update(r.to_numpy()).in_control for _, r in stream.iterrows())
+    frozen_alarms = sum(not frozen.update(r.to_numpy()).in_control for _, r in stream.iterrows())
+    # The frozen model raises clearly more alarms on a drift it never learns.
+    assert frozen_alarms > 1.5 * adaptive_alarms
+    assert adaptive_alarms < steps // 2
+
+
+# --------------------------------------------------------------------------- #
+# Streaming interface / infrequent-Y
+# --------------------------------------------------------------------------- #
+
+
+def test_partial_fit_accumulates_history(synthetic_pca_data: pd.DataFrame) -> None:
+    """partial_fit records one history row per streamed observation."""
+    train = synthetic_pca_data.iloc[:150]
+    stream = synthetic_pca_data.iloc[150:]
+    model = AdaptivePCA(n_components=3).fit(train)
+    model.partial_fit(stream)
+    assert model.scores_.shape == (len(stream), 3)
+    assert model.spe_.shape[0] == len(stream)
+    assert model.hotellings_t2_.shape[0] == len(stream)
+    assert len(model.distance_) == len(stream)
+
+
+def test_adaptive_pls_infrequent_y(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """The X-space adapts every step; the regression only when a response arrives."""
+    X, Y = synthetic_pls_data
+    model = AdaptivePLS(n_components=3, forgetting_factor=0.05, gamma=0.1).fit(X, Y)
+    xty_seed = model.XtY_.copy()
+    rng = np.random.default_rng(2)
+    n_x_only = 0
+    for i in range(60):
+        row = X.iloc[rng.integers(len(X))].to_numpy()
+        if i % 10 == 0:
+            model.update(row, y_row=Y.iloc[i % len(Y)].to_numpy())
+        else:
+            before = model.XtY_.copy()
+            model.update(row, y_row=None)
+            # X'Y untouched by an X-only observation.
+            np.testing.assert_array_equal(model.XtY_, before)
+            n_x_only += 1
+    assert n_x_only > 0
+    # X'Y did change at the lab points.
+    assert not np.allclose(model.XtY_, xty_seed)
+    assert model.predictions_.shape[0] == 60
+
+
+def test_out_of_control_does_not_update_by_default(synthetic_pca_data: pd.DataFrame) -> None:
+    """A wild observation is flagged and, by default, does not move the model."""
+    model = AdaptivePCA(n_components=3, forgetting_factor=0.1, gamma=0.1).fit(synthetic_pca_data)
+    kernel_before = model.XtX_.copy()
+    wild = synthetic_pca_data.iloc[0].to_numpy() + 50.0
+    out = model.update(wild)
+    assert not out.in_control
+    assert not out.updated
+    np.testing.assert_array_equal(model.XtX_, kernel_before)
+
+
+# --------------------------------------------------------------------------- #
+# sklearn conventions
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize("estimator", [AdaptivePCA(2), AdaptivePLS(2)])
+def test_get_set_params_roundtrip(estimator: AdaptivePCA | AdaptivePLS) -> None:
+    """get_params / set_params / clone behave per the sklearn contract."""
+    params = estimator.get_params()
+    assert params["n_components"] == 2
+    estimator.set_params(gamma=0.33, forgetting_factor=0.07)
+    assert estimator.get_params()["gamma"] == 0.33
+    fresh = clone(estimator)
+    assert fresh.get_params()["gamma"] == 0.33
+    assert fresh.get_params()["forgetting_factor"] == 0.07
+
+
+def test_invalid_parameters_raise(synthetic_pca_data: pd.DataFrame) -> None:
+    """Out-of-range tuning constants are rejected at fit time."""
+    with pytest.raises(ValueError, match="forgetting_factor"):
+        AdaptivePCA(n_components=2, forgetting_factor=1.5).fit(synthetic_pca_data)
+    with pytest.raises(ValueError, match="gamma"):
+        AdaptivePCA(n_components=2, gamma=-0.1).fit(synthetic_pca_data)
+    with pytest.raises(ValueError, match="lambda_center"):
+        AdaptivePCA(n_components=2, lambda_center=2.0).fit(synthetic_pca_data)
