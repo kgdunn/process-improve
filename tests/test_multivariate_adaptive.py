@@ -346,3 +346,112 @@ def test_invalid_parameters_raise(synthetic_pca_data: pd.DataFrame) -> None:
         AdaptivePCA(n_components=2, gamma=-0.1).fit(synthetic_pca_data)
     with pytest.raises(ValueError, match="lambda_center"):
         AdaptivePCA(n_components=2, lambda_center=2.0).fit(synthetic_pca_data)
+
+
+# --------------------------------------------------------------------------- #
+# transform / predict / property views
+# --------------------------------------------------------------------------- #
+
+
+def test_transform_and_predict_match_seed(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """Predict and transform on the freshly-seeded model equal the batch model."""
+    X, Y = synthetic_pls_data
+    ad = AdaptivePLS(n_components=3).fit(X, Y)
+    batch = PLS(n_components=3, scale=True).fit(X, Y)
+    np.testing.assert_allclose(ad.predict(X).to_numpy(), batch.predictions_.to_numpy(), atol=1e-9)
+    # Scores line up with the batch X-scores up to a per-component sign.
+    np.testing.assert_allclose(
+        np.abs(ad.transform(X).to_numpy()), np.abs(batch.scores_.to_numpy()), atol=1e-7
+    )
+
+
+def test_pca_transform_shape(synthetic_pca_data: pd.DataFrame) -> None:
+    """AdaptivePCA.transform returns one score row per input row."""
+    ad = AdaptivePCA(n_components=3).fit(synthetic_pca_data)
+    scores = ad.transform(synthetic_pca_data.iloc[:10])
+    assert scores.shape == (10, 3)
+
+
+def test_property_views_have_expected_shapes(ldpe_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """The current-parameter DataFrame views carry the right labels and shapes."""
+    X, Y = ldpe_data
+    ad = AdaptivePLS(n_components=4).fit(X, Y)
+    assert ad.x_weights_.shape == (14, 4)
+    assert ad.x_loadings_.shape == (14, 4)
+    assert ad.direct_weights_.shape == (14, 4)
+    assert ad.beta_coefficients_.shape == (14, 5)
+    assert list(ad.beta_coefficients_.columns) == list(Y.columns)
+    pca = AdaptivePCA(n_components=2).fit(X)
+    assert pca.loadings_.shape == (14, 2)
+
+
+def test_missing_data_projection_is_finite(synthetic_pca_data: pd.DataFrame) -> None:
+    """A partially-missing observation projects through single-component projection."""
+    ad = AdaptivePCA(n_components=3).fit(synthetic_pca_data)
+    row = synthetic_pca_data.iloc[0].to_numpy().copy()
+    row[1] = np.nan
+    row[4] = np.nan
+    out = ad.update(row)
+    assert np.all(np.isfinite(out.scores))
+    assert np.isfinite(out.spe)
+    assert np.isfinite(out.hotellings_t2)
+
+
+def test_all_missing_row_is_skipped(synthetic_pca_data: pd.DataFrame) -> None:
+    """An all-missing observation never updates the model and is out of control."""
+    ad = AdaptivePCA(n_components=3, update_when_out_of_control=True).fit(synthetic_pca_data)
+    kernel_before = ad.XtX_.copy()
+    out = ad.update(np.full(synthetic_pca_data.shape[1], np.nan))
+    assert not out.in_control
+    assert not out.updated
+    np.testing.assert_array_equal(ad.XtX_, kernel_before)
+
+
+def test_partial_fit_pls_with_response(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """partial_fit threads a matching Y block and records a prediction per row."""
+    X, Y = synthetic_pls_data
+    ad = AdaptivePLS(n_components=3, forgetting_factor=0.02).fit(X.iloc[:100], Y.iloc[:100])
+    ad.partial_fit(X.iloc[100:], Y.iloc[100:])
+    assert ad.predictions_.shape[0] == len(X) - 100
+    assert ad.scores_.shape == (len(X) - 100, 3)
+
+
+def test_envelope_tracking_reduces_drift_bias() -> None:
+    """With continuous tracking, a soft-sensor's prediction bias stays small under drift.
+
+    A single-response regression whose input distribution slowly shifts induces a
+    growing prediction bias in a frozen model. An adaptive model that tracks the
+    operating envelope keeps the late-period bias far smaller.
+    """
+    rng = np.random.default_rng(19)
+    k = 5
+    beta = rng.standard_normal((k, 1))
+
+    def make_block(n: int, shift: float) -> tuple[pd.DataFrame, pd.DataFrame]:
+        base = rng.standard_normal((n, k)) + shift
+        X = pd.DataFrame(base, columns=[f"x{i}" for i in range(k)])
+        y = X.to_numpy() @ beta + 0.1 * rng.standard_normal((n, 1))
+        return X, pd.DataFrame(y, columns=["y"])
+
+    X0, Y0 = make_block(200, shift=0.0)
+    frozen = AdaptivePLS(n_components=3, forgetting_factor=0.0, gamma=0.0, lambda_center=0.0).fit(X0, Y0)
+    adaptive = AdaptivePLS(
+        n_components=3,
+        forgetting_factor=0.01,
+        gamma=0.1,
+        lambda_center=0.03,
+        alpha_scale=0.02,
+        lambda_center_y=0.05,
+        update_when_out_of_control=True,
+    ).fit(X0, Y0)
+
+    frozen_err, adaptive_err = [], []
+    for step in range(300):
+        Xb, Yb = make_block(1, shift=3.0 * step / 300)  # slowly drift the operating point
+        x = Xb.iloc[0].to_numpy()
+        y_true = float(Yb.iloc[0, 0])
+        frozen_err.append(float(frozen.update(x, y_row=np.array([y_true])).prediction[0]) - y_true)
+        adaptive_err.append(float(adaptive.update(x, y_row=np.array([y_true])).prediction[0]) - y_true)
+
+    late = slice(200, None)
+    assert abs(np.mean(adaptive_err[late])) < abs(np.mean(frozen_err[late]))
