@@ -16,6 +16,7 @@ from .._linalg import safe_inverse
 from .._random import check_random_state
 from ..univariate.metrics import detect_outliers_esd
 from ..visualization.themes import REFERENCE_LINE_COLOR
+from ._adaptive import AdaptivePCA, AdaptivePLS
 from ._common import NotEnoughVarianceError, SpecificationWarning, epsqrt
 from ._diagnostics import (
     eigenvalue_summary,
@@ -71,6 +72,8 @@ __all__ = [
     "PLS",
     "REFERENCE_LINE_COLOR",
     "TPLS",
+    "AdaptivePCA",
+    "AdaptivePLS",
     "DataFrameDict",
     "MCUVScaler",
     "NotEnoughVarianceError",
