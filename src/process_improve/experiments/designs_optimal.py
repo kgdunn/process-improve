@@ -303,19 +303,31 @@ def dispatch_d_optimal(
         )
 
     if _PYOPTEX_AVAILABLE:
-        return _run_pyoptex(
+        matrix, meta = _run_pyoptex(
             factors,
             criterion="d_optimal",
             budget=budget,
             options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change),
         )
+        # Record that constraints were not enforced so the DesignResult carries
+        # the fact programmatically, not only as an easy-to-miss log line.
+        if constraints:
+            meta["constraints_enforced"] = False
+        return matrix, meta
 
     if hard_to_change:
         logger.warning(
             "pyoptex is not installed - hard_to_change factors will be ignored. "
             "Install with: pip install pyoptex"
         )
-    return _run_point_exchange_fallback(factors, budget)
+    matrix, meta = _run_point_exchange_fallback(factors, budget)
+    if constraints:
+        meta["constraints_enforced"] = False
+    if hard_to_change:
+        # The randomized fallback cannot honour the split-plot request; surface
+        # it on the result rather than only in the log.
+        meta["hard_to_change_ignored"] = list(hard_to_change)
+    return matrix, meta
 
 
 def dispatch_i_optimal(
@@ -361,12 +373,15 @@ def dispatch_i_optimal(
     if budget is None:
         budget = 2 * k + 1
 
-    return _run_pyoptex(
+    matrix, meta = _run_pyoptex(
         factors,
         criterion="i_optimal",
         budget=budget,
         options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change),
     )
+    if constraints:
+        meta["constraints_enforced"] = False
+    return matrix, meta
 
 
 def dispatch_a_optimal(
@@ -412,9 +427,12 @@ def dispatch_a_optimal(
     if budget is None:
         budget = 2 * k + 1
 
-    return _run_pyoptex(
+    matrix, meta = _run_pyoptex(
         factors,
         criterion="a_optimal",
         budget=budget,
         options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change),
     )
+    if constraints:
+        meta["constraints_enforced"] = False
+    return matrix, meta
