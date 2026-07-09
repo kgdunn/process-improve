@@ -131,3 +131,29 @@ class TestOptimalRequiresPyoptex:
     def test_a_optimal_raises_import_error(self) -> None:
         with pytest.raises(ImportError, match="pyoptex"):
             dispatch_a_optimal(_continuous(3), budget=8)
+
+
+class TestOptimalMissingPyoptexMessage:
+    """The not-installed error explains how to install pyoptex and why it is not
+    a declared extra (its plotly<6 pin conflicts with the project's plotly>=6.5.2).
+
+    Forcing the availability flag off lets this run regardless of whether
+    pyoptex is present in the test environment, so the remediation message is
+    always covered.
+    """
+
+    def test_i_optimal_error_explains_install(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from process_improve.experiments import designs_optimal
+
+        monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
+        with pytest.raises(ImportError, match=r"pip install pyoptex") as info:
+            dispatch_i_optimal(_continuous(3), budget=8)
+        assert "plotly" in str(info.value)
+
+    def test_a_optimal_error_explains_install(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from process_improve.experiments import designs_optimal
+
+        monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
+        with pytest.raises(ImportError, match=r"pip install pyoptex") as info:
+            dispatch_a_optimal(_continuous(3), budget=8)
+        assert "plotly" in str(info.value)

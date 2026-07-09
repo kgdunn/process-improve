@@ -639,6 +639,28 @@ class TestDispatcher:
         with pytest.raises(ValueError, match="Unknown metric"):
             evaluate_design(df, model="main_effects", metric="nonexistent")
 
+    def test_optimality_suffix_aliases_resolve(self) -> None:
+        """The opposite suffix is accepted and keyed under the canonical name."""
+        df = _full_factorial_df(3)
+        # d_optimality -> d_efficiency (an _efficiency metric requested by _optimality)
+        via_alias = evaluate_design(df, model="main_effects", metric="d_optimality")
+        via_canon = evaluate_design(df, model="main_effects", metric="d_efficiency")
+        assert "d_efficiency" in via_alias
+        assert "d_optimality" not in via_alias
+        assert via_alias["d_efficiency"] == via_canon["d_efficiency"]
+        # a_efficiency -> a_optimality. Requesting the _efficiency spelling is now
+        # valid (previously an unknown-metric error); a_optimality's own output
+        # already carries both a_optimality and a_efficiency keys.
+        via_alias_a = evaluate_design(df, model="main_effects", metric="a_efficiency")
+        assert "a_optimality" in via_alias_a
+
+    def test_metric_alias_in_list(self) -> None:
+        """Aliases resolve inside a metric list alongside canonical names."""
+        df = _full_factorial_df(3)
+        result = evaluate_design(df, model="main_effects", metric=["d_optimality", "vif"])
+        assert "d_efficiency" in result
+        assert "vif" in result
+
     def test_accepts_design_result(self) -> None:
         """evaluate_design accepts a DesignResult object."""
         factors = _continuous_factors(2, "AB")

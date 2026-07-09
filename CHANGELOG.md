@@ -11,6 +11,25 @@ those changes.
 
 ## [Unreleased]
 
+## [1.52.1] - 2026-07-09
+
+### Added
+
+- `evaluate_design` accepts the opposite suffix as an alias for the
+  optimality-criterion metrics (for example `"d_optimality"` for
+  `"d_efficiency"`, or `"a_efficiency"` for `"a_optimality"`), resolving to the
+  canonical metric so either spelling works. The result is still keyed under
+  the canonical name.
+
+### Changed
+
+- The "pyoptex is not installed" errors (I-/A-optimal) and the D-optimal
+  fallback warning now explain that pyoptex must be installed separately and
+  why it is not bundled as an extra: its latest release pins `plotly<6`, which
+  conflicts with this project's `plotly>=6.5.2`, so the two cannot share an
+  environment. D-optimal still works without pyoptex via the built-in
+  point-exchange fallback.
+
 ## [1.52.0] - 2026-07-09
 
 ### Added
@@ -2425,7 +2444,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.52.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.52.1...HEAD
+[1.52.1]: https://github.com/kgdunn/process-improve/compare/v1.52.0...v1.52.1
 [1.52.0]: https://github.com/kgdunn/process-improve/compare/v1.51.5...v1.52.0
 [1.51.5]: https://github.com/kgdunn/process-improve/compare/v1.51.4...v1.51.5
 [1.51.4]: https://github.com/kgdunn/process-improve/compare/v1.51.3...v1.51.4

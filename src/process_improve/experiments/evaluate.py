@@ -1076,6 +1076,22 @@ _METRIC_REGISTRY: dict[str, Callable[[_EvalContext], Any]] = {
     "minimum_aberration": _compute_minimum_aberration,
 }
 
+#: Accepted spelling variants for the optimality-criterion metrics. The registry
+#: historically mixed suffixes (``d_efficiency`` / ``i_efficiency`` /
+#: ``g_efficiency`` versus ``a_optimality`` / ``e_optimality``), so callers who
+#: reach for the "other" suffix (a natural guess, e.g. ``d_optimality``) hit an
+#: "unknown metric" error. Each alias resolves to its canonical registry key
+#: *before* validation, so both spellings work and the returned dict still keys
+#: the result under the canonical name. Aliases are deliberately kept out of
+#: ``_METRIC_REGISTRY`` so ``metric="all"`` does not compute anything twice.
+_METRIC_ALIASES: dict[str, str] = {
+    "d_optimality": "d_efficiency",
+    "i_optimality": "i_efficiency",
+    "g_optimality": "g_efficiency",
+    "a_efficiency": "a_optimality",
+    "e_efficiency": "e_optimality",
+}
+
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -1114,7 +1130,10 @@ def evaluate_design(  # noqa: PLR0913
         ``"prediction_variance"``, ``"vif"``, ``"condition_number"``,
         ``"power"``, ``"degrees_of_freedom"``, ``"alias_structure"``,
         ``"confounding"``, ``"resolution"``, ``"defining_relation"``,
-        ``"clear_effects"``, ``"minimum_aberration"``.
+        ``"clear_effects"``, ``"minimum_aberration"``. The optimality-criterion
+        metrics also accept the opposite suffix as an alias (e.g.
+        ``"d_optimality"`` for ``"d_efficiency"``, ``"a_efficiency"`` for
+        ``"a_optimality"``); the result is keyed under the canonical name.
     effect_size : float or None
         Expected effect size for power calculation.  When *None*, a power
         curve over a range of effect sizes is returned instead.
@@ -1188,6 +1207,8 @@ def evaluate_design(  # noqa: PLR0913
         metrics = [metric]
     else:
         metrics = list(metric)
+    # Resolve accepted spelling variants to their canonical registry keys.
+    metrics = [_METRIC_ALIASES.get(m, m) for m in metrics]
     logger.debug("evaluate_design: model=%r, metrics=%s", model, metrics)
 
     # Validate metric names
