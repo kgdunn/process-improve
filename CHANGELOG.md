@@ -11,6 +11,35 @@ those changes.
 
 ## [Unreleased]
 
+## [1.52.0] - 2026-07-09
+
+### Added
+
+- Mixed-level optimal designs (one or more categorical factors alongside
+  continuous ones) are now first-class through the public API:
+  - `generate_design(..., design_type="i_optimal"/"d_optimal"/"a_optimal")`
+    now accepts and forwards `model_type` (previously unreachable through the
+    unified entry point), and returns a usable `DesignResult` when a
+    categorical factor is present. The categorical factor is carried as its
+    labels in both the coded and actual designs, instead of raising in the
+    coded-to-actual conversion.
+  - `model_type="quadratic"` with a categorical factor now builds a partial
+    response-surface model (pure quadratics on the continuous factors only;
+    the categorical enters as a main effect plus its interactions), rather
+    than requesting an undefined categorical square and failing with a rank
+    collinearity error.
+  - `evaluate_design` returns finite quality metrics (D/I/G-efficiency,
+    condition number, degrees of freedom, prediction variance, FDS) for a
+    design with a categorical factor. The categorical is contrast-coded by
+    patsy and prediction-variance integration samples each categorical over
+    its levels; only continuous factors receive a squared term.
+
+### Changed
+
+- `generate_omars` now raises a clear `ValueError` naming the offending
+  factor(s) when a categorical factor is supplied (OMARS requires continuous
+  factors), instead of failing later with a `TypeError`.
+
 ## [1.51.5] - 2026-07-09
 
 ### Fixed
@@ -2396,7 +2425,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.51.5...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.52.0...HEAD
+[1.52.0]: https://github.com/kgdunn/process-improve/compare/v1.51.5...v1.52.0
 [1.51.5]: https://github.com/kgdunn/process-improve/compare/v1.51.4...v1.51.5
 [1.51.4]: https://github.com/kgdunn/process-improve/compare/v1.51.3...v1.51.4
 [1.51.3]: https://github.com/kgdunn/process-improve/compare/v1.51.2...v1.51.3

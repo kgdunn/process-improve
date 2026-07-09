@@ -182,9 +182,22 @@ def _run_pyoptex(
         n_runs=budget,
     )
 
-    # Build model matrix
+    # Build the model per factor. A categorical factor has no pure-quadratic
+    # term (its square is undefined and, once indicator-coded, idempotent), so a
+    # "quadratic" request becomes a partial response-surface model: quadratics on
+    # the continuous factors, main-effect-plus-interactions on the categorical
+    # ones. This is the standard second-order-with-categorical model and avoids
+    # the rank collinearity a uniform x**2 would create.
+    from process_improve.experiments.factor import FactorType  # noqa: PLC0415
+
     rsm_key = _PYOPTEX_MODEL_MAP.get(model_type, "tfi")
-    model_spec = partial_rsm_names({f.name: rsm_key for f in factors})
+
+    def _factor_rsm_key(factor: Factor) -> str:
+        if rsm_key == "quad" and factor.type == FactorType.categorical:
+            return "tfi"
+        return rsm_key
+
+    model_spec = partial_rsm_names({f.name: _factor_rsm_key(f) for f in factors})
     y2x = model2Y2X(model_spec, pyoptex_factors)
 
     # Select metric

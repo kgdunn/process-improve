@@ -136,6 +136,14 @@ def _build_model_matrix(
     for name in factor_names:
         validate_identifier_is_safe(name)
 
+    # A categorical factor is carried as a non-numeric (label) column; patsy
+    # contrast-codes it automatically, so it must NOT be manually expanded into
+    # dummy columns by the caller (that is what creates singular within-factor
+    # cross terms). Only quantitative factors get a pure-quadratic term - a
+    # categorical has no square - so "quadratic" becomes a partial response
+    # surface model when a categorical factor is present.
+    numeric_factors = [f for f in factor_names if pd.api.types.is_numeric_dtype(design_df[f])]
+
     # Map shorthand names to patsy right-hand-side formulas
     joined = " + ".join(factor_names)
     if model == "main_effects":
@@ -143,8 +151,8 @@ def _build_model_matrix(
     elif model == "interactions":
         rhs = f"({joined}) ** 2"
     elif model == "quadratic":
-        squared = " + ".join(f"I({f} ** 2)" for f in factor_names)
-        rhs = f"({joined}) ** 2 + {squared}"
+        squared = " + ".join(f"I({f} ** 2)" for f in numeric_factors)
+        rhs = f"({joined}) ** 2 + {squared}" if squared else f"({joined}) ** 2"
     elif "~" in model:
         # Explicit formula with response side - strip LHS
         rhs = model.split("~", 1)[1].strip()
@@ -310,15 +318,56 @@ def _region_prediction_variance(ctx: _EvalContext) -> np.ndarray:
     the region settings carried on *ctx*.
     """
     assert ctx.XtX_inv is not None  # callers guard on ``ctx.is_singular``
-    points = _region_points(
-        ctx.factor_names,
-        region=ctx.region,
-        n_samples=ctx.n_samples,
-        include_vertices=ctx.include_vertices,
-        random_seed=ctx.random_seed,
-    )
-    X_region = _expand_points(ctx, points)
-    return _prediction_variance_at_points(X_region, ctx.XtX_inv)
+
+    # Categorical factors are label columns; they cannot be sampled on the
+    # numeric [-1, 1] region. When any is present, sample each categorical
+    # uniformly over its observed levels and each quantitative factor over the
+    # region, then expand through the fitted model. All-continuous designs keep
+    # the original fast path unchanged.
+    cat_levels = {
+        f: ctx.design_df[f].unique()
+        for f in ctx.factor_names
+        if not pd.api.types.is_numeric_dtype(ctx.design_df[f])
+    }
+    if not cat_levels:
+        points = _region_points(
+            ctx.factor_names,
+            region=ctx.region,
+            n_samples=ctx.n_samples,
+            include_vertices=ctx.include_vertices,
+            random_seed=ctx.random_seed,
+        )
+        X_region = _expand_points(ctx, points)
+        return _prediction_variance_at_points(X_region, ctx.XtX_inv)
+
+    rng = np.random.default_rng(ctx.random_seed)
+    data: dict[str, np.ndarray] = {}
+    for f in ctx.factor_names:
+        if f in cat_levels:
+            data[f] = rng.choice(cat_levels[f], size=ctx.n_samples)
+        else:
+            data[f] = rng.uniform(-1.0, 1.0, size=ctx.n_samples)
+    df_points = pd.DataFrame(data)
+
+    # Represent the region corners (where the worst-case prediction variance for
+    # a second-order model usually sits) by crossing the quantitative-factor cube
+    # vertices with a random categorical level.
+    if ctx.include_vertices:
+        cont_names = [f for f in ctx.factor_names if f not in cat_levels]
+        if cont_names:
+            corners = _cube_vertices(len(cont_names))
+            corner: dict[str, np.ndarray] = {}
+            col = 0
+            for f in ctx.factor_names:
+                if f in cat_levels:
+                    corner[f] = rng.choice(cat_levels[f], size=corners.shape[0])
+                else:
+                    corner[f] = corners[:, col]
+                    col += 1
+            df_points = pd.concat([df_points, pd.DataFrame(corner)], ignore_index=True)
+
+    (expanded,) = build_design_matrices([ctx.design_info], df_points, return_type="matrix")
+    return _prediction_variance_at_points(np.asarray(expanded, dtype=float), ctx.XtX_inv)
 
 
 def _compute_g_efficiency(ctx: _EvalContext) -> dict[str, Any]:
@@ -659,9 +708,14 @@ def _compute_degrees_of_freedom(ctx: _EvalContext) -> dict[str, Any]:
     df_residual = ctx.N - ctx.p
     df_total = ctx.N - 1
 
-    # Detect replicates by counting distinct rows
-    design_rounded = np.round(ctx.design_df[ctx.factor_names].values, decimals=10)
-    n_distinct = len(set(map(tuple, design_rounded)))
+    # Detect replicates by counting distinct factor-setting rows. Round the
+    # quantitative columns to absorb floating-point noise; categorical (label)
+    # columns are compared as-is (they cannot be rounded).
+    design_sub = ctx.design_df[ctx.factor_names].copy()
+    numeric_cols = [c for c in ctx.factor_names if pd.api.types.is_numeric_dtype(design_sub[c])]
+    if numeric_cols:
+        design_sub[numeric_cols] = design_sub[numeric_cols].round(10)
+    n_distinct = len(design_sub.drop_duplicates())
     has_replicates = n_distinct < ctx.N
 
     result: dict[str, Any] = {
