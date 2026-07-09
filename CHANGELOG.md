@@ -11,6 +11,24 @@ those changes.
 
 ## [Unreleased]
 
+## [1.52.0] - 2026-07-09
+
+### Added
+
+- `AdaptivePCA` and `AdaptivePLS`: recursive, adaptive PCA and PLS estimators
+  for on-line process monitoring and soft sensing. They keep a model current as
+  a process drifts by updating the association matrices (`X'X`, and `X'Y` for
+  PLS) one observation at a time, with exponentially-weighted moving-average
+  centering and scaling and an injection term (`gamma`) that re-adds a scaled
+  portion of the original kernel for perpetual excitation and better
+  conditioning. A Krzanowski subspace `distance_` metric reports, in units of
+  components, how far the model has drifted from its seed. Both seed from the
+  batch `PCA` / `PLS` (matching their loadings and coefficients), expose an
+  `update()` / `partial_fit()` streaming interface, and recompute an adaptive
+  SPE limit over a rolling window. `AdaptivePLS` supports infrequently-sampled
+  responses: the X-space model adapts every step while the regression part
+  waits for the next response. Available from `process_improve.multivariate`.
+
 ## [1.51.3] - 2026-07-08
 
 ### Fixed
@@ -2358,7 +2376,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.51.3...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.52.0...HEAD
+[1.52.0]: https://github.com/kgdunn/process-improve/compare/v1.51.3...v1.52.0
 [1.51.3]: https://github.com/kgdunn/process-improve/compare/v1.51.2...v1.51.3
 [1.51.2]: https://github.com/kgdunn/process-improve/compare/v1.51.1...v1.51.2
 [1.51.1]: https://github.com/kgdunn/process-improve/compare/v1.51.0...v1.51.1
