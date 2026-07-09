@@ -575,4 +575,6 @@ def test_analyze_experiment_ignores_runorder_and_block_columns() -> None:
     assert not any("RunOrder" in t for t in terms)
     assert not any("Block" in t for t in terms)
     # The real factors and their interaction are still present.
-    assert "A" in terms and "B" in terms and "A:B" in terms
+    assert "A" in terms
+    assert "B" in terms
+    assert "A:B" in terms

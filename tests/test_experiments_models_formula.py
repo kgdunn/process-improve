@@ -179,10 +179,10 @@ class TestCategoricalContrasts:
     @pytest.mark.parametrize(
         "formula",
         [
-            'y ~ C(A, os.system)',       # contrast arg is not a helper/literal/column
-            'y ~ C(A, evil())',          # nested non-contrast call
-            'y ~ Contrast(A)',           # not an allowlisted contrast helper
-            'y ~ C(A, __import__)',      # dunder name as contrast
+            "y ~ C(A, os.system)",  # contrast arg is not a helper/literal/column
+            "y ~ C(A, evil())",  # nested non-contrast call
+            "y ~ Contrast(A)",  # not an allowlisted contrast helper
+            "y ~ C(A, __import__)",  # dunder name as contrast
         ],
     )
     def test_unsafe_categorical_calls_rejected(self, formula: str) -> None:
