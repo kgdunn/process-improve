@@ -254,6 +254,22 @@ class _AdaptiveModel(_LatentVariableModel):
 
     _RENAME_CONTEXT: typing.ClassVar[str] = "adaptive multivariate"
 
+    if typing.TYPE_CHECKING:  # fitted state set in each subclass's fit()
+        mx_: np.ndarray
+        sx_: np.ndarray
+        lambda_center_: np.ndarray
+        alpha_scale_: np.ndarray
+        n_components: int
+        n_samples_: int
+        adaptive_spe_limit: bool
+        conf_level: float
+        forgetting_factor: float
+        gamma: float
+        _component_names: list[int]
+        _spe_buffer: deque[float]
+        _min_spe_window: int
+        _spe_limit_0: float
+
     # ---- helpers used by both subclasses -----------------------------------
 
     @staticmethod
@@ -645,6 +661,20 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
 
     _ATTRIBUTE_RENAMES: typing.ClassVar[dict[str, str]] = {}
 
+    if typing.TYPE_CHECKING:  # fitted state set in fit() / _recompute_from_kernels()
+        _weights: np.ndarray
+        _loadings: np.ndarray
+        _direct: np.ndarray
+        _y_loadings: np.ndarray
+        _beta_scaled: np.ndarray
+        my_: np.ndarray
+        sy_: np.ndarray
+        lambda_center_y_: np.ndarray
+        alpha_scale_y_: np.ndarray
+        n_targets_: int
+        _feature_names: pd.Index
+        _target_names: pd.Index
+
     def __init__(  # noqa: PLR0913
         self,
         n_components: int,
@@ -687,9 +717,9 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self : AdaptivePLS
         """
         X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+        # np.asarray of a 1-D Series / array yields a single-column frame, so Y is
+        # always 2-D here.
         Y_df = Y if isinstance(Y, pd.DataFrame) else pd.DataFrame(np.asarray(Y))
-        if Y_df.ndim == 1:
-            Y_df = Y_df.to_frame()
         N, K = X_df.shape
         M = Y_df.shape[1]
         A = int(self.n_components)
