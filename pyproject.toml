@@ -80,11 +80,14 @@ fast = ["numba>=0.63.1"]
 # CBC solver in its wheels, so no system package is required.
 ilp = ["pulp>=2.8"]
 
-# Coordinate-exchange optimal designs (I-/A-optimal, split-plot / hard-to-change
-# structures) in ``experiments.designs_optimal``. Without pyoptex, D-optimal
-# still works via the built-in point-exchange fallback, but I-/A-optimal and
-# hard_to_change split-plot designs are unavailable.
-pyoptex = ["pyoptex>=1.2.1"]
+# NOTE: ``pyoptex`` (coordinate-exchange I-/A-optimal and split-plot designs in
+# ``experiments.designs_optimal``) is intentionally *not* a declared extra. Its
+# latest release (1.2.1) pins ``plotly~=5.24`` (i.e. < 6), which conflicts with
+# this project's ``plotly>=6.5.2`` floor in the ``plotting``/``all`` extras. A
+# single environment cannot satisfy both, so declaring a ``pyoptex`` extra would
+# make ``uv sync --all-extras`` (used by CI) unresolvable. Install pyoptex
+# separately in its own environment; without it, D-optimal still works via the
+# built-in point-exchange fallback.
 
 # Meta extra: reproduces the pre-ENG-13 install closure.
 all = [
@@ -95,7 +98,6 @@ all = [
     "plotly>=6.5.2",
     "pulp>=2.8",
     "pyDOE3>=1.0",
-    "pyoptex>=1.2.1",
     "ridgeplot>=0.5.0",
     "scikit-image>=0.25.2",
     "seaborn>=0.13.2",

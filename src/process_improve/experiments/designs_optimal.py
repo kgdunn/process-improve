@@ -5,9 +5,11 @@
 Uses ``pyoptex`` (coordinate exchange) when available for high-quality
 optimal designs with support for split-plot structures.  Falls back to the
 built-in ``point_exchange()`` in ``optimal.py`` for D-optimal when
-``pyoptex`` is not installed.  Install the optional dependency with
-``pip install 'process-improve[pyoptex]'``; without it, I-/A-optimal and
-``hard_to_change`` split-plot requests are unavailable.
+``pyoptex`` is not installed.  ``pyoptex`` is not a process-improve extra
+because it pins ``plotly~=5.24`` (< 6), which conflicts with this project's
+``plotly>=6.5.2``; install it separately (``pip install pyoptex``) in its own
+environment. Without it, I-/A-optimal and ``hard_to_change`` split-plot
+requests are unavailable.
 """
 
 from __future__ import annotations
@@ -25,7 +27,6 @@ except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
     from process_improve._extras import _MissingExtra
     fullfact = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
-from process_improve._extras import require_extra
 from process_improve.experiments.optimal import point_exchange
 
 if TYPE_CHECKING:
@@ -54,6 +55,17 @@ try:
     _PYOPTEX_AVAILABLE = True
 except ImportError:
     pass
+
+#: Remediation hint shown when pyoptex is required but not installed. pyoptex is
+#: deliberately not a process-improve extra: its latest release pins
+#: ``plotly~=5.24`` (< 6), which conflicts with this project's ``plotly>=6.5.2``
+#: floor, so the two cannot share an environment. Install it separately.
+_PYOPTEX_INSTALL_HINT = (
+    "Install it separately with `pip install pyoptex` (note: pyoptex pins "
+    "plotly<6, which conflicts with this project's plotly>=6.5.2, so it cannot "
+    "be co-installed with the 'plotting'/'all' extras; use a separate "
+    "environment)."
+)
 
 # ---------------------------------------------------------------------------
 # pyoptex adapter layer
@@ -333,8 +345,8 @@ def dispatch_d_optimal(
 
     if hard_to_change:
         logger.warning(
-            "pyoptex is not installed - hard_to_change factors will be ignored. "
-            "Install it with: pip install 'process-improve[pyoptex]'"
+            "pyoptex is not installed - hard_to_change factors will be ignored. %s",
+            _PYOPTEX_INSTALL_HINT,
         )
     matrix, meta = _run_point_exchange_fallback(factors, budget)
     if constraints:
@@ -380,7 +392,7 @@ def dispatch_i_optimal(
         If pyoptex is not installed.
     """
     if not _PYOPTEX_AVAILABLE:
-        raise require_extra("pyoptex", "pyoptex")
+        raise ImportError(f"I-optimal design generation requires pyoptex. {_PYOPTEX_INSTALL_HINT}")
 
     k = len(factors)
     if budget is None:
@@ -431,7 +443,7 @@ def dispatch_a_optimal(
         If pyoptex is not installed.
     """
     if not _PYOPTEX_AVAILABLE:
-        raise require_extra("pyoptex", "pyoptex")
+        raise ImportError(f"A-optimal design generation requires pyoptex. {_PYOPTEX_INSTALL_HINT}")
 
     k = len(factors)
     if budget is None:

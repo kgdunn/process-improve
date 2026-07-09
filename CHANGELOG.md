@@ -15,17 +15,20 @@ those changes.
 
 ### Added
 
-- `pyoptex` is now a declared optional-dependency extra
-  (`pip install 'process-improve[pyoptex]'`, also included in `[all]`). It
-  powers the coordinate-exchange I-/A-optimal and `hard_to_change` split-plot
-  designs in `experiments.designs_optimal`; D-optimal still works without it
-  via the built-in point-exchange fallback. The "not installed" errors and the
-  fallback warning now name the extra instead of a bare `pip install pyoptex`.
 - `evaluate_design` accepts the opposite suffix as an alias for the
   optimality-criterion metrics (for example `"d_optimality"` for
   `"d_efficiency"`, or `"a_efficiency"` for `"a_optimality"`), resolving to the
   canonical metric so either spelling works. The result is still keyed under
   the canonical name.
+
+### Changed
+
+- The "pyoptex is not installed" errors (I-/A-optimal) and the D-optimal
+  fallback warning now explain that pyoptex must be installed separately and
+  why it is not bundled as an extra: its latest release pins `plotly<6`, which
+  conflicts with this project's `plotly>=6.5.2`, so the two cannot share an
+  environment. D-optimal still works without pyoptex via the built-in
+  point-exchange fallback.
 
 ## [1.52.0] - 2026-07-09
 
