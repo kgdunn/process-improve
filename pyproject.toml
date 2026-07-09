@@ -1,6 +1,6 @@
 [project]
 name = "process-improve"
-version = "1.51.1"
+version = "1.52.2"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = "MIT"
@@ -79,6 +79,15 @@ fast = ["numba>=0.63.1"]
 # Integer-programming OMARS design generator (generate_omars). PuLP bundles the
 # CBC solver in its wheels, so no system package is required.
 ilp = ["pulp>=2.8"]
+
+# NOTE: ``pyoptex`` (coordinate-exchange I-/A-optimal and split-plot designs in
+# ``experiments.designs_optimal``) is intentionally *not* a declared extra. Its
+# latest release (1.2.1) pins ``plotly~=5.24`` (i.e. < 6), which conflicts with
+# this project's ``plotly>=6.5.2`` floor in the ``plotting``/``all`` extras. A
+# single environment cannot satisfy both, so declaring a ``pyoptex`` extra would
+# make ``uv sync --all-extras`` (used by CI) unresolvable. Install pyoptex
+# separately in its own environment; without it, D-optimal still works via the
+# built-in point-exchange fallback.
 
 # Meta extra: reproduces the pre-ENG-13 install closure.
 all = [

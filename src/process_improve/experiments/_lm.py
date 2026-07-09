@@ -43,6 +43,14 @@ _IDENTIFIER_RE = re.compile(r"^[A-Za-z_]\w*$")
 # data column: ``I(...)`` (identity / "as-is") and ``Q(...)`` (quote a name).
 _TRANSFORM_FUNCS = frozenset({"I", "Q"})
 
+# Patsy categorical-contrast helpers. These are pure (they only re-code a
+# categorical column into contrast columns), so they are safe to allow inside a
+# formula. ``C(col)`` and ``C(col, Sum)`` / ``Treatment`` / ``Poly`` etc. let a
+# caller specify explicit contrasts for a categorical factor. Their arguments
+# are restricted (see ``_check_categorical_arg``) to data columns, other
+# contrast helpers, and literals; never arbitrary calls.
+_CATEGORICAL_FUNCS = frozenset({"C", "Treatment", "Sum", "Diff", "Helmert", "Poly"})
+
 # Curated allowlist of numpy callables permitted inside a formula when
 # ``allow_numpy=True``. These are pure, element-wise math transforms. We do NOT
 # allow arbitrary ``np.<anything>`` because numpy also exposes dangerous I/O such
@@ -237,11 +245,18 @@ def _check_formula_node(node: ast.AST, allowed: set[str], *, allow_numpy: bool) 
 
 
 def _check_formula_call(node: ast.Call, allowed: set[str], *, allow_numpy: bool) -> None:
-    """Validate a call node: only ``I()``/``Q()`` or an allowlisted ``np.<func>``."""
+    """Validate a call node: ``I()``/``Q()``, a categorical contrast, or ``np.<func>``."""
+    func = node.func
+
+    # Categorical-contrast helpers (C, Treatment, Sum, ...) have their own arg
+    # rules (bare contrast names, literals, keyword reference levels).
+    if isinstance(func, ast.Name) and func.id in _CATEGORICAL_FUNCS:
+        _check_categorical_call(node, allowed, allow_numpy=allow_numpy)
+        return
+
     if node.keywords:
         raise UnsafeFormulaError("keyword arguments are not allowed in a formula call.")
 
-    func = node.func
     if isinstance(func, ast.Name) and func.id in _TRANSFORM_FUNCS:
         pass
     elif allow_numpy and isinstance(func, ast.Attribute):
@@ -253,12 +268,62 @@ def _check_formula_call(node: ast.Call, allowed: set[str], *, allow_numpy: bool)
                 f"numpy function 'np.{func.attr}' is not in the allowed set {sorted(_NUMPY_ALLOWED_FUNCS)}."
             )
     else:
-        raise UnsafeFormulaError("only I()/Q() (and, when enabled, np.<func>()) calls are allowed in a formula.")
+        raise UnsafeFormulaError(
+            "only I()/Q(), categorical contrasts C()/Treatment()/Sum()/Diff()/Helmert()/Poly() "
+            "(and, when enabled, np.<func>()) calls are allowed in a formula."
+        )
 
     for arg in node.args:
         if isinstance(arg, ast.Starred):
             raise UnsafeFormulaError("starred arguments are not allowed in a formula call.")
         _check_formula_node(arg, allowed, allow_numpy=allow_numpy)
+
+
+def _check_categorical_call(node: ast.Call, allowed: set[str], *, allow_numpy: bool) -> None:
+    """Validate a categorical-contrast call: ``C()``/``Treatment()``/``Sum()``/..."""
+    for arg in node.args:
+        if isinstance(arg, ast.Starred):
+            raise UnsafeFormulaError("starred arguments are not allowed in a formula call.")
+        _check_categorical_arg(arg, allowed, allow_numpy=allow_numpy)
+    for kw in node.keywords:
+        if kw.arg is None:
+            raise UnsafeFormulaError("**kwargs are not allowed in a formula call.")
+        _check_literal_or_container(kw.value)
+
+
+def _check_categorical_arg(node: ast.AST, allowed: set[str], *, allow_numpy: bool) -> None:
+    """Validate one argument of a categorical-contrast call (``C``/``Treatment``/...).
+
+    Permitted: a data-column name, a bare contrast helper name (``Sum``), a
+    nested contrast call (``Treatment(reference="A")``), or a literal / list of
+    literals (reference levels, polynomial degree).
+    """
+    # A bare contrast-helper name used as the contrast argument, e.g. C(f, Sum).
+    if isinstance(node, ast.Name) and node.id in _CATEGORICAL_FUNCS:
+        return
+    # A nested contrast call, e.g. C(f, Treatment(reference="A")).
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in _CATEGORICAL_FUNCS:
+        _check_formula_call(node, allowed, allow_numpy=allow_numpy)
+        return
+    # A literal reference level / degree, or a list/tuple of them.
+    if isinstance(node, (ast.Constant, ast.List, ast.Tuple)):
+        _check_literal_or_container(node)
+        return
+    # Otherwise it must be an ordinary allowed node (a data column, I()/Q(), ...).
+    _check_formula_node(node, allowed, allow_numpy=allow_numpy)
+
+
+def _check_literal_or_container(node: ast.AST) -> None:
+    """Allow only string / numeric literals, or lists / tuples of them."""
+    if isinstance(node, (ast.List, ast.Tuple)):
+        for element in node.elts:
+            _check_literal_or_container(element)
+        return
+    if isinstance(node, ast.Constant):
+        value = node.value
+        if not isinstance(value, bool) and isinstance(value, (str, int, float)):
+            return
+    raise UnsafeFormulaError("categorical-contrast arguments must be column names, contrast helpers, or literals.")
 
 
 def forg(x: float, prec: int = 3) -> str:

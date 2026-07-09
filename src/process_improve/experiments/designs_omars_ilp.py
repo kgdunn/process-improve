@@ -710,6 +710,16 @@ def generate_omars(  # noqa: PLR0913
     True
     """
     from process_improve.experiments.designs_utils import build_design_result  # noqa: PLC0415
+    from process_improve.experiments.factor import FactorType  # noqa: PLC0415
+
+    categorical = [f.name for f in factors if f.type == FactorType.categorical]
+    if categorical:
+        raise ValueError(
+            "OMARS designs require continuous factors; got categorical factor(s): "
+            f"{categorical}. OMARS is built from three-level quantitative contrasts. "
+            "For a mixed-level study use an optimal design (generate_design(..., "
+            "design_type='i_optimal'))."
+        )
 
     if center_runs < 1:
         raise ValueError("center_runs must be at least 1.")

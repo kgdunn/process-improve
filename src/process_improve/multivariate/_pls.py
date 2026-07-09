@@ -152,9 +152,16 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     n_components : int
         Number of latent components to extract.
     scale : bool, default=True
-        Whether to scale X and Y to unit variance (sklearn internal scaling).
-        When using ``MCUVScaler`` externally, set ``scale=False`` to avoid
-        double scaling.
+        Mean-center and unit-variance-scale both the X and Y blocks internally
+        before fitting (``ddof=1``, done with :class:`MCUVScaler`). This mirrors
+        :class:`sklearn.cross_decomposition.PLSRegression`, whose ``scale=True``
+        default also scales X and Y; the parameter exists so ``PLS`` is a
+        drop-in for the sklearn estimator. Predictions, ``predictions_`` and
+        ``beta_coefficients_`` are returned on the original (un-scaled) data
+        scale. When you scale externally (e.g. with ``MCUVScaler``), set
+        ``scale=False`` to avoid the (idempotent) double scaling. Note: the
+        cross-validation helpers (:meth:`select_n_components`) always re-fit an
+        :class:`MCUVScaler` inside each training fold regardless of this flag.
     max_iter : int, default=1000
         Maximum number of iterations for the NIPALS algorithm.
     tol : float, default=sqrt(machine epsilon)
@@ -203,7 +210,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     r2y_per_variable_ : pd.DataFrame of shape (n_targets, n_components)
         Per-variable R² for Y after each component.
     rmse_ : pd.DataFrame of shape (n_targets, n_components)
-        Root mean squared error of Y predictions per component.
+        Root mean squared error of Y predictions per component, on the original
+        (un-scaled) Y scale, consistent with ``predictions_`` and
+        ``prediction_interval``.
     explained_variance_ : np.ndarray of shape (n_components,)
         Variance explained by each component in X.
     scaling_factor_for_scores_ : pd.Series of length n_components
@@ -247,6 +256,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         missing_data_settings: dict | None = None,
     ):
         self.n_components: int = n_components
+        # ``scale`` (like ``copy``) mirrors sklearn PLSRegression's constructor
+        # signature for drop-in API compatibility. Unlike ``copy`` it is wired
+        # up: when True, fit() centers and unit-variance-scales X and Y via
+        # MCUVScaler (see fit()). It must be stored verbatim here and read only
+        # in fit(), per the sklearn __init__ convention.
         self.scale = scale
         self.max_iter = max_iter
         self.tol = tol
@@ -626,6 +640,29 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         assert isinstance(X, pd.DataFrame)
         assert isinstance(Y, pd.DataFrame)
 
+        # Honour ``scale`` (see __init__): center + unit-variance-scale X and Y
+        # with the library's MCUVScaler, matching sklearn PLSRegression's
+        # ``scale=True`` default. The NIPALS core and every fitted attribute run
+        # in this scaled space; the user-facing predictions_ / beta_coefficients_
+        # / predict() outputs below are mapped back to the original data scale.
+        # On already-scaled input (center ~ 0, scale ~ 1) this is a no-op, so
+        # callers who pre-scale (scale=False) or pass MCUVScaler output are
+        # unaffected. MCUVScaler is NaN-aware and leaves constant columns at 1.
+        self._x_scaler: MCUVScaler | None = None
+        self._y_scaler: MCUVScaler | None = None
+        if self.scale:
+            # Fit the scalers on the rows that actually enter the fit. With
+            # sample_weight, zero-weight rows are excluded from NIPALS (via the
+            # sqrt(w) rescale), so they must not influence the center/scale
+            # either - otherwise a zero-weight row would stop being equivalent to
+            # a dropped row. All rows are then transformed with those statistics.
+            x_fit_rows = X if sample_weight is None else X[sample_weight > 0]
+            y_fit_rows = Y if sample_weight is None else Y[sample_weight > 0]
+            self._x_scaler = MCUVScaler().fit(x_fit_rows)
+            self._y_scaler = MCUVScaler().fit(y_fit_rows)
+            X = self._x_scaler.transform(X)
+            Y = self._y_scaler.transform(Y)
+
         # Check if number of components is supported against maximum requested
         min_dim = min(N, K)
         A = min_dim if self.n_components is None else int(self.n_components)
@@ -662,8 +699,16 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         direct_weights = self._x_weights @ safe_inverse(
             self._x_loadings.T @ self._x_weights, what="(x_loadings' @ x_weights)"
         )
-        # beta = RC' [KxM]: direct link from k-th X variable to m-th Y variable
+        # beta = RC' [KxM]: direct link from k-th X variable to m-th Y variable.
+        # NIPALS ran in the (optionally) scaled space, so this beta maps scaled X
+        # to scaled Y. Rescale to the original data units so it stays the
+        # documented raw-X -> raw-Y relationship (and matches sklearn's coef_):
+        # beta_orig[k, m] = beta_scaled[k, m] * y_scale[m] / x_scale[k].
         beta_coefficients = direct_weights @ self.y_loadings_.T
+        if self._x_scaler is not None and self._y_scaler is not None:
+            x_scale = self._x_scaler.scale_.to_numpy()[:, np.newaxis]
+            y_scale = self._y_scaler.scale_.to_numpy()[np.newaxis, :]
+            beta_coefficients = beta_coefficients * (y_scale / x_scale)
 
         component_names = list(range(1, A + 1))
         # ENG-18: scores_ / x_weights_ / x_loadings_ / spe_ are stored as private
@@ -675,7 +720,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         self.y_scores_ = pd.DataFrame(self.y_scores_, index=Y.index, columns=component_names)
         self.y_weights_ = pd.DataFrame(self.y_weights_, index=Y.columns, columns=component_names)
         self.y_loadings_ = pd.DataFrame(self.y_loadings_, index=Y.columns, columns=component_names)
-        self.predictions_ = pd.DataFrame(self._scores @ self.y_loadings_.values.T, index=Y.index, columns=Y.columns)
+        predictions = pd.DataFrame(self._scores @ self.y_loadings_.values.T, index=Y.index, columns=Y.columns)
+        if self._y_scaler is not None:
+            # NIPALS predictions are in scaled-Y space; report on the original scale.
+            predictions = self._y_scaler.inverse_transform(predictions)
+        self.predictions_ = predictions
         self.direct_weights_ = pd.DataFrame(direct_weights, index=X.columns, columns=component_names)
         self.beta_coefficients_ = pd.DataFrame(beta_coefficients, index=X.columns, columns=Y.columns)
         # ``max(1, N-1)`` -- see SEC-21 (#270) sub-item 6.
@@ -749,8 +798,16 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             self.r2y_per_variable_.iloc[:, a] = np.where(
                 prior_SSY_col > 0, col_SSY / np.where(prior_SSY_col > 0, prior_SSY_col, 1.0), np.nan
             )
+            # rmse_ is reported on the ORIGINAL Y scale. NIPALS runs in the
+            # (optionally) scaled space, so rescale each target's RMSE by its Y
+            # standard deviation when scale=True. This keeps rmse_ consistent
+            # with predictions_ / diagnose().y_hat (also original-scale) and with
+            # prediction_interval(), which uses rmse_ as the residual error term.
             residuals_y = Yd.to_numpy() - y_hat.to_numpy()
-            self.rmse_.iloc[:, a] = np.sqrt(np.mean(residuals_y**2, axis=0))
+            rmse_a = np.sqrt(np.mean(residuals_y**2, axis=0))
+            if self._y_scaler is not None:
+                rmse_a = rmse_a * self._y_scaler.scale_.to_numpy()
+            self.rmse_.iloc[:, a] = rmse_a
 
         return self
 
@@ -789,6 +846,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if sample_index is None:
             sample_index = pd.RangeIndex(X_arr.shape[0])  # type: ignore[assignment]
         X_df = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)
+        if self._x_scaler is not None:
+            # Project in the same (scaled) space the model was fit in.
+            X_df = self._x_scaler.transform(X_df)
         return X_df @ self.direct_weights_
 
     def fit_transform(self, X: DataMatrix, Y: DataMatrix | None = None) -> pd.DataFrame:
@@ -905,6 +965,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if sample_index is None:
             sample_index = pd.RangeIndex(X_arr.shape[0])  # type: ignore[assignment]
         X = pd.DataFrame(X_arr, index=sample_index, columns=feature_columns)
+        if self._x_scaler is not None:
+            # Move X into the scaled space so scores, T², SPE and y_hat are all
+            # computed consistently with how the model was fit.
+            X = self._x_scaler.transform(X)
 
         scores = X @ self.direct_weights_
 
@@ -917,8 +981,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         residuals = X - X_hat
         spe_values = pd.Series(np.sqrt(np.power(residuals, 2).sum(axis=1)), index=X.index, name="SPE")
 
-        # Y predictions
+        # Y predictions (computed in scaled-Y space; mapped back to original units)
         y_hat = scores @ self.y_loadings_.T
+        if self._y_scaler is not None:
+            y_hat = self._y_scaler.inverse_transform(y_hat)
 
         return Bunch(scores=scores, hotellings_t2=t2, spe=spe_values, y_hat=y_hat)
 
@@ -1797,6 +1863,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             Random seed for reproducibility (K-fold shuffle and bootstrap).
         show_progress : bool, default True
             Whether to display a ``tqdm`` progress bar.
+        sample_weight : np.ndarray of shape (n_samples,), optional
+            Per-sample non-negative weights. Threaded into every sub-fit so
+            each resample's PLS uses the same weighting scheme as the parent
+            model. Default ``None`` (all samples weighted equally).
 
         Returns
         -------

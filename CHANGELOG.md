@@ -11,7 +11,7 @@ those changes.
 
 ## [Unreleased]
 
-## [1.51.1] - 2026-07-02
+## [1.52.2] - 2026-07-09
 
 ### Added
 
@@ -21,10 +21,159 @@ those changes.
   D-, I-, and A-optimal and split-plot test paths run in CI instead of being
   skipped. New direct tests cover the pyoptex adapter layer, and the fallback
   and ImportError paths are now forced via monkeypatch so they are exercised
-  in every environment.
+  in every environment. (The 1.52.1 guidance below still applies to pip
+  installs: pip cannot apply uv overrides, so end users need a separate
+  environment for pyoptex until its upstream pins are relaxed in a release.)
 - Expanded coverage tests for the DOE visualization plot builders, bivariate
   elbow/peak detection, and control-chart edge paths; the coverage gate
-  (`--cov-fail-under`) was raised accordingly.
+  (`--cov-fail-under`) was raised from 89 to 92.
+
+## [1.52.1] - 2026-07-09
+
+### Added
+
+- `evaluate_design` accepts the opposite suffix as an alias for the
+  optimality-criterion metrics (for example `"d_optimality"` for
+  `"d_efficiency"`, or `"a_efficiency"` for `"a_optimality"`), resolving to the
+  canonical metric so either spelling works. The result is still keyed under
+  the canonical name.
+
+### Changed
+
+- The "pyoptex is not installed" errors (I-/A-optimal) and the D-optimal
+  fallback warning now explain that pyoptex must be installed separately and
+  why it is not bundled as an extra: its latest release pins `plotly<6`, which
+  conflicts with this project's `plotly>=6.5.2`, so the two cannot share an
+  environment. D-optimal still works without pyoptex via the built-in
+  point-exchange fallback.
+
+## [1.52.0] - 2026-07-09
+
+### Added
+
+- Mixed-level optimal designs (one or more categorical factors alongside
+  continuous ones) are now first-class through the public API:
+  - `generate_design(..., design_type="i_optimal"/"d_optimal"/"a_optimal")`
+    now accepts and forwards `model_type` (previously unreachable through the
+    unified entry point), and returns a usable `DesignResult` when a
+    categorical factor is present. The categorical factor is carried as its
+    labels in both the coded and actual designs, instead of raising in the
+    coded-to-actual conversion.
+  - `model_type="quadratic"` with a categorical factor now builds a partial
+    response-surface model (pure quadratics on the continuous factors only;
+    the categorical enters as a main effect plus its interactions), rather
+    than requesting an undefined categorical square and failing with a rank
+    collinearity error.
+  - `evaluate_design` returns finite quality metrics (D/I/G-efficiency,
+    condition number, degrees of freedom, prediction variance, FDS) for a
+    design with a categorical factor. The categorical is contrast-coded by
+    patsy and prediction-variance integration samples each categorical over
+    its levels; only continuous factors receive a squared term.
+
+### Changed
+
+- `generate_omars` now raises a clear `ValueError` naming the offending
+  factor(s) when a categorical factor is supplied (OMARS requires continuous
+  factors), instead of failing later with a `TypeError`.
+
+## [1.51.5] - 2026-07-09
+
+### Fixed
+
+- `analyze_experiment` no longer treats the design-bookkeeping columns
+  `RunOrder` and `Block` as model factors when a full design frame is
+  passed with the response joined; they are dropped, matching
+  `evaluate_design`, so the two consumers agree on what counts as a factor.
+
+### Added
+
+- The formula validator now allows patsy categorical-contrast helpers
+  (`C`, `Treatment`, `Sum`, `Diff`, `Helmert`, `Poly`), so a caller can
+  specify explicit contrasts for a categorical factor, e.g.
+  `analyze_experiment(..., model="y ~ C(catalyst, Sum) + temp")`. Their
+  arguments are restricted to column names, contrast helpers, and literals;
+  arbitrary calls remain rejected.
+- The optimal-design dispatchers record `constraints_enforced=False` in the
+  returned metadata when constraints are supplied (enforcement is not yet
+  implemented), and `hard_to_change_ignored` when a split-plot request is
+  dropped because `pyoptex` is not installed, so these degradations are
+  detectable on the result rather than only in a log line.
+
+## [1.51.4] - 2026-07-09
+
+### Fixed
+
+- `PLS.rmse_` is now reported on the original (un-scaled) Y scale when
+  `scale=True`, consistent with `predictions_` and `beta_coefficients_`.
+  Previously it was left in the internally standardized space, so a
+  `scale=True` fit on unscaled data returned an RMSE in units of a Y
+  standard deviation rather than the original response units. As a direct
+  consequence `PLS.prediction_interval()` (which uses `rmse_` as its
+  residual error term when no cross-validation result is supplied) now
+  produces intervals on the correct scale; previously its two branches
+  disagreed, since the cross-validated branch was already on the original
+  scale. Fits with `scale=False` (data scaled externally) are unaffected.
+
+## [1.51.3] - 2026-07-08
+
+### Fixed
+
+- `PLS(scale=True)` now actually mean-centers and unit-variance-scales the
+  X **and** Y blocks before fitting, matching its docstring and
+  `sklearn.cross_decomposition.PLSRegression`. The `scale` flag was
+  previously inert (stored but never used), so `fit()` ran NIPALS on the
+  raw data. A caller who relied on `scale=True` and did not pre-scale got a
+  silently degraded fit whenever the Y columns had unequal variances,
+  because the high-variance columns dominated the latent extraction.
+  Predictions, `predictions_` and `beta_coefficients_` are returned on the
+  original data scale. `scale=False` is unchanged and remains the correct
+  setting when scaling externally (e.g. with `MCUVScaler`); a weighted fit
+  scales on the positive-weight rows only, so a zero weight stays
+  equivalent to dropping that row.
+
+## [1.51.2] - 2026-07-05
+
+### Added
+
+- `OLS` and `fit_robust_lm` are now importable from
+  `process_improve.regression` directly (previously only from
+  `process_improve.regression.methods`), matching the package-level
+  exports of the other regression helpers. Used by the least squares
+  chapter of the PID book.
+
+## [1.51.1] - 2026-07-03
+
+### Fixed
+
+- Docstring drift surfaced by an audit pass, across multiple modules
+  (docstring-only changes; no runtime behaviour changes):
+  - `MBPCA` class docstring in `_mbpca.py`: remove the phantom `super_vip_`
+    entry from the fitted-attributes list (only `block_vip_` is set).
+  - `TPLS` class docstring `Example` in `_tpls.py`: wrap the `all_data`
+    dict in `DataFrameDict(all_data)` before calling `estimator.fit(...)`,
+    matching the runtime type check.
+  - `TPLS.diagnose` docstring `Example` in `_tpls.py`: swap the illustrative
+    `estimator.predict(new_data)` call to `estimator.diagnose(new_data)`
+    since `predict` is deprecated.
+  - `TPLS.help()` text in `_tpls.py`: point users at
+    `tpls.diagnose(X_new)` (not the deprecated `predict`) and correct the
+    `spe_limit` call shape to `.spe_limit["Y"][group]()` to match the
+    nested dict-of-dicts populated by `fit()`.
+  - `variance_decomposition` docstring in `univariate/metrics.py`: the
+    example was still calling `within_between_standard_deviation(...)`; update
+    to the current name.
+  - `ttest_paired_from_df` docstring in `univariate/metrics.py`: the
+    Output bullets (6-9) said "B minus A"; the implementation computes
+    `A - B`, so the bullets now say "A minus B" to match.
+  - `robust_regression` returns block in `regression/_robust_regression.py`:
+    drop the `t_value` entry - `out["t_value"]` is only ever initialised
+    to `np.nan`.
+  - `analyze_experiment` Parameters block in `experiments/analysis.py`:
+    remove the `coding` parameter documentation (the parameter is present
+    in the signature but never referenced in the body).
+  - `PLS.cross_validate` docstring in `multivariate/_pls.py`: add the
+    previously-undocumented `sample_weight` parameter (threaded into every
+    sub-fit).
 
 ## [1.51.0] - 2026-06-30
 
@@ -2312,7 +2461,14 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.51.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.52.2...HEAD
+[1.52.2]: https://github.com/kgdunn/process-improve/compare/v1.52.1...v1.52.2
+[1.52.1]: https://github.com/kgdunn/process-improve/compare/v1.52.0...v1.52.1
+[1.52.0]: https://github.com/kgdunn/process-improve/compare/v1.51.5...v1.52.0
+[1.51.5]: https://github.com/kgdunn/process-improve/compare/v1.51.4...v1.51.5
+[1.51.4]: https://github.com/kgdunn/process-improve/compare/v1.51.3...v1.51.4
+[1.51.3]: https://github.com/kgdunn/process-improve/compare/v1.51.2...v1.51.3
+[1.51.2]: https://github.com/kgdunn/process-improve/compare/v1.51.1...v1.51.2
 [1.51.1]: https://github.com/kgdunn/process-improve/compare/v1.51.0...v1.51.1
 [1.51.0]: https://github.com/kgdunn/process-improve/compare/v1.50.0...v1.51.0
 [1.50.0]: https://github.com/kgdunn/process-improve/compare/v1.49.1...v1.50.0

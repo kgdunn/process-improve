@@ -402,3 +402,21 @@ def test_search_report_records_diagnostics() -> None:
     assert report.ilp_iterations >= 1
     assert report.feasible_designs >= 1
     assert report.total_solve_seconds >= 0.0
+
+
+def test_generate_omars_rejects_categorical_factor() -> None:
+    """A categorical factor gets a clear error, not a downstream TypeError.
+
+    OMARS is built from three-level quantitative contrasts, so a categorical
+    factor is out of scope; the message names the offending factor and points to
+    the optimal-design path for mixed-level studies.
+    """
+    from process_improve.experiments import generate_omars
+
+    factors = [
+        Factor(name="supplier", type="categorical", levels=["A", "B", "C"]),
+        Factor(name="temp", low=-1, high=1),
+        Factor(name="time", low=-1, high=1),
+    ]
+    with pytest.raises(ValueError, match="OMARS designs require continuous factors"):
+        generate_omars(factors, solver_options=_SOLVER)

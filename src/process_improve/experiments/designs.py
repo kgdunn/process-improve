@@ -290,6 +290,7 @@ def generate_design(  # noqa: PLR0913
     cube: str = "full",
     constraints: list[Constraint] | None = None,
     hard_to_change: list[str] | None = None,
+    model_type: str = "interactions",
     random_seed: int = 42,
 ) -> DesignResult:
     """Generate an experimental design matrix.
@@ -337,6 +338,14 @@ def generate_design(  # noqa: PLR0913
         Constraints on the factor space.
     hard_to_change : list[str] or None
         Names of hard-to-change factors (triggers split-plot structure).
+    model_type : str
+        Model the optimal designs (``"d_optimal"``, ``"i_optimal"``,
+        ``"a_optimal"``) are built for: ``"main_effects"``, ``"interactions"``
+        (default), or ``"quadratic"``.  With a categorical factor present,
+        ``"quadratic"`` builds a partial response-surface model (quadratics on
+        the continuous factors only; the categorical enters as a main effect
+        plus its interactions), since a categorical factor has no square.
+        Ignored by the classical (non-optimal) design families.
     random_seed : int
         Seed for reproducible randomization (default 42).
 
@@ -386,6 +395,7 @@ def generate_design(  # noqa: PLR0913
         "cube": cube,
         "hard_to_change": hard_to_change,
         "constraints": constraints,
+        "model_type": model_type,
     }
 
     coded_matrix, meta = dispatch_fn(factors, **dispatch_kwargs)

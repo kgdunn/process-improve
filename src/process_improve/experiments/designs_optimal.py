@@ -5,7 +5,11 @@
 Uses ``pyoptex`` (coordinate exchange) when available for high-quality
 optimal designs with support for split-plot structures.  Falls back to the
 built-in ``point_exchange()`` in ``optimal.py`` for D-optimal when
-``pyoptex`` is not installed.
+``pyoptex`` is not installed.  ``pyoptex`` is not a process-improve extra
+because it pins ``plotly~=5.24`` (< 6), which conflicts with this project's
+``plotly>=6.5.2``; install it separately (``pip install pyoptex``) in its own
+environment. Without it, I-/A-optimal and ``hard_to_change`` split-plot
+requests are unavailable.
 """
 
 from __future__ import annotations
@@ -51,6 +55,17 @@ try:
     _PYOPTEX_AVAILABLE = True
 except ImportError:  # pragma: no cover - exercised via env-without-pyoptex
     pass
+
+#: Remediation hint shown when pyoptex is required but not installed. pyoptex is
+#: deliberately not a process-improve extra: its latest release pins
+#: ``plotly~=5.24`` (< 6), which conflicts with this project's ``plotly>=6.5.2``
+#: floor, so the two cannot share an environment. Install it separately.
+_PYOPTEX_INSTALL_HINT = (
+    "Install it separately with `pip install pyoptex` (note: pyoptex pins "
+    "plotly<6, which conflicts with this project's plotly>=6.5.2, so it cannot "
+    "be co-installed with the 'plotting'/'all' extras; use a separate "
+    "environment)."
+)
 
 # ---------------------------------------------------------------------------
 # pyoptex adapter layer
@@ -182,9 +197,22 @@ def _run_pyoptex(
         n_runs=budget,
     )
 
-    # Build model matrix
+    # Build the model per factor. A categorical factor has no pure-quadratic
+    # term (its square is undefined and, once indicator-coded, idempotent), so a
+    # "quadratic" request becomes a partial response-surface model: quadratics on
+    # the continuous factors, main-effect-plus-interactions on the categorical
+    # ones. This is the standard second-order-with-categorical model and avoids
+    # the rank collinearity a uniform x**2 would create.
+    from process_improve.experiments.factor import FactorType  # noqa: PLC0415
+
     rsm_key = _PYOPTEX_MODEL_MAP.get(model_type, "tfi")
-    model_spec = partial_rsm_names({f.name: rsm_key for f in factors})
+
+    def _factor_rsm_key(factor: Factor) -> str:
+        if rsm_key == "quad" and factor.type == FactorType.categorical:
+            return "tfi"
+        return rsm_key
+
+    model_spec = partial_rsm_names({f.name: _factor_rsm_key(f) for f in factors})
     y2x = model2Y2X(model_spec, pyoptex_factors)
 
     # Select metric
@@ -303,19 +331,31 @@ def dispatch_d_optimal(
         )
 
     if _PYOPTEX_AVAILABLE:
-        return _run_pyoptex(
+        matrix, meta = _run_pyoptex(
             factors,
             criterion="d_optimal",
             budget=budget,
             options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change),
         )
+        # Record that constraints were not enforced so the DesignResult carries
+        # the fact programmatically, not only as an easy-to-miss log line.
+        if constraints:
+            meta["constraints_enforced"] = False
+        return matrix, meta
 
     if hard_to_change:
         logger.warning(
-            "pyoptex is not installed - hard_to_change factors will be ignored. "
-            "Install with: pip install pyoptex"
+            "pyoptex is not installed - hard_to_change factors will be ignored. %s",
+            _PYOPTEX_INSTALL_HINT,
         )
-    return _run_point_exchange_fallback(factors, budget)
+    matrix, meta = _run_point_exchange_fallback(factors, budget)
+    if constraints:
+        meta["constraints_enforced"] = False
+    if hard_to_change:
+        # The randomized fallback cannot honour the split-plot request; surface
+        # it on the result rather than only in the log.
+        meta["hard_to_change_ignored"] = list(hard_to_change)
+    return matrix, meta
 
 
 def dispatch_i_optimal(
@@ -352,21 +392,21 @@ def dispatch_i_optimal(
         If pyoptex is not installed.
     """
     if not _PYOPTEX_AVAILABLE:
-        raise ImportError(
-            "I-optimal design generation requires pyoptex. "
-            "Install with: pip install pyoptex"
-        )
+        raise ImportError(f"I-optimal design generation requires pyoptex. {_PYOPTEX_INSTALL_HINT}")
 
     k = len(factors)
     if budget is None:
         budget = 2 * k + 1
 
-    return _run_pyoptex(
+    matrix, meta = _run_pyoptex(
         factors,
         criterion="i_optimal",
         budget=budget,
         options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change),
     )
+    if constraints:
+        meta["constraints_enforced"] = False
+    return matrix, meta
 
 
 def dispatch_a_optimal(
@@ -403,18 +443,18 @@ def dispatch_a_optimal(
         If pyoptex is not installed.
     """
     if not _PYOPTEX_AVAILABLE:
-        raise ImportError(
-            "A-optimal design generation requires pyoptex. "
-            "Install with: pip install pyoptex"
-        )
+        raise ImportError(f"A-optimal design generation requires pyoptex. {_PYOPTEX_INSTALL_HINT}")
 
     k = len(factors)
     if budget is None:
         budget = 2 * k + 1
 
-    return _run_pyoptex(
+    matrix, meta = _run_pyoptex(
         factors,
         criterion="a_optimal",
         budget=budget,
         options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change),
     )
+    if constraints:
+        meta["constraints_enforced"] = False
+    return matrix, meta

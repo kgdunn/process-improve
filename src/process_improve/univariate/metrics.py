@@ -393,10 +393,10 @@ def ttest_paired_from_df(
     4. Group B mean
     5. Differences mean: average difference between the groups (not the same as the difference
        of the averages from items 3 and 4 above)
-    6. z-value for the difference between group "B" minus group "A"
+    6. z-value for the difference between group "A" minus group "B"
     7. p-value for this z-value
-    8. Confidence interval low value for difference between group "B" minus group "A"
-    9. Confidence interval high value for difference between group "B" minus group "A"
+    8. Confidence interval low value for difference between group "A" minus group "B"
+    9. Confidence interval high value for difference between group "A" minus group "B"
 
     """
     data_subset = df[[grouper_column, values_column]].copy()
@@ -1128,7 +1128,7 @@ def variance_decomposition(df: pd.DataFrame, measured: str, repeat: str) -> dict
     1     102       1
     2      94       2
     3      95       2
-    >>> output = within_between_standard_deviation(df, measured="Result", repeat="Repeat")
+    >>> output = variance_decomposition(df, measured="Result", repeat="Repeat")
     {'total_ms':       16.666667,
      'total_dof':      3,
      'within_ms':      0.5,

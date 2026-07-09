@@ -100,6 +100,24 @@ class TestDOptimalDispatch:
             dispatch_d_optimal(_continuous(2), budget=6, constraints=constraints)
         assert any("Constraint enforcement" in rec.message for rec in caplog.records)
 
+    def test_constraints_recorded_as_not_enforced_in_meta(self) -> None:
+        """Passing constraints records constraints_enforced=False on the result meta.
+
+        Enforcement is not implemented, so the flag lets a caller detect that the
+        returned design does not honour the constraints, rather than relying only
+        on an easy-to-miss log line.
+        """
+        from process_improve.experiments.factor import Constraint
+
+        constraints = [Constraint(expression="X1 + X2 <= 10")]
+        _design, meta = dispatch_d_optimal(_continuous(2), budget=6, constraints=constraints)
+        assert meta.get("constraints_enforced") is False
+
+    def test_hard_to_change_ignored_flag_without_pyoptex(self) -> None:
+        """Without pyoptex the split-plot request is dropped and recorded on the meta."""
+        _design, meta = dispatch_d_optimal(_continuous(2), budget=6, hard_to_change=["X1"])
+        assert meta.get("hard_to_change_ignored") == ["X1"]
+
     def test_hard_to_change_without_pyoptex_warns(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level("WARNING"):
             dispatch_d_optimal(_continuous(2), budget=6, hard_to_change=["X1"])
@@ -129,3 +147,29 @@ class TestOptimalRequiresPyoptex:
     def test_a_optimal_raises_import_error(self) -> None:
         with pytest.raises(ImportError, match="pyoptex"):
             dispatch_a_optimal(_continuous(3), budget=8)
+
+
+class TestOptimalMissingPyoptexMessage:
+    """The not-installed error explains how to install pyoptex and why it is not
+    a declared extra (its plotly<6 pin conflicts with the project's plotly>=6.5.2).
+
+    Forcing the availability flag off lets this run regardless of whether
+    pyoptex is present in the test environment, so the remediation message is
+    always covered.
+    """
+
+    def test_i_optimal_error_explains_install(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from process_improve.experiments import designs_optimal
+
+        monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
+        with pytest.raises(ImportError, match=r"pip install pyoptex") as info:
+            dispatch_i_optimal(_continuous(3), budget=8)
+        assert "plotly" in str(info.value)
+
+    def test_a_optimal_error_explains_install(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from process_improve.experiments import designs_optimal
+
+        monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
+        with pytest.raises(ImportError, match=r"pip install pyoptex") as info:
+            dispatch_a_optimal(_continuous(3), budget=8)
+        assert "plotly" in str(info.value)

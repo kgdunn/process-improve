@@ -639,6 +639,28 @@ class TestDispatcher:
         with pytest.raises(ValueError, match="Unknown metric"):
             evaluate_design(df, model="main_effects", metric="nonexistent")
 
+    def test_optimality_suffix_aliases_resolve(self) -> None:
+        """The opposite suffix is accepted and keyed under the canonical name."""
+        df = _full_factorial_df(3)
+        # d_optimality -> d_efficiency (an _efficiency metric requested by _optimality)
+        via_alias = evaluate_design(df, model="main_effects", metric="d_optimality")
+        via_canon = evaluate_design(df, model="main_effects", metric="d_efficiency")
+        assert "d_efficiency" in via_alias
+        assert "d_optimality" not in via_alias
+        assert via_alias["d_efficiency"] == via_canon["d_efficiency"]
+        # a_efficiency -> a_optimality. Requesting the _efficiency spelling is now
+        # valid (previously an unknown-metric error); a_optimality's own output
+        # already carries both a_optimality and a_efficiency keys.
+        via_alias_a = evaluate_design(df, model="main_effects", metric="a_efficiency")
+        assert "a_optimality" in via_alias_a
+
+    def test_metric_alias_in_list(self) -> None:
+        """Aliases resolve inside a metric list alongside canonical names."""
+        df = _full_factorial_df(3)
+        result = evaluate_design(df, model="main_effects", metric=["d_optimality", "vif"])
+        assert "d_efficiency" in result
+        assert "vif" in result
+
     def test_accepts_design_result(self) -> None:
         """evaluate_design accepts a DesignResult object."""
         factors = _continuous_factors(2, "AB")
@@ -1128,3 +1150,72 @@ class TestFDSResolution:
         second = evaluate_design(bbd, model=_PURE_QUADRATIC_5, metric="fds", n_samples=120_000, random_seed=1)
         assert first["fds"]["max_prediction_variance"] == second["fds"]["max_prediction_variance"]
         assert first["fds"]["max_prediction_variance"] == pytest.approx(0.84, abs=0.01)
+
+
+# ---------------------------------------------------------------------------
+# Mixed-level (categorical + continuous) factor support
+# ---------------------------------------------------------------------------
+import importlib.util  # noqa: E402
+
+_HAS_PYOPTEX = importlib.util.find_spec("pyoptex") is not None
+_needs_pyoptex = pytest.mark.skipif(not _HAS_PYOPTEX, reason="optimal designs require pyoptex")
+
+
+def test_build_model_matrix_mixed_quadratic_is_partial_rsm() -> None:
+    """A quadratic model with a categorical factor squares only the numeric factors.
+
+    The categorical column stays a label column that patsy contrast-codes; it is
+    never manually dummy-expanded (which would create singular cross terms) and
+    never squared (a category has no square).
+    """
+    df = pd.DataFrame({
+        "cat": ["A", "B", "C", "A", "B", "C"],
+        "x1": [-1.0, 0.0, 1.0, 1.0, -1.0, 0.0],
+        "x2": [1.0, -1.0, 0.0, 0.0, 1.0, -1.0],
+    })
+    _X, names, _info = _build_model_matrix(df, "quadratic", ["cat", "x1", "x2"])
+    flat = [n.replace(" ", "") for n in names]
+    # No square of the categorical factor.
+    assert not any("I(cat**2)" in n for n in flat)
+    # Categorical contrasts and continuous squares are present.
+    assert any(n.startswith("cat[") for n in flat)
+    assert "I(x1**2)" in flat
+    assert "I(x2**2)" in flat
+
+
+@_needs_pyoptex
+def test_generate_and_evaluate_mixed_level_design() -> None:
+    """End-to-end: generate an optimal mixed-level design and evaluate it.
+
+    generate_design must return a usable DesignResult with the categorical
+    factor as labels, and evaluate_design must return finite quality metrics
+    (D/I/G efficiency, condition number, degrees of freedom, FDS) rather than
+    None / inf as it did when the categorical was dummy-expanded.
+    """
+    np.random.seed(42)  # noqa: NPY002  # pyoptex coordinate exchange reads the global RNG
+    factors = [
+        Factor(name="catalyst", type="categorical", levels=["A", "B", "C", "D"]),
+        Factor(name="temp", type="continuous", low=50, high=90),
+        Factor(name="conc", type="continuous", low=0.1, high=0.5),
+        Factor(name="rate", type="continuous", low=1, high=9),
+    ]
+    res = generate_design(factors, design_type="i_optimal", budget=44, model_type="quadratic")
+    # The categorical is carried as labels in both the coded and actual designs.
+    assert set(res.design["catalyst"].unique()) <= {"A", "B", "C", "D"}
+    assert set(res.design_actual["catalyst"].unique()) <= {"A", "B", "C", "D"}
+
+    design = res.design.drop(columns=["RunOrder"])
+    metrics = evaluate_design(
+        design,
+        model="quadratic",
+        metric=["d_efficiency", "i_efficiency", "g_efficiency", "condition_number",
+                "degrees_of_freedom", "fds"],
+    )
+    assert metrics["d_efficiency"] is not None
+    assert metrics["d_efficiency"] > 0
+    assert metrics["i_efficiency"] is not None
+    assert metrics["g_efficiency"] is not None
+    assert np.isfinite(metrics["condition_number"])
+    assert metrics["degrees_of_freedom"]["model"] > 0
+    assert metrics["fds"] is not None
+    assert metrics["fds"]["average_prediction_variance"] > 0

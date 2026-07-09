@@ -84,7 +84,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     block_scores_, block_loadings_                    dict[str, DataFrame]
     r2_x_per_block_cumulative_, r2_x_per_block_per_component_
     r2_x_per_variable_                                dict[str, DataFrame]
-    block_vip_, super_vip_
+    block_vip_
     block_spe_, block_hotellings_t2_, super_hotellings_t2_
     explained_variance_, scaling_factor_for_super_scores_
     fitting_info_, has_missing_data_, algorithm_
