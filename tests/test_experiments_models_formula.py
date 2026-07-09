@@ -156,3 +156,35 @@ class TestValidateIdentifierIsSafe:
     def test_non_string_rejected(self) -> None:
         with pytest.raises(UnsafeFormulaError, match="must be a string"):
             validate_identifier_is_safe(123)  # type: ignore[arg-type]
+
+
+class TestCategoricalContrasts:
+    """Patsy categorical-contrast helpers (C, Treatment, Sum, ...) are allowed."""
+
+    @pytest.mark.parametrize(
+        "formula",
+        [
+            "y ~ C(A)",
+            "y ~ C(A, Sum)",
+            "y ~ C(A, Treatment)",
+            "y ~ C(A, Treatment(reference=0))",
+            "y ~ C(A, Diff) + C(B, Helmert)",
+            "y ~ B + C(A) + C(A):B",
+            "y ~ C(A, Poly)",
+        ],
+    )
+    def test_categorical_contrasts_allowed(self, formula: str) -> None:
+        validate_formula_is_safe(formula, _COLUMNS, allow_transforms=True)
+
+    @pytest.mark.parametrize(
+        "formula",
+        [
+            "y ~ C(A, os.system)",  # contrast arg is not a helper/literal/column
+            "y ~ C(A, evil())",  # nested non-contrast call
+            "y ~ Contrast(A)",  # not an allowlisted contrast helper
+            "y ~ C(A, __import__)",  # dunder name as contrast
+        ],
+    )
+    def test_unsafe_categorical_calls_rejected(self, formula: str) -> None:
+        with pytest.raises(UnsafeFormulaError):
+            validate_formula_is_safe(formula, _COLUMNS, allow_transforms=True, allow_numpy=True)

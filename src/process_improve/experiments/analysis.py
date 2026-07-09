@@ -225,8 +225,13 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
     if response_col not in df.columns:
         raise ValueError(f"Response column '{response_col}' not found in data.")
 
-    # Factor columns = everything except the response
-    factor_cols = [c for c in df.columns if c != response_col]
+    # Factor columns = everything except the response and the design-bookkeeping
+    # columns. A DesignResult carries "RunOrder" (and optionally "Block"); if a
+    # caller passes the whole design frame with the response joined, these must
+    # not become model terms. This mirrors evaluate_design's filtering so the two
+    # public consumers agree on what counts as a factor.
+    _NON_FACTOR_COLS = {response_col, "RunOrder", "Block"}
+    factor_cols = [c for c in df.columns if c not in _NON_FACTOR_COLS]
     for col in factor_cols:
         validate_identifier_is_safe(col)
 

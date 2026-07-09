@@ -11,6 +11,29 @@ those changes.
 
 ## [Unreleased]
 
+## [1.51.5] - 2026-07-09
+
+### Fixed
+
+- `analyze_experiment` no longer treats the design-bookkeeping columns
+  `RunOrder` and `Block` as model factors when a full design frame is
+  passed with the response joined; they are dropped, matching
+  `evaluate_design`, so the two consumers agree on what counts as a factor.
+
+### Added
+
+- The formula validator now allows patsy categorical-contrast helpers
+  (`C`, `Treatment`, `Sum`, `Diff`, `Helmert`, `Poly`), so a caller can
+  specify explicit contrasts for a categorical factor, e.g.
+  `analyze_experiment(..., model="y ~ C(catalyst, Sum) + temp")`. Their
+  arguments are restricted to column names, contrast helpers, and literals;
+  arbitrary calls remain rejected.
+- The optimal-design dispatchers record `constraints_enforced=False` in the
+  returned metadata when constraints are supplied (enforcement is not yet
+  implemented), and `hard_to_change_ignored` when a split-plot request is
+  dropped because `pyoptex` is not installed, so these degradations are
+  detectable on the result rather than only in a log line.
+
 ## [1.51.4] - 2026-07-09
 
 ### Fixed
@@ -2373,7 +2396,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.51.4...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.51.5...HEAD
+[1.51.5]: https://github.com/kgdunn/process-improve/compare/v1.51.4...v1.51.5
 [1.51.4]: https://github.com/kgdunn/process-improve/compare/v1.51.3...v1.51.4
 [1.51.3]: https://github.com/kgdunn/process-improve/compare/v1.51.2...v1.51.3
 [1.51.2]: https://github.com/kgdunn/process-improve/compare/v1.51.1...v1.51.2

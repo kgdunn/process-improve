@@ -94,6 +94,25 @@ class TestDOptimalDispatch:
             dispatch_d_optimal(_continuous(2), budget=6, constraints=constraints)
         assert any("Constraint enforcement" in rec.message for rec in caplog.records)
 
+    def test_constraints_recorded_as_not_enforced_in_meta(self) -> None:
+        """Passing constraints records constraints_enforced=False on the result meta.
+
+        Enforcement is not implemented, so the flag lets a caller detect that the
+        returned design does not honour the constraints, rather than relying only
+        on an easy-to-miss log line.
+        """
+        from process_improve.experiments.factor import Constraint
+
+        constraints = [Constraint(expression="X1 + X2 <= 10")]
+        _design, meta = dispatch_d_optimal(_continuous(2), budget=6, constraints=constraints)
+        assert meta.get("constraints_enforced") is False
+
+    @_skip_with_pyoptex
+    def test_hard_to_change_ignored_flag_without_pyoptex(self) -> None:
+        """Without pyoptex the split-plot request is dropped and recorded on the meta."""
+        _design, meta = dispatch_d_optimal(_continuous(2), budget=6, hard_to_change=["X1"])
+        assert meta.get("hard_to_change_ignored") == ["X1"]
+
     @_skip_with_pyoptex
     def test_hard_to_change_without_pyoptex_warns(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level("WARNING"):
