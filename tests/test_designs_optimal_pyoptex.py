@@ -64,6 +64,15 @@ class TestConvertFactors:
         np.testing.assert_array_equal(re_a.Z, np.repeat(np.arange(4), 3))
         assert re_a.ratio == 0.5
 
+    def test_multiple_hard_to_change_factors(self) -> None:
+        """Every hard-to-change factor shares the whole-plot RandomEffect."""
+        factors = _continuous(3)
+        converted = _convert_factors_to_pyoptex(factors, hard_to_change=["A", "B"], n_runs=12)
+        by_name = {f.name: f for f in converted}
+        assert by_name["A"].re is not None
+        assert by_name["B"].re is by_name["A"].re
+        assert by_name["C"].re is None
+
     def test_whole_plot_padding_when_runs_do_not_divide(self) -> None:
         """When n_runs does not divide evenly, the last whole plot is padded."""
         factors = _continuous(2)
@@ -147,6 +156,13 @@ class TestDispatchDefaults:
         design, meta = dispatch_a_optimal(_continuous(3))
         assert design.shape[0] == 7  # 2k + 1
         assert meta["optimality_criterion"] == "a_optimal"
+
+    def test_two_hard_to_change_factors_dispatch(self) -> None:
+        """Split-plot dispatch with two htc factors reports both in metadata."""
+        design, meta = dispatch_d_optimal(_continuous(3), budget=12, hard_to_change=["A", "B"])
+        assert design.shape[0] == 12
+        assert meta["hard_to_change"] == ["A", "B"]
+        assert meta["backend"] == "pyoptex"
 
     def test_mixed_factor_types_smoke(self) -> None:
         factors = [

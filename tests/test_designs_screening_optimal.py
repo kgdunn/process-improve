@@ -135,6 +135,19 @@ class TestDOptimalDispatch:
         design, _meta = dispatch_d_optimal(_continuous(3), budget=2)
         assert design.shape[0] >= 4
 
+    def test_budget_capped_to_candidate_set(self) -> None:
+        """A budget above the 3**k candidate set is capped to its size."""
+        design, _meta = dispatch_d_optimal(_continuous(2), budget=50)
+        assert design.shape[1] == 2
+        assert design.shape[0] <= 9  # 3**2 candidate rows
+
+    @pytest.mark.parametrize("model_type", ["main_effects", "interactions", "quadratic"])
+    def test_model_type_accepted_on_fallback_path(self, model_type: str) -> None:
+        """model_type is accepted (though unused) by the point-exchange fallback."""
+        design, meta = dispatch_d_optimal(_continuous(3), budget=8, model_type=model_type)
+        assert design.shape[1] == 3
+        assert meta["backend"] == "point_exchange_fallback"
+
 
 @pytest.mark.usefixtures("no_pyoptex")
 class TestOptimalRequiresPyoptex:
