@@ -8,25 +8,20 @@ MCP server). The narrative description of this layer lives in
 
 .. automodule:: process_improve.recipes
    :members:
-   :undoc-members:
    :show-inheritance:
 
 .. automodule:: process_improve.tool_spec
    :members:
-   :undoc-members:
    :show-inheritance:
 
 .. automodule:: process_improve.config
    :members:
-   :undoc-members:
    :show-inheritance:
 
 .. automodule:: process_improve.tool_safety
    :members:
-   :undoc-members:
    :show-inheritance:
 
 .. automodule:: process_improve.mcp_server
    :members:
-   :undoc-members:
    :show-inheritance:

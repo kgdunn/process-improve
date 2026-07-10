@@ -7,10 +7,8 @@ teaching, and tests.
 
 .. automodule:: process_improve.simulation.model
    :members:
-   :undoc-members:
    :show-inheritance:
 
 .. automodule:: process_improve.simulation.context
    :members:
-   :undoc-members:
    :show-inheritance:
