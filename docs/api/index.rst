@@ -11,4 +11,7 @@ API Reference
    regression
    batch
    bivariate
+   sensory
+   simulation
    visualization
+   tooling
