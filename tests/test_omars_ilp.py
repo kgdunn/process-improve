@@ -11,7 +11,33 @@ from process_improve.experiments import Factor, analyze_omars, generate_design
 from process_improve.experiments.designs_omars import is_omars
 
 _HAS_PULP = importlib.util.find_spec("pulp") is not None
-pytestmark = pytest.mark.skipif(not _HAS_PULP, reason="pulp (the 'ilp' extra) is not installed")
+
+
+def _solver_executes() -> bool:
+    """Probe that pulp's default CBC solver binary actually runs here.
+
+    Importability is not enough: pulp ships a bundled CBC binary that can be
+    present but non-executable (for example an Intel-only build on an Apple
+    Silicon CI runner), which raises PulpSolverError only at solve time.
+    """
+    if not _HAS_PULP:
+        return False
+    import pulp
+
+    try:
+        probe = pulp.LpProblem("probe", pulp.LpMinimize)
+        x = pulp.LpVariable("x", 0, 1)
+        probe += x
+        probe.solve(pulp.PULP_CBC_CMD(msg=False))
+    except pulp.PulpSolverError:
+        return False
+    return True
+
+
+pytestmark = pytest.mark.skipif(
+    not _solver_executes(),
+    reason="pulp (the 'ilp' extra) is not installed or its CBC solver binary cannot run on this platform",
+)
 
 # Keep the solver fast and deterministic across the suite.
 _SOLVER = {"time_limit": 30, "msg": False}
