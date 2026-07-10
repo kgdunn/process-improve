@@ -85,8 +85,9 @@ pip install 'process-improve[all]'             # everything above (the pre-1.24.
 ```
 
 Requires Python 3.10 or newer. The core install pulls in `numpy`, `pandas`,
-`scipy`, `scikit-learn`, `statsmodels`, `patsy`, `pydantic`, `pyyaml`, and
-`tqdm`. Heavier optional surfaces (plotting, designed experiments, batch IO,
+`scikit-learn`, `statsmodels`, `patsy`, `pydantic`, `pyyaml`, and
+`tqdm` (`scipy` arrives transitively via scikit-learn and statsmodels).
+Heavier optional surfaces (plotting, designed experiments, batch IO,
 MCP server, numba JIT) live in extras so a caller who only needs, say,
 `detect_multivariate_outliers` does not have to install Plotly or numba.
 
@@ -171,7 +172,7 @@ for s in strategy["stages"]:
 
 Longer, fully-worked versions of each example live in the
 [Quickstart guide](https://kgdunn.github.io/process-improve/quickstart.html)
-and the `process_improve/notebooks_examples/` folder.
+and the [`examples/`](examples/) folder.
 
 New to designed experiments? The
 [**Applied DoE tutorial**](https://kgdunn.github.io/process-improve/applied_doe/index.html)
@@ -197,20 +198,22 @@ preserved through `fit` and `transform`.
 
 ## Citing process-improve
 
-If you use this package in academic work, please cite it:
+If you use this package in academic work, please cite it. The
+[`CITATION.cff`](CITATION.cff) file carries the current version and
+release date, and GitHub renders a *"Cite this repository"* button in
+the sidebar with ready-made BibTeX and APA entries:
 
 ```bibtex
 @software{dunn_process_improve,
   author  = {Dunn, Kevin G.},
   title   = {{process-improve: Multivariate Analysis for Process Improvement}},
   year    = {2026},
-  version = {v1.21.4},
   url     = {https://github.com/kgdunn/process-improve}
 }
 ```
 
-A `CITATION.cff` file is included, so GitHub renders a *"Cite this
-repository"* button in the sidebar.
+Add the `version` field from `CITATION.cff` (or the release tag you
+installed) when citing a specific version.
 
 ## Contributing
 
