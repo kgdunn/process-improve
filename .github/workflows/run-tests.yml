@@ -27,12 +27,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7
-    - name: Install uv and set the python version
-      uses: astral-sh/setup-uv@v7
+    - name: Set up project environment
+      uses: ./.github/actions/setup-env
       with:
         python-version: "3.13"
-    - name: Install the project (editable)
-      run: uv sync --dev --all-extras
     - name: Lint with ruff
       run: uv run ruff check .
 
@@ -45,12 +43,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7
-    - name: Install uv and set the python version
-      uses: astral-sh/setup-uv@v7
+    - name: Set up project environment
+      uses: ./.github/actions/setup-env
       with:
         python-version: "3.13"
-    - name: Install the project (editable)
-      run: uv sync --dev --all-extras
     - name: Type-check with mypy
       run: uv run mypy src/process_improve
 
@@ -58,14 +54,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-       # Adjust for min and max supported Python versions
-        python-version: ["3.13"]
+        # The min (3.10) and max (3.13) supported Python versions run on all
+        # three operating systems; the versions in between run on ubuntu only.
+        # This keeps 8 jobs instead of the full 12-job product while still
+        # validating both Python extremes off Linux.
+        python-version: ["3.10", "3.13"]
         os: [ubuntu-latest, windows-latest, macos-latest]
         experimental: [false]
         include:
-          - python-version: "3.10"
-            os: ubuntu-latest
-            experimental: false
           - python-version: "3.11"
             os: ubuntu-latest
             experimental: false
@@ -91,8 +87,8 @@ jobs:
     - uses: actions/checkout@v7
       with:
         fetch-depth: 0
-    - name: Install uv and set the python version
-      uses: astral-sh/setup-uv@v7
+    - name: Set up project environment
+      uses: ./.github/actions/setup-env
       with:
         python-version: ${{ matrix.python-version }}
     # Test building & distribution
@@ -100,9 +96,6 @@ jobs:
       run: uv build
     - name: Check if the built package can be installed and imported
       run: uv run --isolated --with . --no-project -- python -c "import process_improve"
-    # Editable install for testing
-    - name: Install the project (editable)
-      run: uv sync --dev --all-extras
     # This is where the actual unit and integration tests start
     - name: Test with pytest
       run: uv run pytest --cov-report=xml
@@ -122,12 +115,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7
-    - name: Install uv and set the python version
-      uses: astral-sh/setup-uv@v7
+    - name: Set up project environment
+      uses: ./.github/actions/setup-env
       with:
         python-version: "3.13"
-    - name: Install the project (editable)
-      run: uv sync --dev --all-extras
     - name: Test with pytest under python -O
       # Strip the default --cov / --pdb / -n auto / --exitfirst options;
       # for -O detection we want the full failure surface, not the first one.

@@ -1,0 +1,21 @@
+name: Set up project environment
+description: >-
+  Install uv, pin the requested Python version, and sync the project's dev
+  environment with all extras. Shared by the CI jobs in run-tests.yml and
+  docs.yml so the setup sequence is defined once.
+
+inputs:
+  python-version:
+    description: Python version to install and pin for uv
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install uv and set the python version
+      uses: astral-sh/setup-uv@v7
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Install the project (editable, dev deps, all extras)
+      run: uv sync --dev --all-extras
+      shell: bash

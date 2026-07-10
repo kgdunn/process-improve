@@ -21,12 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+      - name: Set up project environment
+        uses: ./.github/actions/setup-env
         with:
           python-version: "3.11"
-      - name: Install dependencies
-        run: uv sync --dev --all-extras
       - name: Install pandoc (required by nbsphinx)
         run: sudo apt-get update && sudo apt-get install -y pandoc
       - name: Configure GitHub Pages
