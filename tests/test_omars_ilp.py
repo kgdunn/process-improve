@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 
 import numpy as np
 import pytest
@@ -244,6 +245,13 @@ def test_multistart_reaches_catalogue_quality() -> None:
     assert report.feasible_designs > 1
 
 
+@pytest.mark.skipif(
+    sys.platform == "darwin",
+    reason="pulp's bundled CBC (an Intel binary run under Rosetta on Apple Silicon "
+    "CI runners) intermittently exits nonzero under this test's 40+ rapid solver "
+    "spawns; the property it checks is platform-independent and stays covered on "
+    "Linux and Windows",
+)
 def test_more_restarts_is_never_worse() -> None:
     """Adding restarts can only match or improve the selected design's quality.
 
