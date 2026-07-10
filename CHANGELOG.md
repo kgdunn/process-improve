@@ -11,6 +11,23 @@ those changes.
 
 ## [Unreleased]
 
+## [1.52.2] - 2026-07-09
+
+### Added
+
+- The `pyoptex` coordinate-exchange optimal-design backend is now installed in
+  the development environment (dev dependency group) via uv
+  `override-dependencies` that relax pyoptex's plotly and numba pins, so the
+  D-, I-, and A-optimal and split-plot test paths run in CI instead of being
+  skipped. New direct tests cover the pyoptex adapter layer, and the fallback
+  and ImportError paths are now forced via monkeypatch so they are exercised
+  in every environment. (The 1.52.1 guidance below still applies to pip
+  installs: pip cannot apply uv overrides, so end users need a separate
+  environment for pyoptex until its upstream pins are relaxed in a release.)
+- Expanded coverage tests for the DOE visualization plot builders, bivariate
+  elbow/peak detection, and control-chart edge paths; the coverage gate
+  (`--cov-fail-under`) was raised from 89 to 92.
+
 ## [1.52.1] - 2026-07-09
 
 ### Added
@@ -2444,7 +2461,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.52.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.52.2...HEAD
+[1.52.2]: https://github.com/kgdunn/process-improve/compare/v1.52.1...v1.52.2
 [1.52.1]: https://github.com/kgdunn/process-improve/compare/v1.52.0...v1.52.1
 [1.52.0]: https://github.com/kgdunn/process-improve/compare/v1.51.5...v1.52.0
 [1.51.5]: https://github.com/kgdunn/process-improve/compare/v1.51.4...v1.51.5

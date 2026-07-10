@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from process_improve.bivariate.methods import find_elbow_point
+from process_improve.bivariate.methods import find_elbow_point, find_line_intersection
 from process_improve.bivariate.tools import get_bivariate_tool_specs
 from process_improve.tool_safety import ToolInputInvalidError
 from process_improve.tool_spec import execute_tool_call
@@ -109,6 +109,36 @@ def test__corner_case() -> None:
         [np.nan] * 11,
     )
     assert found_elbow == -1
+
+
+def test__mismatched_lengths_raise() -> None:
+    """Vectors of different lengths raise a clear ValueError."""
+    with pytest.raises(ValueError, match="same length"):
+        find_elbow_point(np.arange(12.0), np.arange(11.0))
+
+
+def test__too_few_non_missing_values_raise() -> None:
+    """Ten or fewer non-missing pairs raise, even if the raw vectors are longer."""
+    x = np.arange(13.0)
+    y = 2.0 * x
+    y[[2, 5, 8]] = np.nan  # 10 non-missing pairs remain
+    with pytest.raises(ValueError, match="more than 10 values"):
+        find_elbow_point(x, y)
+
+
+def test_find_line_intersection_parallel_lines() -> None:
+    """Essentially parallel lines have no intersection: returns (nan, nan)."""
+    x, y = find_line_intersection(m1=2.0, b1=0.0, m2=2.0, b2=5.0)
+    assert np.isnan(x)
+    assert np.isnan(y)
+
+
+def test_find_line_intersection_known_point() -> None:
+    """Two crossing lines intersect where algebra says they should."""
+    # y = x and y = -x + 4 cross at (2, 2).
+    x, y = find_line_intersection(m1=1.0, b1=0.0, m2=-1.0, b2=4.0)
+    assert x == pytest.approx(2.0)
+    assert y == pytest.approx(2.0)
 
 
 # ---------------------------------------------------------------------------

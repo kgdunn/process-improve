@@ -8,11 +8,19 @@ entry point.
 from __future__ import annotations
 
 import json
+import math
 from typing import Any
 
 import pytest
 
 from process_improve.experiments.visualization import main_effects_plot, visualize_doe
+from process_improve.experiments.visualization.plots.optimization_plots import (
+    _composite_desirability,
+    _desirability_maximize,
+    _desirability_minimize,
+    _desirability_target,
+    _individual_desirability,
+)
 from process_improve.experiments.visualization.plots.registry import (
     create_plot,
     get_available_plot_types,
@@ -1077,3 +1085,836 @@ class TestToolSpecIntegration:
         })
         assert "error" not in result
         assert result["plot_type"] == "pareto"
+
+
+# ---------------------------------------------------------------------------
+# Desirability helper functions (optimization_plots.py)
+# ---------------------------------------------------------------------------
+
+
+class TestDesirabilityHelpers:
+    """Unit tests for the pure desirability functions in optimization_plots."""
+
+    def test_maximize_boundaries(self) -> None:
+        assert _desirability_maximize(0.0, low=1.0, high=2.0) == 0.0
+        assert _desirability_maximize(3.0, low=1.0, high=2.0) == 1.0
+        assert _desirability_maximize(1.5, low=1.0, high=2.0) == pytest.approx(0.5)
+
+    def test_minimize_boundaries(self) -> None:
+        assert _desirability_minimize(0.5, low=1.0, high=2.0) == 1.0
+        assert _desirability_minimize(2.5, low=1.0, high=2.0) == 0.0
+        assert _desirability_minimize(1.5, low=1.0, high=2.0) == pytest.approx(0.5)
+
+    def test_target_all_branches(self) -> None:
+        # Outside [low, high] on either side -> 0
+        assert _desirability_target(0.5, low=1.0, target=2.0, high=3.0) == 0.0
+        assert _desirability_target(3.5, low=1.0, target=2.0, high=3.0) == 0.0
+        # Below target: rising ramp
+        assert _desirability_target(1.5, low=1.0, target=2.0, high=3.0) == pytest.approx(0.5)
+        # Above target: falling ramp
+        assert _desirability_target(2.5, low=1.0, target=2.0, high=3.0) == pytest.approx(0.5)
+
+    def test_individual_desirability_goal_dispatch(self) -> None:
+        assert _individual_desirability(0.75, {"goal": "maximize", "low": 0.0, "high": 1.0}) == pytest.approx(0.75)
+        assert _individual_desirability(0.25, {"goal": "minimize", "low": 0.0, "high": 1.0}) == pytest.approx(0.75)
+        target_goal = {"goal": "target", "low": 0.0, "target": 0.5, "high": 1.0}
+        assert _individual_desirability(0.25, target_goal) == pytest.approx(0.5)
+        # Unknown goal type falls through to 0.0
+        assert _individual_desirability(0.5, {"goal": "unknown_goal"}) == 0.0
+
+    def test_composite_empty_list(self) -> None:
+        assert _composite_desirability([]) == 0.0
+
+    def test_composite_any_zero(self) -> None:
+        assert _composite_desirability([0.9, 0.0, 0.8]) == 0.0
+
+    def test_composite_importance_weighting(self) -> None:
+        """Importance weights should change the geometric mean."""
+        unweighted = _composite_desirability([0.25, 1.0])
+        weighted = _composite_desirability([0.25, 1.0], importances=[3.0, 1.0])
+        assert unweighted == pytest.approx(0.25**0.5)
+        assert weighted == pytest.approx(0.25**0.75)
+        assert weighted != pytest.approx(unweighted)
+
+
+# ---------------------------------------------------------------------------
+# Optimisation plot edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestDesirabilityContourEdgeCases:
+    def test_no_optimisation_data(self) -> None:
+        plot = create_plot("desirability_contour")
+        spec = plot.to_spec()
+        assert "no optimisation data" in spec.title.lower()
+
+    def test_empty_optimization_key_and_no_coefficients(self) -> None:
+        """An optimization dict without responses and no top-level coefficients."""
+        plot = create_plot("desirability_contour", analysis_results={"optimization": {}})
+        spec = plot.to_spec()
+        assert "no optimisation data" in spec.title.lower()
+
+    def test_single_factor(self, coefficients_2f: list) -> None:
+        plot = create_plot(
+            "desirability_contour",
+            analysis_results={"coefficients": coefficients_2f},
+            factors_to_plot=["A"],
+        )
+        spec = plot.to_spec()
+        assert "need at least 2" in spec.title.lower()
+
+
+class TestOverlayPlotEdgeCases:
+    def test_no_analysis_results(self) -> None:
+        plot = create_plot("overlay")
+        spec = plot.to_spec()
+        assert "no response data" in spec.title.lower()
+
+    def test_missing_optimization_key(self, coefficients_2f: list) -> None:
+        plot = create_plot("overlay", analysis_results={"coefficients": coefficients_2f})
+        spec = plot.to_spec()
+        assert "no response data" in spec.title.lower()
+
+    def test_single_factor(self, coefficients_2f: list) -> None:
+        plot = create_plot(
+            "overlay",
+            analysis_results={
+                "optimization": {"responses": [{"name": "Yield", "coefficients": coefficients_2f}]},
+            },
+            factors_to_plot=["A"],
+        )
+        spec = plot.to_spec()
+        assert "need at least 2" in spec.title.lower()
+
+    def test_response_with_empty_coefficients_skipped(self, coefficients_2f: list) -> None:
+        plot = create_plot(
+            "overlay",
+            analysis_results={
+                "optimization": {
+                    "responses": [
+                        {"name": "Yield", "coefficients": coefficients_2f},
+                        {"name": "NoModel", "coefficients": []},
+                    ],
+                },
+            },
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        # Only one contour layer: the empty-coefficient response is skipped
+        assert len(spec.panels[0].layers) == 1
+        assert spec.metadata["n_responses"] == 2
+
+    def test_constraint_labels_from_bounds(self, coefficients_2f: list) -> None:
+        """Responses carrying low/high bounds produce constraint annotations."""
+        plot = create_plot(
+            "overlay",
+            analysis_results={
+                "optimization": {
+                    "responses": [
+                        {"name": "Yield", "coefficients": coefficients_2f, "low": 30.0, "high": 50.0},
+                    ],
+                },
+            },
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        anns = spec.panels[0].annotations
+        assert len(anns) == 1
+        assert anns[0].label == "Yield: [30.00, 50.00]"
+
+
+class TestRidgeTracePlotEdgeCases:
+    def test_no_coefficients(self) -> None:
+        plot = create_plot("ridge_trace")
+        spec = plot.to_spec()
+        assert "no coefficients" in spec.title.lower()
+
+    def test_no_factors(self) -> None:
+        plot = create_plot(
+            "ridge_trace",
+            analysis_results={"coefficients": [{"term": "Intercept", "coefficient": 1.0}]},
+        )
+        spec = plot.to_spec()
+        assert "no factors" in spec.title.lower()
+
+    def test_singular_matrix_branch(self) -> None:
+        """The mu grid includes -10 exactly, making B + mu*I singular there.
+
+        With quadratic coefficients of 10.0 for both factors, the matrix
+        ``b_mat + (-10) * I`` is exactly zero, so ``np.linalg.solve`` raises
+        LinAlgError and the loop must continue to the next mu value.
+        """
+        coefficients = [
+            {"term": "A", "coefficient": 1.0},
+            {"term": "B", "coefficient": 1.0},
+            {"term": "I(A ** 2)", "coefficient": 10.0},
+            {"term": "I(B ** 2)", "coefficient": 10.0},
+        ]
+        plot = create_plot(
+            "ridge_trace",
+            analysis_results={"coefficients": coefficients},
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        assert spec.plot_type == "ridge_trace"
+        assert len(spec.panels) == 2
+        # All 30 radii still produce a response trace despite the singular mu
+        assert len(spec.panels[0].layers[0].data) == 30
+
+    def test_zero_linear_terms_keep_centre_solution(self) -> None:
+        """With b = 0 the solved x is the zero vector; factor traces stay at 0."""
+        coefficients = [
+            {"term": "Intercept", "coefficient": 5.0},
+            {"term": "I(A ** 2)", "coefficient": -2.0},
+            {"term": "I(B ** 2)", "coefficient": -3.0},
+        ]
+        plot = create_plot(
+            "ridge_trace",
+            analysis_results={"coefficients": coefficients},
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        factor_panel = spec.panels[1]
+        for layer in factor_panel.layers:
+            assert all(row["coded_level"] == 0.0 for row in layer.data)
+
+
+class TestSteepestAscentPathEdgeCases:
+    def test_no_coefficients(self) -> None:
+        plot = create_plot("steepest_ascent_path")
+        spec = plot.to_spec()
+        assert "no path data" in spec.title.lower()
+
+    def test_coefficients_without_factors(self, coefficients_2f: list) -> None:
+        """Coefficients present but no factor names derivable anywhere."""
+        plot = create_plot(
+            "steepest_ascent_path",
+            analysis_results={"coefficients": coefficients_2f},
+        )
+        spec = plot.to_spec()
+        assert "no path data" in spec.title.lower()
+
+    def test_all_zero_linear_coefficients(self) -> None:
+        coefficients = [
+            {"term": "Intercept", "coefficient": 40.0},
+            {"term": "A", "coefficient": 0.0},
+            {"term": "B", "coefficient": 0.0},
+        ]
+        plot = create_plot(
+            "steepest_ascent_path",
+            analysis_results={"coefficients": coefficients},
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        assert "no path data" in spec.title.lower()
+
+    def test_precomputed_path_with_empty_steps(self) -> None:
+        plot = create_plot(
+            "steepest_ascent_path",
+            analysis_results={"steepest_path": {"direction": "ascent", "steps": []}},
+        )
+        spec = plot.to_spec()
+        assert "no steps computed" in spec.title.lower()
+
+    def test_actual_response_overlay(self) -> None:
+        """Steps carrying actual_response add a scatter overlay of observations."""
+        path = {
+            "direction": "ascent",
+            "direction_vector": {"A": 1.0},
+            "step_size": 0.5,
+            "steps": [
+                {"step": 0, "coded": {"A": 0.0}, "predicted_response": 40.0, "actual_response": 39.5},
+                {"step": 1, "coded": {"A": 0.5}, "predicted_response": 43.0},
+                {"step": 2, "coded": {"A": 1.0}, "predicted_response": 46.0, "actual_response": 45.2},
+            ],
+        }
+        plot = create_plot(
+            "steepest_ascent_path",
+            analysis_results={"steepest_path": path},
+        )
+        spec = plot.to_spec()
+        resp_layers = spec.panels[0].layers
+        assert len(resp_layers) == 2
+        actual_layer = resp_layers[1]
+        assert actual_layer.name == "Actual"
+        # Only the two steps with actual_response contribute points
+        assert len(actual_layer.data) == 2
+        assert actual_layer.data[0]["actual"] == pytest.approx(39.5)
+
+
+# ---------------------------------------------------------------------------
+# Effect plot edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestMainEffectsPlotEdgeCases:
+    def test_infer_response_from_y_column(self, design_data_2f: list) -> None:
+        """Without response_column the 'y' column is used as the response."""
+        plot = create_plot("main_effects", design_data=design_data_2f)
+        spec = plot.to_spec()
+        assert spec.plot_type == "main_effects"
+        assert "Mean y" in spec.panels[0].y_title
+
+    def test_infer_response_falls_back_to_last_column(self) -> None:
+        data = [
+            {"A": -1, "B": -1, "conversion": 28},
+            {"A": 1, "B": -1, "conversion": 36},
+            {"A": -1, "B": 1, "conversion": 18},
+            {"A": 1, "B": 1, "conversion": 31},
+        ]
+        plot = create_plot("main_effects", design_data=data, factors_to_plot=["A", "B"])
+        spec = plot.to_spec()
+        assert "Mean conversion" in spec.panels[0].y_title
+
+    def test_response_column_not_in_data(self, design_data_2f: list) -> None:
+        plot = create_plot("main_effects", design_data=design_data_2f, response_column="missing")
+        spec = plot.to_spec()
+        assert "no response column" in spec.title.lower()
+
+    def test_unknown_factor_skipped(self, design_data_2f: list) -> None:
+        plot = create_plot(
+            "main_effects",
+            design_data=design_data_2f,
+            response_column="y",
+            factors_to_plot=["A", "Z"],
+        )
+        spec = plot.to_spec()
+        # Z is not a data column: only the A layer is produced
+        assert len(spec.panels[0].layers) == 1
+        assert spec.panels[0].layers[0].name == "A"
+
+    def test_intercept_only_formula_falls_back_to_columns(self, design_data_2f: list) -> None:
+        """A 'y ~ 1' formula yields no factor names; columns are used instead."""
+        plot = create_plot(
+            "main_effects",
+            design_data=design_data_2f,
+            response_column="y",
+            analysis_results={"model_summary": {"formula": "y ~ 1"}},
+        )
+        spec = plot.to_spec()
+        names = sorted(layer.name for layer in spec.panels[0].layers)
+        assert names == ["A", "B"]
+
+
+class TestInteractionPlotEdgeCases:
+    def test_no_data(self) -> None:
+        plot = create_plot("interaction")
+        spec = plot.to_spec()
+        assert "no data" in spec.title.lower()
+
+    def test_bad_response_column(self, design_data_2f: list) -> None:
+        plot = create_plot(
+            "interaction",
+            design_data=design_data_2f,
+            response_column="missing",
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        assert "no response column" in spec.title.lower()
+
+    def test_factors_not_in_data(self, design_data_2f: list) -> None:
+        plot = create_plot(
+            "interaction",
+            design_data=design_data_2f,
+            response_column="y",
+            factors_to_plot=["A", "Z"],
+        )
+        spec = plot.to_spec()
+        assert "not in data" in spec.title.lower()
+
+    def test_infer_response_from_y_column(self, design_data_2f: list) -> None:
+        plot = create_plot(
+            "interaction",
+            design_data=design_data_2f,
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        assert spec.plot_type == "interaction"
+        assert "Mean y" in spec.panels[0].y_title
+
+    def test_infer_response_falls_back_to_last_column(self) -> None:
+        data = [
+            {"A": -1, "B": -1, "conversion": 28},
+            {"A": 1, "B": -1, "conversion": 36},
+            {"A": -1, "B": 1, "conversion": 18},
+            {"A": 1, "B": 1, "conversion": 31},
+        ]
+        plot = create_plot("interaction", design_data=data, factors_to_plot=["A", "B"])
+        spec = plot.to_spec()
+        assert "Mean conversion" in spec.panels[0].y_title
+
+
+class TestPerturbationPlotEdgeCases:
+    def test_no_coefficients(self) -> None:
+        plot = create_plot("perturbation")
+        spec = plot.to_spec()
+        assert "no coefficients" in spec.title.lower()
+
+    def test_no_factors(self) -> None:
+        plot = create_plot(
+            "perturbation",
+            analysis_results={"coefficients": [{"term": "Intercept", "coefficient": 1.0}]},
+        )
+        spec = plot.to_spec()
+        assert "no factors" in spec.title.lower()
+
+    def test_quadratic_term_with_hold_values(self, quadratic_coefficients: list) -> None:
+        """Quadratic I(A ** 2) terms curve the sweep; other factors sit at hold values.
+
+        For factor A at the sweep endpoints, with B held at 0.5:
+        y(-1) = 80 - 5 - 3*0.5 - 4 + 1.5*(-1)*0.5 = 68.75
+        y(+1) = 80 + 5 - 3*0.5 - 4 + 1.5*(+1)*0.5 = 80.25
+        (the I(B ** 2) term contributes 0 because hold values are keyed by
+        factor name, not by transformed term name).
+        """
+        plot = create_plot(
+            "perturbation",
+            analysis_results={"coefficients": quadratic_coefficients},
+            factors_to_plot=["A", "B"],
+            hold_values={"B": 0.5},
+        )
+        spec = plot.to_spec()
+        layer_a = next(layer for layer in spec.panels[0].layers if layer.name == "A")
+        assert layer_a.data[0]["predicted"] == pytest.approx(68.75)
+        assert layer_a.data[-1]["predicted"] == pytest.approx(80.25)
+
+
+# ---------------------------------------------------------------------------
+# Significance plot edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestHalfNormalPlotEdgeCases:
+    def test_empty_effects(self) -> None:
+        plot = create_plot("half_normal", analysis_results={"effects": {}})
+        spec = plot.to_spec()
+        assert "no effects data" in spec.title.lower()
+
+    def test_single_effect(self) -> None:
+        plot = create_plot("half_normal", analysis_results={"effects": {"A": 5.0}})
+        spec = plot.to_spec()
+        assert spec.plot_type == "half_normal"
+        ref_layer = spec.panels[0].layers[1]
+        # Degenerate reference line from (0, 0) to (1, |effect|)
+        assert ref_layer.data[0] == {"quantile": 0, "abs_effect": 0}
+        assert ref_layer.data[1]["abs_effect"] == pytest.approx(5.0)
+
+    def test_all_but_one_significant(self, lenth_data: dict) -> None:
+        """With only one non-significant effect, the fallback line is used."""
+        lenth = dict(lenth_data)
+        lenth["effects"] = [{"term": "A", "effect": 8.0, "active_ME": True}]
+        plot = create_plot(
+            "half_normal",
+            analysis_results={"effects": {"A": 8.0, "B": -4.0}, "lenth_method": lenth},
+        )
+        spec = plot.to_spec()
+        ref_layer = spec.panels[0].layers[1]
+        # Fallback: line through origin up to the largest absolute effect
+        assert ref_layer.data[0]["abs_effect"] == 0
+        assert ref_layer.data[1]["abs_effect"] == pytest.approx(8.0)
+
+    def test_lenth_without_me_key(self) -> None:
+        """A lenth dict without ME produces no threshold annotation."""
+        plot = create_plot(
+            "half_normal",
+            analysis_results={
+                "effects": {"A": 8.0, "B": -4.0},
+                "lenth_method": {"effects": [{"term": "A", "effect": 8.0, "active_ME": True}]},
+            },
+        )
+        spec = plot.to_spec()
+        assert len(spec.panels[0].annotations) == 0
+
+
+class TestDanielPlotEdgeCases:
+    def test_empty_effects(self) -> None:
+        plot = create_plot("daniel", analysis_results={"effects": {}})
+        spec = plot.to_spec()
+        assert "no effects data" in spec.title.lower()
+
+    def test_single_effect(self) -> None:
+        plot = create_plot("daniel", analysis_results={"effects": {"A": 5.0}})
+        spec = plot.to_spec()
+        assert spec.plot_type == "daniel"
+        ref_layer = spec.panels[0].layers[1]
+        # Degenerate horizontal reference line at the single effect value
+        assert [row["quantile"] for row in ref_layer.data] == [-2, 2]
+        assert all(row["effect"] == pytest.approx(5.0) for row in ref_layer.data)
+
+
+class TestParetoPlotEdgeCases:
+    def test_lenth_with_only_me(self, two_factor_effects: dict) -> None:
+        plot = create_plot(
+            "pareto",
+            analysis_results={"effects": two_factor_effects, "lenth_method": {"ME": 3.0}},
+        )
+        spec = plot.to_spec()
+        assert len(spec.panels[0].annotations) == 1
+
+    def test_lenth_with_only_sme(self, two_factor_effects: dict) -> None:
+        plot = create_plot(
+            "pareto",
+            analysis_results={"effects": two_factor_effects, "lenth_method": {"SME": 5.0}},
+        )
+        spec = plot.to_spec()
+        anns = spec.panels[0].annotations
+        assert len(anns) == 1
+        assert "SME" in (anns[0].label or "")
+
+    def test_std_errors_with_no_matching_terms(self, two_factor_effects: dict) -> None:
+        """A std-error dict that matches no term yields no error bars."""
+        plot = create_plot(
+            "pareto",
+            analysis_results={
+                "effects": two_factor_effects,
+                "effect_std_errors": {"Z": 1.0},
+            },
+        )
+        spec = plot.to_spec()
+        assert "error_y" not in spec.panels[0].layers[0].style
+
+
+# ---------------------------------------------------------------------------
+# Diagnostic plot edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestDiagnosticPlotEdgeCases:
+    @pytest.mark.parametrize("plot_type", [
+        "residuals_vs_fitted", "normal_probability", "residuals_vs_order",
+    ])
+    def test_empty_diagnostics_guard(self, plot_type: str) -> None:
+        plot = create_plot(plot_type, analysis_results={})
+        spec = plot.to_spec()
+        assert "no data" in spec.title.lower()
+
+
+class TestBoxCoxPlotEdgeCases:
+    def test_insufficient_values(self) -> None:
+        data = [{"y": 5.0}, {"y": 6.0}]
+        plot = create_plot("box_cox", design_data=data, response_column="y")
+        spec = plot.to_spec()
+        assert "insufficient data" in spec.title.lower()
+
+    def test_non_positive_response(self) -> None:
+        data = [{"y": 5.0}, {"y": 0.0}, {"y": 6.0}, {"y": 7.0}]
+        plot = create_plot("box_cox", design_data=data, response_column="y")
+        spec = plot.to_spec()
+        assert "requires all positive" in spec.title.lower()
+
+    def test_response_reconstructed_from_fitted_and_residuals(
+        self,
+        residual_diagnostics: dict,
+    ) -> None:
+        """Without design data the response is rebuilt as fitted + residuals."""
+        plot = create_plot(
+            "box_cox",
+            analysis_results={"residual_diagnostics": residual_diagnostics},
+        )
+        spec = plot.to_spec()
+        assert spec.plot_type == "box_cox"
+        assert "optimal_lambda" in spec.metadata
+
+    def test_response_column_missing_from_design_data(self) -> None:
+        """A response column absent from the design columns yields no values."""
+        data = [{"z": 5.0}, {"z": 6.0}, {"z": 7.0}]
+        plot = create_plot("box_cox", design_data=data, response_column="y")
+        spec = plot.to_spec()
+        assert "insufficient data" in spec.title.lower()
+
+    def test_mismatched_fitted_and_residual_lengths(self) -> None:
+        plot = create_plot(
+            "box_cox",
+            analysis_results={
+                "residual_diagnostics": {
+                    "fitted_values": [10.0, 11.0, 12.0],
+                    "residuals": [0.5, -0.5],
+                },
+            },
+        )
+        spec = plot.to_spec()
+        assert "insufficient data" in spec.title.lower()
+
+
+# ---------------------------------------------------------------------------
+# Surface plot edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestSurfacePlotEdgeCases:
+    def test_contour_no_coefficients(self) -> None:
+        plot = create_plot("contour")
+        spec = plot.to_spec()
+        assert "no coefficients" in spec.title.lower()
+
+    def test_contour_single_factor(self, coefficients_2f: list) -> None:
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": coefficients_2f},
+            factors_to_plot=["A"],
+        )
+        spec = plot.to_spec()
+        assert "need at least 2" in spec.title.lower()
+
+    def test_surface_3d_no_coefficients(self) -> None:
+        plot = create_plot("surface_3d")
+        spec = plot.to_spec()
+        assert "no coefficients" in spec.title.lower()
+
+    def test_surface_3d_single_factor(self, coefficients_2f: list) -> None:
+        plot = create_plot(
+            "surface_3d",
+            analysis_results={"coefficients": coefficients_2f},
+            factors_to_plot=["A"],
+        )
+        spec = plot.to_spec()
+        assert "need at least 2" in spec.title.lower()
+
+    def test_no_scatter_overlay_when_rows_lack_plotted_factors(
+        self,
+        coefficients_2f: list,
+    ) -> None:
+        """Design rows without the plotted factor columns produce no overlay."""
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": coefficients_2f},
+            design_data=[{"X": 1.0, "y": 2.0}],
+            response_column="y",
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        assert len(spec.panels[0].layers) == 1
+
+    def test_hover_with_non_numeric_values(self, coefficients_2f: list) -> None:
+        """Non-numeric factor and response values fall back to str() in hover."""
+        design_data = [
+            {"A": -1, "B": -1, "batch": "low", "y": "n/a"},
+            {"A": 1, "B": 1, "batch": "high", "y": "n/a"},
+        ]
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": coefficients_2f},
+            design_data=design_data,
+            response_column="y",
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        scatter = spec.panels[0].layers[1]
+        hover = scatter.data[0]["hover"]
+        assert "batch: low" in hover
+        assert "y: n/a" in hover
+
+    def test_overlay_without_response_column(self, coefficients_2f: list) -> None:
+        """Design points without a response column omit the response field."""
+        design_data = [{"A": -1, "B": -1}, {"A": 1, "B": 1}]
+        plot = create_plot(
+            "contour",
+            analysis_results={"coefficients": coefficients_2f},
+            design_data=design_data,
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        scatter = spec.panels[0].layers[1]
+        assert len(scatter.data) == 2
+        assert all("response" not in point for point in scatter.data)
+        assert "A" in scatter.data[0]["hover"]
+
+
+class TestPredictionVarianceEdgeCases:
+    def test_no_design_data(self) -> None:
+        plot = create_plot("prediction_variance")
+        spec = plot.to_spec()
+        assert "no design data" in spec.title.lower()
+
+    def test_single_factor(self, design_data_2f: list) -> None:
+        plot = create_plot(
+            "prediction_variance",
+            design_data=design_data_2f,
+            response_column="y",
+            factors_to_plot=["A"],
+        )
+        spec = plot.to_spec()
+        assert "need at least 2" in spec.title.lower()
+
+    def test_three_factor_design_with_hold_values(self, design_data_3f: list) -> None:
+        """The third (non-plotted) factor is held at its hold value.
+
+        Factors are derived from the data columns so that the model matrix
+        includes C, which is then pinned at 0.5 while A and B are swept.
+        """
+        plot = create_plot(
+            "prediction_variance",
+            design_data=design_data_3f,
+            response_column="y",
+            hold_values={"C": 0.5},
+        )
+        spec = plot.to_spec()
+        assert spec.plot_type == "prediction_variance"
+        z = spec.panels[0].layers[0].style["z_matrix"]
+        assert len(z) == 40
+        assert len(z[0]) == 40
+
+
+# ---------------------------------------------------------------------------
+# Design quality plot edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestFDSPlotEdgeCases:
+    def test_no_design_data(self) -> None:
+        plot = create_plot("fds_plot")
+        spec = plot.to_spec()
+        assert "no design data" in spec.title.lower()
+
+    def test_single_factor(self, design_data_2f: list) -> None:
+        plot = create_plot(
+            "fds_plot",
+            design_data=design_data_2f,
+            response_column="y",
+            factors_to_plot=["A"],
+        )
+        spec = plot.to_spec()
+        assert "need at least 2" in spec.title.lower()
+
+
+class TestPowerCurvePlotEdgeCases:
+    def test_no_design_information(self) -> None:
+        plot = create_plot("power_curve")
+        spec = plot.to_spec()
+        assert "no design information" in spec.title.lower()
+
+    def test_design_info_from_model_summary(self) -> None:
+        plot = create_plot(
+            "power_curve",
+            analysis_results={"model_summary": {"n_obs": 8, "n_params": 4}},
+        )
+        spec = plot.to_spec()
+        assert spec.plot_type == "power_curve"
+        assert spec.metadata["n_runs"] == 8
+        assert spec.metadata["n_terms"] == 4
+        assert spec.metadata["residual_df"] == 4
+
+    def test_model_summary_with_zero_counts(self) -> None:
+        plot = create_plot(
+            "power_curve",
+            analysis_results={"model_summary": {"n_obs": 0, "n_params": 0}},
+        )
+        spec = plot.to_spec()
+        assert "no design information" in spec.title.lower()
+
+
+# ---------------------------------------------------------------------------
+# Cube and square plot edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestCubePlotEdgeCases:
+    def test_no_data_source(self) -> None:
+        plot = create_plot("cube_plot", factors_to_plot=["A", "B", "C"])
+        spec = plot.to_spec()
+        assert "cannot compute vertex values" in spec.title.lower()
+
+    def test_raw_data_fallback_with_missing_vertex(self, design_data_3f: list) -> None:
+        """A vertex absent from the raw data gets a NaN value."""
+        # Drop the (-1, -1, -1) run: the first product([-1, 1], repeat=3) vertex
+        data = design_data_3f[1:]
+        plot = create_plot(
+            "cube_plot",
+            design_data=data,
+            response_column="y",
+            factors_to_plot=["A", "B", "C"],
+        )
+        spec = plot.to_spec()
+        vertices = spec.metadata["vertices"]
+        assert vertices[0]["levels"] == [-1, -1, -1]
+        assert math.isnan(vertices[0]["value"])
+        # The remaining vertices are still populated
+        assert all(not math.isnan(v["value"]) for v in vertices[1:])
+
+    def test_raw_data_missing_factor_column(self, design_data_2f: list) -> None:
+        """Design data lacking the C column cannot supply vertex values."""
+        plot = create_plot(
+            "cube_plot",
+            design_data=design_data_2f,
+            response_column="y",
+            factors_to_plot=["A", "B", "C"],
+        )
+        spec = plot.to_spec()
+        assert "cannot compute vertex values" in spec.title.lower()
+
+
+class TestSquarePlotEdgeCases:
+    def test_no_data_source(self) -> None:
+        plot = create_plot("square_plot", factors_to_plot=["A", "B"])
+        spec = plot.to_spec()
+        assert "cannot compute vertex values" in spec.title.lower()
+
+    def test_raw_data_fallback_with_missing_vertex(self, design_data_2f: list) -> None:
+        """A vertex absent from the raw data gets a NaN value."""
+        data = [r for r in design_data_2f if not (r["A"] == -1 and r["B"] == -1)]
+        plot = create_plot(
+            "square_plot",
+            design_data=data,
+            response_column="y",
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        vertices = spec.metadata["vertices"]
+        assert vertices[0]["levels"] == [-1, -1]
+        assert math.isnan(vertices[0]["value"])
+        assert all(not math.isnan(v["value"]) for v in vertices[1:])
+
+    def test_raw_data_missing_factor_column(self) -> None:
+        """Design data lacking the B column cannot supply vertex values."""
+        data = [{"A": -1, "y": 10.0}, {"A": 1, "y": 12.0}]
+        plot = create_plot(
+            "square_plot",
+            design_data=data,
+            response_column="y",
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        assert "cannot compute vertex values" in spec.title.lower()
+
+
+# ---------------------------------------------------------------------------
+# Registry factor-name inference edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestFactorNameInference:
+    def test_formula_without_design_data_uses_blocklist(self) -> None:
+        """With no design data the static reserved-word blocklist applies."""
+        plot = create_plot(
+            "pareto",
+            analysis_results={
+                "effects": {"A": 1.0, "B": -2.0},
+                "model_summary": {"formula": "y ~ A + np.power(B, 2) + I(A ** 2)"},
+            },
+        )
+        names = plot._get_factor_names()
+        assert "A" in names
+        assert "B" in names
+        for noise in ("np", "power", "I"):
+            assert noise not in names
+
+    def test_design_data_with_only_response_column(self) -> None:
+        plot = create_plot(
+            "pareto",
+            analysis_results={"effects": {}},
+            design_data=[{"y": 1.0}],
+            response_column="y",
+        )
+        assert plot._get_factor_names() == []
+
+    def test_formula_without_tilde_falls_back_to_design_data(self) -> None:
+        plot = create_plot(
+            "pareto",
+            analysis_results={
+                "effects": {"A": 1.0},
+                "model_summary": {"formula": "not-a-formula"},
+            },
+            design_data=[{"A": -1, "y": 0.0}],
+            response_column="y",
+        )
+        assert plot._get_factor_names() == ["A"]
