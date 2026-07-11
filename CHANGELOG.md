@@ -11,6 +11,18 @@ those changes.
 
 ## [Unreleased]
 
+## [1.52.4] - 2026-07-11
+
+### Fixed
+
+- `PLS.diagnose(X).spe` returned 0 for every row when `X` had named (string)
+  feature columns. The X reconstruction was built as `scores @ self._x_loadings.T`
+  on the scores DataFrame, which relabelled the result columns `0..K-1`; the
+  subsequent `X - X_hat` subtraction then aligned by label to all-NaN and every
+  SPE collapsed to 0. Integer-labelled columns hid the bug. The reconstruction is
+  now done in NumPy so the feature columns stay aligned. Scores, T2, and y_hat
+  were unaffected.
+
 ## [1.52.2] - 2026-07-09
 
 ### Added
@@ -2461,7 +2473,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.52.2...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.52.4...HEAD
+[1.52.4]: https://github.com/kgdunn/process-improve/compare/v1.52.3...v1.52.4
 [1.52.2]: https://github.com/kgdunn/process-improve/compare/v1.52.1...v1.52.2
 [1.52.1]: https://github.com/kgdunn/process-improve/compare/v1.52.0...v1.52.1
 [1.52.0]: https://github.com/kgdunn/process-improve/compare/v1.51.5...v1.52.0
