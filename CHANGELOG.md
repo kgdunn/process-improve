@@ -11,6 +11,21 @@ those changes.
 
 ## [Unreleased]
 
+## [1.53.0] - 2026-07-11
+
+### Added
+
+- `generate_design(..., fixed_runs=<DataFrame>)` for the optimal design families
+  (`d_optimal`, `i_optimal`, `a_optimal`): hold a set of runs fixed and let the
+  pyoptex coordinate exchange fill the rest (design augmentation), forwarding to
+  pyoptex's `create_parameters(prior=...)`. The fixed runs occupy the first rows
+  of the result and `budget` counts them; a common use is seeding a centre point.
+  Works with split-plot (`hard_to_change`) designs. Continuous columns are given
+  in coded `[-1, 1]` units and categorical columns as level labels, matching the
+  returned design; inputs are validated (columns present, known levels, in-range,
+  and `budget > len(fixed_runs)`), and `fixed_runs` for a non-optimal `design_type`
+  or without pyoptex raises a clear error.
+
 ## [1.52.4] - 2026-07-11
 
 ### Fixed
@@ -2473,7 +2488,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.52.4...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.53.0...HEAD
+[1.53.0]: https://github.com/kgdunn/process-improve/compare/v1.52.4...v1.53.0
 [1.52.4]: https://github.com/kgdunn/process-improve/compare/v1.52.3...v1.52.4
 [1.52.2]: https://github.com/kgdunn/process-improve/compare/v1.52.1...v1.52.2
 [1.52.1]: https://github.com/kgdunn/process-improve/compare/v1.52.0...v1.52.1
