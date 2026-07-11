@@ -56,6 +56,11 @@ autodoc_default_options = {
     "members": True,
     "show-inheritance": True,
 }
+# The mcp package's pydantic models fail schema generation under autodoc's
+# reload-based importer (fine on a direct import), which breaks documenting
+# process_improve.mcp_server. Mock it: the api/tooling page then documents
+# mcp_server's own docstrings without importing the real FastMCP.
+autodoc_mock_imports = ["mcp"]
 
 # -- Intersphinx mapping ----------------------------------------------------
 
