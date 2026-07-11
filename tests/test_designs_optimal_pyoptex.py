@@ -257,3 +257,37 @@ class TestFixedRuns:
         centre = pd.DataFrame([{"cat": "A", "x1": 0.0, "x2": 0.0}])
         with pytest.raises(ValueError, match="budget must exceed"):
             generate_design(_mixed_factors(), design_type="i_optimal", budget=1, fixed_runs=centre)
+
+    def test_fixed_runs_must_be_a_dataframe(self) -> None:
+        with pytest.raises(TypeError, match="must be a pandas DataFrame"):
+            generate_design(_mixed_factors(), design_type="i_optimal", budget=14,
+                            fixed_runs=[{"cat": "A", "x1": 0.0, "x2": 0.0}])  # type: ignore[arg-type]
+
+    def test_fixed_runs_empty_frame_rejected(self) -> None:
+        empty = pd.DataFrame({"cat": [], "x1": [], "x2": []})
+        with pytest.raises(ValueError, match="empty"):
+            generate_design(_mixed_factors(), design_type="i_optimal", budget=14, fixed_runs=empty)
+
+    def test_fixed_runs_non_numeric_continuous_rejected(self) -> None:
+        bad = pd.DataFrame([{"cat": "A", "x1": "middle", "x2": 0.0}])
+        with pytest.raises(ValueError, match="non-numeric"):
+            generate_design(_mixed_factors(), design_type="i_optimal", budget=14, fixed_runs=bad)
+
+    def test_two_fixed_runs_both_appear_first(self) -> None:
+        seed = pd.DataFrame([{"cat": "A", "x1": 0.0, "x2": 0.0},
+                             {"cat": "B", "x1": 1.0, "x2": -1.0}])
+        np.random.seed(3)  # noqa: NPY002
+        result = generate_design(_mixed_factors(), design_type="i_optimal", budget=14, fixed_runs=seed)
+        assert result.metadata.get("n_fixed_runs") == 2
+        head = result.design.iloc[:2]
+        assert list(head["cat"]) == ["A", "B"]
+        assert float(head.iloc[1]["x1"]) == pytest.approx(1.0)
+        assert float(head.iloc[1]["x2"]) == pytest.approx(-1.0)
+
+    def test_fixed_runs_requires_pyoptex(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from process_improve.experiments import designs_optimal
+
+        monkeypatch.setattr(designs_optimal, "_PYOPTEX_AVAILABLE", False)
+        centre = pd.DataFrame([{"cat": "A", "x1": 0.0, "x2": 0.0}])
+        with pytest.raises(ImportError, match="requires pyoptex"):
+            designs_optimal.dispatch_d_optimal(_mixed_factors(), budget=14, fixed_runs=centre)
