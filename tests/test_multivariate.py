@@ -3906,6 +3906,26 @@ def test_pca_diagnose_new_data() -> None:
     assert (result.spe >= 0).all()
 
 
+def test_pls_diagnose_spe_matches_fitted_with_named_columns() -> None:
+    """PLS.diagnose(X).spe must equal the fitted spe_ (last component) when X has named columns.
+
+    Regression test: the reconstruction was built as ``scores @ self._x_loadings.T`` on the scores
+    DataFrame, which relabelled the result columns 0..K-1. With string feature names the following
+    ``X - X_hat`` subtraction then misaligned to all-NaN and every SPE collapsed to 0. Integer
+    column labels hid the bug because the relabelled columns happened to line up.
+    """
+    rng = np.random.default_rng(0)
+    n_rows, n_cols = 40, 6
+    x_data = pd.DataFrame(rng.standard_normal((n_rows, n_cols)), columns=[f"feat_{i}" for i in range(n_cols)])
+    y_data = pd.DataFrame({"y": x_data.to_numpy() @ rng.standard_normal(n_cols) + 0.1 * rng.standard_normal(n_rows)})
+    model = PLS(n_components=3, scale=True).fit(x_data, y_data)
+
+    diag = model.diagnose(x_data)
+    fitted_spe = model.spe_.iloc[:, -1].to_numpy()
+    assert diag.spe.to_numpy() == pytest.approx(fitted_spe, abs=1e-9)
+    assert float(diag.spe.to_numpy().max()) > 0.0  # the bug collapsed every SPE to exactly 0
+
+
 def test_pca_diagnose_numpy_input() -> None:
     """PCA.diagnose() should accept numpy arrays as well as DataFrames."""
     rng = np.random.default_rng(42)

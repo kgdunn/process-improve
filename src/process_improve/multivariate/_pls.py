@@ -976,9 +976,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         t2_values = np.sum(np.power((scores / self.scaling_factor_for_scores_.to_numpy()), 2), axis=1)
         t2 = pd.Series(t2_values, index=X.index, name="Hotelling's T²")
 
-        # SPE: residual after X reconstruction
-        X_hat = scores @ self._x_loadings.T
-        residuals = X - X_hat
+        # SPE: residual after reconstructing X from its scores. Reconstruct in NumPy so the
+        # feature columns stay aligned with X: a DataFrame ``scores @ self._x_loadings.T`` product
+        # relabels the columns 0..K-1, which then misaligns the ``X - X_hat`` subtraction to all-NaN
+        # and collapses every SPE to 0.
+        x_hat = scores.to_numpy() @ self._x_loadings.T
+        residuals = X.to_numpy() - x_hat
         spe_values = pd.Series(np.sqrt(np.power(residuals, 2).sum(axis=1)), index=X.index, name="SPE")
 
         # Y predictions (computed in scaled-Y space; mapped back to original units)
