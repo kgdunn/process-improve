@@ -11,6 +11,27 @@ those changes.
 
 ## [Unreleased]
 
+## [1.54.0] - 2026-07-13
+
+### Changed
+
+- `sensory.validate_descriptive` no longer blocks on an unbalanced panel or on
+  panel products that are missing from the covariate table. Descriptive panels
+  are incomplete by design, and the observational relate aggregates to product
+  means, so imbalance is now surfaced as a warning instead of a blocking error.
+  Panel products with no covariate row are dropped with a warning and the relate
+  runs on the matched intersection; only a total mismatch (no products in common)
+  is still a blocking error.
+
+### Fixed
+
+- The product/covariate join now matches the covariate identifier column
+  case- and whitespace-insensitively, so a covariate table whose column is not
+  exactly lowercase `product` aligns instead of silently falling back to the row
+  index (which previously reported every product as missing). Duplicate product
+  rows in the covariate table are collapsed to their numeric mean so the join key
+  stays unique.
+
 ## [1.53.0] - 2026-07-11
 
 ### Added
@@ -2488,7 +2509,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.53.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.54.0...HEAD
+[1.54.0]: https://github.com/kgdunn/process-improve/compare/v1.53.0...v1.54.0
 [1.53.0]: https://github.com/kgdunn/process-improve/compare/v1.52.4...v1.53.0
 [1.52.4]: https://github.com/kgdunn/process-improve/compare/v1.52.3...v1.52.4
 [1.52.2]: https://github.com/kgdunn/process-improve/compare/v1.52.1...v1.52.2
