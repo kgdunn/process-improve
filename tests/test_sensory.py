@@ -101,10 +101,47 @@ def test_validate_missing_column_is_error():
     assert result.normalized_df is None
 
 
-def test_validate_missing_product_in_covariates_is_error():
+def test_validate_missing_product_in_covariates_drops_and_warns():
+    # A panel product with no covariate row cannot be related (the relate looks
+    # covariates up by product), so it is dropped with a warning and the relate
+    # proceeds on the matched intersection, rather than blocking.
     result = validate_descriptive(_panel(), _obs(drop_last=True), mode="observational")
+    assert result.ok
+    assert result.errors == []
+    assert any("no row in the covariate table" in w and "dropped" in w for w in result.warnings)
+    # The unmatched product is gone from the normalised panel.
+    assert PRODUCTS[-1] not in set(result.normalized_df["product"])
+    assert result.stats["n_products"] == len(PRODUCTS) - 1
+
+
+def test_validate_no_products_match_is_error():
+    # When nothing lines up at all, that is a genuine blocking error.
+    obs = _obs()
+    obs["product"] = [f"other-{p}" for p in obs["product"]]
+    result = validate_descriptive(_panel(), obs, mode="observational")
     assert not result.ok
-    assert any("no row in the covariate table" in e for e in result.errors)
+    assert any("No panel product has a matching row" in e for e in result.errors)
+
+
+def test_validate_capitalised_product_column_still_aligns():
+    # A covariate table whose identifier column is not exactly lowercase
+    # "product" (e.g. "Product") must still align, not fall back to the index.
+    obs = _obs().rename(columns={"product": "Product"})
+    result = validate_descriptive(_panel(), obs, mode="observational")
+    assert result.ok, result.errors
+    assert result.covariates.index.name == "product"
+    assert set(result.covariates.index) == set(PRODUCTS)
+
+
+def test_validate_duplicate_covariate_rows_collapse_with_warning():
+    obs = _obs()
+    dup = pd.concat([obs, obs.iloc[[0]].assign(sodium=obs.iloc[0]["sodium"] + 0.4)], ignore_index=True)
+    result = validate_descriptive(_panel(), dup, mode="observational")
+    assert result.ok, result.errors
+    assert any("duplicate rows" in w for w in result.warnings)
+    # Index is unique after collapsing; the duplicated product keeps one (mean) row.
+    assert result.covariates.index.is_unique
+    assert result.covariates.loc[PRODUCTS[0], "sodium"] == pytest.approx(obs.iloc[0]["sodium"] + 0.2)
 
 
 def test_validate_out_of_range_score_warns():
@@ -115,14 +152,15 @@ def test_validate_out_of_range_score_warns():
     assert any("outside the expected range" in w for w in result.warnings)
 
 
-def test_validate_unbalanced_panel_errors():
-    # Punch random holes across the grid (every panelist/product/attribute is
-    # still present, so the full grid stays the same size) to exceed the 20%
-    # missing-cell error threshold.
+def test_validate_unbalanced_panel_warns_but_does_not_block():
+    # Punch random holes across the grid to exceed the 20% missing-cell
+    # threshold. Because the relate aggregates to product means, imbalance is
+    # surfaced as a warning and does not block the analysis.
     panel = _panel().sample(frac=0.7, random_state=0).reset_index(drop=True)
     result = validate_descriptive(panel, _obs(), mode="observational")
-    assert not result.ok
-    assert any("unbalanced" in e for e in result.errors)
+    assert result.ok
+    assert not any("unbalanced" in e for e in result.errors)
+    assert any("unbalanced" in w for w in result.warnings)
 
 
 def test_validate_bad_mode_raises():
