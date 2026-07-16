@@ -27,9 +27,10 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
 
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
-from ..visualization.themes import DEFAULT_THEME, REFERENCE_LINE_COLOR
+from ..visualization.themes import DEFAULT_THEME, LIMIT_LINE_COLOR, REFERENCE_LINE_COLOR
 
 if typing.TYPE_CHECKING:
+    from ._batch_monitor import BatchMonitor
     from ._batch_pca import BatchPCA
 
 
@@ -178,5 +179,79 @@ def contribution_at_time_plot(
         title=f"Contributions at time {k} (batch {batch_id})",
         xaxis_title="Tag",
         yaxis_title="Contribution",
+    )
+    return fig
+
+
+def online_monitoring_plot(
+    monitor: BatchMonitor,
+    batch: pd.DataFrame,
+    statistic: str = "spe",
+    *,
+    initial_conditions: pd.Series | pd.DataFrame | None = None,
+    fig: go.Figure | None = None,
+) -> go.Figure:
+    """Plot a batch's online SPE or T2 trace against the time-varying limit.
+
+    Tracks the batch through the fitted
+    :class:`process_improve.batch.BatchMonitor` and draws its statistic over
+    time overlaid on the control limit and the mean good-batch trace, with the
+    alarm samples marked. This is the online (real-time) monitoring chart of
+    Nomikos and MacGregor.
+
+    Parameters
+    ----------
+    monitor : BatchMonitor
+        A fitted :class:`process_improve.batch.BatchMonitor`.
+    batch : pd.DataFrame
+        A single aligned batch to monitor.
+    statistic : {"spe", "t2"}, default="spe"
+        Which statistic to plot.
+    initial_conditions : pd.Series or pd.DataFrame, optional
+        The Z block for this batch; required if the model was fitted with one.
+    fig : plotly.graph_objects.Figure, optional
+        Figure to draw into; a new one is created when omitted.
+
+    Returns
+    -------
+    plotly.graph_objects.Figure
+    """
+    statistic = statistic.lower()
+    if statistic not in {"spe", "t2"}:
+        raise ValueError(f"statistic must be 'spe' or 't2'; got {statistic!r}.")
+
+    result = monitor.monitor(batch, initial_conditions=initial_conditions)
+    time = result.time
+    if statistic == "spe":
+        trace, limit, alarm = result.spe, result.spe_limit, result.spe_alarm
+        mean_trace = monitor.spe_mean_over_time_[: len(time)]
+        label = "SPE"
+    else:
+        trace, limit, alarm = result.hotellings_t2, result.t2_limit, result.t2_alarm
+        mean_trace = monitor.t2_mean_over_time_[: len(time)]
+        label = "Hotelling's T2"
+
+    if fig is None:
+        fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(x=time, y=mean_trace, mode="lines", name="good-batch mean", line={"color": REFERENCE_LINE_COLOR})
+    )
+    fig.add_trace(
+        go.Scatter(x=time, y=limit, mode="lines", name=f"{int(monitor.conf_level * 100)}% limit",
+                   line={"color": LIMIT_LINE_COLOR, "dash": "dash"})
+    )
+    fig.add_trace(go.Scatter(x=time, y=trace, mode="lines", name=label, line={"color": "#2563EB"}))
+    if bool(np.any(alarm)):
+        fig.add_trace(
+            go.Scatter(
+                x=time[alarm], y=np.asarray(trace)[alarm], mode="markers", name="alarm",
+                marker={"color": LIMIT_LINE_COLOR, "size": 8, "symbol": "x"},
+            )
+        )
+    fig.update_layout(
+        template=DEFAULT_THEME,
+        title=f"Online {label} monitoring",
+        xaxis_title="Time [sequence order]",
+        yaxis_title=label,
     )
     return fig

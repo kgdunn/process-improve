@@ -4,8 +4,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from process_improve.batch._batch_monitor import BatchMonitor
 from process_improve.batch._batch_pca import BatchPCA
-from process_improve.batch._batch_plots import contribution_at_time_plot, time_varying_loading_plot
+from process_improve.batch._batch_plots import (
+    contribution_at_time_plot,
+    online_monitoring_plot,
+    time_varying_loading_plot,
+)
 from process_improve.batch.datasets import load_nylon
 from process_improve.batch.preprocessing import resample_to_reference
 
@@ -94,3 +99,30 @@ def test_contribution_at_time_plot_out_of_range_time(fitted_model: BatchPCA) -> 
     contributions = fitted_model.spe_contributions(fitted_model._scaled_wide(aligned, None))
     with pytest.raises(ValueError, match="No contributions at time"):
         contribution_at_time_plot(contributions, k=fitted_model.n_timesteps_ + 100)
+
+
+def test_online_monitoring_plot() -> None:
+    """The online monitoring plot draws the trace, limit, and good-batch mean."""
+    batches = load_nylon()
+    tags = list(next(iter(batches.values())).columns)
+    aligned = resample_to_reference(batches, columns_to_align=tags, reference_batch=1)
+    good = {k: v for k, v in aligned.items() if 1 <= k <= 36}
+    model = BatchPCA(n_components=3).fit(good)
+    monitor = BatchMonitor(model, conf_level=0.99).fit(good)
+    fig = online_monitoring_plot(monitor, aligned[49], "spe")
+    assert isinstance(fig, go.Figure)
+    assert len(fig.data) >= 3  # good-batch mean, limit, and the batch trace
+    fig_t2 = online_monitoring_plot(monitor, aligned[49], "t2")
+    assert isinstance(fig_t2, go.Figure)
+
+
+def test_online_monitoring_plot_bad_statistic() -> None:
+    """An unknown statistic name is rejected."""
+    batches = load_nylon()
+    tags = list(next(iter(batches.values())).columns)
+    aligned = resample_to_reference(batches, columns_to_align=tags, reference_batch=1)
+    good = {k: v for k, v in aligned.items() if 1 <= k <= 20}
+    model = BatchPCA(n_components=2).fit(good)
+    monitor = BatchMonitor(model, conf_level=0.95).fit(good)
+    with pytest.raises(ValueError, match="statistic must be"):
+        online_monitoring_plot(monitor, aligned[1], "nonsense")

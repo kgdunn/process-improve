@@ -1,8 +1,10 @@
 """Batch process data analysis: alignment, feature extraction, modelling, and visualization."""
 
+from process_improve.batch._batch_monitor import BatchMonitor
 from process_improve.batch._batch_pca import BatchPCA
 from process_improve.batch._batch_plots import (
     contribution_at_time_plot,
+    online_monitoring_plot,
     time_varying_loading_plot,
 )
 from process_improve.batch.data_input import (
@@ -47,7 +49,8 @@ from process_improve.batch.preprocessing import (
 )
 
 __all__ = [
-    # Modelling
+    # Modelling and monitoring
+    "BatchMonitor",
     "BatchPCA",
     # Preprocessing/alignment
     "batch_dtw",
@@ -83,6 +86,7 @@ __all__ = [
     "load_nylon",
     "melted_to_dict",
     "melted_to_wide",
+    "online_monitoring_plot",
     "resample_to_reference",
     "time_varying_loading_plot",
     "wide_to_dict",
