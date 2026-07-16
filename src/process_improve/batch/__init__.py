@@ -1,5 +1,6 @@
-"""Batch process data analysis: alignment, feature extraction, and visualization."""
+"""Batch process data analysis: alignment, feature extraction, modelling, and visualization."""
 
+from process_improve.batch._batch_pca import BatchPCA
 from process_improve.batch.data_input import (
     check_valid_batch_dict,
     dict_to_melted,
@@ -42,6 +43,8 @@ from process_improve.batch.preprocessing import (
 )
 
 __all__ = [
+    # Modelling
+    "BatchPCA",
     # Preprocessing/alignment
     "batch_dtw",
     # Data input/conversion
