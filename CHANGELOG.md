@@ -11,6 +11,27 @@ those changes.
 
 ## [Unreleased]
 
+## [1.57.0] - 2026-07-16
+
+### Added
+
+- Batch preprocessing transformers (sklearn `BaseEstimator` / `TransformerMixin`
+  facades over the existing free functions, so a batch workflow can be a
+  pipeline): `batch.BatchScaler` (range scaling with `inverse_transform`),
+  `batch.ResampleAligner` (linear resampling to a common length),
+  `batch.DTWAligner` (iterative weighted DTW alignment, learning a reference and
+  weights and aligning new batches), and `batch.BatchFeatureExtractor` (a
+  batch-data dictionary to a batch-by-feature matrix for a PLS-to-quality model).
+- `batch.features.f_rupture` is now implemented (previously a stub): it detects
+  the first changepoint in a tag's trajectory per batch and phase using the
+  optional `ruptures` library.
+
+### Changed
+
+- The `batch` optional extra now provides `ruptures` (used by `f_rupture`)
+  instead of `openpyxl` and `scikit-image`, which were declared but imported
+  nowhere.
+
 ## [1.56.0] - 2026-07-16
 
 ### Added
@@ -2557,7 +2578,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.56.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.57.0...HEAD
+[1.57.0]: https://github.com/kgdunn/process-improve/compare/v1.56.0...v1.57.0
 [1.56.0]: https://github.com/kgdunn/process-improve/compare/v1.55.0...v1.56.0
 [1.55.0]: https://github.com/kgdunn/process-improve/compare/v1.54.0...v1.55.0
 [1.54.0]: https://github.com/kgdunn/process-improve/compare/v1.53.0...v1.54.0
