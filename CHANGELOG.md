@@ -11,6 +11,23 @@ those changes.
 
 ## [Unreleased]
 
+## [1.56.0] - 2026-07-16
+
+### Added
+
+- `batch.BatchMonitor`: online (real-time) Nomikos-MacGregor monitoring for a
+  fitted `BatchPCA`. Builds time-varying Hotelling's T2 and SPE control limits
+  from good batches, and tracks a new batch sample-by-sample, flagging the
+  samples where each statistic exceeds its limit.
+- `BatchPCA.predict_online`: projection to the model plane (PMP) for a
+  partially-observed batch. At each time sample the future trajectory columns
+  are treated as missing and the score vector is the least-squares fit of the
+  observed columns; initial conditions, known from the batch start, are always
+  observed. At full observation it matches `BatchPCA.diagnose`.
+- `batch.online_monitoring_plot`: the online SPE or T2 monitoring chart, drawing
+  the batch trace over the time-varying limit and the mean good-batch trace with
+  alarm samples marked.
+
 ## [1.55.0] - 2026-07-16
 
 ### Added
@@ -2540,7 +2557,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.55.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.56.0...HEAD
+[1.56.0]: https://github.com/kgdunn/process-improve/compare/v1.55.0...v1.56.0
 [1.55.0]: https://github.com/kgdunn/process-improve/compare/v1.54.0...v1.55.0
 [1.54.0]: https://github.com/kgdunn/process-improve/compare/v1.53.0...v1.54.0
 [1.53.0]: https://github.com/kgdunn/process-improve/compare/v1.52.4...v1.53.0

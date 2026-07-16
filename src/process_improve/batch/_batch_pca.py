@@ -21,8 +21,10 @@ from __future__ import annotations
 import functools
 import typing
 
+import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
 from ..multivariate._diagnostics import spe_contributions as _spe_contributions
@@ -40,9 +42,6 @@ from .data_input import check_valid_batch_dict, dict_to_wide
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Hashable
-
-    import numpy as np
-    from sklearn.utils import Bunch
 
 
 def _pca_method(fn: Callable[..., typing.Any]) -> Callable[..., typing.Any]:
@@ -369,6 +368,110 @@ class BatchPCA(TransformerMixin, BaseEstimator):
             and :meth:`spe_limit` to flag abnormal batches.
         """
         return self._pca.diagnose(self._scaled_wide(X, initial_conditions))
+
+    def predict_online(
+        self,
+        batch: pd.DataFrame,
+        upto_k: int,
+        *,
+        initial_conditions: pd.Series | pd.DataFrame | None = None,
+    ) -> Bunch:
+        """Project a partially-complete batch via projection to the model plane (PMP).
+
+        During a running batch, the trajectory data for the future (time
+        samples ``upto_k`` and later) are not yet known. This method projects
+        the batch onto the fitted model using only the already-observed
+        columns: the score vector is the least-squares fit of the observed,
+        centred and scaled values onto the corresponding loading rows,
+        ``t = pinv(P_obs) @ x_obs`` (the projection-to-the-model-plane estimate
+        of Nomikos and MacGregor). Initial conditions, known from the batch
+        start, are always part of the observed set, so they sharpen the
+        projection from the first sample.
+
+        The batch is expected to be aligned to the training length; ``upto_k``
+        selects how many leading time samples are treated as observed. To
+        compare the returned statistics against control limits, use
+        :class:`process_improve.batch.BatchMonitor`, which builds the
+        time-varying limits from good batches.
+
+        Parameters
+        ----------
+        batch : pd.DataFrame
+            A single aligned batch (``n_timesteps`` rows, the training tags as
+            columns).
+        upto_k : int
+            Number of leading time samples to treat as observed, in
+            ``1 .. n_timesteps_``. At ``upto_k == n_timesteps_`` every
+            trajectory column is observed and the result matches
+            :meth:`diagnose` for that batch.
+        initial_conditions : pd.Series or pd.DataFrame, optional
+            The Z block for this batch (required if the model was fitted with
+            one). A Series of the initial-condition values, or a single-row
+            DataFrame.
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With keys ``scores`` (Series, one entry per component),
+            ``hotellings_t2`` (float, cumulative over all components), and
+            ``spe`` (float, over the observed columns).
+        """
+        check_is_fitted(self, "loadings_")
+        if not 1 <= upto_k <= self.n_timesteps_:
+            raise ValueError(f"upto_k must lie in [1, {self.n_timesteps_}]; got {upto_k}.")
+
+        z_frame = self._coerce_online_initial_conditions(initial_conditions)
+        wide = self._unfold({"_online_": batch}, z_frame)
+        if list(wide.columns) != list(self.feature_columns_):
+            raise ValueError(
+                "The batch does not unfold to the training column layout. Align it to the training "
+                f"length ({self.n_timesteps_} samples) and pass the same tags and initial conditions."
+            )
+
+        # Observed columns: initial conditions (sequence == "") plus trajectory
+        # columns whose time sample is strictly before upto_k.
+        sequence = wide.columns.get_level_values("sequence")
+        observed = np.array([s == "" or (isinstance(s, (int, np.integer)) and s < upto_k) for s in sequence])
+
+        row = wide.iloc[0].to_numpy(dtype=float)
+        center = self.center_.to_numpy(dtype=float)
+        scale = self.scale_.to_numpy(dtype=float)
+        x_scaled = (row - center) / scale
+
+        loadings = self.loadings_.to_numpy(dtype=float)
+        p_obs = loadings[observed, :]
+        x_obs = x_scaled[observed]
+        scores = np.linalg.pinv(p_obs) @ x_obs
+
+        s = self.scaling_factor_for_scores_.to_numpy(dtype=float)
+        hotellings_t2 = float(np.sum((scores / s) ** 2))
+        residual_obs = x_obs - p_obs @ scores
+        spe = float(np.sqrt(np.sum(residual_obs**2)))
+
+        return Bunch(
+            scores=pd.Series(scores, index=self.scores_.columns, name="scores"),
+            hotellings_t2=hotellings_t2,
+            spe=spe,
+        )
+
+    def _coerce_online_initial_conditions(
+        self, initial_conditions: pd.Series | pd.DataFrame | None
+    ) -> pd.DataFrame | None:
+        """Normalise a single batch's initial conditions to a 1-row DataFrame.
+
+        Accepts a Series (one value per initial condition) or a single-row
+        DataFrame, and validates presence against how the model was fitted.
+        """
+        if self.n_initial_conditions_ == 0:
+            if initial_conditions is not None:
+                raise ValueError("The model was fitted without initial conditions; do not pass any.")
+            return None
+        if initial_conditions is None:
+            raise ValueError("The model was fitted with initial conditions; they are required here.")
+        frame = initial_conditions.to_frame().T if isinstance(initial_conditions, pd.Series) else initial_conditions
+        if frame.shape[0] != 1:
+            raise ValueError("initial_conditions for a single batch must have exactly one row.")
+        return frame.set_axis(["_online_"], axis=0)
 
     def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
         """Hotelling's T2 limit at the given confidence level."""
