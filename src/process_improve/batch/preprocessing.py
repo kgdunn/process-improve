@@ -8,12 +8,6 @@ import pandas as pd
 import scipy as sp
 from tqdm import tqdm
 
-try:
-    import plotly.graph_objects as go
-except ImportError:  # pragma: no cover - exercised via env-without-plotly
-    from process_improve._extras import _MissingExtra
-    go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
-
 from ..multivariate.methods import PCA, MCUVScaler
 from .alignment_helpers import backtrack_optimal_path, distance_matrix
 from .data_input import check_valid_batch_dict, dict_to_wide, melted_to_dict
@@ -366,7 +360,7 @@ def batch_dtw(  # noqa: C901, PLR0915
     iter_step = 0
     while (np.linalg.norm(delta_weight) > settings["tolerance"]) and (iter_step <= settings["maximum_iterations"]):
         if settings["show_progress"]:
-            print(f"Iter = {iter_step} and norm = {np.linalg.norm(delta_weight)}")  # noqa: T201
+            logger.info("Iter = %d and norm = %g", iter_step, float(np.linalg.norm(delta_weight)))
 
         iter_step += 1
         logger.debug(

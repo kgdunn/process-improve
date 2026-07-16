@@ -3,7 +3,6 @@ from __future__ import annotations
 # Built-in libraries
 import json
 import math
-import random
 from collections.abc import Callable, Sequence
 from functools import partial
 from typing import Any, cast
@@ -24,6 +23,7 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
     sns = _MissingExtra("seaborn", "plotting")  # type: ignore[assignment]
     plotoffline = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
+from .._random import check_random_state
 from .data_input import check_valid_batch_dict
 
 
@@ -88,7 +88,7 @@ def plot_to_HTML(filename: str, fig: dict) -> str:  # noqa: N802
         editable=False,
         displaylogo=False,
         showLink=False,
-        resonsive=True,
+        responsive=True,
     )
     return plotoffline(
         figure_or_data=fig,
@@ -100,7 +100,7 @@ def plot_to_HTML(filename: str, fig: dict) -> str:  # noqa: N802
     )
 
 
-def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
+def plot_all_batches_per_tag(  # noqa: C901, PLR0912, PLR0913
     df_dict: dict,
     tag: str,
     tag_y2: str | None = None,
@@ -171,9 +171,10 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
     default_line_width = 2
     unique_items = list(df_dict.keys())
     n_colours = len(unique_items)
-    random.seed(13)
     colours = list(sns.husl_palette(n_colours))
-    random.shuffle(colours)
+    # Deterministic shuffle so adjacent batches get visually distinct colours,
+    # reproducibly across calls. Uses the package-wide RNG contract.
+    check_random_state(13).shuffle(colours)
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
     line_styles = {k: dict(width=default_line_width, color=v) for k, v in zip(unique_items, colours, strict=False)}
     for key, val in batches_to_highlight.items():
@@ -305,10 +306,10 @@ def colours_per_batch_id(
     """
     if colour_map is None:
         colour_map = partial(sns.color_palette, "hls")
-    random.seed(13)
     n_colours = len(batch_ids)
     colours = list(colour_map(n_colours)) if not (use_default_colour) else [(0.5, 0.5, 0.5)] * n_colours
-    random.shuffle(colours)
+    # Deterministic shuffle (package-wide RNG contract) for reproducible colours.
+    check_random_state(13).shuffle(colours)
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
     colour_assignment = {
         key: dict(width=default_line_width, color=val)
@@ -329,8 +330,7 @@ def colours_per_batch_id(
     return colour_assignment
 
 
-# flake8: noqa: C901
-def plot_multitags(  # noqa: PLR0912, PLR0913, PLR0915
+def plot_multitags(  # noqa: C901, PLR0912, PLR0913, PLR0915
     df_dict: dict,
     batch_list: list | None = None,
     tag_list: list | None = None,
