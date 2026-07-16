@@ -170,34 +170,92 @@ def melted_to_dict(in_df: pd.DataFrame, batch_id_col: str) -> dict:
     return {batch_id: batch for batch_id, batch in in_df.groupby(batch_id_col)}  # noqa: C416
 
 
-def melted_to_wide(in_df: pd.DataFrame, batch_id_col: str) -> dict:
-    """Convert aligned melted data to wide format."""
+def melted_to_wide(in_df: pd.DataFrame, batch_id_col: str, group_by_batch: bool = False) -> pd.DataFrame:
+    """
+    Convert aligned melted data to wide format.
+
+    Parameters
+    ----------
+    in_df : pd.DataFrame
+        Melted batch data: all batches stacked vertically, one column per tag,
+        with a batch-identifier column. The batches must be aligned (the same
+        number of rows per batch), because the wide format is only meaningful
+        for aligned data.
+    batch_id_col : str
+        Name of the column holding the batch identifier.
+    group_by_batch : bool, optional
+        Passed through to :func:`dict_to_wide`; controls whether the 2-level
+        column index is ordered ``(tag, sequence)`` (default) or
+        ``(sequence, tag)``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Wide-format dataframe: one row per batch, 2-level column index.
+    """
     if batch_id_col not in in_df:
         raise ValueError(f"The `batch_id_col` column {batch_id_col!r} does not exist in the incoming dataframe.")
-    return {}
+    return dict_to_wide(melted_to_dict(in_df, batch_id_col), group_by_batch=group_by_batch)
 
-    # max_places = int(np.ceil(np.log10(aligned_df["_sequence_"].max())))
-    # aligned_wide_df = aligned_df.pivot(index="batch_id", columns="_sequence_")
-    # new_labels = [
-    #     "-".join(item)
-    #     for item in zip(
-    #         aligned_wide_df.columns.get_level_values(0),
-    #         [str(val).zfill(max_places) for val in aligned_wide_df.columns.get_level_values(1)],
-    #     )
-    # ]
-    # aligned_wide_df.columns = new_labels
-    # TODO: add the column multilevel column index.
-    # return dict_to_wide(melted_to_dict(in_df, batch_id_col))
+
+def wide_to_dict(in_df: pd.DataFrame) -> dict:
+    """
+    Convert wide-format batch data back to the standard dict format.
+
+    Inverts :func:`dict_to_wide`: each row of the wide frame becomes one entry
+    in the dictionary, with the 2-level ``(tag, sequence)`` column index
+    pivoted back to a per-batch dataframe of one column per tag, indexed by
+    sequence. Accepts either column-level ordering (``(tag, sequence)`` or the
+    ``group_by_batch=True`` variant ``(sequence, tag)``).
+
+    Parameters
+    ----------
+    in_df : pd.DataFrame
+        Wide-format batch data: one row per batch, 2-level column index with
+        levels named ``tag`` and ``sequence``.
+
+    Returns
+    -------
+    dict
+        Standard batch-data dictionary: keys are the wide frame's row index
+        (batch identifiers), values are per-batch dataframes.
+    """
+    if in_df.columns.nlevels != 2 or set(in_df.columns.names) != {"tag", "sequence"}:
+        raise ValueError(
+            "The wide dataframe must have a 2-level column index with levels named "
+            f"'tag' and 'sequence'; got levels {in_df.columns.names}."
+        )
+    out = {}
+    for batch_id, row in in_df.iterrows():
+        # Series.unstack is the direct inverse of the pivot in `dict_to_wide`;
+        # pivot_table would aggregate and lose the (tag, sequence) fidelity.
+        batch = row.unstack(level="tag")  # noqa: PD010
+        batch.index.name = None
+        batch.columns.name = None
+        out[batch_id] = batch
+    return out
 
 
 def wide_to_melted(in_df: pd.DataFrame) -> pd.DataFrame:
-    """Convert wide-format batch data to melted format. Not yet implemented."""
-    # dict_to_melted(dict_to_wide(in_df))
-    return pd.DataFrame()
+    """
+    Convert wide-format batch data to melted format.
 
+    Inverts the melted-to-wide direction: the wide frame (one row per batch,
+    2-level column index) is expanded back to a melted frame with all batches
+    stacked vertically, one column per tag, and a ``batch_id`` column.
 
-def wide_to_dict() -> None:
-    """Convert wide-format batch data to dict format. Not yet implemented."""
+    Parameters
+    ----------
+    in_df : pd.DataFrame
+        Wide-format batch data: one row per batch, 2-level column index with
+        levels named ``tag`` and ``sequence``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Melted batch data with a ``batch_id`` column.
+    """
+    return dict_to_melted(wide_to_dict(in_df), insert_batch_id_column=True)
 
 
 def melt_df_to_series(in_df: pd.DataFrame, exclude_columns: list | None = None, name: str | None = None) -> pd.Series:

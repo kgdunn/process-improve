@@ -9,6 +9,7 @@ from process_improve.batch.data_input import (
     melt_df_to_series,
     melted_to_dict,
     melted_to_wide,
+    wide_to_dict,
     wide_to_melted,
 )
 
@@ -36,21 +37,72 @@ def test_melted_to_dict(nylon_raw_melteddata: pd.DataFrame) -> None:
     assert len(out) == 57
 
 
-def test_melted_to_wide(nylon_raw_melteddata: pd.DataFrame) -> None:
-    """Test conversion from melted format to wide format."""
-    _ = melted_to_wide(nylon_raw_melteddata, batch_id_col="batch_id")
-    # assert out.shape == pytest.approx([2, 3])
+def test_melted_to_wide(aligned_batch_dict: dict) -> None:
+    """melted_to_wide matches the dict_to_wide(melted_to_dict(...)) composition."""
+    melted = dict_to_melted(aligned_batch_dict)
+    out = melted_to_wide(melted, batch_id_col="batch_id")
+    expected = dict_to_wide(aligned_batch_dict)
+    pd.testing.assert_frame_equal(out, expected)
+    assert list(out.columns.names) == ["tag", "sequence"]
 
 
-def test_wide_to_melted() -> None:
-    """Test conversion from wide format to melted format."""
-    out = wide_to_melted(pd.DataFrame({"x": [1, 2]}))
-    assert isinstance(out, pd.DataFrame)
-    assert out.empty
+def test_melted_to_wide_missing_batch_id_column() -> None:
+    """A missing batch-identifier column raises a clear error."""
+    with pytest.raises(ValueError, match="does not exist"):
+        melted_to_wide(pd.DataFrame({"x": [1, 2]}), batch_id_col="batch_id")
 
 
-def test_wide_to_dict() -> None:
-    """Test conversion from wide format to dictionary."""
+def test_wide_to_dict_round_trip(aligned_batch_dict: dict) -> None:
+    """wide_to_dict inverts dict_to_wide."""
+    out = wide_to_dict(dict_to_wide(aligned_batch_dict))
+    assert set(out.keys()) == set(aligned_batch_dict.keys())
+    for batch_id, original in aligned_batch_dict.items():
+        recovered = out[batch_id]
+        pd.testing.assert_frame_equal(
+            recovered.sort_index(axis=1), original.sort_index(axis=1), check_index_type=False
+        )
+
+
+def test_wide_to_dict_group_by_batch_round_trip(aligned_batch_dict: dict) -> None:
+    """wide_to_dict also inverts the group_by_batch=True column ordering."""
+    out = wide_to_dict(dict_to_wide(aligned_batch_dict, group_by_batch=True))
+    for batch_id, original in aligned_batch_dict.items():
+        pd.testing.assert_frame_equal(
+            out[batch_id].sort_index(axis=1), original.sort_index(axis=1), check_index_type=False
+        )
+
+
+def test_wide_to_dict_rejects_flat_columns() -> None:
+    """A frame without the 2-level (tag, sequence) column index is rejected."""
+    with pytest.raises(ValueError, match="2-level column index"):
+        wide_to_dict(pd.DataFrame({"x": [1, 2]}))
+
+
+def test_wide_to_melted_round_trip(aligned_batch_dict: dict) -> None:
+    """wide_to_melted recovers a melted frame equivalent to dict_to_melted's."""
+    out = wide_to_melted(dict_to_wide(aligned_batch_dict))
+    expected = dict_to_melted(aligned_batch_dict)
+    assert "batch_id" in out.columns
+    assert out.shape[0] == expected.shape[0]
+    for batch_id in aligned_batch_dict:
+        recovered = out[out["batch_id"] == batch_id].drop(columns="batch_id").reset_index(drop=True)
+        original = expected[expected["batch_id"] == batch_id].drop(columns="batch_id").reset_index(drop=True)
+        pd.testing.assert_frame_equal(
+            recovered.sort_index(axis=1), original.sort_index(axis=1), check_index_type=False
+        )
+
+
+def test_melted_to_wide_on_real_data(nylon_raw_melteddata: pd.DataFrame) -> None:
+    """Wide conversion of (truncation-aligned) nylon data has one row per batch."""
+    # The bundled nylon batches differ slightly in duration; truncate to the
+    # shortest so the wide format is meaningful.
+    batches = melted_to_dict(nylon_raw_melteddata, batch_id_col="batch_id")
+    shortest = min(batch.shape[0] for batch in batches.values())
+    truncated = {k: v.iloc[:shortest].reset_index(drop=True) for k, v in batches.items()}
+    wide = dict_to_wide({k: v.drop(columns="batch_id") for k, v in truncated.items()})
+    assert wide.shape == (57, 10 * shortest)
+    recovered = wide_to_dict(wide)
+    assert len(recovered) == 57
 
 
 def test_dict_to_melted_default_inserts_batch_id(aligned_batch_dict: dict) -> None:

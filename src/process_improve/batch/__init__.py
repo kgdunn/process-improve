@@ -6,7 +6,13 @@ from process_improve.batch.data_input import (
     dict_to_wide,
     melted_to_dict,
     melted_to_wide,
+    wide_to_dict,
     wide_to_melted,
+)
+from process_improve.batch.datasets import (
+    load_batch_fake_data,
+    load_dryer,
+    load_nylon,
 )
 from process_improve.batch.features import (
     cross,
@@ -63,8 +69,13 @@ __all__ = [
     "f_std",
     "f_sum",
     "find_reference_batch",
+    # Dataset loaders
+    "load_batch_fake_data",
+    "load_dryer",
+    "load_nylon",
     "melted_to_dict",
     "melted_to_wide",
     "resample_to_reference",
+    "wide_to_dict",
     "wide_to_melted",
 ]
