@@ -11,6 +11,37 @@ those changes.
 
 ## [Unreleased]
 
+## [1.55.0] - 2026-07-16
+
+### Added
+
+- `batch.BatchPCA`: batchwise-unfolded (multiway) PCA for batch trajectory
+  data. Unfolds an aligned batch-data dictionary batchwise (one row per batch),
+  optionally joins an initial-conditions (Z) block onto that row, mean-centres
+  and scales every column, and fits the existing `multivariate.PCA` by
+  composition. Exposes batch-level scores, SPE and Hotelling's T2 with control
+  limits, plus contribution and score/SPE/loading plot forwarders. This is the
+  Nomikos-MacGregor batch monitoring model.
+- `batch.time_varying_loading_plot` and `batch.contribution_at_time_plot`: two
+  plotly plots for the unfolded model, showing a component's loadings over time
+  (one trace per tag) and the per-tag contribution to SPE or T2 at a chosen
+  time sample.
+- `batch.load_nylon`, `batch.load_dryer`, and `batch.load_batch_fake_data`:
+  loader functions returning the bundled batch datasets as the standard
+  batch-data dictionary.
+
+### Changed
+
+- The `batch.data_input` converters `melted_to_wide`, `wide_to_dict`, and
+  `wide_to_melted` are now implemented (they previously returned an empty
+  dict / frame / `None`). They compose the existing conversions and round-trip
+  with `dict_to_wide` / `dict_to_melted`.
+
+### Fixed
+
+- `batch.plotting.plot_to_HTML` now passes the correct `responsive` Plotly
+  config key (previously the misspelled `resonsive` was silently ignored).
+
 ## [1.54.0] - 2026-07-13
 
 ### Changed
@@ -2509,7 +2540,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.54.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.55.0...HEAD
+[1.55.0]: https://github.com/kgdunn/process-improve/compare/v1.54.0...v1.55.0
 [1.54.0]: https://github.com/kgdunn/process-improve/compare/v1.53.0...v1.54.0
 [1.53.0]: https://github.com/kgdunn/process-improve/compare/v1.52.4...v1.53.0
 [1.52.4]: https://github.com/kgdunn/process-improve/compare/v1.52.3...v1.52.4
