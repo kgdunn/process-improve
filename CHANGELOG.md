@@ -11,6 +11,18 @@ those changes.
 
 ## [Unreleased]
 
+## [1.58.0] - 2026-07-16
+
+### Added
+
+- `batch.BatchPLS`: batchwise-unfolded (multiway) PLS relating the unfolded
+  ``[Z | X]`` batch matrix to a final-quality block ``Y`` (one row per batch),
+  built by composition over `multivariate.PLS`. Predicts the quality of a
+  completed batch and exposes time-varying X-weights (reshapeable to a
+  variable-by-time grid, and plottable with `time_varying_loading_plot`), plus
+  batch-level scores, SPE and Hotelling's T2. This is the batch regression /
+  prediction counterpart to `BatchPCA`.
+
 ## [1.57.0] - 2026-07-16
 
 ### Added
@@ -2578,7 +2590,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.57.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.58.0...HEAD
+[1.58.0]: https://github.com/kgdunn/process-improve/compare/v1.57.0...v1.58.0
 [1.57.0]: https://github.com/kgdunn/process-improve/compare/v1.56.0...v1.57.0
 [1.56.0]: https://github.com/kgdunn/process-improve/compare/v1.55.0...v1.56.0
 [1.55.0]: https://github.com/kgdunn/process-improve/compare/v1.54.0...v1.55.0

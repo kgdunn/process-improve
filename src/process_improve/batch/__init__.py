@@ -7,6 +7,7 @@ from process_improve.batch._batch_plots import (
     online_monitoring_plot,
     time_varying_loading_plot,
 )
+from process_improve.batch._batch_pls import BatchPLS
 from process_improve.batch._transformers import (
     BatchFeatureExtractor,
     BatchScaler,
@@ -59,6 +60,7 @@ __all__ = [
     "BatchFeatureExtractor",
     "BatchMonitor",
     "BatchPCA",
+    "BatchPLS",
     "BatchScaler",
     "DTWAligner",
     "ResampleAligner",
