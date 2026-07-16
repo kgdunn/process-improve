@@ -7,6 +7,12 @@ from process_improve.batch._batch_plots import (
     online_monitoring_plot,
     time_varying_loading_plot,
 )
+from process_improve.batch._transformers import (
+    BatchFeatureExtractor,
+    BatchScaler,
+    DTWAligner,
+    ResampleAligner,
+)
 from process_improve.batch.data_input import (
     check_valid_batch_dict,
     dict_to_melted,
@@ -50,8 +56,12 @@ from process_improve.batch.preprocessing import (
 
 __all__ = [
     # Modelling and monitoring
+    "BatchFeatureExtractor",
     "BatchMonitor",
     "BatchPCA",
+    "BatchScaler",
+    "DTWAligner",
+    "ResampleAligner",
     # Preprocessing/alignment
     "batch_dtw",
     # Data input/conversion

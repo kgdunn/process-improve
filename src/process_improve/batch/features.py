@@ -336,43 +336,95 @@ def f_area(
 
 # Breakpoint detection:  rupture / breakpoint within a particular tag.
 # ------------------------------------------
-def f_rupture(
+def f_rupture(  # noqa: PLR0913
     data: pd.DataFrame,
     columns: list[str] | None = None,
     batch_col: str | None = None,
     phase_col: str | None = None,
-) -> None:
-    """
-    Feature:    rupture.
+    penalty: float = 10.0,
+    model: str = "rbf",
+) -> pd.DataFrame:
+    """Detect the first changepoint (rupture) in a single tag's trajectory.
 
-    The breakpoint in a given tag in ``columns`` (usually it is 1 tag),
-    for each unique batch in the ``batch_col`` indicator column, and
-    within each unique phase, per batch, of the ``phase_col`` column.
+    Fits a PELT changepoint model to the tag's signal in each batch (and
+    phase) and returns the location of the first detected changepoint, i.e.
+    the sample index at which the trajectory's statistical behaviour first
+    shifts. This is a data-driven landmark feature: unlike a fixed threshold
+    crossing, it locates a break in level or variance without the analyst
+    specifying where to look.
+
+    Requires the optional ``ruptures`` library, part of the ``batch`` extra
+    (``pip install 'process-improve[batch]'``).
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Batch data in melted (long) form.
+    columns : list of str
+        Exactly one tag (column) name to detect the changepoint in.
+    batch_col : str, optional
+        Column identifying the batch. If omitted, all rows are treated as a
+        single batch.
+    phase_col : str, optional
+        Column identifying the phase within a batch. If omitted, each batch is
+        treated as a single phase.
+    penalty : float, default=10.0
+        PELT penalty term; larger values detect fewer changepoints.
+    model : str, default="rbf"
+        Cost model passed to ``ruptures`` (for example ``"rbf"``, ``"l2"``,
+        ``"l1"``).
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per (batch, phase) group, with a single column
+        ``"{tag}_rupture"`` giving the first changepoint sample index within
+        that group, or ``NaN`` when no changepoint is detected.
+
+    See Also
+    --------
+    f_crossing : threshold-crossing landmark at a fixed level.
+    f_elbow : elbow / knee-point landmark.
+
+    References
+    ----------
+    Truong, C., Oudre, L. and Vayatis, N., "Selective review of offline
+    change point detection methods", Signal Processing, 167, 2020. See also
+    https://github.com/deepcharles/ruptures.
     """
-    # Handle phase detection based on 1 column for now.
     if columns is None or len(columns) != 1:
-        raise NotImplementedError(
-            f"Phase detection currently supports a single column only; got {columns!r}."
-        )
+        raise ValueError(f"f_rupture supports a single column only; got {columns!r}.")
 
-    # TODO: see https://github.com/deepcharles/ruptures
+    # Deferred import so that importing this module does not require the
+    # optional ``ruptures`` dependency; only f_rupture needs it.
+    try:
+        import ruptures as rpt  # noqa: PLC0415
+    except ImportError as exc:
+        from .._extras import require_extra  # noqa: PLC0415
 
-    # base_name = "rupture"
-    # prepared = _prepare_data(data, columns, batch_col, phase_col)
-    # feature_columns = prepared['columns']
-    # grouper = prepared['data']
+        raise require_extra("ruptures", "batch") from exc
 
-    # import ruptures as rpt
-    # import matplotlib.pyplot as plt
-    # output = pd.DataFrame()
-    # for batch_id, subset in grouper:
-    # signal = subset[columns[0]].values
-    # algo = rpt.Pelt(model="rbf").fit(signal)
-    # result = algo.predict(pen=100)
-    # print(result)
-    # plt.show()
-    # fig = rpt.display(signal, result, computed_chg_pts=result)
-    # fig.save(batchid)
+    column = columns[0]
+    base_name = "rupture"
+    prepared, _tags, _output, _df_out = _prepare_data(data, columns, batch_col, phase_col)
+    f_name = f"{column}_{base_name}"
+
+    locations = {}
+    for group_id, subset in prepared:
+        signal = np.asarray(subset[column].to_numpy(), dtype=float)
+        if signal.size < 2 or not np.isfinite(signal).all():
+            locations[group_id] = np.nan
+            continue
+        algo = rpt.Pelt(model=model).fit(signal)
+        breakpoints = algo.predict(pen=penalty)
+        # ruptures always returns the signal length as the final breakpoint;
+        # the first genuine changepoint (if any) precedes it.
+        interior = [bp for bp in breakpoints if bp < signal.size]
+        locations[group_id] = float(interior[0]) if interior else np.nan
+
+    output = pd.Series(locations, name=f_name).to_frame()
+    output.index = output.index.set_names(prepared.keys)
+    return output
 
 
 # Extreme features

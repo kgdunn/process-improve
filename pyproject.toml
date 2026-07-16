@@ -1,6 +1,6 @@
 [project]
 name = "process-improve"
-version = "1.56.0"
+version = "1.57.0"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = "MIT"
@@ -61,11 +61,10 @@ expt = [
     "pyDOE3>=1.0",
 ]
 
-# Batch process data analysis: image-IO + Excel readers used by the
-# batch alignment / fixture loaders.
+# Batch process data analysis: changepoint detection for the f_rupture
+# landmark feature (process_improve.batch.features.f_rupture).
 batch = [
-    "openpyxl>=3.1.5",
-    "scikit-image>=0.25.2",
+    "ruptures>=1.1.9",
 ]
 
 # MCP server entry-point.
@@ -94,12 +93,11 @@ all = [
     "matplotlib>=3.10.8",
     "mcp>=1.0",
     "numba>=0.63.1",
-    "openpyxl>=3.1.5",
     "plotly>=6.5.2",
     "pulp>=2.8",
     "pyDOE3>=1.0",
     "ridgeplot>=0.5.0",
-    "scikit-image>=0.25.2",
+    "ruptures>=1.1.9",
     "seaborn>=0.13.2",
 ]
 

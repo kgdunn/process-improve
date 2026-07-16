@@ -6,7 +6,7 @@ optional dependencies behind extras::
 
     pip install 'process-improve[plotting]'    # matplotlib + plotly + seaborn + ridgeplot
     pip install 'process-improve[expt]'        # pyDOE3 (DOE / experiments helpers)
-    pip install 'process-improve[batch]'       # scikit-image + openpyxl
+    pip install 'process-improve[batch]'       # ruptures (changepoint detection)
     pip install 'process-improve[mcp]'         # mcp
     pip install 'process-improve[fast]'        # numba (JIT)
     pip install 'process-improve[ilp]'         # pulp (OMARS design generator)
