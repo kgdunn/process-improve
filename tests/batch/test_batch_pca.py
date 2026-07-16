@@ -118,6 +118,66 @@ def test_transform_wrong_length_raises(aligned_nylon: dict) -> None:
         model.transform(shorter)
 
 
+def test_initial_conditions_must_be_dataframe() -> None:
+    """A non-DataFrame Z block is rejected."""
+    good = _synthetic_good_batches(n_batches=4)
+    with pytest.raises(TypeError, match="pandas DataFrame"):
+        BatchPCA(n_components=2).fit(good, initial_conditions={"charge": [1, 2, 3, 4]})
+
+
+def test_initial_conditions_must_be_numeric() -> None:
+    """A non-numeric Z column is rejected."""
+    good = _synthetic_good_batches(n_batches=4)
+    z = pd.DataFrame({"grade": ["A", "B", "A", "C"]}, index=list(good.keys()))
+    with pytest.raises(ValueError, match="numeric"):
+        BatchPCA(n_components=2).fit(good, initial_conditions=z)
+
+
+def test_initial_conditions_no_missing() -> None:
+    """A NaN in the Z block is rejected."""
+    good = _synthetic_good_batches(n_batches=4)
+    z = pd.DataFrame({"charge": [1.0, np.nan, 3.0, 4.0]}, index=list(good.keys()))
+    with pytest.raises(ValueError, match="missing values"):
+        BatchPCA(n_components=2).fit(good, initial_conditions=z)
+
+
+def test_group_by_batch_with_initial_conditions() -> None:
+    """group_by_batch labels Z loadings on the other level and still round-trips."""
+    good = _synthetic_good_batches(n_batches=6)
+    z = pd.DataFrame({"charge": [float(i) for i in range(6)]}, index=list(good.keys()))
+    model = BatchPCA(n_components=2, group_by_batch=True).fit(good, initial_conditions=z)
+    assert model.n_initial_conditions_ == 1
+    # with group_by_batch the Z label sits on the outer ("sequence") level as ""
+    z_rows = [label for label in model.loadings_.index if label[0] == ""]
+    assert {label[1] for label in z_rows} == {"charge"}
+
+
+def test_fit_transform_returns_training_scores() -> None:
+    """fit_transform returns the same scores as fit followed by the attribute."""
+    good = _synthetic_good_batches()
+    scores = BatchPCA(n_components=2).fit_transform(good)
+    reference = BatchPCA(n_components=2).fit(good).scores_
+    np.testing.assert_allclose(scores.to_numpy(), reference.to_numpy(), atol=1e-8)
+
+
+def test_diagnose_with_initial_conditions() -> None:
+    """Diagnosing accepts a Z block for the new batches."""
+    good = _synthetic_good_batches()
+    z = pd.DataFrame({"charge": [float(i) for i in range(12)]}, index=list(good.keys()))
+    model = BatchPCA(n_components=2).fit(good, initial_conditions=z)
+    one = {"g0": good["g0"]}
+    z_new = pd.DataFrame({"charge": [0.0]}, index=["g0"])
+    result = model.diagnose(one, initial_conditions=z_new)
+    assert result.scores.shape == (1, 2)
+
+
+def test_ellipse_coordinates(aligned_nylon: dict) -> None:
+    """The T2 confidence ellipse returns paired coordinate arrays."""
+    model = BatchPCA(n_components=3).fit(aligned_nylon)
+    x, y = model.ellipse_coordinates(1, 2)
+    assert len(x) == len(y) > 0
+
+
 def test_unscaled_keeps_centring_only() -> None:
     """scale=False leaves the scaling factors at 1.0 (centring still applied)."""
     good = _synthetic_good_batches()

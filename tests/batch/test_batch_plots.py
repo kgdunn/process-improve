@@ -74,3 +74,23 @@ def test_contribution_at_time_plot_rejects_flat_columns() -> None:
     flat = pd.DataFrame(np.zeros((2, 3)), columns=["a", "b", "c"])
     with pytest.raises(ValueError, match="2-level"):
         contribution_at_time_plot(flat, k=0)
+
+
+def test_contribution_at_time_plot_unknown_batch_id(fitted_model: BatchPCA) -> None:
+    """An unknown batch_id is rejected with a clear error."""
+    batches = load_nylon()
+    tags = list(next(iter(batches.values())).columns)
+    aligned = resample_to_reference(batches, columns_to_align=tags, reference_batch=1)
+    contributions = fitted_model.spe_contributions(fitted_model._scaled_wide(aligned, None))
+    with pytest.raises(ValueError, match="not a row"):
+        contribution_at_time_plot(contributions, k=0, batch_id=99999)
+
+
+def test_contribution_at_time_plot_out_of_range_time(fitted_model: BatchPCA) -> None:
+    """A time sample beyond the batch length has no contributions and is rejected."""
+    batches = load_nylon()
+    tags = list(next(iter(batches.values())).columns)
+    aligned = resample_to_reference(batches, columns_to_align=tags, reference_batch=1)
+    contributions = fitted_model.spe_contributions(fitted_model._scaled_wide(aligned, None))
+    with pytest.raises(ValueError, match="No contributions at time"):
+        contribution_at_time_plot(contributions, k=fitted_model.n_timesteps_ + 100)
