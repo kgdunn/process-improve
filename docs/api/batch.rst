@@ -13,6 +13,10 @@ Batch Data Analysis
    :members:
    :show-inheritance:
 
+.. autoclass:: process_improve.batch.BatchPLS
+   :members:
+   :show-inheritance:
+
 .. automodule:: process_improve.batch._transformers
    :members:
    :show-inheritance:
