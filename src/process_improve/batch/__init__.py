@@ -1,6 +1,10 @@
 """Batch process data analysis: alignment, feature extraction, modelling, and visualization."""
 
 from process_improve.batch._batch_pca import BatchPCA
+from process_improve.batch._batch_plots import (
+    contribution_at_time_plot,
+    time_varying_loading_plot,
+)
 from process_improve.batch.data_input import (
     check_valid_batch_dict,
     dict_to_melted,
@@ -49,6 +53,7 @@ __all__ = [
     "batch_dtw",
     # Data input/conversion
     "check_valid_batch_dict",
+    "contribution_at_time_plot",
     "cross",
     "determine_scaling",
     "dict_to_melted",
@@ -79,6 +84,7 @@ __all__ = [
     "melted_to_dict",
     "melted_to_wide",
     "resample_to_reference",
+    "time_varying_loading_plot",
     "wide_to_dict",
     "wide_to_melted",
 ]
