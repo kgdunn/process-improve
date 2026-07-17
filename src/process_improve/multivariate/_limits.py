@@ -89,8 +89,11 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
     Returns
     -------
     float
-        The limit, above which we judge observations in the model to have a different correlation
-        structure than those values which were used to build the model.
+        The SPE limit at the requested confidence level, returned on the
+        sqrt-of-sum-of-squared-residuals scale (directly comparable to
+        entries of ``model.spe_``, which are stored on the same scale).
+        Values above this limit indicate observations whose correlation
+        structure differs from the training data's.
     """
     if not 0.0 < conf_level < 1.0:
         raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
@@ -181,8 +184,11 @@ def ellipse_coordinates(  # noqa: PLR0913
         Number of components `A` in the fitted model. Required to look up the
         Hotelling's T^2 limit and to bound `score_horiz`/`score_vert`.
     scaling_factor_for_scores : pd.Series
-        Per-component standard deviations of the scores (``model.scaling_factor_for_scores_``).
-        Used to scale the ellipse axes.
+        Per-component standard deviations of the scores
+        (``model.scaling_factor_for_scores_``). Used to scale the ellipse
+        axes. Required: the signature defaults to ``None`` for backward
+        compatibility, but passing ``None`` (or omitting the argument)
+        raises :class:`AssertionError` inside the function.
     n_rows : int
         Number of rows `N` in the data used to fit the model. Required to compute the
         Hotelling's T^2 limit; must be strictly positive.

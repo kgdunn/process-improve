@@ -101,8 +101,9 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
     Returns
     -------
     press : np.ndarray of shape (max_components,)
-        Per-cell PRESS per component count, averaged over ``n_repeats``
-        passes so the scale is comparable to a single-pass run.
+        Total PRESS per component count (sum of squared cell-residuals
+        across all folds, averaged over ``n_repeats`` passes so the scale
+        is comparable to a single-pass run).
     per_fold_press : np.ndarray of shape (max_components, n_folds * n_repeats)
         Per-fold PRESS contributions across every fold of every repeat;
         drives the 1-SE rule's standard error.
@@ -220,8 +221,11 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
     Parameters
     ----------
-    n_components : int
-        Number of principal components to extract.
+    n_components : int or None, default=None
+        Number of principal components to extract. If ``None``, defaults to
+        ``min(n_samples, n_features)`` when :meth:`fit` runs; if the requested
+        value exceeds that maximum, it is clamped to ``min(n_samples,
+        n_features)`` and a :class:`SpecificationWarning` is issued.
 
     algorithm : str, default="auto"
         Algorithm to use for fitting the model.
@@ -920,8 +924,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             the more conservative 95th-percentile threshold is the
             modern recommendation.
         scale : bool, default True
-            Mean-centre and unit-variance scale ``X`` before estimation
-            (matches :meth:`minka_mle`).
+            Mean-centre and unit-variance scale ``X`` before estimation.
+            Note that :meth:`minka_mle`, by contrast, only centres ``X``
+            (no unit-variance scaling); the two routines do not share the
+            same preprocessing when ``scale=True`` here.
         random_state : int, optional
             Seed for the null-matrix simulations.
 
@@ -1069,6 +1075,15 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             step. Ignored under ``cv_scheme="row_wise"``.
         random_state : int, optional
             Seed for the ekf element-fold permutation.
+        return_consensus : bool, default False
+            If ``True``, also run :meth:`minka_mle` and
+            :meth:`parallel_analysis` on ``X`` and add their recommendations
+            plus a consensus vote to the returned :class:`~sklearn.utils.Bunch`
+            (extra keys: ``minka_n_components``,
+            ``parallel_analysis_n_components``, ``consensus``,
+            ``consensus_counts``). The primary ``n_components`` value is still
+            the cross-validation recommendation; the consensus fields are
+            informational.
         threshold : float, optional
             Deprecated. The original Wold PRESS-ratio cutoff. Passing it
             emits a :class:`DeprecationWarning`; the value is ignored. Use

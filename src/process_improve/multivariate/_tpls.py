@@ -352,8 +352,13 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         Parameters
         ----------
-        X : {dictionary of dataframes}, keys that must be present: "F", "Z", and "Y"
-            The training input samples. See documentation in the class definition for more information on each matrix.
+        X : DataFrameDict
+            The training input samples, provided as a
+            :class:`DataFrameDict` (a plain :class:`dict` is not accepted;
+            the method raises :class:`TypeError`). Keys that must be
+            present: ``"F"``, ``"Z"``, and ``"Y"``. See the class-level
+            :class:`TPLS` docstring (and its example) for the required
+            shape of each block.
 
         Returns
         -------

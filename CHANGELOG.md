@@ -11,6 +11,10 @@ those changes.
 
 ## [Unreleased]
 
+- Docstring corrections across PCA/PLS/TPLS/limits/preprocessing/experiments
+  modules to bring documented behaviour into line with the code (no runtime
+  changes).
+
 ## [1.54.0] - 2026-07-13
 
 ### Changed
