@@ -46,7 +46,9 @@ def dispatch_ccd(  # noqa: PLR0913
     alpha : str, float, or None
         Axial distance.  Accepted string values: ``"rotatable"``,
         ``"face_centered"``, ``"orthogonal"``.  A numeric value sets
-        alpha directly.  Defaults to ``"orthogonal"``.
+        alpha directly **only when ``cube='fractional'``**; for
+        ``cube='full'`` the numeric value is ignored and the orthogonal
+        alpha is used.  Defaults to ``"orthogonal"``.
     cube : str
         How to build the cube (factorial) portion: ``"full"`` (default) uses
         the complete 2^k factorial; ``"fractional"`` uses a resolution-V (or
