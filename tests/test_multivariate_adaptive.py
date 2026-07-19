@@ -187,13 +187,14 @@ def test_gamma_zero_recovers_plain_recursion(synthetic_pca_data: pd.DataFrame) -
         update_when_out_of_control=True,
     ).fit(synthetic_pca_data)
     kernel = model.XtX0_.copy()
-    norm0 = float(np.linalg.norm(kernel))
+    # The re-scale holds the nuclear norm (= trace for this PSD kernel) constant.
+    norm0 = float(np.trace(kernel))
     mu = 0.1
     for _, row in stream.iterrows():
         x = np.nan_to_num((row.to_numpy() - model.mx_) / model.sx_)
         model.update(row.to_numpy())
         kernel = (1 - mu) * kernel + mu * np.outer(x, x)
-        kernel *= norm0 / float(np.linalg.norm(kernel))
+        kernel *= norm0 / float(np.trace(kernel))
     np.testing.assert_allclose(model.XtX_, kernel, atol=1e-8)
 
 
@@ -223,15 +224,15 @@ def test_gamma_improves_conditioning_under_quiet_operation() -> None:
 
 
 def test_kernel_norm_stays_constant(synthetic_pca_data: pd.DataFrame) -> None:
-    """The norm-rescaling holds ||X'X|| at its seed value over many updates."""
+    """The norm-rescaling holds the nuclear norm (trace) of X'X at its seed value over many updates."""
     model = AdaptivePCA(
         n_components=3, forgetting_factor=0.1, gamma=0.1, update_when_out_of_control=True
     ).fit(synthetic_pca_data)
-    norm0 = float(np.linalg.norm(model.XtX0_))
+    norm0 = float(np.trace(model.XtX0_))
     rng = np.random.default_rng(1)
     for _ in range(500):
         model.update(synthetic_pca_data.iloc[rng.integers(len(synthetic_pca_data))].to_numpy())
-    assert float(np.linalg.norm(model.XtX_)) == pytest.approx(norm0, rel=1e-6)
+    assert float(np.trace(model.XtX_)) == pytest.approx(norm0, rel=1e-6)
 
 
 # --------------------------------------------------------------------------- #

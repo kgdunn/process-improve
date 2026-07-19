@@ -480,7 +480,14 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         Xs = np.nan_to_num(self._scaler.transform(X_df).to_numpy(dtype=float), nan=0.0)
         self.XtX0_ = Xs.T @ Xs
         self.XtX_ = self.XtX0_.copy()
-        self._norm_xx0 = float(np.linalg.norm(self.XtX0_))
+        # Nuclear norm of the kernel. For a symmetric PSD matrix this is the sum
+        # of its eigenvalues, i.e. its trace, which for mean-centered unit-variance
+        # data equals K * (N - 1): the total sum of squares. Holding this constant
+        # in the injection ratio and the re-scale keeps the total variance fixed,
+        # so the score scaling used for Hotelling's T2 does not drift as the
+        # eigenvalue *shape* changes. The rank-1 update term has identical trace,
+        # Frobenius and spectral norms, so only this denominator sees the choice.
+        self._norm_xx0 = float(np.trace(self.XtX0_))
 
         loadings, eigenvalues = _kernel_pca(self.XtX0_, A)
         self.loadings0_ = loadings.copy()
@@ -550,9 +557,11 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         """Update the kernel with one scaled observation and recompute the loadings."""
         mu = self.forgetting_factor
         update_xx = mu * np.outer(x_scaled, x_scaled)
-        f_x = self.gamma * float(np.linalg.norm(update_xx)) / self._norm_xx0 if self._norm_xx0 > 0 else 0.0
+        # Nuclear norm (= trace for PSD) throughout, for consistency with the
+        # re-scale below; the rank-1 update's trace equals its Frobenius norm.
+        f_x = self.gamma * float(np.trace(update_xx)) / self._norm_xx0 if self._norm_xx0 > 0 else 0.0
         self.XtX_ = (1.0 - mu) * self.XtX_ + update_xx + f_x * self.XtX0_
-        norm_xx = float(np.linalg.norm(self.XtX_))
+        norm_xx = float(np.trace(self.XtX_))
         if norm_xx > epsqrt:
             self.XtX_ *= self._norm_xx0 / norm_xx
 
@@ -592,8 +601,10 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         updated = False
         if (in_control or self.update_when_out_of_control) and not np.isnan(x0).all():
             self._ewma_update_x(x0)
-            # Re-scale the same observation with the freshly advanced vectors for
-            # the kernel contribution, then recompute the loadings.
+            # Convention: advance the EWMA centering/scaling vectors first, then
+            # scale this same observation with the updated (i+1) vectors for the
+            # kernel contribution. The monitoring statistics above used the
+            # pre-update (i) vectors via _project; the kernel uses i+1.
             x_for_kernel = np.nan_to_num((x0 - self.mx_) / self.sx_, nan=0.0)
             self._recompute(x_for_kernel)
             if in_control:
@@ -769,8 +780,15 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self.XtY0_ = Xs.T @ Ys
         self.XtX_ = self.XtX0_.copy()
         self.XtY_ = self.XtY0_.copy()
-        self._norm_xx0 = float(np.linalg.norm(self.XtX0_))
-        self._norm_xy0 = float(np.linalg.norm(self.XtY0_))
+        # Nuclear norm of each kernel, used in the injection ratio and the
+        # re-scale. For the symmetric PSD X'X this is the trace (sum of
+        # eigenvalues = K * (N - 1) for scaled data); for the K x M cross-kernel
+        # X'Y it is the sum of singular values. Both reduce to the ordinary vector
+        # norm when M = 1. Holding the X'X nuclear norm constant keeps the total
+        # variance, and hence the T2 score scaling, from drifting with the
+        # eigenvalue shape; the rank-1 update terms are norm-choice invariant.
+        self._norm_xx0 = float(np.trace(self.XtX0_))
+        self._norm_xy0 = float(np.linalg.norm(self.XtY0_, "nuc"))
 
         self._recompute_from_kernels(align_to=None)
         self.weights0_ = self._weights.copy()
@@ -859,18 +877,21 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
     def _recompute(self, x_scaled: np.ndarray, y_scaled: np.ndarray | None) -> None:
         """Update the kernels with one scaled observation and recompute the model."""
         mu = self.forgetting_factor
+        # Nuclear norm (= trace for the PSD X'X, = sum of singular values for the
+        # cross-kernel X'Y) is used consistently in the injection ratio and the
+        # re-scale; the rank-1 update terms are norm-choice invariant.
         update_xx = mu * np.outer(x_scaled, x_scaled)
-        f_x = self.gamma * float(np.linalg.norm(update_xx)) / self._norm_xx0 if self._norm_xx0 > 0 else 0.0
+        f_x = self.gamma * float(np.trace(update_xx)) / self._norm_xx0 if self._norm_xx0 > 0 else 0.0
         self.XtX_ = (1.0 - mu) * self.XtX_ + update_xx + f_x * self.XtX0_
-        norm_xx = float(np.linalg.norm(self.XtX_))
+        norm_xx = float(np.trace(self.XtX_))
         if norm_xx > epsqrt:
             self.XtX_ *= self._norm_xx0 / norm_xx
 
         if y_scaled is not None and self._norm_xy0 > 0:
             update_xy = mu * np.outer(x_scaled, y_scaled)
-            f_y = self.gamma * float(np.linalg.norm(update_xy)) / self._norm_xy0
+            f_y = self.gamma * float(np.linalg.norm(update_xy, "nuc")) / self._norm_xy0
             self.XtY_ = (1.0 - mu) * self.XtY_ + update_xy + f_y * self.XtY0_
-            norm_xy = float(np.linalg.norm(self.XtY_))
+            norm_xy = float(np.linalg.norm(self.XtY_, "nuc"))
             if norm_xy > epsqrt:
                 self.XtY_ *= self._norm_xy0 / norm_xy
 
@@ -905,6 +926,10 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
 
         updated = False
         if (in_control or self.update_when_out_of_control) and not all_missing:
+            # Convention: advance the EWMA centering/scaling vectors first (X here,
+            # Y below), then scale this same observation with the updated (i+1)
+            # vectors for the kernel contributions. The monitoring statistics above
+            # used the pre-update (i) vectors via _project.
             self._ewma_update_x(x0)
             y_scaled = None
             if y_row is not None:
@@ -915,8 +940,8 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
                     )
                     self.sy_ = np.where(self.sy_ < epsqrt, 1.0, self.sy_)
                     self.my_ = (1.0 - self.lambda_center_y_) * self.my_ + self.lambda_center_y_ * y0
-                    y_scaled = (y0 - self.my_) / self.sy_
-            x_for_kernel = np.nan_to_num((x0 - self.mx_) / self.sx_, nan=0.0)
+                    y_scaled = (y0 - self.my_) / self.sy_  # uses updated (i+1) Y vectors
+            x_for_kernel = np.nan_to_num((x0 - self.mx_) / self.sx_, nan=0.0)  # updated (i+1) X vectors
             self._recompute(x_for_kernel, y_scaled)
             if in_control:
                 self._spe_buffer.append(spe**2)
