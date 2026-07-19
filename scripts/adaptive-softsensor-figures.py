@@ -4,7 +4,7 @@ Mirrors the analysis in the pid-book chapter
 ``product-development-product-improvement/multivariate-process-monitoring.rst``
 (the "Keeping a model current" section): a static PLS soft sensor drifts, an
 adaptive PLS tracks it, monitoring statistics flag the drift, the adaptation
-splits into a preprocessing channel and a kernel channel, and the distance
+splits into a preprocessing part and a kernel part, and the distance
 metric shows the model ageing. The chapter shows the equivalent Plotly code; the
 committed figures are these matplotlib renderings.
 
@@ -32,7 +32,7 @@ from process_improve.multivariate import AdaptivePLS
 DATA_URL = "https://openmv.net/file/vapor-pressure.csv"
 A = 3  # number of PLS components, used throughout
 DARK_BLUE = "#1f3d7a"  # default line colour for all figures
-ORANGE = "#c55a11"     # the "Testing data" divider and the kernel channel
+ORANGE = "#c55a11"     # the "Testing data" divider and the kernel part
 GREEN = "#2e6f3e"      # the static model in the payoff figure
 GREY = "0.45"
 plt.rcParams.update({
@@ -48,11 +48,17 @@ def bias_std_rmsep(err: np.ndarray, mask: np.ndarray) -> tuple[float, float, flo
 
 
 def testing_divider(ax, x0: float, y: float, reach: float) -> None:
-    """Draw the orange dashed testing boundary with a right-pointing 'Testing data' arrow."""
+    """Orange dashed testing boundary: a right-pointing arrow starting on the line,
+    with the 'Testing data' label centred above the arrow (not across it).
+    """
     ax.axvline(x0, color=ORANGE, ls="--", lw=1.2)
-    ax.annotate("Testing data", xy=(x0 + reach, y), xytext=(x0 + 0.3, y),
-                color=ORANGE, fontsize=9, fontweight="bold", va="center",
+    # horizontal arrow starting on the dashed line, pointing right
+    ax.annotate("", xy=(x0 + reach, y), xytext=(x0, y),
                 arrowprops=dict(arrowstyle="->", color=ORANGE, lw=1.4))
+    # label centred above the arrow
+    ax.annotate("Testing data", xy=(x0 + reach / 2, y), xytext=(0, 5),
+                textcoords="offset points", color=ORANGE, fontsize=9,
+                fontweight="bold", ha="center", va="bottom")
 
 
 def main(out_dir: Path) -> None:  # noqa: PLR0915
@@ -147,7 +153,7 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
     ax.plot(lab_month, y_lab, ".", ms=4, color=GREY, label="Lab reference")
     ax.plot(month, static_pred, "-", lw=0.9, color=DARK_BLUE, label="Static PLS prediction")
     ax.set_ylim(15, 100)
-    testing_divider(ax, drift_month, 94, 5.0)
+    testing_divider(ax, drift_month, 86, 5.0)
     ax.set_xlabel(XLABEL)
     ax.set_ylabel("Vapour pressure [kPa]")
     ax.legend(loc="upper left", fontsize=9, framealpha=0.9)
@@ -195,25 +201,26 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
     fig, ax = plt.subplots(figsize=(8.2, 3.0))
     ax.plot(month, distance, lw=0.8, color=DARK_BLUE)
     ax.axhline(A, color="0.6", ls=":", lw=1)
-    ax.axvline(drift_month, color="k", ls="--", lw=1)
     ax.set_ylim(1.5, 3.05)
+    testing_divider(ax, drift_month, 2.65, 4.0)
     ax.set_xlabel(XLABEL)
     ax.set_ylabel("Subspace overlap [components]")
     fig.tight_layout()
     fig.savefig(out_dir / "adaptive-softsensor-diagnostics.png")
     plt.close(fig)
 
-    # Fig 5: adaptation decomposition (preprocessing vs kernel channels + state drift)
+    # Fig 5: adaptation decomposition (preprocessing vs kernel parts + state drift)
     fig, (b1, b2) = plt.subplots(2, 1, figsize=(8.2, 5.0), sharex=True)
     b1.axhline(0, color="0.6", lw=0.8)
-    b1.plot(month, prep_ch, lw=0.8, color=DARK_BLUE, label="Centering + scaling channel")
-    b1.plot(month, kernel_ch, lw=0.8, color=ORANGE, label="Kernel channel")
+    b1.plot(month, prep_ch, lw=0.8, color=DARK_BLUE, label="Preprocessing part")
+    b1.plot(month, kernel_ch, lw=0.8, color=ORANGE, label="Kernel part")
     b1.set_ylim(-25, 25)
     b1.set_ylabel("Correction vs static [kPa]")
     b1.axvline(drift_month, color="k", ls="--", lw=1)
     b1.legend(loc="upper left", fontsize=8, framealpha=0.9)
     b1.set_title("What drives the adaptation", fontsize=10)
-    b2.axvline(drift_month, color="k", ls="--", lw=1)
+    # testing-data divider on the bottom panel only (the top panel is already busy)
+    testing_divider(b2, drift_month, 11.5, 4.0)
     ln1, = b2.plot(month, center_shift, lw=1.0, color=DARK_BLUE, label="Centre migration (preprocessing)")
     b2.set_ylabel("Centre migration [training SD]", color=DARK_BLUE)
     b2.tick_params(axis="y", labelcolor=DARK_BLUE)
@@ -236,7 +243,7 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
     print("distance ages", round(distance[0], 2), "->", round(distance[-1], 2))
     valid_prep = prep_ch[~np.isnan(prep_ch)]
     valid_ker = kernel_ch[~np.isnan(kernel_ch)]
-    print("channel magnitudes (median |kPa|): preprocessing",
+    print("part magnitudes (median |kPa|): preprocessing",
           round(float(np.median(np.abs(valid_prep))), 2), "| kernel", round(float(np.median(np.abs(valid_ker))), 2))
     print("centre migration ends at", round(center_shift[-1], 2), "training SD; beta change",
           round(beta_shift[-1] * 100, 0), "%")
