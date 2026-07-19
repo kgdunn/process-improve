@@ -32,17 +32,27 @@ from process_improve.multivariate import AdaptivePLS
 DATA_URL = "https://openmv.net/file/vapor-pressure.csv"
 A = 3  # number of PLS components, used throughout
 DARK_BLUE = "#1f3d7a"  # default line colour for all figures
-ORANGE = "#c55a11"
+ORANGE = "#c55a11"     # the "Testing data" divider and the kernel channel
+GREEN = "#2e6f3e"      # the static model in the payoff figure
 GREY = "0.45"
 plt.rcParams.update({
     "font.size": 11, "axes.grid": True, "grid.alpha": 0.3, "figure.dpi": 140,
     "axes.prop_cycle": mpl.cycler(color=[DARK_BLUE]),
 })
+XLABEL = "Time since start [months]"
 
 
 def bias_std_rmsep(err: np.ndarray, mask: np.ndarray) -> tuple[float, float, float]:
     e = err[mask]
     return float(e.mean()), float(e.std()), float(np.sqrt((e**2).mean()))
+
+
+def testing_divider(ax, x0: float, y: float, reach: float) -> None:
+    """Draw the orange dashed testing boundary with a right-pointing 'Testing data' arrow."""
+    ax.axvline(x0, color=ORANGE, ls="--", lw=1.2)
+    ax.annotate("Testing data", xy=(x0 + reach, y), xytext=(x0 + 0.3, y),
+                color=ORANGE, fontsize=9, fontweight="bold", va="center",
+                arrowprops=dict(arrowstyle="->", color=ORANGE, lw=1.4))
 
 
 def main(out_dir: Path) -> None:  # noqa: PLR0915
@@ -53,8 +63,8 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
     lab_rows = np.where(vp["vapour_pressure_kpa"].notna().to_numpy())[0]
     lab = vp.iloc[lab_rows].reset_index(drop=True)
     y_lab = lab["vapour_pressure_kpa"].to_numpy()
-    n_seed = len(lab) // 2
-    seed = lab.index < n_seed
+    n_train = len(lab) // 2
+    train = lab.index < n_train
     drift_month = float(np.quantile(lab["month"], 0.60))
     post = lab["month"].to_numpy() >= drift_month
 
@@ -80,7 +90,7 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
     static = AdaptivePLS(
         n_components=A, forgetting_factor=0, gamma=0, lambda_center=0, alpha_scale=0,
         lambda_center_y=0, alpha_scale_y=0, adaptive_spe_limit=False, conf_level=0.99,
-    ).fit(lab.loc[seed, tags], lab.loc[seed, ["vapour_pressure_kpa"]])
+    ).fit(lab.loc[train, tags], lab.loc[train, ["vapour_pressure_kpa"]])
     static_pred, static_t2, static_spe, _ = stream(static)
     t2_lim = float(static.hotellings_t2_limit(conf_level=0.99))
     spe_lim = float(static.update(Xrow[0]).spe_limit)
@@ -96,8 +106,8 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
     adaptive = AdaptivePLS(
         n_components=A, forgetting_factor=0.01, gamma=0.05, lambda_center=0.003, alpha_scale=0.012,
         lambda_center_y=0.12, alpha_scale_y=0.05, update_when_out_of_control=True, conf_level=0.99,
-    ).fit(lab.loc[seed, tags], lab.loc[seed, ["vapour_pressure_kpa"]])
-    # frozen seed snapshot for the channel decomposition
+    ).fit(lab.loc[train, tags], lab.loc[train, ["vapour_pressure_kpa"]])
+    # frozen training snapshot for the channel decomposition
     mx0, sx0, my0, sy0 = adaptive.mx_.copy(), adaptive.sx_.copy(), adaptive.my_.copy(), adaptive.sy_.copy()
     beta0 = adaptive._beta_scaled.copy()
     norm_beta0 = float(np.linalg.norm(beta0))
@@ -112,14 +122,14 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
     for i in range(len(vp)):
         x0 = Xrow[i]
         xs_cur = np.nan_to_num((x0 - adaptive.mx_) / adaptive.sx_, nan=0.0)
-        xs_seed = np.nan_to_num((x0 - mx0) / sx0, nan=0.0)
-        y_seed = float((my0 + sy0 * (beta0.T @ xs_seed))[0])
+        xs_train = np.nan_to_num((x0 - mx0) / sx0, nan=0.0)
+        y_train = float((my0 + sy0 * (beta0.T @ xs_train))[0])
         y_prep = float((adaptive.my_ + adaptive.sy_ * (beta0.T @ xs_cur))[0])
         y_full = float((adaptive.my_ + adaptive.sy_ * (adaptive._beta_scaled.T @ xs_cur))[0])
         center_shift[i] = float(np.linalg.norm((adaptive.mx_ - mx0) / sx0))
         beta_shift[i] = float(np.linalg.norm(adaptive._beta_scaled - beta0)) / norm_beta0
         if learn[i]:
-            prep_ch[i] = y_prep - y_seed
+            prep_ch[i] = y_prep - y_train
             kernel_ch[i] = y_full - y_prep
             yv = None if np.isnan(y_update[i]) else np.array([y_update[i]])
             out = adaptive.update(x0, y_row=yv)
@@ -136,10 +146,9 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
     fig, ax = plt.subplots(figsize=(8.2, 3.3))
     ax.plot(lab_month, y_lab, ".", ms=4, color=GREY, label="Lab reference")
     ax.plot(month, static_pred, "-", lw=0.9, color=DARK_BLUE, label="Static PLS prediction")
-    ax.axvline(drift_month, color="k", ls="--", lw=1)
-    ax.text(drift_month + 0.3, 92, "drift established", fontsize=9)
     ax.set_ylim(15, 100)
-    ax.set_xlabel("Time since start of record [months]")
+    testing_divider(ax, drift_month, 94, 5.0)
+    ax.set_xlabel(XLABEL)
     ax.set_ylabel("Vapour pressure [kPa]")
     ax.legend(loc="upper left", fontsize=9, framealpha=0.9)
     fig.tight_layout()
@@ -160,22 +169,22 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
     a2.plot(lab_month, np.full_like(lab_month, 20.0), "*", ms=5, color=ORANGE)
     a2.set_ylim(0, 3 * spe_lim)
     a2.set_ylabel("SPE")
-    a2.set_xlabel("Time since start of record [months]")
+    a2.set_xlabel(XLABEL)
     for a in (a1, a2):
         a.axvline(drift_month, color="k", ls="--", lw=1)
     fig.tight_layout()
     fig.savefig(out_dir / "adaptive-softsensor-monitoring.png")
     plt.close(fig)
 
-    # Fig 3: payoff
+    # Fig 3: payoff (static = dark-green squares, adaptive = blue circles)
     fig, ax = plt.subplots(figsize=(8.2, 3.3))
     ax.axhspan(-3, 3, color="0.85", alpha=0.6)
     ax.axhline(0, color="0.6", lw=0.8)
-    ax.plot(lab_month, err_static, "o", ms=4.5, color=ORANGE, alpha=0.6, label="Static PLS")
+    ax.plot(lab_month, err_static, "s", ms=4.5, color=GREEN, alpha=0.7, label="Static PLS")
     ax.plot(lab_month, err_adaptive, "o", ms=4.5, color=DARK_BLUE, alpha=0.7, label="Adaptive PLS")
-    ax.axvline(drift_month, color="k", ls="--", lw=1)
     ax.set_ylim(-20, 22)
-    ax.set_xlabel("Time since start of record [months]")
+    testing_divider(ax, drift_month, 18, 5.0)
+    ax.set_xlabel(XLABEL)
     ax.set_ylabel("Prediction error [kPa]")
     ax.legend(loc="lower left", fontsize=9, ncol=2)
     fig.tight_layout()
@@ -188,7 +197,7 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
     ax.axhline(A, color="0.6", ls=":", lw=1)
     ax.axvline(drift_month, color="k", ls="--", lw=1)
     ax.set_ylim(1.5, 3.05)
-    ax.set_xlabel("Time since start of record [months]")
+    ax.set_xlabel(XLABEL)
     ax.set_ylabel("Subspace overlap [components]")
     fig.tight_layout()
     fig.savefig(out_dir / "adaptive-softsensor-diagnostics.png")
@@ -206,7 +215,7 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
     b1.set_title("What drives the adaptation", fontsize=10)
     b2.axvline(drift_month, color="k", ls="--", lw=1)
     ln1, = b2.plot(month, center_shift, lw=1.0, color=DARK_BLUE, label="Centre migration (preprocessing)")
-    b2.set_ylabel("Centre migration [seed SD]", color=DARK_BLUE)
+    b2.set_ylabel("Centre migration [training SD]", color=DARK_BLUE)
     b2.tick_params(axis="y", labelcolor=DARK_BLUE)
     b2.set_ylim(0, 13)
     b2b = b2.twinx()
@@ -215,7 +224,7 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
     b2b.tick_params(axis="y", labelcolor=ORANGE)
     b2b.set_ylim(0, A)
     b2b.grid(visible=False)
-    b2.set_xlabel("Time since start of record [months]")
+    b2.set_xlabel(XLABEL)
     b2.legend(handles=[ln1, ln2], loc="upper left", fontsize=8, framealpha=0.9)
     fig.tight_layout()
     fig.savefig(out_dir / "adaptive-softsensor-decomposition.png")
@@ -229,7 +238,7 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
     valid_ker = kernel_ch[~np.isnan(kernel_ch)]
     print("channel magnitudes (median |kPa|): preprocessing",
           round(float(np.median(np.abs(valid_prep))), 2), "| kernel", round(float(np.median(np.abs(valid_ker))), 2))
-    print("centre migration ends at", round(center_shift[-1], 2), "seed SD; beta change",
+    print("centre migration ends at", round(center_shift[-1], 2), "training SD; beta change",
           round(beta_shift[-1] * 100, 0), "%")
 
 
