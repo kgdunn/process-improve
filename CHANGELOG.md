@@ -11,6 +11,33 @@ those changes.
 
 ## [Unreleased]
 
+## [1.55.0] - 2026-07-19
+
+### Added
+
+- `AdaptivePCA` and `AdaptivePLS`: recursive, adaptive PCA and PLS estimators
+  for on-line process monitoring and soft sensing. They keep a model current as
+  a process drifts by updating the association matrices (`X'X`, and `X'Y` for
+  PLS) one observation at a time, with exponentially-weighted moving-average
+  centering and scaling and an injection term (`gamma`) that re-adds a scaled
+  portion of the original kernel for perpetual excitation and better
+  conditioning. A Krzanowski subspace `distance_` metric reports, in units of
+  components, how far the model has drifted from its training data. Both
+  initialise from the batch `PCA` / `PLS` (matching their loadings and
+  coefficients), expose an
+  `update()` / `partial_fit()` streaming interface, and recompute an adaptive
+  SPE limit over a rolling window. `AdaptivePLS` supports infrequently-sampled
+  responses: the X-space model adapts every step while the regression part
+  waits for the next response. Available from `process_improve.multivariate`.
+- Adaptation diagnostics on `AdaptivePCA` / `AdaptivePLS` that separate the two
+  mechanisms driving the update. Preprocessing drift: `center_shift_` (operating
+  point migration, in training standard-deviation units) and `scale_shift_`. Kernel
+  drift: `distance_`, plus `beta_shift_` (PLS), and the per-step `injection_ratio_`
+  and `kernel_update_norm_`. For `AdaptivePLS`, `prediction_channels_` and
+  `decompose_prediction()` split each prediction's departure from the frozen
+  training model into a centering/scaling channel and a kernel channel in the response's
+  own units, and `adaptation_plot()` renders the channels and the state drift.
+
 ## [1.54.0] - 2026-07-13
 
 ### Changed
@@ -2509,7 +2536,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.54.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.55.0...HEAD
+[1.55.0]: https://github.com/kgdunn/process-improve/compare/v1.54.0...v1.55.0
 [1.54.0]: https://github.com/kgdunn/process-improve/compare/v1.53.0...v1.54.0
 [1.53.0]: https://github.com/kgdunn/process-improve/compare/v1.52.4...v1.53.0
 [1.52.4]: https://github.com/kgdunn/process-improve/compare/v1.52.3...v1.52.4
