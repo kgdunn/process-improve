@@ -22,19 +22,20 @@ those changes.
   centering and scaling and an injection term (`gamma`) that re-adds a scaled
   portion of the original kernel for perpetual excitation and better
   conditioning. A Krzanowski subspace `distance_` metric reports, in units of
-  components, how far the model has drifted from its seed. Both seed from the
-  batch `PCA` / `PLS` (matching their loadings and coefficients), expose an
+  components, how far the model has drifted from its training data. Both
+  initialise from the batch `PCA` / `PLS` (matching their loadings and
+  coefficients), expose an
   `update()` / `partial_fit()` streaming interface, and recompute an adaptive
   SPE limit over a rolling window. `AdaptivePLS` supports infrequently-sampled
   responses: the X-space model adapts every step while the regression part
   waits for the next response. Available from `process_improve.multivariate`.
 - Adaptation diagnostics on `AdaptivePCA` / `AdaptivePLS` that separate the two
   mechanisms driving the update. Preprocessing drift: `center_shift_` (operating
-  point migration, in seed standard-deviation units) and `scale_shift_`. Kernel
+  point migration, in training standard-deviation units) and `scale_shift_`. Kernel
   drift: `distance_`, plus `beta_shift_` (PLS), and the per-step `injection_ratio_`
   and `kernel_update_norm_`. For `AdaptivePLS`, `prediction_channels_` and
-  `decompose_prediction()` split each prediction's departure from the frozen seed
-  model into a centering/scaling channel and a kernel channel in the response's
+  `decompose_prediction()` split each prediction's departure from the frozen
+  training model into a centering/scaling channel and a kernel channel in the response's
   own units, and `adaptation_plot()` renders the channels and the state drift.
 
 ## [1.51.3] - 2026-07-08

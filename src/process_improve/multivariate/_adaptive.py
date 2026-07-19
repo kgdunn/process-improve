@@ -34,16 +34,16 @@ algorithm (PLS). Three design choices from the source method are reproduced:
 Adaptation is driven by two mechanisms, and the model exposes diagnostics for
 each so they can be separated. The *preprocessing* channel is the moving
 centering / scaling: ``center_shift_`` (how far the operating point has migrated
-from the seed, in seed standard-deviation units) and ``scale_shift_`` (the mean
+from the training data, in training standard-deviation units) and ``scale_shift_`` (the mean
 fractional change of the scaling vector). The *kernel* channel is the moving
 subspace / regression: ``distance_``, and for PLS ``beta_shift_``; the raw
 per-step kernel movement is ``injection_ratio_`` (the gamma term's weight) and
 ``kernel_update_norm_``. For PLS, ``prediction_channels_`` and
-``decompose_prediction`` split each prediction's departure from the frozen seed
+``decompose_prediction`` split each prediction's departure from the frozen training
 model into these two channels in the response's own units, and
 ``adaptation_plot`` renders the whole picture.
 
-The estimators seed themselves from the batch :class:`~process_improve.multivariate._pca.PCA`
+The estimators initialise themselves from the batch :class:`~process_improve.multivariate._pca.PCA`
 / :class:`~process_improve.multivariate._pls.PLS`, so the ``i = 0`` model, its
 limits, and its sign conventions match the rest of the package exactly. They
 then expose an :meth:`~_AdaptiveModel.update` (single observation) and
@@ -313,7 +313,7 @@ class _AdaptiveModel(_LatentVariableModel):
         """Append the per-observation preprocessing-drift and kernel-update magnitudes.
 
         ``center_shift`` is how far the X-centering vector has migrated from the
-        seed, measured in seed standard-deviation units; ``scale_shift`` is the
+        training data, in training standard-deviation units; ``scale_shift`` is the
         mean fractional change of the scaling vector. ``injection`` is the gamma
         term's weight ``f_x`` and ``kernel_norm`` the relative size of this step's
         change to ``X'X``; both are zero on observations that did not update.
@@ -340,7 +340,7 @@ class _AdaptiveModel(_LatentVariableModel):
         self.mx_ = (1.0 - self.lambda_center_) * self.mx_ + self.lambda_center_ * x0
 
     def _current_spe_limit(self) -> float:
-        """Return the SPE limit: rolling-window adaptive, or the fixed seed limit."""
+        """Return the SPE limit: rolling-window adaptive, or the fixed training limit."""
         if self.adaptive_spe_limit and len(self._spe_buffer) >= self._min_spe_window:
             return spe_calculation(np.sqrt(np.asarray(self._spe_buffer)), conf_level=self.conf_level)
         return self._spe_limit_0
@@ -392,36 +392,36 @@ class _AdaptiveModel(_LatentVariableModel):
 
     @property
     def distance_(self) -> pd.Series:
-        """Per-observation subspace overlap with the seed model, in units of components."""
+        """Per-observation subspace overlap with the training model, in units of components."""
         return pd.Series(self._hist_distance, index=self._hist_index, name="Subspace overlap (components)")
 
     @property
     def center_shift_(self) -> pd.Series:
-        """Per-observation X-centering migration from the seed, in seed-SD units.
+        """Per-observation X-centering migration from the training data, in training-SD units.
 
         The norm ``||(m_x,i - m_x,0) / s_x,0||``: how far the operating point the
         model is centered on has moved from where it was built, expressed in the
-        seed model's standard-deviation units. Part of the *preprocessing* channel
+        training model's standard-deviation units. Part of the *preprocessing* channel
         of adaptation, complementary to :attr:`distance_` (the *kernel* channel).
         """
-        return pd.Series(self._hist_center_shift, index=self._hist_index, name="Centre migration (seed SD)")
+        return pd.Series(self._hist_center_shift, index=self._hist_index, name="Centre migration (training SD)")
 
     @property
     def scale_shift_(self) -> pd.Series:
-        """Per-observation mean fractional change of the X-scaling vector from the seed.
+        """Per-observation mean fractional change of the X-scaling vector from the training data.
 
         ``mean |s_x,i / s_x,0 - 1|`` across the tags: how much the per-variable
-        spreads the model scales by have changed since the seed.
+        spreads the model scales by have changed since the training data.
         """
         return pd.Series(self._hist_scale_shift, index=self._hist_index, name="Scale change (fraction)")
 
     @property
     def injection_ratio_(self) -> pd.Series:
-        """Per-observation gamma-injection weight ``f_x`` applied to the seed kernel.
+        """Per-observation gamma-injection weight ``f_x`` applied to the training kernel.
 
         The scalar ``f_x = gamma * ||update|| / ||X'X_0||`` re-added to ``X'X`` each
         step; larger when the new observation carries more information relative to
-        the seed. Zero on observations that did not update the model.
+        the training data. Zero on observations that did not update the model.
         """
         return pd.Series(self._hist_injection, index=self._hist_index, name="Injection weight f_x")
 
@@ -438,7 +438,7 @@ class _AdaptiveModel(_LatentVariableModel):
         """Plot the adaptation as preprocessing vs kernel channels and state drift.
 
         Returns a Plotly figure. For a PLS model with a response the top panel
-        splits each prediction's departure from the frozen seed model into a
+        splits each prediction's departure from the frozen training model into a
         centering/scaling channel and a kernel (subspace/regression) channel, with
         the total on a secondary axis; the lower panels show the preprocessing
         drift (centre migration, scale change) and the kernel drift (subspace
@@ -495,7 +495,7 @@ class _AdaptiveModel(_LatentVariableModel):
                 subplot_titles=["Preprocessing drift", "Kernel drift"])
             r_pre, r_ker = 1, 2
 
-        fig.add_trace(go.Scatter(x=x, y=cen, name="Centre migration [seed SD]",
+        fig.add_trace(go.Scatter(x=x, y=cen, name="Centre migration [training SD]",
             line=dict(color="#1f4e79", width=1)), row=r_pre, col=1)
         fig.add_trace(go.Scatter(x=x, y=sca, name="Scale change [fraction]",
             line=dict(color="#2e75b6", width=1, dash="dash")), row=r_pre, col=1)
@@ -517,7 +517,7 @@ class _AdaptiveModel(_LatentVariableModel):
 class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
     """Recursive, adaptive Principal Component Analysis for on-line monitoring.
 
-    Seed the model on a block of common-cause data with :meth:`fit`, then feed
+    Initialise the model on a block of common-cause data with :meth:`fit`, then feed
     new observations through :meth:`update` (one row) or :meth:`partial_fit` (a
     block). Each in-control observation updates the EWMA centering / scaling
     vectors and the ``X'X`` kernel; the loadings are recomputed from the kernel
@@ -544,7 +544,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         control does not update the model, so a fault is not absorbed as normal.
     adaptive_spe_limit : bool, default=True
         Recompute the SPE limit from a rolling window of recent in-control SPE
-        values; otherwise keep the fixed limit from the seed model.
+        values; otherwise keep the fixed limit from the training model.
     spe_limit_window : int, default=200
         Length of the rolling SPE window when ``adaptive_spe_limit`` is True.
     conf_level : float, default=0.95
@@ -555,10 +555,10 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
     loadings_ : pd.DataFrame of shape (n_features, n_components)
         The current loadings ``P``.
     distance_ : pd.Series
-        Per-update subspace overlap with the seed model, in units of components
+        Per-update subspace overlap with the training model, in units of components
         (``n_components`` = identical, ``0`` = orthogonal).
     center_shift_, scale_shift_ : pd.Series
-        Preprocessing-drift diagnostics: centre migration (seed-SD units) and mean
+        Preprocessing-drift diagnostics: centre migration (training-SD units) and mean
         fractional scale change per observation.
     injection_ratio_, kernel_update_norm_ : pd.Series
         Kernel-update magnitudes per observation: the gamma-injection weight and
@@ -593,7 +593,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         self.conf_level = conf_level
 
     def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> AdaptivePCA:  # noqa: ARG002
-        """Seed the adaptive model from a block of common-cause data.
+        """Fit the adaptive model's initial state from a block of common-cause data.
 
         Parameters
         ----------
@@ -622,15 +622,15 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         self.lambda_center_ = self._as_vector(self.lambda_center, K, "lambda_center")
         self.alpha_scale_ = self._as_vector(self.alpha_scale, K, "alpha_scale")
 
-        # Seed preprocessing from MCUVScaler, then build the kernel and loadings
+        # Initialise preprocessing from MCUVScaler, then build the kernel and loadings
         # from the *scaled* data so every downstream projection (which scales the
-        # incoming observation) lives in the same space. Seeding the loadings from
+        # incoming observation) lives in the same space. Initialising the loadings from
         # the same eigendecomposition that later updates use keeps the distance
         # metric at exactly A until the model actually adapts.
         self._scaler = MCUVScaler().fit(X_df)
         self.mx_ = self._scaler.center_.to_numpy(dtype=float).copy()
         self.sx_ = self._scaler.scale_.to_numpy(dtype=float).copy()
-        self._mx0 = self.mx_.copy()  # frozen seed centre / scale for the drift diagnostics
+        self._mx0 = self.mx_.copy()  # frozen training centre / scale for the drift diagnostics
         self._sx0 = self.sx_.copy()
         self._last_injection = 0.0
         self._last_kernel_norm = 0.0
@@ -653,16 +653,16 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         self.explained_variance_ = eigenvalues / max(1, N - 1)
         self._update_scaling_factor()
 
-        # Seed the limits, and the rolling SPE window, from the training SPE
-        # computed with the seed loadings on the scaled data.
+        # Initialise the limits, and the rolling SPE window, from the training SPE
+        # computed with the training loadings on the scaled data.
         self._t2_limit_0 = _hotellings_t2_limit(conf_level=self.conf_level, n_components=A, n_rows=N)
         scores = Xs @ self._loadings
         residual = Xs - scores @ self._loadings.T
-        seed_spe = np.sqrt(np.sum(residual**2, axis=1))
-        self._spe_limit_0 = spe_calculation(seed_spe, conf_level=self.conf_level)
+        training_spe = np.sqrt(np.sum(residual**2, axis=1))
+        self._spe_limit_0 = spe_calculation(training_spe, conf_level=self.conf_level)
         self._min_spe_window = max(20, A + 2)
         self._spe_buffer: deque[float] = deque(maxlen=int(self.spe_limit_window))
-        self._spe_buffer.extend((seed_spe**2).tolist())
+        self._spe_buffer.extend((training_spe**2).tolist())
 
         self._init_history()
         return self
@@ -811,7 +811,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
     """Recursive, adaptive Projection to Latent Structures for on-line monitoring.
 
     The PLS analogue of :class:`AdaptivePCA`, carrying both association matrices
-    ``X'X`` and ``X'Y``. Seed on a block of common-cause data with :meth:`fit`,
+    ``X'X`` and ``X'Y``. Initialise on a block of common-cause data with :meth:`fit`,
     then stream new observations through :meth:`update` / :meth:`partial_fit`. The
     weights, loadings and regression coefficients are recomputed from the kernels
     by the Dayal-MacGregor algorithm after each in-control update.
@@ -844,12 +844,12 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
     beta_coefficients_ : pd.DataFrame
         The current regression coefficients mapping raw X to raw Y.
     distance_ : pd.Series
-        Per-update subspace overlap (on the weights ``W``) with the seed model.
+        Per-update subspace overlap (on the weights ``W``) with the training model.
     center_shift_, scale_shift_ : pd.Series
-        Preprocessing-drift diagnostics: X-centre migration (seed-SD units) and
+        Preprocessing-drift diagnostics: X-centre migration (training-SD units) and
         mean fractional scale change per observation.
     beta_shift_ : pd.Series
-        Relative change of the scaled regression from the seed, per observation.
+        Relative change of the scaled regression from the training data, per observation.
     injection_ratio_, kernel_update_norm_ : pd.Series
         Kernel-update magnitudes per observation (gamma-injection weight and
         relative change to ``X'X``).
@@ -912,7 +912,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self.conf_level = conf_level
 
     def fit(self, X: DataMatrix, Y: DataMatrix) -> AdaptivePLS:  # noqa: PLR0915
-        """Seed the adaptive PLS model from a block of common-cause data.
+        """Fit the adaptive PLS model's initial state from a block of common-cause data.
 
         Parameters
         ----------
@@ -949,14 +949,14 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self.lambda_center_y_ = self._as_vector(self.lambda_center_y, M, "lambda_center_y")
         self.alpha_scale_y_ = self._as_vector(self.alpha_scale_y, M, "alpha_scale_y")
 
-        # Seed preprocessing and the batch model, matching PLS(scale=True).
+        # Initialise preprocessing and the batch model, matching PLS(scale=True).
         self._x_scaler = MCUVScaler().fit(X_df)
         self._y_scaler = MCUVScaler().fit(Y_df)
         self.mx_ = self._x_scaler.center_.to_numpy(dtype=float).copy()
         self.sx_ = self._x_scaler.scale_.to_numpy(dtype=float).copy()
         self.my_ = self._y_scaler.center_.to_numpy(dtype=float).copy()
         self.sy_ = self._y_scaler.scale_.to_numpy(dtype=float).copy()
-        seed = PLS(n_components=A, scale=True).fit(X_df, Y_df)
+        training_model = PLS(n_components=A, scale=True).fit(X_df, Y_df)
 
         Xs = np.nan_to_num(self._x_scaler.transform(X_df).to_numpy(dtype=float), nan=0.0)
         Ys = np.nan_to_num(self._y_scaler.transform(Y_df).to_numpy(dtype=float), nan=0.0)
@@ -977,7 +977,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self._recompute_from_kernels(align_to=None)
         self.weights0_ = self._weights.copy()
 
-        # Frozen seed snapshot for the adaptation diagnostics (prediction-channel
+        # Frozen training snapshot for the adaptation diagnostics (prediction-channel
         # split and the beta-drift metric).
         self._mx0 = self.mx_.copy()
         self._sx0 = self.sx_.copy()
@@ -989,11 +989,11 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self._last_kernel_norm = 0.0
 
         self._t2_limit_0 = _hotellings_t2_limit(conf_level=self.conf_level, n_components=A, n_rows=N)
-        seed_spe = seed.spe_.iloc[:, A - 1].to_numpy(dtype=float)
-        self._spe_limit_0 = spe_calculation(seed_spe, conf_level=self.conf_level)
+        training_spe = training_model.spe_.iloc[:, A - 1].to_numpy(dtype=float)
+        self._spe_limit_0 = spe_calculation(training_spe, conf_level=self.conf_level)
         self._min_spe_window = max(20, A + 2)
         self._spe_buffer: deque[float] = deque(maxlen=int(self.spe_limit_window))
-        self._spe_buffer.extend((seed_spe**2).tolist())
+        self._spe_buffer.extend((training_spe**2).tolist())
 
         self._hist_pred: list[np.ndarray] = []
         self._hist_static = []
@@ -1004,15 +1004,15 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         return self
 
     def _channel_split(self, x0: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Split the current model's prediction for one raw row into seed + two channels.
+        """Split the current model's prediction for one raw row into a static baseline and two channels.
 
         Returns ``(static, preprocessing, kernel, adaptive)`` prediction vectors,
         each of length ``M``, where ``adaptive = static + preprocessing + kernel``:
 
-        - ``static``: the frozen seed model's prediction (seed centering/scaling
-          and seed regression);
+        - ``static``: the frozen training model's prediction (training centering/scaling
+          and training regression);
         - ``preprocessing``: the extra correction from the *moved* centering /
-          scaling vectors, holding the regression at its seed value;
+          scaling vectors, holding the regression at its training value;
         - ``kernel``: the further correction from the *moved* subspace / regression
           (the kernels), on top of the updated preprocessing.
 
@@ -1021,11 +1021,11 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         the static model to the two mechanisms.
         """
         xs_cur = np.nan_to_num((x0 - self.mx_) / self.sx_, nan=0.0)
-        xs_seed = np.nan_to_num((x0 - self._mx0) / self._sx0, nan=0.0)
-        y_seed = self._my0 + self._sy0 * (self._beta0.T @ xs_seed)
+        xs_static = np.nan_to_num((x0 - self._mx0) / self._sx0, nan=0.0)
+        y_static = self._my0 + self._sy0 * (self._beta0.T @ xs_static)
         y_prep = self.my_ + self.sy_ * (self._beta0.T @ xs_cur)
         y_full = self.my_ + self.sy_ * (self._beta_scaled.T @ xs_cur)
-        return y_seed, y_prep - y_seed, y_full - y_prep, y_full
+        return y_static, y_prep - y_static, y_full - y_prep, y_full
 
     def _recompute_from_kernels(self, align_to: np.ndarray | None) -> None:
         """Recompute W, P, R, C and beta from the current kernels; sign-align if asked."""
@@ -1241,7 +1241,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
 
     @property
     def beta_shift_(self) -> pd.Series:
-        """Per-observation relative change of the scaled regression from the seed.
+        """Per-observation relative change of the scaled regression from the training data.
 
         ``||beta_i - beta_0|| / ||beta_0||`` on the scaled-space coefficients: the
         *kernel* channel's effect on the regression, complementary to the
@@ -1254,7 +1254,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         """Per-observation prediction split into static, preprocessing and kernel channels.
 
         Streamed by :meth:`update` (using each observation's deployed state), the
-        columns attribute the prediction's departure from the frozen seed model to
+        columns attribute the prediction's departure from the frozen training model to
         the moving centering / scaling (``preprocessing``) and the moving subspace
         / regression (``kernel``); ``adaptive = static + preprocessing + kernel``.
         """
@@ -1264,7 +1264,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         """Split the *current* model's prediction for each row of ``X`` into channels.
 
         A snapshot version of :attr:`prediction_channels_` for arbitrary rows: it
-        uses the model's current state, and returns the static (seed) prediction
+        uses the model's current state, and returns the static (training) prediction
         plus the preprocessing and kernel corrections that carry it to the
         adaptive prediction.
 

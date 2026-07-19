@@ -3,7 +3,7 @@
 
 Covers, for both estimators:
 
-* seed correctness - the kernel-seeded model reproduces the batch PCA loadings
+* initial-fit correctness - the kernel-initialised model reproduces the batch PCA loadings
   and the batch PLS beta coefficients on synthetic and real (LDPE) data;
 * the Krzanowski subspace distance metric bounds and sign invariance;
 * the injection term semantics (``gamma = 0`` recovers the plain recursive
@@ -40,7 +40,7 @@ DATASETS = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "data
 
 @pytest.fixture
 def synthetic_pca_data() -> pd.DataFrame:
-    """Return a correlated, full-rank block for PCA seeding and streaming tests."""
+    """Return a correlated, full-rank block for PCA initialisation and streaming tests."""
     rng = np.random.default_rng(42)
     n, k, a = 250, 8, 3
     loadings = rng.standard_normal((k, a))
@@ -51,7 +51,7 @@ def synthetic_pca_data() -> pd.DataFrame:
 
 @pytest.fixture
 def synthetic_pls_data() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Return a synthetic single-response regression block for PLS seeding tests."""
+    """Return a synthetic single-response regression block for PLS initialisation tests."""
     rng = np.random.default_rng(7)
     n, k = 180, 6
     beta = rng.standard_normal((k, 1))
@@ -103,36 +103,36 @@ def test_kernel_pls_reconstructs_beta(synthetic_pls_data: tuple[pd.DataFrame, pd
 
 
 # --------------------------------------------------------------------------- #
-# Seed correctness
+# Initial-fit correctness
 # --------------------------------------------------------------------------- #
 
 
-def test_adaptive_pca_seed_matches_batch(synthetic_pca_data: pd.DataFrame) -> None:
-    """AdaptivePCA seeds an i=0 model identical to batch PCA on the scaled data."""
+def test_adaptive_pca_initial_matches_batch(synthetic_pca_data: pd.DataFrame) -> None:
+    """AdaptivePCA initialises an i=0 model identical to batch PCA on the scaled data."""
     model = AdaptivePCA(n_components=3).fit(synthetic_pca_data)
     batch = PCA(n_components=3).fit(MCUVScaler().fit_transform(synthetic_pca_data))
     np.testing.assert_allclose(np.abs(model.loadings0_), np.abs(batch.loadings_.to_numpy()), atol=1e-8)
     np.testing.assert_allclose(model.explained_variance_, batch.explained_variance_, rtol=1e-8)
 
 
-def test_adaptive_pls_seed_matches_batch_ldpe(ldpe_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
-    """AdaptivePLS seeds beta identical to the batch PLS on the real LDPE data."""
+def test_adaptive_pls_initial_matches_batch_ldpe(ldpe_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """AdaptivePLS initialises beta identical to the batch PLS on the real LDPE data."""
     X, Y = ldpe_data
     model = AdaptivePLS(n_components=6).fit(X, Y)
     batch = PLS(n_components=6, scale=True).fit(X, Y)
     np.testing.assert_allclose(
         model.beta_coefficients_.to_numpy(), batch.beta_coefficients_.to_numpy(), atol=1e-7
     )
-    # Predictions with the freshly-seeded model equal the batch predictions.
+    # Predictions with the freshly-initialised model equal the batch predictions.
     np.testing.assert_allclose(
         model.predict(X).to_numpy(), batch.predictions_.to_numpy(), atol=1e-6
     )
 
 
-def test_adaptive_pls_seed_matches_batch_synthetic(
+def test_adaptive_pls_initial_matches_batch_synthetic(
     synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame],
 ) -> None:
-    """AdaptivePLS seeds beta to machine precision on well-conditioned synthetic data."""
+    """AdaptivePLS initialises beta to machine precision on well-conditioned synthetic data."""
     X, Y = synthetic_pls_data
     model = AdaptivePLS(n_components=3).fit(X, Y)
     batch = PLS(n_components=3, scale=True).fit(X, Y)
@@ -224,7 +224,7 @@ def test_gamma_improves_conditioning_under_quiet_operation() -> None:
 
 
 def test_kernel_norm_stays_constant(synthetic_pca_data: pd.DataFrame) -> None:
-    """The norm-rescaling holds the nuclear norm (trace) of X'X at its seed value over many updates."""
+    """The norm-rescaling holds the nuclear norm (trace) of X'X at its training value over many updates."""
     model = AdaptivePCA(
         n_components=3, forgetting_factor=0.1, gamma=0.1, update_when_out_of_control=True
     ).fit(synthetic_pca_data)
@@ -246,7 +246,7 @@ def test_adaptive_tracks_mean_drift_where_frozen_alarms() -> None:
     The stream keeps the training correlation structure but slowly moves the
     operating point along the first latent direction. An adaptive model tracks
     the moving centre (and re-learns the kernel from the in-control observations),
-    so it raises substantially fewer alarms than a model frozen at the seed.
+    so it raises substantially fewer alarms than a model frozen at the training data.
     """
     rng = np.random.default_rng(11)
     n, k, a = 300, 5, 2
@@ -292,7 +292,7 @@ def test_adaptive_pls_infrequent_y(synthetic_pls_data: tuple[pd.DataFrame, pd.Da
     """The X-space adapts every step; the regression only when a response arrives."""
     X, Y = synthetic_pls_data
     model = AdaptivePLS(n_components=3, forgetting_factor=0.05, gamma=0.1).fit(X, Y)
-    xty_seed = model.XtY_.copy()
+    xty_initial = model.XtY_.copy()
     rng = np.random.default_rng(2)
     n_x_only = 0
     for i in range(60):
@@ -307,7 +307,7 @@ def test_adaptive_pls_infrequent_y(synthetic_pls_data: tuple[pd.DataFrame, pd.Da
             n_x_only += 1
     assert n_x_only > 0
     # X'Y did change at the lab points.
-    assert not np.allclose(model.XtY_, xty_seed)
+    assert not np.allclose(model.XtY_, xty_initial)
     assert model.predictions_.shape[0] == 60
 
 
@@ -354,8 +354,8 @@ def test_invalid_parameters_raise(synthetic_pca_data: pd.DataFrame) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_transform_and_predict_match_seed(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
-    """Predict and transform on the freshly-seeded model equal the batch model."""
+def test_transform_and_predict_match_initial(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """Predict and transform on the freshly-initialised model equal the batch model."""
     X, Y = synthetic_pls_data
     ad = AdaptivePLS(n_components=3).fit(X, Y)
     batch = PLS(n_components=3, scale=True).fit(X, Y)
