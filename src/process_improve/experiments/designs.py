@@ -26,6 +26,7 @@ from collections.abc import Callable
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 try:
     from pyDOE3 import ff2n
@@ -146,6 +147,7 @@ def _dispatch_d_optimal(
         hard_to_change=kwargs.get("hard_to_change"),
         constraints=kwargs.get("constraints"),
         model_type=kwargs.get("model_type", "interactions"),
+        fixed_runs=kwargs.get("fixed_runs"),
     )
 
 
@@ -161,6 +163,7 @@ def _dispatch_i_optimal(
         hard_to_change=kwargs.get("hard_to_change"),
         constraints=kwargs.get("constraints"),
         model_type=kwargs.get("model_type", "interactions"),
+        fixed_runs=kwargs.get("fixed_runs"),
     )
 
 
@@ -176,6 +179,7 @@ def _dispatch_a_optimal(
         hard_to_change=kwargs.get("hard_to_change"),
         constraints=kwargs.get("constraints"),
         model_type=kwargs.get("model_type", "interactions"),
+        fixed_runs=kwargs.get("fixed_runs"),
     )
 
 
@@ -290,6 +294,8 @@ def generate_design(  # noqa: PLR0913
     cube: str = "full",
     constraints: list[Constraint] | None = None,
     hard_to_change: list[str] | None = None,
+    model_type: str = "interactions",
+    fixed_runs: pd.DataFrame | None = None,
     random_seed: int = 42,
 ) -> DesignResult:
     """Generate an experimental design matrix.
@@ -337,6 +343,22 @@ def generate_design(  # noqa: PLR0913
         Constraints on the factor space.
     hard_to_change : list[str] or None
         Names of hard-to-change factors (triggers split-plot structure).
+    model_type : str
+        Model the optimal designs (``"d_optimal"``, ``"i_optimal"``,
+        ``"a_optimal"``) are built for: ``"main_effects"``, ``"interactions"``
+        (default), or ``"quadratic"``.  With a categorical factor present,
+        ``"quadratic"`` builds a partial response-surface model (quadratics on
+        the continuous factors only; the categorical enters as a main effect
+        plus its interactions), since a categorical factor has no square.
+        Ignored by the classical (non-optimal) design families.
+    fixed_runs : pandas.DataFrame or None
+        Runs to hold fixed while the optimizer fills the rest (design augmentation), for the
+        optimal families only (``"d_optimal"``, ``"i_optimal"``, ``"a_optimal"``, which use
+        pyoptex). One row per fixed run, one column per factor, in the same coding as the returned
+        design: continuous factors in coded ``[-1, 1]`` units, categorical factors as level labels.
+        The fixed runs occupy the first rows of the result and ``budget`` counts them, so
+        ``budget`` must exceed ``len(fixed_runs)``. A common use is to seed a centre point. Raises
+        ``ValueError`` if given for a non-optimal ``design_type``.
     random_seed : int
         Seed for reproducible randomization (default 42).
 
@@ -373,6 +395,12 @@ def generate_design(  # noqa: PLR0913
     if design_type not in _DESIGN_REGISTRY:
         raise ValueError(f"Unknown design_type={design_type!r}.  Choose from: {', '.join(sorted(_DESIGN_REGISTRY))}.")
 
+    if fixed_runs is not None and design_type not in {"d_optimal", "i_optimal", "a_optimal"}:
+        raise ValueError(
+            f"fixed_runs (design augmentation) is only supported for the optimal design families "
+            f"(d_optimal, i_optimal, a_optimal); got design_type={design_type!r}."
+        )
+
     # --- Dispatch ----------------------------------------------------------
     dispatch_fn = _DESIGN_REGISTRY[design_type]
 
@@ -386,6 +414,8 @@ def generate_design(  # noqa: PLR0913
         "cube": cube,
         "hard_to_change": hard_to_change,
         "constraints": constraints,
+        "model_type": model_type,
+        "fixed_runs": fixed_runs,
     }
 
     coded_matrix, meta = dispatch_fn(factors, **dispatch_kwargs)

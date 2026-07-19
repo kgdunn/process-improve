@@ -210,7 +210,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     r2y_per_variable_ : pd.DataFrame of shape (n_targets, n_components)
         Per-variable R² for Y after each component.
     rmse_ : pd.DataFrame of shape (n_targets, n_components)
-        Root mean squared error of Y predictions per component.
+        Root mean squared error of Y predictions per component, on the original
+        (un-scaled) Y scale, consistent with ``predictions_`` and
+        ``prediction_interval``.
     explained_variance_ : np.ndarray of shape (n_components,)
         Variance explained by each component in X.
     scaling_factor_for_scores_ : pd.Series of length n_components
@@ -796,8 +798,16 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             self.r2y_per_variable_.iloc[:, a] = np.where(
                 prior_SSY_col > 0, col_SSY / np.where(prior_SSY_col > 0, prior_SSY_col, 1.0), np.nan
             )
+            # rmse_ is reported on the ORIGINAL Y scale. NIPALS runs in the
+            # (optionally) scaled space, so rescale each target's RMSE by its Y
+            # standard deviation when scale=True. This keeps rmse_ consistent
+            # with predictions_ / diagnose().y_hat (also original-scale) and with
+            # prediction_interval(), which uses rmse_ as the residual error term.
             residuals_y = Yd.to_numpy() - y_hat.to_numpy()
-            self.rmse_.iloc[:, a] = np.sqrt(np.mean(residuals_y**2, axis=0))
+            rmse_a = np.sqrt(np.mean(residuals_y**2, axis=0))
+            if self._y_scaler is not None:
+                rmse_a = rmse_a * self._y_scaler.scale_.to_numpy()
+            self.rmse_.iloc[:, a] = rmse_a
 
         return self
 
@@ -966,9 +976,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         t2_values = np.sum(np.power((scores / self.scaling_factor_for_scores_.to_numpy()), 2), axis=1)
         t2 = pd.Series(t2_values, index=X.index, name="Hotelling's T²")
 
-        # SPE: residual after X reconstruction
-        X_hat = scores @ self._x_loadings.T
-        residuals = X - X_hat
+        # SPE: residual after reconstructing X from its scores. Reconstruct in NumPy so the
+        # feature columns stay aligned with X: a DataFrame ``scores @ self._x_loadings.T`` product
+        # relabels the columns 0..K-1, which then misaligns the ``X - X_hat`` subtraction to all-NaN
+        # and collapses every SPE to 0.
+        x_hat = scores.to_numpy() @ self._x_loadings.T
+        residuals = X.to_numpy() - x_hat
         spe_values = pd.Series(np.sqrt(np.power(residuals, 2).sum(axis=1)), index=X.index, name="SPE")
 
         # Y predictions (computed in scaled-Y space; mapped back to original units)

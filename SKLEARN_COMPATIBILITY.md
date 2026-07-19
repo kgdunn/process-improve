@@ -65,8 +65,8 @@ The following compositions are verified by tests in
 
 ### `check_estimator` baseline (v1.38.0)
 
-Run `python tools/check_estimator_audit.py` (preserved in
-`tools/check_estimator_audit_main.log`) to refresh. As of v1.38.0
+Run `python tools/check_estimator_audit.py` to refresh (the log output is
+not committed; `*.log` is gitignored). As of v1.38.0
 (after `get_feature_names_out` added in #391):
 
 | Estimator | Passing | Total | Pass % | Issues that close remaining |
@@ -147,7 +147,8 @@ python tools/check_estimator_audit.py | tee tools/check_estimator_audit_main.log
 
 The output is grouped by reason so identical failures across multiple
 checks are bucketed together. Compare against the previous log to see
-which checks moved from FAIL to PASS.
+which checks moved from FAIL to PASS. Keep the log local: `*.log` files
+are gitignored and must not be committed.
 
 ## Suggested order to land the follow-ups
 

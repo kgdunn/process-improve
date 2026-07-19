@@ -553,3 +553,28 @@ class TestSeparateResponses:
         y = pd.DataFrame({"y": [28, 36, 18, 31]})
         result = analyze_experiment(df, responses=y, analysis_type="coefficients")
         assert "coefficients" in result
+
+
+def test_analyze_experiment_ignores_runorder_and_block_columns() -> None:
+    """RunOrder / Block bookkeeping columns must not become model factors.
+
+    A DesignResult frame carries a "RunOrder" (and optionally "Block") column;
+    when the whole frame is passed with the response joined, these must be
+    dropped, matching evaluate_design's filtering, rather than fitted as terms.
+    """
+    df = pd.DataFrame({
+        "RunOrder": [1, 2, 3, 4, 5, 6, 7, 8],
+        "Block": [1, 1, 1, 1, 2, 2, 2, 2],
+        "A": [-1, 1, -1, 1, -1, 1, -1, 1],
+        "B": [-1, -1, 1, 1, -1, -1, 1, 1],
+        "y": [10, 14, 8, 12, 11, 15, 9, 13],
+    })
+    res = analyze_experiment(df, response_column="y", model="interactions",
+                             analysis_type=["coefficients"])
+    terms = [c["term"] for c in res["coefficients"]]
+    assert not any("RunOrder" in t for t in terms)
+    assert not any("Block" in t for t in terms)
+    # The real factors and their interaction are still present.
+    assert "A" in terms
+    assert "B" in terms
+    assert "A:B" in terms

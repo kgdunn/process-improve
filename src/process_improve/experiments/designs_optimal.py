@@ -5,7 +5,11 @@
 Uses ``pyoptex`` (coordinate exchange) when available for high-quality
 optimal designs with support for split-plot structures.  Falls back to the
 built-in ``point_exchange()`` in ``optimal.py`` for D-optimal when
-``pyoptex`` is not installed.
+``pyoptex`` is not installed.  ``pyoptex`` is not a process-improve extra
+because it pins ``plotly~=5.24`` (< 6), which conflicts with this project's
+``plotly>=6.5.2``; install it separately (``pip install pyoptex``) in its own
+environment. Without it, I-/A-optimal and ``hard_to_change`` split-plot
+requests are unavailable.
 """
 
 from __future__ import annotations
@@ -49,8 +53,19 @@ try:
     from pyoptex.utils.model import model2Y2X, partial_rsm_names
 
     _PYOPTEX_AVAILABLE = True
-except ImportError:
+except ImportError:  # pragma: no cover - exercised via env-without-pyoptex
     pass
+
+#: Remediation hint shown when pyoptex is required but not installed. pyoptex is
+#: deliberately not a process-improve extra: its latest release pins
+#: ``plotly~=5.24`` (< 6), which conflicts with this project's ``plotly>=6.5.2``
+#: floor, so the two cannot share an environment. Install it separately.
+_PYOPTEX_INSTALL_HINT = (
+    "Install it separately with `pip install pyoptex` (note: pyoptex pins "
+    "plotly<6, which conflicts with this project's plotly>=6.5.2, so it cannot "
+    "be co-installed with the 'plotting'/'all' extras; use a separate "
+    "environment)."
+)
 
 # ---------------------------------------------------------------------------
 # pyoptex adapter layer
@@ -65,7 +80,7 @@ _PYOPTEX_MODEL_MAP = {
 
 #: Map our optimality-criterion strings to pyoptex metric constructors.
 _PYOPTEX_METRIC_MAP: dict = {}
-if _PYOPTEX_AVAILABLE:
+if _PYOPTEX_AVAILABLE:  # pragma: no branch - false only in env-without-pyoptex
     _PYOPTEX_METRIC_MAP = {
         "d_optimal": Dopt,
         "i_optimal": Iopt,
@@ -143,6 +158,69 @@ class _PyoptexOptions:
     model_type: str = "interactions"
     hard_to_change: list[str] | None = None
     n_tries: int = 10
+    fixed_runs: pd.DataFrame | None = None
+
+
+def _prepare_prior_runs(fixed_runs: pd.DataFrame, factors: list[Factor], budget: int) -> pd.DataFrame:
+    """Validate and format fixed runs for pyoptex's ``prior=`` augmentation.
+
+    ``fixed_runs`` holds runs to keep fixed while the coordinate exchange fills the remaining
+    ``budget - len(fixed_runs)`` runs. It must be in the same coding as the returned design:
+    continuous factors in coded ``[-1, 1]`` units, categorical factors as level labels. Columns
+    other than the factor names are ignored, and the input is not mutated.
+
+    Parameters
+    ----------
+    fixed_runs : pandas.DataFrame
+        One row per fixed run, one column per factor.
+    factors : list[Factor]
+        The design factors.
+    budget : int
+        Total number of runs (fixed plus optimized).
+
+    Returns
+    -------
+    pandas.DataFrame
+        A copy holding only the factor columns, in factor order, ready to pass to pyoptex.
+    """
+    from process_improve.experiments.factor import FactorType  # noqa: PLC0415
+
+    if not isinstance(fixed_runs, pd.DataFrame):
+        raise TypeError("fixed_runs must be a pandas DataFrame with one column per factor.")
+    names = [f.name for f in factors]
+    missing = [n for n in names if n not in fixed_runs.columns]
+    if missing:
+        raise ValueError(f"fixed_runs is missing columns for factors: {missing}.")
+    n_fixed = len(fixed_runs)
+    if n_fixed == 0:
+        raise ValueError("fixed_runs is empty; omit it instead of passing an empty frame.")
+    if n_fixed >= budget:
+        raise ValueError(
+            f"fixed_runs has {n_fixed} runs but budget is {budget}; budget must exceed the number "
+            f"of fixed runs so at least one run is optimized."
+        )
+    prior = fixed_runs.loc[:, names].reset_index(drop=True).copy()
+    for f in factors:
+        col = prior[f.name]
+        if f.type == FactorType.categorical:
+            levels = list(f.levels or [])
+            unknown = sorted(set(col.astype(str)) - {str(lv) for lv in levels})
+            if unknown:
+                raise ValueError(
+                    f"fixed_runs has unknown levels for categorical factor {f.name!r}: {unknown}. "
+                    f"Valid levels: {levels}."
+                )
+        else:
+            vals = pd.to_numeric(col, errors="coerce")
+            if vals.isna().any():
+                raise ValueError(f"fixed_runs has non-numeric values for continuous factor {f.name!r}.")
+            if (vals.abs() > 1.0 + 1e-9).any():
+                raise ValueError(
+                    f"fixed_runs values for continuous factor {f.name!r} must be in coded [-1, 1], "
+                    f"the same coding as the returned design."
+                )
+            prior[f.name] = vals.astype(float)
+    return prior
 
 
 def _run_pyoptex(
@@ -182,17 +260,34 @@ def _run_pyoptex(
         n_runs=budget,
     )
 
-    # Build model matrix
+    # Build the model per factor. A categorical factor has no pure-quadratic
+    # term (its square is undefined and, once indicator-coded, idempotent), so a
+    # "quadratic" request becomes a partial response-surface model: quadratics on
+    # the continuous factors, main-effect-plus-interactions on the categorical
+    # ones. This is the standard second-order-with-categorical model and avoids
+    # the rank collinearity a uniform x**2 would create.
+    from process_improve.experiments.factor import FactorType  # noqa: PLC0415
+
     rsm_key = _PYOPTEX_MODEL_MAP.get(model_type, "tfi")
-    model_spec = partial_rsm_names({f.name: rsm_key for f in factors})
+
+    def _factor_rsm_key(factor: Factor) -> str:
+        if rsm_key == "quad" and factor.type == FactorType.categorical:
+            return "tfi"
+        return rsm_key
+
+    model_spec = partial_rsm_names({f.name: _factor_rsm_key(f) for f in factors})
     y2x = model2Y2X(model_spec, pyoptex_factors)
 
     # Select metric
     metric_cls = _PYOPTEX_METRIC_MAP[criterion]
     metric = metric_cls()
 
+    prior = None
+    if opts.fixed_runs is not None:
+        prior = _prepare_prior_runs(opts.fixed_runs, factors, budget)
+
     fn = default_fn(pyoptex_factors, metric, y2x)
-    params = create_parameters(pyoptex_factors, fn, nruns=budget)
+    params = create_parameters(pyoptex_factors, fn, nruns=budget, prior=prior)
     design_df, state = create_fixed_structure_design(params, n_tries=n_tries)
 
     meta = {
@@ -203,6 +298,8 @@ def _run_pyoptex(
     }
     if hard_to_change:
         meta["hard_to_change"] = hard_to_change
+    if prior is not None:
+        meta["n_fixed_runs"] = len(prior)
 
     return design_df.values, meta
 
@@ -261,12 +358,13 @@ def _run_point_exchange_fallback(
 # ---------------------------------------------------------------------------
 
 
-def dispatch_d_optimal(
+def dispatch_d_optimal(  # noqa: PLR0913
     factors: list[Factor],
     budget: int | None = None,
     hard_to_change: list[str] | None = None,
     constraints: list[Constraint] | None = None,
     model_type: str = "interactions",
+    fixed_runs: pd.DataFrame | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate a D-optimal design.
 
@@ -295,6 +393,9 @@ def dispatch_d_optimal(
     if budget is None:
         budget = 2 * k + 1
 
+    if fixed_runs is not None and not _PYOPTEX_AVAILABLE:
+        raise ImportError(f"fixed_runs (design augmentation) requires pyoptex. {_PYOPTEX_INSTALL_HINT}")
+
     if constraints:
         logger.warning(
             "Constraint enforcement in optimal designs is experimental. "
@@ -303,27 +404,40 @@ def dispatch_d_optimal(
         )
 
     if _PYOPTEX_AVAILABLE:
-        return _run_pyoptex(
+        matrix, meta = _run_pyoptex(
             factors,
             criterion="d_optimal",
             budget=budget,
-            options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change),
+            options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change, fixed_runs=fixed_runs),
         )
+        # Record that constraints were not enforced so the DesignResult carries
+        # the fact programmatically, not only as an easy-to-miss log line.
+        if constraints:
+            meta["constraints_enforced"] = False
+        return matrix, meta
 
     if hard_to_change:
         logger.warning(
-            "pyoptex is not installed - hard_to_change factors will be ignored. "
-            "Install with: pip install pyoptex"
+            "pyoptex is not installed - hard_to_change factors will be ignored. %s",
+            _PYOPTEX_INSTALL_HINT,
         )
-    return _run_point_exchange_fallback(factors, budget)
+    matrix, meta = _run_point_exchange_fallback(factors, budget)
+    if constraints:
+        meta["constraints_enforced"] = False
+    if hard_to_change:
+        # The randomized fallback cannot honour the split-plot request; surface
+        # it on the result rather than only in the log.
+        meta["hard_to_change_ignored"] = list(hard_to_change)
+    return matrix, meta
 
 
-def dispatch_i_optimal(
+def dispatch_i_optimal(  # noqa: PLR0913
     factors: list[Factor],
     budget: int | None = None,
     hard_to_change: list[str] | None = None,
     constraints: list[Constraint] | None = None,
     model_type: str = "interactions",
+    fixed_runs: pd.DataFrame | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate an I-optimal design (minimizes average prediction variance).
 
@@ -352,29 +466,30 @@ def dispatch_i_optimal(
         If pyoptex is not installed.
     """
     if not _PYOPTEX_AVAILABLE:
-        raise ImportError(
-            "I-optimal design generation requires pyoptex. "
-            "Install with: pip install pyoptex"
-        )
+        raise ImportError(f"I-optimal design generation requires pyoptex. {_PYOPTEX_INSTALL_HINT}")
 
     k = len(factors)
     if budget is None:
         budget = 2 * k + 1
 
-    return _run_pyoptex(
+    matrix, meta = _run_pyoptex(
         factors,
         criterion="i_optimal",
         budget=budget,
-        options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change),
+        options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change, fixed_runs=fixed_runs),
     )
+    if constraints:
+        meta["constraints_enforced"] = False
+    return matrix, meta
 
 
-def dispatch_a_optimal(
+def dispatch_a_optimal(  # noqa: PLR0913
     factors: list[Factor],
     budget: int | None = None,
     hard_to_change: list[str] | None = None,
     constraints: list[Constraint] | None = None,
     model_type: str = "interactions",
+    fixed_runs: pd.DataFrame | None = None,
 ) -> tuple[np.ndarray, dict]:
     """Generate an A-optimal design (minimizes trace of variance matrix).
 
@@ -403,18 +518,18 @@ def dispatch_a_optimal(
         If pyoptex is not installed.
     """
     if not _PYOPTEX_AVAILABLE:
-        raise ImportError(
-            "A-optimal design generation requires pyoptex. "
-            "Install with: pip install pyoptex"
-        )
+        raise ImportError(f"A-optimal design generation requires pyoptex. {_PYOPTEX_INSTALL_HINT}")
 
     k = len(factors)
     if budget is None:
         budget = 2 * k + 1
 
-    return _run_pyoptex(
+    matrix, meta = _run_pyoptex(
         factors,
         criterion="a_optimal",
         budget=budget,
-        options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change),
+        options=_PyoptexOptions(model_type=model_type, hard_to_change=hard_to_change, fixed_runs=fixed_runs),
     )
+    if constraints:
+        meta["constraints_enforced"] = False
+    return matrix, meta

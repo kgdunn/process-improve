@@ -104,19 +104,33 @@ def _content_hash(panel: pd.DataFrame, covariates: pd.DataFrame, mode: str) -> s
     return hasher.hexdigest()
 
 
-def _normalise_covariates(covariates: pd.DataFrame) -> pd.DataFrame:
-    """Return the covariate table indexed by ``product``.
+def _normalise_covariates(covariates: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    """Return the covariate table indexed by ``product``, plus any warnings.
 
-    Accepts either a ``product`` column or a frame already indexed by product.
+    The product column is matched case- and whitespace-insensitively (``Product``,
+    ``PRODUCT ``, ... all resolve), so a covariate file that does not label the column
+    exactly ``product`` still aligns instead of silently falling back to the integer
+    index. Duplicate product rows are collapsed to their numeric mean, so the index is
+    unique for the downstream label-based join.
     """
     cov = covariates.copy()
-    if "product" in cov.columns:
-        cov["product"] = cov["product"].astype(str).str.strip()
-        cov = cov.set_index("product")
+    warnings: list[str] = []
+    product_col = next((c for c in cov.columns if str(c).strip().lower() == "product"), None)
+    if product_col is not None:
+        cov[product_col] = cov[product_col].astype(str).str.strip()
+        cov = cov.set_index(product_col)
+        cov.index.name = "product"
     else:
         cov.index = cov.index.astype(str).str.strip()
         cov.index.name = "product"
-    return cov
+    if cov.index.has_duplicates:
+        dupes = sorted({str(x) for x in cov.index[cov.index.duplicated()]})
+        cov = cov.groupby(level=0).mean(numeric_only=True)
+        warnings.append(
+            f"Covariate table had duplicate rows for product(s) {dupes}; each was collapsed to its "
+            f"numeric mean."
+        )
+    return cov, warnings
 
 
 def validate_descriptive(  # noqa: PLR0912, PLR0913, PLR0915, C901
@@ -150,7 +164,10 @@ def validate_descriptive(  # noqa: PLR0912, PLR0913, PLR0915, C901
         are reported as a warning.
     balance_warn, balance_error : float
         Missing-cell fractions (of the full panelist x product x attribute x
-        replicate grid) above which a warning or a blocking error is raised.
+        replicate grid) above which an unbalanced-panel warning is raised.
+        Imbalance is reported but never blocks the observational relate, which
+        aggregates to product means; ``balance_error`` only controls the wording
+        (badly-unbalanced vs unbalanced).
 
     Returns
     -------
@@ -217,7 +234,37 @@ def validate_descriptive(  # noqa: PLR0912, PLR0913, PLR0915, C901
                 f"[{score_min}, {score_max}]."
             )
 
+    # --- Covariate table + product reconciliation ---------------------
+    # Normalise first so the balance audit and stats reflect the products the
+    # relate will actually run on. The relate aggregates to product means and
+    # looks covariates up by product label, so a panel product with no covariate
+    # row cannot be related; drop those (warning) and relate on the intersection.
+    # It is a blocking error only when nothing lines up at all.
+    cov, cov_warnings = _normalise_covariates(covariates)
+    warnings.extend(cov_warnings)
+    panel_products = set(df["product"].unique())
+    cov_products = set(cov.index)
+    absent = sorted(panel_products - cov_products)
+    if absent:
+        matched = panel_products & cov_products
+        if not matched:
+            errors.append(
+                "No panel product has a matching row in the covariate table. Panel products: "
+                f"{sorted(panel_products)}; covariate products: {sorted(cov_products)}."
+            )
+        else:
+            warnings.append(
+                f"{len(absent)} panel product(s) have no row in the covariate table and were "
+                f"dropped from the relate: {absent}. Relating on the {len(matched)} matched "
+                f"product(s)."
+            )
+            df = df[df["product"].isin(matched)].reset_index(drop=True)
+
     # --- Balance audit -------------------------------------------------
+    # Reported on the retained (matched) panel. Real descriptive panels are
+    # incomplete by design (not every panelist rates every product), and the
+    # relate uses product means, so imbalance is surfaced as a warning rather
+    # than blocking the analysis.
     n_panelist = df["panelist_id"].nunique()
     n_product = df["product"].nunique()
     n_attribute = df["attribute"].nunique()
@@ -228,24 +275,16 @@ def validate_descriptive(  # noqa: PLR0912, PLR0913, PLR0915, C901
     ).shape[0]
     missing_fraction = 0.0 if expected == 0 else 1.0 - present / expected
     if missing_fraction > balance_error:
-        errors.append(
+        warnings.append(
             f"Panel is badly unbalanced: {missing_fraction:.1%} of the full "
-            f"panelist x product x attribute x replicate grid is missing "
-            f"(error threshold {balance_error:.0%})."
+            f"panelist x product x attribute x replicate grid is missing. The relate uses product "
+            f"means, so this does not block it, but the per-product means rest on fewer scores."
         )
     elif missing_fraction > balance_warn:
         warnings.append(
             f"Panel is unbalanced: {missing_fraction:.1%} of the full grid is "
             f"missing (warning threshold {balance_warn:.0%})."
         )
-
-    # --- Covariate table ----------------------------------------------
-    cov = _normalise_covariates(covariates)
-    panel_products = set(df["product"].unique())
-    cov_products = set(cov.index)
-    absent = sorted(panel_products - cov_products)
-    if absent:
-        errors.append(f"These products have no row in the covariate table: {absent}.")
 
     # Observational mode only for now (designed mode is rejected above).
     non_numeric = [c for c in cov.columns if not pd.api.types.is_numeric_dtype(cov[c])]

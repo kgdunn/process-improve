@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 
 import numpy as np
 import pytest
@@ -11,7 +12,33 @@ from process_improve.experiments import Factor, analyze_omars, generate_design
 from process_improve.experiments.designs_omars import is_omars
 
 _HAS_PULP = importlib.util.find_spec("pulp") is not None
-pytestmark = pytest.mark.skipif(not _HAS_PULP, reason="pulp (the 'ilp' extra) is not installed")
+
+
+def _solver_executes() -> bool:
+    """Probe that pulp's default CBC solver binary actually runs here.
+
+    Importability is not enough: pulp ships a bundled CBC binary that can be
+    present but non-executable (for example an Intel-only build on an Apple
+    Silicon CI runner), which raises PulpSolverError only at solve time.
+    """
+    if not _HAS_PULP:
+        return False
+    import pulp
+
+    try:
+        probe = pulp.LpProblem("probe", pulp.LpMinimize)
+        x = pulp.LpVariable("x", 0, 1)
+        probe += x
+        probe.solve(pulp.PULP_CBC_CMD(msg=False))
+    except pulp.PulpSolverError:
+        return False
+    return True
+
+
+pytestmark = pytest.mark.skipif(
+    not _solver_executes(),
+    reason="pulp (the 'ilp' extra) is not installed or its CBC solver binary cannot run on this platform",
+)
 
 # Keep the solver fast and deterministic across the suite.
 _SOLVER = {"time_limit": 30, "msg": False}
@@ -218,6 +245,13 @@ def test_multistart_reaches_catalogue_quality() -> None:
     assert report.feasible_designs > 1
 
 
+@pytest.mark.skipif(
+    sys.platform == "darwin",
+    reason="pulp's bundled CBC (an Intel binary run under Rosetta on Apple Silicon "
+    "CI runners) intermittently exits nonzero under this test's 40+ rapid solver "
+    "spawns; the property it checks is platform-independent and stays covered on "
+    "Linux and Windows",
+)
 def test_more_restarts_is_never_worse() -> None:
     """Adding restarts can only match or improve the selected design's quality.
 
@@ -402,3 +436,21 @@ def test_search_report_records_diagnostics() -> None:
     assert report.ilp_iterations >= 1
     assert report.feasible_designs >= 1
     assert report.total_solve_seconds >= 0.0
+
+
+def test_generate_omars_rejects_categorical_factor() -> None:
+    """A categorical factor gets a clear error, not a downstream TypeError.
+
+    OMARS is built from three-level quantitative contrasts, so a categorical
+    factor is out of scope; the message names the offending factor and points to
+    the optimal-design path for mixed-level studies.
+    """
+    from process_improve.experiments import generate_omars
+
+    factors = [
+        Factor(name="supplier", type="categorical", levels=["A", "B", "C"]),
+        Factor(name="temp", low=-1, high=1),
+        Factor(name="time", low=-1, high=1),
+    ]
+    with pytest.raises(ValueError, match="OMARS designs require continuous factors"):
+        generate_omars(factors, solver_options=_SOLVER)

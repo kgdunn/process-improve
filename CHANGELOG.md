@@ -11,7 +11,7 @@ those changes.
 
 ## [Unreleased]
 
-## [1.52.0] - 2026-07-09
+## [1.55.0] - 2026-07-19
 
 ### Added
 
@@ -37,6 +37,157 @@ those changes.
   `decompose_prediction()` split each prediction's departure from the frozen
   training model into a centering/scaling channel and a kernel channel in the response's
   own units, and `adaptation_plot()` renders the channels and the state drift.
+
+## [1.54.0] - 2026-07-13
+
+### Changed
+
+- `sensory.validate_descriptive` no longer blocks on an unbalanced panel or on
+  panel products that are missing from the covariate table. Descriptive panels
+  are incomplete by design, and the observational relate aggregates to product
+  means, so imbalance is now surfaced as a warning instead of a blocking error.
+  Panel products with no covariate row are dropped with a warning and the relate
+  runs on the matched intersection; only a total mismatch (no products in common)
+  is still a blocking error.
+
+### Fixed
+
+- The product/covariate join now matches the covariate identifier column
+  case- and whitespace-insensitively, so a covariate table whose column is not
+  exactly lowercase `product` aligns instead of silently falling back to the row
+  index (which previously reported every product as missing). Duplicate product
+  rows in the covariate table are collapsed to their numeric mean so the join key
+  stays unique.
+
+## [1.53.0] - 2026-07-11
+
+### Added
+
+- `generate_design(..., fixed_runs=<DataFrame>)` for the optimal design families
+  (`d_optimal`, `i_optimal`, `a_optimal`): hold a set of runs fixed and let the
+  pyoptex coordinate exchange fill the rest (design augmentation), forwarding to
+  pyoptex's `create_parameters(prior=...)`. The fixed runs occupy the first rows
+  of the result and `budget` counts them; a common use is seeding a centre point.
+  Works with split-plot (`hard_to_change`) designs. Continuous columns are given
+  in coded `[-1, 1]` units and categorical columns as level labels, matching the
+  returned design; inputs are validated (columns present, known levels, in-range,
+  and `budget > len(fixed_runs)`), and `fixed_runs` for a non-optimal `design_type`
+  or without pyoptex raises a clear error.
+
+## [1.52.4] - 2026-07-11
+
+### Fixed
+
+- `PLS.diagnose(X).spe` returned 0 for every row when `X` had named (string)
+  feature columns. The X reconstruction was built as `scores @ self._x_loadings.T`
+  on the scores DataFrame, which relabelled the result columns `0..K-1`; the
+  subsequent `X - X_hat` subtraction then aligned by label to all-NaN and every
+  SPE collapsed to 0. Integer-labelled columns hid the bug. The reconstruction is
+  now done in NumPy so the feature columns stay aligned. Scores, T2, and y_hat
+  were unaffected.
+
+## [1.52.2] - 2026-07-09
+
+### Added
+
+- The `pyoptex` coordinate-exchange optimal-design backend is now installed in
+  the development environment (dev dependency group) via uv
+  `override-dependencies` that relax pyoptex's plotly and numba pins, so the
+  D-, I-, and A-optimal and split-plot test paths run in CI instead of being
+  skipped. New direct tests cover the pyoptex adapter layer, and the fallback
+  and ImportError paths are now forced via monkeypatch so they are exercised
+  in every environment. (The 1.52.1 guidance below still applies to pip
+  installs: pip cannot apply uv overrides, so end users need a separate
+  environment for pyoptex until its upstream pins are relaxed in a release.)
+- Expanded coverage tests for the DOE visualization plot builders, bivariate
+  elbow/peak detection, and control-chart edge paths; the coverage gate
+  (`--cov-fail-under`) was raised from 89 to 92.
+
+## [1.52.1] - 2026-07-09
+
+### Added
+
+- `evaluate_design` accepts the opposite suffix as an alias for the
+  optimality-criterion metrics (for example `"d_optimality"` for
+  `"d_efficiency"`, or `"a_efficiency"` for `"a_optimality"`), resolving to the
+  canonical metric so either spelling works. The result is still keyed under
+  the canonical name.
+
+### Changed
+
+- The "pyoptex is not installed" errors (I-/A-optimal) and the D-optimal
+  fallback warning now explain that pyoptex must be installed separately and
+  why it is not bundled as an extra: its latest release pins `plotly<6`, which
+  conflicts with this project's `plotly>=6.5.2`, so the two cannot share an
+  environment. D-optimal still works without pyoptex via the built-in
+  point-exchange fallback.
+
+## [1.52.0] - 2026-07-09
+
+### Added
+
+- Mixed-level optimal designs (one or more categorical factors alongside
+  continuous ones) are now first-class through the public API:
+  - `generate_design(..., design_type="i_optimal"/"d_optimal"/"a_optimal")`
+    now accepts and forwards `model_type` (previously unreachable through the
+    unified entry point), and returns a usable `DesignResult` when a
+    categorical factor is present. The categorical factor is carried as its
+    labels in both the coded and actual designs, instead of raising in the
+    coded-to-actual conversion.
+  - `model_type="quadratic"` with a categorical factor now builds a partial
+    response-surface model (pure quadratics on the continuous factors only;
+    the categorical enters as a main effect plus its interactions), rather
+    than requesting an undefined categorical square and failing with a rank
+    collinearity error.
+  - `evaluate_design` returns finite quality metrics (D/I/G-efficiency,
+    condition number, degrees of freedom, prediction variance, FDS) for a
+    design with a categorical factor. The categorical is contrast-coded by
+    patsy and prediction-variance integration samples each categorical over
+    its levels; only continuous factors receive a squared term.
+
+### Changed
+
+- `generate_omars` now raises a clear `ValueError` naming the offending
+  factor(s) when a categorical factor is supplied (OMARS requires continuous
+  factors), instead of failing later with a `TypeError`.
+
+## [1.51.5] - 2026-07-09
+
+### Fixed
+
+- `analyze_experiment` no longer treats the design-bookkeeping columns
+  `RunOrder` and `Block` as model factors when a full design frame is
+  passed with the response joined; they are dropped, matching
+  `evaluate_design`, so the two consumers agree on what counts as a factor.
+
+### Added
+
+- The formula validator now allows patsy categorical-contrast helpers
+  (`C`, `Treatment`, `Sum`, `Diff`, `Helmert`, `Poly`), so a caller can
+  specify explicit contrasts for a categorical factor, e.g.
+  `analyze_experiment(..., model="y ~ C(catalyst, Sum) + temp")`. Their
+  arguments are restricted to column names, contrast helpers, and literals;
+  arbitrary calls remain rejected.
+- The optimal-design dispatchers record `constraints_enforced=False` in the
+  returned metadata when constraints are supplied (enforcement is not yet
+  implemented), and `hard_to_change_ignored` when a split-plot request is
+  dropped because `pyoptex` is not installed, so these degradations are
+  detectable on the result rather than only in a log line.
+
+## [1.51.4] - 2026-07-09
+
+### Fixed
+
+- `PLS.rmse_` is now reported on the original (un-scaled) Y scale when
+  `scale=True`, consistent with `predictions_` and `beta_coefficients_`.
+  Previously it was left in the internally standardized space, so a
+  `scale=True` fit on unscaled data returned an RMSE in units of a Y
+  standard deviation rather than the original response units. As a direct
+  consequence `PLS.prediction_interval()` (which uses `rmse_` as its
+  residual error term when no cross-validation result is supplied) now
+  produces intervals on the correct scale; previously its two branches
+  disagreed, since the cross-validated branch was already on the original
+  scale. Fits with `scale=False` (data scaled externally) are unaffected.
 
 ## [1.51.3] - 2026-07-08
 
@@ -2385,8 +2536,16 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.52.0...HEAD
-[1.52.0]: https://github.com/kgdunn/process-improve/compare/v1.51.3...v1.52.0
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.55.0...HEAD
+[1.55.0]: https://github.com/kgdunn/process-improve/compare/v1.54.0...v1.55.0
+[1.54.0]: https://github.com/kgdunn/process-improve/compare/v1.53.0...v1.54.0
+[1.53.0]: https://github.com/kgdunn/process-improve/compare/v1.52.4...v1.53.0
+[1.52.4]: https://github.com/kgdunn/process-improve/compare/v1.52.3...v1.52.4
+[1.52.2]: https://github.com/kgdunn/process-improve/compare/v1.52.1...v1.52.2
+[1.52.1]: https://github.com/kgdunn/process-improve/compare/v1.52.0...v1.52.1
+[1.52.0]: https://github.com/kgdunn/process-improve/compare/v1.51.5...v1.52.0
+[1.51.5]: https://github.com/kgdunn/process-improve/compare/v1.51.4...v1.51.5
+[1.51.4]: https://github.com/kgdunn/process-improve/compare/v1.51.3...v1.51.4
 [1.51.3]: https://github.com/kgdunn/process-improve/compare/v1.51.2...v1.51.3
 [1.51.2]: https://github.com/kgdunn/process-improve/compare/v1.51.1...v1.51.2
 [1.51.1]: https://github.com/kgdunn/process-improve/compare/v1.51.0...v1.51.1

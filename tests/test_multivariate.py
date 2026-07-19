@@ -1901,6 +1901,44 @@ def test_pls_scale_true_scales_x_and_y_blocks() -> None:
     )
 
 
+def test_pls_rmse_and_interval_on_original_scale() -> None:
+    """rmse_ and a no-cv prediction_interval are on the ORIGINAL Y scale under scale=True.
+
+    Regression guard: internal scaling (scale=True) runs NIPALS in standardized
+    space, but rmse_ must be rescaled to original Y units so it stays consistent
+    with predictions_ / diagnose().y_hat, and with prediction_interval(), which
+    uses rmse_ as its residual error term. A multi-target Y with very different
+    column magnitudes makes the scale error obvious.
+    """
+    rng = np.random.default_rng(3)
+    n = 60
+    X = pd.DataFrame(rng.normal(size=(n, 5)), columns=[f"x{i}" for i in range(5)])
+    beta = rng.normal(size=(5, 3))
+    Y = pd.DataFrame(
+        X.values @ beta * np.array([0.1, 3.0, 40.0]) + np.array([5.0, -2.0, 100.0])
+        + rng.normal(0, 0.05, (n, 3)),
+        columns=["ya", "yb", "yc"],
+    )
+    model = PLS(n_components=5, scale=True).fit(X, Y)
+
+    # rmse_ at the last component equals the original-unit RMSE of predict().
+    y_hat = model.predict(X)
+    rmse_original = np.sqrt(((Y.values - y_hat.values) ** 2).mean(axis=0))
+    assert model.rmse_.iloc[:, -1].to_numpy() == pytest.approx(rmse_original, rel=1e-6, abs=1e-9)
+    # ... and is NOT the standardized-unit RMSE (the pre-fix value), which would
+    # differ by roughly the per-column Y standard deviation.
+    rmse_scaled = rmse_original / Y.std(ddof=1).to_numpy()
+    assert not np.allclose(model.rmse_.iloc[:, -1].to_numpy(), rmse_scaled, rtol=1e-2)
+
+    # The no-cv prediction interval uses original-unit rmse_, so its half-width
+    # is on the Y scale (here ~ the 0.05 noise), not shrunk by standardization.
+    pi = model.prediction_interval(X.iloc[:5], conf_level=0.95)
+    half_width = (pi.upper.to_numpy() - pi.lower.to_numpy()) / 2.0
+    assert np.all(half_width > 0)
+    # per-target half-width is close to t*sqrt(1+leverage)*rmse_ (original units)
+    assert half_width.mean() == pytest.approx(0.1, abs=0.06)
+
+
 @pytest.fixture
 def fixture_pls_ldpe_example() -> dict[str, pd.DataFrame | np.ndarray | float | int]:
     """
@@ -3866,6 +3904,26 @@ def test_pca_diagnose_new_data() -> None:
     assert result.hotellings_t2.shape == (10, 2)
     assert len(result.spe) == 10
     assert (result.spe >= 0).all()
+
+
+def test_pls_diagnose_spe_matches_fitted_with_named_columns() -> None:
+    """PLS.diagnose(X).spe must equal the fitted spe_ (last component) when X has named columns.
+
+    Regression test: the reconstruction was built as ``scores @ self._x_loadings.T`` on the scores
+    DataFrame, which relabelled the result columns 0..K-1. With string feature names the following
+    ``X - X_hat`` subtraction then misaligned to all-NaN and every SPE collapsed to 0. Integer
+    column labels hid the bug because the relabelled columns happened to line up.
+    """
+    rng = np.random.default_rng(0)
+    n_rows, n_cols = 40, 6
+    x_data = pd.DataFrame(rng.standard_normal((n_rows, n_cols)), columns=[f"feat_{i}" for i in range(n_cols)])
+    y_data = pd.DataFrame({"y": x_data.to_numpy() @ rng.standard_normal(n_cols) + 0.1 * rng.standard_normal(n_rows)})
+    model = PLS(n_components=3, scale=True).fit(x_data, y_data)
+
+    diag = model.diagnose(x_data)
+    fitted_spe = model.spe_.iloc[:, -1].to_numpy()
+    assert diag.spe.to_numpy() == pytest.approx(fitted_spe, abs=1e-9)
+    assert float(diag.spe.to_numpy().max()) > 0.0  # the bug collapsed every SPE to exactly 0
 
 
 def test_pca_diagnose_numpy_input() -> None:

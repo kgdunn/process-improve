@@ -4,32 +4,44 @@
 
 `process-improve` is a Python package for process improvement using data. It accompanies the online textbook [Process Improvement using Data](https://learnche.org/pid). The package provides multivariate analysis (PCA, PLS, and TPLS - *PLS for T-shaped data structures*, not "Total PLS" or "Three-way PLS"), designed experiments, process monitoring, batch data analysis, and visualization tools.
 
-**Repository:** https://github.com/kgdunn/process_improve
+**Repository:** https://github.com/kgdunn/process-improve
 **License:** MIT
-**Python:** >= 3.10 (CI runs on 3.11)
+**Python:** >= 3.10 (CI tests 3.10-3.13; 3.13 is the primary version for lint, typecheck, and coverage)
 
 ## Package Structure
 
+The package uses a src layout: all code lives under `src/process_improve/`.
+
 ```
-process_improve/
-    multivariate/    # PCA, PLS, TPLS, MCUVScaler, center, scale
+src/process_improve/
+    multivariate/    # PCA, PLS, TPLS, MBPLS, MBPCA, MCUVScaler, center, scale
     univariate/      # t_value, outlier_detection_multiple, confidence_interval
-    experiments/     # Factorial designs (full, fractional, response surface)
+    experiments/     # Factorial designs (full, fractional, response surface, optimal, OMARS)
     monitoring/      # Control charts (Shewhart, CUSUM, EWMA)
     batch/           # Batch process data alignment, features, preprocessing
     regression/      # Robust regression (repeated median, Theil-Sen)
     bivariate/       # Elbow detection, peak finding, area under curve
-    visualization/   # Plotting utilities (raincloud plots, etc.)
+    sensory/         # Descriptive panel-data analysis (validate, panel check, relate)
+    simulation/      # Fake-data / process-simulator subpackage
+    visualization/   # Plotting utilities (raincloud plots, chart spec/IR, adapters)
     datasets/        # Sample datasets for examples and tests
+    recipes.py       # Reusable analysis-recipe framework
+    tool_spec.py     # @tool_spec decorator, tool registry, Anthropic tool-use specs
+    tool_safety.py   # Subprocess isolation for tool calls over untrusted transports
+    mcp_server.py    # FastMCP server exposing the registered tools (mcp extra)
+    config.py        # Settings singleton reading PROCESS_IMPROVE_* env vars
+    _extras.py       # Clean ImportError messages for missing optional extras
+    _linalg.py       # Shared numerical-linear-algebra guards
+    _random.py       # Shared random_state resolver
 ```
 
 ## Versioning
 
-The version is defined in `pyproject.toml` under `[project] version`. It uses 3-part semver: `MAJOR.MINOR.PATCH` (e.g., `1.3.1`).
+The version is defined in `pyproject.toml` under `[project] version`. It uses 3-part semver: `MAJOR.MINOR.PATCH` (e.g., `1.52.2`).
 
 **Auto-bump the version with every PR that changes code or configuration:**
-- **PATCH** (last position, e.g., 1.3.0 → 1.3.1): bug fixes, CI/workflow changes, docs updates, dependency bumps, small refactors, and other minor changes.
-- **MINOR** (middle position, e.g., 1.3.1 → 1.4.0): new features, new modules, significant API additions, or meaningful behavioral changes. Resets PATCH to 0.
+- **PATCH** (last position, e.g., 1.52.2 → 1.52.3): bug fixes, CI/workflow changes, docs updates, dependency bumps, small refactors, and other minor changes.
+- **MINOR** (middle position, e.g., 1.52.3 → 1.53.0): new features, new modules, significant API additions, or meaningful behavioral changes. Resets PATCH to 0.
 - **If unsure** whether a change is major or minor, **ask the user** before bumping.
 
 **Keep `CITATION.cff` in sync with the version.** Whenever you bump the `version` in `pyproject.toml`, in the *same commit* set the `version:` field in `CITATION.cff` (repo root) to the identical value, and update `date-released:` to the current date. `pyproject.toml` and `CITATION.cff` must never report different versions.
@@ -110,8 +122,8 @@ Both PCA and PLS have `__getattr__` methods that raise `AttributeError` with hel
 ### Code Quality
 - Line length: 120 characters
 - Linter: ruff (with `select = ["ALL"]` and specific ignores - see `pyproject.toml`)
-- Formatter: black
-- Type checking: mypy
+- Formatter: ruff-format (do not add black, flake8, or isort config; ruff covers all of them)
+- Type checking: mypy (CI gate covers `src/process_improve`)
 
 ### Prose style
 - Do not use em-dashes (Unicode U+2014) in docs, docstrings, comments, commit
@@ -122,34 +134,46 @@ Both PCA and PLS have `__getattr__` methods that raise `AttributeError` with hel
 ## Testing
 
 ### Running Tests
+
+Defaults in `pytest.ini` include xdist parallelism and the coverage gate; a
+plain `pytest` works. Debug helpers (`--pdb`, `-x`, `-v`) are not defaults;
+pass them manually when needed.
+
 ```bash
-# All multivariate tests
-pytest tests/test_multivariate.py -v -o "addopts="
+# Full suite (parallel, with the coverage gate)
+uv run pytest
 
-# PLS tests only
-pytest tests/test_multivariate.py -v -k "pls" -o "addopts="
+# One file (multivariate tests are split across ~15 files:
+# tests/test_multivariate.py, test_multiblock_reference.py,
+# test_multivariate_tsr.py, test_multivariate_robustness.py, ...)
+uv run pytest tests/test_multivariate.py --no-cov
 
-# PCA tests only
-pytest tests/test_multivariate.py -v -k "pca" -o "addopts="
-
-# Full suite
-pytest -o "addopts="
+# By keyword
+uv run pytest -k "pls" --no-cov
 ```
 
 ### Test Conventions
 - Use **real datasets** (LDPE, SIMCA) alongside synthetic data - do not remove real dataset tests
 - Scale with `MCUVScaler().fit_transform(X)` in tests (not just `center()`)
 - For synthetic PLS data, use `X.values @ beta` (not `X @ beta`) to avoid pandas column mismatch producing NaN
-- Test fixtures load CSV data from `process_improve/datasets/multivariate/`
+- Test fixtures load CSV data from `src/process_improve/datasets/multivariate/`
 - New methods should have tests for both basic functionality and edge cases
+- Guard optional dependencies with `pytest.importorskip` (and probe binaries that
+  can be present but non-executable, e.g. pulp's bundled CBC solver)
 
 ## CI/CD
 
-- **GitHub Actions**: `.github/workflows/pythonpackage.yml`
-- **Python 3.11**, actions/checkout@v4, actions/setup-python@v5
-- Install: `pip install -e ".[dev]"`
-- Lint: `ruff check .`
-- Test: `pytest`
+Workflows in `.github/workflows/`:
+
+- **run-tests.yml**: `lint` (`uv run ruff check .`), `typecheck` (blocking
+  `uv run mypy src/process_improve`), `test` (pytest matrix over Python
+  3.10-3.13 and ubuntu/windows/macos), and `test-under-dash-O` (runs the suite
+  under `python -O` to catch load-bearing asserts). All jobs install with
+  `uv sync --dev --all-extras`.
+- **docs.yml**: strict Sphinx build (`-W`, notebooks executed) and GitHub
+  Pages deploy on main.
+- **publish.yml**: tag-gated PyPI publish (see Versioning above).
+- **codeql.yml**: weekly and per-PR security scanning.
 
 ## Documentation
 
@@ -159,11 +183,14 @@ pytest -o "addopts="
 
 ## Adding New Methods to PCA/PLS
 
-1. Add the method to the class in `process_improve/multivariate/methods.py`
+1. Add the method to the class: PCA lives in `src/process_improve/multivariate/_pca.py`,
+   PLS in `_pls.py` (shared plotting in `plots.py`, limits in `_limits.py`,
+   diagnostics in `_diagnostics.py`; `methods.py` is only a re-export shim)
 2. Use NumPy-style docstring with Parameters, Returns, Examples sections
-3. Add tests in `tests/test_multivariate.py` using both real datasets and synthetic data
+3. Add tests in `tests/test_multivariate.py` (or the more specific
+   `tests/test_multivariate_*.py` file) using both real datasets and synthetic data
 4. If the method needs to be on both PCA and PLS, implement on both with the same API signature
-5. Run `pytest tests/test_multivariate.py -v -o "addopts="` to verify
+5. Run `uv run pytest tests/test_multivariate.py --no-cov` to verify
 
 ## Git & PR workflow (for Claude Code sessions)
 

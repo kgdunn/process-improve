@@ -1,6 +1,6 @@
 [project]
 name = "process-improve"
-version = "1.52.0"
+version = "1.55.0"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = "MIT"
@@ -80,6 +80,15 @@ fast = ["numba>=0.63.1"]
 # CBC solver in its wheels, so no system package is required.
 ilp = ["pulp>=2.8"]
 
+# NOTE: ``pyoptex`` (coordinate-exchange I-/A-optimal and split-plot designs in
+# ``experiments.designs_optimal``) is intentionally *not* a declared extra. Its
+# latest release (1.2.1) pins ``plotly~=5.24`` (i.e. < 6), which conflicts with
+# this project's ``plotly>=6.5.2`` floor in the ``plotting``/``all`` extras. A
+# single environment cannot satisfy both, so declaring a ``pyoptex`` extra would
+# make ``uv sync --all-extras`` (used by CI) unresolvable. Install pyoptex
+# separately in its own environment; without it, D-optimal still works via the
+# built-in point-exchange fallback.
+
 # Meta extra: reproduces the pre-ENG-13 install closure.
 all = [
     "matplotlib>=3.10.8",
@@ -137,6 +146,13 @@ dev = [
     "pandas-stubs>=2.3.3.260113",
     "plotly-stubs>=0.0.6",
     "pre-commit>=4.5.1",
+    # Coordinate-exchange optimal-design backend exercised by the pyoptex
+    # test paths in tests/test_design_generation.py and
+    # tests/test_designs_optimal_pyoptex.py. Dev-group only, NOT a published
+    # extra: pip cannot apply the [tool.uv] override-dependencies below, so
+    # advertising pyoptex in wheel metadata would make e.g. [expt]+[plotting]
+    # unresolvable for pip users until upstream ships relaxed pins.
+    "pyoptex>=1.2.1",
     "pytest>=9.0.2",
     "pytest-benchmark>=4.0.0",
     "pytest-cov>=7.0.0",
@@ -150,12 +166,18 @@ dev = [
     "watchdog>=6.0.0",
 ]
 
+[tool.uv]
+# pyoptex 1.2.1 (PyPI) pins plotly~=5.24 and numba~=0.61, which conflict with
+# the `plotting` (plotly>=6.5.2) and `fast` (numba>=0.63.1) extras. The plotly
+# relaxation is merged upstream (github.com/mborn1/pyoptex, plotly>=5.24,<7)
+# but not yet released; numba is still pinned strictly upstream. These
+# overrides match this project's own floors, so they change nothing else.
+# Drop the plotly override once a pyoptex release ships the relaxed pin.
+override-dependencies = [
+    "plotly>=6.5.2",
+    "numba>=0.63.1",
+]
 
-[tool.black]
-line-length = 120
-# skip-string-normalization = true
-# Prevent Black from being too aggressive with parentheses
-# magic-trailing-comma = false
 
 [tool.mypy]
 ignore_missing_imports = true
