@@ -3,7 +3,8 @@
 Mirrors the analysis in the pid-book chapter
 ``product-development-product-improvement/multivariate-process-monitoring.rst``
 (the "Keeping a model current" section): a static PLS soft sensor drifts, an
-adaptive PLS tracks it, monitoring statistics flag the drift, and the distance
+adaptive PLS tracks it, monitoring statistics flag the drift, the adaptation
+splits into a preprocessing channel and a kernel channel, and the distance
 metric shows the model ageing. The chapter shows the equivalent Plotly code; the
 committed figures are these matplotlib renderings.
 
@@ -29,7 +30,14 @@ import pandas as pd
 from process_improve.multivariate import AdaptivePLS
 
 DATA_URL = "https://openmv.net/file/vapor-pressure.csv"
-plt.rcParams.update({"font.size": 11, "axes.grid": True, "grid.alpha": 0.3, "figure.dpi": 140})
+A = 3  # number of PLS components, used throughout
+DARK_BLUE = "#1f3d7a"  # default line colour for all figures
+ORANGE = "#c55a11"
+GREY = "0.45"
+plt.rcParams.update({
+    "font.size": 11, "axes.grid": True, "grid.alpha": 0.3, "figure.dpi": 140,
+    "axes.prop_cycle": mpl.cycler(color=[DARK_BLUE]),
+})
 
 
 def bias_std_rmsep(err: np.ndarray, mask: np.ndarray) -> tuple[float, float, float]:
@@ -51,6 +59,7 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
     post = lab["month"].to_numpy() >= drift_month
 
     Xrow = vp[tags].to_numpy()
+    month = vp["month"].to_numpy()
 
     def stream(model, learn=None, y_update=None) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         pred = np.zeros(len(vp))
@@ -69,7 +78,7 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
         return pred, t2, spe, dist
 
     static = AdaptivePLS(
-        n_components=3, forgetting_factor=0, gamma=0, lambda_center=0, alpha_scale=0,
+        n_components=A, forgetting_factor=0, gamma=0, lambda_center=0, alpha_scale=0,
         lambda_center_y=0, alpha_scale_y=0, adaptive_spe_limit=False, conf_level=0.99,
     ).fit(lab.loc[seed, tags], lab.loc[seed, ["vapour_pressure_kpa"]])
     static_pred, static_t2, static_spe, _ = stream(static)
@@ -85,43 +94,73 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
         return out
 
     adaptive = AdaptivePLS(
-        n_components=3, forgetting_factor=0.01, gamma=0.05, lambda_center=0.003, alpha_scale=0.012,
+        n_components=A, forgetting_factor=0.01, gamma=0.05, lambda_center=0.003, alpha_scale=0.012,
         lambda_center_y=0.12, alpha_scale_y=0.05, update_when_out_of_control=True, conf_level=0.99,
     ).fit(lab.loc[seed, tags], lab.loc[seed, ["vapour_pressure_kpa"]])
-    adaptive_pred, _, _, distance = stream(
-        adaptive, learn=learn, y_update=ewma_smooth(vp["vapour_pressure_kpa"].to_numpy())
-    )
+    # frozen seed snapshot for the channel decomposition
+    mx0, sx0, my0, sy0 = adaptive.mx_.copy(), adaptive.sx_.copy(), adaptive.my_.copy(), adaptive.sy_.copy()
+    beta0 = adaptive._beta_scaled.copy()
+    norm_beta0 = float(np.linalg.norm(beta0))
+    y_update = ewma_smooth(vp["vapour_pressure_kpa"].to_numpy())
 
-    month = vp["month"].to_numpy()
+    prep_ch = np.full(len(vp), np.nan)
+    kernel_ch = np.full(len(vp), np.nan)
+    center_shift = np.zeros(len(vp))
+    beta_shift = np.zeros(len(vp))
+    adaptive_pred = np.zeros(len(vp))
+    distance = np.zeros(len(vp))
+    for i in range(len(vp)):
+        x0 = Xrow[i]
+        xs_cur = np.nan_to_num((x0 - adaptive.mx_) / adaptive.sx_, nan=0.0)
+        xs_seed = np.nan_to_num((x0 - mx0) / sx0, nan=0.0)
+        y_seed = float((my0 + sy0 * (beta0.T @ xs_seed))[0])
+        y_prep = float((adaptive.my_ + adaptive.sy_ * (beta0.T @ xs_cur))[0])
+        y_full = float((adaptive.my_ + adaptive.sy_ * (adaptive._beta_scaled.T @ xs_cur))[0])
+        center_shift[i] = float(np.linalg.norm((adaptive.mx_ - mx0) / sx0))
+        beta_shift[i] = float(np.linalg.norm(adaptive._beta_scaled - beta0)) / norm_beta0
+        if learn[i]:
+            prep_ch[i] = y_prep - y_seed
+            kernel_ch[i] = y_full - y_prep
+            yv = None if np.isnan(y_update[i]) else np.array([y_update[i]])
+            out = adaptive.update(x0, y_row=yv)
+            adaptive_pred[i], distance[i] = out.prediction[0], out.distance
+        else:
+            adaptive_pred[i] = y_full
+            distance[i] = distance[i - 1] if i else A
+
     err_static = static_pred[lab_rows] - y_lab
     err_adaptive = adaptive_pred[lab_rows] - y_lab
+    lab_month = lab["month"].to_numpy()
 
     # Fig 1: motivation
     fig, ax = plt.subplots(figsize=(8.2, 3.3))
-    ax.plot(lab["month"], y_lab, ".", ms=4, color="0.35", label="Lab reference")
-    ax.plot(month, static_pred, "-", lw=0.9, color="tab:red", label="Static PLS prediction")
+    ax.plot(lab_month, y_lab, ".", ms=4, color=GREY, label="Lab reference")
+    ax.plot(month, static_pred, "-", lw=0.9, color=DARK_BLUE, label="Static PLS prediction")
     ax.axvline(drift_month, color="k", ls="--", lw=1)
     ax.text(drift_month + 0.3, 92, "drift established", fontsize=9)
     ax.set_ylim(15, 100)
-    ax.set_xlabel("Months since start of record")
-    ax.set_ylabel("Vapour pressure (kPa)")
+    ax.set_xlabel("Time since start of record [months]")
+    ax.set_ylabel("Vapour pressure [kPa]")
     ax.legend(loc="upper left", fontsize=9, framealpha=0.9)
     fig.tight_layout()
     fig.savefig(out_dir / "adaptive-softsensor-motivation.png")
     plt.close(fig)
 
-    # Fig 2: monitoring
+    # Fig 2: monitoring, with asterisks marking the lab-sample times
     fig, (a1, a2) = plt.subplots(2, 1, figsize=(8.2, 4.2), sharex=True)
-    a1.plot(month, static_t2, lw=0.5, color="tab:blue")
+    a1.plot(month, static_t2, lw=0.5, color=DARK_BLUE)
     a1.axhline(t2_lim, color="k", lw=1)
+    a1.plot(lab_month, np.full_like(lab_month, 30.0), "*", ms=5, color=ORANGE, label="Lab sample")
     a1.set_ylim(0, 3 * t2_lim)
     a1.set_ylabel("Hotelling's $T^2$")
     a1.set_title("99% limits", fontsize=10)
-    a2.plot(month, static_spe, lw=0.5, color="tab:red")
+    a1.legend(loc="upper right", fontsize=8)
+    a2.plot(month, static_spe, lw=0.5, color=DARK_BLUE)
     a2.axhline(spe_lim, color="k", lw=1)
+    a2.plot(lab_month, np.full_like(lab_month, 20.0), "*", ms=5, color=ORANGE)
     a2.set_ylim(0, 3 * spe_lim)
     a2.set_ylabel("SPE")
-    a2.set_xlabel("Months since start of record")
+    a2.set_xlabel("Time since start of record [months]")
     for a in (a1, a2):
         a.axvline(drift_month, color="k", ls="--", lw=1)
     fig.tight_layout()
@@ -132,33 +171,66 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
     fig, ax = plt.subplots(figsize=(8.2, 3.3))
     ax.axhspan(-3, 3, color="0.85", alpha=0.6)
     ax.axhline(0, color="0.6", lw=0.8)
-    ax.plot(lab["month"], err_static, "o", ms=4.5, color="tab:red", alpha=0.6, label="Static PLS")
-    ax.plot(lab["month"], err_adaptive, "o", ms=4.5, color="tab:blue", alpha=0.6, label="Adaptive PLS")
+    ax.plot(lab_month, err_static, "o", ms=4.5, color=ORANGE, alpha=0.6, label="Static PLS")
+    ax.plot(lab_month, err_adaptive, "o", ms=4.5, color=DARK_BLUE, alpha=0.7, label="Adaptive PLS")
     ax.axvline(drift_month, color="k", ls="--", lw=1)
     ax.set_ylim(-20, 22)
-    ax.set_xlabel("Months since start of record")
-    ax.set_ylabel("Prediction error (kPa)")
+    ax.set_xlabel("Time since start of record [months]")
+    ax.set_ylabel("Prediction error [kPa]")
     ax.legend(loc="lower left", fontsize=9, ncol=2)
     fig.tight_layout()
     fig.savefig(out_dir / "adaptive-softsensor-payoff.png")
     plt.close(fig)
 
-    # Fig 4: diagnostics (distance metric)
+    # Fig 4: diagnostics (distance metric), zoomed to the meaningful band
     fig, ax = plt.subplots(figsize=(8.2, 3.0))
-    ax.plot(month, distance, lw=0.8, color="tab:purple")
-    ax.axhline(3, color="0.6", ls=":", lw=1)
+    ax.plot(month, distance, lw=0.8, color=DARK_BLUE)
+    ax.axhline(A, color="0.6", ls=":", lw=1)
     ax.axvline(drift_month, color="k", ls="--", lw=1)
-    ax.set_ylim(0, 3.2)
-    ax.set_xlabel("Months since start of record")
-    ax.set_ylabel("Subspace overlap with seed model")
+    ax.set_ylim(1.5, 3.05)
+    ax.set_xlabel("Time since start of record [months]")
+    ax.set_ylabel("Subspace overlap [components]")
     fig.tight_layout()
     fig.savefig(out_dir / "adaptive-softsensor-diagnostics.png")
     plt.close(fig)
 
-    print(f"wrote 4 figures to {out_dir}")
+    # Fig 5: adaptation decomposition (preprocessing vs kernel channels + state drift)
+    fig, (b1, b2) = plt.subplots(2, 1, figsize=(8.2, 5.0), sharex=True)
+    b1.axhline(0, color="0.6", lw=0.8)
+    b1.plot(month, prep_ch, lw=0.8, color=DARK_BLUE, label="Centering + scaling channel")
+    b1.plot(month, kernel_ch, lw=0.8, color=ORANGE, label="Kernel channel")
+    b1.set_ylim(-25, 25)
+    b1.set_ylabel("Correction vs static [kPa]")
+    b1.axvline(drift_month, color="k", ls="--", lw=1)
+    b1.legend(loc="upper left", fontsize=8, framealpha=0.9)
+    b1.set_title("What drives the adaptation", fontsize=10)
+    b2.axvline(drift_month, color="k", ls="--", lw=1)
+    ln1, = b2.plot(month, center_shift, lw=1.0, color=DARK_BLUE, label="Centre migration (preprocessing)")
+    b2.set_ylabel("Centre migration [seed SD]", color=DARK_BLUE)
+    b2.tick_params(axis="y", labelcolor=DARK_BLUE)
+    b2.set_ylim(0, 13)
+    b2b = b2.twinx()
+    ln2, = b2b.plot(month, A - distance, lw=1.0, color=ORANGE, label="Subspace rotation (kernel)")
+    b2b.set_ylabel("Subspace rotation [components]", color=ORANGE)
+    b2b.tick_params(axis="y", labelcolor=ORANGE)
+    b2b.set_ylim(0, A)
+    b2b.grid(visible=False)
+    b2.set_xlabel("Time since start of record [months]")
+    b2.legend(handles=[ln1, ln2], loc="upper left", fontsize=8, framealpha=0.9)
+    fig.tight_layout()
+    fig.savefig(out_dir / "adaptive-softsensor-decomposition.png")
+    plt.close(fig)
+
+    print(f"wrote 5 figures to {out_dir}")
     print("static post-drift  bias/std/RMSEP:", tuple(round(v, 1) for v in bias_std_rmsep(err_static, post)))
     print("adaptive post-drift bias/std/RMSEP:", tuple(round(v, 1) for v in bias_std_rmsep(err_adaptive, post)))
     print("distance ages", round(distance[0], 2), "->", round(distance[-1], 2))
+    valid_prep = prep_ch[~np.isnan(prep_ch)]
+    valid_ker = kernel_ch[~np.isnan(kernel_ch)]
+    print("channel magnitudes (median |kPa|): preprocessing",
+          round(float(np.median(np.abs(valid_prep))), 2), "| kernel", round(float(np.median(np.abs(valid_ker))), 2))
+    print("centre migration ends at", round(center_shift[-1], 2), "seed SD; beta change",
+          round(beta_shift[-1] * 100, 0), "%")
 
 
 if __name__ == "__main__":
