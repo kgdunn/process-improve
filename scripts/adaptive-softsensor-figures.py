@@ -85,7 +85,7 @@ def main(out_dir: Path) -> None:  # noqa: PLR0915
         return out
 
     adaptive = AdaptivePLS(
-        n_components=3, forgetting_factor=0.003, gamma=0.1, lambda_center=0.012, alpha_scale=0.012,
+        n_components=3, forgetting_factor=0.01, gamma=0.05, lambda_center=0.003, alpha_scale=0.012,
         lambda_center_y=0.12, alpha_scale_y=0.05, update_when_out_of_control=True, conf_level=0.99,
     ).fit(lab.loc[seed, tags], lab.loc[seed, ["vapour_pressure_kpa"]])
     adaptive_pred, _, _, distance = stream(
