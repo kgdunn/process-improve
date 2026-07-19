@@ -456,3 +456,94 @@ def test_envelope_tracking_reduces_drift_bias() -> None:
 
     late = slice(200, None)
     assert abs(np.mean(adaptive_err[late])) < abs(np.mean(frozen_err[late]))
+
+
+# --------------------------------------------------------------------------- #
+# Adaptation diagnostics (preprocessing vs kernel channels, state drift)
+# --------------------------------------------------------------------------- #
+
+
+def test_prediction_channels_sum_to_adaptive(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """Check static + preprocessing + kernel == adaptive == the streamed prediction."""
+    X, Y = synthetic_pls_data
+    model = AdaptivePLS(
+        n_components=3, forgetting_factor=0.05, gamma=0.1, lambda_center=0.03,
+        alpha_scale=0.02, lambda_center_y=0.05, update_when_out_of_control=True,
+    ).fit(X.iloc[:90], Y.iloc[:90])
+    model.partial_fit(X.iloc[90:], Y.iloc[90:])
+    ch = model.prediction_channels_
+    np.testing.assert_allclose(ch["adaptive"], ch["static"] + ch["preprocessing"] + ch["kernel"], atol=1e-9)
+    np.testing.assert_allclose(ch["adaptive"].to_numpy(), model.predictions_.to_numpy().ravel(), atol=1e-9)
+
+
+def test_decompose_prediction_matches_predict(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """The snapshot decomposition's adaptive column equals predict() on the same rows."""
+    X, Y = synthetic_pls_data
+    model = AdaptivePLS(
+        n_components=3, forgetting_factor=0.05, gamma=0.1, update_when_out_of_control=True
+    ).fit(X.iloc[:90], Y.iloc[:90])
+    model.partial_fit(X.iloc[90:], Y.iloc[90:])
+    probe = X.iloc[:5]
+    decomposed = model.decompose_prediction(probe)
+    np.testing.assert_allclose(decomposed["adaptive"].to_numpy(), model.predict(probe).to_numpy().ravel(), atol=1e-9)
+
+
+def test_frozen_model_has_zero_drift_and_channels(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """With all forgetting factors and gamma at zero, nothing drifts and both channels are zero."""
+    X, Y = synthetic_pls_data
+    model = AdaptivePLS(
+        n_components=3, forgetting_factor=0.0, gamma=0.0, lambda_center=0.0, alpha_scale=0.0,
+        lambda_center_y=0.0, alpha_scale_y=0.0, update_when_out_of_control=True,
+    ).fit(X.iloc[:90], Y.iloc[:90])
+    model.partial_fit(X.iloc[90:], Y.iloc[90:])
+    assert float(model.center_shift_.abs().max()) == pytest.approx(0.0, abs=1e-9)
+    assert float(model.scale_shift_.abs().max()) == pytest.approx(0.0, abs=1e-9)
+    assert float(model.beta_shift_.abs().max()) == pytest.approx(0.0, abs=1e-9)
+    ch = model.prediction_channels_
+    assert float(ch["preprocessing"].abs().max()) == pytest.approx(0.0, abs=1e-9)
+    assert float(ch["kernel"].abs().max()) == pytest.approx(0.0, abs=1e-9)
+
+
+def test_center_shift_grows_under_drift() -> None:
+    """A drifting operating point makes center_shift_ increase from ~0."""
+    rng = np.random.default_rng(3)
+    n, k = 150, 5
+    base = pd.DataFrame(rng.standard_normal((n, k)), columns=[f"v{i}" for i in range(k)])
+    model = AdaptivePCA(
+        n_components=2, forgetting_factor=0.05, gamma=0.1, lambda_center=0.05,
+        alpha_scale=0.02, update_when_out_of_control=True,
+    ).fit(base)
+    for step in range(200):
+        row = rng.standard_normal(k) + 4.0 * step / 200  # slide the operating point
+        model.update(row)
+    cs = model.center_shift_
+    assert float(cs.iloc[0]) < 0.5
+    assert float(cs.iloc[-1]) > float(cs.iloc[0]) + 1.0
+
+
+def test_injection_and_kernel_norm_zero_when_not_updating(synthetic_pca_data: pd.DataFrame) -> None:
+    """Observations that do not update the model record zero injection / kernel-update norm."""
+    model = AdaptivePCA(
+        n_components=3, forgetting_factor=0.05, gamma=0.1, update_when_out_of_control=False
+    ).fit(synthetic_pca_data)
+    # A wildly out-of-control row: not learned from, so its diagnostics are zero.
+    model.update(synthetic_pca_data.iloc[0].to_numpy() + 50.0)
+    assert float(model.injection_ratio_.iloc[-1]) == 0.0
+    assert float(model.kernel_update_norm_.iloc[-1]) == 0.0
+
+
+def test_adaptation_plot_builds(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame],
+                                synthetic_pca_data: pd.DataFrame) -> None:
+    """adaptation_plot returns a Plotly figure with the channels panel only for PLS."""
+    X, Y = synthetic_pls_data
+    pls = AdaptivePLS(n_components=3, forgetting_factor=0.05, update_when_out_of_control=True).fit(
+        X.iloc[:90], Y.iloc[:90]
+    )
+    pls.partial_fit(X.iloc[90:], Y.iloc[90:])
+    fig = pls.adaptation_plot()
+    assert len(fig.data) == 7  # 3 channel + 2 preprocessing + 2 kernel traces
+
+    pca = AdaptivePCA(n_components=2, forgetting_factor=0.05, update_when_out_of_control=True).fit(synthetic_pca_data)
+    pca.partial_fit(synthetic_pca_data)
+    fig_pca = pca.adaptation_plot()
+    assert len(fig_pca.data) == 3  # 2 preprocessing + 1 kernel trace (no channels)

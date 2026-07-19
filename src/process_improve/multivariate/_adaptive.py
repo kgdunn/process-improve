@@ -31,6 +31,18 @@ algorithm (PLS). Three design choices from the source method are reproduced:
    component count ``A`` (identical) down to ``0`` (orthogonal), is insensitive
    to sign flips, and its rate of change over time helps tune ``forgetting_factor``.
 
+Adaptation is driven by two mechanisms, and the model exposes diagnostics for
+each so they can be separated. The *preprocessing* channel is the moving
+centering / scaling: ``center_shift_`` (how far the operating point has migrated
+from the seed, in seed standard-deviation units) and ``scale_shift_`` (the mean
+fractional change of the scaling vector). The *kernel* channel is the moving
+subspace / regression: ``distance_``, and for PLS ``beta_shift_``; the raw
+per-step kernel movement is ``injection_ratio_`` (the gamma term's weight) and
+``kernel_update_norm_``. For PLS, ``prediction_channels_`` and
+``decompose_prediction`` split each prediction's departure from the frozen seed
+model into these two channels in the response's own units, and
+``adaptation_plot`` renders the whole picture.
+
 The estimators seed themselves from the batch :class:`~process_improve.multivariate._pca.PCA`
 / :class:`~process_improve.multivariate._pls.PLS`, so the ``i = 0`` model, its
 limits, and its sign conventions match the rest of the package exactly. They
@@ -268,6 +280,10 @@ class _AdaptiveModel(_LatentVariableModel):
         _spe_buffer: deque[float]
         _min_spe_window: int
         _spe_limit_0: float
+        _mx0: np.ndarray
+        _sx0: np.ndarray
+        _last_injection: float
+        _last_kernel_norm: float
 
     # ---- helpers used by both subclasses -----------------------------------
 
@@ -286,7 +302,26 @@ class _AdaptiveModel(_LatentVariableModel):
         self._hist_spe: list[float] = []
         self._hist_distance: list[float] = []
         self._hist_index: list[typing.Any] = []
+        # Adaptation diagnostics (state-drift and kernel-update magnitudes).
+        self._hist_center_shift: list[float] = []
+        self._hist_scale_shift: list[float] = []
+        self._hist_injection: list[float] = []
+        self._hist_kernel_norm: list[float] = []
         self._n_updates_ = 0
+
+    def _record_state_drift(self, updated: bool) -> None:
+        """Append the per-observation preprocessing-drift and kernel-update magnitudes.
+
+        ``center_shift`` is how far the X-centering vector has migrated from the
+        seed, measured in seed standard-deviation units; ``scale_shift`` is the
+        mean fractional change of the scaling vector. ``injection`` is the gamma
+        term's weight ``f_x`` and ``kernel_norm`` the relative size of this step's
+        change to ``X'X``; both are zero on observations that did not update.
+        """
+        self._hist_center_shift.append(float(np.linalg.norm((self.mx_ - self._mx0) / self._sx0)))
+        self._hist_scale_shift.append(float(np.mean(np.abs(self.sx_ / self._sx0 - 1.0))))
+        self._hist_injection.append(self._last_injection if updated else 0.0)
+        self._hist_kernel_norm.append(self._last_kernel_norm if updated else 0.0)
 
     def _ewma_update_x(self, x0: np.ndarray) -> None:
         """Advance the X-space EWMA centering and scaling vectors by one observation.
@@ -360,6 +395,119 @@ class _AdaptiveModel(_LatentVariableModel):
         """Per-observation subspace overlap with the seed model, in units of components."""
         return pd.Series(self._hist_distance, index=self._hist_index, name="Subspace overlap (components)")
 
+    @property
+    def center_shift_(self) -> pd.Series:
+        """Per-observation X-centering migration from the seed, in seed-SD units.
+
+        The norm ``||(m_x,i - m_x,0) / s_x,0||``: how far the operating point the
+        model is centered on has moved from where it was built, expressed in the
+        seed model's standard-deviation units. Part of the *preprocessing* channel
+        of adaptation, complementary to :attr:`distance_` (the *kernel* channel).
+        """
+        return pd.Series(self._hist_center_shift, index=self._hist_index, name="Centre migration (seed SD)")
+
+    @property
+    def scale_shift_(self) -> pd.Series:
+        """Per-observation mean fractional change of the X-scaling vector from the seed.
+
+        ``mean |s_x,i / s_x,0 - 1|`` across the tags: how much the per-variable
+        spreads the model scales by have changed since the seed.
+        """
+        return pd.Series(self._hist_scale_shift, index=self._hist_index, name="Scale change (fraction)")
+
+    @property
+    def injection_ratio_(self) -> pd.Series:
+        """Per-observation gamma-injection weight ``f_x`` applied to the seed kernel.
+
+        The scalar ``f_x = gamma * ||update|| / ||X'X_0||`` re-added to ``X'X`` each
+        step; larger when the new observation carries more information relative to
+        the seed. Zero on observations that did not update the model.
+        """
+        return pd.Series(self._hist_injection, index=self._hist_index, name="Injection weight f_x")
+
+    @property
+    def kernel_update_norm_(self) -> pd.Series:
+        """Per-observation relative size of the change to ``X'X``: ``||dX'X|| / ||X'X||``.
+
+        A direct measure of how much this step moved the X-space kernel. Zero on
+        observations that did not update the model.
+        """
+        return pd.Series(self._hist_kernel_norm, index=self._hist_index, name="Kernel update (relative)")
+
+    def adaptation_plot(self, valid: np.ndarray | None = None) -> object:
+        """Plot the adaptation as preprocessing vs kernel channels and state drift.
+
+        Returns a Plotly figure. For a PLS model with a response the top panel
+        splits each prediction's departure from the frozen seed model into a
+        centering/scaling channel and a kernel (subspace/regression) channel, with
+        the total on a secondary axis; the lower panels show the preprocessing
+        drift (centre migration, scale change) and the kernel drift (subspace
+        rotation ``A - distance_``, and for PLS the regression change). For an
+        AdaptivePCA model only the two state-drift panels are shown.
+
+        Parameters
+        ----------
+        valid : array-like of bool, optional
+            Mask of observations to show in the channel panel (others are blanked,
+            for excluding held predictions on shutdown / transition rows).
+
+        Returns
+        -------
+        plotly.graph_objects.Figure
+        """
+        import plotly.graph_objects as go  # noqa: PLC0415
+        from plotly.subplots import make_subplots  # noqa: PLC0415
+
+        x = list(self._hist_index)
+        cen = np.asarray(self._hist_center_shift, dtype=float)
+        sca = np.asarray(self._hist_scale_shift, dtype=float)
+        rot = self.n_components - np.asarray(self._hist_distance, dtype=float)
+        has_channels = bool(getattr(self, "_hist_static", [])) and getattr(self, "n_targets_", None) == 1
+
+        if has_channels:
+            fig = make_subplots(
+                rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.07,
+                specs=[[{"secondary_y": True}], [{"secondary_y": False}], [{"secondary_y": False}]],
+                subplot_titles=["Prediction departure from static, by channel",
+                                "Preprocessing drift", "Kernel drift"],
+            )
+            ch = self.prediction_channels_
+            prep = ch["preprocessing"].to_numpy(dtype=float)
+            kern = ch["kernel"].to_numpy(dtype=float)
+            if valid is not None:
+                keep = np.asarray(valid, dtype=bool)
+                prep = np.where(keep, prep, np.nan)
+                kern = np.where(keep, kern, np.nan)
+            total = prep + kern
+            span = float(np.nanmax(np.abs(np.concatenate([prep, kern])))) if len(prep) else 1.0
+            span = span or 1.0
+            fig.add_trace(go.Scatter(x=x, y=prep, name="Centering + scaling",
+                line=dict(color="#1f4e79", width=1)), row=1, col=1, secondary_y=False)
+            fig.add_trace(go.Scatter(x=x, y=kern, name="Kernel (subspace/regression)",
+                line=dict(color="#c55a11", width=1)), row=1, col=1, secondary_y=False)
+            fig.add_trace(go.Scatter(x=x, y=total, name="Total (right axis)",
+                line=dict(color="#222222", width=1)), row=1, col=1, secondary_y=True)
+            fig.update_yaxes(title_text="Channel", range=[-1.05 * span, 1.05 * span], row=1, col=1, secondary_y=False)
+            fig.update_yaxes(title_text="Total", range=[-2.1 * span, 2.1 * span], row=1, col=1, secondary_y=True)
+            r_pre, r_ker = 2, 3
+        else:
+            fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.09,
+                subplot_titles=["Preprocessing drift", "Kernel drift"])
+            r_pre, r_ker = 1, 2
+
+        fig.add_trace(go.Scatter(x=x, y=cen, name="Centre migration [seed SD]",
+            line=dict(color="#1f4e79", width=1)), row=r_pre, col=1)
+        fig.add_trace(go.Scatter(x=x, y=sca, name="Scale change [fraction]",
+            line=dict(color="#2e75b6", width=1, dash="dash")), row=r_pre, col=1)
+        fig.add_trace(go.Scatter(x=x, y=rot, name="Subspace rotation (A - distance)",
+            line=dict(color="#c55a11", width=1)), row=r_ker, col=1)
+        if has_channels:
+            fig.add_trace(go.Scatter(x=x, y=self._hist_beta_shift, name="Regression change",
+                line=dict(color="#e0912f", width=1, dash="dash")), row=r_ker, col=1)
+        fig.update_layout(height=270 * (3 if has_channels else 2),
+            margin=dict(l=70, r=70, t=40, b=40), legend=dict(font=dict(size=9)))
+        return fig
+
 
 # -----------------------------------------------------------------------------
 # Adaptive PCA.
@@ -409,6 +557,12 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
     distance_ : pd.Series
         Per-update subspace overlap with the seed model, in units of components
         (``n_components`` = identical, ``0`` = orthogonal).
+    center_shift_, scale_shift_ : pd.Series
+        Preprocessing-drift diagnostics: centre migration (seed-SD units) and mean
+        fractional scale change per observation.
+    injection_ratio_, kernel_update_norm_ : pd.Series
+        Kernel-update magnitudes per observation: the gamma-injection weight and
+        the relative size of the change to ``X'X``.
     scores_, hotellings_t2_, spe_ : pd.DataFrame
         Per-observation history accumulated by :meth:`update`.
     """
@@ -476,6 +630,10 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         self._scaler = MCUVScaler().fit(X_df)
         self.mx_ = self._scaler.center_.to_numpy(dtype=float).copy()
         self.sx_ = self._scaler.scale_.to_numpy(dtype=float).copy()
+        self._mx0 = self.mx_.copy()  # frozen seed centre / scale for the drift diagnostics
+        self._sx0 = self.sx_.copy()
+        self._last_injection = 0.0
+        self._last_kernel_norm = 0.0
 
         Xs = np.nan_to_num(self._scaler.transform(X_df).to_numpy(dtype=float), nan=0.0)
         self.XtX0_ = Xs.T @ Xs
@@ -556,14 +714,20 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
     def _recompute(self, x_scaled: np.ndarray) -> None:
         """Update the kernel with one scaled observation and recompute the loadings."""
         mu = self.forgetting_factor
+        prev_xx = self.XtX_
         update_xx = mu * np.outer(x_scaled, x_scaled)
         # Nuclear norm (= trace for PSD) throughout, for consistency with the
         # re-scale below; the rank-1 update's trace equals its Frobenius norm.
         f_x = self.gamma * float(np.trace(update_xx)) / self._norm_xx0 if self._norm_xx0 > 0 else 0.0
-        self.XtX_ = (1.0 - mu) * self.XtX_ + update_xx + f_x * self.XtX0_
-        norm_xx = float(np.trace(self.XtX_))
+        new_xx = (1.0 - mu) * prev_xx + update_xx + f_x * self.XtX0_
+        norm_xx = float(np.trace(new_xx))
         if norm_xx > epsqrt:
-            self.XtX_ *= self._norm_xx0 / norm_xx
+            new_xx = new_xx * (self._norm_xx0 / norm_xx)
+        # Diagnostics: injection weight and the relative size of this step's change.
+        self._last_injection = f_x
+        denom = float(np.linalg.norm(prev_xx))
+        self._last_kernel_norm = float(np.linalg.norm(new_xx - prev_xx)) / denom if denom > 0 else 0.0
+        self.XtX_ = new_xx
 
         loadings, eigenvalues = _kernel_pca(self.XtX_, self.n_components)
         signs = _sign_align(loadings, self._loadings)
@@ -617,6 +781,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         self._hist_t2.append(t2)
         self._hist_spe.append(spe)
         self._hist_distance.append(distance)
+        self._record_state_drift(updated)
         self._hist_index.append(label if label is not None else len(self._hist_index))
         return Bunch(
             scores=t,
@@ -680,6 +845,17 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         The current regression coefficients mapping raw X to raw Y.
     distance_ : pd.Series
         Per-update subspace overlap (on the weights ``W``) with the seed model.
+    center_shift_, scale_shift_ : pd.Series
+        Preprocessing-drift diagnostics: X-centre migration (seed-SD units) and
+        mean fractional scale change per observation.
+    beta_shift_ : pd.Series
+        Relative change of the scaled regression from the seed, per observation.
+    injection_ratio_, kernel_update_norm_ : pd.Series
+        Kernel-update magnitudes per observation (gamma-injection weight and
+        relative change to ``X'X``).
+    prediction_channels_ : pd.DataFrame
+        Per-observation prediction split into ``static`` / ``preprocessing`` /
+        ``kernel`` / ``adaptive`` channels (see :meth:`decompose_prediction`).
     scores_, hotellings_t2_, spe_, predictions_ : pd.DataFrame
         Per-observation history accumulated by :meth:`update`.
     """
@@ -699,6 +875,14 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         n_targets_: int
         _feature_names: pd.Index
         _target_names: pd.Index
+        _my0: np.ndarray
+        _sy0: np.ndarray
+        _beta0: np.ndarray
+        _norm_beta0: float
+        _hist_static: list[np.ndarray]
+        _hist_prep: list[np.ndarray]
+        _hist_kern: list[np.ndarray]
+        _hist_beta_shift: list[float]
 
     def __init__(  # noqa: PLR0913
         self,
@@ -727,7 +911,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self.spe_limit_window = spe_limit_window
         self.conf_level = conf_level
 
-    def fit(self, X: DataMatrix, Y: DataMatrix) -> AdaptivePLS:
+    def fit(self, X: DataMatrix, Y: DataMatrix) -> AdaptivePLS:  # noqa: PLR0915
         """Seed the adaptive PLS model from a block of common-cause data.
 
         Parameters
@@ -793,6 +977,17 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self._recompute_from_kernels(align_to=None)
         self.weights0_ = self._weights.copy()
 
+        # Frozen seed snapshot for the adaptation diagnostics (prediction-channel
+        # split and the beta-drift metric).
+        self._mx0 = self.mx_.copy()
+        self._sx0 = self.sx_.copy()
+        self._my0 = self.my_.copy()
+        self._sy0 = self.sy_.copy()
+        self._beta0 = self._beta_scaled.copy()
+        self._norm_beta0 = float(np.linalg.norm(self._beta0)) or 1.0
+        self._last_injection = 0.0
+        self._last_kernel_norm = 0.0
+
         self._t2_limit_0 = _hotellings_t2_limit(conf_level=self.conf_level, n_components=A, n_rows=N)
         seed_spe = seed.spe_.iloc[:, A - 1].to_numpy(dtype=float)
         self._spe_limit_0 = spe_calculation(seed_spe, conf_level=self.conf_level)
@@ -801,8 +996,36 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self._spe_buffer.extend((seed_spe**2).tolist())
 
         self._hist_pred: list[np.ndarray] = []
+        self._hist_static = []
+        self._hist_prep = []
+        self._hist_kern = []
+        self._hist_beta_shift = []
         self._init_history()
         return self
+
+    def _channel_split(self, x0: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Split the current model's prediction for one raw row into seed + two channels.
+
+        Returns ``(static, preprocessing, kernel, adaptive)`` prediction vectors,
+        each of length ``M``, where ``adaptive = static + preprocessing + kernel``:
+
+        - ``static``: the frozen seed model's prediction (seed centering/scaling
+          and seed regression);
+        - ``preprocessing``: the extra correction from the *moved* centering /
+          scaling vectors, holding the regression at its seed value;
+        - ``kernel``: the further correction from the *moved* subspace / regression
+          (the kernels), on top of the updated preprocessing.
+
+        The split is exact by a one-at-a-time swap and uses the current model
+        state, so streamed on each observation it attributes the departure from
+        the static model to the two mechanisms.
+        """
+        xs_cur = np.nan_to_num((x0 - self.mx_) / self.sx_, nan=0.0)
+        xs_seed = np.nan_to_num((x0 - self._mx0) / self._sx0, nan=0.0)
+        y_seed = self._my0 + self._sy0 * (self._beta0.T @ xs_seed)
+        y_prep = self.my_ + self.sy_ * (self._beta0.T @ xs_cur)
+        y_full = self.my_ + self.sy_ * (self._beta_scaled.T @ xs_cur)
+        return y_seed, y_prep - y_seed, y_full - y_prep, y_full
 
     def _recompute_from_kernels(self, align_to: np.ndarray | None) -> None:
         """Recompute W, P, R, C and beta from the current kernels; sign-align if asked."""
@@ -880,12 +1103,18 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         # Nuclear norm (= trace for the PSD X'X, = sum of singular values for the
         # cross-kernel X'Y) is used consistently in the injection ratio and the
         # re-scale; the rank-1 update terms are norm-choice invariant.
+        prev_xx = self.XtX_
         update_xx = mu * np.outer(x_scaled, x_scaled)
         f_x = self.gamma * float(np.trace(update_xx)) / self._norm_xx0 if self._norm_xx0 > 0 else 0.0
-        self.XtX_ = (1.0 - mu) * self.XtX_ + update_xx + f_x * self.XtX0_
-        norm_xx = float(np.trace(self.XtX_))
+        new_xx = (1.0 - mu) * prev_xx + update_xx + f_x * self.XtX0_
+        norm_xx = float(np.trace(new_xx))
         if norm_xx > epsqrt:
-            self.XtX_ *= self._norm_xx0 / norm_xx
+            new_xx = new_xx * (self._norm_xx0 / norm_xx)
+        # Diagnostics: injection weight and relative size of this step's X'X change.
+        self._last_injection = f_x
+        denom = float(np.linalg.norm(prev_xx))
+        self._last_kernel_norm = float(np.linalg.norm(new_xx - prev_xx)) / denom if denom > 0 else 0.0
+        self.XtX_ = new_xx
 
         if y_scaled is not None and self._norm_xy0 > 0:
             update_xy = mu * np.outer(x_scaled, y_scaled)
@@ -920,6 +1149,9 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         check_is_fitted(self, "mx_")
         x0 = np.asarray(x_row, dtype=float).ravel()
         t, t2, spe, y_hat, _ = self._project(x0)
+        # Attribution of this (deployed) prediction to the two adaptation channels,
+        # using the pre-update state so it is consistent with y_hat above.
+        static_ch, prep_ch, kernel_ch, _ = self._channel_split(x0)
         spe_limit = self._current_spe_limit()
         all_missing = bool(np.isnan(x0).all())
         in_control = (t2 <= self._t2_limit_0) and (spe <= spe_limit) and not all_missing
@@ -954,6 +1186,11 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         self._hist_spe.append(spe)
         self._hist_pred.append(y_hat)
         self._hist_distance.append(distance)
+        self._hist_static.append(static_ch)
+        self._hist_prep.append(prep_ch)
+        self._hist_kern.append(kernel_ch)
+        self._hist_beta_shift.append(float(np.linalg.norm(self._beta_scaled - self._beta0)) / self._norm_beta0)
+        self._record_state_drift(updated)
         self._hist_index.append(label if label is not None else len(self._hist_index))
         return Bunch(
             scores=t,
@@ -972,6 +1209,86 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         """Per-observation response predictions accumulated by :meth:`update`."""
         data = np.array(self._hist_pred, dtype=float).reshape(-1, self.n_targets_)
         return pd.DataFrame(data, index=self._hist_index, columns=self._target_names)
+
+    def _channels_frame(
+        self, static: typing.Any, prep: typing.Any, kern: typing.Any, index: typing.Any  # noqa: ANN401
+    ) -> pd.DataFrame:
+        """Assemble a static / preprocessing / kernel / adaptive channel DataFrame.
+
+        For a single response the columns are ``static``, ``preprocessing``,
+        ``kernel`` and ``adaptive`` (their sum). For several responses the columns
+        are a two-level ``(target, channel)`` index.
+        """
+        static_a = np.asarray(static, dtype=float).reshape(-1, self.n_targets_)
+        prep_a = np.asarray(prep, dtype=float).reshape(-1, self.n_targets_)
+        kern_a = np.asarray(kern, dtype=float).reshape(-1, self.n_targets_)
+        adaptive_a = static_a + prep_a + kern_a
+        if self.n_targets_ == 1:
+            return pd.DataFrame(
+                {"static": static_a[:, 0], "preprocessing": prep_a[:, 0],
+                 "kernel": kern_a[:, 0], "adaptive": adaptive_a[:, 0]},
+                index=index,
+            )
+        data: dict[tuple[object, str], np.ndarray] = {}
+        for j, name in enumerate(self._target_names):
+            data[(name, "static")] = static_a[:, j]
+            data[(name, "preprocessing")] = prep_a[:, j]
+            data[(name, "kernel")] = kern_a[:, j]
+            data[(name, "adaptive")] = adaptive_a[:, j]
+        frame = pd.DataFrame(data, index=index)
+        frame.columns = pd.MultiIndex.from_tuples(list(data.keys()), names=["target", "channel"])
+        return frame
+
+    @property
+    def beta_shift_(self) -> pd.Series:
+        """Per-observation relative change of the scaled regression from the seed.
+
+        ``||beta_i - beta_0|| / ||beta_0||`` on the scaled-space coefficients: the
+        *kernel* channel's effect on the regression, complementary to the
+        subspace-only :attr:`distance_`.
+        """
+        return pd.Series(self._hist_beta_shift, index=self._hist_index, name="Regression change (relative)")
+
+    @property
+    def prediction_channels_(self) -> pd.DataFrame:
+        """Per-observation prediction split into static, preprocessing and kernel channels.
+
+        Streamed by :meth:`update` (using each observation's deployed state), the
+        columns attribute the prediction's departure from the frozen seed model to
+        the moving centering / scaling (``preprocessing``) and the moving subspace
+        / regression (``kernel``); ``adaptive = static + preprocessing + kernel``.
+        """
+        return self._channels_frame(self._hist_static, self._hist_prep, self._hist_kern, self._hist_index)
+
+    def decompose_prediction(self, X: DataMatrix) -> pd.DataFrame:
+        """Split the *current* model's prediction for each row of ``X`` into channels.
+
+        A snapshot version of :attr:`prediction_channels_` for arbitrary rows: it
+        uses the model's current state, and returns the static (seed) prediction
+        plus the preprocessing and kernel corrections that carry it to the
+        adaptive prediction.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Rows to decompose (no model update is performed).
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns ``static``, ``preprocessing``, ``kernel``, ``adaptive`` for a
+            single response, or a ``(target, channel)`` column MultiIndex for
+            several responses.
+        """
+        check_is_fitted(self, "mx_")
+        X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X))
+        s_list, p_list, k_list = [], [], []
+        for _, row in X_df.iterrows():
+            st, pr, kr, _ = self._channel_split(row.to_numpy(dtype=float))
+            s_list.append(st)
+            p_list.append(pr)
+            k_list.append(kr)
+        return self._channels_frame(s_list, p_list, k_list, X_df.index)
 
     def transform(self, X: DataMatrix) -> pd.DataFrame:
         """Project data onto the *current* model, returning the X scores (no update)."""
