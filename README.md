@@ -70,13 +70,6 @@ practitioners actually use on real plant and lab data:
 Outputs are `pandas`-native: scores, loadings, and predictions keep your row
 and column labels.
 
-> **Scale:** the estimators are *in-memory* - they assume the (scaled) data
-> matrix fits in RAM, plus a couple of working copies during `fit`. A float64
-> matrix needs about `rows x cols x 8 bytes` (e.g. 10M x 200 is ~16 GB). For
-> the practical limits and guidance on larger-than-RAM data, see
-> [Scaling and memory](https://kgdunn.github.io/process-improve/scaling.html)
-> ([source](docs/scaling.rst)).
-
 It is the companion package to the online textbook
 [Process Improvement using Data](https://learnche.org/pid).
 
