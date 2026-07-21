@@ -79,7 +79,7 @@ It is the companion package to the online textbook
 follows the same conventions (`fit`, `predict`, `score`, the `_` suffix on fitted
 attributes), so its estimators drop straight into `Pipeline`, `GridSearchCV`, and
 `cross_val_score`. What it adds is the process-analytics layer on top: the
-diagnostics that tell you whether a new batch is normal, which variable moved, and
+diagnostics that tell you whether a new observation is normal, which variable moved, and
 how confident the prediction is.
 
 | Capability                                        | scikit-learn | process-improve |
