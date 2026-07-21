@@ -79,6 +79,58 @@ Use cross-validation to select the number of PCA components:
    print(f"Recommended: {result.n_components} components")
    print(f"PRESS ratios: {result.press_ratio}")
 
+On-line Monitoring (Adaptive PCA / PLS)
+---------------------------------------
+
+Batch models go stale as soon as the process drifts. ``AdaptivePCA`` and
+``AdaptivePLS`` seed themselves from a batch fit, then keep learning as data
+streams in, one observation at a time. Pass **raw** data: the adaptive model
+mean-centres and scales internally.
+
+.. code-block:: python
+
+   from process_improve.multivariate import AdaptivePCA
+
+   # Seed on a block of known-good ("common cause") data
+   monitor = AdaptivePCA(n_components=3).fit(X_reference)
+
+   # Feed live observations one row at a time
+   for _, row in X_stream.iterrows():
+       result = monitor.update(row.to_numpy())
+       if not result.in_control:
+           print(f"Out of control: SPE={result.spe:.2f}, T2={result.hotellings_t2:.2f}")
+
+   # Drift diagnostics accumulated over the stream
+   monitor.distance_       # subspace drift, in units of components
+   monitor.center_shift_   # operating-point migration, in training-SD units
+
+``AdaptivePLS`` does the same for regression and soft sensing, and supports
+infrequently-sampled responses: the X-space model adapts every step while the
+regression part waits for the next response.
+
+Optimal & OMARS Designs
+-----------------------
+
+Beyond the textbook designs, ask for an OMARS (orthogonal minimally aliased
+response surface) or an optimal design, then grade its quality:
+
+.. code-block:: python
+
+   from process_improve.experiments import Factor, generate_design, evaluate_design
+
+   factors = [
+       Factor(name="A", low=-1, high=1),
+       Factor(name="B", low=-1, high=1),
+       Factor(name="C", low=-1, high=1),
+   ]
+
+   # OMARS: main effects clear of every second-order term
+   design = generate_design(factors, design_type="omars")
+
+   # A run-budgeted D-optimal design, scored on every quality metric
+   d_opt = generate_design(factors, design_type="d_optimal", budget=14)
+   metrics = evaluate_design(d_opt, metric="all")  # D/I/G-efficiency, aliasing, ...
+
 DOE Strategy Example
 --------------------
 
