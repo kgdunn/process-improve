@@ -225,8 +225,7 @@ reporting exactly how far the process has moved from where it was trained:
 ```python
 from process_improve.multivariate import AdaptivePCA
 
-# Seed on a block of known-good ("common cause") data. Pass RAW data:
-# the adaptive model mean-centres and scales internally.
+# Seed on a block of known-good ("common cause") data
 monitor = AdaptivePCA(n_components=3).fit(X_reference)
 
 # Feed live observations one row at a time
