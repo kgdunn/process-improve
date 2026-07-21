@@ -2,7 +2,7 @@ Process Improvement using Data
 ==============================
 
 A Python package for multivariate data analysis, designed experiments, and process
-monitoring. It covers batch modelling (PCA, PLS, TPLS) and *on-line*, self-updating
+monitoring. It covers offline model-building (PCA, PLS, TPLS) and *on-line*, self-updating
 monitoring (adaptive PCA / PLS), a designed-experiments engine that reaches past the
 textbook catalogue (OMARS and D-/I-/A-optimal designs, with a design-quality scorer),
 control charts, batch-process analysis, and descriptive sensory-panel analysis.

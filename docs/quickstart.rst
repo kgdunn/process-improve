@@ -82,8 +82,8 @@ Use cross-validation to select the number of PCA components:
 On-line Monitoring (Adaptive PCA / PLS)
 ---------------------------------------
 
-Batch models go stale as soon as the process drifts. ``AdaptivePCA`` and
-``AdaptivePLS`` seed themselves from a batch fit, then keep learning as data
+A static model goes stale as soon as the process drifts. ``AdaptivePCA`` and
+``AdaptivePLS`` seed themselves from an initial fit, then keep learning as data
 streams in, one observation at a time. Pass **raw** data: the adaptive model
 mean-centres and scales internally.
 

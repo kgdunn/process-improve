@@ -22,12 +22,12 @@ sure am I?*
 
 ## What's new
 
-The last few releases turned `process-improve` from a batch-modelling toolkit
-into an end-to-end one. Highlights (full history in [CHANGELOG.md](CHANGELOG.md)):
+The last few releases extend `process-improve` from offline model-building into
+end-to-end, on-line workflows. Highlights (full history in [CHANGELOG.md](CHANGELOG.md)):
 
 - **Models that keep up with a drifting process.** `AdaptivePCA` and
   `AdaptivePLS` (v1.55) are recursive estimators for on-line monitoring and soft
-  sensing: seed them from a batch fit, then stream one observation at a time.
+  sensing: seed them from an initial fit, then stream one observation at a time.
   They track the operating point, re-learn the correlation structure, and tell
   you - in units of components - exactly how far the process has drifted from
   where it was trained.
@@ -218,9 +218,10 @@ print(evaluate_design(d_opt, metric="all"))   # D/I/G-efficiency, aliasing, pred
 
 ### On-line monitoring with Adaptive PCA
 
-Batch models go stale the moment the process drifts. `AdaptivePCA` seeds itself
-from a batch fit, then keeps learning as data streams in - flagging faults and
-reporting exactly how far the process has moved from where it was trained:
+A static model goes stale the moment the process drifts. `AdaptivePCA` seeds
+itself from an initial fit, then keeps learning as data streams in - flagging
+faults and reporting exactly how far the process has moved from where it was
+trained:
 
 ```python
 from process_improve.multivariate import AdaptivePCA

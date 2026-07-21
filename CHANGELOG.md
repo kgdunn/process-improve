@@ -15,14 +15,14 @@ those changes.
 
 ### Documentation
 
-- Marketing refresh of the front-facing docs to catch up with the recent
+- Documentation update of the front-facing docs to catch up with the recent
   releases. The README gains a "What's new" section and runnable quick-start
   snippets for on-line monitoring with `AdaptivePCA` and for OMARS / D-optimal
   designs; the feature list and capability table now cover adaptive/on-line
   monitoring and the OMARS / optimal-design engine. The scikit-learn section is
   reframed as complementary ("Works alongside scikit-learn") rather than
-  adversarial, and the inactive `factori.al` references are removed. The Sphinx
-  landing page and quickstart guide are updated to mirror the new highlights.
+  adversarial, and the `factori.al` references are removed. The Sphinx landing
+  page and quickstart guide are updated to mirror the new highlights.
 
 ## [1.55.0] - 2026-07-19
 
