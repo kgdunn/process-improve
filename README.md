@@ -2,8 +2,8 @@
 
 **Multivariate analysis, designed experiments, and process monitoring for Python.**
 Built for the chemometrics, manufacturing, and pharma workflows where you need to
-know not just *what fits*, but *is this batch normal, which variable moved, and how
-sure am I?*
+know not just *what fits*, but *is this observation normal, which variable moved,
+and how sure am I?*
 
 [![PyPI version](https://img.shields.io/pypi/v/process-improve.svg)](https://pypi.org/project/process-improve/)
 [![Python versions](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fkgdunn%2Fprocess-improve%2Fmain%2Fpyproject.toml&label=python)](https://pypi.org/project/process-improve/)
@@ -27,7 +27,7 @@ end-to-end, on-line workflows. Highlights (full history in [CHANGELOG.md](CHANGE
 
 - **Models that keep up with a drifting process.** `AdaptivePCA` and
   `AdaptivePLS` (v1.55) are recursive estimators for on-line monitoring and soft
-  sensing: seed them from an initial fit, then stream one observation at a time.
+  sensing: start from an initial fit, then stream one observation at a time.
   They track the operating point, re-learn the correlation structure, and tell
   you - in units of components - exactly how far the process has drifted from
   where it was trained.
@@ -218,10 +218,9 @@ print(evaluate_design(d_opt, metric="all"))   # D/I/G-efficiency, aliasing, pred
 
 ### On-line monitoring with Adaptive PCA
 
-A static model goes stale the moment the process drifts. `AdaptivePCA` seeds
-itself from an initial fit, then keeps learning as data streams in - flagging
-faults and reporting exactly how far the process has moved from where it was
-trained:
+A static model goes stale the moment the process drifts. `AdaptivePCA` starts
+from an initial fit, then keeps learning as data streams in - flagging faults and
+reporting exactly how far the process has moved from where it was trained:
 
 ```python
 from process_improve.multivariate import AdaptivePCA

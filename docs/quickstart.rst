@@ -83,9 +83,9 @@ On-line Monitoring (Adaptive PCA / PLS)
 ---------------------------------------
 
 A static model goes stale as soon as the process drifts. ``AdaptivePCA`` and
-``AdaptivePLS`` seed themselves from an initial fit, then keep learning as data
-streams in, one observation at a time. Pass **raw** data: the adaptive model
-mean-centres and scales internally.
+``AdaptivePLS`` start from an initial fit, then keep learning as data streams in,
+one observation at a time. Pass **raw** data: the adaptive model mean-centres and
+scales internally.
 
 .. code-block:: python
 
