@@ -1,7 +1,9 @@
 # process-improve
 
 **Multivariate analysis, designed experiments, and process monitoring for Python.**
-Built for chemometrics, manufacturing, and pharma data - the methods that scikit-learn skips.
+Built for the chemometrics, manufacturing, and pharma workflows where you need to
+know not just *what fits*, but *is this observation normal, which variable moved,
+and how sure am I?*
 
 [![PyPI version](https://img.shields.io/pypi/v/process-improve.svg)](https://pypi.org/project/process-improve/)
 [![Python versions](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fkgdunn%2Fprocess-improve%2Fmain%2Fpyproject.toml&label=python)](https://pypi.org/project/process-improve/)
@@ -18,6 +20,27 @@ Built for chemometrics, manufacturing, and pharma data - the methods that scikit
 > ([source](docs/architecture.rst)) is the map of the codebase - package layout, the estimator
 > stack, and the MCP tool layer.
 
+## What's new
+
+The last few releases extend `process-improve` from offline model-building into
+end-to-end, on-line workflows. Highlights (full history in [CHANGELOG.md](CHANGELOG.md)):
+
+- **Models that keep up with a drifting process.** `AdaptivePCA` and
+  `AdaptivePLS` (v1.55) are recursive estimators for on-line monitoring and soft
+  sensing: start from an initial fit, then stream one observation at a time.
+  They track the operating point, re-learn the correlation structure, and tell
+  you - in units of components - exactly how far the process has drifted from
+  where it was trained.
+- **A DOE engine that goes past textbook designs.** OMARS (orthogonal minimally
+  aliased response surfaces), D-/I-/A-optimal designs, fractional-cube CCDs,
+  design augmentation (`fixed_runs=`), and an `evaluate_design` suite that scores
+  any design on D/I/G-efficiency, aliasing, and prediction variance.
+- **Sensory & descriptive panel analysis** (`process_improve.sensory`): validate
+  a panel, flag inconsistent assessors with the Mixed Assessor Model, and relate
+  attributes to product covariates - with an honest genuine-vs-proxy separation.
+- **Robust regression** (`process_improve.regression`): repeated-median and
+  Theil-Sen estimators for data with outliers, plus `OLS` and `fit_robust_lm`.
+
 ## What it does
 
 `process-improve` provides production-grade implementations of the methods
@@ -28,45 +51,47 @@ practitioners actually use on real plant and lab data:
 - **PLS** regression with a fully sklearn-compatible API, VIP scores, and
   cross-validated diagnostics
 - **TPLS** - PLS for *T-shaped (multi-block) data structures*
+- **Adaptive PCA / PLS** - recursive, self-updating models for on-line process
+  monitoring and soft sensing; they follow a drifting process one observation at
+  a time and report how far it has moved
 - **Outlier detection** combining Hotelling's T² and SPE with an ESD-based test
 - **Designed experiments** - full-factorial, fractional-factorial, and
-  response-surface designs, plus a multi-stage DOE strategy recommender
+  response-surface designs; OMARS and D-/I-/A-optimal designs; a design-quality
+  scorer (`evaluate_design`); and a multi-stage DOE strategy recommender
 - **Process monitoring** - Shewhart, CUSUM, and Holt-Winters control charts
 - **Batch data analysis** - alignment, feature extraction, and multivariate
   batch monitoring (MBPCA / MBPLS)
+- **Sensory & descriptive panel analysis** - panel validation, the Mixed Assessor
+  Model, and attribute-to-product relations with a genuine-vs-proxy separation
+- **Robust regression** - repeated-median and Theil-Sen estimators for data with
+  outliers
 - **Interactive Plotly diagnostics** bound directly to every fitted model
 
 Outputs are `pandas`-native: scores, loadings, and predictions keep your row
 and column labels.
 
-> **Scale:** the estimators are *in-memory* - they assume the (scaled) data
-> matrix fits in RAM, plus a couple of working copies during `fit`. A float64
-> matrix needs about `rows x cols x 8 bytes` (e.g. 10M x 200 is ~16 GB). For
-> the practical limits and guidance on larger-than-RAM data, see
-> [Scaling and memory](https://kgdunn.github.io/process-improve/scaling.html)
-> ([source](docs/scaling.rst)).
-
 It is the companion package to the online textbook
-[Process Improvement using Data](https://learnche.org/pid), and powers the
-statistical engine behind [factori.al](https://factori.al).
+[Process Improvement using Data](https://learnche.org/pid).
 
-## Why not scikit-learn?
+## Works alongside scikit-learn
 
-scikit-learn answers *"what fits the data?"* - `process-improve` answers
-*"is this batch normal, which variable went off, and how confident am I in the
-prediction?"* The two libraries are designed to be used together;
-`process-improve` follows sklearn conventions (`fit`, `predict`, `score`, the
-`_` suffix on fitted attributes) and drops into existing pipelines.
+`process-improve` is designed to sit *next to* scikit-learn, not replace it. It
+follows the same conventions (`fit`, `predict`, `score`, the `_` suffix on fitted
+attributes), so its estimators drop straight into `Pipeline`, `GridSearchCV`, and
+`cross_val_score`. What it adds is the process-analytics layer on top: the
+diagnostics that tell you whether a new observation is normal, which variable moved, and
+how confident the prediction is.
 
-| Capability                                       | scikit-learn | process-improve |
-| ------------------------------------------------ | :----------: | :-------------: |
-| PCA, PLS with sklearn-style API                  |       ✓      |        ✓        |
-| Missing-data fitting (NIPALS / TSR)              |       -      |        ✓        |
-| Hotelling's T² + SPE outlier limits              |       -      |        ✓        |
-| Variable-level score contributions               |       -      |        ✓        |
-| Cross-validated coefficient confidence intervals |       -      |        ✓        |
-| Multi-block models (TPLS)                         |       -      |        ✓        |
-| Designed experiments (DoE)                        |       -      |        ✓        |
+| Capability                                        | scikit-learn | process-improve |
+| ------------------------------------------------- | :----------: | :-------------: |
+| PCA, PLS with sklearn-style API                   |       ✓      |        ✓        |
+| Missing-data fitting (NIPALS / TSR)               |       -      |        ✓        |
+| Hotelling's T² + SPE outlier limits               |       -      |        ✓        |
+| Variable-level score contributions                |       -      |        ✓        |
+| Cross-validated coefficient confidence intervals  |       -      |        ✓        |
+| Multi-block models (TPLS)                          |       -      |        ✓        |
+| On-line / adaptive monitoring (recursive PCA/PLS) |       -      |        ✓        |
+| Designed experiments, incl. OMARS & optimal       |       -      |        ✓        |
 | Control charts (Shewhart / CUSUM / Holt-Winters)  |       -      |        ✓        |
 | Batch process monitoring (MBPCA / MBPLS)          |       -      |        ✓        |
 | Plotly diagnostics built in                       |       -      |        ✓        |
@@ -170,6 +195,54 @@ for s in strategy["stages"]:
     print(s["stage_number"], s["design_type"], s["estimated_runs"])
 ```
 
+### One-shot optimal & OMARS designs
+
+Ask for a ready-to-run design table and score it, in two lines:
+
+```python
+from process_improve.experiments import Factor, generate_design, evaluate_design
+
+factors = [
+    Factor(name="A", low=-1, high=1),
+    Factor(name="B", low=-1, high=1),
+    Factor(name="C", low=-1, high=1),
+]
+
+# An OMARS design: main effects clear of every second-order term
+design = generate_design(factors, design_type="omars")
+
+# Or a run-budgeted D-optimal design, then grade its quality
+d_opt = generate_design(factors, design_type="d_optimal", budget=14)
+print(evaluate_design(d_opt, metric="all"))   # D/I/G-efficiency, aliasing, prediction variance
+```
+
+### On-line monitoring with Adaptive PCA
+
+A static model goes stale the moment the process drifts. `AdaptivePCA` starts
+from an initial fit, then keeps learning as data streams in - flagging faults and
+reporting exactly how far the process has moved from where it was trained:
+
+```python
+from process_improve.multivariate import AdaptivePCA
+
+# Seed on a block of known-good ("common cause") data
+monitor = AdaptivePCA(n_components=3).fit(X_reference)
+
+# Feed live observations one row at a time
+for _, row in X_stream.iterrows():
+    result = monitor.update(row.to_numpy())
+    if not result.in_control:
+        print(f"Out-of-control point: SPE={result.spe:.2f}, T²={result.hotellings_t2:.2f}")
+
+# How far has the model drifted from its training subspace? (in units of components)
+print(monitor.distance_.tail())
+print(monitor.center_shift_.tail())   # operating-point migration, in training-SD units
+```
+
+`AdaptivePLS` does the same for regression and soft sensing, and handles
+infrequently-sampled responses: the X-space model adapts every step while the
+regression part waits for the next lab result.
+
 Longer, fully-worked versions of each example live in the
 [Quickstart guide](https://kgdunn.github.io/process-improve/quickstart.html)
 and the [`examples/`](examples/) folder.
@@ -193,7 +266,6 @@ preserved through `fit` and `transform`.
 - **Applied DoE tutorial (8 modules):**
   <https://kgdunn.github.io/process-improve/applied_doe/index.html>
 - **Companion textbook:** [Process Improvement using Data](https://learnche.org/pid)
-- **Hosted experiment-design tool:** [factori.al](https://factori.al)
 - **Local docs build:** `cd docs && make html`
 
 ## Citing process-improve
