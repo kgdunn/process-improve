@@ -11,6 +11,23 @@ those changes.
 
 ## [Unreleased]
 
+## [1.56.0] - 2026-07-22
+
+### Changed
+
+- The observational sensory relate (`process_improve.sensory.analyze_descriptive`)
+  is now influence-robust for sparse, wide predictor blocks. Both the marginal
+  associations and the cross-validated discriminator are gated on a leave-one-out
+  jackknife, so an association or predictive coefficient that rests on a single
+  high-leverage observation (a descriptor that is non-zero on only one product) is
+  demoted instead of reported as a driver. Marginal `significant` now requires both
+  Benjamini-Hochberg rejection and jackknife robustness; `discriminator_significant`
+  additionally requires the per-coefficient jackknife interval to exclude zero. The
+  jackknife reuses the existing `alpha` and the number of observations, adding no new
+  threshold, so genuine multi-observation drivers are unaffected. Each association
+  now carries `jackknife_se`, `influence_robust` and `n_supporting`; each
+  discriminator descriptor now carries `jackknife_significant`.
+
 ## [1.55.1] - 2026-07-21
 
 ### Documentation
@@ -2549,7 +2566,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.55.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.56.0...HEAD
+[1.56.0]: https://github.com/kgdunn/process-improve/compare/v1.55.1...v1.56.0
 [1.55.1]: https://github.com/kgdunn/process-improve/compare/v1.55.0...v1.55.1
 [1.55.0]: https://github.com/kgdunn/process-improve/compare/v1.54.0...v1.55.0
 [1.54.0]: https://github.com/kgdunn/process-improve/compare/v1.53.0...v1.54.0

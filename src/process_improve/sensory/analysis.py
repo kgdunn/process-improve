@@ -17,7 +17,13 @@ attribute to the product. The relate step dispatches on the validation mode:
 
 The observational relate corrects across the family of tests with
 Benjamini-Hochberg FDR and returns supporting product means with confidence
-intervals and a PCA sensory map.
+intervals and a PCA sensory map. Both the marginal associations and the
+cross-validated discriminator are additionally gated on a leave-one-out
+jackknife, so an association or predictive coefficient that rests on a single
+high-leverage observation (a predictor that is non-zero on only one product,
+common in sparse, wide descriptor blocks) is demoted rather than reported. The
+jackknife adds no threshold of its own: it reuses the same ``alpha`` and the
+number of observations, so a genuine multi-observation driver is unaffected.
 """
 
 from __future__ import annotations
@@ -29,6 +35,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
+from scipy.stats import t as t_dist
 
 from process_improve.multivariate.methods import PCA, PLS, MCUVScaler, selectivity_ratio, vip
 from process_improve.sensory.mam import MAMResult, align_scores, mixed_assessor_model
@@ -98,6 +105,16 @@ def aggregate_to_product(panel: pd.DataFrame) -> pd.DataFrame:
     return wide
 
 
+#: Minimum usable observations before the leave-one-out jackknife of an
+#: association is defined; below this an association cannot be certified as
+#: influence-robust (mirrors the ``len < 4`` guard in ``panel._mad_bands``).
+_MIN_OBS_FOR_JACKKNIFE = 4
+
+#: Correlations are clipped off +/-1 before the Fisher-z transform so ``arctanh``
+#: stays finite.
+_R_CLIP = 1.0 - 1e-12
+
+
 def _attach_fdr(records: list[dict[str, Any]], alpha: float) -> list[dict[str, Any]]:
     """Attach Benjamini-Hochberg q-values (and reject flags) to ``records``."""
     pvals = [r["p_value"] for r in records]
@@ -106,8 +123,49 @@ def _attach_fdr(records: list[dict[str, Any]], alpha: float) -> list[dict[str, A
     bh = benjamini_hochberg(np.asarray(pvals), alpha=alpha)
     for rec, q, rej in zip(records, bh.p_adjusted, bh.reject, strict=True):
         rec["q_value"] = float(q)
-        rec["significant"] = bool(rej)
+        # Harden the marginal significance: an association counts only when it also
+        # survives the leave-one-out jackknife, so a single high-leverage
+        # observation cannot manufacture a "significant" correlation.
+        rec["significant"] = bool(rej) and bool(rec.get("influence_robust", True))
     return records
+
+
+def _jackknife_correlation(x: np.ndarray, y: np.ndarray, alpha: float) -> tuple[float, bool, int]:
+    """Leave-one-out jackknife significance of a Pearson correlation.
+
+    Returns ``(jackknife_se, influence_robust, n_supporting)``. The correlation is
+    Fisher-z transformed, and ``influence_robust`` is ``True`` when the two-sided
+    ``alpha`` jackknife confidence interval for the transformed correlation excludes
+    zero, i.e. the association does not collapse when any single observation is
+    removed. A predictor that is non-zero on a single high-leverage observation has
+    one deletion that drives the correlation to zero, which inflates the jackknife
+    standard error until the interval spans zero and the association is demoted. The
+    rule introduces no threshold of its own: it reuses ``alpha`` and the number of
+    observations, so a genuine multi-observation driver stays significant while a
+    single-support spike does not.
+    """
+    n = int(x.size)
+    if n < _MIN_OBS_FOR_JACKKNIFE:
+        return float("nan"), False, n
+
+    def _z(r_value: float) -> float:
+        return float(np.arctanh(np.clip(r_value, -_R_CLIP, _R_CLIP)))
+
+    z_full = _z(float(pearsonr(x, y)[0]))
+    pseudo = np.empty(n)
+    for i in range(n):
+        keep = np.arange(n) != i
+        xi, yi = x[keep], y[keep]
+        # Removing the sole support of a spike leaves a constant column: no variance
+        # means no correlation, so the deleted-sample estimate is zero.
+        r_i = float(pearsonr(xi, yi)[0]) if xi.std() > 0 and yi.std() > 0 else 0.0
+        pseudo[i] = n * z_full - (n - 1) * _z(r_i)
+    z_mean = float(pseudo.mean())
+    se = float(pseudo.std(ddof=1) / np.sqrt(n))
+    if not np.isfinite(se) or se <= 0.0:
+        return se, False, n
+    t_crit = float(t_dist.ppf(1.0 - alpha / 2.0, df=n - 1))
+    return se, bool(abs(z_mean) > t_crit * se), n
 
 
 def _fit_pls_safe(x: pd.DataFrame, y: pd.DataFrame, n_components: int) -> tuple[PLS | None, int]:
@@ -221,8 +279,11 @@ def discriminate_observational(  # noqa: PLR0913, PLR0915
     dict
         ``per_attribute`` (the Q-squared gate per attribute), ``descriptors``
         (the per attribute-descriptor selectivity ratio, permutation q-value,
-        ``discriminator_significant`` flag and ``cluster_id``), ``clusters``
-        (the descriptor-to-cluster map), and the settings used.
+        ``jackknife_significant`` flag from the leave-one-out beta confidence
+        interval, ``discriminator_significant`` flag and ``cluster_id``),
+        ``clusters`` (the descriptor-to-cluster map), and the settings used. A
+        descriptor is ``discriminator_significant`` only when it also survives the
+        jackknife, so a coefficient carried by a single product is demoted.
     """
     x_all = covariates.loc[agg.index]
     descriptors = [c for c in x_all.columns if c != "product" and pd.api.types.is_numeric_dtype(x_all[c])]
@@ -249,17 +310,25 @@ def discriminate_observational(  # noqa: PLR0913, PLR0915
         pls, a = _fit_pls_safe(x_scaled, y_scaled, a)
 
         # 1. Leave-one-out cross-validated Q-squared gate: is the attribute
-        #    predictable from the descriptor block out of sample?
+        #    predictable from the descriptor block out of sample? The same LOO
+        #    refit also yields a jackknife confidence interval per descriptor
+        #    coefficient (Martens' uncertainty test); it is reused below so a
+        #    descriptor whose predictive weight rests on a single high-leverage
+        #    product is demoted even when it survives the permutation null.
         predictable = False
         q2_cv = float("nan")
         rmsep_cv = float("nan")
+        jack_significant: dict[str, bool] = {}
         if pls is not None and n_rows >= 5 and y_attr.std() > 0:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", RuntimeWarning)
-                cv = pls.cross_validate(x_scaled, y_scaled, cv="loo", show_progress=False)
+                cv = pls.cross_validate(
+                    x_scaled, y_scaled, cv="loo", conf_level=1.0 - alpha, show_progress=False
+                )
             q2_cv = float(cv.q_squared.iloc[0])
             rmsep_cv = float(cv.rmse_cv.iloc[0])
             predictable = q2_cv > 0.0
+            jack_significant = {str(name): bool(flag) for name, flag in cv.significant.iloc[:, 0].items()}
         per_attribute.append(
             {
                 "attribute": str(attr),
@@ -309,6 +378,7 @@ def discriminate_observational(  # noqa: PLR0913, PLR0915
                 p_raw = np.ones(k)
                 p_maxt = np.ones(k)
         for i, desc in enumerate(descriptors):
+            desc_robust = jack_significant.get(str(desc), False)
             records.append(
                 {
                     "attribute": str(attr),
@@ -316,7 +386,8 @@ def discriminate_observational(  # noqa: PLR0913, PLR0915
                     "selectivity_ratio": float(sr_values[i]),
                     "p_value": float(p_raw[i]),
                     "q_value": float(p_maxt[i]),
-                    "discriminator_significant": bool(p_maxt[i] <= alpha and predictable),
+                    "jackknife_significant": bool(desc_robust),
+                    "discriminator_significant": bool(p_maxt[i] <= alpha and predictable and desc_robust),
                     "cluster_id": clusters[str(desc)],
                 }
             )
@@ -367,7 +438,14 @@ def relate_observational(  # noqa: PLR0913
     n_permutations: int = 199,
     random_state: int = 0,
 ) -> dict[str, Any]:
-    """Relate the attribute block to measured descriptors with PLS plus correlations."""
+    """Relate the attribute block to measured descriptors with PLS plus correlations.
+
+    Each marginal association carries a Pearson ``r``, an FDR ``q_value`` and, from a
+    leave-one-out jackknife, ``jackknife_se``, ``influence_robust`` and
+    ``n_supporting``. ``significant`` requires both FDR rejection and jackknife
+    robustness, so a correlation created by a single high-leverage observation is not
+    reported as significant.
+    """
     x_block = covariates.loc[agg.index].astype(float)
     y_block = agg.astype(float)
     max_comp = max(1, min(n_components, x_block.shape[1], x_block.shape[0] - 1))
@@ -386,9 +464,20 @@ def relate_observational(  # noqa: PLR0913
         for desc in x_block.columns:
             pair = pd.concat([y_block[attr], x_block[desc]], axis=1).dropna()
             if pair.shape[0] >= 3 and pair.iloc[:, 0].std() > 0 and pair.iloc[:, 1].std() > 0:
-                r, p = pearsonr(pair.iloc[:, 0], pair.iloc[:, 1])
+                yv = pair.iloc[:, 0].to_numpy(dtype=float)
+                xv = pair.iloc[:, 1].to_numpy(dtype=float)
+                r, p = pearsonr(yv, xv)
+                jack_se, robust, n_support = _jackknife_correlation(xv, yv, alpha)
                 assoc.append(
-                    {"attribute": str(attr), "descriptor": str(desc), "r": float(r), "p_value": float(p)}
+                    {
+                        "attribute": str(attr),
+                        "descriptor": str(desc),
+                        "r": float(r),
+                        "p_value": float(p),
+                        "jackknife_se": float(jack_se),
+                        "influence_robust": bool(robust),
+                        "n_supporting": int(n_support),
+                    }
                 )
     assoc = _attach_fdr(assoc, alpha)
     result: dict[str, Any] = {
