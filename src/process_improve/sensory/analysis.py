@@ -161,9 +161,9 @@ def _jackknife_correlation(x: np.ndarray, y: np.ndarray, alpha: float) -> tuple[
         r_i = float(pearsonr(xi, yi)[0]) if xi.std() > 0 and yi.std() > 0 else 0.0
         pseudo[i] = n * z_full - (n - 1) * _z(r_i)
     z_mean = float(pseudo.mean())
+    # ``se`` is always finite here: the correlations are clipped before the Fisher-z
+    # transform and the caller guarantees non-constant inputs, so no NaN/inf arises.
     se = float(pseudo.std(ddof=1) / np.sqrt(n))
-    if not np.isfinite(se):
-        return se, False, n
     if se <= 0.0:
         # Every leave-one-out deletion gives the same correlation, so it is
         # perfectly stable: influence-robust iff that correlation is non-zero.

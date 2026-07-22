@@ -450,6 +450,24 @@ def test_discriminator_demotes_single_support_spike():
     assert genuine_a["jackknife_significant"]
 
 
+def test_discriminator_small_sample_skips_jackknife_gate():
+    """With too few products the LOO gate is skipped, so nothing is confirmed.
+
+    Below the cross-validation floor the per-coefficient jackknife cannot be run, so
+    ``jackknife_significant`` defaults to ``False`` and no descriptor is confirmed.
+    """
+    products = [f"P{i}" for i in range(4)]
+    rng = np.random.default_rng(0)
+    u = np.linspace(0.0, 1.0, 4)
+    agg = pd.DataFrame({"A": 2.0 * u + rng.normal(0, 0.05, 4)}, index=products)
+    cov = pd.DataFrame({"d1": u, "d2": rng.normal(0, 1, 4)}, index=products)
+
+    disc = discriminate_observational(agg, cov, n_components=1, n_permutations=19, random_state=0)
+    desc = pd.DataFrame(disc["descriptors"])
+    assert not desc["jackknife_significant"].any()
+    assert not desc["discriminator_significant"].any()
+
+
 def test_relate_observational_requires_numeric_descriptors():
     obs = pd.DataFrame({"product": PRODUCTS, "grade": list("AABBCCA")})
     result = validate_descriptive(_panel(), obs, mode="observational")
