@@ -18,7 +18,12 @@ from process_improve.sensory import (
     panel_scorecard,
     validate_descriptive,
 )
-from process_improve.sensory.analysis import _collinear_clusters, discriminate_observational, relate_designed
+from process_improve.sensory.analysis import (
+    _collinear_clusters,
+    _jackknife_correlation,
+    discriminate_observational,
+    relate_designed,
+)
 from process_improve.sensory.ingest import reshape_to_long
 from process_improve.univariate.metrics import benjamini_hochberg
 
@@ -346,6 +351,38 @@ def test_discriminator_gate_and_clusters():
     # descriptor is never flagged.
     assert not desc[desc["attribute"] == "B"]["discriminator_significant"].any()
     assert not desc[desc["descriptor"] == "d3"]["discriminator_significant"].any()
+
+
+def test_jackknife_correlation_edge_cases():
+    """The jackknife helper's degenerate branches behave sensibly."""
+    rng = np.random.default_rng(0)
+
+    # Too few observations: the jackknife is undefined, so not robust.
+    se, robust, n = _jackknife_correlation(np.arange(3.0), np.arange(3.0) + 1.0, 0.05)
+    assert n == 3
+    assert not robust
+    assert np.isnan(se)
+
+    # A smooth relationship supported across all points is robust.
+    x = np.linspace(0.0, 1.0, 12)
+    y = 2.0 * x + rng.normal(0, 0.05, 12)
+    se, robust, n = _jackknife_correlation(x, y, 0.05)
+    assert robust
+    assert se > 0.0
+
+    # A single-support spike collapses when its one point is removed: not robust.
+    xs = np.zeros(12)
+    xs[5] = 1.0
+    ys = rng.normal(0, 1, 12)
+    ys[5] += 5.0
+    _, robust, _ = _jackknife_correlation(xs, ys, 0.05)
+    assert not robust
+
+    # A perfectly stable correlation (zero jackknife spread) is robust when non-zero.
+    z = np.linspace(0.0, 1.0, 8)
+    se, robust, _ = _jackknife_correlation(z, z, 0.05)
+    assert se == 0.0
+    assert robust
 
 
 def test_relate_marginal_demotes_single_support_spike():

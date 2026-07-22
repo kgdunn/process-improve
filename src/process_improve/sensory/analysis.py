@@ -162,8 +162,12 @@ def _jackknife_correlation(x: np.ndarray, y: np.ndarray, alpha: float) -> tuple[
         pseudo[i] = n * z_full - (n - 1) * _z(r_i)
     z_mean = float(pseudo.mean())
     se = float(pseudo.std(ddof=1) / np.sqrt(n))
-    if not np.isfinite(se) or se <= 0.0:
+    if not np.isfinite(se):
         return se, False, n
+    if se <= 0.0:
+        # Every leave-one-out deletion gives the same correlation, so it is
+        # perfectly stable: influence-robust iff that correlation is non-zero.
+        return se, bool(abs(z_mean) > 0.0), n
     t_crit = float(t_dist.ppf(1.0 - alpha / 2.0, df=n - 1))
     return se, bool(abs(z_mean) > t_crit * se), n
 
