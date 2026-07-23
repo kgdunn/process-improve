@@ -412,6 +412,28 @@ def test_jackknife_delete_two_demotes_two_support_spike():
         _jackknife_correlation(xg, yg, 0.05, max_deletions=0)
 
 
+def test_jackknife_breakdown_demotes_via_nonsignificance_and_sign_flip():
+    """Delete-two demotes through the non-significance and sign-flip paths, not only support removal."""
+    # Moderate continuous correlation (no zeros, so no deletion makes a constant column):
+    # robust to any single deletion, but removing the two most influential points drops
+    # the remaining correlation below significance while keeping its sign.
+    x = np.array([-1.1, -0.81, -0.78, -0.75, -0.73, -0.45, -0.25, 0.13, 0.27, 0.48, 0.84, 0.86])
+    y = np.array([-1.69, -0.9, -2.43, -2.68, -0.21, -3.6, -0.55, 0.85, -1.41, -1.42, -0.45, 1.96])
+    _, a1, _ = _jackknife_correlation(x, y, 0.05, max_deletions=1)
+    _, a2, _ = _jackknife_correlation(x, y, 0.05, max_deletions=2)
+    assert a1
+    assert not a2
+
+    # Two extreme points create a positive correlation; removing them leaves a negative
+    # trend, so the effect reverses direction under a two-point deletion.
+    xb = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 20, 21.0])
+    yb = np.array([10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 30, 31.0])
+    _, b1, _ = _jackknife_correlation(xb, yb, 0.05, max_deletions=1)
+    _, b2, _ = _jackknife_correlation(xb, yb, 0.05, max_deletions=2)
+    assert b1
+    assert not b2
+
+
 def test_relate_influence_deletions_two_demotes_two_support_spike():
     """`influence_deletions=2` demotes a two-product spike the default gate keeps."""
     n = len(LEVERAGE_PRODUCTS)
