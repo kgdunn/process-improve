@@ -319,6 +319,19 @@ def test_consistency_handles_degenerate_panelists():
     assert {"flat", "one"}.issubset(result.inconsistent)
 
 
+def test_consistency_rater_without_panel_overlap_has_no_agreement():
+    """A rater discriminating over products the rest of the panel never rated gets no agreement."""
+    truth = {"W": -1, "X": 0, "Y": 1, "Z": 2}
+    rows = [_row("solo", p, "A", rep, 5.0 + 2.0 * truth[p]) for p in "WXYZ" for rep in (1, 2)]
+    # Two other raters cover only product W, so ``solo`` shares a single cell with the panel.
+    rows += [_row("b1", "W", "A", rep, 5.0) for rep in (1, 2)]
+    rows += [_row("b2", "W", "A", rep, 5.2) for rep in (1, 2)]
+    row = panel_consistency(pd.DataFrame(rows), n_permutations=30, random_state=0).table.loc["solo"]
+    assert not np.isnan(row["p_discrimination"])  # solo still gets a discrimination p-value
+    assert np.isnan(row["agreement"])  # but no agreement can be formed against the panel
+    assert np.isnan(row["p_agreement"])
+
+
 def test_consistency_is_deterministic_and_validates():
     """Same seed gives identical output; a non-positive permutation count is rejected."""
     panel = _panel(anomalous="P8")
