@@ -15,6 +15,15 @@ those changes.
 
 ### Added
 
+- `OPLS`: an Orthogonal Projections to Latent Structures estimator for a single
+  response (Trygg-Wold NIPALS), extracting one Y-predictive component and
+  `n_orthogonal_components` Y-orthogonal components. It exposes `fit`,
+  `transform` (predictive scores), `correct` (the orthogonal-signal-corrected
+  X), `predict`, and `invert`. `OPLS.invert()` finds the inputs for a desired
+  response through a single division and returns the orthogonal-space basis;
+  for a single response this is the same set of designs as `PLS.invert()`'s null
+  space (García-Carrión et al., 2025). An A-component PLS model and an
+  O-PLS(1; A - 1) model give identical predictions and regression coefficients.
 - `PLS.invert()`: PLS model inversion for latent-variable product and process
   design. Given a desired response on the original Y scale, it returns the
   minimum-norm (direct-inversion) input vector that the model predicts will

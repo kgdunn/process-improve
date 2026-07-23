@@ -48,6 +48,7 @@ from ._nipals import (
     ssq,
     terminate_check,
 )
+from ._opls import OPLS
 from ._pca import PCA
 from ._pls import PLS
 from ._preprocessing import MCUVScaler, center, scale
@@ -68,6 +69,7 @@ from .plots import (
 __all__ = [
     "MBPCA",
     "MBPLS",
+    "OPLS",
     "PCA",
     "PLS",
     "REFERENCE_LINE_COLOR",
