@@ -208,6 +208,13 @@ exclude = [
 # Enable ALL Pyflakes codes by default.
 select = ["ALL"]
 ignore = [
+    # Copyright notices are managed in the repo's own "# (c) Kevin Dunn" house
+    # style, not via ruff. CPY001 is a preview rule with a default regex that
+    # requires the literal word "Copyright"; once a ruff release promoted it to
+    # stable it fired on nearly every file. Keep it off so the lint gate does not
+    # depend on the installed ruff version.
+    "CPY001", # Missing copyright notice at top of file.
+
     "C408",   # Unnecessary <dict/list/tuple> call - rewrite as a literal. Disagree with this.
 
     # Arguments
