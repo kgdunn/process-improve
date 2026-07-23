@@ -28,6 +28,7 @@ number of observations, so a genuine multi-observation driver is unaffected.
 
 from __future__ import annotations
 
+import itertools
 import warnings
 from dataclasses import dataclass, field
 from typing import Any
@@ -130,46 +131,110 @@ def _attach_fdr(records: list[dict[str, Any]], alpha: float) -> list[dict[str, A
     return records
 
 
-def _jackknife_correlation(x: np.ndarray, y: np.ndarray, alpha: float) -> tuple[float, bool, int]:
-    """Leave-one-out jackknife significance of a Pearson correlation.
+def _survives_all_deletions(x: np.ndarray, y: np.ndarray, alpha: float, d: int, sign: float) -> bool:
+    """Return whether the correlation stays significant after removing any ``d`` points.
 
-    Returns ``(jackknife_se, influence_robust, n_supporting)``. The correlation is
-    Fisher-z transformed, and ``influence_robust`` is ``True`` when the two-sided
-    ``alpha`` jackknife confidence interval for the transformed correlation excludes
-    zero, i.e. the association does not collapse when any single observation is
-    removed. A predictor that is non-zero on a single high-leverage observation has
-    one deletion that drives the correlation to zero, which inflates the jackknife
-    standard error until the interval spans zero and the association is demoted. The
-    rule introduces no threshold of its own: it reuses ``alpha`` and the number of
-    observations, so a genuine multi-observation driver stays significant while a
-    single-support spike does not.
+    The breakdown criterion behind the ``max_deletions >= 2`` path of
+    :func:`_jackknife_correlation`: over every subset of ``d`` observations removed at
+    once, the remaining correlation must keep the same sign and stay significant at
+    ``alpha`` (a Pearson-``t`` test on the ``n - d`` retained points). A subset that
+    removes the whole support of a spike leaves a constant column and fails at once.
     """
     n = int(x.size)
-    if n < _MIN_OBS_FOR_JACKKNIFE:
+    m = n - d
+    t_crit = float(t_dist.ppf(1.0 - alpha / 2.0, df=m - 2))
+    idx = np.arange(n)
+    for drop in itertools.combinations(range(n), d):
+        keep = np.isin(idx, drop, invert=True)
+        xi, yi = x[keep], y[keep]
+        if xi.std() <= 0 or yi.std() <= 0:
+            return False  # deletion removed the whole support of the effect
+        r_s = float(pearsonr(xi, yi)[0])
+        if np.sign(np.arctanh(np.clip(r_s, -_R_CLIP, _R_CLIP))) != sign:
+            return False  # deletion flipped the direction of the effect
+        t_s = abs(r_s) * np.sqrt((m - 2) / max(1.0 - r_s**2, 1e-12))
+        if t_s <= t_crit:
+            return False  # deletion made the remaining correlation non-significant
+    return True
+
+
+def _jackknife_correlation(
+    x: np.ndarray, y: np.ndarray, alpha: float, *, max_deletions: int = 1
+) -> tuple[float, bool, int]:
+    """Return the delete-``d`` jackknife significance of a Pearson correlation.
+
+    Returns ``(jackknife_se, influence_robust, n_supporting)``. The correlation is
+    Fisher-z transformed. ``jackknife_se`` is always the ordinary leave-one-out (Tukey)
+    jackknife standard error. ``influence_robust`` says whether the association survives
+    removing any ``d = max_deletions`` observations:
+
+    * ``d = 1`` (default): the leave-one-out jackknife confidence interval for the
+      correlation excludes zero. A predictor non-zero on a single observation has one
+      deletion that drives the correlation to zero, inflating the standard error until
+      the interval spans zero, so the pair is demoted.
+    * ``d >= 2``: leave-one-out is blind to an effect carried by two observations, since
+      deleting either one leaves the other holding the correlation up. Use the breakdown
+      criterion instead - the correlation must stay significant, with the same sign,
+      after removing *every* subset of ``d`` observations (the worst case, not the
+      averaged jackknife variance, which would dilute the single collapsing subset).
+
+    The rule adds no threshold of its own: it reuses ``alpha``, the number of
+    observations, and ``d``, so a driver supported by more than ``d`` observations stays
+    significant while one carried by ``d`` or fewer does not.
+
+    Parameters
+    ----------
+    x, y : numpy.ndarray
+        Paired, non-constant observation vectors (the caller guarantees non-zero
+        variance).
+    alpha : float
+        Two-sided significance level for the jackknife confidence interval.
+    max_deletions : int
+        Number ``d`` of observations removed together in each jackknife subset. Must
+        be at least 1; the effective cost is ``comb(n, d)`` correlation refits.
+    """
+    if max_deletions < 1:
+        raise ValueError(f"max_deletions must be at least 1, got {max_deletions}.")
+    n = int(x.size)
+    d = max_deletions
+    # Need at least _MIN_OBS_FOR_JACKKNIFE observations, and enough left after the
+    # deletion to still estimate a correlation.
+    if n < _MIN_OBS_FOR_JACKKNIFE or n - d < _MIN_OBS_FOR_JACKKNIFE - 1:
         return float("nan"), False, n
 
     def _z(r_value: float) -> float:
         return float(np.arctanh(np.clip(r_value, -_R_CLIP, _R_CLIP)))
 
+    # Reported ``jackknife_se`` is always the ordinary leave-one-out (Tukey) jackknife
+    # standard error of the Fisher-z correlation: a stable, interpretable influence
+    # magnitude independent of ``d``.
     z_full = _z(float(pearsonr(x, y)[0]))
     pseudo = np.empty(n)
     for i in range(n):
         keep = np.arange(n) != i
         xi, yi = x[keep], y[keep]
-        # Removing the sole support of a spike leaves a constant column: no variance
-        # means no correlation, so the deleted-sample estimate is zero.
         r_i = float(pearsonr(xi, yi)[0]) if xi.std() > 0 and yi.std() > 0 else 0.0
         pseudo[i] = n * z_full - (n - 1) * _z(r_i)
     z_mean = float(pseudo.mean())
-    # ``se`` is always finite here: the correlations are clipped before the Fisher-z
-    # transform and the caller guarantees non-constant inputs, so no NaN/inf arises.
     se = float(pseudo.std(ddof=1) / np.sqrt(n))
-    if se <= 0.0:
-        # Every leave-one-out deletion gives the same correlation, so it is
-        # perfectly stable: influence-robust iff that correlation is non-zero.
-        return se, bool(abs(z_mean) > 0.0), n
-    t_crit = float(t_dist.ppf(1.0 - alpha / 2.0, df=n - 1))
-    return se, bool(abs(z_mean) > t_crit * se), n
+
+    if d == 1:
+        # Leave-one-out: the shipped jackknife-t decision, unchanged. A single-support
+        # spike has one deletion that drives the correlation to zero, inflating ``se``
+        # until the confidence interval spans zero.
+        if se <= 0.0:
+            # Every deletion gives the same correlation: perfectly stable, robust iff
+            # that correlation is non-zero.
+            return se, bool(abs(z_mean) > 0.0), n
+        t_crit = float(t_dist.ppf(1.0 - alpha / 2.0, df=n - 1))
+        return se, bool(abs(z_mean) > t_crit * se), n
+
+    # d >= 2: a correlation carried by a single pair of observations survives every
+    # *single* deletion, so the averaged jackknife variance stays small and would not
+    # demote it. Use the breakdown criterion instead (see ``_survives_all_deletions``):
+    # the correlation must stay significant, with the same sign, after removing *every*
+    # subset of ``d`` observations.
+    return se, _survives_all_deletions(x, y, alpha, d, np.sign(z_full)), n
 
 
 def _fit_pls_safe(x: pd.DataFrame, y: pd.DataFrame, n_components: int) -> tuple[PLS | None, int]:
@@ -441,14 +506,17 @@ def relate_observational(  # noqa: PLR0913
     discriminator: bool = True,
     n_permutations: int = 199,
     random_state: int = 0,
+    influence_deletions: int = 1,
 ) -> dict[str, Any]:
     """Relate the attribute block to measured descriptors with PLS plus correlations.
 
     Each marginal association carries a Pearson ``r``, an FDR ``q_value`` and, from a
-    leave-one-out jackknife, ``jackknife_se``, ``influence_robust`` and
-    ``n_supporting``. ``significant`` requires both FDR rejection and jackknife
-    robustness, so a correlation created by a single high-leverage observation is not
-    reported as significant.
+    delete-``influence_deletions`` jackknife, ``jackknife_se``, ``influence_robust``
+    and ``n_supporting``. ``significant`` requires both FDR rejection and jackknife
+    robustness, so a correlation created by too few high-leverage observations is not
+    reported as significant. ``influence_deletions`` (default 1, ordinary leave-one-out)
+    sets how many observations are removed together: raise it to 2 to also demote a
+    correlation carried by a single pair of observations.
     """
     x_block = covariates.loc[agg.index].astype(float)
     y_block = agg.astype(float)
@@ -471,7 +539,9 @@ def relate_observational(  # noqa: PLR0913
                 yv = pair.iloc[:, 0].to_numpy(dtype=float)
                 xv = pair.iloc[:, 1].to_numpy(dtype=float)
                 r, p = pearsonr(yv, xv)
-                jack_se, robust, n_support = _jackknife_correlation(xv, yv, alpha)
+                jack_se, robust, n_support = _jackknife_correlation(
+                    xv, yv, alpha, max_deletions=influence_deletions
+                )
                 assoc.append(
                     {
                         "attribute": str(attr),
@@ -544,6 +614,7 @@ def analyze_descriptive(  # noqa: PLR0913
     discriminator: bool = True,
     n_permutations: int = 199,
     random_state: int = 0,
+    influence_deletions: int = 1,
 ) -> AnalysisResult:
     """Run the descriptive pipeline: panel check, correction, and relate.
 
@@ -579,6 +650,11 @@ def analyze_descriptive(  # noqa: PLR0913
         Permutations for the discriminator's selectivity-ratio null.
     random_state : int
         Seed for the discriminator's permutations and cross-validation folds.
+    influence_deletions : int
+        How many observations the marginal-association jackknife removes together
+        (default 1, ordinary leave-one-out). Raising it to 2 also demotes a
+        correlation carried by a single pair of high-leverage observations, which
+        leave-one-out cannot detect.
 
     Returns
     -------
@@ -623,6 +699,7 @@ def analyze_descriptive(  # noqa: PLR0913
             discriminator=discriminator,
             n_permutations=n_permutations,
             random_state=random_state,
+            influence_deletions=influence_deletions,
         )
 
     return AnalysisResult(
@@ -644,6 +721,7 @@ def analyze_descriptive(  # noqa: PLR0913
             "discriminator": discriminator,
             "n_permutations": n_permutations,
             "random_state": random_state,
+            "influence_deletions": influence_deletions,
             "content_hash": validated.content_hash,
         },
     )

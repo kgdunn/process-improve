@@ -385,6 +385,68 @@ def test_jackknife_correlation_edge_cases():
     assert robust
 
 
+def test_jackknife_delete_two_demotes_two_support_spike():
+    """Leave-one-out keeps a two-point spike; delete-two removes it, genuine survives."""
+    rng = np.random.default_rng(0)
+    n = 15
+    # A predictor non-zero on exactly two products, both extreme on the response.
+    xs = np.zeros(n)
+    xs[13] = xs[14] = 1.0
+    ys = rng.normal(0, 1, n)
+    ys[13] += 6.0
+    ys[14] += 6.0
+    _, robust_d1, _ = _jackknife_correlation(xs, ys, 0.05, max_deletions=1)
+    _, robust_d2, _ = _jackknife_correlation(xs, ys, 0.05, max_deletions=2)
+    assert robust_d1  # leave-one-out is blind to a two-point effect
+    assert not robust_d2  # removing both supporting points collapses it
+
+    # A genuine broad driver survives both.
+    xg = np.linspace(0.0, 1.0, n)
+    yg = 2.0 * xg + rng.normal(0, 0.2, n)
+    _, g1, _ = _jackknife_correlation(xg, yg, 0.05, max_deletions=1)
+    _, g2, _ = _jackknife_correlation(xg, yg, 0.05, max_deletions=2)
+    assert g1
+    assert g2
+
+    with pytest.raises(ValueError, match="max_deletions must be at least 1"):
+        _jackknife_correlation(xg, yg, 0.05, max_deletions=0)
+
+
+def test_relate_influence_deletions_two_demotes_two_support_spike():
+    """`influence_deletions=2` demotes a two-product spike the default gate keeps."""
+    n = len(LEVERAGE_PRODUCTS)
+    rng = np.random.default_rng(3)
+    genuine = np.linspace(0.2, 1.0, n)
+    two_spike = np.zeros(n)
+    two_spike[_SPIKE_INDEX] = two_spike[_SPIKE_INDEX + 1] = 1.0
+
+    a_mean = 4.0 * genuine
+    # Attribute C is flat except at the two products that carry the spike.
+    c_mean = np.zeros(n)
+    c_mean[_SPIKE_INDEX] = c_mean[_SPIKE_INDEX + 1] = 5.0
+    rows = []
+    for pid in [f"J{i}" for i in range(6)]:
+        bias = rng.normal(0.0, 0.2)
+        for j, prod in enumerate(LEVERAGE_PRODUCTS):
+            for rep in (1, 2):
+                rows.append({"panelist_id": pid, "session": 1, "product": prod, "attribute": "A",
+                             "replicate": rep, "score": 5.0 + a_mean[j] + bias + rng.normal(0, 0.15)})
+                rows.append({"panelist_id": pid, "session": 1, "product": prod, "attribute": "C",
+                             "replicate": rep, "score": 5.0 + c_mean[j] + bias + rng.normal(0, 0.15)})
+    panel = pd.DataFrame(rows)
+    cov = pd.DataFrame({"product": LEVERAGE_PRODUCTS, "genuine": genuine, "two_spike": two_spike})
+    validated = validate_descriptive(panel, cov, mode="observational")
+
+    def spike_robust(deletions: int) -> bool:
+        result = analyze_descriptive(validated, discriminator=False, influence_deletions=deletions)
+        assoc = pd.DataFrame(result.relate["associations"])
+        row = assoc[(assoc["attribute"] == "C") & (assoc["descriptor"] == "two_spike")].iloc[0]
+        return bool(row["influence_robust"])
+
+    assert spike_robust(1)  # default leave-one-out keeps the two-support spike
+    assert not spike_robust(2)  # delete-two demotes it
+
+
 def test_relate_marginal_demotes_single_support_spike():
     """A single high-leverage observation must not create a significant association.
 
