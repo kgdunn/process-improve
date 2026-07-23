@@ -38,6 +38,7 @@ import pandas as pd
 from scipy.stats import pearsonr
 from scipy.stats import t as t_dist
 
+from process_improve.multivariate._common import NotEnoughVarianceError
 from process_improve.multivariate.methods import PCA, PLS, MCUVScaler, selectivity_ratio, vip
 from process_improve.sensory.mam import MAMResult, align_scores, mixed_assessor_model
 from process_improve.sensory.panel import PanelScorecard, apply_correction, panel_scorecard
@@ -695,13 +696,14 @@ def permutation_column_null(  # noqa: PLR0913
     null_beta: list[float] = []
     for _ in range(n_iter):
         x_aug = pd.concat([x_block, _knockoff_block(x_block, k, rng)], axis=1)
-        pls, _ = _fit_pls_safe(x_aug, y_block, max_comp)
-        if pls is None:
-            continue  # a singular augmented block contributes nothing to the null
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                pls = PLS(n_components=max_comp).fit(x_aug, y_block)
+                beta = pls.cross_validate(x_aug, y_block, cv="loo", show_progress=False).beta_mean.abs().max(axis=1)
+        except (np.linalg.LinAlgError, NotEnoughVarianceError):
+            continue  # a degenerate (singular / no-variance) block contributes nothing to the null
         vips = vip(pls)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", RuntimeWarning)
-            beta = pls.cross_validate(x_aug, y_block, cv="loo", show_progress=False).beta_mean.abs().max(axis=1)
         real_vip_runs.append(vips.reindex(kept))
         real_beta_runs.append(beta.reindex(kept))
         null_vip.extend(float(vips[name]) for name in null_names)

@@ -621,12 +621,42 @@ def test_permutation_null_is_deterministic():
 
 
 def test_permutation_null_validates_parameters():
-    """Out-of-range fraction / quantile are rejected."""
+    """Out-of-range fraction / quantile / counts are rejected."""
     agg, cov = _null_case()
     with pytest.raises(ValueError, match="fraction must be positive"):
         permutation_column_null(agg, cov, fraction=0.0, n_iter=2)
     with pytest.raises(ValueError, match="quantile must be in"):
         permutation_column_null(agg, cov, quantile=1.5, n_iter=2)
+    with pytest.raises(ValueError, match="at least 1"):
+        permutation_column_null(agg, cov, min_knockoffs=0, n_iter=2)
+
+
+def test_permutation_null_max_knockoffs_caps_the_count():
+    """`max_knockoffs` bounds the knockoff count even when the fraction is larger."""
+    agg, cov = _null_case()
+    result = permutation_column_null(agg, cov, fraction=0.9, max_knockoffs=3, n_iter=3, random_state=0)
+    assert result["n_knockoffs"] == 3
+
+
+def test_permutation_null_too_few_descriptors_returns_not_ok():
+    """Fewer than two descriptors after ignoring cannot form a null."""
+    agg, cov = _null_case()
+    keep_two = cov[["driver1", "driver2"]]
+    result = permutation_column_null(agg, keep_two, ignore=["driver2"], n_iter=2)
+    assert not result["ok"]
+    assert "at least 2 descriptors" in result["reason"]
+
+
+def test_permutation_null_degenerate_block_returns_not_ok():
+    """A no-variance descriptor block degrades gracefully instead of crashing."""
+    products = [f"P{i}" for i in range(8)]
+    cov = pd.DataFrame(
+        {"c1": np.ones(8), "c2": np.full(8, 2.0), "c3": np.full(8, 3.0)}, index=products
+    )
+    agg = pd.DataFrame({"A": np.arange(8.0)}, index=products)
+    result = permutation_column_null(agg, cov, n_iter=3, min_knockoffs=2, random_state=0)
+    assert not result["ok"]
+    assert "singular" in result["reason"]
 
 
 def test_relate_observational_requires_numeric_descriptors():
