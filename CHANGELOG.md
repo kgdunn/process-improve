@@ -11,6 +11,32 @@ those changes.
 
 ## [Unreleased]
 
+## [1.59.0] - 2026-07-23
+
+### Added
+
+- `OPLS`: an Orthogonal Projections to Latent Structures estimator for a single
+  response (Trygg-Wold NIPALS), extracting one Y-predictive component and
+  `n_orthogonal_components` Y-orthogonal components. It exposes `fit`,
+  `transform` (predictive scores), `correct` (the orthogonal-signal-corrected
+  X), `predict`, and `invert`. `OPLS.invert()` finds the inputs for a desired
+  response through a single division and returns the orthogonal-space basis;
+  for a single response this is the same set of designs as `PLS.invert()`'s null
+  space (García-Carrión et al., 2025). An A-component PLS model and an
+  O-PLS(1; A - 1) model give identical predictions and regression coefficients.
+- `PLS.invert()`: PLS model inversion for latent-variable product and process
+  design. Given a desired response on the original Y scale, it returns the
+  minimum-norm (direct-inversion) input vector that the model predicts will
+  achieve it, together with an orthonormal basis for the *null space* - the
+  `(A - r)`-dimensional family of input vectors that all yield the same
+  prediction (`A` components, response rank `r`). Callers can pass
+  `null_space_coordinates` to move along that space and satisfy secondary
+  criteria (cost, safety, operability) without changing the predicted response.
+  The result also reports the solution's Hotelling's T2 to flag extrapolation
+  beyond the calibration data. Reproduces the null-space results of
+  García-Carrión et al. (2025), whose single-response proof identifies this null
+  space with the orthogonal space of an O-PLS model.
+
 ## [1.58.0] - 2026-07-23
 
 ### Added
@@ -2599,7 +2625,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.58.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.59.0...HEAD
+[1.59.0]: https://github.com/kgdunn/process-improve/compare/v1.58.0...v1.59.0
 [1.58.0]: https://github.com/kgdunn/process-improve/compare/v1.57.0...v1.58.0
 [1.57.0]: https://github.com/kgdunn/process-improve/compare/v1.56.0...v1.57.0
 [1.56.0]: https://github.com/kgdunn/process-improve/compare/v1.55.1...v1.56.0

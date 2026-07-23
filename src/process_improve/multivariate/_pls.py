@@ -991,6 +991,173 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         return Bunch(scores=scores, hotellings_t2=t2, spe=spe_values, y_hat=y_hat)
 
+    def invert(
+        self,
+        y_desired: float | np.ndarray | pd.Series | pd.DataFrame | dict,
+        *,
+        null_space_coordinates: np.ndarray | None = None,
+    ) -> Bunch:
+        r"""Invert the PLS model: find inputs that yield a desired response.
+
+        PLS is normally used in the forward direction (:meth:`predict`): given
+        inputs ``X``, predict the response ``Y``. Model *inversion* runs the
+        model backwards: fix the response you want (``y_desired``) and solve for
+        an input vector that the model predicts will achieve it. This is the
+        basis of latent-variable product and process design (Jaeckle and
+        MacGregor, 2000).
+
+        Because a PLS model usually retains more components ``A`` than the rank
+        ``r`` of the response, the target pins down only ``r`` of the ``A`` score
+        directions and the inversion is underdetermined: a whole
+        ``(A - r)``-dimensional family of input vectors yields the same
+        prediction. That family is the *null space*. This method returns the
+        minimum-norm (direct-inversion) solution together with an orthonormal
+        basis for the null space, so callers can move along it to satisfy
+        secondary criteria (cost, safety, operability) without changing the
+        predicted response.
+
+        For a single response (``r = 1``), García-Carrión et al. (2025) proved
+        that this null space is the same linear space as the *orthogonal space*
+        isolated by an O-PLS model with the same total number of components.
+
+        Parameters
+        ----------
+        y_desired : float, array-like, pandas Series/DataFrame, or dict
+            The desired response, on the original (un-scaled) Y scale. A scalar
+            is accepted for a single-target model; otherwise supply one value per
+            target. A Series/DataFrame/dict is aligned to the fitted target
+            names; a plain array must follow the fitted target order.
+        null_space_coordinates : np.ndarray, optional
+            Coordinates along the null-space basis, of length ``A - r`` (the
+            null-space dimension). When given, the returned solution is
+            ``tau_direct_inversion + null_space_basis @ null_space_coordinates``
+            reconstructed into the input space. All such solutions yield the same
+            predicted response. When omitted, the minimum-norm (direct-inversion)
+            solution is returned.
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With keys:
+
+            ``x_new`` : pd.Series of shape (n_features,)
+                The estimated input vector, on the original (un-scaled) X scale.
+            ``scores`` : pd.Series of length A
+                The score vector (tau) of the solution.
+            ``y_hat`` : pd.Series of length n_targets
+                The model's prediction at ``x_new``; equals ``y_desired`` up to
+                numerical error, a check that the inversion is consistent.
+            ``null_space_basis`` : pd.DataFrame of shape (A, A - r)
+                Orthonormal basis of the null space, in score coordinates. Empty
+                (zero columns) when ``A == r`` and the solution is unique.
+            ``null_space_dimension`` : int
+                ``A - r``, the number of free directions.
+            ``hotellings_t2`` : float
+                Hotelling's T² of the solution, to flag extrapolation beyond the
+                calibration data. Compare against :meth:`hotellings_t2_limit`.
+
+        See Also
+        --------
+        predict : the forward direction, X -> Y.
+        hotellings_t2_limit : confidence limit to judge ``hotellings_t2``.
+
+        References
+        ----------
+        C. M. Jaeckle and J. F. MacGregor, "Industrial applications of product
+        design through the inversion of latent variable models", Chemometrics
+        and Intelligent Laboratory Systems, 50 (2000): 199-210,
+        DOI: 10.1016/S0169-7439(99)00058-1.
+
+        S. García-Carrión et al., "On the equivalence between null space and
+        orthogonal space in latent variable regression modeling", Journal of
+        Chemometrics, 39 (2025): e70057, DOI: 10.1002/cem.70057.
+
+        Examples
+        --------
+        >>> result = pls.invert(y_desired=25.0)
+        >>> result.x_new              # input vector giving the target response
+        >>> result.null_space_basis   # directions that leave the response fixed
+        >>> pls.predict(result.x_new.to_frame().T)   # ~= 25.0
+        """
+        check_is_fitted(self, "y_loadings_")
+
+        # ``beta_coefficients_`` is only ever a DataFrame (unlike ``y_loadings_``,
+        # which is an ndarray inside ``_fit_nipals`` before being wrapped), so its
+        # columns are the reliable source of the fitted target names.
+        target_names = self.beta_coefficients_.columns
+        feature_names = self._feature_names
+        component_names = self._component_names
+        n_targets = len(target_names)
+
+        # --- Coerce y_desired to a 1-row DataFrame on the original Y scale ---
+        if isinstance(y_desired, pd.DataFrame):
+            y_des_df = y_desired.reindex(columns=target_names)
+        elif isinstance(y_desired, (pd.Series, dict)):
+            y_des_df = pd.Series(y_desired).reindex(target_names).to_frame().T
+        else:
+            y_arr = np.atleast_1d(np.asarray(y_desired, dtype=float)).reshape(1, -1)
+            if y_arr.shape[1] != n_targets:
+                raise ValueError(
+                    f"y_desired has {y_arr.shape[1]} value(s); expected {n_targets} to match the fitted "
+                    f"target(s): {list(target_names)}."
+                )
+            y_des_df = pd.DataFrame(y_arr, columns=target_names)
+        y_des_df.index = [0]
+        if y_des_df.isna().any(axis=None):
+            raise ValueError(f"y_desired is missing value(s) for target(s): {list(target_names)}.")
+
+        # Move the target into the scaled Y space the model was fit in.
+        y_des_scaled = (
+            self._y_scaler.transform(y_des_df).to_numpy() if self._y_scaler is not None else y_des_df.to_numpy()
+        )  # shape (1, M)
+
+        # Score -> scaled-Y map: y_scaled = tau @ q_map, with q_map [A x M].
+        q_map = np.asarray(self.y_loadings_).T
+        # Minimum-norm (direct-inversion) score, tau_DI [1 x A] (paper Eq. 9).
+        tau = y_des_scaled @ np.linalg.pinv(q_map)
+
+        # Null-space basis: score directions g with g @ q_map = 0 (paper Eq. 14).
+        # The left singular vectors of q_map for its zero singular values span it.
+        u_mat, sing, _ = np.linalg.svd(q_map)
+        tol = max(q_map.shape) * np.finfo(float).eps * (sing[0] if sing.size else 0.0)
+        rank = int((sing > tol).sum())
+        null_space_basis = u_mat[:, rank:]  # [A x (A - rank)]
+        null_space_dimension = null_space_basis.shape[1]
+
+        # Optionally move along the null space; every such point predicts y_desired.
+        if null_space_coordinates is not None:
+            coords = np.atleast_1d(np.asarray(null_space_coordinates, dtype=float))
+            if coords.shape[0] != null_space_dimension:
+                raise ValueError(
+                    f"null_space_coordinates has {coords.shape[0]} value(s); expected "
+                    f"{null_space_dimension} to match the null-space dimension (A - r)."
+                )
+            tau = tau + (null_space_basis @ coords).reshape(1, -1)
+
+        # Reconstruct the input vector from its scores, then un-scale to raw units.
+        x_new_scaled = tau @ self._x_loadings.T  # [1 x K]
+        x_new_df = pd.DataFrame(x_new_scaled, columns=feature_names, index=[0])
+        if self._x_scaler is not None:
+            x_new_df = self._x_scaler.inverse_transform(x_new_df)
+
+        # Prediction at the solution (should equal y_desired up to rounding).
+        y_hat_scaled = tau @ q_map  # [1 x M]
+        y_hat_df = pd.DataFrame(y_hat_scaled, columns=target_names, index=[0])
+        if self._y_scaler is not None:
+            y_hat_df = self._y_scaler.inverse_transform(y_hat_df)
+
+        t2 = float(np.sum((tau.ravel() / self.scaling_factor_for_scores_.to_numpy()) ** 2))
+        ns_columns = [f"NS{i}" for i in range(1, null_space_dimension + 1)]
+
+        return Bunch(
+            x_new=pd.Series(x_new_df.to_numpy().ravel(), index=feature_names, name="x_new"),
+            scores=pd.Series(tau.ravel(), index=component_names, name="scores"),
+            y_hat=pd.Series(y_hat_df.to_numpy().ravel(), index=target_names, name="y_hat"),
+            null_space_basis=pd.DataFrame(null_space_basis, index=component_names, columns=ns_columns),
+            null_space_dimension=null_space_dimension,
+            hotellings_t2=t2,
+        )
+
     @classmethod
     def select_n_components(  # noqa: C901, PLR0912, PLR0913, PLR0915
         cls,

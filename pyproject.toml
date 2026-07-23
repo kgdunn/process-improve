@@ -1,6 +1,6 @@
 [project]
 name = "process-improve"
-version = "1.58.0"
+version = "1.59.0"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = "MIT"
@@ -116,7 +116,7 @@ dev = [
     "pytest-cov>=7.0.0",
     "pytest-xdist>=3.8.0",
     "pydata-sphinx-theme>=0.16.1",
-    "ruff>=0.11.0",
+    "ruff>=0.11.0,<0.16", # upper-bound so a future ruff release cannot silently break the lint gate (see mypy)
     "sphinx>=8.1.3",
     "nbsphinx>=0.9.5",
     "ipykernel>=6.29",
@@ -158,7 +158,7 @@ dev = [
     "pytest-cov>=7.0.0",
     "pytest-xdist>=3.8.0",
     "pydata-sphinx-theme>=0.16.1",
-    "ruff>=0.11.0",
+    "ruff>=0.11.0,<0.16", # upper-bound so a future ruff release cannot silently break the lint gate (see mypy)
     "sphinx>=8.1.3",
     "nbsphinx>=0.9.5",
     "ipykernel>=6.29",
@@ -208,6 +208,13 @@ exclude = [
 # Enable ALL Pyflakes codes by default.
 select = ["ALL"]
 ignore = [
+    # Copyright notices are managed in the repo's own "# (c) Kevin Dunn" house
+    # style, not via ruff. CPY001 is a preview rule with a default regex that
+    # requires the literal word "Copyright"; once a ruff release promoted it to
+    # stable it fired on nearly every file. Keep it off so the lint gate does not
+    # depend on the installed ruff version.
+    "CPY001", # Missing copyright notice at top of file.
+
     "C408",   # Unnecessary <dict/list/tuple> call - rewrite as a literal. Disagree with this.
 
     # Arguments
