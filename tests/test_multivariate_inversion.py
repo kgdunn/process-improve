@@ -92,6 +92,54 @@ def test_invert_accepts_scalar_series_and_array(case_study_1: tuple[pd.DataFrame
     assert from_series.to_numpy() == pytest.approx(from_scalar.to_numpy())
 
 
+def test_invert_accepts_dataframe_and_dict(case_study_1: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """A one-row DataFrame and a dict give the same result as a scalar."""
+    X, y = case_study_1
+    model = PLS(n_components=2).fit(X, y)
+    from_scalar = model.invert(168.23).x_new
+    from_frame = model.invert(pd.DataFrame({"y": [168.23]})).x_new
+    from_dict = model.invert({"y": 168.23}).x_new
+    assert from_frame.to_numpy() == pytest.approx(from_scalar.to_numpy())
+    assert from_dict.to_numpy() == pytest.approx(from_scalar.to_numpy())
+
+
+def test_invert_wrong_target_count_raises(case_study_1: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """Passing the wrong number of target values is a clear error."""
+    X, y = case_study_1
+    model = PLS(n_components=2).fit(X, y)  # single target
+    with pytest.raises(ValueError, match="expected 1"):
+        model.invert(np.array([1.0, 2.0]))
+
+
+def test_invert_missing_target_value_raises(case_study_1: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """A NaN in the desired response is rejected."""
+    X, y = case_study_1
+    model = PLS(n_components=2).fit(X, y)
+    with pytest.raises(ValueError, match="missing value"):
+        model.invert(np.nan)
+
+
+def test_invert_on_prescaled_model_scale_false(case_study_1: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """Inversion works when the model was fit with scale=False on pre-scaled data.
+
+    Exercises the un-scaled code path (no internal X/Y scaler). The desired
+    response must be supplied on the same (already-scaled) Y scale the model
+    saw, and the round-trip must still hold.
+    """
+    X, y = case_study_1
+    x_scaler = MCUVScaler().fit(X)
+    y_scaler = MCUVScaler().fit(y)
+    Xs = x_scaler.transform(X)
+    ys = y_scaler.transform(y)
+    model = PLS(n_components=2, scale=False).fit(Xs, ys)
+
+    target_scaled = float(y_scaler.transform(pd.DataFrame({"y": [168.23]})).iloc[0, 0])
+    result = model.invert(target_scaled)
+    y_back = float(model.predict(result.x_new.to_frame().T).iloc[0, 0])
+    assert y_back == pytest.approx(target_scaled, abs=1e-6)
+    assert result.null_space_dimension == 1
+
+
 def test_invert_reports_hotellings_t2(case_study_1: tuple[pd.DataFrame, pd.DataFrame]) -> None:
     """The solution's T2 is the sum of squared standardized scores and is finite."""
     X, y = case_study_1
