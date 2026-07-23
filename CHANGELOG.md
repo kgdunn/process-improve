@@ -11,6 +11,23 @@ those changes.
 
 ## [Unreleased]
 
+## [1.59.0] - 2026-07-23
+
+### Added
+
+- `PLS.invert()`: PLS model inversion for latent-variable product and process
+  design. Given a desired response on the original Y scale, it returns the
+  minimum-norm (direct-inversion) input vector that the model predicts will
+  achieve it, together with an orthonormal basis for the *null space* - the
+  `(A - r)`-dimensional family of input vectors that all yield the same
+  prediction (`A` components, response rank `r`). Callers can pass
+  `null_space_coordinates` to move along that space and satisfy secondary
+  criteria (cost, safety, operability) without changing the predicted response.
+  The result also reports the solution's Hotelling's T2 to flag extrapolation
+  beyond the calibration data. Reproduces the null-space results of
+  García-Carrión et al. (2025), whose single-response proof identifies this null
+  space with the orthogonal space of an O-PLS model.
+
 ## [1.58.0] - 2026-07-23
 
 ### Added
@@ -2599,7 +2616,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.58.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.59.0...HEAD
+[1.59.0]: https://github.com/kgdunn/process-improve/compare/v1.58.0...v1.59.0
 [1.58.0]: https://github.com/kgdunn/process-improve/compare/v1.57.0...v1.58.0
 [1.57.0]: https://github.com/kgdunn/process-improve/compare/v1.56.0...v1.57.0
 [1.56.0]: https://github.com/kgdunn/process-improve/compare/v1.55.1...v1.56.0
