@@ -18,7 +18,12 @@ from process_improve.sensory import (
     panel_scorecard,
     validate_descriptive,
 )
-from process_improve.sensory.analysis import _collinear_clusters, discriminate_observational, relate_designed
+from process_improve.sensory.analysis import (
+    _collinear_clusters,
+    _jackknife_correlation,
+    discriminate_observational,
+    relate_designed,
+)
 from process_improve.sensory.ingest import reshape_to_long
 from process_improve.univariate.metrics import benjamini_hochberg
 
@@ -72,6 +77,54 @@ def _panel(*, anomalous: str | None = "P8", seed: int = 0) -> pd.DataFrame:
                         }
                     )
     return pd.DataFrame(rows)
+
+
+# Products for the high-leverage case study. ``Q5`` is both a response outlier on
+# attribute C and the sole product carrying the ``spike`` descriptor.
+LEVERAGE_PRODUCTS = [f"Q{i}" for i in range(12)]
+_SPIKE_INDEX = 5
+
+
+def _leverage_case(seed: int = 1) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Panel + covariates isolating a genuine driver from a single-support spike.
+
+    ``genuine`` varies smoothly across all products and drives attribute A.
+    ``spike`` is zero on every product except one (``Q5``); attribute C is flat
+    except at that same product, where it is a large outlier. The spike-vs-C
+    correlation is therefore created entirely by one high-leverage product: strong
+    in-sample, but it collapses the moment that product is removed. An
+    influence-robust relate must keep genuine-on-A and demote spike-on-C.
+    """
+    rng = np.random.default_rng(seed)
+    n = len(LEVERAGE_PRODUCTS)
+    genuine = np.linspace(0.2, 1.0, n)
+    spike = np.zeros(n)
+    spike[_SPIKE_INDEX] = 1.0
+    cov = pd.DataFrame(
+        {
+            "product": LEVERAGE_PRODUCTS,
+            "genuine": genuine,
+            "spike": spike,
+            "noise": rng.normal(0.0, 1.0, n),
+        }
+    )
+    a_mean = 4.0 * genuine
+    c_mean = np.zeros(n)
+    c_mean[_SPIKE_INDEX] = 5.0  # one product is a large outlier on attribute C
+    rows = []
+    for pid in [f"J{i}" for i in range(6)]:
+        bias = rng.normal(0.0, 0.2)
+        for j, prod in enumerate(LEVERAGE_PRODUCTS):
+            for rep in (1, 2):
+                rows.append(
+                    {"panelist_id": pid, "session": 1, "product": prod, "attribute": "A",
+                     "replicate": rep, "score": 5.0 + a_mean[j] + bias + rng.normal(0, 0.15)}
+                )
+                rows.append(
+                    {"panelist_id": pid, "session": 1, "product": prod, "attribute": "C",
+                     "replicate": rep, "score": 5.0 + c_mean[j] + bias + rng.normal(0, 0.15)}
+                )
+    return pd.DataFrame(rows), cov
 
 
 # ---------------------------------------------------------------------------
@@ -298,6 +351,121 @@ def test_discriminator_gate_and_clusters():
     # descriptor is never flagged.
     assert not desc[desc["attribute"] == "B"]["discriminator_significant"].any()
     assert not desc[desc["descriptor"] == "d3"]["discriminator_significant"].any()
+
+
+def test_jackknife_correlation_edge_cases():
+    """The jackknife helper's degenerate branches behave sensibly."""
+    rng = np.random.default_rng(0)
+
+    # Too few observations: the jackknife is undefined, so not robust.
+    se, robust, n = _jackknife_correlation(np.arange(3.0), np.arange(3.0) + 1.0, 0.05)
+    assert n == 3
+    assert not robust
+    assert np.isnan(se)
+
+    # A smooth relationship supported across all points is robust.
+    x = np.linspace(0.0, 1.0, 12)
+    y = 2.0 * x + rng.normal(0, 0.05, 12)
+    se, robust, n = _jackknife_correlation(x, y, 0.05)
+    assert robust
+    assert se > 0.0
+
+    # A single-support spike collapses when its one point is removed: not robust.
+    xs = np.zeros(12)
+    xs[5] = 1.0
+    ys = rng.normal(0, 1, 12)
+    ys[5] += 5.0
+    _, robust, _ = _jackknife_correlation(xs, ys, 0.05)
+    assert not robust
+
+    # A perfectly stable correlation (zero jackknife spread) is robust when non-zero.
+    z = np.linspace(0.0, 1.0, 8)
+    se, robust, _ = _jackknife_correlation(z, z, 0.05)
+    assert se == 0.0
+    assert robust
+
+
+def test_relate_marginal_demotes_single_support_spike():
+    """A single high-leverage observation must not create a significant association.
+
+    The ``spike`` descriptor is non-zero on exactly one product, which is also a
+    large outlier on attribute C, so its in-sample Pearson correlation is strong and
+    would pass a bare FDR gate. The leave-one-out jackknife demotes it (removing that
+    one product collapses the correlation), while the genuine multi-product driver on
+    attribute A survives.
+    """
+    panel, cov = _leverage_case()
+    validated = validate_descriptive(panel, cov, mode="observational")
+    result = analyze_descriptive(validated, discriminator=False)
+    assoc = pd.DataFrame(result.relate["associations"])
+
+    # New influence-robustness fields are surfaced per association.
+    assert {"jackknife_se", "influence_robust", "n_supporting"}.issubset(assoc.columns)
+
+    spike_c = assoc[(assoc["attribute"] == "C") & (assoc["descriptor"] == "spike")].iloc[0]
+    genuine_a = assoc[(assoc["attribute"] == "A") & (assoc["descriptor"] == "genuine")].iloc[0]
+
+    # The spike correlates strongly in-sample yet rests on one product: not robust,
+    # so not significant, even though its raw p-value is tiny.
+    assert abs(spike_c["r"]) > 0.8
+    assert spike_c["p_value"] < 0.05
+    assert not spike_c["influence_robust"]
+    assert not spike_c["significant"]
+
+    # The genuine driver is supported across all products: robust and significant.
+    assert genuine_a["influence_robust"]
+    assert genuine_a["significant"]
+
+
+def test_discriminator_demotes_single_support_spike():
+    """The cross-validated discriminator must also demote a single-support spike."""
+    n = len(LEVERAGE_PRODUCTS)
+    rng = np.random.default_rng(2)
+    genuine = np.linspace(0.0, 1.0, n)
+    spike = np.zeros(n)
+    spike[_SPIKE_INDEX] = 1.0
+    agg = pd.DataFrame(
+        {
+            "A": 4.0 * genuine + rng.normal(0, 0.1, n),
+            "C": np.where(np.arange(n) == _SPIKE_INDEX, 5.0, 0.0) + rng.normal(0, 0.1, n),
+        },
+        index=LEVERAGE_PRODUCTS,
+    )
+    cov = pd.DataFrame(
+        {"genuine": genuine, "spike": spike, "noise": rng.normal(0, 1, n)}, index=LEVERAGE_PRODUCTS
+    )
+    disc = discriminate_observational(agg, cov, n_components=1, n_permutations=99, random_state=0)
+    desc = pd.DataFrame(disc["descriptors"])
+
+    assert "jackknife_significant" in desc.columns
+    # The spike's predictive weight rests on one product, so its jackknife interval
+    # spans zero and it is never confirmed.
+    spike_rows = desc[desc["descriptor"] == "spike"]
+    assert not spike_rows["jackknife_significant"].any()
+    assert not spike_rows["discriminator_significant"].any()
+    # The genuine driver stays jackknife-stable on the attribute it drives, so the
+    # jackknife gate demotes the single-support spike without over-pruning a real
+    # driver's predictive coefficient.
+    genuine_a = desc[(desc["descriptor"] == "genuine") & (desc["attribute"] == "A")].iloc[0]
+    assert genuine_a["jackknife_significant"]
+
+
+def test_discriminator_small_sample_skips_jackknife_gate():
+    """With too few products the LOO gate is skipped, so nothing is confirmed.
+
+    Below the cross-validation floor the per-coefficient jackknife cannot be run, so
+    ``jackknife_significant`` defaults to ``False`` and no descriptor is confirmed.
+    """
+    products = [f"P{i}" for i in range(4)]
+    rng = np.random.default_rng(0)
+    u = np.linspace(0.0, 1.0, 4)
+    agg = pd.DataFrame({"A": 2.0 * u + rng.normal(0, 0.05, 4)}, index=products)
+    cov = pd.DataFrame({"d1": u, "d2": rng.normal(0, 1, 4)}, index=products)
+
+    disc = discriminate_observational(agg, cov, n_components=1, n_permutations=19, random_state=0)
+    desc = pd.DataFrame(disc["descriptors"])
+    assert not desc["jackknife_significant"].any()
+    assert not desc["discriminator_significant"].any()
 
 
 def test_relate_observational_requires_numeric_descriptors():
