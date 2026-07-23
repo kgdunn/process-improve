@@ -193,6 +193,26 @@ def test_opls_invert_input_forms_and_errors(cheese: tuple[pd.DataFrame, pd.DataF
         opls.invert(np.inf)
 
 
+def test_opls_scale_false_end_to_end_and_2d_array_y(cheese: tuple[pd.DataFrame, pd.DataFrame]) -> None:
+    """Exercise the unscaled code paths: predict/transform/invert and a 2-D array Y."""
+    X, y = cheese
+    Xs = MCUVScaler().fit_transform(X)
+    ys = MCUVScaler().fit_transform(y)
+    # Y supplied as a 2-D ndarray (neither DataFrame nor 1-D) exercises that branch.
+    opls = OPLS(n_orthogonal_components=1, scale=False).fit(Xs, ys.to_numpy())
+
+    # predict / transform on the unscaled model.
+    assert opls.predict(Xs).shape == (X.shape[0], 1)
+    assert opls.transform(Xs).to_numpy() == pytest.approx(opls.predictive_scores_.to_numpy(), abs=1e-9)
+
+    # invert on the unscaled model round-trips on the scaled-y scale.
+    target_scaled = 0.5
+    result = opls.invert(target_scaled)
+    assert result.y_hat == pytest.approx(target_scaled, abs=1e-6)
+    y_back = float(opls.predict(result.x_new.to_frame().T).iloc[0, 0])
+    assert y_back == pytest.approx(target_scaled, abs=1e-6)
+
+
 def test_opls_reproduces_paper_case_study_1() -> None:
     """On the paper's Case Study 1, O-PLS(1;1) and PLS(2) predictions agree."""
     X = pd.DataFrame(
