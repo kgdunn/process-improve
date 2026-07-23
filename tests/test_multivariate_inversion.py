@@ -195,6 +195,45 @@ def test_invert_cheddar_cheese_holdout() -> None:
         assert y_back == pytest.approx(target, abs=1e-6)
 
 
+def test_invert_solvents_two_response_design() -> None:
+    """Design a solvent with a target logP and Solubility (a two-response case).
+
+    The solvents dataset has seven physical properties and two responses (logP
+    and Solubility). Inverting toward a desired (logP, Solubility) is a genuine
+    multi-response design: the null-space dimension is A - rank(Y), the design
+    round-trips to both targets, and moving along the null space leaves both
+    predictions unchanged. O-PLS's single-division inversion does not apply here,
+    which is why the null-space / orthogonal-space equivalence is single-response
+    only.
+    """
+    folder = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate"
+    path = folder / "solvents.csv"
+    if not path.exists():
+        pytest.skip("solvents.csv fixture not present")
+    solvents = pd.read_csv(path).dropna()
+    x_cols = ["MeltingPoint", "BoilingPoint", "Dielectric", "DipoleMoment", "RefractiveIndex", "ET30", "Density"]
+    y_cols = ["logP", "Solubility"]
+    X, Y = solvents[x_cols], solvents[y_cols]
+
+    n_components = 3
+    model = PLS(n_components=n_components).fit(X, Y)
+    rank_y = np.linalg.matrix_rank((Y - Y.mean()).to_numpy())
+    assert rank_y == 2
+
+    desired = pd.Series({"logP": 0.5, "Solubility": 0.0})
+    result = model.invert(desired)
+    assert result.null_space_dimension == n_components - rank_y  # 3 - 2 = 1
+
+    y_back = model.predict(result.x_new.to_frame().T)
+    assert y_back[y_cols].to_numpy().ravel() == pytest.approx(desired.to_numpy(), abs=1e-6)
+
+    # Both target responses are unchanged when moving along the null space.
+    moved = model.invert(desired, null_space_coordinates=[2.0])
+    y_moved = model.predict(moved.x_new.to_frame().T)
+    assert y_moved[y_cols].to_numpy().ravel() == pytest.approx(desired.to_numpy(), abs=1e-6)
+    assert not np.allclose(moved.x_new.to_numpy(), result.x_new.to_numpy())
+
+
 def test_invert_multi_response_null_space_dimension() -> None:
     """On the real LDPE data the null-space dimension is A - rank(Y).
 
