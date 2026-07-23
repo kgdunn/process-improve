@@ -15,6 +15,7 @@ from process_improve.sensory import (
     align_scores,
     analyze_descriptive,
     mixed_assessor_model,
+    panel_consistency,
     panel_scorecard,
     validate_descriptive,
 )
@@ -269,6 +270,64 @@ def test_scorecard_flags_planted_anomaly():
 def test_scorecard_clean_panel_has_no_flags():
     card = panel_scorecard(_panel(anomalous=None))
     assert card.flagged == []
+
+
+def test_consistency_flags_the_noise_rater():
+    """A panelist scoring at random is indistinguishable from a reshuffle of its own scores."""
+    result = panel_consistency(_panel(anomalous="P8"), n_permutations=199, random_state=0)
+    table = result.table
+    assert {"discrimination", "p_discrimination", "agreement", "p_agreement", "consistent"} == set(table.columns)
+
+    # The random rater cannot beat its own permutations: high discrimination p-value,
+    # not consistent, and the least consistent of the whole panel.
+    assert "P8" in result.inconsistent
+    assert table.loc["P8", "p_discrimination"] > 0.5
+    assert table["p_discrimination"].idxmax() == "P8"
+    assert table.loc["P8", "agreement"] < 0.5
+
+    # The strongest genuine raters clear their own-permutation null.
+    assert table.loc["P5", "consistent"]
+    assert table.loc["P4", "consistent"]
+
+
+def _row(panelist: str, product: str, attribute: str, replicate: int, score: float) -> dict:
+    """Build a single descriptive_long row."""
+    return {
+        "panelist_id": panelist,
+        "session": 1,
+        "product": product,
+        "attribute": attribute,
+        "replicate": replicate,
+        "score": score,
+    }
+
+
+def test_consistency_handles_degenerate_panelists():
+    """A flat rater and a single-product rater cannot be assessed and are not consistent."""
+    products = list("WXYZ")
+    truth = {"W": -1, "X": 0, "Y": 1, "Z": 2}
+    rows = [_row("good", prod, "A", rep, 5.0 + 2.0 * truth[prod]) for prod in products for rep in (1, 2)]
+    rows += [_row("flat", prod, "A", rep, 5.0) for prod in products for rep in (1, 2)]  # no variance
+    rows += [_row("one", "W", "A", rep, 6.0) for rep in (1, 2)]  # only one product
+    result = panel_consistency(pd.DataFrame(rows), n_permutations=50, random_state=0)
+    table = result.table
+
+    assert np.isnan(table.loc["flat", "p_discrimination"])
+    assert np.isnan(table.loc["flat", "agreement"])
+    assert not bool(table.loc["flat", "consistent"])
+    assert not bool(table.loc["one", "consistent"])
+    assert {"flat", "one"}.issubset(result.inconsistent)
+
+
+def test_consistency_is_deterministic_and_validates():
+    """Same seed gives identical output; a non-positive permutation count is rejected."""
+    panel = _panel(anomalous="P8")
+    first = panel_consistency(panel, n_permutations=99, random_state=1)
+    second = panel_consistency(panel, n_permutations=99, random_state=1)
+    assert first.table.equals(second.table)
+    assert first.inconsistent == second.inconsistent
+    with pytest.raises(ValueError, match="n_permutations must be at least 1"):
+        panel_consistency(panel, n_permutations=0)
 
 
 def test_dropping_panelist_changes_means():
