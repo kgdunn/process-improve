@@ -11,6 +11,31 @@ those changes.
 
 ## [Unreleased]
 
+## [1.59.0] - 2026-07-23
+
+### Added
+
+- New module `process_improve.sensory.designed` for designed-mode comparison of
+  descriptive panel data, the complement to the existing observational relate. It
+  answers "which product treatments differ, and by how much, on each attribute" for a
+  randomized complete block design (the same panelists score every treatment, with
+  panelist as the block). Public entry points, all generic in the factor column names:
+  - `factorial_anova(panel, *, factors, block, interactions)`: per-attribute Type III
+    factorial ANOVA (`score ~ C(factor_1) * C(factor_2) * ... + C(block)`), so an
+    unbalanced grid is handled correctly and the interaction terms test whether one
+    factor's effect depends on another (e.g. does aging change some formulations more
+    than others).
+  - `tukey_hsd(panel, *, factor, block, alpha)`: all-pairwise Tukey HSD using the
+    blocked-model error mean square and the studentized-range distribution (the block
+    variance is removed), with a compact-letter display grouping treatments that are
+    not separable.
+  - `dunnett_vs_control(panel, *, factor, control, alpha)`: Dunnett's two-sided test of
+    every treatment against one named control.
+  - `compare_products(...)` orchestrates the ANOVA plus post-hoc tests and returns a
+    `ComparisonResult`; a `within` argument runs the post-hoc tests as simple effects
+    within each level of another factor (the right follow-up once an interaction is
+    significant).
+
 ## [1.58.0] - 2026-07-23
 
 ### Added
@@ -2599,7 +2624,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.58.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.59.0...HEAD
+[1.59.0]: https://github.com/kgdunn/process-improve/compare/v1.58.0...v1.59.0
 [1.58.0]: https://github.com/kgdunn/process-improve/compare/v1.57.0...v1.58.0
 [1.57.0]: https://github.com/kgdunn/process-improve/compare/v1.56.0...v1.57.0
 [1.56.0]: https://github.com/kgdunn/process-improve/compare/v1.55.1...v1.56.0
