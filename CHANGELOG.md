@@ -11,6 +11,23 @@ those changes.
 
 ## [Unreleased]
 
+## [1.59.0] - 2026-07-23
+
+### Added
+
+- `process_improve.sensory.panel_consistency`: a per-panelist reliability test that
+  compares each panelist's product signal against a reshuffle of their own scores. For
+  every panelist the product labels are permuted within each attribute (keeping the
+  panelist's own values, only reassigning which product got which) and the mean
+  eta-squared product effect and the agreement with the leave-one-out panel consensus are
+  recomputed; the null is built entirely from the panelist's own data, no simulation. A
+  panelist who carries a real, reproducible signal beats almost every reshuffle (small
+  p-value), while a noise rater is indistinguishable from its own permutations. Returns a
+  `PanelConsistency` with per-panelist `discrimination` / `p_discrimination`, `agreement`
+  / `p_agreement`, and a `consistent` flag (gated on the discrimination p-value; agreement
+  is reported but not gated, since a reproducible rater may still rank the products
+  differently from the panel).
+
 ## [1.58.0] - 2026-07-23
 
 ### Added
@@ -2599,7 +2616,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.58.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.59.0...HEAD
+[1.59.0]: https://github.com/kgdunn/process-improve/compare/v1.58.0...v1.59.0
 [1.58.0]: https://github.com/kgdunn/process-improve/compare/v1.57.0...v1.58.0
 [1.57.0]: https://github.com/kgdunn/process-improve/compare/v1.56.0...v1.57.0
 [1.56.0]: https://github.com/kgdunn/process-improve/compare/v1.55.1...v1.56.0
