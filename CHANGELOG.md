@@ -11,6 +11,21 @@ those changes.
 
 ## [Unreleased]
 
+## [1.57.0] - 2026-07-23
+
+### Added
+
+- `analyze_descriptive` / `relate_observational` gain an `influence_deletions`
+  parameter (default 1) for the observational relate. It sets how many observations
+  the marginal-association jackknife removes together: the default is the ordinary
+  leave-one-out gate, and raising it to 2 also demotes a correlation carried by a
+  single pair of high-leverage observations, which leave-one-out cannot detect
+  (deleting either point of the pair leaves the other holding the correlation up).
+  For `d >= 2` the decision uses a breakdown criterion (the correlation must stay
+  significant, with the same sign, after removing every subset of `d` observations)
+  rather than the averaged jackknife variance, which would dilute the single
+  collapsing subset. `d = 1` behaviour is unchanged.
+
 ## [1.56.0] - 2026-07-22
 
 ### Changed
@@ -2566,7 +2581,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.56.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.57.0...HEAD
+[1.57.0]: https://github.com/kgdunn/process-improve/compare/v1.56.0...v1.57.0
 [1.56.0]: https://github.com/kgdunn/process-improve/compare/v1.55.1...v1.56.0
 [1.55.1]: https://github.com/kgdunn/process-improve/compare/v1.55.0...v1.55.1
 [1.55.0]: https://github.com/kgdunn/process-improve/compare/v1.54.0...v1.55.0
