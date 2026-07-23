@@ -38,6 +38,7 @@ import pandas as pd
 from scipy.stats import pearsonr
 from scipy.stats import t as t_dist
 
+from process_improve.multivariate._common import NotEnoughVarianceError
 from process_improve.multivariate.methods import PCA, PLS, MCUVScaler, selectivity_ratio, vip
 from process_improve.sensory.mam import MAMResult, align_scores, mixed_assessor_model
 from process_improve.sensory.panel import PanelScorecard, apply_correction, panel_scorecard
@@ -571,6 +572,165 @@ def relate_observational(  # noqa: PLR0913
             random_state=random_state,
         )
     return result
+
+
+def _knockoff_block(x_block: pd.DataFrame, k: int, rng: np.random.Generator) -> pd.DataFrame:
+    """Return ``k`` null columns, each a row-permutation of a randomly chosen real column.
+
+    Sampling the source columns with replacement lets ``k`` exceed the number of real
+    columns (needed for the ``min_knockoffs`` floor on a narrow block); a permuted copy
+    keeps the source column's own marginal - its spread, sparsity, and support - so the
+    null is matched to the data rather than to a simulated distribution.
+    """
+    n_rows, p = x_block.shape
+    source = rng.integers(0, p, size=k)
+    columns = {
+        f"__null_{j}": x_block.iloc[:, src].to_numpy()[rng.permutation(n_rows)]
+        for j, src in enumerate(source)
+    }
+    return pd.DataFrame(columns, index=x_block.index)
+
+
+def permutation_column_null(  # noqa: PLR0913
+    agg: pd.DataFrame,
+    covariates: pd.DataFrame,
+    *,
+    ignore: list[str] | None = None,
+    n_components: int = 2,
+    fraction: float = 0.15,
+    min_knockoffs: int = 7,
+    max_knockoffs: int | None = None,
+    n_iter: int = 200,
+    quantile: float = 0.95,
+    random_state: int = 0,
+) -> dict[str, Any]:
+    """Empirical VIP / cross-validated-beta null for the descriptor block.
+
+    Adds ``k`` permuted "knockoff" columns - each a row-shuffled copy of a real
+    descriptor (:func:`_knockoff_block`) - to the descriptor block, fits the PLS relate,
+    and reads the VIP and cross-validated beta of every column. Repeated over ``n_iter``
+    permutations, the knockoff columns form an empirical null band: a real descriptor is
+    only credible if its VIP / beta clears a high quantile of the null the permuted
+    columns achieve. Because even a descriptor with no real relationship earns a
+    non-trivial VIP in a ``p >> n`` fit, this calibrates the magnitude against the data's
+    own permuted columns rather than a parametric cutoff.
+
+    This is decoupled from the influence gate: it does not itself remove any descriptors.
+    Pass the descriptors the gate demoted (single or twin-support spikes) as ``ignore``;
+    they are dropped from the fit entirely - not merely skipped when building knockoffs -
+    so they no longer distort the scores or VIP of the survivors.
+
+    Parameters
+    ----------
+    agg : pandas.DataFrame
+        Product-by-attribute mean table (index ``product``).
+    covariates : pandas.DataFrame
+        One row per product with the measured descriptors (index ``product``; a
+        ``product`` column, if present, is ignored).
+    ignore : list of str, optional
+        Descriptor names to drop from the fit before building the null (default: none).
+        A name absent from the descriptor block raises ``ValueError`` so a typo fails
+        loudly instead of silently doing nothing.
+    n_components : int
+        Latent components for each PLS fit.
+    fraction : float
+        Fraction of surviving descriptors used as the knockoff count.
+    min_knockoffs : int
+        Floor on the knockoff count, so a narrow block still gets a usable null.
+    max_knockoffs : int, optional
+        Optional cap on the knockoff count (default: uncapped).
+    n_iter : int
+        Number of permutations (refits); more gives a smoother null threshold.
+    quantile : float
+        Null quantile used as the significance threshold (e.g. 0.95).
+    random_state : int
+        Seed for the permutations.
+
+    Returns
+    -------
+    dict
+        ``descriptors`` (per surviving descriptor: ``vip`` / ``cv_beta`` and the
+        ``*_null_threshold`` and ``*_exceeds_null`` fields), plus the settings used and
+        the counts (``n_descriptors``, ``n_knockoffs``, ``n_iter``, ``ignored``).
+    """
+    if fraction <= 0.0:
+        raise ValueError(f"fraction must be positive, got {fraction}.")
+    if not 0.0 < quantile < 1.0:
+        raise ValueError(f"quantile must be in (0, 1), got {quantile}.")
+    if min_knockoffs < 1 or n_iter < 1:
+        raise ValueError("min_knockoffs and n_iter must both be at least 1.")
+
+    ignore = list(ignore or [])
+    x_all = covariates.loc[agg.index]
+    descriptors = [c for c in x_all.columns if c != "product" and pd.api.types.is_numeric_dtype(x_all[c])]
+    unknown = sorted(set(ignore) - set(descriptors))
+    if unknown:
+        raise ValueError(f"ignore contains descriptor name(s) not in the covariate block: {unknown}.")
+
+    kept = [c for c in descriptors if c not in set(ignore)]
+    p = len(kept)
+    config = {
+        "n_descriptors": p,
+        "n_ignored": len(ignore),
+        "ignored": sorted(ignore),
+        "fraction": fraction,
+        "quantile": quantile,
+        "n_iter_requested": n_iter,
+    }
+    if p < 2:
+        return {"ok": False, "reason": f"need at least 2 descriptors after ignoring; got {p}.", **config}
+
+    y_block = agg.astype(float)
+    x_block = x_all[kept].astype(float)
+    n_rows = x_block.shape[0]
+    k = max(int(min_knockoffs), round(fraction * p))
+    if max_knockoffs is not None:
+        k = min(k, int(max_knockoffs))
+    max_comp = max(1, min(n_components, p, n_rows - 1))
+    null_names = [f"__null_{j}" for j in range(k)]
+
+    rng = np.random.default_rng(random_state)
+    real_vip_runs: list[pd.Series] = []
+    real_beta_runs: list[pd.Series] = []
+    null_vip: list[float] = []
+    null_beta: list[float] = []
+    for _ in range(n_iter):
+        x_aug = pd.concat([x_block, _knockoff_block(x_block, k, rng)], axis=1)
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                pls = PLS(n_components=max_comp).fit(x_aug, y_block)
+                beta = pls.cross_validate(x_aug, y_block, cv="loo", show_progress=False).beta_mean.abs().max(axis=1)
+        except (np.linalg.LinAlgError, NotEnoughVarianceError):
+            continue  # a degenerate (singular / no-variance) block contributes nothing to the null
+        vips = vip(pls)
+        real_vip_runs.append(vips.reindex(kept))
+        real_beta_runs.append(beta.reindex(kept))
+        null_vip.extend(float(vips[name]) for name in null_names)
+        null_beta.extend(float(beta[name]) for name in null_names)
+
+    if not real_vip_runs:
+        return {"ok": False, "reason": "every permuted fit was singular; no null could be formed.", **config}
+
+    real_vip = pd.concat(real_vip_runs, axis=1).mean(axis=1)
+    real_beta = pd.concat(real_beta_runs, axis=1).mean(axis=1)
+    vip_threshold = float(np.nanquantile(null_vip, quantile))
+    beta_threshold = float(np.nanquantile(null_beta, quantile))
+
+    records: list[dict[str, Any]] = [
+        {
+            "descriptor": desc,
+            "vip": float(real_vip[desc]),
+            "vip_null_threshold": vip_threshold,
+            "vip_exceeds_null": bool(real_vip[desc] > vip_threshold),
+            "cv_beta": float(real_beta[desc]),
+            "cv_beta_null_threshold": beta_threshold,
+            "cv_beta_exceeds_null": bool(real_beta[desc] > beta_threshold),
+        }
+        for desc in kept
+    ]
+    records.sort(key=lambda r: r["vip"], reverse=True)
+    return {"ok": True, "descriptors": records, "n_knockoffs": k, "n_iter": len(real_vip_runs), **config}
 
 
 def product_means(panel: pd.DataFrame, conf_level: float = 0.95) -> pd.DataFrame:

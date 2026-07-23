@@ -11,6 +11,24 @@ those changes.
 
 ## [Unreleased]
 
+## [1.58.0] - 2026-07-23
+
+### Added
+
+- `process_improve.sensory.permutation_column_null`: an empirical VIP /
+  cross-validated-beta null for the observational relate's descriptor block. It adds
+  permuted "knockoff" columns - each a row-shuffled copy of a real descriptor, so the
+  null matches the data's own marginals rather than a simulated distribution - refits
+  the PLS relate over many permutations, and reports, per surviving descriptor, whether
+  its VIP and cross-validated beta clear a high quantile of the null band. This
+  calibrates driver magnitude against the data's own permuted columns in the `p >> n`
+  regime, where even an unrelated descriptor earns a non-trivial VIP. The function is
+  decoupled from the influence gate: it takes an `ignore` list of descriptor names (by
+  name, validated - an unknown name raises) that are dropped from the fit entirely, so
+  a caller can remove the gate-demoted spikes before calibrating the survivors. The
+  knockoff count scales with the block (`fraction`, with a `min_knockoffs` floor for
+  narrow data and an optional cap), and `n_iter` sets the permutation count.
+
 ## [1.57.0] - 2026-07-23
 
 ### Added
@@ -2581,7 +2599,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.57.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.58.0...HEAD
+[1.58.0]: https://github.com/kgdunn/process-improve/compare/v1.57.0...v1.58.0
 [1.57.0]: https://github.com/kgdunn/process-improve/compare/v1.56.0...v1.57.0
 [1.56.0]: https://github.com/kgdunn/process-improve/compare/v1.55.1...v1.56.0
 [1.55.1]: https://github.com/kgdunn/process-improve/compare/v1.55.0...v1.55.1

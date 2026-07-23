@@ -22,6 +22,7 @@ from process_improve.sensory.analysis import (
     _collinear_clusters,
     _jackknife_correlation,
     discriminate_observational,
+    permutation_column_null,
     relate_designed,
 )
 from process_improve.sensory.ingest import reshape_to_long
@@ -550,6 +551,112 @@ def test_discriminator_small_sample_skips_jackknife_gate():
     desc = pd.DataFrame(disc["descriptors"])
     assert not desc["jackknife_significant"].any()
     assert not desc["discriminator_significant"].any()
+
+
+def _null_case(seed: int = 0) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Product-mean table + covariates with two genuine drivers and six noise columns."""
+    rng = np.random.default_rng(seed)
+    n = 20
+    products = [f"P{i}" for i in range(n)]
+    driver1 = np.linspace(0.0, 1.0, n) + rng.normal(0, 0.03, n)
+    driver2 = rng.normal(0, 1, n)
+    cov = pd.DataFrame(
+        {"driver1": driver1, "driver2": driver2, **{f"noise{j}": rng.normal(0, 1, n) for j in range(6)}},
+        index=products,
+    )
+    cov.index.name = "product"
+    agg = pd.DataFrame(
+        {"A": 3.0 * driver1 + rng.normal(0, 0.2, n), "B": 2.0 * driver2 + rng.normal(0, 0.2, n)},
+        index=products,
+    )
+    return agg, cov
+
+
+def test_permutation_null_flags_drivers_over_noise():
+    """Genuine drivers clear the permuted-column null; noise columns fall below them."""
+    agg, cov = _null_case()
+    result = permutation_column_null(agg, cov, n_iter=12, min_knockoffs=7, random_state=0)
+    assert result["ok"]
+    assert result["n_descriptors"] == 8
+    assert result["n_knockoffs"] == 7
+    by_name = {r["descriptor"]: r for r in result["descriptors"]}
+
+    for driver in ("driver1", "driver2"):
+        assert by_name[driver]["vip_exceeds_null"]
+        assert by_name[driver]["cv_beta_exceeds_null"]
+
+    # Every noise column scores below both drivers on VIP (robust to platform jitter near
+    # the threshold), and no noise column clears the beta null.
+    min_driver_vip = min(by_name["driver1"]["vip"], by_name["driver2"]["vip"])
+    for j in range(6):
+        noise = by_name[f"noise{j}"]
+        assert noise["vip"] < min_driver_vip
+        assert not noise["cv_beta_exceeds_null"]
+
+
+def test_permutation_null_ignore_drops_columns():
+    """`ignore` removes named descriptors from the fit and the output."""
+    agg, cov = _null_case()
+    result = permutation_column_null(agg, cov, ignore=["noise0", "noise1"], n_iter=5, random_state=0)
+    names = [r["descriptor"] for r in result["descriptors"]]
+    assert result["n_descriptors"] == 6
+    assert result["ignored"] == ["noise0", "noise1"]
+    assert "noise0" not in names
+    assert "noise1" not in names
+
+
+def test_permutation_null_unknown_ignore_name_raises():
+    """A descriptor name that is not in the block fails loudly rather than silently."""
+    agg, cov = _null_case()
+    with pytest.raises(ValueError, match="not in the covariate block"):
+        permutation_column_null(agg, cov, ignore=["not_a_real_column"], n_iter=2)
+
+
+def test_permutation_null_is_deterministic():
+    """The same seed gives identical thresholds and flags."""
+    agg, cov = _null_case()
+    first = permutation_column_null(agg, cov, n_iter=5, random_state=1)
+    second = permutation_column_null(agg, cov, n_iter=5, random_state=1)
+    assert first["descriptors"] == second["descriptors"]
+
+
+def test_permutation_null_validates_parameters():
+    """Out-of-range fraction / quantile / counts are rejected."""
+    agg, cov = _null_case()
+    with pytest.raises(ValueError, match="fraction must be positive"):
+        permutation_column_null(agg, cov, fraction=0.0, n_iter=2)
+    with pytest.raises(ValueError, match="quantile must be in"):
+        permutation_column_null(agg, cov, quantile=1.5, n_iter=2)
+    with pytest.raises(ValueError, match="at least 1"):
+        permutation_column_null(agg, cov, min_knockoffs=0, n_iter=2)
+
+
+def test_permutation_null_max_knockoffs_caps_the_count():
+    """`max_knockoffs` bounds the knockoff count even when the fraction is larger."""
+    agg, cov = _null_case()
+    result = permutation_column_null(agg, cov, fraction=0.9, max_knockoffs=3, n_iter=3, random_state=0)
+    assert result["n_knockoffs"] == 3
+
+
+def test_permutation_null_too_few_descriptors_returns_not_ok():
+    """Fewer than two descriptors after ignoring cannot form a null."""
+    agg, cov = _null_case()
+    keep_two = cov[["driver1", "driver2"]]
+    result = permutation_column_null(agg, keep_two, ignore=["driver2"], n_iter=2)
+    assert not result["ok"]
+    assert "at least 2 descriptors" in result["reason"]
+
+
+def test_permutation_null_degenerate_block_returns_not_ok():
+    """A no-variance descriptor block degrades gracefully instead of crashing."""
+    products = [f"P{i}" for i in range(8)]
+    cov = pd.DataFrame(
+        {"c1": np.ones(8), "c2": np.full(8, 2.0), "c3": np.full(8, 3.0)}, index=products
+    )
+    agg = pd.DataFrame({"A": np.arange(8.0)}, index=products)
+    result = permutation_column_null(agg, cov, n_iter=3, min_knockoffs=2, random_state=0)
+    assert not result["ok"]
+    assert "singular" in result["reason"]
 
 
 def test_relate_observational_requires_numeric_descriptors():
