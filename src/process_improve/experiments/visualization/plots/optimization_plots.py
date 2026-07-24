@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 
+from process_improve.experiments._desirability import composite_desirability, individual_desirability
 from process_improve.experiments.visualization.plots.registry import BasePlot, register_plot
 from process_improve.experiments.visualization.plots.surfaces import _build_coef_map, _compute_grid, _evaluate_model
 from process_improve.visualization.colors import (
@@ -28,77 +29,60 @@ from process_improve.visualization.spec import (
 from process_improve.visualization.types import AnnotationType, MarkType
 
 # ---------------------------------------------------------------------------
-# Shared desirability helpers
+# Grid helpers shared by the desirability and overlay plots
 # ---------------------------------------------------------------------------
 
 
-def _desirability_maximize(y: float, low: float, high: float, weight: float = 1.0) -> float:
-    """Individual desirability for a maximise goal."""
-    if y <= low:
-        return 0.0
-    if y >= high:
-        return 1.0
-    return ((y - low) / (high - low)) ** weight
+def _response_surface(
+    coef_map: dict[str, float],
+    factor_x: str,
+    factor_y: str,
+    hold_values: dict[str, float],
+    n_grid: int,
+) -> list[list[float]]:
+    """Predict one response over the coded grid, row-major as ``z[y][x]``."""
+    _, _, z_matrix = _compute_grid(coef_map, factor_x, factor_y, hold_values, n_grid)
+    return z_matrix
 
 
-def _desirability_minimize(y: float, low: float, high: float, weight: float = 1.0) -> float:
-    """Individual desirability for a minimise goal."""
-    if y <= low:
-        return 1.0
-    if y >= high:
-        return 0.0
-    return ((high - y) / (high - low)) ** weight
+def _resolve_goal_bounds(goal: dict[str, Any], surface: list[list[float]]) -> dict[str, Any]:
+    """Return *goal* with finite ``low`` and ``high``, derived if not supplied.
 
+    A response with no stated specification has nothing to ramp between. Rather
+    than defaulting to an arbitrary [0, 1] or to infinities (which make the
+    desirability undefined), the ramp spans the range the fitted model actually
+    covers over the plotted region.
 
-def _desirability_target(  # noqa: PLR0913
-    y: float,
-    low: float,
-    target: float,
-    high: float,
-    weight_low: float = 1.0,
-    weight_high: float = 1.0,
-) -> float:
-    """Individual desirability for a target goal."""
-    if y <= low or y >= high:
-        return 0.0
-    if y <= target:
-        return ((y - low) / (target - low)) ** weight_low
-    return ((high - y) / (high - target)) ** weight_high
+    Parameters
+    ----------
+    goal : dict
+        Goal dict, possibly missing ``low`` / ``high`` or carrying non-finite
+        values for them.
+    surface : list[list[float]]
+        Predicted response over the grid.
 
+    Returns
+    -------
+    dict
+        A copy of *goal* with finite bounds. If the surface is flat, the bounds
+        are nudged apart so the ramp stays well defined.
+    """
+    resolved = dict(goal)
+    low = resolved.get("low")
+    high = resolved.get("high")
+    if low is not None and high is not None and np.isfinite(low) and np.isfinite(high):
+        return resolved
 
-def _individual_desirability(y: float, goal: dict[str, Any]) -> float:
-    """Compute individual desirability for a single response."""
-    goal_type = goal.get("goal", "maximize")
-    weight = goal.get("weight", 1.0)
+    flat = [v for row in surface for v in row if np.isfinite(v)]
+    if not flat:
+        resolved["low"], resolved["high"] = 0.0, 1.0
+        return resolved
 
-    if goal_type == "maximize":
-        return _desirability_maximize(y, goal.get("low", 0.0), goal.get("high", 1.0), weight)
-    if goal_type == "minimize":
-        return _desirability_minimize(y, goal.get("low", 0.0), goal.get("high", 1.0), weight)
-    if goal_type == "target":
-        return _desirability_target(
-            y,
-            goal.get("low", 0.0),
-            goal.get("target", 0.5),
-            goal.get("high", 1.0),
-            weight,
-            goal.get("weight_high", weight),
-        )
-    return 0.0
-
-
-def _composite_desirability(d_values: list[float], importances: list[float] | None = None) -> float:
-    """Weighted geometric mean of individual desirabilities."""
-    if not d_values:
-        return 0.0
-    if any(d == 0.0 for d in d_values):
-        return 0.0
-    weights = importances or [1.0] * len(d_values)
-    total_w = sum(weights)
-    product = 1.0
-    for d, w in zip(d_values, weights):  # noqa: B905
-        product *= d ** (w / total_w)
-    return product
+    z_min, z_max = float(min(flat)), float(max(flat))
+    if z_min == z_max:
+        z_min, z_max = z_min - 0.5, z_max + 0.5
+    resolved["low"], resolved["high"] = z_min, z_max
+    return resolved
 
 
 # ---------------------------------------------------------------------------
@@ -145,28 +129,26 @@ class DesirabilityContourPlot(BasePlot):
 
         importances = [r.get("importance", 1.0) for r in responses]
 
-        # Build coefficient maps for each response
-        coef_maps = []
-        for resp in responses:
-            coeffs = resp.get("coefficients", [])
-            coef_maps.append(_build_coef_map(coeffs))
+        # Predict each response over the grid first, so that a response with no
+        # stated specification can have its ramp derived from the range the
+        # model actually spans here (see _resolve_goal_bounds).
+        surfaces = [
+            _response_surface(
+                _build_coef_map(resp.get("coefficients", [])), factor_x, factor_y, self.hold_values, n_grid
+            )
+            for resp in responses
+        ]
+        goals = [_resolve_goal_bounds(resp, surface) for resp, surface in zip(responses, surfaces, strict=True)]
 
-        # Evaluate composite desirability over grid
         z_matrix: list[list[float]] = []
-        for y_val in y_grid:
+        for j in range(n_grid):
             row: list[float] = []
-            for x_val in x_grid:
-                point = dict(self.hold_values)
-                point[factor_x] = x_val
-                point[factor_y] = y_val
-
-                d_values = []
-                for cm, resp in zip(coef_maps, responses):  # noqa: B905
-                    y_hat = _evaluate_model(cm, point)
-                    d = _individual_desirability(y_hat, resp)
-                    d_values.append(d)
-
-                row.append(_composite_desirability(d_values, importances))
+            for i in range(n_grid):
+                d_values = [
+                    individual_desirability(surface[j][i], goal)
+                    for surface, goal in zip(surfaces, goals, strict=True)
+                ]
+                row.append(composite_desirability(d_values, importances))
             z_matrix.append(row)
 
         contour_layer = LayerSpec(
@@ -212,16 +194,12 @@ class DesirabilityContourPlot(BasePlot):
         if responses:
             return responses
 
-        # Fall back: single-response from top-level coefficients
+        # Fall back: single-response from top-level coefficients. Bounds are
+        # left unset deliberately; _resolve_goal_bounds derives them from the
+        # predicted range over the plotted region.
         coefficients = self._get_coefficients()
         if coefficients:
-            return [{
-                "coefficients": coefficients,
-                "goal": "maximize",
-                "low": float("-inf"),
-                "high": float("inf"),
-                "weight": 1.0,
-            }]
+            return [{"coefficients": coefficients, "goal": "maximize", "weight": 1.0}]
         return []
 
 

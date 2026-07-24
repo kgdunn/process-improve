@@ -32,6 +32,8 @@ from typing import Any
 import numpy as np
 from scipy import optimize
 
+from process_improve.experiments._desirability import composite_desirability, individual_desirability
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -436,99 +438,6 @@ def _steepest_path(  # noqa: PLR0913
     }
 
 
-# ---------------------------------------------------------------------------
-# Derringer-Suich desirability functions
-# ---------------------------------------------------------------------------
-
-
-def _desirability_maximize(y: float, low: float, high: float, weight: float = 1.0) -> float:
-    """One-sided desirability for maximisation.
-
-    d = 0 if y <= low, d = ((y - low) / (high - low))^weight if
-    low < y < high, d = 1 if y >= high.
-    """
-    if y <= low:
-        return 0.0
-    if y >= high:
-        return 1.0
-    return ((y - low) / (high - low)) ** weight
-
-
-def _desirability_minimize(y: float, low: float, high: float, weight: float = 1.0) -> float:
-    """One-sided desirability for minimisation.
-
-    d = 1 if y <= low, d = ((high - y) / (high - low))^weight if
-    low < y < high, d = 0 if y >= high.
-    """
-    if y <= low:
-        return 1.0
-    if y >= high:
-        return 0.0
-    return ((high - y) / (high - low)) ** weight
-
-
-def _desirability_target(  # noqa: PLR0913
-    y: float,
-    low: float,
-    target: float,
-    high: float,
-    weight_low: float = 1.0,
-    weight_high: float = 1.0,
-) -> float:
-    """Two-sided desirability for a target value.
-
-    Ramps up from *low* to *target*, then ramps down from *target* to
-    *high*.  Returns 0 outside ``[low, high]``.
-    """
-    if y <= low or y >= high:
-        return 0.0
-    if y <= target:
-        return ((y - low) / (target - low)) ** weight_low
-    return ((high - y) / (high - target)) ** weight_high
-
-
-def _individual_desirability(y: float, goal: dict[str, Any]) -> float:
-    """Compute individual desirability for a single response value."""
-    goal_type = goal["goal"]
-    low = goal.get("low", 0.0)
-    high = goal.get("high", 1.0)
-    weight = goal.get("weight", 1.0)
-
-    if goal_type == "maximize":
-        return _desirability_maximize(y, low, high, weight)
-    if goal_type == "minimize":
-        return _desirability_minimize(y, low, high, weight)
-    if goal_type == "target":
-        target = goal["target"]
-        return _desirability_target(y, low, target, high, weight, weight)
-
-    msg = f"Unknown goal type: {goal_type!r}. Use 'maximize', 'minimize', or 'target'."
-    raise ValueError(msg)
-
-
-def _composite_desirability(d_values: list[float], importances: list[float] | None = None) -> float:
-    """Weighted geometric mean of individual desirability values.
-
-    D = (d1^w1 * d2^w2 * ... * dk^wk) ^ (1 / sum(wi))
-
-    If any d_i is zero, the composite is zero.
-    """
-    if not d_values:
-        return 0.0
-
-    weights = importances or [1.0] * len(d_values)
-
-    # If any desirability is zero, composite is zero
-    if any(d == 0.0 for d in d_values):
-        return 0.0
-
-    log_d = sum(w * np.log(d) for d, w in zip(d_values, weights, strict=True))
-    w_sum = sum(weights)
-    if w_sum == 0:
-        return 0.0
-    return float(np.exp(log_d / w_sum))
-
-
 def _optimize_desirability(  # noqa: PLR0913
     fitted_models: list[dict[str, Any]],
     goals: list[dict[str, Any]],
@@ -565,9 +474,9 @@ def _optimize_desirability(  # noqa: PLR0913
         d_vals = []
         for evaluator, goal in zip(evaluators, goals, strict=True):
             y_pred = evaluator(x)
-            d = _individual_desirability(y_pred, goal)
+            d = individual_desirability(y_pred, goal)
             d_vals.append(d)
-        return -_composite_desirability(d_vals, importances)
+        return -composite_desirability(d_vals, importances)
 
     k = len(factor_names)
     bounds = [(-1.0, 1.0)] * k
@@ -604,7 +513,7 @@ def _optimize_desirability(  # noqa: PLR0913
         resp_name = model_dict.get("response_name", "response")
         y_pred = float(evaluator(x_opt))
         predictions[resp_name] = y_pred
-        individual_d[resp_name] = _individual_desirability(y_pred, goal)
+        individual_d[resp_name] = individual_desirability(y_pred, goal)
 
     result: dict[str, Any] = {
         "optimal_coded": {n: float(x_opt[i]) for i, n in enumerate(factor_names)},

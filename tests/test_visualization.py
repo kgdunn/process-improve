@@ -13,14 +13,14 @@ from typing import Any
 
 import pytest
 
-from process_improve.experiments.visualization import main_effects_plot, visualize_doe
-from process_improve.experiments.visualization.plots.optimization_plots import (
-    _composite_desirability,
-    _desirability_maximize,
-    _desirability_minimize,
-    _desirability_target,
-    _individual_desirability,
+from process_improve.experiments._desirability import (
+    composite_desirability,
+    desirability_maximize,
+    desirability_minimize,
+    desirability_target,
+    individual_desirability,
 )
+from process_improve.experiments.visualization import main_effects_plot, visualize_doe
 from process_improve.experiments.visualization.plots.registry import (
     create_plot,
     get_available_plot_types,
@@ -1096,42 +1096,55 @@ class TestDesirabilityHelpers:
     """Unit tests for the pure desirability functions in optimization_plots."""
 
     def test_maximize_boundaries(self) -> None:
-        assert _desirability_maximize(0.0, low=1.0, high=2.0) == 0.0
-        assert _desirability_maximize(3.0, low=1.0, high=2.0) == 1.0
-        assert _desirability_maximize(1.5, low=1.0, high=2.0) == pytest.approx(0.5)
+        assert desirability_maximize(0.0, low=1.0, high=2.0) == 0.0
+        assert desirability_maximize(3.0, low=1.0, high=2.0) == 1.0
+        assert desirability_maximize(1.5, low=1.0, high=2.0) == pytest.approx(0.5)
 
     def test_minimize_boundaries(self) -> None:
-        assert _desirability_minimize(0.5, low=1.0, high=2.0) == 1.0
-        assert _desirability_minimize(2.5, low=1.0, high=2.0) == 0.0
-        assert _desirability_minimize(1.5, low=1.0, high=2.0) == pytest.approx(0.5)
+        assert desirability_minimize(0.5, low=1.0, high=2.0) == 1.0
+        assert desirability_minimize(2.5, low=1.0, high=2.0) == 0.0
+        assert desirability_minimize(1.5, low=1.0, high=2.0) == pytest.approx(0.5)
 
     def test_target_all_branches(self) -> None:
         # Outside [low, high] on either side -> 0
-        assert _desirability_target(0.5, low=1.0, target=2.0, high=3.0) == 0.0
-        assert _desirability_target(3.5, low=1.0, target=2.0, high=3.0) == 0.0
+        assert desirability_target(0.5, low=1.0, target=2.0, high=3.0) == 0.0
+        assert desirability_target(3.5, low=1.0, target=2.0, high=3.0) == 0.0
         # Below target: rising ramp
-        assert _desirability_target(1.5, low=1.0, target=2.0, high=3.0) == pytest.approx(0.5)
+        assert desirability_target(1.5, low=1.0, target=2.0, high=3.0) == pytest.approx(0.5)
         # Above target: falling ramp
-        assert _desirability_target(2.5, low=1.0, target=2.0, high=3.0) == pytest.approx(0.5)
+        assert desirability_target(2.5, low=1.0, target=2.0, high=3.0) == pytest.approx(0.5)
 
     def test_individual_desirability_goal_dispatch(self) -> None:
-        assert _individual_desirability(0.75, {"goal": "maximize", "low": 0.0, "high": 1.0}) == pytest.approx(0.75)
-        assert _individual_desirability(0.25, {"goal": "minimize", "low": 0.0, "high": 1.0}) == pytest.approx(0.75)
+        assert individual_desirability(0.75, {"goal": "maximize", "low": 0.0, "high": 1.0}) == pytest.approx(0.75)
+        assert individual_desirability(0.25, {"goal": "minimize", "low": 0.0, "high": 1.0}) == pytest.approx(0.75)
         target_goal = {"goal": "target", "low": 0.0, "target": 0.5, "high": 1.0}
-        assert _individual_desirability(0.25, target_goal) == pytest.approx(0.5)
-        # Unknown goal type falls through to 0.0
-        assert _individual_desirability(0.5, {"goal": "unknown_goal"}) == 0.0
+        assert individual_desirability(0.25, target_goal) == pytest.approx(0.5)
+
+    def test_individual_desirability_rejects_unknown_goal(self) -> None:
+        """An unrecognised goal is an error, not a silent zero.
+
+        The plotting copy of this helper used to return 0.0 here, which made a
+        typo in a goal name look like an infeasible response.
+        """
+        with pytest.raises(ValueError, match="Unknown goal type"):
+            individual_desirability(0.5, {"goal": "unknown_goal"})
+
+    def test_individual_desirability_asymmetric_target_weights(self) -> None:
+        """A target goal may ramp at different rates on each side."""
+        goal = {"goal": "target", "low": 0.0, "target": 0.5, "high": 1.0, "weight": 1.0, "weight_high": 2.0}
+        assert individual_desirability(0.25, goal) == pytest.approx(0.5)
+        assert individual_desirability(0.75, goal) == pytest.approx(0.25)
 
     def test_composite_empty_list(self) -> None:
-        assert _composite_desirability([]) == 0.0
+        assert composite_desirability([]) == 0.0
 
     def test_composite_any_zero(self) -> None:
-        assert _composite_desirability([0.9, 0.0, 0.8]) == 0.0
+        assert composite_desirability([0.9, 0.0, 0.8]) == 0.0
 
     def test_composite_importance_weighting(self) -> None:
         """Importance weights should change the geometric mean."""
-        unweighted = _composite_desirability([0.25, 1.0])
-        weighted = _composite_desirability([0.25, 1.0], importances=[3.0, 1.0])
+        unweighted = composite_desirability([0.25, 1.0])
+        weighted = composite_desirability([0.25, 1.0], importances=[3.0, 1.0])
         assert unweighted == pytest.approx(0.25**0.5)
         assert weighted == pytest.approx(0.25**0.75)
         assert weighted != pytest.approx(unweighted)
