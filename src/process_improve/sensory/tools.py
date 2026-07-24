@@ -17,6 +17,7 @@ import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
 
 from process_improve.sensory.analysis import analyze_descriptive as _analyze_descriptive
+from process_improve.sensory.designed import compare_products as _compare_products
 from process_improve.sensory.ingest import reshape_to_long as _reshape_to_long
 from process_improve.sensory.mam import align_scores as _align_scores
 from process_improve.sensory.mam import mixed_assessor_model as _mixed_assessor_model
@@ -235,9 +236,7 @@ class _AnalyzeInput(BaseModel):
             "Set false to skip it (faster)."
         ),
     )
-    n_permutations: int = Field(
-        199, ge=1, description="Permutations for the discriminator's selectivity-ratio null."
-    )
+    n_permutations: int = Field(199, ge=1, description="Permutations for the discriminator's selectivity-ratio null.")
     random_state: int = Field(0, description="Seed for the discriminator's permutations and CV folds.")
     score_min: float | None = Field(None, description="Optional lower bound for the score scale.")
     score_max: float | None = Field(None, description="Optional upper bound for the score scale.")
@@ -394,10 +393,130 @@ def sensory_panel_check(spec: _PanelCheckInput) -> dict:
     return clean(out)
 
 
+class _CompareInput(BaseModel):
+    """Input contract for ``sensory_compare_products``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    panel: list[dict[str, Any]] = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Panel data as row-records, each with keys panelist_id, attribute, score, plus one column "
+            "per factor named in 'factors' (for example formulation, condition). No product-covariate "
+            "table is needed."
+        ),
+    )
+    factors: list[str] = Field(
+        ...,
+        min_length=1,
+        description=(
+            "Fixed factor column names for the ANOVA, e.g. ['formulation', 'condition']. With more than "
+            "one factor and interactions=true their full crossed model is fitted, and the interaction "
+            "tests whether one factor's effect depends on another."
+        ),
+    )
+    block: str | None = Field(
+        "panelist_id",
+        description="Blocking-factor column (default 'panelist_id'); null for no block.",
+    )
+    primary: str | None = Field(
+        None,
+        description="Factor whose levels the post-hoc tests compare. Defaults to the first entry of 'factors'.",
+    )
+    within: str | None = Field(
+        None,
+        description=(
+            "If set, run the post-hoc tests separately within each level of this factor (simple effects); "
+            "the right follow-up once the primary-by-within interaction is significant. If null, they "
+            "pool over the other factors."
+        ),
+    )
+    control: str | None = Field(
+        None,
+        description="Level of the primary factor used as the Dunnett reference. If null, the Dunnett table is empty.",
+    )
+    interactions: bool = Field(True, description="Include factor-by-factor interaction terms in the ANOVA.")
+    alpha: float = Field(0.05, gt=0, lt=1, description="Post-hoc family-wise significance level.")
+    conf_level: float = Field(0.95, gt=0, lt=1, description="Confidence level for the reported per-level means.")
+
+
+@tool_spec(
+    name="sensory_compare_products",
+    description=(
+        "Compare controlled product treatments (a randomized complete block design: the same panelists "
+        "score every treatment) per attribute. Fits a per-attribute Type III factorial ANOVA "
+        "(score ~ factors, crossed, plus the block) and then post-hoc multiple comparisons on the "
+        "primary factor: all-pairwise Tukey HSD (which treatments differ from which, with a "
+        "compact-letter display) and, when a control is named, Dunnett's two-sided test of each "
+        "treatment against that control. Set 'within' to run the post-hoc tests as simple effects "
+        "inside each level of another factor (for example compare formulations within each aging "
+        "condition), which is the right follow-up once the interaction is significant. This is the "
+        "designed-treatment counterpart to sensory_analyze_descriptive's observational relate; no "
+        "product-covariate table is needed. "
+        "Returns: on bad input {ok: false, errors: [str]}. On success {ok: true, anova, tukey, dunnett, "
+        "letters, means, config}. 'anova' is rows of attribute, source, df, sum_sq, mean_sq, F, p_value "
+        "(the 'Residual' source carries the error term; F/p are null there). 'tukey' is rows of "
+        "[stratum], attribute, group1, group2, meandiff, se, q_stat, p_value, ci_low, ci_high, reject. "
+        "'dunnett' is rows of [stratum], attribute, level, control, meandiff, statistic, p_value, reject "
+        "(empty when no control was given). 'letters' is rows of [stratum], attribute, <primary>, letters "
+        "(treatments that share a letter are not separable). 'means' is rows of [stratum], attribute, "
+        "<primary>, mean, ci_low, ci_high, n. The stratum column is named after 'within' (or 'stratum', "
+        "value 'all', when within is null). 'config' echoes the resolved arguments."
+    ),
+    input_model=_CompareInput,
+    category="sensory",
+)
+def sensory_compare_products(spec: _CompareInput) -> dict:
+    """Factorial ANOVA plus Tukey / Dunnett post-hoc; see tool spec for details."""
+    df = pd.DataFrame(spec.panel)
+    required = [*spec.factors, *([spec.block] if spec.block else []), "attribute", "score"]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        return clean({"ok": False, "errors": [f"Panel data is missing required columns: {missing}."]})
+
+    label_cols = {*spec.factors, "attribute"}
+    if spec.block:
+        label_cols.add(spec.block)
+    if spec.within:
+        label_cols.add(spec.within)
+    for col in label_cols:
+        df[col] = df[col].astype(str).str.strip()
+    df["score"] = pd.to_numeric(df["score"], errors="coerce")
+
+    try:
+        result = _compare_products(
+            df,
+            factors=spec.factors,
+            block=spec.block,
+            primary=spec.primary,
+            within=spec.within,
+            control=spec.control,
+            interactions=spec.interactions,
+            alpha=spec.alpha,
+            conf_level=spec.conf_level,
+        )
+    except (KeyError, ValueError) as exc:
+        return clean({"ok": False, "errors": [str(exc)]})
+
+    return clean(
+        {
+            "ok": True,
+            "anova": result.anova.to_dict(orient="records"),
+            "tukey": result.tukey.to_dict(orient="records"),
+            "dunnett": result.dunnett.to_dict(orient="records"),
+            "letters": result.letters.to_dict(orient="records"),
+            "means": result.means.to_dict(orient="records"),
+            "config": result.config,
+        }
+    )
+
+
 _register("sensory_reshape_to_long")
 _register("sensory_validate_descriptive")
 _register("sensory_analyze_descriptive")
 _register("sensory_panel_check")
+_register("sensory_compare_products")
 
 
 def get_sensory_tool_specs() -> list[dict]:

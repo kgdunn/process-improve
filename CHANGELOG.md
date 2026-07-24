@@ -11,6 +11,18 @@ those changes.
 
 ## [Unreleased]
 
+## [1.61.0] - 2026-07-24
+
+### Added
+
+- `sensory_compare_products`: an agent-callable (`@tool_spec`) wrapper exposing
+  the designed-mode comparison (`process_improve.sensory.compare_products`) as a
+  JSON-in / JSON-out tool, alongside the existing `sensory_*` tools. It runs the
+  per-attribute factorial ANOVA and the Tukey HSD / Dunnett-vs-control post-hoc
+  tests (with a `within` argument for simple effects) and returns the ANOVA
+  table, contrasts, compact-letter display and per-level means. Registered in
+  `get_sensory_tool_specs()` and the MCP server.
+
 ## [1.60.0] - 2026-07-23
 
 ### Added
@@ -2652,7 +2664,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.60.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.61.0...HEAD
+[1.61.0]: https://github.com/kgdunn/process-improve/compare/v1.60.0...v1.61.0
 [1.60.0]: https://github.com/kgdunn/process-improve/compare/v1.59.0...v1.60.0
 [1.59.0]: https://github.com/kgdunn/process-improve/compare/v1.58.0...v1.59.0
 [1.58.0]: https://github.com/kgdunn/process-improve/compare/v1.57.0...v1.58.0
