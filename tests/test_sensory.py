@@ -900,6 +900,21 @@ def test_tool_compare_products_bad_within_is_reported():
     assert any("no_such_column" in e for e in out["errors"])
 
 
+def test_tool_compare_products_bad_primary_is_caught():
+    # A 'primary' that is not a real column passes the column guard (primary is a
+    # factor to compare, not a required input column) but makes the underlying
+    # compare_products raise; the tool catches it and reports {ok: false}.
+    from process_improve.tool_spec import execute_tool_call
+
+    panel = _rcbd_tool_panel().to_dict(orient="records")
+    out = execute_tool_call(
+        "sensory_compare_products",
+        {"panel": panel, "factors": ["formulation", "condition"], "primary": "no_such_factor"},
+    )
+    assert not out["ok"]
+    assert out["errors"]
+
+
 def _wide_panel(*, seed: int = 0):
     """Wide-by-attribute table: rows = assessor x sample x rep, one column per attribute."""
     rng = np.random.default_rng(seed)
