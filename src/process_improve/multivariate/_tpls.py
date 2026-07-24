@@ -553,8 +553,11 @@ class TPLS(RegressorMixin, BaseEstimator):
         # Training phase:
         estimator = TPLS(n_components=2).fit(training_data)
 
-        # Testing/inference phase:
-        new_data = {"Z": ..., "F": ...}  # you need at least the F block for a new prediction. "Z" is optional.
+        # Testing/inference phase. ``diagnose`` raises TypeError unless the
+        # input is a DataFrameDict, so wrap the raw ``{"Z": ..., "F": ...}``
+        # mapping. You need at least the F block for a new prediction; "Z"
+        # is optional.
+        new_data = DataFrameDict({"Z": ..., "F": ...})
         predictions = estimator.diagnose(new_data)
 
         Parameters

@@ -11,6 +11,24 @@ those changes.
 
 ## [Unreleased]
 
+## [1.59.1] - 2026-07-24
+
+### Fixed
+
+- Documentation-only fixes across the codebase: `t2_plot`'s `with_a` parameter
+  no longer describes SPE; `center` and `scale` no longer claim to skip NaNs
+  when the defaults (`np.mean`, `np.std`) propagate them; the `Settings` class
+  docstring points at real APIs (property setters, `reload`, `as_dict`) instead
+  of a non-existent `override` method; the `DEFAULT_THEME` attribute docstring
+  matches the module's stated non-side-effecting import behaviour;
+  `melted_to_wide` and `f_crossing` are labelled as stub / phase-agnostic;
+  `dispatch_ccd`'s numeric-alpha behaviour under `cube="full"` is called out;
+  `PCA.select_n_components` documents `return_consensus` and the extra Bunch
+  keys it enables; `PCA.parallel_analysis` describes its scaling honestly; and
+  `TPLS.diagnose`'s example wraps its input in a `DataFrameDict`.
+  `Resampler.__init__` describes the current all-three-set-only mutual-
+  exclusion guard rather than pretending pairwise conflicts are caught.
+
 ## [1.59.0] - 2026-07-23
 
 ### Added
@@ -2625,7 +2643,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.59.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.59.1...HEAD
+[1.59.1]: https://github.com/kgdunn/process-improve/compare/v1.59.0...v1.59.1
 [1.59.0]: https://github.com/kgdunn/process-improve/compare/v1.58.0...v1.59.0
 [1.58.0]: https://github.com/kgdunn/process-improve/compare/v1.57.0...v1.58.0
 [1.57.0]: https://github.com/kgdunn/process-improve/compare/v1.56.0...v1.57.0

@@ -920,8 +920,12 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             the more conservative 95th-percentile threshold is the
             modern recommendation.
         scale : bool, default True
-            Mean-centre and unit-variance scale ``X`` before estimation
-            (matches :meth:`minka_mle`).
+            When ``True``, ``X`` is passed through :class:`MCUVScaler`
+            (mean-centring and unit-variance scaling) before the null
+            distribution is built; when ``False``, only the mean-centring
+            step of the eigendecomposition is applied to ``X``. This is
+            stricter than :meth:`minka_mle`, which only mean-centres and
+            does not offer unit-variance scaling.
         random_state : int, optional
             Seed for the null-matrix simulations.
 
@@ -1069,6 +1073,16 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             step. Ignored under ``cv_scheme="row_wise"``.
         random_state : int, optional
             Seed for the ekf element-fold permutation.
+        return_consensus : bool, default False
+            When ``True``, also run :meth:`minka_mle` and
+            :meth:`parallel_analysis` on ``X`` and attach the extra
+            keys ``minka_n_components``, ``parallel_analysis_n_components``,
+            ``consensus`` (``"agree"`` when the three component counts are
+            within one of each other, else ``"disagree"``), and
+            ``consensus_counts`` (a 3-tuple of the ekf, Minka and PA
+            counts) to the returned Bunch. Parallel analysis is run with
+            ``scale=scale_inside_folds`` and the same ``random_state`` as
+            the ekf permutation.
         threshold : float, optional
             Deprecated. The original Wold PRESS-ratio cutoff. Passing it
             emits a :class:`DeprecationWarning`; the value is ignored. Use
@@ -1107,6 +1121,19 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
               (preserved for back-compat).
             - ``cv_scheme`` - the scheme used (``"ekf"`` or ``"row_wise"``).
             - ``selection_rule`` - the rule used to pick ``n_components``.
+
+            When ``return_consensus=True`` the Bunch additionally carries:
+
+            - ``minka_n_components`` (int) - Minka's PPCA-MLE component count
+              on ``X`` (from :meth:`minka_mle`).
+            - ``parallel_analysis_n_components`` (int) - Horn's parallel-
+              analysis component count on ``X`` (from
+              :meth:`parallel_analysis`, run with
+              ``scale=scale_inside_folds`` and the same ``random_state``).
+            - ``consensus`` (str) - ``"agree"`` when the ekf / Minka / PA
+              counts are within one of each other, else ``"disagree"``.
+            - ``consensus_counts`` (tuple[int, int, int]) - the three
+              counts in ``(ekf, minka, parallel_analysis)`` order.
 
         References
         ----------

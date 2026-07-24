@@ -171,7 +171,15 @@ def melted_to_dict(in_df: pd.DataFrame, batch_id_col: str) -> dict:
 
 
 def melted_to_wide(in_df: pd.DataFrame, batch_id_col: str) -> dict:
-    """Convert aligned melted data to wide format."""
+    """Convert aligned melted data to wide format.
+
+    .. warning::
+        Stub. The implementation is not yet written: the function only validates
+        that ``batch_id_col`` is present in ``in_df`` and then returns an empty
+        dict. Do not rely on it to reshape data. See the commented-out sketch
+        below for the intended pivot; the tracking work is open for a
+        maintainer.
+    """
     if batch_id_col not in in_df:
         raise ValueError(f"The `batch_id_col` column {batch_id_col!r} does not exist in the incoming dataframe.")
     return {}
