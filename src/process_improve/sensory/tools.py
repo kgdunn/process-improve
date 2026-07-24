@@ -470,7 +470,13 @@ class _CompareInput(BaseModel):
 def sensory_compare_products(spec: _CompareInput) -> dict:
     """Factorial ANOVA plus Tukey / Dunnett post-hoc; see tool spec for details."""
     df = pd.DataFrame(spec.panel)
-    required = [*spec.factors, *([spec.block] if spec.block else []), "attribute", "score"]
+    required = [
+        *spec.factors,
+        *([spec.block] if spec.block else []),
+        *([spec.within] if spec.within else []),
+        "attribute",
+        "score",
+    ]
     missing = [c for c in required if c not in df.columns]
     if missing:
         return clean({"ok": False, "errors": [f"Panel data is missing required columns: {missing}."]})

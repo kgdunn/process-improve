@@ -866,6 +866,40 @@ def test_tool_compare_products_missing_columns():
     assert any("missing required columns" in e for e in out["errors"])
 
 
+def test_tool_compare_products_pooled_single_factor_no_block():
+    # No block, no 'within' stratification, no control: one pooled comparison of
+    # the single factor, so Dunnett is empty and the stratum column is 'stratum'.
+    from process_improve.tool_spec import execute_tool_call
+
+    panel = _rcbd_tool_panel().to_dict(orient="records")
+    out = execute_tool_call(
+        "sensory_compare_products",
+        {"panel": panel, "factors": ["formulation"], "block": None},
+    )
+    assert out["ok"]
+    assert out["dunnett"] == []  # no control given
+    assert all("stratum" in row for row in out["letters"])
+    assert {row["stratum"] for row in out["letters"]} == {"all"}
+    # T4 is planted well above the others, so it lands in its own letter group.
+    t4 = next(r["letters"] for r in out["letters"] if r["formulation"] == "T4")
+    control = next(r["letters"] for r in out["letters"] if r["formulation"] == "Control")
+    assert t4 != control
+
+
+def test_tool_compare_products_bad_within_is_reported():
+    # A 'within' column that is not in the panel is reported as a missing column
+    # rather than crashing.
+    from process_improve.tool_spec import execute_tool_call
+
+    panel = _rcbd_tool_panel().to_dict(orient="records")
+    out = execute_tool_call(
+        "sensory_compare_products",
+        {"panel": panel, "factors": ["formulation", "condition"], "within": "no_such_column"},
+    )
+    assert not out["ok"]
+    assert any("no_such_column" in e for e in out["errors"])
+
+
 def _wide_panel(*, seed: int = 0):
     """Wide-by-attribute table: rows = assessor x sample x rep, one column per attribute."""
     rng = np.random.default_rng(seed)
