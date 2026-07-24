@@ -68,6 +68,15 @@ Keep the interpretation in mind: an observational analysis supports only "this
 descriptor is associated with this attribute", whereas the future designed
 analysis will support "increasing this factor raises this attribute".
 
+A related but separate question does not need the covariate table at all: when
+the products *are* the controlled treatments (for example five formulations, or
+a formulation crossed with an aging condition) and you simply want to know which
+treatments differ on each attribute, use the direct factorial-comparison API in
+:func:`~process_improve.sensory.compare_products` (see
+:ref:`comparing-designed-treatments` below). That path is implemented now; the
+``mode="designed"`` relate switch above is the still-planned integration of the
+same idea into the covariate-driven pipeline.
+
 Step 0: get the data into long form
 -----------------------------------
 
@@ -261,6 +270,141 @@ artefact. ``analyze_descriptive`` exposes this through ``correction``:
 Rescaling does not remove genuine disagreement, so a panelist who truly ranks
 the products differently is better handled by dropping (``drop_panelists`` or
 ``correction="drop"``); align and drop can be combined.
+
+.. _comparing-designed-treatments:
+
+Comparing designed treatments: ANOVA, Tukey HSD and Dunnett
+-----------------------------------------------------------
+
+When the products are controlled treatments rather than measured market samples
+(five formulations, a formulation crossed with an aging condition, a process
+setting), and the same panelists score every treatment, the design is a
+**randomized complete block** with panelist as the block. The question is which
+treatments differ, and by how much, on each attribute.
+:func:`~process_improve.sensory.compare_products` answers it with a per-attribute
+factorial ANOVA followed by the matching post-hoc multiple comparisons; the
+pieces are also usable on their own
+(:func:`~process_improve.sensory.factorial_anova`,
+:func:`~process_improve.sensory.tukey_hsd`,
+:func:`~process_improve.sensory.dunnett_vs_control`).
+
+Per attribute the model is a Type III factorial ANOVA
+
+.. math::
+
+   \text{score} \sim C(\text{factor}_1) \times C(\text{factor}_2) \times \dots + C(\text{block})
+
+Type III sums of squares keep the effects correct when the grid is unbalanced (a
+panelist who skipped a sample, a missing cell), and the interaction terms test
+whether one factor's effect depends on another, for example whether aging shifts
+some formulations more than others.
+
+.. code-block:: python
+
+   from process_improve.sensory import compare_products
+
+   # panel: descriptive_long, with extra factor columns "formulation" and "condition".
+   result = compare_products(
+       panel,
+       factors=["formulation", "condition"],
+       block="panelist_id",
+       within="condition",     # run the post-hoc tests within each condition (simple effects)
+       control="Control",      # the reference level for Dunnett
+   )
+
+   result.anova     # Type III ANOVA table, one row per (attribute, source)
+   result.tukey     # all-pairwise Tukey HSD contrasts
+   result.dunnett   # each formulation vs the Control
+   result.letters   # compact-letter display: shared letter => not separable
+   result.means     # per-level mean with a confidence interval
+
+Set ``within="condition"`` to run the post-hoc tests as *simple effects*
+separately within each aging condition, which is the right follow-up once the
+``formulation`` x ``condition`` interaction is significant; leave it ``None`` to
+compare the primary factor pooled over the others.
+
+Two post-hoc procedures, two questions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Both procedures control the family-wise error rate (the chance of *any* false
+claim across the whole family of comparisons), but over different families:
+
+- **Tukey HSD** compares **every pair** of treatments. Its critical difference
+  uses the blocked-model error mean square :math:`\text{MSE}` and the
+  studentized-range distribution :math:`q`, so the panelist-block variance is
+  removed from the yardstick:
+
+  .. math::
+
+     |\bar{y}_i - \bar{y}_j| \;>\; q_{\alpha,\,g,\,\nu}\,\sqrt{\text{MSE}/n}
+
+  where :math:`g` is the number of treatments and :math:`\nu` the error degrees
+  of freedom. The compact-letter display in ``result.letters`` summarises it:
+  treatments that share a letter are not separable.
+
+- **Dunnett** compares **each treatment to one control**. Because those
+  comparisons all share the control mean they are correlated, so the critical
+  value comes from the multivariate-*t* distribution rather than the studentized
+  range. Guarding fewer comparisons makes Dunnett more powerful than Tukey for
+  the treatment-vs-control question, but it cannot compare two treatments to each
+  other.
+
+A rule of thumb: use **Dunnett** when there is a genuine reference you are
+benchmarking against (a Control formulation, or REF for the aging axis), and
+**Tukey** when the treatments are peers and you want the full pairwise map.
+Running both is common; report them as answering different questions.
+
+Worked numbers
+~~~~~~~~~~~~~~~
+
+Take one attribute scored by five formulations, seven panelists each, with an
+error mean square of :math:`\text{MSE}=1.0` on :math:`\nu=30` degrees of freedom.
+The level means are:
+
+=========  =======  ====  ====  ====  ====
+Statistic  Control  T1    T2    T3    T4
+=========  =======  ====  ====  ====  ====
+mean       3.0      3.3   3.5   4.5   6.2
+=========  =======  ====  ====  ====  ====
+
+The standard error of a group mean is :math:`\sqrt{\text{MSE}/n}=\sqrt{1/7}=0.378`
+and of a difference is :math:`\sqrt{2\,\text{MSE}/n}=0.535`.
+
+*Tukey.* With :math:`q_{0.05,\,5,\,30}=4.102`, the critical difference is
+:math:`4.102 \times 0.378 = 1.55`. Only the gaps involving T4 exceed it, so the
+letter display is T4 = ``a`` and Control, T1, T2, T3 = ``b``.
+
+*Dunnett.* The two-sided critical value for four treatments versus one control at
+:math:`\nu=30` is about :math:`2.18`, giving a critical difference of
+:math:`2.18 \times 0.535 = 1.16`.
+
+The two cutoffs disagree on exactly one comparison:
+
+===============  ==========  =====================  ========================
+Comparison       Difference  Tukey (cutoff 1.55)    Dunnett (cutoff 1.16)
+===============  ==========  =====================  ========================
+T1 - Control     0.30        not significant        not significant
+T2 - Control     0.50        not significant        not significant
+T3 - Control     1.50        not significant        significant (p=0.03)
+T4 - Control     3.20        significant            significant
+===============  ==========  =====================  ========================
+
+T3 sits 1.50 above the Control. Tukey, which must protect all ten pairwise
+comparisons, raises its bar to 1.55 and calls it non-significant; Dunnett, which
+protects only the four treatment-vs-control comparisons, has a lower bar (1.16)
+and flags it. Same data, both correct: the procedures answer different questions
+with correctly calibrated thresholds.
+
+.. rubric:: Post-hoc references
+
+- Tukey, J. W. (1949). Comparing individual means in the analysis of variance.
+  *Biometrics*, 5(2), 99-114.
+- Dunnett, C. W. (1955). A multiple comparison procedure for comparing several
+  treatments with a control. *Journal of the American Statistical Association*,
+  50(272), 1096-1121.
+- Piepho, H.-P. (2004). An algorithm for a letter-based representation of
+  all-pairwise comparisons. *Journal of Computational and Graphical Statistics*,
+  13(2), 456-466.
 
 Worked example
 --------------

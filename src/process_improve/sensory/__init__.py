@@ -25,6 +25,13 @@ from process_improve.sensory.analysis import (
     relate_designed,
     relate_observational,
 )
+from process_improve.sensory.designed import (
+    ComparisonResult,
+    compare_products,
+    dunnett_vs_control,
+    factorial_anova,
+    tukey_hsd,
+)
 from process_improve.sensory.ingest import reshape_to_long
 from process_improve.sensory.mam import MAMResult, align_scores, mixed_assessor_model
 from process_improve.sensory.panel import PanelScorecard, apply_correction, panel_scorecard
@@ -39,6 +46,7 @@ __all__ = [
     "DESCRIPTIVE_LONG_COLUMNS",
     "SENSORY_RECIPES",
     "AnalysisResult",
+    "ComparisonResult",
     "MAMResult",
     "PanelScorecard",
     "ValidationResult",
@@ -46,7 +54,10 @@ __all__ = [
     "align_scores",
     "analyze_descriptive",
     "apply_correction",
+    "compare_products",
     "discriminate_observational",
+    "dunnett_vs_control",
+    "factorial_anova",
     "mixed_assessor_model",
     "panel_scorecard",
     "permutation_column_null",
@@ -54,5 +65,6 @@ __all__ = [
     "relate_designed",
     "relate_observational",
     "reshape_to_long",
+    "tukey_hsd",
     "validate_descriptive",
 ]
