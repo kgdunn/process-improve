@@ -11,6 +11,15 @@ those changes.
 
 ## [Unreleased]
 
+## [1.59.1] - 2026-07-23
+
+### Changed
+
+- Pin the dev-tooling `ruff` below `0.16` (`ruff>=0.11.0,<0.16`). ruff 0.16
+  promoted several rules into the `select=["ALL"]` set (`CPY001`, `PLR0917`,
+  ...) that fire across the existing code base and broke the lint gate. The cap
+  keeps CI green until those rules are triaged.
+
 ## [1.59.0] - 2026-07-23
 
 ### Added
@@ -2624,7 +2633,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.59.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.59.1...HEAD
+[1.59.1]: https://github.com/kgdunn/process-improve/compare/v1.59.0...v1.59.1
 [1.59.0]: https://github.com/kgdunn/process-improve/compare/v1.58.0...v1.59.0
 [1.58.0]: https://github.com/kgdunn/process-improve/compare/v1.57.0...v1.58.0
 [1.57.0]: https://github.com/kgdunn/process-improve/compare/v1.56.0...v1.57.0
