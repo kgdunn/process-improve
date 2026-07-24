@@ -65,7 +65,10 @@ THEME_BRAND: str = "pi_brand"
 #: Names of every theme registered by :func:`register_themes`.
 THEME_NAMES: tuple[str, ...] = (THEME_TUFTE, THEME_ECONOMIST, THEME_JOURNAL, THEME_BRAND)
 
-#: Theme applied as the Plotly default when the package is imported.
+#: Name of the theme this library's plots request explicitly (via the
+#: ``template`` setting) when the caller has not overridden it. Importing
+#: this module does **not** change ``plotly.io.templates.default``; call
+#: :func:`set_theme` to opt a whole session into a process-improve theme.
 DEFAULT_THEME: str = THEME_JOURNAL
 
 # ---------------------------------------------------------------------------
