@@ -28,9 +28,12 @@ class OptimizeResponsesInput(BaseModel):
     goals: list[dict[str, Any]] | None = Field(
         None,
         description=(
-            "Per-response optimisation goals. Each entry: response (str), "
+            "Per-response optimisation goals. Each entry: response (str, matched against the model's "
+            "response_name so the two lists need not be in the same order), "
             "goal ('maximize'|'minimize'|'target'), low, high, optional target, "
-            "weight, importance. Required for 'desirability' method."
+            "weight, weight_high, importance. Required for 'desirability' method. "
+            "'weight' shapes that response's own desirability ramp; 'importance' sets how much the "
+            "response counts relative to the others in the composite. They are different things."
         ),
     )
     method: Literal[
@@ -59,9 +62,23 @@ class OptimizeResponsesInput(BaseModel):
         ge=1,
         description="Number of steps for steepest ascent/descent (default 10).",
     )
+    response_importance: list[float] | None = Field(
+        None,
+        description=(
+            "Relative importance per response in the composite desirability, aligned with fitted_models. "
+            "Overrides the per-goal 'importance'. This is not the per-goal 'weight', which shapes an "
+            "individual response's ramp."
+        ),
+    )
+    significance_level: float = Field(
+        0.05,
+        gt=0.0,
+        lt=1.0,
+        description="Alpha for intervals reported at the optimum (default 0.05, giving 95% intervals).",
+    )
     desirability_weights: list[float] | None = Field(
         None,
-        description="Importance weights for composite desirability (overrides per-goal importance).",
+        description="Deprecated alias for 'response_importance'. Use 'response_importance' instead.",
     )
 
 
@@ -75,7 +92,10 @@ class OptimizeResponsesInput(BaseModel):
         "'canonical_analysis' (eigenvalue decomposition to classify the response surface shape). "
         "Each fitted_model must include coefficients (as returned by analyze_experiment with "
         "analysis_type='coefficients'), factor_names, and response_name. "
-        "For desirability, each goal specifies whether to maximize, minimize, or target a value."
+        "For desirability, each goal specifies whether to maximize, minimize, or target a value. "
+        "The desirability result also carries a 'responses' list, pairing each model's coefficients "
+        "with its specification limits, which can be passed straight to visualize_doe(plot_type='overlay') "
+        "to see the region where every response is simultaneously within specification."
     ),
     input_model=OptimizeResponsesInput,
     examples="""
@@ -93,6 +113,12 @@ class OptimizeResponsesInput(BaseModel):
                 goals=[{"response": "yield", "goal": "maximize", "low": 30, "high": 50},
                        {"response": "cost", "goal": "minimize", "low": 10, "high": 40}],
                 method="desirability")``
+
+    # "Optimize two responses, counting yield twice as heavily as cost"
+        -> ``optimize_responses(fitted_models=[model1, model2],
+                goals=[{"response": "yield", "goal": "maximize", "low": 30, "high": 50},
+                       {"response": "cost", "goal": "minimize", "low": 10, "high": 40}],
+                method="desirability", response_importance=[2.0, 1.0])``
 
     # "Generate a steepest ascent path from a first-order model"
         -> ``optimize_responses(fitted_models=[model],
@@ -113,6 +139,8 @@ def optimize_responses_tool(spec: OptimizeResponsesInput) -> dict[str, Any]:
             factor_ranges=spec.factor_ranges,
             step_size=spec.step_size,
             n_steps=spec.n_steps,
+            response_importance=spec.response_importance,
+            significance_level=spec.significance_level,
             desirability_weights=spec.desirability_weights,
         )
         return clean(result)

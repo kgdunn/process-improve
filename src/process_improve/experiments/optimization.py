@@ -26,10 +26,13 @@ from __future__ import annotations
 
 import logging
 import re
+import warnings
 from collections.abc import Callable
 from typing import Any
 
 import numpy as np
+import pandas as pd
+from patsy import PatsyError
 from scipy import optimize
 
 from process_improve.experiments._desirability import composite_desirability, individual_desirability
@@ -438,6 +441,64 @@ def _steepest_path(  # noqa: PLR0913
     }
 
 
+def _align_goals_to_models(
+    fitted_models: list[dict[str, Any]],
+    goals: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return *goals* reordered to match *fitted_models*.
+
+    Goals were previously consumed in list order while ``goal["response"]`` was
+    documented as the key that ties a goal to its model. Passing the two lists
+    in different orders therefore optimised the wrong thing without complaint.
+
+    When every model names its response and every goal names a matching one, the
+    goals are reordered by name. Otherwise the original positional order is kept,
+    with a warning, since that is the only interpretation left.
+
+    Parameters
+    ----------
+    fitted_models : list[dict]
+        Each optionally has ``"response_name"``.
+    goals : list[dict]
+        Each optionally has ``"response"``.
+
+    Returns
+    -------
+    list[dict]
+        Goals in the same order as *fitted_models*.
+
+    Raises
+    ------
+    ValueError
+        If the two lists differ in length.
+    """
+    if len(goals) != len(fitted_models):
+        msg = f"Got {len(fitted_models)} fitted model(s) but {len(goals)} goal(s); they must correspond one to one."
+        raise ValueError(msg)
+
+    model_names = [m.get("response_name") for m in fitted_models]
+    goal_names = [g.get("response") for g in goals]
+
+    if any(n is None for n in model_names) or any(n is None for n in goal_names):
+        logger.warning(
+            "Matching goals to fitted models by position: not every model has 'response_name' and not every "
+            "goal has 'response'. Name both to have them matched by name instead."
+        )
+        return goals
+
+    by_name = {str(g["response"]): g for g in goals}
+    if len(by_name) != len(goals) or set(by_name) != {str(n) for n in model_names}:
+        logger.warning(
+            "Matching goals to fitted models by position: the goal 'response' names %s do not correspond "
+            "one to one with the model 'response_name' values %s.",
+            sorted(str(n) for n in goal_names),
+            sorted(str(n) for n in model_names),
+        )
+        return goals
+
+    return [by_name[str(n)] for n in model_names]
+
+
 def _optimize_desirability(  # noqa: PLR0913
     fitted_models: list[dict[str, Any]],
     goals: list[dict[str, Any]],
@@ -453,13 +514,15 @@ def _optimize_desirability(  # noqa: PLR0913
     fitted_models : list[dict]
         Each has ``"coefficients"`` and ``"response_name"``.
     goals : list[dict]
-        Per-response goals.
+        Per-response goals. Matched to *fitted_models* by response name when
+        both sides supply one, otherwise by position.
     factor_names : list[str]
         Ordered factor names.
     factor_ranges : dict or None
         Factor bounds in actual units.
     importances : list[float] or None
-        Relative importance weights for composite desirability.
+        Relative importance of each response in the composite. This is not the
+        same as a goal's ``weight``, which shapes that response's own ramp.
 
     Returns
     -------
@@ -467,6 +530,7 @@ def _optimize_desirability(  # noqa: PLR0913
         Optimal settings, predicted responses, individual and composite
         desirability.
     """
+    goals = _align_goals_to_models(fitted_models, goals)
     evaluators = [_build_model_evaluator(m["coefficients"], factor_names) for m in fitted_models]
 
     def neg_composite(x: np.ndarray) -> float:
@@ -613,6 +677,118 @@ def _coded_to_actual(coded: dict[str, float], factor_ranges: dict[str, dict[str,
 # ---------------------------------------------------------------------------
 
 
+def _intervals_at_point(
+    fitted_results: list[Any],
+    fitted_models: list[dict[str, Any]],
+    factor_names: list[str],
+    point_coded: dict[str, float],
+    significance_level: float,
+) -> dict[str, Any]:
+    """Confidence and prediction intervals for each response at one point.
+
+    The optimizer works from coefficients alone, which is enough to locate an
+    optimum but not to say how well it is known. The residual variance and the
+    design's leverage at that point are needed for that, and both live on the
+    fitted model object rather than in its coefficients.
+
+    Parameters
+    ----------
+    fitted_results : list
+        Statsmodels results objects, aligned with *fitted_models*, fitted on
+        the coded factors.
+    fitted_models : list[dict]
+        Used only for the response names.
+    factor_names : list[str]
+        Ordered factor names, matching the columns the models were fitted on.
+    point_coded : dict[str, float]
+        Coded factor settings at which to report the intervals.
+    significance_level : float
+        Alpha. 0.05 gives 95% intervals.
+
+    Returns
+    -------
+    dict
+        Keyed by response name. Each entry has ``predicted``,
+        ``confidence_interval``, ``prediction_interval``, and
+        ``confidence_level``. A response whose model cannot be evaluated
+        carries an ``error`` string instead, so one failure does not discard
+        the intervals for the others.
+    """
+    from process_improve.experiments._analyses.prediction import _run_prediction  # noqa: PLC0415
+
+    if len(fitted_results) != len(fitted_models):
+        msg = (
+            f"Got {len(fitted_models)} fitted model(s) but {len(fitted_results)} fitted result(s); "
+            "they must correspond one to one and be in the same order."
+        )
+        raise ValueError(msg)
+
+    new_point = pd.DataFrame([{name: point_coded[name] for name in factor_names}])
+
+    intervals: dict[str, Any] = {}
+    for i, (results_obj, model) in enumerate(zip(fitted_results, fitted_models, strict=True)):
+        resp_name = model.get("response_name", f"Response {i + 1}")
+        try:
+            record = _run_prediction(results_obj, new_point, alpha=significance_level)["predictions"][0]
+        except (AttributeError, KeyError, TypeError, ValueError, PatsyError) as exc:
+            logger.warning("Could not compute intervals for response %r: %s", resp_name, exc)
+            intervals[resp_name] = {"error": str(exc)}
+            continue
+
+        intervals[resp_name] = {
+            "predicted": record["predicted"],
+            "confidence_interval": [record["ci_low"], record["ci_high"]],
+            "prediction_interval": [record["pi_low"], record["pi_high"]],
+            "confidence_level": 1.0 - significance_level,
+        }
+    return intervals
+
+
+def _desirability_result(  # noqa: PLR0913
+    *,
+    fitted_models: list[dict[str, Any]],
+    goals: list[dict[str, Any]],
+    factor_names: list[str],
+    factor_ranges: dict[str, dict[str, float]] | None,
+    response_importance: list[float] | None,
+    fitted_results: list[Any] | None,
+    significance_level: float,
+) -> dict[str, Any]:
+    """Assemble the full desirability result: optimum, intervals, and plot input.
+
+    Returns
+    -------
+    dict
+        The optimum from :func:`_optimize_desirability`, plus
+        ``"response_intervals"`` when *fitted_results* is supplied, plus
+        ``"responses"``, which pairs each model's coefficients with its
+        specification limits so the result can be passed straight to the
+        overlay plot.
+    """
+    aligned_goals = _align_goals_to_models(fitted_models, goals)
+    importances = response_importance
+    if importances is None:
+        importances = [g.get("importance", 1.0) for g in aligned_goals]
+
+    desirability = _optimize_desirability(fitted_models, aligned_goals, factor_names, factor_ranges, importances)
+
+    if fitted_results is not None:
+        desirability["response_intervals"] = _intervals_at_point(
+            fitted_results, fitted_models, factor_names, desirability["optimal_coded"], significance_level
+        )
+
+    carried = ("goal", "low", "high", "target", "weight", "weight_high", "importance")
+    desirability["responses"] = [
+        {
+            "name": model.get("response_name", f"Response {i + 1}"),
+            "coefficients": model.get("coefficients", []),
+            **{key: goal[key] for key in carried if key in goal},
+        }
+        for i, (model, goal) in enumerate(zip(fitted_models, aligned_goals, strict=True))
+    ]
+    return desirability
+
+
 def optimize_responses(  # noqa: PLR0913, C901
     fitted_models: list[dict[str, Any]],
     goals: list[dict[str, Any]] | None = None,
@@ -620,6 +796,9 @@ def optimize_responses(  # noqa: PLR0913, C901
     factor_ranges: dict[str, dict[str, float]] | None = None,
     step_size: float = 0.5,
     n_steps: int = 10,
+    response_importance: list[float] | None = None,
+    fitted_results: list[Any] | None = None,
+    significance_level: float = 0.05,
     desirability_weights: list[float] | None = None,
 ) -> dict[str, Any]:
     """Find optimal factor settings for one or multiple responses.
@@ -640,16 +819,24 @@ def optimize_responses(  # noqa: PLR0913, C901
     goals : list[dict] or None
         Per-response optimisation goals.  Each dict has keys:
 
-        - ``"response"`` (str) - response name (must match a model).
+        - ``"response"`` (str) - response name. Matched against each model's
+          ``"response_name"``; when both sides name their responses the goals
+          are reordered to match, so the two lists need not be in the same
+          order. When either side omits a name, goals are taken in list order.
         - ``"goal"`` (str) - ``"maximize"``, ``"minimize"``, or
           ``"target"``.
         - ``"target"`` (float, optional) - target value (required when
           ``goal="target"``).
         - ``"low"`` (float) - lower acceptable bound.
         - ``"high"`` (float) - upper acceptable bound.
-        - ``"weight"`` (float, default 1) - desirability shape parameter.
-        - ``"importance"`` (float, default 1) - relative importance for
-          composite desirability.
+        - ``"weight"`` (float, default 1) - the exponent shaping *this*
+          response's desirability ramp between ``low`` and ``high``. Above 1
+          concentrates desirability near the good end; below 1 flattens it.
+        - ``"weight_high"`` (float, optional) - a separate exponent for the
+          falling side of a ``"target"`` goal. Defaults to ``"weight"``.
+        - ``"importance"`` (float, default 1) - how much this response counts
+          relative to the others when the composite is formed. Unlike
+          ``weight``, it has no effect on this response's own ramp.
 
     method : str
         Optimisation method: ``"desirability"``,
@@ -663,15 +850,35 @@ def optimize_responses(  # noqa: PLR0913, C901
         Step magnitude for steepest ascent/descent (coded units).
     n_steps : int
         Number of steps for steepest ascent/descent.
+    response_importance : list[float] or None
+        Relative importance per response, overriding the per-goal
+        ``"importance"`` values. Aligned with *fitted_models*.
+    fitted_results : list or None
+        Optional statsmodels results objects, one per entry in *fitted_models*
+        and in the same order, as returned by ``lm()`` or by
+        ``analyze_experiment``. When supplied, a confidence interval and a
+        prediction interval for each response are reported at the optimum.
+        The models must have been fitted on the coded factors, since the
+        optimum is located in coded units.
+    significance_level : float
+        Alpha for those intervals. The default of 0.05 gives 95% intervals.
     desirability_weights : list[float] or None
-        Importance weights for composite desirability (overrides per-goal
-        ``"importance"`` values).
+        Deprecated alias for *response_importance*. The name was misleading:
+        these values are importances, not the ``weight`` that shapes an
+        individual ramp.
 
     Returns
     -------
     dict[str, Any]
         Results keyed by method.  Always includes ``"method"`` and
         ``"factor_names"``.
+
+    Raises
+    ------
+    ValueError
+        If *method* is unknown, if *fitted_models* is empty, if a method that
+        needs goals is called without them, or if both *response_importance*
+        and *desirability_weights* are given.
 
     Examples
     --------
@@ -705,6 +912,22 @@ def optimize_responses(  # noqa: PLR0913, C901
         msg = "At least one fitted model is required."
         raise ValueError(msg)
 
+    if desirability_weights is not None:
+        if response_importance is not None:
+            msg = (
+                "Pass either 'response_importance' or the deprecated 'desirability_weights', not both. "
+                "They set the same thing: how much each response counts in the composite."
+            )
+            raise ValueError(msg)
+        warnings.warn(
+            "'desirability_weights' is deprecated; use 'response_importance'. The values are importances, "
+            "which set how much each response counts in the composite, not the per-goal 'weight' that shapes "
+            "an individual desirability ramp.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        response_importance = desirability_weights
+
     # Use factor_names from the first model as the canonical ordering
     factor_names = fitted_models[0]["factor_names"]
     coefficients = fitted_models[0]["coefficients"]
@@ -729,13 +952,14 @@ def optimize_responses(  # noqa: PLR0913, C901
         if goals is None:
             msg = "Goals are required for desirability optimization."
             raise ValueError(msg)
-
-        importances = desirability_weights
-        if importances is None:
-            importances = [g.get("importance", 1.0) for g in goals]
-
-        result["desirability"] = _optimize_desirability(
-            fitted_models, goals, factor_names, factor_ranges, importances
+        result["desirability"] = _desirability_result(
+            fitted_models=fitted_models,
+            goals=goals,
+            factor_names=factor_names,
+            factor_ranges=factor_ranges,
+            response_importance=response_importance,
+            fitted_results=fitted_results,
+            significance_level=significance_level,
         )
 
     elif method == "ridge_analysis":

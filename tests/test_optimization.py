@@ -586,6 +586,244 @@ class TestOptimizeDesirability:
 
 
 # ---------------------------------------------------------------------------
+# Where the optimum actually lands
+# ---------------------------------------------------------------------------
+
+
+class TestDesirabilityOptimumLocation:
+    """Pin down where the optimiser lands, not just that it produced a number.
+
+    The other desirability tests assert only that keys are present and that the
+    composite is above zero, which a badly wrong optimum would also satisfy.
+    """
+
+    @staticmethod
+    def _plane(name: str, intercept: float, slope_a: float, slope_b: float) -> dict:
+        """Build a plane in A and B, so the optimum is known without solving anything."""
+        return {
+            "response_name": name,
+            "coefficients": [
+                {"term": "Intercept", "coefficient": intercept},
+                {"term": "A", "coefficient": slope_a},
+                {"term": "B", "coefficient": slope_b},
+            ],
+            "factor_names": ["A", "B"],
+        }
+
+    def test_single_response_lands_on_the_known_corner(self) -> None:
+        """Maximising a plane drives both factors to the corner that maximises it."""
+        model = self._plane("y", intercept=0.0, slope_a=1.0, slope_b=-1.0)
+        goals = [{"response": "y", "goal": "maximize", "low": -2.0, "high": 2.0}]
+        out = optimize_responses([model], goals=goals, method="desirability")["desirability"]
+        assert out["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
+        assert out["optimal_coded"]["B"] == pytest.approx(-1.0, abs=1e-4)
+        assert out["predicted_responses"]["y"] == pytest.approx(2.0, abs=1e-4)
+        assert out["composite_desirability"] == pytest.approx(1.0, abs=1e-4)
+
+    def test_two_responses_compromise_between_their_optima(self) -> None:
+        """Conflicting responses settle strictly between their individual optima.
+
+        y1 wants A at +1, y2 wants A at -1, and both are indifferent to B. The
+        compromise must therefore sit strictly inside the A range.
+        """
+        y1 = self._plane("y1", intercept=0.0, slope_a=1.0, slope_b=0.0)
+        y2 = self._plane("y2", intercept=0.0, slope_a=-1.0, slope_b=0.0)
+        goals = [
+            {"response": "y1", "goal": "maximize", "low": -1.0, "high": 1.0},
+            {"response": "y2", "goal": "maximize", "low": -1.0, "high": 1.0},
+        ]
+        out = optimize_responses([y1, y2], goals=goals, method="desirability")["desirability"]
+        assert out["optimal_coded"]["A"] == pytest.approx(0.0, abs=1e-3)
+
+    def test_importance_pulls_the_optimum_toward_the_favoured_response(self) -> None:
+        """Raising one response's importance moves the compromise its way."""
+        y1 = self._plane("y1", intercept=0.0, slope_a=1.0, slope_b=0.0)
+        y2 = self._plane("y2", intercept=0.0, slope_a=-1.0, slope_b=0.0)
+        goals = [
+            {"response": "y1", "goal": "maximize", "low": -1.0, "high": 1.0},
+            {"response": "y2", "goal": "maximize", "low": -1.0, "high": 1.0},
+        ]
+        balanced = optimize_responses([y1, y2], goals=goals, method="desirability")["desirability"]
+        favoured = optimize_responses(
+            [y1, y2], goals=goals, method="desirability", response_importance=[5.0, 1.0]
+        )["desirability"]
+        assert favoured["optimal_coded"]["A"] > balanced["optimal_coded"]["A"]
+
+
+class TestGoalMatching:
+    """Goals should follow their response name, not their list position."""
+
+    @staticmethod
+    def _models() -> list[dict]:
+        return [
+            {
+                "response_name": "yield",
+                "coefficients": [{"term": "Intercept", "coefficient": 0.0}, {"term": "A", "coefficient": 1.0}],
+                "factor_names": ["A", "B"],
+            },
+            {
+                "response_name": "cost",
+                "coefficients": [{"term": "Intercept", "coefficient": 0.0}, {"term": "A", "coefficient": -1.0}],
+                "factor_names": ["A", "B"],
+            },
+        ]
+
+    def test_goal_order_does_not_change_the_answer(self) -> None:
+        """Reordering goals relative to models used to silently invert the problem."""
+        yield_goal = {"response": "yield", "goal": "maximize", "low": -1.0, "high": 1.0}
+        cost_goal = {"response": "cost", "goal": "minimize", "low": -1.0, "high": 1.0}
+
+        in_order = optimize_responses(
+            self._models(), goals=[yield_goal, cost_goal], method="desirability"
+        )["desirability"]
+        reversed_order = optimize_responses(
+            self._models(), goals=[cost_goal, yield_goal], method="desirability"
+        )["desirability"]
+
+        assert in_order["optimal_coded"]["A"] == pytest.approx(reversed_order["optimal_coded"]["A"], abs=1e-6)
+        # Both goals push A to +1: yield rises with A, and cost falls with A.
+        assert in_order["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
+
+    def test_mismatched_length_is_rejected(self) -> None:
+        """One goal per model, or the pairing is undefined."""
+        goals = [{"response": "yield", "goal": "maximize", "low": -1.0, "high": 1.0}]
+        with pytest.raises(ValueError, match="correspond one to one"):
+            optimize_responses(self._models(), goals=goals, method="desirability")
+
+    def test_unnamed_goals_fall_back_to_position(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Without names on both sides, position is the only reading available."""
+        goals = [
+            {"goal": "maximize", "low": -1.0, "high": 1.0},
+            {"goal": "minimize", "low": -1.0, "high": 1.0},
+        ]
+        with caplog.at_level("WARNING"):
+            out = optimize_responses(self._models(), goals=goals, method="desirability")
+        assert "by position" in caplog.text
+        assert out["desirability"]["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
+
+
+class TestResponseImportanceNaming:
+    """The old kwarg name said 'weights' but carried importances."""
+
+    @staticmethod
+    def _model() -> dict:
+        return {
+            "response_name": "y",
+            "coefficients": [{"term": "Intercept", "coefficient": 0.0}, {"term": "A", "coefficient": 1.0}],
+            "factor_names": ["A", "B"],
+        }
+
+    def test_deprecated_alias_still_works(self) -> None:
+        """desirability_weights keeps working, with a warning."""
+        goals = [{"response": "y", "goal": "maximize", "low": -1.0, "high": 1.0}]
+        with pytest.warns(DeprecationWarning, match="response_importance"):
+            out = optimize_responses(
+                [self._model()], goals=goals, method="desirability", desirability_weights=[1.0]
+            )
+        assert out["desirability"]["composite_desirability"] > 0.0
+
+    def test_both_names_together_is_an_error(self) -> None:
+        """Passing both leaves the intent ambiguous."""
+        goals = [{"response": "y", "goal": "maximize", "low": -1.0, "high": 1.0}]
+        with pytest.raises(ValueError, match="not both"):
+            optimize_responses(
+                [self._model()],
+                goals=goals,
+                method="desirability",
+                response_importance=[1.0],
+                desirability_weights=[2.0],
+            )
+
+    def test_result_carries_responses_for_the_overlay_plot(self) -> None:
+        """The desirability result is directly consumable by the overlay plot."""
+        goals = [{"response": "y", "goal": "maximize", "low": -1.0, "high": 1.0}]
+        out = optimize_responses([self._model()], goals=goals, method="desirability")["desirability"]
+        assert out["responses"][0]["name"] == "y"
+        assert out["responses"][0]["low"] == -1.0
+        assert out["responses"][0]["high"] == 1.0
+        assert out["responses"][0]["coefficients"]
+
+
+class TestIntervalsAtOptimum:
+    """Uncertainty at the optimum, when the fitted model objects are supplied."""
+
+    @staticmethod
+    def _fit() -> tuple[dict, object]:
+        """Fit a small two-factor model on coded factors and return both forms."""
+        import pandas as pd
+        import statsmodels.formula.api as smf
+
+        design = pd.DataFrame({
+            "A": [-1.0, 1.0, -1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+            "B": [-1.0, -1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+        })
+        design["y"] = 40.0 + 5.0 * design["A"] - 2.0 * design["B"] + [0.3, -0.2, 0.1, -0.1, 0.2, -0.3, 0.1, 0.0]
+        ols_result = smf.ols("y ~ A + B", data=design).fit()
+        model = {
+            "response_name": "y",
+            "coefficients": [
+                {"term": term, "coefficient": float(value)} for term, value in ols_result.params.items()
+            ],
+            "factor_names": ["A", "B"],
+        }
+        return model, ols_result
+
+    def test_no_intervals_without_fitted_results(self) -> None:
+        """Behaviour is unchanged when the fitted objects are not supplied."""
+        model, _ = self._fit()
+        goals = [{"response": "y", "goal": "maximize", "low": 30.0, "high": 50.0}]
+        out = optimize_responses([model], goals=goals, method="desirability")["desirability"]
+        assert "response_intervals" not in out
+
+    def test_intervals_are_reported_and_ordered(self) -> None:
+        """The prediction interval contains the confidence interval, which contains the fit."""
+        model, fitted = self._fit()
+        goals = [{"response": "y", "goal": "maximize", "low": 30.0, "high": 50.0}]
+        out = optimize_responses(
+            [model], goals=goals, method="desirability", fitted_results=[fitted]
+        )["desirability"]
+
+        interval = out["response_intervals"]["y"]
+        ci_low, ci_high = interval["confidence_interval"]
+        pi_low, pi_high = interval["prediction_interval"]
+        predicted = interval["predicted"]
+
+        assert ci_low < predicted < ci_high
+        assert pi_low < ci_low
+        assert pi_high > ci_high
+        assert interval["confidence_level"] == pytest.approx(0.95)
+        # The optimizer and the fitted model must agree on the predicted value.
+        assert predicted == pytest.approx(out["predicted_responses"]["y"], abs=1e-6)
+
+    def test_significance_level_widens_the_interval(self) -> None:
+        """A smaller alpha gives a wider interval."""
+        model, fitted = self._fit()
+        goals = [{"response": "y", "goal": "maximize", "low": 30.0, "high": 50.0}]
+
+        def width(alpha: float) -> float:
+            out = optimize_responses(
+                [model],
+                goals=goals,
+                method="desirability",
+                fitted_results=[fitted],
+                significance_level=alpha,
+            )["desirability"]
+            low, high = out["response_intervals"]["y"]["confidence_interval"]
+            return high - low
+
+        assert width(0.01) > width(0.05) > width(0.20)
+
+    def test_mismatched_fitted_results_length_is_rejected(self) -> None:
+        """One fitted result per model, in the same order."""
+        model, fitted = self._fit()
+        goals = [{"response": "y", "goal": "maximize", "low": 30.0, "high": 50.0}]
+        with pytest.raises(ValueError, match="correspond one to one"):
+            optimize_responses(
+                [model], goals=goals, method="desirability", fitted_results=[fitted, fitted]
+            )
+
+
+# ---------------------------------------------------------------------------
 # Stubs
 # ---------------------------------------------------------------------------
 
