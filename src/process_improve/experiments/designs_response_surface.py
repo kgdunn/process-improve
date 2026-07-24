@@ -44,9 +44,18 @@ def dispatch_ccd(  # noqa: PLR0913
     center_points : int
         Number of center points (split between cube and axial portions).
     alpha : str, float, or None
-        Axial distance.  Accepted string values: ``"rotatable"``,
-        ``"face_centered"``, ``"orthogonal"``.  A numeric value sets
-        alpha directly.  Defaults to ``"orthogonal"``.
+        Axial distance. Accepted string values: ``"rotatable"``,
+        ``"face_centered"``, ``"orthogonal"``. Defaults to ``"orthogonal"``.
+
+        For ``cube="fractional"`` a numeric value is passed straight through
+        to the underlying design routine and sets alpha directly. For
+        ``cube="full"`` (the current default) a numeric value is currently
+        silently ignored: the code coerces every non-string alpha to the
+        ``"orthogonal"`` pyDOE3 setting, so the actual alpha comes from
+        pyDOE3 (reported back in the returned metadata's ``alpha_value``)
+        rather than from the number you passed. Prefer a string value under
+        ``cube="full"``; use ``cube="fractional"`` if you need to set alpha
+        numerically. Flagged for maintainer follow-up.
     cube : str
         How to build the cube (factorial) portion: ``"full"`` (default) uses
         the complete 2^k factorial; ``"fractional"`` uses a resolution-V (or
