@@ -50,12 +50,16 @@ class Resampler:
 
         The `accessor` is a callable that takes an estimator and returns the parameters of interest.
 
-        Mutually exclusive parameters:
+        The three mode selectors are intended to be mutually exclusive:
             * `use_jackknife` flag indicates whether to use jackknife resampling (leave out one sample; rebuild)
             * `bootstrap_rounds` specifies the number of bootstrap rounds if applicable (resample data with replacement)
             * `fraction_excluded` specifies the fraction of data to exclude in each resample (for fractional resampling)
 
-        Only one of these parameters should be set at a time.
+        The caller should set only one of these at a time. The current guard only raises
+        ``ValueError`` when *all three* are set simultaneously (``use_jackknife`` is truthy,
+        ``bootstrap_rounds > 0``, and ``fraction_excluded > 0.0``); pairwise conflicts are
+        not currently caught here. When more than one is active :meth:`resample` picks in the
+        order jackknife > bootstrap > fractional.
 
         Parameters
         ----------
