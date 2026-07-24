@@ -18,15 +18,15 @@ from process_improve.visualization.colors import (
     DESIRABILITY_COLORSCALE,
     DOE_PALETTE,
     FACTOR_COLORS,
+    SWEET_SPOT_COLORSCALE,
 )
 from process_improve.visualization.spec import (
-    Annotation,
     ChartSpec,
     Encoding,
     LayerSpec,
     PanelSpec,
 )
-from process_improve.visualization.types import AnnotationType, MarkType
+from process_improve.visualization.types import MarkType
 
 # ---------------------------------------------------------------------------
 # Grid helpers shared by the desirability and overlay plots
@@ -43,6 +43,50 @@ def _response_surface(
     """Predict one response over the coded grid, row-major as ``z[y][x]``."""
     _, _, z_matrix = _compute_grid(coef_map, factor_x, factor_y, hold_values, n_grid)
     return z_matrix
+
+
+def _is_bounded(low: float | None, high: float | None) -> bool:
+    """Report whether both specification limits are present, finite, and ordered."""
+    if low is None or high is None:
+        return False
+    return bool(np.isfinite(low) and np.isfinite(high) and high > low)
+
+
+def _feasibility_mask(
+    surfaces: list[tuple[dict[str, Any], list[list[float]]]],
+    n_grid: int,
+) -> tuple[list[list[float]] | None, int]:
+    """Mark the grid cells where every bounded response is within specification.
+
+    Parameters
+    ----------
+    surfaces : list of (goal dict, predicted surface)
+        One entry per response that could be evaluated.
+    n_grid : int
+        Grid resolution, assumed square.
+
+    Returns
+    -------
+    mask : list[list[float]] or None
+        ``1.0`` inside the sweet spot and ``nan`` outside, so the renderer draws
+        nothing where the region does not apply. ``None`` when no response
+        carries usable bounds, in which case there is no sweet spot to speak of
+        rather than an empty one.
+    n_bounded : int
+        How many responses contributed bounds.
+    """
+    bounded = [(resp, z) for resp, z in surfaces if _is_bounded(resp.get("low"), resp.get("high"))]
+    if not bounded:
+        return None, 0
+
+    mask: list[list[float]] = []
+    for j in range(n_grid):
+        row: list[float] = []
+        for i in range(n_grid):
+            inside = all(resp["low"] <= z[j][i] <= resp["high"] for resp, z in bounded)
+            row.append(1.0 if inside else float("nan"))
+        mask.append(row)
+    return mask, len(bounded)
 
 
 def _resolve_goal_bounds(goal: dict[str, Any], surface: list[list[float]]) -> dict[str, Any]:
@@ -210,17 +254,25 @@ class DesirabilityContourPlot(BasePlot):
 
 @register_plot("overlay")
 class OverlayPlot(BasePlot):
-    """Overlay contour plot for multiple responses.
+    """Overlay contour plot for multiple responses, showing the sweet spot.
 
-    Draws contour lines from each response model on the same axes,
-    with optional constraint regions shaded.  Useful for identifying
-    a feasible operating region that satisfies all specifications.
+    Each response model is drawn as contour lines on shared axes. Where a
+    response carries ``low`` / ``high`` bounds, its two specification limits are
+    drawn as its contour levels, so the reader sees the boundary that matters
+    rather than eight arbitrary levels.
+
+    The region where *every* bounded response is simultaneously inside its
+    limits is shaded. That region is the sweet spot: the set of operating points
+    that meet all the specifications at once. It can be empty, which is a
+    meaningful answer and is reported as such rather than drawn as blank space.
 
     Data sources
     ------------
     Requires ``analysis_results`` with ``"optimization"`` containing
-    ``"responses"`` - each with ``"coefficients"``, and optionally
-    ``"low"``/``"high"`` bounds for feasibility shading.
+    ``"responses"``, each with ``"coefficients"`` and optionally ``"low"`` /
+    ``"high"``. The output of
+    :func:`~process_improve.experiments.optimization.optimize_responses` is also
+    accepted directly.
     """
 
     def to_spec(self) -> ChartSpec:
@@ -244,53 +296,76 @@ class OverlayPlot(BasePlot):
         y_grid = np.linspace(-1, 1, n_grid).tolist()
 
         layers: list[LayerSpec] = []
+        surfaces: list[tuple[dict[str, Any], list[list[float]]]] = []
 
         for i, resp in enumerate(responses):
             coeffs = resp.get("coefficients", [])
             if not coeffs:
                 continue
 
-            coef_map = _build_coef_map(coeffs)
-            _, _, z_matrix = _compute_grid(
-                coef_map, factor_x, factor_y, self.hold_values, n_grid,
-            )
+            z_matrix = _response_surface(_build_coef_map(coeffs), factor_x, factor_y, self.hold_values, n_grid)
+            surfaces.append((resp, z_matrix))
 
             resp_name = resp.get("name", f"Response {i + 1}")
             color = FACTOR_COLORS[i % len(FACTOR_COLORS)]
+            style: dict[str, Any] = {
+                "x_grid": x_grid,
+                "y_grid": y_grid,
+                "z_matrix": z_matrix,
+                "contours_coloring": "lines",
+                "showscale": False,
+            }
 
-            layer = LayerSpec(
-                mark=MarkType.contour,
-                data=[],
-                x=Encoding(field="x", title=factor_x),
-                y=Encoding(field="y", title=factor_y),
-                name=resp_name,
-                color=color,
-                style={
-                    "x_grid": x_grid,
-                    "y_grid": y_grid,
-                    "z_matrix": z_matrix,
-                    "contours_coloring": "lines",
-                    "ncontours": 8,
-                },
+            if _is_bounded(resp.get("low"), resp.get("high")):
+                # Draw exactly the two specification limits. `size` is the gap
+                # between levels, so this yields contours at low and at high.
+                spec_low, spec_high = float(resp["low"]), float(resp["high"])
+                style["contours"] = {"start": spec_low, "end": spec_high, "size": spec_high - spec_low}
+            else:
+                style["ncontours"] = 8
+
+            layers.append(
+                LayerSpec(
+                    mark=MarkType.contour,
+                    data=[],
+                    x=Encoding(field="x", title=factor_x),
+                    y=Encoding(field="y", title=factor_y),
+                    name=resp_name,
+                    color=color,
+                    style=style,
+                )
             )
-            layers.append(layer)
 
-        annotations: list[Annotation] = []
-        # Add constraint region annotations if bounds are specified
-        for resp in responses:
-            low = resp.get("low")
-            high = resp.get("high")
-            if low is not None and high is not None:
-                resp_name = resp.get("name", "Response")
-                annotations.append(Annotation(
-                    annotation_type=AnnotationType.label,
-                    label=f"{resp_name}: [{low:.2f}, {high:.2f}]",
-                    style={"color": DOE_PALETTE["neutral"]},
-                ))
+        mask, n_bounded = _feasibility_mask(surfaces, n_grid)
+        sweet_spot_cells = 0 if mask is None else sum(1 for row in mask for v in row if v == 1.0)
+        sweet_spot_fraction = sweet_spot_cells / float(n_grid * n_grid) if mask is not None else None
+
+        if mask is not None:
+            # Drawn first so it sits behind the response contours.
+            layers.insert(
+                0,
+                LayerSpec(
+                    mark=MarkType.contour,
+                    data=[],
+                    x=Encoding(field="x", title=factor_x),
+                    y=Encoding(field="y", title=factor_y),
+                    name="Sweet spot",
+                    opacity=0.35,
+                    style={
+                        "x_grid": x_grid,
+                        "y_grid": y_grid,
+                        "z_matrix": mask,
+                        "colorscale": SWEET_SPOT_COLORSCALE,
+                        "zmin": 0.0,
+                        "zmax": 1.0,
+                        "showscale": False,
+                        "showlabels": False,
+                    },
+                ),
+            )
 
         panel = PanelSpec(
             layers=layers,
-            annotations=annotations,
             title=f"Overlay: {factor_x} x {factor_y}",
             x_title=factor_x,
             y_title=factor_y,
@@ -304,15 +379,44 @@ class OverlayPlot(BasePlot):
                 "factors": [factor_x, factor_y],
                 "hold_values": self.hold_values,
                 "n_responses": len(responses),
+                "n_bounded_responses": n_bounded,
+                "specification_limits": {
+                    resp.get("name", f"Response {i + 1}"): [resp.get("low"), resp.get("high")]
+                    for i, resp in enumerate(responses)
+                    if _is_bounded(resp.get("low"), resp.get("high"))
+                },
+                "sweet_spot_fraction": sweet_spot_fraction,
+                "sweet_spot_empty": None if mask is None else sweet_spot_cells == 0,
             },
         )
 
     def _get_overlay_responses(self) -> list[dict[str, Any]]:
-        """Extract multi-response data for overlay."""
+        """Extract multi-response data for overlay.
+
+        Accepts either the hand-assembled ``{"optimization": {"responses": ...}}``
+        shape or the result of ``optimize_responses``, which nests the same
+        information under ``"desirability"``.
+        """
         if not self.analysis_results:
             return []
+
         opt = self.analysis_results.get("optimization", {})
-        return opt.get("responses", [])
+        responses = opt.get("responses", [])
+        if responses:
+            return responses
+
+        # optimize_responses(...) output, passed through directly.
+        desirability = self.analysis_results.get("desirability", {})
+        responses = desirability.get("responses", [])
+        if responses:
+            return responses
+
+        # Fall back: a single response built from top-level coefficients, so
+        # the plot degrades to a plain contour rather than an empty frame.
+        coefficients = self._get_coefficients()
+        if coefficients:
+            return [{"name": "Response 1", "coefficients": coefficients}]
+        return []
 
 
 # ---------------------------------------------------------------------------

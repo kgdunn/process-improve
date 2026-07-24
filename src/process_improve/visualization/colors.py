@@ -92,6 +92,17 @@ DESIRABILITY_COLORSCALE: list[list[float | str]] = [
 ]
 
 # ---------------------------------------------------------------------------
+# Sweet-spot fill: a single flat green, used behind overlaid response contours
+# to shade the region where every response is within specification. It is one
+# colour rather than a scale because the mask it renders is binary.
+# ---------------------------------------------------------------------------
+
+SWEET_SPOT_COLORSCALE: list[list[float | str]] = [
+    [0.0, "#059669"],
+    [1.0, "#059669"],
+]
+
+# ---------------------------------------------------------------------------
 # Font stacks (shared by the registered Plotly base themes)
 # ---------------------------------------------------------------------------
 
