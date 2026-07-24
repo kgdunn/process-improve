@@ -158,9 +158,12 @@ def center(
     This specifies the axis along which the centering vector will be calculated if not provided.
     The function is applied along the `axis`: 0=down the columns; 1 = across the rows.
 
-    *Missing values*: The sample mean is computed by taking the sum along the `axis`, skipping
-    any missing data, and dividing by N = number of values which are present. Values which were
-    missing before, are left as missing after.
+    *Missing values*: The default ``func=np.mean`` propagates NaN, so any column containing a
+    missing value is centred with a NaN mean and the subtraction leaves the whole column as NaN.
+    To skip missing entries when computing the centring vector, pass a NaN-aware function such
+    as ``func=np.nanmean`` (which sums the present values along `axis` and divides by the count
+    of non-missing entries per column). Values which were missing before are left as missing
+    after.
     """
     # pandas-stubs types apply()'s axis as a Literal, so a plain ``int`` axis does
     # not match any overload; the call is valid at runtime.
@@ -186,8 +189,11 @@ def scale(
 
     `func` [optional; default=np.std] {a function}
         The default (np.std) uses NumPy to calculate the standard deviation of
-        the data along the required `axis`, skipping over any missing data, and
-        uses that as `scale`.
+        the data along the required `axis`, and uses that as `scale`. ``np.std``
+        propagates NaN, so any column containing a missing value gets a NaN
+        scaling factor and the whole column becomes NaN in the output; pass a
+        NaN-aware function such as ``func=np.nanstd`` to skip missing entries
+        when computing the per-column standard deviation.
 
     `axis` [optional; default=0] {integer}
         Transformations are applied on slices of data.  This specifies the
