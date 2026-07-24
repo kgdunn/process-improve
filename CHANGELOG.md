@@ -11,16 +11,7 @@ those changes.
 
 ## [Unreleased]
 
-## [1.59.1] - 2026-07-23
-
-### Changed
-
-- Pin the dev-tooling `ruff` below `0.16` (`ruff>=0.11.0,<0.16`). ruff 0.16
-  promoted several rules into the `select=["ALL"]` set (`CPY001`, `PLR0917`,
-  ...) that fire across the existing code base and broke the lint gate. The cap
-  keeps CI green until those rules are triaged.
-
-## [1.59.0] - 2026-07-23
+## [1.60.0] - 2026-07-23
 
 ### Added
 
@@ -44,6 +35,34 @@ those changes.
     `ComparisonResult`; a `within` argument runs the post-hoc tests as simple effects
     within each level of another factor (the right follow-up once an interaction is
     significant).
+- Documentation: a "Comparing designed treatments" section in the sensory panel
+  user guide with a worked Tukey HSD versus Dunnett example.
+
+## [1.59.0] - 2026-07-23
+
+### Added
+
+- `OPLS`: an Orthogonal Projections to Latent Structures estimator for a single
+  response (Trygg-Wold NIPALS), extracting one Y-predictive component and
+  `n_orthogonal_components` Y-orthogonal components. It exposes `fit`,
+  `transform` (predictive scores), `correct` (the orthogonal-signal-corrected
+  X), `predict`, and `invert`. `OPLS.invert()` finds the inputs for a desired
+  response through a single division and returns the orthogonal-space basis;
+  for a single response this is the same set of designs as `PLS.invert()`'s null
+  space (García-Carrión et al., 2025). An A-component PLS model and an
+  O-PLS(1; A - 1) model give identical predictions and regression coefficients.
+- `PLS.invert()`: PLS model inversion for latent-variable product and process
+  design. Given a desired response on the original Y scale, it returns the
+  minimum-norm (direct-inversion) input vector that the model predicts will
+  achieve it, together with an orthonormal basis for the *null space* - the
+  `(A - r)`-dimensional family of input vectors that all yield the same
+  prediction (`A` components, response rank `r`). Callers can pass
+  `null_space_coordinates` to move along that space and satisfy secondary
+  criteria (cost, safety, operability) without changing the predicted response.
+  The result also reports the solution's Hotelling's T2 to flag extrapolation
+  beyond the calibration data. Reproduces the null-space results of
+  García-Carrión et al. (2025), whose single-response proof identifies this null
+  space with the orthogonal space of an O-PLS model.
 
 ## [1.58.0] - 2026-07-23
 
@@ -2633,8 +2652,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.59.1...HEAD
-[1.59.1]: https://github.com/kgdunn/process-improve/compare/v1.59.0...v1.59.1
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.60.0...HEAD
+[1.60.0]: https://github.com/kgdunn/process-improve/compare/v1.59.0...v1.60.0
 [1.59.0]: https://github.com/kgdunn/process-improve/compare/v1.58.0...v1.59.0
 [1.58.0]: https://github.com/kgdunn/process-improve/compare/v1.57.0...v1.58.0
 [1.57.0]: https://github.com/kgdunn/process-improve/compare/v1.56.0...v1.57.0

@@ -23,14 +23,14 @@ from sklearn.cross_decomposition import PLSSVD, PLSCanonical, PLSRegression
 from sklearn.decomposition import PCA as SKLearnPCA  # noqa: N811 - aliased to avoid collision with our PCA
 from sklearn.preprocessing import StandardScaler
 
-from process_improve.multivariate.methods import MBPCA, MBPLS, PCA, PLS, TPLS, MCUVScaler
+from process_improve.multivariate.methods import MBPCA, MBPLS, OPLS, PCA, PLS, TPLS, MCUVScaler
 
 # Concrete sklearn estimators we explicitly refuse to inherit from (their private,
 # version-specific attribute layout is exactly what ENG-07 decouples us from).
 _CONCRETE_SKLEARN_ESTIMATORS = (PLSRegression, PLSCanonical, PLSSVD, SKLearnPCA)
 
 
-@pytest.mark.parametrize("estimator_cls", [PCA, PLS, TPLS, MBPLS, MBPCA])
+@pytest.mark.parametrize("estimator_cls", [PCA, PLS, TPLS, MBPLS, MBPCA, OPLS])
 def test_estimators_do_not_inherit_concrete_sklearn(estimator_cls: type) -> None:
     """No estimator inherits a concrete sklearn estimator, but all keep BaseEstimator."""
     mro = estimator_cls.__mro__
@@ -46,6 +46,16 @@ def test_estimators_keep_expected_sklearn_mixins() -> None:
     assert TransformerMixin in PLS.__mro__
     assert RegressorMixin in MBPLS.__mro__
     assert TransformerMixin in MBPCA.__mro__
+    assert RegressorMixin in OPLS.__mro__
+    assert TransformerMixin in OPLS.__mro__
+
+
+def test_opls_clone_and_params_round_trip() -> None:
+    """OPLS supports the sklearn estimator API: clone, get_params, set_params."""
+    est = OPLS(n_orthogonal_components=2, scale=False)
+    assert clone(est).get_params() == est.get_params()
+    rebuilt = OPLS(n_orthogonal_components=1).set_params(n_orthogonal_components=2, scale=False)
+    assert rebuilt.get_params() == est.get_params()
 
 
 def test_pca_clone_and_params_round_trip() -> None:
