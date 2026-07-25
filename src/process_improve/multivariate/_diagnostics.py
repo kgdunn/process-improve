@@ -671,10 +671,10 @@ _OLD_SCORE_CONTRIBUTIONS_KEYWORDS = frozenset({"t_end", "components", "weighted"
 
 
 def _reject_old_score_contributions_api(X: object, keywords: dict) -> None:
-    """Raise a migration error if called with the pre-1.53.0 signature."""
+    """Raise a migration error if called with the pre-1.61.0 signature."""
     looks_like_scores = isinstance(X, (pd.Series, np.ndarray, list, tuple)) and np.ndim(X) == 1
     if looks_like_scores or (set(keywords) & _OLD_SCORE_CONTRIBUTIONS_KEYWORDS):
-        raise TypeError(_OLD_SCORE_CONTRIBUTIONS_API.format(version="1.53.0"))
+        raise TypeError(_OLD_SCORE_CONTRIBUTIONS_API.format(version="1.61.0"))
     if keywords:
         unexpected = ", ".join(sorted(keywords))
         msg = f"score_contributions() got an unexpected keyword argument: {unexpected}."
@@ -734,7 +734,7 @@ def score_contributions(
         the *pattern* of bars within a row unchanged; neither preserves the sum
         to the score.
     **deprecated
-        Captures ``t_end``, ``components`` and ``weighted`` from the pre-1.53.0
+        Captures ``t_end``, ``components`` and ``weighted`` from the pre-1.61.0
         calling convention, which took a score vector instead of ``X``, so that
         those calls raise a :class:`TypeError` explaining the change rather than
         quietly returning something else. Passing a 1-D ``X`` raises the same

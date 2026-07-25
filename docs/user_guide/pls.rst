@@ -105,7 +105,7 @@ These diagnostics work identically to PCA (see :doc:`pca`):
   correlation structure.
 - ``model.hotellings_t2_`` and ``model.hotellings_t2_limit()`` - extremity
   within the model.
-- ``model.score_contributions()`` - decompose scores back to original
+- ``model.score_contributions(X)`` - decompose a score back to original
   variables.
 - ``model.detect_outliers()`` - combined statistical + robust ESD detection.
 - ``model.squared_cosine()`` - quality of representation of each observation,

@@ -945,7 +945,7 @@ def test_pca_score_contributions() -> None:
 
     # --- The diagnosis must depend on the observation, not only on the model.
     # A back-projection of the score through the loadings (what this method did
-    # before 1.53.0) gives every observation the same ranking of variables,
+    # before 1.61.0) gives every observation the same ranking of variables,
     # which is the loading ranking; that is the defect this test guards.
     rankings = {tuple(np.argsort(-contrib.iloc[i].abs().to_numpy())) for i in range(len(X))}
     assert len(rankings) > 1
@@ -969,7 +969,7 @@ def test_pca_score_contributions() -> None:
 
 
 def test_score_contributions_rejects_the_old_api() -> None:
-    """The pre-1.53.0 signature took a score vector and must not silently work."""
+    """The pre-1.61.0 signature took a score vector and must not silently work."""
     rng = np.random.default_rng(3)
     X = MCUVScaler().fit_transform(
         pd.DataFrame(rng.standard_normal((25, 4)), columns=list("abcd"))
