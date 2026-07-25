@@ -1244,6 +1244,37 @@ class TestMBPLSOnLDPE:
             scores[:10].mean(), abs=1e-9
         )
 
+    def test_contribution_guards_and_plain_array_blocks(self, ldpe) -> None:
+        """The MBPLS guards mirror MBPCA, and blocks may arrive as plain arrays."""
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        model = MBPLS(n_components=2).fit(x_blocks, y_df)
+
+        with pytest.raises(TypeError, match="dict"):
+            model.score_contributions(next(iter(x_blocks.values())))
+        with pytest.raises(ValueError, match="Missing X-blocks"):
+            model.score_contributions({model.block_names_[0]: x_blocks[model.block_names_[0]]})
+        with pytest.raises(ValueError, match="1-based index"):
+            model.score_contributions(x_blocks, component=5)
+        with pytest.raises(ValueError, match="scaling must be one of"):
+            model.score_contributions(x_blocks, scaling="loud")
+
+        as_arrays = {name: block.to_numpy() for name, block in x_blocks.items()}
+        from_arrays = model.score_contributions(as_arrays, component=1)
+        from_frames = model.score_contributions(x_blocks, component=1)
+        for name in model.block_names_:
+            np.testing.assert_array_almost_equal(
+                from_arrays[name].values, from_frames[name].values, decimal=12
+            )
+
+        # Both scalings, taken jointly over the blocks.
+        largest = model.score_contributions(x_blocks, component=1, scaling="maximum")
+        assert max(float(np.abs(f.values).max()) for f in largest.values()) == pytest.approx(1.0)
+        within = model.score_contributions(x_blocks, component=1, scaling="within")
+        row_total = sum(np.abs(f.values).sum(axis=1) for f in within.values())
+        np.testing.assert_array_almost_equal(row_total, np.ones(len(row_total)), decimal=10)
+
     def test_super_score_plot_returns_plotly_figure(self, ldpe) -> None:
         import plotly.graph_objects as go
 

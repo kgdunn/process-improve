@@ -44,6 +44,12 @@ those changes.
   level shift part-way through a data set, actually poses. Observations are
   selected by index label or boolean mask; pass `X.index[...]` to select by
   position.
+- `weights=` on `group_contributions()`, giving the paper's general form
+  directly: contributions to any linear combination of the rows,
+  `(sum_i w_i x_ik) R_ka`, which sum to `sum_i w_i t_ia`. `group` and
+  `reference` are sugar over it. The paper suggests the first-order orthogonal
+  polynomial as the weights when a run of batches is drifting rather than
+  stepping, which the group/reference pair alone cannot express.
 - `scaling=` on `score_contributions()`, offering the maximum-contribution and
   within-observation presentation scalings from Miller, Swanson and Heckler
   (1994). The default leaves the contributions unscaled, so they sum to the

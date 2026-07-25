@@ -789,32 +789,37 @@ def score_contributions(
     return pd.DataFrame(contributions, index=X_df.index, columns=X_df.columns)
 
 
-def group_contributions(
+def group_contributions(  # noqa: PLR0913 - group/reference are sugar for weights
     model: BaseEstimator,
     X: DataMatrix,
-    group: Sequence,
+    group: Sequence | None = None,
     reference: Sequence | None = None,
     component: int = 1,
+    weights: Sequence | None = None,
 ) -> pd.Series:
     r"""Per-variable contributions to a group's average score, or to a shift.
 
-    The group form of :func:`score_contributions`. Averaging the data rows
+    The group form of :func:`score_contributions`. Combining the data rows
     before multiplying by the score-generating weights answers "what do these
     observations have in common?" rather than "why is this one observation
     unusual?", which is the question a cluster on a score plot, or a level shift
     part-way through a data set, actually poses.
 
-    With ``reference=None`` the contributions are
+    In general any linear combination of the rows may be used
+    (Miller, Swanson and Heckler, 1994):
 
     .. math::
 
-        c_k = \bar{x}_{k}^{(G)} R_{ka}, \qquad \sum_k c_k = \bar{t}_a^{(G)},
+        c_k = \Bigl(\sum_i w_i x_{ik}\Bigr) R_{ka}, \qquad
+        \sum_k c_k = \sum_i w_i t_{ia}.
 
-    comparing the group mean against the model centre. Given a ``reference``
-    group the contributions are :math:`(\bar{x}_k^{(G)} - \bar{x}_k^{(H)})
-    R_{ka}`, which sum to the difference in average score between the two
-    groups. Both forms are the linear-combination generalisation given by
-    Miller, Swanson and Heckler (1994).
+    The common cases have their own arguments. With ``group`` alone the weights
+    are :math:`1/n_G` over the group, comparing its mean against the model
+    centre. With ``group`` and ``reference`` they are :math:`+1/n_G` and
+    :math:`-1/n_H`, so the contributions sum to the difference in average score,
+    which is the level-shift diagnostic of the paper's Figure 9. Pass ``weights``
+    directly for anything else: the paper suggests the first-order orthogonal
+    polynomial when a run of batches is drifting rather than stepping.
 
     Parameters
     ----------
@@ -822,21 +827,26 @@ def group_contributions(
         A fitted PCA or PLS model.
     X : array-like of shape (n_samples, n_features)
         Preprocessed data, scaled the same way as the training data.
-    group : sequence
+    group : sequence, optional
         Index labels of the observations of interest, or a boolean mask the
         same length as ``X``. Selection is by label, not by position; pass
-        ``X.index[...]`` to select positionally.
+        ``X.index[...]`` to select positionally. Required unless ``weights``
+        is given.
     reference : sequence, optional
         Index labels selecting the observations to compare against. ``None``
         (default) compares the group against the model centre.
     component : int, default=1
         **1-based** component index whose score is decomposed.
+    weights : sequence, optional
+        One weight per row of ``X``, giving the linear combination directly.
+        Mutually exclusive with ``group`` / ``reference``.
 
     Returns
     -------
     pd.Series
-        Signed contributions, one per variable. Sums to the group's average
-        score, or to the difference in average score between the two groups.
+        Signed contributions, one per variable. Sums to the weighted combination
+        of the scores: the group's average score, the difference in average
+        score between the two groups, or :math:`\sum_i w_i t_{ia}`.
 
     Examples
     --------
@@ -847,6 +857,11 @@ def group_contributions(
     >>> pca.group_contributions(
     ...     X_scaled, group=X_scaled.index[64:74], reference=X_scaled.index[74:84]
     ... )
+    >>> # A run of batches drifting rather than stepping: weight by a
+    >>> # first-order orthogonal polynomial over the run.
+    >>> slope = np.zeros(len(X_scaled))
+    >>> slope[40:60] = np.arange(20) - 9.5
+    >>> pca.group_contributions(X_scaled, weights=slope, component=3)
 
     See Also
     --------
@@ -854,18 +869,36 @@ def group_contributions(
     """
     X_df, r_a = _score_contribution_terms(model, X, component)
 
-    def _mean_row(selector: Sequence, name: str) -> np.ndarray:
-        selected = _select_rows(X_df, selector, name)
-        if len(selected) == 0:
-            msg = f"{name} selected no observations from X."
+    if weights is not None:
+        if group is not None or reference is not None:
+            msg = "Pass either weights, or group/reference, not both."
             raise ValueError(msg)
-        return selected.to_numpy(dtype=float).mean(axis=0)
+        w = np.asarray(weights, dtype=float)
+        if w.ndim != 1 or w.size != len(X_df):
+            msg = f"weights must have one entry per row of X ({len(X_df)}), got shape {w.shape}."
+            raise ValueError(msg)
+    else:
+        if group is None:
+            msg = "Pass group (optionally with reference), or weights."
+            raise ValueError(msg)
+        w = np.zeros(len(X_df), dtype=float)
+        w += _mean_weights(X_df, group, "group")
+        if reference is not None:
+            w -= _mean_weights(X_df, reference, "reference")
 
-    deviation = _mean_row(group, "group")
-    if reference is not None:
-        deviation = deviation - _mean_row(reference, "reference")
-
+    deviation = w @ X_df.to_numpy(dtype=float)
     return pd.Series(deviation * r_a, index=X_df.columns, name="group_contributions")
+
+
+def _mean_weights(X_df: pd.DataFrame, selector: Sequence, name: str) -> np.ndarray:
+    """Row weights that average the selected rows: ``1/n`` on each, 0 elsewhere."""
+    selected = _select_rows(X_df, selector, name)
+    if len(selected) == 0:
+        msg = f"{name} selected no observations from X."
+        raise ValueError(msg)
+    w = np.zeros(len(X_df), dtype=float)
+    w[X_df.index.get_indexer_for(selected.index)] = 1.0 / len(selected)
+    return w
 
 
 def _select_rows(X_df: pd.DataFrame, selector: Sequence, name: str) -> pd.DataFrame:
