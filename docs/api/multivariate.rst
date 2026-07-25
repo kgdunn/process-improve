@@ -10,7 +10,7 @@ PCA
 ~~~
 
 .. autoclass:: PCA
-   :members: fit, transform, fit_transform, predict, score, select_n_components, score_contributions, detect_outliers
+   :members: fit, transform, fit_transform, predict, score, select_n_components, score_contributions, group_contributions, detect_outliers
    :undoc-members:
    :show-inheritance:
 
@@ -18,7 +18,7 @@ PLS
 ~~~
 
 .. autoclass:: PLS
-   :members: fit, transform, fit_transform, predict, score, select_n_components, score_contributions, detect_outliers, cross_validate
+   :members: fit, transform, fit_transform, predict, score, select_n_components, score_contributions, group_contributions, detect_outliers, cross_validate
    :undoc-members:
    :show-inheritance:
 
@@ -94,11 +94,11 @@ also bound as a convenience method on the model after :meth:`fit`.
    answer different questions about the same fitted score matrix.
 
    * :meth:`PCA.score_contributions` (and :meth:`PLS.score_contributions`) is
-     *per-variable* and signed. It decomposes a single observation's movement
-     in score space back onto the original variables, answering "which
-     **variables** explain why this observation sits where it does?". It
-     returns one signed value per variable, and it takes an observation's
-     score vector as input.
+     *per-variable* and signed. It splits each score into the K terms
+     :math:`x_{ik} R_{ka}` that form it, answering "which **variables**
+     explain why this observation sits where it does?". It takes the
+     preprocessed data and returns a sample-by-variable table whose rows sum
+     to the score being decomposed.
 
    * :func:`observation_contributions` is *per-observation* and non-negative.
      It reports each observation's share of a component's total inertia
@@ -115,6 +115,10 @@ also bound as a convenience method on the model after :meth:`fit`.
 .. autofunction:: squared_cosine
 
 .. autofunction:: observation_contributions
+
+.. autofunction:: score_contributions
+
+.. autofunction:: group_contributions
 
 .. autofunction:: eigenvalue_summary
 

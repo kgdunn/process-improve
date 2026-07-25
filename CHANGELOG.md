@@ -11,7 +11,7 @@ those changes.
 
 ## [Unreleased]
 
-## [1.61.0] - 2026-07-25
+## [1.62.0] - 2026-07-25
 
 ### Added
 
@@ -39,6 +39,9 @@ those changes.
   `process_improve.experiments.designs_response_surface`, and `dsd_run_count` now takes
   `n_categorical` and `categorical_method`, so a design's size can still be predicted
   without building it.
+- `dsd_run_count(n_factors)` and `dsd_conference_order(n_factors)` in
+  `process_improve.experiments.designs_response_surface`, for planning a DSD's size
+  without building it.
 
 ### Fixed
 
@@ -55,11 +58,6 @@ those changes.
   `ValueError: All values must be present in 'levels'`. `dispatch_taguchi` codes a
   categorical factor as level indices `0..n-1`, and those indices were handed to the
   `Column` constructor without substituting the labels. Fixed by the same mapping.
-
-## [1.60.1] - 2026-07-25
-
-### Fixed
-
 - Definitive screening designs are now genuine DSDs at every factor count. The
   conference-matrix constructor only implemented Paley's construction for a prime
   `q = m - 1`; at every other order it fell back to a cyclic approximation that is not
@@ -87,11 +85,61 @@ those changes.
   count". No such parameter exists and the claim is backwards: an odd factor count is
   handled by building the next even conference order and dropping a column.
 
+
+## [1.61.0] - 2026-07-25
+
+### Fixed
+
+- `score_contributions()` on `PCA`, `PLS`, `MBPCA` and `MBPLS` computed the
+  contribution of each variable by back-projecting a score-space difference
+  through the loadings, `(t_end - t_start) @ P`. That expression never receives
+  the observation's data. With a single component it reduces exactly to
+  `-t_1 * p_1`, so it returned the loading vector rescaled by a constant, and
+  every observation in a data set produced the same ranking of variables. On the
+  food-texture data all 50 observations gave one ranking; the correct
+  calculation gives 34. The variable blamed for the movement differed for 36 of
+  those 50 observations, and for 47 of the 54 LDPE observations.
+
+  A contribution is the term-by-term breakdown of the sum that forms the score,
+  so the terms have to add up to the score being decomposed:
+  `c_ik = x_ik * R_ka` with `sum_k c_ik = t_ia`, where `R` is the
+  score-generating matrix (`loadings_` for PCA, `direct_weights_` for PLS). See
+  Miller, Swanson and Heckler (1994), who introduced contribution plots, and
+  Westerhuis, Gurden and Smilde (2000) for the generalisation to any
+  latent-variable model. `t2_contributions()` and `spe_contributions()` were
+  already correct and are unchanged.
+
 ### Added
 
-- `dsd_run_count(n_factors)` and `dsd_conference_order(n_factors)` in
-  `process_improve.experiments.designs_response_surface`, for planning a DSD's size
-  without building it.
+- `group_contributions()` on `PCA`, `PLS`, `MBPCA` and `MBPLS`, for the group
+  and two-period forms in the same paper: the data rows are averaged (or
+  differenced between two sets of rows) before being multiplied by the weights.
+  This answers "what do these observations have in common?" and "what changed
+  between these two periods?", which is what a cluster on a score plot, or a
+  level shift part-way through a data set, actually poses. Observations are
+  selected by index label or boolean mask; pass `X.index[...]` to select by
+  position.
+- `weights=` on `group_contributions()`, giving the paper's general form
+  directly: contributions to any linear combination of the rows,
+  `(sum_i w_i x_ik) R_ka`, which sum to `sum_i w_i t_ia`. `group` and
+  `reference` are sugar over it. The paper suggests the first-order orthogonal
+  polynomial as the weights when a run of batches is drifting rather than
+  stepping, which the group/reference pair alone cannot express.
+- `scaling=` on `score_contributions()`, offering the maximum-contribution and
+  within-observation presentation scalings from Miller, Swanson and Heckler
+  (1994). The default leaves the contributions unscaled, so they sum to the
+  score.
+
+### Changed
+
+- **Breaking.** `score_contributions()` now takes the preprocessed data `X` and
+  returns one row per observation, matching `t2_contributions()` and
+  `spe_contributions()` beside it, rather than taking a score vector and
+  returning a single Series. The old signature cannot be supported alongside the
+  new one, because a score vector does not carry the information the
+  calculation needs. Calls in the old form raise a `TypeError` naming the
+  replacement rather than silently returning a different number. Use
+  `t2_contributions(X)` in place of the former `weighted=True`.
 
 ## [1.60.0] - 2026-07-23
 
@@ -2734,9 +2782,9 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.61.0...HEAD
-[1.61.0]: https://github.com/kgdunn/process-improve/compare/v1.60.1...v1.61.0
-[1.60.1]: https://github.com/kgdunn/process-improve/compare/v1.60.0...v1.60.1
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.62.0...HEAD
+[1.62.0]: https://github.com/kgdunn/process-improve/compare/v1.61.0...v1.62.0
+[1.61.0]: https://github.com/kgdunn/process-improve/compare/v1.60.0...v1.61.0
 [1.60.0]: https://github.com/kgdunn/process-improve/compare/v1.59.0...v1.60.0
 [1.59.0]: https://github.com/kgdunn/process-improve/compare/v1.58.0...v1.59.0
 [1.58.0]: https://github.com/kgdunn/process-improve/compare/v1.57.0...v1.58.0

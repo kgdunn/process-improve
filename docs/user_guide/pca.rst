@@ -167,31 +167,58 @@ component accounts for.
 Score Contributions
 -------------------
 
-Score contributions decompose a score-space movement back into the original
-variable space, answering: *"Which variables caused this observation to score
-where it did?"*
+Score contributions decompose a score back into the original variable space,
+answering: *"Which variables caused this observation to score where it did?"*
 
-Each score value :math:`t_{i,a}` can be written as a sum of K contributions
-:math:`x_{i,k} \, p_{k,a}`, one per original variable. Plotting these as a
-bar chart reveals the dominant drivers.
+A score is a weighted sum of the variables, so it splits exactly into K terms,
+one per variable:
 
-The reference point matters: contributions always measure the difference
-*from* one point *to* another. The default reference is the model center
-(the origin after centering), but you can compare any two points or groups:
+.. math::
+
+   t_{i,a} = \sum_{k=1}^{K} x_{i,k} \, p_{k,a}
+   \qquad\Longrightarrow\qquad
+   c_{i,k}^{(a)} = x_{i,k} \, p_{k,a}
+
+The terms sum back to the score, which is what makes a bar chart of them
+readable: each bar is the amount of :math:`t_{i,a}` that variable *k* supplied.
+For PLS the weights are ``direct_weights_`` rather than the loadings, since
+those are what generate the scores.
+
+A contribution is not a loading. A loading :math:`p_{k,a}` describes the whole
+data set; a contribution :math:`x_{i,k} p_{k,a}` describes one observation, and
+a variable with a large loading contributes nothing to an observation sitting
+at its mean. Ranking variables by loading can therefore point at a different
+cause than ranking them by contribution: that difference is the reason the
+diagnostic exists (Miller, Swanson and Heckler, 1994).
 
 .. code-block:: python
 
-   # Why does observation 5 differ from the model center?
-   contrib = model.score_contributions(model.scores_.iloc[5].values)
+   # Why does each observation score where it does on component 1?
+   contrib = model.score_contributions(X_scaled, component=1)
+   contrib.sum(axis=1)          # equals model.scores_[1]
+   contrib.iloc[5].sort_values() # the drivers for observation 5
 
-   # Why do observations 5 and 10 differ from each other?
-   contrib = model.score_contributions(
-       model.scores_.iloc[5].values,
-       model.scores_.iloc[10].values,
+Pass the same preprocessed data used to fit the model. To compare *groups* of
+observations rather than one at a time, average the rows first with
+``group_contributions``: this is the question a cluster on a score plot, or a
+level shift part-way through a data set, actually poses.
+
+.. code-block:: python
+
+   # What do these five observations have in common?
+   model.group_contributions(X_scaled, group=[31, 42, 47, 20, 21])
+
+   # What changed between the first and second halves of the campaign?
+   model.group_contributions(
+       X_scaled, group=X_scaled.index[64:74], reference=X_scaled.index[74:84]
    )
 
-   # T²-weighted contributions (scale by 1/sqrt(eigenvalue))
-   contrib = model.score_contributions(model.scores_.iloc[5].values, weighted=True)
+Observations are selected by index label, or by a boolean mask the same length
+as ``X``. To select by position, pass ``X.index[...]`` as above.
+
+For contributions to Hotelling's :math:`T^2`, which pools every component
+rather than reading one at a time, use ``model.t2_contributions(X_scaled)``.
+Those sum to the observation's :math:`T^2`.
 
 Observation Contributions
 -------------------------
