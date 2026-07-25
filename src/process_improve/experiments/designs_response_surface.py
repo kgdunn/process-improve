@@ -587,23 +587,6 @@ def _paley_conference_matrix(q: int) -> np.ndarray:
     return matrix
 
 
-# Conference matrix of order 16.  15 is not a prime power, so Paley's
-# construction does not reach this order, and it is the only order below 22
-# that needs a table.
-#
-# Provenance: the conference-matrix catalogue of Xiao, Lin & Bai (2012),
-# reached by way of two ports.  Jacob Albrecht (then at Bristol-Myers Squibb)
-# ported the JMP add-in to MATLAB in 2015 and released it under the BSD
-# 3-Clause licence, Copyright (c) 2015 Jacob Albrecht; the third clause of that
-# licence names Bristol-Myers Squibb as the organisation whose name may not be
-# used for endorsement.  Daniele Ongari translated that MATLAB code to Python
-# in the `definitive_screening_design` package (BSD 3-Clause,
-# Copyright (c) 2022 Daniele Ongari), retaining Albrecht's header.
-#
-# Only the numeric table is reused here, and it is verified against
-# C.T @ C == 15 * I before use rather than trusted: the order-10 table in the
-# same upstream file has a single mistyped entry, which leaves its 9- and
-# 10-factor designs non-orthogonal with nothing to catch it.
 _CONFERENCE_MATRIX_16 = np.array(
     [
         [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -624,6 +607,43 @@ _CONFERENCE_MATRIX_16 = np.array(
         [-1, 1, 1, -1, 1, -1, -1, 1, -1, -1, -1, 1, -1, 1, 1, 0],
     ]
 )
+"""Skew-symmetric conference matrix of order 16, ``C.T @ C == 15 * I``.
+
+Needed because 15 is not a prime power, so :func:`_paley_conference_matrix`
+cannot reach order 16.  It is the only order below 22 that requires a table:
+below it every order is covered by Paley's construction, and at 22 no
+conference matrix exists at all.
+
+The table is verified against its defining property on every use, in
+:func:`_conference_matrix`, rather than trusted.  That is not ceremony.  The
+order-10 table in the same upstream file carries a single mistyped entry (row
+17, column 0, ``+1`` where the foldover requires ``-1``), which leaves that
+package's 9- and 10-factor designs correlated at r = 0.11 with nothing in place
+to notice.
+
+Attribution
+-----------
+The matrix originates in the conference-matrix catalogue of Xiao, Lin & Bai
+(2012), and reached this module through two ports:
+
+- Jacob Albrecht, then at Bristol-Myers Squibb, ported the JMP add-in to MATLAB
+  in March 2015 and released it under the BSD 3-Clause licence,
+  Copyright (c) 2015 Jacob Albrecht.  The third clause of that licence names
+  Bristol-Myers Squibb as the organisation whose name may not be used to
+  endorse derived products.  Bristol-Myers Squibb is Albrecht's affiliation
+  there, not the copyright holder.
+- Daniele Ongari translated the MATLAB code to Python in the
+  ``definitive_screening_design`` package (BSD 3-Clause,
+  Copyright (c) 2022 Daniele Ongari), retaining Albrecht's header.
+
+Only the numeric table is reused here; none of the surrounding code was copied.
+
+References
+----------
+.. [1] Xiao, L., Lin, D. K. J. and Bai, F. (2012).  "Constructing definitive
+   screening designs using conference matrices."  *Journal of Quality
+   Technology*, 44(1):2-8.
+"""
 
 _TABULATED_CONFERENCE_MATRICES: dict[int, np.ndarray] = {16: _CONFERENCE_MATRIX_16}
 
@@ -662,7 +682,9 @@ def _conference_matrix(m: int) -> tuple[np.ndarray, str]:
 
     Two constructions are available.  Paley's covers every even order *m* whose
     predecessor ``m - 1`` is an odd prime power, which is most of them.  A small
-    table covers order 16, the one gap below order 22.
+    table covers order 16, the one gap below order 22; see
+    :data:`_CONFERENCE_MATRIX_16` for where that table comes from and who holds
+    the copyright on the ports it travelled through.
 
     Parameters
     ----------
