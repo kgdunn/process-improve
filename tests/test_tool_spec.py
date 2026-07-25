@@ -93,9 +93,24 @@ class TestToolSpecDecorator:
         assert _plain._tool_spec["description"] == "Plain description."
 
     def test_registered_in_registry(self) -> None:
-        """Verify decorated tools are added to the global registry."""
-        assert "test_dummy_add" in _TOOL_REGISTRY
-        assert "test_dummy_mul" in _TOOL_REGISTRY
+        """Verify decorated tools are added to the global registry.
+
+        The tool is decorated here rather than relying on the names registered
+        by the sibling tests above.  Those decorators only run when their own
+        test body runs, and under pytest-xdist a sibling can be dispatched to a
+        different worker process, whose registry this one never sees.
+        """
+
+        @tool_spec(
+            name="test_dummy_registered",
+            description="Add two numbers.",
+            input_model=_AddInput,
+        )
+        def _registered(spec: _AddInput) -> dict:
+            return {"result": spec.a + spec.b}
+
+        assert "test_dummy_registered" in _TOOL_REGISTRY
+        assert _TOOL_REGISTRY["test_dummy_registered"] is _registered
 
     def test_rejects_non_basemodel_input_model(self) -> None:
         """input_model must be a pydantic BaseModel subclass."""
