@@ -463,7 +463,9 @@ def _irreducible_polynomial(p: int, n: int) -> list[int]:
     for candidate in _monic_polynomials(n, p):
         if _is_irreducible(candidate, p):
             return candidate
-    raise ValueError(f"No irreducible polynomial of degree {n} found over GF({p}).")
+    # Unreachable: an irreducible polynomial of every degree exists over every
+    # finite field.  Kept so a bug in the search cannot return None silently.
+    raise ValueError(f"No irreducible polynomial of degree {n} found over GF({p}).")  # pragma: no cover
 
 
 def _decode_field_element(element: int, p: int, n: int) -> list[int]:

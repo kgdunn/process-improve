@@ -15,10 +15,12 @@ import numpy as np
 import pytest
 
 from process_improve.experiments.designs_response_surface import (
+    _MAX_CONFERENCE_ORDER,
     _conference_matrix,
     _gf_multiplication_table,
     _irreducible_polynomial,
     _is_constructible_conference_order,
+    _paley_conference_matrix,
     _polynomial_remainder,
     _prime_power_factorization,
     _quadratic_character,
@@ -238,6 +240,16 @@ class TestConferenceMatrices:
         assert _smallest_constructible_conference_order(22) == 24
         assert _smallest_constructible_conference_order(28) == 28
         assert _smallest_constructible_conference_order(34) == 38
+
+    def test_beyond_the_search_bound_raises(self) -> None:
+        """A request past the largest order considered must fail loudly."""
+        with pytest.raises(ValueError, match="No conference matrix could be constructed"):
+            _smallest_constructible_conference_order(_MAX_CONFERENCE_ORDER + 2)
+
+    @pytest.mark.parametrize("q", [15, 21, 2, 4, 1, 0])
+    def test_paley_rejects_anything_but_an_odd_prime_power(self, q: int) -> None:
+        with pytest.raises(ValueError, match="odd prime power"):
+            _paley_conference_matrix(q)
 
 
 class TestConferenceMatrixValidation:
