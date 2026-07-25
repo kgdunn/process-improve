@@ -346,6 +346,50 @@ class TestOptimizeResponses:
         )
         assert "error" not in result
 
+    @staticmethod
+    def _rising_plane_call(**extra: object) -> dict:
+        """Maximize a plane rising with A, so the optimum sits at the upper bound."""
+        return execute_tool_call(
+            "optimize_responses",
+            {
+                "fitted_models": [
+                    {
+                        "response_name": "y",
+                        "factor_names": ["A", "B"],
+                        "coefficients": [
+                            {"term": "Intercept", "coefficient": 0.0},
+                            {"term": "A", "coefficient": 1.0},
+                        ],
+                    }
+                ],
+                "goals": [{"response": "y", "goal": "maximize", "low": -5.0, "high": 5.0}],
+                "method": "desirability",
+                **extra,
+            },
+        )
+
+    def test_search_bounds_as_a_single_pair(self) -> None:
+        """Over the wire the region arrives as a JSON list, not a tuple."""
+        result = self._rising_plane_call(search_bounds=[-1.41, 1.41])
+        assert "error" not in result
+        assert result["desirability"]["optimal_coded"]["A"] == pytest.approx(1.41, abs=1e-4)
+
+    def test_search_bounds_per_factor(self) -> None:
+        """A mapping widens one factor and leaves the other at the cube."""
+        result = self._rising_plane_call(search_bounds={"A": [-2.0, 2.0]})
+        assert "error" not in result
+        assert result["desirability"]["optimal_coded"]["A"] == pytest.approx(2.0, abs=1e-4)
+
+    def test_search_bounds_default_is_the_cube(self) -> None:
+        """Omitting it leaves the previous behaviour in place."""
+        result = self._rising_plane_call()
+        assert result["desirability"]["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
+
+    def test_malformed_search_bounds_returns_an_error(self) -> None:
+        """A reversed pair is reported, not silently accepted."""
+        result = self._rising_plane_call(search_bounds=[1.0, -1.0])
+        assert "low < high" in result["error"]
+
     def test_invalid_method_returns_error(self) -> None:
         """Unknown method is rejected by the pydantic Literal."""
         from process_improve.tool_safety import ToolInputInvalidError
