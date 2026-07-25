@@ -220,14 +220,6 @@ For contributions to Hotelling's :math:`T^2`, which pools every component
 rather than reading one at a time, use ``model.t2_contributions(X_scaled)``.
 Those sum to the observation's :math:`T^2`.
 
-.. note::
-
-   Before version 1.61.0 ``score_contributions`` took a *score vector* and
-   back-projected it through the loadings. That expression never saw the
-   observation's data, so it returned the loading vector rescaled by a
-   constant and gave every observation the same ranking of variables. Calls in
-   the old form now raise a ``TypeError`` naming the replacement.
-
 Observation Contributions
 -------------------------
 

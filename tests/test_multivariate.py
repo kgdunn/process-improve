@@ -944,9 +944,8 @@ def test_pca_score_contributions() -> None:
         assert terms.to_numpy() == pytest.approx(expected, abs=1e-12)
 
     # --- The diagnosis must depend on the observation, not only on the model.
-    # A back-projection of the score through the loadings (what this method did
-    # before 1.61.0) gives every observation the same ranking of variables,
-    # which is the loading ranking; that is the defect this test guards.
+    # Anything proportional to the loading vector ranks the variables the same
+    # way for every observation, carrying no per-observation information.
     rankings = {tuple(np.argsort(-contrib.iloc[i].abs().to_numpy())) for i in range(len(X))}
     assert len(rankings) > 1
 
@@ -968,8 +967,8 @@ def test_pca_score_contributions() -> None:
         pca.score_contributions(X, component=4)
 
 
-def test_score_contributions_rejects_the_old_api() -> None:
-    """The pre-1.61.0 signature took a score vector and must not silently work."""
+def test_score_contributions_rejects_a_score_vector() -> None:
+    """A score vector cannot carry the data the calculation needs."""
     rng = np.random.default_rng(3)
     X = MCUVScaler().fit_transform(
         pd.DataFrame(rng.standard_normal((25, 4)), columns=list("abcd"))
@@ -994,8 +993,8 @@ def test_score_contributions_selector_and_argument_errors() -> None:
     )
     pca = PCA(n_components=2).fit(X)
 
-    # A keyword that was never part of any signature is reported as such,
-    # rather than being mistaken for the pre-1.61.0 calling convention.
+    # An unknown keyword is reported as such, rather than being mistaken for a
+    # call that passed a score vector.
     with pytest.raises(TypeError, match="unexpected keyword argument: colour"):
         pca.score_contributions(X, colour="red")
 

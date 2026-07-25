@@ -16,19 +16,15 @@ Page numbers refer to the article as paginated in the PDF at the link above
 
 Why this file exists
 --------------------
-Until version 1.61.0 ``score_contributions`` back-projected a score-space
-difference through the loadings, ``(t_end - t_start) @ P``. That expression
-never receives the observation's data: with one component it reduces exactly to
-``-t_1 * p_1``, so it returned the loading vector rescaled by a constant and
-gave every observation in a data set the same ranking of variables. The tests
-that existed asserted only that the output equalled ``dt @ P.T``, which
-re-derives the implementation and therefore held whatever it computed.
+These tests are written against the paper rather than against the code, so they
+constrain the behaviour rather than describe it. A test that re-derives the
+implementation holds whatever that implementation computes; a test that encodes
+equation (3) holds only if the code is right.
 
-These tests are written against the paper instead of against the code, so they
-constrain the behaviour rather than describe it. The load-bearing ones are
-:func:`test_eq3_contributions_sum_to_the_score` (the defining property) and
-:func:`test_contributions_are_not_the_loadings`, which is the failure the paper
-was written about and the regression this file exists to prevent.
+The load-bearing ones are :func:`test_eq3_contributions_sum_to_the_score`, the
+property that makes a set of per-variable numbers a decomposition of the score,
+and :func:`test_contributions_are_not_the_loadings`, the confusion the paper was
+written to resolve.
 """
 
 from __future__ import annotations
@@ -109,8 +105,7 @@ def test_t2_contributions_sum_to_t2(emulsion_model: tuple[PCA, pd.DataFrame]) ->
     """Contributions to T-squared add up to T-squared.
 
     The T-squared decomposition is the pooled-over-components counterpart of
-    equation (3); ``t2_contributions`` already satisfied it before 1.61.0 and
-    must keep doing so.
+    equation (3).
     """
     model, scaled = emulsion_model
     contributions = model.t2_contributions(scaled)
@@ -131,8 +126,7 @@ def test_eq3_contributions_sum_to_the_score(emulsion_model: tuple[PCA, pd.DataFr
     ``t_id = sum_j x_ij p_jd``, and page 7 decomposes it into "k terms
     ``x_ij p_jd`` for j = 1,...,k. These k terms are the contributions to the
     score ``t_id``." Adding up to the score is what makes them contributions
-    rather than merely a set of numbers per variable, and it is the property
-    the pre-1.61.0 implementation did not have.
+    rather than merely a set of numbers per variable.
     """
     model, scaled = emulsion_model
     for component in range(1, model.n_components + 1):
@@ -243,12 +237,11 @@ def test_contributions_distinguish_observations(
 ) -> None:
     """Different observations get different answers.
 
-    The regression guard for the pre-1.61.0 defect. Back-projecting the score
-    through the loadings gives a result proportional to the loading vector, so
-    the ranking of variables is the same for every observation and the plot
-    carries no per-observation information at all. Contributions are per-batch
-    by construction (page 7: "Contributions represent the particular process
-    variables that were unusual *for a given batch*").
+    Anything proportional to the loading vector ranks the variables identically
+    for every observation, so the plot would carry no per-observation
+    information at all. Contributions are per-batch by construction (page 7:
+    "Contributions represent the particular process variables that were unusual
+    *for a given batch*").
     """
     model, scaled = emulsion_model
     contributions = model.score_contributions(scaled, component=1)
@@ -558,15 +551,15 @@ def test_default_scaling_preserves_the_sum_to_the_score(
 
 
 # ---------------------------------------------------------------------------
-# The pre-1.61.0 API must not come back
+# Usage: the data are required, a score vector is not enough
 # ---------------------------------------------------------------------------
 
 
-def test_the_back_projection_api_is_gone(emulsion_model: tuple[PCA, pd.DataFrame]) -> None:
-    """Calling the old way raises rather than returning a different number.
+def test_a_score_vector_is_rejected(emulsion_model: tuple[PCA, pd.DataFrame]) -> None:
+    """Passing a score vector raises rather than returning a different number.
 
-    A score vector cannot carry the information equation (3) needs, so the old
-    signature cannot be supported alongside the correct one.
+    Equation (3) needs ``x_ij``, which a score vector does not carry, so this
+    call cannot be served and must not appear to succeed.
     """
     model, scaled = emulsion_model
     with pytest.raises(TypeError, match="not a score vector"):
@@ -579,8 +572,7 @@ def test_contributions_are_not_proportional_to_the_loadings_on_real_data() -> No
     """The same guard, on the LDPE data set rather than a generated one.
 
     Real process data, so the test cannot be satisfied by a quirk of the
-    generator. Under the pre-1.61.0 calculation every one of these observations
-    produced the identical ranking of variables.
+    generator.
     """
     import pathlib
 

@@ -646,35 +646,34 @@ def _score_contribution_terms(
     return X_df, R[:, int(component) - 1]
 
 
-_OLD_SCORE_CONTRIBUTIONS_API = """\
-score_contributions() now takes the preprocessed data X, not a score vector.
+_SCORE_CONTRIBUTIONS_USAGE = """\
+score_contributions() takes the preprocessed data X, not a score vector.
 
-Until version {version} it back-projected a score-space difference through the
-loadings, which does not depend on the observation's data at all: every
-observation produced the same ranking of variables, namely the ranking of the
-loadings. A contribution has to be x_ik * R_ka so that the per-variable terms
-sum to the score. See Miller, Swanson and Heckler (1994).
+A contribution is x_ik * R_ka, so the per-variable terms sum to the score being
+decomposed. That needs the observation's data, which a score vector does not
+carry. See Miller, Swanson and Heckler (1994).
 
-    old:  model.score_contributions(model.scores_.iloc[i])
-    new:  model.score_contributions(X)              # all observations, component 1
-          model.score_contributions(X).iloc[i]      # just observation i
+    model.score_contributions(X)              # all observations, component 1
+    model.score_contributions(X).iloc[i]      # just observation i
 
-    old:  model.score_contributions(t_a, t_b)       # two observations
-    new:  model.group_contributions(X, group=[a], reference=[b])
+To compare two observations or two groups:
 
-    old:  model.score_contributions(t, weighted=True)
-    new:  model.t2_contributions(X)                 # already correct; unchanged
+    model.group_contributions(X, group=[a], reference=[b])
+
+For contributions to Hotelling's T-squared, which pools every component:
+
+    model.t2_contributions(X)
 """
 
 
-_OLD_SCORE_CONTRIBUTIONS_KEYWORDS = frozenset({"t_end", "components", "weighted"})
+_SCORE_VECTOR_KEYWORDS = frozenset({"t_end", "components", "weighted"})
 
 
-def _reject_old_score_contributions_api(X: object, keywords: dict) -> None:
-    """Raise a migration error if called with the pre-1.61.0 signature."""
+def _reject_score_vector_call(X: object, keywords: dict) -> None:
+    """Raise a usage error if called with a score vector instead of ``X``."""
     looks_like_scores = isinstance(X, (pd.Series, np.ndarray, list, tuple)) and np.ndim(X) == 1
-    if looks_like_scores or (set(keywords) & _OLD_SCORE_CONTRIBUTIONS_KEYWORDS):
-        raise TypeError(_OLD_SCORE_CONTRIBUTIONS_API.format(version="1.61.0"))
+    if looks_like_scores or (set(keywords) & _SCORE_VECTOR_KEYWORDS):
+        raise TypeError(_SCORE_CONTRIBUTIONS_USAGE)
     if keywords:
         unexpected = ", ".join(sorted(keywords))
         msg = f"score_contributions() got an unexpected keyword argument: {unexpected}."
@@ -734,11 +733,10 @@ def score_contributions(
         the *pattern* of bars within a row unchanged; neither preserves the sum
         to the score.
     **deprecated
-        Captures ``t_end``, ``components`` and ``weighted`` from the pre-1.61.0
-        calling convention, which took a score vector instead of ``X``, so that
-        those calls raise a :class:`TypeError` explaining the change rather than
-        quietly returning something else. Passing a 1-D ``X`` raises the same
-        error.
+        Rejected. Captures ``t_end``, ``components`` and ``weighted`` so that a
+        call passing a score vector rather than ``X`` raises a
+        :class:`TypeError` explaining the correct usage. Passing a 1-D ``X``
+        raises the same error.
 
     Returns
     -------
@@ -772,7 +770,7 @@ def score_contributions(
         components rather than reading one at a time.
     spe_contributions : The residual-space counterpart.
     """
-    _reject_old_score_contributions_api(X, deprecated)
+    _reject_score_vector_call(X, deprecated)
     X_df, r_a = _score_contribution_terms(model, X, component)
     contributions = X_df.to_numpy(dtype=float) * r_a
 
