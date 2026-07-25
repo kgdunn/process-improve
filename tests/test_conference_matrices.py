@@ -160,6 +160,20 @@ class TestPolynomialHelpers:
                 product[i + j] = (product[i + j] + x * y) % p
         assert not any(_polynomial_remainder(product, g, p))
 
+    def test_irreducible_polynomial_search_failure_is_loud(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The guard behind the search must raise, not return None.
+
+        An irreducible polynomial of every degree exists over every finite
+        field, so this path needs a broken irreducibility test to reach.  A
+        silent None here would surface much later as a wrong design.
+        """
+        monkeypatch.setattr(
+            "process_improve.experiments.designs_response_surface._is_irreducible",
+            lambda *_args, **_kwargs: False,
+        )
+        with pytest.raises(ValueError, match="No irreducible polynomial"):
+            _irreducible_polynomial(3, 2)
+
     @pytest.mark.parametrize(("p", "n"), [(3, 2), (3, 3), (3, 4), (5, 2), (5, 3), (7, 2), (11, 2)])
     def test_irreducible_polynomial_has_no_roots(self, p: int, n: int) -> None:
         """A necessary condition, and sufficient for degree 2 and 3."""
