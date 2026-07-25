@@ -22,9 +22,20 @@ except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
     ccdesign = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from process_improve.experiments.factor import Factor
 
 logger = logging.getLogger(__name__)
+
+# Column-augmentation procedures for two-level categorical factors
+# (Jones and Nachtsheim, 2013).
+_CATEGORICAL_METHODS = frozenset({"dsd", "orth"})
+
+# Above this many categorical factors the 2 ** (2c) DSD-augment search stops
+# being cheap (2 ** 14 = 16384 determinants at c = 7), so a coordinate-style
+# heuristic takes over, as the paper also does for large c.
+_MAX_EXHAUSTIVE_CATEGORICAL = 7
 
 
 def dispatch_ccd(  # noqa: PLR0913
@@ -290,7 +301,7 @@ def dispatch_box_behnken(
     return coded_matrix, {}
 
 
-def dispatch_dsd(factors: list[Factor]) -> tuple[np.ndarray, dict]:
+def dispatch_dsd(factors: list[Factor], *, categorical_method: str = "dsd") -> tuple[np.ndarray, dict]:
     """Generate a Definitive Screening Design (DSD).
 
     Follows the conference-matrix foldover of Jones & Nachtsheim (2011): for a
@@ -312,25 +323,59 @@ def dispatch_dsd(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     ``C.T @ C == (m - 1) * I`` before it is used, so a degraded design can
     never reach the caller.
 
+    Two-level categorical factors are supported through the column-augmentation
+    procedures of Jones and Nachtsheim (2013).  A categorical factor occupies a
+    conference-matrix column like any other, so it costs the same runs as a
+    continuous factor while contributing no quadratic term.  The two zeros that
+    column would carry have no meaning for a two-level factor, so each is
+    resolved to a level, and extra centre runs are added because a centre run
+    also needs a categorical setting.  The two methods differ in exactly that:
+
+    ``"dsd"`` (DSD-augment, the default)
+        Sets ``z_{j,1} = b_j`` and ``z_{j,2} = -b_j`` at the foldover pair, so
+        the column stays balanced.  Every main effect remains unbiased by any
+        second-order effect, which is what makes the design *definitive*, and
+        all two-factor interactions involving a categorical factor stay clear of
+        the main effects.  The price is small correlations among the categorical
+        main-effect columns, so the information matrix is not diagonal.  Adds two
+        centre runs.  The sign vectors are chosen to maximise the first-order
+        information determinant, as the paper prescribes.
+
+    ``"orth"`` (ORTH-augment)
+        Sets ``z_{j,1} = z_{j,2} = 1``, giving an orthogonal linear main-effects
+        plan for up to four categorical factors (nearly orthogonal beyond that).
+        The price is partial aliasing between main effects and interactions
+        involving the categorical factors, an unbalanced categorical column, and
+        two extra runs relative to ``"dsd"`` when there are two or more
+        categorical factors.
+
     Parameters
     ----------
     factors : list[Factor]
-        Continuous factors.  At least three are required.
+        Factors, at least three.  Categorical factors must have exactly two
+        levels; continuous factors are unrestricted.  Factor order is preserved
+        in the returned matrix.
+    categorical_method : {"dsd", "orth"}
+        Which column-augmentation procedure to use.  Ignored when no categorical
+        factor is present.  Default ``"dsd"``.
 
     Returns
     -------
     tuple[np.ndarray, dict]
         Coded design matrix and metadata.  Metadata keys are
         ``"construction"`` (which conference-matrix construction was used),
-        ``"conference_order"`` (the order *m* of that matrix) and, when the
-        minimal order was not constructible, ``"minimal_conference_order"``
-        (the order that would have been used had it existed).
+        ``"conference_order"`` (the order *m* of that matrix), ``"centre_runs"``,
+        ``"n_categorical"``, ``"categorical_method"`` (only when a categorical
+        factor is present) and, when the minimal order was not constructible,
+        ``"minimal_conference_order"`` (the order that would have been used had
+        it existed).
 
     Raises
     ------
     ValueError
-        If fewer than three factors are supplied, or if no conference matrix
-        of usable order can be constructed.
+        If fewer than three factors are supplied, if a categorical factor does
+        not have exactly two levels, if *categorical_method* is unknown, or if
+        no conference matrix of usable order can be constructed.
 
     References
     ----------
@@ -340,21 +385,49 @@ def dispatch_dsd(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     .. [2] Xiao, L., Lin, D. K. J. and Bai, F. (2012).  "Constructing
        definitive screening designs using conference matrices."  *Journal
        of Quality Technology*, 44(1):2-8.
+    .. [3] Jones, B. and Nachtsheim, C. J. (2013).  "Definitive screening
+       designs with added two-level categorical factors."  *Journal of Quality
+       Technology*, 45(2):121-129.
     """
     k = len(factors)
     if k < 3:
         raise ValueError("Definitive Screening Designs require at least 3 factors.")
 
+    categorical_positions = [i for i, factor in enumerate(factors) if factor.type.value == "categorical"]
+    _validate_categorical_factors(factors, categorical_positions)
+    n_categorical = len(categorical_positions)
+
     minimal_order = k if k % 2 == 0 else k + 1
     order = _smallest_constructible_conference_order(minimal_order)
     conference, construction = _conference_matrix(order)
 
-    zero_row = np.zeros((1, order))
-    coded_matrix = np.vstack([conference, -conference, zero_row])
+    body = np.vstack([conference, -conference])
     if order > k:
-        coded_matrix = coded_matrix[:, :k]
+        body = body[:, :k]
 
-    meta = {"construction": construction, "conference_order": order}
+    if n_categorical == 0:
+        coded_matrix = np.vstack([body, np.zeros((1, k))])
+        centre_runs = 1
+    else:
+        # The construction needs the categorical columns last; permute back afterwards.
+        continuous_positions = [i for i in range(k) if i not in set(categorical_positions)]
+        internal_order = continuous_positions + categorical_positions
+        coded_matrix, centre_runs = _augment_with_categorical_columns(
+            body[:, internal_order],
+            n_continuous=k - n_categorical,
+            method=categorical_method,
+        )
+        inverse = np.argsort(internal_order)
+        coded_matrix = coded_matrix[:, inverse]
+
+    meta = {
+        "construction": construction,
+        "conference_order": order,
+        "centre_runs": centre_runs,
+        "n_categorical": n_categorical,
+    }
+    if n_categorical:
+        meta["categorical_method"] = categorical_method
     if order > minimal_order:
         meta["minimal_conference_order"] = minimal_order
         logger.info(
@@ -363,11 +436,144 @@ def dispatch_dsd(factors: list[Factor]) -> tuple[np.ndarray, dict]:
             minimal_order,
             k,
             order,
-            2 * order + 1,
-            2 * minimal_order + 1,
+            coded_matrix.shape[0],
+            2 * minimal_order + centre_runs,
         )
 
     return coded_matrix, meta
+
+
+def _validate_categorical_factors(factors: list[Factor], categorical_positions: list[int]) -> None:
+    """Reject categorical factors the Jones-Nachtsheim (2013) construction cannot carry.
+
+    The column-augmentation methods are defined for **two-level** categorical
+    factors only.  A factor with three or more levels has no representation as a
+    single ±1 column, so it needs a different design family.
+
+    Raises
+    ------
+    ValueError
+        If any categorical factor does not have exactly two levels.
+    """
+    for position in categorical_positions:
+        factor = factors[position]
+        n_levels = len(factor.levels or [])
+        if n_levels != 2:
+            raise ValueError(
+                f"Factor {factor.name!r} has {n_levels} levels. Definitive screening designs accept "
+                "two-level categorical factors only (Jones and Nachtsheim, 2013). For a factor with "
+                'three or more levels use design_type="d_optimal" (or "i_optimal"), which places '
+                "multi-level categorical factors without this restriction."
+            )
+
+
+def _foldover_zero_rows(body: np.ndarray, column: int, half: int) -> tuple[int, int]:
+    """Locate the foldover pair holding the two zeros of *column*.
+
+    In ``[C; -C]`` a conference-matrix column has exactly one zero in each half,
+    at mirrored row indices.  Those two rows are the foldover pair whose entries
+    the augmentation replaces with ``z_{j,1}`` and ``z_{j,2}``.
+    """
+    (upper,) = np.flatnonzero(body[:half, column] == 0)
+    return int(upper), int(upper + half)
+
+
+def _orth_centre_block(n_categorical: int, n_centre: int) -> np.ndarray:
+    """Build the ORTH-augment centre-run block ``B``.
+
+    Jones and Nachtsheim (2013), Section 3, Step 1: column ``b_j`` has a one in
+    the ``(5 - j)``th row and negative ones elsewhere, for ``j = 1, ..., c <= 4``.
+    Beyond four categorical factors the pattern is cycled, which the paper
+    describes as giving nearly (rather than exactly) orthogonal plans.
+    """
+    block = -np.ones((n_centre, n_categorical))
+    if n_centre >= 4:
+        for j in range(n_categorical):
+            block[n_centre - 1 - (j % 4), j] = 1.0
+    return block
+
+
+def _augment_with_categorical_columns(
+    body: np.ndarray,
+    *,
+    n_continuous: int,
+    method: str,
+) -> tuple[np.ndarray, int]:
+    """Turn the trailing columns of a folded DSD into two-level categorical columns.
+
+    Implements both procedures of Jones and Nachtsheim (2013).  *body* is the
+    ``[C; -C]`` foldover with the categorical factors already permuted to the
+    trailing columns; the returned matrix carries the appended centre runs.
+
+    Returns
+    -------
+    tuple[np.ndarray, int]
+        The augmented design and the number of centre runs appended.
+    """
+    if method not in _CATEGORICAL_METHODS:
+        raise ValueError(f"categorical_method must be one of {sorted(_CATEGORICAL_METHODS)}; got {method!r}.")
+
+    n_runs, k = body.shape
+    half = n_runs // 2
+    n_categorical = k - n_continuous
+    zero_rows = [_foldover_zero_rows(body, n_continuous + j, half) for j in range(n_categorical)]
+
+    if method == "orth":
+        # Step 3: z_{j,1} = z_{j,2} = 1 in every remaining augmented column.
+        design = body.copy()
+        for j, (upper, lower) in enumerate(zero_rows):
+            design[upper, n_continuous + j] = 1.0
+            design[lower, n_continuous + j] = 1.0
+        n_centre = 2 if n_categorical == 1 else 4
+        centre = np.zeros((n_centre, k))
+        centre[:, n_continuous:] = _orth_centre_block(n_categorical, n_centre)
+        return np.vstack([design, centre]), n_centre
+
+    # DSD-augment.  Two independent sign choices per categorical factor: z_j at
+    # the foldover zero pair, and b_j in the two centre runs.  Section 2, Step 3
+    # searches all 2 ** (2c) combinations and keeps the one maximising the
+    # first-order information determinant.
+    best_design = body
+    best_criterion = -np.inf
+    for signs in _categorical_sign_candidates(n_categorical):
+        z_signs, b_signs = signs[:n_categorical], signs[n_categorical:]
+        design = body.copy()
+        for j, (upper, lower) in enumerate(zero_rows):
+            design[upper, n_continuous + j] = z_signs[j]
+            design[lower, n_continuous + j] = -z_signs[j]
+        centre = np.zeros((2, k))
+        centre[0, n_continuous:] = b_signs
+        centre[1, n_continuous:] = -b_signs
+        candidate = np.vstack([design, centre])
+        model = np.column_stack([np.ones(candidate.shape[0]), candidate])
+        criterion = float(np.linalg.slogdet(model.T @ model)[1])
+        if criterion > best_criterion + 1e-12:
+            best_criterion, best_design = criterion, candidate
+
+    return best_design, 2
+
+
+def _categorical_sign_candidates(n_categorical: int) -> Iterator[np.ndarray]:
+    """Yield candidate ``(z, b)`` sign vectors for the DSD-augment search.
+
+    Exhaustive over all ``2 ** (2c)`` combinations while that is cheap.  Beyond
+    :data:`_MAX_EXHAUSTIVE_CATEGORICAL` factors the paper switches to a
+    coordinate-exchange heuristic; here the search is seeded with the alternating
+    pattern and each coordinate is offered in both signs, which keeps the cost
+    linear in *c* at the price of no longer being exhaustive.
+    """
+    length = 2 * n_categorical
+    if n_categorical <= _MAX_EXHAUSTIVE_CATEGORICAL:
+        for bits in range(2**length):
+            yield np.array([1.0 if (bits >> i) & 1 else -1.0 for i in range(length)])
+        return
+
+    seed = np.array([1.0 if i % 2 == 0 else -1.0 for i in range(length)])
+    yield seed
+    for i in range(length):
+        flipped = seed.copy()
+        flipped[i] = -flipped[i]
+        yield flipped
 
 
 def _is_prime(n: int) -> bool:
@@ -780,7 +986,7 @@ def dsd_conference_order(n_factors: int) -> int:
     return _smallest_constructible_conference_order(n_factors if n_factors % 2 == 0 else n_factors + 1)
 
 
-def dsd_run_count(n_factors: int) -> int:
+def dsd_run_count(n_factors: int, n_categorical: int = 0, categorical_method: str = "dsd") -> int:
     """Return the number of runs in the definitive screening design for *n_factors* factors.
 
     This is ``2m + 1`` for the conference-matrix order *m* returned by
@@ -791,16 +997,62 @@ def dsd_run_count(n_factors: int) -> int:
     Parameters
     ----------
     n_factors : int
-        Number of factors, at least three.
+        Total number of factors, at least three, counting categorical factors.
+    n_categorical : int
+        How many of those are two-level categorical factors.  They add centre
+        runs; see :func:`dsd_centre_runs`.
+    categorical_method : {"dsd", "orth"}
+        Which augmentation procedure is in use.
 
     Returns
     -------
     int
-        Run count, including the design's single centre run.
+        Run count, including the design's centre runs.
 
     Examples
     --------
     >>> dsd_run_count(6), dsd_run_count(7), dsd_run_count(22)
     (13, 17, 49)
+
+    Two-level categorical factors count toward *n_factors* and add centre runs:
+
+    >>> dsd_run_count(6, n_categorical=2)                       # 4 continuous + 2 categorical
+    14
+    >>> dsd_run_count(6, n_categorical=2, categorical_method="orth")
+    16
     """
-    return 2 * dsd_conference_order(n_factors) + 1
+    return 2 * dsd_conference_order(n_factors) + dsd_centre_runs(n_categorical, categorical_method)
+
+
+def dsd_centre_runs(n_categorical: int, categorical_method: str = "dsd") -> int:
+    """Return how many centre runs a definitive screening design carries.
+
+    A design with only continuous factors needs one centre run.  A categorical
+    factor has no centre level, so each centre run must still be assigned a
+    level, and more than one centre run is needed for the levels to balance.
+    The counts follow Jones and Nachtsheim (2013) and reproduce every run size
+    in their Table 4.
+
+    Parameters
+    ----------
+    n_categorical : int
+        Number of two-level categorical factors.
+    categorical_method : {"dsd", "orth"}
+        Which augmentation procedure is in use.  Only matters for two or more
+        categorical factors.
+
+    Returns
+    -------
+    int
+        1 with no categorical factor, 2 with exactly one (either method), then
+        2 for ``"dsd"`` and 4 for ``"orth"``.
+    """
+    if categorical_method not in _CATEGORICAL_METHODS:
+        raise ValueError(
+            f"categorical_method must be one of {sorted(_CATEGORICAL_METHODS)}; got {categorical_method!r}."
+        )
+    if n_categorical == 0:
+        return 1
+    if n_categorical == 1:
+        return 2
+    return 2 if categorical_method == "dsd" else 4

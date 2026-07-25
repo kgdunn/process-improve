@@ -11,6 +11,41 @@ those changes.
 
 ## [Unreleased]
 
+## [1.61.0] - 2026-07-25
+
+### Added
+
+- Definitive screening designs now accept **two-level categorical factors**, via both
+  column-augmentation procedures of Jones and Nachtsheim (2013). `generate_design(...,
+  design_type="dsd")` previously raised `ValueError` as soon as a categorical factor was
+  present. A new `categorical_method` argument selects the procedure:
+  - `"dsd"` (DSD-augment, the default) keeps the design *definitive*: every main effect
+    stays unbiased by every second-order effect, and two-factor interactions involving a
+    categorical factor stay clear of the main effects. The cost is small correlations
+    among the categorical main-effect columns, so the information matrix is not diagonal.
+    Adds two centre runs. The sign vectors are chosen to maximise the first-order
+    information determinant, as the paper prescribes.
+  - `"orth"` (ORTH-augment) gives an orthogonal linear main-effects plan for up to four
+    categorical factors, and nearly orthogonal beyond that. The cost is partial aliasing
+    between main effects and categorical interactions, an unbalanced categorical column,
+    and two extra runs relative to `"dsd"` when there are two or more categorical factors.
+
+  A categorical factor occupies a conference-matrix column like any other, so it costs
+  the same runs as a continuous factor while contributing no quadratic term. Factors may
+  be given in any order; the construction needs the categorical columns trailing and
+  permutes them back. A categorical factor with three or more levels raises, with the
+  message pointing at `design_type="d_optimal"`.
+- `dsd_centre_runs(n_categorical, categorical_method)` in
+  `process_improve.experiments.designs_response_surface`, and `dsd_run_count` now takes
+  `n_categorical` and `categorical_method`, so a design's size can still be predicted
+  without building it.
+
+### Fixed
+
+- `matrix_to_columns` now maps a numerically coded categorical column onto its level
+  labels. Design families differ in what they return for a categorical factor: the
+  optimal designs already produce labels, which continue to pass straight through.
+
 ## [1.60.1] - 2026-07-25
 
 ### Fixed
@@ -2689,7 +2724,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.60.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.61.0...HEAD
+[1.61.0]: https://github.com/kgdunn/process-improve/compare/v1.60.1...v1.61.0
 [1.60.1]: https://github.com/kgdunn/process-improve/compare/v1.60.0...v1.60.1
 [1.60.0]: https://github.com/kgdunn/process-improve/compare/v1.59.0...v1.60.0
 [1.59.0]: https://github.com/kgdunn/process-improve/compare/v1.58.0...v1.59.0
