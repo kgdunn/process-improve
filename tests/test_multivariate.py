@@ -921,53 +921,141 @@ def test_pca_select_n_components_consensus_mode() -> None:
 
 
 def test_pca_score_contributions() -> None:
-    """Test score_contributions method on a simple dataset."""
+    """Contributions decompose the score exactly, one term per variable."""
     rng = np.random.default_rng(42)
     X = pd.DataFrame(rng.standard_normal((30, 5)), columns=[f"V{i}" for i in range(1, 6)])
     X = MCUVScaler().fit_transform(X)
 
     pca = PCA(n_components=3).fit(X)
 
-    # --- Basic shape and index ---
-    obs = pca.scores_.iloc[0]
-    contrib = pca.score_contributions(obs)
-    assert isinstance(contrib, pd.Series)
-    assert len(contrib) == 5
-    assert list(contrib.index) == [f"V{i}" for i in range(1, 6)]
+    contrib = pca.score_contributions(X, component=1)
+    assert isinstance(contrib, pd.DataFrame)
+    assert contrib.shape == (30, 5)
+    assert list(contrib.columns) == [f"V{i}" for i in range(1, 6)]
+    assert list(contrib.index) == list(X.index)
 
-    # --- Conservation: sum of contributions equals the projected reconstruction ---
-    # For unweighted, all-component case: contributions = (0 - t) @ P.T row-wise
-    # and sum(contributions * p_k) should recover dt for each component
-    P = pca.loadings_.values  # (K, A)
-    dt = -obs.values  # t_end(0) - t_start
-    expected = dt @ P.T
-    assert contrib.values == pytest.approx(expected, abs=1e-12)
+    # --- The defining property (Miller, Swanson and Heckler, 1994, eq. 3):
+    #     the per-variable terms sum to the score they decompose.
+    for a in (1, 2, 3):
+        terms = pca.score_contributions(X, component=a)
+        assert terms.sum(axis=1).to_numpy() == pytest.approx(pca.scores_[a].to_numpy(), abs=1e-12)
+        # ... and each term is the data value times its loading.
+        expected = X.to_numpy() * pca.loadings_.to_numpy()[:, a - 1]
+        assert terms.to_numpy() == pytest.approx(expected, abs=1e-12)
 
-    # --- Specific components (1-based) ---
-    contrib_23 = pca.score_contributions(obs, components=[2, 3])
-    dt_23 = -obs.values[[1, 2]]  # 0-based indices 1, 2
-    P_23 = P[:, [1, 2]].T
-    expected_23 = dt_23 @ P_23
-    assert contrib_23.values == pytest.approx(expected_23, abs=1e-12)
+    # --- The diagnosis must depend on the observation, not only on the model.
+    # Anything proportional to the loading vector ranks the variables the same
+    # way for every observation, carrying no per-observation information.
+    rankings = {tuple(np.argsort(-contrib.iloc[i].abs().to_numpy())) for i in range(len(X))}
+    assert len(rankings) > 1
 
-    # --- Custom t_end ---
-    obs2 = pca.scores_.iloc[1]
-    contrib_pair = pca.score_contributions(obs, t_end=obs2)
-    dt_pair = obs2.values - obs.values
-    expected_pair = dt_pair @ P.T
-    assert contrib_pair.values == pytest.approx(expected_pair, abs=1e-12)
+    # --- A variable sitting at its mean contributes nothing, whatever its loading.
+    at_mean = X.copy()
+    at_mean.iloc[0, 2] = 0.0
+    assert pca.score_contributions(at_mean, component=1).iloc[0, 2] == pytest.approx(0.0, abs=1e-12)
 
-    # --- Weighted mode (T² contributions) ---
-    contrib_w = pca.score_contributions(obs, weighted=True)
-    dt_w = -obs.values / np.sqrt(pca.explained_variance_)
-    expected_w = dt_w @ P.T
-    assert contrib_w.values == pytest.approx(expected_w, abs=1e-12)
+    # --- Scaling changes the units, not the pattern within a row.
+    for scaling in ("maximum", "within"):
+        scaled = pca.score_contributions(X, component=1, scaling=scaling)
+        ratio = scaled.iloc[0].to_numpy() / contrib.iloc[0].to_numpy()
+        assert ratio == pytest.approx(np.full(5, ratio[0]), rel=1e-10)
+    assert np.abs(pca.score_contributions(X, component=1, scaling="maximum").to_numpy()).max() == pytest.approx(1.0)
 
-    # --- Weighted + specific components ---
-    contrib_w2 = pca.score_contributions(obs, components=[1], weighted=True)
-    dt_w1 = -obs.values[0] / np.sqrt(pca.explained_variance_[0])
-    expected_w1 = dt_w1 * P[:, 0]
-    assert contrib_w2.values == pytest.approx(expected_w1, abs=1e-12)
+    with pytest.raises(ValueError, match="scaling must be one of"):
+        pca.score_contributions(X, scaling="loud")
+    with pytest.raises(ValueError, match="1-based index"):
+        pca.score_contributions(X, component=4)
+
+
+def test_score_contributions_rejects_a_score_vector() -> None:
+    """A score vector cannot carry the data the calculation needs."""
+    rng = np.random.default_rng(3)
+    X = MCUVScaler().fit_transform(
+        pd.DataFrame(rng.standard_normal((25, 4)), columns=list("abcd"))
+    )
+    pca = PCA(n_components=2).fit(X)
+
+    with pytest.raises(TypeError, match="not a score vector"):
+        pca.score_contributions(pca.scores_.iloc[0])
+    with pytest.raises(TypeError, match="not a score vector"):
+        pca.score_contributions(pca.scores_.iloc[0].to_numpy())
+    with pytest.raises(TypeError, match="t2_contributions"):
+        pca.score_contributions(X, weighted=True)
+    with pytest.raises(TypeError, match="group_contributions"):
+        pca.score_contributions(X, t_end=pca.scores_.iloc[1])
+
+
+def test_score_contributions_selector_and_argument_errors() -> None:
+    """The selector and argument guards each report what was actually wrong."""
+    rng = np.random.default_rng(5)
+    X = MCUVScaler().fit_transform(
+        pd.DataFrame(rng.standard_normal((12, 3)), columns=list("abc"))
+    )
+    pca = PCA(n_components=2).fit(X)
+
+    # An unknown keyword is reported as such, rather than being mistaken for a
+    # call that passed a score vector.
+    with pytest.raises(TypeError, match="unexpected keyword argument: colour"):
+        pca.score_contributions(X, colour="red")
+
+    # An empty group has no mean to take.
+    with pytest.raises(ValueError, match="group selected no observations"):
+        pca.group_contributions(X, group=[])
+    with pytest.raises(ValueError, match="reference selected no observations"):
+        pca.group_contributions(X, group=[0], reference=[])
+
+    # A boolean mask has to line up with the rows it is masking.
+    with pytest.raises(ValueError, match="boolean mask of length 3, but X has 12 rows"):
+        pca.group_contributions(X, group=[True, False, True])
+
+    # Selection is by label. Positions go through X.index[...], and an entry
+    # that is not a label is refused rather than quietly read as a position:
+    # on a frame indexed 1..N that fallback would make [0, 1, 2] mean positions
+    # and [10, 11, 12] mean labels.
+    assert pca.group_contributions(X, group=X.index[:2]).to_numpy() == pytest.approx(
+        pca.score_contributions(X, component=1).iloc[:2].mean(axis=0).to_numpy(), abs=1e-12
+    )
+    with pytest.raises(ValueError, match="not index labels of X"):
+        pca.group_contributions(X, group=[999])
+
+    shifted = X.copy()
+    shifted.index = range(1, len(X) + 1)
+    pca_shifted = PCA(n_components=2).fit(shifted)
+    with pytest.raises(ValueError, match=r"not index labels of X: \[0\]"):
+        pca_shifted.group_contributions(shifted, group=[0, 1, 2])
+
+
+def test_pca_group_contributions() -> None:
+    """Group contributions sum to the average score, or to the shift between groups."""
+    rng = np.random.default_rng(11)
+    X = MCUVScaler().fit_transform(
+        pd.DataFrame(rng.standard_normal((40, 5)), columns=[f"V{i}" for i in range(1, 6)])
+    )
+    pca = PCA(n_components=2).fit(X)
+    early, late = list(X.index[:8]), list(X.index[20:30])
+
+    against_centre = pca.group_contributions(X, group=early)
+    assert isinstance(against_centre, pd.Series)
+    assert list(against_centre.index) == list(X.columns)
+    assert against_centre.sum() == pytest.approx(pca.scores_.loc[early, 1].mean(), abs=1e-12)
+
+    shift = pca.group_contributions(X, group=early, reference=late, component=2)
+    expected = pca.scores_.loc[early, 2].mean() - pca.scores_.loc[late, 2].mean()
+    assert shift.sum() == pytest.approx(expected, abs=1e-12)
+
+    # A single-observation group is the corresponding row of score_contributions.
+    one = pca.group_contributions(X, group=[X.index[3]])
+    assert one.to_numpy() == pytest.approx(
+        pca.score_contributions(X, component=1).iloc[3].to_numpy(), abs=1e-12
+    )
+
+    # A boolean mask is accepted alongside labels.
+    mask = [i < 8 for i in range(len(X))]
+    assert pca.group_contributions(X, group=mask).to_numpy() == pytest.approx(
+        against_centre.to_numpy(), abs=1e-12
+    )
+    with pytest.raises(ValueError, match="not index labels of X"):
+        pca.group_contributions(X, group=["not-a-label"])
 
 
 def test_pca_t2_spe_contributions() -> None:
@@ -2471,7 +2559,7 @@ def test_vip_formula_correctness() -> None:
 
 
 def test_pls_score_contributions() -> None:
-    """Test PLS score_contributions method."""
+    """PLS contributions use the direct weights, and sum to the X-score."""
     rng = np.random.default_rng(42)
     X = pd.DataFrame(rng.standard_normal((40, 6)), columns=[f"X{i}" for i in range(1, 7)])
     Y = pd.DataFrame(X.values @ rng.standard_normal((6, 2)) + rng.standard_normal((40, 2)) * 0.3, columns=["Y1", "Y2"])
@@ -2481,31 +2569,24 @@ def test_pls_score_contributions() -> None:
     plsmodel = PLS(n_components=3)
     plsmodel.fit(X_scaled, Y_scaled)
 
-    # Contribution from first observation to model center
-    t_obs = plsmodel.scores_.iloc[0].values
-    contrib = plsmodel.score_contributions(t_obs)
-    assert isinstance(contrib, pd.Series)
-    assert len(contrib) == X_scaled.shape[1]
-    assert contrib.index.tolist() == X_scaled.columns.tolist()
+    contrib = plsmodel.score_contributions(X_scaled, component=1)
+    assert isinstance(contrib, pd.DataFrame)
+    assert contrib.shape == X_scaled.shape
+    assert contrib.columns.tolist() == X_scaled.columns.tolist()
 
-    # Conservation: contributions = dt @ P.T
-    P = plsmodel.x_loadings_.values  # (K, A)
-    dt = -t_obs  # t_end(0) - t_start
-    expected = dt @ P.T
-    assert contrib.values == pytest.approx(expected, abs=1e-12)
+    # For PLS the score-generating matrix is direct_weights_ (T = X R), not the
+    # X-loadings, so that the terms sum to the score.
+    for a in (1, 2, 3):
+        terms = plsmodel.score_contributions(X_scaled, component=a)
+        assert terms.sum(axis=1).to_numpy() == pytest.approx(plsmodel.scores_[a].to_numpy(), abs=1e-12)
+        expected = X_scaled.to_numpy() * plsmodel.direct_weights_.to_numpy()[:, a - 1]
+        assert terms.to_numpy() == pytest.approx(expected, abs=1e-12)
 
-    # Contribution between two observations
-    t_obs2 = plsmodel.scores_.iloc[1].values
-    contrib2 = plsmodel.score_contributions(t_obs, t_obs2)
-    assert len(contrib2) == X_scaled.shape[1]
-
-    # Weighted contributions (for T²)
-    contrib_w = plsmodel.score_contributions(t_obs, weighted=True)
-    assert len(contrib_w) == X_scaled.shape[1]
-
-    # Subset of components (1-based)
-    contrib_sub = plsmodel.score_contributions(t_obs, components=[1, 2])
-    assert len(contrib_sub) == X_scaled.shape[1]
+    shift = plsmodel.group_contributions(
+        X_scaled, group=X_scaled.index[:3], reference=X_scaled.index[3:6]
+    )
+    expected_shift = plsmodel.scores_[1].to_numpy()[:3].mean() - plsmodel.scores_[1].to_numpy()[3:6].mean()
+    assert shift.sum() == pytest.approx(expected_shift, abs=1e-12)
 
 
 def test_pls_detect_outliers() -> None:
@@ -2538,7 +2619,7 @@ def test_pls_detect_outliers() -> None:
 def test_pls_score_contributions_ldpe(
     fixture_pls_ldpe_example: dict[str, pd.DataFrame | np.ndarray | float | int],
 ) -> None:
-    """Test PLS score_contributions on LDPE real dataset."""
+    """PLS score contributions on the LDPE data: the identity holds on real data."""
     data = fixture_pls_ldpe_example
     X = pd.DataFrame(data["X"])
     Y = pd.DataFrame(data["Y"])
@@ -2548,21 +2629,15 @@ def test_pls_score_contributions_ldpe(
     plsmodel = PLS(n_components=3)
     plsmodel.fit(X_scaled, Y_scaled)
 
-    # Contribution from the last observation (process fault) to model center
-    t_obs = plsmodel.scores_.iloc[-1].values
-    contrib = plsmodel.score_contributions(t_obs)
-    assert isinstance(contrib, pd.Series)
-    assert len(contrib) == X_scaled.shape[1]
+    contrib = plsmodel.score_contributions(X_scaled, component=1)
+    assert contrib.shape == X_scaled.shape
+    assert contrib.sum(axis=1).to_numpy() == pytest.approx(plsmodel.scores_[1].to_numpy(), abs=1e-10)
 
-    # Conservation check: contributions = dt @ P.T
-    P = plsmodel.x_loadings_.values
-    dt = -t_obs
-    expected = dt @ P.T
-    assert contrib.values == pytest.approx(expected, abs=1e-12)
-
-    # Weighted contributions
-    contrib_w = plsmodel.score_contributions(t_obs, weighted=True)
-    assert len(contrib_w) == X_scaled.shape[1]
+    # The known process fault sits in the last observations; the variable blamed
+    # there must not simply be the variable with the largest loading, or the
+    # diagnostic would carry no per-observation information at all.
+    per_observation = {contrib.iloc[i].abs().idxmax() for i in range(len(contrib))}
+    assert len(per_observation) > 1
 
 
 def test_pls_detect_outliers_ldpe(

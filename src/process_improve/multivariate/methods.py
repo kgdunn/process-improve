@@ -20,10 +20,12 @@ from ._adaptive import AdaptivePCA, AdaptivePLS
 from ._common import NotEnoughVarianceError, SpecificationWarning, epsqrt
 from ._diagnostics import (
     eigenvalue_summary,
+    group_contributions,
     observation_contributions,
     project_variables,
     rv2_coefficient,
     rv_coefficient,
+    score_contributions,
     selectivity_ratio,
     spe_contributions,
     squared_cosine,
@@ -91,6 +93,7 @@ __all__ = [
     "ellipse_coordinates",
     "epsqrt",
     "explained_variance_plot",
+    "group_contributions",
     "hotellings_t2_limit",
     "internal_pls_nipals_fit_one_pc",
     "loading_plot",
@@ -105,6 +108,7 @@ __all__ = [
     "rv_coefficient",
     "safe_inverse",
     "scale",
+    "score_contributions",
     "score_limit",
     "score_plot",
     "selectivity_ratio",

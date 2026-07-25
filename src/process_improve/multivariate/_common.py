@@ -301,3 +301,28 @@ def _model_method(fn: Callable[..., Any]) -> Callable[..., Any]:
         return fn(self, *args, **kwargs)
 
     return method
+
+
+def _scale_block_contributions(
+    blocks: dict[str, np.ndarray], scaling: str
+) -> dict[str, np.ndarray]:
+    """Apply a contribution-plot scaling jointly across every block.
+
+    The scalings are those of Miller, Swanson and Heckler (1994). Both are taken
+    over the blocks together, not one block at a time: a super score pools all
+    the blocks, so scaling each block separately would make bars from different
+    blocks incomparable, which is the one thing a multi-block contribution plot
+    is read for.
+    """
+    if scaling == "none":
+        return blocks
+    if scaling == "maximum":
+        largest = max((float(np.abs(v).max()) for v in blocks.values() if v.size), default=0.0)
+        scalar = largest if largest > epsqrt else 1.0
+        return {name: values / scalar for name, values in blocks.items()}
+    if scaling == "within":
+        totals = sum(np.abs(values).sum(axis=1) for values in blocks.values())
+        per_row = np.where(totals > epsqrt, totals, 1.0).reshape(-1, 1)
+        return {name: values / per_row for name, values in blocks.items()}
+    msg = f"scaling must be one of 'none', 'maximum' or 'within', got {scaling!r}."
+    raise ValueError(msg)

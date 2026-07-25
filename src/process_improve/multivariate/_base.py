@@ -32,10 +32,16 @@ from ._diagnostics import (
     eigenvalue_summary as _eigenvalue_summary,
 )
 from ._diagnostics import (
+    group_contributions as _group_contributions,
+)
+from ._diagnostics import (
     observation_contributions as _observation_contributions,
 )
 from ._diagnostics import (
     project_variables as _project_variables,
+)
+from ._diagnostics import (
+    score_contributions as _score_contributions,
 )
 from ._diagnostics import (
     spe_contributions as _spe_contributions,
@@ -216,6 +222,8 @@ class _LatentVariableModel(_RenameGetattrMixin, _HotellingsT2LimitMixin, BaseEst
     observation_contributions = _model_method(_observation_contributions)
     t2_contributions = _model_method(_t2_contributions)
     spe_contributions = _model_method(_spe_contributions)
+    score_contributions = _model_method(_score_contributions)
+    group_contributions = _model_method(_group_contributions)
     eigenvalue_summary = _model_method(_eigenvalue_summary)
     project_variables = _model_method(_project_variables)
 

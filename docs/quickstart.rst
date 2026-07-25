@@ -31,7 +31,7 @@ PCA Example
 
    # Diagnostics
    pca.detect_outliers()
-   pca.score_contributions(pca.scores_.iloc[0].values)
+   pca.score_contributions(X_scaled, component=1)  # per-variable, sums to t1
 
    # Plots
    pca.score_plot()
@@ -66,7 +66,7 @@ PLS Example
 
    # Diagnostics
    pls.detect_outliers()
-   pls.score_contributions(pls.scores_.iloc[0].values)
+   pls.score_contributions(X_scaled, component=1)  # per-variable, sums to t1
 
 Component Selection
 -------------------
