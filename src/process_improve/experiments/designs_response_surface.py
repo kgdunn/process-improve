@@ -589,11 +589,21 @@ def _paley_conference_matrix(q: int) -> np.ndarray:
 
 # Conference matrix of order 16.  15 is not a prime power, so Paley's
 # construction does not reach this order, and it is the only order below 22
-# that needs a table.  Taken from the conference-matrix catalogue of Xiao, Lin
-# & Bai (2012), by way of Jacob Albrecht's BSD-3-licensed MATLAB port of the
-# JMP add-in (Bristol-Myers Squibb, 2015) and its Python translation by Daniele
-# Ongari in the `definitive_screening_design` package (MIT-spirited, same
-# BSD-3 header retained).  Verified here against C.T @ C == 15 * I before use.
+# that needs a table.
+#
+# Provenance: the conference-matrix catalogue of Xiao, Lin & Bai (2012),
+# reached by way of two ports.  Jacob Albrecht (then at Bristol-Myers Squibb)
+# ported the JMP add-in to MATLAB in 2015 and released it under the BSD
+# 3-Clause licence, Copyright (c) 2015 Jacob Albrecht; the third clause of that
+# licence names Bristol-Myers Squibb as the organisation whose name may not be
+# used for endorsement.  Daniele Ongari translated that MATLAB code to Python
+# in the `definitive_screening_design` package (BSD 3-Clause,
+# Copyright (c) 2022 Daniele Ongari), retaining Albrecht's header.
+#
+# Only the numeric table is reused here, and it is verified against
+# C.T @ C == 15 * I before use rather than trusted: the order-10 table in the
+# same upstream file has a single mistyped entry, which leaves its 9- and
+# 10-factor designs non-orthogonal with nothing to catch it.
 _CONFERENCE_MATRIX_16 = np.array(
     [
         [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
