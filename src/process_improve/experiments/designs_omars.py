@@ -264,12 +264,26 @@ def dispatch_omars(factors: list[Factor], *, verify: bool = True) -> tuple[np.nd
     Raises
     ------
     ValueError
-        If fewer than three factors are supplied.
+        If fewer than three factors are supplied, or if any factor is
+        categorical.  OMARS is defined for quantitative factors: the family's
+        properties are stated in terms of quadratic and interaction columns, and
+        :func:`is_omars` checks them that way.  A definitive screening design
+        with a categorical factor is a different object, so it is reached
+        through ``design_type="dsd"`` rather than silently returned here with
+        ``omars_verified: False``.
     """
     from process_improve.experiments.designs_response_surface import dispatch_dsd  # noqa: PLC0415
 
     if len(factors) < 3:
         raise ValueError("OMARS designs require at least 3 factors.")
+
+    categorical = [factor.name for factor in factors if factor.type.value == "categorical"]
+    if categorical:
+        raise ValueError(
+            f"OMARS designs require quantitative factors; {', '.join(repr(name) for name in categorical)} "
+            'is categorical. Use design_type="dsd", which supports two-level categorical factors through '
+            "the column-augmentation procedures of Jones and Nachtsheim (2013)."
+        )
 
     coded_matrix, dsd_meta = dispatch_dsd(factors)
     meta = {**dsd_meta, "family": "conference_foldover"}

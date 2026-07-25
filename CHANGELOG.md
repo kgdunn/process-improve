@@ -45,6 +45,12 @@ those changes.
 - `matrix_to_columns` now maps a numerically coded categorical column onto its level
   labels. Design families differ in what they return for a categorical factor: the
   optimal designs already produce labels, which continue to pass straight through.
+- `generate_design(..., design_type="omars")` now rejects categorical factors with a
+  message pointing at `design_type="dsd"`. OMARS is defined for quantitative factors:
+  the family's properties are stated in terms of quadratic and interaction columns, and
+  `is_omars` checks them that way. Because `omars` shares the DSD constructor, adding
+  categorical support would otherwise have let it return a design carrying
+  `omars_verified: False` rather than refusing outright.
 - `generate_design(..., design_type="taguchi")` with a categorical factor raised
   `ValueError: All values must be present in 'levels'`. `dispatch_taguchi` codes a
   categorical factor as level indices `0..n-1`, and those indices were handed to the

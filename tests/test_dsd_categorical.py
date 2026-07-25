@@ -477,3 +477,26 @@ class TestCategoricalLabelMapping:
         factors = [Factor(name="Cat", type="categorical", levels=["a", "b"])]
         with pytest.raises(ValueError, match="All values must be present in `levels`"):
             matrix_to_columns(np.array([[7.0], [9.0]]), factors)
+
+
+class TestOmarsRejectsCategoricalFactors:
+    """OMARS shares the DSD constructor but not its categorical support."""
+
+    def test_omars_rejects_a_categorical_factor(self) -> None:
+        """A categorical DSD is not an OMARS design, and must not be returned as one.
+
+        ``is_omars`` states the family's properties in terms of quadratic and
+        interaction columns, which a two-level categorical factor does not have.
+        Before this guard, ``design_type="omars"`` accepted a categorical factor
+        and returned a design with ``omars_verified: False`` attached, which is
+        exactly the silent-degradation failure this module exists to prevent.
+        """
+        factors = _factors(3, 1)
+        with pytest.raises(ValueError, match="OMARS designs require quantitative factors"):
+            generate_design(factors, design_type="omars", center_points=0)
+        with pytest.raises(ValueError, match='design_type="dsd"'):
+            generate_design(factors, design_type="omars", center_points=0)
+
+    def test_omars_still_works_for_quantitative_factors(self) -> None:
+        result = generate_design(_factors(6, 0), design_type="omars", center_points=0)
+        assert result.metadata["omars_verified"] is True
