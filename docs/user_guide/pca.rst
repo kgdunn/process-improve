@@ -209,7 +209,12 @@ level shift part-way through a data set, actually poses.
    model.group_contributions(X_scaled, group=[31, 42, 47, 20, 21])
 
    # What changed between the first and second halves of the campaign?
-   model.group_contributions(X_scaled, group=range(64, 74), reference=range(74, 84))
+   model.group_contributions(
+       X_scaled, group=X_scaled.index[64:74], reference=X_scaled.index[74:84]
+   )
+
+Observations are selected by index label, or by a boolean mask the same length
+as ``X``. To select by position, pass ``X.index[...]`` as above.
 
 For contributions to Hotelling's :math:`T^2`, which pools every component
 rather than reading one at a time, use ``model.t2_contributions(X_scaled)``.

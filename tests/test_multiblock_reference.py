@@ -402,10 +402,72 @@ class TestMBPCAAgainstOracle:
 
         x_blocks, _ = synthetic_two_block
         model = MBPCA(n_components=2).fit(x_blocks)
-        group = list(range(5))
-        contribs = model.group_contributions(x_blocks, group=group)
+        index = next(iter(x_blocks.values())).index
+        contribs = model.group_contributions(x_blocks, group=index[:5])
         total = sum(float(series.sum()) for series in contribs.values())
-        assert total == pytest.approx(model.super_scores_[1].values[group].mean(), abs=1e-10)
+        assert total == pytest.approx(model.super_scores_[1].values[:5].mean(), abs=1e-10)
+
+    def test_contribution_guards_and_plain_array_blocks(self, synthetic_two_block) -> None:
+        """Guards mirror MBPLS, and blocks may arrive as plain arrays."""
+        from process_improve.multivariate.methods import MBPCA
+
+        x_blocks, _ = synthetic_two_block
+        model = MBPCA(n_components=2).fit(x_blocks)
+
+        with pytest.raises(ValueError, match="Missing X-blocks"):
+            model.score_contributions({model.block_names_[0]: x_blocks[model.block_names_[0]]})
+        with pytest.raises(ValueError, match="1-based index"):
+            model.score_contributions(x_blocks, component=3)
+
+        # A block given as a bare ndarray is labelled from the fitted columns.
+        as_arrays = {name: block.to_numpy() for name, block in x_blocks.items()}
+        from_arrays = model.score_contributions(as_arrays, component=1)
+        from_frames = model.score_contributions(x_blocks, component=1)
+        for name in model.block_names_:
+            np.testing.assert_array_almost_equal(
+                from_arrays[name].values, from_frames[name].values, decimal=12
+            )
+
+        # The two-period form, against a reference set of observations.
+        index = next(iter(x_blocks.values())).index
+        shift = model.group_contributions(x_blocks, group=index[:5], reference=index[5:10])
+        total = sum(float(series.sum()) for series in shift.values())
+        scores = model.super_scores_[1].values
+        assert total == pytest.approx(scores[:5].mean() - scores[5:10].mean(), abs=1e-10)
+
+    def test_score_contributions_scalings_span_the_blocks(self, synthetic_two_block) -> None:
+        """Both scalings are taken over the blocks jointly, not block by block.
+
+        A super score pools every block, so scaling each block against its own
+        maximum would make bars from different blocks incomparable, which is the
+        one thing a multi-block contribution plot is read for.
+        """
+        from process_improve.multivariate.methods import MBPCA
+
+        x_blocks, _ = synthetic_two_block
+        model = MBPCA(n_components=2).fit(x_blocks)
+        raw = model.score_contributions(x_blocks, component=1)
+
+        largest = model.score_contributions(x_blocks, component=1, scaling="maximum")
+        peak = max(float(np.abs(f.values).max()) for f in largest.values())
+        assert peak == pytest.approx(1.0)
+        # Exactly one block holds the peak: the divisor was shared.
+        peaks = [float(np.abs(f.values).max()) for f in largest.values()]
+        assert sum(p == pytest.approx(1.0) for p in peaks) == 1
+
+        within = model.score_contributions(x_blocks, component=1, scaling="within")
+        row_total = sum(np.abs(f.values).sum(axis=1) for f in within.values())
+        np.testing.assert_array_almost_equal(row_total, np.ones(len(row_total)), decimal=10)
+
+        # Scaling changes the units, not the pattern within a row.
+        for name in model.block_names_:
+            ratio = within[name].values[0] / raw[name].values[0]
+            np.testing.assert_array_almost_equal(ratio, np.full_like(ratio, ratio[0]), decimal=10)
+
+        with pytest.raises(ValueError, match="scaling must be one of"):
+            model.score_contributions(x_blocks, scaling="loud")
+        with pytest.raises(TypeError, match="dict"):
+            model.score_contributions(next(iter(x_blocks.values())))
 
     def test_super_score_and_loadings_plots_return_figures(self, synthetic_two_block) -> None:
         import plotly.graph_objects as go
@@ -1161,6 +1223,26 @@ class TestMBPLSOnLDPE:
             model.score_contributions(x_blocks, component=4)
         with pytest.raises(ValueError, match="Missing X-blocks"):
             model.score_contributions({model.block_names_[0]: x_blocks[model.block_names_[0]]})
+
+    def test_group_contributions_sum_to_the_shift_in_super_score(self, ldpe) -> None:
+        """The two-period form: contributions sum to the change in average super score."""
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        model = MBPLS(n_components=2).fit(x_blocks, y_df)
+        index = next(iter(x_blocks.values())).index
+        early, late = index[:10], index[10:20]
+
+        contribs = model.group_contributions(x_blocks, group=early, reference=late)
+        total = sum(float(series.sum()) for series in contribs.values())
+        scores = model.super_scores_[1].values
+        assert total == pytest.approx(scores[:10].mean() - scores[10:20].mean(), abs=1e-9)
+
+        # Against the model centre instead of another period.
+        centred = model.group_contributions(x_blocks, group=early)
+        assert sum(float(s.sum()) for s in centred.values()) == pytest.approx(
+            scores[:10].mean(), abs=1e-9
+        )
 
     def test_super_score_plot_returns_plotly_figure(self, ldpe) -> None:
         import plotly.graph_objects as go

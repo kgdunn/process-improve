@@ -823,8 +823,9 @@ def group_contributions(
     X : array-like of shape (n_samples, n_features)
         Preprocessed data, scaled the same way as the training data.
     group : sequence
-        Index labels (or a boolean mask, or positional integers) selecting the
-        observations of interest.
+        Index labels of the observations of interest, or a boolean mask the
+        same length as ``X``. Selection is by label, not by position; pass
+        ``X.index[...]`` to select positionally.
     reference : sequence, optional
         Index labels selecting the observations to compare against. ``None``
         (default) compares the group against the model centre.
@@ -842,8 +843,10 @@ def group_contributions(
     >>> pca = PCA(n_components=2).fit(X_scaled)
     >>> # Five batches that cluster together on the score plot:
     >>> pca.group_contributions(X_scaled, group=[31, 142, 147, 220, 221])
-    >>> # What shifted at batch 74?
-    >>> pca.group_contributions(X_scaled, group=range(64, 74), reference=range(74, 84))
+    >>> # What shifted at batch 74? (ten batches either side, by position)
+    >>> pca.group_contributions(
+    ...     X_scaled, group=X_scaled.index[64:74], reference=X_scaled.index[74:84]
+    ... )
 
     See Also
     --------
@@ -866,7 +869,14 @@ def group_contributions(
 
 
 def _select_rows(X_df: pd.DataFrame, selector: Sequence, name: str) -> pd.DataFrame:
-    """Select rows of ``X_df`` by label, boolean mask, or positional index."""
+    """Select rows of ``X_df`` by index label or by boolean mask.
+
+    Deliberately label-based only. Falling back to positional selection when a
+    label happens to be missing would make the meaning depend on the data: on a
+    frame indexed 1..54, ``[0, 1, 2]`` would be positions (0 is not a label)
+    while ``[10, 11, 12]`` would be labels, silently selecting a different set
+    of rows. Callers who want positions pass ``X.index[...]``.
+    """
     values = list(selector)
     if values and all(isinstance(v, (bool, np.bool_)) for v in values):
         if len(values) != len(X_df):
@@ -874,14 +884,14 @@ def _select_rows(X_df: pd.DataFrame, selector: Sequence, name: str) -> pd.DataFr
             raise ValueError(msg)
         return X_df.loc[np.asarray(values, dtype=bool)]
     missing = [v for v in values if v not in X_df.index]
-    if not missing:
-        return X_df.loc[values]
-    # Fall back to positional selection, but only if every entry is a valid
-    # position; a partial match means the caller mixed labels and positions.
-    if all(isinstance(v, (int, np.integer)) and 0 <= int(v) < len(X_df) for v in values):
-        return X_df.iloc[[int(v) for v in values]]
-    msg = f"{name} contains entries that are neither index labels of X nor valid row positions: {missing}."
-    raise ValueError(msg)
+    if missing:
+        msg = (
+            f"{name} contains entries that are not index labels of X: {missing}. "
+            "Selection is by index label or boolean mask; to select by position, "
+            "pass X.index[...] instead."
+        )
+        raise ValueError(msg)
+    return X_df.loc[values]
 
 
 def eigenvalue_summary(model: BaseEstimator) -> pd.DataFrame:

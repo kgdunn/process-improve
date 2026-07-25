@@ -986,6 +986,46 @@ def test_score_contributions_rejects_the_old_api() -> None:
         pca.score_contributions(X, t_end=pca.scores_.iloc[1])
 
 
+def test_score_contributions_selector_and_argument_errors() -> None:
+    """The selector and argument guards each report what was actually wrong."""
+    rng = np.random.default_rng(5)
+    X = MCUVScaler().fit_transform(
+        pd.DataFrame(rng.standard_normal((12, 3)), columns=list("abc"))
+    )
+    pca = PCA(n_components=2).fit(X)
+
+    # A keyword that was never part of any signature is reported as such,
+    # rather than being mistaken for the pre-1.61.0 calling convention.
+    with pytest.raises(TypeError, match="unexpected keyword argument: colour"):
+        pca.score_contributions(X, colour="red")
+
+    # An empty group has no mean to take.
+    with pytest.raises(ValueError, match="group selected no observations"):
+        pca.group_contributions(X, group=[])
+    with pytest.raises(ValueError, match="reference selected no observations"):
+        pca.group_contributions(X, group=[0], reference=[])
+
+    # A boolean mask has to line up with the rows it is masking.
+    with pytest.raises(ValueError, match="boolean mask of length 3, but X has 12 rows"):
+        pca.group_contributions(X, group=[True, False, True])
+
+    # Selection is by label. Positions go through X.index[...], and an entry
+    # that is not a label is refused rather than quietly read as a position:
+    # on a frame indexed 1..N that fallback would make [0, 1, 2] mean positions
+    # and [10, 11, 12] mean labels.
+    assert pca.group_contributions(X, group=X.index[:2]).to_numpy() == pytest.approx(
+        pca.score_contributions(X, component=1).iloc[:2].mean(axis=0).to_numpy(), abs=1e-12
+    )
+    with pytest.raises(ValueError, match="not index labels of X"):
+        pca.group_contributions(X, group=[999])
+
+    shifted = X.copy()
+    shifted.index = range(1, len(X) + 1)
+    pca_shifted = PCA(n_components=2).fit(shifted)
+    with pytest.raises(ValueError, match=r"not index labels of X: \[0\]"):
+        pca_shifted.group_contributions(shifted, group=[0, 1, 2])
+
+
 def test_pca_group_contributions() -> None:
     """Group contributions sum to the average score, or to the shift between groups."""
     rng = np.random.default_rng(11)
@@ -1010,12 +1050,12 @@ def test_pca_group_contributions() -> None:
         pca.score_contributions(X, component=1).iloc[3].to_numpy(), abs=1e-12
     )
 
-    # Positional selection and boolean masks are both accepted.
+    # A boolean mask is accepted alongside labels.
     mask = [i < 8 for i in range(len(X))]
     assert pca.group_contributions(X, group=mask).to_numpy() == pytest.approx(
         against_centre.to_numpy(), abs=1e-12
     )
-    with pytest.raises(ValueError, match="neither index labels"):
+    with pytest.raises(ValueError, match="not index labels of X"):
         pca.group_contributions(X, group=["not-a-label"])
 
 
@@ -2543,7 +2583,9 @@ def test_pls_score_contributions() -> None:
         expected = X_scaled.to_numpy() * plsmodel.direct_weights_.to_numpy()[:, a - 1]
         assert terms.to_numpy() == pytest.approx(expected, abs=1e-12)
 
-    shift = plsmodel.group_contributions(X_scaled, group=[0, 1, 2], reference=[3, 4, 5])
+    shift = plsmodel.group_contributions(
+        X_scaled, group=X_scaled.index[:3], reference=X_scaled.index[3:6]
+    )
     expected_shift = plsmodel.scores_[1].to_numpy()[:3].mean() - plsmodel.scores_[1].to_numpy()[3:6].mean()
     assert shift.sum() == pytest.approx(expected_shift, abs=1e-12)
 

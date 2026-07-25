@@ -41,7 +41,9 @@ those changes.
   differenced between two sets of rows) before being multiplied by the weights.
   This answers "what do these observations have in common?" and "what changed
   between these two periods?", which is what a cluster on a score plot, or a
-  level shift part-way through a data set, actually poses.
+  level shift part-way through a data set, actually poses. Observations are
+  selected by index label or boolean mask; pass `X.index[...]` to select by
+  position.
 - `scaling=` on `score_contributions()`, offering the maximum-contribution and
   within-observation presentation scalings from Miller, Swanson and Heckler
   (1994). The default leaves the contributions unscaled, so they sum to the
