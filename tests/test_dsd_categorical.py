@@ -530,6 +530,22 @@ class TestPlannerAndPublicApi:
         assert estimate_screening_runs(8, "definitive_screening") == 17
         assert estimate_screening_runs(21, "definitive_screening") == 49
 
+    def test_below_the_constructors_minimum_the_planner_still_returns_a_number(self) -> None:
+        """A DSD needs three factors, but budget allocation still needs an estimate.
+
+        ``dsd_run_count`` raises below three factors, so the planner keeps the
+        nominal ``2k + 1`` there rather than propagating the exception into
+        budget allocation for a design it would never actually recommend.
+        """
+        from process_improve.experiments.strategy.budget import estimate_screening_runs
+
+        assert estimate_screening_runs(1, "definitive_screening") == 3
+        assert estimate_screening_runs(2, "definitive_screening") == 5
+
+        # The constructor itself still refuses, which is what matters.
+        with pytest.raises(ValueError, match="at least 3 factors"):
+            dsd_run_count(2)
+
     def test_spec_counts_only_two_level_categoricals(self) -> None:
         """Only two-level categorical factors can enter a DSD, so only they are counted."""
         from process_improve.experiments.strategy.models import DOEProblemSpec
