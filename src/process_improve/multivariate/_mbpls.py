@@ -12,6 +12,7 @@ import logging
 import time
 import typing
 import warnings
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
@@ -21,7 +22,8 @@ from sklearn.utils.validation import check_is_fitted
 
 from ..visualization.themes import REFERENCE_LINE_COLOR
 from ._base import _HotellingsT2LimitMixin
-from ._common import SpecificationWarning, _nz, epsqrt
+from ._common import SpecificationWarning, _nz, _scale_block_contributions, epsqrt
+from ._diagnostics import _select_rows
 from ._limits import spe_calculation
 from ._nipals import quick_regress, ssq
 from ._preprocessing import MCUVScaler
@@ -620,70 +622,139 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             out[name] = pd.DataFrame(residuals_sq, index=sample_index, columns=self._block_columns[name])
         return out
 
+    def _deflated_blocks(
+        self, X: dict[str, pd.DataFrame], component: int
+    ) -> tuple[dict[str, np.ndarray], pd.Index]:
+        """Preprocessed blocks, deflated through the first ``component - 1`` components.
+
+        The super score at component *a* is formed from the data that remain
+        after the earlier components have been removed, so a decomposition of
+        that score has to start from the same deflated data.
+        """
+        if not isinstance(X, dict):
+            raise TypeError("X must be a dict[str, pd.DataFrame].")
+        missing = set(self.block_names_) - set(X)
+        if missing:
+            raise ValueError(f"Missing X-blocks: {sorted(missing)}.")
+        a_max = int(self.n_components)
+        if not (1 <= int(component) <= a_max):
+            msg = f"component must be a 1-based index within 1..{a_max}, got {component}."
+            raise ValueError(msg)
+
+        sample_index: pd.Index | None = None
+        x_def: dict[str, np.ndarray] = {}
+        for name in self.block_names_:
+            block = X[name]
+            if not isinstance(block, pd.DataFrame):
+                block = pd.DataFrame(block, columns=self._block_columns[name])
+            if sample_index is None:
+                sample_index = block.index
+            x_def[name] = self.preproc_[name].transform(block).values.astype(float)
+
+        sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
+        for a in range(int(component) - 1):
+            t_b_row = np.column_stack([
+                x_def[name] @ self.block_weights_[name].values[:, a] / sqrt_kb[name]
+                for name in self.block_names_
+            ])
+            t_super = t_b_row @ self.super_weights_.values[:, a]
+            for name in self.block_names_:
+                p_b = self.block_loadings_[name].values[:, a]
+                x_def[name] = x_def[name] - np.outer(t_super, p_b)
+
+        assert sample_index is not None
+        return x_def, sample_index
+
     def score_contributions(
         self,
-        t_super_start: np.ndarray | pd.Series,
-        t_super_end: np.ndarray | pd.Series | None = None,
-        components: list[int] | None = None,
-        *,
-        weighted: bool = False,
-    ) -> dict[str, pd.Series]:
-        r"""Per-block per-variable contributions to a super-score movement.
+        X: dict[str, pd.DataFrame],
+        component: int = 1,
+        scaling: str = "none",
+    ) -> dict[str, pd.DataFrame]:
+        r"""Per-block per-variable contributions to a super-score.
 
-        The multi-block analogue of :meth:`PCA.score_contributions`. Decomposes
-        a super-score-space delta back into preprocessed-scale variable-space
-        deltas, one per X-block.
+        The multi-block analogue of :meth:`PLS.score_contributions`. A super
+        score is a weighted sum of the (deflated, preprocessed) variables across
+        every block, so it splits exactly into one term per variable:
 
-        For MBPLS, the super-score at component *a* is built from the per-block
-        scores (which themselves are weighted regressions of the block on
-        ``w_b``), so the back-projection through ``w_super[b,a] * w_b[:,a] /
-        sqrt(K_b)`` gives the variable contribution.
+        .. math::
+
+            c_{b,ij}^{(a)} = \tilde{x}_{b,ij}^{(a)}\,
+                \frac{w_b[j, a]\, w_\mathrm{super}[b, a]}{\sqrt{K_b}},
+            \qquad
+            \sum_b \sum_j c_{b,ij}^{(a)} = t_{\mathrm{super},ia},
+
+        where :math:`\tilde{x}^{(a)}` is the block data deflated through the
+        first :math:`a-1` components, which is what the super score at component
+        :math:`a` is actually formed from.
 
         Parameters
         ----------
-        t_super_start : array-like, shape (n_components,)
-            Super-score row of the observation of interest. Typically a row
-            from ``self.super_scores_`` or from ``predict(X_new).super_scores``.
-        t_super_end : array-like, optional
-            Reference point in super-score space. Defaults to the model
-            centre (zeros).
-        components : list of int, optional
-            **1-based** component indices to decompose over. ``None`` (default)
-            uses all components - appropriate for Hotelling's T² contributions.
-        weighted : bool, default=False
-            If ``True``, divide the super-score delta by
-            ``sqrt(explained_variance_)`` per component before back-projecting,
-            giving contributions to the T² statistic instead of the Euclidean
-            super-score distance.
+        X : dict[str, pd.DataFrame]
+            Raw (un-preprocessed) X-blocks, keyed by block name, exactly as
+            passed to :meth:`fit`. The stored per-block preprocessing is applied
+            internally.
+        component : int, default=1
+            **1-based** component index whose super score is decomposed.
+        scaling : {"none", "maximum", "within"}, default="none"
+            Presentation scaling, as for :meth:`PLS.score_contributions`. Under
+            ``"none"`` the contributions sum across all blocks to the super
+            score. ``"maximum"`` divides by the largest absolute contribution
+            over every block; ``"within"`` divides each observation by the total
+            absolute contribution it accumulates across every block, so both
+            scalings are taken over the blocks jointly rather than one block at
+            a time.
 
         Returns
         -------
-        dict[str, pd.Series]
-            One Series per X-block (length ``K_b``), indexed by variable
-            (column) name.
+        dict[str, pd.DataFrame]
+            One frame per X-block, of shape (n_samples, K_b).
+
+        Examples
+        --------
+        >>> mbpls = MBPLS(n_components=2).fit(blocks, Y)
+        >>> contrib = mbpls.score_contributions(blocks, component=1)
+        >>> sum(frame.sum(axis=1) for frame in contrib.values())  # super score 1
         """
         check_is_fitted(self, "block_weights_")
-        t_start = np.asarray(t_super_start, dtype=float)
-        t_end = np.zeros(self.n_components) if t_super_end is None else np.asarray(t_super_end, dtype=float)
-        idx = np.arange(self.n_components) if components is None else np.array(components) - 1
-        dt = t_end[idx] - t_start[idx]  # (len(idx),)
-        if weighted:
-            # ``explained_variance_[a] == 0`` for a degenerate component
-            # would silently produce inf/NaN weighted contributions.
-            # Clamp the divisor so weighting is a no-op on such components.
-            # SEC-21 (#270) sub-item 5.
-            ev = np.asarray(self.explained_variance_)[idx]
-            dt = dt / np.sqrt(np.where(ev > epsqrt, ev, 1.0))
+        deflated, sample_index = self._deflated_blocks(X, component)
+        a = int(component) - 1
 
-        out: dict[str, pd.Series] = {}
+        raw: dict[str, np.ndarray] = {}
         for b_idx, name in enumerate(self.block_names_):
             sqrt_kb = float(np.sqrt(self.block_widths_[name]))
-            ws = self.super_weights_.values[b_idx, idx]  # (len(idx),)
-            wb = self.block_weights_[name].values[:, idx]  # (K_b, len(idx))
-            # Effective per-component contribution per variable: w_super[b] * w_b[:,a] / sqrt(K_b)
-            effective = wb * (ws / sqrt_kb)  # (K_b, len(idx))
-            contrib = effective @ dt  # (K_b,)
-            out[name] = pd.Series(contrib, index=self._block_columns[name], name=f"score_contributions[{name}]")
+            w_b = self.block_weights_[name].values[:, a]
+            w_s = float(self.super_weights_.values[b_idx, a])
+            raw[name] = deflated[name] * (w_b * w_s / sqrt_kb)
+
+        raw = _scale_block_contributions(raw, scaling)
+        return {
+            name: pd.DataFrame(values, index=sample_index, columns=self._block_columns[name])
+            for name, values in raw.items()
+        }
+
+    def group_contributions(
+        self,
+        X: dict[str, pd.DataFrame],
+        group: Sequence,
+        reference: Sequence | None = None,
+        component: int = 1,
+    ) -> dict[str, pd.Series]:
+        """Per-block per-variable contributions to a group's average super score.
+
+        The multi-block analogue of :meth:`PLS.group_contributions`. See that
+        method for the definition; the only difference is that the result is
+        returned one Series per X-block, and the sum over every block equals the
+        group's average super score (or the difference between the two groups'
+        average super scores when ``reference`` is given).
+        """
+        per_block = self.score_contributions(X, component=component)
+        out: dict[str, pd.Series] = {}
+        for name, frame in per_block.items():
+            deviation = _select_rows(frame, group, "group").mean(axis=0)
+            if reference is not None:
+                deviation = deviation - _select_rows(frame, reference, "reference").mean(axis=0)
+            out[name] = pd.Series(deviation, name=f"group_contributions[{name}]")
         return out
 
     def super_score_plot(self, pc_horiz: int = 1, pc_vert: int = 2) -> go.Figure:
