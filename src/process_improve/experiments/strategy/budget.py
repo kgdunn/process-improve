@@ -69,7 +69,12 @@ def estimate_screening_runs(n_factors: int, design_type: str) -> int:  # noqa: P
         return int(math.ceil(n / 4) * 4)
 
     if design_type == "definitive_screening":
-        return 2 * n_factors + 1
+        # 2k + 1 runs for an even factor count and 2k + 3 for an odd one, except
+        # at the counts where the minimal conference matrix does not exist and a
+        # larger one has to be used.  Ask the constructor rather than guessing.
+        from process_improve.experiments.designs_response_surface import dsd_run_count  # noqa: PLC0415
+
+        return dsd_run_count(n_factors) if n_factors >= 3 else 2 * n_factors + 1
 
     if design_type == "fractional_factorial":
         # Smallest 2^(k-p) with resolution >= IV

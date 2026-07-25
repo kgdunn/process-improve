@@ -231,22 +231,33 @@ class TestDSDProperties:
     """Jones-Nachtsheim structural invariants of the DSD."""
 
     @_settings
-    @given(k=st.integers(min_value=3, max_value=14))
+    @given(k=st.integers(min_value=3, max_value=30))
     def test_run_count_matches_jones_nachtsheim(self, k: int) -> None:
-        """Even k -> 2k+1 runs; odd k -> 2k+3 runs (Jones-Nachtsheim 2011)."""
+        """Even k -> 2k+1 runs; odd k -> 2k+3 runs (Jones-Nachtsheim 2011).
+
+        The exception is a factor count whose minimal conference matrix does not
+        exist, where a larger one is used and the design costs more runs.  21
+        and 22 factors are the first such counts: no conference matrix of order
+        22 exists, so order 24 is used and the design has 49 runs, not 45.
+        """
         result = generate_design(_factors(k), design_type="dsd", center_points=0)
         expected = 2 * k + 1 if k % 2 == 0 else 2 * k + 3
-        assert result.n_runs == expected
+        if k in (21, 22):
+            assert result.n_runs == 49
+            assert result.metadata["conference_order"] == 24
+            assert result.metadata["minimal_conference_order"] == 22
+        else:
+            assert result.n_runs == expected
 
     @_settings
-    @given(k=st.integers(min_value=3, max_value=14))
+    @given(k=st.integers(min_value=3, max_value=30))
     def test_columns_balanced(self, k: int) -> None:
         """Every DSD factor column sums to 0 (foldover structure)."""
         x = _coded(generate_design(_factors(k), design_type="dsd", center_points=0))
         assert np.allclose(x.sum(axis=0), 0.0, atol=1e-9)
 
     @_settings
-    @given(k=st.integers(min_value=3, max_value=14))
+    @given(k=st.integers(min_value=3, max_value=30))
     def test_exactly_one_zero_pair_per_factor(self, k: int) -> None:
         """Each factor takes value 0 in exactly 2 rows for odd k and 1 row for even k (main rows)."""
         result = generate_design(_factors(k), design_type="dsd", center_points=0)
@@ -259,17 +270,51 @@ class TestDSDProperties:
         assert np.all(zeros_per_column == 3)
 
     @_settings
-    @given(k=st.sampled_from([3, 4, 5, 6, 7, 8, 12, 13, 14, 18, 19, 20]))
-    def test_paley_construction_is_orthogonal(self, k: int) -> None:
-        """When a Paley conference matrix is used, main effects are exactly orthogonal."""
+    @given(k=st.integers(min_value=3, max_value=30))
+    def test_main_effects_are_exactly_orthogonal(self, k: int) -> None:
+        """Main effects are mutually orthogonal at every factor count, with no exceptions.
+
+        This invariant used to be conditional on the Paley construction having
+        been reached, because the cyclic fallback returned a matrix that is not
+        a conference matrix at all.  It now holds unconditionally: the
+        construction either succeeds or raises.
+        """
         result = generate_design(_factors(k), design_type="dsd", center_points=0)
-        if not result.metadata.get("construction", "").startswith("paley"):
-            # Cyclic fallback is known-approximate, not covered by this invariant.
-            return
         x = _coded(result)
         gram = x.T @ x
         off_diag = gram - np.diag(np.diag(gram))
         assert np.abs(off_diag).max() < 1e-9
+
+    @_settings
+    @given(k=st.integers(min_value=3, max_value=30))
+    def test_main_effects_clear_of_second_order_terms(self, k: int) -> None:
+        """The defining DSD property: no main effect is aliased with any quadratic or two-factor interaction."""
+        x = _coded(generate_design(_factors(k), design_type="dsd", center_points=0))
+        quadratics = x**2
+        quadratics = quadratics - quadratics.mean(axis=0)
+        assert np.abs(x.T @ quadratics).max() < 1e-9
+
+        interactions = np.array([x[:, i] * x[:, j] for i in range(k) for j in range(i + 1, k)]).T
+        interactions = interactions - interactions.mean(axis=0)
+        assert np.abs(x.T @ interactions).max() < 1e-9
+
+    @pytest.mark.parametrize("k", [9, 10, 15, 16, 21, 22, 25, 26, 27, 28])
+    def test_previously_degraded_factor_counts(self, k: int) -> None:
+        """Regression test for the factor counts the cyclic fallback used to mishandle.
+
+        Before the prime-power Paley construction and the order-16 table, these
+        counts fell through to an approximation whose main effects correlated
+        with each other at up to r = 0.9, and `generate_design` returned it with
+        only a log warning.
+        """
+        result = generate_design(_factors(k), design_type="dsd", center_points=0)
+        assert result.metadata["construction"] != "cyclic_fallback"
+
+        x = _coded(result)
+        gram = x.T @ x
+        off_diag = gram - np.diag(np.diag(gram))
+        assert np.abs(off_diag).max() < 1e-9
+        assert np.all((x == 0).sum(axis=0) == 3)
 
 
 # ---------------------------------------------------------------------------

@@ -11,6 +11,43 @@ those changes.
 
 ## [Unreleased]
 
+## [1.60.1] - 2026-07-25
+
+### Fixed
+
+- Definitive screening designs are now genuine DSDs at every factor count. The
+  conference-matrix constructor only implemented Paley's construction for a prime
+  `q = m - 1`; at every other order it fell back to a cyclic approximation that is not
+  a conference matrix, so `generate_design(..., design_type="dsd")` returned designs
+  whose main effects were correlated with each other at up to r = 0.9 for 9, 10, 15,
+  16, 21, 22, 25, 26, 27 and 28 factors. The same applied to `design_type="omars"`,
+  which shares the construction and already reported `omars_verified: False` for those
+  counts. Three changes:
+  - Paley's construction now works over any odd prime-power field (GF(9), GF(25),
+    GF(27), GF(49), ...), covering 9, 10, 25, 26, 27 and 28 factors at minimal run size.
+  - A verified order-16 conference matrix table covers 15 and 16 factors.
+  - The cyclic fallback is gone. When no conference matrix exists at the minimal order,
+    the constructor steps up to the next order it can build and reports the choice in
+    the design metadata (`conference_order` and `minimal_conference_order`); when
+    nothing can be built it raises. Every constructed matrix is checked against
+    `C.T @ C == (m - 1) * I` before use, so a mistyped table entry cannot slip through.
+  - Consequence for run counts: 21 and 22 factors now need 49 runs rather than 45,
+    because no conference matrix of order 22 exists. All other counts are unchanged.
+- `estimate_screening_runs(k, "definitive_screening")` returned `2k + 1` for every `k`,
+  which undercounted every odd factor count (a 7-factor DSD has 17 runs, not 15) and
+  every count where the minimal conference matrix does not exist. It now asks the
+  constructor via the new `dsd_run_count`.
+- The recommended-strategy plan advertised a `fake_factor` design parameter for
+  definitive screening designs, justified by a comment saying a DSD "needs odd factor
+  count". No such parameter exists and the claim is backwards: an odd factor count is
+  handled by building the next even conference order and dropping a column.
+
+### Added
+
+- `dsd_run_count(n_factors)` and `dsd_conference_order(n_factors)` in
+  `process_improve.experiments.designs_response_surface`, for planning a DSD's size
+  without building it.
+
 ## [1.60.0] - 2026-07-23
 
 ### Added
@@ -2652,7 +2689,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.60.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.60.1...HEAD
+[1.60.1]: https://github.com/kgdunn/process-improve/compare/v1.60.0...v1.60.1
 [1.60.0]: https://github.com/kgdunn/process-improve/compare/v1.59.0...v1.60.0
 [1.59.0]: https://github.com/kgdunn/process-improve/compare/v1.58.0...v1.59.0
 [1.58.0]: https://github.com/kgdunn/process-improve/compare/v1.57.0...v1.58.0

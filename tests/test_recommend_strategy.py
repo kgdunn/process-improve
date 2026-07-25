@@ -247,8 +247,23 @@ class TestRunEstimation:
         assert runs == 12  # next mult of 4 >= 12
 
     def test_dsd_runs(self):
-        runs = estimate_screening_runs(7, "definitive_screening")
-        assert runs == 15  # 2*7 + 1
+        # An odd factor count needs a conference matrix of order k + 1, so a
+        # 7-factor DSD has 2*8 + 1 = 17 runs, not 2*7 + 1.  The estimate now
+        # comes from the constructor rather than from the even-k formula.
+        assert estimate_screening_runs(7, "definitive_screening") == 17
+        assert estimate_screening_runs(8, "definitive_screening") == 17  # 2*8 + 1
+        # No conference matrix of order 22 exists, so 21 factors need order 24.
+        assert estimate_screening_runs(21, "definitive_screening") == 49
+
+    def test_dsd_run_estimate_matches_the_generated_design(self):
+        """The planner's estimate must not undercount what generate_design produces."""
+        from process_improve.experiments.designs import generate_design
+        from process_improve.experiments.factor import Factor
+
+        for k in (5, 6, 7, 10, 15, 21):
+            factors = [Factor(name=f"X{i}", low=0, high=1) for i in range(k)]
+            design = generate_design(factors, design_type="dsd", center_points=0)
+            assert estimate_screening_runs(k, "definitive_screening") == design.n_runs
 
     def test_full_factorial_runs(self):
         runs = estimate_screening_runs(3, "full_factorial")

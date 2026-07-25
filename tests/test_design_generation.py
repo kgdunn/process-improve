@@ -508,15 +508,40 @@ class TestDSD:
         assert result.n_runs == 9
 
     def test_main_effects_orthogonal(self) -> None:
-        """Paley-constructed DSD should have mutually orthogonal main effects."""
+        """A DSD should have mutually orthogonal main effects."""
         factors = _continuous_factors(6)
         result = generate_design(factors, design_type="dsd", center_points=0)
         x = result.design[result.factor_names].values.astype(float)
         gram = x.T @ x
         off_diag = gram - np.diag(np.diag(gram))
         assert np.abs(off_diag).max() < 1e-9
-        # Paley construction should have been used (no cyclic fallback warning).
         assert result.metadata["construction"].startswith("paley")
+
+    def test_ten_factors_uses_the_prime_power_field(self) -> None:
+        """15 factors and 10 factors have no prime-order Paley construction.
+
+        10 factors needs GF(9) and 15 needs the tabulated order-16 matrix.
+        Both used to fall through to an approximation that left main effects
+        correlated.
+        """
+        result = generate_design(_continuous_factors(10), design_type="dsd", center_points=0)
+        assert result.metadata["construction"] == "paley_q=9"
+        assert result.n_runs == 21
+
+        result = generate_design(_continuous_factors(15), design_type="dsd", center_points=0)
+        assert result.metadata["construction"] == "tabulated_order_16"
+        assert result.n_runs == 33
+
+    def test_twenty_two_factors_steps_up_to_a_larger_conference_matrix(self) -> None:
+        """No conference matrix of order 22 exists, so the design costs 4 extra runs."""
+        result = generate_design(_continuous_factors(22), design_type="dsd", center_points=0)
+        assert result.n_runs == 49
+        assert result.metadata["conference_order"] == 24
+        assert result.metadata["minimal_conference_order"] == 22
+
+        x = result.design[result.factor_names].values.astype(float)
+        gram = x.T @ x
+        assert np.abs(gram - np.diag(np.diag(gram))).max() < 1e-9
 
     def test_requires_3_factors(self) -> None:
         """DSD should require at least 3 factors."""

@@ -293,31 +293,44 @@ def dispatch_box_behnken(
 def dispatch_dsd(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     """Generate a Definitive Screening Design (DSD).
 
-    Follows the conference-matrix-based construction of Jones & Nachtsheim
-    (2011).  For *k* factors the DSD has ``2k + 1`` runs when *k* is even
-    (using a conference matrix of order *k*) and ``2k + 3`` runs when *k*
-    is odd (using a conference matrix of order ``k + 1`` and dropping the
-    last column; Xiao, Lin & Bai 2012).  The design can estimate all main
-    effects and quadratic effects and detect two-factor interactions with
-    minimal confounding, provided the underlying conference matrix is
-    genuine (``C.T @ C == (m-1) * I``).
+    Follows the conference-matrix foldover of Jones & Nachtsheim (2011): for a
+    conference matrix ``C`` of order *m* the design is ``[C; -C; 0]``, giving
+    ``2m + 1`` runs.  For *k* factors the smallest usable order is ``m = k``
+    when *k* is even and ``m = k + 1`` when *k* is odd (the surplus column is
+    dropped; Xiao, Lin & Bai 2012), so a DSD normally has ``2k + 1`` runs for
+    even *k* and ``2k + 3`` runs for odd *k*.
 
-    The Paley construction used by :func:`_conference_matrix` produces a
-    genuine conference matrix whenever ``m - 1`` is an odd prime.  For other
-    *m* the function falls back to a cyclic approximation and logs a
-    warning; the resulting DSD will still run but its main-effects
-    orthogonality may be degraded.
+    A conference matrix does not exist for every even order.  Order 22 is the
+    first exception: a conference matrix of order ``m ≡ 2 (mod 4)`` exists only
+    if ``m - 1`` is a sum of two squares (Belevitch 1950; van Lint & Seidel
+    1966), and ``21 = 3 x 7`` is not.  When the minimal order is unavailable
+    this function steps up to the next order it can construct and drops the
+    surplus columns, which costs runs but keeps the design a genuine DSD.  The
+    order actually used is reported in the metadata as ``"conference_order"``.
+
+    Every constructed matrix is checked against the defining property
+    ``C.T @ C == (m - 1) * I`` before it is used, so a degraded design can
+    never reach the caller.
 
     Parameters
     ----------
     factors : list[Factor]
-        Continuous factors.
+        Continuous factors.  At least three are required.
 
     Returns
     -------
     tuple[np.ndarray, dict]
-        Coded design matrix and metadata.  Metadata includes the name of
-        the conference-matrix construction that was used.
+        Coded design matrix and metadata.  Metadata keys are
+        ``"construction"`` (which conference-matrix construction was used),
+        ``"conference_order"`` (the order *m* of that matrix) and, when the
+        minimal order was not constructible, ``"minimal_conference_order"``
+        (the order that would have been used had it existed).
+
+    Raises
+    ------
+    ValueError
+        If fewer than three factors are supplied, or if no conference matrix
+        of usable order can be constructed.
 
     References
     ----------
@@ -332,19 +345,29 @@ def dispatch_dsd(factors: list[Factor]) -> tuple[np.ndarray, dict]:
     if k < 3:
         raise ValueError("Definitive Screening Designs require at least 3 factors.")
 
-    # For even k, use a conference matrix of order k (-> 2k + 1 runs).
-    # For odd k, use a conference matrix of order k + 1 and drop the last
-    # column so the design has k factors and 2(k+1) + 1 = 2k + 3 runs.
-    m = k if k % 2 == 0 else k + 1
-    C, construction = _conference_matrix(m)
+    minimal_order = k if k % 2 == 0 else k + 1
+    order = _smallest_constructible_conference_order(minimal_order)
+    conference, construction = _conference_matrix(order)
 
-    zero_row = np.zeros((1, m))
-    coded_matrix = np.vstack([C, -C, zero_row])
-
-    if k % 2 == 1:
+    zero_row = np.zeros((1, order))
+    coded_matrix = np.vstack([conference, -conference, zero_row])
+    if order > k:
         coded_matrix = coded_matrix[:, :k]
 
-    return coded_matrix, {"construction": construction}
+    meta = {"construction": construction, "conference_order": order}
+    if order > minimal_order:
+        meta["minimal_conference_order"] = minimal_order
+        logger.info(
+            "No conference matrix of order %d exists, so the definitive screening design for %d factors "
+            "uses order %d instead: %d runs rather than the %d a minimal design would need.",
+            minimal_order,
+            k,
+            order,
+            2 * order + 1,
+            2 * minimal_order + 1,
+        )
+
+    return coded_matrix, meta
 
 
 def _is_prime(n: int) -> bool:
@@ -363,18 +386,173 @@ def _is_prime(n: int) -> bool:
     return True
 
 
-def _paley_conference_matrix(q: int) -> np.ndarray:
-    """Build a conference matrix of order ``q + 1`` via Paley's construction.
-
-    Requires *q* to be an odd prime.  Works for both ``q ≡ 1 (mod 4)``
-    (symmetric conference matrix, "Paley type II") and ``q ≡ 3 (mod 4)``
-    (skew-symmetric conference matrix, "Paley type I").  In both cases
-    ``C.T @ C == q * I``.
+def _prime_power_factorization(q: int) -> tuple[int, int] | None:
+    """Factor *q* as ``p ** n`` for a prime *p*, or return None.
 
     Parameters
     ----------
     q : int
-        An odd prime.
+        The integer to factor.
+
+    Returns
+    -------
+    tuple[int, int] or None
+        ``(p, n)`` with ``p ** n == q``, or None when *q* is not a prime power
+        (including ``q < 2``).
+    """
+    if q < 2:
+        return None
+    smallest_divisor = next(d for d in range(2, q + 1) if q % d == 0)
+    exponent, remaining = 0, q
+    while remaining % smallest_divisor == 0:
+        remaining //= smallest_divisor
+        exponent += 1
+    return (smallest_divisor, exponent) if remaining == 1 else None
+
+
+def _monic_polynomials(degree: int, p: int) -> list[list[int]]:
+    """Enumerate every monic polynomial of the given *degree* over GF(*p*).
+
+    Polynomials are coefficient lists in ascending degree order, so
+    ``[2, 0, 1]`` is ``x**2 + 2``.
+    """
+    polynomials = []
+    for index in range(p**degree):
+        coefficients, remaining = [], index
+        for _ in range(degree):
+            coefficients.append(remaining % p)
+            remaining //= p
+        polynomials.append([*coefficients, 1])
+    return polynomials
+
+
+def _polynomial_remainder(dividend: list[int], divisor: list[int], p: int) -> list[int]:
+    """Remainder of *dividend* divided by the monic *divisor*, over GF(*p*).
+
+    Both arguments are coefficient lists in ascending degree order.  The result
+    is padded to exactly ``len(divisor) - 1`` coefficients.
+    """
+    remainder = [c % p for c in dividend]
+    degree = len(divisor) - 1
+    for i in range(len(remainder) - 1, degree - 1, -1):
+        coefficient = remainder[i]
+        if coefficient:
+            for j in range(degree + 1):
+                remainder[i - degree + j] = (remainder[i - degree + j] - coefficient * divisor[j]) % p
+    remainder = remainder[:degree]
+    return remainder + [0] * (degree - len(remainder))
+
+
+def _is_irreducible(polynomial: list[int], p: int) -> bool:
+    """Return True iff the monic *polynomial* is irreducible over GF(*p*).
+
+    Uses trial division by every monic polynomial of degree up to half the
+    degree of *polynomial*, which is inexpensive at the field sizes needed
+    here (``p ** n`` of a few hundred at most).
+    """
+    degree = len(polynomial) - 1
+    for divisor_degree in range(1, degree // 2 + 1):
+        for divisor in _monic_polynomials(divisor_degree, p):
+            if not any(_polynomial_remainder(polynomial, divisor, p)):
+                return False
+    return True
+
+
+def _irreducible_polynomial(p: int, n: int) -> list[int]:
+    """Return the first monic irreducible polynomial of degree *n* over GF(*p*)."""
+    for candidate in _monic_polynomials(n, p):
+        if _is_irreducible(candidate, p):
+            return candidate
+    raise ValueError(f"No irreducible polynomial of degree {n} found over GF({p}).")
+
+
+def _decode_field_element(element: int, p: int, n: int) -> list[int]:
+    """Expand the integer label of a GF(``p ** n``) element into its coefficients."""
+    coefficients, remaining = [], element
+    for _ in range(n):
+        coefficients.append(remaining % p)
+        remaining //= p
+    return coefficients
+
+
+def _encode_field_element(coefficients: list[int], p: int) -> int:
+    """Collapse GF(``p ** n``) coefficients back into an integer label."""
+    return sum(c * p**i for i, c in enumerate(coefficients))
+
+
+def _gf_multiplication_table(p: int, n: int) -> np.ndarray:
+    """Multiplication table of GF(``p ** n``), indexed by integer element labels.
+
+    Element *e* stands for the polynomial whose base-*p* digits are the
+    coefficients of *e*, taken modulo a fixed irreducible polynomial of degree
+    *n*.  For ``n == 1`` this is ordinary multiplication modulo *p*.
+    """
+    q = p**n
+    if n == 1:
+        return np.outer(np.arange(p), np.arange(p)) % p
+
+    modulus = _irreducible_polynomial(p, n)
+    table = np.zeros((q, q), dtype=int)
+    for a in range(q):
+        left = _decode_field_element(a, p, n)
+        for b in range(a, q):
+            right = _decode_field_element(b, p, n)
+            product = [0] * (2 * n - 1)
+            for i, x in enumerate(left):
+                if x:
+                    for j, y in enumerate(right):
+                        product[i + j] = (product[i + j] + x * y) % p
+            table[a, b] = table[b, a] = _encode_field_element(_polynomial_remainder(product, modulus, p), p)
+    return table
+
+
+def _gf_subtraction_table(p: int, n: int) -> np.ndarray:
+    """Subtraction table of GF(``p ** n``): entry ``[a, b]`` is ``a - b``.
+
+    Addition in GF(``p ** n``) is coefficient-wise modulo *p*, independent of
+    the choice of irreducible polynomial.
+    """
+    q = p**n
+    table = np.zeros((q, q), dtype=int)
+    for a in range(q):
+        left = _decode_field_element(a, p, n)
+        for b in range(q):
+            right = _decode_field_element(b, p, n)
+            table[a, b] = _encode_field_element([(x - y) % p for x, y in zip(left, right, strict=True)], p)
+    return table
+
+
+def _quadratic_character(p: int, n: int) -> np.ndarray:
+    """Legendre symbol on GF(``p ** n``): 0 at zero, +1 on squares, -1 otherwise."""
+    q = p**n
+    multiplication = _gf_multiplication_table(p, n)
+    squares = {int(multiplication[x, x]) for x in range(1, q)}
+    character = np.full(q, -1, dtype=int)
+    character[0] = 0
+    for square in squares:
+        character[square] = 1
+    return character
+
+
+def _paley_conference_matrix(q: int) -> np.ndarray:
+    """Build a conference matrix of order ``q + 1`` via Paley's construction.
+
+    Requires *q* to be an odd prime power, which covers both ``q ≡ 1 (mod 4)``
+    (symmetric conference matrix, "Paley type II") and ``q ≡ 3 (mod 4)``
+    (skew-symmetric conference matrix, "Paley type I").  In both cases the
+    result satisfies ``C.T @ C == q * I``.
+
+    Prime powers with exponent above one (9, 25, 27, 49, ...) need arithmetic
+    in GF(``p ** n``) rather than integers modulo *q*; the field is built from
+    the first monic irreducible polynomial of the required degree.  These are
+    the orders that make the difference for a DSD: without GF(9), GF(25) and
+    GF(27) there is no minimal construction for 9, 10, 25, 26, 27 or 28
+    factors.
+
+    Parameters
+    ----------
+    q : int
+        An odd prime power.
 
     Returns
     -------
@@ -382,81 +560,212 @@ def _paley_conference_matrix(q: int) -> np.ndarray:
         ``(q + 1) x (q + 1)`` matrix with 0s on the diagonal and ±1
         off-diagonal.
     """
-    # Legendre symbol χ : GF(q) -> {-1, 0, 1}
-    quadratic_residues = {(x * x) % q for x in range(1, q)}
-    chi = np.zeros(q, dtype=int)
-    for x in range(1, q):
-        chi[x] = 1 if x in quadratic_residues else -1
+    factorization = _prime_power_factorization(q)
+    if factorization is None or q < 3 or q % 2 == 0:
+        raise ValueError(f"Paley's construction needs an odd prime power; got q={q}.")
+    p, n = factorization
 
-    # Jacobsthal matrix Q[a, b] = χ(b - a)
-    q_matrix = np.zeros((q, q), dtype=int)
-    for a in range(q):
-        for b in range(q):
-            q_matrix[a, b] = chi[(b - a) % q]
+    character = _quadratic_character(p, n)
+    subtraction = _gf_subtraction_table(p, n)
 
-    n = q + 1
-    c_matrix = np.zeros((n, n), dtype=int)
-    c_matrix[0, 1:] = 1
+    # Jacobsthal matrix Q[a, b] = chi(b - a), where the subtraction is in the field.
+    jacobsthal = character[subtraction.T]
+
+    size = q + 1
+    matrix = np.zeros((size, size), dtype=int)
+    matrix[0, 1:] = 1
     if q % 4 == 1:
         # Symmetric Paley conference matrix.
-        c_matrix[1:, 0] = 1
+        matrix[1:, 0] = 1
     else:
         # Skew-symmetric Paley conference matrix (q ≡ 3 mod 4).
-        c_matrix[1:, 0] = -1
-    c_matrix[1:, 1:] = q_matrix
-    return c_matrix
+        matrix[1:, 0] = -1
+    matrix[1:, 1:] = jacobsthal
+    return matrix
 
 
-def _cyclic_conference_matrix(k: int) -> np.ndarray:
-    """Legacy cyclic approximation of a conference matrix.
+# Conference matrix of order 16.  15 is not a prime power, so Paley's
+# construction does not reach this order, and it is the only order below 22
+# that needs a table.  Taken from the conference-matrix catalogue of Xiao, Lin
+# & Bai (2012), by way of Jacob Albrecht's BSD-3-licensed MATLAB port of the
+# JMP add-in (Bristol-Myers Squibb, 2015) and its Python translation by Daniele
+# Ongari in the `definitive_screening_design` package (MIT-spirited, same
+# BSD-3 header retained).  Verified here against C.T @ C == 15 * I before use.
+_CONFERENCE_MATRIX_16 = np.array(
+    [
+        [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        [-1, 0, 1, 1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, -1, -1],
+        [-1, -1, 0, 1, 1, -1, 1, -1, 1, -1, -1, 1, 1, -1, 1, -1],
+        [-1, -1, -1, 0, 1, 1, -1, 1, 1, -1, -1, -1, 1, 1, -1, 1],
+        [-1, 1, -1, -1, 0, 1, 1, -1, 1, 1, -1, -1, -1, 1, 1, -1],
+        [-1, -1, 1, -1, -1, 0, 1, 1, 1, -1, 1, -1, -1, -1, 1, 1],
+        [-1, 1, -1, 1, -1, -1, 0, 1, 1, 1, -1, 1, -1, -1, -1, 1],
+        [-1, 1, 1, -1, 1, -1, -1, 0, 1, 1, 1, -1, 1, -1, -1, -1],
+        [-1, -1, -1, -1, -1, -1, -1, -1, 0, 1, 1, 1, 1, 1, 1, 1],
+        [-1, 1, 1, 1, -1, 1, -1, -1, -1, 0, -1, -1, 1, -1, 1, 1],
+        [-1, -1, 1, 1, 1, -1, 1, -1, -1, 1, 0, -1, -1, 1, -1, 1],
+        [-1, -1, -1, 1, 1, 1, -1, 1, -1, 1, 1, 0, -1, -1, 1, -1],
+        [-1, 1, -1, -1, 1, 1, 1, -1, -1, -1, 1, 1, 0, -1, -1, 1],
+        [-1, -1, 1, -1, -1, 1, 1, 1, -1, 1, -1, 1, 1, 0, -1, -1],
+        [-1, 1, -1, 1, -1, -1, 1, 1, -1, -1, 1, -1, 1, 1, 0, -1],
+        [-1, 1, 1, -1, 1, -1, -1, 1, -1, -1, -1, 1, -1, 1, 1, 0],
+    ]
+)
 
-    Does **not** satisfy ``C.T @ C == (k - 1) * I`` in general; used only as
-    a fallback when no Paley construction is available for the requested
-    order.
+_TABULATED_CONFERENCE_MATRICES: dict[int, np.ndarray] = {16: _CONFERENCE_MATRIX_16}
+
+# Upper bound on the conference-matrix order the search will consider.  A DSD
+# of order 200 already needs 401 runs, well past any practical screening study.
+_MAX_CONFERENCE_ORDER = 200
+
+
+def _validate_conference_matrix(matrix: np.ndarray, order: int) -> None:
+    """Check the defining property ``C.T @ C == (m - 1) * I`` of a conference matrix.
+
+    Raises
+    ------
+    ValueError
+        If the matrix is the wrong shape, has a non-zero diagonal, holds values
+        other than 0 and ±1, or fails the orthogonality identity.  A tabulated
+        matrix with a single mistyped entry fails here rather than silently
+        producing a design with correlated main effects.
     """
-    c_matrix = np.zeros((k, k))
-    half = (k - 1) // 2
-    sequence = [1] * half + [-1] * (k - 1 - half)
-    for i in range(k):
-        for j in range(k):
-            if i != j:
-                idx = (j - i - 1) % (k - 1) if j > i else (j - i) % (k - 1)
-                c_matrix[i, j] = sequence[idx]
-    return c_matrix
+    if matrix.shape != (order, order):
+        raise ValueError(f"Conference matrix of order {order} has shape {matrix.shape}.")
+    if np.any(np.diag(matrix) != 0):
+        raise ValueError(f"Conference matrix of order {order} has a non-zero diagonal.")
+    if not np.all(np.isin(matrix, (-1, 0, 1))):
+        raise ValueError(f"Conference matrix of order {order} holds values outside {{-1, 0, +1}}.")
+    expected = (order - 1) * np.eye(order)
+    if not np.allclose(matrix.T @ matrix, expected, atol=1e-9):
+        raise ValueError(
+            f"Conference matrix of order {order} fails C.T @ C == {order - 1} * I; "
+            "the design built from it would not be a definitive screening design."
+        )
 
 
 def _conference_matrix(m: int) -> tuple[np.ndarray, str]:
     """Construct an ``m x m`` conference matrix.
 
-    Uses Paley's construction when ``m - 1`` is an odd prime (covering
-    ``m ∈ {4, 6, 8, 12, 14, 18, 20, 24, 30, 32, 38, 42, 44, 48, 54, 60, 62,
-    68, 72, 74, 80, 84, 90, 98, ...}``), which returns a genuine conference
-    matrix with ``C.T @ C == (m - 1) * I``.  For other orders (e.g.
-    ``m ∈ {10, 16, 22, 26, 28, 34, 36, 40, ...}``) no Paley construction
-    with a prime *q* is available; the function falls back to a cyclic
-    approximation and logs a warning.
+    Two constructions are available.  Paley's covers every even order *m* whose
+    predecessor ``m - 1`` is an odd prime power, which is most of them.  A small
+    table covers order 16, the one gap below order 22.
 
     Parameters
     ----------
     m : int
-        Desired order of the conference matrix.
+        Desired (even) order of the conference matrix.
 
     Returns
     -------
     tuple[np.ndarray, str]
         The matrix and a short string identifying the construction used
-        (e.g. ``"paley_q=13"`` or ``"cyclic_fallback"``).
-    """
-    q = m - 1
-    if q >= 3 and q % 2 == 1 and _is_prime(q):
-        return _paley_conference_matrix(q).astype(float), f"paley_q={q}"
+        (``"paley_q=13"``, ``"tabulated_order_16"``).
 
-    logger.warning(
-        "No Paley conference-matrix construction known for order m=%d "
-        "(q = m - 1 = %d is not an odd prime); falling back to a cyclic "
-        "approximation. The resulting DSD's main-effects orthogonality "
-        "may be degraded.",
-        m,
-        q,
+    Raises
+    ------
+    ValueError
+        If *m* is odd, or if no construction is available at that order.  No
+        approximate matrix is ever returned: a design built from one would not
+        have orthogonal main effects, which is the defining property of a DSD.
+    """
+    if m < 2 or m % 2 != 0:
+        raise ValueError(f"A conference matrix has even order of at least 2; got m={m}.")
+
+    q = m - 1
+    factorization = _prime_power_factorization(q)
+    if q >= 3 and factorization is not None:
+        matrix = _paley_conference_matrix(q).astype(float)
+        construction = f"paley_q={q}"
+    elif m in _TABULATED_CONFERENCE_MATRICES:
+        matrix = _TABULATED_CONFERENCE_MATRICES[m].astype(float)
+        construction = f"tabulated_order_{m}"
+    else:
+        raise ValueError(f"No conference-matrix construction is available for order m={m}.")
+
+    _validate_conference_matrix(matrix, m)
+    return matrix, construction
+
+
+def _is_constructible_conference_order(m: int) -> bool:
+    """Return True iff :func:`_conference_matrix` can build order *m*."""
+    if m < 2 or m % 2 != 0:
+        return False
+    q = m - 1
+    return (q >= 3 and _prime_power_factorization(q) is not None) or m in _TABULATED_CONFERENCE_MATRICES
+
+
+def _smallest_constructible_conference_order(minimum_order: int) -> int:
+    """Smallest order at least *minimum_order* for which a conference matrix can be built.
+
+    Parameters
+    ----------
+    minimum_order : int
+        Smallest acceptable (even) order.
+
+    Returns
+    -------
+    int
+        The order that will be used.
+
+    Raises
+    ------
+    ValueError
+        If no order up to ``_MAX_CONFERENCE_ORDER`` can be constructed.
+    """
+    for order in range(minimum_order, _MAX_CONFERENCE_ORDER + 1, 2):
+        if _is_constructible_conference_order(order):
+            return order
+
+    raise ValueError(
+        f"No conference matrix could be constructed with order between {minimum_order} and "
+        f"{_MAX_CONFERENCE_ORDER}; a definitive screening design is not available at this size."
     )
-    return _cyclic_conference_matrix(m), "cyclic_fallback"
+
+
+def dsd_conference_order(n_factors: int) -> int:
+    """Return the order of the conference matrix a DSD for *n_factors* factors is built from.
+
+    Normally ``n_factors`` for an even count and ``n_factors + 1`` for an odd
+    count, but larger when no conference matrix exists at that order (21 and 22
+    factors, for instance, need order 24 rather than 22).
+
+    Parameters
+    ----------
+    n_factors : int
+        Number of factors, at least three.
+
+    Returns
+    -------
+    int
+        The conference-matrix order.
+    """
+    if n_factors < 3:
+        raise ValueError("Definitive Screening Designs require at least 3 factors.")
+    return _smallest_constructible_conference_order(n_factors if n_factors % 2 == 0 else n_factors + 1)
+
+
+def dsd_run_count(n_factors: int) -> int:
+    """Return the number of runs in the definitive screening design for *n_factors* factors.
+
+    This is ``2m + 1`` for the conference-matrix order *m* returned by
+    :func:`dsd_conference_order`, which equals the familiar ``2k + 1`` (even
+    *k*) or ``2k + 3`` (odd *k*) except at the factor counts where the minimal
+    conference matrix does not exist.
+
+    Parameters
+    ----------
+    n_factors : int
+        Number of factors, at least three.
+
+    Returns
+    -------
+    int
+        Run count, including the design's single centre run.
+
+    Examples
+    --------
+    >>> dsd_run_count(6), dsd_run_count(7), dsd_run_count(22)
+    (13, 17, 49)
+    """
+    return 2 * dsd_conference_order(n_factors) + 1
