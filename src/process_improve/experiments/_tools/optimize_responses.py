@@ -76,10 +76,31 @@ class OptimizeResponsesInput(BaseModel):
         lt=1.0,
         description="Alpha for intervals reported at the optimum (default 0.05, giving 95% intervals).",
     )
+    search_bounds: list[float] | dict[str, list[float]] | None = Field(
+        None,
+        description=(
+            "Coded region to search, as [low, high] applied to every factor, or a mapping from factor "
+            "name to its own [low, high]. Defaults to the factorial cube, [-1, 1]. That default suits a "
+            "two-level design but understates a central composite design, whose axial runs sit at plus "
+            "or minus alpha: pass [-1.41, 1.41] for a two-factor rotatable central composite design so "
+            "the search covers the region the experiment actually explored."
+        ),
+    )
     desirability_weights: list[float] | None = Field(
         None,
         description="Deprecated alias for 'response_importance'. Use 'response_importance' instead.",
     )
+
+
+def _as_bounds(
+    raw: list[float] | dict[str, list[float]] | None,
+) -> tuple[float, float] | dict[str, tuple[float, float]] | None:
+    """Convert the JSON-friendly list form into the tuples the library expects."""
+    if raw is None:
+        return None
+    if isinstance(raw, dict):
+        return {name: (float(pair[0]), float(pair[1])) for name, pair in raw.items()}
+    return (float(raw[0]), float(raw[1]))
 
 
 @tool_spec(
@@ -141,6 +162,7 @@ def optimize_responses_tool(spec: OptimizeResponsesInput) -> dict[str, Any]:
             n_steps=spec.n_steps,
             response_importance=spec.response_importance,
             significance_level=spec.significance_level,
+            search_bounds=_as_bounds(spec.search_bounds),
             desirability_weights=spec.desirability_weights,
         )
         return clean(result)

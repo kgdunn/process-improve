@@ -823,6 +823,118 @@ class TestIntervalsAtOptimum:
             )
 
 
+class TestSearchBounds:
+    """The searched region defaults to the cube, but need not be the cube.
+
+    A two-level design covers the factorial cube, so (-1, 1) is right for it.
+    A central composite design reaches further: its axial runs sit at plus or
+    minus alpha. Searching only the cube there refuses to consider settings the
+    experiment actually covered.
+    """
+
+    @staticmethod
+    def _rising_plane() -> dict:
+        """Return a plane rising with A, so the optimum sits at the upper bound."""
+        return {
+            "response_name": "y",
+            "coefficients": [{"term": "Intercept", "coefficient": 0.0}, {"term": "A", "coefficient": 1.0}],
+            "factor_names": ["A", "B"],
+        }
+
+    @staticmethod
+    def _goals() -> list[dict]:
+        return [{"response": "y", "goal": "maximize", "low": -2.0, "high": 2.0}]
+
+    def test_default_is_the_factorial_cube(self) -> None:
+        """Unchanged behaviour when nothing is passed."""
+        out = optimize_responses([self._rising_plane()], goals=self._goals(), method="desirability")
+        assert out["desirability"]["optimal_coded"]["A"] == pytest.approx(1.0, abs=1e-4)
+
+    def test_widening_the_region_moves_the_optimum_out(self) -> None:
+        """A central composite design's axial reach is searchable."""
+        out = optimize_responses(
+            [self._rising_plane()],
+            goals=self._goals(),
+            method="desirability",
+            search_bounds=(-1.41, 1.41),
+        )
+        assert out["desirability"]["optimal_coded"]["A"] == pytest.approx(1.41, abs=1e-4)
+
+    def test_per_factor_bounds(self) -> None:
+        """One factor can be widened without widening the others."""
+        model = {
+            "response_name": "y",
+            "coefficients": [
+                {"term": "Intercept", "coefficient": 0.0},
+                {"term": "A", "coefficient": 1.0},
+                {"term": "B", "coefficient": 1.0},
+            ],
+            "factor_names": ["A", "B"],
+        }
+        # The ramp is deliberately wider than the region can reach, so the
+        # desirability never saturates and the optimum stays unique.
+        goals = [{"response": "y", "goal": "maximize", "low": -5.0, "high": 5.0}]
+        out = optimize_responses(
+            [model], goals=goals, method="desirability", search_bounds={"A": (-1.41, 1.41)}
+        )
+        coded = out["desirability"]["optimal_coded"]
+        assert coded["A"] == pytest.approx(1.41, abs=1e-4)
+        assert coded["B"] == pytest.approx(1.0, abs=1e-4)
+
+    def test_stationary_point_region_test_respects_the_bounds(self) -> None:
+        """A point outside the cube can still be inside a composite design's region.
+
+        The quadratic below has its maximum at A = 1.2, which is outside the
+        factorial cube but well within the axial reach of a rotatable
+        two-factor central composite design.
+        """
+        model = {
+            "response_name": "y",
+            "coefficients": [
+                {"term": "Intercept", "coefficient": 0.0},
+                {"term": "A", "coefficient": 2.4},
+                {"term": "B", "coefficient": 0.0},
+                {"term": "I(A ** 2)", "coefficient": -1.0},
+                {"term": "I(B ** 2)", "coefficient": -1.0},
+            ],
+            "factor_names": ["A", "B"],
+        }
+        cube = optimize_responses([model], method="stationary_point")["stationary_point"]
+        assert cube["stationary_point_coded"]["A"] == pytest.approx(1.2, abs=1e-6)
+        assert cube["inside_design_space"] is False
+
+        composite = optimize_responses(
+            [model], method="stationary_point", search_bounds=(-1.41, 1.41)
+        )["stationary_point"]
+        assert composite["inside_design_space"] is True
+
+    @pytest.mark.parametrize(
+        ("bad", "match"),
+        [
+            ((1.0, -1.0), "low < high"),
+            ((0.0, 0.0), "low < high"),
+            ((float("-inf"), 1.0), "finite"),
+            ((1.0,), "pair of numbers"),
+            ("wide", "pair of numbers"),
+        ],
+    )
+    def test_malformed_bounds_are_rejected(self, bad: object, match: str) -> None:
+        with pytest.raises(ValueError, match=match):
+            optimize_responses(
+                [self._rising_plane()], goals=self._goals(), method="desirability", search_bounds=bad
+            )
+
+    def test_unknown_factor_in_bounds_is_rejected(self) -> None:
+        """A typo in a factor name would otherwise be silently ignored."""
+        with pytest.raises(ValueError, match="unknown factor"):
+            optimize_responses(
+                [self._rising_plane()],
+                goals=self._goals(),
+                method="desirability",
+                search_bounds={"Temperature": (-2.0, 2.0)},
+            )
+
+
 # ---------------------------------------------------------------------------
 # Stubs
 # ---------------------------------------------------------------------------

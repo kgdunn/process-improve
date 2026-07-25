@@ -26,6 +26,14 @@ those changes.
 - `process_improve.experiments._desirability`, one shared implementation of the
   Derringer-Suich functions, replacing two copies that had drifted apart. Target goals
   now accept a separate `weight_high` for the falling side.
+- `optimize_responses(..., search_bounds=...)` sets the coded region to search, and the
+  region against which a stationary point is judged inside or outside. It accepts one
+  `(low, high)` pair for every factor, or a mapping for per-factor control. The previous
+  behaviour was hard-coded to the factorial cube, which suits a two-level design but
+  understates a central composite design, whose axial runs sit at plus or minus alpha:
+  the optimizer could not consider settings the experiment had actually covered, and
+  `inside_design_space` could report a legitimately explored point as outside. The
+  default is unchanged at `(-1, 1)`.
 
 ### Changed
 

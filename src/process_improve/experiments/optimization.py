@@ -27,7 +27,7 @@ from __future__ import annotations
 import logging
 import re
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import numpy as np
@@ -222,6 +222,7 @@ def _find_stationary_point(
     coefficients: list[dict[str, Any]],
     factor_names: list[str],
     factor_ranges: dict[str, dict[str, float]] | None = None,
+    search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
 ) -> dict[str, Any]:
     """Find the stationary point of a second-order response surface model.
 
@@ -267,8 +268,13 @@ def _find_stationary_point(
     else:
         classification = "saddle_point"
 
-    # Check if stationary point is inside the design space (coded [-1, 1])
-    inside_design_space = bool(np.all(np.abs(x_s) <= 1.0))
+    # Is the stationary point inside the region the experiment covered? The
+    # default region is the factorial cube; a central composite design reaches
+    # further, so its axial distance can be supplied via search_bounds.
+    region = _resolve_search_bounds(search_bounds, factor_names)
+    inside_design_space = bool(
+        all(low <= value <= high for value, (low, high) in zip(x_s, region, strict=True))
+    )
 
     result: dict[str, Any] = {
         "stationary_point_coded": {n: float(x_s[i]) for i, n in enumerate(factor_names)},
@@ -441,6 +447,70 @@ def _steepest_path(  # noqa: PLR0913
     }
 
 
+def _resolve_search_bounds(
+    search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None,
+    factor_names: list[str],
+) -> list[tuple[float, float]]:
+    """Return per-factor coded bounds for the region to search.
+
+    The default of (-1, 1) is the factorial cube, which is the right region for
+    a two-level design. It is not the right region for a central composite
+    design, whose axial runs sit at plus or minus alpha: restricting the search
+    to the cube there would refuse to consider settings the experiment actually
+    covered. Pass the design's axial distance to search the whole region.
+
+    Parameters
+    ----------
+    search_bounds : tuple, dict, or None
+        A single ``(low, high)`` pair applied to every factor, or a mapping from
+        factor name to its own pair. Factors absent from the mapping fall back to
+        (-1, 1). ``None`` means (-1, 1) throughout.
+    factor_names : list[str]
+        Ordered factor names.
+
+    Returns
+    -------
+    list[tuple[float, float]]
+        One ``(low, high)`` pair per factor, in *factor_names* order.
+
+    Raises
+    ------
+    ValueError
+        If a pair is malformed, non-finite, or has low >= high, or if the
+        mapping names a factor the model does not have.
+    """
+    default = (-1.0, 1.0)
+
+    def _check(pair: Sequence[float], where: str) -> tuple[float, float]:
+        try:
+            low, high = (float(pair[0]), float(pair[1]))
+        except (TypeError, ValueError, IndexError, KeyError) as exc:
+            msg = f"search_bounds{where} must be a (low, high) pair of numbers; got {pair!r}."
+            raise ValueError(msg) from exc
+        if not (np.isfinite(low) and np.isfinite(high)):
+            msg = f"search_bounds{where} must be finite; got ({low}, {high})."
+            raise ValueError(msg)
+        if low >= high:
+            msg = f"search_bounds{where} must have low < high; got ({low}, {high})."
+            raise ValueError(msg)
+        return low, high
+
+    if search_bounds is None:
+        return [default] * len(factor_names)
+
+    if isinstance(search_bounds, dict):
+        unknown = set(search_bounds) - set(factor_names)
+        if unknown:
+            msg = f"search_bounds names unknown factor(s) {sorted(unknown)}; the model has {factor_names}."
+            raise ValueError(msg)
+        return [
+            _check(search_bounds[name], f"[{name!r}]") if name in search_bounds else default
+            for name in factor_names
+        ]
+
+    return [_check(search_bounds, "")] * len(factor_names)
+
+
 def _align_goals_to_models(
     fitted_models: list[dict[str, Any]],
     goals: list[dict[str, Any]],
@@ -506,6 +576,7 @@ def _optimize_desirability(  # noqa: PLR0913
     factor_ranges: dict[str, dict[str, float]] | None = None,
     importances: list[float] | None = None,
     random_state: int | np.random.Generator | None = 42,
+    search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
 ) -> dict[str, Any]:
     """Optimise composite desirability using scipy SLSQP.
 
@@ -523,6 +594,8 @@ def _optimize_desirability(  # noqa: PLR0913
     importances : list[float] or None
         Relative importance of each response in the composite. This is not the
         same as a goal's ``weight``, which shapes that response's own ramp.
+    search_bounds : tuple, dict, or None
+        Coded region to search. Defaults to the factorial cube, (-1, 1).
 
     Returns
     -------
@@ -542,8 +615,9 @@ def _optimize_desirability(  # noqa: PLR0913
             d_vals.append(d)
         return -composite_desirability(d_vals, importances)
 
-    k = len(factor_names)
-    bounds = [(-1.0, 1.0)] * k
+    bounds = _resolve_search_bounds(search_bounds, factor_names)
+    lows = np.array([b[0] for b in bounds])
+    highs = np.array([b[1] for b in bounds])
 
     # Multi-start: try centre + random points.
     # SEC-33 (#282): the hard-coded ``42`` moved to the public signature
@@ -555,7 +629,10 @@ def _optimize_desirability(  # noqa: PLR0913
     best_result = None
     best_value = np.inf
 
-    starting_points = [np.zeros(k), *[rng.uniform(-1, 1, size=k) for _ in range(9)]]
+    # Start from the centre of the searched region, then sample across it, so
+    # that widening the bounds actually widens where the search looks.
+    centre = (lows + highs) / 2.0
+    starting_points = [centre, *[rng.uniform(lows, highs) for _ in range(9)]]
 
     for x0 in starting_points:
         res = optimize.minimize(neg_composite, x0, method="SLSQP", bounds=bounds)
@@ -753,6 +830,7 @@ def _desirability_result(  # noqa: PLR0913
     response_importance: list[float] | None,
     fitted_results: list[Any] | None,
     significance_level: float,
+    search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
 ) -> dict[str, Any]:
     """Assemble the full desirability result: optimum, intervals, and plot input.
 
@@ -770,7 +848,9 @@ def _desirability_result(  # noqa: PLR0913
     if importances is None:
         importances = [g.get("importance", 1.0) for g in aligned_goals]
 
-    desirability = _optimize_desirability(fitted_models, aligned_goals, factor_names, factor_ranges, importances)
+    desirability = _optimize_desirability(
+        fitted_models, aligned_goals, factor_names, factor_ranges, importances, search_bounds=search_bounds
+    )
 
     if fitted_results is not None:
         desirability["response_intervals"] = _intervals_at_point(
@@ -799,6 +879,7 @@ def optimize_responses(  # noqa: PLR0913, C901
     response_importance: list[float] | None = None,
     fitted_results: list[Any] | None = None,
     significance_level: float = 0.05,
+    search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
     desirability_weights: list[float] | None = None,
 ) -> dict[str, Any]:
     """Find optimal factor settings for one or multiple responses.
@@ -862,6 +943,18 @@ def optimize_responses(  # noqa: PLR0913, C901
         optimum is located in coded units.
     significance_level : float
         Alpha for those intervals. The default of 0.05 gives 95% intervals.
+    search_bounds : tuple, dict, or None
+        The coded region to search, and the region against which a stationary
+        point is judged inside or outside. Defaults to the factorial cube,
+        ``(-1, 1)`` on every factor.
+
+        That default suits a two-level design but understates a central
+        composite design, whose axial runs sit at plus or minus alpha: leaving
+        it at the cube would refuse to consider settings the experiment
+        actually covered. Pass ``(-1.41, 1.41)`` for a two-factor rotatable
+        central composite design, or a mapping such as
+        ``{"T": (-1.41, 1.41)}`` to widen one factor only. Factors left out of
+        a mapping keep the (-1, 1) default.
     desirability_weights : list[float] or None
         Deprecated alias for *response_importance*. The name was misleading:
         these values are importances, not the ``weight`` that shapes an
@@ -935,12 +1028,16 @@ def optimize_responses(  # noqa: PLR0913, C901
     result: dict[str, Any] = {"method": method, "factor_names": factor_names}
 
     if method == "stationary_point":
-        result["stationary_point"] = _find_stationary_point(coefficients, factor_names, factor_ranges)
+        result["stationary_point"] = _find_stationary_point(
+            coefficients, factor_names, factor_ranges, search_bounds
+        )
 
     elif method == "canonical_analysis":
         result["canonical_analysis"] = _canonical_analysis(coefficients, factor_names)
         # Also include the stationary point for context
-        result["stationary_point"] = _find_stationary_point(coefficients, factor_names, factor_ranges)
+        result["stationary_point"] = _find_stationary_point(
+            coefficients, factor_names, factor_ranges, search_bounds
+        )
 
     elif method in ("steepest_ascent", "steepest_descent"):
         direction = "ascent" if method == "steepest_ascent" else "descent"
@@ -960,6 +1057,7 @@ def optimize_responses(  # noqa: PLR0913, C901
             response_importance=response_importance,
             fitted_results=fitted_results,
             significance_level=significance_level,
+            search_bounds=search_bounds,
         )
 
     elif method == "ridge_analysis":
