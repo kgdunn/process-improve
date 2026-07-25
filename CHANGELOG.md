@@ -45,6 +45,10 @@ those changes.
 - `matrix_to_columns` now maps a numerically coded categorical column onto its level
   labels. Design families differ in what they return for a categorical factor: the
   optimal designs already produce labels, which continue to pass straight through.
+- `generate_design(..., design_type="taguchi")` with a categorical factor raised
+  `ValueError: All values must be present in 'levels'`. `dispatch_taguchi` codes a
+  categorical factor as level indices `0..n-1`, and those indices were handed to the
+  `Column` constructor without substituting the labels. Fixed by the same mapping.
 
 ## [1.60.1] - 2026-07-25
 

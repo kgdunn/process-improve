@@ -397,3 +397,83 @@ class TestGenerateDesignIntegration:
         ]
         with pytest.raises(ValueError, match="two-level categorical factors only"):
             generate_design(factors, design_type="dsd")
+
+
+class TestManyCategoricalFactors:
+    """Beyond seven categorical factors the exhaustive sign search gives way to a heuristic."""
+
+    def test_heuristic_search_still_produces_a_valid_design(self) -> None:
+        """2 ** (2c) becomes too many determinants, so the search is seeded and probed.
+
+        The paper switches to a coordinate-exchange algorithm at large c for the
+        same reason.  The design must still be definitive; only optimality of the
+        sign choice is given up.
+        """
+        design, meta = dispatch_dsd(_factors(4, 8), categorical_method="dsd")
+        assert meta["n_categorical"] == 8
+        assert design.shape[1] == 12
+        assert design.shape[0] == dsd_run_count(12, n_categorical=8)
+
+        first_order, _inter, _labels = _model_matrices(design, 4)
+        alias = _alias_matrix(first_order, _second_order(design, 4))
+        assert np.abs(alias[1:, :]).max() < 1e-12  # still definitive
+
+        for column in design[:, 4:].T:
+            assert set(np.unique(column)) == {-1.0, 1.0}
+            assert (column == 1).sum() == (column == -1).sum()
+
+    def test_orth_centre_block_cycles_beyond_four(self) -> None:
+        """The ORTH centre pattern repeats every four columns for c > 4."""
+        design, meta = dispatch_dsd(_factors(4, 6), categorical_method="orth")
+        assert meta["centre_runs"] == 4
+        centre = design[-4:, 4:]
+        assert set(np.unique(centre)) == {-1.0, 1.0}
+        # Each of the four centre runs raises exactly one or two categorical factors.
+        assert all((row == 1).sum() >= 1 for row in centre)
+
+
+class TestCategoricalLabelMapping:
+    """``matrix_to_columns`` translates coded categorical columns into level labels."""
+
+    def test_labels_pass_through_untouched(self) -> None:
+        """Families that already emit labels (the optimal designs) must not be re-mapped."""
+        from process_improve.experiments.designs_utils import matrix_to_columns
+
+        factors = [
+            Factor(name="X1", low=0, high=10),
+            Factor(name="Cat", type="categorical", levels=["red", "blue"]),
+        ]
+        matrix = np.array([[0.0, "red"], [10.0, "blue"]], dtype=object)
+        columns = matrix_to_columns(matrix, factors)
+        assert list(columns[1]) == ["red", "blue"]
+
+    def test_taguchi_with_a_categorical_factor(self) -> None:
+        """Regression: this raised before index-coded categorical columns were mapped.
+
+        ``dispatch_taguchi`` codes a categorical factor as level indices 0..n-1,
+        which the ``Column`` constructor rejected because the labels were never
+        substituted.
+        """
+        factors = [
+            Factor(name="A", low=0, high=1),
+            Factor(name="B", low=0, high=1),
+            Factor(name="Cat", type="categorical", levels=["x", "y"]),
+        ]
+        result = generate_design(factors, design_type="taguchi", center_points=0)
+        assert set(result.design_actual["Cat"].unique()) == {"x", "y"}
+
+    def test_three_level_categorical_indices_are_mapped(self) -> None:
+        """The index branch is not limited to two levels."""
+        from process_improve.experiments.designs_utils import matrix_to_columns
+
+        factors = [Factor(name="Cat", type="categorical", levels=["a", "b", "c"])]
+        columns = matrix_to_columns(np.array([[0.0], [2.0], [1.0], [0.0]]), factors)
+        assert list(columns[0]) == ["a", "c", "b", "a"]
+
+    def test_unrecognised_numeric_coding_is_left_for_the_column_to_reject(self) -> None:
+        """A coding that matches neither convention must not be silently reinterpreted."""
+        from process_improve.experiments.designs_utils import matrix_to_columns
+
+        factors = [Factor(name="Cat", type="categorical", levels=["a", "b"])]
+        with pytest.raises(ValueError, match="All values must be present in `levels`"):
+            matrix_to_columns(np.array([[7.0], [9.0]]), factors)

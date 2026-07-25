@@ -576,22 +576,6 @@ def _categorical_sign_candidates(n_categorical: int) -> Iterator[np.ndarray]:
         yield flipped
 
 
-def _is_prime(n: int) -> bool:
-    """Return True iff *n* is a (positive) prime."""
-    if n < 2:
-        return False
-    if n < 4:
-        return True
-    if n % 2 == 0:
-        return False
-    i = 3
-    while i * i <= n:
-        if n % i == 0:
-            return False
-        i += 2
-    return True
-
-
 def _prime_power_factorization(q: int) -> tuple[int, int] | None:
     """Factor *q* as ``p ** n`` for a prime *p*, or return None.
 
