@@ -6,6 +6,11 @@ from process_improve.experiments.designs import generate_design
 from process_improve.experiments.designs_factorial import full_factorial
 from process_improve.experiments.designs_omars import is_omars, omars_properties
 from process_improve.experiments.designs_omars_ilp import generate_omars
+from process_improve.experiments.designs_response_surface import (
+    dsd_centre_runs,
+    dsd_conference_order,
+    dsd_run_count,
+)
 from process_improve.experiments.evaluate import evaluate_all, evaluate_design
 from process_improve.experiments.factor import Constraint, DesignResult, Factor, Response, ResponseGoal
 from process_improve.experiments.knowledge import doe_knowledge
@@ -38,6 +43,9 @@ __all__ = [
     "augment_design",
     "c",
     "doe_knowledge",
+    "dsd_centre_runs",
+    "dsd_conference_order",
+    "dsd_run_count",
     "evaluate_all",
     "evaluate_design",
     "expand_grid",

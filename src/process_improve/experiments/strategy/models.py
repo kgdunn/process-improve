@@ -224,6 +224,16 @@ class DOEProblemSpec(BaseModel):
         return sum(1 for f in self.factors if f.type.value == "categorical")
 
     @property
+    def n_two_level_categorical(self) -> int:
+        """Number of categorical factors with exactly two levels.
+
+        Only these can enter a definitive screening design (Jones and
+        Nachtsheim, 2013), so run-size estimates for that family key off this
+        count rather than :attr:`n_categorical`.
+        """
+        return sum(1 for f in self.factors if f.type.value == "categorical" and len(f.levels or []) == 2)
+
+    @property
     def n_mixture(self) -> int:
         """Number of mixture factors."""
         return sum(1 for f in self.factors if f.type.value == "mixture")

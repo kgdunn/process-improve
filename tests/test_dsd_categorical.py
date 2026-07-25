@@ -500,3 +500,58 @@ class TestOmarsRejectsCategoricalFactors:
     def test_omars_still_works_for_quantitative_factors(self) -> None:
         result = generate_design(_factors(6, 0), design_type="omars", center_points=0)
         assert result.metadata["omars_verified"] is True
+
+
+class TestPlannerAndPublicApi:
+    """The planning helpers, and their exposure on the package."""
+
+    def test_planner_accounts_for_categorical_centre_runs(self) -> None:
+        """estimate_screening_runs must match what generate_design produces.
+
+        Categorical factors add centre runs, so a planner that ignores them
+        under-budgets the study.
+        """
+        from process_improve.experiments.strategy.budget import estimate_screening_runs
+
+        for m, c in [(4, 0), (4, 1), (4, 2), (5, 3), (8, 4)]:
+            for method in ("dsd", "orth"):
+                expected = generate_design(
+                    _factors(m, c), design_type="dsd", center_points=0, categorical_method=method
+                ).n_runs
+                assert (
+                    estimate_screening_runs(m + c, "definitive_screening", n_categorical=c, categorical_method=method)
+                    == expected
+                ), f"m={m} c={c} {method}"
+
+    def test_planner_defaults_are_unchanged_for_continuous_designs(self) -> None:
+        from process_improve.experiments.strategy.budget import estimate_screening_runs
+
+        assert estimate_screening_runs(7, "definitive_screening") == 17
+        assert estimate_screening_runs(8, "definitive_screening") == 17
+        assert estimate_screening_runs(21, "definitive_screening") == 49
+
+    def test_spec_counts_only_two_level_categoricals(self) -> None:
+        """Only two-level categorical factors can enter a DSD, so only they are counted."""
+        from process_improve.experiments.strategy.models import DOEProblemSpec
+
+        spec = DOEProblemSpec(
+            objective="screen",
+            factors=[
+                Factor(name="X1", low=0, high=1),
+                Factor(name="C2", type="categorical", levels=["a", "b"]),
+                Factor(name="C3", type="categorical", levels=["a", "b", "c"]),
+            ],
+            responses=[],
+        )
+        assert spec.n_categorical == 2
+        assert spec.n_two_level_categorical == 1
+
+    def test_sizing_helpers_are_importable_from_the_package(self) -> None:
+        """A user planning a study should not have to reach into a private module."""
+        from process_improve import experiments
+
+        assert experiments.dsd_run_count(7) == 17
+        assert experiments.dsd_conference_order(7) == 8
+        assert experiments.dsd_centre_runs(2, "orth") == 4
+        for name in ("dsd_run_count", "dsd_conference_order", "dsd_centre_runs"):
+            assert name in experiments.__all__

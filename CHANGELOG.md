@@ -35,6 +35,14 @@ those changes.
   be given in any order; the construction needs the categorical columns trailing and
   permutes them back. A categorical factor with three or more levels raises, with the
   message pointing at `design_type="d_optimal"`.
+- `dsd_run_count`, `dsd_conference_order` and `dsd_centre_runs` are exported from
+  `process_improve.experiments`, so a study can be sized without importing from
+  `designs_response_surface` directly.
+- `estimate_screening_runs` takes `n_categorical` and `categorical_method`, so the
+  planner's run estimate for a definitive screening design accounts for the centre runs
+  that categorical factors add rather than under-budgeting by one to three runs. The
+  recommendation engine passes the count of *two-level* categorical factors, which are
+  the only ones a DSD can carry; `DOEProblemSpec.n_two_level_categorical` exposes it.
 - `dsd_centre_runs(n_categorical, categorical_method)` in
   `process_improve.experiments.designs_response_surface`, and `dsd_run_count` now takes
   `n_categorical` and `categorical_method`, so a design's size can still be predicted
