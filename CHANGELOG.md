@@ -53,6 +53,12 @@ those changes.
 
 ### Fixed
 
+- The dataset tests' "skip if offline" guard never fired. `_read_remote_csv` converts
+  network failures into a `RuntimeError` for a readable message, but the test helper
+  caught only `urllib.error.URLError`, `HTTPError` and `OSError`, none of which can
+  escape the loader (`RuntimeError` is not an `OSError`). A remote outage at openmv.net
+  therefore failed the build instead of skipping, which is what the helper and the tests
+  both claimed would happen.
 - `matrix_to_columns` now maps a numerically coded categorical column onto its level
   labels. Design families differ in what they return for a categorical factor: the
   optimal designs already produce labels, which continue to pass straight through.
