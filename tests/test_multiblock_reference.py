@@ -379,25 +379,95 @@ class TestMBPCAAgainstOracle:
             block_spe_sq = model.block_spe_[name].iloc[:, -1].values ** 2
             np.testing.assert_array_almost_equal(row_sums, block_spe_sq, decimal=8)
 
-    def test_score_contributions_to_origin_back_project_correctly(self, synthetic_two_block) -> None:
-        """For ``t_super_end=0`` (the model centre), the per-block score
-        contributions must equal the per-block sums of effective-loading
-        projections of the (negated) super-score row.
+    def test_score_contributions_sum_to_the_super_score(self, synthetic_two_block) -> None:
+        """Summed over every block and variable, the contributions give the super score.
+
+        The super score at component ``a`` is a weighted sum of the block data
+        deflated through the first ``a - 1`` components, so the decomposition
+        has to start from that same deflated data.
         """
         from process_improve.multivariate.methods import MBPCA
 
         x_blocks, _ = synthetic_two_block
         model = MBPCA(n_components=2).fit(x_blocks)
-        t_row = model.super_scores_.iloc[0].values
-        contribs = model.score_contributions(t_row)
-        # Effective per-block reconstruction at the row level: compare manually
-        for b_idx, name in enumerate(model.block_names_):
-            sqrt_kb = float(np.sqrt(model.block_widths_[name]))
-            pb = model.block_loadings_[name].values
-            ps = model.super_loadings_.values[b_idx, :]
-            effective = pb * (ps * sqrt_kb)
-            expected = -t_row @ effective.T  # back-projected variable contributions
-            np.testing.assert_array_almost_equal(contribs[name].values, expected, decimal=10)
+        for a in (1, 2):
+            contribs = model.score_contributions(x_blocks, component=a)
+            total = sum(frame.sum(axis=1) for frame in contribs.values())
+            np.testing.assert_array_almost_equal(
+                total.values, model.super_scores_[a].values, decimal=10
+            )
+
+    def test_group_contributions_sum_to_the_average_super_score(self, synthetic_two_block) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        x_blocks, _ = synthetic_two_block
+        model = MBPCA(n_components=2).fit(x_blocks)
+        index = next(iter(x_blocks.values())).index
+        contribs = model.group_contributions(x_blocks, group=index[:5])
+        total = sum(float(series.sum()) for series in contribs.values())
+        assert total == pytest.approx(model.super_scores_[1].values[:5].mean(), abs=1e-10)
+
+    def test_contribution_guards_and_plain_array_blocks(self, synthetic_two_block) -> None:
+        """Guards mirror MBPLS, and blocks may arrive as plain arrays."""
+        from process_improve.multivariate.methods import MBPCA
+
+        x_blocks, _ = synthetic_two_block
+        model = MBPCA(n_components=2).fit(x_blocks)
+
+        with pytest.raises(ValueError, match="Missing X-blocks"):
+            model.score_contributions({model.block_names_[0]: x_blocks[model.block_names_[0]]})
+        with pytest.raises(ValueError, match="1-based index"):
+            model.score_contributions(x_blocks, component=3)
+
+        # A block given as a bare ndarray is labelled from the fitted columns.
+        as_arrays = {name: block.to_numpy() for name, block in x_blocks.items()}
+        from_arrays = model.score_contributions(as_arrays, component=1)
+        from_frames = model.score_contributions(x_blocks, component=1)
+        for name in model.block_names_:
+            np.testing.assert_array_almost_equal(
+                from_arrays[name].values, from_frames[name].values, decimal=12
+            )
+
+        # The two-period form, against a reference set of observations.
+        index = next(iter(x_blocks.values())).index
+        shift = model.group_contributions(x_blocks, group=index[:5], reference=index[5:10])
+        total = sum(float(series.sum()) for series in shift.values())
+        scores = model.super_scores_[1].values
+        assert total == pytest.approx(scores[:5].mean() - scores[5:10].mean(), abs=1e-10)
+
+    def test_score_contributions_scalings_span_the_blocks(self, synthetic_two_block) -> None:
+        """Both scalings are taken over the blocks jointly, not block by block.
+
+        A super score pools every block, so scaling each block against its own
+        maximum would make bars from different blocks incomparable, which is the
+        one thing a multi-block contribution plot is read for.
+        """
+        from process_improve.multivariate.methods import MBPCA
+
+        x_blocks, _ = synthetic_two_block
+        model = MBPCA(n_components=2).fit(x_blocks)
+        raw = model.score_contributions(x_blocks, component=1)
+
+        largest = model.score_contributions(x_blocks, component=1, scaling="maximum")
+        peak = max(float(np.abs(f.values).max()) for f in largest.values())
+        assert peak == pytest.approx(1.0)
+        # Exactly one block holds the peak: the divisor was shared.
+        peaks = [float(np.abs(f.values).max()) for f in largest.values()]
+        assert sum(p == pytest.approx(1.0) for p in peaks) == 1
+
+        within = model.score_contributions(x_blocks, component=1, scaling="within")
+        row_total = sum(np.abs(f.values).sum(axis=1) for f in within.values())
+        np.testing.assert_array_almost_equal(row_total, np.ones(len(row_total)), decimal=10)
+
+        # Scaling changes the units, not the pattern within a row.
+        for name in model.block_names_:
+            ratio = within[name].values[0] / raw[name].values[0]
+            np.testing.assert_array_almost_equal(ratio, np.full_like(ratio, ratio[0]), decimal=10)
+
+        with pytest.raises(ValueError, match="scaling must be one of"):
+            model.score_contributions(x_blocks, scaling="loud")
+        with pytest.raises(TypeError, match="dict"):
+            model.score_contributions(next(iter(x_blocks.values())))
 
     def test_super_score_and_loadings_plots_return_figures(self, synthetic_two_block) -> None:
         import plotly.graph_objects as go
@@ -1125,35 +1195,85 @@ class TestMBPLSOnLDPE:
             block_spe_sq = model.block_spe_[name].iloc[:, -1].values ** 2
             np.testing.assert_array_almost_equal(row_sums, block_spe_sq, decimal=8)
 
-    def test_score_contributions_to_origin_back_project_correctly(self, ldpe) -> None:
-        """For each per-block contribution Series, manual back-projection
-        through ``w_super[b] * w_b / sqrt(K_b)`` reproduces the result.
-        """
+    def test_score_contributions_sum_to_the_super_score(self, ldpe) -> None:
+        """On the LDPE blocks, contributions decompose the super score exactly."""
         from process_improve.multivariate.methods import MBPLS
 
         x_blocks, y_df = ldpe
         model = MBPLS(n_components=3).fit(x_blocks, y_df)
-        t_row = model.super_scores_.iloc[0].values
-        contribs = model.score_contributions(t_row)
-        for b_idx, name in enumerate(model.block_names_):
-            sqrt_kb = float(np.sqrt(model.block_widths_[name]))
-            wb = model.block_weights_[name].values
-            ws = model.super_weights_.values[b_idx, :]
-            effective = wb * (ws / sqrt_kb)
-            expected = -t_row @ effective.T
-            np.testing.assert_array_almost_equal(contribs[name].values, expected, decimal=10)
+        for a in (1, 2, 3):
+            contribs = model.score_contributions(x_blocks, component=a)
+            total = sum(frame.sum(axis=1) for frame in contribs.values())
+            np.testing.assert_array_almost_equal(
+                total.values, model.super_scores_[a].values, decimal=9
+            )
 
-    def test_score_contributions_subset_of_components(self, ldpe) -> None:
+    def test_score_contributions_differ_between_components(self, ldpe) -> None:
+        """Each component gets its own decomposition; they are not interchangeable."""
         from process_improve.multivariate.methods import MBPLS
 
         x_blocks, y_df = ldpe
         model = MBPLS(n_components=3).fit(x_blocks, y_df)
-        t_row = model.super_scores_.iloc[0].values
-        # Components 1 + 2 should differ from full (1+2+3) decomposition
-        partial = model.score_contributions(t_row, components=[1, 2])
-        full = model.score_contributions(t_row)
+        first = model.score_contributions(x_blocks, component=1)
+        second = model.score_contributions(x_blocks, component=2)
         for name in model.block_names_:
-            assert not np.allclose(partial[name].values, full[name].values)
+            assert not np.allclose(first[name].values, second[name].values)
+
+        with pytest.raises(ValueError, match="1-based index"):
+            model.score_contributions(x_blocks, component=4)
+        with pytest.raises(ValueError, match="Missing X-blocks"):
+            model.score_contributions({model.block_names_[0]: x_blocks[model.block_names_[0]]})
+
+    def test_group_contributions_sum_to_the_shift_in_super_score(self, ldpe) -> None:
+        """The two-period form: contributions sum to the change in average super score."""
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        model = MBPLS(n_components=2).fit(x_blocks, y_df)
+        index = next(iter(x_blocks.values())).index
+        early, late = index[:10], index[10:20]
+
+        contribs = model.group_contributions(x_blocks, group=early, reference=late)
+        total = sum(float(series.sum()) for series in contribs.values())
+        scores = model.super_scores_[1].values
+        assert total == pytest.approx(scores[:10].mean() - scores[10:20].mean(), abs=1e-9)
+
+        # Against the model centre instead of another period.
+        centred = model.group_contributions(x_blocks, group=early)
+        assert sum(float(s.sum()) for s in centred.values()) == pytest.approx(
+            scores[:10].mean(), abs=1e-9
+        )
+
+    def test_contribution_guards_and_plain_array_blocks(self, ldpe) -> None:
+        """The MBPLS guards mirror MBPCA, and blocks may arrive as plain arrays."""
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = ldpe
+        model = MBPLS(n_components=2).fit(x_blocks, y_df)
+
+        with pytest.raises(TypeError, match="dict"):
+            model.score_contributions(next(iter(x_blocks.values())))
+        with pytest.raises(ValueError, match="Missing X-blocks"):
+            model.score_contributions({model.block_names_[0]: x_blocks[model.block_names_[0]]})
+        with pytest.raises(ValueError, match="1-based index"):
+            model.score_contributions(x_blocks, component=5)
+        with pytest.raises(ValueError, match="scaling must be one of"):
+            model.score_contributions(x_blocks, scaling="loud")
+
+        as_arrays = {name: block.to_numpy() for name, block in x_blocks.items()}
+        from_arrays = model.score_contributions(as_arrays, component=1)
+        from_frames = model.score_contributions(x_blocks, component=1)
+        for name in model.block_names_:
+            np.testing.assert_array_almost_equal(
+                from_arrays[name].values, from_frames[name].values, decimal=12
+            )
+
+        # Both scalings, taken jointly over the blocks.
+        largest = model.score_contributions(x_blocks, component=1, scaling="maximum")
+        assert max(float(np.abs(f.values).max()) for f in largest.values()) == pytest.approx(1.0)
+        within = model.score_contributions(x_blocks, component=1, scaling="within")
+        row_total = sum(np.abs(f.values).sum(axis=1) for f in within.values())
+        np.testing.assert_array_almost_equal(row_total, np.ones(len(row_total)), decimal=10)
 
     def test_super_score_plot_returns_plotly_figure(self, ldpe) -> None:
         import plotly.graph_objects as go

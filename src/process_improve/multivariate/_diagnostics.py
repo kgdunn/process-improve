@@ -12,6 +12,8 @@ parameter as ``BaseEstimator`` to avoid importing the estimator modules.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
 import pandas as pd
 from scipy.stats import f as f_dist
@@ -630,6 +632,297 @@ def spe_contributions(model: BaseEstimator, X: DataMatrix) -> pd.DataFrame:
     scores = X_values @ R
     residuals = X_values - scores @ P.T
     return pd.DataFrame(residuals, index=X_df.index, columns=X_df.columns)
+
+
+def _score_contribution_terms(
+    model: BaseEstimator, X: DataMatrix, component: int
+) -> tuple[pd.DataFrame, np.ndarray]:
+    """Return ``(X_aligned, r_a)`` for the requested 1-based ``component``."""
+    X_df, R, _ = _contribution_inputs(model, X)
+    A = R.shape[1]
+    if not (1 <= int(component) <= A):
+        msg = f"component must be a 1-based index within 1..{A}, got {component}."
+        raise ValueError(msg)
+    return X_df, R[:, int(component) - 1]
+
+
+_SCORE_CONTRIBUTIONS_USAGE = """\
+score_contributions() takes the preprocessed data X, not a score vector.
+
+A contribution is x_ik * R_ka, so the per-variable terms sum to the score being
+decomposed. That needs the observation's data, which a score vector does not
+carry. See Miller, Swanson and Heckler (1994).
+
+    model.score_contributions(X)              # all observations, component 1
+    model.score_contributions(X).iloc[i]      # just observation i
+
+To compare two observations or two groups:
+
+    model.group_contributions(X, group=[a], reference=[b])
+
+For contributions to Hotelling's T-squared, which pools every component:
+
+    model.t2_contributions(X)
+"""
+
+
+_SCORE_VECTOR_KEYWORDS = frozenset({"t_end", "components", "weighted"})
+
+
+def _reject_score_vector_call(X: object, keywords: dict) -> None:
+    """Raise a usage error if called with a score vector instead of ``X``."""
+    looks_like_scores = isinstance(X, (pd.Series, np.ndarray, list, tuple)) and np.ndim(X) == 1
+    if looks_like_scores or (set(keywords) & _SCORE_VECTOR_KEYWORDS):
+        raise TypeError(_SCORE_CONTRIBUTIONS_USAGE)
+    if keywords:
+        unexpected = ", ".join(sorted(keywords))
+        msg = f"score_contributions() got an unexpected keyword argument: {unexpected}."
+        raise TypeError(msg)
+
+
+def score_contributions(
+    model: BaseEstimator,
+    X: DataMatrix,
+    component: int = 1,
+    scaling: str = "none",
+    **deprecated: object,
+) -> pd.DataFrame:
+    r"""Per-variable contributions to a single score, :math:`t_a`.
+
+    Works with fitted :class:`PCA` and :class:`PLS` models. A score is a
+    weighted sum of the (preprocessed) variables, so it splits exactly into one
+    term per variable. The contribution of variable :math:`k` to the score of
+    observation :math:`i` on component :math:`a` is
+
+    .. math::
+
+        c_{ik}^{(a)} = x_{ik}\, R_{ka}, \qquad
+        \sum_{k=1}^{K} c_{ik}^{(a)} = t_{ia},
+
+    where :math:`R` is the score-generating matrix (``loadings_`` for PCA,
+    ``direct_weights_`` for PLS, so that :math:`T = XR`). This is the
+    contribution of Miller, Swanson and Heckler (1994); the generalisation from
+    PCA loadings to any latent-variable model's score-generating weights follows
+    Westerhuis, Gurden and Smilde (2000).
+
+    The distinction from a loading plot is the point of the diagnostic. A
+    loading :math:`R_{ka}` describes the whole data set; a contribution
+    :math:`x_{ik} R_{ka}` describes *one observation*, and a variable with a
+    large loading contributes nothing when that observation sits at its mean.
+    Ranking variables by loading can therefore point at a different cause than
+    ranking them by contribution.
+
+    Parameters
+    ----------
+    model : PCA or PLS
+        A fitted PCA or PLS model.
+    X : array-like of shape (n_samples, n_features)
+        Preprocessed data, scaled the same way as the training data (for
+        example with :class:`MCUVScaler`). Passing the training data reproduces
+        the model's stored ``scores_``.
+    component : int, default=1
+        **1-based** component index whose score is decomposed, matching the
+        model's column convention.
+    scaling : {"none", "maximum", "within"}, default="none"
+        Presentation scaling from Miller, Swanson and Heckler (1994). ``"none"``
+        returns the raw contributions, which sum to the score. ``"maximum"``
+        divides by the largest absolute contribution anywhere in ``X``, so a bar
+        of :math:`\pm 1` marks the most extreme variable-observation pair in the
+        data set. ``"within"`` divides each row by the sum of its absolute
+        contributions, so each row is on a common footing. Both scalings leave
+        the *pattern* of bars within a row unchanged; neither preserves the sum
+        to the score.
+    **deprecated
+        Rejected. Captures ``t_end``, ``components`` and ``weighted`` so that a
+        call passing a score vector rather than ``X`` raises a
+        :class:`TypeError` explaining the correct usage. Passing a 1-D ``X``
+        raises the same error.
+
+    Returns
+    -------
+    pd.DataFrame
+        Signed contributions of shape (n_samples, n_features). With the default
+        ``scaling="none"``, each row sums to that observation's score on the
+        selected component.
+
+    Examples
+    --------
+    >>> pca = PCA(n_components=2).fit(X_scaled)
+    >>> contrib = pca.score_contributions(X_scaled, component=1)
+    >>> contrib.sum(axis=1)  # equals pca.scores_[1]
+    >>> contrib.loc["33"].abs().sort_values()  # what makes observation 33 extreme
+
+    References
+    ----------
+    Miller, P., Swanson, R.E. and Heckler, C.E. (1994). "Contribution plots: a
+    missing link in multivariate quality control." Applied Mathematics and
+    Computer Science, 8(4), 775-792.
+
+    Westerhuis, J.A., Gurden, S.P. and Smilde, A.K. (2000). "Generalized
+    contribution plots in multivariate statistical process monitoring."
+    Chemometrics and Intelligent Laboratory Systems, 51(1), 95-114.
+
+    See Also
+    --------
+    group_contributions : The same decomposition for a group of observations, or
+        for the difference between two groups.
+    t2_contributions : Decomposes Hotelling's :math:`T^2`, which pools all
+        components rather than reading one at a time.
+    spe_contributions : The residual-space counterpart.
+    """
+    _reject_score_vector_call(X, deprecated)
+    X_df, r_a = _score_contribution_terms(model, X, component)
+    contributions = X_df.to_numpy(dtype=float) * r_a
+
+    if scaling == "maximum":
+        largest = float(np.abs(contributions).max())
+        contributions = contributions / (largest if largest > epsqrt else 1.0)
+    elif scaling == "within":
+        row_total = np.abs(contributions).sum(axis=1, keepdims=True)
+        contributions = contributions / np.where(row_total > epsqrt, row_total, 1.0)
+    elif scaling != "none":
+        msg = f"scaling must be one of 'none', 'maximum' or 'within', got {scaling!r}."
+        raise ValueError(msg)
+
+    return pd.DataFrame(contributions, index=X_df.index, columns=X_df.columns)
+
+
+def group_contributions(  # noqa: PLR0913 - group/reference are sugar for weights
+    model: BaseEstimator,
+    X: DataMatrix,
+    group: Sequence | None = None,
+    reference: Sequence | None = None,
+    component: int = 1,
+    weights: Sequence | None = None,
+) -> pd.Series:
+    r"""Per-variable contributions to a group's average score, or to a shift.
+
+    The group form of :func:`score_contributions`. Combining the data rows
+    before multiplying by the score-generating weights answers "what do these
+    observations have in common?" rather than "why is this one observation
+    unusual?", which is the question a cluster on a score plot, or a level shift
+    part-way through a data set, actually poses.
+
+    In general any linear combination of the rows may be used
+    (Miller, Swanson and Heckler, 1994):
+
+    .. math::
+
+        c_k = \Bigl(\sum_i w_i x_{ik}\Bigr) R_{ka}, \qquad
+        \sum_k c_k = \sum_i w_i t_{ia}.
+
+    The common cases have their own arguments. With ``group`` alone the weights
+    are :math:`1/n_G` over the group, comparing its mean against the model
+    centre. With ``group`` and ``reference`` they are :math:`+1/n_G` and
+    :math:`-1/n_H`, so the contributions sum to the difference in average score,
+    which is the level-shift diagnostic of the paper's Figure 9. Pass ``weights``
+    directly for anything else: the paper suggests the first-order orthogonal
+    polynomial when a run of batches is drifting rather than stepping.
+
+    Parameters
+    ----------
+    model : PCA or PLS
+        A fitted PCA or PLS model.
+    X : array-like of shape (n_samples, n_features)
+        Preprocessed data, scaled the same way as the training data.
+    group : sequence, optional
+        Index labels of the observations of interest, or a boolean mask the
+        same length as ``X``. Selection is by label, not by position; pass
+        ``X.index[...]`` to select positionally. Required unless ``weights``
+        is given.
+    reference : sequence, optional
+        Index labels selecting the observations to compare against. ``None``
+        (default) compares the group against the model centre.
+    component : int, default=1
+        **1-based** component index whose score is decomposed.
+    weights : sequence, optional
+        One weight per row of ``X``, giving the linear combination directly.
+        Mutually exclusive with ``group`` / ``reference``.
+
+    Returns
+    -------
+    pd.Series
+        Signed contributions, one per variable. Sums to the weighted combination
+        of the scores: the group's average score, the difference in average
+        score between the two groups, or :math:`\sum_i w_i t_{ia}`.
+
+    Examples
+    --------
+    >>> pca = PCA(n_components=2).fit(X_scaled)
+    >>> # Five batches that cluster together on the score plot:
+    >>> pca.group_contributions(X_scaled, group=[31, 142, 147, 220, 221])
+    >>> # What shifted at batch 74? (ten batches either side, by position)
+    >>> pca.group_contributions(
+    ...     X_scaled, group=X_scaled.index[64:74], reference=X_scaled.index[74:84]
+    ... )
+    >>> # A run of batches drifting rather than stepping: weight by a
+    >>> # first-order orthogonal polynomial over the run.
+    >>> slope = np.zeros(len(X_scaled))
+    >>> slope[40:60] = np.arange(20) - 9.5
+    >>> pca.group_contributions(X_scaled, weights=slope, component=3)
+
+    See Also
+    --------
+    score_contributions : The single-observation form.
+    """
+    X_df, r_a = _score_contribution_terms(model, X, component)
+
+    if weights is not None:
+        if group is not None or reference is not None:
+            msg = "Pass either weights, or group/reference, not both."
+            raise ValueError(msg)
+        w = np.asarray(weights, dtype=float)
+        if w.ndim != 1 or w.size != len(X_df):
+            msg = f"weights must have one entry per row of X ({len(X_df)}), got shape {w.shape}."
+            raise ValueError(msg)
+    else:
+        if group is None:
+            msg = "Pass group (optionally with reference), or weights."
+            raise ValueError(msg)
+        w = np.zeros(len(X_df), dtype=float)
+        w += _mean_weights(X_df, group, "group")
+        if reference is not None:
+            w -= _mean_weights(X_df, reference, "reference")
+
+    deviation = w @ X_df.to_numpy(dtype=float)
+    return pd.Series(deviation * r_a, index=X_df.columns, name="group_contributions")
+
+
+def _mean_weights(X_df: pd.DataFrame, selector: Sequence, name: str) -> np.ndarray:
+    """Row weights that average the selected rows: ``1/n`` on each, 0 elsewhere."""
+    selected = _select_rows(X_df, selector, name)
+    if len(selected) == 0:
+        msg = f"{name} selected no observations from X."
+        raise ValueError(msg)
+    w = np.zeros(len(X_df), dtype=float)
+    w[X_df.index.get_indexer_for(selected.index)] = 1.0 / len(selected)
+    return w
+
+
+def _select_rows(X_df: pd.DataFrame, selector: Sequence, name: str) -> pd.DataFrame:
+    """Select rows of ``X_df`` by index label or by boolean mask.
+
+    Deliberately label-based only. Falling back to positional selection when a
+    label happens to be missing would make the meaning depend on the data: on a
+    frame indexed 1..54, ``[0, 1, 2]`` would be positions (0 is not a label)
+    while ``[10, 11, 12]`` would be labels, silently selecting a different set
+    of rows. Callers who want positions pass ``X.index[...]``.
+    """
+    values = list(selector)
+    if values and all(isinstance(v, (bool, np.bool_)) for v in values):
+        if len(values) != len(X_df):
+            msg = f"{name} is a boolean mask of length {len(values)}, but X has {len(X_df)} rows."
+            raise ValueError(msg)
+        return X_df.loc[np.asarray(values, dtype=bool)]
+    missing = [v for v in values if v not in X_df.index]
+    if missing:
+        msg = (
+            f"{name} contains entries that are not index labels of X: {missing}. "
+            "Selection is by index label or boolean mask; to select by position, "
+            "pass X.index[...] instead."
+        )
+        raise ValueError(msg)
+    return X_df.loc[values]
 
 
 def eigenvalue_summary(model: BaseEstimator) -> pd.DataFrame:
