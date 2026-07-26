@@ -28,9 +28,12 @@ class OptimizeResponsesInput(BaseModel):
     goals: list[dict[str, Any]] | None = Field(
         None,
         description=(
-            "Per-response optimisation goals. Each entry: response (str), "
+            "Per-response optimisation goals. Each entry: response (str, matched against the model's "
+            "response_name so the two lists need not be in the same order), "
             "goal ('maximize'|'minimize'|'target'), low, high, optional target, "
-            "weight, importance. Required for 'desirability' method."
+            "weight, weight_high, importance. Required for 'desirability' method. "
+            "'weight' shapes that response's own desirability ramp; 'importance' sets how much the "
+            "response counts relative to the others in the composite. They are different things."
         ),
     )
     method: Literal[
@@ -59,10 +62,45 @@ class OptimizeResponsesInput(BaseModel):
         ge=1,
         description="Number of steps for steepest ascent/descent (default 10).",
     )
+    response_importance: list[float] | None = Field(
+        None,
+        description=(
+            "Relative importance per response in the composite desirability, aligned with fitted_models. "
+            "Overrides the per-goal 'importance'. This is not the per-goal 'weight', which shapes an "
+            "individual response's ramp."
+        ),
+    )
+    significance_level: float = Field(
+        0.05,
+        gt=0.0,
+        lt=1.0,
+        description="Alpha for intervals reported at the optimum (default 0.05, giving 95% intervals).",
+    )
+    search_bounds: list[float] | dict[str, list[float]] | None = Field(
+        None,
+        description=(
+            "Coded region to search, as [low, high] applied to every factor, or a mapping from factor "
+            "name to its own [low, high]. Defaults to the factorial cube, [-1, 1]. That default suits a "
+            "two-level design but understates a central composite design, whose axial runs sit at plus "
+            "or minus alpha: pass [-1.41, 1.41] for a two-factor rotatable central composite design so "
+            "the search covers the region the experiment actually explored."
+        ),
+    )
     desirability_weights: list[float] | None = Field(
         None,
-        description="Importance weights for composite desirability (overrides per-goal importance).",
+        description="Deprecated alias for 'response_importance'. Use 'response_importance' instead.",
     )
+
+
+def _as_bounds(
+    raw: list[float] | dict[str, list[float]] | None,
+) -> tuple[float, float] | dict[str, tuple[float, float]] | None:
+    """Convert the JSON-friendly list form into the tuples the library expects."""
+    if raw is None:
+        return None
+    if isinstance(raw, dict):
+        return {name: (float(pair[0]), float(pair[1])) for name, pair in raw.items()}
+    return (float(raw[0]), float(raw[1]))
 
 
 @tool_spec(
@@ -75,7 +113,10 @@ class OptimizeResponsesInput(BaseModel):
         "'canonical_analysis' (eigenvalue decomposition to classify the response surface shape). "
         "Each fitted_model must include coefficients (as returned by analyze_experiment with "
         "analysis_type='coefficients'), factor_names, and response_name. "
-        "For desirability, each goal specifies whether to maximize, minimize, or target a value."
+        "For desirability, each goal specifies whether to maximize, minimize, or target a value. "
+        "The desirability result also carries a 'responses' list, pairing each model's coefficients "
+        "with its specification limits, which can be passed straight to visualize_doe(plot_type='overlay') "
+        "to see the region where every response is simultaneously within specification."
     ),
     input_model=OptimizeResponsesInput,
     examples="""
@@ -93,6 +134,12 @@ class OptimizeResponsesInput(BaseModel):
                 goals=[{"response": "yield", "goal": "maximize", "low": 30, "high": 50},
                        {"response": "cost", "goal": "minimize", "low": 10, "high": 40}],
                 method="desirability")``
+
+    # "Optimize two responses, counting yield twice as heavily as cost"
+        -> ``optimize_responses(fitted_models=[model1, model2],
+                goals=[{"response": "yield", "goal": "maximize", "low": 30, "high": 50},
+                       {"response": "cost", "goal": "minimize", "low": 10, "high": 40}],
+                method="desirability", response_importance=[2.0, 1.0])``
 
     # "Generate a steepest ascent path from a first-order model"
         -> ``optimize_responses(fitted_models=[model],
@@ -113,6 +160,9 @@ def optimize_responses_tool(spec: OptimizeResponsesInput) -> dict[str, Any]:
             factor_ranges=spec.factor_ranges,
             step_size=spec.step_size,
             n_steps=spec.n_steps,
+            response_importance=spec.response_importance,
+            significance_level=spec.significance_level,
+            search_bounds=_as_bounds(spec.search_bounds),
             desirability_weights=spec.desirability_weights,
         )
         return clean(result)

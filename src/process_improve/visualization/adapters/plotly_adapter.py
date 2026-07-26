@@ -286,14 +286,41 @@ class PlotlyAdapter(AbstractAdapter):
         x_vals = layer.style.get("x_grid", [])
         y_vals = layer.style.get("y_grid", [])
         z_matrix = layer.style.get("z_matrix", [])
-        return go.Contour(
-            x=x_vals,
-            y=y_vals,
-            z=z_matrix,
-            name=layer.name,
-            colorscale=_SURFACE_COLORSCALE,
-            contours=dict(showlabels=True),
-        )
+
+        # Contour levels. `contours` may carry explicit start/end/size, which is
+        # how a caller pins the levels to specification limits rather than
+        # letting plotly choose them.
+        contours: dict[str, Any] = dict(layer.style.get("contours", {}))
+        contours.setdefault("showlabels", layer.style.get("showlabels", True))
+        coloring = layer.style.get("contours_coloring")
+        if coloring is not None:
+            contours["coloring"] = coloring
+
+        trace_kwargs: dict[str, Any] = {
+            "x": x_vals,
+            "y": y_vals,
+            "z": z_matrix,
+            "name": layer.name,
+            "colorscale": layer.style.get("colorscale", _SURFACE_COLORSCALE),
+            "contours": contours,
+            "opacity": layer.opacity,
+            "showscale": layer.style.get("showscale", True),
+        }
+
+        # Only forward the optional keys when set: passing zmin/zmax of None
+        # would override plotly's own auto-ranging.
+        for key in ("zmin", "zmax", "ncontours"):
+            value = layer.style.get(key)
+            if value is not None:
+                trace_kwargs[key] = value
+
+        # With line-drawn contours the layer colour selects the line colour, so
+        # several responses overlaid on one panel stay distinguishable.
+        if layer.color and contours.get("coloring") == "lines":
+            trace_kwargs["line"] = dict(color=layer.color)
+            trace_kwargs["showscale"] = False
+
+        return go.Contour(**trace_kwargs)
 
     def _surface_trace(self, layer: LayerSpec) -> go.Surface:
         x_vals = layer.style.get("x_grid", [])

@@ -13,14 +13,14 @@ from typing import Any
 
 import pytest
 
-from process_improve.experiments.visualization import main_effects_plot, visualize_doe
-from process_improve.experiments.visualization.plots.optimization_plots import (
-    _composite_desirability,
-    _desirability_maximize,
-    _desirability_minimize,
-    _desirability_target,
-    _individual_desirability,
+from process_improve.experiments._desirability import (
+    composite_desirability,
+    desirability_maximize,
+    desirability_minimize,
+    desirability_target,
+    individual_desirability,
 )
+from process_improve.experiments.visualization import main_effects_plot, visualize_doe
 from process_improve.experiments.visualization.plots.registry import (
     create_plot,
     get_available_plot_types,
@@ -1096,42 +1096,55 @@ class TestDesirabilityHelpers:
     """Unit tests for the pure desirability functions in optimization_plots."""
 
     def test_maximize_boundaries(self) -> None:
-        assert _desirability_maximize(0.0, low=1.0, high=2.0) == 0.0
-        assert _desirability_maximize(3.0, low=1.0, high=2.0) == 1.0
-        assert _desirability_maximize(1.5, low=1.0, high=2.0) == pytest.approx(0.5)
+        assert desirability_maximize(0.0, low=1.0, high=2.0) == 0.0
+        assert desirability_maximize(3.0, low=1.0, high=2.0) == 1.0
+        assert desirability_maximize(1.5, low=1.0, high=2.0) == pytest.approx(0.5)
 
     def test_minimize_boundaries(self) -> None:
-        assert _desirability_minimize(0.5, low=1.0, high=2.0) == 1.0
-        assert _desirability_minimize(2.5, low=1.0, high=2.0) == 0.0
-        assert _desirability_minimize(1.5, low=1.0, high=2.0) == pytest.approx(0.5)
+        assert desirability_minimize(0.5, low=1.0, high=2.0) == 1.0
+        assert desirability_minimize(2.5, low=1.0, high=2.0) == 0.0
+        assert desirability_minimize(1.5, low=1.0, high=2.0) == pytest.approx(0.5)
 
     def test_target_all_branches(self) -> None:
         # Outside [low, high] on either side -> 0
-        assert _desirability_target(0.5, low=1.0, target=2.0, high=3.0) == 0.0
-        assert _desirability_target(3.5, low=1.0, target=2.0, high=3.0) == 0.0
+        assert desirability_target(0.5, low=1.0, target=2.0, high=3.0) == 0.0
+        assert desirability_target(3.5, low=1.0, target=2.0, high=3.0) == 0.0
         # Below target: rising ramp
-        assert _desirability_target(1.5, low=1.0, target=2.0, high=3.0) == pytest.approx(0.5)
+        assert desirability_target(1.5, low=1.0, target=2.0, high=3.0) == pytest.approx(0.5)
         # Above target: falling ramp
-        assert _desirability_target(2.5, low=1.0, target=2.0, high=3.0) == pytest.approx(0.5)
+        assert desirability_target(2.5, low=1.0, target=2.0, high=3.0) == pytest.approx(0.5)
 
     def test_individual_desirability_goal_dispatch(self) -> None:
-        assert _individual_desirability(0.75, {"goal": "maximize", "low": 0.0, "high": 1.0}) == pytest.approx(0.75)
-        assert _individual_desirability(0.25, {"goal": "minimize", "low": 0.0, "high": 1.0}) == pytest.approx(0.75)
+        assert individual_desirability(0.75, {"goal": "maximize", "low": 0.0, "high": 1.0}) == pytest.approx(0.75)
+        assert individual_desirability(0.25, {"goal": "minimize", "low": 0.0, "high": 1.0}) == pytest.approx(0.75)
         target_goal = {"goal": "target", "low": 0.0, "target": 0.5, "high": 1.0}
-        assert _individual_desirability(0.25, target_goal) == pytest.approx(0.5)
-        # Unknown goal type falls through to 0.0
-        assert _individual_desirability(0.5, {"goal": "unknown_goal"}) == 0.0
+        assert individual_desirability(0.25, target_goal) == pytest.approx(0.5)
+
+    def test_individual_desirability_rejects_unknown_goal(self) -> None:
+        """An unrecognised goal is an error, not a silent zero.
+
+        The plotting copy of this helper used to return 0.0 here, which made a
+        typo in a goal name look like an infeasible response.
+        """
+        with pytest.raises(ValueError, match="Unknown goal type"):
+            individual_desirability(0.5, {"goal": "unknown_goal"})
+
+    def test_individual_desirability_asymmetric_target_weights(self) -> None:
+        """A target goal may ramp at different rates on each side."""
+        goal = {"goal": "target", "low": 0.0, "target": 0.5, "high": 1.0, "weight": 1.0, "weight_high": 2.0}
+        assert individual_desirability(0.25, goal) == pytest.approx(0.5)
+        assert individual_desirability(0.75, goal) == pytest.approx(0.25)
 
     def test_composite_empty_list(self) -> None:
-        assert _composite_desirability([]) == 0.0
+        assert composite_desirability([]) == 0.0
 
     def test_composite_any_zero(self) -> None:
-        assert _composite_desirability([0.9, 0.0, 0.8]) == 0.0
+        assert composite_desirability([0.9, 0.0, 0.8]) == 0.0
 
     def test_composite_importance_weighting(self) -> None:
         """Importance weights should change the geometric mean."""
-        unweighted = _composite_desirability([0.25, 1.0])
-        weighted = _composite_desirability([0.25, 1.0], importances=[3.0, 1.0])
+        unweighted = composite_desirability([0.25, 1.0])
+        weighted = composite_desirability([0.25, 1.0], importances=[3.0, 1.0])
         assert unweighted == pytest.approx(0.25**0.5)
         assert weighted == pytest.approx(0.25**0.75)
         assert weighted != pytest.approx(unweighted)
@@ -1170,10 +1183,35 @@ class TestOverlayPlotEdgeCases:
         spec = plot.to_spec()
         assert "no response data" in spec.title.lower()
 
-    def test_missing_optimization_key(self, coefficients_2f: list) -> None:
-        plot = create_plot("overlay", analysis_results={"coefficients": coefficients_2f})
+    def test_missing_optimization_key_falls_back_to_single_response(self, coefficients_2f: list) -> None:
+        """Top-level coefficients degrade to a one-response contour.
+
+        This matches the desirability contour plot's behaviour, and is more
+        useful than an empty frame. There are no bounds, so there is no sweet
+        spot to shade and the metadata says so.
+        """
+        plot = create_plot(
+            "overlay", analysis_results={"coefficients": coefficients_2f}, factors_to_plot=["A", "B"]
+        )
         spec = plot.to_spec()
-        assert "no response data" in spec.title.lower()
+        assert spec.plot_type == "overlay"
+        assert len(spec.panels[0].layers) == 1
+        assert spec.metadata["n_bounded_responses"] == 0
+        assert spec.metadata["sweet_spot_empty"] is None
+
+    def test_accepts_optimize_responses_output(self, coefficients_2f: list) -> None:
+        """The result of optimize_responses can be passed straight through."""
+        plot = create_plot(
+            "overlay",
+            analysis_results={
+                "desirability": {
+                    "responses": [{"name": "Yield", "coefficients": coefficients_2f, "low": 30.0, "high": 50.0}],
+                },
+            },
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        assert spec.metadata["n_bounded_responses"] == 1
 
     def test_single_factor(self, coefficients_2f: list) -> None:
         plot = create_plot(
@@ -1204,8 +1242,12 @@ class TestOverlayPlotEdgeCases:
         assert len(spec.panels[0].layers) == 1
         assert spec.metadata["n_responses"] == 2
 
-    def test_constraint_labels_from_bounds(self, coefficients_2f: list) -> None:
-        """Responses carrying low/high bounds produce constraint annotations."""
+    def test_bounds_pin_the_contour_levels(self, coefficients_2f: list) -> None:
+        """A bounded response draws its contours at the specification limits.
+
+        Previously the bounds became a text label that no adapter rendered, so
+        the limits never reached the reader.
+        """
         plot = create_plot(
             "overlay",
             analysis_results={
@@ -1218,9 +1260,72 @@ class TestOverlayPlotEdgeCases:
             factors_to_plot=["A", "B"],
         )
         spec = plot.to_spec()
-        anns = spec.panels[0].annotations
-        assert len(anns) == 1
-        assert anns[0].label == "Yield: [30.00, 50.00]"
+        # Layer 0 is the sweet-spot shading; layer 1 is the response itself.
+        response_layer = next(layer for layer in spec.panels[0].layers if layer.name == "Yield")
+        assert response_layer.style["contours"] == {"start": 30.0, "end": 50.0, "size": 20.0}
+        assert spec.metadata["specification_limits"] == {"Yield": [30.0, 50.0]}
+
+    def test_sweet_spot_matches_a_hand_computed_mask(self) -> None:
+        """The shaded region is exactly where both responses are in range.
+
+        Two planes are used so the feasible set can be worked out by hand:
+        y1 = A rises with A alone and is wanted at or above 0, so it is in
+        specification for A >= 0; y2 = B rises with B alone and is wanted at or
+        below 0, so it is in specification for B <= 0. The sweet spot is
+        therefore the quadrant A >= 0 and B <= 0, one quarter of the region.
+        """
+        y1 = [{"term": "Intercept", "coefficient": 0.0}, {"term": "A", "coefficient": 1.0}]
+        y2 = [{"term": "Intercept", "coefficient": 0.0}, {"term": "B", "coefficient": 1.0}]
+        plot = create_plot(
+            "overlay",
+            analysis_results={
+                "optimization": {
+                    "responses": [
+                        {"name": "y1", "coefficients": y1, "low": 0.0, "high": 10.0},
+                        {"name": "y2", "coefficients": y2, "low": -10.0, "high": 0.0},
+                    ],
+                },
+            },
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        mask_layer = spec.panels[0].layers[0]
+        assert mask_layer.name == "Sweet spot"
+
+        # The 50-point grid spans [-1, 1] inclusive, so 25 of the 50 values are
+        # <= 0 and 25 are >= 0: a quarter of the cells, plus the shared axes.
+        mask = mask_layer.style["z_matrix"]
+        x_grid = mask_layer.style["x_grid"]
+        y_grid = mask_layer.style["y_grid"]
+        for j, y_val in enumerate(y_grid):
+            for i, x_val in enumerate(x_grid):
+                expected_inside = x_val >= 0.0 and y_val <= 0.0
+                is_inside = mask[j][i] == 1.0
+                assert is_inside == expected_inside, f"cell ({x_val:.3f}, {y_val:.3f})"
+
+        assert spec.metadata["n_bounded_responses"] == 2
+        assert spec.metadata["sweet_spot_empty"] is False
+        assert spec.metadata["sweet_spot_fraction"] == pytest.approx(0.25, abs=0.02)
+
+    def test_empty_sweet_spot_is_reported(self) -> None:
+        """Specifications that cannot be met together report an empty region."""
+        y1 = [{"term": "Intercept", "coefficient": 0.0}, {"term": "A", "coefficient": 1.0}]
+        plot = create_plot(
+            "overlay",
+            analysis_results={
+                "optimization": {
+                    "responses": [
+                        # A never exceeds +1 over the coded region, so a
+                        # specification of 5 to 10 is unreachable everywhere.
+                        {"name": "y1", "coefficients": y1, "low": 5.0, "high": 10.0},
+                    ],
+                },
+            },
+            factors_to_plot=["A", "B"],
+        )
+        spec = plot.to_spec()
+        assert spec.metadata["sweet_spot_empty"] is True
+        assert spec.metadata["sweet_spot_fraction"] == 0.0
 
 
 class TestRidgeTracePlotEdgeCases:

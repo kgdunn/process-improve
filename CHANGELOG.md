@@ -11,6 +11,60 @@ those changes.
 
 ## [Unreleased]
 
+## [1.62.0] - 2026-07-26
+
+### Added
+
+- `optimize_responses(..., fitted_results=[...], significance_level=0.05)` reports a
+  confidence interval and a prediction interval for each response at the optimum.
+  Coefficients alone locate an optimum but cannot say how well it is known, so the
+  fitted statsmodels results objects are passed alongside the coefficient dicts.
+  Behaviour is unchanged when `fitted_results` is omitted.
+- The `"desirability"` result now carries a `"responses"` list, pairing each model's
+  coefficients with its specification limits, so it can be handed directly to
+  `visualize_doe(plot_type="overlay")` without hand-assembling a dict.
+- `process_improve.experiments._desirability`, one shared implementation of the
+  Derringer-Suich functions, replacing two copies that had drifted apart. Target goals
+  now accept a separate `weight_high` for the falling side.
+- `optimize_responses(..., search_bounds=...)` sets the coded region to search, and the
+  region against which a stationary point is judged inside or outside. It accepts one
+  `(low, high)` pair for every factor, or a mapping for per-factor control. The previous
+  behaviour was hard-coded to the factorial cube, which suits a two-level design but
+  understates a central composite design, whose axial runs sit at plus or minus alpha:
+  the optimizer could not consider settings the experiment had actually covered, and
+  `inside_design_space` could report a legitimately explored point as outside. The
+  default is unchanged at `(-1, 1)`.
+
+### Changed
+
+- **The overlay plot now computes and shades the sweet spot**: the region where every
+  bounded response is simultaneously within specification. Each bounded response draws
+  its contours at exactly its two specification limits rather than eight arbitrary
+  levels. New metadata `sweet_spot_fraction` and `sweet_spot_empty` report whether any
+  compromise exists, distinguishing an empty region from one where no bounds were given.
+- The contour renderer honours the style keys it was already being passed: `colorscale`,
+  `zmin`, `zmax`, `showscale`, `ncontours`, `contours_coloring`, explicit contour
+  `start`/`end`/`size`, layer opacity, and the layer colour for line-drawn contours.
+  Defaults match the previous hard-coded values, so existing plots are unchanged.
+- `optimize_responses` matches goals to fitted models by response name when both sides
+  supply one, falling back to list order with a warning. Goals were previously consumed
+  positionally while `goal["response"]` was documented as the key and never read, so
+  passing the two lists in different orders optimised the wrong thing without complaint.
+- `optimize_responses(..., desirability_weights=)` is renamed to `response_importance`.
+  The old name is still accepted and now emits a `DeprecationWarning`. The values are
+  importances, which set how much each response counts in the composite, not the
+  per-goal `weight` that shapes an individual desirability ramp.
+
+### Fixed
+
+- The desirability contour plot's single-response fallback set the bounds to negative and
+  positive infinity, so the ramp computed `inf/inf` and the whole grid came out NaN.
+  Bounds are now derived from the range the model spans over the plotted region.
+- The overlay plot's `low`/`high` bounds became an `AnnotationType.label`, which no
+  adapter renders, so the specification limits never reached the reader.
+- `OverlayPlot` read only `analysis_results["optimization"]["responses"]`, a shape no
+  library function produced. It now also accepts the output of `optimize_responses`, and
+  falls back to a single-response contour when only top-level coefficients are present.
 ## [1.61.0] - 2026-07-25
 
 ### Fixed
@@ -2707,7 +2761,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.61.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.62.0...HEAD
+[1.62.0]: https://github.com/kgdunn/process-improve/compare/v1.61.0...v1.62.0
 [1.61.0]: https://github.com/kgdunn/process-improve/compare/v1.60.0...v1.61.0
 [1.60.0]: https://github.com/kgdunn/process-improve/compare/v1.59.0...v1.60.0
 [1.59.0]: https://github.com/kgdunn/process-improve/compare/v1.58.0...v1.59.0

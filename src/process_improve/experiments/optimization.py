@@ -26,11 +26,16 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable
+import warnings
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import numpy as np
+import pandas as pd
+from patsy import PatsyError
 from scipy import optimize
+
+from process_improve.experiments._desirability import composite_desirability, individual_desirability
 
 logger = logging.getLogger(__name__)
 
@@ -217,6 +222,7 @@ def _find_stationary_point(
     coefficients: list[dict[str, Any]],
     factor_names: list[str],
     factor_ranges: dict[str, dict[str, float]] | None = None,
+    search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
 ) -> dict[str, Any]:
     """Find the stationary point of a second-order response surface model.
 
@@ -262,8 +268,13 @@ def _find_stationary_point(
     else:
         classification = "saddle_point"
 
-    # Check if stationary point is inside the design space (coded [-1, 1])
-    inside_design_space = bool(np.all(np.abs(x_s) <= 1.0))
+    # Is the stationary point inside the region the experiment covered? The
+    # default region is the factorial cube; a central composite design reaches
+    # further, so its axial distance can be supplied via search_bounds.
+    region = _resolve_search_bounds(search_bounds, factor_names)
+    inside_design_space = bool(
+        all(low <= value <= high for value, (low, high) in zip(x_s, region, strict=True))
+    )
 
     result: dict[str, Any] = {
         "stationary_point_coded": {n: float(x_s[i]) for i, n in enumerate(factor_names)},
@@ -436,97 +447,126 @@ def _steepest_path(  # noqa: PLR0913
     }
 
 
-# ---------------------------------------------------------------------------
-# Derringer-Suich desirability functions
-# ---------------------------------------------------------------------------
+def _resolve_search_bounds(
+    search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None,
+    factor_names: list[str],
+) -> list[tuple[float, float]]:
+    """Return per-factor coded bounds for the region to search.
 
+    The default of (-1, 1) is the factorial cube, which is the right region for
+    a two-level design. It is not the right region for a central composite
+    design, whose axial runs sit at plus or minus alpha: restricting the search
+    to the cube there would refuse to consider settings the experiment actually
+    covered. Pass the design's axial distance to search the whole region.
 
-def _desirability_maximize(y: float, low: float, high: float, weight: float = 1.0) -> float:
-    """One-sided desirability for maximisation.
+    Parameters
+    ----------
+    search_bounds : tuple, dict, or None
+        A single ``(low, high)`` pair applied to every factor, or a mapping from
+        factor name to its own pair. Factors absent from the mapping fall back to
+        (-1, 1). ``None`` means (-1, 1) throughout.
+    factor_names : list[str]
+        Ordered factor names.
 
-    d = 0 if y <= low, d = ((y - low) / (high - low))^weight if
-    low < y < high, d = 1 if y >= high.
+    Returns
+    -------
+    list[tuple[float, float]]
+        One ``(low, high)`` pair per factor, in *factor_names* order.
+
+    Raises
+    ------
+    ValueError
+        If a pair is malformed, non-finite, or has low >= high, or if the
+        mapping names a factor the model does not have.
     """
-    if y <= low:
-        return 0.0
-    if y >= high:
-        return 1.0
-    return ((y - low) / (high - low)) ** weight
+    default = (-1.0, 1.0)
+
+    def _check(pair: Sequence[float], where: str) -> tuple[float, float]:
+        try:
+            low, high = (float(pair[0]), float(pair[1]))
+        except (TypeError, ValueError, IndexError, KeyError) as exc:
+            msg = f"search_bounds{where} must be a (low, high) pair of numbers; got {pair!r}."
+            raise ValueError(msg) from exc
+        if not (np.isfinite(low) and np.isfinite(high)):
+            msg = f"search_bounds{where} must be finite; got ({low}, {high})."
+            raise ValueError(msg)
+        if low >= high:
+            msg = f"search_bounds{where} must have low < high; got ({low}, {high})."
+            raise ValueError(msg)
+        return low, high
+
+    if search_bounds is None:
+        return [default] * len(factor_names)
+
+    if isinstance(search_bounds, dict):
+        unknown = set(search_bounds) - set(factor_names)
+        if unknown:
+            msg = f"search_bounds names unknown factor(s) {sorted(unknown)}; the model has {factor_names}."
+            raise ValueError(msg)
+        return [
+            _check(search_bounds[name], f"[{name!r}]") if name in search_bounds else default
+            for name in factor_names
+        ]
+
+    return [_check(search_bounds, "")] * len(factor_names)
 
 
-def _desirability_minimize(y: float, low: float, high: float, weight: float = 1.0) -> float:
-    """One-sided desirability for minimisation.
+def _align_goals_to_models(
+    fitted_models: list[dict[str, Any]],
+    goals: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return *goals* reordered to match *fitted_models*.
 
-    d = 1 if y <= low, d = ((high - y) / (high - low))^weight if
-    low < y < high, d = 0 if y >= high.
+    Goals were previously consumed in list order while ``goal["response"]`` was
+    documented as the key that ties a goal to its model. Passing the two lists
+    in different orders therefore optimised the wrong thing without complaint.
+
+    When every model names its response and every goal names a matching one, the
+    goals are reordered by name. Otherwise the original positional order is kept,
+    with a warning, since that is the only interpretation left.
+
+    Parameters
+    ----------
+    fitted_models : list[dict]
+        Each optionally has ``"response_name"``.
+    goals : list[dict]
+        Each optionally has ``"response"``.
+
+    Returns
+    -------
+    list[dict]
+        Goals in the same order as *fitted_models*.
+
+    Raises
+    ------
+    ValueError
+        If the two lists differ in length.
     """
-    if y <= low:
-        return 1.0
-    if y >= high:
-        return 0.0
-    return ((high - y) / (high - low)) ** weight
+    if len(goals) != len(fitted_models):
+        msg = f"Got {len(fitted_models)} fitted model(s) but {len(goals)} goal(s); they must correspond one to one."
+        raise ValueError(msg)
 
+    model_names = [m.get("response_name") for m in fitted_models]
+    goal_names = [g.get("response") for g in goals]
 
-def _desirability_target(  # noqa: PLR0913
-    y: float,
-    low: float,
-    target: float,
-    high: float,
-    weight_low: float = 1.0,
-    weight_high: float = 1.0,
-) -> float:
-    """Two-sided desirability for a target value.
+    if any(n is None for n in model_names) or any(n is None for n in goal_names):
+        logger.warning(
+            "Matching goals to fitted models by position: not every model has 'response_name' and not every "
+            "goal has 'response'. Name both to have them matched by name instead."
+        )
+        return goals
 
-    Ramps up from *low* to *target*, then ramps down from *target* to
-    *high*.  Returns 0 outside ``[low, high]``.
-    """
-    if y <= low or y >= high:
-        return 0.0
-    if y <= target:
-        return ((y - low) / (target - low)) ** weight_low
-    return ((high - y) / (high - target)) ** weight_high
+    by_name = {str(g["response"]): g for g in goals}
+    if len(by_name) != len(goals) or set(by_name) != {str(n) for n in model_names}:
+        logger.warning(
+            "Matching goals to fitted models by position: the goal 'response' names %s do not correspond "
+            "one to one with the model 'response_name' values %s.",
+            sorted(str(n) for n in goal_names),
+            sorted(str(n) for n in model_names),
+        )
+        return goals
 
-
-def _individual_desirability(y: float, goal: dict[str, Any]) -> float:
-    """Compute individual desirability for a single response value."""
-    goal_type = goal["goal"]
-    low = goal.get("low", 0.0)
-    high = goal.get("high", 1.0)
-    weight = goal.get("weight", 1.0)
-
-    if goal_type == "maximize":
-        return _desirability_maximize(y, low, high, weight)
-    if goal_type == "minimize":
-        return _desirability_minimize(y, low, high, weight)
-    if goal_type == "target":
-        target = goal["target"]
-        return _desirability_target(y, low, target, high, weight, weight)
-
-    msg = f"Unknown goal type: {goal_type!r}. Use 'maximize', 'minimize', or 'target'."
-    raise ValueError(msg)
-
-
-def _composite_desirability(d_values: list[float], importances: list[float] | None = None) -> float:
-    """Weighted geometric mean of individual desirability values.
-
-    D = (d1^w1 * d2^w2 * ... * dk^wk) ^ (1 / sum(wi))
-
-    If any d_i is zero, the composite is zero.
-    """
-    if not d_values:
-        return 0.0
-
-    weights = importances or [1.0] * len(d_values)
-
-    # If any desirability is zero, composite is zero
-    if any(d == 0.0 for d in d_values):
-        return 0.0
-
-    log_d = sum(w * np.log(d) for d, w in zip(d_values, weights, strict=True))
-    w_sum = sum(weights)
-    if w_sum == 0:
-        return 0.0
-    return float(np.exp(log_d / w_sum))
+    return [by_name[str(n)] for n in model_names]
 
 
 def _optimize_desirability(  # noqa: PLR0913
@@ -536,6 +576,7 @@ def _optimize_desirability(  # noqa: PLR0913
     factor_ranges: dict[str, dict[str, float]] | None = None,
     importances: list[float] | None = None,
     random_state: int | np.random.Generator | None = 42,
+    search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
 ) -> dict[str, Any]:
     """Optimise composite desirability using scipy SLSQP.
 
@@ -544,13 +585,17 @@ def _optimize_desirability(  # noqa: PLR0913
     fitted_models : list[dict]
         Each has ``"coefficients"`` and ``"response_name"``.
     goals : list[dict]
-        Per-response goals.
+        Per-response goals. Matched to *fitted_models* by response name when
+        both sides supply one, otherwise by position.
     factor_names : list[str]
         Ordered factor names.
     factor_ranges : dict or None
         Factor bounds in actual units.
     importances : list[float] or None
-        Relative importance weights for composite desirability.
+        Relative importance of each response in the composite. This is not the
+        same as a goal's ``weight``, which shapes that response's own ramp.
+    search_bounds : tuple, dict, or None
+        Coded region to search. Defaults to the factorial cube, (-1, 1).
 
     Returns
     -------
@@ -558,6 +603,7 @@ def _optimize_desirability(  # noqa: PLR0913
         Optimal settings, predicted responses, individual and composite
         desirability.
     """
+    goals = _align_goals_to_models(fitted_models, goals)
     evaluators = [_build_model_evaluator(m["coefficients"], factor_names) for m in fitted_models]
 
     def neg_composite(x: np.ndarray) -> float:
@@ -565,12 +611,13 @@ def _optimize_desirability(  # noqa: PLR0913
         d_vals = []
         for evaluator, goal in zip(evaluators, goals, strict=True):
             y_pred = evaluator(x)
-            d = _individual_desirability(y_pred, goal)
+            d = individual_desirability(y_pred, goal)
             d_vals.append(d)
-        return -_composite_desirability(d_vals, importances)
+        return -composite_desirability(d_vals, importances)
 
-    k = len(factor_names)
-    bounds = [(-1.0, 1.0)] * k
+    bounds = _resolve_search_bounds(search_bounds, factor_names)
+    lows = np.array([b[0] for b in bounds])
+    highs = np.array([b[1] for b in bounds])
 
     # Multi-start: try centre + random points.
     # SEC-33 (#282): the hard-coded ``42`` moved to the public signature
@@ -582,7 +629,10 @@ def _optimize_desirability(  # noqa: PLR0913
     best_result = None
     best_value = np.inf
 
-    starting_points = [np.zeros(k), *[rng.uniform(-1, 1, size=k) for _ in range(9)]]
+    # Start from the centre of the searched region, then sample across it, so
+    # that widening the bounds actually widens where the search looks.
+    centre = (lows + highs) / 2.0
+    starting_points = [centre, *[rng.uniform(lows, highs) for _ in range(9)]]
 
     for x0 in starting_points:
         res = optimize.minimize(neg_composite, x0, method="SLSQP", bounds=bounds)
@@ -604,7 +654,7 @@ def _optimize_desirability(  # noqa: PLR0913
         resp_name = model_dict.get("response_name", "response")
         y_pred = float(evaluator(x_opt))
         predictions[resp_name] = y_pred
-        individual_d[resp_name] = _individual_desirability(y_pred, goal)
+        individual_d[resp_name] = individual_desirability(y_pred, goal)
 
     result: dict[str, Any] = {
         "optimal_coded": {n: float(x_opt[i]) for i, n in enumerate(factor_names)},
@@ -704,6 +754,121 @@ def _coded_to_actual(coded: dict[str, float], factor_ranges: dict[str, dict[str,
 # ---------------------------------------------------------------------------
 
 
+def _intervals_at_point(
+    fitted_results: list[Any],
+    fitted_models: list[dict[str, Any]],
+    factor_names: list[str],
+    point_coded: dict[str, float],
+    significance_level: float,
+) -> dict[str, Any]:
+    """Confidence and prediction intervals for each response at one point.
+
+    The optimizer works from coefficients alone, which is enough to locate an
+    optimum but not to say how well it is known. The residual variance and the
+    design's leverage at that point are needed for that, and both live on the
+    fitted model object rather than in its coefficients.
+
+    Parameters
+    ----------
+    fitted_results : list
+        Statsmodels results objects, aligned with *fitted_models*, fitted on
+        the coded factors.
+    fitted_models : list[dict]
+        Used only for the response names.
+    factor_names : list[str]
+        Ordered factor names, matching the columns the models were fitted on.
+    point_coded : dict[str, float]
+        Coded factor settings at which to report the intervals.
+    significance_level : float
+        Alpha. 0.05 gives 95% intervals.
+
+    Returns
+    -------
+    dict
+        Keyed by response name. Each entry has ``predicted``,
+        ``confidence_interval``, ``prediction_interval``, and
+        ``confidence_level``. A response whose model cannot be evaluated
+        carries an ``error`` string instead, so one failure does not discard
+        the intervals for the others.
+    """
+    from process_improve.experiments._analyses.prediction import _run_prediction  # noqa: PLC0415
+
+    if len(fitted_results) != len(fitted_models):
+        msg = (
+            f"Got {len(fitted_models)} fitted model(s) but {len(fitted_results)} fitted result(s); "
+            "they must correspond one to one and be in the same order."
+        )
+        raise ValueError(msg)
+
+    new_point = pd.DataFrame([{name: point_coded[name] for name in factor_names}])
+
+    intervals: dict[str, Any] = {}
+    for i, (results_obj, model) in enumerate(zip(fitted_results, fitted_models, strict=True)):
+        resp_name = model.get("response_name", f"Response {i + 1}")
+        try:
+            record = _run_prediction(results_obj, new_point, alpha=significance_level)["predictions"][0]
+        except (AttributeError, KeyError, TypeError, ValueError, PatsyError) as exc:
+            logger.warning("Could not compute intervals for response %r: %s", resp_name, exc)
+            intervals[resp_name] = {"error": str(exc)}
+            continue
+
+        intervals[resp_name] = {
+            "predicted": record["predicted"],
+            "confidence_interval": [record["ci_low"], record["ci_high"]],
+            "prediction_interval": [record["pi_low"], record["pi_high"]],
+            "confidence_level": 1.0 - significance_level,
+        }
+    return intervals
+
+
+def _desirability_result(  # noqa: PLR0913
+    *,
+    fitted_models: list[dict[str, Any]],
+    goals: list[dict[str, Any]],
+    factor_names: list[str],
+    factor_ranges: dict[str, dict[str, float]] | None,
+    response_importance: list[float] | None,
+    fitted_results: list[Any] | None,
+    significance_level: float,
+    search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
+) -> dict[str, Any]:
+    """Assemble the full desirability result: optimum, intervals, and plot input.
+
+    Returns
+    -------
+    dict
+        The optimum from :func:`_optimize_desirability`, plus
+        ``"response_intervals"`` when *fitted_results* is supplied, plus
+        ``"responses"``, which pairs each model's coefficients with its
+        specification limits so the result can be passed straight to the
+        overlay plot.
+    """
+    aligned_goals = _align_goals_to_models(fitted_models, goals)
+    importances = response_importance
+    if importances is None:
+        importances = [g.get("importance", 1.0) for g in aligned_goals]
+
+    desirability = _optimize_desirability(
+        fitted_models, aligned_goals, factor_names, factor_ranges, importances, search_bounds=search_bounds
+    )
+
+    if fitted_results is not None:
+        desirability["response_intervals"] = _intervals_at_point(
+            fitted_results, fitted_models, factor_names, desirability["optimal_coded"], significance_level
+        )
+
+    carried = ("goal", "low", "high", "target", "weight", "weight_high", "importance")
+    desirability["responses"] = [
+        {
+            "name": model.get("response_name", f"Response {i + 1}"),
+            "coefficients": model.get("coefficients", []),
+            **{key: goal[key] for key in carried if key in goal},
+        }
+        for i, (model, goal) in enumerate(zip(fitted_models, aligned_goals, strict=True))
+    ]
+    return desirability
+
+
 def optimize_responses(  # noqa: PLR0913, C901
     fitted_models: list[dict[str, Any]],
     goals: list[dict[str, Any]] | None = None,
@@ -711,6 +876,10 @@ def optimize_responses(  # noqa: PLR0913, C901
     factor_ranges: dict[str, dict[str, float]] | None = None,
     step_size: float = 0.5,
     n_steps: int = 10,
+    response_importance: list[float] | None = None,
+    fitted_results: list[Any] | None = None,
+    significance_level: float = 0.05,
+    search_bounds: tuple[float, float] | dict[str, tuple[float, float]] | None = None,
     desirability_weights: list[float] | None = None,
 ) -> dict[str, Any]:
     """Find optimal factor settings for one or multiple responses.
@@ -731,16 +900,24 @@ def optimize_responses(  # noqa: PLR0913, C901
     goals : list[dict] or None
         Per-response optimisation goals.  Each dict has keys:
 
-        - ``"response"`` (str) - response name (must match a model).
+        - ``"response"`` (str) - response name. Matched against each model's
+          ``"response_name"``; when both sides name their responses the goals
+          are reordered to match, so the two lists need not be in the same
+          order. When either side omits a name, goals are taken in list order.
         - ``"goal"`` (str) - ``"maximize"``, ``"minimize"``, or
           ``"target"``.
         - ``"target"`` (float, optional) - target value (required when
           ``goal="target"``).
         - ``"low"`` (float) - lower acceptable bound.
         - ``"high"`` (float) - upper acceptable bound.
-        - ``"weight"`` (float, default 1) - desirability shape parameter.
-        - ``"importance"`` (float, default 1) - relative importance for
-          composite desirability.
+        - ``"weight"`` (float, default 1) - the exponent shaping *this*
+          response's desirability ramp between ``low`` and ``high``. Above 1
+          concentrates desirability near the good end; below 1 flattens it.
+        - ``"weight_high"`` (float, optional) - a separate exponent for the
+          falling side of a ``"target"`` goal. Defaults to ``"weight"``.
+        - ``"importance"`` (float, default 1) - how much this response counts
+          relative to the others when the composite is formed. Unlike
+          ``weight``, it has no effect on this response's own ramp.
 
     method : str
         Optimisation method: ``"desirability"``,
@@ -754,15 +931,47 @@ def optimize_responses(  # noqa: PLR0913, C901
         Step magnitude for steepest ascent/descent (coded units).
     n_steps : int
         Number of steps for steepest ascent/descent.
+    response_importance : list[float] or None
+        Relative importance per response, overriding the per-goal
+        ``"importance"`` values. Aligned with *fitted_models*.
+    fitted_results : list or None
+        Optional statsmodels results objects, one per entry in *fitted_models*
+        and in the same order, as returned by ``lm()`` or by
+        ``analyze_experiment``. When supplied, a confidence interval and a
+        prediction interval for each response are reported at the optimum.
+        The models must have been fitted on the coded factors, since the
+        optimum is located in coded units.
+    significance_level : float
+        Alpha for those intervals. The default of 0.05 gives 95% intervals.
+    search_bounds : tuple, dict, or None
+        The coded region to search, and the region against which a stationary
+        point is judged inside or outside. Defaults to the factorial cube,
+        ``(-1, 1)`` on every factor.
+
+        That default suits a two-level design but understates a central
+        composite design, whose axial runs sit at plus or minus alpha: leaving
+        it at the cube would refuse to consider settings the experiment
+        actually covered. Pass ``(-1.41, 1.41)`` for a two-factor rotatable
+        central composite design, or a mapping such as
+        ``{"T": (-1.41, 1.41)}`` to widen one factor only. Factors left out of
+        a mapping keep the (-1, 1) default.
     desirability_weights : list[float] or None
-        Importance weights for composite desirability (overrides per-goal
-        ``"importance"`` values).
+        Deprecated alias for *response_importance*. The name was misleading:
+        these values are importances, not the ``weight`` that shapes an
+        individual ramp.
 
     Returns
     -------
     dict[str, Any]
         Results keyed by method.  Always includes ``"method"`` and
         ``"factor_names"``.
+
+    Raises
+    ------
+    ValueError
+        If *method* is unknown, if *fitted_models* is empty, if a method that
+        needs goals is called without them, or if both *response_importance*
+        and *desirability_weights* are given.
 
     Examples
     --------
@@ -796,6 +1005,22 @@ def optimize_responses(  # noqa: PLR0913, C901
         msg = "At least one fitted model is required."
         raise ValueError(msg)
 
+    if desirability_weights is not None:
+        if response_importance is not None:
+            msg = (
+                "Pass either 'response_importance' or the deprecated 'desirability_weights', not both. "
+                "They set the same thing: how much each response counts in the composite."
+            )
+            raise ValueError(msg)
+        warnings.warn(
+            "'desirability_weights' is deprecated; use 'response_importance'. The values are importances, "
+            "which set how much each response counts in the composite, not the per-goal 'weight' that shapes "
+            "an individual desirability ramp.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        response_importance = desirability_weights
+
     # Use factor_names from the first model as the canonical ordering
     factor_names = fitted_models[0]["factor_names"]
     coefficients = fitted_models[0]["coefficients"]
@@ -803,12 +1028,16 @@ def optimize_responses(  # noqa: PLR0913, C901
     result: dict[str, Any] = {"method": method, "factor_names": factor_names}
 
     if method == "stationary_point":
-        result["stationary_point"] = _find_stationary_point(coefficients, factor_names, factor_ranges)
+        result["stationary_point"] = _find_stationary_point(
+            coefficients, factor_names, factor_ranges, search_bounds
+        )
 
     elif method == "canonical_analysis":
         result["canonical_analysis"] = _canonical_analysis(coefficients, factor_names)
         # Also include the stationary point for context
-        result["stationary_point"] = _find_stationary_point(coefficients, factor_names, factor_ranges)
+        result["stationary_point"] = _find_stationary_point(
+            coefficients, factor_names, factor_ranges, search_bounds
+        )
 
     elif method in ("steepest_ascent", "steepest_descent"):
         direction = "ascent" if method == "steepest_ascent" else "descent"
@@ -820,13 +1049,15 @@ def optimize_responses(  # noqa: PLR0913, C901
         if goals is None:
             msg = "Goals are required for desirability optimization."
             raise ValueError(msg)
-
-        importances = desirability_weights
-        if importances is None:
-            importances = [g.get("importance", 1.0) for g in goals]
-
-        result["desirability"] = _optimize_desirability(
-            fitted_models, goals, factor_names, factor_ranges, importances
+        result["desirability"] = _desirability_result(
+            fitted_models=fitted_models,
+            goals=goals,
+            factor_names=factor_names,
+            factor_ranges=factor_ranges,
+            response_importance=response_importance,
+            fitted_results=fitted_results,
+            significance_level=significance_level,
+            search_bounds=search_bounds,
         )
 
     elif method == "ridge_analysis":

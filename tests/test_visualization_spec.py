@@ -84,3 +84,71 @@ class TestPlotlyAnnotationRendering:
         spec = ChartSpec(panels=[_scatter_panel([band])])
         result = PlotlyAdapter().render(spec)
         assert "data" in result
+
+
+def _contour_panel(style: dict, *, color: str | None = None, opacity: float = 1.0) -> PanelSpec:
+    layer = LayerSpec(
+        mark=MarkType.contour,
+        data=[],
+        x=Encoding(field="x"),
+        y=Encoding(field="y"),
+        name="surface",
+        color=color,
+        opacity=opacity,
+        style={"x_grid": [0.0, 1.0], "y_grid": [0.0, 1.0], "z_matrix": [[0.0, 1.0], [1.0, 2.0]], **style},
+    )
+    return PanelSpec(layers=[layer])
+
+
+def _first_trace(panel: PanelSpec) -> dict:
+    rendered = PlotlyAdapter().render(ChartSpec(panels=[panel]))
+    return rendered["data"][0]
+
+
+class TestPlotlyContourStyling:
+    """The contour trace must honour the style keys it is handed.
+
+    These keys were previously accepted into the spec and then discarded by the
+    adapter, so an overlay of several responses rendered as filled surfaces all
+    in one colorscale.
+    """
+
+    def test_defaults_are_unchanged_when_no_style_given(self) -> None:
+        """A bare contour keeps the previous appearance."""
+        trace = _first_trace(_contour_panel({}))
+        assert trace["contours"]["showlabels"] is True
+        assert trace["colorscale"] is not None
+        assert trace["showscale"] is True
+
+    def test_colorscale_and_z_limits_are_forwarded(self) -> None:
+        trace = _first_trace(
+            _contour_panel({"colorscale": [[0.0, "#000000"], [1.0, "#FFFFFF"]], "zmin": 0.0, "zmax": 1.0})
+        )
+        assert [list(stop) for stop in trace["colorscale"]] == [[0.0, "#000000"], [1.0, "#FFFFFF"]]
+        assert trace["zmin"] == 0.0
+        assert trace["zmax"] == 1.0
+
+    def test_explicit_contour_levels_are_forwarded(self) -> None:
+        """Pinning start/end/size is how specification limits become contours."""
+        trace = _first_trace(_contour_panel({"contours": {"start": 30.0, "end": 50.0, "size": 20.0}}))
+        assert trace["contours"]["start"] == 30.0
+        assert trace["contours"]["end"] == 50.0
+        assert trace["contours"]["size"] == 20.0
+
+    def test_line_coloring_uses_the_layer_colour(self) -> None:
+        """Overlaid responses stay distinguishable only if each keeps its colour."""
+        trace = _first_trace(_contour_panel({"contours_coloring": "lines"}, color="#123456"))
+        assert trace["contours"]["coloring"] == "lines"
+        assert trace["line"]["color"] == "#123456"
+        # A per-response colour bar would be meaningless, so it is suppressed.
+        assert trace["showscale"] is False
+
+    def test_showscale_and_opacity_are_forwarded(self) -> None:
+        trace = _first_trace(_contour_panel({"showscale": False}, opacity=0.35))
+        assert trace["showscale"] is False
+        assert trace["opacity"] == 0.35
+
+    def test_ncontours_is_forwarded_and_omitted_when_unset(self) -> None:
+        assert _first_trace(_contour_panel({"ncontours": 8}))["ncontours"] == 8
+        # Passing None would override plotly's own auto-ranging, so it is dropped.
+        assert "ncontours" not in _first_trace(_contour_panel({}))
