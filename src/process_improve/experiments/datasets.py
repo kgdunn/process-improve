@@ -56,7 +56,8 @@ def _read_remote_csv(url: str, *, attempts: int = _FETCH_ATTEMPTS) -> pd.DataFra
         The dataset URL. Hard-coded by the calling loader, never user-supplied.
     attempts : int
         Maximum number of tries, including the first. Defaults to
-        :data:`_FETCH_ATTEMPTS`; pass ``1`` to disable retrying.
+        :data:`_FETCH_ATTEMPTS`; pass ``1`` to disable retrying. Must be at
+        least 1.
 
     Returns
     -------
@@ -69,25 +70,29 @@ def _read_remote_csv(url: str, *, attempts: int = _FETCH_ATTEMPTS) -> pd.DataFra
         If the dataset could not be fetched or parsed. The message names the URL
         and says the data comes from a remote host, so a caller can tell an
         outage apart from a genuine bug.
+    ValueError
+        If *attempts* is less than 1, which would otherwise fetch nothing and
+        report a failure that never happened.
     """
-    last_exc: Exception | None = None
-    for attempt in range(1, attempts + 1):
+    if attempts < 1:
+        raise ValueError(f"attempts must be at least 1; got {attempts}.")
+
+    attempt = 0
+    while True:
+        attempt += 1
         try:
             return pd.read_csv(url)
-        except (OSError, ValueError) as exc:  # noqa: PERF203 - retry loop; the cost here is the network, not the try
-            last_exc = exc
-            if attempt == attempts or not _is_transient(exc):
-                break
+        except (OSError, ValueError) as exc:
+            if attempt >= attempts or not _is_transient(exc):
+                raise RuntimeError(
+                    f"Could not download the sample dataset from {url!r}: {exc}. "
+                    "Check your network connection; this dataset is fetched from a remote host."
+                ) from exc
             delay = _FETCH_BACKOFF_SECONDS * 2 ** (attempt - 1)
             logger.info(
                 "Fetching %s failed (%s); retrying in %.1fs (attempt %d of %d).", url, exc, delay, attempt + 1, attempts
             )
             time.sleep(delay)
-
-    raise RuntimeError(
-        f"Could not download the sample dataset from {url!r}: {last_exc}. "
-        "Check your network connection; this dataset is fetched from a remote host."
-    ) from last_exc
 
 
 def distillateflow() -> pd.DataFrame:

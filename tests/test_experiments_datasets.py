@@ -200,3 +200,8 @@ class TestRemoteFetchRetries:
         with pytest.raises(RuntimeError):
             datasets._read_remote_csv("https://openmv.net/file/x.csv", attempts=1)
         assert calls["n"] == 1
+
+    def test_attempts_must_be_at_least_one(self) -> None:
+        """Zero attempts would report a failure that never happened."""
+        with pytest.raises(ValueError, match="attempts must be at least 1"):
+            datasets._read_remote_csv("https://openmv.net/file/x.csv", attempts=0)
