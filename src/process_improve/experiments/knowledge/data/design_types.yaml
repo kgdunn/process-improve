@@ -303,8 +303,8 @@
     supports_quadratic: "Partial (if <= 3 active factors)"
     supports_interaction: "Partial (if <= 3 active factors)"
   min_runs:
-    formula: "2k + 1"
-    examples: {"6": 13, "8": 17, "10": 21, "12": 25}
+    formula: "2k + 1 (even k) or 2k + 3 (odd k); more where no conference matrix exists at that order, and one or three extra centre runs when two-level categorical factors are present"
+    examples: {"6": 13, "7": 17, "8": 17, "10": 21, "12": 25, "21": 49, "22": 49}
   supports_models:
     - main_effects
     - "quadratic (limited active factors)"

@@ -138,6 +138,7 @@ def _classify_problem(spec: DOEProblemSpec) -> dict[str, Any]:
         "n_factors": n,
         "n_continuous": spec.n_continuous,
         "n_categorical": spec.n_categorical,
+        "n_two_level_categorical": spec.n_two_level_categorical,
         "n_mixture": spec.n_mixture,
         "has_mixture": spec.has_mixture,
         "has_hard_to_change": spec.has_hard_to_change,
@@ -211,7 +212,9 @@ def _large_factor_screening_choice(
         or domain_pref == "definitive_screening"
         or classification["prior_confidence"] >= 0.6
     ):
-        return "definitive_screening", estimate_screening_runs(n, "definitive_screening")
+        return "definitive_screening", estimate_screening_runs(
+            n, "definitive_screening", n_categorical=classification["n_two_level_categorical"]
+        )
     if domain_pref == "plackett_burman" or (n >= 6 and not classification["is_tight_budget"]):
         return "plackett_burman", estimate_screening_runs(n, "plackett_burman")
     if domain_pref == "fractional_factorial":
@@ -226,7 +229,7 @@ def _screening_design_params(design_type: str, n: int) -> dict[str, Any]:
     if design_type == "plackett_burman":
         return {"center_points": 0}  # PB typically without center points
     if design_type == "definitive_screening":
-        return {"fake_factor": n % 2 == 0}  # DSD needs odd factor count
+        return {"center_points": 0}  # the DSD's foldover already carries a centre run
     return {}
 
 
@@ -554,9 +557,10 @@ def _build_alternatives(spec: DOEProblemSpec, classification: dict[str, Any]) ->
     n = classification["n_factors"]
 
     if n >= 6:
-        alternatives.append(
-            f"Definitive Screening Design ({2 * n + 1} runs) to combine screening and curvature detection."
+        runs = estimate_screening_runs(
+            n, "definitive_screening", n_categorical=classification["n_two_level_categorical"]
         )
+        alternatives.append(f"Definitive Screening Design ({runs} runs) to combine screening and curvature detection.")
     if n <= 5:
         alternatives.append(f"Full factorial 2^{n} ({2**n} runs) if budget allows complete information.")
     if n >= 4:

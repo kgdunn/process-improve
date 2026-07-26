@@ -11,6 +11,101 @@ those changes.
 
 ## [Unreleased]
 
+## [1.62.0] - 2026-07-25
+
+### Added
+
+- Definitive screening designs now accept **two-level categorical factors**, via both
+  column-augmentation procedures of Jones and Nachtsheim (2013). `generate_design(...,
+  design_type="dsd")` previously raised `ValueError` as soon as a categorical factor was
+  present. A new `categorical_method` argument selects the procedure:
+  - `"dsd"` (DSD-augment, the default) keeps the design *definitive*: every main effect
+    stays unbiased by every second-order effect, and two-factor interactions involving a
+    categorical factor stay clear of the main effects. The cost is small correlations
+    among the categorical main-effect columns, so the information matrix is not diagonal.
+    Adds two centre runs. The sign vectors are chosen to maximise the first-order
+    information determinant, as the paper prescribes.
+  - `"orth"` (ORTH-augment) gives an orthogonal linear main-effects plan for up to four
+    categorical factors, and nearly orthogonal beyond that. The cost is partial aliasing
+    between main effects and categorical interactions, an unbalanced categorical column,
+    and two extra runs relative to `"dsd"` when there are two or more categorical factors.
+
+  A categorical factor occupies a conference-matrix column like any other, so it costs
+  the same runs as a continuous factor while contributing no quadratic term. Factors may
+  be given in any order; the construction needs the categorical columns trailing and
+  permutes them back. A categorical factor with three or more levels raises, with the
+  message pointing at `design_type="d_optimal"`.
+- `dsd_run_count`, `dsd_conference_order` and `dsd_centre_runs` are exported from
+  `process_improve.experiments`, so a study can be sized without importing from
+  `designs_response_surface` directly.
+- `estimate_screening_runs` takes `n_categorical` and `categorical_method`, so the
+  planner's run estimate for a definitive screening design accounts for the centre runs
+  that categorical factors add rather than under-budgeting by one to three runs. The
+  recommendation engine passes the count of *two-level* categorical factors, which are
+  the only ones a DSD can carry; `DOEProblemSpec.n_two_level_categorical` exposes it.
+- `dsd_centre_runs(n_categorical, categorical_method)` in
+  `process_improve.experiments.designs_response_surface`, and `dsd_run_count` now takes
+  `n_categorical` and `categorical_method`, so a design's size can still be predicted
+  without building it.
+- `dsd_run_count(n_factors)` and `dsd_conference_order(n_factors)` in
+  `process_improve.experiments.designs_response_surface`, for planning a DSD's size
+  without building it.
+
+### Fixed
+
+- `_read_remote_csv` retries a transient failure before giving up: three attempts with
+  1s and 2s of backoff. The sample datasets are fetched live from openmv.net, so a
+  momentary 502 from that host failed a whole CI job. Only failures that can change on a
+  second attempt are retried (connection errors and 408/425/429/5xx); a 404, a 403 or a
+  parse error is raised immediately rather than paying the backoff for an answer that
+  will not change.
+- The dataset tests' "skip if offline" guard never fired. `_read_remote_csv` converts
+  network failures into a `RuntimeError` for a readable message, but the test helper
+  caught only `urllib.error.URLError`, `HTTPError` and `OSError`, none of which can
+  escape the loader (`RuntimeError` is not an `OSError`). A remote outage at openmv.net
+  therefore failed the build instead of skipping, which is what the helper and the tests
+  both claimed would happen.
+- `matrix_to_columns` now maps a numerically coded categorical column onto its level
+  labels. Design families differ in what they return for a categorical factor: the
+  optimal designs already produce labels, which continue to pass straight through.
+- `generate_design(..., design_type="omars")` now rejects categorical factors with a
+  message pointing at `design_type="dsd"`. OMARS is defined for quantitative factors:
+  the family's properties are stated in terms of quadratic and interaction columns, and
+  `is_omars` checks them that way. Because `omars` shares the DSD constructor, adding
+  categorical support would otherwise have let it return a design carrying
+  `omars_verified: False` rather than refusing outright.
+- `generate_design(..., design_type="taguchi")` with a categorical factor raised
+  `ValueError: All values must be present in 'levels'`. `dispatch_taguchi` codes a
+  categorical factor as level indices `0..n-1`, and those indices were handed to the
+  `Column` constructor without substituting the labels. Fixed by the same mapping.
+- Definitive screening designs are now genuine DSDs at every factor count. The
+  conference-matrix constructor only implemented Paley's construction for a prime
+  `q = m - 1`; at every other order it fell back to a cyclic approximation that is not
+  a conference matrix, so `generate_design(..., design_type="dsd")` returned designs
+  whose main effects were correlated with each other at up to r = 0.9 for 9, 10, 15,
+  16, 21, 22, 25, 26, 27 and 28 factors. The same applied to `design_type="omars"`,
+  which shares the construction and already reported `omars_verified: False` for those
+  counts. Three changes:
+  - Paley's construction now works over any odd prime-power field (GF(9), GF(25),
+    GF(27), GF(49), ...), covering 9, 10, 25, 26, 27 and 28 factors at minimal run size.
+  - A verified order-16 conference matrix table covers 15 and 16 factors.
+  - The cyclic fallback is gone. When no conference matrix exists at the minimal order,
+    the constructor steps up to the next order it can build and reports the choice in
+    the design metadata (`conference_order` and `minimal_conference_order`); when
+    nothing can be built it raises. Every constructed matrix is checked against
+    `C.T @ C == (m - 1) * I` before use, so a mistyped table entry cannot slip through.
+  - Consequence for run counts: 21 and 22 factors now need 49 runs rather than 45,
+    because no conference matrix of order 22 exists. All other counts are unchanged.
+- `estimate_screening_runs(k, "definitive_screening")` returned `2k + 1` for every `k`,
+  which undercounted every odd factor count (a 7-factor DSD has 17 runs, not 15) and
+  every count where the minimal conference matrix does not exist. It now asks the
+  constructor via the new `dsd_run_count`.
+- The recommended-strategy plan advertised a `fake_factor` design parameter for
+  definitive screening designs, justified by a comment saying a DSD "needs odd factor
+  count". No such parameter exists and the claim is backwards: an odd factor count is
+  handled by building the next even conference order and dropping a column.
+
+
 ## [1.61.0] - 2026-07-25
 
 ### Fixed
@@ -2707,7 +2802,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.61.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.62.0...HEAD
+[1.62.0]: https://github.com/kgdunn/process-improve/compare/v1.61.0...v1.62.0
 [1.61.0]: https://github.com/kgdunn/process-improve/compare/v1.60.0...v1.61.0
 [1.60.0]: https://github.com/kgdunn/process-improve/compare/v1.59.0...v1.60.0
 [1.59.0]: https://github.com/kgdunn/process-improve/compare/v1.58.0...v1.59.0

@@ -236,9 +236,12 @@ def dispatch_omars(factors: list[Factor], *, verify: bool = True) -> tuple[np.nd
     folds a conference matrix ``C`` of order ``m`` over its negative and adds a
     center run, giving ``[C; -C; 0]``.  ``m = k`` for even ``k`` (``2k + 1``
     runs) and ``m = k + 1`` with the last column dropped for odd ``k``
-    (``2k + 3`` runs).  This yields the minimal OMARS design for ``k`` factors;
-    a future enumerator will expand coverage to the larger, non-foldover
-    members of the OMARS family.
+    (``2k + 3`` runs), except at the factor counts where no conference matrix
+    exists at that order and a larger one has to be used; see
+    :func:`~process_improve.experiments.designs_response_surface.dsd_run_count`.
+    This yields the minimal OMARS design for ``k`` factors; a future enumerator
+    will expand coverage to the larger, non-foldover members of the OMARS
+    family.
 
     Parameters
     ----------
@@ -247,8 +250,9 @@ def dispatch_omars(factors: list[Factor], *, verify: bool = True) -> tuple[np.nd
     verify : bool
         When ``True`` (default) the generated matrix is checked with
         :func:`is_omars` and the result is recorded in the metadata under
-        ``"omars_verified"``.  The check is cheap and guards against the
-        degraded orthogonality of the cyclic conference-matrix fallback.
+        ``"omars_verified"``.  The check is cheap and is a second line of
+        defence behind the conference-matrix verification in
+        :func:`~process_improve.experiments.designs_response_surface.dispatch_dsd`.
 
     Returns
     -------
@@ -260,12 +264,26 @@ def dispatch_omars(factors: list[Factor], *, verify: bool = True) -> tuple[np.nd
     Raises
     ------
     ValueError
-        If fewer than three factors are supplied.
+        If fewer than three factors are supplied, or if any factor is
+        categorical.  OMARS is defined for quantitative factors: the family's
+        properties are stated in terms of quadratic and interaction columns, and
+        :func:`is_omars` checks them that way.  A definitive screening design
+        with a categorical factor is a different object, so it is reached
+        through ``design_type="dsd"`` rather than silently returned here with
+        ``omars_verified: False``.
     """
     from process_improve.experiments.designs_response_surface import dispatch_dsd  # noqa: PLC0415
 
     if len(factors) < 3:
         raise ValueError("OMARS designs require at least 3 factors.")
+
+    categorical = [factor.name for factor in factors if factor.type.value == "categorical"]
+    if categorical:
+        raise ValueError(
+            f"OMARS designs require quantitative factors; {', '.join(repr(name) for name in categorical)} "
+            'is categorical. Use design_type="dsd", which supports two-level categorical factors through '
+            "the column-augmentation procedures of Jones and Nachtsheim (2013)."
+        )
 
     coded_matrix, dsd_meta = dispatch_dsd(factors)
     meta = {**dsd_meta, "family": "conference_foldover"}

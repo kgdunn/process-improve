@@ -41,6 +41,25 @@ def matrix_to_columns(
     """
     from process_improve.experiments.factor import FactorType  # noqa: PLC0415
 
+    def _categorical_labels(values: list, levels: list | None) -> list:
+        """Translate a numerically coded categorical column into its level labels.
+
+        Design families differ in what they hand back for a categorical factor.
+        The optimal designs (via pyoptex) already produce labels, which pass
+        straight through.  The definitive screening design produces a two-level
+        ``-1`` / ``+1`` column, which is mapped onto the factor's two levels in
+        order.  Anything else is left alone for the ``Column`` constructor to
+        validate and reject if it does not belong.
+        """
+        if not levels or not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in values):
+            return values
+        distinct = sorted({float(v) for v in values})
+        if len(levels) == 2 and distinct == [-1.0, 1.0]:
+            return [levels[0] if float(v) < 0 else levels[1] for v in values]
+        if distinct and set(distinct) <= set(range(len(levels))):
+            return [levels[int(v)] for v in values]
+        return values
+
     columns: list[Column] = []
     for i, factor in enumerate(factors):
         values = matrix[:, i].tolist()
@@ -49,6 +68,7 @@ def matrix_to_columns(
             # from its levels and mark it not-coded so the coded<->actual affine
             # map (which assumes a numeric low/high range) is skipped and the
             # labels pass straight through to both the coded and actual designs.
+            values = _categorical_labels(values, factor.levels)
             col = c(values, name=factor.name, levels=factor.levels, units=factor.units)
             col.pi_is_coded = False
         else:

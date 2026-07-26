@@ -106,7 +106,7 @@ def _dispatch_dsd(
 ) -> tuple[np.ndarray, dict]:
     from process_improve.experiments.designs_response_surface import dispatch_dsd  # noqa: PLC0415
 
-    return dispatch_dsd(factors)
+    return dispatch_dsd(factors, categorical_method=kwargs.get("categorical_method", "dsd"))
 
 
 def _dispatch_omars(
@@ -295,6 +295,7 @@ def generate_design(  # noqa: PLR0913
     constraints: list[Constraint] | None = None,
     hard_to_change: list[str] | None = None,
     model_type: str = "interactions",
+    categorical_method: str = "dsd",
     fixed_runs: pd.DataFrame | None = None,
     random_seed: int = 42,
 ) -> DesignResult:
@@ -351,6 +352,16 @@ def generate_design(  # noqa: PLR0913
         the continuous factors only; the categorical enters as a main effect
         plus its interactions), since a categorical factor has no square.
         Ignored by the classical (non-optimal) design families.
+    categorical_method : {"dsd", "orth"}
+        For ``design_type="dsd"`` with two-level categorical factors, which
+        column-augmentation procedure of Jones and Nachtsheim (2013) to use.
+        ``"dsd"`` (default) keeps every main effect unbiased by second-order
+        effects and leaves categorical interactions clear of the main effects,
+        at the cost of small correlations among the categorical main-effect
+        columns. ``"orth"`` gives an orthogonal main-effects plan for up to four
+        categorical factors, at the cost of partial aliasing between main
+        effects and categorical interactions and two extra runs. Ignored by
+        every other design family.
     fixed_runs : pandas.DataFrame or None
         Runs to hold fixed while the optimizer fills the rest (design augmentation), for the
         optimal families only (``"d_optimal"``, ``"i_optimal"``, ``"a_optimal"``, which use
@@ -415,6 +426,7 @@ def generate_design(  # noqa: PLR0913
         "hard_to_change": hard_to_change,
         "constraints": constraints,
         "model_type": model_type,
+        "categorical_method": categorical_method,
         "fixed_runs": fixed_runs,
     }
 

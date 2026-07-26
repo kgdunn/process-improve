@@ -47,21 +47,60 @@ _CCD_FACTORIAL_RUNS: dict[int, int] = {
 # ---------------------------------------------------------------------------
 
 
-def estimate_screening_runs(n_factors: int, design_type: str) -> int:  # noqa: PLR0911
+def _definitive_screening_runs(n_factors: int, n_categorical: int, categorical_method: str) -> int:
+    """Run size of a definitive screening design, asked of the constructor.
+
+    ``2k + 1`` runs for an even factor count and ``2k + 3`` for an odd one,
+    except at the counts where the minimal conference matrix does not exist and
+    a larger one has to be used, plus the centre runs that two-level categorical
+    factors require.  Guessing any of that from a formula gets it wrong.
+    """
+    from process_improve.experiments.designs_response_surface import dsd_run_count  # noqa: PLC0415
+
+    if n_factors < 3:
+        # Below the constructor's minimum; keep the nominal formula so budget
+        # allocation still has a number to work with.
+        return 2 * n_factors + 1
+    return dsd_run_count(n_factors, n_categorical=n_categorical, categorical_method=categorical_method)
+
+
+def estimate_screening_runs(  # noqa: PLR0911
+    n_factors: int,
+    design_type: str,
+    n_categorical: int = 0,
+    categorical_method: str = "dsd",
+) -> int:
     """Estimate the number of runs for a screening design.
 
     Parameters
     ----------
     n_factors : int
-        Number of factors to screen.
+        Total number of factors to screen, counting categorical factors.
     design_type : str
         One of ``"plackett_burman"``, ``"definitive_screening"``,
         ``"fractional_factorial"``, ``"full_factorial"``.
+    n_categorical : int
+        How many of those factors are two-level categorical.  Only the
+        definitive screening design changes size because of them: each one adds
+        centre runs.  Default 0.
+    categorical_method : {"dsd", "orth"}
+        Which column-augmentation procedure a definitive screening design would
+        use, since ORTH-augment costs two extra runs beyond one categorical
+        factor.  Default ``"dsd"``, matching :func:`~process_improve.experiments.designs.generate_design`.
 
     Returns
     -------
     int
-        Estimated run count including center points.
+        Estimated run count including centre points.
+
+    Examples
+    --------
+    >>> estimate_screening_runs(7, "definitive_screening")
+    17
+    >>> estimate_screening_runs(6, "definitive_screening", n_categorical=2)
+    14
+    >>> estimate_screening_runs(6, "definitive_screening", n_categorical=2, categorical_method="orth")
+    16
     """
     if design_type == "plackett_burman":
         # Next multiple of 4 >= k + 1
@@ -69,7 +108,7 @@ def estimate_screening_runs(n_factors: int, design_type: str) -> int:  # noqa: P
         return int(math.ceil(n / 4) * 4)
 
     if design_type == "definitive_screening":
-        return 2 * n_factors + 1
+        return _definitive_screening_runs(n_factors, n_categorical, categorical_method)
 
     if design_type == "fractional_factorial":
         # Smallest 2^(k-p) with resolution >= IV
