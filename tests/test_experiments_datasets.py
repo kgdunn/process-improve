@@ -108,3 +108,95 @@ def test_data_dispatch_signature_typed() -> None:
     # (``from __future__ import annotations``).
     assert datasets.data.__annotations__["return"] == "pd.DataFrame"
     assert datasets.data.__annotations__["dataset"] == "str"
+
+
+class TestRemoteFetchRetries:
+    """A transient blip at the remote host must not fail a whole run.
+
+    Sample data is fetched live, so a momentary 502 from openmv.net has failed
+    an entire CI job.  Retrying rides that out; the tests below pin both that it
+    retries when it should and that it does not when retrying cannot help.
+    """
+
+    def test_transient_error_is_retried_and_succeeds(self, monkeypatch) -> None:
+        frame = pd.DataFrame({"A": [1]})
+        calls = {"n": 0}
+
+        def flaky(_url):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise urllib.error.HTTPError(_url, 502, "Bad Gateway", {}, None)
+            return frame
+
+        monkeypatch.setattr(datasets.pd, "read_csv", flaky)
+        monkeypatch.setattr(datasets.time, "sleep", lambda _s: None)
+        assert datasets._read_remote_csv("https://openmv.net/file/x.csv") is frame
+        assert calls["n"] == 3
+
+    def test_gives_up_after_the_attempt_budget(self, monkeypatch) -> None:
+        calls = {"n": 0}
+
+        def always_down(_url):
+            calls["n"] += 1
+            raise urllib.error.HTTPError(_url, 503, "Service Unavailable", {}, None)
+
+        monkeypatch.setattr(datasets.pd, "read_csv", always_down)
+        monkeypatch.setattr(datasets.time, "sleep", lambda _s: None)
+        with pytest.raises(RuntimeError, match="Could not download the sample dataset"):
+            datasets._read_remote_csv("https://openmv.net/file/x.csv")
+        assert calls["n"] == datasets._FETCH_ATTEMPTS
+
+    @pytest.mark.parametrize("status", [404, 403, 410])
+    def test_settled_http_status_is_not_retried(self, monkeypatch, status: int) -> None:
+        """A 404 says the same thing next time; do not pay the backoff for it."""
+        calls = {"n": 0}
+
+        def missing(_url):
+            calls["n"] += 1
+            raise urllib.error.HTTPError(_url, status, "nope", {}, None)
+
+        monkeypatch.setattr(datasets.pd, "read_csv", missing)
+        monkeypatch.setattr(datasets.time, "sleep", lambda _s: pytest.fail("should not back off"))
+        with pytest.raises(RuntimeError, match="Could not download the sample dataset"):
+            datasets._read_remote_csv("https://openmv.net/file/x.csv")
+        assert calls["n"] == 1
+
+    def test_parse_error_is_not_retried(self, monkeypatch) -> None:
+        """A ValueError means the fetch worked and the content was wrong."""
+        calls = {"n": 0}
+
+        def bad_content(_url):
+            calls["n"] += 1
+            raise ValueError("could not parse")
+
+        monkeypatch.setattr(datasets.pd, "read_csv", bad_content)
+        monkeypatch.setattr(datasets.time, "sleep", lambda _s: pytest.fail("should not back off"))
+        with pytest.raises(RuntimeError, match="Could not download the sample dataset"):
+            datasets._read_remote_csv("https://openmv.net/file/x.csv")
+        assert calls["n"] == 1
+
+    def test_connection_error_is_retried(self, monkeypatch) -> None:
+        """A bare OSError (DNS, reset connection) is worth another try."""
+        calls = {"n": 0}
+
+        def dns_fail(_url):
+            calls["n"] += 1
+            raise OSError("name resolution failed")
+
+        monkeypatch.setattr(datasets.pd, "read_csv", dns_fail)
+        monkeypatch.setattr(datasets.time, "sleep", lambda _s: None)
+        with pytest.raises(RuntimeError):
+            datasets._read_remote_csv("https://openmv.net/file/x.csv")
+        assert calls["n"] == datasets._FETCH_ATTEMPTS
+
+    def test_attempts_can_be_disabled(self, monkeypatch) -> None:
+        calls = {"n": 0}
+
+        def down(_url):
+            calls["n"] += 1
+            raise urllib.error.HTTPError(_url, 502, "Bad Gateway", {}, None)
+
+        monkeypatch.setattr(datasets.pd, "read_csv", down)
+        with pytest.raises(RuntimeError):
+            datasets._read_remote_csv("https://openmv.net/file/x.csv", attempts=1)
+        assert calls["n"] == 1

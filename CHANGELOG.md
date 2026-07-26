@@ -53,6 +53,12 @@ those changes.
 
 ### Fixed
 
+- `_read_remote_csv` retries a transient failure before giving up: three attempts with
+  1s and 2s of backoff. The sample datasets are fetched live from openmv.net, so a
+  momentary 502 from that host failed a whole CI job. Only failures that can change on a
+  second attempt are retried (connection errors and 408/425/429/5xx); a 404, a 403 or a
+  parse error is raised immediately rather than paying the backoff for an answer that
+  will not change.
 - The dataset tests' "skip if offline" guard never fired. `_read_remote_csv` converts
   network failures into a `RuntimeError` for a readable message, but the test helper
   caught only `urllib.error.URLError`, `HTTPError` and `OSError`, none of which can

@@ -2,28 +2,92 @@
 
 from __future__ import annotations
 
+import logging
+import time
+import urllib.error
 from pathlib import Path
 
 import pandas as pd
 
+logger = logging.getLogger(__name__)
+
 _DATASETS_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments"
 
+# Retry policy for the live sample-data fetches.  Three attempts at 1s and 2s of
+# backoff costs at most three seconds on a genuine outage, and rides out the
+# momentary 5xx blips that would otherwise fail a whole run.
+_FETCH_ATTEMPTS = 3
+_FETCH_BACKOFF_SECONDS = 1.0
 
-def _read_remote_csv(url: str) -> pd.DataFrame:
+# Server-side and connection failures worth a second look.  A 404 or a 403 will
+# say the same thing next time, so those are not retried.
+_TRANSIENT_HTTP_STATUS = frozenset({408, 425, 429, 500, 502, 503, 504})
+
+
+def _is_transient(exc: Exception) -> bool:
+    """Return True when *exc* looks like a blip rather than a settled answer.
+
+    A parse failure (``ValueError``) means the fetch succeeded and the content
+    was wrong, so retrying cannot help.
+    """
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code in _TRANSIENT_HTTP_STATUS
+    return isinstance(exc, OSError)
+
+
+def _read_remote_csv(url: str, *, attempts: int = _FETCH_ATTEMPTS) -> pd.DataFrame:
     """Fetch a sample-dataset CSV from a (hard-coded, trusted) remote host.
 
     The URL is not user-supplied. Network or parse failures are surfaced as a
     clear ``RuntimeError`` rather than a lower-level ``URLError`` / parser error,
     so callers get an actionable message. Note that the content is fetched over
     the network and is therefore trusted only as far as the remote host is.
+
+    A transient failure is retried with exponential backoff before giving up.
+    Sample data is fetched live, so a momentary blip at the remote host would
+    otherwise fail a whole test run or documentation build; a 502 from the host
+    has done exactly that. Only failures that look transient are retried: a
+    parse error, or an HTTP status that will not change on a second attempt, is
+    raised immediately rather than paying the backoff for nothing.
+
+    Parameters
+    ----------
+    url : str
+        The dataset URL. Hard-coded by the calling loader, never user-supplied.
+    attempts : int
+        Maximum number of tries, including the first. Defaults to
+        :data:`_FETCH_ATTEMPTS`; pass ``1`` to disable retrying.
+
+    Returns
+    -------
+    pandas.DataFrame
+        The parsed CSV.
+
+    Raises
+    ------
+    RuntimeError
+        If the dataset could not be fetched or parsed. The message names the URL
+        and says the data comes from a remote host, so a caller can tell an
+        outage apart from a genuine bug.
     """
-    try:
-        return pd.read_csv(url)
-    except (OSError, ValueError) as exc:
-        raise RuntimeError(
-            f"Could not download the sample dataset from {url!r}: {exc}. "
-            "Check your network connection; this dataset is fetched from a remote host."
-        ) from exc
+    last_exc: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return pd.read_csv(url)
+        except (OSError, ValueError) as exc:  # noqa: PERF203 - retry loop; the cost here is the network, not the try
+            last_exc = exc
+            if attempt == attempts or not _is_transient(exc):
+                break
+            delay = _FETCH_BACKOFF_SECONDS * 2 ** (attempt - 1)
+            logger.info(
+                "Fetching %s failed (%s); retrying in %.1fs (attempt %d of %d).", url, exc, delay, attempt + 1, attempts
+            )
+            time.sleep(delay)
+
+    raise RuntimeError(
+        f"Could not download the sample dataset from {url!r}: {last_exc}. "
+        "Check your network connection; this dataset is fetched from a remote host."
+    ) from last_exc
 
 
 def distillateflow() -> pd.DataFrame:
