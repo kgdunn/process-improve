@@ -79,3 +79,4 @@ data structures and goals:
    pls
    tpls
    multiblock
+   model_inversion
