@@ -11,6 +11,24 @@ those changes.
 
 ## [Unreleased]
 
+## [1.62.1] - 2026-07-28
+
+### Added
+
+- Documentation: a "Model inversion and the orthogonal space" page in the user
+  guide, covering `PLS.invert()`, walking the null space, why inversion may
+  need more components than prediction does, the equivalence with the O-PLS
+  orthogonal space, how well the null-space direction is actually determined,
+  and why a multivariate specification region is not the box of per-input
+  ranges that summarises it.
+- Tests pinning the constants quoted in that worked example which no code block
+  prints: the Hotelling's T-squared and SPE limits, the score norms either side
+  of the direct-inversion solution, the step at which T-squared is least, the
+  angle between each weight and its own loading before and after the orthogonal
+  variation is removed, the agreement between the PLS and O-PLS regression
+  coefficients, and the split of the sum of squares in X.
+
+
 ## [1.62.0] - 2026-07-26
 
 ### Added
@@ -2761,7 +2779,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.62.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.62.1...HEAD
+[1.62.1]: https://github.com/kgdunn/process-improve/compare/v1.62.0...v1.62.1
 [1.62.0]: https://github.com/kgdunn/process-improve/compare/v1.61.0...v1.62.0
 [1.61.0]: https://github.com/kgdunn/process-improve/compare/v1.60.0...v1.61.0
 [1.60.0]: https://github.com/kgdunn/process-improve/compare/v1.59.0...v1.60.0
