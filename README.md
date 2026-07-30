@@ -25,29 +25,24 @@ and how sure am I?*
 The last few releases extend `process-improve` from offline model-building into
 end-to-end, on-line workflows. Highlights (full history in [CHANGELOG.md](CHANGELOG.md)):
 
-- **Run a model backwards, to design rather than predict.** `PLS.invert()`
-  (v1.61) fixes the quality you want and solves for the inputs that reach it.
-  The answer is rarely one recipe: it is a whole *null space* of them, which you
-  can walk to trade one input against another while the prediction holds still.
-  The new `OPLS` estimator reaches the same set of designs by separating that
-  freedom during fitting, which for a single response is provably the same
-  subspace ([García-Carrión et al., 2025](https://doi.org/10.1002/cem.70057)).
-  Written up with a worked example in the
+- **Design, rather than predict.** `PLS.invert()` (v1.61) solves for the inputs
+  that reach a target quality, and returns the *null space* of equally valid
+  recipes. `OPLS` reaches the same designs by separating that freedom while
+  fitting. See the
   [user guide](https://kgdunn.github.io/process-improve/user_guide/model_inversion.html)
-  and, at length, in [the book](https://learnche.org/pid/latent-variable-modelling/projection-to-latent-structures/pls-model-inversion-and-the-orthogonal-space).
+  or the longer
+  [book chapter](https://learnche.org/pid/latent-variable-modelling/projection-to-latent-structures/pls-model-inversion-and-the-orthogonal-space).
 - **Models that keep up with a drifting process.** `AdaptivePCA` and
-  `AdaptivePLS` (v1.55) are recursive estimators for on-line monitoring and soft
-  sensing: start from an initial fit, then stream one observation at a time.
-  They track the operating point, re-learn the correlation structure, and tell
-  you - in units of components - exactly how far the process has drifted from
-  where it was trained.
-- **A DOE engine that goes past textbook designs.** OMARS (orthogonal minimally
-  aliased response surfaces), D-/I-/A-optimal designs, fractional-cube CCDs,
-  design augmentation (`fixed_runs=`), and an `evaluate_design` suite that scores
-  any design on D/I/G-efficiency, aliasing, and prediction variance.
+  `AdaptivePLS` (v1.55) fit once, then stream one observation at a time,
+  re-learning the correlation structure and reporting how far the process has
+  drifted, in units of components.
+- **A DOE engine that goes past textbook designs.** OMARS designs, D-/I-/A-optimal
+  designs, fractional-cube CCDs, design augmentation (`fixed_runs=`), and an
+  `evaluate_design` suite scoring any design on efficiency, aliasing, and
+  prediction variance.
 - **Sensory & descriptive panel analysis** (`process_improve.sensory`): validate
   a panel, flag inconsistent assessors with the Mixed Assessor Model, and relate
-  attributes to product covariates - with an honest genuine-vs-proxy separation.
+  attributes to product covariates.
 - **Robust regression** (`process_improve.regression`): repeated-median and
   Theil-Sen estimators for data with outliers, plus `OLS` and `fit_robust_lm`.
 
