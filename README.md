@@ -25,19 +25,24 @@ and how sure am I?*
 The last few releases extend `process-improve` from offline model-building into
 end-to-end, on-line workflows. Highlights (full history in [CHANGELOG.md](CHANGELOG.md)):
 
+- **Design, rather than predict.** `PLS.invert()` (v1.61) solves for the inputs
+  that reach a target quality, and returns the *null space* of equally valid
+  recipes. `OPLS` reaches the same designs by separating that freedom while
+  fitting. See the
+  [user guide](https://kgdunn.github.io/process-improve/user_guide/model_inversion.html)
+  or the longer
+  [book chapter](https://learnche.org/pid/latent-variable-modelling/projection-to-latent-structures/pls-model-inversion-and-the-orthogonal-space).
 - **Models that keep up with a drifting process.** `AdaptivePCA` and
-  `AdaptivePLS` (v1.55) are recursive estimators for on-line monitoring and soft
-  sensing: start from an initial fit, then stream one observation at a time.
-  They track the operating point, re-learn the correlation structure, and tell
-  you - in units of components - exactly how far the process has drifted from
-  where it was trained.
-- **A DOE engine that goes past textbook designs.** OMARS (orthogonal minimally
-  aliased response surfaces), D-/I-/A-optimal designs, fractional-cube CCDs,
-  design augmentation (`fixed_runs=`), and an `evaluate_design` suite that scores
-  any design on D/I/G-efficiency, aliasing, and prediction variance.
+  `AdaptivePLS` (v1.55) fit once, then stream one observation at a time,
+  re-learning the correlation structure and reporting how far the process has
+  drifted, in units of components.
+- **A DOE engine that goes past textbook designs.** OMARS designs, D-/I-/A-optimal
+  designs, fractional-cube CCDs, design augmentation (`fixed_runs=`), and an
+  `evaluate_design` suite scoring any design on efficiency, aliasing, and
+  prediction variance.
 - **Sensory & descriptive panel analysis** (`process_improve.sensory`): validate
   a panel, flag inconsistent assessors with the Mixed Assessor Model, and relate
-  attributes to product covariates - with an honest genuine-vs-proxy separation.
+  attributes to product covariates.
 - **Robust regression** (`process_improve.regression`): repeated-median and
   Theil-Sen estimators for data with outliers, plus `OLS` and `fit_robust_lm`.
 
@@ -51,6 +56,9 @@ practitioners actually use on real plant and lab data:
 - **PLS** regression with a fully sklearn-compatible API, VIP scores, and
   cross-validated diagnostics
 - **TPLS** - PLS for *T-shaped (multi-block) data structures*
+- **Model inversion** - `PLS.invert()` and `OPLS` solve for the inputs that
+  reach a target quality, return the null space of equally valid designs, and
+  report how far each design sits from the data that support it
 - **Adaptive PCA / PLS** - recursive, self-updating models for on-line process
   monitoring and soft sensing; they follow a drifting process one observation at
   a time and report how far it has moved
@@ -90,6 +98,7 @@ how confident the prediction is.
 | Variable-level score contributions                |       -      |        ✓        |
 | Cross-validated coefficient confidence intervals  |       -      |        ✓        |
 | Multi-block models (TPLS)                          |       -      |        ✓        |
+| Model inversion: design inputs for a target        |       -      |        ✓        |
 | On-line / adaptive monitoring (recursive PCA/PLS) |       -      |        ✓        |
 | Designed experiments, incl. OMARS & optimal       |       -      |        ✓        |
 | Control charts (Shewhart / CUSUM / Holt-Winters)  |       -      |        ✓        |
@@ -173,6 +182,36 @@ print(cv.beta_ci_lower, cv.beta_ci_upper)   # 95% CI for each beta
 print(cv.significant)                       # betas significantly != 0
 print(cv.q_squared)                         # cross-validated R² (Q²)
 ```
+
+### Model inversion - design the inputs for a quality you choose
+
+```python
+from process_improve.multivariate.methods import PLS, OPLS
+
+# X: acetic acid, H2S and lactic acid in 26 cheddar cheeses; y: their taste score
+pls = PLS(n_components=2).fit(X, y)
+
+design = pls.invert(y_desired=20.9)
+print(design.x_new.round(2).to_list())   # [5.52, 5.56, 1.4], in the original units
+print(design.hotellings_t2.round(2))     # 0.06: well inside the calibration data
+print(design.null_space_dimension)       # 1: a line of designs, not a single recipe
+
+# Walk that line. The recipe changes; the predicted taste does not.
+for step in (-1.0, 0.0, 1.0):
+    print(pls.invert(20.9, null_space_coordinates=[step]).x_new.round(2).to_list())
+# [4.95, 6.1, 1.33]
+# [5.52, 5.56, 1.4]
+# [6.09, 5.02, 1.46]
+
+# O-PLS separates that freedom while fitting, so inversion becomes one division.
+opls = OPLS(n_orthogonal_components=1).fit(X, y)
+print(opls.invert(y_desired=20.9).x_new.round(2).to_list())   # [5.46, 5.62, 1.39]
+```
+
+Both routes describe the same set of designs, and differ only in which point on
+it they report. The freedom is what you spend on cost, supply, or a regulatory
+window; the `hotellings_t2` is what tells you when a design has walked past the
+evidence.
 
 ### DOE - multi-stage experimental strategy
 
@@ -265,6 +304,10 @@ preserved through `fit` and `transform`.
 - **API reference & user guide:** <https://kgdunn.github.io/process-improve/>
 - **Applied DoE tutorial (8 modules):**
   <https://kgdunn.github.io/process-improve/applied_doe/index.html>
+- **Model inversion, end to end:** the
+  [user-guide page](https://kgdunn.github.io/process-improve/user_guide/model_inversion.html),
+  and the book chapter it is drawn from,
+  [Using a PLS model backwards](https://learnche.org/pid/latent-variable-modelling/projection-to-latent-structures/pls-model-inversion-and-the-orthogonal-space)
 - **Companion textbook:** [Process Improvement using Data](https://learnche.org/pid)
 - **Local docs build:** `cd docs && make html`
 

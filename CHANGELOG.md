@@ -11,6 +11,14 @@ those changes.
 
 ## [Unreleased]
 
+## [1.62.2] - 2026-07-29
+
+### Changed
+
+- README: model inversion is now advertised alongside the other headline
+  capabilities, with a runnable `PLS.invert()` / `OPLS` quick-start example on
+  the cheddar-cheese data and links to the user-guide page and book chapter.
+
 ## [1.62.1] - 2026-07-28
 
 ### Added
@@ -2779,7 +2787,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.62.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.62.2...HEAD
+[1.62.2]: https://github.com/kgdunn/process-improve/compare/v1.62.1...v1.62.2
 [1.62.1]: https://github.com/kgdunn/process-improve/compare/v1.62.0...v1.62.1
 [1.62.0]: https://github.com/kgdunn/process-improve/compare/v1.61.0...v1.62.0
 [1.61.0]: https://github.com/kgdunn/process-improve/compare/v1.60.0...v1.61.0
