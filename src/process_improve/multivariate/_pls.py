@@ -1308,7 +1308,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
               distribution signals a confident recommendation; a flat or
               multi-modal one flags it for review.
             - ``selection_mode`` - the most-voted component count, or
-              ``None`` when ``selection_distribution`` is.
+              ``None`` when ``selection_distribution`` is ``None``.
             - ``selection_is_stable`` - ``True`` iff the modal vote share
               meets ``stability_threshold``; ``None`` when no distribution
               was computed.

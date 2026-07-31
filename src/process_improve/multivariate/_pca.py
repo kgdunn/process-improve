@@ -1074,6 +1074,14 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             emits a :class:`DeprecationWarning`; the value is ignored. Use
             ``selection_rule="q2_increment"`` (and tune ``min_q2_increase``)
             for a comparable parsimony preference.
+        return_consensus : bool, default False
+            When ``True``, also run :meth:`minka_mle` and
+            :meth:`parallel_analysis` on ``X`` and attach their
+            recommendations to the returned Bunch alongside the ekf choice
+            (see the ``minka_n_components`` /
+            ``parallel_analysis_n_components`` / ``consensus`` /
+            ``consensus_counts`` fields below). Off by default because the
+            two extra estimates require their own eigendecomposition.
         **pca_kwargs
             Additional keyword arguments passed to the ``PCA()`` constructor
             under ``cv_scheme="row_wise"`` (e.g. ``algorithm="nipals"``).
@@ -1107,6 +1115,18 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
               (preserved for back-compat).
             - ``cv_scheme`` - the scheme used (``"ekf"`` or ``"row_wise"``).
             - ``selection_rule`` - the rule used to pick ``n_components``.
+
+            When ``return_consensus=True`` the Bunch also carries four
+            extra keys sourced from the cheap cross-checks:
+
+            - ``minka_n_components`` - :meth:`minka_mle` estimate (int).
+            - ``parallel_analysis_n_components`` -
+              :meth:`parallel_analysis` estimate (int).
+            - ``consensus`` - ``"agree"`` when the three recommendations
+              lie within one component of one another, ``"disagree"``
+              otherwise.
+            - ``consensus_counts`` - the three recommendations as a
+              ``(ekf, minka, parallel_analysis)`` tuple.
 
         References
         ----------
