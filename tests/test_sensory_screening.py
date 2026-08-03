@@ -357,3 +357,108 @@ def test_screening_tools_are_registered_for_the_agent() -> None:
     """Both tools appear in the sensory tool specs so an LLM can call them."""
     names = {spec["name"] for spec in get_sensory_tool_specs()}
     assert {"sensory_screening_plan", "sensory_detectable_difference"} <= names
+
+
+# ---------------------------------------------------------------------------
+# Guard clauses
+#
+# Every one of these is a way to ask for a design that cannot exist. They are
+# tested individually because the message is the deliverable: a scientist who
+# gets these back needs to know which number to change.
+# ---------------------------------------------------------------------------
+
+
+def test_williams_design_rejects_a_non_positive_subject_count() -> None:
+    """Zero subjects is not a design."""
+    with pytest.raises(ValueError, match="n_subjects"):
+        williams_design(4, n_subjects=0)
+
+
+def test_cyclic_block_design_rejects_fewer_than_two_treatments() -> None:
+    """There is nothing to block with a single treatment."""
+    with pytest.raises(ValueError, match="at least 2 treatments"):
+        cyclic_block_design(1, block_size=1, n_blocks=3)
+
+
+def test_cyclic_block_design_rejects_an_empty_block() -> None:
+    """A block of size zero would serve nothing."""
+    with pytest.raises(ValueError, match="block_size"):
+        cyclic_block_design(6, block_size=0, n_blocks=3)
+
+
+def test_cyclic_block_design_rejects_a_non_positive_block_count() -> None:
+    """Asking for no blocks is a caller error, not an empty design."""
+    with pytest.raises(ValueError, match="n_blocks"):
+        cyclic_block_design(6, block_size=3, n_blocks=0)
+
+
+def test_screening_plan_rejects_an_empty_panel() -> None:
+    """No assessors means no plan."""
+    with pytest.raises(ValueError, match="n_panelists"):
+        sensory_screening_plan(CANDIDATES, n_panelists=0, samples_per_session=5)
+
+
+def test_screening_plan_rejects_non_positive_replicates() -> None:
+    """Every candidate must be served at least once."""
+    with pytest.raises(ValueError, match="replicates"):
+        sensory_screening_plan(CANDIDATES, n_panelists=6, samples_per_session=5, replicates=0)
+
+
+def test_screening_plan_rejects_a_non_positive_session_count() -> None:
+    """Fixing the sessions at zero contradicts asking for a plan."""
+    with pytest.raises(ValueError, match="n_sessions"):
+        sensory_screening_plan(CANDIDATES, n_panelists=6, samples_per_session=5, n_sessions=0)
+
+
+def test_screening_plan_rejects_a_single_candidate() -> None:
+    """One candidate is not a screen."""
+    with pytest.raises(ValueError, match="at least 2 candidates"):
+        sensory_screening_plan(["Only one"], n_panelists=6, samples_per_session=5)
+
+
+def test_screening_plan_rejects_a_control_that_is_also_a_candidate() -> None:
+    """The reference cannot double as a treatment; its replication would be wrong."""
+    with pytest.raises(ValueError, match="must not also appear"):
+        sensory_screening_plan([*CANDIDATES, "Base"], n_panelists=6, samples_per_session=5, control="Base")
+
+
+def test_screening_plan_handles_a_single_slot_per_block() -> None:
+    """With one test slot per block there is no order to balance, and that is fine."""
+    result = sensory_screening_plan(CANDIDATES, n_panelists=6, samples_per_session=2, control="Base", seed=12)
+
+    for _, block in result.plan.groupby("block"):
+        assert (block["role"] == "test").sum() == 1
+    assert result.diagnostics["position_balance"] == 0.0
+
+
+def test_detectable_difference_rejects_a_non_positive_sd() -> None:
+    """A zero or negative noise estimate is not a noise estimate."""
+    with pytest.raises(ValueError, match="sd"):
+        detectable_difference(sd=0.0, n_per_product=10)
+
+
+@pytest.mark.parametrize(("alpha", "power"), [(0.0, 0.8), (1.0, 0.8), (0.05, 0.0), (0.05, 1.0)])
+def test_detectable_difference_rejects_out_of_range_rates(alpha: float, power: float) -> None:
+    """Both alpha and power are probabilities strictly inside (0, 1)."""
+    with pytest.raises(ValueError, match=r"alpha|power"):
+        detectable_difference(sd=1.0, n_per_product=10, alpha=alpha, power=power)
+
+
+def test_detectable_difference_rejects_an_empty_comparison_family() -> None:
+    """There is always at least one comparison being made."""
+    with pytest.raises(ValueError, match="n_comparisons"):
+        detectable_difference(sd=1.0, n_per_product=10, n_comparisons=0)
+
+
+def test_required_panelists_refuses_an_unreachable_target() -> None:
+    """A target the search ceiling cannot reach raises rather than looping or lying."""
+    with pytest.raises(ValueError, match="No n_per_product up to"):
+        required_panelists(sd=10.0, difference=0.001, max_n=20)
+
+
+def test_detectable_difference_tool_relays_an_unreachable_target() -> None:
+    """A target no panel size can reach comes back as ok=False, not as an exception."""
+    result = detectable_difference_tool(_DetectableDifferenceInput(sd=1e6, difference=1e-6))
+
+    assert result["ok"] is False
+    assert any("No n_per_product up to" in error for error in result["errors"])
