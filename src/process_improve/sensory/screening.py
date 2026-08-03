@@ -44,10 +44,12 @@ residual effects of treatments. *Australian Journal of Scientific Research*,
 2(2), 149-168.
 
 Cochran, W. G. & Cox, G. M. (1957). *Experimental Designs* (2nd ed.). Wiley.
-Chapters 9-11 on incomplete block designs.
+The classical catalogue of balanced incomplete block designs.
 
 Naes, T., Brockhoff, P. B. & Tomic, O. (2010). *Statistics for Sensory and
-Consumer Science*. Wiley. Chapter 2 on designing sensory experiments.
+Consumer Science*. Wiley. Covers the assessor as a blocking factor and the
+practical design of a panel session; the block *construction* below is not in
+it, and comes from Cochran & Cox and from Williams.
 
 MacFie, H. J., Bratchell, N., Greenhoff, K. & Vallis, L. V. (1989). Designs to
 balance the effect of order of presentation and first-order carry-over effects
