@@ -407,7 +407,7 @@ with correctly calibrated thresholds.
   13(2), 456-466.
 
 Before the panel: designing the screen
--------------------------------------
+--------------------------------------
 
 Everything above analyses panel data that already exists. When you are at the
 other end - a long list of candidate samples and no scores yet - the question is
