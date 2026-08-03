@@ -238,7 +238,9 @@ class _AnalyzeInput(BaseModel):
             "Set false to skip it (faster)."
         ),
     )
-    n_permutations: int = Field(199, ge=1, description="Permutations for the discriminator's selectivity-ratio null.")
+    n_permutations: int = Field(
+        199, ge=1, description="Permutations for the discriminator's selectivity-ratio null."
+    )
     random_state: int = Field(0, description="Seed for the discriminator's permutations and CV folds.")
     score_min: float | None = Field(None, description="Optional lower bound for the score scale.")
     score_max: float | None = Field(None, description="Optional upper bound for the score scale.")
@@ -528,17 +530,10 @@ class _DetectableDifferenceInput(BaseModel):
 )
 def sensory_detectable_difference(spec: _DetectableDifferenceInput) -> dict:
     """Minimum detectable difference, or the panel size that reaches one; see tool spec."""
-    if (spec.n_per_product is None) == (spec.difference is None):
-        return clean(
-            {
-                "ok": False,
-                "errors": [
-                    "Give exactly one of `n_per_product` (what can I see?) or `difference` (how many do I need?)."
-                ],
-            }
-        )
     try:
-        if spec.n_per_product is not None:
+        # Written as two positive tests rather than one "exactly one is set" guard so the
+        # optional fields are narrowed for the type checker at each call site.
+        if spec.n_per_product is not None and spec.difference is None:
             out = _detectable_difference(
                 sd=spec.sd,
                 n_per_product=spec.n_per_product,
@@ -546,13 +541,23 @@ def sensory_detectable_difference(spec: _DetectableDifferenceInput) -> dict:
                 power=spec.power,
                 n_comparisons=spec.n_comparisons,
             )
-        else:
+        elif spec.difference is not None and spec.n_per_product is None:
             out = _required_panelists(
                 sd=spec.sd,
                 difference=spec.difference,
                 alpha=spec.alpha,
                 power=spec.power,
                 n_comparisons=spec.n_comparisons,
+            )
+        else:
+            return clean(
+                {
+                    "ok": False,
+                    "errors": [
+                        "Give exactly one of `n_per_product` (what can I see?) or `difference` "
+                        "(how many do I need?)."
+                    ],
+                }
             )
     except ValueError as exc:
         return clean({"ok": False, "errors": [str(exc)]})
