@@ -406,6 +406,73 @@ with correctly calibrated thresholds.
   all-pairwise comparisons. *Journal of Computational and Graphical Statistics*,
   13(2), 456-466.
 
+Before the panel: designing the screen
+-------------------------------------
+
+Everything above analyses panel data that already exists. When you are at the
+other end - a long list of candidate samples and no scores yet - the question is
+which samples each assessor should taste, in which order, and whether the panel
+is big enough to see the effect at all. :mod:`process_improve.sensory.screening`
+covers that step.
+
+A screen is not an ordinary designed experiment, for three reasons:
+
+**Session capacity.** An assessor can only judge a handful of samples in one
+sitting before fatigue and carry-over dominate. Once the candidate list is
+longer than a session, every assessor sees only a *subset*, so the design is an
+**incomplete block design** with the assessor-session as the block.
+:func:`~process_improve.sensory.screening.cyclic_block_design` builds the blocks
+so replication is equal, or as near-equal as the arithmetic allows, and so every
+pair of candidates meets inside a block about equally often. That pairwise
+**concurrence** is what decides how precisely two candidates can be compared with
+each other; when an exact balanced incomplete block design exists for the given
+numbers, the construction finds one, and ``diagnostics["balanced"]`` says so.
+
+**Carry-over and position.** What was tasted just before changes this score, and
+the first sample of a session is not scored like the last.
+:func:`~process_improve.sensory.screening.williams_design` returns serving orders
+in which every treatment appears once in each position and every *ordered* pair
+occurs equally often, so no candidate is systematically favoured by its
+neighbours. An even number of treatments needs one square; an odd number needs a
+mirrored second one.
+
+**Sensitivity.** Panel scores are noisy, so a screen that is too small returns
+"no significant effect" whatever the truth is.
+:func:`~process_improve.sensory.screening.detectable_difference` turns a residual
+standard deviation and a panel size into the smallest difference the screen can
+actually resolve, and
+:func:`~process_improve.sensory.screening.required_panelists` inverts it. Correct
+for the comparison family with ``n_comparisons``: testing twenty candidates
+against one control is twenty comparisons, and pretending otherwise overstates
+what the screen can see.
+
+:func:`~process_improve.sensory.screening.sensory_screening_plan` assembles all
+three into one serving sheet, optionally anchoring a reference sample first in
+every block so session and assessor drift can be removed later:
+
+.. code-block:: python
+
+    from process_improve.sensory import sensory_screening_plan
+
+    result = sensory_screening_plan(
+        [f"Candidate {i:02d}" for i in range(1, 22)],
+        n_panelists=12,
+        samples_per_session=6,   # 5 candidates + the anchored reference
+        control="Reference",
+        replicates=2,
+        seed=0,
+    )
+    result.plan.head()          # panelist_id, session, position, product, role, block
+    result.diagnostics          # replication, concurrence, balanced, control_coverage
+    result.warnings             # e.g. a panel too small to cover the list
+
+The plan comes back in the same long shape the rest of this page consumes: fill
+in the scores next to ``product`` and it feeds straight into
+:func:`~process_improve.sensory.compare_products`, with ``panelist_id`` as the
+block. A capacity shortfall is reported in ``warnings`` rather than silently
+dropping candidates, because quietly screening eighteen of your twenty-one
+candidates is the failure mode worth being loud about.
+
 Worked example
 --------------
 
@@ -541,6 +608,10 @@ and covariate tables as lists of row-records and returning JSON:
   option (``"none"`` / ``"align"`` / ``"drop"``), the MAM results, and (unless
   ``discriminator`` is set false) the cross-validated discriminator in its
   output.
+- ``sensory_screening_plan`` - the blocked, carry-over balanced serving sheet
+  for a screen that has not been run yet.
+- ``sensory_detectable_difference`` - what a given panel size can resolve, or
+  the panel size a given difference needs.
 
 The analyze tool validates first and refuses to run if validation fails, so an
 agent cannot skip the gate.

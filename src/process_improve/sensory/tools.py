@@ -21,6 +21,9 @@ from process_improve.sensory.ingest import reshape_to_long as _reshape_to_long
 from process_improve.sensory.mam import align_scores as _align_scores
 from process_improve.sensory.mam import mixed_assessor_model as _mixed_assessor_model
 from process_improve.sensory.panel import panel_scorecard as _panel_scorecard
+from process_improve.sensory.screening import detectable_difference as _detectable_difference
+from process_improve.sensory.screening import required_panelists as _required_panelists
+from process_improve.sensory.screening import sensory_screening_plan as _sensory_screening_plan
 from process_improve.sensory.validation import DESCRIPTIVE_LONG_COLUMNS
 from process_improve.sensory.validation import validate_descriptive as _validate_descriptive
 from process_improve.tool_spec import clean, get_tool_specs, tool_spec
@@ -235,9 +238,7 @@ class _AnalyzeInput(BaseModel):
             "Set false to skip it (faster)."
         ),
     )
-    n_permutations: int = Field(
-        199, ge=1, description="Permutations for the discriminator's selectivity-ratio null."
-    )
+    n_permutations: int = Field(199, ge=1, description="Permutations for the discriminator's selectivity-ratio null.")
     random_state: int = Field(0, description="Seed for the discriminator's permutations and CV folds.")
     score_min: float | None = Field(None, description="Optional lower bound for the score scale.")
     score_max: float | None = Field(None, description="Optional upper bound for the score scale.")
@@ -394,10 +395,176 @@ def sensory_panel_check(spec: _PanelCheckInput) -> dict:
     return clean(out)
 
 
+class _ScreeningPlanInput(BaseModel):
+    """Input contract for ``sensory_screening_plan``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    products: list[str] = Field(
+        ...,
+        min_length=2,
+        description="Labels of the candidate samples to screen. Must be unique and exclude the control.",
+    )
+    n_panelists: int = Field(..., ge=1, description="Number of assessors on the panel.")
+    samples_per_session: int = Field(
+        ...,
+        ge=1,
+        description=(
+            "How many samples one assessor can judge in a single session before fatigue and carry-over "
+            "dominate. The anchored control, if any, occupies one of these slots."
+        ),
+    )
+    control: str | None = Field(
+        None,
+        description=(
+            "Label of a reference sample served first in every block, so session and assessor drift can be "
+            "removed at the analysis stage. Omit to spend the whole capacity on candidates."
+        ),
+    )
+    replicates: int = Field(
+        1,
+        ge=1,
+        description="Target number of times each candidate is served across the whole plan.",
+    )
+    n_sessions: int | None = Field(
+        None,
+        ge=1,
+        description="Fix the sessions per assessor instead of deriving them from `replicates`.",
+    )
+    seed: int | None = Field(None, description="Seed making the plan reproducible.")
+
+
+@tool_spec(
+    name="sensory_screening_plan",
+    description=(
+        "Design a blocked, carry-over balanced serving plan for a sensory screen of many candidate "
+        "samples. Use this BEFORE any tasting, when there are more candidates than one assessor can "
+        "judge in a session: it splits them into incomplete blocks (one block = one assessor-session) "
+        "with near-equal replication and near-equal pairwise concurrence, orders each block by a "
+        "Williams design so the previously tasted sample does not bias any candidate, and optionally "
+        "anchors a reference sample first in every block. "
+        "Returns: {ok: true, plan, diagnostics, config, warnings}. 'plan' is the serving sheet, one row "
+        "per serving (panelist_id, session, position, product, role, block), ready to have scores added "
+        "and be analysed with sensory_compare_products. 'diagnostics' reports replication and "
+        "concurrence (min/max/mean), whether the blocks form an exact balanced incomplete block design, "
+        "control coverage and position balance. 'warnings' flags a panel too small to cover the "
+        "candidate list rather than silently dropping candidates."
+    ),
+    input_model=_ScreeningPlanInput,
+    category="sensory",
+)
+def sensory_screening_plan(spec: _ScreeningPlanInput) -> dict:
+    """Blocked, carry-over balanced serving plan; see tool spec for details."""
+    try:
+        result = _sensory_screening_plan(
+            list(spec.products),
+            n_panelists=spec.n_panelists,
+            samples_per_session=spec.samples_per_session,
+            control=spec.control,
+            replicates=spec.replicates,
+            n_sessions=spec.n_sessions,
+            seed=spec.seed,
+        )
+    except ValueError as exc:
+        return clean({"ok": False, "errors": [str(exc)]})
+    return clean(
+        {
+            "ok": True,
+            "plan": result.plan.to_dict(orient="records"),
+            "diagnostics": result.diagnostics,
+            "config": result.config,
+            "warnings": result.warnings,
+        }
+    )
+
+
+class _DetectableDifferenceInput(BaseModel):
+    """Input contract for ``sensory_detectable_difference``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sd: float = Field(
+        ...,
+        gt=0,
+        description=(
+            "Residual standard deviation of a single score on the panel's scale, from a previous study "
+            "on the same attribute and scale. This is the within-panel noise after blocking on assessor."
+        ),
+    )
+    n_per_product: int | None = Field(
+        None,
+        ge=2,
+        description="Scores contributing to each sample's mean (assessors x replicates). Give this OR `difference`.",
+    )
+    difference: float | None = Field(
+        None,
+        gt=0,
+        description="A difference that must be detectable. Give this to size the panel instead of `n_per_product`.",
+    )
+    alpha: float = Field(0.05, gt=0, lt=1, description="Two-sided significance level before multiplicity.")
+    power: float = Field(0.80, gt=0, lt=1, description="Probability of detecting a difference of that size.")
+    n_comparisons: int = Field(
+        1,
+        ge=1,
+        description="Size of the comparison family to Bonferroni-correct for, e.g. every candidate versus one control.",
+    )
+
+
+@tool_spec(
+    name="sensory_detectable_difference",
+    description=(
+        "Size a sensory screen, or say what it can see. Given the residual standard deviation of a "
+        "single score, either (a) pass `n_per_product` to get the smallest difference that panel size "
+        "can resolve, or (b) pass `difference` to get the number of scores per sample needed to resolve "
+        "it. Use this before committing to a panel size, and to state honestly what a null result "
+        "means. Correct for the comparison family with `n_comparisons` (e.g. 20 candidates each tested "
+        "against one control). "
+        "Returns: {ok: true, difference, n_per_product, sd, alpha, power, n_comparisons}, plus "
+        "'achieved_difference' when sizing from a target difference. Approximate: normal-theory "
+        "two-sample formula with Student-t quantiles, so quote it as an order of magnitude."
+    ),
+    input_model=_DetectableDifferenceInput,
+    category="sensory",
+)
+def sensory_detectable_difference(spec: _DetectableDifferenceInput) -> dict:
+    """Minimum detectable difference, or the panel size that reaches one; see tool spec."""
+    if (spec.n_per_product is None) == (spec.difference is None):
+        return clean(
+            {
+                "ok": False,
+                "errors": [
+                    "Give exactly one of `n_per_product` (what can I see?) or `difference` (how many do I need?)."
+                ],
+            }
+        )
+    try:
+        if spec.n_per_product is not None:
+            out = _detectable_difference(
+                sd=spec.sd,
+                n_per_product=spec.n_per_product,
+                alpha=spec.alpha,
+                power=spec.power,
+                n_comparisons=spec.n_comparisons,
+            )
+        else:
+            out = _required_panelists(
+                sd=spec.sd,
+                difference=spec.difference,
+                alpha=spec.alpha,
+                power=spec.power,
+                n_comparisons=spec.n_comparisons,
+            )
+    except ValueError as exc:
+        return clean({"ok": False, "errors": [str(exc)]})
+    return clean({"ok": True, **out})
+
+
 _register("sensory_reshape_to_long")
 _register("sensory_validate_descriptive")
 _register("sensory_analyze_descriptive")
 _register("sensory_panel_check")
+_register("sensory_screening_plan")
+_register("sensory_detectable_difference")
 
 
 def get_sensory_tool_specs() -> list[dict]:

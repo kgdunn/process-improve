@@ -11,6 +11,28 @@ those changes.
 
 ## [Unreleased]
 
+## [1.63.0] - 2026-08-03
+
+### Added
+
+- `process_improve.sensory.screening`: design a descriptive-panel screen before
+  any tasting happens. `sensory_screening_plan` turns a candidate list plus the
+  panel's session capacity into a serving sheet: incomplete blocks (one block =
+  one assessor-session) built by `cyclic_block_design` for near-equal
+  replication and pairwise concurrence, ordered inside each block by
+  `williams_design` so first-order carry-over cannot favour any candidate, and
+  with an optional reference anchored first in every block. The sheet comes back
+  in the `descriptive_long` shape, so adding scores feeds it straight into
+  `compare_products`.
+- `detectable_difference` / `required_panelists`: the smallest difference a
+  panel size can resolve, and the panel size a target difference needs, with a
+  Bonferroni correction for the size of the comparison family.
+- `plan_diagnostics` reports replication, pairwise concurrence and whether the
+  blocks form an exact balanced incomplete block design; a panel too small to
+  cover the candidate list is reported as a warning rather than silently
+  dropping candidates.
+- Agent tools `sensory_screening_plan` and `sensory_detectable_difference`.
+
 ## [1.62.2] - 2026-07-29
 
 ### Changed
@@ -2787,7 +2809,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.62.2...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.63.0...HEAD
+[1.63.0]: https://github.com/kgdunn/process-improve/compare/v1.62.2...v1.63.0
 [1.62.2]: https://github.com/kgdunn/process-improve/compare/v1.62.1...v1.62.2
 [1.62.1]: https://github.com/kgdunn/process-improve/compare/v1.62.0...v1.62.1
 [1.62.0]: https://github.com/kgdunn/process-improve/compare/v1.61.0...v1.62.0

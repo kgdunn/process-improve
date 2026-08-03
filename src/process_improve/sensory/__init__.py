@@ -36,6 +36,16 @@ from process_improve.sensory.ingest import reshape_to_long
 from process_improve.sensory.mam import MAMResult, align_scores, mixed_assessor_model
 from process_improve.sensory.panel import PanelScorecard, apply_correction, panel_scorecard
 from process_improve.sensory.recipes import SENSORY_RECIPES
+from process_improve.sensory.screening import (
+    SERVING_PLAN_COLUMNS,
+    ScreeningPlan,
+    cyclic_block_design,
+    detectable_difference,
+    plan_diagnostics,
+    required_panelists,
+    sensory_screening_plan,
+    williams_design,
+)
 from process_improve.sensory.validation import (
     DESCRIPTIVE_LONG_COLUMNS,
     ValidationResult,
@@ -45,26 +55,34 @@ from process_improve.sensory.validation import (
 __all__ = [
     "DESCRIPTIVE_LONG_COLUMNS",
     "SENSORY_RECIPES",
+    "SERVING_PLAN_COLUMNS",
     "AnalysisResult",
     "ComparisonResult",
     "MAMResult",
     "PanelScorecard",
+    "ScreeningPlan",
     "ValidationResult",
     "aggregate_to_product",
     "align_scores",
     "analyze_descriptive",
     "apply_correction",
     "compare_products",
+    "cyclic_block_design",
+    "detectable_difference",
     "discriminate_observational",
     "dunnett_vs_control",
     "factorial_anova",
     "mixed_assessor_model",
     "panel_scorecard",
     "permutation_column_null",
+    "plan_diagnostics",
     "product_means",
     "relate_designed",
     "relate_observational",
+    "required_panelists",
     "reshape_to_long",
+    "sensory_screening_plan",
     "tukey_hsd",
     "validate_descriptive",
+    "williams_design",
 ]
