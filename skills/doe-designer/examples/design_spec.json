@@ -1,0 +1,8 @@
+{"factors":[{"name":"Temperature","low":150,"high":180,"units":"C"},
+ {"name":"Time","low":30,"high":90,"units":"min"},
+ {"name":"Catalyst","low":0.5,"high":2.0,"units":"pct"},
+ {"name":"Pressure","low":1,"high":3,"units":"bar"},
+ {"name":"Stir","low":200,"high":600,"units":"rpm"},
+ {"name":"pH","low":5,"high":8},
+ {"name":"Solvent","low":10,"high":30,"units":"pct"}],
+ "design_type":"fractional_factorial","resolution":4,"center_points":0,"random_seed":7}
