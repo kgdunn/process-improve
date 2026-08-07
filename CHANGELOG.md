@@ -11,6 +11,19 @@ those changes.
 
 ## [Unreleased]
 
+## [1.62.3] - 2026-07-31
+
+### Fixed
+
+- Docstrings: `PCA.select_n_components` now documents the
+  `return_consensus` parameter (previously present in the signature but
+  missing from the Parameters section) and the four extra Bunch keys it
+  attaches (`minka_n_components`, `parallel_analysis_n_components`,
+  `consensus`, `consensus_counts`).
+- Docstring: `PLS.select_n_components` `selection_mode` bullet in the
+  Returns section had a truncated sentence ("or `None` when
+  `selection_distribution` is."); completed to "... is `None`.".
+
 ## [1.62.2] - 2026-07-29
 
 ### Changed
@@ -2787,7 +2800,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.62.2...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.62.3...HEAD
+[1.62.3]: https://github.com/kgdunn/process-improve/compare/v1.62.2...v1.62.3
 [1.62.2]: https://github.com/kgdunn/process-improve/compare/v1.62.1...v1.62.2
 [1.62.1]: https://github.com/kgdunn/process-improve/compare/v1.62.0...v1.62.1
 [1.62.0]: https://github.com/kgdunn/process-improve/compare/v1.61.0...v1.62.0
