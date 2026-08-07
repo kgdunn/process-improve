@@ -125,6 +125,25 @@ Heavier optional surfaces (plotting, designed experiments, batch IO,
 MCP server, numba JIT) live in extras so a caller who only needs, say,
 `detect_multivariate_outliers` does not have to install Plotly or numba.
 
+## Use it from Claude
+
+The designed-experiments tooling ships as a Claude Skill, so you can plan,
+generate, verify and analyse experiments in your own Claude account with no
+server involved:
+
+```
+/plugin marketplace add kgdunn/process-improve
+/plugin install doe-designer@process-improve
+```
+
+The skill's first rule is that a design matrix is never written out by the
+model: it is generated from a catalogue and then verified, because a language
+model asked to produce a fractional factorial will often return one that looks
+right and is a lower resolution than it claims. See
+[`skills/README.md`](skills/README.md) for the other install routes
+(local folder, claude.ai upload) and for the MCP server, which exposes the same
+tool registry without the workflow guidance.
+
 ## Quick start
 
 ### PCA - Principal Component Analysis
