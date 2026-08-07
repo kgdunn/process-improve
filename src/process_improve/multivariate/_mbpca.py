@@ -55,7 +55,9 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     Parameters
     ----------
     n_components : int
+        Number of super-components (consensus latent variables) to extract.
     max_iter : int, default=500
+        Maximum NIPALS iterations per component in the hierarchical outer loop.
     tol : float or None, default=None
         Convergence tolerance on the super-score change. ``None`` uses
         ``np.finfo(float).eps ** (9/10)`` (matches the legacy reference).

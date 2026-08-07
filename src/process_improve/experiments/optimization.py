@@ -236,13 +236,25 @@ def _find_stationary_point(
         Ordered factor names.
     factor_ranges : dict or None
         Maps factor name to ``{"low": float, "high": float}`` in actual
-        units.  Used to convert coded → actual.
+        units.  Used to convert coded -> actual.
+    search_bounds : tuple[float, float] or dict[str, tuple[float, float]] or None
+        Coded-unit region used to decide ``inside_design_space``. Pass a
+        single ``(low, high)`` tuple to apply the same bounds to every
+        factor, or a per-factor dict to give each factor its own bounds.
+        Defaults to the factorial cube ``(-1, 1)`` for each factor when
+        ``None``; supply a wider region for e.g. a central composite
+        design's axial distance.
 
     Returns
     -------
     dict
-        ``stationary_point_coded``, ``stationary_point_actual``,
-        ``predicted_response``, ``classification``.
+        ``stationary_point_coded``, ``predicted_response``, ``classification``,
+        ``eigenvalues`` (list of floats, spectrum of the pure-quadratic
+        matrix ``B``), and ``inside_design_space`` (bool, whether the
+        stationary point falls inside ``search_bounds``). Also includes
+        ``stationary_point_actual`` when ``factor_ranges`` is provided.
+        Returns a dict with a single ``error`` key instead when the model
+        has no quadratic/interaction terms or ``B`` is singular.
     """
     b0, b, B = _extract_b_and_B(coefficients, factor_names)
 

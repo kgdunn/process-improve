@@ -13,7 +13,7 @@ Example
 >>> from process_improve.experiments.augment import augment_design
 >>> design = pd.DataFrame({"A": [-1, 1, -1, 1], "B": [-1, -1, 1, 1]})
 >>> result = augment_design(design, augmentation_type="add_center_points", n_additional_runs=3)
->>> result["augmented_design"].shape
+>>> pd.DataFrame(result["augmented_design"]).shape
 (7, 2)
 """
 

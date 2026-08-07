@@ -11,6 +11,51 @@ those changes.
 
 ## [Unreleased]
 
+## [1.62.3] - 2026-08-07
+
+### Fixed
+
+- Docstring corrections across computational and user-facing functions caught
+  by an audit pass. No behavioural change; the code was always right, the
+  docs disagreed.
+  - `experiments/augment.py`: the module-level `Example` block called
+    `.shape` on the returned `augmented_design`, but the handlers return a
+    list of dicts, not a DataFrame; the example now wraps the result in
+    `pd.DataFrame(...)` first so it runs verbatim.
+  - `experiments/analysis.py` (`analyze_experiment`): the `coding`
+    parameter is now documented (as reserved for a future coded/actual
+    switch, currently a no-op) instead of being silently present in the
+    signature.
+  - `experiments/optimization.py` (`_find_stationary_point`): the
+    `search_bounds` parameter is now documented, and the Returns section
+    lists `eigenvalues` and `inside_design_space`, both of which the
+    function always emits.
+  - `experiments/simulations.py` (`popcorn`): rewritten to reflect the
+    reality that this function is an unimplemented stub returning `None`;
+    the previous docstring claimed it returned the number of edible
+    kernels.
+  - `multivariate/plots.py` (`t2_plot`): the `with_a` description said
+    "shows the SPE"; it is a Hotelling's T² plot, not SPE. Also noted
+    that the default title interpolates the class-default `conf_level`
+    (95%) rather than the caller-supplied value.
+  - `multivariate/tools.py` (`pca_predict` tool_spec): the description
+    said an observation is flagged as an outlier when T² exceeds its
+    limit, but the code flags an outlier when either T² or SPE exceeds
+    its respective limit; description now matches.
+  - `multivariate/_common.py` (`_select_n_components`): the `ValueError`
+    message listed only `'1se'`, `'min'`, `'q2_increment'` even though
+    `SelectionRule` also includes `'randomization'`; the message now
+    lists all four and notes that `'randomization'` is handled by
+    `PLS.select_n_components`.
+  - `multivariate/_resampling.py` (`Resampler.__init__`): the docstring
+    said the three resample-mode flags are mutually exclusive, but the
+    validation only raises when *all three* are set; the docstring now
+    describes the actual `jackknife > bootstrap > fractional` precedence
+    that `resample()` uses.
+  - `multivariate/_mbpca.py` (`MBPCA` class docstring): added the missing
+    one-line descriptions for the `n_components` and `max_iter`
+    parameters.
+
 ## [1.62.2] - 2026-07-29
 
 ### Changed
@@ -2787,7 +2832,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.62.2...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.62.3...HEAD
+[1.62.3]: https://github.com/kgdunn/process-improve/compare/v1.62.2...v1.62.3
 [1.62.2]: https://github.com/kgdunn/process-improve/compare/v1.62.1...v1.62.2
 [1.62.1]: https://github.com/kgdunn/process-improve/compare/v1.62.0...v1.62.1
 [1.62.0]: https://github.com/kgdunn/process-improve/compare/v1.61.0...v1.62.0
