@@ -353,6 +353,71 @@ def test_is_better_than_falls_back_to_float_pattern() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Integration with evaluate_design
+# ---------------------------------------------------------------------------
+
+
+def test_metric_is_registered() -> None:
+    """``moment_aberration`` is reachable through evaluate_design."""
+    out = evaluate_design(PAPER_TABLE_1, metric="moment_aberration")
+    assert out["moment_aberration"]["resolution"] == 4
+    assert [round(k, 2) for k in out["moment_aberration"]["pattern"]] == PAPER_TABLE_1_PATTERN
+
+
+def test_metric_is_included_in_all() -> None:
+    """``metric="all"`` computes it too."""
+    out = evaluate_design(PAPER_TABLE_1, metric="all")
+    assert out["moment_aberration"]["strength"] == 3
+
+
+def test_metric_succeeds_where_minimum_aberration_cannot() -> None:
+    """On a bare matrix the word-length route has nothing to say; this does."""
+    out = evaluate_design(PAPER_TABLE_1, metric=["minimum_aberration", "moment_aberration"])
+    assert out["minimum_aberration"]["wordlength_pattern"] == []
+    assert "note" in out["minimum_aberration"]
+    assert out["moment_aberration"]["resolution"] == 4
+
+
+def test_metric_agrees_with_a_generated_design_declaration() -> None:
+    """A design carrying a declared resolution is confirmed, not contradicted."""
+    from process_improve.experiments import Factor, generate_design
+
+    factors = [Factor(name=name, low=0, high=10) for name in "ABCDE"]
+    design = generate_design(factors, design_type="fractional_factorial", resolution=3, center_points=0)
+
+    out = evaluate_design(design, metric="moment_aberration")
+    assert out["moment_aberration"]["resolution"] == design.resolution
+    assert "declared_resolution" not in out["moment_aberration"]
+
+
+def test_metric_flags_a_declaration_that_the_matrix_contradicts() -> None:
+    """A design whose matrix is worse than its label says is called out."""
+    from process_improve.experiments import Factor, generate_design
+
+    factors = [Factor(name=name, low=0, high=10) for name in "ABCDE"]
+    design = generate_design(factors, design_type="fractional_factorial", resolution=3, center_points=0)
+    # Break the design without touching its metadata: alias B onto A.
+    design.design["B"] = design.design["A"]
+
+    out = evaluate_design(design, metric="moment_aberration")
+    assert out["moment_aberration"]["declared_resolution"] == 3
+    assert out["moment_aberration"]["resolution"] == 2
+    assert "disagrees" in out["moment_aberration"]["note"]
+
+
+def test_metric_declines_center_points_with_a_note() -> None:
+    """A design with center points gets a note, not an exception."""
+    from process_improve.experiments import Factor, generate_design
+
+    factors = [Factor(name=name, low=0, high=10) for name in "ABC"]
+    design = generate_design(factors, design_type="full_factorial", center_points=3)
+
+    out = evaluate_design(design, metric="moment_aberration")
+    assert out["moment_aberration"]["pattern"] == []
+    assert "two-level" in out["moment_aberration"]["note"]
+
+
+# ---------------------------------------------------------------------------
 # Internals
 # ---------------------------------------------------------------------------
 
