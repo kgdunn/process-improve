@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from process_improve.experiments.tradeoff import (
+    _alias_chains,
     minimum_aberration_generators,
     trade_off_table,
     tradeoff,
@@ -163,6 +164,11 @@ class TestInputChecks:
         with pytest.raises(ValueError, match="cannot accommodate"):
             tradeoff(runs=8, factors=8, display=False)
 
+    def test_more_factors_than_single_letter_names_rejected(self):
+        """The alphabet, minus the identity column ``I``, runs out at 25."""
+        with pytest.raises(ValueError, match="single-letter names"):
+            tradeoff(runs=32, factors=26, display=False)
+
 
 class TestMinimumAberrationGenerators:
     def test_full_factorial_is_not_a_fraction(self):
@@ -180,3 +186,7 @@ class TestMinimumAberrationGenerators:
     def test_generators_name_each_extra_factor_once(self):
         generators = minimum_aberration_generators(16, 8)
         assert [g.split("=")[0] for g in generators] == ["E", "F", "G", "H"]
+
+    def test_no_generators_means_no_alias_chains(self):
+        """A design with no defining relation aliases nothing."""
+        assert _alias_chains([], ["A", "B", "C"]) == []
