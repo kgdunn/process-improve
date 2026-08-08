@@ -487,7 +487,7 @@ class PcaPredictInput(BaseModel):
         "Project new observations into an existing PCA model and compute diagnostics. "
         "Accepts the model_params dict returned by fit_pca and new data rows. "
         "Returns scores, Hotelling's T-squared, SPE, and whether each observation is an "
-        "outlier (T-squared exceeding the training-data-based limit). "
+        "outlier (T-squared or SPE exceeding the training-data-based limit). "
         "Use this to monitor new data against a PCA model built on historical data."
     ),
     input_model=PcaPredictInput,

@@ -50,12 +50,18 @@ class Resampler:
 
         The `accessor` is a callable that takes an estimator and returns the parameters of interest.
 
-        Mutually exclusive parameters:
+        Resampling-mode parameters (see ``resample()`` below for the actual precedence):
             * `use_jackknife` flag indicates whether to use jackknife resampling (leave out one sample; rebuild)
             * `bootstrap_rounds` specifies the number of bootstrap rounds if applicable (resample data with replacement)
             * `fraction_excluded` specifies the fraction of data to exclude in each resample (for fractional resampling)
 
-        Only one of these parameters should be set at a time.
+        These are validated as mutually exclusive only when *all three* are set together
+        (a ``ValueError`` is raised in that case). Setting just two, such as leaving
+        ``use_jackknife=True`` (the default) and additionally passing ``bootstrap_rounds > 0``,
+        does NOT raise: ``resample()`` picks by strict precedence ``jackknife > bootstrap
+        > fractional``, so the request further down that ordering is silently ignored.
+        Callers that want bootstrap or fractional resampling should therefore also pass
+        ``use_jackknife=False`` explicitly.
 
         Parameters
         ----------

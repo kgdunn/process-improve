@@ -7,47 +7,40 @@ import numpy as np
 
 def popcorn(t: float = 120, T: float | None = None) -> None:
     """
-    Simulate stovetop popcorn cooking.
+    Simulate stovetop popcorn cooking (unimplemented stub).
 
-    A fixed number of popcorn kernels are cooked are heated at the same
-    temperature. This simulation returns the number of kernels that are edible
-    when the pot is left on the stove for a given number of `t` seconds.
-
+    Placeholder for a planned textbook simulation. When implemented, it will
+    return the number of edible popcorn kernels after cooking a fixed set of
+    kernels at the same temperature for `t` seconds. The current body is
+    empty, so this function returns ``None`` regardless of its inputs, and
+    the return type annotation reflects that.
 
     Parameters
     ----------
-    `t` is the number of seconds that the pot is left on the stove. The
-    default amount, if not provided, is 120 seconds.
-
-    Time durations less than 77 seconds are not supported. A vector (list) of
-    time values is not permitted, since the goal is to perform sequential
-    experimentation to determine the optimum time, with the fewest number of
-    function calls.
+    t : float, default 120
+        Planned: number of seconds the pot is left on the stove. Time
+        durations less than 77 seconds are not supported. A vector (list) of
+        time values is not permitted, since the goal is to perform sequential
+        experimentation to determine the optimum time, with the fewest number
+        of function calls. Currently unused.
+    T : float or None, default None
+        Reserved for a future temperature parameter. Currently unused.
 
     Returns
     -------
-    The number of edible popcorn kernels. Random noise is added for realism.
+    None
+        Placeholder. A future implementation will return the number of
+        edible kernels (with random noise added for realism).
 
     Source
     ------
     Kevin Dunn, Process Improvement using Data, Chapter 5, 2010 to 2026,
     https://learnche.org/pid
 
-
-    Examples
-    --------
-    >>> popcorn(t=55)    # will fail
-    >>> popcorn(t=120)
-    >>> popcorn(t=152.2)
-
-    >>> # What happens if we leave the pot on the stove for too long?
-    >>> popcorn(t=500)
-
-
     Also see
+    --------
     grocery
     manufacter
-
     """
 
 

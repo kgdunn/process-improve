@@ -280,7 +280,8 @@ def _select_n_components(
         return _recommend_n_components_q2(q2_cumulative, min_increment=min_q2_increase)
     raise ValueError(
         f"Unknown selection_rule {rule!r}; expected one of "
-        f"'1se', 'min', 'q2_increment'."
+        f"'1se', 'min', 'q2_increment', 'randomization' "
+        f"('randomization' is handled by PLS.select_n_components, not this dispatcher)."
     )
 
 
