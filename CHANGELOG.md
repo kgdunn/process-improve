@@ -11,6 +11,20 @@ those changes.
 
 ## [Unreleased]
 
+## [1.64.0] - 2026-08-08
+
+### Added
+
+- `trade_off_table` is now an agent-callable MCP tool
+  (`experiments/_tools/trade_off_table.py`). It returns the two-level
+  factorial trade-off grid: one cell per (run budget, factor count), each
+  carrying the design label, its resolution and the generators that build
+  it. Cells where the budget exceeds the full factorial report replication
+  rather than an error, and impossible combinations come back blank with the
+  reason attached. The run and factor axes are caller-supplied, bounded at
+  128 runs and 12 factors so the minimum-aberration search behind each cell
+  stays interactive.
+
 ## [1.63.0] - 2026-08-08
 
 ### Added
@@ -2872,7 +2886,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.63.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.64.0...HEAD
+[1.64.0]: https://github.com/kgdunn/process-improve/compare/v1.63.0...v1.64.0
 [1.63.0]: https://github.com/kgdunn/process-improve/compare/v1.62.3...v1.63.0
 [1.62.3]: https://github.com/kgdunn/process-improve/compare/v1.62.2...v1.62.3
 [1.62.2]: https://github.com/kgdunn/process-improve/compare/v1.62.1...v1.62.2
