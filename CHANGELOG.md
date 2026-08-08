@@ -11,6 +11,46 @@ those changes.
 
 ## [Unreleased]
 
+## [1.63.0] - 2026-08-08
+
+### Added
+
+- `experiments/simulations.py`: `popcorn()` is implemented. It was a
+  docstring-only stub that returned `None`; it now returns the number of
+  popped kernels for a given cooking time, using the model from the
+  companion R `pid` package. Times below 77 seconds and vector inputs are
+  rejected, as in R.
+- `experiments/simulations.py`: `manufacture()` is new. It had no Python
+  counterpart at all, and simulates the hourly profit of a manufacturing
+  facility as a function of selling price and throughput.
+- `experiments/tradeoff.py` is a new module covering the fractional-factorial
+  trade-off between run budget and factor count:
+  - `tradeoff(runs, factors)` reports the design's resolution, generators,
+    defining relation and alias chains.
+  - `trade_off_table()` returns the whole runs-against-factors grid as a
+    DataFrame, the computed counterpart of R's `tradeOffTable()` image.
+  - `minimum_aberration_generators(runs, factors)` is the underlying search.
+    It reproduces every cell of the trade-off table in the course notes, and
+    extends past the printed edge of that figure.
+- `experiments/datasets.py`: `golf()`, `pollutant()` and `solar()` return
+  their data. All three were stubs returning `None`; the data are now bundled
+  as CSVs, extracted from the R package's `.rda` files.
+- `experiments/datasets.py`: `data(name)` is implemented as a string-name
+  dispatcher over the loaders, mirroring R's `data(<name>)`. It previously
+  raised `NotImplementedError`.
+- `experiments/simulations.py`: all three simulators now accept
+  `random_state`, per the reproducibility contract. The default of `None`
+  keeps the fresh-noise-on-every-call behaviour the classroom exercise
+  depends on.
+- The `simulations`, `datasets` and `tradeoff` modules are now included in
+  the API documentation.
+
+### Fixed
+
+- `experiments/datasets.py` and `experiments/simulations.py`: docstring markup
+  that rendered as reStructuredText errors (an unindented bullet list, and
+  LaTeX-style quoting read as an unterminated inline literal).
+
 ## [1.62.3] - 2026-08-07
 
 ### Fixed
@@ -2832,7 +2872,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.62.3...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.63.0...HEAD
+[1.63.0]: https://github.com/kgdunn/process-improve/compare/v1.62.3...v1.63.0
 [1.62.3]: https://github.com/kgdunn/process-improve/compare/v1.62.2...v1.62.3
 [1.62.2]: https://github.com/kgdunn/process-improve/compare/v1.62.1...v1.62.2
 [1.62.1]: https://github.com/kgdunn/process-improve/compare/v1.62.0...v1.62.1

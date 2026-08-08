@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pandas as pd
@@ -47,7 +48,7 @@ def distillateflow() -> pd.DataFrame:
     return _read_remote_csv("https://openmv.net/file/distillate-flow.csv")
 
 
-def pollutant() -> None:
+def pollutant() -> pd.DataFrame:
     """
     Return water treatment example data from BHH2, Ch 5, Question 19.
 
@@ -77,6 +78,7 @@ def pollutant() -> None:
     Experimenters, Wiley, 2nd edition, Chapter 5, Question 19, page 232.
 
     """
+    return pd.read_csv(_DATASETS_DIR / "pollutant.csv")
 
 
 def oildoe() -> pd.DataFrame:
@@ -111,7 +113,7 @@ def oildoe() -> pd.DataFrame:
     return _read_remote_csv("https://openmv.net/file/oil-company-doe.csv")
 
 
-def golf() -> None:
+def golf() -> pd.DataFrame:
     """
     Return full factorial experiment data to maximize a golfer's driving distance.
 
@@ -135,14 +137,17 @@ def golf() -> None:
     Dimensions
     ----------
     A data frame containing 16 observations of 4 variables (H, N, C, T) and a
-    column y, as a response variable.
+    column y, as a response variable. `C` and `T` are stored as text labels
+    (``"Callaway"`` / ``"Titleist"`` and ``"9:00"`` / ``"14:00"``); code them
+    to -1 / +1 before fitting a linear model.
 
     Source
     ------
-    A MOOC on Design of Experiments: ``Experimentation for Improvement'',
+    A MOOC on Design of Experiments, "Experimentation for Improvement",
     https://learnche.org
 
     """
+    return pd.read_csv(_DATASETS_DIR / "golf.csv")
 
 
 def boilingpot() -> pd.DataFrame:
@@ -179,14 +184,14 @@ def boilingpot() -> pd.DataFrame:
 
     Source
     ------
-    MOOC on Design of Experiments: ``Experimentation for Improvement'',
+    MOOC on Design of Experiments, "Experimentation for Improvement",
     https://learnche.org
 
     """
     return pd.read_csv(_DATASETS_DIR / "boilingpot.csv")
 
 
-def solar() -> None:
+def solar() -> pd.DataFrame:
     """
     Return solar panel example data from Box, Hunter and Hunter, 2nd edition, Chapter 5,
     page 230.
@@ -227,13 +232,62 @@ def solar() -> None:
     Experimenters, 2nd edition, Wiley, Chapter 5, page 230.
 
     """
+    return pd.read_csv(_DATASETS_DIR / "solar.csv")
+
+
+#: Every dataset loader in this module, keyed by the name used in the R
+#: package's ``data(<name>)`` call. ``oildoe`` is also reachable under the
+#: aliases the R package documents for it.
+_LOADERS: dict[str, Callable[[], pd.DataFrame]] = {
+    "boilingpot": boilingpot,
+    "distillateflow": distillateflow,
+    "golf": golf,
+    "oildoe": oildoe,
+    "oil.doe": oildoe,
+    "oilDOE": oildoe,
+    "pollutant": pollutant,
+    "solar": solar,
+}
 
 
 def data(dataset: str) -> pd.DataFrame:
     """Return the ``dataset`` given by the string name.
 
-    This is a planned dispatcher that has not been implemented yet. It is kept
-    as a typed stub so that its public signature is preserved; calling it raises
-    :class:`NotImplementedError` rather than silently returning ``None``.
+    The Python counterpart of R's ``data(<name>)``: a single dispatcher over
+    the loaders in this module, for callers that hold the dataset name as a
+    string (a CLI argument, a config file, a tool call) rather than as an
+    identifier.
+
+    Parameters
+    ----------
+    dataset : str
+        Name of the dataset. One of ``"boilingpot"``, ``"distillateflow"``,
+        ``"golf"``, ``"oildoe"``, ``"pollutant"``, ``"solar"``. The aliases
+        ``"oil.doe"`` and ``"oilDOE"`` also resolve to :func:`oildoe`.
+
+    Returns
+    -------
+    pd.DataFrame
+        The dataset, exactly as returned by the corresponding loader.
+
+    Raises
+    ------
+    ValueError
+        If *dataset* is not a known name.
+
+    Examples
+    --------
+    >>> data("pollutant").shape
+    (8, 4)
+
+    Notes
+    -----
+    ``"distillateflow"`` and ``"oildoe"`` are fetched over the network from
+    openmv.net; the rest are bundled with the package.
     """
-    raise NotImplementedError(f"datasets.data({dataset!r}) is not implemented yet.")
+    try:
+        loader = _LOADERS[dataset]
+    except KeyError:
+        known = ", ".join(sorted({"boilingpot", "distillateflow", "golf", "oildoe", "pollutant", "solar"}))
+        raise ValueError(f"Unknown dataset {dataset!r}. Available datasets are: {known}.") from None
+    return loader()
