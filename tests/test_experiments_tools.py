@@ -8,6 +8,7 @@ end (success path) and, where cheap, also exercises its except-branch.
 
 from __future__ import annotations
 
+import json
 import pathlib
 
 import pandas as pd
@@ -16,6 +17,7 @@ import pytest
 # execute_tool_call calls discover_tools(), which imports
 # process_improve.experiments.tools and triggers all @tool_spec
 # registrations - no explicit import is needed here.
+from process_improve.tool_safety import ToolInputInvalidError
 from process_improve.tool_spec import execute_tool_call
 
 # ---------------------------------------------------------------------------
@@ -544,3 +546,68 @@ class TestRecommendStrategy:
             {"factors": [{"name": "broken"}]},
         )
         assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# trade_off_table
+# ---------------------------------------------------------------------------
+
+
+class TestTradeOffTable:
+    def test_default_table_matches_the_course_notes(self) -> None:
+        """The default grid is the trade-off table from the course notes."""
+        result = execute_tool_call("trade_off_table", {})
+        assert "error" not in result
+        assert result["table"]["8"]["7"] == "2^(7-4) III"
+        assert result["table"]["16"]["5"] == "2^(5-1) V"
+        assert result["table"]["16"]["3"] == "2^3 (twice)"
+
+    def test_cells_carry_the_generators(self) -> None:
+        """Each existing cell reports how the design is built."""
+        result = execute_tool_call("trade_off_table", {"runs": [8], "factors": [5]})
+        (cell,) = result["cells"]
+        assert cell["exists"] is True
+        assert cell["generators"] == ["D=AB", "E=AC"]
+        assert cell["roman"] == "III"
+        assert cell["n_generators"] == 2
+
+    def test_impossible_cell_is_blank_with_a_reason(self) -> None:
+        """8 runs cannot hold 9 factors; the cell is blank and says why."""
+        result = execute_tool_call("trade_off_table", {"runs": [8], "factors": [9]})
+        assert result["table"]["8"]["9"] == ""
+        (cell,) = result["cells"]
+        assert cell["exists"] is False
+        assert "cannot accommodate" in cell["reason"]
+
+    def test_over_budget_cell_reports_replication(self) -> None:
+        """A budget larger than the full factorial is replication, not an error."""
+        result = execute_tool_call("trade_off_table", {"runs": [32], "factors": [3]})
+        (cell,) = result["cells"]
+        assert cell["label"] == "2^3 (4 times)"
+        assert cell["replicates"] == 4
+        assert cell["resolution"] is None
+
+    def test_output_is_json_serialisable(self) -> None:
+        """Tool output crosses the MCP boundary, so it must serialise."""
+        result = execute_tool_call("trade_off_table", {"runs": [8, 16], "factors": [4, 5]})
+        assert json.loads(json.dumps(result)) == result
+
+    def test_non_power_of_two_runs_returns_error(self) -> None:
+        result = execute_tool_call("trade_off_table", {"runs": [7], "factors": [5]})
+        assert "power of 2" in result["error"]
+
+    def test_out_of_range_factors_returns_error(self) -> None:
+        result = execute_tool_call("trade_off_table", {"runs": [8], "factors": [99]})
+        assert "between 2 and 12" in result["error"]
+
+    def test_unknown_key_is_rejected_by_the_schema(self) -> None:
+        """``extra="forbid"`` closes the kwarg-injection vector (SEC-15)."""
+        with pytest.raises(ToolInputInvalidError):
+            execute_tool_call("trade_off_table", {"runs": [8], "bogus": 1})
+
+    def test_registered_in_the_experiments_tool_specs(self) -> None:
+        from process_improve.experiments.tools import get_experiments_tool_specs
+
+        specs = {s["name"]: s for s in get_experiments_tool_specs()}
+        assert "trade_off_table" in specs
+        assert specs["trade_off_table"]["input_schema"]["additionalProperties"] is False
