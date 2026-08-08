@@ -111,13 +111,13 @@ def grocery(
     is displayed at height `h` [cm up from the ground] on the shelf.
 
     Simulates a grocery store profit function where there are 2 factors:
+
     * `p` = selling price of the product, measured in dollars and cents
     * `h` = height of the product on the shelf, measured in centimeters above
-          the ground.
+      the ground.
 
-    Typical values are p = $3.50 and h = 150cm
-    The outcome is: profit made per hour [dollars/hour], with random noise
-                    added, for realism.
+    Typical values are p = $3.50 and h = 150cm. The outcome is the profit made
+    per hour [dollars/hour], with random noise added, for realism.
 
     Parameters
     ----------
@@ -191,6 +191,7 @@ def manufacture(
     Simulate the hourly profit of a manufacturing facility.
 
     Two factors affect the outcome:
+
     * `p` = selling price of the product, measured in dollars and cents
     * `t` = throughput (production rate) of the process, in parts per hour
 
@@ -257,11 +258,10 @@ def manufacture(
     p_coded = (P - 1.5) / 1.0
     t_coded = (T - 320.0) / 20.0
     y = (
-        18.0 * t_coded
-        + 10 * p_coded
-        - 5 * t_coded * p_coded
-        - 7 * t_coded * t_coded
-        - 24 * p_coded * p_coded
-        + 50
-    ) * 12 + 2 * np.sin(T) + 2 * np.cos(P) + rng.normal(0, 1) * 2
+        (18.0 * t_coded + 10 * p_coded - 5 * t_coded * p_coded - 7 * t_coded * t_coded - 24 * p_coded * p_coded + 50)
+        * 12
+        + 2 * np.sin(T)
+        + 2 * np.cos(P)
+        + rng.normal(0, 1) * 2
+    )
     return round(y)

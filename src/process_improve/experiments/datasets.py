@@ -143,7 +143,7 @@ def golf() -> pd.DataFrame:
 
     Source
     ------
-    A MOOC on Design of Experiments: ``Experimentation for Improvement'',
+    A MOOC on Design of Experiments, "Experimentation for Improvement",
     https://learnche.org
 
     """
@@ -184,7 +184,7 @@ def boilingpot() -> pd.DataFrame:
 
     Source
     ------
-    MOOC on Design of Experiments: ``Experimentation for Improvement'',
+    MOOC on Design of Experiments, "Experimentation for Improvement",
     https://learnche.org
 
     """
