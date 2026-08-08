@@ -45,6 +45,18 @@ Designed Experiments
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: process_improve.experiments.tradeoff
+   :members:
+   :show-inheritance:
+
+.. automodule:: process_improve.experiments.simulations
+   :members:
+   :show-inheritance:
+
+.. automodule:: process_improve.experiments.datasets
+   :members:
+   :show-inheritance:
+
 Strategy Recommender
 ~~~~~~~~~~~~~~~~~~~~
 
