@@ -23,10 +23,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from process_improve.experiments import Factor
 from process_improve.experiments.designs_omars_ilp import (
     _d_efficiency,
     _foldover,
     _full_second_order_params,
+    _half_bounds,
     _half_pool,
     _min_half_runs,
     _min_runs,
@@ -37,9 +39,6 @@ from process_improve.experiments.designs_omars_ilp import (
 # The frontier, N = k^2 + k + 1, spelled out so a change to the formula has to
 # disagree with a written-down table rather than with itself.
 FRONTIER_FULL_SECOND_ORDER = {3: 13, 4: 21, 5: 31, 6: 43, 7: 57}
-
-# Building the 3**k half-pool gets slow past five factors.
-_POOL_LIMIT = 5
 
 
 def rank_bound(n_factors: int, n_half: int) -> int:
@@ -181,3 +180,73 @@ class TestDEfficiencyRankGuard:
     def test_zero_everywhere_below_the_frontier(self, k: int, n_half: int) -> None:
         assert n_half < _min_half_runs(k)
         assert _d_efficiency(_foldover(generic_half(k, n_half))) == 0.0
+
+
+class TestHalfBounds:
+    """The sizing window starts at whichever floor binds harder."""
+
+    @pytest.mark.parametrize("k", [3, 4, 5, 6, 7])
+    def test_auto_window_starts_at_the_frontier(self, k: int) -> None:
+        """For the full second-order model, estimability is the binding floor."""
+        min_half = _min_half_runs(k)
+        params = _full_second_order_params(k)
+        low, high = _half_bounds(None, params, half_pool_size=10_000, min_half=min_half)
+        assert low == min_half
+        assert 2 * low + 1 == _min_runs(k)
+        assert high >= low
+
+    @pytest.mark.parametrize("k", [3, 4, 5, 6, 7])
+    def test_error_df_floor_binds_for_main_quadratic(self, k: int) -> None:
+        """Dropping the interactions makes N > p the binding floor instead."""
+        min_half = _min_half_runs(k, "main_quadratic")
+        params = 1 + 2 * k
+        low, _high = _half_bounds(None, params, half_pool_size=10_000, min_half=min_half)
+        assert 2 * low + 1 > params
+        assert low >= min_half
+
+    def test_requested_window_is_lifted_to_the_frontier(self) -> None:
+        """A caller asking below the frontier gets the frontier, not their floor."""
+        low, high = _half_bounds((9, 41), _full_second_order_params(4), 10_000, _min_half_runs(4))
+        assert 2 * low + 1 == _min_runs(4) == 21
+        assert 2 * high + 1 <= 41
+
+    def test_window_never_inverts_against_a_small_pool(self) -> None:
+        low, high = _half_bounds(None, _full_second_order_params(4), half_pool_size=3, min_half=10)
+        assert high >= low
+
+
+class TestGenerateOmarsRefusesSubFrontierSizes:
+    """The validation runs before any solver call, so this needs no CBC."""
+
+    @pytest.mark.parametrize(("k", "n_runs"), [(4, 19), (4, 17), (5, 27), (5, 29), (6, 41)])
+    def test_sub_frontier_n_runs_is_refused(self, k: int, n_runs: int) -> None:
+        from process_improve.experiments.designs_omars_ilp import generate_omars
+
+        factors = [Factor(name=chr(65 + i), low=-1, high=1) for i in range(k)]
+        with pytest.raises(ValueError, match="cannot estimate the full_second_order model"):
+            generate_omars(factors, n_runs=n_runs)
+
+    def test_the_message_names_the_frontier_and_the_way_out(self) -> None:
+        from process_improve.experiments.designs_omars_ilp import generate_omars
+
+        factors = [Factor(name=chr(65 + i), low=-1, high=1) for i in range(5)]
+        with pytest.raises(ValueError, match="cannot estimate") as excinfo:
+            generate_omars(factors, n_runs=29)
+        message = str(excinfo.value)
+        assert "n_runs >= 31" in message
+        assert "main_quadratic" in message
+
+    def test_main_quadratic_accepts_what_the_full_model_refuses(self) -> None:
+        """17 runs clears the parameter count (15) but not the frontier (21).
+
+        Sizes that fail both gates report the error-df one first, so this picks
+        a size where estimability is the only thing standing in the way. The
+        same size is comfortably above the main-quadratic frontier of 9.
+        """
+        from process_improve.experiments.designs_omars_ilp import generate_omars
+
+        assert _min_runs(4, "main_quadratic") <= 17 < _min_runs(4)
+        assert _full_second_order_params(4) < 17
+        factors = [Factor(name=chr(65 + i), low=-1, high=1) for i in range(4)]
+        with pytest.raises(ValueError, match="cannot estimate"):
+            generate_omars(factors, n_runs=17)

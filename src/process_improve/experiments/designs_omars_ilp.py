@@ -242,7 +242,7 @@ def _d_efficiency(coded: np.ndarray, model: str = "full_second_order") -> float:
     if n_runs < n_params or np.linalg.matrix_rank(model_matrix) < n_params:
         return 0.0
     sign, log_det = np.linalg.slogdet(model_matrix.T @ model_matrix)
-    if sign <= 0:
+    if sign <= 0:  # pragma: no cover - defensive: a full-rank X'X is positive definite
         return 0.0
     return float(100.0 * math.exp(log_det / n_params) / n_runs)
 
