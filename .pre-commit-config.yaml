@@ -39,8 +39,11 @@ repos:
       hooks:
           - id: nbstripout
 
+    # Keep this in step with the `ruff` pin in pyproject.toml: pre-commit and the
+    # CI `ruff format --check .` gate must run the same formatter, or locally
+    # formatted code can still fail in CI.
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.15.6
+      rev: v0.15.22
       hooks:
           - id: ruff-check
           - id: ruff-format
