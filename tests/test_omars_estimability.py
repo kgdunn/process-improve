@@ -181,6 +181,22 @@ class TestDEfficiencyRankGuard:
         assert n_half < _min_half_runs(k)
         assert _d_efficiency(_foldover(generic_half(k, n_half))) == 0.0
 
+    @pytest.mark.parametrize("sign", [0.0, -1.0])
+    def test_a_non_positive_slogdet_sign_also_scores_zero(self, monkeypatch, sign: float) -> None:
+        """The second guard, behind the rank one.
+
+        ``matrix_rank`` decides rank against an SVD tolerance, so a Gram matrix
+        can clear the rank guard and still be too ill-conditioned for
+        ``slogdet`` to return a positive sign. Reaching that state with a real
+        design would mean finding one on the knife edge of the tolerance, so
+        the sign is forced instead.
+        """
+        design = _foldover(generic_half(4, _min_half_runs(4)))
+        assert _d_efficiency(design) > 0.0  # the guard is what changes the answer
+
+        monkeypatch.setattr(np.linalg, "slogdet", lambda _: (sign, 12.0))
+        assert _d_efficiency(design) == 0.0
+
 
 class TestHalfBounds:
     """The sizing window starts at whichever floor binds harder."""
