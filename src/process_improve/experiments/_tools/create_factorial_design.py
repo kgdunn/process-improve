@@ -59,12 +59,14 @@ def create_factorial_design(spec: CreateFactorialDesignInput) -> dict[str, Any]:
         columns = full_factorial(spec.n_factors, names=spec.factor_names)
         design = pd.concat(columns, axis=1)
         names = list(design.columns)
-        return clean({
-            "design": design.to_dict(orient="records"),
-            "n_runs": len(design),
-            "n_factors": spec.n_factors,
-            "factor_names": names,
-        })
+        return clean(
+            {
+                "design": design.to_dict(orient="records"),
+                "n_runs": len(design),
+                "n_factors": spec.n_factors,
+                "factor_names": names,
+            }
+        )
     except _TOOL_EXPECTED_EXCEPTIONS as e:
         logger.exception("Tool create_factorial_design failed")
         return {"error": str(e)}

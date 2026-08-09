@@ -233,9 +233,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         # ``Pipeline.get_feature_names_out`` and SHAP / eli5 / model-card
         # tooling introspect a multiblock fit through the same surface as a
         # single-block estimator.
-        self.feature_names_in_ = np.concatenate(
-            [self._block_columns[name].to_numpy() for name in self.block_names_]
-        )
+        self.feature_names_in_ = np.concatenate([self._block_columns[name].to_numpy() for name in self.block_names_])
         n_components = int(self.n_components)
         n_blocks = len(self.block_names_)
 
@@ -273,8 +271,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 if np.any(col_all_nan):
                     bad = X[name].columns[col_all_nan].tolist()
                     raise ValueError(
-                        f"Block '{name}' has columns with all values missing: {bad}. "
-                        "Drop these columns before fitting."
+                        f"Block '{name}' has columns with all values missing: {bad}. Drop these columns before fitting."
                     )
                 row_all_nan = np.all(np.isnan(values), axis=1)
                 if np.any(row_all_nan):
@@ -287,9 +284,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             y_col_all_nan = np.all(np.isnan(y_values), axis=0)
             if np.any(y_col_all_nan):
                 bad = y.columns[y_col_all_nan].tolist()
-                raise ValueError(
-                    f"Y has columns with all values missing: {bad}. Drop these targets before fitting."
-                )
+                raise ValueError(f"Y has columns with all values missing: {bad}. Drop these targets before fitting.")
             y_row_all_nan = np.all(np.isnan(y_values), axis=1)
             if np.any(y_row_all_nan):
                 bad_rows = np.where(y_row_all_nan)[0].tolist()
@@ -329,11 +324,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
 
         # Initial sums of squares (for R^2 bookkeeping)
         ssq_x_init = {name: float(np.nansum(x_blocks_pp[name] ** 2)) for name in self.block_names_}
-        ssq_y_init = float(np.nansum(y_pp ** 2))
-        ssq_x_init_per_var = {
-            name: np.nansum(x_blocks_pp[name] ** 2, axis=0) for name in self.block_names_
-        }
-        ssq_y_init_per_var = np.nansum(y_pp ** 2, axis=0)
+        ssq_y_init = float(np.nansum(y_pp**2))
+        ssq_x_init_per_var = {name: np.nansum(x_blocks_pp[name] ** 2, axis=0) for name in self.block_names_}
+        ssq_y_init_per_var = np.nansum(y_pp**2, axis=0)
 
         # Per-component cumulative R^2 storage (filled inside the loop)
         r2_x_block_cum = np.zeros((n_blocks, n_components))
@@ -342,9 +335,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         }
         r2_y_cum = np.zeros(n_components)
         r2_y_var_cum = np.zeros((self.n_targets_, n_components))
-        block_spe_np: dict[str, np.ndarray] = {
-            name: np.zeros((n_samples, n_components)) for name in self.block_names_
-        }
+        block_spe_np: dict[str, np.ndarray] = {name: np.zeros((n_samples, n_components)) for name in self.block_names_}
 
         tol = float(np.finfo(float).eps ** (6 / 7)) if self.tol is None else float(self.tol)
         timing = np.zeros(n_components)
@@ -442,7 +433,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                     np.nan,
                 )
                 block_spe_np[name][:, a] = np.sqrt(np.nansum(x_def[name] ** 2, axis=1))
-            ssq_y_remain_per_var = np.nansum(y_def ** 2, axis=0)
+            ssq_y_remain_per_var = np.nansum(y_def**2, axis=0)
             r2_y_cum[a] = 1 - np.sum(ssq_y_remain_per_var) / ssq_y_init if ssq_y_init > 0 else np.nan
             r2_y_var_cum[:, a] = np.where(
                 ssq_y_init_per_var > 0,
@@ -464,15 +455,11 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             for name in self.block_names_
         }
         self.block_weights_ = {
-            name: pd.DataFrame(
-                block_weights_np[name], index=self._block_columns[name], columns=component_names
-            )
+            name: pd.DataFrame(block_weights_np[name], index=self._block_columns[name], columns=component_names)
             for name in self.block_names_
         }
         self.block_loadings_ = {
-            name: pd.DataFrame(
-                block_loadings_np[name], index=self._block_columns[name], columns=component_names
-            )
+            name: pd.DataFrame(block_loadings_np[name], index=self._block_columns[name], columns=component_names)
             for name in self.block_names_
         }
 
@@ -508,9 +495,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         if n_components > 1:
             r2_y_per_a[1:] = np.diff(r2_y_cum)
 
-        self.r2_x_per_block_cumulative_ = pd.DataFrame(
-            r2_x_block_cum, index=self.block_names_, columns=component_names
-        )
+        self.r2_x_per_block_cumulative_ = pd.DataFrame(r2_x_block_cum, index=self.block_names_, columns=component_names)
         self.r2_x_per_block_per_component_ = pd.DataFrame(
             r2_x_block_per_a, index=self.block_names_, columns=component_names
         )
@@ -622,9 +607,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             out[name] = pd.DataFrame(residuals_sq, index=sample_index, columns=self._block_columns[name])
         return out
 
-    def _deflated_blocks(
-        self, X: dict[str, pd.DataFrame], component: int
-    ) -> tuple[dict[str, np.ndarray], pd.Index]:
+    def _deflated_blocks(self, X: dict[str, pd.DataFrame], component: int) -> tuple[dict[str, np.ndarray], pd.Index]:
         """Preprocessed blocks, deflated through the first ``component - 1`` components.
 
         The super score at component *a* is formed from the data that remain
@@ -653,10 +636,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
 
         sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
         for a in range(int(component) - 1):
-            t_b_row = np.column_stack([
-                x_def[name] @ self.block_weights_[name].values[:, a] / sqrt_kb[name]
-                for name in self.block_names_
-            ])
+            t_b_row = np.column_stack(
+                [x_def[name] @ self.block_weights_[name].values[:, a] / sqrt_kb[name] for name in self.block_names_]
+            )
             t_super = t_b_row @ self.super_weights_.values[:, a]
             for name in self.block_names_:
                 p_b = self.block_loadings_[name].values[:, a]
@@ -921,9 +903,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             if not isinstance(block, pd.DataFrame):
                 block = pd.DataFrame(block, columns=self._block_columns[name])
             if block.shape[1] != self.block_widths_[name]:
-                raise ValueError(
-                    f"Block '{name}' must have {self.block_widths_[name]} columns; got {block.shape[1]}."
-                )
+                raise ValueError(f"Block '{name}' must have {self.block_widths_[name]} columns; got {block.shape[1]}.")
             x_pp[name] = self.preproc_[name].transform(block).values.astype(float)
             if sample_index is None:
                 sample_index = block.index
@@ -933,9 +913,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
 
         super_scores = np.zeros((n_new, n_components))
-        block_scores: dict[str, np.ndarray] = {
-            name: np.zeros((n_new, n_components)) for name in self.block_names_
-        }
+        block_scores: dict[str, np.ndarray] = {name: np.zeros((n_new, n_components)) for name in self.block_names_}
 
         x_def = {name: x_pp[name].copy() for name in self.block_names_}
         for a in range(n_components):
@@ -965,9 +943,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
 
         # Per-block SPE for new observations (residual after final deflation)
         block_spe = {
-            name: pd.Series(
-                np.sqrt(np.nansum(x_def[name] ** 2, axis=1)), index=sample_index, name=f"SPE[{name}]"
-            )
+            name: pd.Series(np.sqrt(np.nansum(x_def[name] ** 2, axis=1)), index=sample_index, name=f"SPE[{name}]")
             for name in self.block_names_
         }
         super_score_var = np.where(self.explained_variance_ > 0, self.explained_variance_, 1.0)

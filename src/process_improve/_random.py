@@ -89,7 +89,4 @@ def check_random_state(
         return random_state
     if isinstance(random_state, numbers.Integral) and not isinstance(random_state, bool):
         return np.random.default_rng(int(random_state))
-    raise TypeError(
-        f"random_state must be int | np.random.Generator | None, "
-        f"got {type(random_state).__name__}."
-    )
+    raise TypeError(f"random_state must be int | np.random.Generator | None, got {type(random_state).__name__}.")

@@ -228,21 +228,15 @@ class TestValidateAgainstModel:
 
     def test_unknown_key_rejected(self) -> None:
         with pytest.raises(ToolInputInvalidError, match="bogus"):
-            _validate_against_model(
-                "demo", {"data": [1, 2, 3], "n_components": 2, "bogus": 1}, _DemoInput
-            )
+            _validate_against_model("demo", {"data": [1, 2, 3], "n_components": 2, "bogus": 1}, _DemoInput)
 
     def test_wrong_type_rejected(self) -> None:
         with pytest.raises(ToolInputInvalidError, match="n_components"):
-            _validate_against_model(
-                "demo", {"data": [1, 2, 3], "n_components": "two"}, _DemoInput
-            )
+            _validate_against_model("demo", {"data": [1, 2, 3], "n_components": "two"}, _DemoInput)
 
     def test_below_minimum_rejected(self) -> None:
         with pytest.raises(ToolInputInvalidError, match="greater than or equal to 1"):
-            _validate_against_model(
-                "demo", {"data": [1, 2, 3], "n_components": 0}, _DemoInput
-            )
+            _validate_against_model("demo", {"data": [1, 2, 3], "n_components": 0}, _DemoInput)
 
     def test_above_maximum_rejected(self) -> None:
         with pytest.raises(ToolInputInvalidError, match=r"less than or equal to 0\.999"):
@@ -258,15 +252,11 @@ class TestValidateAgainstModel:
 
     def test_too_many_items_rejected(self) -> None:
         with pytest.raises(ToolInputInvalidError, match="at most 5 items"):
-            _validate_against_model(
-                "demo", {"data": [1, 2, 3, 4, 5, 6], "n_components": 2}, _DemoInput
-            )
+            _validate_against_model("demo", {"data": [1, 2, 3, 4, 5, 6], "n_components": 2}, _DemoInput)
 
     def test_bad_enum_rejected(self) -> None:
         with pytest.raises(ToolInputInvalidError, match="method"):
-            _validate_against_model(
-                "demo", {"data": [1, 2, 3], "n_components": 2, "method": "z"}, _DemoInput
-            )
+            _validate_against_model("demo", {"data": [1, 2, 3], "n_components": 2, "method": "z"}, _DemoInput)
 
     def test_explicit_null_for_optional_allowed(self) -> None:
         _validate_against_model(

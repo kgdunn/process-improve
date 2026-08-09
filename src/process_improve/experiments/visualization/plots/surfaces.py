@@ -55,9 +55,7 @@ def _evaluate_model(
 
         # Quadratic: ``I(A ** 2)`` (older statsmodels) or
         # ``np.power(A, 2)`` / ``power(A, 2)`` (newer). SEC-27 (#276).
-        m = re.match(r"I\((\w+)\s*\*\*\s*2\)", term) or re.match(
-            r"(?:np\.)?power\((\w+)\s*,\s*2\)", term
-        )
+        m = re.match(r"I\((\w+)\s*\*\*\s*2\)", term) or re.match(r"(?:np\.)?power\((\w+)\s*,\s*2\)", term)
         if m:
             name = m.group(1)
             y_hat += coef * point.get(name, 0.0) ** 2
@@ -170,7 +168,10 @@ class ContourPlot(BasePlot):
 
         coef_map = _build_coef_map(coefficients)
         x_grid, y_grid, z_matrix = _compute_grid(
-            coef_map, factor_x, factor_y, self.hold_values,
+            coef_map,
+            factor_x,
+            factor_y,
+            self.hold_values,
         )
 
         contour_layer = LayerSpec(
@@ -383,7 +384,10 @@ class Surface3DPlot(BasePlot):
         factor_x, factor_y = factors[0], factors[1]
         coef_map = _build_coef_map(coefficients)
         x_grid, y_grid, z_matrix = _compute_grid(
-            coef_map, factor_x, factor_y, self.hold_values,
+            coef_map,
+            factor_x,
+            factor_y,
+            self.hold_values,
         )
 
         surface_layer = LayerSpec(

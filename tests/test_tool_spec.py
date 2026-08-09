@@ -31,6 +31,7 @@ class _AddInput(BaseModel):
 class _EmptyInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+
 # ---------------------------------------------------------------------------
 # tool_spec decorator and registry
 # ---------------------------------------------------------------------------
@@ -177,9 +178,7 @@ class TestExecuteToolCall:
         from process_improve.tool_safety import ToolInputInvalidError
 
         with pytest.raises(ToolInputInvalidError, match="extra_forbidden"):
-            execute_tool_call(
-                "robust_summary_stats", {"values": [1, 2, 3], "rogue": "x"}
-            )
+            execute_tool_call("robust_summary_stats", {"values": [1, 2, 3], "rogue": "x"})
 
 
 # The pre-pydantic ``_filter_to_declared_keys`` helper was deleted in the

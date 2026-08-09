@@ -52,7 +52,17 @@ _TIME_FEATURE_MAP = {
 
 
 _BatchFeatureName = Literal[
-    "mean", "median", "std", "iqr", "sum", "min", "max", "last", "count", "area", "slope",
+    "mean",
+    "median",
+    "std",
+    "iqr",
+    "sum",
+    "min",
+    "max",
+    "last",
+    "count",
+    "area",
+    "slope",
 ]
 
 
@@ -140,9 +150,7 @@ def extract_batch_features(spec: ExtractBatchFeaturesInput) -> dict[str, Any]:
                 if spec.time_column is None:
                     return {"error": f"Feature '{feature_name}' requires time_column to be specified."}
                 func = getattr(feat_mod, _TIME_FEATURE_MAP[feature_name])
-                result_df = func(
-                    df, time_tag=spec.time_column, tags=spec.value_columns, batch_col=spec.batch_column
-                )
+                result_df = func(df, time_tag=spec.time_column, tags=spec.value_columns, batch_col=spec.batch_column)
                 results.append(result_df)
             else:
                 available = sorted(list(_FEATURE_MAP) + list(_TIME_FEATURE_MAP))
@@ -151,15 +159,21 @@ def extract_batch_features(spec: ExtractBatchFeaturesInput) -> dict[str, Any]:
         if results:
             combined = pd.concat(results, axis=1)
             feature_matrix = combined.reset_index().to_dict(orient="records")
+            n_batches = len(combined)
+            n_features = combined.shape[1]
         else:
             feature_matrix = []
+            n_batches = 0
+            n_features = 0
 
-        return clean({
-            "feature_matrix": feature_matrix,
-            "n_batches": len(combined) if results else 0,
-            "n_features": combined.shape[1] if results else 0,
-            "features_extracted": list(features),
-        })
+        return clean(
+            {
+                "feature_matrix": feature_matrix,
+                "n_batches": n_batches,
+                "n_features": n_features,
+                "features_extracted": list(features),
+            }
+        )
     except (ValueError, TypeError, KeyError) as exc:
         return {"error": str(exc)}
 

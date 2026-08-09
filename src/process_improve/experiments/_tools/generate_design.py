@@ -21,19 +21,22 @@ class GenerateDesignInput(BaseModel):
         min_length=1,
         description="List of factor specifications (name, type, low/high or levels, units).",
     )
-    design_type: Literal[
-        "full_factorial",
-        "fractional_factorial",
-        "plackett_burman",
-        "box_behnken",
-        "ccd",
-        "dsd",
-        "d_optimal",
-        "i_optimal",
-        "a_optimal",
-        "mixture",
-        "taguchi",
-    ] | None = Field(
+    design_type: (
+        Literal[
+            "full_factorial",
+            "fractional_factorial",
+            "plackett_burman",
+            "box_behnken",
+            "ccd",
+            "dsd",
+            "d_optimal",
+            "i_optimal",
+            "a_optimal",
+            "mixture",
+            "taguchi",
+        ]
+        | None
+    ) = Field(
         None,
         description="Design type. If omitted, auto-selected based on factors and budget.",
     )

@@ -89,9 +89,7 @@ class BoxPlot:
 
     def to_spec(self) -> ChartSpec:
         """Build the backend-agnostic :class:`ChartSpec`."""
-        box_data = [
-            {"group": b.group, "q_stats": list(b.q_stats)} for b in self.boxes
-        ]
+        box_data = [{"group": b.group, "q_stats": list(b.q_stats)} for b in self.boxes]
         layers: list[LayerSpec] = [
             LayerSpec(
                 mark=MarkType.boxplot,
@@ -108,11 +106,13 @@ class BoxPlot:
             for b in self.boxes:
                 for o in b.outliers:
                     pid = str(o.get("id", "")) if o.get("id") is not None else ""
-                    point_rows.append({
-                        "group": b.group,
-                        "value": o["value"],
-                        "id": pid,
-                    })
+                    point_rows.append(
+                        {
+                            "group": b.group,
+                            "value": o["value"],
+                            "id": pid,
+                        }
+                    )
                     point_ids.append(pid)
             if point_rows:
                 layers.append(

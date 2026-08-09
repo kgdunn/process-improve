@@ -19,6 +19,7 @@ try:
     import plotly.graph_objects as go
 except ImportError:  # pragma: no cover - exercised via env-without-plotly
     from process_improve._extras import _MissingExtra
+
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
 if TYPE_CHECKING:
@@ -182,14 +183,12 @@ def main_effects_plot(
         df = pd.DataFrame(model_or_data).copy()
     else:
         raise TypeError(
-            "model_or_data must be a fitted Model or a pandas DataFrame; "
-            f"got {type(model_or_data).__name__}.",
+            f"model_or_data must be a fitted Model or a pandas DataFrame; got {type(model_or_data).__name__}.",
         )
 
     if response_column not in df.columns:
         raise ValueError(
-            f"response_column {response_column!r} not found in data columns: "
-            f"{list(df.columns)}.",
+            f"response_column {response_column!r} not found in data columns: {list(df.columns)}.",
         )
 
     design_data = cast("list[dict[str, Any]]", df.to_dict(orient="records"))

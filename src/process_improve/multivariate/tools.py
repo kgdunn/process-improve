@@ -30,17 +30,13 @@ def _validate_matrix_shape(data: list, name: str) -> None:
     """
     n_rows = len(data)
     if n_rows > settings.max_matrix_rows:
-        raise ValueError(
-            f"{name} has {n_rows} rows; the cap is "
-            f"settings.max_matrix_rows={settings.max_matrix_rows}."
-        )
+        raise ValueError(f"{name} has {n_rows} rows; the cap is settings.max_matrix_rows={settings.max_matrix_rows}.")
     if n_rows == 0:
         return
     n_cols = len(data[0]) if hasattr(data[0], "__len__") else 1
     if n_cols > settings.max_matrix_cols:
         raise ValueError(
-            f"{name} has {n_cols} columns; the cap is "
-            f"settings.max_matrix_cols={settings.max_matrix_cols}."
+            f"{name} has {n_cols} columns; the cap is settings.max_matrix_cols={settings.max_matrix_cols}."
         )
 
 
@@ -96,18 +92,12 @@ def _validate_model_params(  # noqa: C901
             continue
         value = model_params[key]
         if not isinstance(value, int) or isinstance(value, bool):
-            raise TypeError(
-                f"model_params[{key!r}] must be an int, got {type(value).__name__}."
-            )
+            raise TypeError(f"model_params[{key!r}] must be an int, got {type(value).__name__}.")
         cap = settings.max_matrix_cols if key == "n_components" else settings.max_matrix_rows
         if value > cap:
-            raise ValueError(
-                f"model_params[{key!r}]={value} exceeds the cap of {cap}."
-            )
+            raise ValueError(f"model_params[{key!r}]={value} exceeds the cap of {cap}.")
         if value < 0:
-            raise ValueError(
-                f"model_params[{key!r}]={value} must be non-negative."
-            )
+            raise ValueError(f"model_params[{key!r}]={value} must be non-negative.")
 
 
 _MULTIVARIATE_TOOL_NAMES: list[str] = []
@@ -224,10 +214,7 @@ class FitPlsInput(BaseModel):
     y_data: list[list[float]] | list[float] = Field(
         ...,
         min_length=3,
-        description=(
-            "Y data as a list of lists (multiple responses) or a flat list of numbers "
-            "(single response)."
-        ),
+        description=("Y data as a list of lists (multiple responses) or a flat list of numbers (single response)."),
     )
     n_components: int = Field(
         ...,
@@ -536,8 +523,7 @@ def pca_predict(spec: PcaPredictInput) -> dict[str, Any]:
         spe_lim = spe_calculation(spe_values=train_spe_values, conf_level=0.95)
 
         is_outlier = [
-            (bool(t2 > t2_lim) or bool(spe > spe_lim))
-            for t2, spe in zip(t2_values, spe_values, strict=False)
+            (bool(t2 > t2_lim) or bool(spe > spe_lim)) for t2, spe in zip(t2_values, spe_values, strict=False)
         ]
 
         result: dict[str, Any] = {
@@ -604,8 +590,12 @@ def pls_predict(spec: PlsPredictInput) -> dict[str, Any]:
             spec.model_params,
             keys_2d=("x_loadings", "y_loadings", "direct_weights", "beta_coefficients"),
             keys_1d=(
-                "x_means", "x_stds", "y_means", "y_stds",
-                "scaling_factor_for_scores", "spe_values",
+                "x_means",
+                "x_stds",
+                "y_means",
+                "y_stds",
+                "scaling_factor_for_scores",
+                "spe_values",
             ),
         )
         from process_improve.multivariate.methods import hotellings_t2_limit, spe_calculation  # noqa: PLC0415

@@ -69,10 +69,7 @@ class ParetoPlot(BasePlot):
             cum_pct.append(100.0 * running / total if total > 0 else 0.0)
 
         # Bar colours: green for positive, red for negative
-        bar_colors = [
-            DOE_PALETTE["positive"] if v >= 0 else DOE_PALETTE["negative"]
-            for _, v in sorted_items
-        ]
+        bar_colors = [DOE_PALETTE["positive"] if v >= 0 else DOE_PALETTE["negative"] for _, v in sorted_items]
 
         # Per-bar error half-widths.  Source of truth (in priority order):
         # 1. ``effect_std_errors`` from a replicated-design fit, or
@@ -113,12 +110,14 @@ class ParetoPlot(BasePlot):
             if me is not None:
                 annotations.append(significance_threshold(me, alpha=1 - self.confidence_level, name="ME"))
             if sme is not None:
-                annotations.append(significance_threshold(
-                    sme,
-                    alpha=1 - self.confidence_level,
-                    name="SME",
-                    label=f"SME (α={1 - self.confidence_level})",  # noqa: RUF001
-                ))
+                annotations.append(
+                    significance_threshold(
+                        sme,
+                        alpha=1 - self.confidence_level,
+                        name="SME",
+                        label=f"SME (α={1 - self.confidence_level})",  # noqa: RUF001
+                    )
+                )
                 # Override SME colour to red
                 annotations[-1].style["color"] = DOE_PALETTE["threshold_sme"]
 
@@ -215,10 +214,7 @@ class HalfNormalPlot(BasePlot):
                 if item.get("active_ME", False):
                     significant_set.add(item["term"])
 
-        point_colors = [
-            DOE_PALETTE["negative"] if n in significant_set else DOE_PALETTE["primary"]
-            for n in names
-        ]
+        point_colors = [DOE_PALETTE["negative"] if n in significant_set else DOE_PALETTE["primary"] for n in names]
 
         # --- Layers ---
         scatter_data = [
@@ -239,7 +235,11 @@ class HalfNormalPlot(BasePlot):
             non_sig_q = [q for q, n in zip(quantiles, names) if n not in significant_set]  # noqa: B905
             non_sig_v = [v for v, n in zip(abs_vals, names) if n not in significant_set]  # noqa: B905
             if len(non_sig_q) >= 2:
-                slope = (non_sig_v[-1] - non_sig_v[0]) / (non_sig_q[-1] - non_sig_q[0]) if non_sig_q[-1] != non_sig_q[0] else 0  # noqa: E501
+                slope = (
+                    (non_sig_v[-1] - non_sig_v[0]) / (non_sig_q[-1] - non_sig_q[0])
+                    if non_sig_q[-1] != non_sig_q[0]
+                    else 0
+                )
                 intercept = non_sig_v[0] - slope * non_sig_q[0]
                 line_q = [0, quantiles[-1] * 1.1]
                 line_v = [intercept, intercept + slope * line_q[1]]
@@ -251,7 +251,8 @@ class HalfNormalPlot(BasePlot):
             line_v = [0, abs_vals[0] if abs_vals else 1]
 
         ref_data = [
-            {"quantile": q, "abs_effect": v} for q, v in zip(line_q, line_v)  # noqa: B905
+            {"quantile": q, "abs_effect": v}
+            for q, v in zip(line_q, line_v)  # noqa: B905
         ]
         ref_layer = LayerSpec(
             mark=MarkType.line,
@@ -347,8 +348,7 @@ class DanielPlot(BasePlot):
                     significant_set.add(item["term"])
 
         point_colors = [
-            DOE_PALETTE["negative"] if name in significant_set else DOE_PALETTE["primary"]
-            for name in names
+            DOE_PALETTE["negative"] if name in significant_set else DOE_PALETTE["primary"] for name in names
         ]
 
         # --- Layers ---

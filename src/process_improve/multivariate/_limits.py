@@ -210,13 +210,9 @@ def ellipse_coordinates(  # noqa: PLR0913
         where t ranges between 0 and 2*pi.
     """
     if not 1 <= score_horiz <= n_components:
-        raise ValueError(
-            f"score_horiz must lie in [1, {n_components}]; got {score_horiz}."
-        )
+        raise ValueError(f"score_horiz must lie in [1, {n_components}]; got {score_horiz}.")
     if not 1 <= score_vert <= n_components:
-        raise ValueError(
-            f"score_vert must lie in [1, {n_components}]; got {score_vert}."
-        )
+        raise ValueError(f"score_vert must lie in [1, {n_components}]; got {score_vert}.")
     if not 0 < conf_level < 1:
         raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
     if n_rows <= 0:

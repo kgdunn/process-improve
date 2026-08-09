@@ -455,9 +455,9 @@ def test_process_capability_tool_excellent() -> None:
 @pytest.mark.parametrize(
     ("scale", "expected"),
     [
-        (0.2, "Good"),         # cpk in [1.33, 1.67)
-        (0.3, "Marginal"),     # cpk in [1.0, 1.33)
-        (0.6, "Poor"),         # cpk < 1.0
+        (0.2, "Good"),  # cpk in [1.33, 1.67)
+        (0.3, "Marginal"),  # cpk in [1.0, 1.33)
+        (0.6, "Poor"),  # cpk < 1.0
     ],
 )
 def test_process_capability_tool_interpretation_bands(scale: float, expected: str) -> None:

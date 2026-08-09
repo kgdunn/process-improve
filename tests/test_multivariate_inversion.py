@@ -145,9 +145,7 @@ def test_invert_reports_hotellings_t2(case_study_1: tuple[pd.DataFrame, pd.DataF
     X, y = case_study_1
     model = PLS(n_components=2).fit(X, y)
     result = model.invert(168.23)
-    expected_t2 = float(
-        np.sum((result.scores.to_numpy() / model.scaling_factor_for_scores_.to_numpy()) ** 2)
-    )
+    expected_t2 = float(np.sum((result.scores.to_numpy() / model.scaling_factor_for_scores_.to_numpy()) ** 2))
     assert result.hotellings_t2 == pytest.approx(expected_t2)
     assert result.hotellings_t2 >= 0.0
 

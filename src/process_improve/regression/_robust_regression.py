@@ -268,13 +268,13 @@ def robust_regression(  # noqa: PLR0913, PLR0915
 
 _RENAMED = {"simple_robust_regression": "robust_regression"}
 
+
 def __getattr__(name: str) -> None:
     """Raise a helpful error when a renamed module attribute is accessed."""
     if name in _RENAMED:
         new = _RENAMED[name]
         raise AttributeError(
-            f"{name!r} has been renamed to {new!r}. "
-            f"Use: from process_improve.regression.methods import {new}"
+            f"{name!r} has been renamed to {new!r}. Use: from process_improve.regression.methods import {new}"
         )
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
@@ -516,13 +516,9 @@ class OLS(RegressorMixin, BaseEstimator):
         n_samples, n_features = X_.shape
         k_params = n_features + (1 if self.fit_intercept else 0)
         if n_samples < k_params:
-            raise ValueError(
-                "N >= K: You need at least as many rows as there are columns to fit a linear regression."
-            )
+            raise ValueError("N >= K: You need at least as many rows as there are columns to fit a linear regression.")
         if n_samples != y_.size:
-            raise ValueError(
-                f"X and y must have the same number of rows: got {n_samples} and {y_.size}."
-            )
+            raise ValueError(f"X and y must have the same number of rows: got {n_samples} and {y_.size}.")
 
         # Build the design matrix.
         design = X_.copy()
@@ -539,14 +535,14 @@ class OLS(RegressorMixin, BaseEstimator):
 
         # statsmodels returns Series (indexed by column name) when fed a DataFrame,
         # so always go through ``.values`` for positional access.
-        params = np.asarray(results.params.values if hasattr(results.params, "values")
-                             else results.params, dtype=float)
-        bse = np.asarray(results.bse.values if hasattr(results.bse, "values")
-                         else results.bse, dtype=float)
-        tvalues = np.asarray(results.tvalues.values if hasattr(results.tvalues, "values")
-                             else results.tvalues, dtype=float)
-        pvalues = np.asarray(results.pvalues.values if hasattr(results.pvalues, "values")
-                             else results.pvalues, dtype=float)
+        params = np.asarray(results.params.values if hasattr(results.params, "values") else results.params, dtype=float)
+        bse = np.asarray(results.bse.values if hasattr(results.bse, "values") else results.bse, dtype=float)
+        tvalues = np.asarray(
+            results.tvalues.values if hasattr(results.tvalues, "values") else results.tvalues, dtype=float
+        )
+        pvalues = np.asarray(
+            results.pvalues.values if hasattr(results.pvalues, "values") else results.pvalues, dtype=float
+        )
 
         # Populate attributes.
         self.n_samples_ = n_samples
@@ -592,12 +588,8 @@ class OLS(RegressorMixin, BaseEstimator):
         total_ssq = float(np.sum(np.power(y_.values - mean_y, 2)))
         regression_ssq = float(np.sum(np.power(self.fitted_values_ - mean_y, 2)))
         residual_ssq = float(np.nansum(self.residuals_ * self.residuals_))
-        self.r2_regression_based_ = (
-            regression_ssq / total_ssq if total_ssq > 0 else float("nan")
-        )
-        self.r2_residual_based_ = (
-            1.0 - residual_ssq / total_ssq if total_ssq > 0 else float("nan")
-        )
+        self.r2_regression_based_ = regression_ssq / total_ssq if total_ssq > 0 else float("nan")
+        self.r2_residual_based_ = 1.0 - residual_ssq / total_ssq if total_ssq > 0 else float("nan")
 
         # Single-feature diagnostics: leverage, influence, and a prediction interval grid.
         self.x_ssq_ = float("nan")
@@ -619,20 +611,14 @@ class OLS(RegressorMixin, BaseEstimator):
                     self.influence_ = np.zeros(n_samples)
                 else:
                     self.influence_ = (
-                        np.power(results.resid / ((1 - self.leverage_) * self.se_), 2)
-                        * self.leverage_
-                        / k_params
+                        np.power(results.resid / ((1 - self.leverage_) * self.se_), 2) * self.leverage_ / k_params
                     )
                     pi_range = np.linspace(np.min(x_col), np.max(x_col), self.pi_resolution)
                     pi_y_pred = self.intercept_ + self.coefficients_[0] * pi_range
-                    var_y = (self.se_**2) * (
-                        1 + 1.0 / n_samples + (pi_range - mean_x) ** 2 / x_ssq
-                    )
+                    var_y = (self.se_**2) * (1 + 1.0 / n_samples + (pi_range - mean_x) ** 2 / x_ssq)
                     std_y = np.sqrt(var_y)
                     c_t = t_value(1 - (1 - self.conflevel) / 2, n_samples - 2)
-                    self.pi_range_ = np.vstack(
-                        [pi_range, pi_y_pred - c_t * std_y, pi_y_pred + c_t * std_y]
-                    ).T
+                    self.pi_range_ = np.vstack([pi_range, pi_y_pred - c_t * std_y, pi_y_pred + c_t * std_y]).T
 
         self._k_ = k_params
         self.is_fitted_ = True
@@ -665,8 +651,7 @@ class OLS(RegressorMixin, BaseEstimator):
         n_features = X_arr.shape[1]
         if n_features != self.n_features_in_:
             raise ValueError(
-                f"X has {n_features} feature(s), but OLS was fitted with "
-                f"{self.n_features_in_} feature(s)."
+                f"X has {n_features} feature(s), but OLS was fitted with {self.n_features_in_} feature(s)."
             )
         intercept = 0.0 if not self.fit_intercept else self.intercept_
         return intercept + X_arr @ self.coefficients_
@@ -703,11 +688,7 @@ class OLS(RegressorMixin, BaseEstimator):
         assert getattr(self, "is_fitted_", False), "OLS must be fitted before calling prediction_interval()."
         cl = self.conflevel if conflevel is None else conflevel
 
-        X_arr = (
-            X.to_numpy(dtype=float)
-            if isinstance(X, pd.Series | pd.DataFrame)
-            else np.asarray(X, dtype=float)
-        )
+        X_arr = X.to_numpy(dtype=float) if isinstance(X, pd.Series | pd.DataFrame) else np.asarray(X, dtype=float)
 
         if X_arr.ndim == 0:
             X_arr = X_arr.reshape(1, 1)
@@ -777,11 +758,9 @@ class OLS(RegressorMixin, BaseEstimator):
         out["k"] = self._k_
         if not np.isnan(self.x_ssq_):
             out["x_ssq"] = self.x_ssq_
-        if not (isinstance(self.leverage_, np.ndarray) and self.leverage_.size == 1
-                and np.isnan(self.leverage_[0])):
+        if not (isinstance(self.leverage_, np.ndarray) and self.leverage_.size == 1 and np.isnan(self.leverage_[0])):
             out["leverage"] = self.leverage_
-        if not (isinstance(self.influence_, np.ndarray) and self.influence_.size == 1
-                and np.isnan(self.influence_[0])):
+        if not (isinstance(self.influence_, np.ndarray) and self.influence_.size == 1 and np.isnan(self.influence_[0])):
             out["influence"] = self.influence_
         if isinstance(self.pi_range_, np.ndarray):
             out["pi_range"] = self.pi_range_
@@ -863,25 +842,16 @@ class OLS(RegressorMixin, BaseEstimator):
 
     def _format_summary(self) -> str:
         # Call line: show the parameters that affected the fit.
-        call = (
-            f"OLS(fit_intercept={self.fit_intercept}, na_rm={self.na_rm}, "
-            f"conflevel={self.conflevel})"
-        )
+        call = f"OLS(fit_intercept={self.fit_intercept}, na_rm={self.na_rm}, conflevel={self.conflevel})"
         target = self.target_name_ or "y"
         feature_str = " + ".join(self.feature_names_in_) if self.feature_names_in_ else "1"
         formula_line = (
-            f"  formula: {target} ~ {feature_str}"
-            if self.fit_intercept
-            else f"  formula: {target} ~ {feature_str} + 0"
+            f"  formula: {target} ~ {feature_str}" if self.fit_intercept else f"  formula: {target} ~ {feature_str} + 0"
         )
 
         # Residual quantiles.
         resid = self.residuals_[~np.isnan(self.residuals_)]
-        q = (
-            np.quantile(resid, [0.0, 0.25, 0.5, 0.75, 1.0])
-            if resid.size
-            else np.array([np.nan] * 5)
-        )
+        q = np.quantile(resid, [0.0, 0.25, 0.5, 0.75, 1.0]) if resid.size else np.array([np.nan] * 5)
         resid_header = f"{'Min':>10}{'1Q':>11}{'Median':>11}{'3Q':>11}{'Max':>11}"
         resid_values = (
             f"{self._fmt_number(q[0]):>10}"
@@ -894,13 +864,15 @@ class OLS(RegressorMixin, BaseEstimator):
         # Coefficient table.
         rows: list[tuple[str, float, float, float, float]] = []
         if self.fit_intercept:
-            rows.append((
-                "(Intercept)",
-                self.intercept_,
-                self.standard_error_intercept_,
-                self.t_value_intercept_,
-                self.p_value_intercept_,
-            ))
+            rows.append(
+                (
+                    "(Intercept)",
+                    self.intercept_,
+                    self.standard_error_intercept_,
+                    self.t_value_intercept_,
+                    self.p_value_intercept_,
+                )
+            )
         for name, est, se, tv, pv in zip(
             self.feature_names_in_,
             self.coefficients_,
@@ -914,10 +886,7 @@ class OLS(RegressorMixin, BaseEstimator):
         name_width = max((len(r[0]) for r in rows), default=11)
         name_width = max(name_width, 11)
 
-        coef_header = (
-            f"{'':<{name_width}}  {'Estimate':>10}  {'Std. Error':>10}  "
-            f"{'t value':>8}  {'Pr(>|t|)':>10}"
-        )
+        coef_header = f"{'':<{name_width}}  {'Estimate':>10}  {'Std. Error':>10}  {'t value':>8}  {'Pr(>|t|)':>10}"
         coef_lines = []
         for name, est, se, tv, pv in rows:
             line = (
@@ -949,9 +918,7 @@ class OLS(RegressorMixin, BaseEstimator):
             f"{resid_values}\n"
             "\n"
             "Coefficients:\n"
-            f"{coef_header}\n"
-            + "\n".join(coef_lines)
-            + "\n"
+            f"{coef_header}\n" + "\n".join(coef_lines) + "\n"
             "---\n"
             "Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n"
             "\n"
@@ -959,7 +926,6 @@ class OLS(RegressorMixin, BaseEstimator):
             f"Multiple R-squared:  {self.r2_:.4g},\tAdjusted R-squared:  {self.adj_r2_:.4g}\n"
             f"{f_line}"
         )
-
 
 
 # ENG-23 (#305): explicit ``__all__`` so the thin re-exporter ``methods.py``

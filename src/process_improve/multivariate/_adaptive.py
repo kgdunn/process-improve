@@ -332,9 +332,7 @@ class _AdaptiveModel(_LatentVariableModel):
         variables (a zero forgetting factor) are left untouched.
         """
         # Scaling first, referencing the not-yet-updated centre.
-        self.sx_ = np.sqrt(
-            (1.0 - self.alpha_scale_) * self.sx_**2 + self.alpha_scale_ * (x0 - self.mx_) ** 2
-        )
+        self.sx_ = np.sqrt((1.0 - self.alpha_scale_) * self.sx_**2 + self.alpha_scale_ * (x0 - self.mx_) ** 2)
         # Guard against a scale collapsing to zero on a frozen / constant tag.
         self.sx_ = np.where(self.sx_ < epsqrt, 1.0, self.sx_)
         self.mx_ = (1.0 - self.lambda_center_) * self.mx_ + self.lambda_center_ * x0
@@ -466,10 +464,12 @@ class _AdaptiveModel(_LatentVariableModel):
 
         if has_channels:
             fig = make_subplots(
-                rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.07,
+                rows=3,
+                cols=1,
+                shared_xaxes=True,
+                vertical_spacing=0.07,
                 specs=[[{"secondary_y": True}], [{"secondary_y": False}], [{"secondary_y": False}]],
-                subplot_titles=["Prediction departure from static, by channel",
-                                "Preprocessing drift", "Kernel drift"],
+                subplot_titles=["Prediction departure from static, by channel", "Preprocessing drift", "Kernel drift"],
             )
             ch = self.prediction_channels_
             prep = ch["preprocessing"].to_numpy(dtype=float)
@@ -481,31 +481,66 @@ class _AdaptiveModel(_LatentVariableModel):
             total = prep + kern
             span = float(np.nanmax(np.abs(np.concatenate([prep, kern])))) if len(prep) else 1.0
             span = span or 1.0
-            fig.add_trace(go.Scatter(x=x, y=prep, name="Centering + scaling",
-                line=dict(color="#1f4e79", width=1)), row=1, col=1, secondary_y=False)
-            fig.add_trace(go.Scatter(x=x, y=kern, name="Kernel (subspace/regression)",
-                line=dict(color="#c55a11", width=1)), row=1, col=1, secondary_y=False)
-            fig.add_trace(go.Scatter(x=x, y=total, name="Total (right axis)",
-                line=dict(color="#222222", width=1)), row=1, col=1, secondary_y=True)
+            fig.add_trace(
+                go.Scatter(x=x, y=prep, name="Centering + scaling", line=dict(color="#1f4e79", width=1)),
+                row=1,
+                col=1,
+                secondary_y=False,
+            )
+            fig.add_trace(
+                go.Scatter(x=x, y=kern, name="Kernel (subspace/regression)", line=dict(color="#c55a11", width=1)),
+                row=1,
+                col=1,
+                secondary_y=False,
+            )
+            fig.add_trace(
+                go.Scatter(x=x, y=total, name="Total (right axis)", line=dict(color="#222222", width=1)),
+                row=1,
+                col=1,
+                secondary_y=True,
+            )
             fig.update_yaxes(title_text="Channel", range=[-1.05 * span, 1.05 * span], row=1, col=1, secondary_y=False)
             fig.update_yaxes(title_text="Total", range=[-2.1 * span, 2.1 * span], row=1, col=1, secondary_y=True)
             r_pre, r_ker = 2, 3
         else:
-            fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.09,
-                subplot_titles=["Preprocessing drift", "Kernel drift"])
+            fig = make_subplots(
+                rows=2,
+                cols=1,
+                shared_xaxes=True,
+                vertical_spacing=0.09,
+                subplot_titles=["Preprocessing drift", "Kernel drift"],
+            )
             r_pre, r_ker = 1, 2
 
-        fig.add_trace(go.Scatter(x=x, y=cen, name="Centre migration [training SD]",
-            line=dict(color="#1f4e79", width=1)), row=r_pre, col=1)
-        fig.add_trace(go.Scatter(x=x, y=sca, name="Scale change [fraction]",
-            line=dict(color="#2e75b6", width=1, dash="dash")), row=r_pre, col=1)
-        fig.add_trace(go.Scatter(x=x, y=rot, name="Subspace rotation (A - distance)",
-            line=dict(color="#c55a11", width=1)), row=r_ker, col=1)
+        fig.add_trace(
+            go.Scatter(x=x, y=cen, name="Centre migration [training SD]", line=dict(color="#1f4e79", width=1)),
+            row=r_pre,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(x=x, y=sca, name="Scale change [fraction]", line=dict(color="#2e75b6", width=1, dash="dash")),
+            row=r_pre,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(x=x, y=rot, name="Subspace rotation (A - distance)", line=dict(color="#c55a11", width=1)),
+            row=r_ker,
+            col=1,
+        )
         if has_channels:
-            fig.add_trace(go.Scatter(x=x, y=self._hist_beta_shift, name="Regression change",
-                line=dict(color="#e0912f", width=1, dash="dash")), row=r_ker, col=1)
-        fig.update_layout(height=270 * (3 if has_channels else 2),
-            margin=dict(l=70, r=70, t=40, b=40), legend=dict(font=dict(size=9)))
+            fig.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=self._hist_beta_shift,
+                    name="Regression change",
+                    line=dict(color="#e0912f", width=1, dash="dash"),
+                ),
+                row=r_ker,
+                col=1,
+            )
+        fig.update_layout(
+            height=270 * (3 if has_channels else 2), margin=dict(l=70, r=70, t=40, b=40), legend=dict(font=dict(size=9))
+        )
         return fig
 
 
@@ -737,7 +772,11 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         self._update_scaling_factor()
 
     def update(
-        self, x_row: np.ndarray, y_row: np.ndarray | None = None, *, label: object = None  # noqa: ARG002
+        self,
+        x_row: np.ndarray,
+        y_row: np.ndarray | None = None,  # noqa: ARG002
+        *,
+        label: object = None,
     ) -> Bunch:
         """Process one new observation and, if warranted, update the model.
 
@@ -1211,7 +1250,11 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         return pd.DataFrame(data, index=self._hist_index, columns=self._target_names)
 
     def _channels_frame(
-        self, static: typing.Any, prep: typing.Any, kern: typing.Any, index: typing.Any  # noqa: ANN401
+        self,
+        static: typing.Any,  # noqa: ANN401
+        prep: typing.Any,  # noqa: ANN401
+        kern: typing.Any,  # noqa: ANN401
+        index: typing.Any,  # noqa: ANN401
     ) -> pd.DataFrame:
         """Assemble a static / preprocessing / kernel / adaptive channel DataFrame.
 
@@ -1225,8 +1268,12 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         adaptive_a = static_a + prep_a + kern_a
         if self.n_targets_ == 1:
             return pd.DataFrame(
-                {"static": static_a[:, 0], "preprocessing": prep_a[:, 0],
-                 "kernel": kern_a[:, 0], "adaptive": adaptive_a[:, 0]},
+                {
+                    "static": static_a[:, 0],
+                    "preprocessing": prep_a[:, 0],
+                    "kernel": kern_a[:, 0],
+                    "adaptive": adaptive_a[:, 0],
+                },
                 index=index,
             )
         data: dict[tuple[object, str], np.ndarray] = {}

@@ -20,6 +20,7 @@ try:
     from plotly.offline import plot as plotoffline
 except ImportError:  # pragma: no cover - exercised via env-without-plotly
     from process_improve._extras import _MissingExtra
+
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
     sns = _MissingExtra("seaborn", "plotting")  # type: ignore[assignment]
     plotoffline = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
@@ -70,9 +71,7 @@ def get_rgba_from_triplet(incolour: Sequence[float], alpha: float = 1, as_string
     E.g.    [0.9677975592919913, 0.44127456009157356, 0.5358103155058701] -> 'rgba(246,112,136,1)'
     """
     if not 3 <= len(incolour) <= 4:
-        raise ValueError(
-            f"`incolour` must be a list of 3 or 4 values; got {len(incolour)} entries."
-        )
+        raise ValueError(f"`incolour` must be a list of 3 or 4 values; got {len(incolour)} entries.")
     colours = [max(0, math.floor(c * 255)) for c in list(incolour)[0:3]]
     if as_string:
         return f"rgba({colours[0]},{colours[1]},{colours[2]},{float(alpha)})"
@@ -186,7 +185,7 @@ def plot_all_batches_per_tag(  # noqa: PLR0912, PLR0913
         except json.JSONDecodeError as exc:
             raise ValueError(
                 f"batches_to_highlight: each key must be a JSON-encoded "
-                f"plotly line-style spec (e.g. '{{\"width\":4,\"color\":\"red\"}}'). "
+                f'plotly line-style spec (e.g. \'{{"width":4,"color":"red"}}\'). '
                 f"Got {key!r}."
             ) from exc
         line_styles.update({item: style_spec for item in val if item in df_dict})
@@ -311,8 +310,7 @@ def colours_per_batch_id(
     random.shuffle(colours)
     colours = [get_rgba_from_triplet(c, as_string=True) for c in colours]
     colour_assignment = {
-        key: dict(width=default_line_width, color=val)
-        for key, val in zip(list(batch_ids), colours, strict=False)
+        key: dict(width=default_line_width, color=val) for key, val in zip(list(batch_ids), colours, strict=False)
     }
     for key, val in batches_to_highlight.items():
         # SEC-32 (#281) -- decode outside the comprehension so a bad key
@@ -322,8 +320,7 @@ def colours_per_batch_id(
             colour_spec = json.loads(key)
         except json.JSONDecodeError as exc:
             raise ValueError(
-                f"batches_to_highlight: each key must be a JSON-encoded "
-                f"colour spec. Got {key!r}."
+                f"batches_to_highlight: each key must be a JSON-encoded colour spec. Got {key!r}."
             ) from exc
         colour_assignment.update({item: colour_spec for item in val if item in batch_ids})
     return colour_assignment

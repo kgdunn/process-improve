@@ -36,6 +36,7 @@ Characteristics:
 - the multilevel column index has level 0 = column name, level 1 = aligned time
 - only makes sense if the data are aligned (same number of elements in each level-1 index)
 """
+
 from __future__ import annotations
 
 from typing import cast

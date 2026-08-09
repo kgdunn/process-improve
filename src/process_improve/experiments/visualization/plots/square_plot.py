@@ -77,10 +77,7 @@ class SquarePlot(BasePlot):
 
         # Edge order: traverse the square ((-1,-1) -> (1,-1) -> (1,1) -> (-1,1) -> close)
         edge_order = [(-1, -1), (1, -1), (1, 1), (-1, 1), (-1, -1)]
-        edge_data = [
-            {"x": float(x), "y": float(y), "text": ""}
-            for x, y in edge_order
-        ]
+        edge_data = [{"x": float(x), "y": float(y), "text": ""} for x, y in edge_order]
 
         edge_layer = LayerSpec(
             mark=MarkType.line,

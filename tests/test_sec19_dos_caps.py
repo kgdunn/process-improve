@@ -164,9 +164,7 @@ class TestFitLinearModelCaps:
     def _make_data(self, n_rows: int = 8) -> list[dict[str, float]]:
         rng = np.random.default_rng(0)
         cols = ["A", "B", "C", "y"]
-        return [
-            {c: float(rng.standard_normal()) for c in cols} for _ in range(n_rows)
-        ]
+        return [{c: float(rng.standard_normal()) for c in cols} for _ in range(n_rows)]
 
     def test_too_long_formula_rejected(self) -> None:
         from process_improve.tool_spec import execute_tool_call
@@ -174,9 +172,7 @@ class TestFitLinearModelCaps:
         settings.max_formula_chars = 50
         long_formula = "y ~ " + " + ".join([f"A_{i}" for i in range(40)])
         assert len(long_formula) > 50
-        result = execute_tool_call(
-            "fit_linear_model", {"formula": long_formula, "data": self._make_data()}
-        )
+        result = execute_tool_call("fit_linear_model", {"formula": long_formula, "data": self._make_data()})
         assert "error" in result
         assert "max_formula_chars" in result["error"]
 
@@ -185,9 +181,7 @@ class TestFitLinearModelCaps:
 
         settings.max_matrix_rows = 5
         data = self._make_data(n_rows=10)
-        result = execute_tool_call(
-            "fit_linear_model", {"formula": "y ~ A + B + C", "data": data}
-        )
+        result = execute_tool_call("fit_linear_model", {"formula": "y ~ A + B + C", "data": data})
         assert "error" in result
         assert "max_matrix_rows" in result["error"]
 
@@ -198,8 +192,7 @@ class TestFitLinearModelCaps:
         settings.max_formula_terms = 5
         rng = np.random.default_rng(0)
         data = [
-            {**{c: float(rng.standard_normal()) for c in "ABCDE"}, "y": float(rng.standard_normal())}
-            for _ in range(20)
+            {**{c: float(rng.standard_normal()) for c in "ABCDE"}, "y": float(rng.standard_normal())} for _ in range(20)
         ]
         result = execute_tool_call(
             "fit_linear_model",
@@ -213,9 +206,7 @@ class TestFitLinearModelCaps:
     def test_normal_use_still_works(self) -> None:
         from process_improve.tool_spec import execute_tool_call
 
-        result = execute_tool_call(
-            "fit_linear_model", {"formula": "y ~ A + B + C", "data": self._make_data()}
-        )
+        result = execute_tool_call("fit_linear_model", {"formula": "y ~ A + B + C", "data": self._make_data()})
         assert "error" not in result
         assert result["r2"] >= 0.0
 

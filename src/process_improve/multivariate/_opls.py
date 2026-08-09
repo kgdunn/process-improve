@@ -438,9 +438,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         """Validate new X, capture its index, and move it to the scaled space."""
         check_is_fitted(self, "predictive_weights_")
         index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
-        X_arr = validate_data(
-            self, X, reset=False, accept_sparse=False, dtype="numeric", ensure_all_finite=True
-        )
+        X_arr = validate_data(self, X, reset=False, accept_sparse=False, dtype="numeric", ensure_all_finite=True)
         if index is None:
             index = pd.RangeIndex(X_arr.shape[0])
         X_df = pd.DataFrame(X_arr, index=index, columns=self._feature_names)

@@ -826,9 +826,7 @@ def test_rosner_esd_corner_case() -> None:
     assert extra_out["cutoff"] == -1
     assert len(outliers) == 0
 
-    outliers, extra_out = univariate.detect_outliers_esd(
-        [1, 2, 3], algorithm="something-else", max_outliers_detected=1
-    )
+    outliers, extra_out = univariate.detect_outliers_esd([1, 2, 3], algorithm="something-else", max_outliers_detected=1)
     assert len(extra_out) == 0
     assert len(outliers) == 0
 
@@ -927,9 +925,7 @@ def test_tietjen_moore_detects_planted_outliers() -> None:
     sample[5] = 12.0
     sample[20] = -11.0
 
-    result = univariate.tietjen_moore_test(
-        sample, n_outliers=2, n_simulations=2000, random_state=1
-    )
+    result = univariate.tietjen_moore_test(sample, n_outliers=2, n_simulations=2000, random_state=1)
     assert result.reject is True
     assert set(result.outlier_indices.tolist()) == {5, 20}
 
@@ -938,9 +934,7 @@ def test_tietjen_moore_no_outliers_in_clean_data() -> None:
     """Clean normal data should not be flagged as containing outliers."""
     rng = np.random.default_rng(2)
     sample = rng.normal(size=50)
-    result = univariate.tietjen_moore_test(
-        sample, n_outliers=2, n_simulations=2000, random_state=3
-    )
+    result = univariate.tietjen_moore_test(sample, n_outliers=2, n_simulations=2000, random_state=3)
     assert result.reject is False
 
     with pytest.raises(ValueError, match="n_outliers"):

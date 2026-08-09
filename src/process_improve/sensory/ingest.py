@@ -100,9 +100,7 @@ def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
         wrong column mapping).
     """
     if layout not in ("long", "wide_by_attribute", "wide_by_product"):
-        raise ValueError(
-            f"layout must be 'long', 'wide_by_attribute', or 'wide_by_product', got {layout!r}."
-        )
+        raise ValueError(f"layout must be 'long', 'wide_by_attribute', or 'wide_by_product', got {layout!r}.")
 
     # Drop any nuisance columns up front, so "all remaining columns" (when the
     # attribute/product list is omitted) automatically excludes them.
@@ -188,9 +186,9 @@ def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
             }
 
         row_key_target = "product" if layout == "wide_by_attribute" else "attribute"
-        long_df = wide.melt(
-            id_vars=id_cols, value_vars=value_cols, var_name=melted_name, value_name="score"
-        ).rename(columns={panelist_col: "panelist_id", row_key_col: row_key_target})
+        long_df = wide.melt(id_vars=id_cols, value_vars=value_cols, var_name=melted_name, value_name="score").rename(
+            columns={panelist_col: "panelist_id", row_key_col: row_key_target}
+        )
         if session_col:
             long_df = long_df.rename(columns={session_col: "session"})
         if replicate_col:
@@ -215,12 +213,7 @@ def reshape_to_long(  # noqa: C901, PLR0912, PLR0915
     attr_diff = _compare_maps(attr_mean_before, attr_mean_after)
     panelist_diff = _compare_maps(panelist_mean_before, panelist_mean_after)
     tol = _ABS_TOL + _REL_TOL * abs(grand_before)
-    ok = (
-        grand_diff <= tol
-        and attr_diff <= tol
-        and panelist_diff <= tol
-        and n_cells_before == n_cells_after
-    )
+    ok = grand_diff <= tol and attr_diff <= tol and panelist_diff <= tol and n_cells_before == n_cells_after
     checks = {
         "ok": ok,
         "grand_mean_before": grand_before,

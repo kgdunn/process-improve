@@ -127,8 +127,7 @@ def _normalise_covariates(covariates: pd.DataFrame) -> tuple[pd.DataFrame, list[
         dupes = sorted({str(x) for x in cov.index[cov.index.duplicated()]})
         cov = cov.groupby(level=0).mean(numeric_only=True)
         warnings.append(
-            f"Covariate table had duplicate rows for product(s) {dupes}; each was collapsed to its "
-            f"numeric mean."
+            f"Covariate table had duplicate rows for product(s) {dupes}; each was collapsed to its numeric mean."
         )
     return cov, warnings
 
@@ -197,9 +196,7 @@ def validate_descriptive(  # noqa: PLR0912, PLR0913, PLR0915, C901
     missing = [c for c in DESCRIPTIVE_LONG_COLUMNS if c not in panel.columns]
     if missing:
         errors.append(f"Panel data is missing required columns: {missing}.")
-        return ValidationResult(
-            ok=False, mode=mode, normalized_df=None, covariates=None, errors=errors
-        )
+        return ValidationResult(ok=False, mode=mode, normalized_df=None, covariates=None, errors=errors)
 
     df = panel.loc[:, list(DESCRIPTIVE_LONG_COLUMNS)].copy()
 
@@ -214,9 +211,9 @@ def validate_descriptive(  # noqa: PLR0912, PLR0913, PLR0915, C901
 
     # Canonical (sample-major) order so the content hash is independent of the
     # caller's row order. Ordering does not affect any downstream analysis.
-    df = df.sort_values(
-        ["product", "attribute", "panelist_id", "session", "replicate"], kind="stable"
-    ).reset_index(drop=True)
+    df = df.sort_values(["product", "attribute", "panelist_id", "session", "replicate"], kind="stable").reset_index(
+        drop=True
+    )
 
     # --- Encoding sanity ----------------------------------------------
     for col in ("product", "attribute"):
@@ -229,10 +226,7 @@ def validate_descriptive(  # noqa: PLR0912, PLR0913, PLR0915, C901
         out_of_range = df["score"].dropna()
         n_out = int(((out_of_range < lo) | (out_of_range > hi)).sum())
         if n_out:
-            warnings.append(
-                f"{n_out} score value(s) fall outside the expected range "
-                f"[{score_min}, {score_max}]."
-            )
+            warnings.append(f"{n_out} score value(s) fall outside the expected range [{score_min}, {score_max}].")
 
     # --- Covariate table + product reconciliation ---------------------
     # Normalise first so the balance audit and stats reflect the products the
@@ -270,9 +264,11 @@ def validate_descriptive(  # noqa: PLR0912, PLR0913, PLR0915, C901
     n_attribute = df["attribute"].nunique()
     n_replicate = df["replicate"].nunique()
     expected = n_panelist * n_product * n_attribute * n_replicate
-    present = df.dropna(subset=["score"]).drop_duplicates(
-        subset=["panelist_id", "product", "attribute", "replicate"]
-    ).shape[0]
+    present = (
+        df.dropna(subset=["score"])
+        .drop_duplicates(subset=["panelist_id", "product", "attribute", "replicate"])
+        .shape[0]
+    )
     missing_fraction = 0.0 if expected == 0 else 1.0 - present / expected
     if missing_fraction > balance_error:
         warnings.append(

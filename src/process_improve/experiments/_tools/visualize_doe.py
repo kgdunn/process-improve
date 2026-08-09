@@ -17,15 +17,27 @@ class VisualizeDoeInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     plot_type: Literal[
-        "pareto", "half_normal", "daniel",
-        "main_effects", "interaction", "perturbation",
-        "residuals_vs_fitted", "normal_probability",
-        "residuals_vs_order", "box_cox",
-        "contour", "surface_3d", "prediction_variance",
-        "cube_plot", "square_plot",
-        "desirability_contour", "overlay",
-        "ridge_trace", "steepest_ascent_path",
-        "fds_plot", "power_curve",
+        "pareto",
+        "half_normal",
+        "daniel",
+        "main_effects",
+        "interaction",
+        "perturbation",
+        "residuals_vs_fitted",
+        "normal_probability",
+        "residuals_vs_order",
+        "box_cox",
+        "contour",
+        "surface_3d",
+        "prediction_variance",
+        "cube_plot",
+        "square_plot",
+        "desirability_contour",
+        "overlay",
+        "ridge_trace",
+        "steepest_ascent_path",
+        "fds_plot",
+        "power_curve",
     ] = Field(
         ...,
         description="Type of DOE plot to generate.",
@@ -40,10 +52,7 @@ class VisualizeDoeInput(BaseModel):
     )
     design_data: list[dict[str, Any]] | None = Field(
         None,
-        description=(
-            "Raw design matrix as a list of dicts (one per run). "
-            "Factor columns should be coded -1/+1."
-        ),
+        description=("Raw design matrix as a list of dicts (one per run). Factor columns should be coded -1/+1."),
     )
     response_column: str | None = Field(
         None,
@@ -52,16 +61,12 @@ class VisualizeDoeInput(BaseModel):
     factors_to_plot: list[str] | None = Field(
         None,
         description=(
-            "Which factors to plot (2 for contour/interaction, "
-            "3 for cube_plot). If omitted, inferred from data."
+            "Which factors to plot (2 for contour/interaction, 3 for cube_plot). If omitted, inferred from data."
         ),
     )
     hold_values: dict[str, float] | None = Field(
         None,
-        description=(
-            "Coded values for factors not being plotted "
-            "(default 0 = centre). E.g. {'C': 0.5}."
-        ),
+        description=("Coded values for factors not being plotted (default 0 = centre). E.g. {'C': 0.5}."),
     )
     highlight_significant: bool = Field(
         True,

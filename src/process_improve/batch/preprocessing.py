@@ -12,6 +12,7 @@ try:
     import plotly.graph_objects as go
 except ImportError:  # pragma: no cover - exercised via env-without-plotly
     from process_improve._extras import _MissingExtra
+
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
 from ..multivariate.methods import PCA, MCUVScaler
@@ -345,9 +346,7 @@ def batch_dtw(  # noqa: C901, PLR0915
             f"At least 3 iterations are required; got maximum_iterations={settings['maximum_iterations']}."
         )
     if reference_batch not in batches:
-        raise KeyError(
-            f"`reference_batch` was not found in the dict of batches; got {reference_batch!r}."
-        )
+        raise KeyError(f"`reference_batch` was not found in the dict of batches; got {reference_batch!r}.")
 
     if not check_valid_batch_dict(
         {k: v[columns_to_align] for k, v in batches.items()},
@@ -620,10 +619,7 @@ def find_reference_batch(
     settings = default_settings
 
     if not isinstance(columns_to_align, list):
-        raise TypeError(
-            f"`columns_to_align` must be a list of column names; "
-            f"got {type(columns_to_align).__name__}."
-        )
+        raise TypeError(f"`columns_to_align` must be a list of column names; got {type(columns_to_align).__name__}.")
 
     if not check_valid_batch_dict({k: v[columns_to_align] for k, v in batches.items()}):
         raise ValueError("One or more batches in the input dict failed validation.")
@@ -669,9 +665,7 @@ def find_reference_batch(
     metrics = metrics.sort_values(by=["HT2", "SPE"])
     requested = int(settings["number_of_reference_batches"])
     if requested < 1:
-        raise ValueError(
-            f"number_of_reference_batches must be >= 1, got {requested}."
-        )
+        raise ValueError(f"number_of_reference_batches must be >= 1, got {requested}.")
     if requested > len(metrics):
         # SEC-13 (#261): without this guard the cutoff-relaxation loop below
         # walks past ``conf_level=1.0``, which trips an ``assert`` inside

@@ -39,12 +39,12 @@ class TestValidateFormulaIsSafe:
         "formula",
         [
             "y ~ I(__import__('os').system('id'))",  # classic RCE payload
-            "y ~ A + __import__('os')",               # dunder
-            "y ~ A + np.sin(B)",                       # attribute access + unknown name
-            "y ~ A + open('secret')",                  # string literal + unknown call
-            "y ~ A + eval('1')",                       # eval
-            "y ~ A; import os",                         # statement injection char ';'
-            "y ~ A + B == C",                           # '=' not permitted
+            "y ~ A + __import__('os')",  # dunder
+            "y ~ A + np.sin(B)",  # attribute access + unknown name
+            "y ~ A + open('secret')",  # string literal + unknown call
+            "y ~ A + eval('1')",  # eval
+            "y ~ A; import os",  # statement injection char ';'
+            "y ~ A + B == C",  # '=' not permitted
         ],
     )
     def test_malicious_formulas_are_rejected(self, formula: str) -> None:

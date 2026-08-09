@@ -14,6 +14,7 @@ try:
     import plotly.graph_objects as go
 except ImportError:  # pragma: no cover - exercised via env-without-plotly
     from process_improve._extras import _MissingExtra
+
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
 

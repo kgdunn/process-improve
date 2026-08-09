@@ -120,13 +120,9 @@ def test_adaptive_pls_initial_matches_batch_ldpe(ldpe_data: tuple[pd.DataFrame, 
     X, Y = ldpe_data
     model = AdaptivePLS(n_components=6).fit(X, Y)
     batch = PLS(n_components=6, scale=True).fit(X, Y)
-    np.testing.assert_allclose(
-        model.beta_coefficients_.to_numpy(), batch.beta_coefficients_.to_numpy(), atol=1e-7
-    )
+    np.testing.assert_allclose(model.beta_coefficients_.to_numpy(), batch.beta_coefficients_.to_numpy(), atol=1e-7)
     # Predictions with the freshly-initialised model equal the batch predictions.
-    np.testing.assert_allclose(
-        model.predict(X).to_numpy(), batch.predictions_.to_numpy(), atol=1e-6
-    )
+    np.testing.assert_allclose(model.predict(X).to_numpy(), batch.predictions_.to_numpy(), atol=1e-6)
 
 
 def test_adaptive_pls_initial_matches_batch_synthetic(
@@ -136,9 +132,7 @@ def test_adaptive_pls_initial_matches_batch_synthetic(
     X, Y = synthetic_pls_data
     model = AdaptivePLS(n_components=3).fit(X, Y)
     batch = PLS(n_components=3, scale=True).fit(X, Y)
-    np.testing.assert_allclose(
-        model.beta_coefficients_.to_numpy(), batch.beta_coefficients_.to_numpy(), atol=1e-12
-    )
+    np.testing.assert_allclose(model.beta_coefficients_.to_numpy(), batch.beta_coefficients_.to_numpy(), atol=1e-12)
 
 
 # --------------------------------------------------------------------------- #
@@ -225,9 +219,9 @@ def test_gamma_improves_conditioning_under_quiet_operation() -> None:
 
 def test_kernel_norm_stays_constant(synthetic_pca_data: pd.DataFrame) -> None:
     """The norm-rescaling holds the nuclear norm (trace) of X'X at its training value over many updates."""
-    model = AdaptivePCA(
-        n_components=3, forgetting_factor=0.1, gamma=0.1, update_when_out_of_control=True
-    ).fit(synthetic_pca_data)
+    model = AdaptivePCA(n_components=3, forgetting_factor=0.1, gamma=0.1, update_when_out_of_control=True).fit(
+        synthetic_pca_data
+    )
     norm0 = float(np.trace(model.XtX0_))
     rng = np.random.default_rng(1)
     for _ in range(500):
@@ -361,9 +355,7 @@ def test_transform_and_predict_match_initial(synthetic_pls_data: tuple[pd.DataFr
     batch = PLS(n_components=3, scale=True).fit(X, Y)
     np.testing.assert_allclose(ad.predict(X).to_numpy(), batch.predictions_.to_numpy(), atol=1e-9)
     # Scores line up with the batch X-scores up to a per-component sign.
-    np.testing.assert_allclose(
-        np.abs(ad.transform(X).to_numpy()), np.abs(batch.scores_.to_numpy()), atol=1e-7
-    )
+    np.testing.assert_allclose(np.abs(ad.transform(X).to_numpy()), np.abs(batch.scores_.to_numpy()), atol=1e-7)
 
 
 def test_pca_transform_shape(synthetic_pca_data: pd.DataFrame) -> None:
@@ -467,8 +459,13 @@ def test_prediction_channels_sum_to_adaptive(synthetic_pls_data: tuple[pd.DataFr
     """Check static + preprocessing + kernel == adaptive == the streamed prediction."""
     X, Y = synthetic_pls_data
     model = AdaptivePLS(
-        n_components=3, forgetting_factor=0.05, gamma=0.1, lambda_center=0.03,
-        alpha_scale=0.02, lambda_center_y=0.05, update_when_out_of_control=True,
+        n_components=3,
+        forgetting_factor=0.05,
+        gamma=0.1,
+        lambda_center=0.03,
+        alpha_scale=0.02,
+        lambda_center_y=0.05,
+        update_when_out_of_control=True,
     ).fit(X.iloc[:90], Y.iloc[:90])
     model.partial_fit(X.iloc[90:], Y.iloc[90:])
     ch = model.prediction_channels_
@@ -479,9 +476,9 @@ def test_prediction_channels_sum_to_adaptive(synthetic_pls_data: tuple[pd.DataFr
 def test_decompose_prediction_matches_predict(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]) -> None:
     """The snapshot decomposition's adaptive column equals predict() on the same rows."""
     X, Y = synthetic_pls_data
-    model = AdaptivePLS(
-        n_components=3, forgetting_factor=0.05, gamma=0.1, update_when_out_of_control=True
-    ).fit(X.iloc[:90], Y.iloc[:90])
+    model = AdaptivePLS(n_components=3, forgetting_factor=0.05, gamma=0.1, update_when_out_of_control=True).fit(
+        X.iloc[:90], Y.iloc[:90]
+    )
     model.partial_fit(X.iloc[90:], Y.iloc[90:])
     probe = X.iloc[:5]
     decomposed = model.decompose_prediction(probe)
@@ -492,8 +489,14 @@ def test_frozen_model_has_zero_drift_and_channels(synthetic_pls_data: tuple[pd.D
     """With all forgetting factors and gamma at zero, nothing drifts and both channels are zero."""
     X, Y = synthetic_pls_data
     model = AdaptivePLS(
-        n_components=3, forgetting_factor=0.0, gamma=0.0, lambda_center=0.0, alpha_scale=0.0,
-        lambda_center_y=0.0, alpha_scale_y=0.0, update_when_out_of_control=True,
+        n_components=3,
+        forgetting_factor=0.0,
+        gamma=0.0,
+        lambda_center=0.0,
+        alpha_scale=0.0,
+        lambda_center_y=0.0,
+        alpha_scale_y=0.0,
+        update_when_out_of_control=True,
     ).fit(X.iloc[:90], Y.iloc[:90])
     model.partial_fit(X.iloc[90:], Y.iloc[90:])
     assert float(model.center_shift_.abs().max()) == pytest.approx(0.0, abs=1e-9)
@@ -510,8 +513,12 @@ def test_center_shift_grows_under_drift() -> None:
     n, k = 150, 5
     base = pd.DataFrame(rng.standard_normal((n, k)), columns=[f"v{i}" for i in range(k)])
     model = AdaptivePCA(
-        n_components=2, forgetting_factor=0.05, gamma=0.1, lambda_center=0.05,
-        alpha_scale=0.02, update_when_out_of_control=True,
+        n_components=2,
+        forgetting_factor=0.05,
+        gamma=0.1,
+        lambda_center=0.05,
+        alpha_scale=0.02,
+        update_when_out_of_control=True,
     ).fit(base)
     for step in range(200):
         row = rng.standard_normal(k) + 4.0 * step / 200  # slide the operating point
@@ -523,17 +530,18 @@ def test_center_shift_grows_under_drift() -> None:
 
 def test_injection_and_kernel_norm_zero_when_not_updating(synthetic_pca_data: pd.DataFrame) -> None:
     """Observations that do not update the model record zero injection / kernel-update norm."""
-    model = AdaptivePCA(
-        n_components=3, forgetting_factor=0.05, gamma=0.1, update_when_out_of_control=False
-    ).fit(synthetic_pca_data)
+    model = AdaptivePCA(n_components=3, forgetting_factor=0.05, gamma=0.1, update_when_out_of_control=False).fit(
+        synthetic_pca_data
+    )
     # A wildly out-of-control row: not learned from, so its diagnostics are zero.
     model.update(synthetic_pca_data.iloc[0].to_numpy() + 50.0)
     assert float(model.injection_ratio_.iloc[-1]) == 0.0
     assert float(model.kernel_update_norm_.iloc[-1]) == 0.0
 
 
-def test_adaptation_plot_builds(synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame],
-                                synthetic_pca_data: pd.DataFrame) -> None:
+def test_adaptation_plot_builds(
+    synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame], synthetic_pca_data: pd.DataFrame
+) -> None:
     """adaptation_plot returns a Plotly figure with the channels panel only for PLS."""
     X, Y = synthetic_pls_data
     pls = AdaptivePLS(n_components=3, forgetting_factor=0.05, update_when_out_of_control=True).fit(

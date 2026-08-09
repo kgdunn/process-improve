@@ -235,9 +235,7 @@ class _AnalyzeInput(BaseModel):
             "Set false to skip it (faster)."
         ),
     )
-    n_permutations: int = Field(
-        199, ge=1, description="Permutations for the discriminator's selectivity-ratio null."
-    )
+    n_permutations: int = Field(199, ge=1, description="Permutations for the discriminator's selectivity-ratio null.")
     random_state: int = Field(0, description="Seed for the discriminator's permutations and CV folds.")
     score_min: float | None = Field(None, description="Optional lower bound for the score scale.")
     score_max: float | None = Field(None, description="Optional upper bound for the score scale.")

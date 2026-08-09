@@ -205,9 +205,7 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
                         break
                     prev_held = Xa[mask].copy()
 
-                per_fold_press[a - 1, fold_counter] = float(
-                    np.sum((X[mask] - Xa[mask]) ** 2)
-                )
+                per_fold_press[a - 1, fold_counter] = float(np.sum((X[mask] - Xa[mask]) ** 2))
             fold_counter += 1
 
     # Average over repeats so PRESS stays on the per-cell scale.
@@ -1170,9 +1168,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             per_fold_press = pd.DataFrame(
                 per_fold_press_arr,
                 index=component_index,
-                columns=[
-                    f"fold_{i + 1}" for i in range(per_fold_press_arr.shape[1])
-                ],
+                columns=[f"fold_{i + 1}" for i in range(per_fold_press_arr.shape[1])],
             )
             cv_scores = per_fold_press
             # Q^2 normalisation: total sum-of-squares of X (the null-model
@@ -1208,9 +1204,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             null_model_ss = float(np.nanmean(X_arr**2))
             q2 = 1.0 - press / null_model_ss if null_model_ss > epsqrt else press * np.nan
         else:
-            raise ValueError(
-                f"Unknown cv_scheme {cv_scheme!r}; expected 'ekf' or 'row_wise'."
-            )
+            raise ValueError(f"Unknown cv_scheme {cv_scheme!r}; expected 'ekf' or 'row_wise'.")
 
         q2 = q2.rename("Q2")
         q2.index = component_index
@@ -1238,8 +1232,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         press_arr_final = press.to_numpy()
         if np.all(np.isnan(press_arr_final)):
             raise RuntimeError(
-                "Cross-validation produced NaN PRESS for every component count; "
-                "no recommendation can be made."
+                "Cross-validation produced NaN PRESS for every component count; no recommendation can be made."
             )
         recommended = _select_n_components(
             selection_rule,
@@ -1255,9 +1248,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             # no unit-variance scaling) and Horn's parallel analysis (which
             # accepts the same scaling convention as the rest of the method).
             minka_n = cls.minka_mle(X)
-            pa_result = cls.parallel_analysis(
-                X, scale=scale_inside_folds, random_state=random_state
-            )
+            pa_result = cls.parallel_analysis(X, scale=scale_inside_folds, random_state=random_state)
             counts = (int(recommended), int(minka_n), int(pa_result.n_components))
             consensus = "agree" if max(counts) - min(counts) <= 1 else "disagree"
             consensus_fields = {

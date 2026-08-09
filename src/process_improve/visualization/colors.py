@@ -13,17 +13,17 @@ from __future__ import annotations
 
 #: Primary palette for DOE visualisations.
 DOE_PALETTE: dict[str, str] = {
-    "primary": "#2563EB",          # Main lines, bars
-    "secondary": "#7C3AED",        # Secondary traces
-    "positive": "#059669",         # Positive effects
-    "negative": "#DC2626",         # Negative effects
-    "neutral": "#6B7280",          # Non-significant
-    "threshold_me": "#F59E0B",     # Margin of error line
-    "threshold_sme": "#DC2626",    # Simultaneous ME line
-    "grid": "#E5E7EB",             # Grid lines
-    "background": "#FFFFFF",       # Background
-    "zero_line": "#9CA3AF",        # Zero / reference line
-    "cumulative": "#F97316",       # Cumulative % line (Pareto)
+    "primary": "#2563EB",  # Main lines, bars
+    "secondary": "#7C3AED",  # Secondary traces
+    "positive": "#059669",  # Positive effects
+    "negative": "#DC2626",  # Negative effects
+    "neutral": "#6B7280",  # Non-significant
+    "threshold_me": "#F59E0B",  # Margin of error line
+    "threshold_sme": "#DC2626",  # Simultaneous ME line
+    "grid": "#E5E7EB",  # Grid lines
+    "background": "#FFFFFF",  # Background
+    "zero_line": "#9CA3AF",  # Zero / reference line
+    "cumulative": "#F97316",  # Cumulative % line (Pareto)
 }
 
 # ---------------------------------------------------------------------------
@@ -86,9 +86,9 @@ DIAGNOSTIC_COLORS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 DESIRABILITY_COLORSCALE: list[list[float | str]] = [
-    [0.0, "#DC2626"],   # d = 0 (worst)
-    [0.5, "#F59E0B"],   # d = 0.5
-    [1.0, "#059669"],   # d = 1 (best)
+    [0.0, "#DC2626"],  # d = 0 (worst)
+    [0.5, "#F59E0B"],  # d = 0.5
+    [1.0, "#059669"],  # d = 1 (best)
 ]
 
 # ---------------------------------------------------------------------------

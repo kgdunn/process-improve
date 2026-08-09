@@ -86,10 +86,7 @@ class _MissingExtra:
         # behave per the Python data model (CodeQL py/non-standard-exception
         # -raised-in-special-method). The install-hint message is preserved
         # in the exception text.
-        raise AttributeError(
-            f"{_extra_message(self._missing, self._extra)}\n"
-            f"(Attempted attribute access: {name!r}.)"
-        )
+        raise AttributeError(f"{_extra_message(self._missing, self._extra)}\n(Attempted attribute access: {name!r}.)")
 
     def __call__(self, *_args: object, **_kwargs: object) -> object:
         # __call__ has no equivalent convention; raise ImportError here

@@ -56,10 +56,7 @@ class AugmentDesignInput(BaseModel):
     )
     fold_on: str | None = Field(
         None,
-        description=(
-            "Factor name to fold on (semifold only). "
-            "If omitted, the best factor is auto-selected."
-        ),
+        description=("Factor name to fold on (semifold only). If omitted, the best factor is auto-selected."),
     )
     alpha: str | float | None = Field(
         None,
