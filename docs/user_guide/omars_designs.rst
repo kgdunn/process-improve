@@ -83,11 +83,45 @@ coefficients are integers, the equalities are exact (no numerical tolerance
 enters the optimisation); a floating-point :func:`~process_improve.experiments.is_omars`
 re-check guards every accepted design as a sanity check.
 
+The estimability frontier
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A foldover cannot fit a full second-order model at just any run size, and the
+threshold is higher than simply counting parameters.
+
+Every second-order term is an **even** function of the factors, so the
+quadratic and interaction columns of :math:`H` and :math:`-H` are *identical*.
+The even block of the model matrix therefore has at most :math:`h + 1` distinct
+rows, against :math:`1 + k(k+1)/2` columns (an intercept, :math:`k` quadratics
+and :math:`k(k-1)/2` interactions).  The main effects live in the odd block and
+contribute at most :math:`k` more, so for every foldover
+
+.. math::
+
+   \mathrm{rank}(X) \le k + \min\!\left(h + 1,\; 1 + \tfrac{k(k+1)}{2}\right),
+
+with equality for half-designs in general position.  The full second-order
+model is therefore estimable only from
+
+.. math::
+
+   N = k^2 + k + 1
+
+runs: 13, 21, 31, 43 and 57 runs for three to seven factors.  Note that this is
+strictly more than the parameter count :math:`1 + 2k + k(k-1)/2` from four
+factors up, so "more runs than parameters" is *not* a sufficient test.
+Sizing starts at this frontier, and ``n_runs`` below it is refused.
+
+Choosing ``model="main_quadratic"`` drops the interactions from the model being
+sized for, which lowers the frontier to the definitive screening design's
+:math:`2k + 1` runs.
+
 Choosing the run size and the design
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- When ``n_runs`` is given it is used directly (it must be odd and larger than
-  the number of second-order parameters :math:`1 + 2k + k(k-1)/2`).
+- When ``n_runs`` is given it is used directly. It must be odd, and it must
+  reach the **estimability frontier** described above; a smaller value is
+  rejected rather than silently producing a design that cannot fit the model.
 - Otherwise the solver minimises the run count within a window to return the
   smallest feasible design that still leaves error degrees of freedom.
 - Several distinct designs are then enumerated at that run size by adding
@@ -121,13 +155,16 @@ provenance and a search report under ``metadata`` (``family``, ``sparsity``,
 Performance: iterations and timing by factor count
 --------------------------------------------------
 
-The table below reports, for the default settings (the automatic smallest-size
-search with ``max_candidates=6``), the size of the candidate half-pool, the run
-size of the smallest design found, the resulting error degrees of freedom, the
-number of ILP solves performed (the *iteration count*: one minimise-size probe
-plus the no-good-cut re-solves), and the cumulative CBC solver time.  Times were
+The table below reports, for the automatic smallest-size search at
+``n_restarts=8``, the size of the candidate half-pool, the run size of the
+smallest design found, the resulting error degrees of freedom, the number of ILP
+solves performed (the *iteration count*: one minimise-size probe plus the
+no-good-cut re-solves), and the cumulative CBC solver time.  The run size is the
+estimability frontier :math:`k^2 + k + 1` described above, and the error degrees
+of freedom follow as :math:`N - (1 + 2k + k(k-1)/2)`; both are exact.  Times were
 measured single-threaded on an ``x86_64`` machine with CPython 3.11 and CBC (the
-solver bundled with PuLP); they are indicative and will vary by machine.
+solver bundled with PuLP); they are indicative and will vary by machine, and
+they scale with ``n_restarts``.
 
 .. list-table::
    :header-rows: 1
@@ -143,39 +180,45 @@ solver bundled with PuLP); they are indicative and will vary by machine.
      - 13
      - 13
      - 3
-     - 6
-     - 0.03
+     - 10
+     - 0.1
    * - 4
      - 40
-     - 19
-     - 4
+     - 21
      - 6
-     - 0.05
+     - 10
+     - 0.4
    * - 5
      - 121
-     - 27
-     - 6
-     - 6
-     - 0.14
+     - 31
+     - 10
+     - 10
+     - 2.2
    * - 6
      - 364
-     - 35
-     - 7
-     - 6
-     - 5.6
+     - 43
+     - 15
+     - 10
+     - 29
    * - 7
      - 1093
-     - 45
-     - 9
-     - 6
-     - 39
+     - 57
+     - 21
+     - 10
+     - see note
 
-The iteration count is fixed by ``max_candidates`` (each iteration is a full ILP
-solve); the cost per iteration grows with the half-pool size :math:`(3^k - 1)/2`
-and the number of orthogonality constraints :math:`k(k-1)/2`.  Three to six
-factors solve in well under a second; seven factors take tens of seconds.  Beyond
-seven factors the half-pool grows quickly, so a longer ``solver_options["time_limit"]``
-(default 60 s) or a tighter ``n_runs`` is advisable.
+The iteration count is fixed by ``n_restarts`` (each iteration is a full ILP
+solve); the cost per iteration grows with the half-pool size :math:`(3^k - 1)/2`,
+the number of orthogonality constraints :math:`k(k-1)/2`, and the run size the
+frontier demands.  Three to five factors solve in seconds; six takes about half a
+minute.
+
+At seven factors the solves are large enough to run into the per-solve
+``solver_options["time_limit"]`` rather than finishing on their own, so no single
+timing characterises them; budget minutes, raise the time limit above its 60 s
+default, and expect the result to depend on where CBC was cut off.  Beyond seven
+factors, pin ``n_runs`` or use ``model="main_quadratic"``, whose frontier is only
+:math:`2k + 1`.
 
 Limitations
 -----------
@@ -185,12 +228,13 @@ Limitations
   are a documented future extension.
 - **Odd run counts.**  A foldover design has :math:`2h + 1` runs, so ``n_runs``
   must be odd.
-- **Full second-order conditioning.**  The smallest OMARS designs are highly
-  aliased in the second-order block by construction, so the D-efficiency of the
-  *full* quadratic model is low; this is expected, and is exactly why
-  :func:`~process_improve.experiments.analyze_omars` resolves the second-order
-  terms in stages rather than fitting them all at once.  Request a larger
-  ``n_runs`` for a better-conditioned design.
+- **Second-order aliasing remains.**  Reaching the estimability frontier makes
+  the full second-order model *fittable*; it does not make the second-order
+  block orthogonal.  The quadratics and interactions stay mutually aliased -
+  that is the "minimally aliased" in OMARS, not a defect - which is why
+  :func:`~process_improve.experiments.analyze_omars` resolves them in stages
+  rather than fitting them all at once.  Ask for more than the frontier run
+  size to buy error degrees of freedom and lower second-order correlations.
 
 References
 ----------
