@@ -11,6 +11,31 @@ those changes.
 
 ## [Unreleased]
 
+## [1.66.1] - 2026-08-09
+
+### Changed
+
+- Applied `ruff format` across the whole repository. 118 of 266 files were
+  unformatted, because CI's lint job ran only `ruff check .` while
+  `.pre-commit-config.yaml` ran `ruff-format`. Pre-commit reformats only the
+  files already staged, so editing one file reformatted it in place while every
+  untouched file stayed drifted, which is why unrelated-looking hunks kept
+  appearing in otherwise small changes. No behaviour changes.
+- Four `# noqa` directives moved to stay on the code they suppress, after the
+  reflow split the lines they were attached to: `E501` dropped in
+  `experiments/visualization/plots/significance.py`, `ARG002` moved to the
+  ignored `y_row` argument in `AdaptivePCA.update`, `ANN401` repeated per
+  parameter in `_channels_frame`, and `PERF401` moved onto the `append` call in
+  `visualization/spec.py`.
+
+### Added
+
+- CI now runs `ruff format --check .` as part of the `lint` job, so formatting
+  drift cannot silently accumulate again.
+- The `ruff-pre-commit` rev is pinned to `v0.15.22`, matching the version
+  resolved from the `ruff>=0.11.0,<0.16` pin in `pyproject.toml`, so pre-commit
+  and the new CI gate run the same formatter.
+
 ## [1.66.0] - 2026-08-09
 
 ### Added
@@ -2952,7 +2977,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.66.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.66.1...HEAD
+[1.66.1]: https://github.com/kgdunn/process-improve/compare/v1.66.0...v1.66.1
 [1.66.0]: https://github.com/kgdunn/process-improve/compare/v1.65.0...v1.66.0
 [1.65.0]: https://github.com/kgdunn/process-improve/compare/v1.64.0...v1.65.0
 [1.64.0]: https://github.com/kgdunn/process-improve/compare/v1.63.0...v1.64.0
