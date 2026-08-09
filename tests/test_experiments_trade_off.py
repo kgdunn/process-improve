@@ -55,7 +55,7 @@ class TestAgainstTheTextbookTable:
         assert get_trade_off_table_entry(n_runs=runs, n_factors=factors, display=False).roman == roman
 
     def test_table_layout_matches_the_figure(self):
-        table = trade_off_table()
+        table = trade_off_table(display=False)
         assert table.loc[4, 3] == "2^(3-1) III"
         assert table.loc[8, 3] == "2^3 (full)"
         assert table.loc[16, 3] == "2^3 (twice)"
@@ -66,15 +66,25 @@ class TestAgainstTheTextbookTable:
 
     def test_impossible_cells_are_blank(self):
         """4 runs cannot study 5 factors, and 8 runs cannot study 9."""
-        table = trade_off_table()
+        table = trade_off_table(display=False)
         assert table.loc[4, 5] == ""
         assert table.loc[8, 9] == ""
 
     def test_table_shape_follows_its_arguments(self):
-        table = trade_off_table(runs=(8, 16), factors=(4, 5))
+        table = trade_off_table(runs=(8, 16), factors=(4, 5), display=False)
         assert table.shape == (2, 2)
         assert table.index.name == "runs"
         assert table.columns.name == "factors"
+
+    def test_display_prints_only_when_asked(self, capsys):
+        """`display` behaves like it does on the other three trade-off functions."""
+        table = trade_off_table(runs=(8,), factors=(4,), display=False)
+        assert capsys.readouterr().out == ""
+
+        printed = trade_off_table(runs=(8,), factors=(4,), display=True)
+        out = capsys.readouterr().out
+        assert "2^(4-1) IV" in out
+        assert printed.equals(table)
 
 
 class TestTradeOffTableEntry:
