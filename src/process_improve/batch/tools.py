@@ -159,14 +159,18 @@ def extract_batch_features(spec: ExtractBatchFeaturesInput) -> dict[str, Any]:
         if results:
             combined = pd.concat(results, axis=1)
             feature_matrix = combined.reset_index().to_dict(orient="records")
+            n_batches = len(combined)
+            n_features = combined.shape[1]
         else:
             feature_matrix = []
+            n_batches = 0
+            n_features = 0
 
         return clean(
             {
                 "feature_matrix": feature_matrix,
-                "n_batches": len(combined) if results else 0,
-                "n_features": combined.shape[1] if results else 0,
+                "n_batches": n_batches,
+                "n_features": n_features,
                 "features_extracted": list(features),
             }
         )
