@@ -4,6 +4,7 @@ public estimator in process_improve.multivariate and tally pass/fail per check.
 Uses the sklearn 1.6+ callback API to collect every check's outcome rather
 than aborting on the first failure.
 """
+
 from __future__ import annotations
 
 import warnings
@@ -33,9 +34,7 @@ def audit(name: str, est):
             results.append((check_name, "PASS", ""))
         else:
             short = str(exception).splitlines()[0][:240]
-            results.append(
-                (check_name, "FAIL", f"{type(exception).__name__}: {short}")
-            )
+            results.append((check_name, "FAIL", f"{type(exception).__name__}: {short}"))
 
     try:
         with warnings.catch_warnings():

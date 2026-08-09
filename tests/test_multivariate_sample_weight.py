@@ -32,8 +32,9 @@ def _latent_xy(n_samples: int, n_features: int, n_factors: int, seed: int):
     T = rng.standard_normal((n_samples, n_factors))
     P = rng.standard_normal((n_factors, n_features))
     gamma = rng.standard_normal((n_factors, 1))
-    X = pd.DataFrame(T @ P + 0.05 * rng.standard_normal((n_samples, n_features)),
-                     columns=[f"x{i}" for i in range(n_features)])
+    X = pd.DataFrame(
+        T @ P + 0.05 * rng.standard_normal((n_samples, n_features)), columns=[f"x{i}" for i in range(n_features)]
+    )
     Y = pd.DataFrame(T @ gamma + 0.05 * rng.standard_normal((n_samples, 1)), columns=["y"])
     return X, Y
 
@@ -53,7 +54,9 @@ def test_sample_weight_ones_reproduces_unweighted_fit() -> None:
         "predictions_",
     ):
         np.testing.assert_allclose(
-            getattr(weighted, attr).values, getattr(unweighted, attr).values, atol=1e-10,
+            getattr(weighted, attr).values,
+            getattr(unweighted, attr).values,
+            atol=1e-10,
             err_msg=f"weighted vs unweighted differ on {attr}",
         )
     np.testing.assert_allclose(weighted.scores_.values, unweighted.scores_.values, atol=1e-10)
@@ -66,17 +69,21 @@ def test_sample_weight_half_zero_equals_fit_on_remaining_half() -> None:
     Xs, Ys = MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y)
     # First half kept, second half excluded.
     w = np.ones(len(X))
-    w[len(X) // 2:] = 0.0
+    w[len(X) // 2 :] = 0.0
 
     weighted = PLS(n_components=2).fit(Xs, Ys, sample_weight=w)
     subset = PLS(n_components=2).fit(Xs.iloc[: len(X) // 2], Ys.iloc[: len(X) // 2])
     np.testing.assert_allclose(
-        weighted.beta_coefficients_.values, subset.beta_coefficients_.values, atol=1e-9,
+        weighted.beta_coefficients_.values,
+        subset.beta_coefficients_.values,
+        atol=1e-9,
         err_msg="half-zero weights should fit only the surviving rows",
     )
     # Loadings and weights also collapse cleanly (up to sign).
     np.testing.assert_allclose(
-        np.abs(weighted.x_loadings_.values), np.abs(subset.x_loadings_.values), atol=1e-9,
+        np.abs(weighted.x_loadings_.values),
+        np.abs(subset.x_loadings_.values),
+        atol=1e-9,
     )
 
 
@@ -95,8 +102,7 @@ def test_sample_weight_recovers_true_beta_under_heteroscedastic_noise() -> None:
     Y_clean = T @ gamma_true
     Y_noisy = Y_clean + sigma[:, None] * rng.standard_normal((N, 1))
 
-    X = pd.DataFrame(T @ P_true + 0.05 * rng.standard_normal((N, K)),
-                     columns=[f"x{i}" for i in range(K)])
+    X = pd.DataFrame(T @ P_true + 0.05 * rng.standard_normal((N, K)), columns=[f"x{i}" for i in range(K)])
     Y = pd.DataFrame(Y_noisy, columns=["y"])
 
     sc_x = MCUVScaler().fit(X)
@@ -181,14 +187,18 @@ def test_cross_validate_threads_sample_weight_per_fold() -> None:
 
     # Length validation reaches into cross_validate too.
     with pytest.raises(ValueError, match=r"sample_weight has"):
-        model.cross_validate(Xs, Ys, cv=5, random_state=0, show_progress=False,
-                             sample_weight=np.ones(len(X) - 1))
+        model.cross_validate(Xs, Ys, cv=5, random_state=0, show_progress=False, sample_weight=np.ones(len(X) - 1))
 
     # Equivalence: ones-weighted CV matches the unweighted CV (per-fold
     # subset of ones is still ones, so each refit is unweighted).
     cv_unweighted = model.cross_validate(Xs, Ys, cv=5, random_state=0, show_progress=False)
     cv_weighted = model.cross_validate(
-        Xs, Ys, cv=5, random_state=0, show_progress=False, sample_weight=np.ones(len(X)),
+        Xs,
+        Ys,
+        cv=5,
+        random_state=0,
+        show_progress=False,
+        sample_weight=np.ones(len(X)),
     )
     np.testing.assert_allclose(cv_unweighted.beta_mean.values, cv_weighted.beta_mean.values, atol=1e-10)
     np.testing.assert_allclose(cv_unweighted.q_squared.values, cv_weighted.q_squared.values, atol=1e-10)

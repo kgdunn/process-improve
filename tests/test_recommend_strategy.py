@@ -55,7 +55,7 @@ def seven_factors():
 
 @pytest.fixture
 def twelve_factors():
-    return [Factor(name=f"X{i+1}", low=0, high=100) for i in range(12)]
+    return [Factor(name=f"X{i + 1}", low=0, high=100) for i in range(12)]
 
 
 @pytest.fixture
@@ -418,9 +418,16 @@ class TestOutputStructure:
     def test_output_keys(self, seven_factors):
         result = recommend_strategy(factors=seven_factors, budget=40)
         expected_keys = {
-            "strategy_id", "stages", "total_estimated_runs",
-            "budget_allocation", "assumptions", "risks",
-            "alternative_strategies", "domain", "detail_level", "reasoning",
+            "strategy_id",
+            "stages",
+            "total_estimated_runs",
+            "budget_allocation",
+            "assumptions",
+            "risks",
+            "alternative_strategies",
+            "domain",
+            "detail_level",
+            "reasoning",
         }
         assert expected_keys.issubset(set(result.keys()))
 
@@ -462,7 +469,7 @@ class TestRealWorldScenarios:
 
     def test_q1_seven_factors_how_to_start(self):
         """Q1: I have 7 factors, how do I even start planning a DOE."""
-        factors = [Factor(name=f"Factor_{i+1}", low=0, high=100) for i in range(7)]
+        factors = [Factor(name=f"Factor_{i + 1}", low=0, high=100) for i in range(7)]
         result = recommend_strategy(factors=factors, budget=40)
         assert len(result["stages"]) >= 2
         assert result["total_estimated_runs"] <= 40
@@ -487,7 +494,7 @@ class TestRealWorldScenarios:
 
     def test_q65_expensive_experiments(self):
         """Q65: $5000/run, budget for 25 runs."""
-        factors = [Factor(name=f"X{i+1}", low=0, high=100) for i in range(6)]
+        factors = [Factor(name=f"X{i + 1}", low=0, high=100) for i in range(6)]
         responses = [Response(name="Output", goal="maximize")]
         result = recommend_strategy(factors=factors, responses=responses, budget=25)
         assert result["total_estimated_runs"] <= 25
@@ -525,14 +532,14 @@ class TestRealWorldScenarios:
 
     def test_q131_ipsc_differentiation(self):
         """Q131: iPSC differentiation, 6 conditions, 21-day runs."""
-        factors = [Factor(name=f"Condition_{i+1}", low=0, high=100) for i in range(6)]
+        factors = [Factor(name=f"Condition_{i + 1}", low=0, high=100) for i in range(6)]
         responses = [Response(name="Differentiation_efficiency", goal="maximize")]
         result = recommend_strategy(factors=factors, responses=responses, domain="cell_culture")
         assert result["domain"] == "cell_culture"
 
     def test_q134_stem_cell_minimal_runs(self):
         """Q134: Expensive/slow experiments, minimal runs."""
-        factors = [Factor(name=f"Factor_{i+1}", low=0, high=100) for i in range(6)]
+        factors = [Factor(name=f"Factor_{i + 1}", low=0, high=100) for i in range(6)]
         responses = [Response(name="Viability", goal="maximize")]
         result = recommend_strategy(factors=factors, responses=responses, domain="cell_culture", budget=20)
         assert result["total_estimated_runs"] <= 20

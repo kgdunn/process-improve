@@ -63,9 +63,7 @@ def test_extract_batch_features_default_features(two_batch_timeseries: list[dict
 
 
 @pytest.mark.parametrize("feature_name", sorted(_FEATURE_MAP))
-def test_extract_batch_features_each_location_feature(
-    two_batch_timeseries: list[dict], feature_name: str
-) -> None:
+def test_extract_batch_features_each_location_feature(two_batch_timeseries: list[dict], feature_name: str) -> None:
     """Every location-based feature in the documented mapping is dispatchable."""
     result = extract_batch_features(
         data=two_batch_timeseries,

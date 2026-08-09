@@ -118,12 +118,24 @@ def _leverage_case(seed: int = 1) -> tuple[pd.DataFrame, pd.DataFrame]:
         for j, prod in enumerate(LEVERAGE_PRODUCTS):
             for rep in (1, 2):
                 rows.append(
-                    {"panelist_id": pid, "session": 1, "product": prod, "attribute": "A",
-                     "replicate": rep, "score": 5.0 + a_mean[j] + bias + rng.normal(0, 0.15)}
+                    {
+                        "panelist_id": pid,
+                        "session": 1,
+                        "product": prod,
+                        "attribute": "A",
+                        "replicate": rep,
+                        "score": 5.0 + a_mean[j] + bias + rng.normal(0, 0.15),
+                    }
                 )
                 rows.append(
-                    {"panelist_id": pid, "session": 1, "product": prod, "attribute": "C",
-                     "replicate": rep, "score": 5.0 + c_mean[j] + bias + rng.normal(0, 0.15)}
+                    {
+                        "panelist_id": pid,
+                        "session": 1,
+                        "product": prod,
+                        "attribute": "C",
+                        "replicate": rep,
+                        "score": 5.0 + c_mean[j] + bias + rng.normal(0, 0.15),
+                    }
                 )
     return pd.DataFrame(rows), cov
 
@@ -277,9 +289,7 @@ def test_dropping_panelist_changes_means():
     dropped = analyze_descriptive(validated, drop_panelists="auto", discriminator=False)
     assert "P8" in dropped.dropped
     assert kept.product_means.shape == dropped.product_means.shape
-    merged = kept.product_means.merge(
-        dropped.product_means, on=["product", "attribute"], suffixes=("_keep", "_drop")
-    )
+    merged = kept.product_means.merge(dropped.product_means, on=["product", "attribute"], suffixes=("_keep", "_drop"))
     assert not np.allclose(merged["mean_keep"], merged["mean_drop"])
 
 
@@ -319,9 +329,7 @@ def test_relate_observational_q_values_monotone():
 def test_collinear_clusters_groups_correlated_descriptors():
     rng = np.random.default_rng(0)
     base = rng.standard_normal(20)
-    block = pd.DataFrame(
-        {"a": base, "b": base + 0.001 * rng.standard_normal(20), "c": rng.standard_normal(20)}
-    )
+    block = pd.DataFrame({"a": base, "b": base + 0.001 * rng.standard_normal(20), "c": rng.standard_normal(20)})
     clusters = _collinear_clusters(block, threshold=0.95)
     assert clusters["a"] == clusters["b"]  # near-identical columns group together
     assert clusters["c"] != clusters["a"]  # an independent column is its own cluster
@@ -331,12 +339,8 @@ def test_discriminator_gate_and_clusters():
     products = [f"P{i}" for i in range(9)]
     rng = np.random.default_rng(3)
     u = np.linspace(0.0, 1.0, 9) + rng.normal(0, 0.02, 9)
-    agg = pd.DataFrame(
-        {"A": 2.0 * u + rng.normal(0, 0.05, 9), "B": rng.normal(0, 1, 9)}, index=products
-    )
-    cov = pd.DataFrame(
-        {"d1": u, "d2": u + 0.005 * rng.normal(0, 1, 9), "d3": rng.normal(0, 1, 9)}, index=products
-    )
+    agg = pd.DataFrame({"A": 2.0 * u + rng.normal(0, 0.05, 9), "B": rng.normal(0, 1, 9)}, index=products)
+    cov = pd.DataFrame({"d1": u, "d2": u + 0.005 * rng.normal(0, 1, 9), "d3": rng.normal(0, 1, 9)}, index=products)
     disc = discriminate_observational(agg, cov, n_components=1, n_permutations=49, random_state=0)
 
     # The collinear pair shares a cluster; the noise descriptor does not.
@@ -452,10 +456,26 @@ def test_relate_influence_deletions_two_demotes_two_support_spike():
         bias = rng.normal(0.0, 0.2)
         for j, prod in enumerate(LEVERAGE_PRODUCTS):
             for rep in (1, 2):
-                rows.append({"panelist_id": pid, "session": 1, "product": prod, "attribute": "A",
-                             "replicate": rep, "score": 5.0 + a_mean[j] + bias + rng.normal(0, 0.15)})
-                rows.append({"panelist_id": pid, "session": 1, "product": prod, "attribute": "C",
-                             "replicate": rep, "score": 5.0 + c_mean[j] + bias + rng.normal(0, 0.15)})
+                rows.append(
+                    {
+                        "panelist_id": pid,
+                        "session": 1,
+                        "product": prod,
+                        "attribute": "A",
+                        "replicate": rep,
+                        "score": 5.0 + a_mean[j] + bias + rng.normal(0, 0.15),
+                    }
+                )
+                rows.append(
+                    {
+                        "panelist_id": pid,
+                        "session": 1,
+                        "product": prod,
+                        "attribute": "C",
+                        "replicate": rep,
+                        "score": 5.0 + c_mean[j] + bias + rng.normal(0, 0.15),
+                    }
+                )
     panel = pd.DataFrame(rows)
     cov = pd.DataFrame({"product": LEVERAGE_PRODUCTS, "genuine": genuine, "two_spike": two_spike})
     validated = validate_descriptive(panel, cov, mode="observational")
@@ -516,9 +536,7 @@ def test_discriminator_demotes_single_support_spike():
         },
         index=LEVERAGE_PRODUCTS,
     )
-    cov = pd.DataFrame(
-        {"genuine": genuine, "spike": spike, "noise": rng.normal(0, 1, n)}, index=LEVERAGE_PRODUCTS
-    )
+    cov = pd.DataFrame({"genuine": genuine, "spike": spike, "noise": rng.normal(0, 1, n)}, index=LEVERAGE_PRODUCTS)
     disc = discriminate_observational(agg, cov, n_components=1, n_permutations=99, random_state=0)
     desc = pd.DataFrame(disc["descriptors"])
 
@@ -650,9 +668,7 @@ def test_permutation_null_too_few_descriptors_returns_not_ok():
 def test_permutation_null_degenerate_block_returns_not_ok():
     """A no-variance descriptor block degrades gracefully instead of crashing."""
     products = [f"P{i}" for i in range(8)]
-    cov = pd.DataFrame(
-        {"c1": np.ones(8), "c2": np.full(8, 2.0), "c3": np.full(8, 3.0)}, index=products
-    )
+    cov = pd.DataFrame({"c1": np.ones(8), "c2": np.full(8, 2.0), "c3": np.full(8, 3.0)}, index=products)
     agg = pd.DataFrame({"A": np.arange(8.0)}, index=products)
     result = permutation_column_null(agg, cov, n_iter=3, min_knockoffs=2, random_state=0)
     assert not result["ok"]
@@ -755,9 +771,7 @@ def test_analyze_correction_align_changes_means_and_reports_mam():
     aligned = analyze_descriptive(validated, correction="align", discriminator=False)
     assert aligned.correction == "align"
     assert not aligned.mam.scaling.empty
-    merged = none.product_means.merge(
-        aligned.product_means, on=["product", "attribute"], suffixes=("_none", "_align")
-    )
+    merged = none.product_means.merge(aligned.product_means, on=["product", "attribute"], suffixes=("_none", "_align"))
     assert not np.allclose(merged["mean_none"], merged["mean_align"])
 
 

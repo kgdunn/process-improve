@@ -393,9 +393,7 @@ class TestMBPCAAgainstOracle:
         for a in (1, 2):
             contribs = model.score_contributions(x_blocks, component=a)
             total = sum(frame.sum(axis=1) for frame in contribs.values())
-            np.testing.assert_array_almost_equal(
-                total.values, model.super_scores_[a].values, decimal=10
-            )
+            np.testing.assert_array_almost_equal(total.values, model.super_scores_[a].values, decimal=10)
 
     def test_group_contributions_sum_to_the_average_super_score(self, synthetic_two_block) -> None:
         from process_improve.multivariate.methods import MBPCA
@@ -424,9 +422,7 @@ class TestMBPCAAgainstOracle:
         from_arrays = model.score_contributions(as_arrays, component=1)
         from_frames = model.score_contributions(x_blocks, component=1)
         for name in model.block_names_:
-            np.testing.assert_array_almost_equal(
-                from_arrays[name].values, from_frames[name].values, decimal=12
-            )
+            np.testing.assert_array_almost_equal(from_arrays[name].values, from_frames[name].values, decimal=12)
 
         # The two-period form, against a reference set of observations.
         index = next(iter(x_blocks.values())).index
@@ -1204,9 +1200,7 @@ class TestMBPLSOnLDPE:
         for a in (1, 2, 3):
             contribs = model.score_contributions(x_blocks, component=a)
             total = sum(frame.sum(axis=1) for frame in contribs.values())
-            np.testing.assert_array_almost_equal(
-                total.values, model.super_scores_[a].values, decimal=9
-            )
+            np.testing.assert_array_almost_equal(total.values, model.super_scores_[a].values, decimal=9)
 
     def test_score_contributions_differ_between_components(self, ldpe) -> None:
         """Each component gets its own decomposition; they are not interchangeable."""
@@ -1240,9 +1234,7 @@ class TestMBPLSOnLDPE:
 
         # Against the model centre instead of another period.
         centred = model.group_contributions(x_blocks, group=early)
-        assert sum(float(s.sum()) for s in centred.values()) == pytest.approx(
-            scores[:10].mean(), abs=1e-9
-        )
+        assert sum(float(s.sum()) for s in centred.values()) == pytest.approx(scores[:10].mean(), abs=1e-9)
 
     def test_contribution_guards_and_plain_array_blocks(self, ldpe) -> None:
         """The MBPLS guards mirror MBPCA, and blocks may arrive as plain arrays."""
@@ -1264,9 +1256,7 @@ class TestMBPLSOnLDPE:
         from_arrays = model.score_contributions(as_arrays, component=1)
         from_frames = model.score_contributions(x_blocks, component=1)
         for name in model.block_names_:
-            np.testing.assert_array_almost_equal(
-                from_arrays[name].values, from_frames[name].values, decimal=12
-            )
+            np.testing.assert_array_almost_equal(from_arrays[name].values, from_frames[name].values, decimal=12)
 
         # Both scalings, taken jointly over the blocks.
         largest = model.score_contributions(x_blocks, component=1, scaling="maximum")
@@ -1430,10 +1420,7 @@ class TestMBPLSOnLDPEMissingData:
         rng = np.random.default_rng(seed)
         # Only inject NaN into multi-column X-blocks; pressure is univariate
         # so its skip-NaN behavior is not meaningfully exercised by MCAR.
-        x_n = {
-            name: _inject_mcar(df, ratio, rng) if df.shape[1] > 1 else df
-            for name, df in x_blocks.items()
-        }
+        x_n = {name: _inject_mcar(df, ratio, rng) if df.shape[1] > 1 else df for name, df in x_blocks.items()}
         y_n = _inject_mcar(y_df, ratio, rng)
 
         m = MBPLS(n_components=3).fit(x_n, y_n)

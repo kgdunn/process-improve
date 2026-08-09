@@ -436,17 +436,13 @@ class TestCCD:
     def test_fractional_cube_numeric_alpha(self) -> None:
         """A numeric alpha is used directly as the axial distance of a fractional CCD."""
         factors = _continuous_factors(5, "ABCDE")
-        result = generate_design(
-            factors, design_type="ccd", cube="fractional", alpha=1.75, center_points=6
-        )
+        result = generate_design(factors, design_type="ccd", cube="fractional", alpha=1.75, center_points=6)
         assert result.alpha == pytest.approx(1.75)
 
     def test_fractional_cube_orthogonal_alpha(self) -> None:
         """An orthogonal fractional CCD computes a finite axial distance (string and default)."""
         factors = _continuous_factors(5, "ABCDE")
-        explicit = generate_design(
-            factors, design_type="ccd", cube="fractional", alpha="orthogonal", center_points=6
-        )
+        explicit = generate_design(factors, design_type="ccd", cube="fractional", alpha="orthogonal", center_points=6)
         default = generate_design(factors, design_type="ccd", cube="fractional", center_points=6)
         assert explicit.alpha is not None
         assert explicit.alpha > 0

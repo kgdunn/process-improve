@@ -344,9 +344,7 @@ class TestSteepestPath:
 
     def test_actual_values_with_factor_ranges(self) -> None:
         """Factor ranges trigger actual-unit conversion in step entries."""
-        result = _steepest_path(
-            _linear_2f_coeffs(), FACTOR_NAMES_2F, factor_ranges=FACTOR_RANGES_2F
-        )
+        result = _steepest_path(_linear_2f_coeffs(), FACTOR_NAMES_2F, factor_ranges=FACTOR_RANGES_2F)
         step1 = result["steps"][1]
         assert "actual" in step1
         assert "A" in step1["actual"]
@@ -543,9 +541,7 @@ class TestOptimizeDesirability:
             "factor_names": FACTOR_NAMES_2F,
         }
         goals = [{"response": "yield", "goal": "maximize", "low": 30.0, "high": 50.0}]
-        result = optimize_responses(
-            [model], goals=goals, method="desirability", factor_ranges=FACTOR_RANGES_2F
-        )
+        result = optimize_responses([model], goals=goals, method="desirability", factor_ranges=FACTOR_RANGES_2F)
         d_result = result["desirability"]
         assert "optimal_actual" in d_result
 
@@ -566,15 +562,9 @@ class TestOptimizeDesirability:
             "factor_names": FACTOR_NAMES_2F,
         }
         goals = [{"response": "yield", "goal": "maximize", "low": 30.0, "high": 50.0}]
-        out_a = _optimize_desirability(
-            [model], goals=goals, factor_names=FACTOR_NAMES_2F, random_state=1
-        )
-        out_b = _optimize_desirability(
-            [model], goals=goals, factor_names=FACTOR_NAMES_2F, random_state=1
-        )
-        out_c = _optimize_desirability(
-            [model], goals=goals, factor_names=FACTOR_NAMES_2F, random_state=2
-        )
+        out_a = _optimize_desirability([model], goals=goals, factor_names=FACTOR_NAMES_2F, random_state=1)
+        out_b = _optimize_desirability([model], goals=goals, factor_names=FACTOR_NAMES_2F, random_state=1)
+        out_c = _optimize_desirability([model], goals=goals, factor_names=FACTOR_NAMES_2F, random_state=2)
 
         # Same seed -> bit-identical optimum.
         assert out_a["optimal_coded"] == pytest.approx(out_b["optimal_coded"])
@@ -644,9 +634,9 @@ class TestDesirabilityOptimumLocation:
             {"response": "y2", "goal": "maximize", "low": -1.0, "high": 1.0},
         ]
         balanced = optimize_responses([y1, y2], goals=goals, method="desirability")["desirability"]
-        favoured = optimize_responses(
-            [y1, y2], goals=goals, method="desirability", response_importance=[5.0, 1.0]
-        )["desirability"]
+        favoured = optimize_responses([y1, y2], goals=goals, method="desirability", response_importance=[5.0, 1.0])[
+            "desirability"
+        ]
         assert favoured["optimal_coded"]["A"] > balanced["optimal_coded"]["A"]
 
 
@@ -673,12 +663,12 @@ class TestGoalMatching:
         yield_goal = {"response": "yield", "goal": "maximize", "low": -1.0, "high": 1.0}
         cost_goal = {"response": "cost", "goal": "minimize", "low": -1.0, "high": 1.0}
 
-        in_order = optimize_responses(
-            self._models(), goals=[yield_goal, cost_goal], method="desirability"
-        )["desirability"]
-        reversed_order = optimize_responses(
-            self._models(), goals=[cost_goal, yield_goal], method="desirability"
-        )["desirability"]
+        in_order = optimize_responses(self._models(), goals=[yield_goal, cost_goal], method="desirability")[
+            "desirability"
+        ]
+        reversed_order = optimize_responses(self._models(), goals=[cost_goal, yield_goal], method="desirability")[
+            "desirability"
+        ]
 
         assert in_order["optimal_coded"]["A"] == pytest.approx(reversed_order["optimal_coded"]["A"], abs=1e-6)
         # Both goals push A to +1: yield rises with A, and cost falls with A.
@@ -717,9 +707,7 @@ class TestResponseImportanceNaming:
         """desirability_weights keeps working, with a warning."""
         goals = [{"response": "y", "goal": "maximize", "low": -1.0, "high": 1.0}]
         with pytest.warns(DeprecationWarning, match="response_importance"):
-            out = optimize_responses(
-                [self._model()], goals=goals, method="desirability", desirability_weights=[1.0]
-            )
+            out = optimize_responses([self._model()], goals=goals, method="desirability", desirability_weights=[1.0])
         assert out["desirability"]["composite_desirability"] > 0.0
 
     def test_both_names_together_is_an_error(self) -> None:
@@ -753,17 +741,17 @@ class TestIntervalsAtOptimum:
         import pandas as pd
         import statsmodels.formula.api as smf
 
-        design = pd.DataFrame({
-            "A": [-1.0, 1.0, -1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
-            "B": [-1.0, -1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
-        })
+        design = pd.DataFrame(
+            {
+                "A": [-1.0, 1.0, -1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+                "B": [-1.0, -1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+            }
+        )
         design["y"] = 40.0 + 5.0 * design["A"] - 2.0 * design["B"] + [0.3, -0.2, 0.1, -0.1, 0.2, -0.3, 0.1, 0.0]
         ols_result = smf.ols("y ~ A + B", data=design).fit()
         model = {
             "response_name": "y",
-            "coefficients": [
-                {"term": term, "coefficient": float(value)} for term, value in ols_result.params.items()
-            ],
+            "coefficients": [{"term": term, "coefficient": float(value)} for term, value in ols_result.params.items()],
             "factor_names": ["A", "B"],
         }
         return model, ols_result
@@ -779,9 +767,7 @@ class TestIntervalsAtOptimum:
         """The prediction interval contains the confidence interval, which contains the fit."""
         model, fitted = self._fit()
         goals = [{"response": "y", "goal": "maximize", "low": 30.0, "high": 50.0}]
-        out = optimize_responses(
-            [model], goals=goals, method="desirability", fitted_results=[fitted]
-        )["desirability"]
+        out = optimize_responses([model], goals=goals, method="desirability", fitted_results=[fitted])["desirability"]
 
         interval = out["response_intervals"]["y"]
         ci_low, ci_high = interval["confidence_interval"]
@@ -818,9 +804,7 @@ class TestIntervalsAtOptimum:
         model, fitted = self._fit()
         goals = [{"response": "y", "goal": "maximize", "low": 30.0, "high": 50.0}]
         with pytest.raises(ValueError, match="correspond one to one"):
-            optimize_responses(
-                [model], goals=goals, method="desirability", fitted_results=[fitted, fitted]
-            )
+            optimize_responses([model], goals=goals, method="desirability", fitted_results=[fitted, fitted])
 
 
 class TestSearchBounds:
@@ -874,9 +858,7 @@ class TestSearchBounds:
         # The ramp is deliberately wider than the region can reach, so the
         # desirability never saturates and the optimum stays unique.
         goals = [{"response": "y", "goal": "maximize", "low": -5.0, "high": 5.0}]
-        out = optimize_responses(
-            [model], goals=goals, method="desirability", search_bounds={"A": (-1.41, 1.41)}
-        )
+        out = optimize_responses([model], goals=goals, method="desirability", search_bounds={"A": (-1.41, 1.41)})
         coded = out["desirability"]["optimal_coded"]
         assert coded["A"] == pytest.approx(1.41, abs=1e-4)
         assert coded["B"] == pytest.approx(1.0, abs=1e-4)
@@ -903,9 +885,9 @@ class TestSearchBounds:
         assert cube["stationary_point_coded"]["A"] == pytest.approx(1.2, abs=1e-6)
         assert cube["inside_design_space"] is False
 
-        composite = optimize_responses(
-            [model], method="stationary_point", search_bounds=(-1.41, 1.41)
-        )["stationary_point"]
+        composite = optimize_responses([model], method="stationary_point", search_bounds=(-1.41, 1.41))[
+            "stationary_point"
+        ]
         assert composite["inside_design_space"] is True
 
     @pytest.mark.parametrize(
@@ -920,9 +902,7 @@ class TestSearchBounds:
     )
     def test_malformed_bounds_are_rejected(self, bad: object, match: str) -> None:
         with pytest.raises(ValueError, match=match):
-            optimize_responses(
-                [self._rising_plane()], goals=self._goals(), method="desirability", search_bounds=bad
-            )
+            optimize_responses([self._rising_plane()], goals=self._goals(), method="desirability", search_bounds=bad)
 
     def test_unknown_factor_in_bounds_is_rejected(self) -> None:
         """A typo in a factor name would otherwise be silently ignored."""
@@ -1069,11 +1049,13 @@ class TestToolWrapper:
         result = execute_tool_call(
             "optimize_responses",
             {
-                "fitted_models": [{
-                    "response_name": "yield",
-                    "coefficients": _quadratic_2f_coeffs(),
-                    "factor_names": FACTOR_NAMES_2F,
-                }],
+                "fitted_models": [
+                    {
+                        "response_name": "yield",
+                        "coefficients": _quadratic_2f_coeffs(),
+                        "factor_names": FACTOR_NAMES_2F,
+                    }
+                ],
                 "method": "stationary_point",
             },
         )
@@ -1087,10 +1069,12 @@ class TestToolWrapper:
         result = execute_tool_call(
             "optimize_responses",
             {
-                "fitted_models": [{
-                    "coefficients": _linear_2f_coeffs(),
-                    "factor_names": FACTOR_NAMES_2F,
-                }],
+                "fitted_models": [
+                    {
+                        "coefficients": _linear_2f_coeffs(),
+                        "factor_names": FACTOR_NAMES_2F,
+                    }
+                ],
                 "method": "desirability",
             },
         )

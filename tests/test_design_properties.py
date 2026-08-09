@@ -319,11 +319,20 @@ class TestEvaluateDesignProperties:
         """Power is non-decreasing in effect size, holding sigma and design fixed."""
         result = generate_design(_factors(k), design_type="full_factorial", center_points=0)
         p_small = evaluate_design(
-            result, model="main_effects", metric="power", effect_size=0.5, sigma=sigma,
+            result,
+            model="main_effects",
+            metric="power",
+            effect_size=0.5,
+            sigma=sigma,
         )["power"]
         p_large = evaluate_design(
-            result, model="main_effects", metric="power", effect_size=3.0, sigma=sigma,
+            result,
+            model="main_effects",
+            metric="power",
+            effect_size=3.0,
+            sigma=sigma,
         )["power"]
+
         # evaluate_design returns either a scalar or a dict of per-term powers; handle both.
         def _as_float(val: object) -> float:
             if isinstance(val, dict):

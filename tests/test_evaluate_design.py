@@ -822,12 +822,30 @@ def _coded(result: object) -> pd.DataFrame:
 # is planned, at which point this hand-embedded fixture can be replaced.
 _OMARS_25 = pd.DataFrame(
     [
-        [0, 1, 1, 1, 1], [-1, 0, -1, 1, 1], [-1, 1, 1, -1, 0], [-1, 1, -1, 0, -1],
-        [1, 1, -1, -1, 1], [1, 1, 0, 1, -1], [0, -1, -1, -1, -1], [1, 0, 1, -1, -1],
-        [1, -1, -1, 1, 0], [1, -1, 1, 0, 1], [-1, -1, 1, 1, -1], [-1, -1, 0, -1, 1],
-        [0, 1, 1, 1, 1], [-1, 0, -1, 1, 1], [-1, 1, 1, -1, 0], [-1, 1, -1, 0, -1],
-        [1, 1, -1, -1, 1], [1, 1, 0, 1, -1], [0, -1, -1, -1, -1], [1, 0, 1, -1, -1],
-        [1, -1, -1, 1, 0], [1, -1, 1, 0, 1], [-1, -1, 1, 1, -1], [-1, -1, 0, -1, 1],
+        [0, 1, 1, 1, 1],
+        [-1, 0, -1, 1, 1],
+        [-1, 1, 1, -1, 0],
+        [-1, 1, -1, 0, -1],
+        [1, 1, -1, -1, 1],
+        [1, 1, 0, 1, -1],
+        [0, -1, -1, -1, -1],
+        [1, 0, 1, -1, -1],
+        [1, -1, -1, 1, 0],
+        [1, -1, 1, 0, 1],
+        [-1, -1, 1, 1, -1],
+        [-1, -1, 0, -1, 1],
+        [0, 1, 1, 1, 1],
+        [-1, 0, -1, 1, 1],
+        [-1, 1, 1, -1, 0],
+        [-1, 1, -1, 0, -1],
+        [1, 1, -1, -1, 1],
+        [1, 1, 0, 1, -1],
+        [0, -1, -1, -1, -1],
+        [1, 0, 1, -1, -1],
+        [1, -1, -1, 1, 0],
+        [1, -1, 1, 0, 1],
+        [-1, -1, 1, 1, -1],
+        [-1, -1, 0, -1, 1],
         [0, 0, 0, 0, 0],
     ],
     columns=_FACTORS_5,
@@ -938,9 +956,7 @@ class TestReducedFormulaRegression:
     def test_i_g_efficiency_explicit_pure_quadratic(self) -> None:
         """i/g efficiency for an 11-term reduced formula no longer raises (size 11 vs 21)."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
-        result = evaluate_design(
-            df, model=_PURE_QUADRATIC_5, metric=["i_efficiency", "g_efficiency"], random_seed=1
-        )
+        result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric=["i_efficiency", "g_efficiency"], random_seed=1)
         assert result["i_efficiency"] is not None
         assert result["g_efficiency"] is not None
         assert result["average_prediction_variance"] > 0
@@ -1120,9 +1136,7 @@ class TestFDSResolution:
         """fds_resolution=200 returns length-200 monotone arrays with min/max endpoints."""
         df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
         n = df.shape[0]
-        fds = evaluate_design(
-            df, model=_PURE_QUADRATIC_5, metric="fds", fds_resolution=200, random_seed=1
-        )["fds"]
+        fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", fds_resolution=200, random_seed=1)["fds"]
         curve = fds["curve"]
         pv = np.asarray(curve["prediction_variance"])
         frac = np.asarray(curve["fraction"])
@@ -1168,11 +1182,13 @@ def test_build_model_matrix_mixed_quadratic_is_partial_rsm() -> None:
     never manually dummy-expanded (which would create singular cross terms) and
     never squared (a category has no square).
     """
-    df = pd.DataFrame({
-        "cat": ["A", "B", "C", "A", "B", "C"],
-        "x1": [-1.0, 0.0, 1.0, 1.0, -1.0, 0.0],
-        "x2": [1.0, -1.0, 0.0, 0.0, 1.0, -1.0],
-    })
+    df = pd.DataFrame(
+        {
+            "cat": ["A", "B", "C", "A", "B", "C"],
+            "x1": [-1.0, 0.0, 1.0, 1.0, -1.0, 0.0],
+            "x2": [1.0, -1.0, 0.0, 0.0, 1.0, -1.0],
+        }
+    )
     _X, names, _info = _build_model_matrix(df, "quadratic", ["cat", "x1", "x2"])
     flat = [n.replace(" ", "") for n in names]
     # No square of the categorical factor.
@@ -1208,8 +1224,7 @@ def test_generate_and_evaluate_mixed_level_design() -> None:
     metrics = evaluate_design(
         design,
         model="quadratic",
-        metric=["d_efficiency", "i_efficiency", "g_efficiency", "condition_number",
-                "degrees_of_freedom", "fds"],
+        metric=["d_efficiency", "i_efficiency", "g_efficiency", "condition_number", "degrees_of_freedom", "fds"],
     )
     assert metrics["d_efficiency"] is not None
     assert metrics["d_efficiency"] > 0

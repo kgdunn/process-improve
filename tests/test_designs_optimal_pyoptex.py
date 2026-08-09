@@ -201,9 +201,11 @@ class TestRunOrderPreservation:
 
 
 def _mixed_factors() -> list[Factor]:
-    return [Factor(name="cat", type="categorical", levels=["A", "B", "C"]),
-            Factor(name="x1", low=0, high=10),
-            Factor(name="x2", low=0, high=10)]
+    return [
+        Factor(name="cat", type="categorical", levels=["A", "B", "C"]),
+        Factor(name="x1", low=0, high=10),
+        Factor(name="x2", low=0, high=10),
+    ]
 
 
 class TestFixedRuns:
@@ -213,8 +215,9 @@ class TestFixedRuns:
 
         centre = pd.DataFrame([{"cat": "A", "x1": 0.0, "x2": 0.0}])
         np.random.seed(1)  # noqa: NPY002 (pyoptex reads the legacy global RNG)
-        result = generate_design(_mixed_factors(), design_type="i_optimal", budget=14,
-                                 model_type="interactions", fixed_runs=centre)
+        result = generate_design(
+            _mixed_factors(), design_type="i_optimal", budget=14, model_type="interactions", fixed_runs=centre
+        )
         design = result.design
         assert len(design) == 14
         assert result.metadata.get("n_fixed_runs") == 1
@@ -227,8 +230,9 @@ class TestFixedRuns:
 
         centre = pd.DataFrame([{"cat": "A", "x1": 0.0, "x2": 0.0}])
         np.random.seed(2)  # noqa: NPY002
-        result = generate_design(_mixed_factors(), design_type="i_optimal", budget=14,
-                                 hard_to_change=["x1"], fixed_runs=centre)
+        result = generate_design(
+            _mixed_factors(), design_type="i_optimal", budget=14, hard_to_change=["x1"], fixed_runs=centre
+        )
         assert len(result.design) == 14
         assert result.metadata.get("n_fixed_runs") == 1
 
@@ -249,8 +253,7 @@ class TestFixedRuns:
     def test_fixed_runs_input_validation(self, frame: list, match: str) -> None:
 
         with pytest.raises(ValueError, match=match):
-            generate_design(_mixed_factors(), design_type="i_optimal", budget=14,
-                            fixed_runs=pd.DataFrame(frame))
+            generate_design(_mixed_factors(), design_type="i_optimal", budget=14, fixed_runs=pd.DataFrame(frame))
 
     def test_fixed_runs_must_leave_room_to_optimize(self) -> None:
 
@@ -260,8 +263,9 @@ class TestFixedRuns:
 
     def test_fixed_runs_must_be_a_dataframe(self) -> None:
         with pytest.raises(TypeError, match="must be a pandas DataFrame"):
-            generate_design(_mixed_factors(), design_type="i_optimal", budget=14,
-                            fixed_runs=[{"cat": "A", "x1": 0.0, "x2": 0.0}])  # type: ignore[arg-type]
+            generate_design(
+                _mixed_factors(), design_type="i_optimal", budget=14, fixed_runs=[{"cat": "A", "x1": 0.0, "x2": 0.0}]
+            )  # type: ignore[arg-type]
 
     def test_fixed_runs_empty_frame_rejected(self) -> None:
         empty = pd.DataFrame({"cat": [], "x1": [], "x2": []})
@@ -274,8 +278,7 @@ class TestFixedRuns:
             generate_design(_mixed_factors(), design_type="i_optimal", budget=14, fixed_runs=bad)
 
     def test_two_fixed_runs_both_appear_first(self) -> None:
-        seed = pd.DataFrame([{"cat": "A", "x1": 0.0, "x2": 0.0},
-                             {"cat": "B", "x1": 1.0, "x2": -1.0}])
+        seed = pd.DataFrame([{"cat": "A", "x1": 0.0, "x2": 0.0}, {"cat": "B", "x1": 1.0, "x2": -1.0}])
         np.random.seed(3)  # noqa: NPY002
         result = generate_design(_mixed_factors(), design_type="i_optimal", budget=14, fixed_runs=seed)
         assert result.metadata.get("n_fixed_runs") == 2

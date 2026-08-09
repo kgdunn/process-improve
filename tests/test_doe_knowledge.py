@@ -356,10 +356,13 @@ class TestToolSpecIntegration:
     def test_execute_tool_call(self):
         from process_improve.tool_spec import execute_tool_call
 
-        result = execute_tool_call("doe_knowledge", {
-            "query": "resolution",
-            "topic": "statistical_concepts",
-        })
+        result = execute_tool_call(
+            "doe_knowledge",
+            {
+                "query": "resolution",
+                "topic": "statistical_concepts",
+            },
+        )
         assert "results" in result
         assert result["n_results"] >= 1
 

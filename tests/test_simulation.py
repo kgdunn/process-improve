@@ -116,13 +116,9 @@ class TestDrawInitialSeed:
         samples = [draw_initial_seed() for _ in range(200)]
         assert all(s >= 0 for s in samples)
         # At least one sample must exceed 2**31 to prove width > 31 bits.
-        assert max(samples) > 2**31, (
-            f"draw_initial_seed appears truncated to <=31 bits; max={max(samples)}"
-        )
+        assert max(samples) > 2**31, f"draw_initial_seed appears truncated to <=31 bits; max={max(samples)}"
         # At least one sample must exceed 2**62 to prove width >= 63 bits.
-        assert max(samples) > 2**62, (
-            f"draw_initial_seed appears truncated to <=62 bits; max={max(samples)}"
-        )
+        assert max(samples) > 2**62, f"draw_initial_seed appears truncated to <=62 bits; max={max(samples)}"
 
 
 class TestCreateSimulator:
@@ -509,9 +505,7 @@ class TestRegistryIntegration:
             props = specs[name]["input_schema"].get("properties", {})
             assert "simulator_state" not in props
         # ``confirmed`` is also server-injected.
-        assert "confirmed" not in specs["reveal_simulator"]["input_schema"].get(
-            "properties", {}
-        )
+        assert "confirmed" not in specs["reveal_simulator"]["input_schema"].get("properties", {})
 
 
 # ---------------------------------------------------------------------------

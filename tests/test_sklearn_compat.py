@@ -133,10 +133,10 @@ def _synthetic_xy(n_samples: int = 60, n_features: int = 6, n_factors: int = 3, 
     rng = np.random.default_rng(seed)
     T = rng.standard_normal((n_samples, n_factors))
     P = rng.standard_normal((n_factors, n_features))
-    X = pd.DataFrame(T @ P + 0.05 * rng.standard_normal((n_samples, n_features)),
-                     columns=[f"x{i}" for i in range(n_features)])
-    Y = pd.DataFrame(T @ rng.standard_normal((n_factors, 1)) + 0.1 * rng.standard_normal((n_samples, 1)),
-                     columns=["y"])
+    X = pd.DataFrame(
+        T @ P + 0.05 * rng.standard_normal((n_samples, n_features)), columns=[f"x{i}" for i in range(n_features)]
+    )
+    Y = pd.DataFrame(T @ rng.standard_normal((n_factors, 1)) + 0.1 * rng.standard_normal((n_samples, 1)), columns=["y"])
     assert MCUVScaler  # used elsewhere in this module; silence linter
     return X, Y
 
@@ -181,17 +181,18 @@ def test_make_column_transformer_with_mcuvscaler_and_pls() -> None:
 
     rng = np.random.default_rng(2)
     n = 60
-    X = pd.DataFrame({
-        "temp": rng.standard_normal(n),
-        "pressure": rng.standard_normal(n),
-        "flow": rng.standard_normal(n),
-        "batch_type": rng.choice(["A", "B", "C"], size=n),
-    })
+    X = pd.DataFrame(
+        {
+            "temp": rng.standard_normal(n),
+            "pressure": rng.standard_normal(n),
+            "flow": rng.standard_normal(n),
+            "batch_type": rng.choice(["A", "B", "C"], size=n),
+        }
+    )
     # Y depends on the numeric columns + a categorical-dependent offset.
     cat_offset = X["batch_type"].map({"A": 0.0, "B": 1.0, "C": -0.5}).to_numpy()
     Y = pd.DataFrame(
-        0.5 * X["temp"] + 0.3 * X["pressure"] - 0.2 * X["flow"] + cat_offset
-        + 0.05 * rng.standard_normal(n),
+        0.5 * X["temp"] + 0.3 * X["pressure"] - 0.2 * X["flow"] + cat_offset + 0.05 * rng.standard_normal(n),
         columns=["y"],
     )
 
