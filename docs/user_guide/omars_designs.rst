@@ -205,7 +205,7 @@ they scale with ``n_restarts``.
      - 57
      - 21
      - 10
-     - see note
+     - 980
 
 The iteration count is fixed by ``n_restarts`` (each iteration is a full ILP
 solve); the cost per iteration grows with the half-pool size :math:`(3^k - 1)/2`,
@@ -213,11 +213,12 @@ the number of orthogonality constraints :math:`k(k-1)/2`, and the run size the
 frontier demands.  Three to five factors solve in seconds; six takes about half a
 minute.
 
-At seven factors the solves are large enough to run into the per-solve
-``solver_options["time_limit"]`` rather than finishing on their own, so no single
-timing characterises them; budget minutes, raise the time limit above its 60 s
-default, and expect the result to depend on where CBC was cut off.  Beyond seven
-factors, pin ``n_runs`` or use ``model="main_quadratic"``, whose frontier is only
+Seven factors is a different order of magnitude: about a quarter of an hour at
+this restart budget, measured with ``solver_options={"time_limit": 120}``.  The
+individual solves average close to that per-solve cap, so the total depends on
+the limit you set as much as on the machine; raise it above its 60 s default
+before reading anything into a seven-factor run.  Beyond seven factors, pin
+``n_runs`` or use ``model="main_quadratic"``, whose frontier is only
 :math:`2k + 1`.
 
 Limitations
