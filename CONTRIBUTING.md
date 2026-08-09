@@ -16,11 +16,15 @@ extras:
 ```bash
 git clone https://github.com/kgdunn/process-improve.git
 cd process-improve
-pip install -e ".[dev]"
+pip install -e ".[dev,all]"
 ```
 
-This brings in the test runner, linter, formatter, type checker, and the
-documentation toolchain.
+`dev` brings in the test runner, linter, formatter, type checker, and the
+documentation toolchain. `all` brings in the optional runtime dependencies
+(`pyDOE3`, `pulp`, `plotly`, `numba`, ...) that the gated public-API surfaces
+need. Install both: with `dev` alone a large part of the suite fails on
+`ImportError` rather than skipping, because those tests exercise the extras.
+CI installs the equivalent with `uv sync --dev --all-extras`.
 
 ## Running tests
 
@@ -84,12 +88,23 @@ def test_loads_real_data():
 ## Linting and formatting
 
 ```bash
-ruff check .          # lint
-black .               # format
-mypy process_improve  # type check
+ruff check .                # lint
+ruff format .               # format
+ruff format --check .       # what CI runs: fails instead of rewriting
+mypy src/process_improve    # type check
 ```
 
 The line length is 120 characters.
+
+Ruff covers linting, formatting, and import sorting; do not add black, flake8,
+or isort configuration.
+
+The lint job runs `ruff check .` **and** `ruff format --check .` as two
+independent gates, so a clean `ruff check .` says nothing about formatting. Run
+both before pushing, or install the pre-commit hooks, which run the same pair.
+Keep the `ruff-pre-commit` `rev` in `.pre-commit-config.yaml` in step with the
+`ruff` pin in `pyproject.toml`; if they diverge, code formatted locally can
+still be rejected by CI.
 
 ## Code style
 
@@ -120,10 +135,16 @@ The line length is 120 characters.
 
 ## Adding new methods to PCA / PLS
 
-1. Add the method to the class in `process_improve/multivariate/methods.py`.
+1. Add the method to the class. The implementation is split across focused
+   submodules: PCA is in `src/process_improve/multivariate/_pca.py` and PLS in
+   `_pls.py`, with shared plotting in `plots.py`, limits in `_limits.py` and
+   diagnostics in `_diagnostics.py`. `methods.py` is only a re-export shim that
+   keeps every public name importable from one stable path, so adding a method
+   there has no effect.
 2. Use a NumPy-style docstring with Parameters, Returns, and Examples
    sections.
-3. Add tests in `tests/test_multivariate.py` using both real datasets and
+3. Add tests in `tests/test_multivariate.py`, or in the more specific
+   `tests/test_multivariate_*.py` file, using both real datasets and
    synthetic data.
 4. If the method belongs on both PCA and PLS, implement it on both with the
    same API signature.
