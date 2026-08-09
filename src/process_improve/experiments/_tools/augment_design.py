@@ -51,7 +51,7 @@ class AugmentDesignInput(BaseModel):
         ge=1,
         description=(
             "Budget for additional runs. Interpretation depends on type: "
-            "number of center points, D-optimal runs, n_replicates, or n_blocks."
+            "number of center points, D-optimal runs, replicates, or blocks."
         ),
     )
     fold_on: str | None = Field(
@@ -81,7 +81,7 @@ class AugmentDesignInput(BaseModel):
         "2-factor interactions), semifold (de-alias specific interactions with fewer runs), "
         "adding center points (test for curvature), adding axial/star points (upgrade to CCD "
         "for response surface modeling), D-optimal augmentation (add runs to maximize information), "
-        "upgrade to RSM (convert screening design to response surface design), add n_blocks "
+        "upgrade to RSM (convert screening design to response surface design), add blocks "
         "(retroactively confound block effects with high-order interactions), and replication "
         "(improve precision estimates). "
         "Always returns the augmented design matrix plus an explanation of what changed in the "

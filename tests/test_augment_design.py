@@ -422,7 +422,7 @@ class TestAddRunsOptimal:
 
 
 # ---------------------------------------------------------------------------
-# Add n_blocks
+# Add blocks
 # ---------------------------------------------------------------------------
 
 
@@ -430,7 +430,7 @@ class TestAddBlocks:
     """Test add_blocks augmentation."""
 
     def test_two_blocks(self) -> None:
-        """Default should assign 2 n_blocks."""
+        """Default should assign 2 blocks."""
         df = _full_factorial_df(3)
         result = augment_design(df, "add_blocks")
         aug = pd.DataFrame(result["augmented_design"])
@@ -453,13 +453,13 @@ class TestAddBlocks:
         assert len(result["confounded_with"]) > 0
 
     def test_invalid_n_blocks_raises(self) -> None:
-        """Number of n_blocks < 2 should raise ValueError."""
+        """Number of blocks < 2 should raise ValueError."""
         df = _full_factorial_df(3)
         with pytest.raises(ValueError, match="at least 2"):
             augment_design(df, "add_blocks", n_additional_runs=1)
 
     def test_four_blocks(self) -> None:
-        """4 n_blocks should use 2 confounding columns."""
+        """4 blocks should use 2 confounding columns."""
         df = _full_factorial_df(4)  # 16 runs
         result = augment_design(df, "add_blocks", n_additional_runs=4)
         aug = pd.DataFrame(result["augmented_design"])

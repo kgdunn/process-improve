@@ -105,7 +105,7 @@ def add_center_points(matrix: np.ndarray, n_center: int) -> np.ndarray:
     matrix : np.ndarray
         Coded design matrix of shape (n_runs, n_factors).
     n_center : int
-        Number of center point n_replicates to add.
+        Number of center point replicates to add.
 
     Returns
     -------
@@ -126,7 +126,7 @@ def replicate_design(matrix: np.ndarray, n_replicates: int) -> np.ndarray:
     matrix : np.ndarray
         Design matrix of shape (n_runs, n_factors).
     n_replicates : int
-        Number of full n_replicates (1 = no replication).
+        Number of full replicates (1 = no replication).
 
     Returns
     -------
@@ -191,9 +191,9 @@ def build_design_result(  # noqa: PLR0913
     design_type : str
         Name of the design type.
     n_center_points : int
-        Number of center point n_replicates to add.
+        Number of center point replicates to add.
     n_replicates : int
-        Number of full n_replicates.
+        Number of full replicates.
     n_blocks : int or None
         Number of blocks (None = no blocking).
     random_seed : int or None

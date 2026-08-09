@@ -706,7 +706,7 @@ def _compute_degrees_of_freedom(ctx: _EvalContext) -> dict[str, Any]:
     df_residual = ctx.N - ctx.p
     df_total = ctx.N - 1
 
-    # Detect n_replicates by counting distinct factor-setting rows. Round the
+    # Detect replicates by counting distinct factor-setting rows. Round the
     # quantitative columns to absorb floating-point noise; categorical (label)
     # columns are compared as-is (they cannot be rounded).
     design_sub = ctx.design_df[ctx.factor_names].copy()

@@ -317,11 +317,11 @@ def generate_design(  # noqa: PLR0913
     budget : int or None
         Maximum number of runs the experimenter can afford.
     n_center_points : int
-        Number of center-point n_replicates (default 3).  For designs that
+        Number of center-point replicates (default 3).  For designs that
         embed their own center points (CCD, Box-Behnken), this parameter
         controls the count within the design structure.
     n_replicates : int
-        Number of full n_replicates of the design (default 1 = no replication).
+        Number of full replicates of the design (default 1 = no replication).
     n_blocks : int or None
         Number of blocks.
     resolution : int or None

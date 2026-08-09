@@ -106,7 +106,7 @@ def estimate_rsm_runs(n_factors: int, design_type: str, n_center_points: int = 3
         One of ``"ccd"``, ``"box_behnken"``, ``"ccd_face_centered"``,
         ``"d_optimal"``.
     n_center_points : int
-        Number of center point n_replicates (default 3).
+        Number of center point replicates (default 3).
 
     Returns
     -------

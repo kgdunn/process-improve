@@ -271,7 +271,7 @@ def dispatch_box_behnken(
     factors : list[Factor]
         Continuous factors (requires at least 3).
     n_center_points : int
-        Number of center point n_replicates.
+        Number of center point replicates.
 
     Returns
     -------

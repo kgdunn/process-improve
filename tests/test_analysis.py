@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import pandas as pd
 import pytest
 
@@ -27,7 +29,7 @@ def _two_factor_data() -> pd.DataFrame:
 
 
 def _two_factor_replicated() -> pd.DataFrame:
-    """2^2 factorial with 2 n_replicates."""
+    """2^2 factorial with 2 replicates."""
     return pd.DataFrame(
         {
             "A": [-1, 1, -1, 1, -1, 1, -1, 1],
@@ -117,6 +119,43 @@ class TestModelSummary:
         result = analyze_experiment(df, response_column="y", analysis_type="anova")
         r2 = result["model_summary"]["r_squared"]
         assert 0 <= r2 <= 1
+
+
+class TestRankDeficiency:
+    """A rank-deficient model is still fitted by the pseudo-inverse, so the caller has
+    to be told that some of the reported coefficients are not determined by the data.
+    """
+
+    @staticmethod
+    def _foldover_design() -> pd.DataFrame:
+        """Five-run foldover in two factors: [H; -H; 0]. Its full second-order model
+        has 6 terms but rank 5, because mirror-image pairs repeat the even columns.
+        """
+        levels = [(1, 1), (1, -1), (-1, -1), (-1, 1), (0, 0)]
+        df = pd.DataFrame(levels, columns=["A", "B"])
+        df["y"] = [10.0, 12.0, 11.0, 9.0, 13.0]
+        return df
+
+    def test_full_rank_model_is_silent(self) -> None:
+        df = self._foldover_design()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            result = analyze_experiment(df, response_column="y", model="A + B", analysis_type="coefficients")
+        summary = result["model_summary"]
+        assert summary["rank_deficient"] is False
+        assert summary["model_rank"] == summary["n_terms"] == 3
+
+    def test_rank_deficient_model_warns_and_reports(self) -> None:
+        df = self._foldover_design()
+        model = "A + B + I(A**2) + I(B**2) + A:B"
+        with pytest.warns(RuntimeWarning, match="not estimable"):
+            result = analyze_experiment(df, response_column="y", model=model, analysis_type="coefficients")
+        summary = result["model_summary"]
+        assert summary["n_terms"] == 6
+        assert summary["model_rank"] == 5
+        assert summary["rank_deficient"] is True
+        # A coefficient is still reported for every requested term.
+        assert len(result["coefficients"]) == 6
 
 
 # ---------------------------------------------------------------------------
@@ -281,7 +320,7 @@ class TestLackOfFit:
         assert "significant" in lof
 
     def test_lof_without_replicates_errors(self) -> None:
-        """Verify lack-of-fit returns error without n_replicates."""
+        """Verify lack-of-fit returns error without replicates."""
         df = _two_factor_data()
         result = analyze_experiment(
             df,

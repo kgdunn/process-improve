@@ -614,15 +614,15 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
 
 
 def _augment_add_blocks(ctx: _AugmentContext) -> dict[str, Any]:
-    """Retroactively assign n_blocks by confounding with high-order interactions."""
+    """Retroactively assign blocks by confounding with high-order interactions."""
     df = ctx.existing_design[ctx.factor_names].copy()
     n_blocks = ctx.n_additional_runs if ctx.n_additional_runs is not None else 2
     k = len(ctx.factor_names)
 
     if n_blocks < 2:
-        raise ValueError("Number of n_blocks must be at least 2.")
+        raise ValueError("Number of blocks must be at least 2.")
 
-    # Determine how many confounding columns needed: 2^b n_blocks requires b columns
+    # Determine how many confounding columns needed: 2^b blocks requires b columns
     b = int(np.ceil(np.log2(n_blocks)))
     n_blocks_actual = 2**b  # round up to power of 2
 
@@ -643,11 +643,11 @@ def _augment_add_blocks(ctx: _AugmentContext) -> dict[str, Any]:
 
     if len(confounding_columns) < b:
         raise ValueError(
-            f"Cannot create {n_blocks_actual} n_blocks with {k} factors. "
+            f"Cannot create {n_blocks_actual} blocks with {k} factors. "
             f"Need {b} confounding columns but only found {len(confounding_columns)}."
         )
 
-    # Assign n_blocks using signs of confounding columns
+    # Assign blocks using signs of confounding columns
     block_assignment = np.zeros(len(df), dtype=int)
     for i, (_word, col) in enumerate(confounding_columns[:b]):
         block_assignment += (col > 0).astype(int) * (2**i)
@@ -658,7 +658,7 @@ def _augment_add_blocks(ctx: _AugmentContext) -> dict[str, Any]:
 
     confounded_words = [word for word, _ in confounding_columns[:b]]
     notes = [
-        f"Assigned {n_blocks_actual} n_blocks by confounding with: {', '.join(confounded_words)}.",
+        f"Assigned {n_blocks_actual} blocks by confounding with: {', '.join(confounded_words)}.",
         f"Block effect is aliased with the {', '.join(confounded_words)} interaction(s).",
         "Block effects should be orthogonal to main effects and low-order interactions.",
     ]
@@ -722,7 +722,7 @@ def augment_design(  # noqa: PLR0913
     n_additional_runs : int or None
         Budget for additional runs.  Interpretation depends on the
         augmentation type (number of center points, number of D-optimal
-        runs, number of n_replicates, or number of n_blocks).
+        runs, number of replicates, or number of blocks).
     fold_on : str or None
         For ``"semifold"`` only: which factor to fold on.  If ``None``,
         the best factor is auto-selected.

@@ -61,7 +61,7 @@ class TestConvertFactors:
         re_a = converted[0].re
         assert re_a is not None
         assert converted[1].re is None
-        # 12 runs, default whole plots = max(4, 12 // 3) = 4, balanced n_blocks of 3.
+        # 12 runs, default whole plots = max(4, 12 // 3) = 4, balanced blocks of 3.
         np.testing.assert_array_equal(re_a.Z, np.repeat(np.arange(4), 3))
         assert re_a.ratio == 0.5
 

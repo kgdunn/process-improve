@@ -11,6 +11,17 @@ those changes.
 
 ## [Unreleased]
 
+### Added
+
+- `analyze_experiment` now reports estimability. `model_summary` gains `n_terms`,
+  `model_rank` and `rank_deficient`, and a `RuntimeWarning` is raised when the
+  model matrix is rank deficient. A rank-deficient fit still returns a coefficient
+  for every requested term, but only `model_rank` of them are determined by the
+  data; the remainder are one solution out of infinitely many. Predictions at the
+  design points are unaffected, individual coefficients and predictions elsewhere
+  are not. Economical designs with structured aliasing (definitive screening,
+  OMARS and foldovers generally) reach this state routinely.
+
 ### Changed
 
 - **Breaking:** renamed the trade-off table API for consistency. The entry

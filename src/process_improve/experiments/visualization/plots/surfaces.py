@@ -246,7 +246,7 @@ class ContourPlot(BasePlot):
         rng = np.random.default_rng(seed=0)
         jitter_amplitude = 0.02
 
-        # Group rows by (rounded) coded location to detect n_replicates.
+        # Group rows by (rounded) coded location to detect replicates.
         groups: dict[tuple[float, float], list[int]] = {}
         for idx, r in enumerate(rows):
             key = (round(float(r[factor_x]), 6), round(float(r[factor_y]), 6))

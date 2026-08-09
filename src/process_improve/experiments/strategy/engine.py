@@ -386,7 +386,7 @@ def _build_confirmation_stage(
         factors=spec.factor_names,
         estimated_runs=n_runs,
         purpose=(
-            "Run n_replicates at the predicted optimum to verify the model predictions. "
+            "Run replicates at the predicted optimum to verify the model predictions. "
             "Compare observed vs. predicted using a confirmation test (prediction interval check)."
         ),
         success_criteria={"observed_within_prediction_interval": True},

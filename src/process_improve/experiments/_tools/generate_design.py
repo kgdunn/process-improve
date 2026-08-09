@@ -48,12 +48,12 @@ class GenerateDesignInput(BaseModel):
     n_center_points: int = Field(
         3,
         ge=0,
-        description="Number of center point n_replicates (default: 3).",
+        description="Number of center point replicates (default: 3).",
     )
     n_replicates: int = Field(
         1,
         ge=1,
-        description="Number of full n_replicates (default: 1).",
+        description="Number of full replicates (default: 1).",
     )
     resolution: int | None = Field(
         None,
