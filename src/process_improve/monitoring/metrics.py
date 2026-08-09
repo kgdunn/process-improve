@@ -57,13 +57,9 @@ def calculate_cpk(  # noqa: C901
           percentage, ``(spread / center) * 100``.
     """
     if trim_percentile < 0:
-        raise ValueError(
-            f"trim_percentile must be non-negative; got {trim_percentile}."
-        )
+        raise ValueError(f"trim_percentile must be non-negative; got {trim_percentile}.")
     if trim_percentile >= 40:
-        raise ValueError(
-            f"trim_percentile must be < 40 (typically <= 10-20); got {trim_percentile}."
-        )
+        raise ValueError(f"trim_percentile must be < 40 (typically <= 10-20); got {trim_percentile}.")
     lower_spec, upper_spec = specifications
 
     if lower_spec is None:
@@ -125,12 +121,12 @@ def calculate_cpk(  # noqa: C901
 
 _RENAMED = {"calculate_Cpk": "calculate_cpk"}
 
+
 def __getattr__(name: str) -> None:
     """Raise a helpful error when a renamed module attribute is accessed."""
     if name in _RENAMED:
         new = _RENAMED[name]
         raise AttributeError(
-            f"{name!r} has been renamed to {new!r}. "
-            f"Use: from process_improve.monitoring.metrics import {new}"
+            f"{name!r} has been renamed to {new!r}. Use: from process_improve.monitoring.metrics import {new}"
         )
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

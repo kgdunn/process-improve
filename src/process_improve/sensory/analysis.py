@@ -99,9 +99,7 @@ def aggregate_to_product(panel: pd.DataFrame) -> pd.DataFrame:
         Index ``product``, one column per attribute, values the mean score
         over panelists and replicates.
     """
-    wide = panel.pivot_table(
-        index="product", columns="attribute", values="score", aggfunc="mean", observed=True
-    )
+    wide = panel.pivot_table(index="product", columns="attribute", values="score", aggfunc="mean", observed=True)
     wide.index = wide.index.astype(str)
     wide.columns.name = None
     return wide
@@ -392,9 +390,7 @@ def discriminate_observational(  # noqa: PLR0913, PLR0915
         if pls is not None and n_rows >= 5 and y_attr.std() > 0:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", RuntimeWarning)
-                cv = pls.cross_validate(
-                    x_scaled, y_scaled, cv="loo", conf_level=1.0 - alpha, show_progress=False
-                )
+                cv = pls.cross_validate(x_scaled, y_scaled, cv="loo", conf_level=1.0 - alpha, show_progress=False)
             q2_cv = float(cv.q_squared.iloc[0])
             rmsep_cv = float(cv.rmse_cv.iloc[0])
             predictable = q2_cv > 0.0
@@ -493,8 +489,7 @@ def relate_designed(
     """
     del agg, covariates, model, alpha
     raise NotImplementedError(
-        "Designed (DoE/OMARS) relate is not implemented yet; use "
-        "mode='observational'. Planned for a later release."
+        "Designed (DoE/OMARS) relate is not implemented yet; use mode='observational'. Planned for a later release."
     )
 
 
@@ -525,10 +520,7 @@ def relate_observational(  # noqa: PLR0913
     pls = PLS(n_components=max_comp).fit(x_block, y_block)
     vips = vip(pls)
 
-    drivers: list[dict[str, Any]] = [
-        {"descriptor": str(name), "vip": float(value)}
-        for name, value in vips.items()
-    ]
+    drivers: list[dict[str, Any]] = [{"descriptor": str(name), "vip": float(value)} for name, value in vips.items()]
     drivers.sort(key=lambda r: float(r["vip"]), reverse=True)
 
     # Per (attribute, descriptor) association, BH-corrected across the family.
@@ -540,9 +532,7 @@ def relate_observational(  # noqa: PLR0913
                 yv = pair.iloc[:, 0].to_numpy(dtype=float)
                 xv = pair.iloc[:, 1].to_numpy(dtype=float)
                 r, p = pearsonr(yv, xv)
-                jack_se, robust, n_support = _jackknife_correlation(
-                    xv, yv, alpha, max_deletions=influence_deletions
-                )
+                jack_se, robust, n_support = _jackknife_correlation(xv, yv, alpha, max_deletions=influence_deletions)
                 assoc.append(
                     {
                         "attribute": str(attr),
@@ -584,10 +574,7 @@ def _knockoff_block(x_block: pd.DataFrame, k: int, rng: np.random.Generator) -> 
     """
     n_rows, p = x_block.shape
     source = rng.integers(0, p, size=k)
-    columns = {
-        f"__null_{j}": x_block.iloc[:, src].to_numpy()[rng.permutation(n_rows)]
-        for j, src in enumerate(source)
-    }
+    columns = {f"__null_{j}": x_block.iloc[:, src].to_numpy()[rng.permutation(n_rows)] for j, src in enumerate(source)}
     return pd.DataFrame(columns, index=x_block.index)
 
 

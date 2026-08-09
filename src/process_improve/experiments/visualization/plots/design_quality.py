@@ -53,9 +53,7 @@ class FDSPlot(BasePlot):
             return ChartSpec(title="FDS Plot - no design data")
 
         df = pd.DataFrame(self.design_data)
-        factors = self.factors_to_plot or [
-            c for c in df.columns if c != self.response_column
-        ]
+        factors = self.factors_to_plot or [c for c in df.columns if c != self.response_column]
         if len(factors) < 2:
             return ChartSpec(title="FDS Plot - need at least 2 factors")
 
@@ -107,10 +105,7 @@ class FDSPlot(BasePlot):
 
         # Downsample for plotting (every 50th point)
         step = max(1, n_samples // 100)
-        plot_data = [
-            {"fraction": fractions[i], "spv": spv_sorted[i]}
-            for i in range(0, n_samples, step)
-        ]
+        plot_data = [{"fraction": fractions[i], "spv": spv_sorted[i]} for i in range(0, n_samples, step)]
         # Ensure last point included
         if plot_data[-1]["fraction"] != fractions[-1]:
             plot_data.append({"fraction": fractions[-1], "spv": spv_sorted[-1]})
@@ -218,12 +213,15 @@ class PowerCurvePlot(BasePlot):
         power_values = []
         for sn in sn_ratios:
             ncp = n_runs * sn**2 / 4.0
-            power = 1.0 - float(f_dist.cdf(f_crit, df1, df2, loc=0, scale=1)  # noqa: RUF034
-                                if ncp == 0
-                                else f_dist.cdf(f_crit, df1, df2, loc=0, scale=1))
+            power = 1.0 - float(
+                f_dist.cdf(f_crit, df1, df2, loc=0, scale=1)  # noqa: RUF034
+                if ncp == 0
+                else f_dist.cdf(f_crit, df1, df2, loc=0, scale=1)
+            )
             # Use non-central F
             if ncp > 0:
                 from scipy.stats import ncf  # noqa: PLC0415
+
                 power = 1.0 - float(ncf.cdf(f_crit, df1, df2, ncp))
             else:
                 power = alpha
@@ -288,9 +286,7 @@ class PowerCurvePlot(BasePlot):
 
         if self.design_data:
             df = pd.DataFrame(self.design_data)
-            factors = self.factors_to_plot or [
-                c for c in df.columns if c != self.response_column
-            ]
+            factors = self.factors_to_plot or [c for c in df.columns if c != self.response_column]
             n_runs = len(df)
             k = len(factors)
             # Full second-order model terms: intercept + k + k*(k-1)/2 + k

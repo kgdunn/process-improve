@@ -70,9 +70,7 @@ def _prepare_data(  # noqa: C901, PLR0912
     # Check that all these columns actually exist in the df
     missing_tags = [column_name for column_name in tags if column_name not in df.columns]
     if missing_tags:
-        raise KeyError(
-            f"Tag(s) not found in the dataframe columns: {missing_tags}."
-        )
+        raise KeyError(f"Tag(s) not found in the dataframe columns: {missing_tags}.")
 
     # First make a copy! else, it will repeatedly add these. Ensure it is
     # a unique list too.
@@ -351,9 +349,7 @@ def f_rupture(
     """
     # Handle phase detection based on 1 column for now.
     if columns is None or len(columns) != 1:
-        raise NotImplementedError(
-            f"Phase detection currently supports a single column only; got {columns!r}."
-        )
+        raise NotImplementedError(f"Phase detection currently supports a single column only; got {columns!r}.")
 
     # TODO: see https://github.com/deepcharles/ruptures
 

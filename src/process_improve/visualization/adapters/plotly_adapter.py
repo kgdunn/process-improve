@@ -17,6 +17,7 @@ try:
     from plotly.subplots import make_subplots
 except ImportError:  # pragma: no cover - exercised via env-without-plotly
     from process_improve._extras import _MissingExtra
+
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
     make_subplots = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
@@ -257,9 +258,7 @@ class PlotlyAdapter(AbstractAdapter):
         symbol = layer.style.get("symbol", "circle")
         colors = layer.style.get("colors")
         hover_field = layer.style.get("hover_field")
-        hover_text = (
-            [row.get(hover_field, "") for row in layer.data] if hover_field else None
-        )
+        hover_text = [row.get(hover_field, "") for row in layer.data] if hover_field else None
         marker: dict[str, Any] = {
             "color": colors or layer.color or DOE_PALETTE["primary"],
             "size": size,

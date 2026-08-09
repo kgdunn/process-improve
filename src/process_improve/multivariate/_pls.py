@@ -539,7 +539,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 Y_deflated = Y_deflated - (self._scores[:, [a]] @ c_a.T)
 
     def fit(  # noqa: PLR0912, PLR0915, C901
-        self, X: DataMatrix, Y: DataMatrix, sample_weight: np.ndarray | None = None,
+        self,
+        X: DataMatrix,
+        Y: DataMatrix,
+        sample_weight: np.ndarray | None = None,
     ) -> PLS:
         """
         Fit a projection to latent structures (PLS) model to the data.
@@ -1449,8 +1452,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 y_hat = y_hat_scaled * y_scale + y_centre
                 x_hat = x_hat_scaled * x_scale + x_centre
                 residuals_y = y_test - y_hat
-                fold_press = float(np.nansum(residuals_y ** 2))
-                press_y[a - 1] += np.nansum(residuals_y ** 2, axis=0)
+                fold_press = float(np.nansum(residuals_y**2))
+                press_y[a - 1] += np.nansum(residuals_y**2, axis=0)
                 press_x[a - 1] += np.nansum((x_test - x_hat) ** 2, axis=0)
                 per_fold_rmse[a - 1, fold_idx] = np.sqrt(fold_press / max(1, n_test * M))
                 per_fold_press_total[a - 1, fold_idx] = fold_press
@@ -1548,9 +1551,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 alpha=alpha,
                 random_state=random_state,
             )
-            randomization_pvalues = pd.Series(
-                p_values, index=component_index, name="p-value (Van der Voet)"
-            )
+            randomization_pvalues = pd.Series(p_values, index=component_index, name="p-value (Van der Voet)")
         else:
             recommended = _select_n_components(
                 selection_rule,
@@ -1572,11 +1573,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         selection_distribution: pd.Series | None = None
         selection_mode: int | None = None
         selection_is_stable: bool | None = None
-        if (
-            selection_rule in ("1se", "min")
-            and n_repeats_effective > 1
-            and not np.all(np.isnan(per_fold_rmse))
-        ):
+        if selection_rule in ("1se", "min") and n_repeats_effective > 1 and not np.all(np.isnan(per_fold_rmse)):
             votes: list[int] = []
             for r in range(n_repeats_effective):
                 cols = slice(r * first_repeat_fold_count, (r + 1) * first_repeat_fold_count)
@@ -1730,9 +1727,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if isinstance(outer_cv, int):
             if outer_cv < 2:
                 raise ValueError(f"outer_cv must be >= 2 when given as an int; got {outer_cv}.")
-            outer_splitter: BaseCrossValidator = KFold(
-                n_splits=outer_cv, shuffle=True, random_state=random_state
-            )
+            outer_splitter: BaseCrossValidator = KFold(n_splits=outer_cv, shuffle=True, random_state=random_state)
         else:
             outer_splitter = outer_cv
         outer_splits = list(outer_splitter.split(X, Y))
@@ -1795,9 +1790,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         mask = ~np.isnan(oof_predictions).any(axis=1)
         n_valid = int(mask.sum())
         if n_valid == 0:
-            raise RuntimeError(
-                "Nested CV produced no covered observations; check the outer splitter."
-            )
+            raise RuntimeError("Nested CV produced no covered observations; check the outer splitter.")
         per_y_press = np.nansum(residuals[mask] ** 2, axis=0)
         rmsep_per_y = np.sqrt(per_y_press / n_valid)
         rmsep_total = np.sqrt(np.nansum(residuals[mask] ** 2) / (n_valid * M))
@@ -2051,9 +2044,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         if sample_weight is not None:
             sample_weight = np.asarray(sample_weight, dtype=float).ravel()
             if sample_weight.shape[0] != N:
-                raise ValueError(
-                    f"sample_weight has {sample_weight.shape[0]} entries; expected {N} to match X / Y."
-                )
+                raise ValueError(f"sample_weight has {sample_weight.shape[0]} entries; expected {N} to match X / Y.")
 
         def _fold_weights(idx: np.ndarray) -> np.ndarray | None:
             return None if sample_weight is None else sample_weight[idx]
@@ -2068,7 +2059,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             for _ in iterator:
                 train_idx = rng.choice(N, size=N, replace=True)
                 sub_model = clone(self).fit(
-                    X.iloc[train_idx], Y.iloc[train_idx], sample_weight=_fold_weights(train_idx),
+                    X.iloc[train_idx],
+                    Y.iloc[train_idx],
+                    sample_weight=_fold_weights(train_idx),
                 )
                 beta_collection.append(sub_model.beta_coefficients_.values)
 
@@ -2078,7 +2071,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             for i in iterator:
                 train_idx = np.concatenate([np.arange(i), np.arange(i + 1, N)])
                 sub_model = clone(self).fit(
-                    X.iloc[train_idx], Y.iloc[train_idx], sample_weight=_fold_weights(train_idx),
+                    X.iloc[train_idx],
+                    Y.iloc[train_idx],
+                    sample_weight=_fold_weights(train_idx),
                 )
                 beta_collection.append(sub_model.beta_coefficients_.values)
                 pred = sub_model.predict(X.iloc[[i]])
@@ -2091,7 +2086,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             desc = f"{n_resamples}-Fold CV"
             for train_idx, test_idx in tqdm(kf.split(X), total=n_resamples, desc=desc, disable=not show_progress):
                 sub_model = clone(self).fit(
-                    X.iloc[train_idx], Y.iloc[train_idx], sample_weight=_fold_weights(train_idx),
+                    X.iloc[train_idx],
+                    Y.iloc[train_idx],
+                    sample_weight=_fold_weights(train_idx),
                 )
                 beta_collection.append(sub_model.beta_coefficients_.values)
                 pred = sub_model.predict(X.iloc[test_idx])
@@ -2239,4 +2236,3 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         lower = pd.DataFrame(y_hat.values - half_width, index=y_hat.index, columns=y_hat.columns)
         upper = pd.DataFrame(y_hat.values + half_width, index=y_hat.index, columns=y_hat.columns)
         return Bunch(y_hat=y_hat, lower=lower, upper=upper, conf_level=conf_level)
-

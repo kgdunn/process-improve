@@ -154,9 +154,7 @@ def omars_properties(matrix: np.ndarray, *, tol: float = _DEFAULT_TOL) -> dict:
 
     # Three-level validity: every entry is within tol of one of {-1, 0, +1}.
     nearest = np.round(matrix)
-    is_three_level = bool(
-        np.all(np.abs(matrix - nearest) <= tol) and np.all(np.isin(nearest, (-1.0, 0.0, 1.0)))
-    )
+    is_three_level = bool(np.all(np.abs(matrix - nearest) <= tol) and np.all(np.isin(nearest, (-1.0, 0.0, 1.0))))
 
     # OMARS factors are genuinely three-level: each must take the middle (0)
     # level at least once, otherwise its pure quadratic is a constant column
@@ -185,11 +183,7 @@ def omars_properties(matrix: np.ndarray, *, tol: float = _DEFAULT_TOL) -> dict:
     max_so_corr = _max_abs_correlation(second_order)
 
     is_omars = bool(
-        is_three_level
-        and quadratics_estimable
-        and is_balanced
-        and main_effects_orthogonal
-        and main_effects_clear
+        is_three_level and quadratics_estimable and is_balanced and main_effects_orthogonal and main_effects_clear
     )
 
     return {

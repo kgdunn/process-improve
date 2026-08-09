@@ -113,10 +113,7 @@ def _select_response(beta: pd.DataFrame, response: str | int | None) -> str:
     columns = list(beta.columns)
     if response is None:
         if len(columns) != 1:
-            msg = (
-                "This model has several responses "
-                f"({columns}); pass response=<name> to pick one."
-            )
+            msg = f"This model has several responses ({columns}); pass response=<name> to pick one."
             raise ValueError(msg)
         return columns[0]
     if isinstance(response, (int, np.integer)) and response not in columns:
@@ -335,9 +332,7 @@ def selectivity_ratio(
     """
     beta = getattr(model, "beta_coefficients_", None)
     if response is None and beta is not None and beta.shape[1] > 1:
-        return pd.DataFrame(
-            {col: _selectivity_ratio_one(model, X, col, conf_level) for col in beta.columns}
-        )
+        return pd.DataFrame({col: _selectivity_ratio_one(model, X, col, conf_level) for col in beta.columns})
     return _selectivity_ratio_one(model, X, response, conf_level)
 
 
@@ -510,9 +505,7 @@ def _contribution_inputs(model: BaseEstimator, X: DataMatrix) -> tuple[pd.DataFr
     return X, R, P
 
 
-def t2_contributions(
-    model: BaseEstimator, X: DataMatrix, components: list[int] | None = None
-) -> pd.DataFrame:
+def t2_contributions(model: BaseEstimator, X: DataMatrix, components: list[int] | None = None) -> pd.DataFrame:
     r"""Per-variable contributions to Hotelling's :math:`T^2`.
 
     Works with fitted :class:`PCA` and :class:`PLS` models. Decomposes each
@@ -634,9 +627,7 @@ def spe_contributions(model: BaseEstimator, X: DataMatrix) -> pd.DataFrame:
     return pd.DataFrame(residuals, index=X_df.index, columns=X_df.columns)
 
 
-def _score_contribution_terms(
-    model: BaseEstimator, X: DataMatrix, component: int
-) -> tuple[pd.DataFrame, np.ndarray]:
+def _score_contribution_terms(model: BaseEstimator, X: DataMatrix, component: int) -> tuple[pd.DataFrame, np.ndarray]:
     """Return ``(X_aligned, r_a)`` for the requested 1-based ``component``."""
     X_df, R, _ = _contribution_inputs(model, X)
     A = R.shape[1]

@@ -159,10 +159,7 @@ class BoxplotInput(BaseModel):
     )
     link_group: str | None = Field(
         None,
-        description=(
-            "Cross-chart linking key. Charts sharing this key form a "
-            "brushing group on the frontend."
-        ),
+        description=("Cross-chart linking key. Charts sharing this key form a brushing group on the frontend."),
     )
     title: str = Field(
         "",
@@ -247,12 +244,8 @@ def boxplot(spec: BoxplotInput) -> dict[str, Any]:  # noqa: PLR0911
             "plot_type": "boxplot",
             "title": default_title,
             "data": {
-                "quartiles": [
-                    {"group": b.group, "q_stats": list(b.q_stats)} for b in boxes
-                ],
-                "outliers": [
-                    {"group": b.group, **o} for b in boxes for o in b.outliers
-                ],
+                "quartiles": [{"group": b.group, "q_stats": list(b.q_stats)} for b in boxes],
+                "outliers": [{"group": b.group, **o} for b in boxes for o in b.outliers],
             },
             "link_group": spec.link_group,
             "point_ids": chart_spec.point_ids or [],

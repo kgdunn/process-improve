@@ -48,13 +48,15 @@ def _run_confirmation_test(
         pi_high = float(row["obs_ci_upper"])
         predicted = float(row["mean"])
         within_pi = pi_low <= obs <= pi_high
-        results.append({
-            "observed": obs,
-            "predicted": predicted,
-            "pi_low": pi_low,
-            "pi_high": pi_high,
-            "within_PI": within_pi,
-        })
+        results.append(
+            {
+                "observed": obs,
+                "predicted": predicted,
+                "pi_low": pi_low,
+                "pi_high": pi_high,
+                "within_PI": within_pi,
+            }
+        )
 
     all_pass = all(r["within_PI"] for r in results)
     return {

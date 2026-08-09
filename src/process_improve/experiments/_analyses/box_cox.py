@@ -25,9 +25,12 @@ def _run_box_cox(design_df: pd.DataFrame, response_col: str) -> dict[str, Any]:
             "lambda": float(lmbda),
             "transformed_values": [float(v) for v in y_transformed],
             "recommendation": (
-                "log transform" if abs(lmbda) < 0.05
-                else "square root" if abs(lmbda - 0.5) < 0.05
-                else "inverse" if abs(lmbda - (-1.0)) < 0.05
+                "log transform"
+                if abs(lmbda) < 0.05
+                else "square root"
+                if abs(lmbda - 0.5) < 0.05
+                else "inverse"
+                if abs(lmbda - (-1.0)) < 0.05
                 else f"power transform (lambda={lmbda:.3f})"
             ),
         }

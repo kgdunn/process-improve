@@ -136,10 +136,7 @@ class DetectOutliersInput(BaseModel):
     max_outliers_to_detect: int = Field(
         5,
         ge=1,
-        description=(
-            "Upper bound on the number of outliers to search for "
-            "(default 5, must be < len(values))."
-        ),
+        description=("Upper bound on the number of outliers to search for (default 5, must be < len(values))."),
     )
     alpha: float = Field(
         0.05,
@@ -400,8 +397,7 @@ class ConfidenceIntervalInput(BaseModel):
     method: Literal["robust", "classical"] = Field(
         "robust",
         description=(
-            "'robust' (default): use median +/- t * MAD / sqrt(n). "
-            "'classical': use mean +/- t * std / sqrt(n)."
+            "'robust' (default): use median +/- t * MAD / sqrt(n). 'classical': use mean +/- t * std / sqrt(n)."
         ),
     )
 
@@ -525,13 +521,10 @@ def ttest_two_samples(spec: TtestTwoSamplesInput) -> dict:
     significant = bool(result["p_value"] < (1 - spec.confidence_level))
     result["significant"] = significant
     diff = result["group_b_mean"] - result["group_a_mean"]
-    result["interpretation"] = (
-        f"The difference (B - A = {diff:.4g}) "
-        + (
-            f"IS statistically significant (p={result['p_value']:.4f} < {1 - spec.confidence_level:.2f})."
-            if significant
-            else f"is NOT statistically significant (p={result['p_value']:.4f} >= {1 - spec.confidence_level:.2f})."
-        )
+    result["interpretation"] = f"The difference (B - A = {diff:.4g}) " + (
+        f"IS statistically significant (p={result['p_value']:.4f} < {1 - spec.confidence_level:.2f})."
+        if significant
+        else f"is NOT statistically significant (p={result['p_value']:.4f} >= {1 - spec.confidence_level:.2f})."
     )
     return clean(result)
 
@@ -609,13 +602,10 @@ def ttest_paired_samples(spec: TtestPairedSamplesInput) -> dict:
     }
     significant = bool(result["p_value"] < (1 - spec.confidence_level))
     result["significant"] = significant
-    result["interpretation"] = (
-        f"The mean paired difference (A - B = {result['differences_mean']:.4g}) "
-        + (
-            f"IS statistically significant (p={result['p_value']:.4f} < {1 - spec.confidence_level:.2f})."
-            if significant
-            else f"is NOT statistically significant (p={result['p_value']:.4f} >= {1 - spec.confidence_level:.2f})."
-        )
+    result["interpretation"] = f"The mean paired difference (A - B = {result['differences_mean']:.4g}) " + (
+        f"IS statistically significant (p={result['p_value']:.4f} < {1 - spec.confidence_level:.2f})."
+        if significant
+        else f"is NOT statistically significant (p={result['p_value']:.4f} >= {1 - spec.confidence_level:.2f})."
     )
     return clean(result)
 
@@ -647,8 +637,7 @@ class WithinBetweenVarianceInput(BaseModel):
         ...,
         min_length=3,
         description=(
-            "Group label for each observation (same length as values). "
-            "Can be strings, integers, or any hashable type."
+            "Group label for each observation (same length as values). Can be strings, integers, or any hashable type."
         ),
     )
 

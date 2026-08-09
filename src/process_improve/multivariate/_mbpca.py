@@ -195,9 +195,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         # ``Pipeline.get_feature_names_out`` and SHAP / eli5 / model-card
         # tooling introspect a multiblock fit through the same surface as a
         # single-block estimator.
-        self.feature_names_in_ = np.concatenate(
-            [self._block_columns[name].to_numpy() for name in self.block_names_]
-        )
+        self.feature_names_in_ = np.concatenate([self._block_columns[name].to_numpy() for name in self.block_names_])
         n_components = int(self.n_components)
         n_blocks = len(self.block_names_)
 
@@ -205,16 +203,12 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         algo = self.algorithm.lower()
         if algo not in self._valid_algorithms:
             raise ValueError(
-                f"Algorithm '{self.algorithm}' is not recognised. "
-                f"Must be one of {self._valid_algorithms}."
+                f"Algorithm '{self.algorithm}' is not recognised. Must be one of {self._valid_algorithms}."
             )
         if algo == "auto":
             algo = "nipals" if self.has_missing_data_ else "dense"
         if algo == "dense" and self.has_missing_data_:
-            raise ValueError(
-                "Algorithm 'dense' cannot handle missing data. "
-                "Use 'nipals' or 'auto' instead."
-            )
+            raise ValueError("Algorithm 'dense' cannot handle missing data. Use 'nipals' or 'auto' instead.")
         self.algorithm_ = algo
 
         # Resolve iterative-algorithm settings (used by the 'nipals' path).
@@ -237,8 +231,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
                 if np.any(col_all_nan):
                     bad = X[name].columns[col_all_nan].tolist()
                     raise ValueError(
-                        f"Block '{name}' has columns with all values missing: {bad}. "
-                        "Drop these columns before fitting."
+                        f"Block '{name}' has columns with all values missing: {bad}. Drop these columns before fitting."
                     )
                 row_all_nan = np.all(np.isnan(values), axis=1)
                 if np.any(row_all_nan):
@@ -258,9 +251,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         # Working copies for deflation and stats accumulation
         x_def: dict[str, np.ndarray] = {name: x_blocks_pp[name].copy() for name in self.block_names_}
         ssq_x_init = {name: float(np.nansum(x_blocks_pp[name] ** 2)) for name in self.block_names_}
-        ssq_x_init_per_var = {
-            name: np.nansum(x_blocks_pp[name] ** 2, axis=0) for name in self.block_names_
-        }
+        ssq_x_init_per_var = {name: np.nansum(x_blocks_pp[name] ** 2, axis=0) for name in self.block_names_}
 
         super_scores_np = np.zeros((n_samples, n_components))
         super_loadings_np = np.zeros((n_blocks, n_components))
@@ -274,9 +265,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         r2_x_var_cum: dict[str, np.ndarray] = {
             name: np.zeros((self.block_widths_[name], n_components)) for name in self.block_names_
         }
-        block_spe_np: dict[str, np.ndarray] = {
-            name: np.zeros((n_samples, n_components)) for name in self.block_names_
-        }
+        block_spe_np: dict[str, np.ndarray] = {name: np.zeros((n_samples, n_components)) for name in self.block_names_}
 
         tol = float(np.finfo(float).eps ** (9 / 10)) if self.tol is None else float(self.tol)
         timing = np.zeros(n_components)
@@ -360,17 +349,13 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         # Wrap in pandas containers
         component_names = list(range(1, n_components + 1))
         self.super_scores_ = pd.DataFrame(super_scores_np, index=self._sample_index, columns=component_names)
-        self.super_loadings_ = pd.DataFrame(
-            super_loadings_np, index=self.block_names_, columns=component_names
-        )
+        self.super_loadings_ = pd.DataFrame(super_loadings_np, index=self.block_names_, columns=component_names)
         self.block_scores_ = {
             name: pd.DataFrame(block_scores_np[name], index=self._sample_index, columns=component_names)
             for name in self.block_names_
         }
         self.block_loadings_ = {
-            name: pd.DataFrame(
-                block_loadings_np[name], index=self._block_columns[name], columns=component_names
-            )
+            name: pd.DataFrame(block_loadings_np[name], index=self._block_columns[name], columns=component_names)
             for name in self.block_names_
         }
 
@@ -396,9 +381,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         if n_components > 1:
             r2_x_block_per_a[:, 1:] = np.diff(r2_x_block_cum, axis=1)
 
-        self.r2_x_per_block_cumulative_ = pd.DataFrame(
-            r2_x_block_cum, index=self.block_names_, columns=component_names
-        )
+        self.r2_x_per_block_cumulative_ = pd.DataFrame(r2_x_block_cum, index=self.block_names_, columns=component_names)
         self.r2_x_per_block_per_component_ = pd.DataFrame(
             r2_x_block_per_a, index=self.block_names_, columns=component_names
         )
@@ -484,9 +467,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             if not isinstance(block, pd.DataFrame):
                 block = pd.DataFrame(block, columns=self._block_columns[name])
             if block.shape[1] != self.block_widths_[name]:
-                raise ValueError(
-                    f"Block '{name}' must have {self.block_widths_[name]} columns; got {block.shape[1]}."
-                )
+                raise ValueError(f"Block '{name}' must have {self.block_widths_[name]} columns; got {block.shape[1]}.")
             x_pp[name] = self.preproc_[name].transform(block).values.astype(float)
             if sample_index is None:
                 sample_index = block.index
@@ -496,9 +477,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
 
         super_scores = np.zeros((n_new, n_components))
-        block_scores: dict[str, np.ndarray] = {
-            name: np.zeros((n_new, n_components)) for name in self.block_names_
-        }
+        block_scores: dict[str, np.ndarray] = {name: np.zeros((n_new, n_components)) for name in self.block_names_}
         x_def = {name: x_pp[name].copy() for name in self.block_names_}
 
         for a in range(n_components):
@@ -523,9 +502,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             for name in self.block_names_
         }
         block_spe = {
-            name: pd.Series(
-                np.sqrt(np.nansum(x_def[name] ** 2, axis=1)), index=sample_index, name=f"SPE[{name}]"
-            )
+            name: pd.Series(np.sqrt(np.nansum(x_def[name] ** 2, axis=1)), index=sample_index, name=f"SPE[{name}]")
             for name in self.block_names_
         }
         super_score_var = np.where(self.explained_variance_ > 0, self.explained_variance_, 1.0)
@@ -589,9 +566,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             out[name] = pd.DataFrame(residuals_sq, index=sample_index, columns=self._block_columns[name])
         return out
 
-    def _deflated_blocks(
-        self, X: dict[str, pd.DataFrame], component: int
-    ) -> tuple[dict[str, np.ndarray], pd.Index]:
+    def _deflated_blocks(self, X: dict[str, pd.DataFrame], component: int) -> tuple[dict[str, np.ndarray], pd.Index]:
         """Preprocessed blocks, deflated through the first ``component - 1`` components.
 
         The super score at component *a* is formed from the data that remain
@@ -620,13 +595,15 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
 
         sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
         for a in range(int(component) - 1):
-            t_b_row = np.column_stack([
-                x_def[name]
-                @ self.block_loadings_[name].values[:, a]
-                / _nz(float(self.block_loadings_[name].values[:, a] @ self.block_loadings_[name].values[:, a]))
-                / sqrt_kb[name]
-                for name in self.block_names_
-            ])
+            t_b_row = np.column_stack(
+                [
+                    x_def[name]
+                    @ self.block_loadings_[name].values[:, a]
+                    / _nz(float(self.block_loadings_[name].values[:, a] @ self.block_loadings_[name].values[:, a]))
+                    / sqrt_kb[name]
+                    for name in self.block_names_
+                ]
+            )
             p_s = self.super_loadings_.values[:, a]
             t_super = t_b_row @ p_s / _nz(float(p_s @ p_s))
             for b_idx, name in enumerate(self.block_names_):

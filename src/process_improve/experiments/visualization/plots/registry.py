@@ -67,9 +67,7 @@ def create_plot(plot_type: str, **kwargs: Any) -> BasePlot:  # noqa: ANN401
     _ensure_discovery()
     if plot_type not in _PLOT_REGISTRY:
         available = sorted(_PLOT_REGISTRY)
-        raise ValueError(
-            f"Unknown plot_type {plot_type!r}. Available: {available}"
-        )
+        raise ValueError(f"Unknown plot_type {plot_type!r}. Available: {available}")
     return _PLOT_REGISTRY[plot_type](**kwargs)
 
 

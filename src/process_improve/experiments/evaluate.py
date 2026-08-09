@@ -325,9 +325,7 @@ def _region_prediction_variance(ctx: _EvalContext) -> np.ndarray:
     # region, then expand through the fitted model. All-continuous designs keep
     # the original fast path unchanged.
     cat_levels = {
-        f: ctx.design_df[f].unique()
-        for f in ctx.factor_names
-        if not pd.api.types.is_numeric_dtype(ctx.design_df[f])
+        f: ctx.design_df[f].unique() for f in ctx.factor_names if not pd.api.types.is_numeric_dtype(ctx.design_df[f])
     }
     if not cat_levels:
         points = _region_points(
@@ -789,9 +787,7 @@ def _multiply_words(w1: frozenset[int], w2: frozenset[int]) -> frozenset[int]:
     return w1.symmetric_difference(w2)
 
 
-def _defining_relation_from_generators(
-    generators: list[str], factor_names: list[str]
-) -> list[frozenset[int]]:
+def _defining_relation_from_generators(generators: list[str], factor_names: list[str]) -> list[frozenset[int]]:
     """Compute the full defining relation from generator strings.
 
     Each generator like ``"D=ABC"`` produces the word ``ABCD``.  The full
@@ -971,10 +967,12 @@ def _compute_confounding(ctx: _EvalContext) -> dict[str, Any]:
         effect = parts[0].strip()
         aliases_str = parts[1].strip()
         confounded = [a.strip().lstrip("+-") for a in aliases_str.split(" + ")]
-        confounding_list.append({
-            "effect": effect,
-            "confounded_with": confounded,
-        })
+        confounding_list.append(
+            {
+                "effect": effect,
+                "confounded_with": confounded,
+            }
+        )
     return {"confounding": confounding_list}
 
 

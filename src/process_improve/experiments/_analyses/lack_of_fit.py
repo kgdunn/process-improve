@@ -11,7 +11,9 @@ from statsmodels.regression.linear_model import RegressionResultsWrapper
 
 
 def _run_lack_of_fit(
-    ols_result: RegressionResultsWrapper, design_df: pd.DataFrame, response_col: str,
+    ols_result: RegressionResultsWrapper,
+    design_df: pd.DataFrame,
+    response_col: str,
 ) -> dict[str, Any]:
     """Lack-of-fit F-test using pure error from replicated points.
 

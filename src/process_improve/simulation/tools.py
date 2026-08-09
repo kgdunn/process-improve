@@ -72,8 +72,7 @@ def _public_from_private(private: dict[str, Any], process_description: str, crea
             for f in private["factors"]
         ],
         "outputs": [
-            {"name": o["name"], "units": o.get("units"), "direction": o.get("direction")}
-            for o in private["outputs"]
+            {"name": o["name"], "units": o.get("units"), "direction": o.get("direction")} for o in private["outputs"]
         ],
         "noise_level": private["noise_level"],
         "time_drift": private["time_drift"],
@@ -112,10 +111,7 @@ class CreateSimulatorInput(BaseModel):
     outputs: list[dict[str, Any]] = Field(
         ...,
         min_length=1,
-        description=(
-            "Response variables the user wants measured. Confirm with the "
-            "user before calling the tool."
-        ),
+        description=("Response variables the user wants measured. Confirm with the user before calling the tool."),
     )
     structural_hints: list[str] | None = Field(
         None,
@@ -128,10 +124,7 @@ class CreateSimulatorInput(BaseModel):
     )
     noise_level: Literal["low", "medium", "high"] = Field(
         "medium",
-        description=(
-            "Noise magnitude as a fraction of the output range "
-            "(~1 %, ~5 %, ~15 %). Default 'medium'."
-        ),
+        description=("Noise magnitude as a fraction of the output range (~1 %, ~5 %, ~15 %). Default 'medium'."),
     )
     time_drift: bool = Field(
         False,
@@ -214,8 +207,7 @@ def create_simulator(spec: CreateSimulatorInput) -> dict:
             for f in spec.factors
         ],
         "outputs": [
-            {"name": o["name"], "units": o.get("units"), "direction": o.get("direction")}
-            for o in spec.outputs
+            {"name": o["name"], "units": o.get("units"), "direction": o.get("direction")} for o in spec.outputs
         ],
         "structural_hints": list(spec.structural_hints or []),
         "noise_level": spec.noise_level,
@@ -249,9 +241,7 @@ class SimulateProcessInput(BaseModel):
     )
     settings: dict[str, float] = Field(
         ...,
-        description=(
-            "Mapping of factor-name to numeric value, in the factor's declared units."
-        ),
+        description=("Mapping of factor-name to numeric value, in the factor's declared units."),
     )
     timestamp_offset_days: float = Field(
         0.0,

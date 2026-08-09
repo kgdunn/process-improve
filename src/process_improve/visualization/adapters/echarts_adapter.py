@@ -163,11 +163,13 @@ class EChartsAdapter(AbstractAdapter):
             x_axis["gridIndex"] = idx
             x_axes.append(x_axis)
 
-            y_axes.append({
-                "type": "value",
-                "name": panel.y_title,
-                "gridIndex": idx,
-            })
+            y_axes.append(
+                {
+                    "type": "value",
+                    "name": panel.y_title,
+                    "gridIndex": idx,
+                }
+            )
 
             for layer in panel.layers:
                 s, _ = self._layer_to_series(layer)
@@ -247,7 +249,8 @@ class EChartsAdapter(AbstractAdapter):
         if colors:
             series["itemStyle"] = {"color": None}
             series["data"] = [
-                {"value": v, "itemStyle": {"color": c}} for v, c in zip(data, colors)  # noqa: B905
+                {"value": v, "itemStyle": {"color": c}}
+                for v, c in zip(data, colors)  # noqa: B905
             ]
         elif layer.color:
             series["itemStyle"] = {"color": layer.color}
@@ -264,10 +267,12 @@ class EChartsAdapter(AbstractAdapter):
                     continue
                 low = max(0.0, float(value) - err_abs)
                 high = float(value) + err_abs
-                mark_data.append([
-                    {"coord": [cat, low], "symbol": "none"},
-                    {"coord": [cat, high], "symbol": "none"},
-                ])
+                mark_data.append(
+                    [
+                        {"coord": [cat, low], "symbol": "none"},
+                        {"coord": [cat, high], "symbol": "none"},
+                    ]
+                )
             if mark_data:
                 series["markLine"] = {
                     "silent": True,
@@ -304,7 +309,8 @@ class EChartsAdapter(AbstractAdapter):
         }
         if colors:
             series["data"] = [
-                {"value": d, "itemStyle": {"color": c}} for d, c in zip(data, colors)  # noqa: B905
+                {"value": d, "itemStyle": {"color": c}}
+                for d, c in zip(data, colors)  # noqa: B905
             ]
         elif layer.color:
             series["itemStyle"] = {"color": layer.color}
@@ -419,15 +425,19 @@ class EChartsAdapter(AbstractAdapter):
                     continue
                 fill = ann.style.get("fill_color", "rgba(37, 99, 235, 0.1)")
                 if ann.axis == "y":
-                    mark_areas.append([
-                        {"yAxis": ann.value, "itemStyle": {"color": fill}},
-                        {"yAxis": ann.value_end},
-                    ])
+                    mark_areas.append(
+                        [
+                            {"yAxis": ann.value, "itemStyle": {"color": fill}},
+                            {"yAxis": ann.value_end},
+                        ]
+                    )
                 else:
-                    mark_areas.append([
-                        {"xAxis": ann.value, "itemStyle": {"color": fill}},
-                        {"xAxis": ann.value_end},
-                    ])
+                    mark_areas.append(
+                        [
+                            {"xAxis": ann.value, "itemStyle": {"color": fill}},
+                            {"xAxis": ann.value_end},
+                        ]
+                    )
 
             elif at == AnnotationType.constraint_region:
                 fill = ann.style.get("color", "rgba(220, 38, 38, 0.15)")
@@ -436,15 +446,19 @@ class EChartsAdapter(AbstractAdapter):
                 y_min = ann.style.get("y_min")
                 y_max = ann.style.get("y_max")
                 if x_min is not None and x_max is not None:
-                    mark_areas.append([
-                        {"xAxis": x_min, "itemStyle": {"color": fill}},
-                        {"xAxis": x_max},
-                    ])
+                    mark_areas.append(
+                        [
+                            {"xAxis": x_min, "itemStyle": {"color": fill}},
+                            {"xAxis": x_max},
+                        ]
+                    )
                 if y_min is not None and y_max is not None:
-                    mark_areas.append([
-                        {"yAxis": y_min, "itemStyle": {"color": fill}},
-                        {"yAxis": y_max},
-                    ])
+                    mark_areas.append(
+                        [
+                            {"yAxis": y_min, "itemStyle": {"color": fill}},
+                            {"yAxis": y_max},
+                        ]
+                    )
 
         return mark_lines, mark_areas
 
@@ -519,10 +533,7 @@ class EChartsAdapter(AbstractAdapter):
         """Build ECharts ``[[x, y], ...]`` paired data from a layer."""
         if not layer.x or not layer.y:
             return []
-        return [
-            [row.get(layer.x.field, 0), row.get(layer.y.field, 0)]
-            for row in layer.data
-        ]
+        return [[row.get(layer.x.field, 0), row.get(layer.y.field, 0)] for row in layer.data]
 
 
 # ---------------------------------------------------------------------------

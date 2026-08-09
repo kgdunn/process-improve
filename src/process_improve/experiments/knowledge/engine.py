@@ -91,24 +91,51 @@ def _build_keyword_index(graph: KnowledgeGraph) -> dict[str, list[tuple[str, str
     index: dict[str, list[tuple[str, str]]] = {}
 
     for dt in graph.design_types.values():
-        _index_texts(index, "design_type", dt.id, [
-            dt.id.replace("_", " "), dt.display_name, *dt.description.values(),
-        ])
+        _index_texts(
+            index,
+            "design_type",
+            dt.id,
+            [
+                dt.id.replace("_", " "),
+                dt.display_name,
+                *dt.description.values(),
+            ],
+        )
 
     for diag in graph.diagnostics.values():
-        _index_texts(index, "diagnostic", diag.id, [
-            diag.id.replace("_", " "), diag.display_name, diag.visual_pattern,
-        ])
+        _index_texts(
+            index,
+            "diagnostic",
+            diag.id,
+            [
+                diag.id.replace("_", " "),
+                diag.display_name,
+                diag.visual_pattern,
+            ],
+        )
 
     for concept in graph.concepts.values():
-        _index_texts(index, "concept", concept.id, [
-            concept.id.replace("_", " "), concept.title, *concept.content.values(),
-        ])
+        _index_texts(
+            index,
+            "concept",
+            concept.id,
+            [
+                concept.id.replace("_", " "),
+                concept.title,
+                *concept.content.values(),
+            ],
+        )
 
     for guide in graph.interpretation_guides.values():
-        _index_texts(index, "interpretation", guide.id, [
-            guide.id.replace("_", " "), guide.title,
-        ])
+        _index_texts(
+            index,
+            "interpretation",
+            guide.id,
+            [
+                guide.id.replace("_", " "),
+                guide.title,
+            ],
+        )
 
     # De-duplicate entries within each keyword
     return {k: list(dict.fromkeys(v)) for k, v in index.items()}
@@ -376,15 +403,17 @@ def query_design_selection(
         for node_type, node_id, _score in keyword_hits[:5]:
             if node_type == "design_type" and node_id in graph.design_types:
                 dt = graph.design_types[node_id]
-                results.append({
-                    "type": "design_type",
-                    "id": dt.id,
-                    "display_name": dt.display_name,
-                    "description": _extract_detail(dt.description, detail_level),
-                    "suitable_for": dt.suitable_for,
-                    "properties": dt.properties,
-                    "min_runs": dt.min_runs,
-                })
+                results.append(
+                    {
+                        "type": "design_type",
+                        "id": dt.id,
+                        "display_name": dt.display_name,
+                        "description": _extract_detail(dt.description, detail_level),
+                        "suitable_for": dt.suitable_for,
+                        "properties": dt.properties,
+                        "min_runs": dt.min_runs,
+                    }
+                )
 
     return results
 
@@ -401,13 +430,15 @@ def query_design_properties(
     for concept_id in graph.topic_index.get("design_properties", []):
         concept = graph.concepts.get(concept_id)
         if concept:
-            results.append({
-                "type": "concept",
-                "id": concept.id,
-                "title": concept.title,
-                "content": _extract_detail(concept.content, detail_level),
-                "related_to": concept.related_to,
-            })
+            results.append(
+                {
+                    "type": "concept",
+                    "id": concept.id,
+                    "title": concept.title,
+                    "content": _extract_detail(concept.content, detail_level),
+                    "related_to": concept.related_to,
+                }
+            )
 
     # Narrow down via keyword search if a query is provided
     if query:
@@ -433,19 +464,18 @@ def query_troubleshooting(
             if node_type == "diagnostic" and node_id not in seen:
                 seen.add(node_id)
                 diag = graph.diagnostics[node_id]
-                remedies = [
-                    r for r in diag.remedies
-                    if detail_level == "expert" or r.get("detail", "") != ""
-                ]
-                results.append({
-                    "type": "diagnostic",
-                    "id": diag.id,
-                    "display_name": diag.display_name,
-                    "visual_pattern": diag.visual_pattern,
-                    "indicates": diag.indicates,
-                    "remedies": remedies,
-                    "severity": diag.severity,
-                })
+                remedies = [r for r in diag.remedies if detail_level == "expert" or r.get("detail", "") != ""]
+                results.append(
+                    {
+                        "type": "diagnostic",
+                        "id": diag.id,
+                        "display_name": diag.display_name,
+                        "visual_pattern": diag.visual_pattern,
+                        "indicates": diag.indicates,
+                        "remedies": remedies,
+                        "severity": diag.severity,
+                    }
+                )
     else:
         # No query: return all diagnostics
         results.extend(
@@ -479,13 +509,15 @@ def query_statistical_concepts(
             if node_type == "concept" and node_id not in seen:
                 seen.add(node_id)
                 concept = graph.concepts[node_id]
-                results.append({
-                    "type": "concept",
-                    "id": concept.id,
-                    "title": concept.title,
-                    "content": _extract_detail(concept.content, detail_level),
-                    "related_to": concept.related_to,
-                })
+                results.append(
+                    {
+                        "type": "concept",
+                        "id": concept.id,
+                        "title": concept.title,
+                        "content": _extract_detail(concept.content, detail_level),
+                        "related_to": concept.related_to,
+                    }
+                )
     else:
         results.extend(
             {
@@ -559,35 +591,43 @@ def query_generic(
 
         if node_type == "design_type" and node_id in graph.design_types:
             dt = graph.design_types[node_id]
-            results.append({
-                "type": "design_type",
-                "id": dt.id,
-                "display_name": dt.display_name,
-                "description": _extract_detail(dt.description, detail_level),
-            })
+            results.append(
+                {
+                    "type": "design_type",
+                    "id": dt.id,
+                    "display_name": dt.display_name,
+                    "description": _extract_detail(dt.description, detail_level),
+                }
+            )
         elif node_type == "concept" and node_id in graph.concepts:
             concept = graph.concepts[node_id]
-            results.append({
-                "type": "concept",
-                "id": concept.id,
-                "title": concept.title,
-                "content": _extract_detail(concept.content, detail_level),
-            })
+            results.append(
+                {
+                    "type": "concept",
+                    "id": concept.id,
+                    "title": concept.title,
+                    "content": _extract_detail(concept.content, detail_level),
+                }
+            )
         elif node_type == "diagnostic" and node_id in graph.diagnostics:
             diag = graph.diagnostics[node_id]
-            results.append({
-                "type": "diagnostic",
-                "id": diag.id,
-                "display_name": diag.display_name,
-                "visual_pattern": diag.visual_pattern,
-            })
+            results.append(
+                {
+                    "type": "diagnostic",
+                    "id": diag.id,
+                    "display_name": diag.display_name,
+                    "visual_pattern": diag.visual_pattern,
+                }
+            )
         elif node_type == "interpretation" and node_id in graph.interpretation_guides:
             guide = graph.interpretation_guides[node_id]
-            results.append({
-                "type": "interpretation_guide",
-                "id": guide.id,
-                "title": guide.title,
-                "content": _extract_detail(guide.content, detail_level),
-            })
+            results.append(
+                {
+                    "type": "interpretation_guide",
+                    "id": guide.id,
+                    "title": guide.title,
+                    "content": _extract_detail(guide.content, detail_level),
+                }
+            )
 
     return results
