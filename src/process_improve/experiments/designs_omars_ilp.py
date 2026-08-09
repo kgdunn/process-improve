@@ -190,11 +190,56 @@ def _model_matrix(coded: np.ndarray, model: str = "full_second_order") -> np.nda
     return np.column_stack([np.ones(coded.shape[0]), coded, second_order])
 
 
+def _min_half_runs(n_factors: int, model: str = "full_second_order") -> int:
+    r"""Smallest half-design size at which the sizing model becomes estimable.
+
+    In a foldover ``[H; -H; 0]`` every second-order term is an **even** function,
+    so the quadratic and interaction columns of ``H`` and ``-H`` are identical.
+    The even block therefore has at most ``h + 1`` distinct rows, against
+    ``1 + k(k+1)/2`` columns for the full second-order model (an intercept, ``k``
+    pure quadratics and ``k(k-1)/2`` interactions), or ``1 + k`` for
+    ``"main_quadratic"``.  The main effects live in the odd block and contribute
+    ``k`` more, so
+
+    .. math::
+
+        \mathrm{rank}(X) = k + \min(h + 1, \text{even-block columns})
+
+    and the model is estimable only once ``h`` reaches the even-block column
+    count minus one.
+    """
+    if model == "main_quadratic":
+        return n_factors
+    return n_factors * (n_factors + 1) // 2
+
+
+def _min_runs(n_factors: int, model: str = "full_second_order") -> int:
+    """Smallest (odd) run count at which the sizing model is estimable.
+
+    ``k**2 + k + 1`` for the full second-order model, ``2k + 1`` for
+    ``"main_quadratic"``.  See :func:`_min_half_runs` for the derivation.
+    """
+    return 2 * _min_half_runs(n_factors, model) + 1
+
+
+def _model_rank(coded: np.ndarray, model: str = "full_second_order") -> int:
+    """Rank of the sizing-model matrix of a coded design."""
+    return int(np.linalg.matrix_rank(_model_matrix(coded, model)))
+
+
 def _d_efficiency(coded: np.ndarray, model: str = "full_second_order") -> float:
-    """D-efficiency of the sizing model: ``100 * |X'X|^(1/p) / n``."""
+    """D-efficiency of the sizing model: ``100 * |X'X|^(1/p) / n``.
+
+    Returns ``0.0`` for a rank-deficient model matrix.  Without that guard
+    ``slogdet`` reports a finite log-determinant for an exactly singular
+    integer Gram matrix (floating-point round-off away from zero), which would
+    make an unusable design look merely mediocre.  This mirrors the rank guard
+    in :func:`~process_improve.experiments.evaluate._compute_d_efficiency` and
+    in :func:`_a_optimality` below.
+    """
     model_matrix = _model_matrix(coded, model)
     n_runs, n_params = model_matrix.shape
-    if n_runs < n_params:
+    if n_runs < n_params or np.linalg.matrix_rank(model_matrix) < n_params:
         return 0.0
     sign, log_det = np.linalg.slogdet(model_matrix.T @ model_matrix)
     if sign <= 0:
@@ -345,17 +390,30 @@ def _half_bounds(
     n_runs_range: tuple[int, int] | None,
     n_params: int,
     half_pool_size: int,
+    min_half: int,
 ) -> tuple[int, int]:
-    """Inclusive ``(min, max)`` half-run window so the design beats ``n_params``."""
+    """Inclusive ``(min, max)`` half-run window for a usable design.
+
+    Two floors apply, and the window starts at whichever binds harder:
+
+    * **Estimability**: ``min_half`` half-runs, from :func:`_min_half_runs`.
+      Below this the sizing model is rank-deficient and cannot be fitted at
+      all, whatever the parameter count says.
+    * **Error degrees of freedom**: ``n_runs > n_params``, so at least
+      ``n_params // 2 + 1`` half-runs.
+
+    For the full second-order model estimability is the binding floor; for
+    ``"main_quadratic"`` the error-df floor usually is.
+    """
+    floor_half = max(1, min_half, n_params // 2 + 1)
     if n_runs_range is not None:
-        low, high = n_runs_range
-        half_low = max(1, math.ceil((max(low, n_params + 1) - 1) / 2))
-        half_high = max(half_low, (high - 1) // 2)
+        low, _high = n_runs_range
+        half_low = max(floor_half, math.ceil((low - 1) / 2))
+        half_high = max(half_low, (n_runs_range[1] - 1) // 2)
     else:
-        n_floor = n_params + max(2, math.ceil(0.25 * n_params))
-        half_low = max(1, math.ceil((n_floor - 1) / 2))
+        half_low = floor_half
         half_high = half_low + 6
-    return half_low, min(half_high, half_pool_size)
+    return half_low, max(half_low, min(half_high, half_pool_size))
 
 
 def _is_dominated(candidate: _Candidate, others: list[_Candidate]) -> bool:
@@ -476,6 +534,15 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         if n_runs % 2 == 0:
             msg = f"n_runs={n_runs} must be odd: a foldover OMARS design has 2*h+1 runs (a centre run plus +/-H)."
             raise ValueError(msg)
+        min_runs = _min_runs(n_factors, model)
+        if n_runs < min_runs:
+            msg = (
+                f"n_runs={n_runs} cannot estimate the {model} model for {n_factors} factors: a foldover "
+                f"design repeats its second-order terms across H and -H, so the model matrix stays "
+                f"rank-deficient below {min_runs} runs. Use n_runs >= {min_runs}, or "
+                'model="main_quadratic" to size for main effects and pure quadratics only.'
+            )
+            raise ValueError(msg)
         target_half = (n_runs - 1) // 2
 
     pool = _half_pool(n_factors)
@@ -516,7 +583,8 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
     # the window (the minimize-size solution becomes the first candidate).
     if target_half is None:
         coded, status, indices = _solve(
-            half_bounds=_half_bounds(n_runs_range, n_params, pool.shape[0]), minimize_size=True
+            half_bounds=_half_bounds(n_runs_range, n_params, pool.shape[0], _min_half_runs(n_factors, model)),
+            minimize_size=True,
         )
         if coded is not None:
             target_half = len(indices)
@@ -580,7 +648,9 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         "sizing_model": model,
         "model_params": n_params,
         "full_second_order_params": _full_second_order_params(n_factors),
-        "expected_error_df": winner.n_runs - n_params,
+        "model_rank": _model_rank(winner.coded, model),
+        "expected_error_df": winner.n_runs - _model_rank(winner.coded, model),
+        "min_runs_for_model": _min_runs(n_factors, model),
         "sparsity": _sparsity(winner.coded),
         "selection_criterion": selection_criterion,
         "satisfice": dict(satisfice) if satisfice else None,
