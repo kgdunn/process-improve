@@ -11,6 +11,12 @@ from process_improve.experiments.factor import Constraint, DesignResult, Factor,
 from process_improve.experiments.knowledge import doe_knowledge
 from process_improve.experiments.models import Model, lm, predict, summary
 from process_improve.experiments.omars import OmarsResult, analyze_omars
+from process_improve.experiments.omars_tradeoff import (
+    OmarsTradeoffResult,
+    omars_minimum_runs,
+    omars_trade_off_table,
+    omars_tradeoff,
+)
 from process_improve.experiments.optimization import optimize_responses
 from process_improve.experiments.simulations import grocery, manufacture, popcorn
 from process_improve.experiments.strategy import recommend_strategy
@@ -33,6 +39,7 @@ __all__ = [
     "Factor",
     "Model",
     "OmarsResult",
+    "OmarsTradeoffResult",
     "Response",
     "ResponseGoal",
     "TradeoffResult",
@@ -53,7 +60,10 @@ __all__ = [
     "lm",
     "main_effects_plot",
     "manufacture",
+    "omars_minimum_runs",
     "omars_properties",
+    "omars_trade_off_table",
+    "omars_tradeoff",
     "optimize_responses",
     "popcorn",
     "predict",

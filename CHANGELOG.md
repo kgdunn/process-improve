@@ -11,6 +11,29 @@ those changes.
 
 ## [Unreleased]
 
+## [1.66.0] - 2026-08-09
+
+### Added
+
+- `experiments/omars_tradeoff.py`: a trade-off table for OMARS designs, the
+  counterpart of the two-level `trade_off_table`. Resolution cannot be the
+  currency here, because an OMARS design always has its main effects orthogonal
+  to each other and to every second-order term; what a run budget actually buys
+  is *which model is estimable*. Three capability classes follow from the
+  foldover structure and are reported per cell along with the error degrees of
+  freedom left to test that model with:
+
+  - `Full` (`N >= k^2 + k + 1`): main effects, pure quadratics and all
+    two-factor interactions jointly estimable.
+  - `Quad` (`N >= 2k + 3`): main effects and pure quadratics, with error df.
+  - `Satd` (`N = 2k + 1`): estimable but exactly saturated, so no inference.
+
+  New public functions `omars_tradeoff`, `omars_trade_off_table` and
+  `omars_minimum_runs`, plus the `OmarsTradeoffResult` dataclass, all exported
+  from `process_improve.experiments`. Every number is closed-form, so the table
+  needs no integer program and no solver, and is exact rather than dependent on
+  a search budget.
+
 ## [1.65.0] - 2026-08-09
 
 ### Fixed
@@ -2929,7 +2952,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.65.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.66.0...HEAD
+[1.66.0]: https://github.com/kgdunn/process-improve/compare/v1.65.0...v1.66.0
 [1.65.0]: https://github.com/kgdunn/process-improve/compare/v1.64.0...v1.65.0
 [1.64.0]: https://github.com/kgdunn/process-improve/compare/v1.63.0...v1.64.0
 [1.63.0]: https://github.com/kgdunn/process-improve/compare/v1.62.3...v1.63.0
