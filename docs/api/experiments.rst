@@ -45,11 +45,11 @@ Designed Experiments
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: process_improve.experiments.tradeoff
+.. automodule:: process_improve.experiments.trade_off
    :members:
    :show-inheritance:
 
-.. automodule:: process_improve.experiments.omars_tradeoff
+.. automodule:: process_improve.experiments.omars_trade_off
    :members:
    :show-inheritance:
 

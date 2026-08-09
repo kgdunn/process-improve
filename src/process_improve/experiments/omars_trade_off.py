@@ -2,7 +2,7 @@
 
 r"""The OMARS trade-off: which model does a given run budget buy.
 
-The two-level trade-off table in :mod:`process_improve.experiments.tradeoff`
+The two-level trade-off table in :mod:`process_improve.experiments.trade_off`
 answers "I can afford N runs and want k factors, what do I give up?" with a
 resolution and an alias structure. That currency does not transfer to OMARS
 designs, because an OMARS design *always* has its main effects orthogonal to
@@ -48,7 +48,7 @@ correlations) does need the ILP, and lives on
 
 Also see
 --------
-process_improve.experiments.tradeoff : the two-level counterpart.
+process_improve.experiments.trade_off : the two-level counterpart.
 process_improve.experiments.designs_omars_ilp.generate_omars : build the design.
 process_improve.experiments.omars.analyze_omars : the staged analysis it feeds.
 """
@@ -95,7 +95,7 @@ DEFAULT_FACTORS: tuple[int, ...] = (3, 4, 5, 6, 7)
 
 
 @dataclass
-class OmarsTradeoffResult:
+class OmarsTradeOffTableEntry:
     """What one run budget buys for one factor count.
 
     Attributes
@@ -198,11 +198,11 @@ def omars_minimum_runs(n_factors: int, capability: str = "full") -> int:
     return 2 * k + 1
 
 
-def omars_tradeoff(n_runs: int, n_factors: int, display: bool = True) -> OmarsTradeoffResult:
+def get_omars_trade_off_table_entry(n_runs: int, n_factors: int, display: bool = True) -> OmarsTradeOffTableEntry:
     """Report which model a run budget buys, for a foldover OMARS design.
 
     The OMARS counterpart of
-    :func:`~process_improve.experiments.tradeoff.tradeoff`. Because OMARS main
+    :func:`~process_improve.experiments.trade_off.get_trade_off_table_entry`. Because OMARS main
     effects are always clear of the second-order terms, the answer is not a
     resolution: it is which model is estimable, and how much is left over to
     test it with.
@@ -219,7 +219,7 @@ def omars_tradeoff(n_runs: int, n_factors: int, display: bool = True) -> OmarsTr
 
     Returns
     -------
-    OmarsTradeoffResult
+    OmarsTradeOffTableEntry
         The capability class, the model it supports, and the error degrees of
         freedom. See the class for the full field list.
 
@@ -230,11 +230,11 @@ def omars_tradeoff(n_runs: int, n_factors: int, display: bool = True) -> OmarsTr
 
     Examples
     --------
-    >>> omars_tradeoff(21, 4, display=False).label
+    >>> get_omars_trade_off_table_entry(21, 4, display=False).label
     'Full df=6'
-    >>> omars_tradeoff(17, 4, display=False).label
+    >>> get_omars_trade_off_table_entry(17, 4, display=False).label
     'Quad df=8'
-    >>> omars_tradeoff(9, 4, display=False).label
+    >>> get_omars_trade_off_table_entry(9, 4, display=False).label
     'Satd df=0'
 
     Also see
@@ -274,7 +274,7 @@ def omars_tradeoff(n_runs: int, n_factors: int, display: bool = True) -> OmarsTr
         error_df = runs - params
 
     tag = _TAGS.get(capability, "")
-    result = OmarsTradeoffResult(
+    result = OmarsTradeOffTableEntry(
         n_runs=runs,
         n_factors=k,
         exists=capability != "none",
@@ -295,8 +295,8 @@ def omars_tradeoff(n_runs: int, n_factors: int, display: bool = True) -> OmarsTr
     return result
 
 
-def _format_result(result: OmarsTradeoffResult) -> str:
-    """Render an :class:`OmarsTradeoffResult` as the printed report."""
+def _format_result(result: OmarsTradeOffTableEntry) -> str:
+    """Render an :class:`OmarsTradeOffTableEntry` as the printed report."""
     lines = [f"OMARS: {result.n_runs} runs, {result.n_factors} factors"]
     if not result.exists:
         lines.append(f"  No design: {result.reason}")
@@ -353,10 +353,11 @@ def omars_trade_off_table(
 
     Also see
     --------
-    omars_tradeoff : the detail behind one cell.
+    get_omars_trade_off_table_entry : the detail behind one cell.
     """
     cells = {
-        k: {n: omars_tradeoff(n, k, display=False).label for n in runs} for k in (_check_factors(k) for k in factors)
+        k: {n: get_omars_trade_off_table_entry(n, k, display=False).label for n in runs}
+        for k in (_check_factors(k) for k in factors)
     }
     table = pd.DataFrame(cells, index=list(runs))
     table.index.name = "runs"

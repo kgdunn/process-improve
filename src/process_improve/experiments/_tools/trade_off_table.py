@@ -64,7 +64,7 @@ class TradeOffTableInput(BaseModel):
 def trade_off_table_tool(spec: TradeOffTableInput) -> dict[str, Any]:
     """Return the runs-against-factors trade-off table, with per-cell detail."""
     try:
-        from process_improve.experiments.tradeoff import tradeoff  # noqa: PLC0415
+        from process_improve.experiments.trade_off import get_trade_off_table_entry  # noqa: PLC0415
 
         for n_runs in spec.runs:
             if n_runs < 2 or n_runs > _MAX_RUNS or (n_runs & (n_runs - 1)) != 0:
@@ -79,7 +79,7 @@ def trade_off_table_tool(spec: TradeOffTableInput) -> dict[str, Any]:
             row: dict[str, str] = {}
             for n_factors in spec.factors:
                 try:
-                    result = tradeoff(runs=n_runs, factors=n_factors, display=False)
+                    result = get_trade_off_table_entry(n_runs=n_runs, n_factors=n_factors, display=False)
                 except ValueError as exc:
                     # No such design: too many factors for the budget. The cell
                     # is blank in the table, and the reason is kept in `cells`.

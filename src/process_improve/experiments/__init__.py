@@ -11,11 +11,11 @@ from process_improve.experiments.factor import Constraint, DesignResult, Factor,
 from process_improve.experiments.knowledge import doe_knowledge
 from process_improve.experiments.models import Model, lm, predict, summary
 from process_improve.experiments.omars import OmarsResult, analyze_omars
-from process_improve.experiments.omars_tradeoff import (
-    OmarsTradeoffResult,
+from process_improve.experiments.omars_trade_off import (
+    OmarsTradeOffTableEntry,
+    get_omars_trade_off_table_entry,
     omars_minimum_runs,
     omars_trade_off_table,
-    omars_tradeoff,
 )
 from process_improve.experiments.optimization import optimize_responses
 from process_improve.experiments.simulations import grocery, manufacture, popcorn
@@ -28,7 +28,7 @@ from process_improve.experiments.structures import (
     gather,
     supplement,
 )
-from process_improve.experiments.tradeoff import TradeoffResult, trade_off_table, tradeoff
+from process_improve.experiments.trade_off import TradeOffTableEntry, get_trade_off_table_entry, trade_off_table
 from process_improve.experiments.visualization import main_effects_plot, visualize_doe
 
 __all__ = [
@@ -39,10 +39,10 @@ __all__ = [
     "Factor",
     "Model",
     "OmarsResult",
-    "OmarsTradeoffResult",
+    "OmarsTradeOffTableEntry",
     "Response",
     "ResponseGoal",
-    "TradeoffResult",
+    "TradeOffTableEntry",
     "analyze_experiment",
     "analyze_omars",
     "augment_design",
@@ -55,6 +55,8 @@ __all__ = [
     "gather",
     "generate_design",
     "generate_omars",
+    "get_omars_trade_off_table_entry",
+    "get_trade_off_table_entry",
     "grocery",
     "is_omars",
     "lm",
@@ -63,7 +65,6 @@ __all__ = [
     "omars_minimum_runs",
     "omars_properties",
     "omars_trade_off_table",
-    "omars_tradeoff",
     "optimize_responses",
     "popcorn",
     "predict",
@@ -71,6 +72,5 @@ __all__ = [
     "summary",
     "supplement",
     "trade_off_table",
-    "tradeoff",
     "visualize_doe",
 ]
