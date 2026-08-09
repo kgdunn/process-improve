@@ -49,6 +49,10 @@ Designed Experiments
    :members:
    :show-inheritance:
 
+.. automodule:: process_improve.experiments.omars_tradeoff
+   :members:
+   :show-inheritance:
+
 .. automodule:: process_improve.experiments.simulations
    :members:
    :show-inheritance:

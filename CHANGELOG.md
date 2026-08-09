@@ -11,6 +11,72 @@ those changes.
 
 ## [Unreleased]
 
+## [1.66.0] - 2026-08-09
+
+### Added
+
+- `experiments/omars_tradeoff.py`: a trade-off table for OMARS designs, the
+  counterpart of the two-level `trade_off_table`. Resolution cannot be the
+  currency here, because an OMARS design always has its main effects orthogonal
+  to each other and to every second-order term; what a run budget actually buys
+  is *which model is estimable*. Three capability classes follow from the
+  foldover structure and are reported per cell along with the error degrees of
+  freedom left to test that model with:
+
+  - `Full` (`N >= k^2 + k + 1`): main effects, pure quadratics and all
+    two-factor interactions jointly estimable.
+  - `Quad` (`N >= 2k + 3`): main effects and pure quadratics, with error df.
+  - `Satd` (`N = 2k + 1`): estimable but exactly saturated, so no inference.
+
+  New public functions `omars_tradeoff`, `omars_trade_off_table` and
+  `omars_minimum_runs`, plus the `OmarsTradeoffResult` dataclass, all exported
+  from `process_improve.experiments`. Every number is closed-form, so the table
+  needs no integer program and no solver, and is exact rather than dependent on
+  a search budget.
+
+## [1.65.0] - 2026-08-09
+
+### Fixed
+
+- `experiments/designs_omars_ilp.py`: **`generate_omars` returned designs that
+  could not fit the model they were sized for, for every k >= 4.** A foldover
+  OMARS design is `[H; -H; 0]`, and every second-order term is an *even*
+  function, so the quadratic and interaction columns of `H` and `-H` are
+  identical. That caps the rank of the full second-order model matrix at
+  `k + min(h + 1, 1 + k(k+1)/2)`, which means the model is estimable only from
+  `N = k^2 + k + 1` runs (13, 21, 31, 43, 57 for k = 3 to 7). The run-size
+  heuristic used a 25% slack rule over the parameter count instead, giving 13,
+  19, 27, 35, 45: below the frontier from four factors up. Sizing now starts at
+  the estimability frontier, and an explicit `n_runs` below it is rejected with
+  an actionable message rather than silently producing an unusable design.
+- `experiments/designs_omars_ilp.py`: `_d_efficiency` had no rank guard, unlike
+  its neighbour `_a_optimality` and unlike
+  `evaluate._compute_d_efficiency`. `slogdet` returns a finite log-determinant
+  for an exactly singular integer Gram matrix, so a rank-deficient design
+  reported a small but plausible D-efficiency (about 3 for the nineteen-run,
+  four-factor case whose determinant is exactly zero) instead of signalling
+  that the model cannot be fitted. Rank-deficient designs now score `0.0`. The
+  two metadata fields had been contradicting each other: `a_optimality` was
+  correctly reporting `inf` alongside the fabricated `d_efficiency`.
+- `experiments/designs_omars_ilp.py`: `expected_error_df` is computed from the
+  model matrix rank rather than from the nominal parameter count, so it is
+  right even when a caller pins a run size the model cannot support.
+
+### Added
+
+- `generate_omars` metadata gains `model_rank` and `min_runs_for_model`, making
+  the estimability frontier visible to callers.
+
+### Changed
+
+- Auto-sized `generate_omars` designs are larger for four or more factors
+  (k=4: 19 -> 21 runs, k=5: 27 -> 31, k=6: 35 -> 43, k=7: 45 -> 57) because the
+  previous sizes were not estimable. D-efficiency of the resulting designs goes
+  up correspondingly: at k=4 from a fabricated 2.83 to a real 38.74, at k=5
+  from 1.03 to 30.34. Designs sized with `model="main_quadratic"` are
+  unaffected in kind and can now be smaller, since that model's frontier is the
+  DSD's `2k + 1`.
+
 ## [1.64.0] - 2026-08-08
 
 ### Added
@@ -2886,7 +2952,9 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.64.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.66.0...HEAD
+[1.66.0]: https://github.com/kgdunn/process-improve/compare/v1.65.0...v1.66.0
+[1.65.0]: https://github.com/kgdunn/process-improve/compare/v1.64.0...v1.65.0
 [1.64.0]: https://github.com/kgdunn/process-improve/compare/v1.63.0...v1.64.0
 [1.63.0]: https://github.com/kgdunn/process-improve/compare/v1.62.3...v1.63.0
 [1.62.3]: https://github.com/kgdunn/process-improve/compare/v1.62.2...v1.62.3
