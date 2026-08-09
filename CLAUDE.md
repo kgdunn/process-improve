@@ -124,6 +124,16 @@ Both PCA and PLS have `__getattr__` methods that raise `AttributeError` with hel
 - Linter: ruff (with `select = ["ALL"]` and specific ignores - see `pyproject.toml`)
 - Formatter: ruff-format (do not add black, flake8, or isort config; ruff covers all of them)
 - Type checking: mypy (CI gate covers `src/process_improve`)
+- The lint gate is **two** commands, not one: `ruff check .` **and**
+  `ruff format --check .`. Run both before pushing. They fail independently, so a
+  clean `ruff check .` says nothing about formatting.
+- Keep the `ruff-pre-commit` `rev` in `.pre-commit-config.yaml` in step with the
+  `ruff` pin in `pyproject.toml`. Pre-commit and CI must run the same formatter
+  version, or code formatted locally can still be rejected by the CI gate.
+- Reformatting can strand a trailing `# noqa` on a line the reflow splits, so the
+  directive no longer sits on the code it suppresses. Ruff then reports both the
+  unsuppressed rule and the now-unused directive (`RUF100`): move the directive to
+  the line the rule is reported against rather than deleting it.
 
 ### Prose style
 - Do not use em-dashes (Unicode U+2014) in docs, docstrings, comments, commit
@@ -165,7 +175,10 @@ uv run pytest -k "pls" --no-cov
 
 Workflows in `.github/workflows/`:
 
-- **run-tests.yml**: `lint` (`uv run ruff check .`), `typecheck` (blocking
+- **run-tests.yml**: `lint` (`uv run ruff check .` and `uv run ruff format
+  --check .`; the formatter is a separate gate, added because only pre-commit
+  ran it and pre-commit reformats just the staged files, so untouched files
+  drifted indefinitely), `typecheck` (blocking
   `uv run mypy src/process_improve`), `test` (pytest matrix over Python
   3.10-3.13 and ubuntu/windows/macos), and `test-under-dash-O` (runs the suite
   under `python -O` to catch load-bearing asserts). All jobs install with
