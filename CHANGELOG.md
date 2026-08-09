@@ -33,6 +33,26 @@ those changes.
 
   No deprecation shims are provided; the old names are gone.
 
+- **Breaking:** scalar count parameters in the experiments package now take the
+  `n_` prefix, so a parameter's type is visible at the call site: `center_points`,
+  `replicates` and `blocks` become `n_center_points`, `n_replicates` and `n_blocks`.
+  This affects `generate_design`, `build_design_result`, `replicate_design`,
+  `dispatch_ccd`, `dispatch_box_behnken`, `allocate_budget`, `estimate_rsm_runs`
+  and `TradeOffTableEntry.n_replicates`.
+
+  `DesignResult.blocks` is **unchanged**: it holds the per-run block assignments as
+  a `list[int]`, and sequences keep the plural bare noun. Renaming the count also
+  removes a collision, since `build_design_result` previously took a `blocks` count
+  and returned a `blocks` list.
+
+  `blocks` in the multivariate package (multiblock PCA/PLS) is a sequence of data
+  blocks and is untouched.
+
+- **Breaking (MCP):** the `generate_design` tool schema renames its `center_points`
+  and `replicates` keys to `n_center_points` and `n_replicates`. The per-key DoS
+  caps in `tool_safety.py` were re-keyed to match; without that the caps would have
+  stopped applying silently.
+
 - `trade_off_table` gained a `display` argument, so all four trade-off
   functions now take one. It defaults to `True`, matching the others, which
   means a bare `trade_off_table()` call now prints the table as well as

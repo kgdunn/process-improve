@@ -156,7 +156,7 @@ class TestToolBoundaryNoSideEffect:
         assert not sentinel.exists(), "formula was evaluated - RCE guard failed"
 
     def test_evaluate_design_tool_blocks_rce(self, tmp_path) -> None:
-        """ENG-04 pydantic Literal blocks the attack before patsy ever sees it.
+        """ENG-04 pydantic Literal n_blocks the attack before patsy ever sees it.
 
         Either path (ToolInputInvalidError or an in-band error dict) satisfies
         the security invariant: the malicious string must never execute.

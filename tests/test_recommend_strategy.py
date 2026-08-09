@@ -255,11 +255,11 @@ class TestRunEstimation:
         assert runs == 8  # 2^3
 
     def test_bbd_runs_3_factors(self):
-        runs = estimate_rsm_runs(3, "box_behnken", center_points=3)
+        runs = estimate_rsm_runs(3, "box_behnken", n_center_points=3)
         assert runs == 15  # 12 + 3
 
     def test_ccd_runs_3_factors(self):
-        runs = estimate_rsm_runs(3, "ccd", center_points=3)
+        runs = estimate_rsm_runs(3, "ccd", n_center_points=3)
         assert runs == 17  # 8 + 6 + 3
 
     def test_confirmation_minimum(self):

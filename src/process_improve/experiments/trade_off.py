@@ -83,7 +83,7 @@ class TradeOffTableEntry:
     aliases : list[str]
         Alias chains for the main effects and the two-factor interactions,
         e.g. ``"A = BD + CE + ..."``. Empty for a full factorial.
-    replicates : int
+    n_replicates : int
         How many times the full factorial fits into the run budget. ``1`` in
         the usual case; ``2`` means the budget pays for the full factorial
         twice over, and so on.
@@ -100,7 +100,7 @@ class TradeOffTableEntry:
     generators: list[str] = field(default_factory=list)
     defining_relation: list[str] = field(default_factory=list)
     aliases: list[str] = field(default_factory=list)
-    replicates: int = 1
+    n_replicates: int = 1
     label: str = ""
 
 
@@ -310,15 +310,15 @@ def get_trade_off_table_entry(n_runs: int = 8, n_factors: int = 7, display: bool
 
     if n_factors <= n_base:
         # The budget covers the full factorial, possibly several times over.
-        replicates = 2 ** (n_base - n_factors)
-        how_often = {1: "full", 2: "twice", 4: "4 times", 8: "8 times"}.get(replicates, f"{replicates} times")
+        n_replicates = 2 ** (n_base - n_factors)
+        how_often = {1: "full", 2: "twice", 4: "4 times", 8: "8 times"}.get(n_replicates, f"{n_replicates} times")
         result = TradeOffTableEntry(
             n_runs=n_runs,
             n_factors=n_factors,
             n_generators=0,
             resolution=None,
             roman=None,
-            replicates=replicates,
+            n_replicates=n_replicates,
             label=f"2^{n_factors} ({how_often})",
         )
     else:

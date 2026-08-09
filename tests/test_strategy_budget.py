@@ -46,15 +46,15 @@ class TestEstimateRsmRuns:
 
     def test_ccd(self) -> None:
         # factorial(3)=8 + axial(2*3)=6 + center(3) = 17
-        assert estimate_rsm_runs(3, "ccd", center_points=3) == 17
+        assert estimate_rsm_runs(3, "ccd", n_center_points=3) == 17
 
     def test_box_behnken_known_factor_count(self) -> None:
         # BBD(4)=24 + center(3)
-        assert estimate_rsm_runs(4, "box_behnken", center_points=3) == 27
+        assert estimate_rsm_runs(4, "box_behnken", n_center_points=3) == 27
 
     def test_box_behnken_unknown_factor_count_falls_back_to_ccd(self) -> None:
         # n_factors=2 is not a Box-Behnken key -> CCD-style fallback estimate
-        result = estimate_rsm_runs(2, "box_behnken", center_points=3)
+        result = estimate_rsm_runs(2, "box_behnken", n_center_points=3)
         # factorial(2)=4 + axial(2*2)=4 + center(3) = 11
         assert result == 11
 
@@ -65,7 +65,7 @@ class TestEstimateRsmRuns:
         assert result == 15
 
     def test_unknown_design_falls_back_to_ccd(self) -> None:
-        result = estimate_rsm_runs(3, "mystery_design", center_points=3)
+        result = estimate_rsm_runs(3, "mystery_design", n_center_points=3)
         assert result == 17
 
 

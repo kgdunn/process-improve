@@ -121,12 +121,12 @@ class TestTradeOffTableEntry:
         assert result.generators == []
         assert result.defining_relation == []
         assert result.aliases == []
-        assert result.replicates == 1
+        assert result.n_replicates == 1
         assert result.label == "2^4 (full)"
 
     def test_spare_budget_is_reported_as_replication(self):
         result = get_trade_off_table_entry(n_runs=32, n_factors=3, display=False)
-        assert result.replicates == 4
+        assert result.n_replicates == 4
         assert result.label == "2^3 (4 times)"
 
     def test_display_prints_a_report(self, capsys):

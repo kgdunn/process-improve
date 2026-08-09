@@ -183,7 +183,7 @@ def _factorial_screening_stage(spec: DOEProblemSpec, n: int) -> ExperimentalStag
         stage_number=1,
         stage_name="Screening",
         design_type=design_type,
-        design_params={"center_points": 3, "resolution": 4 if n >= 5 else None},
+        design_params={"n_center_points": 3, "resolution": 4 if n >= 5 else None},
         factors=spec.factor_names,
         estimated_runs=runs,
         purpose=f"Screen {n} factors to identify significant main effects and interactions.",
@@ -220,9 +220,9 @@ def _large_factor_screening_choice(n: int, classification: dict[str, Any], templ
 def _screening_design_params(design_type: str, n: int) -> dict[str, Any]:
     """Build the design-specific parameter dict for a large-factor screening stage."""
     if design_type == "fractional_factorial":
-        return {"resolution": 4, "center_points": 3}
+        return {"resolution": 4, "n_center_points": 3}
     if design_type == "plackett_burman":
-        return {"center_points": 0}  # PB typically without center points
+        return {"n_center_points": 0}  # PB typically without center points
     if design_type == "definitive_screening":
         return {"fake_factor": n % 2 == 0}  # DSD needs odd factor count
     return {}
@@ -312,7 +312,7 @@ def _select_rsm_design(
         return None
 
     domain_pref = template.get("rsm_preference")
-    center_points = template.get("min_center_points", 3)
+    n_center_points = template.get("min_center_points", 3)
 
     # Rule: Constraints present → D-optimal
     if classification["has_constraints"]:
@@ -322,20 +322,20 @@ def _select_rsm_design(
     # Rule: Sequential buildup from factorial base → CCD
     elif has_screening and domain_pref in ("ccd", "ccd_face_centered", None):
         design_type = "ccd_face_centered" if domain_pref == "ccd_face_centered" else "ccd"
-        runs = estimate_rsm_runs(n_rsm, design_type, center_points)
+        runs = estimate_rsm_runs(n_rsm, design_type, n_center_points)
         purpose = "CCD augments the factorial base from screening with axial + center points."
     # Rule: Fresh start → BBD (fewer runs, avoids corners)
     elif domain_pref == "box_behnken" or (not has_screening and 3 <= n_rsm <= 7):
         design_type = "box_behnken"
-        runs = estimate_rsm_runs(n_rsm, "box_behnken", center_points)
+        runs = estimate_rsm_runs(n_rsm, "box_behnken", n_center_points)
         purpose = "BBD for response surface modeling - fewer runs, avoids extreme corners."
     # Rule: Default - CCD
     else:
         design_type = "ccd"
-        runs = estimate_rsm_runs(n_rsm, "ccd", center_points)
+        runs = estimate_rsm_runs(n_rsm, "ccd", n_center_points)
         purpose = "CCD for full quadratic model with rotatability."
 
-    params: dict[str, Any] = {"center_points": center_points}
+    params: dict[str, Any] = {"n_center_points": n_center_points}
     if "ccd" in design_type:
         params["alpha"] = "face_centered" if design_type == "ccd_face_centered" else "rotatable"
 
@@ -386,7 +386,7 @@ def _build_confirmation_stage(
         factors=spec.factor_names,
         estimated_runs=n_runs,
         purpose=(
-            "Run replicates at the predicted optimum to verify the model predictions. "
+            "Run n_replicates at the predicted optimum to verify the model predictions. "
             "Compare observed vs. predicted using a confirmation test (prediction interval check)."
         ),
         success_criteria={"observed_within_prediction_interval": True},
@@ -751,7 +751,7 @@ def recommend_strategy(  # noqa: C901, PLR0913
         rsm_design=rsm_design,
         domain_weights=template.get("budget_weights"),
         min_confirmation=min_conf,
-        center_points=template.get("min_center_points", 3),
+        n_center_points=template.get("min_center_points", 3),
     )
 
     stages, budget_warnings = _apply_budget_constraints(stages, spec, budget_alloc)

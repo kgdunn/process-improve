@@ -815,7 +815,7 @@ def generate_omars(  # noqa: PLR0913
         coded_matrix=coded,
         factors=factors,
         design_type="omars",
-        center_points=center_runs - 1,
+        n_center_points=center_runs - 1,
         random_seed=random_seed,
         metadata=metadata,
     )

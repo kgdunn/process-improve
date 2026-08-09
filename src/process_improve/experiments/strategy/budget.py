@@ -95,7 +95,7 @@ def estimate_screening_runs(n_factors: int, design_type: str) -> int:  # noqa: P
     return int(math.ceil(n / 4) * 4)
 
 
-def estimate_rsm_runs(n_factors: int, design_type: str, center_points: int = 3) -> int:
+def estimate_rsm_runs(n_factors: int, design_type: str, n_center_points: int = 3) -> int:
     """Estimate the number of runs for an RSM design.
 
     Parameters
@@ -105,8 +105,8 @@ def estimate_rsm_runs(n_factors: int, design_type: str, center_points: int = 3) 
     design_type : str
         One of ``"ccd"``, ``"box_behnken"``, ``"ccd_face_centered"``,
         ``"d_optimal"``.
-    center_points : int
-        Number of center point replicates (default 3).
+    n_center_points : int
+        Number of center point n_replicates (default 3).
 
     Returns
     -------
@@ -116,15 +116,15 @@ def estimate_rsm_runs(n_factors: int, design_type: str, center_points: int = 3) 
     if design_type in ("ccd", "ccd_face_centered"):
         factorial = _CCD_FACTORIAL_RUNS.get(n_factors, 2**n_factors)
         axial = 2 * n_factors
-        return factorial + axial + center_points
+        return factorial + axial + n_center_points
 
     if design_type == "box_behnken":
         base = _BBD_RUNS.get(n_factors, 0)
         if base == 0:
             # BBD not defined for this factor count; fall back to CCD estimate
             factorial = _CCD_FACTORIAL_RUNS.get(n_factors, 2**n_factors)
-            return factorial + 2 * n_factors + center_points
-        return base + center_points
+            return factorial + 2 * n_factors + n_center_points
+        return base + n_center_points
 
     if design_type == "d_optimal":
         # Rough estimate: 1.5x the number of model terms for a quadratic model
@@ -134,7 +134,7 @@ def estimate_rsm_runs(n_factors: int, design_type: str, center_points: int = 3) 
 
     # Fallback: CCD estimate
     factorial = _CCD_FACTORIAL_RUNS.get(n_factors, 2**n_factors)
-    return factorial + 2 * n_factors + center_points
+    return factorial + 2 * n_factors + n_center_points
 
 
 def estimate_confirmation_runs(min_runs: int = 3) -> int:
@@ -167,7 +167,7 @@ def allocate_budget(  # noqa: C901, PLR0913, PLR0915
     rsm_design: str = "box_behnken",
     domain_weights: dict[str, float] | None = None,
     min_confirmation: int = 3,
-    center_points: int = 3,
+    n_center_points: int = 3,
 ) -> dict[str, Any]:
     """Allocate a total run budget across experimental stages.
 
@@ -189,7 +189,7 @@ def allocate_budget(  # noqa: C901, PLR0913, PLR0915
         Stage-to-fraction mapping from the domain template.
     min_confirmation : int
         Minimum confirmation runs (domain-dependent).
-    center_points : int
+    n_center_points : int
         Center points for RSM design.
 
     Returns
@@ -205,7 +205,7 @@ def allocate_budget(  # noqa: C901, PLR0913, PLR0915
     ideal_screening = estimate_screening_runs(n_factors, screening_design) if needs_screening else 0
     # Assume screening reduces to ~3 significant factors for RSM
     n_rsm_factors = min(n_factors, 3) if needs_screening else n_factors
-    ideal_rsm = estimate_rsm_runs(n_rsm_factors, rsm_design, center_points) if needs_rsm else 0
+    ideal_rsm = estimate_rsm_runs(n_rsm_factors, rsm_design, n_center_points) if needs_rsm else 0
     ideal_confirmation = estimate_confirmation_runs(min_confirmation)
     ideal_total = ideal_screening + ideal_rsm + ideal_confirmation
 

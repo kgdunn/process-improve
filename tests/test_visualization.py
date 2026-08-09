@@ -595,7 +595,7 @@ class TestContourPlot:
         assert layout.get("yaxis", {}).get("scaleanchor") == "x"
 
     def test_design_points_overlay(self, coefficients_2f: list, design_data_2f: list) -> None:
-        """Issue #11: experimental points overlaid with jittered replicates."""
+        """Issue #11: experimental points overlaid with jittered n_replicates."""
         plot = create_plot(
             "contour",
             analysis_results={"coefficients": coefficients_2f},

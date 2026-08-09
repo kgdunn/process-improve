@@ -27,7 +27,7 @@ def _two_factor_data() -> pd.DataFrame:
 
 
 def _two_factor_replicated() -> pd.DataFrame:
-    """2^2 factorial with 2 replicates."""
+    """2^2 factorial with 2 n_replicates."""
     return pd.DataFrame(
         {
             "A": [-1, 1, -1, 1, -1, 1, -1, 1],
@@ -281,7 +281,7 @@ class TestLackOfFit:
         assert "significant" in lof
 
     def test_lof_without_replicates_errors(self) -> None:
-        """Verify lack-of-fit returns error without replicates."""
+        """Verify lack-of-fit returns error without n_replicates."""
         df = _two_factor_data()
         result = analyze_experiment(
             df,

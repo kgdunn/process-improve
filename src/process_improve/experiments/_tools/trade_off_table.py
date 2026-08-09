@@ -105,7 +105,7 @@ def trade_off_table_tool(spec: TradeOffTableInput) -> dict[str, Any]:
                         "roman": result.roman,
                         "n_generators": result.n_generators,
                         "generators": result.generators,
-                        "replicates": result.replicates,
+                        "n_replicates": result.n_replicates,
                     }
                 )
             table[str(n_runs)] = row

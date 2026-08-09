@@ -12,7 +12,7 @@ Example
 -------
 >>> from process_improve.experiments import evaluate_design, generate_design, Factor
 >>> factors = [Factor(name="A", low=0, high=10), Factor(name="B", low=0, high=10)]
->>> result = generate_design(factors, design_type="full_factorial", center_points=0)
+>>> result = generate_design(factors, design_type="full_factorial", n_center_points=0)
 >>> metrics = evaluate_design(result, model="interactions", metric=["d_efficiency", "vif"])
 """
 
@@ -706,7 +706,7 @@ def _compute_degrees_of_freedom(ctx: _EvalContext) -> dict[str, Any]:
     df_residual = ctx.N - ctx.p
     df_total = ctx.N - 1
 
-    # Detect replicates by counting distinct factor-setting rows. Round the
+    # Detect n_replicates by counting distinct factor-setting rows. Round the
     # quantitative columns to absorb floating-point noise; categorical (label)
     # columns are compared as-is (they cannot be rounded).
     design_sub = ctx.design_df[ctx.factor_names].copy()
@@ -1170,7 +1170,7 @@ def evaluate_design(  # noqa: PLR0913
     --------
     >>> from process_improve.experiments import evaluate_design, generate_design, Factor
     >>> factors = [Factor(name="A", low=0, high=10), Factor(name="B", low=0, high=10)]
-    >>> result = generate_design(factors, design_type="full_factorial", center_points=0)
+    >>> result = generate_design(factors, design_type="full_factorial", n_center_points=0)
     >>> metrics = evaluate_design(result, model="main_effects", metric="d_efficiency")
     >>> metrics["d_efficiency"]  # doctest: +SKIP
     100.0

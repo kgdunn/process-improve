@@ -131,7 +131,7 @@ class TestDesignResult:
     def test_repr(self) -> None:
         """DesignResult repr should include type, runs, and factors."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="full_factorial", center_points=0)
+        result = generate_design(factors, design_type="full_factorial", n_center_points=0)
         r = repr(result)
         assert "full_factorial" in r
         assert "runs=4" in r
@@ -149,7 +149,7 @@ class TestFullFactorial:
     def test_2_factors(self) -> None:
         """2-factor full factorial should produce 4 runs."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="full_factorial", center_points=0)
+        result = generate_design(factors, design_type="full_factorial", n_center_points=0)
         assert result.n_runs == 4
         assert result.n_factors == 2
         assert result.design_type == "full_factorial"
@@ -158,19 +158,19 @@ class TestFullFactorial:
     def test_3_factors(self) -> None:
         """3-factor full factorial should produce 8 runs."""
         factors = _continuous_factors(3, "ABC")
-        result = generate_design(factors, design_type="full_factorial", center_points=0)
+        result = generate_design(factors, design_type="full_factorial", n_center_points=0)
         assert result.n_runs == 8
 
     def test_with_center_points(self) -> None:
         """Full factorial with center points should add extra runs."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="full_factorial", center_points=3)
+        result = generate_design(factors, design_type="full_factorial", n_center_points=3)
         assert result.n_runs == 7  # 4 factorial + 3 center
 
     def test_coded_values(self) -> None:
         """Coded design values should be -1 or +1."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="full_factorial", center_points=0)
+        result = generate_design(factors, design_type="full_factorial", n_center_points=0)
         for col in result.factor_names:
             vals = result.design[col].unique()
             assert set(vals) <= {-1.0, 1.0}
@@ -178,7 +178,7 @@ class TestFullFactorial:
     def test_actual_values(self) -> None:
         """Actual design values should match factor low/high."""
         factors = [Factor(name="T", low=100, high=200), Factor(name="P", low=1, high=5)]
-        result = generate_design(factors, design_type="full_factorial", center_points=0)
+        result = generate_design(factors, design_type="full_factorial", n_center_points=0)
         t_vals = set(result.design_actual["T"].unique())
         p_vals = set(result.design_actual["P"].unique())
         assert t_vals == {100.0, 200.0}
@@ -187,8 +187,8 @@ class TestFullFactorial:
     def test_reproducible_randomization(self) -> None:
         """Same seed should produce the same run order."""
         factors = _continuous_factors(3, "ABC")
-        r1 = generate_design(factors, design_type="full_factorial", random_seed=123, center_points=0)
-        r2 = generate_design(factors, design_type="full_factorial", random_seed=123, center_points=0)
+        r1 = generate_design(factors, design_type="full_factorial", random_seed=123, n_center_points=0)
+        r2 = generate_design(factors, design_type="full_factorial", random_seed=123, n_center_points=0)
         assert r1.run_order == r2.run_order
         # run_order should be a permutation
         assert sorted(r1.run_order) == list(range(1, r1.n_runs + 1))
@@ -196,8 +196,8 @@ class TestFullFactorial:
     def test_different_seeds_different_order(self) -> None:
         """Different seeds should produce different run orders."""
         factors = _continuous_factors(4)  # 16 runs to reduce chance of collision
-        r1 = generate_design(factors, design_type="full_factorial", random_seed=1, center_points=0)
-        r2 = generate_design(factors, design_type="full_factorial", random_seed=999, center_points=0)
+        r1 = generate_design(factors, design_type="full_factorial", random_seed=1, n_center_points=0)
+        r2 = generate_design(factors, design_type="full_factorial", random_seed=999, n_center_points=0)
         # run_order should be a permutation of original rows (1-based)
         assert sorted(r1.run_order) == list(range(1, r1.n_runs + 1))
         assert sorted(r2.run_order) == list(range(1, r2.n_runs + 1))
@@ -207,13 +207,13 @@ class TestFullFactorial:
     def test_replication(self) -> None:
         """Replication should double the number of runs."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="full_factorial", center_points=0, replicates=2)
+        result = generate_design(factors, design_type="full_factorial", n_center_points=0, n_replicates=2)
         assert result.n_runs == 8  # 4 * 2
 
     def test_blocking(self) -> None:
         """Blocking should add a Block column."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="full_factorial", center_points=0, blocks=2)
+        result = generate_design(factors, design_type="full_factorial", n_center_points=0, n_blocks=2)
         assert result.blocks is not None
         assert set(result.blocks) == {1, 2}
         assert "Block" in result.design.columns
@@ -230,14 +230,14 @@ class TestFractionalFactorial:
     def test_5_factors_res_3(self) -> None:
         """5-factor resolution III fractional factorial should have 8 runs."""
         factors = _continuous_factors(5, "ABCDE")
-        result = generate_design(factors, design_type="fractional_factorial", resolution=3, center_points=0)
+        result = generate_design(factors, design_type="fractional_factorial", resolution=3, n_center_points=0)
         assert result.n_runs == 8  # 2^(5-2)
         assert result.n_factors == 5
 
     def test_coded_values(self) -> None:
         """Fractional factorial coded values should be -1 or +1."""
         factors = _continuous_factors(5, "ABCDE")
-        result = generate_design(factors, design_type="fractional_factorial", resolution=3, center_points=0)
+        result = generate_design(factors, design_type="fractional_factorial", resolution=3, n_center_points=0)
         for col in result.factor_names:
             vals = result.design[col].unique()
             assert set(vals) <= {-1.0, 1.0}
@@ -249,7 +249,7 @@ class TestFractionalFactorial:
             factors,
             design_type="fractional_factorial",
             generators=["D=ABC"],
-            center_points=0,
+            n_center_points=0,
         )
         assert result.n_runs == 8  # 2^3 = 8 (since D=ABC is a 2^(4-1))
         assert result.generators == ["D=ABC"]
@@ -266,20 +266,20 @@ class TestPlackettBurman:
     def test_7_factors(self) -> None:
         """7-factor PB should produce 8 runs."""
         factors = _continuous_factors(7)
-        result = generate_design(factors, design_type="plackett_burman", center_points=0)
+        result = generate_design(factors, design_type="plackett_burman", n_center_points=0)
         assert result.n_runs == 8
         assert result.n_factors == 7
 
     def test_11_factors(self) -> None:
         """11-factor PB should produce 12 runs."""
         factors = _continuous_factors(11)
-        result = generate_design(factors, design_type="plackett_burman", center_points=0)
+        result = generate_design(factors, design_type="plackett_burman", n_center_points=0)
         assert result.n_runs == 12
 
     def test_coded_values(self) -> None:
         """PB coded values should be -1 or +1."""
         factors = _continuous_factors(7)
-        result = generate_design(factors, design_type="plackett_burman", center_points=0)
+        result = generate_design(factors, design_type="plackett_burman", n_center_points=0)
         for col in result.factor_names:
             vals = result.design[col].unique()
             assert set(vals) <= {-1.0, 1.0}
@@ -296,21 +296,21 @@ class TestBoxBehnken:
     def test_3_factors(self) -> None:
         """3-factor BB should produce 15 runs (with 3 center points)."""
         factors = _continuous_factors(3, "ABC")
-        result = generate_design(factors, design_type="box_behnken", center_points=3)
+        result = generate_design(factors, design_type="box_behnken", n_center_points=3)
         assert result.n_runs == 15
         assert result.n_factors == 3
 
     def test_4_factors(self) -> None:
         """4-factor BB should produce 27 runs (with 3 center points)."""
         factors = _continuous_factors(4)
-        result = generate_design(factors, design_type="box_behnken", center_points=3)
+        result = generate_design(factors, design_type="box_behnken", n_center_points=3)
         assert result.n_factors == 4
         assert result.n_runs == 27
 
     def test_values_in_range(self) -> None:
         """BB coded values should be within [-1, +1]."""
         factors = _continuous_factors(3, "ABC")
-        result = generate_design(factors, design_type="box_behnken", center_points=3)
+        result = generate_design(factors, design_type="box_behnken", n_center_points=3)
         for col in result.factor_names:
             vals = result.design[col].values
             assert np.all(np.abs(vals) <= 1.0 + 1e-10)
@@ -341,7 +341,7 @@ class TestCCD:
     def test_3_factors(self) -> None:
         """3-factor CCD should produce more than 14 runs."""
         factors = _continuous_factors(3, "ABC")
-        result = generate_design(factors, design_type="ccd", center_points=3)
+        result = generate_design(factors, design_type="ccd", n_center_points=3)
         assert result.n_factors == 3
         assert result.n_runs > 14
 
@@ -379,7 +379,9 @@ class TestCCD:
     def test_fractional_cube_5_factors(self) -> None:
         """5-factor fractional CCD: 16-run cube + 10 axial + 6 centre = 32 runs."""
         factors = _continuous_factors(5, "ABCDE")
-        result = generate_design(factors, design_type="ccd", cube="fractional", alpha="face_centered", center_points=6)
+        result = generate_design(
+            factors, design_type="ccd", cube="fractional", alpha="face_centered", n_center_points=6
+        )
         assert result.n_runs == 32
         assert result.resolution is not None
         assert result.resolution >= 5
@@ -389,7 +391,9 @@ class TestCCD:
     def test_fractional_cube_6_factors(self) -> None:
         """6-factor fractional CCD: 2^(6-1)=32-run cube + 12 axial + centre."""
         factors = _continuous_factors(6, "ABCDEF")
-        result = generate_design(factors, design_type="ccd", cube="fractional", alpha="face_centered", center_points=6)
+        result = generate_design(
+            factors, design_type="ccd", cube="fractional", alpha="face_centered", n_center_points=6
+        )
         assert result.n_runs == 32 + 12 + 6
         assert result.resolution is not None
         assert result.resolution >= 5
@@ -397,7 +401,9 @@ class TestCCD:
     def test_fractional_cube_face_centered_in_unit_cube(self) -> None:
         """A face-centered fractional CCD keeps every run inside the coded [-1, 1] cube."""
         factors = _continuous_factors(5, "ABCDE")
-        result = generate_design(factors, design_type="ccd", cube="fractional", alpha="face_centered", center_points=6)
+        result = generate_design(
+            factors, design_type="ccd", cube="fractional", alpha="face_centered", n_center_points=6
+        )
         max_abs = max(result.design[col].abs().max() for col in result.factor_names)
         assert max_abs <= 1.0
 
@@ -410,7 +416,7 @@ class TestCCD:
             cube="fractional",
             generators=["E=ABCD"],
             alpha="face_centered",
-            center_points=6,
+            n_center_points=6,
         )
         assert result.n_runs == 32
         assert result.generators == ["E=ABCD"]
@@ -418,7 +424,7 @@ class TestCCD:
     def test_fractional_cube_rotatable_alpha(self) -> None:
         """A rotatable fractional CCD uses alpha = (cube runs) ** 0.25."""
         factors = _continuous_factors(5, "ABCDE")
-        result = generate_design(factors, design_type="ccd", cube="fractional", alpha="rotatable", center_points=6)
+        result = generate_design(factors, design_type="ccd", cube="fractional", alpha="rotatable", n_center_points=6)
         assert result.alpha == pytest.approx(16**0.25)  # 16-run cube -> alpha = 2.0
 
     def test_fractional_cube_rejects_low_resolution(self) -> None:
@@ -430,20 +436,20 @@ class TestCCD:
     def test_full_cube_default_unchanged(self) -> None:
         """The default full cube is unchanged: 32 cube + 10 axial + 6 centre = 48 runs."""
         factors = _continuous_factors(5, "ABCDE")
-        result = generate_design(factors, design_type="ccd", center_points=6)
+        result = generate_design(factors, design_type="ccd", n_center_points=6)
         assert result.n_runs == 48
 
     def test_fractional_cube_numeric_alpha(self) -> None:
         """A numeric alpha is used directly as the axial distance of a fractional CCD."""
         factors = _continuous_factors(5, "ABCDE")
-        result = generate_design(factors, design_type="ccd", cube="fractional", alpha=1.75, center_points=6)
+        result = generate_design(factors, design_type="ccd", cube="fractional", alpha=1.75, n_center_points=6)
         assert result.alpha == pytest.approx(1.75)
 
     def test_fractional_cube_orthogonal_alpha(self) -> None:
         """An orthogonal fractional CCD computes a finite axial distance (string and default)."""
         factors = _continuous_factors(5, "ABCDE")
-        explicit = generate_design(factors, design_type="ccd", cube="fractional", alpha="orthogonal", center_points=6)
-        default = generate_design(factors, design_type="ccd", cube="fractional", center_points=6)
+        explicit = generate_design(factors, design_type="ccd", cube="fractional", alpha="orthogonal", n_center_points=6)
+        default = generate_design(factors, design_type="ccd", cube="fractional", n_center_points=6)
         assert explicit.alpha is not None
         assert explicit.alpha > 0
         # alpha=None falls through to the same orthogonal default.
@@ -470,7 +476,7 @@ class TestCCD:
             cube="fractional",
             resolution=5,
             alpha="face_centered",
-            center_points=6,
+            n_center_points=6,
         )
         # 2^(6-1)=32-run cube + 12 axial + 6 centre.
         assert result.n_runs == 32 + 12 + 6
@@ -494,19 +500,19 @@ class TestDSD:
     def test_3_factors(self) -> None:
         """DSD for k=3 (odd) should produce 2k+3 = 9 runs (Jones-Nachtsheim)."""
         factors = _continuous_factors(3, "ABC")
-        result = generate_design(factors, design_type="dsd", center_points=0)
+        result = generate_design(factors, design_type="dsd", n_center_points=0)
         assert result.n_runs == 9
 
     def test_4_factors(self) -> None:
         """DSD for k=4 (even) should produce 2k+1 = 9 runs (Jones-Nachtsheim)."""
         factors = _continuous_factors(4)
-        result = generate_design(factors, design_type="dsd", center_points=0)
+        result = generate_design(factors, design_type="dsd", n_center_points=0)
         assert result.n_runs == 9
 
     def test_main_effects_orthogonal(self) -> None:
         """Paley-constructed DSD should have mutually orthogonal main effects."""
         factors = _continuous_factors(6)
-        result = generate_design(factors, design_type="dsd", center_points=0)
+        result = generate_design(factors, design_type="dsd", n_center_points=0)
         x = result.design[result.factor_names].values.astype(float)
         gram = x.T @ x
         off_diag = gram - np.diag(np.diag(gram))
@@ -523,7 +529,7 @@ class TestDSD:
     def test_values_in_range(self) -> None:
         """DSD coded values should be within [-1, +1]."""
         factors = _continuous_factors(5)
-        result = generate_design(factors, design_type="dsd", center_points=0)
+        result = generate_design(factors, design_type="dsd", n_center_points=0)
         for col in result.factor_names:
             vals = result.design[col].values
             assert np.all(np.abs(vals) <= 1.0 + 1e-10)
@@ -540,28 +546,28 @@ class TestTaguchi:
     def test_three_factors_picks_l4(self) -> None:
         """Three 2-level factors should select the L4 orthogonal array."""
         factors = _continuous_factors(3, "ABC")
-        result = generate_design(factors, design_type="taguchi", center_points=0)
+        result = generate_design(factors, design_type="taguchi", n_center_points=0)
         assert result.n_runs == 4
         assert result.metadata["orthogonal_array"] == "L4(2^3)"
 
     def test_seven_factors_picks_l8(self) -> None:
         """Seven 2-level factors should select the L8 orthogonal array."""
         factors = _continuous_factors(7)
-        result = generate_design(factors, design_type="taguchi", center_points=0)
+        result = generate_design(factors, design_type="taguchi", n_center_points=0)
         assert result.n_runs == 8
         assert result.metadata["orthogonal_array"] == "L8(2^7)"
 
     def test_coded_values_are_plus_minus_one(self) -> None:
         """All 2-level Taguchi entries must be in {-1, +1}."""
         factors = _continuous_factors(3, "ABC")
-        result = generate_design(factors, design_type="taguchi", center_points=0)
+        result = generate_design(factors, design_type="taguchi", n_center_points=0)
         values = result.design[result.factor_names].values
         assert set(np.unique(values).tolist()) <= {-1.0, 1.0}
 
     def test_main_effects_orthogonal(self) -> None:
         """Taguchi OA columns must be mutually orthogonal."""
         factors = _continuous_factors(7)
-        result = generate_design(factors, design_type="taguchi", center_points=0)
+        result = generate_design(factors, design_type="taguchi", n_center_points=0)
         x = result.design[result.factor_names].values.astype(float)
         gram = x.T @ x
         off_diag = gram - np.diag(np.diag(gram))
@@ -579,7 +585,7 @@ class TestDOptimal:
     def test_basic(self) -> None:
         """D-optimal should produce a non-empty design."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="d_optimal", budget=8, center_points=0)
+        result = generate_design(factors, design_type="d_optimal", budget=8, n_center_points=0)
         assert result.n_runs >= 1
         assert result.n_factors == 2
         assert result.design_type == "d_optimal"
@@ -587,7 +593,7 @@ class TestDOptimal:
     def test_default_budget(self) -> None:
         """D-optimal with default budget should produce a non-empty design."""
         factors = _continuous_factors(3, "ABC")
-        result = generate_design(factors, design_type="d_optimal", center_points=0)
+        result = generate_design(factors, design_type="d_optimal", n_center_points=0)
         assert result.n_runs >= 1
         assert result.n_factors == 3
 
@@ -595,14 +601,14 @@ class TestDOptimal:
     def test_pyoptex_backend(self) -> None:
         """D-optimal via pyoptex should report the backend in metadata."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="d_optimal", budget=8, center_points=0)
+        result = generate_design(factors, design_type="d_optimal", budget=8, n_center_points=0)
         assert result.metadata.get("backend") == "pyoptex"
         assert result.metadata.get("metric_value") is not None
 
     def test_coded_values_in_range(self) -> None:
         """D-optimal coded values should be within [-1, +1]."""
         factors = _continuous_factors(3, "ABC")
-        result = generate_design(factors, design_type="d_optimal", budget=10, center_points=0)
+        result = generate_design(factors, design_type="d_optimal", budget=10, n_center_points=0)
         for col in result.factor_names:
             vals = result.design[col].values
             assert np.all(np.abs(vals) <= 1.0 + 1e-10)
@@ -620,7 +626,7 @@ class TestIOptimal:
     def test_basic(self) -> None:
         """I-optimal should produce the requested number of runs."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="i_optimal", budget=8, center_points=0)
+        result = generate_design(factors, design_type="i_optimal", budget=8, n_center_points=0)
         assert result.n_runs == 8
         assert result.n_factors == 2
         assert result.metadata.get("backend") == "pyoptex"
@@ -629,7 +635,7 @@ class TestIOptimal:
     def test_3_factors(self) -> None:
         """I-optimal with 3 factors should work."""
         factors = _continuous_factors(3, "ABC")
-        result = generate_design(factors, design_type="i_optimal", budget=10, center_points=0)
+        result = generate_design(factors, design_type="i_optimal", budget=10, n_center_points=0)
         assert result.n_runs == 10
         assert result.n_factors == 3
 
@@ -646,7 +652,7 @@ class TestAOptimal:
     def test_basic(self) -> None:
         """A-optimal should produce the requested number of runs."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="a_optimal", budget=8, center_points=0)
+        result = generate_design(factors, design_type="a_optimal", budget=8, n_center_points=0)
         assert result.n_runs == 8
         assert result.n_factors == 2
         assert result.metadata.get("backend") == "pyoptex"
@@ -655,7 +661,7 @@ class TestAOptimal:
     def test_3_factors(self) -> None:
         """A-optimal with 3 factors should work."""
         factors = _continuous_factors(3, "ABC")
-        result = generate_design(factors, design_type="a_optimal", budget=10, center_points=0)
+        result = generate_design(factors, design_type="a_optimal", budget=10, n_center_points=0)
         assert result.n_runs == 10
 
 
@@ -676,7 +682,7 @@ class TestSplitPlot:
             design_type="d_optimal",
             budget=12,
             hard_to_change=["A"],
-            center_points=0,
+            n_center_points=0,
         )
         assert result.n_runs == 12
         assert result.metadata.get("hard_to_change") == ["A"]
@@ -699,7 +705,7 @@ class TestSplitPlot:
             design_type="d_optimal",
             budget=8,
             hard_to_change=["A"],
-            center_points=0,
+            n_center_points=0,
         )
         assert result.metadata.get("hard_to_change") == ["A"]
         assert result.metadata.get("backend") == "pyoptex"
@@ -842,7 +848,7 @@ class TestErrorHandling:
     def test_i_optimal_works_with_pyoptex(self) -> None:
         """I-optimal should work when pyoptex is available."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="i_optimal", budget=6, center_points=0)
+        result = generate_design(factors, design_type="i_optimal", budget=6, n_center_points=0)
         assert result.n_runs == 6
 
 
@@ -860,7 +866,7 @@ class TestIntegration:
         from process_improve.experiments.structures import c, gather
 
         factors = [Factor(name="A", low=0, high=10), Factor(name="B", low=0, high=10)]
-        result = generate_design(factors, design_type="full_factorial", center_points=0)
+        result = generate_design(factors, design_type="full_factorial", n_center_points=0)
 
         # Add a fake response: y = 10 + 5*A + 3*B
         design = result.design.copy()
@@ -881,7 +887,7 @@ class TestIntegration:
     def test_ccd_has_axial_and_center(self) -> None:
         """CCD should contain cube, axial, and center points."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="ccd", alpha="rotatable", center_points=4)
+        result = generate_design(factors, design_type="ccd", alpha="rotatable", n_center_points=4)
 
         design = result.design
         # Should have points at 0,0 (center)
@@ -913,7 +919,7 @@ class TestToolSpec:
                     {"name": "P", "low": 1, "high": 5, "units": "bar"},
                 ],
                 "design_type": "full_factorial",
-                "center_points": 0,
+                "n_center_points": 0,
             },
         )
         assert "error" not in result
