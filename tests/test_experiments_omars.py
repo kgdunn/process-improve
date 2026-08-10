@@ -64,6 +64,40 @@ class TestOMARSProperties:
         assert props["is_omars"] is False
         assert is_omars(ff) is False
 
+    def test_factor_never_leaving_the_middle_is_not_omars(self) -> None:
+        """A factor pinned at the centre has a constant quadratic, so it is not OMARS.
+
+        The mirror of :meth:`test_full_factorial_is_not_omars`: a two-level factor
+        gives the constant quadratic ``1``, and a factor the design never varies
+        gives the constant quadratic ``0``.  Neither is estimable.
+        """
+        # x3 sits at the middle level in every run, so its main effect and its
+        # quadratic are both identically zero.
+        pinned = np.array(
+            [
+                [1, 1, 0],
+                [-1, 1, 0],
+                [1, -1, 0],
+                [-1, -1, 0],
+                [0, 0, 0],
+            ],
+            dtype=float,
+        )
+        props = omars_properties(pinned)
+        assert props["quadratics_estimable"] is False
+        assert props["is_omars"] is False
+        assert is_omars(pinned) is False
+
+        # The failure it stands for: the main-and-quadratic model is not estimable,
+        # even though every other OMARS property is satisfied.
+        n_runs = pinned.shape[0]
+        model_matrix = np.column_stack(
+            [np.ones(n_runs), *pinned.T, *(pinned**2).T],
+        )
+        assert np.linalg.matrix_rank(model_matrix) < model_matrix.shape[1]
+        assert props["is_balanced"] is True
+        assert props["main_effects_orthogonal"] is True
+
     def test_main_effect_aliased_with_interaction_fails(self) -> None:
         """A design whose main effect correlates with an interaction is not OMARS."""
         # x3 deliberately equals x1*x2 on the non-zero rows -> ME3 aliased with x1:x2.

@@ -157,10 +157,13 @@ def omars_properties(matrix: np.ndarray, *, tol: float = _DEFAULT_TOL) -> dict:
     is_three_level = bool(np.all(np.abs(matrix - nearest) <= tol) and np.all(np.isin(nearest, (-1.0, 0.0, 1.0))))
 
     # OMARS factors are genuinely three-level: each must take the middle (0)
-    # level at least once, otherwise its pure quadratic is a constant column
-    # and cannot be estimated (as in a two-level factorial).
+    # level at least once and an outer level at least once.  A pure quadratic is
+    # a constant column, and so not estimable, in either degenerate case: the
+    # factor never sits at the middle (x^2 == 1, as in a two-level factorial) or
+    # it never leaves it (x^2 == 0, a factor the design never actually varies).
     uses_middle_level = np.any(np.abs(matrix) <= tol, axis=0)
-    quadratics_estimable = bool(np.all(uses_middle_level))
+    uses_outer_level = np.any(np.abs(matrix) > tol, axis=0)
+    quadratics_estimable = bool(np.all(uses_middle_level & uses_outer_level))
 
     column_sums = np.abs(matrix.sum(axis=0))
     is_balanced = bool(np.all(column_sums <= tol))
