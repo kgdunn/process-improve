@@ -6,7 +6,7 @@ Provides :func:`evaluate_design`, which computes properties and quality metrics
 of an existing design matrix.  Supported metrics include efficiency values
 (D/I/G), prediction variance, VIF, condition number, power analysis, alias
 structure, confounding, resolution, defining relation, clear effects, minimum
-aberration, and degrees of freedom.
+aberration, moment aberration, and degrees of freedom.
 
 Example
 -------
@@ -31,6 +31,7 @@ from patsy.design_info import DesignInfo
 from scipy import stats
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
+from process_improve.experiments._moment_aberration import NotTwoLevelError, moment_aberration
 from process_improve.experiments.factor import DesignResult
 from process_improve.experiments.models import validate_formula_is_safe, validate_identifier_is_safe
 
@@ -1048,6 +1049,34 @@ def _compute_minimum_aberration(ctx: _EvalContext) -> dict[str, Any]:
     }
 
 
+def _compute_moment_aberration(ctx: _EvalContext) -> dict[str, Any]:
+    """Moment aberration pattern, strength and resolution (Xu, 2003).
+
+    Unlike ``minimum_aberration``, this needs no generators: it reads the
+    design matrix directly. That makes it the metric to reach for when
+    checking a design this library did not construct.
+    """
+    try:
+        result = moment_aberration(ctx.design_df[ctx.factor_names])
+    except NotTwoLevelError as exc:
+        return {"moment_aberration": {"pattern": [], "note": str(exc)}}
+    except ValueError as exc:
+        logger.debug("moment_aberration declined the design: %s", exc)
+        return {"moment_aberration": {"pattern": [], "note": str(exc)}}
+
+    payload = result.to_dict()
+    # The design carries a declared resolution when it came from a
+    # DesignResult. Disagreement means the matrix is not the design it claims
+    # to be, which is exactly what this metric is here to surface.
+    if ctx.resolution is not None and ctx.resolution != result.resolution:
+        payload["declared_resolution"] = ctx.resolution
+        payload["note"] = (
+            f"Declared resolution {ctx.resolution} disagrees with the resolution "
+            f"{result.resolution} implied by the design matrix."
+        )
+    return {"moment_aberration": payload}
+
+
 # ---------------------------------------------------------------------------
 # Metric dispatch registry
 # ---------------------------------------------------------------------------
@@ -1072,6 +1101,7 @@ _METRIC_REGISTRY: dict[str, Callable[[_EvalContext], Any]] = {
     "defining_relation": _compute_defining_relation,
     "clear_effects": _compute_clear_effects,
     "minimum_aberration": _compute_minimum_aberration,
+    "moment_aberration": _compute_moment_aberration,
 }
 
 #: Accepted spelling variants for the optimality-criterion metrics. The registry
@@ -1128,7 +1158,8 @@ def evaluate_design(  # noqa: PLR0913
         ``"prediction_variance"``, ``"vif"``, ``"condition_number"``,
         ``"power"``, ``"degrees_of_freedom"``, ``"alias_structure"``,
         ``"confounding"``, ``"resolution"``, ``"defining_relation"``,
-        ``"clear_effects"``, ``"minimum_aberration"``. The optimality-criterion
+        ``"clear_effects"``, ``"minimum_aberration"``, ``"moment_aberration"``.
+        The optimality-criterion
         metrics also accept the opposite suffix as an alias (e.g.
         ``"d_optimality"`` for ``"d_efficiency"``, ``"a_efficiency"`` for
         ``"a_optimality"``); the result is keyed under the canonical name.

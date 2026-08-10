@@ -11,6 +11,30 @@ those changes.
 
 ## [Unreleased]
 
+### Added
+
+- Minimum moment aberration (Xu, 2003) for two-level designs, as
+  `process_improve.experiments.moment_aberration` and as a new
+  `moment_aberration` metric on `evaluate_design`. Unlike the existing
+  `minimum_aberration` metric, which reads the word-length pattern off the
+  defining relation and so needs a `DesignResult` carrying generators, this
+  works from the design matrix alone. It reports the moment aberration
+  pattern, the design's strength, and hence its resolution, for any two-level
+  matrix, regular or not, at O(n^2 m^2) rather than O(n 2^m). Verified against
+  the published patterns for the 8-, 16- and 32-run minimum aberration designs.
+- A Claude Skill, `skills/doe-designer`, plus `.claude-plugin/marketplace.json`
+  so it installs with `/plugin marketplace add kgdunn/process-improve`. The
+  skill exposes the ten designed-experiments tools through three CLI scripts
+  (a generic registry dispatcher, a design verifier, and a plot renderer) and
+  carries the workflow knowledge to go with them. This is a second
+  distribution channel: users run it in their own Claude account, with no
+  server and no third party holding an API key.
+
+### Changed
+
+- `evaluate_design` cross-checks a design's declared resolution against the one
+  implied by its matrix, and says so explicitly when they disagree.
+
 ## [1.66.1] - 2026-08-09
 
 ### Changed
