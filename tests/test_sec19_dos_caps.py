@@ -143,8 +143,8 @@ class TestScalarCapsExtension:
         [
             ("n_steps", 100),
             ("n_additional_runs", 500),
-            ("center_points", 50),
-            ("replicates", 50),
+            ("n_center_points", 50),
+            ("n_replicates", 50),
             ("n_factors", 15),
         ],
     )

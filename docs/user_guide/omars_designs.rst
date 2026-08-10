@@ -107,9 +107,10 @@ model is therefore estimable only from
 
    N = k^2 + k + 1
 
-runs: 13, 21, 31, 43 and 57 runs for three to seven factors.  Note that this is
-strictly more than the parameter count :math:`1 + 2k + k(k-1)/2` from four
-factors up, so "more runs than parameters" is *not* a sufficient test.
+runs: 13, 21, 31, 43 and 57 runs for three to seven factors.  This exceeds the
+parameter count :math:`1 + 2k + k(k-1)/2` by exactly :math:`k(k-1)/2`, the number
+of two-factor interactions, so "more runs than parameters" is *not* a sufficient
+test at any factor count.
 Sizing starts at this frontier, and ``n_runs`` below it is refused.
 
 Choosing ``model="main_quadratic"`` drops the interactions from the model being

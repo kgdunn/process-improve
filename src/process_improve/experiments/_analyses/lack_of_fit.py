@@ -17,7 +17,7 @@ def _run_lack_of_fit(
 ) -> dict[str, Any]:
     """Lack-of-fit F-test using pure error from replicated points.
 
-    Separates residual SS into pure-error SS (from replicates) and
+    Separates residual SS into pure-error SS (from n_replicates) and
     lack-of-fit SS.  Custom implementation (~40 lines).
     """
     residuals = ols_result.resid

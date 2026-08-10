@@ -81,7 +81,7 @@ def _dispatch_box_behnken(
 ) -> tuple[np.ndarray, dict]:
     from process_improve.experiments.designs_response_surface import dispatch_box_behnken  # noqa: PLC0415
 
-    return dispatch_box_behnken(factors, center_points=kwargs.get("center_points", 3))
+    return dispatch_box_behnken(factors, n_center_points=kwargs.get("n_center_points", 3))
 
 
 def _dispatch_ccd(
@@ -92,7 +92,7 @@ def _dispatch_ccd(
 
     return dispatch_ccd(
         factors,
-        center_points=kwargs.get("center_points", 3),
+        n_center_points=kwargs.get("n_center_points", 3),
         alpha=kwargs.get("alpha"),
         cube=kwargs.get("cube", "full"),
         generators=kwargs.get("generators"),
@@ -285,9 +285,9 @@ def generate_design(  # noqa: PLR0913
     factors: list[Factor],
     design_type: str | None = None,
     budget: int | None = None,
-    center_points: int = 3,
-    replicates: int = 1,
-    blocks: int | None = None,
+    n_center_points: int = 3,
+    n_replicates: int = 1,
+    n_blocks: int | None = None,
     resolution: int | None = None,
     generators: list[str] | None = None,
     alpha: str | float | None = None,
@@ -316,13 +316,13 @@ def generate_design(  # noqa: PLR0913
         factor count, budget, and constraints.
     budget : int or None
         Maximum number of runs the experimenter can afford.
-    center_points : int
+    n_center_points : int
         Number of center-point replicates (default 3).  For designs that
         embed their own center points (CCD, Box-Behnken), this parameter
         controls the count within the design structure.
-    replicates : int
+    n_replicates : int
         Number of full replicates of the design (default 1 = no replication).
-    blocks : int or None
+    n_blocks : int or None
         Number of blocks.
     resolution : int or None
         Desired minimum resolution for fractional factorials (III=3, IV=4, V=5).
@@ -407,7 +407,7 @@ def generate_design(  # noqa: PLR0913
     # Build kwargs for the dispatch handler
     dispatch_kwargs: dict[str, Any] = {
         "budget": budget,
-        "center_points": center_points,
+        "n_center_points": n_center_points,
         "resolution": resolution,
         "generators": generators,
         "alpha": alpha,
@@ -441,7 +441,7 @@ def generate_design(  # noqa: PLR0913
     effective_seed: int | None = random_seed
     if design_type in optimal_designs and meta.get("backend") == "pyoptex":
         effective_seed = None  # signal to build_design_result to skip randomization
-    extra_center_points = 0 if design_type in designs_with_embedded_centers else center_points
+    extra_center_points = 0 if design_type in designs_with_embedded_centers else n_center_points
 
     # Mixture designs return proportions (actual units), not coded
     is_actual = design_type == "mixture"
@@ -455,9 +455,9 @@ def generate_design(  # noqa: PLR0913
         coded_matrix=coded_matrix,
         factors=factors,
         design_type=design_type,
-        center_points=extra_center_points,
-        replicates=replicates,
-        blocks=blocks,
+        n_center_points=extra_center_points,
+        n_replicates=n_replicates,
+        n_blocks=n_blocks,
         random_seed=effective_seed,
         generators=result_generators,
         defining_relation=meta.get("defining_relation"),

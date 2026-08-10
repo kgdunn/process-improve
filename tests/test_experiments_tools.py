@@ -151,7 +151,7 @@ class TestGenerateDesign:
                     {"name": "C", "low": 0, "high": 10},
                 ],
                 "design_type": "full_factorial",
-                "center_points": 0,
+                "n_center_points": 0,
             },
         )
         assert "error" not in result
@@ -171,7 +171,7 @@ class TestGenerateDesign:
                 "factors": [{"name": n, "low": 0, "high": 10} for n in "ABCDE"],
                 "design_type": "fractional_factorial",
                 "resolution": 3,
-                "center_points": 0,
+                "n_center_points": 0,
             },
         )
         assert "error" not in result
@@ -190,7 +190,7 @@ class TestGenerateDesign:
                 ],
                 "design_type": "ccd",
                 "alpha": "rotatable",
-                "center_points": 0,
+                "n_center_points": 0,
             },
         )
         assert "error" not in result
@@ -589,7 +589,7 @@ class TestTradeOffTable:
         result = execute_tool_call("trade_off_table", {"runs": [32], "factors": [3]})
         (cell,) = result["cells"]
         assert cell["label"] == "2^3 (4 times)"
-        assert cell["replicates"] == 4
+        assert cell["n_replicates"] == 4
         assert cell["resolution"] is None
 
     def test_output_is_json_serialisable(self) -> None:

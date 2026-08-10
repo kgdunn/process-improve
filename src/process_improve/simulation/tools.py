@@ -2,7 +2,7 @@
 
 Agent-callable tool wrappers for the fake-data simulator.
 
-Three tools are exposed:
+The tools exposed here:
 
 - ``create_simulator`` - records a hidden response-surface model.
 - ``simulate_process`` - evaluates the hidden model at given factor

@@ -98,7 +98,7 @@ class ExperimentalStage(BaseModel):
     design_type : str
         Design type key, e.g. ``"plackett_burman"``, ``"ccd"``, ``"bbd"``.
     design_params : dict
-        Design-specific parameters (resolution, center_points, alpha, etc.).
+        Design-specific parameters (resolution, n_center_points, alpha, etc.).
     factors : list[str]
         Factor names involved in this stage.
     estimated_runs : int

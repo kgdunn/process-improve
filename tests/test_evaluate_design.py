@@ -124,8 +124,8 @@ class TestDEfficiency:
     def test_fractional_less_than_full(self) -> None:
         """Fractional factorial should have lower D-eff than full factorial for same model."""
         factors = _continuous_factors(4, "ABCD")
-        frac = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0)
-        full = generate_design(factors, design_type="full_factorial", center_points=0)
+        frac = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], n_center_points=0)
+        full = generate_design(factors, design_type="full_factorial", n_center_points=0)
         d_frac = evaluate_design(frac, model="main_effects", metric="d_efficiency")["d_efficiency"]
         d_full = evaluate_design(full, model="main_effects", metric="d_efficiency")["d_efficiency"]
         assert d_frac is not None
@@ -308,8 +308,8 @@ class TestPower:
     def test_more_runs_more_power(self) -> None:
         """More runs (replicated design) should yield higher power."""
         factors = _continuous_factors(3, "ABC")
-        single = generate_design(factors, design_type="full_factorial", center_points=0, replicates=1)
-        double = generate_design(factors, design_type="full_factorial", center_points=0, replicates=2)
+        single = generate_design(factors, design_type="full_factorial", n_center_points=0, n_replicates=1)
+        double = generate_design(factors, design_type="full_factorial", n_center_points=0, n_replicates=2)
         p1 = evaluate_design(single, model="main_effects", metric="power", effect_size=2.0, sigma=1.0)
         p2 = evaluate_design(double, model="main_effects", metric="power", effect_size=2.0, sigma=1.0)
         # Pick any factor - power should be higher with 2x runs
@@ -374,7 +374,7 @@ class TestDegreesOfFreedom:
     def test_replicated_has_pure_error(self) -> None:
         """Replicated design should report pure_error and lack_of_fit DF."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="full_factorial", center_points=0, replicates=2)
+        result = generate_design(factors, design_type="full_factorial", n_center_points=0, n_replicates=2)
         metrics = evaluate_design(result, model="main_effects", metric="degrees_of_freedom")
         dof = metrics["degrees_of_freedom"]
         assert "pure_error" in dof
@@ -392,7 +392,7 @@ class TestAliasStructure:
     def test_half_fraction(self) -> None:
         """2^(4-1) with D=ABC: main effects are aliased with 3FI."""
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C", "D"]]
-        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0)
+        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], n_center_points=0)
         metrics = evaluate_design(result, metric="alias_structure")
         aliases = metrics["alias_structure"]
         assert len(aliases) > 0
@@ -404,7 +404,7 @@ class TestAliasStructure:
     def test_full_factorial_no_aliases_from_generators(self) -> None:
         """Full factorial has no generators, so generator-based aliasing is empty."""
         factors = _continuous_factors(3, "ABC")
-        result = generate_design(factors, design_type="full_factorial", center_points=0)
+        result = generate_design(factors, design_type="full_factorial", n_center_points=0)
         metrics = evaluate_design(result, metric="alias_structure")
         # No generators → falls back to correlation-based, which should find none
         aliases = metrics["alias_structure"]
@@ -432,7 +432,7 @@ class TestConfounding:
         """Resolution III design has main effects confounded with 2FI."""
         # 2^(3-1) with C=AB is resolution III
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C"]]
-        result = generate_design(factors, design_type="fractional_factorial", generators=["C=AB"], center_points=0)
+        result = generate_design(factors, design_type="fractional_factorial", generators=["C=AB"], n_center_points=0)
         metrics = evaluate_design(result, metric="confounding")
         confounding = metrics["confounding"]
         assert len(confounding) > 0
@@ -453,14 +453,14 @@ class TestResolution:
     def test_from_design_result(self) -> None:
         """Resolution should be passed through from DesignResult metadata."""
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C", "D", "E"]]
-        result = generate_design(factors, design_type="fractional_factorial", resolution=3, center_points=0)
+        result = generate_design(factors, design_type="fractional_factorial", resolution=3, n_center_points=0)
         metrics = evaluate_design(result, metric="resolution")
         assert metrics["resolution"] is not None
 
     def test_from_generators(self) -> None:
         """Resolution computed from generators."""
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C", "D"]]
-        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0)
+        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], n_center_points=0)
         # D=ABC → I=ABCD → resolution IV
         metrics = evaluate_design(result, metric="resolution")
         res = metrics["resolution"]
@@ -470,7 +470,7 @@ class TestResolution:
     def test_none_for_full_factorial(self) -> None:
         """Full factorial has no resolution."""
         factors = _continuous_factors(3, "ABC")
-        result = generate_design(factors, design_type="full_factorial", center_points=0)
+        result = generate_design(factors, design_type="full_factorial", n_center_points=0)
         metrics = evaluate_design(result, metric="resolution")
         assert metrics["resolution"] is None
 
@@ -486,7 +486,7 @@ class TestDefiningRelation:
     def test_single_generator(self) -> None:
         """D=ABC gives I=ABCD."""
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C", "D"]]
-        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0)
+        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], n_center_points=0)
         metrics = evaluate_design(result, metric="defining_relation")
         dr = metrics["defining_relation"]
         assert dr is not None
@@ -499,7 +499,7 @@ class TestDefiningRelation:
             factors,
             design_type="fractional_factorial",
             generators=["D=AB", "E=AC"],
-            center_points=0,
+            n_center_points=0,
         )
         metrics = evaluate_design(result, metric="defining_relation")
         dr = metrics["defining_relation"]
@@ -524,7 +524,7 @@ class TestClearEffects:
     def test_res_iv_clear_main_effects(self) -> None:
         """In a Resolution IV design, all main effects should be clear."""
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C", "D"]]
-        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0)
+        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], n_center_points=0)
         metrics = evaluate_design(result, metric="clear_effects")
         clear = metrics["clear_effects"]
         # Resolution IV: main effects aliased only with 3FI → all main effects clear
@@ -542,7 +542,7 @@ class TestMinimumAberration:
     def test_wordlength_pattern(self) -> None:
         """D=ABC gives I=ABCD (length 4), so WLP = [0, 1] for A_3=0, A_4=1."""
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C", "D"]]
-        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0)
+        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], n_center_points=0)
         metrics = evaluate_design(result, metric="minimum_aberration")
         ma = metrics["minimum_aberration"]
         wlp = ma["wordlength_pattern"]
@@ -664,14 +664,14 @@ class TestDispatcher:
     def test_accepts_design_result(self) -> None:
         """evaluate_design accepts a DesignResult object."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="full_factorial", center_points=0)
+        result = generate_design(factors, design_type="full_factorial", n_center_points=0)
         metrics = evaluate_design(result, model="main_effects", metric="d_efficiency")
         assert "d_efficiency" in metrics
 
     def test_drops_run_order_column(self) -> None:
         """RunOrder column in design should be ignored."""
         factors = _continuous_factors(2, "AB")
-        result = generate_design(factors, design_type="full_factorial", center_points=0)
+        result = generate_design(factors, design_type="full_factorial", n_center_points=0)
         # DesignResult has RunOrder in the design
         metrics = evaluate_design(result, model="main_effects", metric="degrees_of_freedom")
         dof = metrics["degrees_of_freedom"]
@@ -752,7 +752,7 @@ class TestIntegration:
             Factor(name="Pressure", low=1, high=5, units="bar"),
             Factor(name="Time", low=10, high=60, units="min"),
         ]
-        result = generate_design(factors, design_type="full_factorial", center_points=3)
+        result = generate_design(factors, design_type="full_factorial", n_center_points=3)
         metrics = evaluate_design(
             result,
             model="main_effects",
@@ -766,7 +766,7 @@ class TestIntegration:
     def test_ccd_quadratic(self) -> None:
         """CCD with quadratic model should have valid metrics."""
         factors = _continuous_factors(3, "ABC")
-        result = generate_design(factors, design_type="ccd", alpha="face_centered", center_points=3)
+        result = generate_design(factors, design_type="ccd", alpha="face_centered", n_center_points=3)
         metrics = evaluate_design(result, model="quadratic", metric=["d_efficiency", "degrees_of_freedom"])
         assert metrics["d_efficiency"] is not None
         assert metrics["degrees_of_freedom"]["residual"] > 0
@@ -774,7 +774,9 @@ class TestIntegration:
     def test_fractional_cube_ccd_quadratic_full_rank(self) -> None:
         """A fractional-cube CCD is full-rank for the full second-order model."""
         factors = _continuous_factors(5, "ABCDE")
-        result = generate_design(factors, design_type="ccd", cube="fractional", alpha="face_centered", center_points=6)
+        result = generate_design(
+            factors, design_type="ccd", cube="fractional", alpha="face_centered", n_center_points=6
+        )
         metrics = evaluate_design(result, model="quadratic", metric=["d_efficiency", "vif", "power"])
         assert metrics["d_efficiency"] is not None
         assert metrics["vif"] is not None
@@ -782,7 +784,7 @@ class TestIntegration:
     def test_fractional_factorial_aliases(self) -> None:
         """Fractional factorial should report alias structure and resolution."""
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C", "D"]]
-        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], center_points=0)
+        result = generate_design(factors, design_type="fractional_factorial", generators=["D=ABC"], n_center_points=0)
         metrics = evaluate_design(
             result,
             metric=["alias_structure", "resolution", "defining_relation", "clear_effects", "minimum_aberration"],
@@ -892,7 +894,7 @@ class TestCorrelation:
 
     def test_keys_present(self) -> None:
         """Correlation result exposes max/mean |r|, matrix, and terms."""
-        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="correlation")
         corr = result["correlation"]
         assert {"max_abs_r", "mean_abs_r", "matrix", "terms"} <= set(corr)
@@ -909,7 +911,7 @@ class TestAliasMatrix:
 
     def test_keys_present(self) -> None:
         """Alias-matrix result exposes the matrix, terms, and summary norms."""
-        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="alias_matrix")
         am = result["alias_matrix"]
         assert {"matrix", "model_terms", "alias_terms", "max_abs", "max_abs_main_effect_rows", "frobenius_norm"} <= set(
@@ -929,7 +931,7 @@ class TestFDS:
 
     def test_payload_and_scaling(self) -> None:
         """FDS reports region metadata, quantiles, I/G, and the xN SPV variants."""
-        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_seed=1)
         fds = result["fds"]
         assert fds["region"] == "cuboidal"
@@ -943,7 +945,7 @@ class TestFDS:
 
     def test_quantiles_monotone(self) -> None:
         """FDS quantiles are non-decreasing in the fraction of design space."""
-        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_seed=1)["fds"]
         keys = sorted(fds["quantiles"], key=float)
         values = [fds["quantiles"][k] for k in keys]
@@ -955,7 +957,7 @@ class TestReducedFormulaRegression:
 
     def test_i_g_efficiency_explicit_pure_quadratic(self) -> None:
         """i/g efficiency for an 11-term reduced formula no longer raises (size 11 vs 21)."""
-        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric=["i_efficiency", "g_efficiency"], random_seed=1)
         assert result["i_efficiency"] is not None
         assert result["g_efficiency"] is not None
@@ -968,7 +970,7 @@ class TestAggregate:
 
     def test_metric_all_includes_every_metric(self) -> None:
         """metric='all' returns keys for every registered metric family."""
-        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         result = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="all", effect_size=1.0, random_seed=1)
         for key in ("d_efficiency", "a_optimality", "e_optimality", "correlation", "alias_matrix", "fds", "power"):
             assert key in result
@@ -977,7 +979,7 @@ class TestAggregate:
         """evaluate_all is a thin wrapper over evaluate_design(metric='all')."""
         from process_improve.experiments.evaluate import evaluate_all
 
-        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         a = evaluate_all(df, model=_PURE_QUADRATIC_5, effect_size=1.0, random_seed=1)
         b = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="all", effect_size=1.0, random_seed=1)
         assert set(a) == set(b)
@@ -1005,11 +1007,11 @@ class TestGoldenMetrics:
 
     def _design(self, name: str) -> pd.DataFrame:
         if name == "BBD":
-            return _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+            return _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         if name == "CCD":
             return _coded(
                 generate_design(
-                    _rsm_factors(), design_type="ccd", cube="fractional", alpha="face_centered", center_points=6
+                    _rsm_factors(), design_type="ccd", cube="fractional", alpha="face_centered", n_center_points=6
                 )
             )
         if name == "DSD":
@@ -1059,7 +1061,7 @@ class TestRegionAndMetricEdgeCases:
 
     def test_spherical_region(self) -> None:
         """region='spherical' samples the circumscribing ball and returns finite I/G."""
-        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         result = evaluate_design(
             df, model=_PURE_QUADRATIC_5, metric="fds", region="spherical", n_samples=2000, random_seed=1
         )
@@ -1068,13 +1070,13 @@ class TestRegionAndMetricEdgeCases:
 
     def test_unknown_region_raises(self) -> None:
         """An unknown region name raises ValueError."""
-        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         with pytest.raises(ValueError, match="Unknown region"):
             evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", region="bogus")
 
     def test_include_vertices_false(self) -> None:
         """include_vertices=False omits the cube corners from the region sample."""
-        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         fds = evaluate_design(
             df, model=_PURE_QUADRATIC_5, metric="fds", include_vertices=False, n_samples=2000, random_seed=1
         )["fds"]
@@ -1126,7 +1128,7 @@ class TestFDSResolution:
 
     def test_default_is_coarse_quantiles_only(self) -> None:
         """With fds_resolution=None the output is the backward-compatible summary."""
-        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", random_seed=1)["fds"]
         assert "curve" not in fds
         assert len(fds["quantiles"]) == 11
@@ -1134,7 +1136,7 @@ class TestFDSResolution:
 
     def test_dense_curve(self) -> None:
         """fds_resolution=200 returns length-200 monotone arrays with min/max endpoints."""
-        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         n = df.shape[0]
         fds = evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", fds_resolution=200, random_seed=1)["fds"]
         curve = fds["curve"]
@@ -1153,13 +1155,13 @@ class TestFDSResolution:
 
     def test_resolution_below_two_raises(self) -> None:
         """fds_resolution must be at least 2."""
-        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        df = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         with pytest.raises(ValueError, match="fds_resolution must be at least 2"):
             evaluate_design(df, model=_PURE_QUADRATIC_5, metric="fds", fds_resolution=1)
 
     def test_max_reproducible_and_published_values(self) -> None:
         """A fixed (n_samples, seed) is reproducible; 120k/seed-1 hits the published maxima."""
-        bbd = _coded(generate_design(_rsm_factors(), design_type="box_behnken", center_points=6))
+        bbd = _coded(generate_design(_rsm_factors(), design_type="box_behnken", n_center_points=6))
         first = evaluate_design(bbd, model=_PURE_QUADRATIC_5, metric="fds", n_samples=120_000, random_seed=1)
         second = evaluate_design(bbd, model=_PURE_QUADRATIC_5, metric="fds", n_samples=120_000, random_seed=1)
         assert first["fds"]["max_prediction_variance"] == second["fds"]["max_prediction_variance"]

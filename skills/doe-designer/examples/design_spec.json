@@ -5,4 +5,4 @@
  {"name":"Stir","low":200,"high":600,"units":"rpm"},
  {"name":"pH","low":5,"high":8},
  {"name":"Solvent","low":10,"high":30,"units":"pct"}],
- "design_type":"fractional_factorial","resolution":4,"center_points":0,"random_seed":7}
+ "design_type":"fractional_factorial","resolution":4,"n_center_points":0,"random_seed":7}

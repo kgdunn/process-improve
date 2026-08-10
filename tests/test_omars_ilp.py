@@ -404,7 +404,7 @@ def test_registry_integration() -> None:
 
 def test_omars_with_budget_reaches_ilp() -> None:
     """design_type="omars" with a budget routes to the ILP enumerator."""
-    result = generate_design(_factors(4), design_type="omars", budget=21, center_points=0)
+    result = generate_design(_factors(4), design_type="omars", budget=21, n_center_points=0)
     assert result.metadata["family"] == "omars_ilp"
     assert result.metadata["n_runs_selected"] == 21
     assert is_omars(result.design[result.factor_names].to_numpy(dtype=float))
@@ -412,7 +412,7 @@ def test_omars_with_budget_reaches_ilp() -> None:
 
 def test_omars_without_budget_is_minimal_foldover() -> None:
     """design_type="omars" with no budget keeps the minimal conference-foldover member."""
-    result = generate_design(_factors(4), design_type="omars", center_points=0)
+    result = generate_design(_factors(4), design_type="omars", n_center_points=0)
     assert result.metadata["family"] == "conference_foldover"
     assert result.n_runs == 9  # the minimal four-factor member (the DSD)
 

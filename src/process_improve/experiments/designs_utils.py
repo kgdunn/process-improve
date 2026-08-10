@@ -118,24 +118,24 @@ def add_center_points(matrix: np.ndarray, n_center: int) -> np.ndarray:
     return np.vstack([matrix, center_rows])
 
 
-def replicate_design(matrix: np.ndarray, replicates: int) -> np.ndarray:
+def replicate_design(matrix: np.ndarray, n_replicates: int) -> np.ndarray:
     """Replicate an entire design matrix.
 
     Parameters
     ----------
     matrix : np.ndarray
         Design matrix of shape (n_runs, n_factors).
-    replicates : int
+    n_replicates : int
         Number of full replicates (1 = no replication).
 
     Returns
     -------
     np.ndarray
-        Vertically stacked matrix with ``replicates`` copies.
+        Vertically stacked matrix with ``n_replicates`` copies.
     """
-    if replicates <= 1:
+    if n_replicates <= 1:
         return matrix
-    return np.tile(matrix, (replicates, 1))
+    return np.tile(matrix, (n_replicates, 1))
 
 
 def assign_blocks(n_runs: int, n_blocks: int) -> list[int]:
@@ -160,9 +160,9 @@ def build_design_result(  # noqa: PLR0913
     coded_matrix: np.ndarray,
     factors: list[Factor],
     design_type: str,
-    center_points: int = 0,
-    replicates: int = 1,
-    blocks: int | None = None,
+    n_center_points: int = 0,
+    n_replicates: int = 1,
+    n_blocks: int | None = None,
     random_seed: int | None = 42,
     generators: list[str] | None = None,
     defining_relation: list[str] | None = None,
@@ -190,11 +190,11 @@ def build_design_result(  # noqa: PLR0913
         Factor specifications.
     design_type : str
         Name of the design type.
-    center_points : int
+    n_center_points : int
         Number of center point replicates to add.
-    replicates : int
+    n_replicates : int
         Number of full replicates.
-    blocks : int or None
+    n_blocks : int or None
         Number of blocks (None = no blocking).
     random_seed : int or None
         Seed for reproducible randomization. When ``None`` the original run
@@ -222,10 +222,10 @@ def build_design_result(  # noqa: PLR0913
     from process_improve.experiments.factor import DesignResult  # noqa: PLC0415
 
     # 1. Add center points (only for coded designs)
-    matrix = add_center_points(coded_matrix, center_points) if not is_actual else coded_matrix
+    matrix = add_center_points(coded_matrix, n_center_points) if not is_actual else coded_matrix
 
     # 2. Replicate
-    matrix = replicate_design(matrix, replicates)
+    matrix = replicate_design(matrix, n_replicates)
 
     n_runs = matrix.shape[0]
 
@@ -266,8 +266,8 @@ def build_design_result(  # noqa: PLR0913
 
     # 5. Blocks
     block_assignments = None
-    if blocks is not None and blocks > 1:
-        block_assignments = assign_blocks(n_runs, blocks)
+    if n_blocks is not None and n_blocks > 1:
+        block_assignments = assign_blocks(n_runs, n_blocks)
         design_coded["Block"] = block_assignments
         design_actual["Block"] = block_assignments
 

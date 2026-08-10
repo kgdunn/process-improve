@@ -383,7 +383,7 @@ def test_metric_agrees_with_a_generated_design_declaration() -> None:
     from process_improve.experiments import Factor, generate_design
 
     factors = [Factor(name=name, low=0, high=10) for name in "ABCDE"]
-    design = generate_design(factors, design_type="fractional_factorial", resolution=3, center_points=0)
+    design = generate_design(factors, design_type="fractional_factorial", resolution=3, n_center_points=0)
 
     out = evaluate_design(design, metric="moment_aberration")
     assert out["moment_aberration"]["resolution"] == design.resolution
@@ -395,7 +395,7 @@ def test_metric_flags_a_declaration_that_the_matrix_contradicts() -> None:
     from process_improve.experiments import Factor, generate_design
 
     factors = [Factor(name=name, low=0, high=10) for name in "ABCDE"]
-    design = generate_design(factors, design_type="fractional_factorial", resolution=3, center_points=0)
+    design = generate_design(factors, design_type="fractional_factorial", resolution=3, n_center_points=0)
     # Break the design without touching its metadata: alias B onto A.
     design.design["B"] = design.design["A"]
 
@@ -410,7 +410,7 @@ def test_metric_declines_center_points_with_a_note() -> None:
     from process_improve.experiments import Factor, generate_design
 
     factors = [Factor(name=name, low=0, high=10) for name in "ABC"]
-    design = generate_design(factors, design_type="full_factorial", center_points=3)
+    design = generate_design(factors, design_type="full_factorial", n_center_points=3)
 
     out = evaluate_design(design, metric="moment_aberration")
     assert out["moment_aberration"]["pattern"] == []

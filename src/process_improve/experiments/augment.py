@@ -4,7 +4,7 @@
 
 Provides :func:`augment_design`, which takes an existing design matrix and
 augments it by adding runs (foldover, semifold, center points, axial points,
-D-optimal runs), upgrading to a response surface design, adding blocks, or
+D-optimal runs), upgrading to a response surface design, adding n_blocks, or
 replicating.
 
 Example

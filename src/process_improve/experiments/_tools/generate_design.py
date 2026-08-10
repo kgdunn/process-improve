@@ -45,12 +45,12 @@ class GenerateDesignInput(BaseModel):
         ge=1,
         description="Maximum number of experimental runs.",
     )
-    center_points: int = Field(
+    n_center_points: int = Field(
         3,
         ge=0,
         description="Number of center point replicates (default: 3).",
     )
-    replicates: int = Field(
+    n_replicates: int = Field(
         1,
         ge=1,
         description="Number of full replicates (default: 1).",
@@ -112,8 +112,8 @@ def generate_design_tool(spec: GenerateDesignInput) -> dict[str, Any]:
             factors=factor_objects,
             design_type=spec.design_type,
             budget=spec.budget,
-            center_points=spec.center_points,
-            replicates=spec.replicates,
+            n_center_points=spec.n_center_points,
+            n_replicates=spec.n_replicates,
             resolution=spec.resolution,
             alpha=spec.alpha,
             random_seed=spec.random_seed,

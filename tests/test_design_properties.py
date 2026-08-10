@@ -52,21 +52,21 @@ class TestFullFactorialProperties:
     @given(k=st.integers(min_value=2, max_value=6))
     def test_run_count_is_two_to_the_k(self, k: int) -> None:
         """A 2^k full factorial has exactly ``2**k`` runs (before replication/centers)."""
-        result = generate_design(_factors(k), design_type="full_factorial", center_points=0)
+        result = generate_design(_factors(k), design_type="full_factorial", n_center_points=0)
         assert result.n_runs == 2**k
 
     @_settings
     @given(k=st.integers(min_value=2, max_value=6))
     def test_columns_are_balanced(self, k: int) -> None:
         """Every column has equal numbers of -1 and +1 (sum = 0)."""
-        x = _coded(generate_design(_factors(k), design_type="full_factorial", center_points=0))
+        x = _coded(generate_design(_factors(k), design_type="full_factorial", n_center_points=0))
         assert np.allclose(x.sum(axis=0), 0.0, atol=1e-9)
 
     @_settings
     @given(k=st.integers(min_value=2, max_value=6))
     def test_main_effects_are_orthogonal(self, k: int) -> None:
         """``X.T @ X == N * I`` for the main-effects matrix of a 2^k design."""
-        x = _coded(generate_design(_factors(k), design_type="full_factorial", center_points=0))
+        x = _coded(generate_design(_factors(k), design_type="full_factorial", n_center_points=0))
         gram = x.T @ x
         assert np.allclose(gram, x.shape[0] * np.eye(k), atol=1e-9)
 
@@ -91,7 +91,7 @@ class TestFractionalFactorialProperties:
                 _factors(k),
                 design_type="fractional_factorial",
                 resolution=resolution,
-                center_points=0,
+                n_center_points=0,
             )
         except (ValueError, KeyError):
             # Not every (k, resolution) pair admits a fraction (e.g. res V for k=4);
@@ -113,7 +113,7 @@ class TestFractionalFactorialProperties:
                 _factors(k),
                 design_type="fractional_factorial",
                 resolution=resolution,
-                center_points=0,
+                n_center_points=0,
             )
         except (ValueError, KeyError):
             return
@@ -136,7 +136,7 @@ class TestPlackettBurmanProperties:
     @given(k=st.integers(min_value=2, max_value=15))
     def test_run_count_is_multiple_of_four_and_covers_factors(self, k: int) -> None:
         """PB run count is a multiple of 4 (Hadamard order) and at least ``k + 1``."""
-        result = generate_design(_factors(k), design_type="plackett_burman", center_points=0)
+        result = generate_design(_factors(k), design_type="plackett_burman", n_center_points=0)
         assert result.n_runs % 4 == 0
         assert result.n_runs >= k + 1
 
@@ -144,7 +144,7 @@ class TestPlackettBurmanProperties:
     @given(k=st.integers(min_value=2, max_value=15))
     def test_columns_are_balanced_and_orthogonal(self, k: int) -> None:
         """Every column sums to 0 and main effects are mutually orthogonal."""
-        x = _coded(generate_design(_factors(k), design_type="plackett_burman", center_points=0))
+        x = _coded(generate_design(_factors(k), design_type="plackett_burman", n_center_points=0))
         assert np.allclose(x.sum(axis=0), 0.0, atol=1e-9)
         gram = x.T @ x
         off_diag = gram - np.diag(np.diag(gram))
@@ -163,7 +163,7 @@ class TestBoxBehnkenProperties:
     @given(k=st.integers(min_value=3, max_value=6))
     def test_non_center_rows_have_two_zero_coordinates(self, k: int) -> None:
         """Every non-center BB run has exactly two coordinates at 0 and the rest at ±1."""
-        x = _coded(generate_design(_factors(k), design_type="box_behnken", center_points=0))
+        x = _coded(generate_design(_factors(k), design_type="box_behnken", n_center_points=0))
         non_center_rows = x[~np.all(x == 0, axis=1)]
         # Each BB non-center run varies two factors at ±1 and sets the remaining (k-2)
         # factors to 0, so for every non-center row we expect exactly (k-2) zeros.
@@ -174,14 +174,14 @@ class TestBoxBehnkenProperties:
     @given(k=st.integers(min_value=3, max_value=6))
     def test_columns_balanced(self, k: int) -> None:
         """Every factor column sums to 0 in a Box-Behnken design."""
-        x = _coded(generate_design(_factors(k), design_type="box_behnken", center_points=0))
+        x = _coded(generate_design(_factors(k), design_type="box_behnken", n_center_points=0))
         assert np.allclose(x.sum(axis=0), 0.0, atol=1e-9)
 
     @_settings
     @given(k=st.integers(min_value=3, max_value=6))
     def test_no_corner_points(self, k: int) -> None:
         """Box-Behnken avoids the full-factorial corners (no run has all ±1)."""
-        x = _coded(generate_design(_factors(k), design_type="box_behnken", center_points=0))
+        x = _coded(generate_design(_factors(k), design_type="box_behnken", n_center_points=0))
         all_extreme = np.all(np.abs(x) == 1, axis=1)
         assert not all_extreme.any()
 
@@ -202,7 +202,7 @@ class TestCCDProperties:
             _factors(k),
             design_type="ccd",
             alpha="face_centered",
-            center_points=2,
+            n_center_points=2,
         )
         x = _coded(result)
         assert np.abs(x).max() <= 1.0 + 1e-9
@@ -215,7 +215,7 @@ class TestCCDProperties:
             _factors(k),
             design_type="ccd",
             alpha="rotatable",
-            center_points=2,
+            n_center_points=2,
         )
         x = _coded(result)
         expected_alpha = (2**k) ** 0.25
@@ -234,7 +234,7 @@ class TestDSDProperties:
     @given(k=st.integers(min_value=3, max_value=14))
     def test_run_count_matches_jones_nachtsheim(self, k: int) -> None:
         """Even k -> 2k+1 runs; odd k -> 2k+3 runs (Jones-Nachtsheim 2011)."""
-        result = generate_design(_factors(k), design_type="dsd", center_points=0)
+        result = generate_design(_factors(k), design_type="dsd", n_center_points=0)
         expected = 2 * k + 1 if k % 2 == 0 else 2 * k + 3
         assert result.n_runs == expected
 
@@ -242,14 +242,14 @@ class TestDSDProperties:
     @given(k=st.integers(min_value=3, max_value=14))
     def test_columns_balanced(self, k: int) -> None:
         """Every DSD factor column sums to 0 (foldover structure)."""
-        x = _coded(generate_design(_factors(k), design_type="dsd", center_points=0))
+        x = _coded(generate_design(_factors(k), design_type="dsd", n_center_points=0))
         assert np.allclose(x.sum(axis=0), 0.0, atol=1e-9)
 
     @_settings
     @given(k=st.integers(min_value=3, max_value=14))
     def test_exactly_one_zero_pair_per_factor(self, k: int) -> None:
         """Each factor takes value 0 in exactly 2 rows for odd k and 1 row for even k (main rows)."""
-        result = generate_design(_factors(k), design_type="dsd", center_points=0)
+        result = generate_design(_factors(k), design_type="dsd", n_center_points=0)
         x = _coded(result)
         zeros_per_column = (x == 0).sum(axis=0)
         # Structure: [C; -C; zero_row] gives each column exactly 2 zeros from C/-C
@@ -262,7 +262,7 @@ class TestDSDProperties:
     @given(k=st.sampled_from([3, 4, 5, 6, 7, 8, 12, 13, 14, 18, 19, 20]))
     def test_paley_construction_is_orthogonal(self, k: int) -> None:
         """When a Paley conference matrix is used, main effects are exactly orthogonal."""
-        result = generate_design(_factors(k), design_type="dsd", center_points=0)
+        result = generate_design(_factors(k), design_type="dsd", n_center_points=0)
         if not result.metadata.get("construction", "").startswith("paley"):
             # Cyclic fallback is known-approximate, not covered by this invariant.
             return
@@ -284,7 +284,7 @@ class TestEvaluateDesignProperties:
     @given(k=st.integers(min_value=2, max_value=5))
     def test_full_factorial_has_max_d_efficiency(self, k: int) -> None:
         """A 2^k full factorial is D-optimal for the main-effects model."""
-        result = generate_design(_factors(k), design_type="full_factorial", center_points=0)
+        result = generate_design(_factors(k), design_type="full_factorial", n_center_points=0)
         metrics = evaluate_design(
             result,
             model="main_effects",
@@ -297,7 +297,7 @@ class TestEvaluateDesignProperties:
     @given(k=st.integers(min_value=2, max_value=5))
     def test_full_factorial_vifs_are_one(self, k: int) -> None:
         """An orthogonal design has VIF = 1 on every main-effect term."""
-        result = generate_design(_factors(k), design_type="full_factorial", center_points=0)
+        result = generate_design(_factors(k), design_type="full_factorial", n_center_points=0)
         metrics = evaluate_design(result, model="main_effects", metric="vif")
         for term, vif in metrics["vif"].items():
             assert vif == pytest.approx(1.0, abs=1e-6), f"VIF != 1 for term {term}"
@@ -306,7 +306,7 @@ class TestEvaluateDesignProperties:
     @given(k=st.integers(min_value=2, max_value=4), effect=st.floats(min_value=0.1, max_value=5.0))
     def test_d_efficiency_is_a_percentage(self, k: int, effect: float) -> None:  # noqa: ARG002
         """0 <= d_efficiency <= 100 for every admissible design."""
-        result = generate_design(_factors(k), design_type="full_factorial", center_points=0)
+        result = generate_design(_factors(k), design_type="full_factorial", n_center_points=0)
         metrics = evaluate_design(result, model="main_effects", metric="d_efficiency")
         assert 0.0 <= metrics["d_efficiency"] <= 100.0 + 1e-6
 
@@ -317,7 +317,7 @@ class TestEvaluateDesignProperties:
     )
     def test_power_monotone_in_effect_size(self, k: int, sigma: float) -> None:
         """Power is non-decreasing in effect size, holding sigma and design fixed."""
-        result = generate_design(_factors(k), design_type="full_factorial", center_points=0)
+        result = generate_design(_factors(k), design_type="full_factorial", n_center_points=0)
         p_small = evaluate_design(
             result,
             model="main_effects",

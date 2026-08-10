@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 def dispatch_ccd(  # noqa: PLR0913
     factors: list[Factor],
-    center_points: int = 3,
+    n_center_points: int = 3,
     alpha: str | float | None = None,
     cube: str = "full",
     generators: list[str] | None = None,
@@ -41,7 +41,7 @@ def dispatch_ccd(  # noqa: PLR0913
     ----------
     factors : list[Factor]
         Continuous factors.
-    center_points : int
+    n_center_points : int
         Number of center points (split between cube and axial portions).
     alpha : str, float, or None
         Axial distance.  Accepted string values: ``"rotatable"``,
@@ -68,11 +68,11 @@ def dispatch_ccd(  # noqa: PLR0913
     Notes
     -----
     Center points are embedded in the CCD structure itself (via pyDOE3's
-    ``center`` parameter).  The caller should set ``center_points=0`` in
+    ``center`` parameter).  The caller should set ``n_center_points=0`` in
     ``build_design_result`` to avoid adding duplicate center points.
     """
     if cube == "fractional":
-        return _dispatch_ccd_fractional(factors, center_points, alpha, generators, resolution)
+        return _dispatch_ccd_fractional(factors, n_center_points, alpha, generators, resolution)
     if cube != "full":
         raise ValueError(f"cube must be 'full' or 'fractional', got {cube!r}.")
 
@@ -103,8 +103,8 @@ def dispatch_ccd(  # noqa: PLR0913
         face = "circumscribed"
 
     # Split center points between cube and axial portions
-    n_center_cube = max(1, center_points // 2)
-    n_center_axial = max(1, center_points - n_center_cube)
+    n_center_cube = max(1, n_center_points // 2)
+    n_center_axial = max(1, n_center_points - n_center_cube)
 
     coded_matrix = ccdesign(k, center=(n_center_cube, n_center_axial), alpha=alpha_str, face=face)
 
@@ -122,7 +122,7 @@ def _resolve_fractional_axial_distance(
     alpha: str | float | None,
     n_cube_runs: int,
     k: int,
-    center_points: int,
+    n_center_points: int,
 ) -> tuple[float, str]:
     """Axial (star-point) distance for a fractional-cube CCD.
 
@@ -139,7 +139,7 @@ def _resolve_fractional_axial_distance(
         Number of runs in the (fractional) cube portion.
     k : int
         Number of factors.
-    center_points : int
+    n_center_points : int
         Total number of center points; split between the cube and axial blocks
         for the orthogonal-alpha formula.
 
@@ -163,8 +163,8 @@ def _resolve_fractional_axial_distance(
         )
 
     # "orthogonal", None, or any other string: orthogonal axial distance.
-    n_center_cube = center_points // 2
-    n_center_axial = center_points - n_center_cube
+    n_center_cube = n_center_points // 2
+    n_center_axial = n_center_points - n_center_cube
     n_axial = 2 * k
     a = (k * (1 + n_center_axial / n_axial) / (1 + n_center_cube / n_cube_runs)) ** 0.5
     return float(a), "orthogonal"
@@ -172,7 +172,7 @@ def _resolve_fractional_axial_distance(
 
 def _dispatch_ccd_fractional(
     factors: list[Factor],
-    center_points: int,
+    n_center_points: int,
     alpha: str | float | None,
     generators: list[str] | None,
     resolution: int | None,
@@ -187,7 +187,7 @@ def _dispatch_ccd_fractional(
     ----------
     factors : list[Factor]
         Continuous factors (at least 3).
-    center_points : int
+    n_center_points : int
         Total number of center runs (added once, not split).
     alpha : str, float, or None
         Axial distance specification; see
@@ -239,14 +239,14 @@ def _dispatch_ccd_fractional(
             "full quadratic model is estimable. Supply resolution-V generators or use cube='full'."
         )
 
-    axial_distance, face = _resolve_fractional_axial_distance(alpha, n_cube_runs, k, center_points)
+    axial_distance, face = _resolve_fractional_axial_distance(alpha, n_cube_runs, k, n_center_points)
 
     # Axial (star) runs: 2k rows at +/- axial_distance, zeros elsewhere.
     star = np.zeros((2 * k, k))
     for i in range(k):
         star[2 * i : 2 * i + 2, i] = (-axial_distance, axial_distance)
 
-    center = np.zeros((max(0, center_points), k))
+    center = np.zeros((max(0, n_center_points), k))
 
     coded_matrix = np.vstack([cube, star, center])
     meta = {
@@ -262,7 +262,7 @@ def _dispatch_ccd_fractional(
 
 def dispatch_box_behnken(
     factors: list[Factor],
-    center_points: int = 3,
+    n_center_points: int = 3,
 ) -> tuple[np.ndarray, dict]:
     """Generate a Box-Behnken design.
 
@@ -270,7 +270,7 @@ def dispatch_box_behnken(
     ----------
     factors : list[Factor]
         Continuous factors (requires at least 3).
-    center_points : int
+    n_center_points : int
         Number of center point replicates.
 
     Returns
@@ -281,12 +281,12 @@ def dispatch_box_behnken(
     Notes
     -----
     Center points are embedded in the BB structure.  The caller should set
-    ``center_points=0`` in ``build_design_result``.
+    ``n_center_points=0`` in ``build_design_result``.
     """
     k = len(factors)
     if k < 3:
         raise ValueError("Box-Behnken designs require at least 3 factors.")
-    coded_matrix = bbdesign(k, center=center_points)
+    coded_matrix = bbdesign(k, center=n_center_points)
     return coded_matrix, {}
 
 

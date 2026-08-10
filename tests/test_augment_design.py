@@ -44,7 +44,7 @@ def _fractional_factorial_df(
         factors[: len(names)],
         design_type="fractional_factorial",
         generators=generators,
-        center_points=0,
+        n_center_points=0,
     )
     # Extract coded design without RunOrder
     df = pd.DataFrame(result.design)
@@ -651,7 +651,7 @@ class TestIntegration:
             factors,
             design_type="fractional_factorial",
             generators=["D=ABC"],
-            center_points=0,
+            n_center_points=0,
         )
         df = pd.DataFrame(design_result.design).drop(columns=["RunOrder"])
         result = augment_design(df, "foldover", generators=["D=ABC"])
@@ -667,7 +667,7 @@ class TestIntegration:
         design_result = generate_design(
             factors,
             design_type="full_factorial",
-            center_points=0,
+            n_center_points=0,
         )
         df = pd.DataFrame(design_result.design).drop(columns=["RunOrder"])
         result = augment_design(df, "upgrade_to_rsm", alpha="face_centered")

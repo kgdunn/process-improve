@@ -24,17 +24,74 @@ those changes.
   the published patterns for the 8-, 16- and 32-run minimum aberration designs.
 - A Claude Skill, `skills/doe-designer`, plus `.claude-plugin/marketplace.json`
   so it installs with `/plugin marketplace add kgdunn/process-improve`. The
-  skill exposes the ten designed-experiments tools through three CLI scripts
+  skill exposes the designed-experiments tools through three CLI scripts
   (a generic registry dispatcher, a design verifier, and a plot renderer) and
   carries the workflow knowledge to go with them. This is a second
   distribution channel: users run it in their own Claude account, with no
   server and no third party holding an API key.
+- `analyze_experiment` now reports estimability. `model_summary` gains `n_terms`,
+  `model_rank` and `rank_deficient`, and a `RuntimeWarning` is raised when the
+  model matrix is rank deficient. A rank-deficient fit still returns a coefficient
+  for every requested term, but only `model_rank` of them are determined by the
+  data; the remainder are one solution out of infinitely many. Predictions at the
+  design points are unaffected, individual coefficients and predictions elsewhere
+  are not. Economical designs with structured aliasing (definitive screening,
+  OMARS and foldovers generally) reach this state routinely.
 
 ### Changed
 
 - `evaluate_design` cross-checks a design's declared resolution against the one
   implied by its matrix, and says so explicitly when they disagree.
 
+- **Breaking:** renamed the trade-off table API for consistency. The entry
+  accessor now names itself from the table it indexes, one spelling (`trade_off`)
+  is used throughout, and scalar counts are `n_`-prefixed while sequences are
+  plural bare nouns, so the parameter type is visible at the call site.
+
+  | Old | New |
+  |---|---|
+  | `tradeoff(runs, factors)` | `get_trade_off_table_entry(n_runs, n_factors)` |
+  | `omars_tradeoff(n_runs, n_factors)` | `get_omars_trade_off_table_entry(n_runs, n_factors)` |
+  | `TradeoffResult` | `TradeOffTableEntry` |
+  | `OmarsTradeoffResult` | `OmarsTradeOffTableEntry` |
+  | `experiments.tradeoff` (module) | `experiments.trade_off` |
+  | `experiments.omars_tradeoff` (module) | `experiments.omars_trade_off` |
+
+  `TradeOffTableEntry.runs` and `.factors` are now `.n_runs` and `.n_factors`,
+  matching `OmarsTradeOffTableEntry`. Renaming the modules also removes the
+  collision where `omars_tradeoff` was both a module and a function.
+
+  No deprecation shims are provided; the old names are gone.
+
+- **Breaking:** scalar count parameters in the experiments package now take the
+  `n_` prefix, so a parameter's type is visible at the call site: `center_points`,
+  `replicates` and `blocks` become `n_center_points`, `n_replicates` and `n_blocks`.
+  This affects `generate_design`, `build_design_result`, `replicate_design`,
+  `dispatch_ccd`, `dispatch_box_behnken`, `allocate_budget`, `estimate_rsm_runs`
+  and `TradeOffTableEntry.n_replicates`.
+
+  `DesignResult.blocks` is **unchanged**: it holds the per-run block assignments as
+  a `list[int]`, and sequences keep the plural bare noun. Renaming the count also
+  removes a collision, since `build_design_result` previously took a `blocks` count
+  and returned a `blocks` list.
+
+  `blocks` in the multivariate package (multiblock PCA/PLS) is a sequence of data
+  blocks and is untouched.
+
+- **Breaking (MCP):** the `generate_design` tool schema renames its `center_points`
+  and `replicates` keys to `n_center_points` and `n_replicates`. The per-key DoS
+  caps in `tool_safety.py` were re-keyed to match; without that the caps would have
+  stopped applying silently.
+
+- `trade_off_table` gained a `display` argument, so all four trade-off
+  functions now take one. It defaults to `True`, matching the others, which
+  means a bare `trade_off_table()` call now prints the table as well as
+  returning it.
+
+### Unchanged
+
+- The `trade_off_table` MCP tool is untouched: same tool name, same `runs` and
+  `factors` schema keys, same output. Only its internal call site moved.
 ## [1.66.1] - 2026-08-09
 
 ### Changed
@@ -64,7 +121,7 @@ those changes.
 
 ### Added
 
-- `experiments/omars_tradeoff.py`: a trade-off table for OMARS designs, the
+- `experiments/get_omars_trade_off_table_entry.py`: a trade-off table for OMARS designs, the
   counterpart of the two-level `trade_off_table`. Resolution cannot be the
   currency here, because an OMARS design always has its main effects orthogonal
   to each other and to every second-order term; what a run budget actually buys
@@ -77,8 +134,8 @@ those changes.
   - `Quad` (`N >= 2k + 3`): main effects and pure quadratics, with error df.
   - `Satd` (`N = 2k + 1`): estimable but exactly saturated, so no inference.
 
-  New public functions `omars_tradeoff`, `omars_trade_off_table` and
-  `omars_minimum_runs`, plus the `OmarsTradeoffResult` dataclass, all exported
+  New public functions `get_omars_trade_off_table_entry`, `omars_trade_off_table` and
+  `omars_minimum_runs`, plus the `OmarsTradeOffTableEntry` dataclass, all exported
   from `process_improve.experiments`. Every number is closed-form, so the table
   needs no integer program and no solver, and is exact rather than dependent on
   a search budget.
@@ -152,9 +209,9 @@ those changes.
 - `experiments/simulations.py`: `manufacture()` is new. It had no Python
   counterpart at all, and simulates the hourly profit of a manufacturing
   facility as a function of selling price and throughput.
-- `experiments/tradeoff.py` is a new module covering the fractional-factorial
+- `experiments/get_trade_off_table_entry.py` is a new module covering the fractional-factorial
   trade-off between run budget and factor count:
-  - `tradeoff(runs, factors)` reports the design's resolution, generators,
+  - `get_trade_off_table_entry(runs, factors)` reports the design's resolution, generators,
     defining relation and alias chains.
   - `trade_off_table()` returns the whole runs-against-factors grid as a
     DataFrame, the computed counterpart of R's `tradeOffTable()` image.
@@ -171,7 +228,7 @@ those changes.
   `random_state`, per the reproducibility contract. The default of `None`
   keeps the fresh-noise-on-every-call behaviour the classroom exercise
   depends on.
-- The `simulations`, `datasets` and `tradeoff` modules are now included in
+- The `simulations`, `datasets` and `get_trade_off_table_entry` modules are now included in
   the API documentation.
 
 ### Fixed

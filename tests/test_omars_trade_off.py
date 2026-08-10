@@ -1,4 +1,4 @@
-"""Tests for ``process_improve.experiments.omars_tradeoff``.
+"""Tests for ``process_improve.experiments.omars_trade_off``.
 
 The capability classes are arithmetic on the foldover estimability frontier, so
 the reference values are written down rather than computed: a change to the
@@ -21,13 +21,13 @@ from process_improve.experiments.designs_omars_ilp import (
     _min_half_runs,
     _model_rank,
 )
-from process_improve.experiments.omars_tradeoff import (
+from process_improve.experiments.omars_trade_off import (
     CAPABILITIES,
     DEFAULT_FACTORS,
     DEFAULT_RUNS,
+    get_omars_trade_off_table_entry,
     omars_minimum_runs,
     omars_trade_off_table,
-    omars_tradeoff,
 )
 
 # k -> (satd, quad, full), spelled out from 2k + 1, 2k + 3 and k^2 + k + 1.
@@ -125,10 +125,10 @@ class TestSingleCell:
     @pytest.mark.parametrize(("cell", "label"), TABLE_CELLS.items(), ids=str)
     def test_label_matches_the_approved_rendering(self, cell, label):
         n_runs, n_factors = cell
-        assert omars_tradeoff(n_runs, n_factors, display=False).label == label
+        assert get_omars_trade_off_table_entry(n_runs, n_factors, display=False).label == label
 
     def test_full_cell_reports_the_second_order_model(self):
-        result = omars_tradeoff(21, 4, display=False)
+        result = get_omars_trade_off_table_entry(21, 4, display=False)
         assert result.exists
         assert result.capability == "full"
         assert result.tag == "Full"
@@ -138,14 +138,14 @@ class TestSingleCell:
         assert result.reason == ""
 
     def test_quad_cell_drops_the_interactions(self):
-        result = omars_tradeoff(17, 4, display=False)
+        result = get_omars_trade_off_table_entry(17, 4, display=False)
         assert result.capability == "quad"
         assert result.model == "main_quadratic"
         assert result.model_params == 1 + 2 * 4
         assert result.error_df == 17 - 9
 
     def test_saturated_cell_has_no_error_df(self):
-        result = omars_tradeoff(9, 4, display=False)
+        result = get_omars_trade_off_table_entry(9, 4, display=False)
         assert result.capability == "satd"
         assert result.model == "main_quadratic"
         assert result.model_params == 9
@@ -153,12 +153,12 @@ class TestSingleCell:
 
     def test_error_df_is_runs_minus_parameters(self):
         for n_runs in (13, 21, 31, 43):
-            result = omars_tradeoff(n_runs, 4, display=False)
+            result = get_omars_trade_off_table_entry(n_runs, 4, display=False)
             if result.capability != "satd":
                 assert result.error_df == n_runs - result.model_params
 
     def test_even_run_counts_are_never_a_design(self):
-        result = omars_tradeoff(20, 4, display=False)
+        result = get_omars_trade_off_table_entry(20, 4, display=False)
         assert not result.exists
         assert result.capability == "none"
         assert result.tag == ""
@@ -167,36 +167,39 @@ class TestSingleCell:
         assert "even" in result.reason
 
     def test_below_the_smallest_design_there_is_nothing(self):
-        result = omars_tradeoff(7, 4, display=False)
+        result = get_omars_trade_off_table_entry(7, 4, display=False)
         assert not result.exists
         assert "below the smallest OMARS design" in result.reason
         assert result.min_runs_satd == 9
 
     def test_thresholds_travel_with_every_result(self):
         """Even an empty cell says what it would take, which is the point."""
-        result = omars_tradeoff(4, 6, display=False)
+        result = get_omars_trade_off_table_entry(4, 6, display=False)
         assert (result.min_runs_satd, result.min_runs_quad, result.min_runs_full) == THRESHOLDS[6]
 
     @pytest.mark.parametrize("k", [3, 4, 5, 6, 7])
     def test_capability_never_goes_backwards_as_runs_grow(self, k):
-        seen = [omars_tradeoff(n, k, display=False).capability for n in range(1, omars_minimum_runs(k, "full") + 8, 2)]
+        seen = [
+            get_omars_trade_off_table_entry(n, k, display=False).capability
+            for n in range(1, omars_minimum_runs(k, "full") + 8, 2)
+        ]
         order = {"none": 0, "satd": 1, "quad": 2, "full": 3}
         ranks = [order[c] for c in seen]
         assert ranks == sorted(ranks)
 
     def test_non_integer_runs_rejected(self):
         with pytest.raises(ValueError, match='"n_runs" input must be an integer'):
-            omars_tradeoff(13.5, 4, display=False)
+            get_omars_trade_off_table_entry(13.5, 4, display=False)
 
     @pytest.mark.parametrize("bad", [0, -1, -13])
     def test_non_positive_runs_rejected(self, bad):
         with pytest.raises(ValueError, match="number of runs must be positive"):
-            omars_tradeoff(bad, 4, display=False)
+            get_omars_trade_off_table_entry(bad, 4, display=False)
 
 
 class TestDisplay:
     def test_report_names_the_class_the_model_and_the_gap(self, capsys):
-        omars_tradeoff(17, 4, display=True)
+        get_omars_trade_off_table_entry(17, 4, display=True)
         out = capsys.readouterr().out
         assert "OMARS: 17 runs, 4 factors" in out
         assert "Quad:" in out
@@ -205,17 +208,17 @@ class TestDisplay:
         assert "4 more runs would reach Full" in out
 
     def test_a_full_cell_is_not_told_to_buy_more_runs(self, capsys):
-        omars_tradeoff(21, 4, display=True)
+        get_omars_trade_off_table_entry(21, 4, display=True)
         assert "more runs would reach Full" not in capsys.readouterr().out
 
     def test_an_empty_cell_says_what_the_smallest_design_is(self, capsys):
-        omars_tradeoff(20, 4, display=True)
+        get_omars_trade_off_table_entry(20, 4, display=True)
         out = capsys.readouterr().out
         assert "No design" in out
         assert "smallest design for 4 factors has 9 runs" in out
 
     def test_display_is_silent_when_switched_off(self, capsys):
-        omars_tradeoff(21, 4, display=False)
+        get_omars_trade_off_table_entry(21, 4, display=False)
         assert capsys.readouterr().out == ""
 
 

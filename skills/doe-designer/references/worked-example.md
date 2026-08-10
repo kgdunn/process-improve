@@ -56,7 +56,7 @@ python scripts/doe_tool.py call generate_design --input design_spec.json --outpu
 ```
 
 with `design_type: "fractional_factorial"`, `resolution: 4`,
-`center_points: 0`. Returned 16 runs, 7 factors, declared resolution 4, with
+`n_center_points: 0`. Returned 16 runs, 7 factors, declared resolution 4, with
 both `design_coded` and `design_actual` (real units) plus a randomised
 `run_order`.
 
@@ -196,7 +196,7 @@ report.
 python scripts/doe_tool.py call generate_design --input '{
   "factors": [{"name": "Temperature", "low": 165, "high": 200, "units": "C"},
               {"name": "Catalyst", "low": 1.0, "high": 3.0, "units": "pct"}],
-  "design_type": "ccd", "center_points": 3, "alpha": "rotatable"}'
+  "design_type": "ccd", "n_center_points": 3, "alpha": "rotatable"}'
 ```
 
 Then analyse with `model: "quadratic"`, add `lack_of_fit` and

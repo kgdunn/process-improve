@@ -23,6 +23,7 @@ from process_improve.experiments.strategy.domain_templates import (
 )
 from process_improve.experiments.strategy.engine import (
     _parse_prior_knowledge,
+    _screening_design_params,
     recommend_strategy,
 )
 from process_improve.experiments.strategy.models import (
@@ -255,11 +256,11 @@ class TestRunEstimation:
         assert runs == 8  # 2^3
 
     def test_bbd_runs_3_factors(self):
-        runs = estimate_rsm_runs(3, "box_behnken", center_points=3)
+        runs = estimate_rsm_runs(3, "box_behnken", n_center_points=3)
         assert runs == 15  # 12 + 3
 
     def test_ccd_runs_3_factors(self):
-        runs = estimate_rsm_runs(3, "ccd", center_points=3)
+        runs = estimate_rsm_runs(3, "ccd", n_center_points=3)
         assert runs == 17  # 8 + 6 + 3
 
     def test_confirmation_minimum(self):
@@ -642,3 +643,23 @@ class TestModels:
         assert DomainType("fermentation") == DomainType.fermentation
         with pytest.raises(ValueError, match="nonexistent"):
             DomainType("nonexistent")
+
+
+class TestScreeningDesignParams:
+    """Each screening design type carries its own parameter dict."""
+
+    def test_fractional_factorial_asks_for_resolution_iv_and_centre_points(self):
+        assert _screening_design_params("fractional_factorial", 6) == {
+            "resolution": 4,
+            "n_center_points": 3,
+        }
+
+    def test_plackett_burman_has_no_centre_points(self):
+        assert _screening_design_params("plackett_burman", 6) == {"n_center_points": 0}
+
+    @pytest.mark.parametrize(("n", "fake_factor"), [(6, True), (7, False)])
+    def test_definitive_screening_adds_a_fake_factor_for_an_even_count(self, n, fake_factor):
+        assert _screening_design_params("definitive_screening", n) == {"fake_factor": fake_factor}
+
+    def test_unknown_design_type_carries_no_parameters(self):
+        assert _screening_design_params("d_optimal", 6) == {}

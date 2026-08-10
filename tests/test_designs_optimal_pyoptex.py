@@ -189,7 +189,7 @@ class TestRunOrderPreservation:
             design_type="i_optimal",
             budget=6,
             random_seed=999,
-            center_points=0,
+            n_center_points=0,
         )
         assert result.metadata.get("backend") == "pyoptex"
         assert result.run_order == list(range(1, 7))

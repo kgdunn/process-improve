@@ -13,6 +13,7 @@ precision, and confirmation run testing.
 from __future__ import annotations
 
 import logging
+import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -283,6 +284,16 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
     pred_r2 = _compute_pred_r_squared(ols_result)
     adeq_prec = _compute_adequate_precision(ols_result)
 
+    # Estimability. A rank-deficient model matrix is still "fitted" by the
+    # pseudo-inverse, and a coefficient is reported for every requested term, but only
+    # `model_rank` of them are determined by the data: the rest are one arbitrary
+    # solution out of infinitely many. Economical designs that carry structured
+    # aliasing (definitive screening, OMARS and other foldovers) land here routinely,
+    # so say so rather than letting the caller read confident-looking output.
+    n_terms = int(np.shape(ols_result.model.exog)[1])
+    model_rank = int(getattr(ols_result.model, "rank", np.linalg.matrix_rank(ols_result.model.exog)))
+    rank_deficient = model_rank < n_terms
+
     results: dict[str, Any] = {
         "model_summary": {
             "formula": formula,
@@ -291,11 +302,26 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
             "r_squared_pred": pred_r2,
             "adequate_precision": adeq_prec,
             "n_obs": int(ols_result.nobs),
+            "n_terms": n_terms,
+            "model_rank": model_rank,
+            "rank_deficient": rank_deficient,
             "df_model": int(ols_result.df_model),
             "df_residual": int(ols_result.df_resid),
             "mse_residual": float(ols_result.mse_resid),
         }
     }
+
+    if rank_deficient:
+        message = (
+            f"The model matrix has {n_terms} terms but rank {model_rank}, so "
+            f"{n_terms - model_rank} of them are not estimable from this design. A "
+            "coefficient is still reported for every term, but those are one solution "
+            "out of infinitely many: predictions at the design points are unaffected, "
+            "while individual coefficients and predictions elsewhere are not "
+            "determined. Fit fewer terms, or add runs."
+        )
+        logger.warning("analyze_experiment: %s", message)
+        warnings.warn(message, category=RuntimeWarning, stacklevel=2)
 
     # --- Dispatch requested analyses -----------------------------------
     for t in types:

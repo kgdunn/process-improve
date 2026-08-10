@@ -12,7 +12,7 @@ Example
 -------
 >>> from process_improve.experiments import evaluate_design, generate_design, Factor
 >>> factors = [Factor(name="A", low=0, high=10), Factor(name="B", low=0, high=10)]
->>> result = generate_design(factors, design_type="full_factorial", center_points=0)
+>>> result = generate_design(factors, design_type="full_factorial", n_center_points=0)
 >>> metrics = evaluate_design(result, model="interactions", metric=["d_efficiency", "vif"])
 """
 
@@ -1201,7 +1201,7 @@ def evaluate_design(  # noqa: PLR0913
     --------
     >>> from process_improve.experiments import evaluate_design, generate_design, Factor
     >>> factors = [Factor(name="A", low=0, high=10), Factor(name="B", low=0, high=10)]
-    >>> result = generate_design(factors, design_type="full_factorial", center_points=0)
+    >>> result = generate_design(factors, design_type="full_factorial", n_center_points=0)
     >>> metrics = evaluate_design(result, model="main_effects", metric="d_efficiency")
     >>> metrics["d_efficiency"]  # doctest: +SKIP
     100.0

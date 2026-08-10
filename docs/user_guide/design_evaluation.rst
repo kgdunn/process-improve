@@ -36,7 +36,7 @@ Quick Start
    from process_improve.experiments import generate_design, evaluate_design, Factor
 
    factors = [Factor(name=n, low=-1, high=1) for n in "ABCDE"]
-   design = generate_design(factors, design_type="box_behnken", center_points=6)
+   design = generate_design(factors, design_type="box_behnken", n_center_points=6)
 
    # A reduced model: main effects plus pure quadratics (no two-factor interactions).
    model = "A+B+C+D+E+I(A**2)+I(B**2)+I(C**2)+I(D**2)+I(E**2)"

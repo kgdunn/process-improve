@@ -145,7 +145,7 @@ class TestOMARSDispatch:
 
     def test_generate_design_integration(self) -> None:
         """generate_design(design_type='omars') returns a verified OMARS design."""
-        result = generate_design(_continuous_factors(5), design_type="omars", center_points=0)
+        result = generate_design(_continuous_factors(5), design_type="omars", n_center_points=0)
         assert result.design_type == "omars"
         assert result.metadata["omars_verified"] is True
         x = result.design[result.factor_names].values.astype(float)
@@ -153,6 +153,6 @@ class TestOMARSDispatch:
 
     def test_values_in_range(self) -> None:
         """Coded OMARS values lie within [-1, +1]."""
-        result = generate_design(_continuous_factors(5), design_type="omars", center_points=0)
+        result = generate_design(_continuous_factors(5), design_type="omars", n_center_points=0)
         for col in result.factor_names:
             assert np.all(np.abs(result.design[col].values) <= 1.0 + 1e-10)

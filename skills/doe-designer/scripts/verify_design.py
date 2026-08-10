@@ -8,12 +8,12 @@
 Why this exists
 ---------------
 A language model asked to write out a fractional factorial design will often
-produce one that looks right and is not. Vazquez et al. (2026) evaluated
-GPT-5.1 and Gemini 2.5 Flash on 36 construction tasks and found reliable
-results only up to about eight factors; past that the models returned designs
-of resolution 1 or 2, non-regular arrays presented as regular fractions, and
-tables with missing cells. Every one of those failures is invisible by
-inspection and expensive in the lab.
+produce one that looks right and is not. Vazquez, Rother and Charles-Gonzalez
+(2026, arXiv:2512.17113) had GPT and Gemini models construct two-level
+fractional factorial designs with 8, 16 and 32 runs and 4 to 26 factors, and
+found optimal results reliably only up to about eight factors, with degradation
+beyond that. Such failures are invisible by inspection and expensive in the
+lab.
 
 So: never trust a design matrix that was typed rather than generated. Run it
 through this script. It reports the resolution actually implied by the matrix,

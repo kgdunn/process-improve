@@ -1,6 +1,12 @@
 # DOE Tool Architecture
 
-8 tools that collectively cover all 162 questions. Each tool is agent-callable via `@tool_spec` in `process_improve/experiments/tools.py`.
+The DOE tools, each agent-callable via `@tool_spec` in
+`process_improve/experiments/tools.py`. The registry is the source of truth for what
+exists; run `get_tool_specs()` to list it.
+
+The coverage figures below were measured against the question bank for the tools that
+existed when it was written. Tools added since are listed without a figure rather than
+scored retrospectively.
 
 ## Summary
 
@@ -14,6 +20,9 @@
 | `recommend_strategy` | Recommend multi-stage experimental strategy | 14 | 9% |
 | `visualize_doe` | Generate DOE plots | 10 | 6% |
 | `augment_design` | Extend or modify an existing design | 9 | 6% |
+| `create_factorial_design` | Quick 2^k full factorial | - | - |
+| `fit_linear_model` | Fit an explicit model formula | - | - |
+| `trade_off_table` | Two-level runs-against-factors table and its aliasing | - | - |
 
 ---
 
@@ -28,9 +37,9 @@ Create any type of experimental design matrix.
 | `factors` | list[Factor] | Name, type (`continuous`/`categorical`/`mixture`), low, high, levels, units |
 | `design_type` | str or None | `full_factorial`, `fractional_factorial`, `plackett_burman`, `box_behnken`, `ccd`, `dsd`, `d_optimal`, `i_optimal`, `mixture`, `taguchi`, `custom`. None = auto-select. |
 | `budget` | int or None | Max runs the user can afford |
-| `center_points` | int | Center point replicates (default 3–5) |
-| `replicates` | int | Full replicates |
-| `blocks` | int or None | Number of blocks |
+| `n_center_points` | int | Centre point replicates (default 3–5) |
+| `n_replicates` | int | Full replicates |
+| `n_blocks` | int or None | Number of blocks |
 | `resolution` | int or None | Minimum resolution (III, IV, V) |
 | `generators` | list[str] or None | e.g. `["D=ABC", "E=AC"]` |
 | `alpha` | str/float or None | Axial distance for CCD: `"rotatable"`, `"face_centered"`, `"orthogonal"`, or numeric |

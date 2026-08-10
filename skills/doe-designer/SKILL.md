@@ -15,12 +15,13 @@ analysis has to be honest about what the data can and cannot support.
 **Never write out a design matrix yourself. Generate it with a tool, then
 verify it.**
 
-This is not a stylistic preference. Vazquez et al. (2026, arXiv:2512.17113)
-ran GPT-5.1 and Gemini 2.5 Flash across 36 two-level fractional factorial
-construction tasks and found that models produce optimal designs reliably only
-up to about eight factors. Beyond that they return designs of resolution 1 or
-2, non-regular arrays presented as regular fractions, and tables with missing
-cells, all of it looking entirely plausible. A resolution-2 design aliases one
+This is not a stylistic preference. Vazquez, Rother and Charles-Gonzalez
+(2026, arXiv:2512.17113) had GPT and Gemini models construct two-level
+fractional factorial designs with 8, 16 and 32 runs and 4 to 26 factors, and
+compared the results against the best-known designs on resolution and minimum
+aberration. The models produce optimal designs reliably only up to about eight
+factors, and degrade beyond that. A degraded design still looks entirely
+plausible on the page. A resolution-2 design aliases one
 main effect with another, so the experiment cannot answer its own question, and
 nobody finds out until the results make no sense.
 
@@ -149,7 +150,8 @@ confirmation runs and check them with `analysis_type: confirmation_test`.
 
 ## Tools
 
-All eleven are reachable through `scripts/doe_tool.py call <name>`. Run
+Every tool below is reachable through `scripts/doe_tool.py call <name>`, and
+`scripts/doe_tool.py list` prints whatever the registry currently holds. Run
 `python scripts/doe_tool.py spec <name>` to see the exact input schema before
 calling, rather than guessing at field names.
 

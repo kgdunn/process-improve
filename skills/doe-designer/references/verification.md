@@ -11,13 +11,13 @@ the same, or whether a main effect is aliased with an interaction. Those
 properties are what determine whether the experiment can answer its question,
 and they are invisible to inspection.
 
-Vazquez et al. (2026, arXiv:2512.17113) quantified how badly this goes when a
-language model writes the matrix instead of a catalogue. Across 36 tasks with
-8, 16 and 32 runs and 4 to 26 factors, ten replicates each, GPT-5.1 and Gemini
-2.5 Flash produced optimal designs reliably up to roughly eight factors and
-then degraded: resolution-1 and resolution-2 designs, non-regular arrays
-offered as regular fractions, tables with missing cells, and outright refusals.
-The failures were not obviously wrong on the page.
+Vazquez, Rother and Charles-Gonzalez (2026, arXiv:2512.17113) assessed how well
+this goes when a language model writes the matrix instead of a catalogue. They
+had GPT and Gemini models construct two-level fractional factorial designs with
+8, 16 and 32 runs and 4 to 26 factors, and compared the results against the
+best-known designs on resolution and minimum aberration. The models construct
+optimal designs reliably up to about eight factors, and degrade beyond that.
+A design matrix that degrades this way does not look wrong on the page.
 
 So verify. It costs one command.
 
