@@ -13,6 +13,22 @@ those changes.
 
 ### Added
 
+- Minimum moment aberration (Xu, 2003) for two-level designs, as
+  `process_improve.experiments.moment_aberration` and as a new
+  `moment_aberration` metric on `evaluate_design`. Unlike the existing
+  `minimum_aberration` metric, which reads the word-length pattern off the
+  defining relation and so needs a `DesignResult` carrying generators, this
+  works from the design matrix alone. It reports the moment aberration
+  pattern, the design's strength, and hence its resolution, for any two-level
+  matrix, regular or not, at O(n^2 m^2) rather than O(n 2^m). Verified against
+  the published patterns for the 8-, 16- and 32-run minimum aberration designs.
+- A Claude Skill, `skills/doe-designer`, plus `.claude-plugin/marketplace.json`
+  so it installs with `/plugin marketplace add kgdunn/process-improve`. The
+  skill exposes the eleven designed-experiments tools through three CLI scripts
+  (a generic registry dispatcher, a design verifier, and a plot renderer) and
+  carries the workflow knowledge to go with them. This is a second
+  distribution channel: users run it in their own Claude account, with no
+  server and no third party holding an API key.
 - `analyze_experiment` now reports estimability. `model_summary` gains `n_terms`,
   `model_rank` and `rank_deficient`, and a `RuntimeWarning` is raised when the
   model matrix is rank deficient. A rank-deficient fit still returns a coefficient
@@ -23,6 +39,9 @@ those changes.
   OMARS and foldovers generally) reach this state routinely.
 
 ### Changed
+
+- `evaluate_design` cross-checks a design's declared resolution against the one
+  implied by its matrix, and says so explicitly when they disagree.
 
 - **Breaking:** renamed the trade-off table API for consistency. The entry
   accessor now names itself from the table it indexes, one spelling (`trade_off`)
@@ -73,7 +92,6 @@ those changes.
 
 - The `trade_off_table` MCP tool is untouched: same tool name, same `runs` and
   `factors` schema keys, same output. Only its internal call site moved.
-
 ## [1.66.1] - 2026-08-09
 
 ### Changed

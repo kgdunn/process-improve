@@ -1,5 +1,10 @@
 """Designed experiments: factorial designs, linear models, optimization, and design generation."""
 
+from process_improve.experiments._moment_aberration import (
+    MomentAberrationResult,
+    NotTwoLevelError,
+    moment_aberration,
+)
 from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.augment import augment_design
 from process_improve.experiments.designs import generate_design
@@ -38,6 +43,8 @@ __all__ = [
     "Expt",
     "Factor",
     "Model",
+    "MomentAberrationResult",
+    "NotTwoLevelError",
     "OmarsResult",
     "OmarsTradeOffTableEntry",
     "Response",
@@ -62,6 +69,7 @@ __all__ = [
     "lm",
     "main_effects_plot",
     "manufacture",
+    "moment_aberration",
     "omars_minimum_runs",
     "omars_properties",
     "omars_trade_off_table",
