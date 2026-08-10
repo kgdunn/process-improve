@@ -150,7 +150,8 @@ confirmation runs and check them with `analysis_type: confirmation_test`.
 
 ## Tools
 
-All eleven are reachable through `scripts/doe_tool.py call <name>`. Run
+Every tool below is reachable through `scripts/doe_tool.py call <name>`, and
+`scripts/doe_tool.py list` prints whatever the registry currently holds. Run
 `python scripts/doe_tool.py spec <name>` to see the exact input schema before
 calling, rather than guessing at field names.
 

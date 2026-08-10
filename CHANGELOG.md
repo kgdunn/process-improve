@@ -24,7 +24,7 @@ those changes.
   the published patterns for the 8-, 16- and 32-run minimum aberration designs.
 - A Claude Skill, `skills/doe-designer`, plus `.claude-plugin/marketplace.json`
   so it installs with `/plugin marketplace add kgdunn/process-improve`. The
-  skill exposes the eleven designed-experiments tools through three CLI scripts
+  skill exposes the designed-experiments tools through three CLI scripts
   (a generic registry dispatcher, a design verifier, and a plot renderer) and
   carries the workflow knowledge to go with them. This is a second
   distribution channel: users run it in their own Claude account, with no

@@ -1,9 +1,12 @@
 # DOE Tool Architecture
 
-Eleven tools, all agent-callable via `@tool_spec` in `process_improve/experiments/tools.py`.
-The coverage figures below were measured for the original eight against the 162-question
-bank; `create_factorial_design`, `fit_linear_model` and `trade_off_table` were added
-afterwards and have not been scored against it.
+The DOE tools, each agent-callable via `@tool_spec` in
+`process_improve/experiments/tools.py`. The registry is the source of truth for what
+exists; run `get_tool_specs()` to list it.
+
+The coverage figures below were measured against the question bank for the tools that
+existed when it was written. Tools added since are listed without a figure rather than
+scored retrospectively.
 
 ## Summary
 
@@ -17,6 +20,9 @@ afterwards and have not been scored against it.
 | `recommend_strategy` | Recommend multi-stage experimental strategy | 14 | 9% |
 | `visualize_doe` | Generate DOE plots | 10 | 6% |
 | `augment_design` | Extend or modify an existing design | 9 | 6% |
+| `create_factorial_design` | Quick 2^k full factorial | - | - |
+| `fit_linear_model` | Fit an explicit model formula | - | - |
+| `trade_off_table` | Two-level runs-against-factors table and its aliasing | - | - |
 
 ---
 
