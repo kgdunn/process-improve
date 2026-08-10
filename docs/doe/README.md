@@ -5,7 +5,7 @@ These docs capture the tool architecture and question bank that drive developmen
 
 ## At a Glance
 
-- **8 tools** defined (6 implemented, 2 not started)
+- **11 tools**, all implemented
 - **162 questions** across 16 categories the module must answer
 - **Dominant workflow:** screening → optimization → confirmation
 
