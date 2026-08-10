@@ -21,6 +21,7 @@ def boxplot(**kwargs):
     """
     return _boxplot(BoxplotInput(**kwargs))
 
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -29,12 +30,8 @@ def boxplot(**kwargs):
 @pytest.fixture
 def grouped_data() -> list[dict]:
     """Two groups A (with outlier 50) and B (no outliers)."""
-    return [
-        {"row_id": f"obs_{i}", "lot": "A", "y": v}
-        for i, v in enumerate([10, 11, 12, 13, 14, 15, 50])
-    ] + [
-        {"row_id": f"obs_{i + 100}", "lot": "B", "y": v}
-        for i, v in enumerate([5, 6, 7, 8, 9])
+    return [{"row_id": f"obs_{i}", "lot": "A", "y": v} for i, v in enumerate([10, 11, 12, 13, 14, 15, 50])] + [
+        {"row_id": f"obs_{i + 100}", "lot": "B", "y": v} for i, v in enumerate([5, 6, 7, 8, 9])
     ]
 
 
@@ -72,8 +69,13 @@ def test_return_shape(grouped_data: list[dict]) -> None:
         link_group="L1",
     )
     assert set(res.keys()) == {
-        "plot_type", "title", "data", "plotly", "echarts",
-        "link_group", "point_ids",
+        "plot_type",
+        "title",
+        "data",
+        "plotly",
+        "echarts",
+        "link_group",
+        "point_ids",
     }
     assert res["plot_type"] == "boxplot"
     assert res["link_group"] == "L1"
@@ -147,7 +149,10 @@ def test_ungrouped_emits_one_box_per_column() -> None:
 
 def test_backend_echarts_omits_plotly(grouped_data: list[dict]) -> None:
     res = boxplot(
-        data=grouped_data, value_columns=["y"], group_by="lot", backend="echarts",
+        data=grouped_data,
+        value_columns=["y"],
+        group_by="lot",
+        backend="echarts",
     )
     assert res["plotly"] is None
     assert res["echarts"] is not None
@@ -155,7 +160,10 @@ def test_backend_echarts_omits_plotly(grouped_data: list[dict]) -> None:
 
 def test_backend_plotly_omits_echarts(grouped_data: list[dict]) -> None:
     res = boxplot(
-        data=grouped_data, value_columns=["y"], group_by="lot", backend="plotly",
+        data=grouped_data,
+        value_columns=["y"],
+        group_by="lot",
+        backend="plotly",
     )
     assert res["echarts"] is None
     assert res["plotly"] is not None
@@ -168,8 +176,11 @@ def test_backend_plotly_omits_echarts(grouped_data: list[dict]) -> None:
 
 def test_echarts_has_boxplot_and_scatter_series(grouped_data: list[dict]) -> None:
     res = boxplot(
-        data=grouped_data, value_columns=["y"], group_by="lot",
-        id_column="row_id", show_points=True,
+        data=grouped_data,
+        value_columns=["y"],
+        group_by="lot",
+        id_column="row_id",
+        show_points=True,
     )
     types = [s["type"] for s in res["echarts"]["series"]]
     assert "boxplot" in types
@@ -198,8 +209,11 @@ def test_plotly_is_box_trace(grouped_data: list[dict]) -> None:
 
 def test_link_group_injects_brush_and_marker(grouped_data: list[dict]) -> None:
     res = boxplot(
-        data=grouped_data, value_columns=["y"], group_by="lot",
-        id_column="row_id", link_group="lots",
+        data=grouped_data,
+        value_columns=["y"],
+        group_by="lot",
+        id_column="row_id",
+        link_group="lots",
     )
     option = res["echarts"]
     assert option["__link_group"] == "lots"
@@ -209,8 +223,11 @@ def test_link_group_injects_brush_and_marker(grouped_data: list[dict]) -> None:
 
 def test_link_group_point_ids_carry_outlier_id(grouped_data: list[dict]) -> None:
     res = boxplot(
-        data=grouped_data, value_columns=["y"], group_by="lot",
-        id_column="row_id", link_group="lots",
+        data=grouped_data,
+        value_columns=["y"],
+        group_by="lot",
+        id_column="row_id",
+        link_group="lots",
     )
     assert res["point_ids"] == ["obs_6"]
 

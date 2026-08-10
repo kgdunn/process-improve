@@ -8,6 +8,24 @@
 **License:** MIT
 **Python:** >= 3.10 (CI tests 3.10-3.13; 3.13 is the primary version for lint, typecheck, and coverage)
 
+## Authoritative documents
+
+This file is the agent-facing map: the repo layout, the decisions that are not
+obvious from reading the code, and the session workflow. It is **not** the
+canonical home for contributor policy. Where a policy document exists, read it
+rather than assuming; do not restate its content here, because two copies of a
+rule is how they drift apart.
+
+| Topic | Canonical source |
+|---|---|
+| Dev setup, test tiers, code style, breaking changes, perf policy | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| When to raise / assert / warn, exception classes | `docs/development/error_handling.rst` |
+| `random_state` contract for every public function touching an RNG | `docs/development/reproducibility.rst` |
+| Retiring public API, `DeprecationWarning` message format | `docs/development/deprecation_policy.rst` |
+| Logging conventions | `docs/development/logging.rst` |
+| Writing a new `@tool_spec` tool | `docs/development/tool_authoring.rst` |
+| sklearn interoperability details | `SKLEARN_COMPATIBILITY.md` |
+
 ## Package Structure
 
 The package uses a src layout: all code lives under `src/process_improve/`.
@@ -32,31 +50,14 @@ src/process_improve/
     config.py        # Settings singleton reading PROCESS_IMPROVE_* env vars
     _extras.py       # Clean ImportError messages for missing optional extras
     _linalg.py       # Shared numerical-linear-algebra guards
-    _random.py       # Shared random_state resolver
+    _random.py       # Shared random_state resolver (see reproducibility.rst)
 ```
 
-## Versioning
-
-The version is defined in `pyproject.toml` under `[project] version`. It uses 3-part semver: `MAJOR.MINOR.PATCH` (e.g., `1.52.2`).
-
-**Auto-bump the version with every PR that changes code or configuration:**
-- **PATCH** (last position, e.g., 1.52.2 → 1.52.3): bug fixes, CI/workflow changes, docs updates, dependency bumps, small refactors, and other minor changes.
-- **MINOR** (middle position, e.g., 1.52.3 → 1.53.0): new features, new modules, significant API additions, or meaningful behavioral changes. Resets PATCH to 0.
-- **If unsure** whether a change is major or minor, **ask the user** before bumping.
-
-**Keep `CITATION.cff` in sync with the version.** Whenever you bump the `version` in `pyproject.toml`, in the *same commit* set the `version:` field in `CITATION.cff` (repo root) to the identical value, and update `date-released:` to the current date. `pyproject.toml` and `CITATION.cff` must never report different versions.
-
-The PyPI publish workflow (`.github/workflows/publish.yml`) is **manually gated** as of ENG-21 (#303). It runs only when a tag matching `v*` is pushed, or when a maintainer triggers `workflow_dispatch` from the Actions tab. Every release carries a sigstore attestation (PEP 740) and a CycloneDX SBOM attached to the GitHub release page; release notes are pulled from the matching `CHANGELOG.md` section. Bumping the version in a PR no longer publishes by itself; the maintainer must push the tag (or click Run workflow) once the PR has merged.
-
-## Changelog
-
-`CHANGELOG.md` (repo root) follows the [Keep a Changelog](https://keepachangelog.com) format.
-
-For every PR or set of changes, **prompt the user to confirm whether a changelog entry is required.** User-facing changes (new features, API changes, bug fixes, behavioural changes) generally need one; internal-only changes (refactors, CI tweaks, edits to this file) generally do not. If an entry is required, write a relevant line under the appropriate version heading in `CHANGELOG.md` and stage it as part of the same commit.
-
-New changelog lines go under the `## [Unreleased]` heading. When you bump the version in `pyproject.toml`, also update `CHANGELOG.md` in the same commit: rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` (today's date), add a fresh empty `## [Unreleased]` heading above it, and update the link-reference footer at the bottom of the file (the `[Unreleased]` compare link and a new `[X.Y.Z]` compare link).
-
 ## Key Architectural Decisions
+
+These are the things that are costly to infer from the source. For the list of
+fitted attributes on any estimator, read the class: they are documented in its
+NumPy-style `Attributes` section, and any list duplicated here would rot.
 
 ### sklearn API Compatibility
 - **PCA** inherits from `sklearn.base.BaseEstimator` and `sklearn.base.TransformerMixin`
@@ -66,131 +67,139 @@ New changelog lines go under the `## [Unreleased]` heading. When you bump the ve
   `clone`, Pipeline support) but never couple to a concrete sklearn estimator's private attribute
   layout. The same applies to TPLS / MBPLS / MBPCA. `do not inherit from sklearn` here means the
   concrete estimators, not the mixins.
-- Fitted attributes use trailing `_` convention (e.g., `scores_`, `loadings_`, `spe_`, `hotellings_t2_`)
-  and are set only in `fit()`, never in `__init__` (sklearn requires `__init__` to set only the
-  constructor parameters).
+- Fitted attributes use the trailing `_` convention and are set only in `fit()`, never in `__init__`
+  (sklearn requires `__init__` to set only the constructor parameters).
 - `predict()` returns `sklearn.utils.Bunch` with named fields (not custom classes)
 - `score()` follows sklearn convention (higher is better)
 - `fit()` returns `self`
 
-### PCA Fitted Attributes
-`scores_`, `loadings_`, `spe_`, `hotellings_t2_`, `explained_variance_`, `r2_cumulative_`, `r2_per_component_`, `r2_per_variable_`, `scaling_factor_for_scores_`, `fitting_info_`, `has_missing_data_`
+### Frame-valued fitted attributes are descriptors
+`scores_`, `loadings_`, `spe_` and their PLS counterparts are **not** assigned in
+`fit()`. As of ENG-18 they are `_LazyFrame` descriptors (`multivariate/_base.py`)
+over a private ndarray (`_scores`, `_loadings`, ...), which stays the source of
+truth. The `pd.DataFrame` is built on first access from the array plus the
+index/column metadata, cached, and excluded from pickling via `__getstate__`;
+internal math reads the ndarray directly and skips the per-call `.values`
+conversion. On an unfitted model the backing array is absent, so access raises
+`AttributeError`, keeping `hasattr` / `check_is_fitted` behaviour intact.
 
-### PLS Fitted Attributes
-`scores_` (X scores), `y_scores_`, `x_loadings_`, `y_loadings_`, `x_weights_`, `y_weights_`, `direct_weights_`, `beta_coefficients_`, `predictions_`, `spe_`, `hotellings_t2_`, `explained_variance_`, `r2_cumulative_`, `r2_per_component_`, `r2_per_variable_`, `r2y_per_variable_`, `rmse_`, `scaling_factor_for_scores_`, `fitting_info_`, `has_missing_data_`
+When adding a frame-valued fitted attribute, follow that pattern: store the
+array privately in `fit()` and declare the descriptor at class-body level.
 
 ### Convenience Method Binding
 PCA / PLS / TPLS / MBPLS / MBPCA expose plot, limit, and diagnostic convenience methods
 (`score_plot`, `spe_plot`, `loading_plot`, `spe_limit`, `score_limit`, `vip`, `eigenvalue_summary`,
 `hotellings_t2_limit`, `ellipse_coordinates`, ...) that forward to the standalone functions in
 `plots.py` / `_limits.py` / `_diagnostics.py`. As of ENG-05 (#287) these are **real methods defined
-on the class**, not `functools.partial` instances bound in `fit()`:
-```python
-from process_improve.multivariate._common import _model_method
-
-# Uniform `model=self` forwarders (defined at class-body time):
-score_plot = _model_method(_score_plot)
-spe_limit = _model_method(_spe_limit)
-vip = _model_method(_vip)
-# Methods that need fitted state are written out explicitly:
-def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
-    return _hotellings_t2_limit(conf_level=conf_level, n_components=self.n_components, n_rows=self.n_samples_)
-```
-This keeps `help` / `inspect.signature` accurate (they report the underlying function, minus `model`),
-the fitted model picklable, and the methods overridable by subclasses. The standalone functions remain
-importable for advanced callers. (TPLS's `spe_limit` is a separate nested dict-of-callables API and is
-intentionally not a method.)
+on the class** via `_model_method` from `multivariate/_common.py`, not `functools.partial` instances
+bound in `fit()`. Methods needing fitted state are written out explicitly instead. This keeps
+`help` / `inspect.signature` accurate, the fitted model picklable, and the methods overridable by
+subclasses. The standalone functions remain importable for advanced callers. (TPLS's `spe_limit` is
+a separate nested dict-of-callables API and is intentionally not a method.)
 
 ### Migration Helpers
 Both PCA and PLS have `__getattr__` methods that raise `AttributeError` with helpful rename messages when old attribute names are used (e.g., `model.x_scores` tells you to use `model.scores_`).
 
+### `Expt` and the `pi_` prefix
+`Expt` (`experiments/structures.py`) is the canonical and only name for the
+experiment container, a `pd.DataFrame` subclass. Library-managed metadata on it
+is namespaced with a `pi_` prefix (`pi_title`, `pi_units`, `pi_range`, `pi_lo`,
+`pi_hi`, `pi_center`, `pi_name`, `pi_levels`, `pi_is_coded`, ...), which exists
+so these reserved names cannot collide with columns from a user-supplied
+DataFrame. Treat `pi_*` as public API, and give new metadata fields the same
+prefix.
+
 ## Coding Conventions
 
-### Docstrings
-- **NumPy style** throughout (Parameters, Returns, Examples, See Also, References sections)
-- Use `----------` underlines for section headers
-- Include type annotations in both signatures and docstrings
+Full style guide: [`CONTRIBUTING.md`](CONTRIBUTING.md#code-style). The rules
+below are the ones most often got wrong in an agent session.
 
-### Scaling
-- Use `MCUVScaler` (mean-center, unit-variance) for scaling data before fitting models
-- `center()` and `scale()` standalone functions also available but `MCUVScaler` is preferred (sklearn-compatible transformer)
-
-### Variable Naming
-- `N` = number of samples, `K` = number of features, `M` = number of targets, `A` = number of components
-- These are used as local variables inside methods; stored as `n_samples_`, `n_features_in_`, `n_targets_`
-
-### Code Quality
-- Line length: 120 characters
-- Linter: ruff (with `select = ["ALL"]` and specific ignores - see `pyproject.toml`)
-- Formatter: ruff-format (do not add black, flake8, or isort config; ruff covers all of them)
-- Type checking: mypy (CI gate covers `src/process_improve`)
-
-### Prose style
-- Do not use em-dashes (Unicode U+2014) in docs, docstrings, comments, commit
-  messages, or PR descriptions. Use a hyphen (`-`), a semicolon, or split the
-  sentence instead. This applies to Markdown, reStructuredText, Python
-  docstrings/comments, and YAML prose content.
+- Line length 120. Linter: ruff, `select = ["ALL"]` with ignores in `pyproject.toml`.
+  Formatter: ruff-format. Do not add black, flake8, or isort config; ruff covers all three.
+- Type checking: mypy, a blocking CI gate over `src/process_improve`.
+- **The lint gate is two commands, not one:** `ruff check .` **and**
+  `ruff format --check .`. They fail independently, so a clean `ruff check .`
+  says nothing about formatting. Run both before pushing.
+- Keep the `ruff-pre-commit` `rev` in `.pre-commit-config.yaml` in step with the
+  `ruff` pin in `pyproject.toml`; if they diverge, locally formatted code can
+  still be rejected by CI.
+- Reformatting can strand a trailing `# noqa` on a line the reflow splits, so the
+  directive no longer sits on the code it suppresses. Ruff then reports both the
+  unsuppressed rule and the now-unused directive (`RUF100`): move the directive to
+  the line the rule is reported against rather than deleting it.
+- Docstrings are NumPy style throughout, with type annotations in both the
+  signature and the docstring.
+- Prefer `MCUVScaler` (mean-center, unit-variance) over the standalone `center()`
+  / `scale()` for preparing data before fitting.
+- `N` = samples, `K` = features, `M` = targets, `A` = components as local
+  variables; stored as `n_samples_`, `n_features_in_`, `n_targets_`.
+- **No em-dashes** (U+2014) anywhere: docs, docstrings, comments, commit messages,
+  PR descriptions, Markdown, reStructuredText or YAML prose. Use a hyphen, a
+  semicolon, or split the sentence.
 
 ## Testing
 
-### Running Tests
-
-Defaults in `pytest.ini` include xdist parallelism and the coverage gate; a
-plain `pytest` works. Debug helpers (`--pdb`, `-x`, `-v`) are not defaults;
-pass them manually when needed.
+Defaults in `pytest.ini` include xdist parallelism and the coverage gate, so a
+plain `pytest` works. Debug helpers (`--pdb`, `-x`, `-v`) are deliberately not
+defaults; pass them manually.
 
 ```bash
-# Full suite (parallel, with the coverage gate)
-uv run pytest
-
-# One file (multivariate tests are split across ~15 files:
-# tests/test_multivariate.py, test_multiblock_reference.py,
-# test_multivariate_tsr.py, test_multivariate_robustness.py, ...)
-uv run pytest tests/test_multivariate.py --no-cov
-
-# By keyword
-uv run pytest -k "pls" --no-cov
+uv run pytest                                        # full suite, parallel, coverage gate
+uv run pytest tests/test_multivariate.py --no-cov    # one file
+uv run pytest -k "pls" --no-cov                      # by keyword
 ```
 
-### Test Conventions
-- Use **real datasets** (LDPE, SIMCA) alongside synthetic data - do not remove real dataset tests
-- Scale with `MCUVScaler().fit_transform(X)` in tests (not just `center()`)
-- For synthetic PLS data, use `X.values @ beta` (not `X @ beta`) to avoid pandas column mismatch producing NaN
-- Test fixtures load CSV data from `src/process_improve/datasets/multivariate/`
-- New methods should have tests for both basic functionality and edge cases
-- Guard optional dependencies with `pytest.importorskip` (and probe binaries that
-  can be present but non-executable, e.g. pulp's bundled CBC solver)
+Install with `uv sync --dev --all-extras`. Without the extras a large part of
+the suite fails on `ImportError` rather than skipping.
+
+**Tag new tests with the right tier marker.** `pytest.ini` registers `unit`
+(implicit default), `integration`, `slow` (>= 2 s) and `dataset` (loads a
+bundled or remote real dataset). Untagged slow or network-bound tests silently
+break `-m 'not slow'` for everyone. The table of when to use each is in
+[`CONTRIBUTING.md`](CONTRIBUTING.md#test-tiers).
+
+Other conventions:
+- Use **real datasets** (LDPE, SIMCA) alongside synthetic data; do not remove real dataset tests.
+- Scale with `MCUVScaler().fit_transform(X)` (not just `center()`).
+- For synthetic PLS data use `X.values @ beta` (not `X @ beta`), which otherwise produces NaN via pandas column mismatch.
+- Fixtures load CSV data from `src/process_improve/datasets/multivariate/`.
+- New methods need tests for both basic functionality and edge cases.
+- Guard optional dependencies with `pytest.importorskip`, and probe binaries that
+  can be present but non-executable (e.g. pulp's bundled CBC solver).
+
+## Versioning and changelog
+
+Version lives in `pyproject.toml` under `[project] version`, 3-part semver.
+The full policy, including what counts as a breaking change, is in
+[`CONTRIBUTING.md`](CONTRIBUTING.md#versioning-policy).
+
+**Auto-bump the version with every PR that changes code or configuration:**
+- **PATCH**: bug fixes, CI/workflow changes, docs updates, dependency bumps, small refactors.
+- **MINOR**: new features, new modules, significant API additions, meaningful behavioural changes. Resets PATCH to 0.
+- **MAJOR**: incompatible removals, which are only permitted after the
+  `docs/development/deprecation_policy.rst` schedule has run. Resets MINOR and PATCH to 0.
+- **If unsure which level applies, ask the user** before bumping.
+
+**Keep `CITATION.cff` in sync.** In the *same commit* as a version bump, set its `version:` to the identical value and `date-released:` to the current date. The two files must never disagree.
+
+`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com). **Prompt the user to confirm whether an entry is required.** User-facing changes (features, API changes, bug fixes, behavioural changes) generally need one; internal-only changes (refactors, CI tweaks, edits to this file) generally do not. New lines go under `## [Unreleased]`. When bumping the version, in the same commit rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, add a fresh empty `## [Unreleased]` above it, and update the link-reference footer (the `[Unreleased]` compare link plus a new `[X.Y.Z]` link).
+
+Publishing is **manually gated** (ENG-21 / #303): `publish.yml` runs only on a `v*` tag or a maintainer's `workflow_dispatch`. Bumping the version in a PR does not publish. Releases carry a sigstore attestation (PEP 740) and a CycloneDX SBOM, with notes pulled from the matching `CHANGELOG.md` section.
 
 ## CI/CD
 
 Workflows in `.github/workflows/`:
 
-- **run-tests.yml**: `lint` (`uv run ruff check .`), `typecheck` (blocking
-  `uv run mypy src/process_improve`), `test` (pytest matrix over Python
-  3.10-3.13 and ubuntu/windows/macos), and `test-under-dash-O` (runs the suite
-  under `python -O` to catch load-bearing asserts). All jobs install with
-  `uv sync --dev --all-extras`.
-- **docs.yml**: strict Sphinx build (`-W`, notebooks executed) and GitHub
-  Pages deploy on main.
-- **publish.yml**: tag-gated PyPI publish (see Versioning above).
+- **run-tests.yml**: `lint` (`ruff check .` and `ruff format --check .`, two
+  independent gates), `typecheck` (blocking `mypy src/process_improve`), `test`
+  (pytest matrix over Python 3.10-3.13 and ubuntu/windows/macos), and
+  `test-under-dash-O` (the suite under `python -O`, to catch load-bearing
+  asserts). All jobs install with `uv sync --dev --all-extras`.
+- **docs.yml**: strict Sphinx build (`-W`, notebooks executed) and GitHub Pages deploy on main.
+- **publish.yml**: tag-gated PyPI publish (see above).
 - **codeql.yml**: weekly and per-PR security scanning.
 
-## Documentation
-
-- **System:** Sphinx with PyData theme
-- **Build:** `cd docs && make html`
-- **Docstring style:** NumPy (parsed by `sphinx.ext.napoleon`)
-
-## Adding New Methods to PCA/PLS
-
-1. Add the method to the class: PCA lives in `src/process_improve/multivariate/_pca.py`,
-   PLS in `_pls.py` (shared plotting in `plots.py`, limits in `_limits.py`,
-   diagnostics in `_diagnostics.py`; `methods.py` is only a re-export shim)
-2. Use NumPy-style docstring with Parameters, Returns, Examples sections
-3. Add tests in `tests/test_multivariate.py` (or the more specific
-   `tests/test_multivariate_*.py` file) using both real datasets and synthetic data
-4. If the method needs to be on both PCA and PLS, implement on both with the same API signature
-5. Run `uv run pytest tests/test_multivariate.py --no-cov` to verify
+Docs are Sphinx with the PyData theme, NumPy docstrings via `sphinx.ext.napoleon`; build with `cd docs && make html`.
 
 ## Git & PR workflow (for Claude Code sessions)
 
@@ -210,22 +219,12 @@ Workflows in `.github/workflows/`:
 This is the default - don't ask the user whether to do it, just do it.
 
 **Never push lock files.** Claude Code sessions must not stage, commit, or push
-any dependency lock files. Lock-file updates are performed manually by the
-repository owner.
-
-Specifically, do **not** include the following in any commit or PR opened from
-a Claude Code session:
-
-- `uv.lock`
-- `poetry.lock`
-- `Pipfile.lock`
-- `requirements.lock` / pip-tools compiled lockfiles
-- any equivalent regenerated lock artifact
-
-If a command (e.g. `uv sync`, `pip install`) regenerates a lock file during a
-session, leave the file uncommitted. If it has already been staged, unstage it
-(`git restore --staged <lockfile>`) before committing. The user will refresh
-lock files manually outside of Claude Code sessions.
+any dependency lock file: `uv.lock`, `poetry.lock`, `Pipfile.lock`,
+`requirements.lock` / pip-tools compiled lockfiles, or any equivalent
+regenerated artifact. If a command (`uv sync`, `pip install`) regenerates one
+during a session, leave it uncommitted; if it is already staged, unstage it with
+`git restore --staged <lockfile>`. The user refreshes lock files manually
+outside of Claude Code sessions.
 
 ## Updating this file (CLAUDE.md)
 
@@ -235,3 +234,8 @@ yourself**. Surface the proposed addition in chat - the wording you would
 add, where you would put it, and why you think it is reusable - and ask the
 user whether it should be recorded here. The user decides what gets
 canonised in this file.
+
+Before adding anything, check whether one of the documents in
+[Authoritative documents](#authoritative-documents) already owns that fact. If
+it does, the right change is usually a pointer, or a fix to that document, not a
+second copy here.

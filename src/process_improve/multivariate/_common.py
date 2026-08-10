@@ -228,10 +228,7 @@ def _recommend_n_components_one_se(
     mean = np.asarray(mean_error, dtype=float)
     se = np.asarray(se_error, dtype=float)
     if mean.shape != se.shape:
-        raise ValueError(
-            f"mean_error and se_error must have the same shape; "
-            f"got {mean.shape} and {se.shape}."
-        )
+        raise ValueError(f"mean_error and se_error must have the same shape; got {mean.shape} and {se.shape}.")
     if mean.ndim != 1:
         raise ValueError("mean_error must be 1-D.")
     finite = np.isfinite(mean)
@@ -274,13 +271,12 @@ def _select_n_components(
         return _recommend_n_components_one_se(mean_error, se_error)
     if rule == "q2_increment":
         if q2_cumulative is None:
-            raise ValueError(
-                "selection_rule='q2_increment' requires a cumulative Q^2 curve."
-            )
+            raise ValueError("selection_rule='q2_increment' requires a cumulative Q^2 curve.")
         return _recommend_n_components_q2(q2_cumulative, min_increment=min_q2_increase)
     raise ValueError(
         f"Unknown selection_rule {rule!r}; expected one of "
-        f"'1se', 'min', 'q2_increment'."
+        f"'1se', 'min', 'q2_increment', 'randomization' "
+        f"('randomization' is handled by PLS.select_n_components, not this dispatcher)."
     )
 
 
@@ -303,9 +299,7 @@ def _model_method(fn: Callable[..., Any]) -> Callable[..., Any]:
     return method
 
 
-def _scale_block_contributions(
-    blocks: dict[str, np.ndarray], scaling: str
-) -> dict[str, np.ndarray]:
+def _scale_block_contributions(blocks: dict[str, np.ndarray], scaling: str) -> dict[str, np.ndarray]:
     """Apply a contribution-plot scaling jointly across every block.
 
     The scalings are those of Miller, Swanson and Heckler (1994). Both are taken

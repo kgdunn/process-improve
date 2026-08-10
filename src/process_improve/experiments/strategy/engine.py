@@ -192,9 +192,7 @@ def _factorial_screening_stage(spec: DOEProblemSpec, n: int) -> ExperimentalStag
     )
 
 
-def _large_factor_screening_choice(
-    n: int, classification: dict[str, Any], template: dict[str, Any]
-) -> tuple[str, int]:
+def _large_factor_screening_choice(n: int, classification: dict[str, Any], template: dict[str, Any]) -> tuple[str, int]:
     """Choose (design_type, estimated_runs) when the factorial/mixture rules do not apply.
 
     Preserves the original ordered decision chain: definitive screening (very tight

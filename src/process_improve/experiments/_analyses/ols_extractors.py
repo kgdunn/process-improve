@@ -24,9 +24,7 @@ def _run_anova(ols_result: RegressionResultsWrapper, anova_type: int = 2) -> dic
             "sum_sq": float(row.get("sum_sq", 0)),
             "mean_sq": float(row.get("mean_sq", 0)) if "mean_sq" in row else None,
             "F": float(row["F"]) if "F" in row and pd.notna(row.get("F")) else None,
-            "p_value": (
-                float(row["PR(>F)"]) if "PR(>F)" in row and pd.notna(row.get("PR(>F)")) else None
-            ),
+            "p_value": (float(row["PR(>F)"]) if "PR(>F)" in row and pd.notna(row.get("PR(>F)")) else None),
         }
         for idx, row in table.iterrows()
     ]
@@ -51,25 +49,29 @@ def _run_effects(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
 
 def _run_coefficients(ols_result: RegressionResultsWrapper) -> dict[str, Any]:
     """Coefficients with standard errors, t-values, p-values, and CIs."""
-    summary_df = pd.DataFrame({
-        "coefficient": ols_result.params,
-        "std_error": ols_result.bse,
-        "t_value": ols_result.tvalues,
-        "p_value": ols_result.pvalues,
-        "ci_low": ols_result.conf_int()[0],
-        "ci_high": ols_result.conf_int()[1],
-    })
+    summary_df = pd.DataFrame(
+        {
+            "coefficient": ols_result.params,
+            "std_error": ols_result.bse,
+            "t_value": ols_result.tvalues,
+            "p_value": ols_result.pvalues,
+            "ci_low": ols_result.conf_int()[0],
+            "ci_high": ols_result.conf_int()[1],
+        }
+    )
     records = []
     for name, row in summary_df.iterrows():
-        records.append({
-            "term": str(name),
-            "coefficient": float(row["coefficient"]),
-            "std_error": float(row["std_error"]),
-            "t_value": float(row["t_value"]),
-            "p_value": float(row["p_value"]),
-            "ci_low": float(row["ci_low"]),
-            "ci_high": float(row["ci_high"]),
-        })
+        records.append(
+            {
+                "term": str(name),
+                "coefficient": float(row["coefficient"]),
+                "std_error": float(row["std_error"]),
+                "t_value": float(row["t_value"]),
+                "p_value": float(row["p_value"]),
+                "ci_low": float(row["ci_low"]),
+                "ci_high": float(row["ci_high"]),
+            }
+        )
     return {"coefficients": records}
 
 

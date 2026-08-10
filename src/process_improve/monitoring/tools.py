@@ -97,18 +97,20 @@ def control_chart(spec: ControlChartInput) -> dict[str, Any]:
         ooc_indices = list(cc.idx_outside_3S) if cc.idx_outside_3S else []
         ooc_values = [float(spec.values[i]) for i in ooc_indices if i < len(spec.values)]
 
-        return clean({
-            "target": target,
-            "upper_control_limit": ucl,
-            "lower_control_limit": lcl,
-            "spread": s,
-            "out_of_control_indices": ooc_indices,
-            "out_of_control_values": ooc_values,
-            "n_out_of_control": len(ooc_indices),
-            "n_observations": len(spec.values),
-            "chart_type": spec.chart_type,
-            "style": spec.style,
-        })
+        return clean(
+            {
+                "target": target,
+                "upper_control_limit": ucl,
+                "lower_control_limit": lcl,
+                "spread": s,
+                "out_of_control_indices": ooc_indices,
+                "out_of_control_values": ooc_values,
+                "n_out_of_control": len(ooc_indices),
+                "n_observations": len(spec.values),
+                "chart_type": spec.chart_type,
+                "style": spec.style,
+            }
+        )
     except (ValueError, TypeError, KeyError) as exc:
         return {"error": str(exc)}
 
@@ -189,15 +191,17 @@ def process_capability(spec: ProcessCapabilityInput) -> dict[str, Any]:
         else:
             interpretation = f"Cpk = {cpk_float:.3f}. Poor capability - process is producing out-of-spec output."
 
-        return clean({
-            "cpk": cpk_float,
-            "rsd": float(cpk_result.rsd),
-            "interpretation": interpretation,
-            "lower_spec": spec.lower_spec,
-            "upper_spec": spec.upper_spec,
-            "n": len(spec.values),
-            "robust": spec.robust,
-        })
+        return clean(
+            {
+                "cpk": cpk_float,
+                "rsd": float(cpk_result.rsd),
+                "interpretation": interpretation,
+                "lower_spec": spec.lower_spec,
+                "upper_spec": spec.upper_spec,
+                "n": len(spec.values),
+                "robust": spec.robust,
+            }
+        )
     except (ValueError, TypeError, KeyError) as exc:
         return {"error": str(exc)}
 

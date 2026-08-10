@@ -109,9 +109,7 @@ def test_t2_contributions_sum_to_t2(emulsion_model: tuple[PCA, pd.DataFrame]) ->
     """
     model, scaled = emulsion_model
     contributions = model.t2_contributions(scaled)
-    assert contributions.sum(axis=1).to_numpy() == pytest.approx(
-        model.hotellings_t2_.iloc[:, -1].to_numpy(), rel=1e-9
-    )
+    assert contributions.sum(axis=1).to_numpy() == pytest.approx(model.hotellings_t2_.iloc[:, -1].to_numpy(), rel=1e-9)
 
 
 # ---------------------------------------------------------------------------
@@ -131,9 +129,7 @@ def test_eq3_contributions_sum_to_the_score(emulsion_model: tuple[PCA, pd.DataFr
     model, scaled = emulsion_model
     for component in range(1, model.n_components + 1):
         contributions = model.score_contributions(scaled, component=component)
-        assert contributions.sum(axis=1).to_numpy() == pytest.approx(
-            model.scores_[component].to_numpy(), abs=1e-10
-        )
+        assert contributions.sum(axis=1).to_numpy() == pytest.approx(model.scores_[component].to_numpy(), abs=1e-10)
 
 
 def test_eq3_each_term_is_the_datum_times_its_weight(
@@ -159,16 +155,12 @@ def test_eq3_holds_for_pls_using_the_score_generating_weights(
     Using the loadings here would break the sum in equation (3).
     """
     scaled = MCUVScaler().fit_transform(emulsion)
-    y = pd.DataFrame(
-        {"quality": scaled.to_numpy() @ np.linspace(1.0, -1.0, scaled.shape[1])}
-    )
+    y = pd.DataFrame({"quality": scaled.to_numpy() @ np.linspace(1.0, -1.0, scaled.shape[1])})
     model = PLS(n_components=3).fit(scaled, MCUVScaler().fit_transform(y))
 
     for component in (1, 2, 3):
         contributions = model.score_contributions(scaled, component=component)
-        assert contributions.sum(axis=1).to_numpy() == pytest.approx(
-            model.scores_[component].to_numpy(), abs=1e-10
-        )
+        assert contributions.sum(axis=1).to_numpy() == pytest.approx(model.scores_[component].to_numpy(), abs=1e-10)
         expected = scaled.to_numpy() * model.direct_weights_.to_numpy()[:, component - 1]
         assert contributions.to_numpy() == pytest.approx(expected, abs=1e-12)
 
@@ -246,9 +238,7 @@ def test_contributions_distinguish_observations(
     model, scaled = emulsion_model
     contributions = model.score_contributions(scaled, component=1)
 
-    rankings = {
-        tuple(np.argsort(-contributions.iloc[i].abs().to_numpy())) for i in range(len(scaled))
-    }
+    rankings = {tuple(np.argsort(-contributions.iloc[i].abs().to_numpy())) for i in range(len(scaled))}
     assert len(rankings) > len(scaled) // 2
 
     blamed = {contributions.iloc[i].abs().idxmax() for i in range(len(scaled))}
@@ -289,12 +279,8 @@ def test_eq4_q_contributions_are_squared_residuals_that_sum_to_q(
     q_contributions = residuals**2
     assert (q_contributions.to_numpy() >= 0).all()
     q_statistic = (scaled.to_numpy() - fitted) ** 2
-    assert q_contributions.sum(axis=1).to_numpy() == pytest.approx(
-        q_statistic.sum(axis=1), rel=1e-10
-    )
-    assert q_contributions.sum(axis=1).to_numpy() == pytest.approx(
-        model.spe_.iloc[:, -1].to_numpy() ** 2, rel=1e-8
-    )
+    assert q_contributions.sum(axis=1).to_numpy() == pytest.approx(q_statistic.sum(axis=1), rel=1e-10)
+    assert q_contributions.sum(axis=1).to_numpy() == pytest.approx(model.spe_.iloc[:, -1].to_numpy() ** 2, rel=1e-8)
 
 
 # ---------------------------------------------------------------------------
@@ -381,14 +367,14 @@ def test_page18_level_shift_uses_plus_and_minus_one_tenth_weights(
 
     # Written out exactly as the paper prints it.
     literal = (
-        scaled.loc[before].to_numpy().sum(axis=0) - scaled.loc[after].to_numpy().sum(axis=0)
-    ) * model.loadings_.to_numpy()[:, 2] / 10.0
+        (scaled.loc[before].to_numpy().sum(axis=0) - scaled.loc[after].to_numpy().sum(axis=0))
+        * model.loadings_.to_numpy()[:, 2]
+        / 10.0
+    )
     assert by_weights.to_numpy() == pytest.approx(literal, abs=1e-12)
 
     scores = model.scores_[3]
-    assert by_weights.sum() == pytest.approx(
-        scores.loc[before].mean() - scores.loc[after].mean(), abs=1e-10
-    )
+    assert by_weights.sum() == pytest.approx(scores.loc[before].mean() - scores.loc[after].mean(), abs=1e-10)
 
 
 def test_page18_a_drift_can_be_weighted_by_an_orthogonal_polynomial(
@@ -413,9 +399,7 @@ def test_page18_a_drift_can_be_weighted_by_an_orthogonal_polynomial(
 
     expected = (weights @ scaled.to_numpy()) * model.loadings_.to_numpy()[:, 1]
     assert contributions.to_numpy() == pytest.approx(expected, abs=1e-12)
-    assert contributions.sum() == pytest.approx(
-        float(weights @ model.scores_[2].to_numpy()), abs=1e-9
-    )
+    assert contributions.sum() == pytest.approx(float(weights @ model.scores_[2].to_numpy()), abs=1e-9)
 
 
 def test_weights_and_groups_are_mutually_exclusive(
@@ -452,9 +436,7 @@ def test_page20_maximum_contribution_scaling(
     scaled_bars = model.score_contributions(scaled, component=1, scaling="maximum")
 
     assert np.abs(scaled_bars.to_numpy()).max() == pytest.approx(1.0)
-    assert scaled_bars.to_numpy() == pytest.approx(
-        raw.to_numpy() / np.abs(raw.to_numpy()).max(), abs=1e-12
-    )
+    assert scaled_bars.to_numpy() == pytest.approx(raw.to_numpy() / np.abs(raw.to_numpy()).max(), abs=1e-12)
     # Exactly one variable-batch pair attains it: the worst deviation.
     assert int((np.abs(scaled_bars.to_numpy()) > 1.0 - 1e-12).sum()) == 1
 
@@ -481,18 +463,14 @@ def test_page21_within_batch_scaling_is_the_exact_proportion_when_signs_agree() 
     is exactly that variable's share of the score.
     """
     rng = np.random.default_rng(3)
-    frame = pd.DataFrame(
-        rng.uniform(1.0, 2.0, size=(40, 4)) + np.arange(4), columns=list("abcd")
-    )
+    frame = pd.DataFrame(rng.uniform(1.0, 2.0, size=(40, 4)) + np.arange(4), columns=list("abcd"))
     scaled = MCUVScaler().fit_transform(frame)
     model = PCA(n_components=2).fit(scaled)
 
     raw = model.score_contributions(scaled, component=1)
     within = model.score_contributions(scaled, component=1, scaling="within")
 
-    same_sign = raw.index[
-        [bool(np.all(np.sign(row) == np.sign(row[0])) and row[0] != 0) for row in raw.to_numpy()]
-    ]
+    same_sign = raw.index[[bool(np.all(np.sign(row) == np.sign(row[0])) and row[0] != 0) for row in raw.to_numpy()]]
     assert len(same_sign) > 0, "fixture no longer exercises the same-sign case"
 
     for label in same_sign:
@@ -542,9 +520,7 @@ def test_default_scaling_preserves_the_sum_to_the_score(
     """
     model, scaled = emulsion_model
     unscaled = model.score_contributions(scaled, component=1)
-    assert unscaled.sum(axis=1).to_numpy() == pytest.approx(
-        model.scores_[1].to_numpy(), abs=1e-10
-    )
+    assert unscaled.sum(axis=1).to_numpy() == pytest.approx(model.scores_[1].to_numpy(), abs=1e-10)
     for scaling in ("maximum", "within"):
         bars = model.score_contributions(scaled, component=1, scaling=scaling)
         assert not np.allclose(bars.sum(axis=1).to_numpy(), model.scores_[1].to_numpy())
@@ -576,22 +552,13 @@ def test_contributions_are_not_proportional_to_the_loadings_on_real_data() -> No
     """
     import pathlib
 
-    folder = (
-        pathlib.Path(__file__).parents[1]
-        / "src"
-        / "process_improve"
-        / "datasets"
-        / "multivariate"
-        / "LDPE"
-    )
+    folder = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate" / "LDPE"
     values = pd.read_csv(folder / "LDPE.csv", index_col=0).select_dtypes("number")
     scaled = MCUVScaler().fit_transform(values)
     model = PCA(n_components=3).fit(scaled)
 
     contributions = model.score_contributions(scaled, component=1)
-    assert contributions.sum(axis=1).to_numpy() == pytest.approx(
-        model.scores_[1].to_numpy(), abs=1e-9
-    )
+    assert contributions.sum(axis=1).to_numpy() == pytest.approx(model.scores_[1].to_numpy(), abs=1e-9)
 
     blamed = {contributions.iloc[i].abs().idxmax() for i in range(len(scaled))}
     assert len(blamed) > 1, f"{PAPER}: contributions must vary between observations"
@@ -625,9 +592,7 @@ def test_eq3_holds_for_the_super_score_of_a_multiblock_model(
     for component in (1, 2, 3):
         contributions = model.score_contributions(two_blocks, component=component)
         total = sum(frame.sum(axis=1) for frame in contributions.values())
-        assert total.to_numpy() == pytest.approx(
-            model.super_scores_[component].to_numpy(), abs=1e-9
-        )
+        assert total.to_numpy() == pytest.approx(model.super_scores_[component].to_numpy(), abs=1e-9)
 
 
 def test_page14_group_contributions_for_a_multiblock_model(
@@ -643,9 +608,7 @@ def test_page14_group_contributions_for_a_multiblock_model(
     shift = model.group_contributions(two_blocks, group=before, reference=after)
     total = sum(float(series.sum()) for series in shift.values())
     scores = model.super_scores_[1]
-    assert total == pytest.approx(
-        scores.loc[before].mean() - scores.loc[after].mean(), abs=1e-9
-    )
+    assert total == pytest.approx(scores.loc[before].mean() - scores.loc[after].mean(), abs=1e-9)
 
 
 def test_eq4_q_contributions_for_a_multiblock_model(

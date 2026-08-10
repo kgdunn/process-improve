@@ -189,8 +189,7 @@ class DesirabilityContourPlot(BasePlot):
             row: list[float] = []
             for i in range(n_grid):
                 d_values = [
-                    individual_desirability(surface[j][i], goal)
-                    for surface, goal in zip(surfaces, goals, strict=True)
+                    individual_desirability(surface[j][i], goal) for surface, goal in zip(surfaces, goals, strict=True)
                 ]
                 row.append(composite_desirability(d_values, importances))
             z_matrix.append(row)
@@ -626,10 +625,7 @@ class SteepestAscentPathPlot(BasePlot):
         factors = self.factors_to_plot or self._get_factor_names()
 
         # Panel 1: Predicted response along path
-        resp_data = [
-            {"step": s["step"], "predicted": s.get("predicted_response", 0.0)}
-            for s in steps
-        ]
+        resp_data = [{"step": s["step"], "predicted": s.get("predicted_response", 0.0)} for s in steps]
         resp_layer = LayerSpec(
             mark=MarkType.line,
             data=resp_data,
@@ -644,11 +640,7 @@ class SteepestAscentPathPlot(BasePlot):
         resp_layers: list[LayerSpec] = [resp_layer]
         has_actual_response = any("actual_response" in s for s in steps)
         if has_actual_response:
-            actual_data = [
-                {"step": s["step"], "actual": s["actual_response"]}
-                for s in steps
-                if "actual_response" in s
-            ]
+            actual_data = [{"step": s["step"], "actual": s["actual_response"]} for s in steps if "actual_response" in s]
             actual_layer = LayerSpec(
                 mark=MarkType.scatter,
                 data=actual_data,
@@ -676,10 +668,7 @@ class SteepestAscentPathPlot(BasePlot):
             path_factors = list(coded.keys())
 
         for i, f in enumerate(path_factors):
-            fdata = [
-                {"step": s["step"], "coded_level": s.get("coded", {}).get(f, 0.0)}
-                for s in steps
-            ]
+            fdata = [{"step": s["step"], "coded_level": s.get("coded", {}).get(f, 0.0)} for s in steps]
             color = FACTOR_COLORS[i % len(FACTOR_COLORS)]
             flayer = LayerSpec(
                 mark=MarkType.line,
@@ -754,11 +743,13 @@ class SteepestAscentPathPlot(BasePlot):
             point = dict(self.hold_values)
             point.update(coded)
             predicted = _evaluate_model(coef_map, point)
-            steps.append({
-                "step": step_num,
-                "coded": coded,
-                "predicted_response": float(predicted),
-            })
+            steps.append(
+                {
+                    "step": step_num,
+                    "coded": coded,
+                    "predicted_response": float(predicted),
+                }
+            )
 
         return {
             "direction": "ascent",

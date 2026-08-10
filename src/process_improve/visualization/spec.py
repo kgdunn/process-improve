@@ -322,15 +322,19 @@ class ChartSpec:
         for panel in self.panels:
             layers_data = []
             for layer in panel.layers:
-                layers_data.append({  # noqa: PERF401
-                    "mark": layer.mark.value if isinstance(layer.mark, MarkType) else layer.mark,
-                    "data": layer.data,
-                    "name": layer.name,
-                })
-            panels_data.append({
-                "title": panel.title,
-                "layers": layers_data,
-            })
+                layers_data.append(  # noqa: PERF401
+                    {
+                        "mark": layer.mark.value if isinstance(layer.mark, MarkType) else layer.mark,
+                        "data": layer.data,
+                        "name": layer.name,
+                    }
+                )
+            panels_data.append(
+                {
+                    "title": panel.title,
+                    "layers": layers_data,
+                }
+            )
         return {
             "plot_type": self.plot_type,
             "title": self.title,

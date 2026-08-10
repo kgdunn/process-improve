@@ -18,10 +18,7 @@ class DoeKnowledgeInput(BaseModel):
 
     query: str = Field(
         "",
-        description=(
-            "Natural-language query, e.g. 'What is design resolution?' or "
-            "'funnel shaped residuals'."
-        ),
+        description=("Natural-language query, e.g. 'What is design resolution?' or 'funnel shaped residuals'."),
     )
     topic: Literal[
         "design_selection",
@@ -82,12 +79,14 @@ def doe_knowledge_tool(spec: DoeKnowledgeInput) -> dict[str, Any]:
     try:
         from process_improve.experiments.knowledge import doe_knowledge  # noqa: PLC0415
 
-        return clean(doe_knowledge(
-            query=spec.query,
-            topic=spec.topic,
-            context=spec.context,
-            detail_level=spec.detail_level,
-        ))
+        return clean(
+            doe_knowledge(
+                query=spec.query,
+                topic=spec.topic,
+                context=spec.context,
+                detail_level=spec.detail_level,
+            )
+        )
     except _TOOL_EXPECTED_EXCEPTIONS as e:
         logger.exception("Tool doe_knowledge failed")
         return {"error": str(e)}

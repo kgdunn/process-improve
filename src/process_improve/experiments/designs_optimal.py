@@ -25,6 +25,7 @@ try:
     from pyDOE3 import fullfact
 except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
     from process_improve._extras import _MissingExtra
+
     fullfact = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
 from process_improve.experiments.optimal import point_exchange

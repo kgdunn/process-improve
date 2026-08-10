@@ -32,7 +32,8 @@ def _full_factorial_df(k: int, names: str = "ABCDEFGHIJ") -> pd.DataFrame:
 
 
 def _fractional_factorial_df(
-    generators: list[str], names: str = "ABCDEFGHIJ",
+    generators: list[str],
+    names: str = "ABCDEFGHIJ",
 ) -> pd.DataFrame:
     """Create a fractional factorial design from generator strings.
 
@@ -40,7 +41,7 @@ def _fractional_factorial_df(
     """
     factors = [Factor(name=names[i], low=0, high=10) for i in range(len(names))]
     result = generate_design(
-        factors[:len(names)],
+        factors[: len(names)],
         design_type="fractional_factorial",
         generators=generators,
         center_points=0,
@@ -67,8 +68,14 @@ class TestDispatcher:
     def test_all_types_in_registry(self) -> None:
         """All 8 augmentation types are registered."""
         expected = {
-            "foldover", "semifold", "add_center_points", "add_axial_points",
-            "add_runs_optimal", "upgrade_to_rsm", "add_blocks", "replicate",
+            "foldover",
+            "semifold",
+            "add_center_points",
+            "add_axial_points",
+            "add_runs_optimal",
+            "upgrade_to_rsm",
+            "add_blocks",
+            "replicate",
         }
         assert set(_AUGMENT_REGISTRY.keys()) == expected
 
@@ -286,7 +293,7 @@ class TestAddAxialPoints:
         """Rotatable alpha should be n_factorial^(1/4)."""
         df = _full_factorial_df(3)  # 8 factorial runs
         result = augment_design(df, "add_axial_points", alpha="rotatable")
-        expected = 8 ** 0.25  # ~1.6818
+        expected = 8**0.25  # ~1.6818
         assert result["alpha"] == pytest.approx(expected, abs=0.01)
 
     def test_numeric_alpha(self) -> None:
@@ -403,7 +410,10 @@ class TestAddRunsOptimal:
         # Start with a main-effects-only design (too few runs for interactions)
         df = pd.DataFrame({"A": [-1, 1, -1], "B": [-1, -1, 1]})
         result = augment_design(
-            df, "add_runs_optimal", n_additional_runs=3, target_model="interactions",
+            df,
+            "add_runs_optimal",
+            n_additional_runs=3,
+            target_model="interactions",
         )
         aug = pd.DataFrame(result["augmented_design"])
         d_after = evaluate_design(aug, model="interactions", metric="d_efficiency")["d_efficiency"]
@@ -515,7 +525,7 @@ class TestAlphaComputation:
         df_with_centers = pd.concat([df, center], ignore_index=True)
         # Should still use n_factorial=4, not 6
         alpha = _compute_alpha(df_with_centers, ["A", "B"], "rotatable")
-        expected = 4 ** 0.25  # ~1.414
+        expected = 4**0.25  # ~1.414
         assert alpha == pytest.approx(expected, abs=0.01)
 
     def test_unknown_alpha_raises(self) -> None:
@@ -638,8 +648,10 @@ class TestIntegration:
         """Generate a fractional factorial, fold it over, evaluate."""
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C", "D"]]
         design_result = generate_design(
-            factors, design_type="fractional_factorial",
-            generators=["D=ABC"], center_points=0,
+            factors,
+            design_type="fractional_factorial",
+            generators=["D=ABC"],
+            center_points=0,
         )
         df = pd.DataFrame(design_result.design).drop(columns=["RunOrder"])
         result = augment_design(df, "foldover", generators=["D=ABC"])
@@ -653,7 +665,9 @@ class TestIntegration:
         """Generate factorial, upgrade to RSM, evaluate quadratic."""
         factors = [Factor(name=n, low=0, high=10) for n in ["A", "B", "C"]]
         design_result = generate_design(
-            factors, design_type="full_factorial", center_points=0,
+            factors,
+            design_type="full_factorial",
+            center_points=0,
         )
         df = pd.DataFrame(design_result.design).drop(columns=["RunOrder"])
         result = augment_design(df, "upgrade_to_rsm", alpha="face_centered")

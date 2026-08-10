@@ -120,9 +120,7 @@ class TestMBPLSOracleSelfConsistency:
 
     def test_super_y_scores_agree(self, fits) -> None:
         merged, full = fits
-        np.testing.assert_array_almost_equal(
-            np.abs(merged.super_y_scores), np.abs(full.super_y_scores), decimal=6
-        )
+        np.testing.assert_array_almost_equal(np.abs(merged.super_y_scores), np.abs(full.super_y_scores), decimal=6)
 
     def test_super_weights_agree(self, fits) -> None:
         merged, full = fits
@@ -130,9 +128,7 @@ class TestMBPLSOracleSelfConsistency:
 
     def test_super_y_loadings_agree(self, fits) -> None:
         merged, full = fits
-        np.testing.assert_array_almost_equal(
-            np.abs(merged.super_y_loadings), np.abs(full.super_y_loadings), decimal=6
-        )
+        np.testing.assert_array_almost_equal(np.abs(merged.super_y_loadings), np.abs(full.super_y_loadings), decimal=6)
 
     def test_block_weights_agree(self, fits) -> None:
         merged, full = fits

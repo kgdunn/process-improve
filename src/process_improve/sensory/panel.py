@@ -118,11 +118,7 @@ def panel_scorecard(panel: pd.DataFrame) -> PanelScorecard:
     ['P7']
     """
     # Replicate-averaged score per (panelist, product, attribute).
-    cell = (
-        panel.groupby(["panelist_id", "product", "attribute"], observed=True)["score"]
-        .mean()
-        .reset_index()
-    )
+    cell = panel.groupby(["panelist_id", "product", "attribute"], observed=True)["score"].mean().reset_index()
     # Panel consensus: mean across panelists per (product, attribute).
     consensus = cell.groupby(["product", "attribute"], observed=True)["score"].mean()
 
@@ -139,8 +135,7 @@ def panel_scorecard(panel: pd.DataFrame) -> PanelScorecard:
         # attributes (an attribute with no real product effect simply
         # contributes a low value to everyone, which does not bias flagging).
         etas = [
-            _eta_squared(grp["score"], grp["product"])
-            for _attr, grp in pan_panel.groupby("attribute", observed=True)
+            _eta_squared(grp["score"], grp["product"]) for _attr, grp in pan_panel.groupby("attribute", observed=True)
         ]
         # Agreement: a single correlation of the panelist's product-by-attribute
         # cell means with the panel consensus over the whole space. Stacking the

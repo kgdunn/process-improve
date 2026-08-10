@@ -77,9 +77,7 @@ def _parse_term(term: str) -> tuple[str, ...]:
     # patsy version. SEC-27 (#276): if either is missed, the term
     # silently falls through to the linear branch and the
     # downstream surface / optimisation produces wrong results.
-    m = re.match(r"I\((\w+)\s*\*\*\s*2\)", term) or re.match(
-        r"(?:np\.)?power\((\w+)\s*,\s*2\)", term
-    )
+    m = re.match(r"I\((\w+)\s*\*\*\s*2\)", term) or re.match(r"(?:np\.)?power\((\w+)\s*,\s*2\)", term)
     if m:
         name = m.group(1)
         return (name, name)
@@ -236,13 +234,25 @@ def _find_stationary_point(
         Ordered factor names.
     factor_ranges : dict or None
         Maps factor name to ``{"low": float, "high": float}`` in actual
-        units.  Used to convert coded → actual.
+        units.  Used to convert coded -> actual.
+    search_bounds : tuple[float, float] or dict[str, tuple[float, float]] or None
+        Coded-unit region used to decide ``inside_design_space``. Pass a
+        single ``(low, high)`` tuple to apply the same bounds to every
+        factor, or a per-factor dict to give each factor its own bounds.
+        Defaults to the factorial cube ``(-1, 1)`` for each factor when
+        ``None``; supply a wider region for e.g. a central composite
+        design's axial distance.
 
     Returns
     -------
     dict
-        ``stationary_point_coded``, ``stationary_point_actual``,
-        ``predicted_response``, ``classification``.
+        ``stationary_point_coded``, ``predicted_response``, ``classification``,
+        ``eigenvalues`` (list of floats, spectrum of the pure-quadratic
+        matrix ``B``), and ``inside_design_space`` (bool, whether the
+        stationary point falls inside ``search_bounds``). Also includes
+        ``stationary_point_actual`` when ``factor_ranges`` is provided.
+        Returns a dict with a single ``error`` key instead when the model
+        has no quadratic/interaction terms or ``B`` is singular.
     """
     b0, b, B = _extract_b_and_B(coefficients, factor_names)
 
@@ -272,9 +282,7 @@ def _find_stationary_point(
     # default region is the factorial cube; a central composite design reaches
     # further, so its axial distance can be supplied via search_bounds.
     region = _resolve_search_bounds(search_bounds, factor_names)
-    inside_design_space = bool(
-        all(low <= value <= high for value, (low, high) in zip(x_s, region, strict=True))
-    )
+    inside_design_space = bool(all(low <= value <= high for value, (low, high) in zip(x_s, region, strict=True)))
 
     result: dict[str, Any] = {
         "stationary_point_coded": {n: float(x_s[i]) for i, n in enumerate(factor_names)},
@@ -504,8 +512,7 @@ def _resolve_search_bounds(
             msg = f"search_bounds names unknown factor(s) {sorted(unknown)}; the model has {factor_names}."
             raise ValueError(msg)
         return [
-            _check(search_bounds[name], f"[{name!r}]") if name in search_bounds else default
-            for name in factor_names
+            _check(search_bounds[name], f"[{name!r}]") if name in search_bounds else default for name in factor_names
         ]
 
     return [_check(search_bounds, "")] * len(factor_names)
@@ -700,8 +707,7 @@ def _ridge_analysis(
     """
     return {
         "error": (
-            "Ridge analysis is not yet implemented. "
-            "Use 'stationary_point' or 'canonical_analysis' as alternatives."
+            "Ridge analysis is not yet implemented. Use 'stationary_point' or 'canonical_analysis' as alternatives."
         ),
         "status": "stub",
     }
@@ -721,10 +727,7 @@ def _pareto_front(
         many responses.
     """
     return {
-        "error": (
-            "Pareto front is not yet implemented. "
-            "Use 'desirability' for multi-response optimization instead."
-        ),
+        "error": ("Pareto front is not yet implemented. Use 'desirability' for multi-response optimization instead."),
         "status": "stub",
     }
 
@@ -1028,16 +1031,12 @@ def optimize_responses(  # noqa: PLR0913, C901
     result: dict[str, Any] = {"method": method, "factor_names": factor_names}
 
     if method == "stationary_point":
-        result["stationary_point"] = _find_stationary_point(
-            coefficients, factor_names, factor_ranges, search_bounds
-        )
+        result["stationary_point"] = _find_stationary_point(coefficients, factor_names, factor_ranges, search_bounds)
 
     elif method == "canonical_analysis":
         result["canonical_analysis"] = _canonical_analysis(coefficients, factor_names)
         # Also include the stationary point for context
-        result["stationary_point"] = _find_stationary_point(
-            coefficients, factor_names, factor_ranges, search_bounds
-        )
+        result["stationary_point"] = _find_stationary_point(coefficients, factor_names, factor_ranges, search_bounds)
 
     elif method in ("steepest_ascent", "steepest_descent"):
         direction = "ascent" if method == "steepest_ascent" else "descent"

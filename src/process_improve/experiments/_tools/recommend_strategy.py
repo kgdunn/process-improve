@@ -51,16 +51,19 @@ class RecommendStrategyInput(BaseModel):
         None,
         description="Prior experimental data as list of dicts (optional).",
     )
-    domain: Literal[
-        "pharma_formulation",
-        "fermentation",
-        "food_science",
-        "extraction",
-        "analytical_method",
-        "cell_culture",
-        "bioprocess",
-        "general",
-    ] | None = Field(
+    domain: (
+        Literal[
+            "pharma_formulation",
+            "fermentation",
+            "food_science",
+            "extraction",
+            "analytical_method",
+            "cell_culture",
+            "bioprocess",
+            "general",
+        ]
+        | None
+    ) = Field(
         None,
         description="Application domain for domain-specific adjustments. Default: 'general'.",
     )
@@ -103,9 +106,7 @@ def recommend_strategy_tool(spec: RecommendStrategyInput) -> dict[str, Any]:
 
         factor_objects = [Factor(**f) for f in spec.factors]
         response_objects = [Response(**r) for r in spec.responses] if spec.responses else None
-        constraint_objects = (
-            [Constraint(**c) for c in spec.constraints] if spec.constraints else None
-        )
+        constraint_objects = [Constraint(**c) for c in spec.constraints] if spec.constraints else None
 
         df = pd.DataFrame(spec.existing_data) if spec.existing_data else None
 

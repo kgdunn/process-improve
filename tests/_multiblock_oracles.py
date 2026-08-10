@@ -325,9 +325,7 @@ def mbpls_merged_then_recover(  # noqa: PLR0915
 # ---------------------------------------------------------------------------
 
 
-def mbpls_full_multiblock(
-    blocks: list[np.ndarray], y_block: np.ndarray, n_components: int
-) -> MBPLSReference:
+def mbpls_full_multiblock(blocks: list[np.ndarray], y_block: np.ndarray, n_components: int) -> MBPLSReference:
     """Compute MBPLS using the hierarchical NIPALS loop (Westerhuis & Smilde 2001)."""
     n_blocks = len(blocks)
     n_rows = blocks[0].shape[0]

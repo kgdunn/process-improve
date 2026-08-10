@@ -94,7 +94,6 @@ def test_spe_calculation_handles_empty_negative_slice() -> None:
     """
     import warnings
 
-
     # All-positive spe_values -> ``neg.size == 0``.
     spe_values = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
     with warnings.catch_warnings():
@@ -675,9 +674,7 @@ def test_pca_select_n_components() -> None:
     assert "q2_se" in result
     assert (result.q2_se >= 0).all()
     null_ss = float(np.nansum(np.asarray(X, dtype=float) ** 2))
-    np.testing.assert_allclose(
-        result.q2_se.to_numpy(), result.se_press.to_numpy() / null_ss, rtol=1e-9
-    )
+    np.testing.assert_allclose(result.q2_se.to_numpy(), result.se_press.to_numpy() / null_ss, rtol=1e-9)
 
     # With 2 true components and N < K, should recommend 2 (or at most 3)
     assert 2 <= result.n_components <= 3
@@ -750,9 +747,7 @@ def test_pca_select_n_components_row_wise_warns_and_overselects() -> None:
     X_s = MCUVScaler().fit_transform(X)
 
     with pytest.warns(SpecificationWarning, match="row_wise"):
-        legacy = PCA.select_n_components(
-            X_s, max_components=8, cv=5, cv_scheme="row_wise", random_state=0
-        )
+        legacy = PCA.select_n_components(X_s, max_components=8, cv=5, cv_scheme="row_wise", random_state=0)
     assert legacy.cv_scheme == "row_wise"
     # The row-wise scheme over-fits monotonically; argmin sits at (or near) the
     # maximum even though the true rank is 2.
@@ -783,12 +778,14 @@ def test_pca_select_n_components_rule_dispatch() -> None:
     X_s = MCUVScaler().fit_transform(X)
 
     res_min = PCA.select_n_components(X_s, max_components=6, cv=5, random_state=0)
-    res_1se = PCA.select_n_components(
-        X_s, max_components=6, cv=5, random_state=0, selection_rule="1se"
-    )
+    res_1se = PCA.select_n_components(X_s, max_components=6, cv=5, random_state=0, selection_rule="1se")
     res_q2 = PCA.select_n_components(
-        X_s, max_components=6, cv=5, random_state=0,
-        selection_rule="q2_increment", min_q2_increase=0.01,
+        X_s,
+        max_components=6,
+        cv=5,
+        random_state=0,
+        selection_rule="q2_increment",
+        min_q2_increase=0.01,
     )
     # 1-SE is never less parsimonious than argmin.
     assert res_1se.n_components <= res_min.n_components
@@ -848,7 +845,11 @@ def test_pca_select_n_components_scale_inside_folds_no_leakage() -> None:
     # comparable recommendation on this clean low-rank data.
     X_s = MCUVScaler().fit_transform(X_raw)
     legacy = PCA.select_n_components(
-        X_s, max_components=6, cv=5, n_repeats=2, random_state=0,
+        X_s,
+        max_components=6,
+        cv=5,
+        n_repeats=2,
+        random_state=0,
         scale_inside_folds=False,
     )
     assert 1 <= legacy.n_components <= 6
@@ -903,11 +904,16 @@ def test_pca_select_n_components_consensus_mode() -> None:
     X = pd.DataFrame(T @ P + 0.3 * rng.standard_normal((N, K)))
 
     result = PCA.select_n_components(
-        X, max_components=8, cv=5, n_repeats=2, random_state=0,
+        X,
+        max_components=8,
+        cv=5,
+        n_repeats=2,
+        random_state=0,
         return_consensus=True,
     )
-    assert {"minka_n_components", "parallel_analysis_n_components",
-            "consensus", "consensus_counts"} <= set(result.keys())
+    assert {"minka_n_components", "parallel_analysis_n_components", "consensus", "consensus_counts"} <= set(
+        result.keys()
+    )
     assert result.consensus in {"agree", "disagree"}
     # On clean low-rank data the three rules should agree.
     assert result.consensus == "agree"
@@ -970,9 +976,7 @@ def test_pca_score_contributions() -> None:
 def test_score_contributions_rejects_a_score_vector() -> None:
     """A score vector cannot carry the data the calculation needs."""
     rng = np.random.default_rng(3)
-    X = MCUVScaler().fit_transform(
-        pd.DataFrame(rng.standard_normal((25, 4)), columns=list("abcd"))
-    )
+    X = MCUVScaler().fit_transform(pd.DataFrame(rng.standard_normal((25, 4)), columns=list("abcd")))
     pca = PCA(n_components=2).fit(X)
 
     with pytest.raises(TypeError, match="not a score vector"):
@@ -988,9 +992,7 @@ def test_score_contributions_rejects_a_score_vector() -> None:
 def test_score_contributions_selector_and_argument_errors() -> None:
     """The selector and argument guards each report what was actually wrong."""
     rng = np.random.default_rng(5)
-    X = MCUVScaler().fit_transform(
-        pd.DataFrame(rng.standard_normal((12, 3)), columns=list("abc"))
-    )
+    X = MCUVScaler().fit_transform(pd.DataFrame(rng.standard_normal((12, 3)), columns=list("abc")))
     pca = PCA(n_components=2).fit(X)
 
     # An unknown keyword is reported as such, rather than being mistaken for a
@@ -1028,9 +1030,7 @@ def test_score_contributions_selector_and_argument_errors() -> None:
 def test_pca_group_contributions() -> None:
     """Group contributions sum to the average score, or to the shift between groups."""
     rng = np.random.default_rng(11)
-    X = MCUVScaler().fit_transform(
-        pd.DataFrame(rng.standard_normal((40, 5)), columns=[f"V{i}" for i in range(1, 6)])
-    )
+    X = MCUVScaler().fit_transform(pd.DataFrame(rng.standard_normal((40, 5)), columns=[f"V{i}" for i in range(1, 6)]))
     pca = PCA(n_components=2).fit(X)
     early, late = list(X.index[:8]), list(X.index[20:30])
 
@@ -1045,15 +1045,11 @@ def test_pca_group_contributions() -> None:
 
     # A single-observation group is the corresponding row of score_contributions.
     one = pca.group_contributions(X, group=[X.index[3]])
-    assert one.to_numpy() == pytest.approx(
-        pca.score_contributions(X, component=1).iloc[3].to_numpy(), abs=1e-12
-    )
+    assert one.to_numpy() == pytest.approx(pca.score_contributions(X, component=1).iloc[3].to_numpy(), abs=1e-12)
 
     # A boolean mask is accepted alongside labels.
     mask = [i < 8 for i in range(len(X))]
-    assert pca.group_contributions(X, group=mask).to_numpy() == pytest.approx(
-        against_centre.to_numpy(), abs=1e-12
-    )
+    assert pca.group_contributions(X, group=mask).to_numpy() == pytest.approx(against_centre.to_numpy(), abs=1e-12)
     with pytest.raises(ValueError, match="not index labels of X"):
         pca.group_contributions(X, group=["not-a-label"])
 
@@ -1077,13 +1073,9 @@ def test_pca_t2_spe_contributions() -> None:
         assert list(t2c.index) == list(Xs.index)
 
         # Invariant 1: per-observation T2 contributions sum to Hotelling's T2.
-        assert t2c.sum(axis=1).to_numpy() == pytest.approx(
-            pca.hotellings_t2_.iloc[:, -1].to_numpy(), abs=1e-9
-        )
+        assert t2c.sum(axis=1).to_numpy() == pytest.approx(pca.hotellings_t2_.iloc[:, -1].to_numpy(), abs=1e-9)
         # Invariant 2: squared SPE contributions sum to SPE**2.
-        assert (spec**2).sum(axis=1).to_numpy() == pytest.approx(
-            pca.spe_.iloc[:, -1].to_numpy() ** 2, abs=1e-9
-        )
+        assert (spec**2).sum(axis=1).to_numpy() == pytest.approx(pca.spe_.iloc[:, -1].to_numpy() ** 2, abs=1e-9)
 
         # A component subset sums to the cumulative T2 of those components.
         sub = pca.t2_contributions(Xs, components=[1, 2]).sum(axis=1).to_numpy()
@@ -1904,9 +1896,7 @@ def test_pls_in_pipeline_and_clone_matches_plsregression() -> None:
     Y_scaled = pd.DataFrame(StandardScaler().fit_transform(Y.values), columns=["y"])
 
     with config_context(transform_output="pandas"):
-        pipe = Pipeline(
-            [("scaler", StandardScaler()), ("pls", PLS(n_components=n_components, scale=False))]
-        )
+        pipe = Pipeline([("scaler", StandardScaler()), ("pls", PLS(n_components=n_components, scale=False))])
         pipe.fit(X, Y_scaled)
 
         # Cloning yields an unfitted but identically-parametrised pipeline.
@@ -1925,9 +1915,7 @@ def test_pls_in_pipeline_and_clone_matches_plsregression() -> None:
     assert np.abs(ours.scores_.values) == pytest.approx(np.abs(ref.x_scores_), abs=1e-6)
     assert np.abs(ours.x_loadings_.values) == pytest.approx(np.abs(ref.x_loadings_), abs=1e-6)
     assert np.abs(ours.x_weights_.values) == pytest.approx(np.abs(ref.x_weights_), abs=1e-6)
-    assert np.abs(ours.beta_coefficients_.values.ravel()) == pytest.approx(
-        np.abs(ref.coef_.ravel()), abs=1e-6
-    )
+    assert np.abs(ours.beta_coefficients_.values.ravel()) == pytest.approx(np.abs(ref.coef_.ravel()), abs=1e-6)
 
 
 def test_pls_scale_true_scales_x_and_y_blocks() -> None:
@@ -1951,9 +1939,7 @@ def test_pls_scale_true_scales_x_and_y_blocks() -> None:
     core = X.values @ beta
     # Deliberately heterogeneous Y-column variances and non-zero offsets.
     Y = pd.DataFrame(
-        core * np.array([0.05, 1.0, 5.0, 20.0])
-        + np.array([10.0, -3.0, 100.0, 0.2])
-        + rng.normal(0, 0.02, (n, 4)),
+        core * np.array([0.05, 1.0, 5.0, 20.0]) + np.array([10.0, -3.0, 100.0, 0.2]) + rng.normal(0, 0.02, (n, 4)),
         columns=[f"y{i}" for i in range(4)],
     )
 
@@ -2003,8 +1989,7 @@ def test_pls_rmse_and_interval_on_original_scale() -> None:
     X = pd.DataFrame(rng.normal(size=(n, 5)), columns=[f"x{i}" for i in range(5)])
     beta = rng.normal(size=(5, 3))
     Y = pd.DataFrame(
-        X.values @ beta * np.array([0.1, 3.0, 40.0]) + np.array([5.0, -2.0, 100.0])
-        + rng.normal(0, 0.05, (n, 3)),
+        X.values @ beta * np.array([0.1, 3.0, 40.0]) + np.array([5.0, -2.0, 100.0]) + rng.normal(0, 0.05, (n, 3)),
         columns=["ya", "yb", "yc"],
     )
     model = PLS(n_components=5, scale=True).fit(X, Y)
@@ -2353,7 +2338,7 @@ def test_pls_vip_n_components(fixture_pls_vip_calculation: dict) -> None:
     vip_2 = plsmodel.vip(n_components=2)
 
     assert len(vip_1) == len(vip_all)  # same number of features
-    assert not vip_all.equals(vip_1)    # but different values
+    assert not vip_all.equals(vip_1)  # but different values
     assert not vip_all.equals(vip_2)
 
     # Invalid n_components raises ValueError
@@ -2536,8 +2521,9 @@ def test_vip_formula_correctness() -> None:
     # Simple synthetic case with known PLS model internals
     rng = np.random.default_rng(42)
     X = pd.DataFrame(rng.standard_normal((60, 4)), columns=["A", "B", "C", "D"])
-    Y = pd.DataFrame(X.values @ np.array([2.0, 0.5, 0.1, 0.0]).reshape(-1, 1) + rng.standard_normal((60, 1)) * 0.05,
-                     columns=["y"])
+    Y = pd.DataFrame(
+        X.values @ np.array([2.0, 0.5, 0.1, 0.0]).reshape(-1, 1) + rng.standard_normal((60, 1)) * 0.05, columns=["y"]
+    )
     X_scaled = MCUVScaler().fit_transform(X)
     Y_scaled = MCUVScaler().fit_transform(Y)
 
@@ -2582,9 +2568,7 @@ def test_pls_score_contributions() -> None:
         expected = X_scaled.to_numpy() * plsmodel.direct_weights_.to_numpy()[:, a - 1]
         assert terms.to_numpy() == pytest.approx(expected, abs=1e-12)
 
-    shift = plsmodel.group_contributions(
-        X_scaled, group=X_scaled.index[:3], reference=X_scaled.index[3:6]
-    )
+    shift = plsmodel.group_contributions(X_scaled, group=X_scaled.index[:3], reference=X_scaled.index[3:6])
     expected_shift = plsmodel.scores_[1].to_numpy()[:3].mean() - plsmodel.scores_[1].to_numpy()[3:6].mean()
     assert shift.sum() == pytest.approx(expected_shift, abs=1e-12)
 
@@ -2788,9 +2772,7 @@ def test_pls_select_n_components_caps_max_components() -> None:
     # removes one DoF, so at most 23 components can be evaluated despite the
     # absurdly large request. (n_repeats=1 keeps the cap-vs-singularity test
     # focused on the cap; the rank-boundary fit is fragile by nature.)
-    result = PLS.select_n_components(
-        X_s, Y_s, max_components=1000, cv=5, n_repeats=1, random_state=0
-    )
+    result = PLS.select_n_components(X_s, Y_s, max_components=1000, cv=5, n_repeats=1, random_state=0)
     assert len(result.rmsecv) == 23
     assert result.n_components <= 23
 
@@ -2834,9 +2816,7 @@ def test_pls_select_n_components_1se_default_picks_parsimony() -> None:
     Y = pd.DataFrame(T_true @ gamma + 0.3 * rng.normal(size=(N, 1)), columns=["y"])
 
     res_1se = PLS.select_n_components(X, Y, max_components=12, cv=7, n_repeats=5, random_state=0)
-    res_min = PLS.select_n_components(
-        X, Y, max_components=12, cv=7, n_repeats=5, random_state=0, selection_rule="min"
-    )
+    res_min = PLS.select_n_components(X, Y, max_components=12, cv=7, n_repeats=5, random_state=0, selection_rule="min")
     assert res_1se.selection_rule == "1se"
     assert res_min.selection_rule == "min"
     # The 1-SE rule never picks more components than argmin RMSECV, and on this
@@ -2901,7 +2881,12 @@ def test_pls_select_n_components_in_fold_scaling_no_leakage() -> None:
     Y_s = MCUVScaler().fit_transform(Y_raw)
     with pytest.warns(SpecificationWarning, match="leaks"):
         leaky = PLS.select_n_components(
-            X_s, Y_s, max_components=5, cv=5, n_repeats=4, random_state=0,
+            X_s,
+            Y_s,
+            max_components=5,
+            cv=5,
+            n_repeats=4,
+            random_state=0,
             scale_inside_folds=False,
         )
     # Both runs choose sensible component counts under the 1-SE default.
@@ -2918,8 +2903,14 @@ def test_pls_select_n_components_q2_increment_rule() -> None:
     X = pd.DataFrame(T @ P + 0.3 * rng.standard_normal((N, K)), columns=[f"x{i}" for i in range(K)])
     Y = pd.DataFrame(T @ rng.standard_normal((3, 1)) + 0.2 * rng.standard_normal((N, 1)), columns=["y"])
     res = PLS.select_n_components(
-        X, Y, max_components=8, cv=5, n_repeats=3, random_state=0,
-        selection_rule="q2_increment", min_q2_increase=0.02,
+        X,
+        Y,
+        max_components=8,
+        cv=5,
+        n_repeats=3,
+        random_state=0,
+        selection_rule="q2_increment",
+        min_q2_increase=0.02,
     )
     assert res.selection_rule == "q2_increment"
     assert 1 <= res.n_components <= 4
@@ -2941,7 +2932,12 @@ def test_pls_select_n_components_stability_signal() -> None:
     # Multiple repeats + clean signal -> the distribution concentrates and
     # the recommendation is stable.
     confident = PLS.select_n_components(
-        X, Y, max_components=6, cv=5, n_repeats=8, random_state=0,
+        X,
+        Y,
+        max_components=6,
+        cv=5,
+        n_repeats=8,
+        random_state=0,
     )
     assert confident.selection_distribution is not None
     assert isinstance(confident.selection_distribution, pd.Series)
@@ -2952,7 +2948,12 @@ def test_pls_select_n_components_stability_signal() -> None:
 
     # A single repeat: no per-repeat distribution to report.
     single = PLS.select_n_components(
-        X, Y, max_components=6, cv=5, n_repeats=1, random_state=0,
+        X,
+        Y,
+        max_components=6,
+        cv=5,
+        n_repeats=1,
+        random_state=0,
     )
     assert single.selection_distribution is None
     assert single.selection_mode is None
@@ -2961,7 +2962,12 @@ def test_pls_select_n_components_stability_signal() -> None:
     # q2_increment doesn't decompose per repeat in this implementation -
     # stability is None even with many repeats. (Documented in the docstring.)
     q2 = PLS.select_n_components(
-        X, Y, max_components=6, cv=5, n_repeats=5, random_state=0,
+        X,
+        Y,
+        max_components=6,
+        cv=5,
+        n_repeats=5,
+        random_state=0,
         selection_rule="q2_increment",
     )
     assert q2.selection_distribution is None
@@ -2972,7 +2978,12 @@ def test_pls_select_n_components_stability_signal() -> None:
     # synthetic data is clean enough that every repeat votes for the same
     # count; ``stability_threshold > 1.0`` is the only way to force False.)
     strict = PLS.select_n_components(
-        X, Y, max_components=6, cv=5, n_repeats=8, random_state=0,
+        X,
+        Y,
+        max_components=6,
+        cv=5,
+        n_repeats=8,
+        random_state=0,
         stability_threshold=1.01,
     )
     assert strict.selection_is_stable is False
@@ -2991,14 +3002,23 @@ def test_pls_nested_cv_recovers_known_rank_and_reports_rmsep() -> None:
     )
 
     result = PLS.nested_cv(
-        X, Y, max_components=6, outer_cv=5, inner_cv=5,
-        n_inner_repeats=3, random_state=0,
+        X,
+        Y,
+        max_components=6,
+        outer_cv=5,
+        inner_cv=5,
+        n_inner_repeats=3,
+        random_state=0,
     )
 
     # Bunch shape.
-    assert {"rmsep", "q2y", "cv_predictions",
-            "selected_components_per_fold",
-            "selected_components_distribution"} <= set(result.keys())
+    assert {
+        "rmsep",
+        "q2y",
+        "cv_predictions",
+        "selected_components_per_fold",
+        "selected_components_distribution",
+    } <= set(result.keys())
     assert isinstance(result.rmsep, pd.Series)
     assert list(result.rmsep.index) == ["y", "total"]
     assert (result.rmsep > 0).all()
@@ -3028,10 +3048,22 @@ def test_pls_nested_cv_is_reproducible() -> None:
     Y = pd.DataFrame(rng.standard_normal((N, 1)), columns=["y"])
 
     a = PLS.nested_cv(
-        X, Y, max_components=4, outer_cv=4, inner_cv=4, n_inner_repeats=2, random_state=0,
+        X,
+        Y,
+        max_components=4,
+        outer_cv=4,
+        inner_cv=4,
+        n_inner_repeats=2,
+        random_state=0,
     )
     b = PLS.nested_cv(
-        X, Y, max_components=4, outer_cv=4, inner_cv=4, n_inner_repeats=2, random_state=0,
+        X,
+        Y,
+        max_components=4,
+        outer_cv=4,
+        inner_cv=4,
+        n_inner_repeats=2,
+        random_state=0,
     )
     np.testing.assert_allclose(a.rmsep.to_numpy(), b.rmsep.to_numpy())
     assert a.selected_components_per_fold == b.selected_components_per_fold
@@ -3058,8 +3090,14 @@ def test_pls_nested_cv_scale_inside_folds_false() -> None:
     Y_s = MCUVScaler().fit_transform(Y)
     with pytest.warns(SpecificationWarning):
         result = PLS.nested_cv(
-            X_s, Y_s, max_components=4, outer_cv=3, inner_cv=3, n_inner_repeats=1,
-            random_state=0, scale_inside_folds=False,
+            X_s,
+            Y_s,
+            max_components=4,
+            outer_cv=3,
+            inner_cv=3,
+            n_inner_repeats=1,
+            random_state=0,
+            scale_inside_folds=False,
         )
     assert (result.rmsep > 0).all()
     assert result.cv_predictions.shape == (N, 1)
@@ -3073,8 +3111,13 @@ def test_pls_nested_cv_accepts_custom_outer_splitter() -> None:
     Y = pd.DataFrame(rng.standard_normal((N, 1)), columns=["y"])
     splitter = KFold(n_splits=4, shuffle=True, random_state=0)
     result = PLS.nested_cv(
-        X, Y, max_components=3, outer_cv=splitter, inner_cv=3,
-        n_inner_repeats=1, random_state=0,
+        X,
+        Y,
+        max_components=3,
+        outer_cv=splitter,
+        inner_cv=3,
+        n_inner_repeats=1,
+        random_state=0,
     )
     assert len(result.selected_components_per_fold) == 4
     assert result.cv_predictions.shape == (N, 1)
@@ -3200,7 +3243,8 @@ def test_get_feature_names_out_mcuv_pca_pls() -> None:
 
     # PLS labels its X-scores T1..Tn.
     pls = PLS(n_components=2).fit(
-        MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y),
+        MCUVScaler().fit_transform(X),
+        MCUVScaler().fit_transform(Y),
     )
     assert list(pls.get_feature_names_out()) == ["T1", "T2"]
 
@@ -3212,10 +3256,7 @@ def test_get_feature_names_out_mcuv_pca_pls() -> None:
 
     # set_output(transform="pandas") wraps the ndarray transform output in a
     # DataFrame labelled with our get_feature_names_out.
-    pipe_pd = (
-        Pipeline([("sc", MCUVScaler()), ("pca", PCA(n_components=2))])
-        .set_output(transform="pandas")
-    )
+    pipe_pd = Pipeline([("sc", MCUVScaler()), ("pca", PCA(n_components=2))]).set_output(transform="pandas")
     out = pipe_pd.fit_transform(X)
     assert isinstance(out, pd.DataFrame)
     assert list(out.columns) == ["PC1", "PC2"]
@@ -3234,8 +3275,15 @@ def test_pls_select_n_components_randomization_rule() -> None:
     Y = pd.DataFrame(T @ gamma + 0.3 * rng.normal(size=(N, 1)), columns=["y"])
 
     res = PLS.select_n_components(
-        X, Y, max_components=10, cv=5, n_repeats=2, random_state=0,
-        selection_rule="randomization", n_permutations=399, alpha=0.01,
+        X,
+        Y,
+        max_components=10,
+        cv=5,
+        n_repeats=2,
+        random_state=0,
+        selection_rule="randomization",
+        n_permutations=399,
+        alpha=0.01,
     )
     assert res.selection_rule == "randomization"
     assert res.randomization_pvalues is not None
@@ -3248,8 +3296,15 @@ def test_pls_select_n_components_randomization_rule() -> None:
 
     # Reproducible given a fixed seed.
     again = PLS.select_n_components(
-        X, Y, max_components=10, cv=5, n_repeats=2, random_state=0,
-        selection_rule="randomization", n_permutations=399, alpha=0.01,
+        X,
+        Y,
+        max_components=10,
+        cv=5,
+        n_repeats=2,
+        random_state=0,
+        selection_rule="randomization",
+        n_permutations=399,
+        alpha=0.01,
     )
     np.testing.assert_allclose(
         res.randomization_pvalues.to_numpy(),
@@ -3260,12 +3315,26 @@ def test_pls_select_n_components_randomization_rule() -> None:
     # before declaring a model "equivalent", so it can pick MORE components
     # than a stricter alpha.
     res_strict = PLS.select_n_components(
-        X, Y, max_components=10, cv=5, n_repeats=2, random_state=0,
-        selection_rule="randomization", n_permutations=399, alpha=0.001,
+        X,
+        Y,
+        max_components=10,
+        cv=5,
+        n_repeats=2,
+        random_state=0,
+        selection_rule="randomization",
+        n_permutations=399,
+        alpha=0.001,
     )
     res_lax = PLS.select_n_components(
-        X, Y, max_components=10, cv=5, n_repeats=2, random_state=0,
-        selection_rule="randomization", n_permutations=399, alpha=0.5,
+        X,
+        Y,
+        max_components=10,
+        cv=5,
+        n_repeats=2,
+        random_state=0,
+        selection_rule="randomization",
+        n_permutations=399,
+        alpha=0.5,
     )
     assert res_strict.n_components <= res_lax.n_components
 
@@ -4254,8 +4323,6 @@ def test_loading_plot_pca(fixture_pca_for_plots: PCA) -> None:
     fig = fixture_pca_for_plots.loading_plot()
     assert isinstance(fig, go.Figure)
     assert len(fig.data) >= 1
-
-
 
 
 def test_spe_plot_basic(fixture_pca_for_plots: PCA) -> None:

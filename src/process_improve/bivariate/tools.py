@@ -72,12 +72,14 @@ def find_elbow(spec: FindElbowInput) -> dict[str, Any]:
         y_arr = np.asarray(spec.y, dtype=float)
         elbow_idx = find_elbow_point(x_arr, y_arr)
         elbow_idx = int(elbow_idx)
-        return clean({
-            "elbow_index": elbow_idx,
-            "elbow_x": spec.x[elbow_idx],
-            "elbow_y": spec.y[elbow_idx],
-            "n": len(spec.x),
-        })
+        return clean(
+            {
+                "elbow_index": elbow_idx,
+                "elbow_x": spec.x[elbow_idx],
+                "elbow_y": spec.y[elbow_idx],
+                "n": len(spec.x),
+            }
+        )
     except (ValueError, TypeError, IndexError) as exc:
         return {"error": str(exc)}
 

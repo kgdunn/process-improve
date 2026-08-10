@@ -86,7 +86,8 @@ def robust_regression(spec: RobustRegressionInput) -> dict[str, Any]:
         y_arr = np.asarray(spec.y, dtype=float)
 
         result = _robust_regression(
-            x_arr, y_arr,
+            x_arr,
+            y_arr,
             fit_intercept=spec.fit_intercept,
             conflevel=spec.confidence_level,
         )

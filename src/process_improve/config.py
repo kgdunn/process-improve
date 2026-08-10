@@ -66,9 +66,7 @@ def _read_env_float(name: str, default: float) -> float:
     try:
         return float(raw)
     except ValueError as exc:
-        raise ValueError(
-            f"Environment variable {name}={raw!r} is not a valid float."
-        ) from exc
+        raise ValueError(f"Environment variable {name}={raw!r} is not a valid float.") from exc
 
 
 def _read_env_int(name: str, default: int) -> int:
@@ -78,9 +76,7 @@ def _read_env_int(name: str, default: int) -> int:
     try:
         return int(raw)
     except ValueError as exc:
-        raise ValueError(
-            f"Environment variable {name}={raw!r} is not a valid integer."
-        ) from exc
+        raise ValueError(f"Environment variable {name}={raw!r} is not a valid integer.") from exc
 
 
 def _read_env_bool(name: str, default: bool) -> bool:
@@ -109,11 +105,11 @@ DEFAULTS: Final[dict[str, Any]] = {
     # any legitimate use" and rejects payloads designed to exhaust CPU
     # or memory in algorithms with poor input-size scaling.
     "max_factors_combinatorial": 15,  # 2**15 = 32k rows for full_factorial
-    "max_regression_points": 5_000,   # repeated_median_slope is O(N^2)
-    "max_matrix_rows": 10_000,        # fit_pca / fit_pls / data inputs
-    "max_matrix_cols": 500,           # SVD on 500 columns is the practical limit
-    "max_formula_chars": 4_096,       # fit_linear_model formula string
-    "max_formula_terms": 100,         # expanded patsy RHS terms
+    "max_regression_points": 5_000,  # repeated_median_slope is O(N^2)
+    "max_matrix_rows": 10_000,  # fit_pca / fit_pls / data inputs
+    "max_matrix_cols": 500,  # SVD on 500 columns is the practical limit
+    "max_formula_chars": 4_096,  # fit_linear_model formula string
+    "max_formula_terms": 100,  # expanded patsy RHS terms
 }
 
 #: Mapping from knob name to environment-variable name. ``tool_safety``'s
@@ -305,9 +301,7 @@ class Settings:
         """
         return self._cache.setdefault(
             "max_formula_chars",
-            _read_env_int(
-                ENV_VAR_NAMES["max_formula_chars"], DEFAULTS["max_formula_chars"]
-            ),
+            _read_env_int(ENV_VAR_NAMES["max_formula_chars"], DEFAULTS["max_formula_chars"]),
         )
 
     @max_formula_chars.setter
@@ -319,9 +313,7 @@ class Settings:
         """Maximum number of terms after patsy expansion of a model formula."""
         return self._cache.setdefault(
             "max_formula_terms",
-            _read_env_int(
-                ENV_VAR_NAMES["max_formula_terms"], DEFAULTS["max_formula_terms"]
-            ),
+            _read_env_int(ENV_VAR_NAMES["max_formula_terms"], DEFAULTS["max_formula_terms"]),
         )
 
     @max_formula_terms.setter

@@ -16,7 +16,14 @@ from process_improve.experiments.factor import Constraint, DesignResult, Factor,
 from process_improve.experiments.knowledge import doe_knowledge
 from process_improve.experiments.models import Model, lm, predict, summary
 from process_improve.experiments.omars import OmarsResult, analyze_omars
+from process_improve.experiments.omars_tradeoff import (
+    OmarsTradeoffResult,
+    omars_minimum_runs,
+    omars_trade_off_table,
+    omars_tradeoff,
+)
 from process_improve.experiments.optimization import optimize_responses
+from process_improve.experiments.simulations import grocery, manufacture, popcorn
 from process_improve.experiments.strategy import recommend_strategy
 from process_improve.experiments.structures import (
     Column,
@@ -26,6 +33,7 @@ from process_improve.experiments.structures import (
     gather,
     supplement,
 )
+from process_improve.experiments.tradeoff import TradeoffResult, trade_off_table, tradeoff
 from process_improve.experiments.visualization import main_effects_plot, visualize_doe
 
 __all__ = [
@@ -38,8 +46,10 @@ __all__ = [
     "MomentAberrationResult",
     "NotTwoLevelError",
     "OmarsResult",
+    "OmarsTradeoffResult",
     "Response",
     "ResponseGoal",
+    "TradeoffResult",
     "analyze_experiment",
     "analyze_omars",
     "augment_design",
@@ -52,15 +62,23 @@ __all__ = [
     "gather",
     "generate_design",
     "generate_omars",
+    "grocery",
     "is_omars",
     "lm",
     "main_effects_plot",
+    "manufacture",
     "moment_aberration",
+    "omars_minimum_runs",
     "omars_properties",
+    "omars_trade_off_table",
+    "omars_tradeoff",
     "optimize_responses",
+    "popcorn",
     "predict",
     "recommend_strategy",
     "summary",
     "supplement",
+    "trade_off_table",
+    "tradeoff",
     "visualize_doe",
 ]

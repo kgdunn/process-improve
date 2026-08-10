@@ -13,7 +13,7 @@ Example
 >>> from process_improve.experiments.augment import augment_design
 >>> design = pd.DataFrame({"A": [-1, 1, -1, 1], "B": [-1, -1, 1, 1]})
 >>> result = augment_design(design, augmentation_type="add_center_points", n_additional_runs=3)
->>> result["augmented_design"].shape
+>>> pd.DataFrame(result["augmented_design"]).shape
 (7, 2)
 """
 
@@ -33,6 +33,7 @@ try:
     from pyDOE3 import fullfact
 except ImportError:  # pragma: no cover - exercised via env-without-pyDOE3
     from process_improve._extras import _MissingExtra
+
     fullfact = _MissingExtra("pyDOE3", "expt")  # type: ignore[assignment]
 
 from process_improve.experiments.evaluate import (
@@ -127,9 +128,7 @@ def _explain_changes(  # noqa: PLR0913
     dof_before = before_metrics.get("degrees_of_freedom", {})
     dof_after = after_metrics.get("degrees_of_freedom", {})
     if "residual" in dof_before and "residual" in dof_after:
-        lines.append(
-            f"Residual degrees of freedom: {dof_before['residual']} -> {dof_after['residual']}."
-        )
+        lines.append(f"Residual degrees of freedom: {dof_before['residual']} -> {dof_after['residual']}.")
 
     # Alias diff
     aliases_before = set(before_metrics.get("alias_structure", []))
@@ -180,8 +179,13 @@ def _augment_foldover(ctx: _AugmentContext) -> dict[str, Any]:
             notes.append(f"Eliminated defining words: {', '.join(eliminated_strs)}.")
 
     explanation, before_m, after_m = _explain_changes(
-        ctx.existing_design, augmented, ctx.factor_names,
-        ctx.augmentation_type, ctx.generators, generators_after, notes,
+        ctx.existing_design,
+        augmented,
+        ctx.factor_names,
+        ctx.augmentation_type,
+        ctx.generators,
+        generators_after,
+        notes,
     )
 
     return {
@@ -203,9 +207,7 @@ def _augment_semifold(ctx: _AugmentContext) -> dict[str, Any]:
     # Determine which factor to fold on
     fold_factor = ctx.fold_on
     if fold_factor is not None and fold_factor not in ctx.factor_names:
-        raise ValueError(
-            f"fold_on={fold_factor!r} not in factor names: {ctx.factor_names}"
-        )
+        raise ValueError(f"fold_on={fold_factor!r} not in factor names: {ctx.factor_names}")
 
     if fold_factor is None:
         fold_factor = _auto_select_fold_factor(ctx)
@@ -236,8 +238,13 @@ def _augment_semifold(ctx: _AugmentContext) -> dict[str, Any]:
             notes.append(f"De-aliased by removing words: {', '.join(eliminated_strs)}.")
 
     explanation, before_m, after_m = _explain_changes(
-        ctx.existing_design, augmented, ctx.factor_names,
-        ctx.augmentation_type, ctx.generators, generators_after, notes,
+        ctx.existing_design,
+        augmented,
+        ctx.factor_names,
+        ctx.augmentation_type,
+        ctx.generators,
+        generators_after,
+        notes,
     )
 
     return {
@@ -298,8 +305,13 @@ def _augment_add_center_points(ctx: _AugmentContext) -> dict[str, Any]:
         "Center points enable testing for curvature (quadratic effects).",
     ]
     explanation, before_m, after_m = _explain_changes(
-        ctx.existing_design, augmented, ctx.factor_names,
-        ctx.augmentation_type, ctx.generators, ctx.generators, notes,
+        ctx.existing_design,
+        augmented,
+        ctx.factor_names,
+        ctx.augmentation_type,
+        ctx.generators,
+        ctx.generators,
+        notes,
     )
 
     return {
@@ -326,8 +338,13 @@ def _augment_replicate(ctx: _AugmentContext) -> dict[str, Any]:
         "Replication provides pure error degrees of freedom for lack-of-fit testing.",
     ]
     explanation, before_m, after_m = _explain_changes(
-        ctx.existing_design, augmented, ctx.factor_names,
-        ctx.augmentation_type, ctx.generators, ctx.generators, notes,
+        ctx.existing_design,
+        augmented,
+        ctx.factor_names,
+        ctx.augmentation_type,
+        ctx.generators,
+        ctx.generators,
+        notes,
     )
 
     return {
@@ -364,8 +381,13 @@ def _augment_add_axial_points(ctx: _AugmentContext) -> dict[str, Any]:
         "Consider adding center points if not already present.",
     ]
     explanation, before_m, after_m = _explain_changes(
-        ctx.existing_design, augmented, ctx.factor_names,
-        ctx.augmentation_type, ctx.generators, ctx.generators, notes,
+        ctx.existing_design,
+        augmented,
+        ctx.factor_names,
+        ctx.augmentation_type,
+        ctx.generators,
+        ctx.generators,
+        notes,
     )
 
     return {
@@ -406,7 +428,7 @@ def _compute_alpha(
 
     if alpha is None or alpha == "rotatable":
         # Rotatable: alpha = n_factorial^(1/4)
-        return float(n_factorial ** 0.25)
+        return float(n_factorial**0.25)
     elif alpha == "face_centered":
         return 1.0
     elif alpha == "orthogonal":
@@ -499,7 +521,11 @@ def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
         raise ValueError("No candidate points available after filtering existing design points.")
 
     augmented, new_rows = _greedy_d_optimal_select(
-        df, candidates, ctx.n_additional_runs, ctx.factor_names, model,
+        df,
+        candidates,
+        ctx.n_additional_runs,
+        ctx.factor_names,
+        model,
     )
     new_runs_df = pd.concat(new_rows, ignore_index=True) if new_rows else pd.DataFrame(columns=ctx.factor_names)
     notes = [
@@ -507,8 +533,13 @@ def _augment_add_runs_optimal(ctx: _AugmentContext) -> dict[str, Any]:
         "Existing runs were preserved; only new runs were optimized.",
     ]
     explanation, before_m, after_m = _explain_changes(
-        ctx.existing_design, augmented, ctx.factor_names,
-        ctx.augmentation_type, ctx.generators, ctx.generators, notes,
+        ctx.existing_design,
+        augmented,
+        ctx.factor_names,
+        ctx.augmentation_type,
+        ctx.generators,
+        ctx.generators,
+        notes,
     )
 
     return {
@@ -545,7 +576,8 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
     n_target_centers = max(3, 5 - n_existing_centers)
     n_new_centers = max(0, n_target_centers - n_existing_centers)
     center_df = pd.DataFrame(
-        np.zeros((n_new_centers, k)), columns=ctx.factor_names,
+        np.zeros((n_new_centers, k)),
+        columns=ctx.factor_names,
     )
 
     new_runs = pd.concat([axial_df, center_df], ignore_index=True)
@@ -560,8 +592,13 @@ def _augment_upgrade_to_rsm(ctx: _AugmentContext) -> dict[str, Any]:
         notes.append(f"Existing {n_existing_centers} center point(s) were preserved.")
 
     explanation, before_m, after_m = _explain_changes(
-        ctx.existing_design, augmented, ctx.factor_names,
-        ctx.augmentation_type, ctx.generators, ctx.generators, notes,
+        ctx.existing_design,
+        augmented,
+        ctx.factor_names,
+        ctx.augmentation_type,
+        ctx.generators,
+        ctx.generators,
+        notes,
     )
 
     return {
@@ -587,7 +624,7 @@ def _augment_add_blocks(ctx: _AugmentContext) -> dict[str, Any]:
 
     # Determine how many confounding columns needed: 2^b blocks requires b columns
     b = int(np.ceil(np.log2(n_blocks)))
-    n_blocks_actual = 2 ** b  # round up to power of 2
+    n_blocks_actual = 2**b  # round up to power of 2
 
     # Choose the highest-order interactions for confounding
     # Generate all interactions from order k down to order 2
@@ -613,7 +650,7 @@ def _augment_add_blocks(ctx: _AugmentContext) -> dict[str, Any]:
     # Assign blocks using signs of confounding columns
     block_assignment = np.zeros(len(df), dtype=int)
     for i, (_word, col) in enumerate(confounding_columns[:b]):
-        block_assignment += (col > 0).astype(int) * (2 ** i)
+        block_assignment += (col > 0).astype(int) * (2**i)
     block_assignment += 1  # 1-based
 
     augmented = df.copy()
@@ -727,10 +764,7 @@ def augment_design(  # noqa: PLR0913
     """
     if augmentation_type not in _AUGMENT_REGISTRY:
         available = sorted(_AUGMENT_REGISTRY.keys())
-        raise ValueError(
-            f"Unknown augmentation_type={augmentation_type!r}. "
-            f"Choose from: {', '.join(available)}."
-        )
+        raise ValueError(f"Unknown augmentation_type={augmentation_type!r}. Choose from: {', '.join(available)}.")
 
     factor_names = [c for c in existing_design.columns if c not in ("RunOrder", "Block")]
 

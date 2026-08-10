@@ -53,21 +53,45 @@ _NOISE_FRACTIONS: dict[str, float] = {
 # the same hint) fall back to "no direction" and are ignored.
 _POS_WORDS: frozenset[str] = frozenset(
     {
-        "positive", "increase", "increases", "increasing", "synergy",
-        "synergistic", "synergise", "synergize", "boost", "boosts", "promotes",
+        "positive",
+        "increase",
+        "increases",
+        "increasing",
+        "synergy",
+        "synergistic",
+        "synergise",
+        "synergize",
+        "boost",
+        "boosts",
+        "promotes",
     }
 )
 _NEG_WORDS: frozenset[str] = frozenset(
     {
-        "negative", "decrease", "decreases", "decreasing", "antagonistic",
-        "antagonise", "antagonize", "antagonism", "adverse", "inhibits",
+        "negative",
+        "decrease",
+        "decreases",
+        "decreasing",
+        "antagonistic",
+        "antagonise",
+        "antagonize",
+        "antagonism",
+        "adverse",
+        "inhibits",
         "suppresses",
     }
 )
 _QUAD_WORDS: frozenset[str] = frozenset(
     {
-        "quadratic", "curvature", "curved", "nonlinear", "non", "parabolic",
-        "optimum", "maximum", "minimum",
+        "quadratic",
+        "curvature",
+        "curved",
+        "nonlinear",
+        "non",
+        "parabolic",
+        "optimum",
+        "maximum",
+        "minimum",
     }
 )
 
@@ -119,9 +143,7 @@ def validate_outputs(outputs: list[dict[str, Any]]) -> None:
 def validate_noise_level(noise_level: str) -> None:
     """Reject any ``noise_level`` outside the fixed enum."""
     if noise_level not in _VALID_NOISE_LEVELS:
-        raise ValueError(
-            f"'noise_level' must be one of {list(_VALID_NOISE_LEVELS)}, got {noise_level!r}."
-        )
+        raise ValueError(f"'noise_level' must be one of {list(_VALID_NOISE_LEVELS)}, got {noise_level!r}.")
 
 
 # ---------------------------------------------------------------------------
@@ -182,9 +204,7 @@ def _apply_interaction_hint(
         if tuple(sorted(inter["factors"])) == (a, b):
             inter["coefficient"] = sign * max(abs(inter["coefficient"]), magnitude)
             return
-    out_coefs["interactions"].append(
-        {"factors": [a, b], "coefficient": sign * magnitude}
-    )
+    out_coefs["interactions"].append({"factors": [a, b], "coefficient": sign * magnitude})
 
 
 def _apply_main_hint(out_coefs: dict[str, Any], factor: str, sign: float) -> None:
@@ -302,9 +322,7 @@ def materialize_model(private_state: dict[str, Any]) -> dict[str, Any]:
 
     rng = np.random.default_rng(seed)
 
-    per_output: dict[str, dict[str, Any]] = {
-        name: _empty_output_coefs(rng, factor_names) for name in output_names
-    }
+    per_output: dict[str, dict[str, Any]] = {name: _empty_output_coefs(rng, factor_names) for name in output_names}
 
     for hint in hints:
         if not isinstance(hint, str):
@@ -315,9 +333,7 @@ def materialize_model(private_state: dict[str, Any]) -> dict[str, Any]:
     for coefs in per_output.values():
         coefs["noise_sigma"] = noise_fraction * _total_abs_magnitude(coefs)
         if time_drift:
-            coefs["drift_rate_per_day"] = float(
-                rng.normal(0.0, 0.01) * abs(coefs["intercept"])
-            )
+            coefs["drift_rate_per_day"] = float(rng.normal(0.0, 0.01) * abs(coefs["intercept"]))
         else:
             coefs["drift_rate_per_day"] = 0.0
 
@@ -409,10 +425,7 @@ def simulate(
         ``{settings, outputs, warnings, timestamp_offset_days}``.
     """
     model = materialize_model(private_state)
-    factor_ranges = {
-        f["name"]: (float(f["low"]), float(f["high"]))
-        for f in private_state["factors"]
-    }
+    factor_ranges = {f["name"]: (float(f["low"]), float(f["high"])) for f in private_state["factors"]}
 
     warnings: list[str] = []
     effective_settings: dict[str, float] = {}

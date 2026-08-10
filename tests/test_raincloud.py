@@ -12,10 +12,12 @@ from process_improve.visualization.raincloud import raincloud
 def test_raincloud_grouped_dataframe() -> None:
     """One violin trace is drawn per group, each combining cloud, box and rain."""
     rng = np.random.default_rng(0)
-    df = pd.DataFrame({
-        "value": rng.normal(size=60),
-        "reactor": ["A"] * 30 + ["B"] * 30,
-    })
+    df = pd.DataFrame(
+        {
+            "value": rng.normal(size=60),
+            "reactor": ["A"] * 30 + ["B"] * 30,
+        }
+    )
     fig = raincloud(df, value="value", group="reactor", title="Yield by reactor")
 
     assert len(fig.data) == 2

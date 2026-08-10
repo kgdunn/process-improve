@@ -72,8 +72,7 @@ def fit_linear_model(spec: FitLinearModelInput) -> dict[str, Any]:
         if len(spec.data) > settings.max_matrix_rows:
             return {
                 "error": (
-                    f"data has {len(spec.data)} rows; the cap is "
-                    f"settings.max_matrix_rows={settings.max_matrix_rows}."
+                    f"data has {len(spec.data)} rows; the cap is settings.max_matrix_rows={settings.max_matrix_rows}."
                 )
             }
         if len(spec.formula) > settings.max_formula_chars:
@@ -100,10 +99,7 @@ def fit_linear_model(spec: FitLinearModelInput) -> dict[str, Any]:
 
         params = model.get_parameters(drop_intercept=True)
         if isinstance(params, pd.Series):
-            coefficients = [
-                {"name": str(name), "estimate": float(value)}
-                for name, value in params.items()
-            ]
+            coefficients = [{"name": str(name), "estimate": float(value)} for name, value in params.items()]
         else:
             coefficients = params.to_dict(orient="records")
 
@@ -112,11 +108,13 @@ def fit_linear_model(spec: FitLinearModelInput) -> dict[str, Any]:
         smry = model.summary(print_to_screen=False)
         summary_text = str(smry)
 
-        return clean({
-            "coefficients": coefficients,
-            "r2": r2,
-            "summary_text": summary_text,
-        })
+        return clean(
+            {
+                "coefficients": coefficients,
+                "r2": r2,
+                "summary_text": summary_text,
+            }
+        )
     except _TOOL_EXPECTED_EXCEPTIONS as e:
         logger.exception("Tool fit_linear_model failed")
         return {"error": str(e)}

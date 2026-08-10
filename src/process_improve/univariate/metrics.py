@@ -246,7 +246,10 @@ def ttest_independent(sample_A: pd.Series, sample_B: pd.Series, conflevel: float
 
 
 def ttest_independent_from_df(
-    df: pd.DataFrame, grouper_column: str, values_column: str, conflevel: float = 0.995,
+    df: pd.DataFrame,
+    grouper_column: str,
+    values_column: str,
+    conflevel: float = 0.995,
 ) -> pd.DataFrame:
     """
     Calculate the t-test for differences between two or more groups and returns a confidence
@@ -334,10 +337,7 @@ def ttest_paired(differences: pd.Series, conflevel: float = 0.995) -> dict:
     # A paired t-test needs at least 2 differences (so dof >= 1 and the
     # 1/n term inside sqrt is finite). SEC-24 (#273).
     if differences.shape[0] < 2:
-        raise ValueError(
-            f"ttest_paired requires at least 2 paired observations; "
-            f"got {differences.shape[0]}."
-        )
+        raise ValueError(f"ttest_paired requires at least 2 paired observations; got {differences.shape[0]}.")
     diff_mean = differences.mean()
     diff_svar = differences.std(ddof=1)
     dof = differences.shape[0] - 1  # n-1 d
@@ -366,7 +366,10 @@ def ttest_paired(differences: pd.Series, conflevel: float = 0.995) -> dict:
 
 
 def ttest_paired_from_df(
-    df: pd.DataFrame, grouper_column: str, values_column: str, conflevel: float = 0.995,
+    df: pd.DataFrame,
+    grouper_column: str,
+    values_column: str,
+    conflevel: float = 0.995,
 ) -> pd.DataFrame:
     """
     Calculate the t-test for paired differences between two or more groups and returns a
@@ -453,8 +456,7 @@ def confidence_interval(df: pd.DataFrame, column_name: str, conflevel: float = 0
     # versions; reject up front. SEC-24 (#273).
     if n < 2:
         raise ValueError(
-            f"confidence_interval requires at least 2 non-missing values "
-            f"in column {column_name!r}; got {n}."
+            f"confidence_interval requires at least 2 non-missing values in column {column_name!r}; got {n}."
         )
 
     if style.lower() == "robust":
@@ -1039,9 +1041,7 @@ def tietjen_moore_test(  # noqa: PLR0913
     critical_value = float(np.quantile(simulated, alpha))
 
     outlier_indices = (
-        np.argsort(np.abs(a - a.mean()))[n - n_outliers :]
-        if two_sided
-        else np.argsort(a)[n - n_outliers :]
+        np.argsort(np.abs(a - a.mean()))[n - n_outliers :] if two_sided else np.argsort(a)[n - n_outliers :]
     )
 
     # A small statistic indicates that the removed points really are outliers.
@@ -1198,7 +1198,6 @@ def __getattr__(name: str) -> NoReturn:
     if name in _RENAMED:
         new = _RENAMED[name]
         raise AttributeError(
-            f"{name!r} has been renamed to {new!r}. "
-            f"Use: from process_improve.univariate.metrics import {new}"
+            f"{name!r} has been renamed to {new!r}. Use: from process_improve.univariate.metrics import {new}"
         )
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -94,9 +94,7 @@ class Column(pd.Series):
     def extend(self, values: list) -> Column:
         """Extend the column with the list of new values."""
         if not isinstance(values, list):
-            raise TypeError(
-                f"'values' must be a list; got {type(values).__name__}."
-            )
+            raise TypeError(f"'values' must be a list; got {type(values).__name__}.")
         prior_n = self.index[-1]
         index = list(range(prior_n + 1, prior_n + len(values) + 1))
         new = pd.Series(data=values, index=index)
@@ -320,10 +318,7 @@ def c(*args, **kwargs) -> Column:  # noqa: C901, PLR0912, PLR0915
         except TypeError as err:
             raise TypeError("The `range` input must be an iterable, with 2 values.") from err
         if len(out.pi_range) != 2:
-            raise ValueError(
-                f"The `range` variable must be a tuple with 2 values; "
-                f"got {len(out.pi_range)} value(s)."
-            )
+            raise ValueError(f"The `range` variable must be a tuple with 2 values; got {len(out.pi_range)} value(s).")
         out.pi_range = tuple(out.pi_range)
 
         try:
@@ -356,8 +351,7 @@ def c(*args, **kwargs) -> Column:  # noqa: C901, PLR0912, PLR0915
         extras = {v for v in raw_values if not pd.isna(v)} - set(levels_list)
         if extras:
             raise ValueError(
-                f"All values must be present in `levels`. "
-                f"Found value(s) not in levels: {sorted(extras, key=str)}."
+                f"All values must be present in `levels`. Found value(s) not in levels: {sorted(extras, key=str)}."
             )
         out.pi_levels = {out.pi_name: levels_list}
     else:

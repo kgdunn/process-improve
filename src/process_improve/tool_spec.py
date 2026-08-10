@@ -63,44 +63,34 @@ def _validate_rng_metadata(name: str, rng: dict[str, Any]) -> None:
     defensive type-checking. See ``CLAUDE.md`` for the full schema.
     """
     if not isinstance(rng, dict):
-        raise TypeError(
-            f"@tool_spec(name={name!r}): 'rng' must be a dict, got {type(rng).__name__}."
-        )
+        raise TypeError(f"@tool_spec(name={name!r}): 'rng' must be a dict, got {type(rng).__name__}.")
     if "uses_rng" not in rng or not isinstance(rng["uses_rng"], bool):
-        raise ValueError(
-            f"@tool_spec(name={name!r}): 'rng' must have a boolean 'uses_rng' key."
-        )
+        raise ValueError(f"@tool_spec(name={name!r}): 'rng' must have a boolean 'uses_rng' key.")
     allowed_keys = {"uses_rng", "seed_param", "default_seed", "note"}
     extra = set(rng) - allowed_keys
     if extra:
         raise ValueError(
-            f"@tool_spec(name={name!r}): unknown keys in 'rng': {sorted(extra)}. "
-            f"Allowed: {sorted(allowed_keys)}."
+            f"@tool_spec(name={name!r}): unknown keys in 'rng': {sorted(extra)}. Allowed: {sorted(allowed_keys)}."
         )
     if not rng["uses_rng"]:
         # Deterministic tools shouldn't carry a seed_param / default_seed.
         if rng.get("seed_param") is not None or rng.get("default_seed") is not None:
             raise ValueError(
-                f"@tool_spec(name={name!r}): 'seed_param' / 'default_seed' "
-                "must be omitted when uses_rng is False."
+                f"@tool_spec(name={name!r}): 'seed_param' / 'default_seed' must be omitted when uses_rng is False."
             )
         return
     seed_param = rng.get("seed_param")
     if seed_param is not None and not isinstance(seed_param, str):
         raise TypeError(
-            f"@tool_spec(name={name!r}): 'seed_param' must be a string or None, "
-            f"got {type(seed_param).__name__}."
+            f"@tool_spec(name={name!r}): 'seed_param' must be a string or None, got {type(seed_param).__name__}."
         )
     default_seed = rng.get("default_seed")
     if default_seed is not None and not isinstance(default_seed, int):
         raise TypeError(
-            f"@tool_spec(name={name!r}): 'default_seed' must be an int or None, "
-            f"got {type(default_seed).__name__}."
+            f"@tool_spec(name={name!r}): 'default_seed' must be an int or None, got {type(default_seed).__name__}."
         )
     if seed_param is None and default_seed is not None:
-        raise ValueError(
-            f"@tool_spec(name={name!r}): 'default_seed' requires a 'seed_param' name."
-        )
+        raise ValueError(f"@tool_spec(name={name!r}): 'default_seed' requires a 'seed_param' name.")
 
 
 # ---------------------------------------------------------------------------
@@ -165,8 +155,7 @@ def tool_spec(  # noqa: PLR0913
 
     if not (isinstance(input_model, type) and issubclass(input_model, BaseModel)):
         raise TypeError(
-            f"@tool_spec(name={name!r}): input_model must be a pydantic "
-            f"BaseModel subclass; got {input_model!r}."
+            f"@tool_spec(name={name!r}): input_model must be a pydantic BaseModel subclass; got {input_model!r}."
         )
     extra_policy = input_model.model_config.get("extra")
     if extra_policy != "forbid":

@@ -209,10 +209,7 @@ class ResidualsVsOrderPlot(BasePlot):
         if not residuals:
             return ChartSpec(title="Residuals vs Order - no data")
 
-        scatter_data = [
-            {"run_order": i + 1, "residual": float(r)}
-            for i, r in enumerate(residuals)
-        ]
+        scatter_data = [{"run_order": i + 1, "residual": float(r)} for i, r in enumerate(residuals)]
         scatter_layer = LayerSpec(
             mark=MarkType.scatter,
             data=scatter_data,

@@ -149,7 +149,7 @@ confirmation runs and check them with `analysis_type: confirmation_test`.
 
 ## Tools
 
-All ten are reachable through `scripts/doe_tool.py call <name>`. Run
+All eleven are reachable through `scripts/doe_tool.py call <name>`. Run
 `python scripts/doe_tool.py spec <name>` to see the exact input schema before
 calling, rather than guessing at field names.
 
@@ -165,6 +165,7 @@ calling, rather than guessing at field names.
 | `augment_design` | Add runs: fold-over, axial points, replicates, de-aliasing |
 | `optimize_responses` | Multi-response desirability optimisation |
 | `visualize_doe` | 21 plot types, returns Plotly and ECharts specs |
+| `trade_off_table` | Two-level runs-against-factors table: what each budget buys, and its aliasing |
 
 `doe_knowledge` is the right first call whenever the user asks a conceptual
 question ("what is aliasing?", "why center points?"). It returns curated

@@ -177,8 +177,7 @@ def validate_formula_is_safe(
         unknown = sorted({tok for tok in _FORMULA_IDENTIFIER.findall(formula) if tok not in allowed})
         if unknown:
             raise UnsafeFormulaError(
-                f"formula references unknown name(s) {unknown}; only data columns are allowed: "
-                f"{sorted(allowed)}."
+                f"formula references unknown name(s) {unknown}; only data columns are allowed: {sorted(allowed)}."
             )
         return
 
@@ -232,8 +231,7 @@ def _check_formula_node(node: ast.AST, allowed: set[str], *, allow_numpy: bool) 
     if isinstance(node, ast.Name):
         if node.id not in allowed:
             raise UnsafeFormulaError(
-                f"formula references unknown name(s) [{node.id!r}]; only data columns are allowed: "
-                f"{sorted(allowed)}."
+                f"formula references unknown name(s) [{node.id!r}]; only data columns are allowed: {sorted(allowed)}."
             )
         return
 
@@ -664,7 +662,6 @@ def summary(
     if show:
         print(out)  # noqa: T201
     return out
-
 
 
 # ENG-23 (#305): explicit ``__all__`` so the thin re-exporter ``models.py``

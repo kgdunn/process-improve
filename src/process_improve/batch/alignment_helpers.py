@@ -14,6 +14,7 @@ except ImportError:
 
     def jit(*args: Any, **kwargs: Any) -> Any:  # type: ignore[no-redef]  # noqa: ANN401
         """No-op fallback when numba (the 'fast' extra) is not installed."""
+
         def _decorator(func: Callable) -> Callable:
             return func
 

@@ -87,9 +87,7 @@ class DataFrameDict(dict):
         pass
 
     @typing.overload
-    def __getitem__(
-        self, lookup: int | list[int] | list[np.int64] | np.ndarray | tuple
-    ) -> DataFrameDict:
+    def __getitem__(self, lookup: int | list[int] | list[np.int64] | np.ndarray | tuple) -> DataFrameDict:
         pass
 
     def __getitem__(
@@ -295,9 +293,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         self.d_matrix = d_matrix  # This is required input dict containing the properties for each group.
         if not isinstance(self.d_matrix, dict):
-            raise TypeError(
-                f"d_matrix must be a dict of DataFrames; got {type(self.d_matrix).__name__}."
-            )
+            raise TypeError(f"d_matrix must be a dict of DataFrames; got {type(self.d_matrix).__name__}.")
         if not all(isinstance(df, pd.DataFrame) for df in self.d_matrix.values()):
             raise TypeError("d_matrix must contain pandas DataFrames as values.")
 
@@ -635,9 +631,7 @@ class TPLS(RegressorMixin, BaseEstimator):
                     f"group [{key}] has {df_z.shape[0]} rows, expected {num_obs}."
                 )
             if set(df_z.columns) != set(self.condition_names[key]):
-                raise ValueError(
-                    f"Column names in block Z, group [{key}] must match training data column names."
-                )
+                raise ValueError(f"Column names in block Z, group [{key}] must match training data column names.")
 
         for pc_a in range(self.n_components):
             # Regress the row of each new formula block on the r_loadings_f, to get the t-score for that pc_a component.
@@ -700,11 +694,9 @@ class TPLS(RegressorMixin, BaseEstimator):
         # After the loop has repeated `self.n_components` times: calculate the predictions using the full set of super
         # scores and the q-loadings for the Y-space.
         for key in self.y_mats:
-            hat[key].iloc[:, :] = (
-                t_scores_super.to_numpy() @ self.q_loadings_y[key].to_numpy().T
-            ) * self.preproc_["Y"][key]["scale"].to_numpy()[None, :] + self.preproc_["Y"][key][
-                "center"
-            ].to_numpy()[None, :]
+            hat[key].iloc[:, :] = (t_scores_super.to_numpy() @ self.q_loadings_y[key].to_numpy().T) * self.preproc_[
+                "Y"
+            ][key]["scale"].to_numpy()[None, :] + self.preproc_["Y"][key]["center"].to_numpy()[None, :]
 
         # Calculate the T2 values: for all the spaces
         hotellings_t2.iloc[:, :] = (
@@ -860,13 +852,9 @@ class TPLS(RegressorMixin, BaseEstimator):
     def _input_data_checks(self, X: DataFrameDict) -> None:
         """Check the incoming data."""
         if not isinstance(X, DataFrameDict):
-            raise TypeError(
-                f"The input data must be a DataFrameDict; got {type(X).__name__}."
-            )
+            raise TypeError(f"The input data must be a DataFrameDict; got {type(X).__name__}.")
         if set(X.keys()) != self.required_inputs_:
-            raise ValueError(
-                f"Expected keys: {self.required_inputs_}, got: {set(X.keys())}."
-            )
+            raise ValueError(f"Expected keys: {self.required_inputs_}, got: {set(X.keys())}.")
         group_keys = [str(key) for key in self.d_matrix]
         if set(X["F"]) != set(group_keys):
             raise ValueError("The keys in F must match the keys in D.")
@@ -878,9 +866,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         for key in self.d_matrix:
             self._validate_df(self.d_matrix[key])
             if key not in X["F"]:
-                raise ValueError(
-                    f"Block/group name '{key}' in D must also be present in F."
-                )
+                raise ValueError(f"Block/group name '{key}' in D must also be present in F.")
             self._validate_df(X["F"][key])  # this also ensures the keys in F are the same as in D
 
     def _learn_center_and_scaling_parameters(self, y: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
@@ -1514,4 +1500,3 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Step 15: Calculate the final model limits (after all components have been fitted).
         self._calculate_model_statistics_and_limits()
-

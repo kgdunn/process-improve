@@ -11,8 +11,6 @@ those changes.
 
 ## [Unreleased]
 
-## [1.63.0] - 2026-08-07
-
 ### Added
 
 - Minimum moment aberration (Xu, 2003) for two-level designs, as
@@ -36,6 +34,196 @@ those changes.
 
 - `evaluate_design` cross-checks a design's declared resolution against the one
   implied by its matrix, and says so explicitly when they disagree.
+
+## [1.66.1] - 2026-08-09
+
+### Changed
+
+- Applied `ruff format` across the whole repository. 118 of 266 files were
+  unformatted, because CI's lint job ran only `ruff check .` while
+  `.pre-commit-config.yaml` ran `ruff-format`. Pre-commit reformats only the
+  files already staged, so editing one file reformatted it in place while every
+  untouched file stayed drifted, which is why unrelated-looking hunks kept
+  appearing in otherwise small changes. No behaviour changes.
+- Four `# noqa` directives moved to stay on the code they suppress, after the
+  reflow split the lines they were attached to: `E501` dropped in
+  `experiments/visualization/plots/significance.py`, `ARG002` moved to the
+  ignored `y_row` argument in `AdaptivePCA.update`, `ANN401` repeated per
+  parameter in `_channels_frame`, and `PERF401` moved onto the `append` call in
+  `visualization/spec.py`.
+
+### Added
+
+- CI now runs `ruff format --check .` as part of the `lint` job, so formatting
+  drift cannot silently accumulate again.
+- The `ruff-pre-commit` rev is pinned to `v0.15.22`, matching the version
+  resolved from the `ruff>=0.11.0,<0.16` pin in `pyproject.toml`, so pre-commit
+  and the new CI gate run the same formatter.
+
+## [1.66.0] - 2026-08-09
+
+### Added
+
+- `experiments/omars_tradeoff.py`: a trade-off table for OMARS designs, the
+  counterpart of the two-level `trade_off_table`. Resolution cannot be the
+  currency here, because an OMARS design always has its main effects orthogonal
+  to each other and to every second-order term; what a run budget actually buys
+  is *which model is estimable*. Three capability classes follow from the
+  foldover structure and are reported per cell along with the error degrees of
+  freedom left to test that model with:
+
+  - `Full` (`N >= k^2 + k + 1`): main effects, pure quadratics and all
+    two-factor interactions jointly estimable.
+  - `Quad` (`N >= 2k + 3`): main effects and pure quadratics, with error df.
+  - `Satd` (`N = 2k + 1`): estimable but exactly saturated, so no inference.
+
+  New public functions `omars_tradeoff`, `omars_trade_off_table` and
+  `omars_minimum_runs`, plus the `OmarsTradeoffResult` dataclass, all exported
+  from `process_improve.experiments`. Every number is closed-form, so the table
+  needs no integer program and no solver, and is exact rather than dependent on
+  a search budget.
+
+## [1.65.0] - 2026-08-09
+
+### Fixed
+
+- `experiments/designs_omars_ilp.py`: **`generate_omars` returned designs that
+  could not fit the model they were sized for, for every k >= 4.** A foldover
+  OMARS design is `[H; -H; 0]`, and every second-order term is an *even*
+  function, so the quadratic and interaction columns of `H` and `-H` are
+  identical. That caps the rank of the full second-order model matrix at
+  `k + min(h + 1, 1 + k(k+1)/2)`, which means the model is estimable only from
+  `N = k^2 + k + 1` runs (13, 21, 31, 43, 57 for k = 3 to 7). The run-size
+  heuristic used a 25% slack rule over the parameter count instead, giving 13,
+  19, 27, 35, 45: below the frontier from four factors up. Sizing now starts at
+  the estimability frontier, and an explicit `n_runs` below it is rejected with
+  an actionable message rather than silently producing an unusable design.
+- `experiments/designs_omars_ilp.py`: `_d_efficiency` had no rank guard, unlike
+  its neighbour `_a_optimality` and unlike
+  `evaluate._compute_d_efficiency`. `slogdet` returns a finite log-determinant
+  for an exactly singular integer Gram matrix, so a rank-deficient design
+  reported a small but plausible D-efficiency (about 3 for the nineteen-run,
+  four-factor case whose determinant is exactly zero) instead of signalling
+  that the model cannot be fitted. Rank-deficient designs now score `0.0`. The
+  two metadata fields had been contradicting each other: `a_optimality` was
+  correctly reporting `inf` alongside the fabricated `d_efficiency`.
+- `experiments/designs_omars_ilp.py`: `expected_error_df` is computed from the
+  model matrix rank rather than from the nominal parameter count, so it is
+  right even when a caller pins a run size the model cannot support.
+
+### Added
+
+- `generate_omars` metadata gains `model_rank` and `min_runs_for_model`, making
+  the estimability frontier visible to callers.
+
+### Changed
+
+- Auto-sized `generate_omars` designs are larger for four or more factors
+  (k=4: 19 -> 21 runs, k=5: 27 -> 31, k=6: 35 -> 43, k=7: 45 -> 57) because the
+  previous sizes were not estimable. D-efficiency of the resulting designs goes
+  up correspondingly: at k=4 from a fabricated 2.83 to a real 38.74, at k=5
+  from 1.03 to 30.34. Designs sized with `model="main_quadratic"` are
+  unaffected in kind and can now be smaller, since that model's frontier is the
+  DSD's `2k + 1`.
+
+## [1.64.0] - 2026-08-08
+
+### Added
+
+- `trade_off_table` is now an agent-callable MCP tool
+  (`experiments/_tools/trade_off_table.py`). It returns the two-level
+  factorial trade-off grid: one cell per (run budget, factor count), each
+  carrying the design label, its resolution and the generators that build
+  it. Cells where the budget exceeds the full factorial report replication
+  rather than an error, and impossible combinations come back blank with the
+  reason attached. The run and factor axes are caller-supplied, bounded at
+  128 runs and 12 factors so the minimum-aberration search behind each cell
+  stays interactive.
+
+## [1.63.0] - 2026-08-08
+
+### Added
+
+- `experiments/simulations.py`: `popcorn()` is implemented. It was a
+  docstring-only stub that returned `None`; it now returns the number of
+  popped kernels for a given cooking time, using the model from the
+  companion R `pid` package. Times below 77 seconds and vector inputs are
+  rejected, as in R.
+- `experiments/simulations.py`: `manufacture()` is new. It had no Python
+  counterpart at all, and simulates the hourly profit of a manufacturing
+  facility as a function of selling price and throughput.
+- `experiments/tradeoff.py` is a new module covering the fractional-factorial
+  trade-off between run budget and factor count:
+  - `tradeoff(runs, factors)` reports the design's resolution, generators,
+    defining relation and alias chains.
+  - `trade_off_table()` returns the whole runs-against-factors grid as a
+    DataFrame, the computed counterpart of R's `tradeOffTable()` image.
+  - `minimum_aberration_generators(runs, factors)` is the underlying search.
+    It reproduces every cell of the trade-off table in the course notes, and
+    extends past the printed edge of that figure.
+- `experiments/datasets.py`: `golf()`, `pollutant()` and `solar()` return
+  their data. All three were stubs returning `None`; the data are now bundled
+  as CSVs, extracted from the R package's `.rda` files.
+- `experiments/datasets.py`: `data(name)` is implemented as a string-name
+  dispatcher over the loaders, mirroring R's `data(<name>)`. It previously
+  raised `NotImplementedError`.
+- `experiments/simulations.py`: all three simulators now accept
+  `random_state`, per the reproducibility contract. The default of `None`
+  keeps the fresh-noise-on-every-call behaviour the classroom exercise
+  depends on.
+- The `simulations`, `datasets` and `tradeoff` modules are now included in
+  the API documentation.
+
+### Fixed
+
+- `experiments/datasets.py` and `experiments/simulations.py`: docstring markup
+  that rendered as reStructuredText errors (an unindented bullet list, and
+  LaTeX-style quoting read as an unterminated inline literal).
+
+## [1.62.3] - 2026-08-07
+
+### Fixed
+
+- Docstring corrections across computational and user-facing functions caught
+  by an audit pass. No behavioural change; the code was always right, the
+  docs disagreed.
+  - `experiments/augment.py`: the module-level `Example` block called
+    `.shape` on the returned `augmented_design`, but the handlers return a
+    list of dicts, not a DataFrame; the example now wraps the result in
+    `pd.DataFrame(...)` first so it runs verbatim.
+  - `experiments/analysis.py` (`analyze_experiment`): the `coding`
+    parameter is now documented (as reserved for a future coded/actual
+    switch, currently a no-op) instead of being silently present in the
+    signature.
+  - `experiments/optimization.py` (`_find_stationary_point`): the
+    `search_bounds` parameter is now documented, and the Returns section
+    lists `eigenvalues` and `inside_design_space`, both of which the
+    function always emits.
+  - `experiments/simulations.py` (`popcorn`): rewritten to reflect the
+    reality that this function is an unimplemented stub returning `None`;
+    the previous docstring claimed it returned the number of edible
+    kernels.
+  - `multivariate/plots.py` (`t2_plot`): the `with_a` description said
+    "shows the SPE"; it is a Hotelling's T² plot, not SPE. Also noted
+    that the default title interpolates the class-default `conf_level`
+    (95%) rather than the caller-supplied value.
+  - `multivariate/tools.py` (`pca_predict` tool_spec): the description
+    said an observation is flagged as an outlier when T² exceeds its
+    limit, but the code flags an outlier when either T² or SPE exceeds
+    its respective limit; description now matches.
+  - `multivariate/_common.py` (`_select_n_components`): the `ValueError`
+    message listed only `'1se'`, `'min'`, `'q2_increment'` even though
+    `SelectionRule` also includes `'randomization'`; the message now
+    lists all four and notes that `'randomization'` is handled by
+    `PLS.select_n_components`.
+  - `multivariate/_resampling.py` (`Resampler.__init__`): the docstring
+    said the three resample-mode flags are mutually exclusive, but the
+    validation only raises when *all three* are set; the docstring now
+    describes the actual `jackknife > bootstrap > fractional` precedence
+    that `resample()` uses.
+  - `multivariate/_mbpca.py` (`MBPCA` class docstring): added the missing
+    one-line descriptions for the `n_components` and `max_iter`
+    parameters.
 
 ## [1.62.2] - 2026-07-29
 
@@ -2813,8 +3001,13 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.63.0...HEAD
-[1.63.0]: https://github.com/kgdunn/process-improve/compare/v1.62.2...v1.63.0
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.66.1...HEAD
+[1.66.1]: https://github.com/kgdunn/process-improve/compare/v1.66.0...v1.66.1
+[1.66.0]: https://github.com/kgdunn/process-improve/compare/v1.65.0...v1.66.0
+[1.65.0]: https://github.com/kgdunn/process-improve/compare/v1.64.0...v1.65.0
+[1.64.0]: https://github.com/kgdunn/process-improve/compare/v1.63.0...v1.64.0
+[1.63.0]: https://github.com/kgdunn/process-improve/compare/v1.62.3...v1.63.0
+[1.62.3]: https://github.com/kgdunn/process-improve/compare/v1.62.2...v1.62.3
 [1.62.2]: https://github.com/kgdunn/process-improve/compare/v1.62.1...v1.62.2
 [1.62.1]: https://github.com/kgdunn/process-improve/compare/v1.62.0...v1.62.1
 [1.62.0]: https://github.com/kgdunn/process-improve/compare/v1.61.0...v1.62.0

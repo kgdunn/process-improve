@@ -35,6 +35,13 @@ jobs:
       run: uv sync --dev --all-extras
     - name: Lint with ruff
       run: uv run ruff check .
+    # The formatter is a separate gate from the linter. Without it only
+    # `.pre-commit-config.yaml` ran ruff-format, and pre-commit reformats just
+    # the files already staged, so untouched files drifted indefinitely: a
+    # contributor editing one file saw it reformatted underneath them while the
+    # rest of the repository stayed unformatted.
+    - name: Check formatting with ruff
+      run: uv run ruff format --check .
 
   # ENG-20 / ENG-03 (#285): mypy runs on every PR as a BLOCKING check.
   # The historical ~333-error backlog was driven to zero (staged cleanup),

@@ -59,13 +59,15 @@ class CubePlot(BasePlot):
         # Build vertex data with labels
         vertex_data = []
         for (x, y, z), val in zip(vertices, vertex_values):  # noqa: B905
-            vertex_data.append({
-                "x": float(x),
-                "y": float(y),
-                "z": float(z),
-                "text": f"{val:.2f}",
-                "value": val,
-            })
+            vertex_data.append(
+                {
+                    "x": float(x),
+                    "y": float(y),
+                    "z": float(z),
+                    "text": f"{val:.2f}",
+                    "value": val,
+                }
+            )
 
         vertex_layer = LayerSpec(
             mark=MarkType.wireframe,
@@ -81,11 +83,20 @@ class CubePlot(BasePlot):
         # Edge connections: 12 edges of a cube
         edges = [
             # Bottom face
-            (0, 1), (2, 3), (0, 2), (1, 3),
+            (0, 1),
+            (2, 3),
+            (0, 2),
+            (1, 3),
             # Top face
-            (4, 5), (6, 7), (4, 6), (5, 7),
+            (4, 5),
+            (6, 7),
+            (4, 6),
+            (5, 7),
             # Verticals
-            (0, 4), (1, 5), (2, 6), (3, 7),
+            (0, 4),
+            (1, 5),
+            (2, 6),
+            (3, 7),
         ]
 
         edge_data = []

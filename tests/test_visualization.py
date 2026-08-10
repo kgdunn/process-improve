@@ -997,9 +997,14 @@ class TestVisualizeDoe:
         with pytest.raises(ValueError, match="nonexistent"):
             visualize_doe(plot_type="nonexistent")
 
-    @pytest.mark.parametrize("plot_type", [
-        "pareto", "half_normal", "daniel",
-    ])
+    @pytest.mark.parametrize(
+        "plot_type",
+        [
+            "pareto",
+            "half_normal",
+            "daniel",
+        ],
+    )
     def test_significance_plots(self, plot_type: str, three_factor_effects: dict, lenth_data: dict) -> None:
         result = visualize_doe(
             plot_type=plot_type,
@@ -1008,9 +1013,14 @@ class TestVisualizeDoe:
         assert result["plot_type"] == plot_type
         assert json.dumps(result)
 
-    @pytest.mark.parametrize("plot_type", [
-        "residuals_vs_fitted", "normal_probability", "residuals_vs_order",
-    ])
+    @pytest.mark.parametrize(
+        "plot_type",
+        [
+            "residuals_vs_fitted",
+            "normal_probability",
+            "residuals_vs_order",
+        ],
+    )
     def test_diagnostic_plots(self, plot_type: str, residual_diagnostics: dict) -> None:
         result = visualize_doe(
             plot_type=plot_type,
@@ -1079,10 +1089,13 @@ class TestToolSpecIntegration:
     def test_execute_tool_call(self) -> None:
         from process_improve.tool_spec import execute_tool_call
 
-        result = execute_tool_call("visualize_doe", {
-            "plot_type": "pareto",
-            "analysis_results": {"effects": {"A": 5.0, "B": -3.0}},
-        })
+        result = execute_tool_call(
+            "visualize_doe",
+            {
+                "plot_type": "pareto",
+                "analysis_results": {"effects": {"A": 5.0, "B": -3.0}},
+            },
+        )
         assert "error" not in result
         assert result["plot_type"] == "pareto"
 
@@ -1190,9 +1203,7 @@ class TestOverlayPlotEdgeCases:
         useful than an empty frame. There are no bounds, so there is no sweet
         spot to shade and the metadata says so.
         """
-        plot = create_plot(
-            "overlay", analysis_results={"coefficients": coefficients_2f}, factors_to_plot=["A", "B"]
-        )
+        plot = create_plot("overlay", analysis_results={"coefficients": coefficients_2f}, factors_to_plot=["A", "B"])
         spec = plot.to_spec()
         assert spec.plot_type == "overlay"
         assert len(spec.panels[0].layers) == 1
@@ -1685,9 +1696,14 @@ class TestParetoPlotEdgeCases:
 
 
 class TestDiagnosticPlotEdgeCases:
-    @pytest.mark.parametrize("plot_type", [
-        "residuals_vs_fitted", "normal_probability", "residuals_vs_order",
-    ])
+    @pytest.mark.parametrize(
+        "plot_type",
+        [
+            "residuals_vs_fitted",
+            "normal_probability",
+            "residuals_vs_order",
+        ],
+    )
     def test_empty_diagnostics_guard(self, plot_type: str) -> None:
         plot = create_plot(plot_type, analysis_results={})
         spec = plot.to_spec()

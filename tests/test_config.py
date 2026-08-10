@@ -53,19 +53,23 @@ class TestEnvVarOverride:
 
     @pytest.mark.parametrize(
         ("raw", "expected"),
-        [("1", True), ("true", True), ("yes", True), ("on", True),
-         ("0", False), ("false", False), ("no", False), ("", False)],
+        [
+            ("1", True),
+            ("true", True),
+            ("yes", True),
+            ("on", True),
+            ("0", False),
+            ("false", False),
+            ("no", False),
+            ("", False),
+        ],
     )
-    def test_mcp_safe_mode_truthy_values(
-        self, monkeypatch: pytest.MonkeyPatch, raw: str, expected: bool
-    ) -> None:
+    def test_mcp_safe_mode_truthy_values(self, monkeypatch: pytest.MonkeyPatch, raw: str, expected: bool) -> None:
         monkeypatch.setenv(ENV_VAR_NAMES["mcp_safe_mode"], raw)
         settings.reload()
         assert settings.mcp_safe_mode is expected
 
-    def test_invalid_int_raises_on_first_read(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_invalid_int_raises_on_first_read(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(ENV_VAR_NAMES["max_cells"], "not-an-int")
         settings.reload()
         with pytest.raises(ValueError, match="not a valid integer"):
@@ -75,9 +79,7 @@ class TestEnvVarOverride:
 class TestCacheBehaviour:
     """First read pins the value; subsequent reads return the cache."""
 
-    def test_env_change_after_first_read_does_not_take_effect(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_env_change_after_first_read_does_not_take_effect(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(ENV_VAR_NAMES["tool_timeout"], "20")
         settings.reload()
         first = settings.tool_timeout
@@ -133,9 +135,7 @@ class TestLegacyShim:
             ("DEFAULT_MEMORY_MB", "max_memory_mb"),
         ],
     )
-    def test_legacy_name_forwards_to_settings(
-        self, legacy: str, knob: str
-    ) -> None:
+    def test_legacy_name_forwards_to_settings(self, legacy: str, knob: str) -> None:
         tool_safety = importlib.import_module("process_improve.tool_safety")
         assert getattr(tool_safety, legacy) == getattr(settings, knob)
 

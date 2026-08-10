@@ -48,15 +48,11 @@ if TYPE_CHECKING:
 
 # Hidden model state injected by the host for the current dispatch. ``None``
 # means "no state available" (the default outside a host context).
-_SIMULATOR_STATE: ContextVar[dict[str, Any] | None] = ContextVar(
-    "process_improve_simulator_state", default=None
-)
+_SIMULATOR_STATE: ContextVar[dict[str, Any] | None] = ContextVar("process_improve_simulator_state", default=None)
 
 # Whether the host has cleared the reveal double-confirmation gate for the
 # current dispatch. Defaults to ``False`` so an un-wrapped call never reveals.
-_REVEAL_CONFIRMED: ContextVar[bool] = ContextVar(
-    "process_improve_reveal_confirmed", default=False
-)
+_REVEAL_CONFIRMED: ContextVar[bool] = ContextVar("process_improve_reveal_confirmed", default=False)
 
 
 def get_injected_simulator_state() -> dict[str, Any] | None:
