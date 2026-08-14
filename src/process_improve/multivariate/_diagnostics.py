@@ -160,18 +160,18 @@ def _target_projection_arrays(
 
     if not isinstance(X, pd.DataFrame):
         X = pd.DataFrame(X)
-    X = _align_to_fit_features(X, beta.index)
+    x_frame: pd.DataFrame = _align_to_fit_features(X, beta.index)
     x_scaler = getattr(model, "_x_scaler", None)
     if x_scaler is not None:
-        X = x_scaler.transform(X)
-    X_values = X.to_numpy(dtype=float)
+        x_frame = x_scaler.transform(x_frame)
+    X_values = x_frame.to_numpy(dtype=float)
     t_tp = X_values @ w_tp
     ttt = float(t_tp @ t_tp)
     if ttt <= epsqrt:
         msg = "The target-projected scores have ~0 variance; cannot form the TP loading."
         raise ValueError(msg)
     p_tp = (X_values.T @ t_tp) / ttt
-    return X, t_tp, p_tp, w_tp, label
+    return x_frame, t_tp, p_tp, w_tp, label
 
 
 def target_projection(model: BaseEstimator, X: DataMatrix, response: str | int | None = None) -> Bunch:

@@ -1210,8 +1210,14 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         component_index = pd.Index(range(1, max_components + 1), name="n_components")
         X_arr = np.asarray(X, dtype=float)
 
+        # ``press`` under ekf is the TOTAL PRESS per repeat (n_folds times the
+        # mean per-fold PRESS), while row_wise's press is already a per-fold
+        # mean; the per-fold SE computed further below must be rescaled by
+        # this factor so the 1-SE rule compares like with like.
+        press_scale_multiplier = 1
         if cv_scheme == "ekf":
             n_folds = cv if isinstance(cv, int) else 5
+            press_scale_multiplier = n_folds
             if n_repeats < 1:
                 raise ValueError(f"n_repeats must be >= 1; got {n_repeats}.")
             press_arr, per_fold_press_arr = _pca_ekf_press(
@@ -1283,15 +1289,11 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             per_fold_arr = per_fold_press.to_numpy()
             n_folds_per_a = np.maximum(1, np.sum(~np.isnan(per_fold_arr), axis=1))
             se_values = np.nanstd(per_fold_arr, axis=1, ddof=1) / np.sqrt(n_folds_per_a)
-        if cv_scheme == "ekf":
-            # ``press`` under ekf is the TOTAL PRESS per repeat, i.e. n_folds
-            # times the mean per-fold PRESS, while ``se_values`` above is the
-            # standard error of the per-fold MEAN. Rescale so the 1-SE rule
-            # (and the Q2 band below) compares like with like; previously the
-            # band was ~n_folds times too narrow, silently degenerating
-            # selection_rule="1se" to "min". (row_wise's press IS a per-fold
-            # mean, so its SE is already on the right scale.)
-            se_values = se_values * n_folds
+        # Rescale the per-fold-mean SE onto the same scale as ``press`` (see
+        # press_scale_multiplier above). Previously the ekf band was ~n_folds
+        # times too narrow, silently degenerating selection_rule="1se" to
+        # "min".
+        se_values = se_values * press_scale_multiplier
         se_press = pd.Series(se_values, index=component_index, name="SE(PRESS)")
 
         # The same constant null-model sum-of-squares that normalises Q2
