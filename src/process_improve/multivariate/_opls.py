@@ -99,7 +99,13 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         The orthogonal-signal-corrected X (``X`` with the orthogonal variation
         removed), on the scaled fitting scale.
     spe_ : pd.DataFrame
-        Per-row SPE after reconstructing X from all components.
+        Per-row SPE after reconstructing X from all components. Unlike
+        the PCA / PLS ``spe_`` (which stores a per-component
+        progression, one column per component), the OPLS ``spe_`` only
+        holds the final-component SPE and broadcasts that single
+        column across every ``t_predictive`` / ``t_orthogonal_i``
+        column, so all columns are identical. This keeps the shape
+        aligned with :attr:`scores_` for the inherited SPE plots.
     hotellings_t2_ : pd.DataFrame
         Cumulative Hotelling's T2 over the combined score space.
 

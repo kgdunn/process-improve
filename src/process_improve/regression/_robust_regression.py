@@ -130,11 +130,19 @@ def robust_regression(  # noqa: PLR0913, PLR0915
         k:                        the number of model parameters (2 if fit_intercept else 1)
         fitted_values:            the N predicted values, one per row in y
         residuals:                the N residuals
+        t_value:                  the two-sided critical t-value at ``conflevel`` used
+                                  to build the confidence and prediction intervals
         conf_intervals:           K rows x 2 columns (lower, upper) confidence intervals
         conf_interval_intercept:  (lower, upper) confidence interval for the intercept
         pi_range:                 prediction intervals above and below, over the range of data
         leverage:                 the hat-matrix diagonal (leverage) for each observation
         influence:                Cook-style influence values for each observation
+
+    On the degenerate early-return path (fewer than three usable observations
+    in ``x`` or ``y``), the returned dictionary is the initialization stub:
+    ``N`` is ``None``, ``x_ssq`` is absent, and ``leverage``, ``influence``,
+    ``pi_range``, ``t_value``, ``fitted_values``, ``residuals``, and the
+    coefficient/interval arrays hold ``np.nan``.
     """
 
     out: dict[str, Any] = {
@@ -301,16 +309,23 @@ def multiple_linear_regression(  # noqa: PLR0913
     Returns a dictionary of outputs. Keys always present::
 
         N:                        number of observations actually used to fit
-        coefficients:             a vector of K coefficients, one for each column in X
+        coefficients:             a vector of K coefficients, one for each column in X;
+                                  shape ``[np.nan]`` on the degenerate/unfitted path
         intercept:                returned if fit_intercept==True
         standard_errors:          a vector of K standard errors, one per column in X
         standard_error_intercept: standard error for the intercept
         R2:                       the R^2 value
+        R2_regression_based:      R^2 computed as ``RegSS / TSS`` (added post-fit)
+        R2_residual_based:        R^2 computed as ``1 - RSS / TSS`` (added post-fit)
+        k:                        the number of model parameters (added post-fit)
         SE:                       the model's standard error
         fitted_values:            the N predicted values, one per row in y
         residuals:                the N residuals
         t_value:                  the t-values for the standard errors
-        conf_intervals:           K rows x 2 columns (lower, upper) confidence intervals
+        conf_intervals:           K rows x 2 columns (lower, upper) confidence intervals;
+                                  shape ``[np.nan, np.nan]`` on the degenerate/unfitted path
+        conf_interval_intercept:  (lower, upper) confidence interval for the intercept
+                                  (added post-fit)
 
     Keys present only for single-feature ``X`` (and only when ``fit_intercept``
     is True and there is enough non-degenerate data)::

@@ -238,11 +238,87 @@ class TPLS(RegressorMixin, BaseEstimator):
     Attributes
     ----------
     n_samples : int
-        The number of samples (rows) in the training data
-
+        Number of samples (rows) in the training data.
     n_substances : int
-        The number of substances (columns) in the training data, i.e. the number of materials in the F matrix.
+        Number of materials (columns) in the F matrix, summed across groups.
+    n_conditions : int
+        Number of process-condition columns summed across Z blocks.
+    n_outputs : int
+        Number of quality-indicator columns summed across Y blocks.
+    is_fitted_ : bool
+        Set to True once ``fit()`` completes.
+    tolerance_ : float
+        Convergence tolerance used by the inner NIPALS loop
+        (``sqrt(np.finfo(float).eps)``).
+    fitting_statistics : dict
+        Per-component ``iterations``, ``convergance_tolerance`` and
+        ``milliseconds`` lists.
+    preproc_ : dict
+        Nested per-block per-group preprocessors, indexed as
+        ``preproc_[block][group]`` where ``block`` is ``"D"``, ``"F"``,
+        ``"Y"`` or ``"Z"``.
+    sums_of_squares_ : list[dict]
+        Per-component per-block sums of squares.
+    r2_frac : list[dict]
+        Per-component per-block cumulative R^2 fractions.
+    feature_importance : dict
+        Per-block per-group variable-importance (populated for ``"D"``
+        and ``"F"``).
+    d_mats, f_mats, z_mats, y_mats : dict[str, np.ndarray]
+        Deflated block matrices (per group for D/F, per Z-block / Y-block
+        for Z/Y).
+    not_na_d, not_na_f, not_na_z, not_na_y : dict[str, np.ndarray]
+        Boolean observed-value masks matching the shapes above.
+    observation_names : pd.Index
+        Row index shared across the F/Z/Y blocks.
+    property_names, material_names : dict[str, list[str]]
+        Column and row names of each D group.
+    condition_names, quality_names : dict[str, list[str]]
+        Column names of each Z-block and Y-block respectively.
+    t_scores_super : pd.DataFrame, shape (n_samples, n_components)
+        Super-block scores ``T``.
+    r_loadings_f : dict[str, pd.DataFrame]
+        F-block weights per group.
+    w_loadings_z : dict[str, pd.DataFrame]
+        Z-block weights per Z-block.
+    w_loadings_super : pd.DataFrame
+        Super-block weights, rows ``["Z", "F"]`` (or just ``["F"]`` when
+        there are no process conditions).
+    s_loadings_d, v_loadings_d : dict[str, pd.DataFrame]
+        D-block scores and loadings per group.
+    p_loadings_f : dict[str, pd.DataFrame]
+        F-block loadings per group (used for deflation).
+    p_loadings_z : dict[str, pd.DataFrame]
+        Z-block loadings per Z-block.
+    q_loadings_y : dict[str, pd.DataFrame]
+        Y-block loadings per Y-block.
+    hat_ : dict[str, pd.DataFrame]
+        Per-Y-block predictions on the preprocessed (centred / scaled) scale.
+    hat : dict[str, pd.DataFrame]
+        Per-Y-block in-sample predictions on the *original* scale.
+    spe : dict[str, dict[str, pd.DataFrame or pd.Series]]
+        Nested ``spe[block][group]`` squared prediction error tables.
+    spe_limit : dict[str, dict[str, Callable]]
+        Nested ``spe_limit[block][group]`` callables. Each is a
+        :func:`functools.partial` over :func:`spe_calculation` bound to
+        the block's SPE array; call it with a confidence level to obtain
+        the SPE limit. This is a deliberate divergence from the flat
+        ``spe_limit`` method on PCA / PLS.
+    hotellings_t2 : pd.DataFrame, shape (n_samples, n_components)
+        Cumulative Hotelling's T^2 per super-component.
+    scaling_factor_for_scores : pd.Series
+        Per-component scaling factor used by ellipse / T^2 helpers.
 
+    .. note::
+       TPLS deliberately does **not** follow the sklearn trailing-
+       underscore convention for its fitted attributes. Names such as
+       ``t_scores_super``, ``spe``, ``hotellings_t2``, and the
+       ``*_loadings_*`` family are written without the trailing ``_``
+       to keep the chemometrics symbol names readable. Attributes
+       that are set in ``__init__`` and refined during ``fit`` (for
+       example ``is_fitted_``, ``preproc_``, ``tolerance_``,
+       ``required_blocks_``, ``required_inputs_``) do carry the
+       underscore.
 
     Example
     -------

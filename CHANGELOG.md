@@ -113,6 +113,31 @@ those changes.
 
 - The `trade_off_table` MCP tool is untouched: same tool name, same `runs` and
   `factors` schema keys, same output. Only its internal call site moved.
+
+### Documentation
+
+- Docstring audit correcting drift between NumPy-style docstrings and the
+  actual runtime behaviour, no runtime changes:
+  `dispatch_ccd` and `generate_design` now warn that a numeric `alpha`
+  is only honored for the fractional-cube CCD path;
+  `PCA.select_n_components` documents `return_consensus` and the four
+  extra keys it exposes; `PLS.select_n_components` completes the
+  truncated `selection_mode` sentence; `MBPLS`, `MBPCA`, and `TPLS`
+  now list every fitted attribute set in `fit()` (TPLS also notes that
+  it deliberately does not follow the sklearn trailing-underscore
+  convention); `OPLS.spe_` clarifies that per-column values are
+  broadcasts of the final-component SPE; `spe_calculation` documents
+  the SEC-21 / #270 low-variance fallback; `robust_regression` and
+  `multiple_linear_regression` describe their full dict outputs
+  (including the degenerate/unfitted-path shapes and the
+  `R2_regression_based` / `R2_residual_based` / `k` /
+  `conf_interval_intercept` keys); `t_value` and `t_value_cdf` use a
+  concrete `v=10` in doctest examples with correct `-inf` / `inf`
+  renderings; `find_elbow_point` documents the secondary NaN return
+  path; `analyze_experiment` enumerates every key on the always-
+  present `model_summary` dict; `ControlChart.__init__` marks
+  `'cusum'` as an unimplemented future variant.
+
 ## [1.66.1] - 2026-08-09
 
 ### Changed

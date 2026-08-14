@@ -16,7 +16,7 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
     Find the elbow point when plotting numeric entries in `x` vs numeric values in list `y`.
 
     Return the index into the vectors `x` and `y` [the vectors must have the same length], where
-    the elbow point occurs. Returns -1 if every value in `x` or `y` is missing.
+    the elbow point occurs.
 
     Using a robust linear fit, sorts the samples in X (independent variable)
     and takes the first 5 samples from the left, and the last 5 from the right,
@@ -32,6 +32,14 @@ def find_elbow_point(x: np.ndarray, y: np.ndarray, max_iter: int = 41) -> int | 
     Will probably not work well on few data points. If so, try fitting a spline
     to the raw data and then repeat with the interpolated data.
 
+    Returns
+    -------
+    int or float
+        The 0-based index of the elbow point in the (sorted) vectors.
+        Returns ``-1`` if every value in ``x`` or ``y`` is missing.
+        Returns ``np.nan`` when the intersection sweep produced only
+        NaNs (for example, when every candidate line pair was
+        near-parallel), so no consensus intersection could be formed.
     """
     start = 5
     # assert divmod(max_iter, 2)[1]  # must be odd number; to ensure we calculate the median later

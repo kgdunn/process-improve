@@ -27,18 +27,18 @@ def t_value(p: float, v: float) -> float:
     Since the cumulative distribution passes symmetrically through the x-axis at 0.0 for any
     number of degrees of freedom
 
-    >>> t_value(0.5, v)
+    >>> t_value(0.5, v=10)
     0.0
 
     Zero fractional area under the curve is always at :math:`-\infty`:
 
-    >>> t_value(0.0, v)
-    -Inf
+    >>> t_value(0.0, v=10)
+    -inf
 
     100% fractional area is always at :math:`+\infty`:
 
-    >>> t_value(1.0, v)
-    +Inf
+    >>> t_value(1.0, v=10)
+    inf
 
     See also
     --------
@@ -57,17 +57,17 @@ def t_value_cdf(z: float, v: float) -> float:
     The cumulative distribution is symmetric through the x-axis at 0.0 for any number of degrees
     of freedom, so half of the area lies below zero:
 
-    >>> t_value_cdf(0.0, v)
+    >>> t_value_cdf(0.0, v=10)
     0.5
 
     Zero fractional area under the curve is at :math:`-\infty`:
 
-    >>> t_value_cdf(-np.inf, v)
+    >>> t_value_cdf(-np.inf, v=10)
     0.0
 
     100% fractional area is at :math:`+\infty`:
 
-    >>> t_value_cdf(np.inf, v)
+    >>> t_value_cdf(np.inf, v=10)
     1.0
 
     See also

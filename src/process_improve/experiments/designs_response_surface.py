@@ -47,6 +47,12 @@ def dispatch_ccd(  # noqa: PLR0913
         Axial distance.  Accepted string values: ``"rotatable"``,
         ``"face_centered"``, ``"orthogonal"``.  A numeric value sets
         alpha directly.  Defaults to ``"orthogonal"``.
+
+        .. note::
+           A numeric ``alpha`` is only honored when ``cube="fractional"``.
+           For ``cube="full"`` (the default) the underlying pyDOE3
+           ``ccdesign`` call does not accept an arbitrary axial distance,
+           so a numeric value is silently treated as ``"orthogonal"``.
     cube : str
         How to build the cube (factorial) portion: ``"full"`` (default) uses
         the complete 2^k factorial; ``"fractional"`` uses a resolution-V (or
