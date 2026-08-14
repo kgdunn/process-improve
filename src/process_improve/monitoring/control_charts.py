@@ -59,7 +59,10 @@ class ControlChart:
                 'xbar.no.subgroup' [Shewhart chart, with no subgroups]. In other words, each
                 observation is independently plotted on the control chart.
 
-                'cusum' (CUmulative SUM) chart, which uses all the history of the chart.
+                A pure 'cusum' (CUmulative SUM) chart is a planned future variant but
+                is not currently implemented; the Holt-Winters ('hw') default already
+                blends CUSUM-style infinite history with Shewhart-style
+                instantaneous behaviour via its lambda parameters.
         """
         self.style = style.strip()
         self.variant = variant.strip().lower()
