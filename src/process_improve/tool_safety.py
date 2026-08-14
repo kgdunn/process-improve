@@ -327,9 +327,9 @@ def _worker_run(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noqa: ANN
 # ---------------------------------------------------------------------------
 
 
-_pool: ProcessPoolExecutor | None = None
-_pool_memory_mb: int | None = None
-#: Guards the module-level ``_pool`` / ``_pool_memory_mb`` pair. The MCP
+#: The module-level pool and the memory cap it was built with, or None.
+_pool_state: tuple[ProcessPoolExecutor, int] | None = None
+#: Guards the module-level ``_pool_state``. The MCP
 #: server runs tool calls on executor threads, so pool creation and teardown
 #: race without it: two threads could each construct an executor (orphaning
 #: one worker forever), and one thread's teardown could SIGKILL a worker
@@ -359,13 +359,12 @@ def get_pool(memory_mb: int | None = None, max_workers: int = 1) -> ProcessPoolE
     """
     if memory_mb is None:
         memory_mb = settings.max_memory_mb
-    global _pool, _pool_memory_mb  # noqa: PLW0603
+    global _pool_state  # noqa: PLW0603
     with _pool_lock:
-        if _pool is None or _pool_memory_mb != memory_mb:
+        if _pool_state is None or _pool_state[1] != memory_mb:
             _shutdown_pool_locked()
-            _pool = _create_pool(memory_mb, max_workers=max_workers)
-            _pool_memory_mb = memory_mb
-        return _pool
+            _pool_state = (_create_pool(memory_mb, max_workers=max_workers), memory_mb)
+        return _pool_state[0]
 
 
 def _terminate_workers(pool: ProcessPoolExecutor) -> None:
@@ -397,12 +396,12 @@ def _terminate_workers(pool: ProcessPoolExecutor) -> None:
 
 def _shutdown_pool_locked() -> None:
     """Tear down the module-level pool. Caller must hold ``_pool_lock``."""
-    global _pool, _pool_memory_mb  # noqa: PLW0603
-    if _pool is not None:
-        _terminate_workers(_pool)
-        _pool.shutdown(wait=False, cancel_futures=True)
-        _pool = None
-        _pool_memory_mb = None
+    global _pool_state  # noqa: PLW0603
+    if _pool_state is not None:
+        pool = _pool_state[0]
+        _terminate_workers(pool)
+        pool.shutdown(wait=False, cancel_futures=True)
+        _pool_state = None
 
 
 def shutdown_pool() -> None:

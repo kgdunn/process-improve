@@ -414,16 +414,13 @@ class TestSafeExecuteToolCall:
         # (audit fix: the shared module pool was not thread-safe), so capture
         # the worker pids at teardown time via _terminate_workers and confirm
         # they are gone afterwards.
-        import process_improve.tool_safety as ts
-
         seen_pids: list[int] = []
-        original_terminate = ts._terminate_workers
 
         def capture_and_terminate(pool) -> None:
             seen_pids.extend(getattr(pool, "_processes", None) or {})
-            original_terminate(pool)
+            _terminate_workers(pool)
 
-        monkeypatch.setattr(ts, "_terminate_workers", capture_and_terminate)
+        monkeypatch.setattr("process_improve.tool_safety._terminate_workers", capture_and_terminate)
 
         with pytest.raises(ToolTimeoutError):
             safe_execute_tool_call("_safety_test_busy_loop", {}, timeout=0.3)
@@ -439,12 +436,12 @@ class TestSafeExecuteToolCall:
         # worker (clean process-global state), and never touches the shared
         # module-level pool, so concurrent calls cannot tear down each
         # other's workers.
-        import process_improve.tool_safety as ts
+        from process_improve import tool_safety as ts
 
         ts.shutdown_pool()
         result = safe_execute_tool_call("_safety_test_echo", {"value": 1}, timeout=10)
         assert result == {"value": 1}
-        assert ts._pool is None
+        assert ts._pool_state is None
 
     def test_error_has_json_serialisable_dict(self) -> None:
         err: ToolSafetyError = ToolTimeoutError("boom", details={"tool_name": "x", "timeout": 1})
