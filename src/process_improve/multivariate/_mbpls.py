@@ -83,6 +83,19 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         Ordered list of X-block names (the keys of the input dict).
     block_widths_ : dict[str, int]
         Number of variables in each X-block.
+    n_samples_ : int
+        Number of rows fitted.
+    n_targets_ : int
+        Number of Y columns.
+    n_features_in_ : int
+        Total number of X variables summed across blocks.
+    feature_names_in_ : np.ndarray
+        Concatenated column names, one per feature, in block order.
+    preproc_ : dict[str, MCUVScaler]
+        Per-block preprocessors used to mean-centre and unit-variance
+        scale each X-block.
+    y_preproc_ : MCUVScaler
+        Preprocessor used on Y.
     super_scores_ : pd.DataFrame, shape (n_samples, n_components)
         Super-block (consensus) X-scores ``T``.
     super_y_scores_ : pd.DataFrame, shape (n_samples, n_components)
@@ -91,6 +104,11 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         Super-block weights ``w_super``; rows indexed by block name.
     super_y_loadings_ : pd.DataFrame, shape (n_targets, n_components)
         Y-block loadings ``c``.
+    super_hotellings_t2_ : pd.DataFrame, shape (n_samples, n_components)
+        Cumulative Hotelling's T^2 on the super-scores per component.
+    super_vip_ : pd.Series
+        Variable-importance in projection for each X-block, indexed by
+        block name.
     block_scores_ : dict[str, pd.DataFrame]
         Per-block X-scores ``t_b``, each shape ``(n_samples, n_components)``.
     block_weights_ : dict[str, pd.DataFrame]
@@ -99,12 +117,31 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     block_loadings_ : dict[str, pd.DataFrame]
         Per-block X-loadings ``p_b`` (used for deflation), each shape
         ``(K_b, n_components)``.
+    block_spe_ : dict[str, pd.DataFrame]
+        Per-block squared prediction error per sample and component.
+    block_hotellings_t2_ : dict[str, pd.DataFrame]
+        Per-block cumulative Hotelling's T^2 per sample and component.
+    block_vip_ : dict[str, pd.Series]
+        Per-block variable-importance in projection, indexed by variable
+        name inside each block.
     predictions_ : pd.DataFrame, shape (n_samples, n_targets)
         In-sample Y predictions on the *original* scale.
     explained_variance_ : np.ndarray, shape (n_components,)
         Variance of the super-score per component (ddof=1).
     scaling_factor_for_super_scores_ : pd.Series
         ``sqrt(explained_variance_)`` per component.
+    r2_x_per_block_cumulative_ : pd.DataFrame, shape (n_blocks, n_components)
+        Cumulative R^2X per block and component.
+    r2_x_per_block_per_component_ : pd.DataFrame, shape (n_blocks, n_components)
+        Incremental R^2X per block and component.
+    r2_x_per_variable_ : dict[str, pd.DataFrame]
+        Cumulative R^2X per variable within each block.
+    r2_y_cumulative_ : pd.Series, shape (n_components,)
+        Cumulative R^2Y per component.
+    r2_y_per_component_ : pd.Series, shape (n_components,)
+        Incremental R^2Y per component.
+    r2_y_per_variable_ : pd.DataFrame, shape (n_targets, n_components)
+        Cumulative R^2Y per Y-variable and component.
     fitting_info_ : dict
         Per-component iteration count and timing.
     has_missing_data_ : bool
