@@ -58,21 +58,26 @@ def distance_matrix(test: np.ndarray, ref: np.ndarray, weight_matrix: np.ndarray
 
 @jit(nopython=True)
 def backtrack_optimal_path(D: np.ndarray) -> tuple[np.ndarray, float]:
-    """Backtrack through the distance matrix to find the optimal warping path."""
+    """Backtrack through the distance matrix to find the optimal warping path.
+
+    Returns the path and the DTW distance, which is the ACCUMULATED cost at
+    the end of the alignment, ``D[-1, -1]``. An earlier version summed the
+    cumulative ``D`` entries along the path - a sum of prefix sums that grows
+    super-linearly with path length and is not a distance; the per-batch
+    alignment-quality numbers built from it were meaningless.
+    """
     nr, nt = D.shape
     nr -= 1
     nt -= 1
-    path_sum = 0.0
+    distance = float(D[nr, nt])
     path = [
         [nr, nt],
     ]
     while (nt + nr) != 0:
         if nt == 0:
             nr -= 1
-            path_sum = path_sum + float(D[nr, nt])
         elif nr == 0:
             nt -= 1
-            path_sum = path_sum + float(D[nr, nt])
         else:
             # Commented-code here is to read, but for Numba JIT, the other code is able to be
             # compiled. They give the same results in regular Python.
@@ -80,16 +85,13 @@ def backtrack_optimal_path(D: np.ndarray) -> tuple[np.ndarray, float]:
             a, b, c = D[nr - 1, nt - 1], D[nr, nt - 1], D[nr - 1, nt]
             if (a <= b) & (a <= c):
                 # assert number == 0
-                path_sum = path_sum + D[nr - 1, nt - 1]
                 nt -= 1
                 nr -= 1
             elif (b <= a) & (b <= c):
                 # assert number == 1
-                path_sum = path_sum + D[nr, nt - 1]
                 nt -= 1
             elif (c <= a) & (c <= b):
                 # assert number == 2
-                path_sum = path_sum + D[nr - 1, nt]
                 nr -= 1
             else:
                 raise AssertionError
@@ -98,4 +100,4 @@ def backtrack_optimal_path(D: np.ndarray) -> tuple[np.ndarray, float]:
 
     # All done:
     path.reverse()
-    return np.array(path), path_sum
+    return np.array(path), distance
