@@ -1067,6 +1067,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             step. Ignored under ``cv_scheme="row_wise"``.
         random_state : int, optional
             Seed for the ekf element-fold permutation.
+        return_consensus : bool, default False
+            When ``True``, also cross-check the CV recommendation against
+            two cheap alternative selectors: Minka's PPCA MLE
+            (:meth:`minka_mle`) and Horn's parallel analysis
+            (:meth:`parallel_analysis`). The result Bunch then gains the
+            ``minka_n_components``, ``parallel_analysis_n_components``,
+            ``consensus``, and ``consensus_counts`` keys (see Returns).
         threshold : float, optional
             Deprecated. The original Wold PRESS-ratio cutoff. Passing it
             emits a :class:`DeprecationWarning`; the value is ignored. Use
@@ -1105,6 +1112,17 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
               (preserved for back-compat).
             - ``cv_scheme`` - the scheme used (``"ekf"`` or ``"row_wise"``).
             - ``selection_rule`` - the rule used to pick ``n_components``.
+
+            When ``return_consensus=True``, the Bunch additionally carries:
+
+            - ``minka_n_components`` - the Minka PPCA MLE estimate (int).
+            - ``parallel_analysis_n_components`` - Horn's parallel-analysis
+              estimate (int).
+            - ``consensus`` - ``"agree"`` if the three integer estimates
+              (CV recommendation, Minka, parallel analysis) span at most
+              1, otherwise ``"disagree"``.
+            - ``consensus_counts`` - the tuple
+              ``(recommended, minka_n, parallel_analysis_n)``.
 
         References
         ----------
