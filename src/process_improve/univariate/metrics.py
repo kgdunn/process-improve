@@ -1161,16 +1161,18 @@ def variance_decomposition(df: pd.DataFrame, measured: str, repeat: str) -> dict
      'between_stddev': 4.9244,
      'between_dof':    1}
 
-    Note
+    Notes
+    -----
     * SSQ = sum of squares
-    * DOF= degrees of freedom
+    * DOF = degrees of freedom
     * MS = mean square = (sum of squares) / (degrees of freedom) = SSQ / DOF = variance
-    * ``between_ms`` is the raw ANOVA mean square, which estimates
-      ``sigma_within^2 + n0 * sigma_between^2`` (n0 = average group size), NOT
-      the between-group variance itself. ``between_stddev`` reports the actual
-      between-group variance COMPONENT, ``sqrt(max(0, (MS_between - MS_within)
-      / n0))``; earlier versions reported ``sqrt(MS_between)``, which mixes the
-      within-group variance into the "between" number.
+    * ``between_ms`` is the raw ANOVA mean square, which estimates the sum of
+      the within-group variance and n0 times the between-group variance (n0 =
+      average group size), NOT the between-group variance itself.
+      ``between_stddev`` reports the actual between-group variance COMPONENT,
+      the square root of ``max(0, (MS_between - MS_within) / n0)``. Earlier
+      versions reported ``sqrt(MS_between)``, which mixes the within-group
+      variance into the "between" number.
     """
 
     # Overall statistics:
