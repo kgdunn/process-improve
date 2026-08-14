@@ -82,16 +82,54 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
 
     Attributes (after fitting)
     --------------------------
-    block_names_, block_widths_                       (as MBPLS)
-    super_scores_                                     DataFrame (N x A)
-    super_loadings_                                   DataFrame (B x A)
-    block_scores_, block_loadings_                    dict[str, DataFrame]
-    r2_x_per_block_cumulative_, r2_x_per_block_per_component_
-    r2_x_per_variable_                                dict[str, DataFrame]
-    block_vip_
-    block_spe_, block_hotellings_t2_, super_hotellings_t2_
-    explained_variance_, scaling_factor_for_super_scores_
-    fitting_info_, has_missing_data_, algorithm_
+    block_names_ : list[str]
+        Ordered list of X-block names (the keys of the input dict).
+    block_widths_ : dict[str, int]
+        Number of variables in each X-block.
+    n_samples_ : int
+        Number of rows fitted.
+    n_features_in_ : int
+        Total number of X variables summed across blocks.
+    feature_names_in_ : np.ndarray
+        Concatenated column names, one per feature, in block order.
+    preproc_ : dict[str, MCUVScaler]
+        Per-block preprocessors used to mean-centre and unit-variance
+        scale each X-block.
+    super_scores_ : pd.DataFrame, shape (n_samples, n_components)
+        Super-block (consensus) scores ``T``.
+    super_loadings_ : pd.DataFrame, shape (n_blocks, n_components)
+        Super-block loadings ``p_super``; rows indexed by block name.
+    super_hotellings_t2_ : pd.DataFrame, shape (n_samples, n_components)
+        Cumulative Hotelling's T^2 on the super-scores per component.
+    block_scores_ : dict[str, pd.DataFrame]
+        Per-block scores ``t_b``, each shape ``(n_samples, n_components)``.
+    block_loadings_ : dict[str, pd.DataFrame]
+        Per-block loadings ``p_b``, each shape ``(K_b, n_components)``.
+    block_spe_ : dict[str, pd.DataFrame]
+        Per-block squared prediction error per sample and component.
+    block_hotellings_t2_ : dict[str, pd.DataFrame]
+        Per-block cumulative Hotelling's T^2 per sample and component.
+    block_vip_ : dict[str, pd.Series]
+        Per-block variable-importance in projection, indexed by variable
+        name inside each block.
+    r2_x_per_block_cumulative_ : pd.DataFrame, shape (n_blocks, n_components)
+        Cumulative R^2X per block and component.
+    r2_x_per_block_per_component_ : pd.DataFrame, shape (n_blocks, n_components)
+        Incremental R^2X per block and component.
+    r2_x_per_variable_ : dict[str, pd.DataFrame]
+        Cumulative R^2X per variable within each block.
+    explained_variance_ : np.ndarray, shape (n_components,)
+        Variance of the super-score per component (ddof=1).
+    scaling_factor_for_super_scores_ : pd.Series
+        ``sqrt(explained_variance_)`` per component.
+    fitting_info_ : dict
+        Per-component iteration count and timing.
+    has_missing_data_ : bool
+        Whether any X-block had NaN values.
+    algorithm_ : str
+        The resolved algorithm actually used for the fit. With
+        ``algorithm="auto"``, this is ``"dense"`` for complete data
+        and ``"nipals"`` for NaN-containing data.
 
     Notes
     -----
