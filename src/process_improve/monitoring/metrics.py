@@ -94,9 +94,11 @@ def calculate_cpk(  # noqa: C901
     if trim_percentile > 0:
         center_lower, center_upper = float(metric_lower.median()), float(metric_upper.median())
         spread_lower, spread_upper = float(Sn(metric_lower)), float(Sn(metric_upper))
+        data_center, data_spread = float(df[which_column].median()), float(Sn(df[which_column]))
     else:
         center_lower, center_upper = float(metric_lower.mean()), float(metric_upper.mean())
         spread_lower, spread_upper = float(metric_lower.std()), float(metric_upper.std())
+        data_center, data_spread = float(df[which_column].mean()), float(df[which_column].std())
 
     # A column with no spread (constant data, or only one non-NaN value)
     # makes Cpk undefined: a bare division would silently yield inf / NaN.
@@ -130,15 +132,8 @@ def calculate_cpk(  # noqa: C901
     # RSD of the DATA: the spread of (x - constant) equals the spread of x,
     # but the centre must be the centre of the data itself, not the centre of
     # the distance-to-spec metric (which made the "RSD" depend on where the
-    # specification sat). With a per-row (column-name) specification the
-    # metric spread can differ from the data spread, so recompute both pieces
-    # from the data column directly.
-    if trim_percentile > 0:
-        data_center = float(df[which_column].median())
-        data_spread = float(Sn(df[which_column]))
-    else:
-        data_center = float(df[which_column].mean())
-        data_spread = float(df[which_column].std())
+    # specification sat). data_center / data_spread are computed from the data
+    # column directly above, alongside the per-side statistics.
     rsd = (data_spread / data_center) * 100 if abs(data_center) > 0 else float("nan")
     return Bunch(cpk=cpk, center=center, spread=spread, rsd=rsd)
 

@@ -37,7 +37,8 @@ class TestGeneralizedESD:
 
     def test_default_is_classical_statistic(self) -> None:
         """The MAD-scaled variant is anti-conservative against classical
-        critical values, so it must be opt-in, not the default."""
+        critical values, so it must be opt-in, not the default.
+        """
         rng = np.random.default_rng(1)
         clean_sample = rng.normal(10.0, 2.0, size=60)
         outliers, _ = univariate.detect_outliers_esd(clean_sample, max_outliers_detected=6)
@@ -58,9 +59,7 @@ class TestGeneralizedESD:
                 4.64, 5.34, 5.42, 6.01,
             ]
         )  # fmt: skip
-        outliers, details = univariate.detect_outliers_esd(
-            rosner, max_outliers_detected=10, robust_variant=False
-        )
+        outliers, _details = univariate.detect_outliers_esd(rosner, max_outliers_detected=10, robust_variant=False)
         assert len(outliers) == 3
 
 
@@ -159,13 +158,15 @@ class TestHoltWintersChart:
 
     def test_small_sample_grid_search_is_not_degenerate(self) -> None:
         """10 <= N < 20: the training window includes row 0, whose error is
-        unset. Pre-fix, every grid cell was NaN and (0.1, 0.1) always 'won'."""
+        unset. Pre-fix, every grid cell was NaN and (0.1, 0.1) always 'won'.
+        """
         rng = np.random.default_rng(8)
         y = pd.Series(rng.normal(50.0, 3.0, size=15))
         cc = ControlChart(variant="HW")
         cc.calculate_limits(y)
         assert np.isfinite(cc._residuals_HW).all()
-        assert cc.s is not None and np.isfinite(cc.s)
+        assert cc.s is not None
+        assert np.isfinite(cc.s)
 
     def test_explicit_zero_lambda_is_respected(self) -> None:
         rng = np.random.default_rng(9)

@@ -365,9 +365,7 @@ class ControlChart:
             # a constant, as an earlier version did, leaves the whole warm-up
             # trend inside the residuals and inflates sigma_0 whenever the
             # window drifts - precisely the situation this chart is for.
-            warm_up_residuals = y_warm_up - self.warm_up["alpha_0"] - self.warm_up["beta_0"] * np.arange(
-                self.warm_up_M
-            )
+            warm_up_residuals = y_warm_up - self.warm_up["alpha_0"] - self.warm_up["beta_0"] * np.arange(self.warm_up_M)
 
             # Some other method that does not rely on SciPy for 1 function.
             self.warm_up["sigma_0"] = median_absolute_deviation(np.asarray(warm_up_residuals), nan_policy="omit")

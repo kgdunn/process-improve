@@ -1202,10 +1202,7 @@ def variance_decomposition(df: pd.DataFrame, measured: str, repeat: str) -> dict
     group_sizes = np.array([group[measured].count() for _, group in df.groupby(repeat)], dtype=float)
     n_total = float(group_sizes.sum())
     k_groups = int((group_sizes > 0).sum())
-    if k_groups > 1 and n_total > 0:
-        n0 = (n_total - float(np.sum(group_sizes**2)) / n_total) / (k_groups - 1)
-    else:
-        n0 = 0.0
+    n0 = (n_total - float(np.sum(group_sizes**2)) / n_total) / (k_groups - 1) if k_groups > 1 and n_total > 0 else 0.0
     between_variance_component = max(0.0, (between_ms - within_ms) / n0) if n0 > 0 else 0.0
 
     return {
