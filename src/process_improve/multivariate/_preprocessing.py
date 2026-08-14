@@ -8,6 +8,7 @@ utilities. Depends only on :mod:`process_improve.multivariate._common`.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 
 import numpy as np
@@ -94,11 +95,25 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
         # column-level statistics (the chemometric pipeline's missing-data
         # contract). std uses ddof=1: this is the difference from
         # sklearn.preprocessing.StandardScaler.
-        center = np.nanmean(X_arr, axis=0)
-        scale = np.nanstd(X_arr, axis=0, ddof=1)
+        with warnings.catch_warnings():
+            # An all-NaN or single-observation column raises numpy
+            # RuntimeWarnings here; both cases are handled explicitly below,
+            # so the warnings are noise for the caller.
+            warnings.simplefilter("ignore", RuntimeWarning)
+            center = np.nanmean(X_arr, axis=0)
+            scale = np.nanstd(X_arr, axis=0, ddof=1)
         # Constant columns are left as-is (scale to 1.0) rather than
-        # producing inf / nan when transform divides.
-        scale = np.where(scale == 0, 1.0, scale)
+        # producing inf / nan when transform divides. The guard must also
+        # catch: a column with fewer than two observed values, whose
+        # nanstd(ddof=1) is NaN (NaN == 0 is False, so the equality test
+        # missed it and transform emitted an all-NaN column); and a
+        # denormal-tiny standard deviation, whose reciprocal overflows.
+        # An all-NaN column additionally has a NaN center; treat it as
+        # constant-at-zero so transform passes the NaN cells through
+        # unchanged instead of poisoning them further.
+        tiny = float(np.finfo(float).tiny) ** 0.5
+        scale = np.where(~np.isfinite(scale) | (scale <= tiny), 1.0, scale)
+        center = np.where(np.isfinite(center), center, 0.0)
 
         self.center_ = pd.Series(center, index=index)
         self.scale_ = pd.Series(scale, index=index)
@@ -165,6 +180,12 @@ def center(
     # pandas-stubs types apply()'s axis as a Literal, so a plain ``int`` axis does
     # not match any overload; the call is valid at runtime.
     vector = pd.DataFrame(X).apply(func, axis=axis).to_numpy()  # type: ignore[call-overload]  # pandas-stubs axis is Literal
+    if axis == 1:
+        # Row-wise centring: the statistic is one value per ROW, so it must
+        # broadcast down the column axis. Without the reshape numpy broadcasts
+        # the length-N vector across the columns instead: a ValueError for
+        # N != K and a silently wrong answer for square matrices.
+        vector = vector.reshape(-1, 1)
     if extra_output:
         return np.subtract(X, vector), vector
     else:
@@ -238,6 +259,9 @@ def scale(
     # that ``1.0 / vector`` does not introduce inf/NaN.
     vector = np.where(vector == 0, 1.0, vector)
     vector = 1.0 / vector
+    if axis == 1:
+        # Row-wise scaling: one value per ROW; see the reshape note in center().
+        vector = vector.reshape(-1, 1)
 
     if extra_output:
         return np.multiply(X, vector), vector

@@ -227,10 +227,19 @@ def ellipse_coordinates(  # noqa: PLR0913
         raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
     if n_rows <= 0:
         raise ValueError(f"n_rows must be positive; got {n_rows}.")
+    if n_points < 2:
+        raise ValueError(f"n_points must be >= 2 to draw an ellipse; got {n_points}.")
     assert scaling_factor_for_scores is not None  # required for the ellipse scaling
     s_h = scaling_factor_for_scores.iloc[score_horiz - 1]
     s_v = scaling_factor_for_scores.iloc[score_vert - 1]
-    t2_limit_specific = np.sqrt(hotellings_t2_limit(conf_level, n_components=n_components, n_rows=n_rows))
+    # The ellipse is the joint confidence region for the TWO plotted scores,
+    # so the T2 limit is computed with 2 degrees of freedom:
+    # 2 (N^2 - 1) / (N (N - 2)) * F(alpha; 2, N - 2), the convention used by
+    # SIMCA / ProMV and in Wold's texts. Using the full model's A here (the
+    # previous behaviour) draws a strictly larger ellipse (~42% too wide per
+    # axis at A=5, N=50; ~2x the area), silently hiding genuine outliers.
+    # ``n_components`` is still used above to bound the score indices.
+    t2_limit_specific = np.sqrt(hotellings_t2_limit(conf_level, n_components=2, n_rows=n_rows))
     dt = 2 * np.pi / (n_points - 1)
     steps = np.linspace(0, n_points - 1, n_points)
     x = np.cos(steps * dt) * t2_limit_specific * s_h

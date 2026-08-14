@@ -484,9 +484,14 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 settings["md_tol"],
             )
 
-            if itern > settings["md_max_iter"]:
+            # ``terminate_check`` stops the loop when ``iterations >=
+            # md_max_iter``, so ``itern`` is capped AT the maximum and the
+            # previous strict ``>`` comparison could never fire: non-convergent
+            # fits returned silently.
+            if itern >= settings["md_max_iter"]:
                 warnings.warn(
-                    "PLS NIPALS: maximum number of iterations reached!",
+                    f"PLS NIPALS: component {a + 1} reached the maximum number of "
+                    f"iterations ({settings['md_max_iter']}) without converging.",
                     SpecificationWarning,
                     stacklevel=2,
                 )
@@ -668,6 +673,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         # Check if number of components is supported against maximum requested
         min_dim = min(N, K)
+        if self.n_components is not None and int(self.n_components) < 1:
+            raise ValueError(f"n_components must be >= 1; got {self.n_components}.")
         A = min_dim if self.n_components is None else int(self.n_components)
         if min_dim < A:
             warn = (
@@ -774,11 +781,16 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         prior_SSX_col = ssq(Xd.values, axis=0)
         prior_SSY_col = ssq(Yd.values, axis=0)
         base_variance_Y = np.sum(prior_SSY_col)
+        # A component with ~0 score standard deviation (rank-deficient fit)
+        # contributes 0/0 to T²; skip it rather than dividing by ~zero and
+        # poisoning T² with inf/NaN (mirrors the PCA fit path).
+        scaling_factors = self.scaling_factor_for_scores_.to_numpy()
+        t2_tol = epsqrt * max(1.0, float(np.max(scaling_factors, initial=0.0)))
         for a in range(A):
-            self.hotellings_t2_.iloc[:, a] = (
-                self.hotellings_t2_.iloc[:, max(0, a - 1)]
-                + (self.scores_.iloc[:, a] / self.scaling_factor_for_scores_.iloc[a]) ** 2
+            t2_contribution = (
+                (self.scores_.iloc[:, a] / scaling_factors[a]) ** 2 if scaling_factors[a] > t2_tol else 0.0
             )
+            self.hotellings_t2_.iloc[:, a] = self.hotellings_t2_.iloc[:, max(0, a - 1)] + t2_contribution
             Xd = Xd - self.scores_.iloc[:, [a]] @ self.x_loadings_.iloc[:, [a]].T
             y_hat = self.scores_.iloc[:, 0 : (a + 1)] @ self.y_loadings_.iloc[:, 0 : (a + 1)].T
             row_SSX = ssq(Xd.values, axis=1)
@@ -1521,6 +1533,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             se_press_total = np.nanstd(per_fold_press_total, axis=1, ddof=1) / np.sqrt(
                 np.maximum(1, np.sum(~np.isnan(per_fold_press_total), axis=1))
             )
+        # The Q2 curve normalises the TOTAL PRESS per repeat (the sum over the
+        # folds of one pass), which is ``first_repeat_fold_count`` times the
+        # mean per-fold PRESS whose standard error was just computed. Rescale
+        # so the +/-1 SE band is on the same scale as the Q2 values; the
+        # unscaled band was ~n_folds times too narrow.
+        se_press_total = se_press_total * max(1, first_repeat_fold_count)
         q2_se_values = se_press_total / ss_y_total if ss_y_total > 0 else se_press_total * np.nan
         q2_se = pd.Series(q2_se_values, index=component_index, name="SE(Q2)")
 
@@ -2110,8 +2128,15 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             beta_ci_lower_arr = beta_mean_arr - t_crit * beta_std_arr
             beta_ci_upper_arr = beta_mean_arr + t_crit * beta_std_arr
         elif method == "kfold":
-            # For K-fold, use sample std of the K beta estimates
-            beta_std_arr = beta_samples.std(axis=0, ddof=1)
+            # The K sub-models are delete-a-block (delete-d) jackknife
+            # estimates, not independent replicates: their training sets
+            # overlap pairwise in (K-2)/K of the rows. The delete-a-block
+            # jackknife standard error is sqrt((K-1)/K * sum(dev^2))
+            # (Westad & Martens, 2000, modified jackknife for PLS); the
+            # plain sample SD used previously is (K-1)/sqrt(K) times too
+            # small (1.79x for K=5), over-declaring significance.
+            deviations_sq = np.sum((beta_samples - beta_mean_arr) ** 2, axis=0)
+            beta_std_arr = np.sqrt((actual_n_resamples - 1) / actual_n_resamples * deviations_sq)
             alpha = 1 - conf_level
             t_crit = t_dist.ppf(1 - alpha / 2, df=actual_n_resamples - 1)
             beta_ci_lower_arr = beta_mean_arr - t_crit * beta_std_arr
@@ -2144,7 +2169,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             y_hat_cv_df = pd.DataFrame(y_hat_cv, index=Y.index, columns=Y.columns)
             residuals = Y.values - y_hat_cv
             press_val = float(np.nansum(residuals**2))
-            ss_total = np.nansum((Y.values - Y.values.mean(axis=0)) ** 2, axis=0)
+            # nanmean, not mean: a single NaN in Y otherwise propagates through
+            # the column mean and turns the whole ss_total (and Q2) into NaN.
+            ss_total = np.nansum((Y.values - np.nanmean(Y.values, axis=0)) ** 2, axis=0)
             ss_res = np.nansum(residuals**2, axis=0)
 
             rmse_vals = np.sqrt(np.nanmean(residuals**2, axis=0))
