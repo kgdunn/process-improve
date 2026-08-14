@@ -11,6 +11,27 @@ those changes.
 
 ## [Unreleased]
 
+### Fixed
+
+- `omars_properties` and `is_omars` now reject a design that leaves a factor at
+  the middle level in every run. The check that each factor is genuinely
+  three-level tested only that the factor reaches the middle level at least
+  once, which catches a two-level factor (constant quadratic `1`) but not the
+  mirror case of a factor the design never varies (constant quadratic `0`).
+  Both are inestimable, and the second was being reported as a valid OMARS
+  design whose main-and-quadratic model matrix is rank deficient.
+
+  This also removes a bias in the `min_second_order_correlation` selection
+  criterion of `generate_omars`. `max_second_order_correlation` skips constant
+  columns, so a factor pinned at the centre removed its own quadratic and all
+  of its interactions from the comparison and improved the score. The criterion
+  therefore had an incentive to produce exactly the degenerate designs the
+  verifier was failing to catch, and did: in a sweep across three to six
+  factors it returned one, including a spurious perfect `0.000`, in roughly a
+  third of cells. With the verifier corrected those candidates are rejected
+  during the search, and two sizes that previously yielded no usable design at
+  all (three factors in nine runs, five factors in thirteen) now yield one.
+
 ### Added
 
 - Minimum moment aberration (Xu, 2003) for two-level designs, as
