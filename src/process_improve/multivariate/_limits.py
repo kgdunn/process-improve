@@ -91,6 +91,16 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
     float
         The limit, above which we judge observations in the model to have a different correlation
         structure than those values which were used to build the model.
+
+    Notes
+    -----
+    When either the variance or the centre of the squared SPE values is
+    at or below ``epsqrt`` (a perfect-fit training set where ``A == K``,
+    or an all-equal SPE column), the Jackson-Mudholkar chi-square
+    approximation degenerates. In that case the limit falls back to
+    ``sqrt(center_spe)``: there is no spread to bound, so any value
+    above the centre is by construction out of family. See SEC-21
+    (#270), sub-item 3.
     """
     if not 0.0 < conf_level < 1.0:
         raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
