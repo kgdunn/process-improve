@@ -51,10 +51,22 @@ def calculate_cpk(  # noqa: C901
         A bunch with the following fields:
 
         * ``cpk``: the Cpk value (the limiting, i.e. smaller, of the two sides).
-        * ``center``: the center (mean or median) of the limiting side.
+        * ``center``: the center (mean or median) of the limiting side, i.e. of
+          the distance-to-specification metric.
         * ``spread``: the spread (standard deviation or Sn) of the limiting side.
-        * ``rsd``: the relative standard deviation of the limiting side, as a
-          percentage, ``(spread / center) * 100``.
+        * ``rsd``: the relative standard deviation OF THE DATA COLUMN, as a
+          percentage: ``spread / center-of-the-data * 100``. (Earlier versions
+          divided by the distance-to-spec centre, which is not an RSD of
+          anything and changed value when the spec limit moved.)
+
+    Notes
+    -----
+    The spread is estimated from ALL the values in the column (the overall
+    long-term variation), not from a within-subgroup range or moving range.
+    Strictly this makes the statistic a *performance* index (Ppk-style) rather
+    than a short-term capability index (Cpk with sigma-hat = Rbar/d2); on a
+    stable process the two coincide, and on an unstable one this value is the
+    more honest of the two.
     """
     if trim_percentile < 0:
         raise ValueError(f"trim_percentile must be non-negative; got {trim_percentile}.")
@@ -115,7 +127,19 @@ def calculate_cpk(  # noqa: C901
     else:
         cpk, center, spread = cpk_upper, center_upper, spread_upper
 
-    rsd = (spread / center) * 100 if center else float("nan")
+    # RSD of the DATA: the spread of (x - constant) equals the spread of x,
+    # but the centre must be the centre of the data itself, not the centre of
+    # the distance-to-spec metric (which made the "RSD" depend on where the
+    # specification sat). With a per-row (column-name) specification the
+    # metric spread can differ from the data spread, so recompute both pieces
+    # from the data column directly.
+    if trim_percentile > 0:
+        data_center = float(df[which_column].median())
+        data_spread = float(Sn(df[which_column]))
+    else:
+        data_center = float(df[which_column].mean())
+        data_spread = float(df[which_column].std())
+    rsd = (data_spread / data_center) * 100 if abs(data_center) > 0 else float("nan")
     return Bunch(cpk=cpk, center=center, spread=spread, rsd=rsd)
 
 

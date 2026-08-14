@@ -461,7 +461,12 @@ def confidence_interval(df: pd.DataFrame, column_name: str, conflevel: float = 0
 
     if style.lower() == "robust":
         center = data.median()
-        spread = median_absolute_deviation(data.to_numpy(), nan_policy="omit")
+        # MAD (scale="normal") consistently estimates sigma, but the interval
+        # is for the MEDIAN, whose asymptotic standard error is
+        # sigma * sqrt(pi / 2) / sqrt(n), not sigma / sqrt(n). Without the
+        # sqrt(pi/2) factor the advertised 95% interval has roughly 87%
+        # coverage.
+        spread = median_absolute_deviation(data.to_numpy(), nan_policy="omit") * float(np.sqrt(np.pi / 2.0))
     else:
         center = data.mean()
         spread = data.std()
@@ -689,7 +694,11 @@ def biweight_midvariance(x: np.ndarray | pd.Series, nan_policy: str = "omit") ->
     if spread_mad == 0:
         return 0.0
 
-    ui = (a - location) / (6.0 * spread_mad)
+    # c = 9 is the biweight MIDVARIANCE tuning constant (Mosteller & Tukey;
+    # also NIST DATAPLOT and astropy); c = 6, previously used here, is the
+    # biweight LOCATION constant and rejects far too much of the sample for
+    # a scale estimate to be consistent with sigma^2 on Gaussian data.
+    ui = (a - location) / (9.0 * spread_mad)
     valid = ui**2 <= 1.0
     a_valid, ui_valid = a[valid], ui[valid]
 
@@ -891,8 +900,16 @@ def detect_outliers_esd(
 
             'esd':
 
-                'robust_variant' = True. Uses the median and MAD for the center
-                and the standard deviation respectively.
+                'robust_variant' = False. When True, uses the median and MAD
+                for the center and the spread respectively. WARNING: the ESD
+                critical values (lambda_i) are derived for the classical
+                statistic max|x - mean| / std, which is bounded above by
+                (N-1)/sqrt(N); a MAD-scaled statistic has no such bound and is
+                routinely 2-3x larger on contaminated data, so the robust
+                variant declares far more outliers than the nominal alpha
+                implies (it can flag points in perfectly clean data). It was
+                previously the default; it is now opt-in and should be treated
+                as a screening heuristic, not a calibrated test.
 
                 'alpha' = 0.05. The significance level of the testing.
 
@@ -909,8 +926,10 @@ def detect_outliers_esd(
         Note: the two-sided test is implemented here. p = 1-alpha/(2*(n-i+1))
         """
 
-        # 0. Default settings
-        robust_variant = bool(kwargs.get("robust_variant", True))
+        # 0. Default settings. robust_variant defaults to False: the ESD
+        # critical values are calibrated for the mean/std statistic (see the
+        # docstring warning about the MAD-scaled variant).
+        robust_variant = bool(kwargs.get("robust_variant", False))
         alpha = float(kwargs.get("alpha", 0.05))
 
         if alpha > 1.0:
@@ -957,9 +976,13 @@ def detect_outliers_esd(
                 x = x.drop(R_i_idx)
 
         try:
+            # NIST / Rosner: "the number of outliers is determined by finding
+            # the LARGEST i such that R_i > lambda_i". The crossings are not
+            # monotone in general (that is the masking effect this test
+            # exists to handle), so take the last crossing, not the first.
             cutoff_i = np.where(
                 np.array(extra_out["R_i"]) - np.array(extra_out["lambda"]) >= 0,
-            )[0][0]
+            )[0][-1]
         except IndexError:
             cutoff_i = -1
 
@@ -1135,13 +1158,19 @@ def variance_decomposition(df: pd.DataFrame, measured: str, repeat: str) -> dict
      'within_stddev':  0.70711,
      'within_dof':     2,
      'between_ms':     49.0,
-     'between_stddev': 7.0,
+     'between_stddev': 4.9244,
      'between_dof':    1}
 
     Note
     * SSQ = sum of squares
     * DOF= degrees of freedom
     * MS = mean square = (sum of squares) / (degrees of freedom) = SSQ / DOF = variance
+    * ``between_ms`` is the raw ANOVA mean square, which estimates
+      ``sigma_within^2 + n0 * sigma_between^2`` (n0 = average group size), NOT
+      the between-group variance itself. ``between_stddev`` reports the actual
+      between-group variance COMPONENT, ``sqrt(max(0, (MS_between - MS_within)
+      / n0))``; earlier versions reported ``sqrt(MS_between)``, which mixes the
+      within-group variance into the "between" number.
     """
 
     # Overall statistics:
@@ -1165,6 +1194,20 @@ def variance_decomposition(df: pd.DataFrame, measured: str, repeat: str) -> dict
     between_dof = max(0, total_dof - within_dof)
     between_ms = 0 if between_dof == 0 else max(0.0, (total_ms * total_dof - within_ms * within_dof) / between_dof)
 
+    # MS_between estimates sigma_within^2 + n0 * sigma_between^2, so the
+    # between-group VARIANCE COMPONENT is (MS_between - MS_within) / n0,
+    # clipped at zero when the between mean square is smaller than the noise
+    # floor. n0 is the effective (average) group size; for unbalanced data the
+    # standard ANOVA n0 = (N - sum(n_i^2)/N) / (k - 1) is used.
+    group_sizes = np.array([group[measured].count() for _, group in df.groupby(repeat)], dtype=float)
+    n_total = float(group_sizes.sum())
+    k_groups = int((group_sizes > 0).sum())
+    if k_groups > 1 and n_total > 0:
+        n0 = (n_total - float(np.sum(group_sizes**2)) / n_total) / (k_groups - 1)
+    else:
+        n0 = 0.0
+    between_variance_component = max(0.0, (between_ms - within_ms) / n0) if n0 > 0 else 0.0
+
     return {
         "total_ms": total_ms,
         "total_dof": total_dof,
@@ -1172,7 +1215,7 @@ def variance_decomposition(df: pd.DataFrame, measured: str, repeat: str) -> dict
         "within_stddev": np.sqrt(within_ms),
         "within_dof": within_dof,
         "between_ms": between_ms,
-        "between_stddev": np.sqrt(between_ms),
+        "between_stddev": np.sqrt(between_variance_component),
         "between_dof": between_dof,
     }
 
