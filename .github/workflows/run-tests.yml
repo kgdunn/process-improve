@@ -3,16 +3,23 @@
 
 name: Unit tests
 
+# NOTE: no `create` trigger. The create event does not support
+# branches/tags filters (they are silently ignored), so the old
+#   create: {branches: [main], tags: ['**']}
+# ran the full matrix on EVERY branch creation, duplicating the
+# push / pull_request runs.
 on:
   push:
     branches: [main]
   pull_request:
     branches: ['**']
-  create:
-    branches: [main]
-    tags: ['**']
   # schedule:
   #   - cron: "0 4 * * *"
+
+# The workflow only reads the repository; the default token needs no
+# write scopes (codecov uploads use their own OIDC/token path).
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

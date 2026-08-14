@@ -26,7 +26,7 @@ class TestRobustRegressionDegenerateX:
 class TestDTWDistance:
     def test_distance_is_the_accumulated_cost(self) -> None:
         """The DTW distance must equal D[-1, -1], not a sum of prefix sums."""
-        numba = pytest.importorskip("numba")  # noqa: F841
+        pytest.importorskip("numba")
         from process_improve.batch.alignment_helpers import backtrack_optimal_path, distance_matrix
 
         rng = np.random.default_rng(0)
