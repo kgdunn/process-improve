@@ -267,18 +267,58 @@ def box_behnken_runs(n_factors: int) -> int | None:
     return None if design_runs is None else design_runs + _BBD_CENTRE_RUNS[k]
 
 
-def _reference_entry(name: str, n_factors: int) -> OmarsTradeOffTableEntry | None:
-    """Build the table entry for a named standard design at *n_factors*.
+def omars_anchor_entry(design: str, n_factors: int) -> OmarsTradeOffTableEntry | None:
+    """Report what a named standard design buys at *n_factors*.
 
+    The anchor counterpart of :func:`get_omars_trade_off_table_entry`, for the
+    two designs that bracket the OMARS family rather than for a run budget.
+
+    Parameters
+    ----------
+    design : {"dsd", "bbd"}
+        Which standard design: the definitive screening design, the smallest
+        member of the family, or the Box-Behnken design, among the largest.
+    n_factors : int
+        Number of factors, ``k``, between 3 and 25.
+
+    Returns
+    -------
+    OmarsTradeOffTableEntry or None
+        ``None`` where no such design was published for that factor count, which
+        is every Box-Behnken design above seven factors.
+
+    Raises
+    ------
+    ValueError
+        If *design* is not a known name, or *n_factors* is out of range.
+
+    Notes
+    -----
     Unlike :func:`get_omars_trade_off_table_entry` this does not require an odd
-    run count. A named design carries whatever centre replication its published
-    form specifies, and a Box-Behnken design carries three or six centre runs
-    rather than one, so its total is even at five factors and above. The
-    capability thresholds still apply: they are set by the number of distinct
-    half-rows, which extra centre runs do not change.
+    run count. That gate is right for a budget, where the question is whether any
+    foldover has that run count with a single centre run, but a named design
+    carries whatever centre replication its published form specifies: a
+    Box-Behnken design has three or six centre runs, so its total is even from
+    five factors upwards. The capability thresholds apply unchanged, being set by
+    the number of distinct half-rows, which extra centre runs do not alter.
+
+    Examples
+    --------
+    >>> omars_anchor_entry("bbd", 5).label
+    '46 Full df=25'
+    >>> omars_anchor_entry("dsd", 4).label
+    '9 Satd df=0'
+    >>> omars_anchor_entry("bbd", 9) is None
+    True
+
+    Also see
+    --------
+    omars_trade_off_table : puts these on the table as anchor rows.
     """
+    if design not in REFERENCE_DESIGNS:
+        raise ValueError(f"design must be one of {REFERENCE_DESIGNS}, got {design!r}.")
     k = _check_factors(n_factors)
-    runs = definitive_screening_runs(k) if name == "dsd" else box_behnken_runs(k)
+    runs = definitive_screening_runs(k) if design == "dsd" else box_behnken_runs(k)
     if runs is None:
         return None
 
@@ -477,6 +517,7 @@ def omars_trade_off_table(
     --------
     get_omars_trade_off_table_entry : the detail behind one cell.
     definitive_screening_runs, box_behnken_runs : the anchor run counts.
+    omars_anchor_entry : the detail behind one anchor cell.
     """
     checked = [_check_factors(k) for k in factors]
     cells: dict[int, dict[object, str]] = {
@@ -488,7 +529,7 @@ def omars_trade_off_table(
         for name in REFERENCE_DESIGNS:
             tag = _REFERENCE_TAGS[name]
             for k in checked:
-                entry = _reference_entry(name, k)
+                entry = omars_anchor_entry(name, k)
                 cells[k][tag] = "" if entry is None else entry.label
         # The DSD is the smallest member of the family and the Box-Behnken
         # design among the largest, so they bracket the budgets.

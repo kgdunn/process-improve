@@ -28,6 +28,7 @@ from process_improve.experiments.omars_trade_off import (
     box_behnken_runs,
     definitive_screening_runs,
     get_omars_trade_off_table_entry,
+    omars_anchor_entry,
     omars_minimum_runs,
     omars_trade_off_table,
 )
@@ -389,3 +390,55 @@ class TestAnchoredTable:
         printed = capsys.readouterr().out
         assert any(line.startswith("DSD") for line in printed.splitlines())
         assert any(line.startswith("BBD") for line in printed.splitlines())
+
+
+class TestAnchorEntry:
+    """``omars_anchor_entry`` is the detail behind one anchor cell."""
+
+    @pytest.mark.parametrize(("k", "label"), DSD_CELLS.items())
+    def test_dsd_entry_matches_the_cell(self, k, label):
+        assert omars_anchor_entry("dsd", k).label == label
+
+    @pytest.mark.parametrize(("k", "label"), BBD_CELLS.items())
+    def test_box_behnken_entry_matches_the_cell(self, k, label):
+        assert omars_anchor_entry("bbd", k).label == label
+
+    def test_an_even_run_count_is_still_a_design_here(self):
+        """The 2h + 1 gate is right for a budget, not for a named design.
+
+        A Box-Behnken design carries six centre runs from five factors upwards, so its total
+        is even. Asking for that count as a budget correctly reports no design; asking for the
+        named design reports what it is.
+        """
+        assert box_behnken_runs(5) % 2 == 0
+        assert not get_omars_trade_off_table_entry(46, 5, display=False).exists
+        entry = omars_anchor_entry("bbd", 5)
+        assert entry.exists
+        assert entry.capability == "full"
+        assert entry.n_runs == 46
+
+    @pytest.mark.parametrize("k", DEFAULT_FACTORS)
+    def test_error_df_is_runs_minus_parameters(self, k):
+        for design in ("dsd", "bbd"):
+            entry = omars_anchor_entry(design, k)
+            assert entry.error_df == entry.n_runs - entry.model_params
+
+    @pytest.mark.parametrize("k", DEFAULT_FACTORS)
+    def test_the_dsd_never_reaches_full(self, k):
+        """The smallest member of the family cannot support the second-order model."""
+        assert omars_anchor_entry("dsd", k).capability != "full"
+
+    def test_thresholds_travel_with_an_anchor_too(self):
+        entry = omars_anchor_entry("bbd", 6)
+        assert (entry.min_runs_satd, entry.min_runs_quad, entry.min_runs_full) == THRESHOLDS[6]
+
+    def test_absent_where_none_was_published(self):
+        assert omars_anchor_entry("bbd", 9) is None
+
+    def test_unknown_design_is_refused(self):
+        with pytest.raises(ValueError, match="design must be one of"):
+            omars_anchor_entry("ccd", 5)
+
+    def test_factor_count_is_validated(self):
+        with pytest.raises(ValueError, match="OMARS designs need"):
+            omars_anchor_entry("dsd", 2)

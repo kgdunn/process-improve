@@ -18,7 +18,10 @@ from process_improve.experiments.models import Model, lm, predict, summary
 from process_improve.experiments.omars import OmarsResult, analyze_omars
 from process_improve.experiments.omars_trade_off import (
     OmarsTradeOffTableEntry,
+    box_behnken_runs,
+    definitive_screening_runs,
     get_omars_trade_off_table_entry,
+    omars_anchor_entry,
     omars_minimum_runs,
     omars_trade_off_table,
 )
@@ -53,7 +56,9 @@ __all__ = [
     "analyze_experiment",
     "analyze_omars",
     "augment_design",
+    "box_behnken_runs",
     "c",
+    "definitive_screening_runs",
     "doe_knowledge",
     "evaluate_all",
     "evaluate_design",
@@ -70,6 +75,7 @@ __all__ = [
     "main_effects_plot",
     "manufacture",
     "moment_aberration",
+    "omars_anchor_entry",
     "omars_minimum_runs",
     "omars_properties",
     "omars_trade_off_table",

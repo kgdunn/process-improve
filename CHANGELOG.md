@@ -21,12 +21,19 @@ those changes.
   for example `"46 Full df=25"`. The default is `False`, which leaves the
   returned frame exactly as it was.
 
-  Two supporting functions are public: `definitive_screening_runs(k)` and
-  `box_behnken_runs(k)`, the latter returning `None` where Box and Behnken
-  published no design. Anchor rows are classified without the `2h + 1` parity
-  gate, since a named design carries whatever centre replication its published
-  form specifies: a Box-Behnken design has three or six centre runs rather than
-  one, so its total is even from five factors upwards.
+  Three supporting functions are public: `definitive_screening_runs(k)`,
+  `box_behnken_runs(k)` (returning `None` where Box and Behnken published no
+  design), and `omars_anchor_entry(design, k)`, the anchor counterpart of
+  `get_omars_trade_off_table_entry`.
+
+  An anchor is classified without the `2h + 1` parity gate, since a named design
+  carries whatever centre replication its published form specifies: a
+  Box-Behnken design has three or six centre runs rather than one, so its total
+  is even from five factors upwards, and `get_omars_trade_off_table_entry(46, 5)`
+  correctly reports no design at that budget while
+  `omars_anchor_entry("bbd", 5)` reports the 46-run Box-Behnken design. The
+  capability thresholds are unchanged, being set by the number of distinct
+  half-rows, which extra centre runs do not alter.
 
 ### Fixed
 
