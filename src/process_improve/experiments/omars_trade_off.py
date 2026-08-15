@@ -304,10 +304,10 @@ def omars_anchor_entry(design: str, n_factors: int) -> OmarsTradeOffTableEntry |
 
     Examples
     --------
-    >>> omars_anchor_entry("bbd", 5).label
-    '46 Full df=25'
+    >>> omars_anchor_entry("bbd", 5).n_runs, omars_anchor_entry("bbd", 5).label
+    (46, 'Full df=25')
     >>> omars_anchor_entry("dsd", 4).label
-    '9 Satd df=0'
+    'Satd df=0'
     >>> omars_anchor_entry("bbd", 9) is None
     True
 
@@ -339,9 +339,7 @@ def omars_anchor_entry(design: str, n_factors: int) -> OmarsTradeOffTableEntry |
         model=model,
         model_params=params,
         error_df=runs - params,
-        # Anchor cells lead with the run count, because unlike a normal row the
-        # run count is not the row label and changes from column to column.
-        label=f"{runs} {tag} df={runs - params}",
+        label=f"{tag} df={runs - params}",
         min_runs_full=full,
         min_runs_quad=quad,
         min_runs_satd=satd,
@@ -508,10 +506,12 @@ def omars_trade_off_table(
     >>> table.loc[9, 3]
     'Quad df=2'
     >>> anchored = omars_trade_off_table(display=False, anchors=True)
-    >>> anchored.loc["DSD", 4]
-    '9 Satd df=0'
-    >>> anchored.loc["BBD", 5]
-    '46 Full df=25'
+    >>> anchored.loc[9, 4]
+    'Satd df=0 | DSD'
+    >>> anchored.loc[46, 5]
+    'Full df=25 | BBD'
+    >>> anchored.loc[54, 5]
+    ''
 
     Also see
     --------
@@ -520,20 +520,33 @@ def omars_trade_off_table(
     omars_anchor_entry : the detail behind one anchor cell.
     """
     checked = [_check_factors(k) for k in factors]
-    cells: dict[int, dict[object, str]] = {
-        k: {n: get_omars_trade_off_table_entry(n, k, display=False).label for n in runs} for k in checked
-    }
-    index: list[object] = list(runs)
+    index: list[int] = sorted(runs)
+    marks: dict[int, dict[str, int | None]] = {}
 
     if anchors:
-        for name in REFERENCE_DESIGNS:
-            tag = _REFERENCE_TAGS[name]
-            for k in checked:
-                entry = omars_anchor_entry(name, k)
-                cells[k][tag] = "" if entry is None else entry.label
-        # The DSD is the smallest member of the family and the Box-Behnken
-        # design among the largest, so they bracket the budgets.
-        index = [_REFERENCE_TAGS["dsd"], *index, _REFERENCE_TAGS["bbd"]]
+        marks = {k: {"dsd": definitive_screening_runs(k), "bbd": box_behnken_runs(k)} for k in checked}
+        # A named design sits on the row of its own run count, so the table has to carry that
+        # row even when it is not one of the budgets asked for.
+        index = sorted(set(index) | {n for m in marks.values() for n in m.values() if n is not None})
+
+    cells: dict[int, dict[int, str]] = {}
+    for k in checked:
+        dsd, bbd = (marks[k]["dsd"], marks[k]["bbd"]) if anchors else (None, None)
+        column: dict[int, str] = {}
+        for n in index:
+            if bbd is not None and n > bbd:
+                # Past the Box-Behnken design the column has nothing left to say: every row
+                # below it is Full as well, on more runs.
+                column[n] = ""
+                continue
+            entry = omars_anchor_entry("bbd", k) if n == bbd else get_omars_trade_off_table_entry(n, k, display=False)
+            label = "" if entry is None else entry.label
+            if label and n == bbd:
+                label += " | BBD"
+            elif label and n == dsd:
+                label += " | DSD"
+            column[n] = label
+        cells[k] = column
 
     table = pd.DataFrame(cells, index=index)
     table.index.name = "runs"

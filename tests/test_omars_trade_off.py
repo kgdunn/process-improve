@@ -306,14 +306,8 @@ DSD_RUNS = {3: 9, 4: 9, 5: 13, 6: 13, 7: 17}
 BBD_RUNS = {3: 15, 4: 27, 5: 46, 6: 54, 7: 62}
 
 # k -> the anchor cell each row should render.
-DSD_CELLS = {3: "9 Quad df=2", 4: "9 Satd df=0", 5: "13 Quad df=2", 6: "13 Satd df=0", 7: "17 Quad df=2"}
-BBD_CELLS = {
-    3: "15 Full df=5",
-    4: "27 Full df=12",
-    5: "46 Full df=25",
-    6: "54 Full df=26",
-    7: "62 Full df=26",
-}
+DSD_CELLS = {3: "Quad df=2", 4: "Satd df=0", 5: "Quad df=2", 6: "Satd df=0", 7: "Quad df=2"}
+BBD_CELLS = {3: "Full df=5", 4: "Full df=12", 5: "Full df=25", 6: "Full df=26", 7: "Full df=26"}
 
 
 class TestAnchorRunCounts:
@@ -346,50 +340,65 @@ class TestAnchorRunCounts:
 
 
 class TestAnchoredTable:
-    """The ``anchors=True`` view of the table."""
+    """The ``anchors=True`` view marks the standard designs in place."""
 
     def test_anchors_are_off_by_default(self):
         assert list(omars_trade_off_table(display=False).index) == list(DEFAULT_RUNS)
 
-    def test_anchor_rows_bracket_the_budgets(self):
+    def test_rows_are_added_for_the_box_behnken_run_counts(self):
         index = list(omars_trade_off_table(display=False, anchors=True).index)
-        assert index == ["DSD", *DEFAULT_RUNS, "BBD"]
+        assert index == sorted(set(DEFAULT_RUNS) | set(BBD_RUNS.values()))
+        assert index == sorted(index), "rows must stay in run-count order"
 
     @pytest.mark.parametrize(("k", "label"), DSD_CELLS.items())
-    def test_dsd_cells_match_the_approved_rendering(self, k, label):
-        assert omars_trade_off_table(display=False, anchors=True).loc["DSD", k] == label
+    def test_the_dsd_is_marked_on_its_own_row(self, k, label):
+        table = omars_trade_off_table(display=False, anchors=True)
+        assert table.loc[DSD_RUNS[k], k] == f"{label} | DSD"
 
     @pytest.mark.parametrize(("k", "label"), BBD_CELLS.items())
-    def test_box_behnken_cells_match_the_approved_rendering(self, k, label):
-        assert omars_trade_off_table(display=False, anchors=True).loc["BBD", k] == label
-
-    def test_anchor_cells_lead_with_the_run_count(self):
-        """Unlike a budget row, an anchor row's run count changes across the columns."""
+    def test_the_box_behnken_is_marked_on_its_own_row(self, k, label):
         table = omars_trade_off_table(display=False, anchors=True)
-        for name, runs in (("DSD", DSD_RUNS), ("BBD", BBD_RUNS)):
-            for k in DEFAULT_FACTORS:
-                assert table.loc[name, k].startswith(f"{runs[k]} ")
+        assert table.loc[BBD_RUNS[k], k] == f"{label} | BBD"
 
-    def test_the_box_behnken_row_is_full_everywhere(self):
-        row = omars_trade_off_table(display=False, anchors=True).loc["BBD"]
-        assert all("Full" in cell for cell in row)
+    @pytest.mark.parametrize("k", DEFAULT_FACTORS)
+    def test_a_column_ends_at_its_box_behnken_design(self, k):
+        """Below it every row would repeat Full on more runs, so the column stops."""
+        table = omars_trade_off_table(display=False, anchors=True)
+        assert all(table.loc[n, k] == "" for n in table.index if n > BBD_RUNS[k])
 
-    def test_anchors_leave_the_budget_rows_untouched(self):
+    def test_every_column_but_the_widest_is_truncated(self):
+        """The seven-factor Box-Behnken design is the largest, so it ends the table."""
+        table = omars_trade_off_table(display=False, anchors=True)
+        truncated = [k for k in DEFAULT_FACTORS if any(n > BBD_RUNS[k] for n in table.index)]
+        assert truncated == [3, 4, 5, 6]
+        assert table.index[-1] == BBD_RUNS[7]
+
+    @pytest.mark.parametrize("k", DEFAULT_FACTORS)
+    def test_each_column_carries_exactly_one_of_each_marker(self, k):
+        column = list(omars_trade_off_table(display=False, anchors=True)[k])
+        assert sum(cell.endswith("| DSD") for cell in column) == 1
+        assert sum(cell.endswith("| BBD") for cell in column) == 1
+
+    def test_marking_leaves_the_budget_cells_otherwise_alone(self):
         plain = omars_trade_off_table(display=False)
         anchored = omars_trade_off_table(display=False, anchors=True)
         for n_runs in DEFAULT_RUNS:
-            assert list(plain.loc[n_runs]) == list(anchored.loc[n_runs])
+            for k in DEFAULT_FACTORS:
+                marked = anchored.loc[n_runs, k]
+                if marked == "" or " | " in marked:
+                    continue
+                assert marked == plain.loc[n_runs, k], f"{n_runs} runs, {k} factors"
 
-    def test_a_column_without_a_published_box_behnken_is_blank(self):
-        table = omars_trade_off_table(runs=(31,), factors=(8,), display=False, anchors=True)
-        assert table.loc["BBD", 8] == ""
-        assert table.loc["DSD", 8] == "17 Satd df=0"
+    def test_a_column_without_a_published_box_behnken_is_never_truncated(self):
+        table = omars_trade_off_table(runs=(31, 57), factors=(8,), display=False, anchors=True)
+        assert all(cell for cell in table[8])
+        assert not any("| BBD" in cell for cell in table[8])
 
-    def test_the_printed_view_carries_both_anchors(self, capsys):
+    def test_the_printed_view_carries_both_markers(self, capsys):
         omars_trade_off_table(anchors=True)
         printed = capsys.readouterr().out
-        assert any(line.startswith("DSD") for line in printed.splitlines())
-        assert any(line.startswith("BBD") for line in printed.splitlines())
+        assert "| DSD" in printed
+        assert "| BBD" in printed
 
 
 class TestAnchorEntry:
