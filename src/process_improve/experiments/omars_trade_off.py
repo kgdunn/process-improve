@@ -64,6 +64,7 @@ from process_improve.experiments.designs_omars_ilp import (
     _full_second_order_params,
     _min_runs,
 )
+from process_improve.experiments.strategy.budget import _BBD_RUNS
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -92,6 +93,19 @@ DEFAULT_RUNS: tuple[int, ...] = (9, 13, 17, 21, 25, 31, 37, 43, 57)
 
 #: Default columns.
 DEFAULT_FACTORS: tuple[int, ...] = (3, 4, 5, 6, 7)
+
+#: Named standard designs available as anchor rows on the table, smallest first.
+#: The definitive screening design is the smallest member of the OMARS family
+#: and the Box-Behnken design is among the largest, so a table carrying both
+#: shows the span the family covers rather than only its middle.
+REFERENCE_DESIGNS: tuple[str, ...] = ("dsd", "bbd")
+
+_REFERENCE_TAGS = {"dsd": "DSD", "bbd": "BBD"}
+
+#: Centre runs each Box-Behnken design conventionally carries. The design runs
+#: themselves come from ``_BBD_RUNS``; these are the counts the published tables
+#: quote alongside them, giving the familiar totals of 15, 27, 46, 54 and 62.
+_BBD_CENTRE_RUNS: dict[int, int] = {3: 3, 4: 3, 5: 6, 6: 6, 7: 6}
 
 
 @dataclass
@@ -196,6 +210,102 @@ def omars_minimum_runs(n_factors: int, capability: str = "full") -> int:
     if capability == "quad":
         return 2 * k + 3
     return 2 * k + 1
+
+
+def definitive_screening_runs(n_factors: int) -> int:
+    """Return the run count of the definitive screening design for *n_factors*.
+
+    Parameters
+    ----------
+    n_factors : int
+        Number of factors, ``k``, between 3 and 25.
+
+    Returns
+    -------
+    int
+        ``2k + 1`` for an even *n_factors*, ``2k + 3`` for an odd one.
+
+    Notes
+    -----
+    The construction folds a conference matrix of order ``k``, which exists for
+    an even ``k``. For an odd ``k`` it uses one of order ``k + 1`` and drops the
+    last column, so the design arrives with two runs to spare and lands one
+    capability class above saturated.
+
+    Examples
+    --------
+    >>> [definitive_screening_runs(k) for k in (3, 4, 5, 6, 7)]
+    [9, 9, 13, 13, 17]
+    """
+    k = _check_factors(n_factors)
+    return 2 * k + 1 if k % 2 == 0 else 2 * k + 3
+
+
+def box_behnken_runs(n_factors: int) -> int | None:
+    """Return the run count of the published Box-Behnken design for *n_factors*.
+
+    Parameters
+    ----------
+    n_factors : int
+        Number of factors, ``k``, between 3 and 25.
+
+    Returns
+    -------
+    int or None
+        Design runs plus the centre runs the published tables quote, or ``None``
+        when Box and Behnken did not publish a design for that factor count.
+
+    Examples
+    --------
+    >>> [box_behnken_runs(k) for k in (3, 4, 5, 6, 7)]
+    [15, 27, 46, 54, 62]
+    >>> box_behnken_runs(8) is None
+    True
+    """
+    k = _check_factors(n_factors)
+    design_runs = _BBD_RUNS.get(k)
+    return None if design_runs is None else design_runs + _BBD_CENTRE_RUNS[k]
+
+
+def _reference_entry(name: str, n_factors: int) -> OmarsTradeOffTableEntry | None:
+    """Build the table entry for a named standard design at *n_factors*.
+
+    Unlike :func:`get_omars_trade_off_table_entry` this does not require an odd
+    run count. A named design carries whatever centre replication its published
+    form specifies, and a Box-Behnken design carries three or six centre runs
+    rather than one, so its total is even at five factors and above. The
+    capability thresholds still apply: they are set by the number of distinct
+    half-rows, which extra centre runs do not change.
+    """
+    k = _check_factors(n_factors)
+    runs = definitive_screening_runs(k) if name == "dsd" else box_behnken_runs(k)
+    if runs is None:
+        return None
+
+    satd, quad, full = (omars_minimum_runs(k, c) for c in ("satd", "quad", "full"))
+    capability = "full" if runs >= full else "quad" if runs >= quad else "satd"
+    if capability == "full":
+        model, params = "full_second_order", _full_second_order_params(k)
+    else:
+        model, params = "main_quadratic", 1 + 2 * k
+
+    tag = _TAGS[capability]
+    return OmarsTradeOffTableEntry(
+        n_runs=runs,
+        n_factors=k,
+        exists=True,
+        capability=capability,
+        tag=tag,
+        model=model,
+        model_params=params,
+        error_df=runs - params,
+        # Anchor cells lead with the run count, because unlike a normal row the
+        # run count is not the row label and changes from column to column.
+        label=f"{runs} {tag} df={runs - params}",
+        min_runs_full=full,
+        min_runs_quad=quad,
+        min_runs_satd=satd,
+    )
 
 
 def get_omars_trade_off_table_entry(n_runs: int, n_factors: int, display: bool = True) -> OmarsTradeOffTableEntry:
@@ -319,6 +429,7 @@ def omars_trade_off_table(
     runs: Sequence[int] = DEFAULT_RUNS,
     factors: Sequence[int] = DEFAULT_FACTORS,
     display: bool = True,
+    anchors: bool = False,
 ) -> pd.DataFrame:
     """Return the run-budget against factor-count table for OMARS designs.
 
@@ -335,6 +446,12 @@ def omars_trade_off_table(
     display : bool, default True
         Print the table left-aligned, with the ``df=`` label written once per
         column rather than in every cell.
+    anchors : bool, default False
+        Add a ``DSD`` row above the budgets and a ``BBD`` row below them, giving
+        the two ends of the family a fixed place on the table. Their run counts
+        change from column to column, so their cells lead with the run count,
+        for example ``"46 Full df=25"``. Turning this on makes the index mix
+        strings with the integer budgets.
 
     Returns
     -------
@@ -350,16 +467,34 @@ def omars_trade_off_table(
     'Full df=6'
     >>> table.loc[9, 3]
     'Quad df=2'
+    >>> anchored = omars_trade_off_table(display=False, anchors=True)
+    >>> anchored.loc["DSD", 4]
+    '9 Satd df=0'
+    >>> anchored.loc["BBD", 5]
+    '46 Full df=25'
 
     Also see
     --------
     get_omars_trade_off_table_entry : the detail behind one cell.
+    definitive_screening_runs, box_behnken_runs : the anchor run counts.
     """
-    cells = {
-        k: {n: get_omars_trade_off_table_entry(n, k, display=False).label for n in runs}
-        for k in (_check_factors(k) for k in factors)
+    checked = [_check_factors(k) for k in factors]
+    cells: dict[int, dict[object, str]] = {
+        k: {n: get_omars_trade_off_table_entry(n, k, display=False).label for n in runs} for k in checked
     }
-    table = pd.DataFrame(cells, index=list(runs))
+    index: list[object] = list(runs)
+
+    if anchors:
+        for name in REFERENCE_DESIGNS:
+            tag = _REFERENCE_TAGS[name]
+            for k in checked:
+                entry = _reference_entry(name, k)
+                cells[k][tag] = "" if entry is None else entry.label
+        # The DSD is the smallest member of the family and the Box-Behnken
+        # design among the largest, so they bracket the budgets.
+        index = [_REFERENCE_TAGS["dsd"], *index, _REFERENCE_TAGS["bbd"]]
+
+    table = pd.DataFrame(cells, index=index)
     table.index.name = "runs"
     table.columns.name = "factors"
     if display:

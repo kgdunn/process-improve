@@ -25,6 +25,8 @@ from process_improve.experiments.omars_trade_off import (
     CAPABILITIES,
     DEFAULT_FACTORS,
     DEFAULT_RUNS,
+    box_behnken_runs,
+    definitive_screening_runs,
     get_omars_trade_off_table_entry,
     omars_minimum_runs,
     omars_trade_off_table,
@@ -295,3 +297,95 @@ class TestPrintedTable:
     def test_the_legend_explains_every_tag(self, printed):
         for tag in ("Full:", "Quad:", "Satd:"):
             assert tag in printed
+
+
+# k -> run count of the standard designs, written down from the published tables
+# rather than computed, for the same reason as THRESHOLDS above.
+DSD_RUNS = {3: 9, 4: 9, 5: 13, 6: 13, 7: 17}
+BBD_RUNS = {3: 15, 4: 27, 5: 46, 6: 54, 7: 62}
+
+# k -> the anchor cell each row should render.
+DSD_CELLS = {3: "9 Quad df=2", 4: "9 Satd df=0", 5: "13 Quad df=2", 6: "13 Satd df=0", 7: "17 Quad df=2"}
+BBD_CELLS = {
+    3: "15 Full df=5",
+    4: "27 Full df=12",
+    5: "46 Full df=25",
+    6: "54 Full df=26",
+    7: "62 Full df=26",
+}
+
+
+class TestAnchorRunCounts:
+    """The two standard designs that bracket the family."""
+
+    @pytest.mark.parametrize(("k", "expected"), DSD_RUNS.items())
+    def test_definitive_screening_runs(self, k, expected):
+        assert definitive_screening_runs(k) == expected
+
+    @pytest.mark.parametrize(("k", "expected"), BBD_RUNS.items())
+    def test_box_behnken_runs(self, k, expected):
+        assert box_behnken_runs(k) == expected
+
+    def test_box_behnken_is_absent_where_none_was_published(self):
+        assert box_behnken_runs(8) is None
+
+    @pytest.mark.parametrize("k", DEFAULT_FACTORS)
+    def test_the_dsd_is_the_smallest_design_of_its_family(self, k):
+        """No OMARS design of this factor count is smaller than its DSD."""
+        assert definitive_screening_runs(k) >= omars_minimum_runs(k, "satd")
+
+    @pytest.mark.parametrize("k", DEFAULT_FACTORS)
+    def test_the_box_behnken_design_clears_the_frontier(self, k):
+        """Every published Box-Behnken design supports the full second-order model."""
+        assert box_behnken_runs(k) >= omars_minimum_runs(k, "full")
+
+    @pytest.mark.parametrize("k", DEFAULT_FACTORS)
+    def test_the_anchors_bracket_the_family(self, k):
+        assert definitive_screening_runs(k) < box_behnken_runs(k)
+
+
+class TestAnchoredTable:
+    """The ``anchors=True`` view of the table."""
+
+    def test_anchors_are_off_by_default(self):
+        assert list(omars_trade_off_table(display=False).index) == list(DEFAULT_RUNS)
+
+    def test_anchor_rows_bracket_the_budgets(self):
+        index = list(omars_trade_off_table(display=False, anchors=True).index)
+        assert index == ["DSD", *DEFAULT_RUNS, "BBD"]
+
+    @pytest.mark.parametrize(("k", "label"), DSD_CELLS.items())
+    def test_dsd_cells_match_the_approved_rendering(self, k, label):
+        assert omars_trade_off_table(display=False, anchors=True).loc["DSD", k] == label
+
+    @pytest.mark.parametrize(("k", "label"), BBD_CELLS.items())
+    def test_box_behnken_cells_match_the_approved_rendering(self, k, label):
+        assert omars_trade_off_table(display=False, anchors=True).loc["BBD", k] == label
+
+    def test_anchor_cells_lead_with_the_run_count(self):
+        """Unlike a budget row, an anchor row's run count changes across the columns."""
+        table = omars_trade_off_table(display=False, anchors=True)
+        for name, runs in (("DSD", DSD_RUNS), ("BBD", BBD_RUNS)):
+            for k in DEFAULT_FACTORS:
+                assert table.loc[name, k].startswith(f"{runs[k]} ")
+
+    def test_the_box_behnken_row_is_full_everywhere(self):
+        row = omars_trade_off_table(display=False, anchors=True).loc["BBD"]
+        assert all("Full" in cell for cell in row)
+
+    def test_anchors_leave_the_budget_rows_untouched(self):
+        plain = omars_trade_off_table(display=False)
+        anchored = omars_trade_off_table(display=False, anchors=True)
+        for n_runs in DEFAULT_RUNS:
+            assert list(plain.loc[n_runs]) == list(anchored.loc[n_runs])
+
+    def test_a_column_without_a_published_box_behnken_is_blank(self):
+        table = omars_trade_off_table(runs=(31,), factors=(8,), display=False, anchors=True)
+        assert table.loc["BBD", 8] == ""
+        assert table.loc["DSD", 8] == "17 Satd df=0"
+
+    def test_the_printed_view_carries_both_anchors(self, capsys):
+        omars_trade_off_table(anchors=True)
+        printed = capsys.readouterr().out
+        assert any(line.startswith("DSD") for line in printed.splitlines())
+        assert any(line.startswith("BBD") for line in printed.splitlines())

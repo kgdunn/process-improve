@@ -11,6 +11,23 @@ those changes.
 
 ## [Unreleased]
 
+### Added
+
+- `omars_trade_off_table(..., anchors=True)` adds a `DSD` row above the run
+  budgets and a `BBD` row below them, so the table shows the two ends of the
+  OMARS family rather than only its middle. The definitive screening design is
+  the smallest member and the Box-Behnken design is among the largest. Their run
+  counts change from column to column, so anchor cells lead with the run count,
+  for example `"46 Full df=25"`. The default is `False`, which leaves the
+  returned frame exactly as it was.
+
+  Two supporting functions are public: `definitive_screening_runs(k)` and
+  `box_behnken_runs(k)`, the latter returning `None` where Box and Behnken
+  published no design. Anchor rows are classified without the `2h + 1` parity
+  gate, since a named design carries whatever centre replication its published
+  form specifies: a Box-Behnken design has three or six centre runs rather than
+  one, so its total is even from five factors upwards.
+
 ### Fixed
 
 - `generate_design(..., design_type="box_behnken")` now returns the published
