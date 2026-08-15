@@ -34,6 +34,53 @@ those changes.
 
 ### Added
 
+- `omars_trade_off_table(..., anchors=True)` marks where the two standard
+  designs fall, so a column shows the whole span of the family for that factor
+  count. The definitive screening design is the smallest member and the
+  Box-Behnken design is among the largest. Each is marked in place, on the row
+  of its own run count, by appending `" | DSD"` or `" | BBD"` to the cell.
+
+  Rows are added where a Box-Behnken run count is not already a budget (15, 27,
+  46, 54 and 62 for three to seven factors), and a column is left blank below
+  its Box-Behnken cell, where every remaining row would repeat `Full` on more
+  runs. The default is `False`, which leaves the returned frame exactly as it
+  was.
+
+  Three supporting functions are public: `definitive_screening_runs(k)`,
+  `box_behnken_runs(k)` (returning `None` where Box and Behnken published no
+  design), and `omars_anchor_entry(design, k)`, the counterpart of
+  `get_omars_trade_off_table_entry` for a named design.
+
+  A named design is classified without the `2h + 1` parity gate, since it
+  carries whatever centre replication its published form specifies: a
+  Box-Behnken design has three or six centre runs rather than one, so its total
+  is even from five factors upwards, and
+  `get_omars_trade_off_table_entry(46, 5)` correctly reports no design at that
+  budget while `omars_anchor_entry("bbd", 5)` reports the 46-run Box-Behnken
+  design. The capability thresholds are unchanged, being set by the number of
+  distinct half-rows, which extra centre runs do not alter.
+
+- `omars_properties` and `is_omars` now reject a design that leaves a factor at
+  the middle level in every run. The check that each factor is genuinely
+  three-level tested only that the factor reaches the middle level at least
+  once, which catches a two-level factor (constant quadratic `1`) but not the
+  mirror case of a factor the design never varies (constant quadratic `0`).
+  Both are inestimable, and the second was being reported as a valid OMARS
+  design whose main-and-quadratic model matrix is rank deficient.
+
+  This also removes a bias in the `min_second_order_correlation` selection
+  criterion of `generate_omars`. `max_second_order_correlation` skips constant
+  columns, so a factor pinned at the centre removed its own quadratic and all
+  of its interactions from the comparison and improved the score. The criterion
+  therefore had an incentive to produce exactly the degenerate designs the
+  verifier was failing to catch, and did: in a sweep across three to six
+  factors it returned one, including a spurious perfect `0.000`, in roughly a
+  third of cells. With the verifier corrected those candidates are rejected
+  during the search, and two sizes that previously yielded no usable design at
+  all (three factors in nine runs, five factors in thirteen) now yield one.
+
+### Added
+
 - Minimum moment aberration (Xu, 2003) for two-level designs, as
   `process_improve.experiments.moment_aberration` and as a new
   `moment_aberration` metric on `evaluate_design`. Unlike the existing
