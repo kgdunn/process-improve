@@ -94,13 +94,11 @@ DEFAULT_RUNS: tuple[int, ...] = (9, 13, 17, 21, 25, 31, 37, 43, 57)
 #: Default columns.
 DEFAULT_FACTORS: tuple[int, ...] = (3, 4, 5, 6, 7)
 
-#: Named standard designs available as anchor rows on the table, smallest first.
-#: The definitive screening design is the smallest member of the OMARS family
-#: and the Box-Behnken design is among the largest, so a table carrying both
-#: shows the span the family covers rather than only its middle.
+#: Named standard designs the table can mark, smallest first. The definitive
+#: screening design is the smallest member of the OMARS family and the
+#: Box-Behnken design is among the largest, so marking both shows the span a
+#: column covers rather than only its middle.
 REFERENCE_DESIGNS: tuple[str, ...] = ("dsd", "bbd")
-
-_REFERENCE_TAGS = {"dsd": "DSD", "bbd": "BBD"}
 
 #: Centre runs each Box-Behnken design conventionally carries. The design runs
 #: themselves come from ``_BBD_RUNS``; these are the counts the published tables
