@@ -13,6 +13,21 @@ those changes.
 
 ### Fixed
 
+- `generate_design(..., design_type="box_behnken")` now returns the published
+  Box-Behnken design at six and seven factors. It placed a two-level factorial
+  in every *pair* of factors at every factor count, which reproduces the
+  published design up to five factors but costs 60 and 84 design runs at six
+  and seven, against the published 48 and 56. Box and Behnken (1960) use blocks
+  of three factors from six factors upwards, and the design is now built from
+  those blocks.
+
+  The library already quoted the published counts in `_BBD_RUNS` in
+  `experiments.strategy.budget`, so `estimate_rsm_runs` and the generated design
+  disagreed with each other at six and seven factors; they now agree. Both the
+  old and the new designs keep the main effects orthogonal to every second-order
+  term and support the full second-order model, so this is a change in run
+  count and efficiency, not in what can be estimated.
+
 - `omars_properties` and `is_omars` now reject a design that leaves a factor at
   the middle level in every run. The check that each factor is genuinely
   three-level tested only that the factor reaches the middle level at least

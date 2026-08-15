@@ -161,14 +161,28 @@ class TestBoxBehnkenProperties:
 
     @_settings
     @given(k=st.integers(min_value=3, max_value=6))
-    def test_non_center_rows_have_two_zero_coordinates(self, k: int) -> None:
-        """Every non-center BB run has exactly two coordinates at 0 and the rest at ±1."""
+    def test_non_center_rows_vary_one_block_of_factors(self, k: int) -> None:
+        """Every non-center BB run varies the factors of one block and holds the rest at 0."""
         x = _coded(generate_design(_factors(k), design_type="box_behnken", n_center_points=0))
         non_center_rows = x[~np.all(x == 0, axis=1)]
-        # Each BB non-center run varies two factors at ±1 and sets the remaining (k-2)
-        # factors to 0, so for every non-center row we expect exactly (k-2) zeros.
-        zeros_per_row = (non_center_rows == 0).sum(axis=1)
-        assert np.all(zeros_per_row == k - 2)
+        # A Box-Behnken run carries a two-level factorial in the factors of one block of the
+        # underlying balanced incomplete block design, with every other factor at its centre
+        # level.  Blocks are pairs of factors up to five factors and triples from six upwards,
+        # so the count of varying factors is constant within a design but depends on k.
+        varying_per_row = (non_center_rows != 0).sum(axis=1)
+        block_size = 3 if k >= 6 else 2
+        assert np.all(varying_per_row == block_size)
+        assert np.all(np.isin(non_center_rows, (-1.0, 0.0, 1.0)))
+
+    def test_run_counts_match_the_published_designs(self) -> None:
+        """The design-run counts are the published Box-Behnken ones, at every factor count."""
+        # These are the counts quoted by Box and Behnken (1960) and carried by _BBD_RUNS in
+        # experiments.strategy.budget.  Pairing every two factors would give 60 and 84 at six
+        # and seven factors, which is not the published design.
+        published = {3: 12, 4: 24, 5: 40, 6: 48, 7: 56}
+        for k, n_design_runs in published.items():
+            x = _coded(generate_design(_factors(k), design_type="box_behnken", n_center_points=0))
+            assert len(x) == n_design_runs, f"{k} factors"
 
     @_settings
     @given(k=st.integers(min_value=3, max_value=6))

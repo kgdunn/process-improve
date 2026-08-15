@@ -8,6 +8,7 @@ numpy array.  Post-processing is handled by ``designs_utils.build_design_result`
 
 from __future__ import annotations
 
+import itertools
 import logging
 from typing import TYPE_CHECKING
 
@@ -260,6 +261,18 @@ def _dispatch_ccd_fractional(
     return coded_matrix, meta
 
 
+# Published Box-Behnken block designs, as balanced incomplete block designs over the factor
+# indices.  Each block carries a full two-level factorial in the factors it names, with every
+# other factor held at its centre level.  For three to five factors the blocks are every pair of
+# factors, which is what a general "one two-level factorial per pair" rule produces anyway; from
+# six factors upwards Box and Behnken (1960) use blocks of three factors instead, giving 48 and 56
+# design runs rather than the 60 and 84 that pairing every two factors would cost.
+_BOX_BEHNKEN_BLOCKS: dict[int, tuple[tuple[int, ...], ...]] = {
+    6: ((0, 1, 3), (1, 2, 4), (2, 3, 5), (3, 4, 0), (4, 5, 1), (5, 0, 2)),
+    7: ((0, 1, 3), (1, 2, 4), (2, 3, 5), (3, 4, 6), (4, 5, 0), (5, 6, 1), (6, 0, 2)),
+}
+
+
 def dispatch_box_behnken(
     factors: list[Factor],
     n_center_points: int = 3,
@@ -282,12 +295,30 @@ def dispatch_box_behnken(
     -----
     Center points are embedded in the BB structure.  The caller should set
     ``n_center_points=0`` in ``build_design_result``.
+
+    For six and seven factors the design is built from the published blocks in
+    ``_BOX_BEHNKEN_BLOCKS`` rather than from ``pyDOE3.bbdesign``, which places a two-level
+    factorial in every *pair* of factors for every factor count.  Pairing gives the published
+    design up to five factors, but costs 60 and 84 design runs at six and seven factors against
+    the published 48 and 56.  The run counts now agree with ``_BBD_RUNS`` in
+    ``experiments.strategy.budget``, which has always quoted the published values.
     """
     k = len(factors)
     if k < 3:
         raise ValueError("Box-Behnken designs require at least 3 factors.")
-    coded_matrix = bbdesign(k, center=n_center_points)
-    return coded_matrix, {}
+
+    blocks = _BOX_BEHNKEN_BLOCKS.get(k)
+    if blocks is None:
+        return bbdesign(k, center=n_center_points), {}
+
+    rows = []
+    for block in blocks:
+        for corner in itertools.product((-1.0, 1.0), repeat=len(block)):
+            row = np.zeros(k)
+            row[list(block)] = corner
+            rows.append(row)
+    rows.extend(np.zeros(k) for _ in range(n_center_points))
+    return np.asarray(rows), {}
 
 
 def dispatch_dsd(factors: list[Factor]) -> tuple[np.ndarray, dict]:
