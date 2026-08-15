@@ -13,44 +13,31 @@ those changes.
 
 ### Added
 
-- `omars_trade_off_table(..., anchors=True)` adds a `DSD` row above the run
-  budgets and a `BBD` row below them, so the table shows the two ends of the
-  OMARS family rather than only its middle. The definitive screening design is
-  the smallest member and the Box-Behnken design is among the largest. Their run
-  counts change from column to column, so anchor cells lead with the run count,
-  for example `"46 Full df=25"`. The default is `False`, which leaves the
-  returned frame exactly as it was.
+- `omars_trade_off_table(..., anchors=True)` marks where the two standard
+  designs fall, so a column shows the whole span of the family for that factor
+  count. The definitive screening design is the smallest member and the
+  Box-Behnken design is among the largest. Each is marked in place, on the row
+  of its own run count, by appending `" | DSD"` or `" | BBD"` to the cell.
+
+  Rows are added where a Box-Behnken run count is not already a budget (15, 27,
+  46, 54 and 62 for three to seven factors), and a column is left blank below
+  its Box-Behnken cell, where every remaining row would repeat `Full` on more
+  runs. The default is `False`, which leaves the returned frame exactly as it
+  was.
 
   Three supporting functions are public: `definitive_screening_runs(k)`,
   `box_behnken_runs(k)` (returning `None` where Box and Behnken published no
-  design), and `omars_anchor_entry(design, k)`, the anchor counterpart of
-  `get_omars_trade_off_table_entry`.
+  design), and `omars_anchor_entry(design, k)`, the counterpart of
+  `get_omars_trade_off_table_entry` for a named design.
 
-  An anchor is classified without the `2h + 1` parity gate, since a named design
+  A named design is classified without the `2h + 1` parity gate, since it
   carries whatever centre replication its published form specifies: a
   Box-Behnken design has three or six centre runs rather than one, so its total
-  is even from five factors upwards, and `get_omars_trade_off_table_entry(46, 5)`
-  correctly reports no design at that budget while
-  `omars_anchor_entry("bbd", 5)` reports the 46-run Box-Behnken design. The
-  capability thresholds are unchanged, being set by the number of distinct
-  half-rows, which extra centre runs do not alter.
-
-### Fixed
-
-- `generate_design(..., design_type="box_behnken")` now returns the published
-  Box-Behnken design at six and seven factors. It placed a two-level factorial
-  in every *pair* of factors at every factor count, which reproduces the
-  published design up to five factors but costs 60 and 84 design runs at six
-  and seven, against the published 48 and 56. Box and Behnken (1960) use blocks
-  of three factors from six factors upwards, and the design is now built from
-  those blocks.
-
-  The library already quoted the published counts in `_BBD_RUNS` in
-  `experiments.strategy.budget`, so `estimate_rsm_runs` and the generated design
-  disagreed with each other at six and seven factors; they now agree. Both the
-  old and the new designs keep the main effects orthogonal to every second-order
-  term and support the full second-order model, so this is a change in run
-  count and efficiency, not in what can be estimated.
+  is even from five factors upwards, and
+  `get_omars_trade_off_table_entry(46, 5)` correctly reports no design at that
+  budget while `omars_anchor_entry("bbd", 5)` reports the 46-run Box-Behnken
+  design. The capability thresholds are unchanged, being set by the number of
+  distinct half-rows, which extra centre runs do not alter.
 
 - `omars_properties` and `is_omars` now reject a design that leaves a factor at
   the middle level in every run. The check that each factor is genuinely
