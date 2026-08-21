@@ -15,6 +15,18 @@ from process_improve.recipes import AnalysisRecipe, RecipeStep, register_recipe
 
 _DOMAIN = "simulation"
 
+# Hoisted so the list elements below are single names: implicit string
+# concatenation directly inside a list looks like a missing comma to static
+# analysis (CodeQL py/implicit-string-concatenation-in-list).
+_INPUT_SIMULATOR = (
+    "nothing external: the workflow runs on the package's bioreactor simulator with its default "
+    "configuration, so every number is reproducible from the stated seed"
+)
+_INPUT_SCALES = (
+    "optionally, disturbance channel scales to match a scenario (for example ic_scale=0 for perfectly "
+    "consistent raw materials)"
+)
+
 
 _GOLDEN_BATCH_BASELINE = AnalysisRecipe(
     key="golden_batch_baseline",
@@ -43,12 +55,7 @@ _GOLDEN_BATCH_BASELINE = AnalysisRecipe(
         "trajectory adaptation",
         "batch consistency",
     ],
-    inputs_needed=[
-        "nothing external: the workflow runs on the package's bioreactor simulator with its default "
-        "configuration, so every number is reproducible from the stated seed",
-        "optionally, disturbance channel scales to match a scenario (for example ic_scale=0 for perfectly "
-        "consistent raw materials)",
-    ],
+    inputs_needed=[_INPUT_SIMULATOR, _INPUT_SCALES],
     stages=[
         RecipeStep(
             order=1,
