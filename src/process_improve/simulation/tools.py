@@ -392,6 +392,248 @@ _register("reveal_simulator")
 
 
 # ---------------------------------------------------------------------------
+# Bioreactor (golden batch) tools
+# ---------------------------------------------------------------------------
+
+
+class SimulateBatchCampaignInput(BaseModel):
+    """Input contract for ``simulate_batch_campaign``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    n_batches: int = Field(..., ge=2, le=500, description="Number of batches to simulate in the campaign.")
+    policy: Literal["replay", "historical"] = Field(
+        "replay",
+        description=(
+            "Operating policy. 'replay' gives every batch the same nominal setpoint schedule (the "
+            "golden-batch practice). 'historical' adds deliberate per-batch setpoint variation of size "
+            "mv_variation, producing a history that carries information about how the controls affect quality."
+        ),
+    )
+    mv_variation: float = Field(
+        0.0,
+        ge=0.0,
+        le=3.0,
+        description=(
+            "Size of the deliberate setpoint variation for the 'historical' policy: the standard deviation "
+            "in degC of each batch's random temperature offset and ramp (pH varies at one tenth of this)."
+        ),
+    )
+    ic_scale: float = Field(
+        1.0,
+        ge=0.0,
+        le=3.0,
+        description=(
+            "Scale of the measured initial-condition (upstream Z block) disturbance channel; 0 gives every "
+            "batch identical initial conditions."
+        ),
+    )
+    within_batch_scale: float = Field(
+        1.0,
+        ge=0.0,
+        le=3.0,
+        description=(
+            "Scale of the unmeasured within-batch disturbance channel (slow metabolic drift and feed-rate "
+            "drift); 0 switches it off."
+        ),
+    )
+    noise_scale: float = Field(
+        1.0,
+        ge=0.0,
+        le=3.0,
+        description="Scale of the control-loop and measurement noise channel; 0 switches it off.",
+    )
+    random_state: int = Field(0, ge=0, le=2**31 - 1, description="Seed; the same seed reproduces the campaign exactly.")
+
+
+@tool_spec(
+    name="simulate_batch_campaign",
+    description=(
+        "Simulate a campaign of fed-batch bioreactor runs under a named operating policy and report the "
+        "final-titer outcomes. The simulator is a deterministic mechanistic model (Rosso cardinal "
+        "temperature/pH growth kinetics, Luedeking-Piret production, an oxygen-transfer ceiling) with three "
+        "independently tunable disturbance channels: measured initial conditions, an unmeasured within-batch "
+        "disturbance, and instrument-scale noise. Use it to demonstrate that replaying a fixed 'golden batch' "
+        "schedule does not reproduce its outcome, and to generate batch data for latent-variable modelling. "
+        "Returns the per-batch titers with feed-class labels, summary statistics, and the disturbance-free "
+        "reference titer of the same schedule for comparison."
+    ),
+    input_model=SimulateBatchCampaignInput,
+    examples="""
+    # "Replay our best batch's recipe 50 times and show me the spread"
+        -> ``simulate_batch_campaign(n_batches=50, policy="replay", random_state=0)``
+    # "Give me a historical campaign with deliberate setpoint variation for model building"
+        -> ``simulate_batch_campaign(n_batches=80, policy="historical", mv_variation=1.0)``
+    # "Same initial conditions for every batch; how much spread remains?"
+        -> ``simulate_batch_campaign(n_batches=50, ic_scale=0.0)``
+    """,
+    category="simulation",
+    rng={"uses_rng": True, "seed_param": "random_state", "default_seed": 0},
+)
+def simulate_batch_campaign(spec: SimulateBatchCampaignInput) -> dict[str, Any]:
+    """Simulate a bioreactor campaign and summarise the final-quality outcomes."""
+    import dataclasses  # noqa: PLC0415
+
+    import numpy as np  # noqa: PLC0415
+
+    from process_improve.simulation.batch import BioreactorConfig, BioreactorSimulator  # noqa: PLC0415
+
+    try:
+        config = dataclasses.replace(
+            BioreactorConfig(),
+            ic_scale=spec.ic_scale,
+            within_batch_scale=spec.within_batch_scale,
+            noise_scale=spec.noise_scale,
+        )
+        simulator = BioreactorSimulator(config)
+        campaign = simulator.simulate_campaign(
+            spec.n_batches,
+            policy=spec.policy,
+            mv_variation=spec.mv_variation,
+            random_state=spec.random_state,
+        )
+        nominal = simulator.nominal_trajectory()
+        reference = BioreactorSimulator(
+            dataclasses.replace(config, ic_scale=0.0, within_batch_scale=0.0, noise_scale=0.0)
+        ).simulate_batch(None, nominal)
+        titer = campaign.quality["titer"]
+        by_class = titer.groupby(campaign.classes).agg(["count", "mean", "std"])
+        return clean(
+            {
+                "n_batches": spec.n_batches,
+                "policy": spec.policy,
+                "titer_g_L": {
+                    "mean": float(titer.mean()),
+                    "sd": float(titer.std(ddof=1)),
+                    "cv_pct": float(100.0 * titer.std(ddof=1) / titer.mean()),
+                    "min": float(titer.min()),
+                    "max": float(titer.max()),
+                },
+                "reference_titer_g_L": {
+                    "value": float(reference.titer),
+                    "meaning": "the same nominal schedule with every disturbance channel switched off",
+                    "fraction_of_batches_below": float(np.mean(titer.to_numpy() < reference.titer)),
+                },
+                "by_feed_class": {
+                    str(label): {
+                        "count": int(row["count"]),
+                        "mean": float(row["mean"]),
+                        "sd": float(row["std"]),
+                    }
+                    for label, row in by_class.iterrows()
+                },
+                "batches": [
+                    {
+                        "batch_id": int(batch_id),
+                        "feed_class": str(campaign.classes.loc[batch_id]),
+                        "titer_g_L": round(float(value), 4),
+                    }
+                    for batch_id, value in titer.items()
+                ],
+            }
+        )
+    except (ValueError, TypeError, KeyError) as exc:
+        return {"error": str(exc)}
+
+
+_register("simulate_batch_campaign")
+
+
+class DecomposeBatchQualityVarianceInput(BaseModel):
+    """Input contract for ``decompose_batch_quality_variance``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    n_batches: int = Field(
+        150,
+        ge=10,
+        le=400,
+        description="Batches per campaign; four campaigns are run (all channels on, then each channel alone).",
+    )
+    ic_scale: float = Field(
+        1.0, ge=0.0, le=3.0, description="Scale of the measured initial-condition disturbance channel."
+    )
+    within_batch_scale: float = Field(
+        1.0, ge=0.0, le=3.0, description="Scale of the unmeasured within-batch disturbance channel."
+    )
+    noise_scale: float = Field(
+        1.0, ge=0.0, le=3.0, description="Scale of the control-loop and measurement noise channel."
+    )
+    random_state: int = Field(0, ge=0, le=2**31 - 1, description="Seed; the same seed reproduces the decomposition.")
+
+
+@tool_spec(
+    name="decompose_batch_quality_variance",
+    description=(
+        "Split the batch-to-batch final-quality variance of a replayed (golden batch) schedule into its "
+        "sources: measured initial conditions, an unmeasured within-batch disturbance, and control plus "
+        "measurement noise, with the interaction residual reported separately. This answers the question "
+        "'we replicate our best batch's recipe exactly, why do the outcomes still differ?'. The "
+        "initial-condition share is the part that adapting the schedule before the batch could address; "
+        "the within-batch share is observable only while the batch runs, so it is the part a mid-course "
+        "correction at decision points could address; the noise share is the floor."
+    ),
+    input_model=DecomposeBatchQualityVarianceInput,
+    examples="""
+    # "Why do our batches differ when we run the same recipe every time?"
+        -> ``decompose_batch_quality_variance()``
+    # "How much of the spread is left if incoming materials were perfectly consistent?"
+        -> ``decompose_batch_quality_variance(ic_scale=0.0)``
+    """,
+    category="simulation",
+    rng={"uses_rng": True, "seed_param": "random_state", "default_seed": 0},
+)
+def decompose_batch_quality_variance(spec: DecomposeBatchQualityVarianceInput) -> dict[str, Any]:
+    """Decompose replay-campaign titer variance into its disturbance sources."""
+    import dataclasses  # noqa: PLC0415
+
+    from process_improve.simulation.batch import (  # noqa: PLC0415
+        BioreactorConfig,
+        BioreactorSimulator,
+        variance_decomposition,
+    )
+
+    try:
+        config = dataclasses.replace(
+            BioreactorConfig(),
+            ic_scale=spec.ic_scale,
+            within_batch_scale=spec.within_batch_scale,
+            noise_scale=spec.noise_scale,
+        )
+        simulator = BioreactorSimulator(config)
+        frame = variance_decomposition(simulator, n_batches=spec.n_batches, random_state=spec.random_state)
+        return clean(
+            {
+                "n_batches_per_campaign": spec.n_batches,
+                "mean_titer_g_L": float(frame.attrs["mean_titer_g_L"]),
+                "sources": [
+                    {
+                        "source": str(source),
+                        "variance": float(row["variance"]),
+                        "sd_g_L": float(row["sd"]),
+                        "cv_pct": float(row["cv_pct"]),
+                        "pct_of_total": float(row["pct_of_total"]),
+                    }
+                    for source, row in frame.iterrows()
+                ],
+                "reading_the_result": (
+                    "'measured initial conditions' is addressable before the batch starts (feedforward "
+                    "adaptation of the schedule); 'within-batch disturbance' is observable only through the "
+                    "trajectories while the batch runs, so only a mid-course correction can address it; "
+                    "'control and measurement noise' is the irreducible floor. The buckets need not sum to "
+                    "the total because the process model is nonlinear; the difference is the interaction "
+                    "residual."
+                ),
+            }
+        )
+    except (ValueError, TypeError, KeyError) as exc:
+        return {"error": str(exc)}
+
+
+_register("decompose_batch_quality_variance")
+
+
+# ---------------------------------------------------------------------------
 # Module-level convenience
 # ---------------------------------------------------------------------------
 

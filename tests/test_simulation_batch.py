@@ -595,3 +595,67 @@ def test_campaign_output_feeds_the_alignment_tooling(sim: BioreactorSimulator) -
         campaign.batches, columns_to_align=tags, reference_batch=first_id, settings={"show_progress": False}
     )
     assert set(aligned.keys()) == set(campaign.batches.keys())
+
+
+# ---------------------------------------------------------------------------
+# Agent tools and recipe
+# ---------------------------------------------------------------------------
+
+
+def test_batch_tool_schemas_and_rng_metadata() -> None:
+    from process_improve.tool_spec import get_tool_specs
+
+    specs = {s["name"]: s for s in get_tool_specs(category="simulation")}
+    for name in ("simulate_batch_campaign", "decompose_batch_quality_variance"):
+        assert name in specs
+        assert specs[name]["input_schema"]["additionalProperties"] is False
+        assert specs[name]["rng"] == {"uses_rng": True, "seed_param": "random_state", "default_seed": 0}
+
+
+def test_simulate_batch_campaign_tool_runs_and_reproduces() -> None:
+    from process_improve.tool_spec import execute_tool_call
+
+    payload = {"n_batches": 10, "policy": "replay", "random_state": 0}
+    one = execute_tool_call("simulate_batch_campaign", payload)
+    two = execute_tool_call("simulate_batch_campaign", payload)
+    assert "error" not in one
+    assert one == two
+    assert len(one["batches"]) == 10
+    assert one["titer_g_L"]["sd"] > 0.0
+    assert one["reference_titer_g_L"]["value"] > 0.0
+
+
+def test_simulate_batch_campaign_tool_rejects_bad_input() -> None:
+    from process_improve.tool_safety import ToolInputInvalidError
+    from process_improve.tool_spec import execute_tool_call
+
+    with pytest.raises(ToolInputInvalidError):
+        execute_tool_call("simulate_batch_campaign", {"n_batches": 1})
+    with pytest.raises(ToolInputInvalidError):
+        execute_tool_call("simulate_batch_campaign", {"n_batches": 10, "unexpected": True})
+
+
+def test_decompose_batch_quality_variance_tool_runs() -> None:
+    from process_improve.tool_spec import execute_tool_call
+
+    out = execute_tool_call("decompose_batch_quality_variance", {"n_batches": 20, "random_state": 0})
+    assert "error" not in out
+    sources = {row["source"]: row for row in out["sources"]}
+    assert set(sources) == {
+        "measured initial conditions",
+        "within-batch disturbance",
+        "control and measurement noise",
+        "interaction residual",
+        "total",
+    }
+    assert sources["control and measurement noise"]["cv_pct"] < 1.0
+
+
+def test_golden_batch_recipe_is_registered_and_matches() -> None:
+    from process_improve.recipes import discover_recipes, get_recipe, select_recipe
+
+    discover_recipes()
+    assert get_recipe("golden_batch_baseline") is not None
+    match = select_recipe("our golden batch does not repeat; batches differ with the same recipe")
+    assert match is not None
+    assert match.key == "golden_batch_baseline"
