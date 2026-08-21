@@ -22,25 +22,48 @@ A 10-day fed-batch bioreactor with biomass ``X``, substrate ``S``, product
 gamma-concept model of Rosso et al. (1995): a cardinal temperature model with
 inflection (CTMI) multiplied by a cardinal pH model (CPM), each equal to 1 at
 its optimum and exactly 0 outside its cardinal range, further multiplied by
-Monod substrate limitation, a within-batch disturbance ``phi(t)`` and an
-initial-condition inhibition factor::
+Monod substrate limitation, a within-batch disturbance ``phi(t)``, an
+initial-condition growth-inhibition factor and an oxygen-limitation factor::
 
-    mu = mu_opt * gamma_T(T) * gamma_pH(pH) * S / (K_S + S) * phi * inh
-
-Two additional temperature effects make the industrially standard biphasic
-temperature shift (warm growth phase, mild-hypothermia production phase) a
-genuine trade-off rather than decoration: a thermal death rate that rises
-steeply above ``temp_death``, and a non-growth-associated specific
-productivity whose own cardinal optimum sits *below* the growth optimum.
-Product formation follows Luedeking and Piret (1959)::
+    mu_pot = mu_opt * gamma_T(T) * gamma_pH(pH) * S / (K_S + S) * phi * inh
+    f_O2   = smooth_min(1, our_capacity / ((o2_yield * mu_pot + o2_m) * X))
+    mu     = mu_pot * f_O2
 
     k_d = k_d0 * (1 + exp((T - temp_death) / width_death))
-    q_P = alpha_lp * mu + beta_lp * gamma_q(T) * gamma_pH(pH) * phi * inh
+          + k_d_starv * k_s_starv / (k_s_starv + S)
+          + k_d_hyp * (1 - f_O2)
+    q_P = (alpha_lp * mu + beta_lp * gamma_q(T) * gamma_pH(pH) * phi * f_O2)
+          * S / (k_sp + S)
 
     dX/dt = mu * X - k_d * X - (F/V) * X
-    dS/dt = -(mu / yield_xs + maintenance) * X + (F/V) * (feed_substrate - S)
+    dS/dt = -(mu / yield_xs + maintenance) * X - q_P * X / yield_ps
+            + (F/V) * (feed_substrate - S)
     dP/dt = q_P * X - (F/V) * P
     dV/dt = F
+
+The couplings are chosen so the industrially standard biphasic temperature
+shift (a warm growth phase, then a mild-hypothermia production phase) is a
+genuine optimum rather than decoration, and so the *right* schedule depends
+on the batch's own conditions:
+
+- The oxygen-transfer capacity caps the biomass pile the reactor can sustain,
+  and the cap is temperature-dependent because warmer cells each demand more
+  oxygen. Overshooting the cap is punished by hypoxic death, an irreversible
+  loss, so the optimal pile size is interior.
+- Strong hypothermic growth arrest below about 28 degC (the reason biphasic
+  mammalian-cell culture works) freezes the pile once the batch shifts cold,
+  so the *timing* of the shift decides the production capacity, and the right
+  timing depends on the inoculum and the growth rate the raw-material lot
+  supports.
+- Production consumes substrate (``yield_ps``) and stalls when it runs out
+  (``k_sp``); starvation kills cells (``k_d_starv``). Residual growth at
+  too-warm production temperatures burns the feed that production needs,
+  which is what places the production hold at an interior optimum
+  (``temp_production``) below the isolated productivity optimum
+  ``temp_q_opt``.
+- The growth-inhibition factor ``inh`` (from the raw-material impurity latent
+  factor) acts on growth only, so an inhibited lot needs a longer warm growth
+  phase, not a scaled-down copy of the same batch.
 
 The gamma hypothesis (temperature and pH acting independently on growth) is a
 modelling choice, not an established fact: published work finds the cardinal
@@ -57,19 +80,25 @@ responsive to real ones:
 - Quality is a time integral of bounded, smooth rates over 240 integration
   steps, so high-frequency input noise averages out and only sustained
   deviations accumulate.
-- The cardinal windows are physiological no-growth bounds (18 to 41.5 degC,
-  pH 5.9 to 8.2), not the operating range, so the response surface is gently
-  curved across the operating band.
-- The nominal pH sits at its optimum, where the response is stationary and
-  perturbations are second order.
+- The nominal recipe sits at stationary points of the response: pH is held at
+  its cardinal optimum, and the production-phase temperature hold is the
+  interior optimum of the hold-temperature response. Instrument-scale
+  deviations around a stationary point are second order.
+- Sustained multi-degree deviations, by contrast, cross real mechanisms
+  (hypothermic growth arrest on the cold side, feed-burning residual growth
+  and hypoxia on the warm side), so they cost percent-level titer, as they
+  should.
 
 :meth:`BioreactorSimulator.sensitivity_budget` computes the resulting budget
 from the live configuration, so the realism claim can be checked rather than
 taken on trust. Indicative values for the default configuration: zero-mean
-control-loop noise at instrument scale (sd 0.15 degC, 0.02 pH) moves the titer
-by well under half a percent, while a sustained 2 degC bias costs several
-percent and a sustained 3 degC bias far more. Overheating costs more than the
-same excursion undercooling, because of the thermal death term.
+control-loop noise at instrument scale (sd 0.15 degC, 0.02 pH) moves the
+final titer by under 0.3% (standard deviation), a sustained 0.1 degC bias
+costs about 0.2%, a sustained 0.02 pH bias is invisible (about 0.01%), while
+a sustained 1 degC bias costs 7 to 11% and a sustained 2 degC bias about
+20%. Around the operating point overheating costs more than the same
+excursion undercooling (feed burn plus hypoxia); far from it undercooling
+costs more (full growth arrest).
 
 Disturbance channels
 --------------------
@@ -277,6 +306,18 @@ class BioreactorConfig:
         Luedeking-Piret coefficients: growth-associated product yield
         [g product / g biomass] and non-growth-associated specific
         productivity [g product / g biomass / day].
+    yield_ps : float
+        Product yield on substrate [g product / g substrate]: production
+        consumes substrate, so a large biomass pile competes with its own
+        productivity for feed.
+    k_sp : float
+        Half-saturation substrate concentration for product formation [g/L]:
+        production stalls when the substrate runs out.
+    k_d_starv : float
+        Additional death rate under full starvation [1/day].
+    k_s_starv : float
+        Substrate concentration at which the starvation death rate reaches
+        half its maximum [g/L].
     temp_min, temp_opt, temp_max : float
         Cardinal temperatures for growth [degC].
     k_d0 : float
@@ -310,7 +351,13 @@ class BioreactorConfig:
         realised trajectories are validated or clipped against these.
     shift_start_day, shift_end_day : float
         Start and end [day] of the nominal biphasic temperature ramp from
-        ``temp_opt`` down to ``temp_q_opt``.
+        ``temp_opt`` down to ``temp_production``.
+    temp_production : float
+        The production-phase hold temperature of the nominal recipe [degC].
+        It sits below the isolated productivity optimum ``temp_q_opt``
+        because residual growth at warmer temperatures consumes the feed
+        that production needs; cold enough to arrest growth is what a
+        sensible recipe holds.
     ic_scale : float
         Scale of the measured initial-condition channel; 0 switches it off.
     within_batch_scale : float
@@ -339,7 +386,13 @@ class BioreactorConfig:
         Maintenance oxygen uptake [g O2 / g biomass / day].
     our_capacity : float
         Maximum oxygen transfer the sparger and agitation can supply
-        [g O2 / L / day]; sets how far dissolved oxygen is drawn down.
+        [g O2 / L / day]. This is the binding constraint of the process: it
+        caps the biomass pile the reactor can sustain, and the cap is
+        temperature-dependent because warmer cells demand more oxygen each.
+    k_d_hyp : float
+        Additional death rate under full oxygen limitation [1/day]:
+        overshooting the sustainable biomass pile is an irreversible loss,
+        which is what gives the optimal schedule curvature on both sides.
     rq : float
         Respiratory quotient, the CO2 evolved per O2 consumed [g/g].
     co2_gain : float
@@ -352,11 +405,17 @@ class BioreactorConfig:
     mu_opt: float = 0.80
     k_s: float = 0.20
     yield_xs: float = 0.40
-    maintenance: float = 0.015
+    maintenance: float = 0.02
     alpha_lp: float = 0.30
-    beta_lp: float = 0.40
-    # Cardinal temperatures for growth
-    temp_min: float = 18.0
+    beta_lp: float = 0.35
+    yield_ps: float = 0.90
+    k_sp: float = 0.10
+    k_d_starv: float = 0.08
+    k_s_starv: float = 0.12
+    # Cardinal temperatures for growth. temp_min models the strong hypothermic
+    # growth arrest that biphasic mammalian-cell culture relies on: growth is
+    # essentially zero at 28 degC while productivity remains high.
+    temp_min: float = 27.5
     temp_opt: float = 36.8
     temp_max: float = 41.5
     # Thermal death
@@ -368,15 +427,15 @@ class BioreactorConfig:
     temp_q_opt: float = 31.5
     temp_q_max: float = 40.5
     # Cardinal pH
-    ph_min: float = 5.9
+    ph_min: float = 6.3
     ph_opt: float = 7.10
-    ph_max: float = 8.2
+    ph_max: float = 7.9
     # Operation
     batch_days: float = 10.0
     n_samples: int = 20
     steps_per_day: int = 24
     feed_rate: float = 0.055
-    feed_substrate: float = 26.0
+    feed_substrate: float = 50.0
     volume_initial: float = 1.0
     biomass_initial: float = 0.30
     substrate_initial: float = 5.0
@@ -384,6 +443,7 @@ class BioreactorConfig:
     ph_bounds: tuple[float, float] = (6.6, 7.6)
     shift_start_day: float = 3.0
     shift_end_day: float = 4.5
+    temp_production: float = 29.05
     # Disturbance channel scales
     ic_scale: float = 1.0
     within_batch_scale: float = 1.0
@@ -402,10 +462,11 @@ class BioreactorConfig:
     meas_sd_do: float = 1.0
     meas_sd_co2: float = 0.08
     meas_sd_volume: float = 0.005
-    # Gas-phase model
+    # Oxygen transfer and gas-phase model
     o2_yield: float = 0.55
     o2_maintenance: float = 0.02
-    our_capacity: float = 3.0
+    our_capacity: float = 1.85
+    k_d_hyp: float = 0.40
     rq: float = 1.0
     co2_gain: float = 1.0
     co2_inlet_pct: float = 0.04
@@ -416,6 +477,9 @@ class BioreactorConfig:
             "mu_opt",
             "k_s",
             "yield_xs",
+            "yield_ps",
+            "k_sp",
+            "k_s_starv",
             "batch_days",
             "feed_substrate",
             "volume_initial",
@@ -434,6 +498,8 @@ class BioreactorConfig:
             "alpha_lp",
             "beta_lp",
             "k_d0",
+            "k_d_starv",
+            "k_d_hyp",
             "feed_rate",
             "ic_scale",
             "within_batch_scale",
@@ -494,6 +560,10 @@ class BioreactorConfig:
                 "The nominal temperature shift must satisfy 0 <= shift_start_day <= shift_end_day <= "
                 f"batch_days; got ({self.shift_start_day}, {self.shift_end_day}, {self.batch_days})."
             )
+        if not self.temp_bounds[0] <= self.temp_production <= self.temp_bounds[1]:
+            raise ValueError(
+                f"temp_production must lie within temp_bounds {self.temp_bounds}; got {self.temp_production}."
+            )
 
     @property
     def n_steps(self) -> int:
@@ -532,13 +602,15 @@ def _latent_effects(config: BioreactorConfig, latent: np.ndarray) -> tuple[float
     tuple[float, float, float]
         ``(biomass_initial, substrate_initial, inhibition)`` for this batch:
         the perturbed initial concentrations [g/L] and the multiplicative
-        growth/productivity inhibition factor in (0, 1].
+        growth-inhibition factor in (0, 1]. The inhibition acts on growth
+        only, which is why an inhibited lot calls for a different schedule
+        (a longer warm growth phase) rather than a scaled-down copy.
     """
     scale = config.ic_scale
     viability, richness, inhibitor = (float(v) for v in latent)
     x0 = config.biomass_initial * min(max(1.0 + 0.18 * scale * viability, 0.40), 1.80)
-    s0 = config.substrate_initial * min(max(1.0 + 0.12 * scale * richness, 0.50), 1.60)
-    inhibition = min(max(1.0 - 0.10 * scale * max(inhibitor, 0.0), 0.55), 1.0)
+    s0 = config.substrate_initial * min(max(1.0 + 0.20 * scale * richness, 0.50), 1.60)
+    inhibition = min(max(1.0 - 0.12 * scale * max(inhibitor, 0.0), 0.55), 1.0)
     return x0, s0, inhibition
 
 
@@ -680,10 +752,10 @@ class BioreactorSimulator:
         """Return the nominal (recipe) setpoint schedule: biphasic temperature, pH held.
 
         Temperature holds the growth optimum until ``shift_start_day``, ramps
-        linearly to the productivity optimum by ``shift_end_day``, and holds it
-        for the rest of the batch. pH is held at its cardinal optimum
-        throughout, matching the industrial practice of holding pH and
-        shifting temperature.
+        linearly to the production hold ``temp_production`` by
+        ``shift_end_day``, and holds it for the rest of the batch. pH is held
+        at its cardinal optimum throughout, matching the industrial practice
+        of holding pH and shifting temperature.
 
         Returns
         -------
@@ -698,7 +770,7 @@ class BioreactorSimulator:
             fraction = np.clip((days - cfg.shift_start_day) / (cfg.shift_end_day - cfg.shift_start_day), 0.0, 1.0)
         else:
             fraction = (days >= cfg.shift_start_day).astype(float)
-        temperature = cfg.temp_opt - (cfg.temp_opt - cfg.temp_q_opt) * fraction
+        temperature = cfg.temp_opt - (cfg.temp_opt - cfg.temp_production) * fraction
         temperature = np.clip(temperature, cfg.temp_bounds[0], cfg.temp_bounds[1])
         ph = np.clip(np.full_like(days, cfg.ph_opt), cfg.ph_bounds[0], cfg.ph_bounds[1])
         return pd.DataFrame({"pH": ph, "temperature": temperature}, index=pd.Index(days, name="day"))
@@ -820,9 +892,17 @@ class BioreactorSimulator:
         mu_opt = cfg.mu_opt
         k_s = cfg.k_s
         inv_yield = 1.0 / cfg.yield_xs
+        inv_yield_ps = 1.0 / cfg.yield_ps
         maintenance = cfg.maintenance
         alpha_lp = cfg.alpha_lp
         beta_lp = cfg.beta_lp
+        k_sp = cfg.k_sp
+        k_d_starv = cfg.k_d_starv
+        k_s_starv = cfg.k_s_starv
+        o2_yield = cfg.o2_yield
+        o2_maintenance = cfg.o2_maintenance
+        our_capacity = cfg.our_capacity
+        k_d_hyp = cfg.k_d_hyp
         t_min, t_opt, t_max = cfg.temp_min, cfg.temp_opt, cfg.temp_max
         tq_min, tq_opt, tq_max = cfg.temp_q_min, cfg.temp_q_opt, cfg.temp_q_max
         p_min, p_opt, p_max = cfg.ph_min, cfg.ph_opt, cfg.ph_max
@@ -834,18 +914,32 @@ class BioreactorSimulator:
 
         def rhs(x: float, s: float, p: float, v: float, temp: float, ph: float, phi: float) -> tuple:  # noqa: PLR0913
             gamma_ph = _cardinal_ph_f(ph, p_min, p_opt, p_max)
-            mu = mu_opt * _cardinal_temperature_f(temp, t_min, t_opt, t_max) * gamma_ph
-            mu *= s / (k_s + s) * phi * inhibition
-            k_d = k_d0 * (1.0 + math.exp((temp - temp_death) / width_death))
-            # The non-growth-associated production term carries phi and the
-            # inhibition factor directly; the growth-associated term already
-            # carries them inside mu.
-            q_p = alpha_lp * mu + (
-                beta_lp * _cardinal_temperature_f(temp, tq_min, tq_opt, tq_max) * gamma_ph * phi * inhibition
+            mu_pot = mu_opt * _cardinal_temperature_f(temp, t_min, t_opt, t_max) * gamma_ph
+            # The impurity-driven inhibition factor acts on growth only; the
+            # within-batch disturbance phi acts on the whole metabolism.
+            mu_pot *= s / (k_s + s) * phi * inhibition
+            # Oxygen limitation: the pile's demand against the reactor's
+            # transfer capacity. f is a smooth min(1, supply/demand), so
+            # metabolism throttles as the pile approaches the ceiling, and
+            # hypoxia kills cells beyond it. This mirrors _gas_tags.
+            demand = (o2_yield * mu_pot + o2_maintenance) * x
+            a = our_capacity / max(demand, 1e-12)
+            f_o2 = a / (1.0 + a**6) ** (1.0 / 6.0)
+            mu = mu_pot * f_o2
+            k_d = (
+                k_d0 * (1.0 + math.exp((temp - temp_death) / width_death))
+                + k_d_starv * k_s_starv / (k_s_starv + s)
+                + k_d_hyp * (1.0 - f_o2)
             )
+            # Production consumes substrate and stalls when it runs out; it is
+            # oxygen-limited like growth (the growth-associated term already
+            # carries phi and f_o2 inside mu).
+            q_p = (
+                alpha_lp * mu + beta_lp * _cardinal_temperature_f(temp, tq_min, tq_opt, tq_max) * gamma_ph * phi * f_o2
+            ) * (s / (k_sp + s))
             dilution = feed / v
             dx = mu * x - k_d * x - dilution * x
-            ds = -(mu * inv_yield + maintenance) * x + dilution * (s_feed - s)
+            ds = -(mu * inv_yield + maintenance) * x - q_p * x * inv_yield_ps + dilution * (s_feed - s)
             dp = q_p * x - dilution * p
             dv = feed
             return dx, ds, dp, dv
@@ -885,16 +979,28 @@ class BioreactorSimulator:
             out[i + 1] = (x, s, p, v)
         return out
 
-    def _gas_tags(self, states: np.ndarray, temp: np.ndarray, ph: np.ndarray, phi: np.ndarray) -> Bunch:
-        """Dissolved oxygen [%] and offgas CO2 [%] at every grid point."""
+    def _gas_tags(
+        self, states: np.ndarray, temp: np.ndarray, ph: np.ndarray, phi: np.ndarray, inhibition: float
+    ) -> Bunch:
+        """Dissolved oxygen [%] and offgas CO2 [%] at every grid point.
+
+        Uses the same specific growth rate as the integrator (including the
+        within-batch disturbance and the growth inhibition factor), so the
+        gas trajectories reflect what the cells are actually doing. This is
+        what makes the unmeasured disturbance channel observable.
+        """
         cfg = self.config
         biomass = states[:, 0]
         substrate = states[:, 1]
         gamma_t = cardinal_temperature(temp, cfg.temp_min, cfg.temp_opt, cfg.temp_max)
         gamma_p = cardinal_ph(ph, cfg.ph_min, cfg.ph_opt, cfg.ph_max)
         monod = substrate / (cfg.k_s + substrate)
-        mu = cfg.mu_opt * gamma_t * gamma_p * monod * phi
-        our = (cfg.o2_yield * mu + cfg.o2_maintenance) * biomass
+        # Mirrors the oxygen-limitation calculation in _integrate's rhs.
+        mu_pot = cfg.mu_opt * gamma_t * gamma_p * monod * phi * inhibition
+        demand = (cfg.o2_yield * mu_pot + cfg.o2_maintenance) * biomass
+        a = cfg.our_capacity / np.maximum(demand, 1e-12)
+        f_o2 = a / (1.0 + a**6) ** (1.0 / 6.0)
+        our = (cfg.o2_yield * mu_pot * f_o2 + cfg.o2_maintenance) * biomass
         dissolved_oxygen = 100.0 * np.clip(1.0 - our / cfg.our_capacity, 0.03, 1.0)
         offgas_co2 = cfg.co2_inlet_pct + cfg.co2_gain * cfg.rq * our
         return Bunch(dissolved_oxygen=dissolved_oxygen, offgas_co2=offgas_co2)
@@ -959,7 +1065,7 @@ class BioreactorSimulator:
         ph_real = np.clip(ph_hourly + disturbances.ph_err, cfg.ph_bounds[0], cfg.ph_bounds[1])
 
         states = self._integrate(ph_real, temp_real, disturbances.phi, x0, s0, inhibition, disturbances.feed_scale)
-        gas = self._gas_tags(states, temp_real, ph_real, disturbances.phi)
+        gas = self._gas_tags(states, temp_real, ph_real, disturbances.phi, inhibition)
 
         grid_days = np.linspace(0.0, cfg.batch_days, cfg.n_steps + 1)
         sample_idx = np.round(cfg.sample_days * cfg.steps_per_day).astype(int)
