@@ -13,6 +13,10 @@ Batch Data Analysis
    :members:
    :show-inheritance:
 
+.. automodule:: process_improve.batch.control
+   :members:
+   :show-inheritance:
+
 .. automodule:: process_improve.batch._batch_plots
    :members:
    :show-inheritance:

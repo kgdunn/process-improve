@@ -8,6 +8,7 @@ from process_improve.batch._batch_plots import (
     time_varying_loading_plot,
 )
 from process_improve.batch._batch_pls import BatchPLS
+from process_improve.batch.control import MidCourseCorrector, midcourse_correction
 from process_improve.batch.data_input import (
     check_valid_batch_dict,
     dict_to_melted,
@@ -54,6 +55,7 @@ __all__ = [
     "BatchMonitor",
     "BatchPCA",
     "BatchPLS",
+    "MidCourseCorrector",
     # Preprocessing/alignment
     "batch_dtw",
     # Data input/conversion
@@ -88,6 +90,7 @@ __all__ = [
     "load_nylon",
     "melted_to_dict",
     "melted_to_wide",
+    "midcourse_correction",
     "online_monitoring_plot",
     "resample_to_reference",
     "time_varying_loading_plot",

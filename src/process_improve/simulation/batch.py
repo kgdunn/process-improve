@@ -1352,10 +1352,17 @@ class BioreactorSimulator:
             ``ic_scale``.
         mv_variation : float, default=0.0
             Size of the deliberate variation for ``"historical"``: each batch
-            draws a random constant offset and a random start-to-end ramp for
-            temperature (standard deviation ``mv_variation`` degC each) and
-            for pH (standard deviation ``0.1 * mv_variation`` each), clipped
-            to the operating bounds.
+            draws independent offsets at five evenly spaced knots, linearly
+            interpolated over the batch, for temperature (standard deviation
+            ``mv_variation`` degC per knot) and for pH (standard deviation
+            ``0.1 * mv_variation`` per knot), clipped to the operating
+            bounds. The knot basis matters for identification: it excites
+            local schedule shapes (an early-only or late-only move), which a
+            constant-plus-ramp variation cannot, so a regression fitted on
+            the campaign carries causal information about partial-batch
+            moves; deliberate moves of the shapes the controller will use
+            are the data requirement Flores-Cerrillo and MacGregor (2004)
+            state for mid-course-correction models.
         n_knots, n_starts : int
             Passed to :meth:`optimal_trajectory` for the ``"adapted"``
             policy, which runs the optimiser once per batch; lower values
@@ -1428,9 +1435,12 @@ class BioreactorSimulator:
                     z_block.loc[batch_id], n_knots=n_knots, n_starts=n_starts, random_state=0
                 ).trajectory
             elif policy == "historical" and mv_variation > 0:
-                offsets = rng.standard_normal(4)
-                temp_delta = mv_variation * (offsets[0] + offsets[1] * interval_fraction)
-                ph_delta = 0.1 * mv_variation * (offsets[2] + offsets[3] * interval_fraction)
+                # Independent knot offsets, linearly interpolated: a basis
+                # rich enough to excite local (partial-batch) schedule
+                # shapes, which offset-plus-ramp variation cannot identify.
+                knot_fraction = np.linspace(0.0, 1.0, 5)
+                temp_delta = mv_variation * np.interp(interval_fraction, knot_fraction, rng.standard_normal(5))
+                ph_delta = 0.1 * mv_variation * np.interp(interval_fraction, knot_fraction, rng.standard_normal(5))
                 requested = base_trajectory.copy()
                 requested["temperature"] = np.clip(
                     requested["temperature"].to_numpy() + temp_delta, cfg.temp_bounds[0], cfg.temp_bounds[1]
