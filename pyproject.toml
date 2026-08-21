@@ -80,6 +80,10 @@ fast = ["numba>=0.63.1"]
 # CBC solver in its wheels, so no system package is required.
 ilp = ["pulp>=2.8"]
 
+# Mid-course correction QP solver (batch.control). osqp ships prebuilt wheels
+# for every platform CI tests, so no system package is required.
+control = ["osqp>=1.0"]
+
 # NOTE: ``pyoptex`` (coordinate-exchange I-/A-optimal and split-plot designs in
 # ``experiments.designs_optimal``) is intentionally *not* a declared extra. Its
 # latest release (1.2.1) pins ``plotly~=5.24`` (i.e. < 6), which conflicts with
@@ -95,6 +99,7 @@ all = [
     "mcp>=1.0",
     "numba>=0.63.1",
     "openpyxl>=3.1.5",
+    "osqp>=1.0",
     "plotly>=6.5.2",
     "pulp>=2.8",
     "pyDOE3>=1.0",

@@ -80,6 +80,10 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         X-block loadings (p), on the same 2-level index.
     direct_weights_ : pd.DataFrame of shape (n_unfolded_features, n_components)
         Direct weights ``R = W (P'W)^{-1}``, so scores are ``T = X_scaled R``.
+    y_loadings_ : pd.DataFrame of shape (n_targets, n_components)
+        Y-block loadings (c), mapping scores to the scaled quality space.
+    explained_variance_ : np.ndarray of shape (n_components,)
+        Variance of each training score.
     beta_coefficients_ : pd.DataFrame
         Regression coefficients from the unfolded X to Y, in the original
         (engineering) units of both blocks.
@@ -218,6 +222,11 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         self._x_scaler_own = x_scaler
         self._y_scaler_own = y_scaler
         self._pls = PLS(n_components=self.n_components, scale=False).fit(x_mcuv, y_mcuv)
+        # Kept for per-decision-point reference distributions: the mid-course
+        # corrector re-projects the training batches under each decision
+        # point's missingness pattern to build time-varying SPE and T2 limits
+        # (Garcia-Munoz, Kourti and MacGregor, 2004).
+        self._x_scaled_training = x_mcuv
         self._expose_fitted_attributes(wide, x_scaler, y_scaler)
 
         first_batch = X[next(iter(X.keys()))]
@@ -263,7 +272,9 @@ class BatchPLS(RegressorMixin, BaseEstimator):
             columns=self._pls.beta_coefficients_.columns,
         )
         self.rmse_ = self._pls.rmse_.mul(y_scaler.scale_.to_numpy(), axis=0)
+        self.y_loadings_ = self._pls.y_loadings_
         self.r2_cumulative_ = self._pls.r2_cumulative_
+        self.explained_variance_ = self._pls.explained_variance_
         self.scores_ = self._pls.scores_
         self.spe_ = self._pls.spe_
         self.hotellings_t2_ = self._pls.hotellings_t2_
@@ -372,3 +383,31 @@ class BatchPLS(RegressorMixin, BaseEstimator):
     ) -> pd.DataFrame:
         """Return the batch-level PLS scores for ``X`` (in the input batch order)."""
         return self._pls.transform(self._scaled_wide(X, initial_conditions)).reindex(list(X.keys()))
+
+    def projection_matrix(self, observed: object, *, method: str = "tsr", ridge: float = 0.0) -> Bunch:
+        """Build the fixed operator mapping observed unfolded columns to score estimates.
+
+        Forwards to :meth:`process_improve.multivariate.PLS.projection_matrix`
+        on the inner model. The operator acts on the *scaled* space of the
+        unfolded ``[Z | X]`` row; use the public ``center_`` and ``scale_``
+        attributes to move engineering-unit values into that space. This is
+        the primitive the mid-course corrector precomputes once per decision
+        point: for a fixed pattern of observed columns, the score estimate is
+        an affine function of any subset of those columns.
+
+        Parameters
+        ----------
+        observed : array-like
+            Boolean mask over ``feature_columns_`` (True = observed) or a
+            list of unfolded column labels, e.g. ``[("temperature", 4), ...]``.
+        method : {"tsr", "scp", "pmp"}, default="tsr"
+        ridge : float, default=0.0
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With keys ``matrix`` (DataFrame, n_components x n_observed),
+            ``condition_number`` (float) and ``method``.
+        """
+        check_is_fitted(self, "x_weights_")
+        return self._pls.projection_matrix(observed, method=method, ridge=ridge)

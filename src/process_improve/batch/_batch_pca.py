@@ -375,24 +375,27 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         upto_k: int,
         *,
         initial_conditions: pd.Series | pd.DataFrame | None = None,
+        method: str = "tsr",
+        ridge: float = 0.0,
     ) -> Bunch:
-        """Project a partially-complete batch via projection to the model plane (PMP).
+        """Project a partially-complete batch, treating the future as missing data.
 
         During a running batch, the trajectory data for the future (time
-        samples ``upto_k`` and later) are not yet known. This method projects
-        the batch onto the fitted model using only the already-observed
-        columns: the score vector is the least-squares fit of the observed,
-        centred and scaled values onto the corresponding loading rows,
-        ``t = pinv(P_obs) @ x_obs`` (the projection-to-the-model-plane estimate
-        of Nomikos and MacGregor). Initial conditions, known from the batch
-        start, are always part of the observed set, so they sharpen the
-        projection from the first sample.
+        samples ``upto_k`` and later) are not yet known. This method marks
+        those unfolded columns as missing and delegates to the shared
+        missing-data projection (:meth:`process_improve.multivariate.PCA.project`),
+        which estimates the score vector from the observed columns only.
+        Initial conditions, known from the batch start, are always part of
+        the observed set, so they sharpen the projection from the first
+        sample. The default estimator is trimmed score regression, the
+        method recommended for exactly this batch-so-far problem by
+        Garcia-Munoz, Kourti and MacGregor (2004).
 
         The batch is expected to be aligned to the training length; ``upto_k``
         selects how many leading time samples are treated as observed. To
         compare the returned statistics against control limits, use
         :class:`process_improve.batch.BatchMonitor`, which builds the
-        time-varying limits from good batches.
+        time-varying limits from good batches with the same estimator.
 
         Parameters
         ----------
@@ -408,13 +411,20 @@ class BatchPCA(TransformerMixin, BaseEstimator):
             The Z block for this batch (required if the model was fitted with
             one). A Series of the initial-condition values, or a single-row
             DataFrame.
+        method : {"tsr", "scp", "pmp"}, default="tsr"
+            The missing-data score estimator; see
+            :meth:`process_improve.multivariate.PCA.project`.
+        ridge : float, default=0.0
+            Regularisation for the ``"tsr"`` / ``"pmp"`` estimators.
 
         Returns
         -------
         result : sklearn.utils.Bunch
             With keys ``scores`` (Series, one entry per component),
-            ``hotellings_t2`` (float, cumulative over all components), and
-            ``spe`` (float, over the observed columns).
+            ``hotellings_t2`` (float, cumulative over all components),
+            ``spe`` (float, over the observed columns), and
+            ``condition_number`` (float, the estimator's conditioning
+            diagnostic at this pattern).
         """
         check_is_fitted(self, "loadings_")
         if not 1 <= upto_k <= self.n_timesteps_:
@@ -433,25 +443,80 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         sequence = wide.columns.get_level_values("sequence")
         observed = np.array([s == "" or (isinstance(s, (int, np.integer)) and s < upto_k) for s in sequence])
 
-        row = wide.iloc[0].to_numpy(dtype=float)
-        center = self.center_.to_numpy(dtype=float)
-        scale = self.scale_.to_numpy(dtype=float)
-        x_scaled = (row - center) / scale
-
-        loadings = self.loadings_.to_numpy(dtype=float)
-        p_obs = loadings[observed, :]
-        x_obs = x_scaled[observed]
-        scores = np.linalg.pinv(p_obs) @ x_obs
-
-        s = self.scaling_factor_for_scores_.to_numpy(dtype=float)
-        hotellings_t2 = float(np.sum((scores / s) ** 2))
-        residual_obs = x_obs - p_obs @ scores
-        spe = float(np.sqrt(np.sum(residual_obs**2)))
+        scaled = pd.DataFrame(self._scaler.transform(wide).to_numpy(), index=wide.index, columns=wide.columns)
+        scaled.iloc[0, ~observed] = np.nan
+        result = self._pca.project(scaled, method=method, ridge=ridge)
 
         return Bunch(
-            scores=pd.Series(scores, index=self.scores_.columns, name="scores"),
-            hotellings_t2=hotellings_t2,
-            spe=spe,
+            scores=pd.Series(result.scores.iloc[0].to_numpy(), index=self.scores_.columns, name="scores"),
+            hotellings_t2=float(result.hotellings_t2.iloc[0]),
+            spe=float(result.spe.iloc[0]),
+            condition_number=float(result.condition_number.iloc[0]),
+        )
+
+    def predict_online_trace(
+        self,
+        batch: pd.DataFrame,
+        *,
+        initial_conditions: pd.Series | pd.DataFrame | None = None,
+        method: str = "tsr",
+        ridge: float = 0.0,
+    ) -> Bunch:
+        """Project a batch at every time sample in one vectorized call.
+
+        Equivalent to calling :meth:`predict_online` for ``upto_k`` in
+        ``1 .. n_timesteps_``, but the batch is unfolded and scaled once and
+        all the per-sample patterns are projected together, which is what an
+        online monitor needs (:class:`process_improve.batch.BatchMonitor`
+        builds its time-varying limits this way).
+
+        Parameters
+        ----------
+        batch : pd.DataFrame
+            A single aligned batch (``n_timesteps`` rows, the training tags
+            as columns).
+        initial_conditions : pd.Series or pd.DataFrame, optional
+            The Z block for this batch; required if the model was fitted with
+            one.
+        method : {"tsr", "scp", "pmp"}, default="tsr"
+            The missing-data score estimator.
+        ridge : float, default=0.0
+            Regularisation for the ``"tsr"`` / ``"pmp"`` estimators.
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With keys ``time`` (1-based sample indices), ``scores``
+            (DataFrame, n_timesteps x n_components; row ``k-1`` is the score
+            estimate using samples up to ``k``), ``hotellings_t2``, ``spe``
+            and ``condition_number`` (np.ndarray of length n_timesteps).
+        """
+        check_is_fitted(self, "loadings_")
+        z_frame = self._coerce_online_initial_conditions(initial_conditions)
+        wide = self._unfold({"_online_": batch}, z_frame)
+        if list(wide.columns) != list(self.feature_columns_):
+            raise ValueError(
+                "The batch does not unfold to the training column layout. Align it to the training "
+                f"length ({self.n_timesteps_} samples) and pass the same tags and initial conditions."
+            )
+        scaled_row = self._scaler.transform(wide).to_numpy(dtype=float)[0]
+        sequence = wide.columns.get_level_values("sequence")
+        is_z = np.array([s == "" for s in sequence])
+        seq_values = np.array([-1 if z else int(s) for s, z in zip(sequence, is_z, strict=True)])
+
+        n = self.n_timesteps_
+        stacked = np.tile(scaled_row, (n, 1))
+        for k in range(1, n + 1):
+            observed = is_z | (seq_values < k)
+            stacked[k - 1, ~observed] = np.nan
+        frame = pd.DataFrame(stacked, columns=wide.columns, index=pd.RangeIndex(n))
+        result = self._pca.project(frame, method=method, ridge=ridge)
+        return Bunch(
+            time=np.arange(1, n + 1),
+            scores=pd.DataFrame(result.scores.to_numpy(), index=pd.RangeIndex(n), columns=self.scores_.columns),
+            hotellings_t2=result.hotellings_t2.to_numpy(),
+            spe=result.spe.to_numpy(),
+            condition_number=result.condition_number.to_numpy(),
         )
 
     def _coerce_online_initial_conditions(

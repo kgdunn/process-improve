@@ -48,6 +48,12 @@ class BatchMonitor(BaseEstimator):
         from good (common-cause) batches only.
     conf_level : float, default=0.99
         Confidence level for the control limits.
+    method : {"tsr", "scp", "pmp"}, default="tsr"
+        The missing-data score estimator used for every projection, passed to
+        :meth:`process_improve.batch.BatchPCA.predict_online`. The limits and
+        the monitored traces always use the same estimator, so the statistic
+        at each sample is compared against the good-batch spread computed the
+        same way.
 
     Attributes (after fitting)
     --------------------------
@@ -82,24 +88,20 @@ class BatchMonitor(BaseEstimator):
     _parameter_constraints: typing.ClassVar = {
         "model": [BaseEstimator],
         "conf_level": [float],
+        "method": [str],
     }
 
-    def __init__(self, model: BatchPCA, *, conf_level: float = 0.99) -> None:
+    def __init__(self, model: BatchPCA, *, conf_level: float = 0.99, method: str = "tsr") -> None:
         self.model = model
         self.conf_level = conf_level
+        self.method = method
 
     def _trace_for_batch(
         self, batch: pd.DataFrame, initial_conditions: pd.Series | pd.DataFrame | None
     ) -> tuple[np.ndarray, np.ndarray]:
         """Return the (T2, SPE) trace over every time sample for one batch."""
-        n_timesteps = self.model.n_timesteps_
-        t2 = np.empty(n_timesteps)
-        spe = np.empty(n_timesteps)
-        for k in range(1, n_timesteps + 1):
-            result = self.model.predict_online(batch, upto_k=k, initial_conditions=initial_conditions)
-            t2[k - 1] = result.hotellings_t2
-            spe[k - 1] = result.spe
-        return t2, spe
+        result = self.model.predict_online_trace(batch, initial_conditions=initial_conditions, method=self.method)
+        return result.hotellings_t2, result.spe
 
     def fit(
         self,
