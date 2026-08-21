@@ -947,21 +947,22 @@ class BioreactorSimulator:
         out = np.empty((n_steps + 1, 4))
         x, s, p, v = x0, s0, 0.0, cfg.volume_initial
         out[0] = (x, s, p, v)
-        half_h = 0.5 * h
+        hh = 0.5 * h
         sixth_h = h / 6.0
         for i in range(n_steps):
-            temp_a, temp_b = temp_hourly[i], temp_hourly[i + 1]
-            ph_a, ph_b = ph_hourly[i], ph_hourly[i + 1]
-            phi_a, phi_b = phi_hourly[i], phi_hourly[i + 1]
-            temp_m = 0.5 * (temp_a + temp_b)
-            ph_m = 0.5 * (ph_a + ph_b)
-            phi_m = 0.5 * (phi_a + phi_b)
+            # Every input (setpoint schedule, control error, phi) is held
+            # constant over its integration step, so setpoint jumps land
+            # exactly on step boundaries and RK4 keeps its full order.
+            # Blending across the boundary instead degrades the whole
+            # integration to first order.
+            temp = temp_hourly[i]
+            ph = ph_hourly[i]
+            phi = phi_hourly[i]
 
-            hh = half_h
-            k1 = rhs(x, s, p, v, temp_a, ph_a, phi_a)
-            k2 = rhs(x + hh * k1[0], s + hh * k1[1], p + hh * k1[2], v + hh * k1[3], temp_m, ph_m, phi_m)
-            k3 = rhs(x + hh * k2[0], s + hh * k2[1], p + hh * k2[2], v + hh * k2[3], temp_m, ph_m, phi_m)
-            k4 = rhs(x + h * k3[0], s + h * k3[1], p + h * k3[2], v + h * k3[3], temp_b, ph_b, phi_b)
+            k1 = rhs(x, s, p, v, temp, ph, phi)
+            k2 = rhs(x + hh * k1[0], s + hh * k1[1], p + hh * k1[2], v + hh * k1[3], temp, ph, phi)
+            k3 = rhs(x + hh * k2[0], s + hh * k2[1], p + hh * k2[2], v + hh * k2[3], temp, ph, phi)
+            k4 = rhs(x + h * k3[0], s + h * k3[1], p + h * k3[2], v + h * k3[3], temp, ph, phi)
 
             x += sixth_h * (k1[0] + 2.0 * k2[0] + 2.0 * k3[0] + k4[0])
             s += sixth_h * (k1[1] + 2.0 * k2[1] + 2.0 * k3[1] + k4[1])
