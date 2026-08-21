@@ -172,7 +172,10 @@ def melted_to_dict(in_df: pd.DataFrame, batch_id_col: str) -> dict:
 
 
 def melted_to_wide(in_df: pd.DataFrame, batch_id_col: str) -> dict:
-    """Convert aligned melted data to wide format."""
+    """Convert aligned melted data to wide format.
+
+    Not yet implemented (returns an empty dict); see also ``dict_to_wide``.
+    """
     if batch_id_col not in in_df:
         raise ValueError(f"The `batch_id_col` column {batch_id_col!r} does not exist in the incoming dataframe.")
     return {}
@@ -192,13 +195,14 @@ def melted_to_wide(in_df: pd.DataFrame, batch_id_col: str) -> dict:
 
 
 def wide_to_melted(in_df: pd.DataFrame) -> pd.DataFrame:
-    """Convert wide-format batch data to melted format. Not yet implemented."""
+    """Convert wide-format batch data to melted (long) format. Not yet implemented."""
     # dict_to_melted(dict_to_wide(in_df))
-    return pd.DataFrame()
+    raise NotImplementedError("wide_to_melted is not yet implemented.")
 
 
-def wide_to_dict() -> None:
+def wide_to_dict(in_df: pd.DataFrame) -> dict:
     """Convert wide-format batch data to dict format. Not yet implemented."""
+    raise NotImplementedError("wide_to_dict is not yet implemented.")
 
 
 def melt_df_to_series(in_df: pd.DataFrame, exclude_columns: list | None = None, name: str | None = None) -> pd.Series:
