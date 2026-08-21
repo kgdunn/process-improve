@@ -659,3 +659,11 @@ def test_golden_batch_recipe_is_registered_and_matches() -> None:
     match = select_recipe("our golden batch does not repeat; batches differ with the same recipe")
     assert match is not None
     assert match.key == "golden_batch_baseline"
+
+
+@pytest.mark.slow
+def test_adapted_policy_runs_and_differs_per_batch(sim: BioreactorSimulator) -> None:
+    campaign = sim.simulate_campaign(2, policy="adapted", n_knots=3, n_starts=1, random_state=4)
+    ids = list(campaign.trajectories)
+    assert not campaign.trajectories[ids[0]].equals(campaign.trajectories[ids[1]])
+    assert (campaign.quality["titer"] > 0).all()

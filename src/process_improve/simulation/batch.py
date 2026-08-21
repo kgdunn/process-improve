@@ -1238,6 +1238,8 @@ class BioreactorSimulator:
         trajectory: pd.DataFrame | None = None,
         initial_conditions: pd.DataFrame | None = None,
         mv_variation: float = 0.0,
+        n_knots: int = 4,
+        n_starts: int = 5,
         random_state: int | np.random.Generator | None = None,
     ) -> Bunch:
         """Simulate a campaign of batches under a named operating policy.
@@ -1272,6 +1274,10 @@ class BioreactorSimulator:
             temperature (standard deviation ``mv_variation`` degC each) and
             for pH (standard deviation ``0.1 * mv_variation`` each), clipped
             to the operating bounds.
+        n_knots, n_starts : int
+            Passed to :meth:`optimal_trajectory` for the ``"adapted"``
+            policy, which runs the optimiser once per batch; lower values
+            trade optimality for speed. Ignored by the other policies.
         random_state : int, np.random.Generator, or None
             Seed or generator; child seeds are spawned per batch, so a
             campaign is reproducible end to end.
@@ -1331,7 +1337,9 @@ class BioreactorSimulator:
 
         for row, (batch_id, child) in enumerate(zip(batch_ids, child_rngs, strict=True)):
             if policy == "adapted":
-                requested = self.optimal_trajectory(z_block.loc[batch_id], random_state=0).trajectory
+                requested = self.optimal_trajectory(
+                    z_block.loc[batch_id], n_knots=n_knots, n_starts=n_starts, random_state=0
+                ).trajectory
             elif policy == "historical" and mv_variation > 0:
                 offsets = rng.standard_normal(4)
                 temp_delta = mv_variation * (offsets[0] + offsets[1] * interval_fraction)
