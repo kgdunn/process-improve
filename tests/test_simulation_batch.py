@@ -308,7 +308,7 @@ def test_ic_scale_zero_collapses_z_to_nominal() -> None:
 def test_output_shapes_and_layout(sim: BioreactorSimulator) -> None:
     result = sim.simulate_batch(random_state=0)
     cfg = sim.config
-    assert result.tags.shape == (cfg.n_samples, 5)
+    assert result.tags.shape == (cfg.samples_per_batch, 5)
     assert list(result.tags.columns) == ["pH", "temperature", "dissolved_oxygen", "offgas_co2", "volume"]
     assert result.tags.index.name == "day"
     assert result.tags.index[-1] == pytest.approx(cfg.batch_days)
@@ -374,8 +374,8 @@ def test_physical_invariants_hold_for_any_input(
     rng = np.random.default_rng(seed)
     trajectory = pd.DataFrame(
         {
-            "pH": rng.uniform(cfg.ph_bounds[0], cfg.ph_bounds[1], cfg.n_samples),
-            "temperature": rng.uniform(cfg.temp_bounds[0], cfg.temp_bounds[1], cfg.n_samples),
+            "pH": rng.uniform(cfg.ph_bounds[0], cfg.ph_bounds[1], cfg.samples_per_batch),
+            "temperature": rng.uniform(cfg.temp_bounds[0], cfg.temp_bounds[1], cfg.samples_per_batch),
         }
     )
     z = pd.Series(rng.normal(0.0, 3.0, len(UPSTREAM_VARIABLE_NAMES)), index=list(UPSTREAM_VARIABLE_NAMES))
@@ -418,8 +418,8 @@ def test_config_rejects_bad_cardinal_order() -> None:
 
 
 def test_config_rejects_bad_sampling_grid() -> None:
-    with pytest.raises(ValueError, match="integer multiple of n_samples"):
-        BioreactorConfig(n_samples=7)
+    with pytest.raises(ValueError, match="integer multiple of samples_per_batch"):
+        BioreactorConfig(samples_per_batch=7)
 
 
 def test_config_rejects_negative_kinetics() -> None:
@@ -583,7 +583,7 @@ def test_campaign_output_is_a_valid_batch_dict(sim: BioreactorSimulator) -> None
     campaign = sim.simulate_campaign(6, policy="replay", random_state=1)
     assert check_valid_batch_dict(campaign.batches)
     wide = dict_to_wide(campaign.batches)
-    assert wide.shape == (6, sim.config.n_samples * 5)
+    assert wide.shape == (6, sim.config.samples_per_batch * 5)
 
 
 @pytest.mark.integration

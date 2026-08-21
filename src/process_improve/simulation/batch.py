@@ -333,7 +333,7 @@ class BioreactorConfig:
         Cardinal pH values, shared by growth and productivity.
     batch_days : float
         Batch duration [day].
-    n_samples : int
+    samples_per_batch : int
         Number of recorded samples (and setpoint intervals) per batch.
     steps_per_day : int
         Integration steps per day for the fixed-step RK4 integrator.
@@ -432,7 +432,7 @@ class BioreactorConfig:
     ph_max: float = 7.9
     # Operation
     batch_days: float = 10.0
-    n_samples: int = 20
+    samples_per_batch: int = 20
     steps_per_day: int = 24
     feed_rate: float = 0.055
     feed_substrate: float = 50.0
@@ -532,15 +532,15 @@ class BioreactorConfig:
                 f"Cardinal pH values must satisfy ph_min < ph_opt < ph_max; got "
                 f"({self.ph_min}, {self.ph_opt}, {self.ph_max})."
             )
-        if self.n_samples < 2:
-            raise ValueError(f"n_samples must be at least 2; got {self.n_samples}.")
+        if self.samples_per_batch < 2:
+            raise ValueError(f"samples_per_batch must be at least 2; got {self.samples_per_batch}.")
         if self.steps_per_day < 1:
             raise ValueError(f"steps_per_day must be at least 1; got {self.steps_per_day}.")
         n_steps = self.batch_days * self.steps_per_day
-        if abs(n_steps / self.n_samples - round(n_steps / self.n_samples)) > 1e-9:
+        if abs(n_steps / self.samples_per_batch - round(n_steps / self.samples_per_batch)) > 1e-9:
             raise ValueError(
-                "batch_days * steps_per_day must be an integer multiple of n_samples so every "
-                f"sample falls on an integration step; got {n_steps} steps for {self.n_samples} samples."
+                "batch_days * steps_per_day must be an integer multiple of samples_per_batch so every "
+                f"sample falls on an integration step; got {n_steps} steps for {self.samples_per_batch} samples."
             )
         for name, (low, high) in (("temp_bounds", self.temp_bounds), ("ph_bounds", self.ph_bounds)):
             if not (math.isfinite(low) and math.isfinite(high) and low < high):
@@ -573,17 +573,17 @@ class BioreactorConfig:
     @property
     def interval_days(self) -> float:
         """Duration of one setpoint interval (one recorded sample) [day]."""
-        return self.batch_days / self.n_samples
+        return self.batch_days / self.samples_per_batch
 
     @property
     def sample_days(self) -> np.ndarray:
         """Recording times, the end of each setpoint interval [day]."""
-        return np.linspace(self.interval_days, self.batch_days, self.n_samples)
+        return np.linspace(self.interval_days, self.batch_days, self.samples_per_batch)
 
     @property
     def interval_start_days(self) -> np.ndarray:
         """Setpoint interval start times, the index of a trajectory frame [day]."""
-        return np.linspace(0.0, self.batch_days - self.interval_days, self.n_samples)
+        return np.linspace(0.0, self.batch_days - self.interval_days, self.samples_per_batch)
 
 
 def _latent_effects(config: BioreactorConfig, latent: np.ndarray) -> tuple[float, float, float]:
@@ -760,7 +760,7 @@ class BioreactorSimulator:
         Returns
         -------
         pd.DataFrame
-            ``n_samples`` rows indexed by setpoint interval start time [day],
+            ``samples_per_batch`` rows indexed by setpoint interval start time [day],
             columns ``["pH", "temperature"]``. Each row is the setpoint held
             over the following interval (zero-order hold).
         """
@@ -783,8 +783,10 @@ class BioreactorSimulator:
         missing = [c for c in _TRAJECTORY_COLUMNS if c not in trajectory.columns]
         if missing:
             raise ValueError(f"trajectory is missing columns {missing}; it needs {list(_TRAJECTORY_COLUMNS)}.")
-        if len(trajectory) != cfg.n_samples:
-            raise ValueError(f"trajectory must have n_samples = {cfg.n_samples} rows; got {len(trajectory)}.")
+        if len(trajectory) != cfg.samples_per_batch:
+            raise ValueError(
+                f"trajectory must have samples_per_batch = {cfg.samples_per_batch} rows; got {len(trajectory)}."
+            )
         ph = trajectory["pH"].to_numpy(dtype=float)
         temperature = trajectory["temperature"].to_numpy(dtype=float)
         if not (np.all(np.isfinite(ph)) and np.all(np.isfinite(temperature))):
@@ -803,7 +805,7 @@ class BioreactorSimulator:
         Returns arrays of length ``n_steps + 1``; entry ``i`` is the setpoint
         in force during step ``i`` (the final entry repeats the last setpoint).
         """
-        steps_per_interval = self.config.n_steps // self.config.n_samples
+        steps_per_interval = self.config.n_steps // self.config.samples_per_batch
         ph_hourly = np.repeat(ph, steps_per_interval)
         temp_hourly = np.repeat(temperature, steps_per_interval)
         return (
@@ -856,7 +858,7 @@ class BioreactorSimulator:
         ph_err *= cfg.control_sd_ph * cfg.noise_scale
 
         # 4. Measurement noise on the recorded tags (noise channel).
-        meas = rng.standard_normal((cfg.n_samples, len(_TAG_COLUMNS))) * cfg.noise_scale
+        meas = rng.standard_normal((cfg.samples_per_batch, len(_TAG_COLUMNS))) * cfg.noise_scale
 
         return Bunch(feed_scale=feed_scale, phi=phi, temp_err=temp_err, ph_err=ph_err, meas=meas)
 
@@ -1025,7 +1027,7 @@ class BioreactorSimulator:
             variable names). ``None`` runs the nominal batch (all upstream
             variables at their means).
         trajectory : pd.DataFrame, optional
-            Setpoint schedule with ``n_samples`` rows and columns
+            Setpoint schedule with ``samples_per_batch`` rows and columns
             ``["pH", "temperature"]``; each row is held over its interval
             (zero-order hold). ``None`` uses :meth:`nominal_trajectory`.
         random_state : int, np.random.Generator, or None
@@ -1036,7 +1038,7 @@ class BioreactorSimulator:
         result : sklearn.utils.Bunch
             With keys:
 
-            - ``tags``: DataFrame, ``n_samples`` rows indexed by sample time
+            - ``tags``: DataFrame, ``samples_per_batch`` rows indexed by sample time
               [day], columns ``["pH", "temperature", "dissolved_oxygen",
               "offgas_co2", "volume"]``: what the historian records,
               including measurement noise.
@@ -1333,7 +1335,7 @@ class BioreactorSimulator:
         batches: dict = {}
         trajectories: dict = {}
         titers = np.empty(int(n_batches))
-        interval_fraction = np.linspace(0.0, 1.0, cfg.n_samples)
+        interval_fraction = np.linspace(0.0, 1.0, cfg.samples_per_batch)
 
         for row, (batch_id, child) in enumerate(zip(batch_ids, child_rngs, strict=True)):
             if policy == "adapted":
@@ -1447,7 +1449,7 @@ class BioreactorSimulator:
                 rows.append((f"sustained pH bias {sign * bias:+.2f}", titer, 100.0 * (titer - base) / base))
 
         one_sample = temp_set.copy()
-        mid = cfg.n_samples // 2
+        mid = cfg.samples_per_batch // 2
         one_sample[mid] = min(one_sample[mid] + 0.5, cfg.temp_bounds[1])
         titer = self._deterministic_titer(latent0, ph_set, one_sample)
         rows.append(("single-sample temperature excursion +0.5 degC", titer, 100.0 * (titer - base) / base))
