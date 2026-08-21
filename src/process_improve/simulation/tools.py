@@ -13,9 +13,14 @@ The tools exposed here:
   under a named operating policy and reports the titer outcomes.
 - ``decompose_batch_quality_variance`` - splits the replay-campaign
   titer variance into its disturbance sources.
+- ``correct_batch_midcourse`` - corrects a handful of fresh batches at a
+  decision point and reports the executed (re-simulated) outcomes.
+- ``evaluate_batch_control_policy`` - the campaign-level executed
+  comparison of replay vs mid-course correction (optionally with the
+  feedforward and oracle ceilings).
 
 The three DOE tools above are stateless in the ``private_state`` sense
-described below; the two bioreactor tools have no hidden state at all
+described below; the four bioreactor tools have no hidden state at all
 (their model is deliberately open, see
 :mod:`process_improve.simulation.batch`) and are reproducible from
 their ``random_state`` field alone.
@@ -641,6 +646,229 @@ def decompose_batch_quality_variance(spec: DecomposeBatchQualityVarianceInput) -
 
 
 _register("decompose_batch_quality_variance")
+
+
+# ---------------------------------------------------------------------------
+# correct_batch_midcourse
+# ---------------------------------------------------------------------------
+
+
+class CorrectBatchMidcourseInput(BaseModel):
+    """Input contract for the single-decision-point correction demonstration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    y_target: float = Field(
+        8.0,
+        gt=0.0,
+        le=50.0,
+        description="Final-titer target in g/L; batches predicted at or above it are left alone.",
+    )
+    n_batches: int = Field(5, ge=1, le=10, description="Number of fresh batches to run through the decision point.")
+    decision_point: int = Field(
+        8, ge=1, le=19, description="Sample index of the decision point (samples are 12 h apart)."
+    )
+    n_train: int = Field(
+        200, ge=30, le=400, description="Historical (training) campaign size for the per-class models."
+    )
+    mv_variation: float = Field(
+        2.5,
+        ge=0.1,
+        le=5.0,
+        description=(
+            "Deliberate setpoint variation of the historical campaign (degC per knot; pH scales at 10%). "
+            "Corrections can only be justified inside the region this history explored."
+        ),
+    )
+    dead_band: float = Field(
+        2.5,
+        ge=0.0,
+        le=10.0,
+        description=(
+            "No-correction dead band in prediction-interval half-widths: correct only when the projected "
+            "shortfall is significant (Yabuki and MacGregor's lesson; 0 corrects every below-target batch)."
+        ),
+    )
+    random_state: int = Field(0, ge=0, le=2**31 - 1, description="Seed; the same seed reproduces everything.")
+
+
+@tool_spec(
+    name="correct_batch_midcourse",
+    description=(
+        "Run fresh simulated bioreactor batches to a decision point, apply the latent-variable mid-course "
+        "correction (per-feed-class PLS models fitted on a deliberately varied historical campaign; TSR "
+        "batch-so-far projection; a QP over the remaining setpoint schedule with SPE/T2 caps and a "
+        "no-correction dead band), and EXECUTE the corrected schedules by re-simulating each batch with the "
+        "identical disturbances. Reports realised before/after titers, not model predictions, so the gain is "
+        "a true same-batch counterfactual. Requires the 'control' extra (osqp)."
+    ),
+    input_model=CorrectBatchMidcourseInput,
+    examples="""
+    # "Correct a few batches at day 4 and show me what actually happened"
+        -> ``correct_batch_midcourse(n_batches=5, decision_point=8, y_target=8.0)``
+    # "Correct every below-target batch, no dead band"
+        -> ``correct_batch_midcourse(dead_band=0.0)``
+    """,
+    category="simulation",
+    rng={"uses_rng": True, "seed_param": "random_state", "default_seed": 0},
+)
+def correct_batch_midcourse(spec: CorrectBatchMidcourseInput) -> dict[str, Any]:
+    """Correct fresh batches at one decision point and report the executed outcomes."""
+    from process_improve.batch.control import evaluate_control_policies  # noqa: PLC0415
+    from process_improve.simulation.batch import BioreactorSimulator  # noqa: PLC0415
+
+    try:
+        result = evaluate_control_policies(
+            BioreactorSimulator(),
+            y_target=spec.y_target,
+            n_train=spec.n_train,
+            n_test=spec.n_batches,
+            mv_variation=spec.mv_variation,
+            decision_points=(spec.decision_point,),
+            dead_band=spec.dead_band,
+            include_adapted=False,
+            oracle="none",
+            random_state=spec.random_state,
+        )
+        rows = []
+        for batch_id, row in result.batches.iterrows():
+            rows.append(
+                {
+                    "batch_id": str(batch_id),
+                    "feed_class": str(row["class_assigned"]),
+                    "replay_titer_g_L": round(float(row["replay"]), 3),
+                    "corrected": bool(row["corrected"]),
+                    "outcome": str(row["reason"]),
+                    "executed_titer_g_L": round(float(row["midcourse"]), 3),
+                    "predicted_titer_g_L": None if not row["corrected"] else round(float(row["y_hat_predicted"]), 3),
+                }
+            )
+        return clean(
+            {
+                "decision_point": spec.decision_point,
+                "y_target_g_L": spec.y_target,
+                "n_corrected": int(result.n_corrected),
+                "n_harmed": int(result.n_harmed),
+                "batches": rows,
+                "model_fit_r2_per_class": {str(k): round(float(v), 3) for k, v in result.models.fit_r2.items()},
+                "note": (
+                    "executed_titer_g_L re-simulates the batch with the corrected schedule and the identical "
+                    "disturbance seed; the gain over replay_titer_g_L is realised, not predicted."
+                ),
+            }
+        )
+    except ImportError as exc:
+        return {"error": str(exc)}
+    except (ValueError, TypeError, KeyError) as exc:
+        return {"error": str(exc)}
+
+
+_register("correct_batch_midcourse")
+
+
+# ---------------------------------------------------------------------------
+# evaluate_batch_control_policy
+# ---------------------------------------------------------------------------
+
+
+class EvaluateBatchControlPolicyInput(BaseModel):
+    """Input contract for the campaign-level executed policy comparison."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    y_target: float = Field(8.0, gt=0.0, le=50.0, description="Final-titer target in g/L for the corrector.")
+    n_train: int = Field(200, ge=30, le=400, description="Historical (training) campaign size.")
+    n_test: int = Field(40, ge=5, le=60, description="Fresh test batches, every policy executed per batch.")
+    mv_variation: float = Field(
+        2.5, ge=0.1, le=5.0, description="Deliberate setpoint variation of the historical campaign."
+    )
+    decision_point: int = Field(8, ge=1, le=19, description="Sample index of the decision point.")
+    dead_band: float = Field(
+        2.5, ge=0.0, le=10.0, description="No-correction dead band in prediction-interval half-widths."
+    )
+    include_ceilings: bool = Field(
+        default=False,
+        description=(
+            "Also compute the two ceilings: the per-batch perfect-feedforward optimum (adapted) and the "
+            "oracle that optimises the remaining schedule against the simulator at the same decision point. "
+            "Roughly 10 s per test batch slower."
+        ),
+    )
+    random_state: int = Field(0, ge=0, le=2**31 - 1, description="Seed; the same seed reproduces everything.")
+
+
+@tool_spec(
+    name="evaluate_batch_control_policy",
+    description=(
+        "Executed campaign-level comparison of batch operating policies on the bioreactor simulator: replay "
+        "(the nominal schedule; the floor), mid-course correction (per-feed-class PLS models, corrected at a "
+        "decision point, every corrected schedule re-simulated with the identical disturbances), and "
+        "optionally the perfect-feedforward ceiling and the oracle-from-the-decision-point ceiling. Reports "
+        "realised mean/sd titers per policy and the per-batch outcomes, closing the gap the literature "
+        "leaves: published mid-course gains are usually model predictions, never executed validations. "
+        "Requires the 'control' extra (osqp)."
+    ),
+    input_model=EvaluateBatchControlPolicyInput,
+    examples="""
+    # "How much does mid-course correction actually recover over replay?"
+        -> ``evaluate_batch_control_policy(n_test=40, decision_point=8)``
+    # "Include the ceilings so I can see what is left on the table"
+        -> ``evaluate_batch_control_policy(n_test=20, include_ceilings=True)``
+    """,
+    category="simulation",
+    rng={"uses_rng": True, "seed_param": "random_state", "default_seed": 0},
+)
+def evaluate_batch_control_policy(spec: EvaluateBatchControlPolicyInput) -> dict[str, Any]:
+    """Compare replay vs executed mid-course correction (and optional ceilings) on a campaign."""
+    from process_improve.batch.control import evaluate_control_policies  # noqa: PLC0415
+    from process_improve.simulation.batch import BioreactorSimulator  # noqa: PLC0415
+
+    try:
+        result = evaluate_control_policies(
+            BioreactorSimulator(),
+            y_target=spec.y_target,
+            n_train=spec.n_train,
+            n_test=spec.n_test,
+            mv_variation=spec.mv_variation,
+            decision_points=(spec.decision_point,),
+            dead_band=spec.dead_band,
+            include_adapted=spec.include_ceilings,
+            oracle="corrected" if spec.include_ceilings else "none",
+            random_state=spec.random_state,
+        )
+        corrected = result.batches[result.batches["corrected"]]
+        gains = (corrected["midcourse"] - corrected["replay"]) if len(corrected) else None
+        return clean(
+            {
+                "summary_titer_g_L": {
+                    str(policy): {k: round(float(v), 3) for k, v in row.items()}
+                    for policy, row in result.summary.iterrows()
+                },
+                "n_test": spec.n_test,
+                "n_corrected": int(result.n_corrected),
+                "n_harmed": int(result.n_harmed),
+                "corrected_batches": [
+                    {
+                        "batch_id": str(batch_id),
+                        "feed_class": str(row["class_assigned"]),
+                        "replay_titer_g_L": round(float(row["replay"]), 3),
+                        "executed_titer_g_L": round(float(row["midcourse"]), 3),
+                        "realised_gain_g_L": round(float(row["midcourse"] - row["replay"]), 3),
+                        "predicted_titer_g_L": round(float(row["y_hat_predicted"]), 3),
+                    }
+                    for batch_id, row in corrected.iterrows()
+                ],
+                "mean_realised_gain_of_corrected_g_L": None if gains is None else round(float(gains.mean()), 3),
+                "model_fit_r2_per_class": {str(k): round(float(v), 3) for k, v in result.models.fit_r2.items()},
+            }
+        )
+    except ImportError as exc:
+        return {"error": str(exc)}
+    except (ValueError, TypeError, KeyError) as exc:
+        return {"error": str(exc)}
+
+
+_register("evaluate_batch_control_policy")
 
 
 # ---------------------------------------------------------------------------

@@ -1006,3 +1006,321 @@ class MidCourseCorrector:
             dead_band_margin=dead_band_margin,
             correction=result,
         )
+
+
+def _oracle_remaining(  # noqa: PLR0913 - explicit oracle inputs
+    simulator: object,
+    z_row: pd.Series,
+    seed: int,
+    k: int,
+    *,
+    n_knots: int = 4,
+    max_evaluations: int = 400,
+) -> float:
+    """Best achievable titer when the remaining schedule is optimised against the simulator.
+
+    Direct search (Nelder-Mead, then Powell from the same start) over
+    ``n_knots`` linearly interpolated knot values per manipulated variable
+    from sample ``k`` onward, with the identical seed, so the disturbances
+    match the batch being corrected. This is the ceiling for any mid-course
+    scheme at that decision point, because the objective is the true process,
+    not a model of it.
+    """
+    from scipy.optimize import minimize  # noqa: PLC0415
+
+    nominal = simulator.nominal_trajectory()  # type: ignore[attr-defined]
+    config = simulator.config  # type: ignore[attr-defined]
+    n_samples = nominal.shape[0]
+    m = n_samples - k
+    knot_positions = np.linspace(0, m - 1, min(n_knots, m))
+    limits = {"temperature": config.temp_bounds, "pH": config.ph_bounds}
+    tags = list(nominal.columns)
+    n_per = len(knot_positions)
+
+    def build(v: np.ndarray) -> pd.DataFrame:
+        trajectory = nominal.copy()
+        for i, tag in enumerate(tags):
+            values = np.interp(np.arange(m), knot_positions, v[i * n_per : (i + 1) * n_per])
+            low, high = limits[tag]
+            trajectory.iloc[k:, trajectory.columns.get_loc(tag)] = np.clip(values, low, high)
+        return trajectory
+
+    def negative_titer(v: np.ndarray) -> float:
+        return -float(simulator.simulate_batch(z_row, build(v), random_state=seed).titer)  # type: ignore[attr-defined]
+
+    start = np.concatenate([nominal[tag].iloc[k:].to_numpy()[knot_positions.astype(int)] for tag in tags])
+    first = minimize(negative_titer, start, method="Nelder-Mead", options={"maxfev": max_evaluations})
+    second = minimize(negative_titer, start, method="Powell", options={"maxfev": max_evaluations})
+    return float(-min(first.fun, second.fun))
+
+
+def evaluate_control_policies(  # noqa: PLR0913, PLR0915, C901 - one executed comparison, kept linear
+    simulator: object,
+    *,
+    y_target: float,
+    n_train: int = 200,
+    n_test: int = 40,
+    mv_variation: float = 2.5,
+    n_components: int = 4,
+    decision_points: tuple[int, ...] = (8,),
+    target_side: str = "below",
+    dead_band: float = 2.5,
+    weights: dict | None = None,
+    bounds: dict | None = None,
+    rate_limits: dict | None = None,
+    spe_cap: float | str | None = "limit",
+    t2_cap: float | str | None = "limit",
+    n_knots: int | None = 4,
+    per_class: bool = True,
+    method: str = "tsr",
+    ridge: float = 0.0,
+    include_adapted: bool = True,
+    adapted_n_knots: int = 4,
+    adapted_n_starts: int = 5,
+    oracle: str = "corrected",
+    random_state: int | np.random.Generator | None = None,
+) -> Bunch:
+    """Compare batch operating policies on the bioreactor simulator, executed.
+
+    Runs the full mid-course-correction workflow end to end and reports
+    *realised* (executed) quality, not model predictions: every corrected
+    schedule is fed back into the simulator with the identical seed, so the
+    with- and without-correction titers are true same-batch counterfactuals.
+    Four policies are compared:
+
+    - **replay**: every batch runs the nominal schedule (the floor; what
+      "replicate the golden batch" automation does).
+    - **mid-course**: batches are corrected at the ``decision_points`` by
+      :class:`MidCourseCorrector` models fitted on a deliberately varied
+      historical campaign; batches the dead band or the validity gate skips
+      run the nominal schedule.
+    - **oracle-from-k**: for every batch the mid-course policy corrected,
+      the remaining schedule is instead optimised against the simulator
+      itself at the same decision point (:func:`_oracle_remaining`). This is
+      the ceiling for any mid-course scheme at that decision point; the gap
+      to the mid-course row is the price of using an empirical model with
+      limited historical excitation.
+    - **adapted**: every batch runs the true optimal schedule for its own
+      initial conditions from time zero
+      (``simulator.optimal_trajectory``), the perfect-feedforward ceiling.
+
+    Parameters
+    ----------
+    simulator : BioreactorSimulator
+        The simulator (duck-typed: needs ``simulate_campaign``,
+        ``simulate_batch``, ``nominal_trajectory``, ``optimal_trajectory``
+        and ``config``).
+    y_target : float
+        The quality target handed to the corrector (original units).
+    n_train, n_test : int
+        Sizes of the historical (training) campaign and the fresh test
+        campaign.
+    mv_variation : float, default=2.5
+        Deliberate setpoint variation of the historical campaign; the
+        identification requirement is discussed in
+        :meth:`~process_improve.simulation.BioreactorSimulator.simulate_campaign`.
+    n_components : int, default=4
+        Components for each :class:`~process_improve.batch.BatchPLS` model.
+    decision_points : tuple of int, default=(8,)
+        Sample indices at which the corrector is consulted, in order; later
+        points see the schedule implemented by earlier ones.
+    per_class : bool, default=True
+        Fit one model per feed class (labels from the training campaign;
+        test batches are assigned to the nearest class centroid in
+        standardised Z). With ``False``, or when class labels are
+        unavailable, a single global model is used; the executed experiments
+        behind this module found the global linear model averages the
+        class-dependent gain direction away, so per-class models are the
+        default.
+    target_side, dead_band, weights, bounds, rate_limits, spe_cap, t2_cap, n_knots, method, ridge
+        Corrector settings, passed to :class:`MidCourseCorrector`. ``bounds``
+        defaults to the simulator's operating bounds tightened inward by
+        about two control-error standard deviations (0.3 degC, 0.04 pH);
+        ``rate_limits`` defaults to 3.0 degC and 0.5 pH per sample;
+        ``weights`` defaults to ``{"target": 1.0, "movement": 0.1}``.
+    include_adapted : bool, default=True
+        Compute the adapted (perfect-feedforward) row; it costs one
+        ``optimal_trajectory`` call per test batch (roughly 10 s each on the
+        default configuration).
+    adapted_n_knots, adapted_n_starts : int
+        Passed to ``optimal_trajectory`` for the adapted policy.
+    oracle : {"corrected", "none"}, default="corrected"
+        Compute the oracle-from-k row for the batches the mid-course policy
+        corrected (a few direct-search optimisations against the simulator),
+        or skip it.
+    random_state : int, np.random.Generator, or None
+        Seed for the campaigns and the per-batch execution seeds; the whole
+        comparison is reproducible end to end.
+
+    Returns
+    -------
+    result : sklearn.utils.Bunch
+        With keys ``summary`` (DataFrame: one row per policy with mean, sd,
+        min and max titer), ``batches`` (DataFrame: per-batch replay /
+        mid-course / adapted / oracle titers, the assigned and true feed
+        class, whether and why each batch was or was not corrected, the
+        decision point used, and the corrector's predicted quality),
+        ``n_corrected``, ``n_harmed`` (corrected batches whose executed
+        titer fell more than 0.01 below replay), and ``models`` (per-class
+        fit R2).
+    """
+    from .._random import check_random_state  # noqa: PLC0415
+    from ._batch_pls import BatchPLS  # noqa: PLC0415
+
+    if oracle not in ("corrected", "none"):
+        raise ValueError(f"oracle must be 'corrected' or 'none'; got {oracle!r}.")
+    rng = check_random_state(random_state)
+    train_seed = int(rng.integers(2**31))
+    test_seed = int(rng.integers(2**31))
+    batch_seeds = rng.integers(2**31, size=int(n_test))
+
+    config = simulator.config  # type: ignore[attr-defined]
+    nominal = simulator.nominal_trajectory()  # type: ignore[attr-defined]
+    nominal_positional = nominal.reset_index(drop=True)
+    mv_tags = list(nominal.columns)
+    if bounds is None:
+        bounds = {
+            "temperature": (config.temp_bounds[0] + 0.3, config.temp_bounds[1] - 0.3),
+            "pH": (config.ph_bounds[0] + 0.04, config.ph_bounds[1] - 0.04),
+        }
+    if rate_limits is None:
+        rate_limits = {"temperature": 3.0, "pH": 0.5}
+    weights = weights or {"target": 1.0, "movement": 0.1}
+
+    # --- Train the model(s) on a deliberately varied historical campaign ---
+    train = simulator.simulate_campaign(  # type: ignore[attr-defined]
+        n_train, policy="historical", mv_variation=mv_variation, random_state=train_seed
+    )
+    z_train = train.initial_conditions
+    labels = np.asarray(list(train.classes))
+    usable_classes = per_class and len(set(labels)) > 1 and "?" not in set(labels)
+    z_mean, z_sd = z_train.mean(), z_train.std(ddof=1)
+    z_standardised = (z_train - z_mean) / z_sd
+
+    def _fit(ids: list) -> BatchPLS:
+        return BatchPLS(n_components=n_components).fit(
+            {i: train.batches[i] for i in ids},
+            train.quality.loc[ids],
+            initial_conditions=z_train.loc[ids],
+        )
+
+    correctors: dict = {}
+    centroids: dict = {}
+    fit_r2: dict = {}
+    groups = sorted(set(labels)) if usable_classes else ["all"]
+    for group in groups:
+        ids = (
+            list(train.batches)
+            if group == "all"
+            else [i for i, c in zip(train.batches, labels, strict=True) if c == group]
+        )
+        model = _fit(ids)
+        fit_r2[group] = float(model.r2_cumulative_.iloc[-1])
+        centroids[group] = z_standardised.loc[ids].mean()
+        correctors[group] = MidCourseCorrector(
+            model,
+            nominal_positional,
+            mv_tags=mv_tags,
+            mode="target",
+            y_target=y_target,
+            target_side=target_side,
+            dead_band=dead_band,
+            weights=weights,
+            bounds=bounds,
+            rate_limits=rate_limits,
+            spe_cap=spe_cap,
+            t2_cap=t2_cap,
+            method=method,
+            ridge=ridge,
+            n_knots=n_knots,
+        )
+
+    def _assign(z_row: pd.Series) -> str:
+        z_std = (z_row - z_mean) / z_sd
+        return min(centroids, key=lambda g: float(((z_std - centroids[g]) ** 2).sum()))
+
+    # --- Fresh test batches, every policy executed with the same seed ------
+    test = simulator.simulate_campaign(n_test, policy="replay", random_state=test_seed)  # type: ignore[attr-defined]
+    z_test = test.initial_conditions
+    records = []
+    for position, batch_id in enumerate(z_test.index):
+        seed = int(batch_seeds[position])
+        z_row = z_test.loc[batch_id]
+        base = simulator.simulate_batch(z_row, random_state=seed)  # type: ignore[attr-defined]
+        group = _assign(z_row)
+        corrector = correctors[group]
+
+        schedule = None
+        corrected = False
+        reason = None
+        first_k = None
+        y_hat_predicted = np.nan
+        current = base
+        for k in decision_points:
+            outcome = corrector.correct(
+                current.tags.iloc[:k].reset_index(drop=True),
+                initial_conditions=z_row,
+                implemented_schedule=schedule,
+                k=int(k),
+            )
+            reason = outcome.reason if reason is None or not corrected else reason
+            if outcome.corrected:
+                schedule = outcome.schedule
+                if not corrected:
+                    first_k = int(k)
+                    y_hat_predicted = float(outcome.y_hat.iloc[0])
+                corrected = True
+                trajectory = schedule.copy()
+                trajectory.index = nominal.index
+                current = simulator.simulate_batch(z_row, trajectory, random_state=seed)  # type: ignore[attr-defined]
+        mcc_titer = float(current.titer)
+
+        record = {
+            "batch_id": batch_id,
+            "class_true": list(test.classes)[position],
+            "class_assigned": group,
+            "replay": float(base.titer),
+            "midcourse": mcc_titer,
+            "corrected": corrected,
+            "reason": reason,
+            "decision_point": first_k,
+            "y_hat_predicted": y_hat_predicted,
+        }
+        if include_adapted:
+            best = simulator.optimal_trajectory(  # type: ignore[attr-defined]
+                z_row, n_knots=adapted_n_knots, n_starts=adapted_n_starts, random_state=0
+            )
+            record["adapted"] = float(
+                simulator.simulate_batch(z_row, best.trajectory, random_state=seed).titer  # type: ignore[attr-defined]
+            )
+        if oracle == "corrected" and corrected:
+            record["oracle_from_k"] = _oracle_remaining(simulator, z_row, seed, typing.cast("int", first_k))
+        records.append(record)
+
+    batches = pd.DataFrame(records).set_index("batch_id")
+
+    def _row(values: pd.Series) -> dict:
+        return {
+            "mean": float(values.mean()),
+            "sd": float(values.std(ddof=1)),
+            "min": float(values.min()),
+            "max": float(values.max()),
+        }
+
+    summary_rows = {"replay": _row(batches["replay"]), "midcourse": _row(batches["midcourse"])}
+    if oracle == "corrected" and batches.get("oracle_from_k") is not None and batches["oracle_from_k"].notna().any():
+        oracle_full = batches["oracle_from_k"].fillna(batches["midcourse"])
+        summary_rows["oracle_from_k"] = _row(oracle_full)
+    if include_adapted:
+        summary_rows["adapted"] = _row(batches["adapted"])
+    summary = pd.DataFrame(summary_rows).T
+
+    corrected_mask = batches["corrected"]
+    harmed = int(((batches["midcourse"] - batches["replay"]) < -0.01)[corrected_mask].sum())
+    return Bunch(
+        summary=summary,
+        batches=batches,
+        n_corrected=int(corrected_mask.sum()),
+        n_harmed=harmed,
+        models=Bunch(fit_r2=fit_r2, per_class=usable_classes, groups=groups),
+    )

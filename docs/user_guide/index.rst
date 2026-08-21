@@ -12,3 +12,4 @@ User Guide
    omars_designs
    sensory_panel
    batch_simulator
+   batch_control

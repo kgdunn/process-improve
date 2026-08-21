@@ -432,3 +432,39 @@ def test_executed_correction_gains_on_simulator() -> None:
     assert len(gains) >= 3
     assert min(gains) > 0.1
     assert float(np.mean(gains)) > 0.3
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+def test_evaluate_control_policies_structure() -> None:
+    """The executed policy comparison returns a coherent, reproducible result."""
+    from process_improve.batch.control import evaluate_control_policies
+    from process_improve.simulation import BioreactorSimulator
+
+    result = evaluate_control_policies(
+        BioreactorSimulator(),
+        y_target=8.0,
+        n_train=60,
+        n_test=8,
+        include_adapted=False,
+        oracle="none",
+        random_state=0,
+    )
+    assert set(result.summary.index) == {"replay", "midcourse"}
+    assert list(result.summary.columns) == ["mean", "sd", "min", "max"]
+    assert len(result.batches) == 8
+    # Non-corrected batches carry the replay titer unchanged.
+    untouched = result.batches[~result.batches["corrected"]]
+    np.testing.assert_allclose(untouched["replay"], untouched["midcourse"])
+    assert set(result.batches["reason"]) <= {"corrected", "dead_band", "spe_gate", "batch_complete"}
+    # Reproducible end to end.
+    again = evaluate_control_policies(
+        BioreactorSimulator(),
+        y_target=8.0,
+        n_train=60,
+        n_test=8,
+        include_adapted=False,
+        oracle="none",
+        random_state=0,
+    )
+    pd.testing.assert_frame_equal(result.batches, again.batches)

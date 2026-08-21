@@ -483,8 +483,10 @@ class TestRegistryIntegration:
             "reveal_simulator",
             "simulate_batch_campaign",
             "decompose_batch_quality_variance",
+            "correct_batch_midcourse",
+            "evaluate_batch_control_policy",
         }
-        assert len(specs) == 5
+        assert len(specs) == 7
 
     def test_dispatch_via_execute_tool_call(self):
         out = execute_tool_call(
