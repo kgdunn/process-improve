@@ -2,7 +2,7 @@
 
 Fake-data / process-simulator subpackage.
 
-Provides three agent-callable tools used to demonstrate DOE workflows
+Provides agent-callable tools, three of which demonstrate DOE workflows
 against a synthetic (but deterministic) response surface:
 
 - ``create_simulator`` - records a hidden model from a seed + factor
@@ -15,4 +15,31 @@ against a synthetic (but deterministic) response surface:
 The math itself lives in :mod:`process_improve.simulation.model`; the
 tools in :mod:`process_improve.simulation.tools` are the
 JSON-schema-wrapped entry points registered with ``@tool_spec``.
+
+A second, open simulator lives in :mod:`process_improve.simulation.batch`:
+a deterministic fed-batch bioreactor with tunable disturbance channels,
+the baseline for batch trajectory adaptation and mid-course correction.
+Unlike the DOE simulator above, its parameters are deliberately visible.
 """
+
+from process_improve.simulation.batch import (
+    LATENT_FACTOR_NAMES,
+    UPSTREAM_VARIABLE_NAMES,
+    BioreactorConfig,
+    BioreactorSimulator,
+    cardinal_ph,
+    cardinal_temperature,
+    sample_initial_conditions,
+    variance_decomposition,
+)
+
+__all__ = [
+    "LATENT_FACTOR_NAMES",
+    "UPSTREAM_VARIABLE_NAMES",
+    "BioreactorConfig",
+    "BioreactorSimulator",
+    "cardinal_ph",
+    "cardinal_temperature",
+    "sample_initial_conditions",
+    "variance_decomposition",
+]
