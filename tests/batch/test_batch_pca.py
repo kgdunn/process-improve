@@ -60,9 +60,7 @@ def test_diagnose_matches_internal_pca(aligned_nylon: dict) -> None:
     model = BatchPCA(n_components=3).fit(aligned_nylon)
     result = model.diagnose(aligned_nylon)
     np.testing.assert_allclose(result.scores.to_numpy(), model.scores_.to_numpy(), atol=1e-8)
-    np.testing.assert_allclose(
-        result.hotellings_t2.to_numpy(), model.hotellings_t2_.to_numpy(), atol=1e-8
-    )
+    np.testing.assert_allclose(result.hotellings_t2.to_numpy(), model.hotellings_t2_.to_numpy(), atol=1e-8)
 
 
 def test_fit_returns_self_and_limits(aligned_nylon: dict) -> None:

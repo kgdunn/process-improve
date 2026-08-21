@@ -237,14 +237,22 @@ def online_monitoring_plot(
         go.Scatter(x=time, y=mean_trace, mode="lines", name="good-batch mean", line={"color": REFERENCE_LINE_COLOR})
     )
     fig.add_trace(
-        go.Scatter(x=time, y=limit, mode="lines", name=f"{int(monitor.conf_level * 100)}% limit",
-                   line={"color": LIMIT_LINE_COLOR, "dash": "dash"})
+        go.Scatter(
+            x=time,
+            y=limit,
+            mode="lines",
+            name=f"{int(monitor.conf_level * 100)}% limit",
+            line={"color": LIMIT_LINE_COLOR, "dash": "dash"},
+        )
     )
     fig.add_trace(go.Scatter(x=time, y=trace, mode="lines", name=label, line={"color": "#2563EB"}))
     if bool(np.any(alarm)):
         fig.add_trace(
             go.Scatter(
-                x=time[alarm], y=np.asarray(trace)[alarm], mode="markers", name="alarm",
+                x=time[alarm],
+                y=np.asarray(trace)[alarm],
+                mode="markers",
+                name="alarm",
                 marker={"color": LIMIT_LINE_COLOR, "size": 8, "symbol": "x"},
             )
         )
