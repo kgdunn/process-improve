@@ -11,6 +11,8 @@ those changes.
 
 ## [Unreleased]
 
+## [1.67.0] - 2026-08-21
+
 ### Fixed
 
 - `omars_properties` and `is_omars` now reject a design that leaves a factor at
@@ -34,6 +36,27 @@ those changes.
 
 ### Added
 
+- `simulation.batch`: a deterministic fed-batch bioreactor simulator with
+  tunable disturbance channels, the quantitative baseline for batch trajectory
+  adaptation and, later, mid-course correction. Growth follows the Rosso et
+  al. (1995) cardinal temperature and pH model with Luedeking-Piret
+  production, an oxygen-transfer ceiling with hypoxic death, hypothermic
+  growth arrest and substrate-coupled production, so the optimal schedule
+  genuinely depends on each batch's initial conditions. Public surface:
+  `BioreactorConfig`, `BioreactorSimulator` (single batches, replay /
+  historical / adapted campaigns, the true optimal trajectory for any initial
+  conditions, a golden trajectory, and a `sensitivity_budget` that publishes
+  how the titer responds to input perturbations), `sample_initial_conditions`
+  (an 11-variable upstream Z block with three feed classes),
+  `variance_decomposition` (the split into before-batch, within-batch and
+  noise sources with the interaction residual reported explicitly), and the
+  cardinal functions. Fully reproducible from a `random_state`, including
+  across processes; campaign output uses the standard batch dictionary
+  format so it feeds `dict_to_wide` and the alignment tooling directly.
+- Two agent tools, `simulate_batch_campaign` and
+  `decompose_batch_quality_variance`, plus the `golden_batch_baseline`
+  analysis recipe chaining them into the argument for why replaying a golden
+  batch does not reproduce it.
 - Minimum moment aberration (Xu, 2003) for two-level designs, as
   `process_improve.experiments.moment_aberration` and as a new
   `moment_aberration` metric on `evaluate_design`. Unlike the existing
@@ -3104,7 +3127,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.66.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.67.0...HEAD
+[1.67.0]: https://github.com/kgdunn/process-improve/compare/v1.66.1...v1.67.0
 [1.66.1]: https://github.com/kgdunn/process-improve/compare/v1.66.0...v1.66.1
 [1.66.0]: https://github.com/kgdunn/process-improve/compare/v1.65.0...v1.66.0
 [1.65.0]: https://github.com/kgdunn/process-improve/compare/v1.64.0...v1.65.0

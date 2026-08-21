@@ -11,3 +11,4 @@ User Guide
    design_evaluation
    omars_designs
    sensory_panel
+   batch_simulator
