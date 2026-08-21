@@ -667,3 +667,71 @@ def test_adapted_policy_runs_and_differs_per_batch(sim: BioreactorSimulator) -> 
     ids = list(campaign.trajectories)
     assert not campaign.trajectories[ids[0]].equals(campaign.trajectories[ids[1]])
     assert (campaign.quality["titer"] > 0).all()
+
+
+# ---------------------------------------------------------------------------
+# Regression tests from the adversarial review
+# ---------------------------------------------------------------------------
+
+
+def test_ic_scale_acts_linearly_and_only_at_the_draw() -> None:
+    """The initial-condition channel scales linearly (it was once applied twice,
+    making it quadratic), and a caller-supplied Z row is used at face value,
+    independent of ic_scale.
+    """
+    from process_improve.simulation.batch import _coerce_z_row, _latent_effects, _z_to_latent
+
+    full = sample_initial_conditions(60, ic_scale=1.0, random_state=9)
+    half = sample_initial_conditions(60, ic_scale=0.5, random_state=9)
+    np.testing.assert_allclose(half.latent.to_numpy(), 0.5 * full.latent.to_numpy())
+
+    cfg = BioreactorConfig()
+    x0_full = np.array([_latent_effects(cfg, _z_to_latent(_coerce_z_row(row)))[0] for _, row in full.z.iterrows()])
+    x0_half = np.array([_latent_effects(cfg, _z_to_latent(_coerce_z_row(row)))[0] for _, row in half.z.iterrows()])
+    deviation_full = x0_full / cfg.biomass_initial - 1.0
+    deviation_half = x0_half / cfg.biomass_initial - 1.0
+    unclipped = (np.abs(deviation_full) < 0.35) & (np.abs(deviation_half) < 0.35)
+    assert unclipped.sum() > 30
+    np.testing.assert_allclose(deviation_half[unclipped], 0.5 * deviation_full[unclipped], rtol=1e-9)
+
+    z_row = full.z.iloc[0]
+    quiet = dict(within_batch_scale=0.0, noise_scale=0.0)
+    titer_a = BioreactorSimulator(_config(ic_scale=0.25, **quiet)).simulate_batch(z_row).titer
+    titer_b = BioreactorSimulator(_config(ic_scale=1.0, **quiet)).simulate_batch(z_row).titer
+    assert titer_a == titer_b, "a supplied Z row must mean the same thing at every ic_scale"
+
+
+def test_ctmi_rejects_ill_posed_cardinals() -> None:
+    """t_opt below the window midpoint puts a pole inside the cardinal window."""
+    with pytest.raises(ValueError, match="t_opt >= \\(t_min \\+ t_max\\) / 2"):
+        cardinal_temperature(30.0, 27.5, 33.0, 41.5)
+    with pytest.raises(ValueError, match="t_opt >= \\(t_min \\+ t_max\\) / 2"):
+        BioreactorConfig(temp_opt=33.0)
+    with pytest.raises(ValueError, match="t_opt >= \\(t_min \\+ t_max\\) / 2"):
+        BioreactorConfig(temp_q_opt=31.0)
+
+
+def test_realised_trajectory_matches_requested_when_noise_off(nominal: pd.DataFrame) -> None:
+    """With control noise off, each realised row equals the requested setpoint of
+    the interval that ends at its timestamp (it was once shifted one interval
+    ahead, reporting the next interval's setpoint).
+    """
+    quiet = BioreactorSimulator(_config(ic_scale=0.0, within_batch_scale=0.0, noise_scale=0.0))
+    result = quiet.simulate_batch(None, nominal)
+    np.testing.assert_allclose(result.realised_trajectory["temperature"].to_numpy(), nominal["temperature"].to_numpy())
+    np.testing.assert_allclose(result.realised_trajectory["pH"].to_numpy(), nominal["pH"].to_numpy())
+    np.testing.assert_allclose(result.tags["temperature"].to_numpy(), nominal["temperature"].to_numpy())
+
+
+def test_duplicate_batch_ids_are_rejected(sim: BioreactorSimulator) -> None:
+    z = sample_initial_conditions(2, random_state=0).z
+    doubled = pd.concat([z, z])
+    with pytest.raises(ValueError, match="unique batch ids"):
+        sim.simulate_campaign(4, initial_conditions=doubled)
+
+
+def test_supplied_z_block_happy_path(sim: BioreactorSimulator) -> None:
+    z = sample_initial_conditions(3, random_state=1).z
+    campaign = sim.simulate_campaign(3, initial_conditions=z, random_state=2)
+    assert list(campaign.quality.index) == list(z.index)
+    assert (campaign.classes == "?").all()

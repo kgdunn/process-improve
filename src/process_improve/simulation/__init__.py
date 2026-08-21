@@ -2,7 +2,7 @@
 
 Fake-data / process-simulator subpackage.
 
-Provides three agent-callable tools used to demonstrate DOE workflows
+Provides agent-callable tools, three of which demonstrate DOE workflows
 against a synthetic (but deterministic) response surface:
 
 - ``create_simulator`` - records a hidden model from a seed + factor

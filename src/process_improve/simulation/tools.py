@@ -1,6 +1,6 @@
 """(c) Kevin Dunn, 2010-2026. MIT License.
 
-Agent-callable tool wrappers for the fake-data simulator.
+Agent-callable tool wrappers for the simulation subpackage.
 
 The tools exposed here:
 
@@ -9,6 +9,16 @@ The tools exposed here:
   settings, with fresh Gaussian noise each call.
 - ``reveal_simulator`` - returns the underlying coefficients, gated
   behind a ``confirmed`` flag enforced by the host.
+- ``simulate_batch_campaign`` - runs a fed-batch bioreactor campaign
+  under a named operating policy and reports the titer outcomes.
+- ``decompose_batch_quality_variance`` - splits the replay-campaign
+  titer variance into its disturbance sources.
+
+The three DOE tools above are stateless in the ``private_state`` sense
+described below; the two bioreactor tools have no hidden state at all
+(their model is deliberately open, see
+:mod:`process_improve.simulation.batch`) and are reproducible from
+their ``random_state`` field alone.
 
 The tools are intentionally stateless: the hidden model lives in a
 ``private_state`` dict that the host (e.g. the factorial web app)

@@ -90,11 +90,11 @@ Replaying the schedule does not reproduce the outcome:
 
     campaign = sim.simulate_campaign(50, policy="replay", random_state=0)
     titer = campaign.quality["titer"]
-    print(titer.mean(), titer.std(ddof=1))   # a spread of roughly 14% CV
+    print(titer.mean(), titer.std(ddof=1))   # a spread of roughly 13% CV
 
 Holding the measured initial conditions identical does not remove the spread.
 ``dataclasses.replace`` derives a configuration with the initial-condition
-channel off; what remains (roughly 8% CV, about twenty-five times the noise
+channel off; what remains (close to 7% CV, about thirty times the noise
 floor) arose during the batches:
 
 .. code-block:: python
@@ -105,7 +105,7 @@ floor) arose during the batches:
     same_z = BioreactorSimulator(
         dataclasses.replace(BioreactorConfig(), ic_scale=0.0, noise_scale=0.0)
     )
-    campaign = same_z.simulate_campaign(50, policy="replay", random_state=0)
+    same_z_campaign = same_z.simulate_campaign(50, policy="replay", random_state=0)
 
 And the decomposition, which runs the four campaigns and reports the
 interaction residual of the nonlinear model explicitly instead of forcing the
@@ -131,7 +131,8 @@ reaches 8.54 g/L against 8.01 g/L for the built-in nominal recipe.
 does the same for any batch's own initial conditions. The gap between
 replaying the golden schedule and each batch's own optimum is the value a
 perfect feedforward adaptation could recover; on the default configuration it
-ranges from under 1% for a good feed lot to roughly 20% for the poorest.
+ranges from about 3% at the centre of the good feed class to over 40% at the
+centre of the poorest.
 The ``"adapted"`` campaign policy runs every batch at its own optimum, as
 that ceiling, and the ``"historical"`` policy adds deliberate setpoint
 variation, since a perfectly consistent history carries no information about

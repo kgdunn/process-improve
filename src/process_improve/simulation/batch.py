@@ -121,9 +121,12 @@ zero (``ic_scale``, ``within_batch_scale``, ``noise_scale``):
    noise on every recorded tag, at instrument scale.
 
 All random draws are made on every call and multiplied by their channel
-scale, so setting a scale to zero removes that channel without changing the
-draw sequence of the others: the same seed with a channel switched off is a
-true counterfactual for the same batch.
+scale exactly once, so setting a scale to zero removes that channel without
+changing the draw sequence of the others: the same seed with a channel
+switched off is a true counterfactual for the same batch. The
+initial-condition scale acts where upstream data are *drawn*
+(:func:`sample_initial_conditions`); a caller-supplied ``Z`` block is
+measured data and is used at face value.
 
 References
 ----------
@@ -207,6 +210,27 @@ _TRAJECTORY_COLUMNS: tuple[str, ...] = ("pH", "temperature")
 _POLICIES: tuple[str, ...] = ("replay", "historical", "adapted")
 
 
+def _validate_ctmi_cardinals(where: str, t_min: float, t_opt: float, t_max: float) -> None:
+    """Reject cardinal temperature triples for which the CTMI is ill posed.
+
+    The CTMI denominator is linear in temperature and changes sign strictly
+    inside the cardinal window whenever ``t_opt < (t_min + t_max) / 2``,
+    producing a pole where the formula returns nonsense. Rosso et al. (1995)
+    derive the model under the opposite condition, which every organism they
+    fit satisfies (the optimum sits closer to ``t_max`` than to ``t_min``).
+    """
+    if not t_min < t_opt < t_max:
+        raise ValueError(
+            f"{where}: cardinal temperatures must satisfy t_min < t_opt < t_max; got ({t_min}, {t_opt}, {t_max})."
+        )
+    midpoint = (t_min + t_max) / 2.0
+    if t_opt < midpoint:
+        raise ValueError(
+            f"{where}: the CTMI requires t_opt >= (t_min + t_max) / 2 so its denominator has no root inside "
+            f"the cardinal window; got t_opt = {t_opt} with midpoint {midpoint}."
+        )
+
+
 def cardinal_temperature(temperature: float | np.ndarray, t_min: float, t_opt: float, t_max: float) -> np.ndarray:
     """Cardinal temperature model with inflection (CTMI) of Rosso et al. (1995).
 
@@ -219,7 +243,10 @@ def cardinal_temperature(temperature: float | np.ndarray, t_min: float, t_opt: f
         Temperature(s) [degC].
     t_min, t_opt, t_max : float
         Cardinal temperatures [degC]: no growth at or below ``t_min``, maximum
-        growth at ``t_opt``, no growth at or above ``t_max``.
+        growth at ``t_opt``, no growth at or above ``t_max``. The CTMI is
+        well posed only for ``t_opt >= (t_min + t_max) / 2``; below that the
+        denominator has a root strictly inside the cardinal window and the
+        formula is meaningless there, so such triples are rejected.
 
     Returns
     -------
@@ -227,6 +254,7 @@ def cardinal_temperature(temperature: float | np.ndarray, t_min: float, t_opt: f
         The dimensionless growth factor gamma_T in [0, 1], with the same shape
         as ``temperature``.
     """
+    _validate_ctmi_cardinals("cardinal_temperature", t_min, t_opt, t_max)
     temp = np.asarray(temperature, dtype=float)
     numerator = (temp - t_max) * (temp - t_min) ** 2
     denominator = (t_opt - t_min) * ((t_opt - t_min) * (temp - t_opt) - (t_opt - t_max) * (t_opt + t_min - 2.0 * temp))
@@ -359,7 +387,12 @@ class BioreactorConfig:
         that production needs; cold enough to arrest growth is what a
         sensible recipe holds.
     ic_scale : float
-        Scale of the measured initial-condition channel; 0 switches it off.
+        Scale of the upstream variation put into *drawn* initial conditions
+        (campaigns that draw their own ``Z`` block, and
+        :func:`sample_initial_conditions` when called through them); 0
+        collapses drawn batches to the nominal upstream values. A
+        caller-supplied ``Z`` block is measured data and is always used at
+        face value, independent of this scale.
     within_batch_scale : float
         Scale of the unmeasured within-batch channel; 0 switches it off.
     noise_scale : float
@@ -522,11 +555,23 @@ class BioreactorConfig:
                 "Cardinal temperatures must satisfy temp_min < temp_opt < temp_max; got "
                 f"({self.temp_min}, {self.temp_opt}, {self.temp_max})."
             )
+        _validate_ctmi_cardinals(
+            "BioreactorConfig growth cardinals (temp_min, temp_opt, temp_max)",
+            self.temp_min,
+            self.temp_opt,
+            self.temp_max,
+        )
         if not self.temp_q_min < self.temp_q_opt < self.temp_q_max:
             raise ValueError(
                 "Productivity cardinal temperatures must satisfy temp_q_min < temp_q_opt < temp_q_max; got "
                 f"({self.temp_q_min}, {self.temp_q_opt}, {self.temp_q_max})."
             )
+        _validate_ctmi_cardinals(
+            "BioreactorConfig productivity cardinals (temp_q_min, temp_q_opt, temp_q_max)",
+            self.temp_q_min,
+            self.temp_q_opt,
+            self.temp_q_max,
+        )
         if not self.ph_min < self.ph_opt < self.ph_max:
             raise ValueError(
                 f"Cardinal pH values must satisfy ph_min < ph_opt < ph_max; got "
@@ -589,10 +634,17 @@ class BioreactorConfig:
 def _latent_effects(config: BioreactorConfig, latent: np.ndarray) -> tuple[float, float, float]:
     """Map the three latent initial-condition factors to their process effects.
 
+    A ``Z`` row is measured data, so the mapping is fixed: it does not depend
+    on ``ic_scale``, which governs only how much variation
+    :func:`sample_initial_conditions` puts *into* drawn upstream data. (An
+    earlier draft applied ``ic_scale`` here as well, which made the channel
+    scale quadratically on the drawn path and inconsistently between drawn
+    and caller-supplied ``Z`` blocks.)
+
     Parameters
     ----------
     config : BioreactorConfig
-        Configuration supplying the nominal values and ``ic_scale``.
+        Configuration supplying the nominal initial concentrations.
     latent : np.ndarray
         The three latent factor values (seed viability, medium richness,
         inhibitor level) in standardized units.
@@ -606,11 +658,10 @@ def _latent_effects(config: BioreactorConfig, latent: np.ndarray) -> tuple[float
         only, which is why an inhibited lot calls for a different schedule
         (a longer warm growth phase) rather than a scaled-down copy.
     """
-    scale = config.ic_scale
     viability, richness, inhibitor = (float(v) for v in latent)
-    x0 = config.biomass_initial * min(max(1.0 + 0.18 * scale * viability, 0.40), 1.80)
-    s0 = config.substrate_initial * min(max(1.0 + 0.20 * scale * richness, 0.50), 1.60)
-    inhibition = min(max(1.0 - 0.12 * scale * max(inhibitor, 0.0), 0.55), 1.0)
+    x0 = config.biomass_initial * min(max(1.0 + 0.18 * viability, 0.40), 1.80)
+    s0 = config.substrate_initial * min(max(1.0 + 0.20 * richness, 0.50), 1.60)
+    inhibition = min(max(1.0 - 0.12 * max(inhibitor, 0.0), 0.55), 1.0)
     return x0, s0, inhibition
 
 
@@ -644,8 +695,12 @@ def _coerce_z_row(initial_conditions: pd.Series | None) -> np.ndarray:
     if missing:
         raise ValueError(f"initial_conditions is missing upstream variables {missing}.")
     values = initial_conditions.reindex(list(UPSTREAM_VARIABLE_NAMES)).to_numpy(dtype=float)
-    if not np.all(np.isfinite(values)):
-        raise ValueError("initial_conditions contains non-finite values; every upstream variable must be a number.")
+    finite = np.isfinite(values)
+    if not finite.all():
+        bad = [name for name, ok in zip(UPSTREAM_VARIABLE_NAMES, finite, strict=True) if not ok]
+        raise ValueError(
+            f"initial_conditions contains non-finite values for {bad}; every upstream variable must be a number."
+        )
     return values
 
 
@@ -790,13 +845,20 @@ class BioreactorSimulator:
         ph = trajectory["pH"].to_numpy(dtype=float)
         temperature = trajectory["temperature"].to_numpy(dtype=float)
         if not (np.all(np.isfinite(ph)) and np.all(np.isfinite(temperature))):
-            raise ValueError("trajectory contains non-finite values.")
+            bad_columns = [col for col, arr in (("pH", ph), ("temperature", temperature)) if not np.isfinite(arr).all()]
+            raise ValueError(f"trajectory contains non-finite values in columns {bad_columns}.")
         t_lo, t_hi = cfg.temp_bounds
         p_lo, p_hi = cfg.ph_bounds
         if np.any(temperature < t_lo - 1e-9) or np.any(temperature > t_hi + 1e-9):
-            raise ValueError(f"trajectory temperature must lie within temp_bounds {cfg.temp_bounds} degC.")
+            raise ValueError(
+                f"trajectory temperature must lie within temp_bounds {cfg.temp_bounds} degC; got values in "
+                f"[{temperature.min():.6g}, {temperature.max():.6g}]."
+            )
         if np.any(ph < p_lo - 1e-9) or np.any(ph > p_hi + 1e-9):
-            raise ValueError(f"trajectory pH must lie within ph_bounds {cfg.ph_bounds}.")
+            raise ValueError(
+                f"trajectory pH must lie within ph_bounds {cfg.ph_bounds}; got values in "
+                f"[{ph.min():.6g}, {ph.max():.6g}]."
+            )
         return ph, temperature
 
     def _setpoints_hourly(self, ph: np.ndarray, temperature: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -1041,16 +1103,22 @@ class BioreactorSimulator:
             - ``tags``: DataFrame, ``samples_per_batch`` rows indexed by sample time
               [day], columns ``["pH", "temperature", "dissolved_oxygen",
               "offgas_co2", "volume"]``: what the historian records,
-              including measurement noise.
+              including measurement noise. Each row reads at the end of its
+              interval: states at that instant, inputs as delivered over the
+              interval that ends there.
             - ``titer``: float, the final product concentration [g/L].
             - ``states``: DataFrame on the integration grid (indexed by day)
               with columns ``["biomass", "substrate", "titer", "volume",
               "phi", "temperature", "pH"]``: the noise-free god view,
-              including the unmeasured disturbance ``phi``.
+              including the unmeasured disturbance ``phi``. The input columns
+              (``phi``, ``temperature``, ``pH``) hold the value in force
+              during the step *starting* at each grid instant.
             - ``realised_trajectory``: DataFrame like ``tags`` but only
               ``["pH", "temperature"]`` and without measurement noise: what
-              the control loops actually delivered.
-            - ``initial_conditions``: Series, the ``Z`` row used.
+              the control loops delivered over the interval ending at each
+              sample time.
+            - ``initial_conditions``: Series, the ``Z`` row used, taken at
+              face value (see ``ic_scale`` in :class:`BioreactorConfig`).
         """
         cfg = self.config
         z_row = _coerce_z_row(initial_conditions)
@@ -1068,22 +1136,34 @@ class BioreactorSimulator:
         ph_real = np.clip(ph_hourly + disturbances.ph_err, cfg.ph_bounds[0], cfg.ph_bounds[1])
 
         states = self._integrate(ph_real, temp_real, disturbances.phi, x0, s0, inhibition, disturbances.feed_scale)
-        gas = self._gas_tags(states, temp_real, ph_real, disturbances.phi, inhibition)
 
         grid_days = np.linspace(0.0, cfg.batch_days, cfg.n_steps + 1)
         sample_idx = np.round(cfg.sample_days * cfg.steps_per_day).astype(int)
+        # Each sample instant is an interval boundary, where grid entry i of
+        # the input arrays already holds the *next* interval's setpoint (the
+        # input in force during the step starting at i). A reading taken at
+        # the end of an interval reports what the loops delivered during that
+        # interval, so the inputs are sampled one step back.
+        input_idx = sample_idx - 1
+        gas = self._gas_tags(
+            states[sample_idx],
+            temp_real[input_idx],
+            ph_real[input_idx],
+            disturbances.phi[input_idx],
+            inhibition,
+        )
 
         realised = pd.DataFrame(
-            {"pH": ph_real[sample_idx], "temperature": temp_real[sample_idx]},
+            {"pH": ph_real[input_idx], "temperature": temp_real[input_idx]},
             index=pd.Index(cfg.sample_days, name="day"),
         )
         meas = disturbances.meas
         tags = pd.DataFrame(
             {
-                "pH": ph_real[sample_idx] + cfg.meas_sd_ph * meas[:, 0],
-                "temperature": temp_real[sample_idx] + cfg.meas_sd_temp * meas[:, 1],
-                "dissolved_oxygen": gas.dissolved_oxygen[sample_idx] + cfg.meas_sd_do * meas[:, 2],
-                "offgas_co2": gas.offgas_co2[sample_idx] + cfg.meas_sd_co2 * meas[:, 3],
+                "pH": ph_real[input_idx] + cfg.meas_sd_ph * meas[:, 0],
+                "temperature": temp_real[input_idx] + cfg.meas_sd_temp * meas[:, 1],
+                "dissolved_oxygen": gas.dissolved_oxygen + cfg.meas_sd_do * meas[:, 2],
+                "offgas_co2": gas.offgas_co2 + cfg.meas_sd_co2 * meas[:, 3],
                 "volume": states[sample_idx, 3] + cfg.meas_sd_volume * meas[:, 4],
             },
             index=pd.Index(cfg.sample_days, name="day"),
@@ -1232,7 +1312,7 @@ class BioreactorSimulator:
         """
         return self.optimal_trajectory(None, n_knots=n_knots, n_starts=n_starts, random_state=random_state)
 
-    def simulate_campaign(  # noqa: C901, PLR0913
+    def simulate_campaign(  # noqa: C901, PLR0912, PLR0913
         self,
         n_batches: int,
         *,
@@ -1324,6 +1404,11 @@ class BioreactorSimulator:
             missing = [name for name in UPSTREAM_VARIABLE_NAMES if name not in initial_conditions.columns]
             if missing:
                 raise ValueError(f"initial_conditions is missing upstream variables {missing}.")
+            if not initial_conditions.index.is_unique:
+                duplicated = initial_conditions.index[initial_conditions.index.duplicated()].unique().tolist()
+                raise ValueError(
+                    f"initial_conditions must have unique batch ids as its index; duplicated ids: {duplicated}."
+                )
             z_block = initial_conditions
             classes = pd.Series("?", index=z_block.index, name="feed_class")
 
