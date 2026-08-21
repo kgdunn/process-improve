@@ -132,7 +132,8 @@ def robust_regression(  # noqa: PLR0913, PLR0915
         residuals:                the N residuals
         t_value:                  the two-sided critical t-value at ``conflevel`` used
                                   to build the confidence and prediction intervals
-        conf_intervals:           K rows x 2 columns (lower, upper) confidence intervals
+        conf_intervals:           1 x 2 (lower, upper) confidence interval for the single
+                                  slope coefficient
         conf_interval_intercept:  (lower, upper) confidence interval for the intercept
         pi_range:                 prediction intervals above and below, over the range of data
         leverage:                 the hat-matrix diagonal (leverage) for each observation

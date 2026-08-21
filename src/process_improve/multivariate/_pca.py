@@ -218,8 +218,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
     Parameters
     ----------
-    n_components : int
-        Number of principal components to extract.
+    n_components : int or None
+        Number of principal components to extract. If ``None``, the maximum
+        possible ``min(n_samples, n_features)`` is used.
 
     algorithm : str, default="auto"
         Algorithm to use for fitting the model.
@@ -270,7 +271,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
     def __init__(
         self,
-        n_components: int,
+        n_components: int | None = None,
         *,
         algorithm: str = "auto",
         missing_data_settings: dict | None = None,
@@ -299,7 +300,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     }
     _RENAME_CONTEXT: typing.ClassVar[str] = "PCA"
 
-    # Fitted diagnostics: per-component arrays (NIPALS/TSR) or scalar totals (SVD).
+    # Fitted diagnostics: per-component arrays (SVD/NIPALS) or scalar totals (TSR).
     fitting_info_: dict[str, np.ndarray | int | float]
 
     # ENG-18: public DataFrame views built lazily from the private ndarrays.

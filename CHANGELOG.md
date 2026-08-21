@@ -138,6 +138,23 @@ those changes.
   present `model_summary` dict; `ControlChart.__init__` marks
   `'cusum'` as an unimplemented future variant.
 
+- Follow-up docstring corrections across `batch`, `multivariate`,
+  `regression`, and `univariate`: `melted_to_wide` now says it returns
+  an empty dict (not yet implemented, pointer to `dict_to_wide`);
+  `wide_to_melted` and `wide_to_dict` docstrings match their new
+  `NotImplementedError` bodies (the previous silent empty returns
+  contradicted the "Not yet implemented" wording); the `PCA` class
+  docstring documents `n_components : int or None` and the
+  `PCA.__init__` signature now defaults `n_components` to `None`
+  (matching `_parameter_constraints` and `fit()`); the `fitting_info_`
+  comment on `PCA` corrects a swapped mapping from algorithm to output
+  shape (arrays are produced by SVD/NIPALS, scalar totals by TSR);
+  `robust_regression.conf_intervals` is described as a single-slope
+  1 x 2 interval, not a K-row block (the single-predictor function
+  never had K); `t_value_cdf` doctests use `float("inf")` /
+  `float("-inf")` instead of `np.inf`, which was previously referenced
+  without an in-doctest numpy import.
+
 ## [1.66.1] - 2026-08-09
 
 ### Changed

@@ -9,6 +9,7 @@ from process_improve.batch.data_input import (
     melt_df_to_series,
     melted_to_dict,
     melted_to_wide,
+    wide_to_dict,
     wide_to_melted,
 )
 
@@ -43,14 +44,15 @@ def test_melted_to_wide(nylon_raw_melteddata: pd.DataFrame) -> None:
 
 
 def test_wide_to_melted() -> None:
-    """Test conversion from wide format to melted format."""
-    out = wide_to_melted(pd.DataFrame({"x": [1, 2]}))
-    assert isinstance(out, pd.DataFrame)
-    assert out.empty
+    """wide_to_melted is a stub and should raise NotImplementedError."""
+    with pytest.raises(NotImplementedError):
+        wide_to_melted(pd.DataFrame({"x": [1, 2]}))
 
 
 def test_wide_to_dict() -> None:
-    """Test conversion from wide format to dictionary."""
+    """wide_to_dict is a stub and should raise NotImplementedError."""
+    with pytest.raises(NotImplementedError):
+        wide_to_dict(pd.DataFrame({"x": [1, 2]}))
 
 
 def test_dict_to_melted_default_inserts_batch_id(aligned_batch_dict: dict) -> None:
