@@ -94,9 +94,22 @@ class TestToolSpecDecorator:
         assert _plain._tool_spec["description"] == "Plain description."
 
     def test_registered_in_registry(self) -> None:
-        """Verify decorated tools are added to the global registry."""
-        assert "test_dummy_add" in _TOOL_REGISTRY
-        assert "test_dummy_mul" in _TOOL_REGISTRY
+        """Verify decorated tools are added to the global registry.
+
+        Registers its own tool: relying on ``test_dummy_add`` from the sibling
+        tests made this order-dependent, and under pytest-xdist's per-test
+        distribution the sibling may run on a different worker process.
+        """
+
+        @tool_spec(
+            name="test_dummy_registry_probe",
+            description="Registry probe.",
+            input_model=_AddInput,
+        )
+        def _probe(spec: _AddInput) -> dict:
+            return {"result": spec.a + spec.b}
+
+        assert "test_dummy_registry_probe" in _TOOL_REGISTRY
 
     def test_rejects_non_basemodel_input_model(self) -> None:
         """input_model must be a pydantic BaseModel subclass."""
@@ -258,10 +271,17 @@ class TestRobustSummaryStats:
 
 class TestDetectOutliers:
     def test_detects_obvious_outlier(self) -> None:
-        """Verify an obvious outlier is detected."""
-        result = execute_tool_call("detect_outliers", {"values": [1, 2, 2, 3, 2, 100]})
+        """Verify an obvious outlier is detected.
+
+        The sample must be big enough for the ESD critical-value
+        approximation to hold (NIST recommends n >= 15): on a 6-point sample
+        the late-iteration critical values are unreliable, and the corrected
+        largest-crossing rule then legitimately flags extra points.
+        """
+        values = [10.1, 10.3, 10.2, 10.0, 10.4, 10.2, 10.1, 10.3, 9.9, 10.2, 10.0, 10.1, 10.3, 10.2, 100.0]
+        result = execute_tool_call("detect_outliers", {"values": values})
         assert result["n_outliers_found"] == 1
-        assert 5 in result["outlier_indices"]
+        assert 14 in result["outlier_indices"]
         assert 100.0 in result["outlier_values"]
 
     def test_clean_data_no_outliers(self) -> None:
@@ -481,7 +501,11 @@ class TestWithinBetweenVariance:
             {"values": [101, 102, 94, 95], "groups": [1, 1, 2, 2]},
         )
         assert result["within_stddev"] == pytest.approx(0.70711, abs=1e-4)
-        assert result["between_stddev"] == pytest.approx(7.0, abs=1e-4)
+        # between_stddev is the between-group variance COMPONENT:
+        # sqrt((MS_between - MS_within) / n) = sqrt((49 - 0.5) / 2). The raw
+        # ANOVA mean square is still available as between_ms (= 49).
+        assert result["between_ms"] == pytest.approx(49.0, abs=1e-4)
+        assert result["between_stddev"] == pytest.approx(np.sqrt(24.25), abs=1e-4)
 
     def test_output_keys_present(self) -> None:
         """Verify all expected output keys are present."""

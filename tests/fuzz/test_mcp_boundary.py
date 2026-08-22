@@ -31,7 +31,16 @@ _EXPECTED = (ValueError, TypeError, KeyError, ToolInputInvalidError)
 _finite_floats = st.floats(allow_nan=False, allow_infinity=False, width=64)
 
 discover_tools()
-_SPECS = sorted(get_tool_specs(), key=lambda s: s["name"])
+# Exclude test-only tools (leading underscore). tests/test_tool_safety.py
+# registers real tools at import time, including a deliberate infinite loop
+# (_safety_test_busy_loop) and a memory bomb; whether they are visible here
+# depends only on module import order (the pytest command line, xdist worker
+# assignment), and fuzzing them IN-PROCESS with no timeout hangs the run
+# until CI's 6-hour limit. Production tools never start with "_".
+_SPECS = sorted(
+    (s for s in get_tool_specs() if not s["name"].startswith("_")),
+    key=lambda s: s["name"],
+)
 
 
 def _scalar_strategy(schema: dict[str, Any]) -> st.SearchStrategy:  # noqa: C901, PLR0911

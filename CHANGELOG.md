@@ -11,6 +11,145 @@ those changes.
 
 ## [Unreleased]
 
+## [1.68.0] - 2026-08-22
+
+A repo-wide correctness audit. Most entries below change numerical results
+because the previous values were statistically or numerically wrong; the
+regression tests in `tests/test_audit_regressions_*.py` pin each fix.
+
+### Fixed
+
+- PCA with `algorithm="tsr"`: the missing-data imputation used a wrongly
+  transposed singular-vector matrix whenever the data had at least as many
+  columns as rows (an `IndexError` for wide matrices, silently wrong imputation
+  for square ones), and the fitted scores were centred while `transform()`
+  projects uncentred, so `scores_`, SPE and R2 disagreed with `transform` on
+  the same data. TSR loadings now also follow the same sign convention as the
+  SVD and NIPALS fits.
+- The score-plot T2 confidence ellipse (`ellipse_coordinates`) now uses the
+  bivariate limit (2 degrees of freedom) instead of the full model's component
+  count. The old ellipse was ~42 percent too wide per axis for a 5-component
+  model on 50 observations, hiding genuine outliers.
+- `spe_plot(with_a=...)` and `t2_plot(with_a=...)` now draw the confidence
+  limit computed at the plotted component count instead of always the full
+  model's; the y-axis title no longer shows the limit legend text.
+- `PCA.select_n_components`: the 1-SE selection band compared the total PRESS
+  against a per-fold standard error (about n_folds times too narrow, silently
+  degenerating the `"1se"` rule to `"min"`), and the Q2 null model used the
+  uncentred sum of squares. `PLS.select_n_components` had the same too-narrow
+  Q2 standard-error band.
+- `PLS.cross_validate` with K-fold resampling: beta confidence intervals now
+  use the delete-a-block jackknife standard error; the plain sample standard
+  deviation previously used is `(K-1)/sqrt(K)` times too small (1.79x for
+  K=5), over-declaring significance.
+- PLS and PCA NIPALS now actually warn when the iteration cap is reached (the
+  PLS warning condition could never fire; PCA had no warning at all).
+- `target_projection` and `selectivity_ratio` used the raw-units regression
+  vector as a direction in the model's internal (scaled) space; with
+  `scale=True` (the default) the direction was wrong whenever the X columns
+  have different raw scales. The projection now uses the scaled-space beta and
+  maps X through the model's own scaler.
+- `TPLS.diagnose` poisoned an observation's scores, T2, SPE and predictions
+  with NaN if a single F or Z cell was missing (fit() handled the same case
+  correctly).
+- Hotelling's T2 in `fit()` skips components with ~zero score variance instead
+  of dividing by ~zero (a rank-deficient fit produced inf/NaN T2 for every
+  observation); `n_components < 1` is now rejected.
+- `MCUVScaler` treats a column with fewer than two observed values (NaN
+  standard deviation) as constant instead of emitting an all-NaN column;
+  `center()`/`scale()` with `axis=1` no longer broadcast the row statistic
+  across columns (a `ValueError` for rectangular input, silently wrong for
+  square input).
+- Generalized ESD outlier test (`detect_outliers_esd`): the number of outliers
+  is the LARGEST i with `R_i > lambda_i` (NIST/Rosner); the first crossing was
+  used, under-reporting in exactly the masking scenarios the test exists for.
+- Robust confidence interval for the median (metrics and the agent tool): the
+  missing `sqrt(pi/2)` factor on the median's standard error gave ~87 percent
+  coverage for a nominal 95 percent interval.
+- `variance_decomposition`: `between_stddev` now reports the between-group
+  variance component `sqrt((MS_between - MS_within)/n0)` instead of
+  `sqrt(MS_between)`, which mixed the within-group noise into the "between"
+  number (the docstring example itself showed the wrong value).
+- `biweight_midvariance` now uses the midvariance tuning constant c = 9; the
+  previous c = 6 is the biweight location constant and biased the scale low.
+- Holt-Winters control chart: the biweight rho function conflated the
+  consistency constant with the cutoff k = 2.52, making every derived scale
+  estimate 12 percent too small (nominal +/-3S limits were really +/-2.63
+  sigma, about 3x the false-alarm rate). Warm-up residuals now subtract the
+  fitted trend `beta_0 * t` rather than the constant `beta_0`. The lambda grid
+  search is NaN-aware (for 10 <= N < 20 every grid cell was NaN and (0.1, 0.1)
+  always won silently). An explicit `ld_1=0.0` is respected. Unknown chart
+  variants are rejected at construction with a clear message.
+- `calculate_cpk`: `rsd` is now the relative standard deviation of the data
+  itself; it previously divided by the distance-to-spec centre and changed
+  value when the specification moved. The capability tool reports an undefined
+  Cpk as "could not be computed" instead of "Poor capability".
+- Clear effects (`evaluate_design(metric="clear_effects")`) now follow Wu and
+  Hamada: an effect is clear only when every alias has order >= 3. The old
+  rule declared every main effect of a resolution-III design clear.
+- Explicit fractional-factorial generators: a generator on a non-last factor
+  (for example `"B=AC"`) silently swapped factor columns, and multi-character
+  factor names were misread as products of single letters. Generators are now
+  parsed against the real factor names and the columns mapped back to the
+  requested factor order; negative generators are supported and inconsistent
+  generator sets are rejected.
+- `Column.to_coded`/`to_realworld` no longer ignore an explicit `center=0`
+  (falsy); missing or zero-width ranges raise a clear error. `gather()` no
+  longer silently discards positional arguments.
+- D-optimal point exchange: the scorer no longer de-duplicates the design
+  before computing `|X'X|` (replicated runs carry information), and an
+  improving swap onto the row with index label 0 is no longer discarded;
+  `point_exchange` accepts `random_state`.
+- The lack-of-fit test can now find replicates on generated designs: it groups
+  on the model's factor columns (with rounded numeric values) instead of the
+  whole frame, whose unique-per-row `RunOrder` column made every group a
+  singleton.
+- Robust regression: the degenerate-x guard branch itself divided by the
+  ~zero x sum-of-squares; the leverage there is exactly 1/N.
+- Batch DTW: the reported alignment distance summed the cumulative cost matrix
+  entries along the warping path (not a distance); it is now the accumulated
+  cost `D[-1, -1]`. Kassidas alignment weights now up-weight (rather than
+  effectively zero out) variables whose trajectories align near-perfectly.
+- Residual diagnostics (`analyze_experiment`): p-values that underflow to
+  exactly 0.0 (the most significant possible result) are no longer rendered as
+  "not available".
+- `Settings` (config) now genuinely caches on first access (the `setdefault`
+  pattern re-read the environment on every access and re-raised later if the
+  env var went bad after a successful read); numeric knobs must be positive.
+- `clean()` now serialises `numpy.bool_`, numpy-keyed dicts, sets and the
+  remaining numpy scalar types, closing "internal error" failures at the MCP
+  boundary.
+- `discover_tools` no longer swallows a missing FIRST-PARTY module as an
+  optional dependency: a typo'd or renamed `process_improve` module now
+  propagates instead of silently dropping a whole tool category.
+- `safe_execute_tool_call` runs each default-path call in a private worker
+  pool. The shared module pool was not thread-safe: with concurrent calls
+  (the MCP server runs tools on executor threads) one thread's teardown could
+  kill the worker running another thread's task, mis-diagnosed as a memory
+  limit kill, or leak an orphaned worker.
+- `raincloud` without the `plotting` extra now raises the documented
+  "install the extra" `ImportError` at the call site instead of an
+  `AttributeError` from the module stub.
+
+### Changed
+
+- `detect_outliers_esd` and the `detect_outliers` agent tool now default to
+  the classical (mean/std) statistic, `robust_variant=False`. The MAD-scaled
+  variant is tested against critical values derived for the classical
+  statistic and declares outliers in clean data; it stays available as an
+  explicitly documented screening heuristic. This changes results for callers
+  who relied on the old default.
+- `PROCESS_IMPROVE_*` boolean environment variables now reject unrecognized
+  values with a `ValueError` instead of silently reading them as false; a typo
+  in `PROCESS_IMPROVE_MCP_SAFE_MODE` previously disabled safe mode with no
+  error.
+- The agent-facing `control_chart` tool no longer advertises a `cusum` chart
+  type: it never existed and always failed with a misleading error. The
+  package docstring's "CUSUM, EWMA" claim is corrected likewise.
+- CI: the no-op `create` trigger is removed from the test workflow, and both
+  workflows now grant least-privilege token scopes (the docs build job no
+  longer carries Pages-deploy credentials while executing PR code).
+
 ## [1.67.1] - 2026-08-22
 
 ### Fixed
@@ -3150,7 +3289,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.67.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.68.0...HEAD
+[1.68.0]: https://github.com/kgdunn/process-improve/compare/v1.67.1...v1.68.0
 [1.67.1]: https://github.com/kgdunn/process-improve/compare/v1.67.0...v1.67.1
 [1.67.0]: https://github.com/kgdunn/process-improve/compare/v1.66.1...v1.67.0
 [1.66.1]: https://github.com/kgdunn/process-improve/compare/v1.66.0...v1.66.1

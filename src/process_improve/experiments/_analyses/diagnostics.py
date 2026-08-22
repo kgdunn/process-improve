@@ -48,16 +48,19 @@ def _run_residual_diagnostics(ols_result: RegressionResultsWrapper) -> dict[str,
     # Leverage
     leverage = influence.hat_matrix_diag
 
+    # ``is not None``, not truthiness: a p-value that underflows to exactly
+    # 0.0 is the MOST significant possible result, and the previous truthiness
+    # test rendered it as "not available".
     return {
         "residual_diagnostics": {
             "shapiro_wilk": {
-                "statistic": float(sw_stat) if sw_stat else None,
-                "p_value": float(sw_p) if sw_p else None,
+                "statistic": float(sw_stat) if sw_stat is not None else None,
+                "p_value": float(sw_p) if sw_p is not None else None,
             },
             "durbin_watson": dw,
             "breusch_pagan": {
-                "statistic": float(bp_stat) if bp_stat else None,
-                "p_value": float(bp_p) if bp_p else None,
+                "statistic": float(bp_stat) if bp_stat is not None else None,
+                "p_value": float(bp_p) if bp_p is not None else None,
             },
             "cooks_distance": [float(c) for c in cooks_d],
             "leverage": [float(h) for h in leverage],

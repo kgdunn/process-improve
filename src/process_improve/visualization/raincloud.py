@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import pandas as pd
 
+from process_improve._extras import _MissingExtra, require_extra
+
 try:
     import plotly.graph_objects as go
 except ImportError:  # pragma: no cover - exercised via env-without-plotly
-    from process_improve._extras import _MissingExtra
-
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
 
@@ -59,6 +59,13 @@ def raincloud(  # noqa: PLR0913
     >>> raincloud(df, value="yield", group="reactor")
     >>> raincloud(pd.Series([1.0, 2.0, 3.0]))
     """
+    # Check the optional dependency at the entry point so callers get the
+    # DOCUMENTED "install the extra" ImportError. Without this, the missing
+    # plotly only surfaced later as an AttributeError from the module stub
+    # (whose __getattr__ must raise AttributeError per the data model), so
+    # `except ImportError:` around an optional plotting path never caught it.
+    if isinstance(go, _MissingExtra):
+        raise require_extra("plotly", "plotting")
     if orientation not in ("h", "v"):
         raise ValueError(f"orientation must be 'h' or 'v', got {orientation!r}.")
 

@@ -7,10 +7,12 @@ on:
     branches: ['**']
   workflow_dispatch:  # allow manual trigger
 
+# Only the read scope at workflow level. The Pages-deploy scopes are
+# granted to the `deploy` job alone: the `build` job executes arbitrary
+# dependency and notebook code on every same-repo PR and must not carry
+# deploy credentials while doing so.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -19,6 +21,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read  # configure-pages (main-branch pushes only) queries the Pages config
     steps:
       - uses: actions/checkout@v7
       - name: Install uv
@@ -44,6 +49,9 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

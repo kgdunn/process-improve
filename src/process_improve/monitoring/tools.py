@@ -40,12 +40,13 @@ class ControlChartInput(BaseModel):
         min_length=5,
         description="Time-ordered sequence of numeric observations.",
     )
-    chart_type: Literal["shewhart", "cusum", "holt_winters"] = Field(
+    chart_type: Literal["shewhart", "holt_winters"] = Field(
         "holt_winters",
         description=(
             "Type of control chart. 'shewhart': individual observations chart. "
-            "'cusum': cumulative sum chart. 'holt_winters' (default): a blend of "
-            "Shewhart and CUSUM properties."
+            "'holt_winters' (default): a robust chart blending Shewhart "
+            "(no-history) and CUSUM-like (infinite-history) properties via its "
+            "smoothing parameters. A standalone CUSUM chart is not implemented."
         ),
     )
     style: Literal["robust", "regular"] = Field(
@@ -58,7 +59,8 @@ class ControlChartInput(BaseModel):
     name="control_chart",
     description=(
         "Build a control chart for a sequence of numeric observations and identify out-of-control points. "
-        "Supports Shewhart (xbar), CUSUM, and Holt-Winters (HW) chart types. "
+        "Supports Shewhart (xbar) and Holt-Winters (HW) chart types; the Holt-Winters chart blends "
+        "Shewhart and CUSUM-like behaviour through its smoothing parameters. "
         "The robust style (default) uses median and MAD instead of mean and std, making it resistant "
         "to outliers in the Phase-I data. "
         "Returns the calculated target (center line), upper and lower control limits, and indices of "
@@ -80,7 +82,6 @@ def control_chart(spec: ControlChartInput) -> dict[str, Any]:
 
     variant_map = {
         "shewhart": "xbar.no.subgroup",
-        "cusum": "cusum",
         "holt_winters": "hw",
     }
     variant = variant_map.get(spec.chart_type, "hw")
@@ -182,7 +183,15 @@ def process_capability(spec: ProcessCapabilityInput) -> dict[str, Any]:
         cpk_result = calculate_cpk(df, which_column="value", specifications=specs, trim_percentile=trim)
         cpk_float = float(cpk_result.cpk)
 
-        if cpk_float >= 1.67:
+        # A NaN Cpk (no usable spec side, or zero spread) previously fell
+        # through every >= comparison into the "Poor capability" branch,
+        # reporting a confident verdict for an undefined statistic.
+        if np.isnan(cpk_float):
+            interpretation = (
+                "Cpk could not be computed (undefined): check that at least one "
+                "specification limit is usable and that the data have non-zero spread."
+            )
+        elif cpk_float >= 1.67:
             interpretation = f"Cpk = {cpk_float:.3f}. Excellent capability - process is well within spec limits."
         elif cpk_float >= 1.33:
             interpretation = f"Cpk = {cpk_float:.3f}. Good capability - process fits within spec limits."

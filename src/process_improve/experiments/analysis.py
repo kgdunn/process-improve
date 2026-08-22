@@ -351,7 +351,7 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
         elif t == "residual_diagnostics":
             results.update(_run_residual_diagnostics(ols_result))
         elif t == "lack_of_fit":
-            results.update(_run_lack_of_fit(ols_result, df, response_col))
+            results.update(_run_lack_of_fit(ols_result, df, response_col, factor_cols))
         elif t == "curvature_test":
             results.update(_run_curvature_test(ols_result, df, response_col, factor_cols))
         elif t == "model_selection":

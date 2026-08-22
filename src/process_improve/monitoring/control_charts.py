@@ -12,14 +12,32 @@ from ..univariate.metrics import median_absolute_deviation
 logger = logging.getLogger(__name__)
 
 
+#: Consistency constant for the bounded biweight rho with cutoff k = 2.52,
+#: c_k = 1 / E[rho_norm(Z)] for Z ~ N(0, 1), where rho_norm is the biweight
+#: rho normalised to a maximum of 1. Computed via numerical integration
+#: (scipy.integrate.quad of rho_norm(z) * phi(z); E = 0.3061160, so
+#: c_k = 3.266736). This makes E[rho(Z)] = 1, the condition for the scale
+#: estimates built from rho to be consistent for sigma on Gaussian data.
+BIWEIGHT_RHO_CONSISTENCY = 3.266736
+
+
 def rho(x: float, k: float = 2.52) -> float:
     """
     Bi-weight rho function.
 
-    Fixed constant of k=2.52 is from p 289 of the paper
+    Fixed cutoff of k=2.52 is from p 289 of the paper
     https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125
+
+    The multiplier is the consistency constant c_k (chosen so that
+    ``E[rho(Z)] = 1`` for standard-normal Z), NOT the cutoff k. The paper
+    treats the two as separate constants; an earlier version of this code
+    conflated them and used k = 2.52 as the multiplier, which made every
+    scale estimate derived from rho a factor ``sqrt(2.52 * 0.30612) = 0.878``
+    too small, i.e. +/-3S control limits that were really +/-2.63 sigma
+    (a ~3x inflation of the false-alarm rate).
     """
-    return k if np.abs(x) > k else k * (1 - np.power(1 - np.power(x / k, 2), 3))
+    c_k = BIWEIGHT_RHO_CONSISTENCY
+    return c_k if np.abs(x) > k else c_k * (1 - np.power(1 - np.power(x / k, 2), 3))
 
 
 def psi(x: float, k: float = 2.0) -> float:
@@ -66,6 +84,16 @@ class ControlChart:
         """
         self.style = style.strip()
         self.variant = variant.strip().lower()
+        # An unknown variant previously slipped through every fit branch and
+        # surfaced much later as a misleading "input is likely constant or too
+        # short" error from calculate_limits. Reject it up front instead.
+        _supported = {"hw", "xbar.no.subgroup"}
+        if self.variant not in _supported:
+            raise ValueError(
+                f"Control chart variant {variant!r} is not implemented; supported variants are {sorted(_supported)}. "
+                "(A standalone CUSUM chart is a possible future variant; the 'hw' chart already blends "
+                "CUSUM-style history with Shewhart behaviour.)"
+            )
 
         # Will be calculated by the self.calculate_limits() function
         self.target: float | None = None
@@ -228,7 +256,10 @@ class ControlChart:
         self.ld_s = ld_s = 0.2
         rho_func = np.vectorize(rho)
 
-        if self.ld_1 and self.ld_2:
+        # ``is not None``: an explicit ld_1=0.0 (or ld_2=0.0) is a legitimate
+        # user choice, but 0.0 is falsy and a plain truthiness test silently
+        # discarded it and ran the grid search instead.
+        if self.ld_1 is not None and self.ld_2 is not None:
             # User has provided their own lambda_1 and lambda_2 values.
             for _name, _val in (("Lambda_1", self.ld_1), ("Lambda_2", self.ld_2), ("Lambda_s", self.ld_s)):
                 if _val < 0.0:
@@ -249,15 +280,24 @@ class ControlChart:
                     self._holt_winters_warmup_fit(ld_1=ld_1, ld_2=ld_2, ld_s=ld_s)
 
                     # Apply equation 16 from the paper to the residuals in the 'training' period,
-                    # that is the samples after the warm-up period.
+                    # that is the samples after the warm-up period. NaN-aware
+                    # statistics are required: row 0 never receives an "error"
+                    # value, and for small samples (2 * warm_up_M > N) the
+                    # training window includes row 0. With plain
+                    # np.median/np.average every grid cell became NaN and the
+                    # search silently "chose" (0.1, 0.1) via argmin-of-NaN.
                     future_errors = self.df["error"].iloc[np.asarray(self.train_samples, dtype=int)]
-                    S_T_median_error = 1.48 * np.median(abs(future_errors))
-                    residuals[i, j] = np.power(S_T_median_error, 2) * np.average(
+                    S_T_median_error = 1.48 * np.nanmedian(np.abs(future_errors))
+                    residuals[i, j] = np.power(S_T_median_error, 2) * np.nanmean(
                         rho_func(future_errors / S_T_median_error)
                     )
-                    # print(f"{i}, {j}, {residuals[i, j]:.5f}")
 
-            min_idx = np.argmin(residuals)
+            if np.all(np.isnan(residuals)):
+                raise ValueError(
+                    "The Holt-Winters lambda grid search produced no usable residuals; "
+                    "the input is likely constant, too short, or entirely missing."
+                )
+            min_idx = np.nanargmin(residuals)
             best_ld_1 = ld_1_index[np.unravel_index(min_idx, residuals.shape)[0]]
             best_ld_2 = ld_2_index[np.unravel_index(min_idx, residuals.shape)[1]]
             # Store the parameters that were calculated, even if a `target` or `s` were provided.
@@ -320,7 +360,12 @@ class ControlChart:
 
         else:
             # p 290 of the paper, https://onlinelibrary.wiley.com/doi/abs/10.1002/for.1125
-            warm_up_residuals = y_warm_up - self.warm_up["alpha_0"] - self.warm_up["beta_0"]
+            # The residual is y_t - alpha_0 - beta_0 * t (alpha_0 above is the
+            # median of exactly that de-trended series). Subtracting beta_0 as
+            # a constant, as an earlier version did, leaves the whole warm-up
+            # trend inside the residuals and inflates sigma_0 whenever the
+            # window drifts - precisely the situation this chart is for.
+            warm_up_residuals = y_warm_up - self.warm_up["alpha_0"] - self.warm_up["beta_0"] * np.arange(self.warm_up_M)
 
             # Some other method that does not rely on SciPy for 1 function.
             self.warm_up["sigma_0"] = median_absolute_deviation(np.asarray(warm_up_residuals), nan_policy="omit")

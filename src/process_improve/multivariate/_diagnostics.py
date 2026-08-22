@@ -143,7 +143,15 @@ def _target_projection_arrays(
         raise ValueError(msg)
     beta = model.beta_coefficients_
     label = _select_response(beta, response)
-    b = beta[label].to_numpy(dtype=float)
+    # The TP direction must live in the SAME space as the X the scores are
+    # computed from. ``beta_coefficients_`` is deliberately rescaled to raw
+    # X -> raw Y units in fit(); with scale=True (the default) that vector is
+    # NOT a direction in the model's internal (scaled) space, and normalising
+    # it does not repair the per-column unit mismatch. Use the scaled-space
+    # regression vector (direct_weights_ @ y_loadings_.T) instead, and map X
+    # into the same internal space via the model's own scaler when present.
+    b_scaled = model.direct_weights_.to_numpy(dtype=float) @ model.y_loadings_.to_numpy(dtype=float).T
+    b = b_scaled[:, list(beta.columns).index(label)]
     norm_b = float(np.sqrt(b @ b))
     if norm_b <= epsqrt:
         msg = f"The regression vector for response {label!r} is ~0; it is not predicted by X."
@@ -152,15 +160,18 @@ def _target_projection_arrays(
 
     if not isinstance(X, pd.DataFrame):
         X = pd.DataFrame(X)
-    X = _align_to_fit_features(X, beta.index)
-    X_values = X.to_numpy(dtype=float)
+    x_frame: pd.DataFrame = _align_to_fit_features(X, beta.index)
+    x_scaler = getattr(model, "_x_scaler", None)
+    if x_scaler is not None:
+        x_frame = x_scaler.transform(x_frame)
+    X_values = x_frame.to_numpy(dtype=float)
     t_tp = X_values @ w_tp
     ttt = float(t_tp @ t_tp)
     if ttt <= epsqrt:
         msg = "The target-projected scores have ~0 variance; cannot form the TP loading."
         raise ValueError(msg)
     p_tp = (X_values.T @ t_tp) / ttt
-    return X, t_tp, p_tp, w_tp, label
+    return x_frame, t_tp, p_tp, w_tp, label
 
 
 def target_projection(model: BaseEstimator, X: DataMatrix, response: str | int | None = None) -> Bunch:

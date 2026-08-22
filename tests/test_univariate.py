@@ -598,13 +598,24 @@ def outliers_data_measurement() -> list[float]:
 
 
 def test_edge_case_outliers(outliers_data_measurement: list[float]) -> None:
-    """Test an actual edge case that did not return p-values."""
+    """Test an actual edge case that did not return p-values.
+
+    Exercises the (opt-in) robust variant. Note how far the MAD-scaled
+    statistic (R_1 = 7.16) sits above the classical critical value
+    (lambda_1 = 2.02) - the mismatch that makes the robust variant
+    anti-conservative and is the reason it is no longer the default.
+    With the corrected largest-crossing rule both tested points are flagged.
+    """
     max_outliers = len(outliers_data_measurement) - 5
     outliers, reasons = univariate.detect_outliers_esd(
-        outliers_data_measurement, algoritm="esd", max_outliers_detected=max_outliers, alpha=0.05
+        outliers_data_measurement,
+        algorithm="esd",
+        max_outliers_detected=max_outliers,
+        alpha=0.05,
+        robust_variant=True,
     )
 
-    assert len(outliers) == 1
+    assert len(outliers) == 2
     assert reasons["lambda"][0] == pytest.approx(2.0199685076)
     assert reasons["R_i"][0] == pytest.approx(7.16003736)
     assert reasons["p-value"][0] == 0
@@ -776,7 +787,13 @@ def test_rosner_nonrobust_esd(outliers_data: tuple[list[float], list[float]]) ->
 
 
 def test_rosner_esd_kwargs(outliers_data: tuple[list[float], list[float]]) -> None:
-    """In this example it picks up fewer outliers."""
+    """The (opt-in) robust variant over-detects on the Rosner data.
+
+    NIST's answer for this data set is 3 outliers; the MAD-scaled statistic
+    against classical critical values flags 4. This pins the documented
+    anti-conservative behaviour of ``robust_variant=True`` (the reason it is
+    no longer the default), with the corrected largest-crossing rule.
+    """
     rosner, _ = outliers_data
     outliers, _ = univariate.detect_outliers_esd(
         rosner,
@@ -785,7 +802,7 @@ def test_rosner_esd_kwargs(outliers_data: tuple[list[float], list[float]]) -> No
         robust_variant=True,
         alpha=0.05,
     )
-    assert outliers == [53]
+    assert outliers == [53, 52, 51, 50]
 
 
 def test_rosner_esd_no_outliers(outliers_data: tuple[list[float], list[float]]) -> None:
