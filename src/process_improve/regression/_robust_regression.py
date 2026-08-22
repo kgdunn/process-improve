@@ -130,8 +130,9 @@ def robust_regression(  # noqa: PLR0913, PLR0915
         k:                        the number of model parameters (2 if fit_intercept else 1)
         fitted_values:            the N predicted values, one per row in y
         residuals:                the N residuals
-        t_value:                  the two-sided critical t-value at ``conflevel`` used
-                                  to build the confidence and prediction intervals
+        t_value:                  the t-values for the standard errors, one per
+                                  coefficient (same meaning as in
+                                  ``multiple_linear_regression``)
         conf_intervals:           K rows x 2 columns (lower, upper) confidence intervals
         conf_interval_intercept:  (lower, upper) confidence interval for the intercept
         pi_range:                 prediction intervals above and below, over the range of data
@@ -259,6 +260,13 @@ def robust_regression(  # noqa: PLR0913, PLR0915
         lower = pi_y_pred - c_t * std_y
         upper = pi_y_pred + c_t * std_y
         out["pi_range"] = np.vstack([pi_range, lower, upper]).T
+
+    # The t-statistic per coefficient: coefficient / standard error. This
+    # matches `multiple_linear_regression`, so the two functions agree on what
+    # the "t_value" key means. It is NaN on the degenerate-x path, where the
+    # standard error is itself undefined. Note `c_t` is a different quantity:
+    # the critical value used to set the interval widths.
+    out["t_value"] = np.array([out["coefficients"][0] / out["standard_errors"][0]])
 
     out["conf_intervals"] = np.array(
         [

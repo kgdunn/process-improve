@@ -339,6 +339,47 @@ def test_regression_simple_robust(simple_robust_regression_data: tuple[np.ndarra
     assert out["residuals"][0:5] == pytest.approx([0.0, 0.000118863, 0.005006413, -0.0035648, -0.000326859], abs=1e-9)
 
 
+def test_robust_regression_t_value_is_populated(
+    simple_robust_regression_data: tuple[np.ndarray, np.ndarray],
+) -> None:
+    """`t_value` holds the per-coefficient t-statistic, as in the OLS sibling.
+
+    Regression test: the key was documented but only ever initialised to NaN,
+    because the critical value was computed into a local variable, used for the
+    interval widths, and never assigned back. This fails on the pre-fix code.
+    """
+    X, y = simple_robust_regression_data
+    out = robust_regression(X, y)
+
+    assert np.all(np.isfinite(out["t_value"])), "t_value must be populated, not left as NaN"
+    assert len(out["t_value"]) == len(out["coefficients"])
+
+    # The documented meaning: coefficient divided by its standard error.
+    assert out["t_value"][0] == pytest.approx(out["coefficients"][0] / out["standard_errors"][0], rel=1e-12)
+
+    # It is NOT the critical value used to build the intervals: the interval
+    # half-width divided by the standard error is that separate quantity.
+    critical = (out["conf_intervals"][0][1] - out["coefficients"][0]) / out["standard_errors"][0]
+    assert out["t_value"][0] != pytest.approx(critical, rel=1e-6)
+
+    # The sibling function reports the same statistic under the same key, so
+    # both are finite, one per coefficient, and consistent with coef / SE.
+    ols_out = multiple_linear_regression(X.reshape(-1, 1), y)
+    assert len(ols_out["t_value"]) == len(ols_out["coefficients"])
+    assert ols_out["t_value"][0] == pytest.approx(ols_out["coefficients"][0] / ols_out["standard_errors"][0], rel=1e-6)
+
+
+def test_robust_regression_t_value_nan_when_undefined() -> None:
+    """`t_value` is NaN exactly where the standard error is undefined."""
+    # No variation in x: the standard error cannot be formed.
+    out = robust_regression(np.array([4.0, 4, 4, 4, 4]), np.array([1.0, 2, 3, 4, 5]))
+    assert np.isnan(out["t_value"]).all()
+
+    # Fewer than three usable observations: the degenerate early-return stub.
+    stub = robust_regression(np.array([1.0, 2]), np.array([1.0, 2]))
+    assert np.isnan(stub["t_value"]).all()
+
+
 def test_simple_robust_regression_corner_case() -> None:
     """Tests some corner cases."""
     # No variation in x-space

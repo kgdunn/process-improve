@@ -10,6 +10,8 @@ import plotly.graph_objects as go
 import plotly.io as pio
 import pytest
 from scipy.sparse import csr_matrix
+from scipy.stats import f as f_dist
+from scipy.stats import t as t_dist
 from sklearn import config_context
 from sklearn.base import clone
 from sklearn.cross_decomposition import PLSRegression
@@ -1803,7 +1805,7 @@ def test_pls_compare_api(fixture_pls_simca_2_components: dict) -> None:
 
 
 def test_score_limit_pca() -> None:
-    """score_limit returns per-component z * std limits for the PCA scores."""
+    """score_limit returns per-component t_(N-1) * std limits for the PCA scores."""
     rng = np.random.default_rng(0)
     X = pd.DataFrame(rng.normal(size=(60, 5)))
     X_scaled = MCUVScaler().fit_transform(X)
@@ -1813,9 +1815,17 @@ def test_score_limit_pca() -> None:
     assert limits.shape == (3,)
     assert np.all(limits > 0)
 
-    z_95 = 1.959963984540054
-    expected = z_95 * np.asarray(model.scores_).std(axis=0, ddof=1)
+    # The score standard deviation is estimated from the same N observations,
+    # so the quantile is Student-t on N-1 degrees of freedom, not standard
+    # normal. At N=60 that is 2.0010 rather than 1.9600.
+    t_95 = 2.0009953770482318
+    expected = t_95 * np.asarray(model.scores_).std(axis=0, ddof=1)
     np.testing.assert_allclose(limits, expected, rtol=1e-9)
+
+    # The docstring's equivalence: sqrt(F(1, N-1)) IS the two-sided t_(N-1)
+    # quantile. Checked against scipy directly so it validates the identity
+    # rather than the precision of the literal above.
+    np.testing.assert_allclose(t_dist.ppf(0.975, 59), np.sqrt(f_dist.isf(0.05, 1, 59)), rtol=1e-12)
 
     # A higher confidence level widens the limits.
     assert np.all(model.score_limit(conf_level=0.99) > limits)

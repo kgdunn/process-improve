@@ -118,6 +118,30 @@ still be rejected by CI.
 - **Prose:** do not use em-dashes in code, comments, docstrings, or commit
   messages; use a hyphen, a semicolon, or split the sentence.
 
+### API consistency
+
+Functions and estimators that do the same job must present the same API.
+Concretely, across a family of siblings (`PCA` / `PLS` / `TPLS` / `MBPLS` /
+`MBPCA`, or `robust_regression` / `multiple_linear_regression`):
+
+- **The same key or attribute name means the same quantity everywhere.** If
+  one function returns `t_value`, every sibling that can compute it returns
+  `t_value`, holding the same statistic. Reusing a name for a different
+  quantity is worse than not providing it at all.
+- **A key that is documented must be populated.** Do not document a return
+  value the code never assigns; either compute it or remove it from the
+  docstring. Where a value is genuinely undefined (a degenerate fit, for
+  example), return `NaN` and say so in the docstring.
+- **Sibling methods return the same shape of thing.** A method that returns a
+  `DataFrame` on one estimator should not return a `Series` on its sibling.
+- **A convention chosen once applies everywhere.** Degrees of freedom,
+  permutation-test corrections, centred versus uncentred moments, and similar
+  choices should not vary between neighbouring functions. If two conventions
+  are genuinely both needed, name the difference in both docstrings.
+
+When a fix makes one member of a family better, check the others in the same
+change; a divergence introduced quietly is expensive to find later.
+
 ### Naming conventions
 
 - **`pi_` prefix on attributes** stands for **"process-improve"** and marks

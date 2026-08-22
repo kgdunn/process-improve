@@ -38,8 +38,8 @@ References
 - Wold, S., Esbensen, K. & Geladi, P. "Principal Component Analysis."
   Chemometrics and Intelligent Laboratory Systems, 2 (1987), 37-52.
 
-Ported from the legacy ConnectMV ``unit_tests.m`` MBPCA_tests / MBPLS_tests
-self-consistency blocks.
+Derived from the self-consistency relationships the multi-block algorithms
+must satisfy, as recorded from an earlier implementation of these methods.
 """
 
 from __future__ import annotations
@@ -101,7 +101,7 @@ def mbpca_merged_then_recover(blocks: list[np.ndarray], n_components: int) -> MB
 
     For each latent variable, the per-block recovery operates on the
     *currently-deflated* merged matrix, not on the original. This matches the
-    legacy MATLAB ``MBPCA_tests`` self-consistency reference.
+    recorded MBPCA self-consistency reference.
     """
     n_blocks = len(blocks)
     n_rows = blocks[0].shape[0]
@@ -186,7 +186,7 @@ def mbpca_full_multiblock(blocks: list[np.ndarray], n_components: int) -> MBPCAR
     for a in range(n_components):
         t_super = rng.standard_normal(n_rows)
         prev = t_super * 2
-        # Tightened tolerance per the legacy MATLAB MBPCA self-consistency block.
+        # Tightened tolerance per the recorded MBPCA self-consistency reference.
         while np.linalg.norm(prev - t_super) > np.finfo(float).eps ** (9 / 10):
             prev = t_super
             t_b_summary = np.zeros((n_rows, n_blocks))
@@ -275,7 +275,7 @@ def mbpls_merged_then_recover(  # noqa: PLR0915
         p_a = x_def.T @ t_a / (t_a @ t_a)
 
         # Recover per-block quantities from the SAME deflated matrix BEFORE
-        # the next deflation step, matching legacy MATLAB MBPLS_tests.
+        # the next deflation step, matching the recorded MBPLS reference.
         start = 0
         for b in range(n_blocks):
             stop = start + block_widths[b]

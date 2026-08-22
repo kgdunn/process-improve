@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from scipy.stats import chi2, f, norm
+from scipy.stats import chi2, f
+from scipy.stats import t as t_dist
 from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted
 
@@ -126,10 +127,16 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
 def score_limit(model: BaseEstimator, conf_level: float = 0.95) -> np.ndarray:
     """Return two-sided confidence limits for each score component.
 
-    The scores of component ``a`` have mean zero and are normally distributed,
-    so the symmetric limit at the requested confidence level is
-    ``z * std(score_a)``, with ``z`` the standard-normal quantile. A score
-    outside ``[-limit, +limit]`` is unusual at that confidence level.
+    The scores of component ``a`` have mean zero, and their standard deviation
+    is *estimated* from the same ``N`` observations, so the symmetric limit at
+    the requested confidence level is ``t_{N - 1} * std(score_a)`` with
+    ``t_{N - 1}`` the Student-t quantile on ``N - 1`` degrees of freedom. A
+    score outside ``[-limit, +limit]`` is unusual at that confidence level.
+
+    The Student-t quantile is used rather than the standard-normal ``z``
+    because ``s_a`` is an estimate: ``z`` is only its large-``N`` limit and is
+    too narrow otherwise (1.96 against 2.26 at ``N = 10``, a limit 15 percent
+    too tight; the gap falls below 3 percent by ``N = 50``).
 
     Parameters
     ----------
@@ -146,17 +153,18 @@ def score_limit(model: BaseEstimator, conf_level: float = 0.95) -> np.ndarray:
 
     References
     ----------
-    Score limits: the score ``t_a`` is normally distributed, so the limit is
-    ``z_{(1 + conf_level) / 2} * s_a``. Equivalently ``(t_a / s_a) ** 2``
-    follows an ``F(1, N - 1)`` distribution.
+    Score limits: the limit is ``t_{(1 + conf_level) / 2, N - 1} * s_a``.
+    Equivalently ``(t_a / s_a) ** 2`` follows an ``F(1, N - 1)`` distribution,
+    since ``sqrt(F(1, N - 1))`` is exactly the two-sided ``t_{N - 1}``
+    quantile.
     """
     assert 0.0 < conf_level < 1.0, "conf_level must be a value between (0.0, 1.0)"
     check_is_fitted(model, "scores_")
 
     scores = np.asarray(model.scores_, dtype=float)
     std_per_component = scores.std(axis=0, ddof=1)
-    z = norm.ppf(1 - (1 - conf_level) / 2)
-    return z * std_per_component
+    critical_value = t_dist.ppf(1 - (1 - conf_level) / 2, scores.shape[0] - 1)
+    return critical_value * std_per_component
 
 
 def ellipse_coordinates(  # noqa: PLR0913
@@ -234,10 +242,10 @@ def ellipse_coordinates(  # noqa: PLR0913
     s_v = scaling_factor_for_scores.iloc[score_vert - 1]
     # The ellipse is the joint confidence region for the TWO plotted scores,
     # so the T2 limit is computed with 2 degrees of freedom:
-    # 2 (N^2 - 1) / (N (N - 2)) * F(alpha; 2, N - 2), the convention used by
-    # SIMCA / ProMV and in Wold's texts. Using the full model's A here (the
-    # previous behaviour) draws a strictly larger ellipse (~42% too wide per
-    # axis at A=5, N=50; ~2x the area), silently hiding genuine outliers.
+    # 2 (N^2 - 1) / (N (N - 2)) * F(alpha; 2, N - 2), the convention used in
+    # Wold's texts. Using the full model's A here (the previous behaviour)
+    # draws a strictly larger ellipse (~42% too wide per axis at A=5, N=50;
+    # ~2x the area), silently hiding genuine outliers.
     # ``n_components`` is still used above to bound the score indices.
     t2_limit_specific = np.sqrt(hotellings_t2_limit(conf_level, n_components=2, n_rows=n_rows))
     dt = 2 * np.pi / (n_points - 1)

@@ -1014,8 +1014,7 @@ def randomization_test_mbpls(
     permutations whose statistic equals or exceeds the original model's.
 
     Statistic: per-component absolute correlation between the super X-score
-    and the super Y-score, ``|t_super(:,a)' u_super(:,a)| / (||t|| * ||u||)``,
-    matching the legacy ConnectMV randomization-objective for PLS.
+    and the super Y-score, ``|t_super(:,a)' u_super(:,a)| / (||t|| * ||u||)``.
 
     Parameters
     ----------
