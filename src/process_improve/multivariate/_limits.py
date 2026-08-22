@@ -37,11 +37,29 @@ def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows:
     float
         The Hotelling's T2 limit at the given level of confidence. Returns
         ``inf`` when ``n_components == n_rows``.
+
+    Raises
+    ------
+    ValueError
+        If ``conf_level`` is outside (0, 1), if ``n_rows`` is not positive, or
+        if ``n_components`` exceeds ``n_rows`` (which would otherwise return a
+        silent NaN from a negative F denominator degrees of freedom).
     """
     if not 0.0 < conf_level < 1.0:
         raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
     if n_rows <= 0:
         raise ValueError(f"n_rows must be positive; got {n_rows}.")
+    if n_components < 0:
+        raise ValueError(f"n_components must be non-negative; got {n_components}.")
+    if n_components > n_rows:
+        # Beyond equality the F denominator degrees of freedom go negative and
+        # scipy returns NaN, so the caller silently receives a limit that no
+        # value can ever exceed. A model cannot have more components than
+        # observations, so this is a bad call, not a degenerate model.
+        raise ValueError(
+            f"n_components ({n_components}) cannot exceed n_rows ({n_rows}); "
+            "a model cannot have more components than observations."
+        )
     if n_components == n_rows:
         return float("inf")
     return (
@@ -95,13 +113,18 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
 
     Notes
     -----
-    When either the variance or the centre of the squared SPE values is
-    at or below ``epsqrt`` (a perfect-fit training set where ``A == K``,
-    or an all-equal SPE column), the Jackson-Mudholkar chi-square
-    approximation degenerates. In that case the limit falls back to
-    ``sqrt(center_spe)``: there is no spread to bound, so any value
-    above the centre is by construction out of family. See SEC-21
-    (#270), sub-item 3.
+    When the squared SPE values have no relative spread (a perfect-fit
+    training set where ``A == K``, or an all-equal SPE column), the
+    Jackson-Mudholkar chi-square approximation degenerates. In that case
+    the limit falls back to ``sqrt(center_spe)``: there is no spread to
+    bound, so any value above the centre is by construction out of family.
+    See SEC-21 (#270), sub-item 3.
+
+    The degeneracy test is on the coefficient of variation of the squared
+    SPE, which is dimensionless, so it is unaffected by the units the data
+    happen to be in. An earlier version compared the variance of the squared
+    SPE (an SPE^4 quantity) against an absolute tolerance, which fired on
+    well-scaled data whose SPE values were merely small in magnitude.
     """
     if not 0.0 < conf_level < 1.0:
         raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
@@ -116,7 +139,20 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
     # zero below and yield NaN limits silently. Return the centre as the
     # limit -- there is no spread to bound, so anything above the centre
     # is by definition out of family. SEC-21 (#270) sub-item 3.
-    if variance_spe <= epsqrt or center_spe <= epsqrt:
+    #
+    # The degeneracy test must be RELATIVE. ``variance_spe`` is in SPE^4
+    # units and ``center_spe`` in SPE^2, so comparing either against the
+    # absolute ``epsqrt`` (the previous behaviour) made the test depend on
+    # the units of the data: SPE values a thousand times smaller tripped the
+    # guard despite having exactly the same relative spread, and the returned
+    # "95% limit" was then the RMS SPE, which around 42 percent of the
+    # training data exceeded. The coefficient of variation of the squared SPE
+    # is dimensionless and unchanged by rescaling.
+    if center_spe <= 0.0:
+        # Every SPE is exactly zero: a perfect fit.
+        return 0.0
+    relative_spread = float(np.sqrt(variance_spe)) / center_spe
+    if relative_spread <= epsqrt:
         return float(np.sqrt(center_spe))
     g = variance_spe / (2 * center_spe)
     h = (2 * (center_spe**2)) / variance_spe
