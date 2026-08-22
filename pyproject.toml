@@ -1,6 +1,6 @@
 [project]
 name = "process-improve"
-version = "1.67.0"
+version = "1.67.1"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = "MIT"
@@ -203,6 +203,14 @@ exclude = [
     "__pypackages__",
 ]
 
+[tool.ruff.format]
+# ruff 0.16 began formatting Python snippets inside Markdown fenced code blocks.
+# The examples in README.md / CONTRIBUTING.md / CHANGELOG.md align their trailing
+# comments deliberately, and the formatter strips that alignment. Markdown was
+# never formatted before 0.16, so keep it that way rather than reflow the docs
+# and have the gate depend on the installed ruff version (see CPY001 above).
+exclude = ["*.md"]
+
 [tool.ruff.lint]
 
 # Enable ALL Pyflakes codes by default.
@@ -269,6 +277,13 @@ ignore = [
     # Refactoring
     "PLR2004", # Don't agree that this is a bad style. It leads to overly verbose code in many cases.
 
+    # PLR0917 is the preview sibling of PLR0913 (too many ARGUMENTS), which this
+    # repo already accepts case by case via `# noqa: PLR0913` on the wide
+    # scientific signatures. ruff 0.16 began reporting PLR0917 on every one of
+    # those same functions, so the two rules must be handled the same way or the
+    # lint gate would depend on the installed ruff version (see CPY001 above).
+    "PLR0917", # Too many positional arguments: same signatures PLR0913 already covers.
+
     # Stop it with the trailing commas.
     "COM812", # Trailing comma is not always needed - doesn't lead to more readable code.
 
@@ -310,6 +325,12 @@ convention = "numpy"
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = [
     "ANN001",  # Type annotations not needed in tests
+    # ruff 0.15 reports S310 for urllib.request.Request(), ruff 0.16 only for
+    # urlopen(), so an inline `# noqa: S310` is required by one version and
+    # reported as an unused directive (RUF100) by the other. The URLs here are
+    # hard-coded https literals in network-gated tests, so scope the rule off
+    # for tests rather than let the lint gate depend on the ruff version.
+    "S310",    # Audit URL open: test URLs are hard-coded https literals
     "ANN201",  # Return type annotations not needed in tests
     "ANN202",  # Return type annotations not needed in tests
     "D102",    # Docstrings not needed in test methods

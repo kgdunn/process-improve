@@ -47,8 +47,10 @@ _INTAKE = AnalysisRecipe(
         "descriptive panel",
     ],
     inputs_needed=[
-        "the parsed spreadsheet as rows (the front end or a code sandbox reads the file first; these "
-        "recipes do not read files themselves)",
+        (
+            "the parsed spreadsheet as rows (the front end or a code sandbox reads the file first; these "
+            "recipes do not read files themselves)"
+        ),
         "which columns hold the panelist, product, attribute, replicate, session and score",
         "the layout: one column per attribute, one column per product, or already one row per score",
         "the valid score range if known (for example 0 to 10)",
