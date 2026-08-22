@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -96,16 +98,16 @@ def test_univariate_robust_scale() -> None:
     Testing against R code [R version 3.6.0 (2019-04-26)]
     > library(robustbase)
     # All code has the default argument: "finite.corr=TRUE"
-    > robustbase::Sn(c(0, 1))                   # 0.8861018: FAILS in our implementation
+    > robustbase::Sn(c(0, 1))                   # 0.8861018
     > robustbase::Sn(c(0, 1, 2))                # 2.207503
-    > robustbase::Sn(c(0, 1, 2, 3))             # 1.13774: FAILS in our implementation
+    > robustbase::Sn(c(0, 1, 2, 3))             # 1.13774
     > robustbase::Sn(c(0, 1, 2, 3, 4))          # 1.611203
-    > robustbase::Sn(c(0, 1, 2, 3, 4, 5))       # 2.368504: FAILS in our implementation
+    > robustbase::Sn(c(0, 1, 2, 3, 4, 5))       # 2.368504
     > robustbase::Sn(c(0, 1, 2, 3, 4, 5, 6))    # 2.85747
     > robustbase::Sn(c(0, 1, 2, 3, 4, 50, 6))   # 2.85747
-    > robustbase::Sn(c(0, 1, 20, 3, 4, 50, 6))  # 5.714939: FAILS in our implementation
+    > robustbase::Sn(c(0, 1, 20, 3, 4, 50, 6))  # 5.714939
     > robustbase::Sn(c(0, 10, 20, 3, 4, 50, 6)) # 8.572409
-    > robustbase::Sn(seq(1, 10))                # 3.5778: FAILS in our implementation
+    > robustbase::Sn(seq(1, 10))                # 3.5778
     > robustbase::Sn(seq(1, 11))                # 3.896614
     > robustbase::Sn(seq(1, 19))                # 6.259503
     > robustbase::Sn(seq(1, 1500))              # 447.225
@@ -115,18 +117,28 @@ def test_univariate_robust_scale() -> None:
     How to make it robust to this weird situation?
     """
 
-    # Tests with an even number of samples, and small sample sizes do not agree with R.
-    # This is because the R implementation aims for efficiency of calculation, and does not
-    # follow the formula presented in the original paper.
-    # Since we aim to be using this on medium/larger data sets, it should not matter.
+    # Every value above is reproduced, at both odd and even n. Sn uses the high
+    # median inside and the low median outside (Rousseeuw-Croux); these are order
+    # statistics that differ from the averaging median exactly when n is even, so
+    # using np.median for both (the behaviour before this was fixed) understated
+    # every even-n estimate: 0.443 against 0.886 at n = 2.
 
+    # Odd n
     assert univariate.Sn(list(range(3))) == pytest.approx(2.207503, rel=1e-6)
     assert univariate.Sn(list(range(5))) == pytest.approx(1.611203, rel=1e-6)
     assert univariate.Sn(list(range(7))) == pytest.approx(2.85747, rel=1e-6)
+    assert univariate.Sn([0, 1, 2, 3, 4, 50, 6]) == pytest.approx(2.85747, rel=1e-6)
+    assert univariate.Sn([0, 1, 20, 3, 4, 50, 6]) == pytest.approx(5.714939, rel=1e-6)
     assert univariate.Sn([0, 10, 20, 3, 4, 50, 6]) == pytest.approx(8.572409, rel=1e-7)
     assert univariate.Sn(list(range(1, 12))) == pytest.approx(3.896614, rel=1e-6)
-    assert univariate.Sn(list(range(1, 19))) == pytest.approx(5.3667, rel=1e-6)
     assert univariate.Sn(list(range(1, 20))) == pytest.approx(6.259503, rel=1e-6)
+
+    # Even n: these are the cases the previous implementation got wrong.
+    assert univariate.Sn([0, 1]) == pytest.approx(0.8861018, rel=1e-6)
+    assert univariate.Sn(list(range(4))) == pytest.approx(1.13774, rel=1e-6)
+    assert univariate.Sn(list(range(6))) == pytest.approx(2.368504, rel=1e-6)
+    assert univariate.Sn(list(range(1, 11))) == pytest.approx(3.5778, rel=1e-6)
+    assert univariate.Sn(list(range(1, 1501))) == pytest.approx(447.225, rel=1e-6)
     # Corner cases:
     assert np.isnan(univariate.Sn([]))
     assert univariate.Sn([13]) == 0.0
@@ -819,33 +831,191 @@ def test_rosner_esd_no_outliers(outliers_data: tuple[list[float], list[float]]) 
     assert outliers == []
 
 
-def test_rosner_esd_corner_case() -> None:
-    """
-    In this example it picks up no outliers. Ensures that the test can also return an empty
-    list.
-    """
-    outliers, extra_out = univariate.detect_outliers_esd([1, 2], algorithm="esd", max_outliers_detected=1)
-    assert extra_out["p-value"][0] == 0
+def test_ttest_independent_correctly_named_fields() -> None:
+    """The correctly named fields hold what their names say.
 
-    # If the values are all the same:
+    Regression test: `z value` is a t-statistic (its p value comes from the t
+    distribution) and `Pooled standard deviation` held the standard ERROR of
+    the difference, not the pooled standard deviation. Both are kept as
+    deprecated aliases alongside correctly named entries.
+    """
+    a = pd.Series([102.0, 98, 100, 101, 97])
+    b = pd.Series([110.0, 112, 108, 109])
+    out = univariate.ttest_independent(a, b)
+
+    n_a, n_b = len(a), len(b)
+    dof = n_a + n_b - 2
+    svar = ((n_a - 1) * a.var(ddof=1) + (n_b - 1) * b.var(ddof=1)) / dof
+    se_difference = np.sqrt(svar * (1 / n_a + 1 / n_b))
+
+    # The new names are accurate.
+    assert out["Std error of difference"] == pytest.approx(se_difference, rel=1e-12)
+    assert out["Pooled std dev"] == pytest.approx(np.sqrt(svar), rel=1e-12)
+    assert out["t value"] == pytest.approx((b.mean() - a.mean()) / se_difference, rel=1e-12)
+
+    # The statistic really is a t-statistic: it matches scipy's t-test, and the
+    # pooled standard deviation is a genuinely different number from the
+    # standard error that the old key held.
+    assert out["t value"] == pytest.approx(stats.ttest_ind(b, a).statistic, rel=1e-10)
+    assert out["Pooled std dev"] != pytest.approx(out["Std error of difference"], rel=1e-3)
+
+    # Deprecated aliases still resolve to the same values, for one more cycle.
+    assert out["z value"] == out["t value"]
+    assert out["Pooled standard deviation"] == out["Std error of difference"]
+
+
+def test_ttest_from_df_skips_groups_with_no_usable_data() -> None:
+    """An all-NaN group is dropped instead of yielding a silent NaN row.
+
+    Regression test: the group list came from the un-dropna-ed frame, so a
+    group whose values are all missing (or a NaN group label) survived and was
+    compared against an empty sample, producing NaN statistics with no warning.
+    """
+    df = pd.DataFrame({"g": ["A"] * 3 + ["B"] * 3 + ["C"] * 3, "v": [1.0, 2, 3] + [np.nan] * 3 + [7.0, 8, 9]})
+    out = univariate.ttest_independent_from_df(df, "g", "v")
+    assert list(zip(out["Group A name"], out["Group B name"], strict=True)) == [("A", "C")]
+    assert not out["p value"].isna().any()
+
+    # A NaN group label is likewise not a group.
+    df_nan_label = pd.DataFrame(
+        {"g": ["A", "A", "A", np.nan, np.nan, np.nan, "C", "C", "C"], "v": [1.0, 2, 3, 4, 5, 6, 7, 8, 9]}
+    )
+    out2 = univariate.ttest_independent_from_df(df_nan_label, "g", "v")
+    assert list(zip(out2["Group A name"], out2["Group B name"], strict=True)) == [("A", "C")]
+
+
+def test_ttest_from_df_multiplicity_correction() -> None:
+    """The pairwise family can be corrected for multiplicity on request."""
+    rng = np.random.default_rng(0)
+    df = pd.DataFrame(
+        {
+            "g": ["A"] * 6 + ["B"] * 6 + ["C"] * 6 + ["D"] * 6,
+            "v": np.concatenate(
+                [rng.normal(0, 1, 6), rng.normal(0.5, 1, 6), rng.normal(3, 1, 6), rng.normal(0.2, 1, 6)]
+            ),
+        }
+    )
+
+    # Default is unchanged: raw, uncorrected p-values and no extra columns.
+    raw = univariate.ttest_independent_from_df(df, "g", "v")
+    assert "p value (adjusted)" not in raw.columns
+
+    holm = univariate.ttest_independent_from_df(df, "g", "v", correction="holm")
+    assert len(holm) == 6  # 4 groups -> 4*3/2 pairwise tests
+    # Holm adjustment never decreases a p-value, and the raw column is kept.
+    assert np.all(holm["p value (adjusted)"].to_numpy() >= holm["p value"].to_numpy() - 1e-12)
+    assert holm["p value"].to_numpy() == pytest.approx(raw["p value"].to_numpy(), rel=1e-12)
+    assert holm["reject"].dtype == bool
+
+    # Benjamini-Hochberg controls the FDR, so it is no more conservative than Holm.
+    bh = univariate.ttest_independent_from_df(df, "g", "v", correction="bh")
+    assert np.all(bh["p value (adjusted)"].to_numpy() <= holm["p value (adjusted)"].to_numpy() + 1e-12)
+
+    with pytest.raises(ValueError, match="correction must be one of"):
+        univariate.ttest_independent_from_df(df, "g", "v", correction="bogus")
+
+
+def test_summary_stats_rsd_with_zero_centre() -> None:
+    """A zero centre gives NaN rather than inf plus a RuntimeWarning.
+
+    Regression test: both relative-spread divisions were unguarded, so a
+    mean-centred variable produced inf and a RuntimeWarning through the public
+    API and the agent-facing tool.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        out = univariate.summary_stats(np.array([-1.0, 0.0, 1.0]))
+        assert np.isnan(out["rsd"])
+        assert np.isnan(out["rsd_classical"])
+
+        all_zero = univariate.summary_stats(np.array([0.0, 0.0, 0.0]))
+        assert np.isnan(all_zero["rsd"])
+        assert np.isnan(all_zero["rsd_classical"])
+
+    # A non-zero centre is unaffected.
+    normal = univariate.summary_stats(np.array([10.0, 11.0, 12.0]))
+    assert normal["rsd_classical"] == pytest.approx(np.std([10.0, 11, 12], ddof=1) / 11.0, rel=1e-12)
+
+
+def test_rosner_esd_corner_case() -> None:
+    """Degenerate inputs return an empty list rather than a spurious outlier."""
+    # All values identical: the spread is zero, so there is no candidate.
     outliers, extra_out = univariate.detect_outliers_esd([3, 3, 3], algorithm="esd", max_outliers_detected=1)
     assert np.isnan(extra_out["p-value"])
     assert extra_out["cutoff"] == -1
     assert len(outliers) == 0
 
-    outliers, extra_out = univariate.detect_outliers_esd([2, 2], algorithm="esd", max_outliers_detected=1)
-    assert np.isnan(extra_out["p-value"])
-    assert extra_out["cutoff"] == -1
-    assert len(outliers) == 0
-
-    outliers, extra_out = univariate.detect_outliers_esd([1], algorithm="esd", max_outliers_detected=1)
-    assert np.isnan(extra_out["p-value"])
+    # A clean sample large enough to test: nothing is flagged.
+    outliers, extra_out = univariate.detect_outliers_esd([1, 2, 3, 4], algorithm="esd", max_outliers_detected=1)
     assert extra_out["cutoff"] == -1
     assert len(outliers) == 0
 
     outliers, extra_out = univariate.detect_outliers_esd([1, 2, 3], algorithm="something-else", max_outliers_detected=1)
     assert len(extra_out) == 0
     assert len(outliers) == 0
+
+
+def test_rosner_esd_rejects_samples_too_small_to_test() -> None:
+    """Testing r outliers needs N >= r + 2, since the ESD dof is N - i - 1.
+
+    Regression test: these previously ran with dof <= 0, so `t.ppf` returned
+    NaN, every critical value was NaN, no crossing could ever be found, and the
+    empty result read as "no outliers" rather than "not testable".
+    """
+    for sample in ([1, 2], [2, 2], [1]):
+        with pytest.raises(ValueError, match="cannot exceed the sample size minus 2"):
+            univariate.detect_outliers_esd(sample, algorithm="esd", max_outliers_detected=1)
+
+    # NaN entries do not count towards the usable sample size.
+    with pytest.raises(ValueError, match="cannot exceed the sample size minus 2"):
+        univariate.detect_outliers_esd([1.0, 2.0, np.nan, np.nan], algorithm="esd", max_outliers_detected=2)
+
+    # Asking for zero outliers is always allowed.
+    outliers, _ = univariate.detect_outliers_esd([1, 2], algorithm="esd", max_outliers_detected=0)
+    assert outliers == []
+
+
+def test_rosner_esd_rejects_non_positive_alpha() -> None:
+    """The alpha level must lie in (0, 1]; only the upper bound was checked before."""
+    for bad_alpha in (0.0, -0.5):
+        with pytest.raises(ValueError, match="alpha must lie in"):
+            univariate.detect_outliers_esd([1, 2, 3, 4, 50], algorithm="esd", max_outliers_detected=1, alpha=bad_alpha)
+    with pytest.raises(ValueError, match="alpha must lie in"):
+        univariate.detect_outliers_esd([1, 2, 3, 4, 50], algorithm="esd", max_outliers_detected=1, alpha=1.5)
+
+
+def test_rosner_esd_handles_infinite_values() -> None:
+    """An infinity no longer raises KeyError from the -1 index sentinel.
+
+    Regression test: a NaN p-value set `R_i_idx = -1`, which is not a label in
+    the reset RangeIndex, so the subsequent drop raised KeyError whenever the
+    spread was non-zero.
+    """
+    for sample in ([1.0, 2.0, 3.0, np.inf], [1.0, 2.0, np.inf, 4.0, 5.0]):
+        outliers, extra_out = univariate.detect_outliers_esd(sample, algorithm="esd", max_outliers_detected=1)
+        assert isinstance(outliers, list)
+        assert -1 not in extra_out["R_i_idx"]
+
+
+def test_rosner_esd_pvalue_uses_the_current_sample_size() -> None:
+    """The Grubbs p-value describes the sample in hand, not the original one.
+
+    Regression test: N was computed once and never refreshed, so from the
+    second iteration onwards the reported p-value was computed for a larger
+    sample than the statistic actually came from.
+    """
+    rng = np.random.default_rng(0)
+    sample = [*rng.normal(size=20).tolist(), 12.0, 15.0]
+    _, reasons = univariate.detect_outliers_esd(sample, algorithm="esd", max_outliers_detected=4, alpha=0.05)
+
+    # Recompute iteration 2 by hand on the sample that remains after the first
+    # point is dropped, and confirm the reported value matches it.
+    remaining = pd.Series(sample).drop(pd.Series(sample).sub(np.mean(sample)).abs().idxmax()).reset_index(drop=True)
+    n_2 = len(remaining)
+    g_2 = ((remaining - remaining.mean()) / remaining.std()).abs().max()
+    s_2 = g_2**2 * n_2 * (2 - n_2) / (g_2**2 * n_2 - (n_2 - 1) ** 2)
+    expected = 0 if s_2 <= 0 else min(n_2 * (1 - univariate.t_value_cdf(np.sqrt(s_2), n_2 - 2)), 1)
+    assert reasons["p-value"][1] == pytest.approx(expected, rel=1e-10)
 
 
 def test_sequence_compare_r(outliers_data: tuple[list[float], list[float]]) -> None:

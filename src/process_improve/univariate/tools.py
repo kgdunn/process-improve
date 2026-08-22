@@ -182,7 +182,12 @@ class DetectOutliersInput(BaseModel):
 def detect_outliers(spec: DetectOutliersInput) -> dict:
     """Detect outliers using the Generalised ESD test; see tool spec for details."""
     arr = np.asarray(spec.values, dtype=float)
-    max_k = min(spec.max_outliers_to_detect, len(arr) - 1)
+    # The ESD statistic for the i-th suspected outlier uses t on N - i - 1
+    # degrees of freedom, so at most N - 2 outliers can be tested. The previous
+    # cap of N - 1 allowed a final iteration with zero degrees of freedom,
+    # whose critical value is NaN and can never flag anything.
+    n_observed = int((~np.isnan(arr)).sum())
+    max_k = max(0, min(spec.max_outliers_to_detect, n_observed - 2))
     outlier_indices, _details = detect_outliers_esd(
         arr,
         algorithm="esd",
@@ -488,8 +493,11 @@ class TtestTwoSamplesInput(BaseModel):
     description=(
         "Perform an unpaired (independent samples) two-sided t-test to determine whether the "
         "means of two groups differ significantly. "
-        "Returns the t statistic, p-value, confidence interval for the difference "
+        "Returns `t_value` (the t statistic), `p_value`, `std_error_of_difference`, "
+        "`pooled_std_dev`, the confidence interval for the difference "
         "(group_b_mean - group_a_mean), and degrees of freedom. "
+        "`z_value` and `pooled_std` are deprecated aliases of `t_value` and "
+        "`std_error_of_difference`; prefer the new names. "
         "The groups must be independent (different subjects/items). "
         "Use ttest_paired_samples instead when each observation in group A is matched to one in B."
     ),
@@ -515,6 +523,14 @@ def ttest_two_samples(spec: TtestTwoSamplesInput) -> dict:
         "group_b_n": raw["Group B number"],
         "group_a_mean": raw["Group A average"],
         "group_b_mean": raw["Group B average"],
+        # `t_value` and `std_error_of_difference` are the correctly named
+        # fields. `z_value` and `pooled_std` are kept as deprecated aliases:
+        # the statistic is a t-statistic, not a z, and `pooled_std` held the
+        # standard ERROR of the difference rather than the pooled standard
+        # deviation. Both aliases are scheduled for removal in 2.0.
+        "t_value": raw["t value"],
+        "std_error_of_difference": raw["Std error of difference"],
+        "pooled_std_dev": raw["Pooled std dev"],
         "z_value": raw["z value"],
         "conf_int_lower": raw["ConfInt: Lo"],
         "conf_int_upper": raw["ConfInt: Hi"],

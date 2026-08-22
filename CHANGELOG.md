@@ -11,7 +11,7 @@ those changes.
 
 ## [Unreleased]
 
-## [1.69.0] - 2026-08-22
+## [1.71.0] - 2026-08-22
 
 ### Added
 
@@ -46,6 +46,128 @@ those changes.
   setpoint variation as independent knot offsets (linearly interpolated) instead of
   a constant offset plus ramp. The old shape could not identify partial-batch
   schedule moves, which is the data requirement for mid-course-correction models.
+
+## [1.70.0] - 2026-08-22
+
+The univariate cluster from the 2026-08 audit triage (#513). Several entries
+change numerical results, because the previous values were wrong.
+
+### Changed
+
+- `Sn` now follows the Rousseeuw-Croux definition exactly, taking the HIGH
+  median inside and the LOW median outside. These are order statistics that
+  differ from the averaging median precisely when the sample size is even, so
+  using `np.median` for both understated every even-`n` estimate: 0.443 in
+  place of 0.886 at `n = 2`, 1.422 against 1.138 at `n = 4`, and still 0.5
+  percent low at `n = 1500`. A Monte Carlo check put the old estimator 4 to 23
+  percent below sigma at even `n` on standard-normal data. **Sn values change
+  for every even-sized sample**, and now reproduce `robustbase::Sn` for both
+  parities; the test file's claim that R "does not follow the formula presented
+  in the original paper" was backwards and has been removed.
+- `detect_outliers_esd` raises `ValueError` when `max_outliers_detected`
+  exceeds the sample size minus two. The statistic for the i-th suspected
+  outlier uses `t` on `N - i - 1` degrees of freedom, so beyond that the
+  critical value is NaN, every later iteration is silently inert, and the empty
+  result read as "no outliers" rather than "this sample cannot be tested". The
+  `detect_outliers` tool's own cap moves from `N - 1` to `N - 2` for the same
+  reason.
+
+### Fixed
+
+- `detect_outliers_esd` rejects `alpha <= 0`, which was previously accepted and
+  silently produced NaN critical values; only the upper bound was checked.
+- `detect_outliers_esd` computes the Grubbs p-value from the sample actually in
+  hand at each iteration. The sample size was captured once and never
+  refreshed, so from the second iteration onwards the reported p-value belonged
+  to a larger sample than the statistic came from. The ESD critical values are
+  unaffected: those are defined against the original N (NIST / Rosner) and
+  still use it.
+- `detect_outliers_esd` no longer raises `KeyError` when the data contain an
+  infinity. A NaN p-value set the row index to the sentinel `-1`, which is not
+  a label in the reset index, so the subsequent drop failed. There is now no
+  sentinel: an iteration with no usable candidate records `None` and drops
+  nothing.
+- `ttest_independent_from_df` and `ttest_paired_from_df` take their group list
+  from the cleaned data rather than the raw frame. A group whose values are all
+  missing, or a NaN group label, previously survived and was compared against
+  an empty sample, yielding a silent all-NaN row (or an opaque length-mismatch
+  error in the paired case).
+- `summary_stats` returns NaN for `rsd` and `rsd_classical` when the centre is
+  zero, instead of `inf` plus a `RuntimeWarning` raised through the public API
+  and the agent-facing `robust_summary_stats` tool. Relative spread is
+  undefined at a zero centre, which is a natural input here since mean-centred
+  process variables are common.
+
+### Added
+
+- `ttest_independent_from_df` and `ttest_paired_from_df` accept
+  `correction="holm"` or `correction="bh"` to adjust the family of pairwise
+  p-values, using the `holm_bonferroni` and `benjamini_hochberg` functions that
+  already lived in this module. The default is unchanged and uncorrected, and
+  the raw `p value` column is always kept; when a correction is requested,
+  `p value (adjusted)`, `reject` and `correction` columns are added. Both
+  docstrings now state that the default p-values are uncorrected across
+  `k(k-1)/2` comparisons.
+- `ttest_independent` returns correctly named `"t value"`, `"Std error of
+  difference"` and `"Pooled std dev"` entries, and the `ttest_two_samples` tool
+  gains `t_value`, `std_error_of_difference` and `pooled_std_dev`.
+
+### Deprecated
+
+- `"z value"` and `"Pooled standard deviation"` from `ttest_independent`, and
+  `z_value` and `pooled_std` from the `ttest_two_samples` tool. The statistic
+  is a t-statistic, not a z-statistic: its p-value is computed from the t
+  distribution on the reported degrees of freedom. `"Pooled standard
+  deviation"` holds the standard *error* of the difference in means,
+  `sqrt(svar * (1/nA + 1/nB))`, which is smaller than the pooled standard
+  deviation `sqrt(svar)` by a factor of `sqrt(nA*nB/(nA+nB))`. Deprecated since
+  1.70.0; both will be removed in 2.0. Use `"t value"` / `t_value` and
+  `"Std error of difference"` / `std_error_of_difference`.
+
+## [1.69.0] - 2026-08-22
+
+### Changed
+
+- `score_limit` now uses the Student-t quantile on `N - 1` degrees of freedom
+  instead of the standard-normal `z`. The score standard deviation `s_a` is
+  estimated from the same `N` observations, so `z` is only its large-`N`
+  limit: at `N = 10` the old limit was 15 percent too tight (1.96 against
+  2.26), still 2.5 percent at `N = 50`, and negligible past `N = 100`. This
+  makes the function agree with its own documented identity, that
+  `(t_a / s_a) ** 2` follows `F(1, N - 1)`, since `sqrt(F(1, N - 1))` is
+  exactly the two-sided `t_{N - 1}` quantile; the docstring previously
+  asserted that identity while computing `z`, which contradicted it.
+  **Score limits are wider than before, most noticeably on small data sets.**
+
+### Fixed
+
+- `robust_regression` now populates the `t_value` key it documents. It was
+  only ever initialised to `NaN`: the critical value was computed into a local
+  variable, used to build the intervals, and never assigned back. The key now
+  holds the t-statistic per coefficient (coefficient divided by its standard
+  error), which is what the sibling `multiple_linear_regression` has always
+  returned under that name, so the two agree on what `t_value` means. It stays
+  `NaN` on the degenerate paths, where the standard error is undefined.
+
+### Documentation
+
+- Record the API-consistency rules in `CONTRIBUTING.md`: one name means one
+  quantity across sibling functions, a documented key must be populated,
+  sibling methods return the same shape, and a convention chosen once applies
+  everywhere.
+- Remove references to discontinued software that can no longer be used to
+  re-validate anything (ProSensus Multivariate / ProMV, and the legacy
+  ConnectMV MATLAB code). The numerical values recorded from them are kept
+  unchanged and are now described for what they are: regression pins that lock
+  in behaviour that was correct when recorded, distinguished in the reference
+  test suite from values that can still be re-derived from the published Wold,
+  Esbensen & Geladi (1987) paper.
+- `tests/test_multiblock_reference.py::test_score_limit_at_95pct` now asserts
+  against `PCA.score_limit` itself instead of re-deriving the formula inside
+  the test. It previously had to reconstruct the limit by hand because the
+  shipped function used a different convention from the reference value it was
+  checking; with `score_limit` corrected, the public API reproduces that value
+  (7.8432) directly.
 
 ## [1.68.0] - 2026-08-22
 
@@ -3325,7 +3447,9 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.69.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.71.0...HEAD
+[1.71.0]: https://github.com/kgdunn/process-improve/compare/v1.70.0...v1.71.0
+[1.70.0]: https://github.com/kgdunn/process-improve/compare/v1.69.0...v1.70.0
 [1.69.0]: https://github.com/kgdunn/process-improve/compare/v1.68.0...v1.69.0
 [1.68.0]: https://github.com/kgdunn/process-improve/compare/v1.67.1...v1.68.0
 [1.67.1]: https://github.com/kgdunn/process-improve/compare/v1.67.0...v1.67.1

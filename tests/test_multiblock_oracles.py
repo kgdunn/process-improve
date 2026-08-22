@@ -8,10 +8,10 @@ synthetic problem.
 
 If both reference paths agree, we have a trustworthy Python oracle that the
 production :class:`MBPCA` and :class:`MBPLS` classes can be validated against
-when they land in PR3 / PR6 - without ever needing to run MATLAB.
+when they land in PR3 / PR6, with no dependency on any external package.
 
-The MATLAB ``unit_tests.m`` MBPCA_tests / MBPLS_tests blocks structure their
-self-consistency checks the same way; this module is the Python equivalent.
+The recorded MBPCA / MBPLS references structure their self-consistency checks
+the same way; this module is the Python equivalent.
 """
 
 from __future__ import annotations
