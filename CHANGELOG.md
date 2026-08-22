@@ -11,6 +11,70 @@ those changes.
 
 ## [Unreleased]
 
+## [1.71.0] - 2026-08-22
+
+The multivariate statistical cluster from the 2026-08 audit triage (#513).
+Most entries change numerical results, because the previous values were wrong.
+
+### Changed
+
+- `PLS.prediction_interval` now puts the residual error on the same
+  `N - A - 1` degrees of freedom as the t quantile it is multiplied by.
+  `rmse_` divides by `N`, so the interval was too narrow by
+  `sqrt(N / (N - A - 1))`. Measured coverage of a nominal 95% interval rises
+  from 0.710 to 0.804 at `N = 15`, 0.869 to 0.916 at `N = 25` and 0.921 to
+  0.935 at `N = 60` (K=8, A=5, 800 replicates). **Intervals are wider.** The
+  residual gap to 95% is a separate matter: PLS consumes more effective
+  degrees of freedom than `A`. The `cv_result` branch is unchanged, since a
+  cross-validated error is already out of sample.
+- `spe_calculation`'s degeneracy test is now on the coefficient of variation
+  of the squared SPE, which is dimensionless, instead of comparing an SPE^4
+  quantity against an absolute tolerance. The old test fired on well-scaled
+  data whose SPE values were merely small in magnitude, returning the RMS SPE
+  as the claimed 95% limit: around 42 percent of the training data then
+  exceeded its own limit. The genuinely degenerate fallbacks (a perfect fit,
+  an all-equal SPE column) are unchanged.
+- `PLS.select_n_components` divides PRESS by the number of test-row
+  evaluations the splitter actually performs, and weights each TSS row by how
+  often that row was tested, instead of assuming the splitter partitions the
+  rows once per repeat. KFold and RepeatedKFold results are bit-identical; a
+  caller-supplied splitter that is not a partition was previously wrong. A
+  `ShuffleSplit(n_splits=10, test_size=0.5)` produces `5N` evaluations but was
+  still divided by `N`, inflating RMSECV by `sqrt(5)` and reporting Q2Y of
+  -0.03 for a model KFold scores at 0.81; a caller-built `RepeatedKFold` was
+  inflated by `sqrt(n_repeats)`.
+- `PLS` computes R2Y as `1 - SSE/SST`, matching the convention already used on
+  the X side, for both `r2_cumulative_` and `r2y_per_variable_`. The two forms
+  agree exactly when the scores are orthogonal, but missing data breaks that,
+  and `SS(Yhat)` could then decrease as a component was added. Across 120
+  missing-data fits, 75 produced a negative per-component R2Y and 11 returned
+  NaN VIP scores; both are now zero.
+- `hotellings_t2_limit` raises `ValueError` when `n_components` exceeds
+  `n_rows`. Beyond equality the F denominator degrees of freedom go negative
+  and scipy returns NaN, so the caller silently received a limit that nothing
+  could exceed, including through `ellipse_coordinates`.
+
+### Fixed
+
+- `PLS.nested_cv` computes its Q2Y denominators over the same rows and cells
+  as its PRESS numerators. A TSS over every row against a PRESS over only the
+  covered rows inflated Q2: an outer `ShuffleSplit` covering 15 percent of the
+  data reported Q2 = 0.68 for pure-noise X, where the honest value is about
+  zero. The headline total also used a NaN-propagating sum where the
+  per-column values used `nansum`, so a single missing Y cell returned finite
+  per-column values and a NaN total.
+- `PCA.detect_outliers` and `PLS.detect_outliers` no longer divide by a
+  degenerate limit. A perfect fit gives an SPE limit of zero, which raised
+  `ZeroDivisionError`; a limit at machine-epsilon scale produced severities
+  that were ratios of floating-point noise. A limit carrying no information
+  now contributes no severity, and the test is on the limit being positive and
+  finite rather than on an absolute epsilon, so it stays scale-invariant.
+- `_pca_ekf_press` records `NaN` for a fold that holds out no cells, rather
+  than a structural zero that the caller counted as a real fold with perfect
+  prediction. On a matrix with fewer cells than folds this fabricated a
+  standard error, which fed the 1-SE selection rule. PRESS itself is
+  unchanged; only the per-fold spread was affected.
+
 ## [1.70.0] - 2026-08-22
 
 The univariate cluster from the 2026-08 audit triage (#513). Several entries
@@ -3411,7 +3475,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.70.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.71.0...HEAD
+[1.71.0]: https://github.com/kgdunn/process-improve/compare/v1.70.0...v1.71.0
 [1.70.0]: https://github.com/kgdunn/process-improve/compare/v1.69.0...v1.70.0
 [1.69.0]: https://github.com/kgdunn/process-improve/compare/v1.68.0...v1.69.0
 [1.68.0]: https://github.com/kgdunn/process-improve/compare/v1.67.1...v1.68.0

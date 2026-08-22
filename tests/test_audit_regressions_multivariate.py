@@ -370,3 +370,208 @@ class TestTPLSDiagnoseMissing:
             poked.t_scores_super.iloc[other_rows].values,
             clean.t_scores_super.iloc[other_rows].values,
         )
+
+
+class TestStatisticalCorrectnessTriage:
+    """The multivariate statistical cluster from the #513 triage list."""
+
+    def test_hotellings_t2_limit_rejects_more_components_than_rows(self) -> None:
+        """A > N used to return NaN silently from a negative F denominator dof."""
+        assert hotellings_t2_limit(0.95, n_components=4, n_rows=4) == float("inf")
+        assert np.isfinite(hotellings_t2_limit(0.95, n_components=3, n_rows=5))
+        for n_components, n_rows in ((5, 3), (10, 4)):
+            with pytest.raises(ValueError, match="cannot exceed n_rows"):
+                hotellings_t2_limit(0.95, n_components=n_components, n_rows=n_rows)
+
+        with pytest.raises(ValueError, match="must be non-negative"):
+            hotellings_t2_limit(0.95, n_components=-1, n_rows=10)
+
+    def test_spe_limit_is_scale_invariant(self) -> None:
+        """The degeneracy guard must not depend on the units of the data.
+
+        `variance_spe` is a fourth-power quantity, so comparing it against an
+        absolute tolerance made small-magnitude SPE values trip the guard and
+        receive the RMS SPE as their "95% limit", which around 42 percent of
+        the training data exceeded.
+        """
+        rng = np.random.default_rng(0)
+        spe = np.sqrt(rng.chisquare(df=5, size=400))
+
+        limits = {scale_factor: spe_calculation(spe * scale_factor, 0.95) for scale_factor in (1.0, 1e-3, 1e-6)}
+        # The limit scales exactly with the data.
+        for scale_factor, limit in limits.items():
+            assert limit / scale_factor == pytest.approx(limits[1.0], rel=1e-12)
+            exceeded = float(np.mean(spe * scale_factor > limit))
+            assert 0.02 <= exceeded <= 0.09, f"scale {scale_factor}: {exceeded:.1%} above the 95% limit"
+
+    def test_spe_limit_still_handles_genuinely_degenerate_input(self) -> None:
+        """A perfect fit and an all-equal column keep their documented fallback."""
+        assert spe_calculation(np.zeros(50), 0.95) == 0.0
+        assert spe_calculation(np.full(50, 3.0), 0.95) == pytest.approx(3.0, rel=1e-12)
+
+    def test_detect_outliers_survives_a_degenerate_spe_limit(self) -> None:
+        """A perfect fit gives spe_limit == 0, which used to raise ZeroDivisionError."""
+        X = pd.DataFrame({"a": [1.0, 2, 3, 4, 5, 6, 7, 8, 9, 10]})
+        model = PCA(n_components=1).fit(X - X.mean())
+        outliers = model.detect_outliers(conf_level=0.95)  # must not raise
+        severities = [float(o["severity"]) for o in outliers] if len(outliers) else []
+        # A limit that carries no information contributes no severity.
+        assert all(np.isfinite(s) for s in severities)
+
+    def test_pca_ekf_press_leaves_empty_folds_as_nan(self) -> None:
+        """Empty folds must not be counted as real folds by the standard error.
+
+        With fewer cells than folds every cell lands in the last fold; the
+        structural zeros in the others fabricated a standard error.
+        """
+        from process_improve.multivariate._pca import _pca_ekf_press
+
+        press, per_fold = _pca_ekf_press(np.array([[1.0, 2], [3, 4]]), 1, n_folds=5, random_state=0)
+        assert np.isnan(per_fold[0, :4]).all(), "empty folds must be NaN, not zero"
+        assert np.isfinite(per_fold[0, 4])
+        # PRESS itself is unchanged: an empty fold contributes nothing to a sum.
+        assert press[0] == pytest.approx(float(per_fold[0, 4]), rel=1e-12)
+
+        result = PCA.select_n_components(pd.DataFrame([[1.0, 2], [3, 4]]), max_components=1)
+        assert np.isnan(np.asarray(result.se_press)).all(), "a single real fold cannot have an SE"
+
+    def test_pca_ekf_press_unchanged_for_normal_matrices(self) -> None:
+        """The empty-fold change must not move PRESS on ordinary data."""
+        from process_improve.multivariate._pca import _pca_ekf_press
+
+        rng = np.random.default_rng(0)
+        X = rng.normal(size=(20, 4))
+        press, per_fold = _pca_ekf_press(X, 3, n_folds=5, random_state=42)
+        assert not np.isnan(per_fold).any()
+        assert np.all(np.isfinite(press))
+
+    def test_pls_prediction_interval_uses_a_consistent_dof(self) -> None:
+        """The residual std and the t quantile must share the N - A - 1 dof.
+
+        `rmse_` divides by N, so without rescaling the interval is too narrow
+        by sqrt(N / (N - A - 1)).
+        """
+        rng = np.random.default_rng(0)
+        n_samples, n_features, n_components = 20, 6, 3
+        X = pd.DataFrame(rng.normal(size=(n_samples, n_features)))
+        y = pd.DataFrame(X.values @ rng.normal(size=n_features) + rng.normal(scale=0.5, size=n_samples))
+        model = PLS(n_components=n_components).fit(X, y)
+
+        X_new = pd.DataFrame(rng.normal(size=(1, n_features)))
+        interval = model.prediction_interval(X_new, conf_level=0.95)
+        half_width = float(np.asarray(interval.upper).ravel()[0] - np.asarray(interval.y_hat).ravel()[0])
+
+        from scipy.stats import t as t_dist
+
+        df = n_samples - n_components - 1
+        rmse_n = float(np.asarray(model.rmse_.iloc[:, -1]).ravel()[0])
+        t2_new = float(np.asarray(model.diagnose(X_new).hotellings_t2).ravel()[-1])
+        leverage = 1.0 / n_samples + t2_new / (n_samples - 1)
+        expected = t_dist.ppf(0.975, df) * np.sqrt(1.0 + leverage) * rmse_n * np.sqrt(n_samples / df)
+        assert half_width == pytest.approx(expected, rel=1e-9)
+        # And strictly wider than the uncorrected form that was shipped before.
+        assert half_width > t_dist.ppf(0.975, df) * np.sqrt(1.0 + leverage) * rmse_n
+
+    def test_pls_r2y_never_goes_backwards_with_missing_data(self) -> None:
+        """SS(Yhat)/SS(Y) is not monotone when missing data breaks orthogonality.
+
+        A decreasing cumulative R2Y made per-component R2Y negative, which
+        drives the VIP radicand negative and returns NaN importance scores.
+        """
+        negative_r2 = 0
+        nan_vips = 0
+        fitted = 0
+        for seed in range(40):
+            rng = np.random.default_rng(seed)
+            X = rng.normal(size=(25, 6))
+            X[rng.random(X.shape) < 0.30] = np.nan
+            Y = np.nan_to_num(X, nan=0.0) @ rng.normal(size=(6, 1)) + rng.normal(scale=0.3, size=(25, 1))
+            try:
+                model = PLS(n_components=4).fit(pd.DataFrame(X), pd.DataFrame(Y))
+            except np.linalg.LinAlgError:
+                # A separate, still-open defect: the main NIPALS path normalises
+                # w_a with no zero floor, so a collapsed weight vector turns the
+                # component into NaN and the fit aborts blaming collinearity.
+                # Out of scope here; skip the seed rather than assert on it.
+                continue
+            fitted += 1
+            if np.any(np.asarray(model.r2_per_component_).ravel() < -1e-9):
+                negative_r2 += 1
+            if np.any(~np.isfinite(np.asarray(model.vip()))):
+                nan_vips += 1
+        assert fitted >= 30, f"only {fitted}/40 fits completed; the fixture no longer exercises the path"
+        assert negative_r2 == 0, f"{negative_r2}/{fitted} fits had a negative per-component R2Y"
+        assert nan_vips == 0, f"{nan_vips}/{fitted} fits produced NaN VIP scores"
+
+    def test_pls_r2y_matches_the_ssq_form_on_complete_data(self) -> None:
+        """The residual form is identical to SS(Yhat)/SS(Y) when scores are orthogonal."""
+        rng = np.random.default_rng(0)
+        X = pd.DataFrame(rng.normal(size=(30, 5)))
+        Y = pd.DataFrame(X.values @ rng.normal(size=(5, 2)) + rng.normal(scale=0.3, size=(30, 2)))
+        model = PLS(n_components=3).fit(X, Y)
+        r2_cumulative = np.asarray(model.r2_cumulative_).ravel()
+        assert np.all(np.diff(r2_cumulative) >= -1e-12), "cumulative R2Y must be non-decreasing"
+        assert np.all((r2_cumulative >= 0) & (r2_cumulative <= 1 + 1e-12))
+
+    def test_nested_cv_total_survives_a_missing_y_cell(self) -> None:
+        """One NaN in Y used to make the headline total NaN via a plain sum()."""
+        from sklearn.model_selection import KFold
+
+        rng = np.random.default_rng(0)
+        X = pd.DataFrame(rng.normal(size=(40, 5)))
+        Y = pd.DataFrame(X.values @ rng.normal(size=(5, 2)) + rng.normal(scale=0.3, size=(40, 2)))
+        Y.iloc[3, 1] = np.nan
+        result = PLS.nested_cv(X, Y, max_components=3, outer_cv=KFold(n_splits=4, shuffle=True, random_state=0))
+        assert np.all(np.isfinite(np.asarray(result.q2y))), "no entry, including the total, may be NaN"
+
+    def test_nested_cv_does_not_inflate_q2_for_an_under_covering_splitter(self) -> None:
+        """PRESS over covered rows against a TSS over all rows inflates Q2.
+
+        On pure noise the honest Q2 is around zero; the mismatch reported 0.68.
+        """
+        from sklearn.model_selection import ShuffleSplit
+
+        rng = np.random.default_rng(1)
+        X = pd.DataFrame(rng.normal(size=(60, 5)))
+        Y = pd.DataFrame(rng.normal(size=(60, 1)))
+        result = PLS.nested_cv(
+            X, Y, max_components=2, outer_cv=ShuffleSplit(n_splits=3, test_size=0.15, random_state=0)
+        )
+        q2_total = float(np.asarray(result.q2y)[-1])
+        assert q2_total < 0.35, f"pure-noise Q2 should be near zero, got {q2_total:.3f}"
+
+    def test_select_n_components_normalises_by_actual_test_coverage(self) -> None:
+        """A non-partition splitter must not inflate RMSECV.
+
+        `n_eff` assumed the splitter covers every row once per repeat, so a
+        ShuffleSplit holding out half the rows ten times (5N evaluations) was
+        still divided by N, inflating RMSECV by sqrt(5).
+        """
+        from sklearn.model_selection import KFold, ShuffleSplit
+
+        rng = np.random.default_rng(0)
+        n_samples = 60
+        scores = rng.normal(size=(n_samples, 2))
+        X = pd.DataFrame(scores @ rng.normal(size=(2, 6)) + rng.normal(scale=0.3, size=(n_samples, 6)))
+        Y = pd.DataFrame(scores @ rng.normal(size=(2, 1)) + rng.normal(scale=0.3, size=(n_samples, 1)))
+
+        kfold = PLS.select_n_components(X, Y, max_components=3, cv=KFold(n_splits=5, shuffle=True, random_state=0))
+        shuffled = PLS.select_n_components(
+            X, Y, max_components=3, cv=ShuffleSplit(n_splits=10, test_size=0.5, random_state=0)
+        )
+        kfold_rmsecv = np.asarray(kfold.rmsecv["total"], dtype=float)
+        shuffle_rmsecv = np.asarray(shuffled.rmsecv["total"], dtype=float)
+        # The two schemes estimate the same quantity, so they must be comparable.
+        np.testing.assert_allclose(shuffle_rmsecv, kfold_rmsecv, rtol=0.35)
+        assert np.all(np.asarray(shuffled.r2y_validated["total"], dtype=float) > 0.5)
+
+    def test_select_n_components_unchanged_for_a_partition_splitter(self) -> None:
+        """KFold is a partition, so the coverage weighting must be a no-op there."""
+        from sklearn.model_selection import KFold
+
+        rng = np.random.default_rng(0)
+        X = pd.DataFrame(rng.normal(size=(40, 5)))
+        Y = pd.DataFrame(X.values @ rng.normal(size=(5, 1)) + rng.normal(scale=0.3, size=(40, 1)))
+        by_object = PLS.select_n_components(X, Y, max_components=3, cv=KFold(n_splits=5, shuffle=True, random_state=0))
+        assert np.all(np.isfinite(np.asarray(by_object.rmsecv["total"], dtype=float)))
+        assert np.all(np.asarray(by_object.r2y_validated["total"], dtype=float) <= 1.0)

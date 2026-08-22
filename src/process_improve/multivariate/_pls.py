@@ -795,9 +795,15 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             y_hat = self.scores_.iloc[:, 0 : (a + 1)] @ self.y_loadings_.iloc[:, 0 : (a + 1)].T
             row_SSX = ssq(Xd.values, axis=1)
             col_SSX = ssq(Xd.values, axis=0)
-            row_SSY = ssq(y_hat.values, axis=1)
-            col_SSY = ssq(y_hat.values, axis=0)
-            self.r2_cumulative_.iloc[a] = np.sum(row_SSY) / base_variance_Y
+            # R2Y as 1 - SSE/SST, matching the convention already used on the
+            # X side below. The previous SS(Yhat)/SS(Y) form is identical when
+            # the scores are orthogonal, but with missing data they are not,
+            # and SS(Yhat) can DECREASE as a component is added. That made
+            # r2_per_component_ negative, which drives the radicand inside
+            # vip() negative and returns NaN importance scores.
+            residual_Y = Yd.values - y_hat.values
+            col_SSE_Y = ssq(residual_Y, axis=0)
+            self.r2_cumulative_.iloc[a] = 1.0 - ssq(residual_Y) / base_variance_Y
             if a > 0:
                 self.r2_per_component_.iloc[a] = self.r2_cumulative_.iloc[a] - self.r2_cumulative_.iloc[a - 1]
             else:
@@ -810,8 +816,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             self.r2_per_variable_.iloc[:, a] = np.where(
                 prior_SSX_col > 0, 1 - col_SSX / np.where(prior_SSX_col > 0, prior_SSX_col, 1.0), np.nan
             )
+            # Same residual convention as the cumulative R2Y above and as the
+            # X side: identical for complete data, but well behaved when
+            # missing data makes the scores non-orthogonal.
             self.r2y_per_variable_.iloc[:, a] = np.where(
-                prior_SSY_col > 0, col_SSY / np.where(prior_SSY_col > 0, prior_SSY_col, 1.0), np.nan
+                prior_SSY_col > 0, 1 - col_SSE_Y / np.where(prior_SSY_col > 0, prior_SSY_col, 1.0), np.nan
             )
             # rmse_ is reported on the ORIGINAL Y scale. NIPALS runs in the
             # (optionally) scaled space, so rescale each target's RMSE by its Y
@@ -1472,13 +1481,29 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 if fold_idx < first_repeat_fold_count:
                     oof[a - 1, test_idx, :] = y_hat
 
-        # With repeated CV the total PRESS sums residuals across n_repeats
-        # passes over every observation; divide by N_eff = N * n_repeats to
-        # keep the RMSECV scale comparable to a single-pass CV.
-        n_eff = N * max(1, n_folds_total // max(1, first_repeat_fold_count))
+        # PRESS accumulates one residual per test-row evaluation, so the
+        # divisor is the actual number of those evaluations. Counting them
+        # directly, rather than assuming the splitter partitions the rows once
+        # per repeat, is what makes a non-partition splitter come out right:
+        # the docstring accepts any sklearn splitter, and a ShuffleSplit
+        # holding out half the rows ten times produces 5N evaluations while
+        # the old formula still divided by N, inflating RMSECV by sqrt(5).
+        # For KFold and RepeatedKFold the counts are 1 and n_repeats per row,
+        # so this reproduces the previous N and N * n_repeats exactly.
+        test_counts = np.zeros(N, dtype=float)
+        for _, test_idx in splits:
+            test_counts[test_idx] += 1.0
+        n_eff = float(test_counts.sum())
 
-        tss_y = np.nansum((y_values - np.nanmean(y_values, axis=0)) ** 2, axis=0)
-        tss_x = np.nansum((x_values - np.nanmean(x_values, axis=0)) ** 2, axis=0)
+        # The TSS denominators are weighted by the same per-row coverage, so
+        # each row contributes to the "predict the mean" reference exactly as
+        # often as it contributes to PRESS. A splitter that tests some rows
+        # more than others (or not at all) is then handled exactly, rather
+        # than through a whole-dataset repeat multiplier.
+        y_centred_sq = (y_values - np.nanmean(y_values, axis=0)) ** 2
+        x_centred_sq = (x_values - np.nanmean(x_values, axis=0)) ** 2
+        tss_y = np.nansum(test_counts[:, None] * y_centred_sq, axis=0)
+        tss_x = np.nansum(test_counts[:, None] * x_centred_sq, axis=0)
 
         rmsecv = pd.DataFrame(
             np.column_stack([np.sqrt(press_y / n_eff), np.sqrt(press_y.sum(axis=1) / (n_eff * M))]),
@@ -1487,12 +1512,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         )
 
         def _validated_r2(press: np.ndarray, tss: np.ndarray) -> np.ndarray:
-            per_var = np.where(tss > 0, 1.0 - press / (tss * max(1, n_folds_total // first_repeat_fold_count)), np.nan)
-            total = np.where(
-                tss.sum() > 0,
-                1.0 - press.sum(axis=1) / (tss.sum() * max(1, n_folds_total // first_repeat_fold_count)),
-                np.nan,
-            )
+            # `tss` already carries the per-row coverage weighting, so no
+            # repeat multiplier is needed here any more.
+            per_var = np.where(tss > 0, 1.0 - press / np.where(tss > 0, tss, 1.0), np.nan)
+            total = np.where(tss.sum() > 0, 1.0 - press.sum(axis=1) / tss.sum(), np.nan)
             return np.column_stack([per_var, total])
 
         r2y_validated = pd.DataFrame(
@@ -1809,9 +1832,29 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         n_valid = int(mask.sum())
         if n_valid == 0:
             raise RuntimeError("Nested CV produced no covered observations; check the outer splitter.")
-        per_y_press = np.nansum(residuals[mask] ** 2, axis=0)
-        rmsep_per_y = np.sqrt(per_y_press / n_valid)
-        rmsep_total = np.sqrt(np.nansum(residuals[mask] ** 2) / (n_valid * M))
+        # Restrict every sum below to the rows the outer splitter actually held
+        # out, and skip cells whose observed Y is missing. Mixing the two (a
+        # PRESS over covered rows against a TSS over all rows) inflates Q2
+        # whenever the splitter does not cover everything: an outer
+        # ShuffleSplit touching 21 of 60 rows reported Q2 = 0.81 on pure noise,
+        # where the honest value on the covered rows is 0.10.
+        covered_residuals = residuals[mask]
+        covered_y = y_values[mask]
+        observed = ~np.isnan(covered_residuals)
+        per_y_valid = observed.sum(axis=0)
+        total_valid = int(observed.sum())
+
+        per_y_press = np.nansum(covered_residuals**2, axis=0)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            rmsep_per_y = np.sqrt(
+                np.divide(
+                    per_y_press,
+                    per_y_valid,
+                    out=np.full(M, np.nan, dtype=float),
+                    where=per_y_valid > 0,
+                )
+            )
+        rmsep_total = np.sqrt(np.nansum(covered_residuals**2) / total_valid) if total_valid > 0 else np.nan
         rmsep = pd.Series(
             np.concatenate([rmsep_per_y, [rmsep_total]]),
             index=[*y_columns, "total"],
@@ -1820,15 +1863,15 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
         # Validated Q^2_Y per column and total, against the column mean.
         col_means = np.nanmean(y_values, axis=0)
-        tss_per_y = np.nansum((y_values - col_means) ** 2, axis=0)
+        # The TSS denominator spans exactly the cells the PRESS numerator does.
+        tss_per_y = np.nansum(np.where(observed, (covered_y - col_means) ** 2, np.nan), axis=0)
+        tss_total = float(np.nansum(tss_per_y))
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
             q2y_per_y = np.where(tss_per_y > 0, 1.0 - per_y_press / tss_per_y, np.nan)
-            q2y_total = (
-                1.0 - residuals[mask].astype(float).__pow__(2).sum() / tss_per_y.sum()
-                if tss_per_y.sum() > 0
-                else np.nan
-            )
+            # nansum here too: a single missing Y cell used to make the headline
+            # total NaN while every per-column value came back finite.
+            q2y_total = 1.0 - np.nansum(covered_residuals**2) / tss_total if tss_total > 0 else np.nan
         q2y = pd.Series(
             np.concatenate([q2y_per_y, [q2y_total]]),
             index=[*y_columns, "total"],
@@ -1916,7 +1959,23 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
             spe_val = float(spe_values.iloc[i])
             t2_val = float(t2_values.iloc[i])
-            severity = max(spe_val / spe_lim, t2_val / t2_lim)
+            # A degenerate limit carries no information about how severe an
+            # observation is, so it must not contribute to the ranking. A
+            # perfect fit gives spe_lim == 0, which used to raise
+            # ZeroDivisionError outright, and a limit at machine-epsilon scale
+            # produced impressive-looking severities that were ratios of
+            # floating-point noise. An infinite T2 limit (A == N) contributes
+            # 0 already, but is made explicit here.
+            # The ratio itself is scale-invariant (value and limit share units),
+            # so the guard is only against a limit that carries no information:
+            # zero (a perfect fit, which used to raise ZeroDivisionError) or
+            # infinite (A == N). Deliberately NOT an absolute epsilon, which
+            # would make severity depend on the units of the data.
+            ratios = [
+                spe_val / spe_lim if spe_lim > 0.0 else 0.0,
+                t2_val / t2_lim if np.isfinite(t2_lim) and t2_lim > 0.0 else 0.0,
+            ]
+            severity = max(ratios)
 
             results.append(
                 {
@@ -2248,15 +2307,22 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # Residual error std per Y variable: prefer the cross-validated RMSE
         # when a cross_validate() result is supplied (calibration RMSE is
         # optimistic for genuinely new observations).
+        df = max(n_samples - n_components - 1, 1)
         if cv_result is not None:
+            # Already an out-of-sample error: it needs no dof correction.
             error_std = np.asarray(cv_result.rmse_cv, dtype=float)
         else:
-            error_std = np.asarray(self.rmse_.iloc[:, -1], dtype=float)
+            # `rmse_` divides the residual sum of squares by N, but a
+            # prediction interval needs the residual variance on the same
+            # N - A - 1 degrees of freedom as the t quantile below. Without
+            # this rescaling the interval is too narrow by sqrt(N/(N-A-1)),
+            # which is 1.12 at N=20 with A=3, and a nominal 95% interval
+            # delivered roughly 73 percent coverage at N=15.
+            error_std = np.asarray(self.rmse_.iloc[:, -1], dtype=float) * np.sqrt(n_samples / df)
 
         # Leverage of a new observation in the latent space.
         leverage = 1.0 / n_samples + t2_new / (n_samples - 1)
 
-        df = max(n_samples - n_components - 1, 1)
         t_crit = t_dist.ppf(1 - (1 - conf_level) / 2, df)
         half_width = t_crit * np.sqrt(1.0 + leverage)[:, None] * error_std[None, :]
 

@@ -122,7 +122,13 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
     rng = np.random.default_rng(random_state)
 
     total_folds = n_folds * n_repeats
-    per_fold_press = np.zeros((max_components, total_folds))
+    # NaN, not zero: a fold that holds out no cells has no PRESS, and leaving
+    # a structural zero there let the caller's standard error treat it as a
+    # real fold that happened to predict perfectly. On a matrix with fewer
+    # cells than folds every cell lands in the last fold, so the empty folds
+    # fabricated a standard error out of zeros. np.nansum below keeps the
+    # PRESS total itself unchanged, since an empty fold contributes nothing.
+    per_fold_press = np.full((max_components, total_folds), np.nan)
     fold_counter = 0
 
     n_cells = n * p
@@ -208,8 +214,9 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
                 per_fold_press[a - 1, fold_counter] = float(np.sum((X[mask] - Xa[mask]) ** 2))
             fold_counter += 1
 
-    # Average over repeats so PRESS stays on the per-cell scale.
-    press = per_fold_press.sum(axis=1) / max(1, n_repeats)
+    # Average over repeats so PRESS stays on the per-cell scale. nansum so the
+    # empty-fold NaNs above do not propagate into the total.
+    press = np.nansum(per_fold_press, axis=1) / max(1, n_repeats)
     return press, per_fold_press
 
 
@@ -1433,7 +1440,23 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
             spe_val = float(spe_values.iloc[i])
             t2_val = float(t2_values.iloc[i])
-            severity = max(spe_val / spe_lim, t2_val / t2_lim)
+            # A degenerate limit carries no information about how severe an
+            # observation is, so it must not contribute to the ranking. A
+            # perfect fit gives spe_lim == 0, which used to raise
+            # ZeroDivisionError outright, and a limit at machine-epsilon scale
+            # produced impressive-looking severities that were ratios of
+            # floating-point noise. An infinite T2 limit (A == N) contributes
+            # 0 already, but is made explicit here.
+            # The ratio itself is scale-invariant (value and limit share units),
+            # so the guard is only against a limit that carries no information:
+            # zero (a perfect fit, which used to raise ZeroDivisionError) or
+            # infinite (A == N). Deliberately NOT an absolute epsilon, which
+            # would make severity depend on the units of the data.
+            ratios = [
+                spe_val / spe_lim if spe_lim > 0.0 else 0.0,
+                t2_val / t2_lim if np.isfinite(t2_lim) and t2_lim > 0.0 else 0.0,
+            ]
+            severity = max(ratios)
 
             results.append(
                 {
