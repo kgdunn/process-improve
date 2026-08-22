@@ -3,8 +3,6 @@ from collections.abc import Callable
 import numpy as np
 import pandas as pd
 
-IndexOrList = int | list
-
 
 def optimization_function(x: pd.DataFrame) -> float:
     """Score a design for the point-exchange D-optimal search (lower is better).
@@ -17,7 +15,10 @@ def optimization_function(x: pd.DataFrame) -> float:
     Returns ``+inf`` when ``X'X`` is singular (no improvement possible).
     """
     try:
-        x = pd.DataFrame(x).drop_duplicates()
+        # Do NOT de-duplicate here: replicated runs carry real information
+        # (|X'X| for n copies of a point differs from one copy), so dropping
+        # them would score a different design from the one being evaluated.
+        x = pd.DataFrame(x)
         xtx_i = np.linalg.inv(np.dot(np.transpose(x), x))
     except np.linalg.LinAlgError:
         return float(np.inf)
@@ -29,7 +30,7 @@ def index_to_replace_in_design_row(
     candidate_point: pd.DataFrame,
     current_optimum: float,
     optimization_function: Callable,
-) -> IndexOrList:
+) -> int | None:
     """Find the row index in ``design`` to replace with ``candidate_point``.
 
     Iterates over each row of ``design`` and evaluates the D-optimality of the
@@ -37,10 +38,13 @@ def index_to_replace_in_design_row(
 
     Returns
     -------
-    int | list
+    int | None
         The index of the row whose replacement yields the best (lowest)
         optimality score. If no row produces an improvement over
-        ``current_optimum``, an empty list is returned.
+        ``current_optimum``, ``None`` is returned. (An earlier version
+        returned an empty list here and the caller tested the result for
+        truthiness, which also discarded a legitimate improving swap onto
+        the row whose index LABEL is 0 - 0 is falsy.)
     """
     design_index = []
     new_optimimum = []
@@ -53,13 +57,14 @@ def index_to_replace_in_design_row(
         if current_optimum > candidate_optimum:
             design_index.append(row_idx)
             new_optimimum.append(candidate_optimum)
-    try:
-        return design_index[np.argmin(new_optimimum)]
-    except ValueError:
-        return design_index
+    if not design_index:
+        return None
+    return design_index[int(np.argmin(new_optimimum))]
 
 
-def point_exchange(x: pd.DataFrame, number_points: int = 10) -> tuple[pd.DataFrame, float]:
+def point_exchange(
+    x: pd.DataFrame, number_points: int = 10, random_state: int | None = None
+) -> tuple[pd.DataFrame, float]:
     """
     Return a design that is optimal in terms of D-optimality.
 
@@ -83,12 +88,15 @@ def point_exchange(x: pd.DataFrame, number_points: int = 10) -> tuple[pd.DataFra
     x = pd.DataFrame(x).drop_duplicates()
 
     number_points = min(number_points, x.shape[0])
-    # Continually try to pick rows from x, until it is not singular
+    # Continually try to pick rows from x, until it is not singular.
+    # A seedable Generator (rather than the global numpy RNG) makes the
+    # point-exchange result reproducible; see docs/development/reproducibility.rst.
+    rng = np.random.default_rng(random_state)
     max_attempts = 1000
     xtx_i = None
     for _attempt in range(max_attempts):
         try:
-            x = x.sample(frac=1)
+            x = x.sample(frac=1, random_state=rng)
             design = x.iloc[0 : x.shape[1]]
             xtx_i = np.linalg.inv(np.dot(np.transpose(design), design))
             break
@@ -113,7 +121,7 @@ def point_exchange(x: pd.DataFrame, number_points: int = 10) -> tuple[pd.DataFra
             current_optimum=d_optimality_i,
             optimization_function=optimization_function,
         )
-        if design_row_to_replace:
+        if design_row_to_replace is not None:
             design_index = design.index.tolist()
             # Replace the row in `design` which as index of `design_row_to_replace`:
             design_index[design_index.index(design_row_to_replace)] = candidate_point.index[0]

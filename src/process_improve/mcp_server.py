@@ -70,7 +70,7 @@ def _serialise_tool_error(exc: Exception, tool_name: str) -> str:
     :class:`ToolSafetyError`s, which have a curated payload, are handled by the
     caller before reaching here.)
     """
-    logger.exception("Tool %r raised an unexpected error", tool_name)
+    logger.error("Tool %r raised an unexpected error", tool_name, exc_info=exc)
     return json.dumps({"error": "internal error while executing tool", "tool": tool_name})
 
 

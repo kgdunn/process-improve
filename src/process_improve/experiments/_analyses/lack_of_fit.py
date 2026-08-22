@@ -14,21 +14,36 @@ def _run_lack_of_fit(
     ols_result: RegressionResultsWrapper,
     design_df: pd.DataFrame,
     response_col: str,
+    factor_cols: list[str] | None = None,
 ) -> dict[str, Any]:
     """Lack-of-fit F-test using pure error from replicated points.
 
     Separates residual SS into pure-error SS (from n_replicates) and
     lack-of-fit SS.  Custom implementation (~40 lines).
+
+    ``factor_cols`` must be the MODEL's factor columns. When the caller
+    passes a full design frame, bookkeeping columns like ``RunOrder`` (unique
+    per row) or ``Block`` must be excluded: grouping on them previously made
+    every group a singleton, so no generated design ever had detectable
+    replicates and the test always reported "No replicated points".
     """
     residuals = ols_result.resid
     y = design_df[response_col]
 
-    # Identify replicate groups by rounding factor values
-    factor_cols = [c for c in design_df.columns if c != response_col]
+    if factor_cols is None:
+        _non_factor = {response_col, "RunOrder", "Block"}
+        factor_cols = [c for c in design_df.columns if c not in _non_factor]
     if not factor_cols:
         return {"lack_of_fit": {"error": "No factor columns found."}}
 
-    groups = design_df.groupby(factor_cols, sort=False)
+    # Identify replicate groups by ROUNDED factor values: a coded -> actual ->
+    # coded round trip can perturb the last few bits, which would silently
+    # split replicates into distinct groups under exact groupby matching.
+    group_frame = design_df[factor_cols].copy()
+    for col in factor_cols:
+        if pd.api.types.is_numeric_dtype(group_frame[col]):
+            group_frame[col] = group_frame[col].astype(float).round(8)
+    groups = design_df.groupby([group_frame[c] for c in factor_cols], sort=False)
 
     ss_pure_error = 0.0
     df_pure_error = 0

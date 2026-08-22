@@ -56,7 +56,10 @@ class with explicit env-var reads keeps that decision unfettered.
 from __future__ import annotations
 
 import os
-from typing import Any, Final
+from typing import TYPE_CHECKING, Any, Final
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def _read_env_float(name: str, default: float) -> float:
@@ -64,9 +67,14 @@ def _read_env_float(name: str, default: float) -> float:
     if raw is None:
         return default
     try:
-        return float(raw)
+        value = float(raw)
     except ValueError as exc:
         raise ValueError(f"Environment variable {name}={raw!r} is not a valid float.") from exc
+    # Every float knob is a budget/limit; zero or negative values would fail
+    # much later with confusing errors (e.g. future.result(timeout=-5)).
+    if value <= 0:
+        raise ValueError(f"Environment variable {name}={raw!r} must be positive.")
+    return value
 
 
 def _read_env_int(name: str, default: int) -> int:
@@ -74,16 +82,37 @@ def _read_env_int(name: str, default: int) -> int:
     if raw is None:
         return default
     try:
-        return int(raw)
+        value = int(raw)
     except ValueError as exc:
         raise ValueError(f"Environment variable {name}={raw!r} is not a valid integer.") from exc
+    # Every int knob is a size/limit; a zero or negative cap would reject
+    # every payload (or fail to start a worker) with confusing errors.
+    if value <= 0:
+        raise ValueError(f"Environment variable {name}={raw!r} must be positive.")
+    return value
+
+
+_TRUE_STRINGS: Final[frozenset[str]] = frozenset({"1", "true", "yes", "on"})
+_FALSE_STRINGS: Final[frozenset[str]] = frozenset({"0", "false", "no", "off", ""})
 
 
 def _read_env_bool(name: str, default: bool) -> bool:
     raw = os.environ.get(name)
     if raw is None:
         return default
-    return raw.lower() in {"1", "true", "yes", "on"}
+    value = raw.strip().lower()
+    if value in _TRUE_STRINGS:
+        return True
+    if value in _FALSE_STRINGS:
+        return False
+    # Raise on anything else, matching the int/float readers. The previous
+    # behaviour silently returned False for any unrecognized value, so a typo
+    # like MCP_SAFE_MODE="treu" disabled the security-relevant safe mode with
+    # no error and no log line - a fail-open.
+    raise ValueError(
+        f"Environment variable {name}={raw!r} is not a valid boolean; "
+        f"use one of {sorted(_TRUE_STRINGS)} or {sorted(_FALSE_STRINGS - {''})}."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +173,20 @@ class Settings:
     def __init__(self) -> None:
         self._cache: dict[str, Any] = {}
 
+    def _get(self, name: str, reader: Callable[[str, Any], Any]) -> Any:  # noqa: ANN401  - knobs are heterogeneous
+        """Read a knob, caching genuinely on FIRST access.
+
+        The previous ``self._cache.setdefault(name, _read_env_...(...))``
+        pattern evaluated the env read on EVERY access (Python evaluates the
+        default argument before calling setdefault), so nothing was cached: a
+        hot-path attribute read cost an environ lookup plus a conversion, and
+        a knob that had already been served successfully would suddenly raise
+        if the env var was later mutated to an invalid value.
+        """
+        if name not in self._cache:
+            self._cache[name] = reader(ENV_VAR_NAMES[name], DEFAULTS[name])
+        return self._cache[name]
+
     # ------------------------------------------------------------------
     # Typed properties (one per knob).
     # We list them explicitly rather than using ``__getattr__`` so IDEs
@@ -153,10 +196,7 @@ class Settings:
     @property
     def tool_timeout(self) -> float:
         """Wall-clock seconds budget for a single tool call."""
-        return self._cache.setdefault(
-            "tool_timeout",
-            _read_env_float(ENV_VAR_NAMES["tool_timeout"], DEFAULTS["tool_timeout"]),
-        )
+        return self._get("tool_timeout", _read_env_float)
 
     @tool_timeout.setter
     def tool_timeout(self, value: float) -> None:
@@ -165,10 +205,7 @@ class Settings:
     @property
     def max_cells(self) -> int:
         """Maximum number of numeric leaves anywhere in a tool input payload."""
-        return self._cache.setdefault(
-            "max_cells",
-            _read_env_int(ENV_VAR_NAMES["max_cells"], DEFAULTS["max_cells"]),
-        )
+        return self._get("max_cells", _read_env_int)
 
     @max_cells.setter
     def max_cells(self, value: int) -> None:
@@ -177,10 +214,7 @@ class Settings:
     @property
     def max_string(self) -> int:
         """Maximum length of any single string in a tool input payload."""
-        return self._cache.setdefault(
-            "max_string",
-            _read_env_int(ENV_VAR_NAMES["max_string"], DEFAULTS["max_string"]),
-        )
+        return self._get("max_string", _read_env_int)
 
     @max_string.setter
     def max_string(self, value: int) -> None:
@@ -189,10 +223,7 @@ class Settings:
     @property
     def max_depth(self) -> int:
         """Maximum nesting depth of any tool input payload."""
-        return self._cache.setdefault(
-            "max_depth",
-            _read_env_int(ENV_VAR_NAMES["max_depth"], DEFAULTS["max_depth"]),
-        )
+        return self._get("max_depth", _read_env_int)
 
     @max_depth.setter
     def max_depth(self, value: int) -> None:
@@ -201,10 +232,7 @@ class Settings:
     @property
     def max_memory_mb(self) -> int:
         """Per-subprocess RSS cap for tool execution (MiB)."""
-        return self._cache.setdefault(
-            "max_memory_mb",
-            _read_env_int(ENV_VAR_NAMES["max_memory_mb"], DEFAULTS["max_memory_mb"]),
-        )
+        return self._get("max_memory_mb", _read_env_int)
 
     @max_memory_mb.setter
     def max_memory_mb(self, value: int) -> None:
@@ -218,10 +246,7 @@ class Settings:
         :func:`process_improve.tool_safety.safe_execute_tool_call`
         (validation, subprocess isolation, memory cap).
         """
-        return self._cache.setdefault(
-            "mcp_safe_mode",
-            _read_env_bool(ENV_VAR_NAMES["mcp_safe_mode"], DEFAULTS["mcp_safe_mode"]),
-        )
+        return self._get("mcp_safe_mode", _read_env_bool)
 
     @mcp_safe_mode.setter
     def mcp_safe_mode(self, value: bool) -> None:
@@ -239,13 +264,7 @@ class Settings:
         ``fullfact``, simplex centroid / lattice). Default 15 caps
         ``2**k`` rows at ~32 KiB of memory per cell.
         """
-        return self._cache.setdefault(
-            "max_factors_combinatorial",
-            _read_env_int(
-                ENV_VAR_NAMES["max_factors_combinatorial"],
-                DEFAULTS["max_factors_combinatorial"],
-            ),
-        )
+        return self._get("max_factors_combinatorial", _read_env_int)
 
     @max_factors_combinatorial.setter
     def max_factors_combinatorial(self, value: int) -> None:
@@ -256,13 +275,7 @@ class Settings:
         """Maximum ``len(x)`` / ``len(y)`` for the O(N^2) regression
         kernels (``repeated_median_slope`` etc.).
         """
-        return self._cache.setdefault(
-            "max_regression_points",
-            _read_env_int(
-                ENV_VAR_NAMES["max_regression_points"],
-                DEFAULTS["max_regression_points"],
-            ),
-        )
+        return self._get("max_regression_points", _read_env_int)
 
     @max_regression_points.setter
     def max_regression_points(self, value: int) -> None:
@@ -273,10 +286,7 @@ class Settings:
         """Maximum row count for ``data`` / ``x_data`` matrix inputs to
         ``fit_pca`` / ``fit_pls`` / ``detect_multivariate_outliers``.
         """
-        return self._cache.setdefault(
-            "max_matrix_rows",
-            _read_env_int(ENV_VAR_NAMES["max_matrix_rows"], DEFAULTS["max_matrix_rows"]),
-        )
+        return self._get("max_matrix_rows", _read_env_int)
 
     @max_matrix_rows.setter
     def max_matrix_rows(self, value: int) -> None:
@@ -285,10 +295,7 @@ class Settings:
     @property
     def max_matrix_cols(self) -> int:
         """Maximum column count for matrix inputs to the multivariate tools."""
-        return self._cache.setdefault(
-            "max_matrix_cols",
-            _read_env_int(ENV_VAR_NAMES["max_matrix_cols"], DEFAULTS["max_matrix_cols"]),
-        )
+        return self._get("max_matrix_cols", _read_env_int)
 
     @max_matrix_cols.setter
     def max_matrix_cols(self, value: int) -> None:
@@ -299,10 +306,7 @@ class Settings:
         """Maximum length (chars) of a model-formula string accepted by
         ``fit_linear_model`` and ``analyze_experiment``.
         """
-        return self._cache.setdefault(
-            "max_formula_chars",
-            _read_env_int(ENV_VAR_NAMES["max_formula_chars"], DEFAULTS["max_formula_chars"]),
-        )
+        return self._get("max_formula_chars", _read_env_int)
 
     @max_formula_chars.setter
     def max_formula_chars(self, value: int) -> None:
@@ -311,10 +315,7 @@ class Settings:
     @property
     def max_formula_terms(self) -> int:
         """Maximum number of terms after patsy expansion of a model formula."""
-        return self._cache.setdefault(
-            "max_formula_terms",
-            _read_env_int(ENV_VAR_NAMES["max_formula_terms"], DEFAULTS["max_formula_terms"]),
-        )
+        return self._get("max_formula_terms", _read_env_int)
 
     @max_formula_terms.setter
     def max_formula_terms(self, value: int) -> None:

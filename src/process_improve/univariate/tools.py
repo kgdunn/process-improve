@@ -145,10 +145,12 @@ class DetectOutliersInput(BaseModel):
         description="Significance level for each individual test (default 0.05).",
     )
     robust_variant: bool = Field(
-        True,
+        False,
         description=(
-            "When true (default), use median and MAD instead of mean and std. "
-            "Recommended when outliers may already be present."
+            "When true, use median and MAD instead of mean and std. The ESD "
+            "critical values are calibrated for the classical statistic, so "
+            "the robust variant over-declares outliers (it is a screening "
+            "heuristic, not a calibrated test). Default false."
         ),
     )
 
@@ -428,7 +430,10 @@ def confidence_interval_tool(spec: ConfidenceIntervalInput) -> dict:
     n = len(arr_clean)
     if spec.method == "robust":
         center = float(np.median(arr_clean))
-        spread = float(median_absolute_deviation(arr_clean))
+        # sqrt(pi/2): the asymptotic standard error of the MEDIAN is
+        # sigma * sqrt(pi/2) / sqrt(n); MAD("normal") estimates sigma.
+        # Mirrors univariate.metrics.confidence_interval.
+        spread = float(median_absolute_deviation(arr_clean)) * float(np.sqrt(np.pi / 2.0))
     else:
         center = float(np.mean(arr_clean))
         spread = float(np.std(arr_clean, ddof=1))

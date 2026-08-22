@@ -136,7 +136,12 @@ class TestHoltWintersControlChart:
     cc_missing = ControlChart()
     cc_missing.calculate_limits(with_missing, ld_1=0.4, ld_2=0.7)
     assert cc_missing.target == pytest.approx(100.3, abs=1e-1)
-    assert cc_missing.s == pytest.approx(6, abs=1)
+    # `s` is the robust scale of the one-step-ahead prediction errors. The
+    # earlier pin of ~6.5 was measured with a biweight rho whose consistency
+    # constant was conflated with the cutoff k = 2.52, shrinking every scale
+    # estimate by sqrt(2.52 * 0.30612) = 0.878; the corrected value is the
+    # same estimate divided by that factor.
+    assert cc_missing.s == pytest.approx(7.45, abs=1)
 
     # test_hw_short_length:
     # Ensures that short length sequences are also handled well.
@@ -151,7 +156,9 @@ class TestHoltWintersControlChart:
     cc_medium = ControlChart()
     cc_medium.calculate_limits(medium_length, ld_1=0.2, ld_2=0.5)
     assert cc_medium.target == pytest.approx(93.945, abs=1e-3)
-    assert cc_medium.s == pytest.approx(4.493, abs=1e-3)
+    # 5.116 = the pre-fix pin of 4.493 divided by the removed 0.878 biweight
+    # consistency bias (see the note on cc_missing.s above).
+    assert cc_medium.s == pytest.approx(5.116, abs=1e-3)
     assert len(cc_medium.idx_outside_3S) == 0
 
 
@@ -203,12 +210,13 @@ def test_calculate_limits_rejects_non_positive_s() -> None:
 
 
 def test_unsupported_variant_cannot_estimate_limits() -> None:
-    """A variant with no fitting routine (e.g. cusum) leaves target/s unset and raises."""
-    rng = np.random.default_rng(2)
-    y = 50.0 + rng.standard_normal(100)
-    cc = ControlChart(variant="cusum")
-    with pytest.raises(ValueError, match="could not be estimated"):
-        cc.calculate_limits(y)
+    """A variant with no fitting routine (e.g. cusum) is rejected at construction.
+
+    Previously it slipped through every fit branch and surfaced much later as
+    a misleading "input is likely constant or too short" error.
+    """
+    with pytest.raises(ValueError, match="not implemented"):
+        ControlChart(variant="cusum")
 
 
 def test_unknown_style_for_xbar_no_subgroup_raises() -> None:
@@ -242,13 +250,18 @@ def test_hw_zero_mad_but_nonconstant_warmup_falls_back_to_std() -> None:
 
 
 def test_rho_boundary_values() -> None:
-    """Bi-weight rho: zero at 0, capped at k beyond |x| > k, continuous at k."""
-    from process_improve.monitoring.control_charts import rho
+    """Bi-weight rho: zero at 0, capped at c_k beyond |x| > k, continuous at k.
+
+    The cap is the consistency constant c_k = 3.266736 (E[rho(Z)] = 1 for
+    standard-normal Z), not the cutoff k = 2.52; the two were previously
+    conflated, shrinking every scale estimate built from rho by 12 percent.
+    """
+    from process_improve.monitoring.control_charts import BIWEIGHT_RHO_CONSISTENCY, rho
 
     assert rho(0.0) == pytest.approx(0.0)
-    assert rho(5.0) == pytest.approx(2.52)
-    assert rho(-5.0) == pytest.approx(2.52)
-    assert rho(2.52) == pytest.approx(2.52)
+    assert rho(5.0) == pytest.approx(BIWEIGHT_RHO_CONSISTENCY)
+    assert rho(-5.0) == pytest.approx(BIWEIGHT_RHO_CONSISTENCY)
+    assert rho(2.52) == pytest.approx(BIWEIGHT_RHO_CONSISTENCY)
 
 
 def test_psi_boundary_values() -> None:
@@ -309,13 +322,18 @@ def test_cpk_estimates_specs_from_data_when_none() -> None:
 
 
 def test_cpk_returns_rsd() -> None:
-    """calculate_cpk should report the RSD of the limiting side alongside Cpk."""
+    """calculate_cpk reports the RSD of the DATA alongside Cpk.
+
+    Earlier versions divided the spread by the distance-to-spec centre, which
+    is not an RSD of anything and changed value when the spec limits moved.
+    """
     rng = np.random.default_rng(42)
     data = pd.DataFrame({"value": rng.normal(loc=50, scale=2, size=500)})
     result = calculate_cpk(data, "value", specifications=(40, 60), trim_percentile=0)
     assert set(result.keys()) >= {"cpk", "center", "spread", "rsd"}
     assert np.isfinite(result.rsd)
-    assert result.rsd == pytest.approx((result.spread / result.center) * 100, rel=1e-9)
+    expected_rsd = float(data["value"].std() / data["value"].mean()) * 100
+    assert result.rsd == pytest.approx(expected_rsd, rel=1e-9)
 
 
 def test_metrics_renamed_attribute_raises_helpful_error() -> None:
@@ -365,9 +383,14 @@ class TestHoltWintersControlChartBatchYield:
     y = subgroups.mean(axis=1)
 
     cc = ControlChart()
-    cc.calculate_limits(y)  # ld_1=0.5, ld_2=0.5
+    cc.calculate_limits(y)
     assert cc.target == pytest.approx(75.1, abs=1e-1)
-    assert cc.s == pytest.approx(4.16, abs=1e-3)
+    # `s` is the robust one-step-ahead prediction-error scale. The pre-fix pin
+    # of 4.16 sat BELOW the process's own robust spread (MAD*1.4826 = 4.20)
+    # because the biweight rho conflated the consistency constant with the
+    # cutoff k = 2.52; the corrected estimate (with the NaN-aware lambda grid
+    # search) lands just above the process spread, as a forecast error should.
+    assert cc.s == pytest.approx(4.825, abs=1e-3)
 
 
 # ---------------------------------------------------------------------------

@@ -670,6 +670,13 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         not_na_f = {key: ~np.isnan(X["F"][key].values) for key in X["F"]}
         not_na_z = {key: ~np.isnan(X["Z"][key].values) for key in X["Z"]}
+        # Zero out missing cells AFTER building the presence maps, exactly as
+        # fit() does via nan_to_zeros. The score numerators below multiply the
+        # data by a zeroed weight at missing positions, but NaN * 0.0 is NaN,
+        # not 0.0: without this step a single missing F or Z cell previously
+        # poisoned that observation's scores, T2, SPE and predictions.
+        x_f = {key: df.fillna(0.0) for key, df in x_f.items()}
+        x_z = {key: df.fillna(0.0) for key, df in x_z.items()}
         names_observations = X["F"][next(iter(X["F"]))].index
         num_obs = names_observations.shape[0]
         spe_f: dict[str, pd.DataFrame] = {
@@ -857,7 +864,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         return output
 
-    def score(self, X: DataFrameDict, y: None = None, sample_weight: None | np.ndarray = None) -> float:  # noqa: ARG002
+    def score(self, X: DataFrameDict, y: None = None, sample_weight: np.ndarray | None = None) -> float:  # noqa: ARG002
         """Return r2_score` on test data.
 
         See RegressorMixin.score for more details.

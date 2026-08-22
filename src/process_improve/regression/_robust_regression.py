@@ -229,7 +229,12 @@ def robust_regression(  # noqa: PLR0913, PLR0915
             np.nan,
         ]
         out["pi_range"] = np.vstack([pi_range, pi_y_pred, pi_y_pred]).T
-        out["leverage"] = 1 / out["N"] + np.power(x - mean_x, 2) / out["x_ssq"]
+        # With no variation in x every observation carries the same weight:
+        # the leverage is exactly 1/N. The previous code divided the ~zero
+        # deviations by the ~zero x_ssq (0/0), poisoning the leverage and
+        # the influence values computed from it with NaN/inf - inside the
+        # very branch that exists to guard against the degenerate x.
+        out["leverage"] = np.full(int(out["N"]), 1.0 / out["N"])
 
     else:
         out["standard_errors"] = [

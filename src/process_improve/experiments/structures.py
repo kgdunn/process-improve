@@ -56,8 +56,12 @@ class Column(pd.Series):
         if self.pi_is_coded:
             return out
 
-        x_center = center or self.pi_center
-        x_range = range or self.pi_range
+        # ``is not None``, not ``or``: an explicit center of 0 (or range
+        # spanning 0) is the most natural coded-units choice and is falsy,
+        # so a truthiness test silently fell back to the stored metadata.
+        x_center = center if center is not None else self.pi_center
+        x_range = range if range is not None else self.pi_range
+        self._validate_affine_map(x_center, x_range)
 
         # Simply override the values and the `pi_is_coded` flag, but all the
         # rest remains as is.
@@ -74,8 +78,10 @@ class Column(pd.Series):
         if not self.pi_is_coded:
             return out
 
-        x_center = center or self.pi_center
-        x_range = range or self.pi_range
+        # See the ``is not None`` note in ``to_coded``.
+        x_center = center if center is not None else self.pi_center
+        x_range = range if range is not None else self.pi_range
+        self._validate_affine_map(x_center, x_range)
         # Simply override the values and the `pi_is_coded` flag, but all the
         # rest remains as is.
         out.iloc[:] = np.asarray(self.values) * (0.5 * np.diff(np.asarray(x_range))[0]) + x_center
@@ -84,6 +90,23 @@ class Column(pd.Series):
             out.name = f"{out.pi_name} [{out.pi_units}]"
 
         return out
+
+    @staticmethod
+    def _validate_affine_map(center: float | None, range_: tuple | None) -> None:
+        """Reject a missing or degenerate coded<->real affine map up front.
+
+        Previously a missing range raised a bare ``TypeError`` from
+        ``np.diff(None)`` and a zero-width range silently produced
+        inf/NaN values.
+        """
+        if center is None or range_ is None:
+            raise ValueError(
+                "Cannot convert between coded and real-world units: no center/range is available. "
+                "Pass `center=` and `range=` explicitly, or create the column with `lo=` and `hi=`."
+            )
+        span = float(np.diff(np.asarray(range_))[0])
+        if span == 0:
+            raise ValueError(f"The range {range_} has zero width; the coded<->real conversion is undefined.")
 
     def copy(self, deep: bool = True) -> Column:  # type: ignore[misc]  # pandas marks Series.copy @final; subclassing is intentional here
         """Create a copy of this Column, preserving the name."""
@@ -409,10 +432,31 @@ def gather(*args: Column, title: str | None = None, **kwargs: Column | list) -> 
     A multi-column input (a ``pandas.DataFrame``, e.g. a categorical factor
     expanded into several indicator columns) is gathered column by column.
 
+    Positional arguments are accepted for columns that already carry a name
+    (``pi_name`` or the pandas ``.name``): ``gather(A, B, y=y)``. A nameless
+    positional argument raises, since its column label cannot be inferred.
+    (Earlier versions accepted positional arguments and silently discarded
+    them.)
     """
     out = Expt(data=None, index=None, columns=None, dtype=None)
     out.pi_source = defaultdict(str)
     out.pi_units = defaultdict(str)
+
+    # Fold positional args into the keyword dict via their own names, so a
+    # natural gather(A, B, y=y) call keeps every input.
+    merged: dict[str, Column | list] = {}
+    for position, positional in enumerate(args):
+        name = getattr(positional, "pi_name", None) or getattr(positional, "name", None)
+        if not name:
+            raise ValueError(
+                f"Positional argument {position + 1} to gather() has no name; "
+                "create it with c(..., name='...') or pass it as a keyword argument."
+            )
+        if str(name) in merged or str(name) in kwargs:
+            raise ValueError(f"Duplicate column name {name!r} in gather().")
+        merged[str(name)] = positional
+    merged.update(kwargs)
+    kwargs = merged
 
     # Every input is merged positionally (row i with row i), so they must all
     # contribute the same number of rows.
