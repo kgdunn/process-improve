@@ -121,8 +121,9 @@ def Sn(x: np.ndarray | pd.Series, constant: float = 1.1926) -> np.floating:  # n
 
     Notes
     -----
-    Tested against once of the most reliable open-source packages, written by some of the
-    most respected names in the area of robust methods: [1]_ and [2]_.
+    Follows the Rousseeuw-Croux definition [2]_ exactly, including the high median
+    inside and the low median outside, and reproduces ``robustbase::Sn`` [1]_ (with
+    ``finite.corr=TRUE``) for both odd and even sample sizes.
 
     Disadvantages of MAD:
 
@@ -151,7 +152,16 @@ def Sn(x: np.ndarray | pd.Series, constant: float = 1.1926) -> np.floating:  # n
     # Remove NaNs and compute all pairwise absolute differences via broadcasting
     clean = arr[~np.isnan(arr)]
     diffs = np.abs(clean[:, None] - clean[None, :])
-    medians = np.median(diffs, axis=1)
+
+    # Rousseeuw-Croux define Sn = c * lomed_i { himed_j |x_i - x_j| }, using the
+    # HIGH median inside and the LOW median outside. These are order statistics,
+    # not the averaging median numpy provides: himed is element floor(n/2) + 1
+    # and lomed is element floor((n + 1) / 2), one-based, of the sorted values.
+    # They coincide with np.median only for odd n, so using np.median for both
+    # (the previous behaviour) biased every even-n estimate downward: 0.443 in
+    # place of 0.886 at n = 2, and still 0.5 percent low at n = 1500.
+    inner_high_median = np.sort(diffs, axis=1)[:, n // 2]
+    outer_low_median = np.sort(inner_high_median)[(n + 1) // 2 - 1]
 
     if n <= 9:
         # Correction factors for n = 2 to 9:
@@ -161,7 +171,7 @@ def Sn(x: np.ndarray | pd.Series, constant: float = 1.1926) -> np.floating:  # n
     else:
         correction = 1.0
 
-    return constant * np.median(medians) * correction
+    return constant * outer_low_median * correction
 
 
 def _contains_nan(a: np.ndarray, nan_policy: str = "propagate") -> tuple[bool, str]:
@@ -213,7 +223,20 @@ def ttest_independent(sample_A: pd.Series, sample_B: pd.Series, conflevel: float
     Returns
     -------
     dict
-        Outcomes from the statistical test.
+        Outcomes from the statistical test. The keys of interest are
+        ``"t value"`` (the test statistic; its ``"p value"`` is computed from
+        the t distribution on ``"Degrees of freedom"``), ``"Std error of
+        difference"`` (the denominator of that statistic, and the half-width
+        unit of the confidence interval), and ``"Pooled std dev"``.
+
+        .. deprecated:: 1.70.0
+            ``"z value"`` and ``"Pooled standard deviation"`` are misleading
+            names kept as aliases, and will be removed in 2.0. The statistic
+            is a t-statistic, not a z-statistic, and ``"Pooled standard
+            deviation"`` holds the standard *error* of the difference in
+            means, ``sqrt(svar * (1/nA + 1/nB))``, not the pooled standard
+            deviation ``sqrt(svar)``. Use ``"t value"`` and ``"Std error of
+            difference"`` instead.
     """
     axis: Literal[0] = 0
     v1, v2 = sample_A.var(axis=axis, ddof=1), sample_B.var(axis=axis, ddof=1)
@@ -242,7 +265,40 @@ def ttest_independent(sample_A: pd.Series, sample_B: pd.Series, conflevel: float
         "p value": 2 * t_value_cdf(-np.abs(z_variate), df),
         "Degrees of freedom": df,
         "Pooled standard deviation": sd_z_variate,
+        # Correctly named entries for the two mislabelled ones above, which are
+        # kept as deprecated aliases. "z value" is a t-statistic: its p value is
+        # computed from the t distribution on `df` degrees of freedom. "Pooled
+        # standard deviation" is the standard ERROR of the difference in means,
+        # sqrt(svar * (1/nA + 1/nB)); the pooled standard deviation is sqrt(svar).
+        "t value": z_variate,
+        "Std error of difference": sd_z_variate,
+        "Pooled std dev": np.sqrt(svar),
     }
+
+
+def _apply_multiplicity_correction(output: pd.DataFrame, correction: str | None) -> pd.DataFrame:
+    """Add corrected p-values to a table of pairwise comparisons.
+
+    A family of pairwise comparisons inflates the family-wise error rate: with
+    k groups there are k(k-1)/2 tests, so at k=5 ten raw p-values are compared
+    against 0.05 and the chance of at least one false positive is far above 5
+    percent. The raw ``p value`` column is always kept as-is; the corrected
+    values are added alongside so both are visible.
+    """
+    if correction is None or output.empty:
+        return output
+
+    known = {"holm": holm_bonferroni, "bh": benjamini_hochberg, "benjamini-hochberg": benjamini_hochberg}
+    key = correction.strip().lower()
+    if key not in known:
+        raise ValueError(f"correction must be one of 'holm', 'bh', or None; got {correction!r}.")
+
+    adjusted = known[key](output["p value"].to_numpy())
+    output = output.copy()
+    output["p value (adjusted)"] = adjusted.p_adjusted
+    output["reject"] = adjusted.reject
+    output["correction"] = key
+    return output
 
 
 def ttest_independent_from_df(
@@ -250,6 +306,7 @@ def ttest_independent_from_df(
     grouper_column: str,
     values_column: str,
     conflevel: float = 0.995,
+    correction: str | None = None,
 ) -> pd.DataFrame:
     """
     Calculate the t-test for differences between two or more groups and returns a confidence
@@ -264,6 +321,13 @@ def ttest_independent_from_df(
         grouper_column (str): Indicates which column will be grouped on.
         values_column (str): Which column contains the numeric values to calculate the test on.
         conflevel (float, optional): [description]. Defaults to 0.995.
+        correction (str | None, optional): multiplicity correction to apply across the
+            family of pairwise comparisons: ``"holm"`` (family-wise error rate, see
+            :func:`holm_bonferroni`) or ``"bh"`` (false discovery rate, see
+            :func:`benjamini_hochberg`). Defaults to None, which leaves the p-values
+            UNCORRECTED: with k groups there are k(k-1)/2 tests, so read the raw
+            ``p value`` column with that in mind. When set, ``p value (adjusted)``,
+            ``reject`` and ``correction`` columns are added and the raw column is kept.
 
     Output: Dataframe with columns containing the statistical outputs of the t-test, including:
         1. Group "A" name
@@ -288,7 +352,11 @@ def ttest_independent_from_df(
     data_subset = df[[grouper_column, values_column]].copy()
     data_subset = data_subset.dropna()
     output = pd.DataFrame()
-    groups = list(df[grouper_column].unique())
+    # Enumerate the groups from the CLEANED data. Taking them from `df` (the
+    # previous behaviour) kept groups whose values are all missing, and NaN
+    # group labels, each of which then produced a silent all-NaN comparison
+    # row against an empty sample.
+    groups = list(data_subset[grouper_column].unique())
     while len(groups) > 0:
         groupA_name = groups.pop(0)
         for groupB_name in groups:
@@ -305,7 +373,7 @@ def ttest_independent_from_df(
             )
             output = pd.concat([output, pd.DataFrame(basic_stats, index=[0])])
 
-    return output
+    return _apply_multiplicity_correction(output, correction)
 
 
 def ttest_paired(differences: pd.Series, conflevel: float = 0.995) -> dict:
@@ -370,6 +438,7 @@ def ttest_paired_from_df(
     grouper_column: str,
     values_column: str,
     conflevel: float = 0.995,
+    correction: str | None = None,
 ) -> pd.DataFrame:
     """
     Calculate the t-test for paired differences between two or more groups and returns a
@@ -387,6 +456,13 @@ def ttest_paired_from_df(
         grouper_column (str): Indicates which column will be grouped on.
         values_column (str): Which column contains the numeric values to calculate the test on.
         conflevel (float, optional): [description]. Defaults to 0.995.
+        correction (str | None, optional): multiplicity correction to apply across the
+            family of pairwise comparisons: ``"holm"`` (family-wise error rate, see
+            :func:`holm_bonferroni`) or ``"bh"`` (false discovery rate, see
+            :func:`benjamini_hochberg`). Defaults to None, which leaves the p-values
+            UNCORRECTED: with k groups there are k(k-1)/2 tests, so read the raw
+            ``p value`` column with that in mind. When set, ``p value (adjusted)``,
+            ``reject`` and ``correction`` columns are added and the raw column is kept.
 
     Output: Dataframe with columns containing the statistical outputs of the t-test, including:
 
@@ -405,7 +481,11 @@ def ttest_paired_from_df(
     data_subset = df[[grouper_column, values_column]].copy()
     data_subset = data_subset.dropna()
     output = pd.DataFrame()
-    groups = list(df[grouper_column].unique())
+    # Enumerate the groups from the CLEANED data. Taking them from `df` (the
+    # previous behaviour) kept groups whose values are all missing, and NaN
+    # group labels, each of which then produced a silent all-NaN comparison
+    # row against an empty sample.
+    groups = list(data_subset[grouper_column].unique())
     while len(groups) > 0:
         groupA_name = groups.pop(0)
         for groupB_name in groups:
@@ -432,7 +512,7 @@ def ttest_paired_from_df(
             )
             output = pd.concat([output, pd.DataFrame(basic_stats, index=[0])])
 
-    return output
+    return _apply_multiplicity_correction(output, correction)
 
 
 def confidence_interval(df: pd.DataFrame, column_name: str, conflevel: float = 0.95, style: str = "robust") -> tuple:
@@ -806,6 +886,19 @@ def benjamini_hochberg(p_values: np.ndarray | pd.Series | list, alpha: float = 0
     return Bunch(p_adjusted=p_adjusted, reject=p_adjusted <= alpha, alpha=alpha)
 
 
+def _relative_spread(spread: float, center: float) -> float:
+    """Return ``spread / center``, or NaN when the centre is (near) zero.
+
+    A relative standard deviation is undefined at a zero centre: the division
+    gives ``inf`` (or NaN for 0/0) and emits a RuntimeWarning through the
+    public API and the agent-facing tools. Report NaN instead, which is what
+    "undefined" means to every downstream consumer.
+    """
+    if not np.isfinite(center) or abs(center) <= __eps:
+        return float("nan")
+    return float(spread / center)
+
+
 def summary_stats(x: np.ndarray | pd.Series, method: str = "robust") -> dict:
     """
     Return summary statistics of the numeric values in vector ``x``.
@@ -839,7 +932,7 @@ def summary_stats(x: np.ndarray | pd.Series, method: str = "robust") -> dict:
     out["mean"] = np.nanmean(x)
     out["std_ddof0"] = np.nanstd(x, ddof=0)
     out["std_ddof1"] = np.nanstd(x, ddof=1)
-    out["rsd_classical"] = out["std_ddof1"] / out["mean"]
+    out["rsd_classical"] = _relative_spread(out["std_ddof1"], out["mean"])
     (
         out["percentile_05"],
         out["percentile_25"],
@@ -864,7 +957,7 @@ def summary_stats(x: np.ndarray | pd.Series, method: str = "robust") -> dict:
     else:
         out["center"], out["spread"] = out["mean"], out["std_ddof1"]
 
-    out["rsd"] = out["spread"] / out["center"]
+    out["rsd"] = _relative_spread(out["spread"], out["center"])
     return out
 
 
@@ -932,31 +1025,44 @@ def detect_outliers_esd(
         robust_variant = bool(kwargs.get("robust_variant", False))
         alpha = float(kwargs.get("alpha", 0.05))
 
-        if alpha > 1.0:
-            raise ValueError(f"alpha must be <= 1.0, got {alpha}.")
-        if max_outliers_detected > len(x):
+        if not 0.0 < alpha <= 1.0:
+            raise ValueError(f"alpha must lie in (0.0, 1.0], got {alpha}.")
+
+        n_observed = int(pd.Series(x).notna().sum())
+        # The ESD statistic for the i-th suspected outlier uses t on
+        # dof = N - i - 1 degrees of freedom, so testing r outliers needs
+        # r <= N - 2. Beyond that the critical value is undefined (t.ppf on
+        # dof <= 0 is NaN), every later iteration is silently inert, and an
+        # empty result would read as "no outliers" rather than "not testable".
+        if max_outliers_detected > 0 and max_outliers_detected > n_observed - 2:
             raise ValueError(
-                f"max_outliers_detected ({max_outliers_detected}) cannot exceed the sample size ({len(x)})."
+                f"max_outliers_detected ({max_outliers_detected}) cannot exceed the sample size minus 2 "
+                f"({n_observed - 2}); the generalized ESD test needs at least two observations beyond "
+                f"the outliers it tests for. The sample has {n_observed} non-missing observations."
             )
 
         # 1. Run K-S test first to check normality
 
         # 2. https://www.itl.nist.gov/div898/handbook/eda/section3/eda35h3.htm
-        x = x.copy(deep=True)
+        # `sample` shrinks by one point per iteration; keep it separate from
+        # the `x` parameter so its type stays a Series throughout.
+        sample: pd.Series = pd.Series(x).copy(deep=True)
         extra_out: defaultdict[str, list[Any]] = defaultdict(list)
-        N = x.shape[0] - pd.isna(x).sum()
+        N = sample.shape[0] - pd.isna(sample).sum()
 
         for k in range(max_outliers_detected):
             i = k + 1
             extra_out["i"].append(i)
 
             if robust_variant:
-                variation = median_absolute_deviation(x.to_numpy())
-                R = ((x - x.median()) / variation).abs()
+                variation = median_absolute_deviation(sample.to_numpy())
+                R = ((sample - sample.median()) / variation).abs()
             else:
-                variation = x.std()
-                R = ((x - x.mean()) / variation).abs()
+                variation = sample.std()
+                R = ((sample - sample.mean()) / variation).abs()
 
+            # The ESD critical value is defined against the ORIGINAL sample
+            # size N (NIST / Rosner), so N is deliberately not refreshed here.
             dof = N - i - 1
             p = 1 - alpha / (2 * (N - i + 1))
             t_s = t_value(p, dof)
@@ -964,16 +1070,27 @@ def detect_outliers_esd(
             extra_out["lambda"].append(lambda_i)
 
             g = R.max()
-            s = g**2 * N * (2 - N) / (g**2 * N - (N - 1) ** 2)  # Formula from R-function for the Grubb's calculation
-            p_value = 0 if s <= 0 else min(N * (1 - t_value_cdf(np.sqrt(s), N - 2)), 1)
-            R_i_idx = -1 if pd.isna(p_value) else R.idxmax()
+            # The Grubbs p-value, by contrast, describes the sample actually in
+            # hand this iteration, which has shrunk by every point dropped so
+            # far. Using the original N here (the previous behaviour) reported
+            # a p-value for a larger sample than the statistic came from.
+            n_i = int(sample.notna().sum())
+            s = g**2 * n_i * (2 - n_i) / (g**2 * n_i - (n_i - 1) ** 2)  # R-function Grubbs formula
+            p_value = 0 if s <= 0 else min(n_i * (1 - t_value_cdf(np.sqrt(s), n_i - 2)), 1)
+
+            # R is all-NaN when the spread is zero, so there is no candidate to
+            # drop. Record None rather than the -1 sentinel used before, which
+            # is not a label in the reset RangeIndex and raised KeyError from
+            # the drop below whenever the spread was non-zero (an infinity in
+            # the data reaches exactly that state).
+            R_i_idx: Any | None = None if pd.isna(g) else R.idxmax()
             extra_out["R_i_idx"].append(R_i_idx)
-            extra_out["R_i"].append(R.max())
+            extra_out["R_i"].append(g)
             extra_out["p-value"].append(p_value)
 
-            if variation > __eps:
+            if R_i_idx is not None and variation > __eps:
                 # The variation, if zero or small, will fail to drop this index
-                x = x.drop(R_i_idx)
+                sample = sample.drop(R_i_idx)
 
         try:
             # NIST / Rosner: "the number of outliers is determined by finding
@@ -991,7 +1108,7 @@ def detect_outliers_esd(
         # in the list.
         extra_out["cutoff"] = cutoff_i
 
-        outlier_index = extra_out["R_i_idx"][0 : (cutoff_i + 1)]
+        outlier_index = [idx for idx in extra_out["R_i_idx"][0 : (cutoff_i + 1)] if idx is not None]
         return outlier_index, extra_out
     else:
         return [], defaultdict(dict)
