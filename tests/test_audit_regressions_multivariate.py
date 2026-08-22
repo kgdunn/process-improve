@@ -383,6 +383,9 @@ class TestStatisticalCorrectnessTriage:
             with pytest.raises(ValueError, match="cannot exceed n_rows"):
                 hotellings_t2_limit(0.95, n_components=n_components, n_rows=n_rows)
 
+        with pytest.raises(ValueError, match="must be non-negative"):
+            hotellings_t2_limit(0.95, n_components=-1, n_rows=10)
+
     def test_spe_limit_is_scale_invariant(self) -> None:
         """The degeneracy guard must not depend on the units of the data.
 
