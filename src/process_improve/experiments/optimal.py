@@ -4,25 +4,53 @@ import numpy as np
 import pandas as pd
 
 
+def _model_matrix(x: pd.DataFrame) -> np.ndarray:
+    """Return the model matrix ``[1 | X]`` for a first-order model with intercept.
+
+    The D-criterion is defined on the model matrix, not on the raw factor
+    settings. Scoring ``X`` alone (the previous behaviour) leaves the intercept
+    out of the design's information matrix, so a candidate that holds a factor
+    at a single level scores perfectly well even though that factor is then
+    completely aliased with the intercept and its effect cannot be estimated.
+    """
+    values = np.asarray(pd.DataFrame(x), dtype=float)
+    return np.column_stack([np.ones(values.shape[0]), values])
+
+
 def optimization_function(x: pd.DataFrame) -> float:
     """Score a design for the point-exchange D-optimal search (lower is better).
 
-    Returns ``log|det((X'X)^-1)|`` which is equivalent to the negative
-    log of the standard D-criterion ``log|det(X'X)|``. The point-exchange
-    routine in this module uses this convention and selects swaps that
-    decrease the returned value, i.e. that increase ``|det(X'X)|``.
+    Returns ``-log|det(X'X)|``, the negative log of the standard D-criterion,
+    where ``X`` is the model matrix ``[1 | factors]`` for a first-order model
+    with an intercept, which is what this package fits. The point-exchange
+    routine in this module uses this convention and selects swaps that decrease
+    the returned value, i.e. that increase ``|det(X'X)|``.
 
-    Returns ``+inf`` when ``X'X`` is singular (no improvement possible).
+    Returns ``+inf`` for any design the model cannot be fitted to: fewer runs
+    than parameters, or a model matrix that is rank deficient. That covers a
+    design holding a factor at a constant level (aliased with the intercept)
+    and one whose factor columns are linearly dependent.
+
+    The score is computed from ``slogdet(X'X)`` and guarded by an explicit rank
+    check, never by inverting ``X'X``. Inversion cannot be used to detect
+    singularity here: ``np.linalg.inv`` raises only when the LU factorisation
+    hits an exactly-zero pivot, which a rank-deficient design of +-1 levels
+    frequently avoids. The inverse then comes back as numerical noise and its
+    log-determinant is a large *negative* number, so a search minimising this
+    value treated inestimable designs as the best available and actively
+    selected them.
     """
-    try:
-        # Do NOT de-duplicate here: replicated runs carry real information
-        # (|X'X| for n copies of a point differs from one copy), so dropping
-        # them would score a different design from the one being evaluated.
-        x = pd.DataFrame(x)
-        xtx_i = np.linalg.inv(np.dot(np.transpose(x), x))
-    except np.linalg.LinAlgError:
+    # Do NOT de-duplicate here: replicated runs carry real information
+    # (|X'X| for n copies of a point differs from one copy), so dropping
+    # them would score a different design from the one being evaluated.
+    model_matrix = _model_matrix(x)
+    n_runs, n_parameters = model_matrix.shape
+    if n_runs < n_parameters or np.linalg.matrix_rank(model_matrix) < n_parameters:
         return float(np.inf)
-    return float(np.linalg.slogdet(xtx_i)[1])
+    sign, log_abs_det = np.linalg.slogdet(np.dot(np.transpose(model_matrix), model_matrix))
+    if sign <= 0 or not np.isfinite(log_abs_det):
+        return float(np.inf)
+    return float(-log_abs_det)
 
 
 def index_to_replace_in_design_row(
@@ -79,29 +107,50 @@ def point_exchange(
     -------
     tuple[pd.DataFrame, float]
         The selected design (sorted by the original row index) and its
-        D-optimality value (log-determinant of ``(X'X)^-1``).
+        D-optimality value, ``-log|det(X'X)|`` on the model matrix
+        ``[1 | factors]``.
     """
-    if number_points < x.shape[1]:
-        raise ValueError(f"`number_points` must be at least {x.shape[1]} (the number of columns in `x`).")
-    if number_points > x.shape[0]:
-        raise ValueError(f"`number_points` must be at most {x.shape[0]} (the number of rows in `x`).")
     x = pd.DataFrame(x).drop_duplicates()
+    # Intercept plus one coefficient per factor. Asking for fewer runs than
+    # that cannot produce an estimable design, so it is rejected here rather
+    # than left to fail later as an exhausted search for a non-singular start.
+    # The bound used to be ``x.shape[1]``, one short of the model it scores.
+    n_parameters = x.shape[1] + 1
+    if number_points < n_parameters:
+        raise ValueError(
+            f"`number_points` must be at least {n_parameters} (an intercept plus "
+            f"one coefficient per column of `x`); {number_points} were requested."
+        )
+    if number_points > x.shape[0]:
+        # Checked after de-duplication: the search picks distinct candidate
+        # rows, so duplicates in `x` cannot make up the shortfall. This used to
+        # silently clamp the size down to the number of candidates available.
+        raise ValueError(f"`number_points` must be at most {x.shape[0]} (the number of unique rows in `x`).")
 
-    number_points = min(number_points, x.shape[0])
     # Continually try to pick rows from x, until it is not singular.
     # A seedable Generator (rather than the global numpy RNG) makes the
     # point-exchange result reproducible; see docs/development/reproducibility.rst.
     rng = np.random.default_rng(random_state)
     max_attempts = 1000
-    xtx_i = None
+    d_optimality_i = float(np.inf)
     for _attempt in range(max_attempts):
-        try:
-            x = x.sample(frac=1, random_state=rng)
-            design = x.iloc[0 : x.shape[1]]
-            xtx_i = np.linalg.inv(np.dot(np.transpose(design), design))
+        x = x.sample(frac=1, random_state=rng)
+        # Seed the design at the REQUESTED size. It used to start with
+        # only ``x.shape[1]`` (one row per factor) and grow towards
+        # `number_points` through the addition branch below, which
+        # accepted a row only when it improved D-optimality. When no
+        # addition improved it the design was returned short: callers
+        # asking for `number_points` runs silently received fewer, and a
+        # design with fewer runs than model parameters cannot be fitted
+        # at all. The size is a constraint, not something to optimise.
+        design = x.iloc[0:number_points]
+        # Score the seed with the SAME criterion used for every comparison
+        # below, so the search cannot be misled by an inconsistent start, and
+        # so that a rank-deficient seed is rejected here rather than carried
+        # through to the returned design.
+        d_optimality_i = optimization_function(design)
+        if np.isfinite(d_optimality_i):
             break
-        except np.linalg.LinAlgError:
-            pass
     else:
         msg = (
             f"Could not find a non-singular starting design after {max_attempts} "
@@ -109,9 +158,7 @@ def point_exchange(
         )
         raise ValueError(msg)
 
-    _, d_optimality_i = np.linalg.slogdet(xtx_i)
-
-    for i in range(x.shape[1], x.shape[0]):  # we've already considered the first `x.shape[1]` rows to start
+    for i in range(number_points, x.shape[0]):  # the first `number_points` rows are the starting design
         candidate_point = x.iloc[[i]]
 
         # Try to replace the candidate point with each row in the current design
@@ -130,13 +177,11 @@ def point_exchange(
             # print(f"New D-optimality at {i=} (replc): {d_optimality_i}")
             continue
 
-        # Now do the additionsm if there is room.
-        if design.shape[0] < number_points:
-            potential_design = pd.concat([design, candidate_point])
-            d_optimality_i_potential = optimization_function(potential_design)
-            if d_optimality_i > d_optimality_i_potential:
-                design = potential_design
-                d_optimality_i = d_optimality_i_potential
-                # print(f"New D-optimality at {i=} (merge): {d_optimality_i}")
+    # Every exchange above swaps one row for another, and only ever onto a
+    # design that scores better than the (finite, full-rank) current one, so
+    # the returned design keeps both the size and the estimability it was
+    # seeded with.
+    if design.shape[0] != number_points:  # pragma: no cover - defensive
+        raise AssertionError(f"point_exchange produced {design.shape[0]} rows; {number_points} were requested.")
 
     return design.sort_index(), d_optimality_i
