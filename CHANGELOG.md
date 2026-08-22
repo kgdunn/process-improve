@@ -150,6 +150,29 @@ regression tests in `tests/test_audit_regressions_*.py` pin each fix.
   workflows now grant least-privilege token scopes (the docs build job no
   longer carries Pages-deploy credentials while executing PR code).
 
+## [1.67.1] - 2026-08-22
+
+### Fixed
+
+- The lint gate is green again under ruff 0.16, which the dependency bump in
+  #492 allowed in without adjusting the configuration. Three preview or changed
+  rules fired repo-wide: `PLR0917` (too many positional arguments) is now
+  ignored, because it reports the same wide scientific signatures that
+  `PLR0913` already covers case by case; `S310` is scoped off for `tests/**`,
+  because 0.15 reports it for `urllib.request.Request` and 0.16 only for
+  `urlopen`, so an inline directive is required by one version and reported as
+  unused (`RUF100`) by the other; and Markdown is excluded from the formatter,
+  which began reflowing Python snippets inside fenced code blocks in 0.16 and
+  stripped the deliberate comment alignment from the README and CONTRIBUTING
+  examples. Both gates now give identical results on ruff 0.15 and 0.16.
+- Three genuine findings from the same ruff upgrade: `TPLS.score` annotated
+  `sample_weight` as `None | np.ndarray` (`RUF036`, `None` belongs last);
+  `_serialise_tool_error` called `logger.exception()` outside an exception
+  handler (`LOG004`) and now logs the exception it is passed explicitly via
+  `exc_info`, which also puts its previously unused `exc` argument to work; and
+  a recipe in `sensory/recipes.py` relied on unparenthesised implicit string
+  concatenation inside a list (`ISC004`), the classic missing-comma trap.
+
 ## [1.67.0] - 2026-08-21
 
 ### Fixed
@@ -3267,7 +3290,8 @@ this entry records them together.
   "Why not scikit-learn?" comparison table.
 
 [Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.68.0...HEAD
-[1.68.0]: https://github.com/kgdunn/process-improve/compare/v1.67.0...v1.68.0
+[1.68.0]: https://github.com/kgdunn/process-improve/compare/v1.67.1...v1.68.0
+[1.67.1]: https://github.com/kgdunn/process-improve/compare/v1.67.0...v1.67.1
 [1.67.0]: https://github.com/kgdunn/process-improve/compare/v1.66.1...v1.67.0
 [1.66.1]: https://github.com/kgdunn/process-improve/compare/v1.66.0...v1.66.1
 [1.66.0]: https://github.com/kgdunn/process-improve/compare/v1.65.0...v1.66.0

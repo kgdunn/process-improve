@@ -864,7 +864,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         return output
 
-    def score(self, X: DataFrameDict, y: None = None, sample_weight: None | np.ndarray = None) -> float:  # noqa: ARG002
+    def score(self, X: DataFrameDict, y: None = None, sample_weight: np.ndarray | None = None) -> float:  # noqa: ARG002
         """Return r2_score` on test data.
 
         See RegressorMixin.score for more details.
