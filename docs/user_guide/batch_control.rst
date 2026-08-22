@@ -13,8 +13,10 @@ in the `osqp <https://osqp.org>`_ QP solver).
 Every number on this page is *executed*: the corrected schedule is fed back
 into the simulator with the identical disturbance seed, so each gain is a
 true same-batch counterfactual, not a model's opinion of itself. That
-discipline matters, because the mid-course-correction literature almost
-always reports predicted gains.
+discipline matters. Simulation studies in this literature do execute their
+corrections (Flores-Cerrillo and MacGregor rerun their non-linear nylon model
+with the computed trajectories), but that step is unavailable on an operating
+plant, so industrial results are reported as model predictions.
 
 The pieces
 ----------
@@ -25,11 +27,13 @@ The pieces
   a batch whose future columns are still missing (trimmed score regression
   by default).
 - :func:`~process_improve.batch.control.midcourse_correction` solves the
-  correction as a convex quadratic program: track the target (or maximise
-  quality), move as little as possible from the nominal remaining schedule,
-  stay where the model has data (soft and hard SPE and Hotelling's T2
-  limits), and respect setpoint bounds and rate-of-change limits, with an
-  optional knot parameterisation so the corrected schedule stays smooth.
+  correction as a convex program: track the target (or maximise quality),
+  move as little as possible from the nominal remaining schedule, stay where
+  the model has data (SPE and Hotelling's T2), and respect setpoint bounds
+  and rate-of-change limits, with an optional knot parameterisation so the
+  corrected schedule stays smooth. With the validity terms as penalties this
+  is a quadratic program; the hard SPE and T2 caps are quadratic constraints,
+  handled by an outer iteration on their penalty weights.
 - :class:`~process_improve.batch.control.MidCourseCorrector` wraps the
   decision-point workflow: the SPE validity gate (an out-of-family batch is
   not corrected, following Flores-Cerrillo and MacGregor, 2004), the
@@ -83,7 +87,7 @@ Four of the forty batches were corrected, all in the poorest feed class;
 thirty-five were left alone by the dead band and one was stopped by the SPE
 validity gate. Reading the table:
 
-- The corrected batches gained between +1.53 and +2.67 g/L, mean +2.03 g/L,
+- The corrected batches gained between +1.53 and +2.67 g/L, mean +2.02 g/L,
   and none was harmed. The worst batch in the campaign rose from 3.66 to
   5.79 g/L.
 - The campaign standard deviation fell from 1.20 to 0.78 g/L, a 35%

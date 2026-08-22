@@ -26,17 +26,26 @@ same QP in an outer scalar iteration on the two penalty multipliers, which is
 exact for this convex problem and converges in a handful of inner solves at
 this size (a few dozen decision variables).
 
-The formulation follows the latent-variable batch control literature:
-Flores-Cerrillo and MacGregor (2004) for the quality-tracking objective, the
-soft T2 term, and the reconstruction of the remaining trajectories
-consistently with the realised past; Garcia-Munoz, Kourti and MacGregor
-(2004) for the per-decision-point score covariance and limits; Yabuki and
-MacGregor (1997) for the no-correction dead band; Golshan et al. (2010) for
-the LV-MPC lineage and the practical trimmed-score-regression form. Two
-departures from those papers are deliberate: the decision variables are the
-future MV columns themselves (not a score correction), so bounds and rate
-limits apply exactly in engineering units; and the SPE of the *candidate*
-row is penalised and capped, not only checked on the measurements so far.
+The formulation follows the latent-variable batch control literature.
+Flores-Cerrillo and MacGregor (2004) give the quality-tracking objective, the
+movement-suppression term, the soft T2 term, and the SPE check on the
+measurements so far that gates whether a correction is computed at all;
+Yabuki and MacGregor (1997) give the no-correction dead band, their
+"no-control region"; Garcia-Munoz, Kourti and MacGregor (2004) give the
+per-decision-point score covariance and limits; Arteaga and Ferrer (2002)
+give the trimmed score regression used to estimate the scores of a partially
+observed row, which Golshan et al. (2010) also apply in the LV-MPC setting.
+
+Two departures from Flores-Cerrillo and MacGregor are deliberate. Their
+optimisation is over an adjustment to the scores, with the remaining
+trajectories recovered by inverting the PLS model, which is what keeps those
+trajectories consistent with past operation. Here the decision variables are
+the future MV columns themselves, so actuator bounds and rate limits apply
+exactly in engineering units, and the terms that hold the answer inside the
+model's region are stated explicitly instead. Second, the SPE of the
+*candidate* row is penalised and capped, not only checked on the
+measurements so far, because a candidate written directly in the MV columns
+can leave the model plane in a way a score adjustment cannot.
 
 A practical caveat: models of this kind are identified on *recorded* (noisy,
 realised) trajectories, while the corrector outputs *setpoints*. That is the
@@ -51,6 +60,10 @@ References
 Flores-Cerrillo, J. and MacGregor, J.F., "Control of batch product quality
 by trajectory manipulation using latent variable models", Journal of Process
 Control, 14, 539-553, 2004.
+
+Arteaga, F. and Ferrer, A., "Dealing with missing data in MSPC: several
+methods, different interpretations, some examples", Journal of Chemometrics,
+16, 408-418, 2002.
 
 Garcia-Munoz, S., Kourti, T. and MacGregor, J.F., "Model Predictive
 Monitoring for Batch Processes", Industrial & Engineering Chemistry
