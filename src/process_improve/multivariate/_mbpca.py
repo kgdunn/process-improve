@@ -135,10 +135,10 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     -----
     The deflation step is :math:`X_b \leftarrow X_b - t_{\rm super}\,
     (p_b\,p_s[b]\,\sqrt{K_b})^\top`, derived in Westerhuis et al. 1998.
-    The legacy MATLAB ``mbpca.m`` had this step marked as broken by the
-    original author; this implementation re-derives it directly from the
-    paper and is independently validated against the pure-numpy reference
-    oracles in the test suite.
+    An earlier implementation of this method had this step marked as broken
+    by its author; this implementation re-derives it directly from the paper
+    and is independently validated against the pure-numpy reference oracles
+    in the test suite.
 
     Missing data
     ------------

@@ -11,6 +11,51 @@ those changes.
 
 ## [Unreleased]
 
+## [1.69.0] - 2026-08-22
+
+### Changed
+
+- `score_limit` now uses the Student-t quantile on `N - 1` degrees of freedom
+  instead of the standard-normal `z`. The score standard deviation `s_a` is
+  estimated from the same `N` observations, so `z` is only its large-`N`
+  limit: at `N = 10` the old limit was 15 percent too tight (1.96 against
+  2.26), still 2.5 percent at `N = 50`, and negligible past `N = 100`. This
+  makes the function agree with its own documented identity, that
+  `(t_a / s_a) ** 2` follows `F(1, N - 1)`, since `sqrt(F(1, N - 1))` is
+  exactly the two-sided `t_{N - 1}` quantile; the docstring previously
+  asserted that identity while computing `z`, which contradicted it.
+  **Score limits are wider than before, most noticeably on small data sets.**
+
+### Fixed
+
+- `robust_regression` now populates the `t_value` key it documents. It was
+  only ever initialised to `NaN`: the critical value was computed into a local
+  variable, used to build the intervals, and never assigned back. The key now
+  holds the t-statistic per coefficient (coefficient divided by its standard
+  error), which is what the sibling `multiple_linear_regression` has always
+  returned under that name, so the two agree on what `t_value` means. It stays
+  `NaN` on the degenerate paths, where the standard error is undefined.
+
+### Documentation
+
+- Record the API-consistency rules in `CONTRIBUTING.md`: one name means one
+  quantity across sibling functions, a documented key must be populated,
+  sibling methods return the same shape, and a convention chosen once applies
+  everywhere.
+- Remove references to discontinued software that can no longer be used to
+  re-validate anything (ProSensus Multivariate / ProMV, and the legacy
+  ConnectMV MATLAB code). The numerical values recorded from them are kept
+  unchanged and are now described for what they are: regression pins that lock
+  in behaviour that was correct when recorded, distinguished in the reference
+  test suite from values that can still be re-derived from the published Wold,
+  Esbensen & Geladi (1987) paper.
+- `tests/test_multiblock_reference.py::test_score_limit_at_95pct` now asserts
+  against `PCA.score_limit` itself instead of re-deriving the formula inside
+  the test. It previously had to reconstruct the limit by hand because the
+  shipped function used a different convention from the reference value it was
+  checking; with `score_limit` corrected, the public API reproduces that value
+  (7.8432) directly.
+
 ## [1.68.0] - 2026-08-22
 
 A repo-wide correctness audit. Most entries below change numerical results
@@ -3289,7 +3334,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.68.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.69.0...HEAD
+[1.69.0]: https://github.com/kgdunn/process-improve/compare/v1.68.0...v1.69.0
 [1.68.0]: https://github.com/kgdunn/process-improve/compare/v1.67.1...v1.68.0
 [1.67.1]: https://github.com/kgdunn/process-improve/compare/v1.67.0...v1.67.1
 [1.67.0]: https://github.com/kgdunn/process-improve/compare/v1.66.1...v1.67.0
