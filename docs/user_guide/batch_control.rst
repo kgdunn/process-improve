@@ -116,16 +116,16 @@ Where to put the decision point
 Sweeping the single decision point over the batch (same seeds throughout,
 mean executed gain over the batches corrected at that point):
 
-=========  ============  =========  ==================
-Sample     Day           Corrected  Mean gain [g/L]
-=========  ============  =========  ==================
-4          2.0           21 (8 harmed)   +0.32
-6          3.0           8 (3 harmed)    +0.82
-8          4.0           4 (0 harmed)    +2.02
-10         5.0           6 (0 harmed)    +0.67
-12         6.0           7 (7 harmed)    -0.05
-14         7.0           7 (7 harmed)    -0.28
-=========  ============  =========  ==================
+=========  ====  ==============  ===============
+Sample     Day   Corrected       Mean gain [g/L]
+=========  ====  ==============  ===============
+4          2.0   21 (8 harmed)   +0.32
+6          3.0   8 (3 harmed)    +0.82
+8          4.0   4 (0 harmed)    +2.02
+10         5.0   6 (0 harmed)    +0.67
+12         6.0   7 (7 harmed)    -0.05
+14         7.0   7 (7 harmed)    -0.28
+=========  ====  ==============  ===============
 
 The window is real and it is in the middle of the batch. Too early, the
 projections are still uncertain, so the dead band passes batches that did
