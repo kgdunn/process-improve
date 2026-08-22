@@ -182,6 +182,14 @@ override-dependencies = [
     "plotly>=6.5.2",
     "numba>=0.63.1",
 ]
+# scipy 1.18.1 was published without CPython 3.13 wheels (cp312 only), and CI
+# re-resolves on a stale lockfile whenever this file changes, so a fresh
+# resolution on Python 3.13 picks it and fails to install. Exclude that one
+# release; drop this constraint once scipy uploads cp313 wheels for it or
+# publishes a newer release.
+constraint-dependencies = [
+    "scipy!=1.18.1",
+]
 
 
 [tool.mypy]
