@@ -143,6 +143,7 @@ _recipes_discovered: bool = False
 #: ``process_improve.<subpackage>.recipes`` modules here as they are added.
 _RECIPE_MODULES: list[str] = [
     "process_improve.sensory.recipes",
+    "process_improve.simulation.recipes",
 ]
 
 

@@ -555,11 +555,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Parameters
         ----------
         X : array-like, shape (n_samples, n_features)
-            Training data, where `n_samples` is the number of samples (rows)
-            and `n_features` is the number of features (columns).
+            Training data, where ``n_samples`` is the number of samples (rows)
+            and ``n_features`` is the number of features (columns).
         Y : array-like, shape (n_samples, n_targets)
-            Training data, where `n_samples` is the number of samples (rows)
-            and `n_targets` is the number of target outputs (columns).
+            Training data, where ``n_samples`` is the number of samples (rows)
+            and ``n_targets`` is the number of target outputs (columns).
         sample_weight : array-like of shape (n_samples,), optional
             Non-negative row weights for a weighted PLS fit (#394). NIPALS
             is run on ``sqrt(w)``-rescaled X and Y, which is equivalent to
