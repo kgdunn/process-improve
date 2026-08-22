@@ -270,6 +270,27 @@ class TestDOptimal:
         # + a square for each of the two continuous factors only, so 12
         assert _n_model_parameters(factors, "quadratic") == 12
 
+    def test_point_exchange_rejects_a_duplicated_index(self) -> None:
+        """A repeated index label made `.loc` return every row carrying it.
+
+        These six candidate rows are all distinct by value, so de-duplication
+        leaves them alone; the repeated label 0 made a request for 4 runs come
+        back with all 6.
+        """
+        candidates = pd.DataFrame(
+            [[-1.0, -1.0], [1.0, -1.0], [-1.0, 1.0], [1.0, 1.0], [0.0, 0.0], [0.0, 1.0]],
+            index=[0, 0, 1, 2, 3, 4],
+        )
+        with pytest.raises(ValueError, match="unique index"):
+            point_exchange(candidates, number_points=4, random_state=0)
+
+    def test_point_exchange_reports_a_candidate_set_it_cannot_start_from(self) -> None:
+        """Collinear candidate columns make every subset singular, whatever the size."""
+        repeated = [-1.0, -1.0, 1.0, 1.0, 0.0, 0.0]
+        candidates = pd.DataFrame({"a": repeated, "b": [-1.0, 1.0, -1.0, 1.0, -1.0, 1.0], "c": repeated})
+        with pytest.raises(ValueError, match="non-singular starting design"):
+            point_exchange(candidates, number_points=4, random_state=0)
+
     def test_point_exchange_is_reproducible_with_random_state(self) -> None:
         rng = np.random.default_rng(0)
         candidates = pd.DataFrame(rng.choice([-1.0, 0.0, 1.0], size=(40, 3)))

@@ -45,10 +45,19 @@ def optimization_function(x: pd.DataFrame) -> float:
     # them would score a different design from the one being evaluated.
     model_matrix = _model_matrix(x)
     n_runs, n_parameters = model_matrix.shape
-    if n_runs < n_parameters or np.linalg.matrix_rank(model_matrix) < n_parameters:
-        return float(np.inf)
     sign, log_abs_det = np.linalg.slogdet(np.dot(np.transpose(model_matrix), model_matrix))
-    if sign <= 0 or not np.isfinite(log_abs_det):
+    # Both tests are needed. ``slogdet`` reports an exactly singular ``X'X``
+    # (sign 0, log -inf), which catches a factor held at a constant level; a
+    # design whose columns are only linearly dependent in exact arithmetic
+    # slips past it with a finite, very negative log, and is caught by the rank
+    # check. Without the second test that design would score as the best one
+    # available, since the search minimises this value.
+    if (
+        n_runs < n_parameters
+        or sign <= 0
+        or not np.isfinite(log_abs_det)
+        or np.linalg.matrix_rank(model_matrix) < n_parameters
+    ):
         return float(np.inf)
     return float(-log_abs_det)
 
@@ -126,13 +135,21 @@ def point_exchange(
         # rows, so duplicates in `x` cannot make up the shortfall. This used to
         # silently clamp the size down to the number of candidates available.
         raise ValueError(f"`number_points` must be at most {x.shape[0]} (the number of unique rows in `x`).")
+    if not x.index.is_unique:
+        # The search tracks the chosen rows by index LABEL, so a repeated label
+        # makes the `.loc` lookup below return every row carrying it: asking for
+        # 4 runs from a 6-row candidate set with one repeated label returned all
+        # 6. Rows that are duplicated by VALUE are fine, and dropped above.
+        raise ValueError("`x` must have a unique index; the point-exchange search selects rows by index label.")
 
     # Continually try to pick rows from x, until it is not singular.
     # A seedable Generator (rather than the global numpy RNG) makes the
     # point-exchange result reproducible; see docs/development/reproducibility.rst.
     rng = np.random.default_rng(random_state)
     max_attempts = 1000
-    d_optimality_i = float(np.inf)
+    # `d_optimality_i` is deliberately NOT pre-initialised: the loop below runs
+    # at least once and always assigns it, and its `else` raises, so a seed
+    # value would only be dead (CodeQL flags it as such).
     for _attempt in range(max_attempts):
         x = x.sample(frac=1, random_state=rng)
         # Seed the design at the REQUESTED size. It used to start with
@@ -177,11 +194,8 @@ def point_exchange(
             # print(f"New D-optimality at {i=} (replc): {d_optimality_i}")
             continue
 
-    # Every exchange above swaps one row for another, and only ever onto a
-    # design that scores better than the (finite, full-rank) current one, so
-    # the returned design keeps both the size and the estimability it was
-    # seeded with.
-    if design.shape[0] != number_points:  # pragma: no cover - defensive
-        raise AssertionError(f"point_exchange produced {design.shape[0]} rows; {number_points} were requested.")
-
+    # Every exchange above swaps one row for another, onto a unique index and
+    # only ever onto a design scoring better than the (finite, full-rank)
+    # current one, so the returned design keeps both the size and the
+    # estimability it was seeded with.
     return design.sort_index(), d_optimality_i

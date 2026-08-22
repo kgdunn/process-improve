@@ -55,6 +55,11 @@ asked for.
   model's from three: `dispatch_d_optimal(factors)` with four factors and the
   default `model_type="interactions"` used to fail outright, and now returns
   the 11 runs that model needs.
+- `point_exchange` raises `ValueError` when `x` has a duplicated index. The
+  search tracks the chosen rows by index label, so a repeated label made the
+  `.loc` lookup return every row carrying it: a request for 4 runs from a
+  6-row candidate set with one repeated label came back with all 6. Rows that
+  are duplicated by value are still fine, and dropped as before.
 
 ### Changed
 
