@@ -321,13 +321,14 @@ def ttest_independent_from_df(
         grouper_column (str): Indicates which column will be grouped on.
         values_column (str): Which column contains the numeric values to calculate the test on.
         conflevel (float, optional): [description]. Defaults to 0.995.
-        correction (str | None, optional): multiplicity correction to apply across the
-            family of pairwise comparisons: ``"holm"`` (family-wise error rate, see
-            :func:`holm_bonferroni`) or ``"bh"`` (false discovery rate, see
-            :func:`benjamini_hochberg`). Defaults to None, which leaves the p-values
-            UNCORRECTED: with k groups there are k(k-1)/2 tests, so read the raw
-            ``p value`` column with that in mind. When set, ``p value (adjusted)``,
-            ``reject`` and ``correction`` columns are added and the raw column is kept.
+        correction (str | None, optional): "holm", "bh", or None. Defaults to None. See below.
+
+    Multiplicity: by default the returned p-values are UNCORRECTED. With k groups this
+    runs k(k-1)/2 tests, so the chance of at least one false positive is well above the
+    per-test level. Pass ``correction="holm"`` to control the family-wise error rate (see
+    :func:`holm_bonferroni`) or ``correction="bh"`` to control the false discovery rate
+    (see :func:`benjamini_hochberg`). Either adds ``p value (adjusted)``, ``reject`` and
+    ``correction`` columns; the raw ``p value`` column is always kept.
 
     Output: Dataframe with columns containing the statistical outputs of the t-test, including:
         1. Group "A" name
@@ -456,13 +457,14 @@ def ttest_paired_from_df(
         grouper_column (str): Indicates which column will be grouped on.
         values_column (str): Which column contains the numeric values to calculate the test on.
         conflevel (float, optional): [description]. Defaults to 0.995.
-        correction (str | None, optional): multiplicity correction to apply across the
-            family of pairwise comparisons: ``"holm"`` (family-wise error rate, see
-            :func:`holm_bonferroni`) or ``"bh"`` (false discovery rate, see
-            :func:`benjamini_hochberg`). Defaults to None, which leaves the p-values
-            UNCORRECTED: with k groups there are k(k-1)/2 tests, so read the raw
-            ``p value`` column with that in mind. When set, ``p value (adjusted)``,
-            ``reject`` and ``correction`` columns are added and the raw column is kept.
+        correction (str | None, optional): "holm", "bh", or None. Defaults to None. See below.
+
+    Multiplicity: by default the returned p-values are UNCORRECTED. With k groups this
+    runs k(k-1)/2 tests, so the chance of at least one false positive is well above the
+    per-test level. Pass ``correction="holm"`` to control the family-wise error rate (see
+    :func:`holm_bonferroni`) or ``correction="bh"`` to control the false discovery rate
+    (see :func:`benjamini_hochberg`). Either adds ``p value (adjusted)``, ``reject`` and
+    ``correction`` columns; the raw ``p value`` column is always kept.
 
     Output: Dataframe with columns containing the statistical outputs of the t-test, including:
 
