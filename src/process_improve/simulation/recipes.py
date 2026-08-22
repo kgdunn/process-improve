@@ -93,3 +93,67 @@ _GOLDEN_BATCH_BASELINE = AnalysisRecipe(
 )
 
 register_recipe(_GOLDEN_BATCH_BASELINE)
+
+
+_MIDCOURSE_CORRECTION = AnalysisRecipe(
+    key="midcourse_correction",
+    title="Mid-course correction: steer a running batch back toward its quality target",
+    summary=(
+        "Demonstrate, with executed (re-simulated) counterfactuals rather than model predictions, how a "
+        "latent-variable mid-course correction recovers quality on batches headed for a shortfall. Establish "
+        "the replay baseline first, correct a handful of fresh batches at a decision point to see the "
+        "workflow per batch (validity gate, dead band, corrected schedule, realised outcome), then run the "
+        "campaign-level policy comparison, optionally against the perfect-feedforward and "
+        "oracle-from-the-decision-point ceilings that bracket what any scheme could achieve."
+    ),
+    domain=_DOMAIN,
+    cue_phrases=[
+        "mid-course correction",
+        "midcourse correction",
+        "correct a running batch",
+        "steer the batch",
+        "batch is heading low",
+        "save this batch",
+        "adjust the rest of the batch",
+        "advanced batch control",
+        "batch quality control",
+        "correct the schedule mid-batch",
+    ],
+    inputs_needed=[_INPUT_SIMULATOR, _INPUT_SCALES],
+    stages=[
+        RecipeStep(
+            order=1,
+            directive=(
+                "Establish the do-nothing baseline: simulate_batch_campaign(n_batches=40, policy='replay', "
+                "random_state=0). Note the titer mean and spread, and which feed classes sit below the "
+                "quality target; those are the batches a correction could help."
+            ),
+            tools=["simulate_batch_campaign"],
+        ),
+        RecipeStep(
+            order=2,
+            directive=(
+                "Walk through the decision point on a few batches: correct_batch_midcourse(n_batches=5, "
+                "decision_point=8, y_target=8.0, random_state=0). For each batch report whether it was "
+                "corrected, gated by the model-validity check, or left alone by the dead band, and compare "
+                "the executed titer with the replay titer; the difference is a same-batch counterfactual, "
+                "not a prediction."
+            ),
+            tools=["correct_batch_midcourse"],
+        ),
+        RecipeStep(
+            order=3,
+            directive=(
+                "Run the campaign-level comparison: evaluate_batch_control_policy(n_test=40, "
+                "decision_point=8, y_target=8.0, random_state=0). Report the realised mean and spread per "
+                "policy and the mean realised gain of the corrected batches. If the discussion needs the "
+                "ceilings (what a perfect feedforward or a mechanistic optimiser could still recover), "
+                "re-run with include_ceilings=True and present the gap honestly: it is the price of an "
+                "empirical model restricted to the region its history explored."
+            ),
+            tools=["evaluate_batch_control_policy"],
+        ),
+    ],
+)
+
+register_recipe(_MIDCOURSE_CORRECTION)

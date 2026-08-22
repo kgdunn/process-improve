@@ -45,6 +45,7 @@ from ._diagnostics import (
 )
 from ._nipals import quick_regress, ssq, terminate_check
 from ._preprocessing import MCUVScaler
+from ._projection import coerce_observed_mask, operator_for_pattern, project_rows
 from .plots import (
     coefficient_plot as _coefficient_plot,
 )
@@ -1014,6 +1015,138 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             y_hat = self._y_scaler.inverse_transform(y_hat)
 
         return Bunch(scores=scores, hotellings_t2=t2, spe=spe_values, y_hat=y_hat)
+
+    def project(self, X: DataMatrix, *, method: str = "tsr", ridge: float = 0.0) -> Bunch:
+        """Estimate scores, prediction and diagnostics for rows with missing values.
+
+        Whereas :meth:`transform` and :meth:`diagnose` propagate NaN into the
+        scores, this method estimates the scores of partially-observed rows
+        from the observed columns only, using the missing-data estimators of
+        Arteaga and Ferrer (2002): trimmed score regression (``"tsr"``, the
+        default and statistically the strongest), single-component projection
+        (``"scp"``), or projection to the model plane (``"pmp"``). Rows with
+        no missing values take the standard complete-data path, so their
+        scores are bitwise identical to :meth:`transform`.
+
+        This is the "batch so far" primitive for predicting the final quality
+        of a running batch: the future part of the unfolded row is missing by
+        construction, and the prediction at each decision point is this
+        projection followed by the ordinary Y regression (Garcia-Munoz,
+        Kourti and MacGregor, 2004; Flores-Cerrillo and MacGregor, 2004).
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            New observations on the original (unscaled) X units when the
+            model was fitted with ``scale=True``, or in the model's scaled
+            space otherwise, exactly as :meth:`transform` expects. NaN marks
+            a missing entry; rows that are entirely NaN are rejected.
+        method : {"tsr", "scp", "pmp"}, default="tsr"
+            The score estimator; see
+            :mod:`process_improve.multivariate._projection`.
+        ridge : float, default=0.0
+            Non-negative regularisation added to the matrix inverted by the
+            ``"tsr"`` and ``"pmp"`` estimators. Raise it above zero when
+            ``condition_number`` reports near-singularity (typically very
+            early in a batch, when few columns are observed).
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With keys ``scores`` (DataFrame), ``y_hat`` (DataFrame, on the
+            original Y units), ``hotellings_t2`` (Series; total over all
+            components), ``spe`` (Series; square root of the residual sum of
+            squares over the *observed* columns only), ``condition_number``
+            (Series; 1.0 when nothing is missing) and ``n_observed``
+            (Series). SPE and T2 of a partially-observed row must be compared
+            against limits built from the same missingness pattern, not the
+            full-observation limits.
+        """
+        check_is_fitted(self, "direct_weights_")
+        if isinstance(X, pd.DataFrame):
+            X = _align_to_fit_features(X, self._feature_names)
+        sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
+        X_arr = validate_data(
+            self,
+            X,
+            reset=False,
+            accept_sparse=False,
+            dtype="numeric",
+            ensure_all_finite="allow-nan",
+        )
+        if sample_index is None:
+            sample_index = pd.RangeIndex(X_arr.shape[0])  # type: ignore[assignment]
+        X_df = pd.DataFrame(X_arr, index=sample_index, columns=self._feature_names)
+        if self._x_scaler is not None:
+            # Missing entries survive the scaling as NaN, so the pattern of
+            # observed columns is unchanged by this step.
+            X_df = self._x_scaler.transform(X_df)
+        raw = project_rows(
+            self._x_loadings,
+            self.direct_weights_.to_numpy(dtype=float),
+            np.asarray(self.explained_variance_, dtype=float),
+            X_df.to_numpy(dtype=float),
+            method=method,
+            ridge=ridge,
+        )
+        scores = pd.DataFrame(raw.scores, index=sample_index, columns=self._component_names)
+        s = self.scaling_factor_for_scores_.to_numpy(dtype=float)
+        t2 = pd.Series(np.sum((raw.scores / s) ** 2, axis=1), index=sample_index, name="Hotelling's T2")
+        y_hat = scores @ self.y_loadings_.T
+        if self._y_scaler is not None:
+            y_hat = self._y_scaler.inverse_transform(y_hat)
+        return Bunch(
+            scores=scores,
+            y_hat=y_hat,
+            hotellings_t2=t2,
+            spe=pd.Series(raw.spe, index=sample_index, name="SPE"),
+            condition_number=pd.Series(raw.condition_number, index=sample_index, name="condition_number"),
+            n_observed=pd.Series(raw.n_observed, index=sample_index, name="n_observed"),
+        )
+
+    def projection_matrix(self, observed: object, *, method: str = "tsr", ridge: float = 0.0) -> Bunch:
+        """Build the fixed linear operator mapping observed columns to score estimates.
+
+        For a fixed missingness pattern, every estimator in :meth:`project`
+        is a fixed linear map ``t_hat = M @ z_observed`` on the model's
+        scaled X space. This method exposes that matrix so callers that reuse
+        one pattern many times (an online monitor at time sample ``k``, or a
+        mid-course optimiser treating the candidate future columns as
+        observed) can precompute it once. Note the matrix acts on *scaled*
+        values: when the model was fitted with ``scale=True``, apply the
+        internal centring and scaling first (as :meth:`project` does).
+
+        Parameters
+        ----------
+        observed : array-like
+            Either a boolean mask of length ``n_features_in_`` (True =
+            observed), or a list of feature labels to treat as observed.
+        method : {"tsr", "scp", "pmp"}, default="tsr"
+        ridge : float, default=0.0
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With keys ``matrix`` (DataFrame, n_components x n_observed,
+            columns labelled by the observed features), ``condition_number``
+            (float) and ``method``.
+        """
+        check_is_fitted(self, "direct_weights_")
+        mask = coerce_observed_mask(observed, self._feature_names)
+        op = operator_for_pattern(
+            self._x_loadings,
+            self.direct_weights_.to_numpy(dtype=float),
+            np.asarray(self.explained_variance_, dtype=float),
+            mask,
+            method=method,
+            ridge=ridge,
+        )
+        matrix = pd.DataFrame(
+            op.matrix,
+            index=self._component_names,
+            columns=pd.Index(self._feature_names)[mask],
+        )
+        return Bunch(matrix=matrix, condition_number=op.condition_number, method=op.method)
 
     def invert(
         self,

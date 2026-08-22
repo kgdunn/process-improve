@@ -11,6 +11,42 @@ those changes.
 
 ## [Unreleased]
 
+## [1.72.0] - 2026-08-22
+
+### Added
+
+- `batch.BatchPCA`, `batch.BatchPLS` and `batch.BatchMonitor`: batchwise-unfolded
+  (Nomikos-MacGregor) PCA and PLS models over aligned batch dictionaries, with an
+  optional initial-conditions (Z) join, and time-varying online SPE / Hotelling's
+  T2 monitoring. Includes `time_varying_loading_plot`, `contribution_at_time_plot`
+  and `online_monitoring_plot`, the dataset loaders `load_nylon`, `load_dryer` and
+  `load_batch_fake_data`, and the completed wide-format converters
+  (`melted_to_wide`, `wide_to_dict`, `wide_to_melted`). Consolidates and
+  supersedes the earlier #459 / #460 / #462 stack.
+- `PCA.project` / `PLS.project` and `projection_matrix`: public score estimation
+  for observations with missing values (trimmed score regression, single-component
+  projection, projection to the model plane), with a per-pattern linear operator,
+  conditioning diagnostics and a ridge option. `BatchPCA.predict_online` and the
+  new vectorized `BatchPCA.predict_online_trace` build on it.
+- `batch.control`: mid-course correction of a running batch. `midcourse_correction`
+  solves a convex QP over the remaining setpoint schedule (quality tracking or
+  maximisation, movement penalty, soft/hard SPE and T2 limits, box and
+  rate-of-change constraints, optional knot parameterisation; osqp behind the new
+  `control` extra). `MidCourseCorrector` adds the decision-point workflow: the SPE
+  validity gate, the one-sided no-correction dead band, and per-decision-point
+  limits. `evaluate_control_policies` executes the full policy comparison on the
+  bioreactor simulator (replay, mid-course, oracle-from-the-decision-point,
+  perfect feedforward), reporting realised rather than predicted gains.
+- Agent tools `correct_batch_midcourse` and `evaluate_batch_control_policy`, and
+  the `midcourse_correction` analysis recipe.
+
+### Changed
+
+- The bioreactor simulator's `historical` campaign policy now draws its deliberate
+  setpoint variation as independent knot offsets (linearly interpolated) instead of
+  a constant offset plus ramp. The old shape could not identify partial-batch
+  schedule moves, which is the data requirement for mid-course-correction models.
+
 ## [1.71.0] - 2026-08-22
 
 The multivariate statistical cluster from the 2026-08 audit triage (#513).
@@ -3475,7 +3511,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.71.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.72.0...HEAD
+[1.72.0]: https://github.com/kgdunn/process-improve/compare/v1.71.0...v1.72.0
 [1.71.0]: https://github.com/kgdunn/process-improve/compare/v1.70.0...v1.71.0
 [1.70.0]: https://github.com/kgdunn/process-improve/compare/v1.69.0...v1.70.0
 [1.69.0]: https://github.com/kgdunn/process-improve/compare/v1.68.0...v1.69.0
