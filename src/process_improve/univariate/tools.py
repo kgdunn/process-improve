@@ -404,7 +404,9 @@ class ConfidenceIntervalInput(BaseModel):
     method: Literal["robust", "classical"] = Field(
         "robust",
         description=(
-            "'robust' (default): use median +/- t * MAD / sqrt(n). 'classical': use mean +/- t * std / sqrt(n)."
+            "'robust' (default): median +/- t * MAD * sqrt(pi/2) / sqrt(n); MAD estimates sigma, "
+            "and sqrt(pi/2) is the asymptotic standard error factor of the median. "
+            "'classical': mean +/- t * std / sqrt(n)."
         ),
     )
 

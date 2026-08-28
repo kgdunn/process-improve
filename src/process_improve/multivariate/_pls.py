@@ -1239,12 +1239,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             and is used as-is (``n_repeats`` is then ignored).
         n_repeats : int, optional
             Number of times the K-fold split is repeated with a fresh shuffle,
-            used only when ``cv`` is an integer. Default ``10`` (giving a
-            ``cv * 10`` per-fold sample for the 1-SE rule); pass ``1`` to
-            disable repeats. Repeated K-fold's standard errors are slightly
-            optimistic because test folds overlap across repeats; that is fine
-            for the 1-SE *selection* rule but should not be reported as an
-            unbiased generalisation variance.
+            used only when ``cv`` is an integer. The signature default is
+            ``None``, which is resolved to ``10`` inside the function
+            (giving a ``cv * 10`` per-fold sample for the 1-SE rule); pass
+            ``1`` to disable repeats. Repeated K-fold's standard errors are
+            slightly optimistic because test folds overlap across repeats;
+            that is fine for the 1-SE *selection* rule but should not be
+            reported as an unbiased generalisation variance.
         random_state : int, optional
             Seed forwarded to ``KFold`` / ``RepeatedKFold`` for reproducible
             shuffling. Ignored when ``cv`` is a pre-built splitter.

@@ -11,6 +11,33 @@ those changes.
 
 ## [Unreleased]
 
+## [1.71.1] - 2026-08-28
+
+### Fixed
+
+- Docstring accuracy pass: five docstrings had drifted from the code.
+  - `univariate/tools.py` (`confidence_interval` tool): the "robust" method
+    formula in the input schema had lost its `sqrt(pi/2)` factor. The actual
+    formula the code computes is
+    `median +/- t * MAD * sqrt(pi/2) / sqrt(n)` (MAD estimates sigma; the
+    sqrt(pi/2) is the asymptotic standard error of the median).
+  - `multivariate/_pls.py` (`PLS.select_n_components`): `n_repeats` said
+    "Default 10" but the signature default is `None`, which the function
+    resolves to 10 internally. Docstring updated to say so.
+  - `batch/preprocessing.py` (`determine_scaling`): the Returns section
+    described the "typical minimum" column as "robustly calculated". The
+    per-batch minimum is the raw `batch.min(axis=0)`; only the cross-batch
+    aggregation is median (robust) or mean (non-robust).
+  - `multivariate/plots.py` (`score_plot`): the default `"title"` in the
+    `settings` block was documented as `"Score plot of ..."`, but the true
+    default is the empty string on the 2D path and a "Score plot of
+    component ..." sentence only on the 3D path (`pc_depth > 0`).
+  - `regression/_robust_regression.py` (`robust_regression`): the
+    Returns block said `intercept` is "returned if fit_intercept==True,
+    otherwise 0". The full-fit path honours that; the degenerate
+    early-return stub sets `intercept` to `np.nan` regardless of
+    `fit_intercept`. The docstring now spells out both paths.
+
 ## [1.71.0] - 2026-08-22
 
 The multivariate statistical cluster from the 2026-08 audit triage (#513).
@@ -3475,7 +3502,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.71.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.71.1...HEAD
+[1.71.1]: https://github.com/kgdunn/process-improve/compare/v1.71.0...v1.71.1
 [1.71.0]: https://github.com/kgdunn/process-improve/compare/v1.70.0...v1.71.0
 [1.70.0]: https://github.com/kgdunn/process-improve/compare/v1.69.0...v1.70.0
 [1.69.0]: https://github.com/kgdunn/process-improve/compare/v1.68.0...v1.69.0
