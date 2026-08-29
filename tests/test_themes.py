@@ -63,14 +63,17 @@ def test_import_does_not_change_global_default() -> None:
     assert result.returncode == 0, result.stderr
 
 
-def test_set_theme_changes_default() -> None:
-    """set_theme switches the global default; restored afterwards."""
-    try:
-        for name in THEME_NAMES:
-            set_theme(name)
-            assert pio.templates.default == name
-    finally:
-        set_theme(DEFAULT_THEME)
+def test_set_theme_changes_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """set_theme switches the global default; the pre-test value is restored.
+
+    Restoring the value that was in effect *before* this test (rather than
+    the package's DEFAULT_THEME) keeps ``pio.templates.default`` untouched
+    for every test that runs afterwards in the same worker.
+    """
+    monkeypatch.setattr(pio.templates, "default", pio.templates.default)
+    for name in THEME_NAMES:
+        set_theme(name)
+        assert pio.templates.default == name
 
 
 def test_set_theme_rejects_unknown() -> None:
@@ -79,13 +82,21 @@ def test_set_theme_rejects_unknown() -> None:
         set_theme("not_a_theme")
 
 
-def test_themes_define_distinct_backgrounds() -> None:
-    """Each theme carries its own plot-area background colour."""
+def test_theme_plot_backgrounds_are_pinned() -> None:
+    """Pin every theme's plot-area background colour.
+
+    The colours are not all distinct: pi_tufte and pi_journal deliberately
+    share a white plot area, so this pins all four values rather than
+    claiming uniqueness.
+    """
+    register_themes()
     backgrounds = {name: pio.templates[name].layout.plot_bgcolor for name in THEME_NAMES}
-    assert backgrounds["pi_economist"] == "#D9E9F1"
-    assert backgrounds["pi_brand"] == "#FAFAFA"
-    # Tufte and journal both keep a white plot area.
-    assert backgrounds["pi_tufte"] == "#FFFFFF"
+    assert backgrounds == {
+        "pi_tufte": "#FFFFFF",
+        "pi_economist": "#D9E9F1",
+        "pi_journal": "#FFFFFF",
+        "pi_brand": "#FAFAFA",
+    }
 
 
 def test_score_plot_uses_default_theme(fitted_pca: PCA) -> None:
