@@ -21,6 +21,53 @@ those changes.
   budget below `k + 1` was passed to pyoptex unclamped, which handled the
   infeasible run count unpredictably and made
   `test_budget_clamped_to_minimum_model_size` fail intermittently.
+- `point_exchange` (the D-optimal fallback backend) now always returns
+  exactly `number_points` rows. Two bugs let it fall short: the exchange
+  loop only grows the design when an addition improves the criterion, and a
+  candidate consumed by a replacement was never reconsidered for addition,
+  so an unlucky shuffle could end below `number_points` on roughly 1 to 2%
+  of unseeded runs; the design is now completed greedily with the remaining
+  candidates that best preserve D-optimality. Separately, a numerically
+  singular `X'X` could pass `np.linalg.inv` without raising and score
+  `log|det| = -inf`, which the lower-is-better convention then ranked as
+  unbeatable and froze the exchange loop; non-finite scores now read as
+  unacceptable (`+inf`), matching the existing exactly-singular case. Both
+  were the underlying mechanism behind the dispatcher-level shortfall above.
+
+## [1.72.0] - 2026-08-29
+
+The OMARS generator cluster from the 2026-08 audit triage (#513): issues #496
+to #499.
+
+### Fixed
+
+- `generate_omars(n_runs=n, center_runs=c)` now returns exactly `n` runs:
+  `n_runs` is the total run count of the returned design, centre runs included,
+  and `n_runs - center_runs` must be a positive even number. Previously the
+  extra centre runs were appended on top, so the design had `n + c - 1` rows
+  (#496).
+- The `a_optimal`, `d_efficiency`, and `min_second_order_correlation` selection
+  criteria (and the D axis of the default `dominance` rule) now find the true
+  optimum whenever the design class is small enough to enumerate, currently up
+  to four factors at moderate sizes. The search enumerates every feasible
+  half-design multiset, including designs that repeat a half-run, which the
+  previous binary ILP multistart could not represent at all; the reported
+  metadata carries `search_mode="exhaustive"` when the selection is exact and
+  `"multistart"` when the heuristic search was used (#497, #498, #499).
+- Design metrics (`d_efficiency`, `a_optimality`, `max_second_order_correlation`)
+  are now computed on the full returned design, extra centre runs included,
+  so the metadata describes the design the caller receives (#496).
+
+### Changed
+
+- In `generate_omars` selection and satisficing, a design containing a constant
+  second-order column (a term the design cannot estimate) now scores `inf` on
+  the maximum second-order correlation metric instead of having the column
+  skipped, so `min_second_order_correlation` no longer favours degenerate
+  designs. The descriptive statistic in `omars_properties` is unchanged (#499).
+- `generate_omars` docstrings state when a selection criterion is exact and
+  when it is heuristic, instead of claiming optimisation unconditionally
+  (#497, #498).
 
 ## [1.71.0] - 2026-08-22
 
@@ -3488,6 +3535,7 @@ this entry records them together.
 
 [Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.74.1...HEAD
 [1.74.1]: https://github.com/kgdunn/process-improve/compare/v1.74.0...v1.74.1
+[1.72.0]: https://github.com/kgdunn/process-improve/compare/v1.71.0...v1.72.0
 [1.71.0]: https://github.com/kgdunn/process-improve/compare/v1.70.0...v1.71.0
 [1.70.0]: https://github.com/kgdunn/process-improve/compare/v1.69.0...v1.70.0
 [1.69.0]: https://github.com/kgdunn/process-improve/compare/v1.68.0...v1.69.0
