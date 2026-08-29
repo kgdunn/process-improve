@@ -68,7 +68,8 @@ batch = [
     "scikit-image>=0.25.2",
 ]
 
-# MCP server entry-point.
+# MCP server entry-point. Requires the 2.x SDK: the server registers tools
+# through ``mcp.server.mcpserver.MCPServer`` (renamed from 1.x's FastMCP).
 mcp = ["mcp>=2.0"]
 
 # JIT-compiled inner loops in ``process_improve.batch.alignment_helpers``.

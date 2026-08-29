@@ -34,6 +34,58 @@ those changes.
   unacceptable (`+inf`), matching the existing exactly-singular case. Both
   were the underlying mechanism behind the dispatcher-level shortfall above.
 
+## [1.73.3] - 2026-08-29
+
+Release-pipeline hardening from the 2026-08 audit triage (#507). No library
+code changes.
+
+### Fixed
+
+- `publish.yml`: the version-vs-tag guard now runs on `workflow_dispatch` as
+  well as on tag pushes. A dispatch run must point at a commit already tagged
+  `v<version>` for the version in `pyproject.toml`, so a manual run can no
+  longer publish an untagged version from an arbitrary ref.
+- `publish.yml`: `gh release create` now passes `--target` with the SHA of the
+  checked-out commit, so a release created by the workflow tags the commit
+  that was actually published instead of the default branch head.
+- `publish.yml`: the CycloneDX SBOM is generated from a fresh virtualenv that
+  contains only the built wheel and its runtime dependencies (with the
+  installer tooling removed), so `build`, `cyclonedx-bom`, and their
+  transitive dependencies no longer appear as runtime components.
+- `publish.yml`: a missing `## [X.Y.Z]` heading in `CHANGELOG.md` now fails
+  the build job before anything is published, and the release-notes
+  extraction step errors instead of silently falling back to auto-generated
+  notes.
+
+### Changed
+
+- `publish.yml`: permissions are now per-job with least privilege. The build
+  job, which runs repository code through PEP 517 hooks, holds only
+  `contents: read`; the write scopes stay on the publish job.
+- `publish.yml`: `pypa/gh-action-pypi-publish` is pinned to the commit SHA of
+  v1.14.2 instead of the mutable `release/v1` branch ref.
+- `Makefile`: the `release` target no longer builds or publishes. It prints
+  the tag-gated release instructions and exits nonzero, so the gated workflow
+  is the only publish path.
+
+## [1.73.2] - 2026-08-29
+
+### Fixed
+
+- The MCP server (`process-improve-mcp`) now publishes each tool's real JSON
+  Schema (#506). Registration previously introspected a generic `(**kwargs)`
+  handler, so every tool appeared to MCP clients with an empty `inputSchema`:
+  no parameter names, types, required/optional split, enums, or bounds. Tools
+  are now registered as explicit `Tool` objects whose published `inputSchema`
+  is exactly the registry's `input_schema` from `get_tool_specs()`, so `anyOf`
+  unions (`int | None`, `Literal[...]`) survive intact. The server targets the
+  MCP 2.x SDK (`mcp.server.mcpserver.MCPServer`; the `mcp` extra now pins
+  `mcp>=2.0`), under which the old `FastMCP` import failed outright.
+  `mcp_server.py` is no longer omitted from coverage measurement.
+- The concurrent-dispatch MCP test no longer asserts on wall-clock elapsed
+  time, which could flake on loaded CI runners; it now proves the overlap with
+  a barrier both in-flight calls must reach (drive-by from #513).
+
 ## [1.73.1] - 2026-08-29
 
 ### Fixed
@@ -3580,6 +3632,8 @@ this entry records them together.
 
 [Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.74.1...HEAD
 [1.74.1]: https://github.com/kgdunn/process-improve/compare/v1.74.0...v1.74.1
+[1.73.3]: https://github.com/kgdunn/process-improve/compare/v1.73.2...v1.73.3
+[1.73.2]: https://github.com/kgdunn/process-improve/compare/v1.73.1...v1.73.2
 [1.73.1]: https://github.com/kgdunn/process-improve/compare/v1.73.0...v1.73.1
 [1.73.0]: https://github.com/kgdunn/process-improve/compare/v1.72.0...v1.73.0
 [1.72.0]: https://github.com/kgdunn/process-improve/compare/v1.71.0...v1.72.0

@@ -5,6 +5,10 @@ name: Publish to PyPI
 # typo in pyproject.toml on main can no longer ship a release. Releases
 # carry a sigstore attestation (PEP 740) and a CycloneDX SBOM via the
 # corresponding GitHub release page.
+#
+# The workflow_dispatch path is a republish path only (#507): the checked-out
+# ref must already carry a ``v<version>`` tag matching pyproject.toml, so a
+# dispatch run cannot ship an untagged version either.
 
 on:
   push:
@@ -17,14 +21,15 @@ on:
         required: false
         default: ""
 
-permissions:
-  id-token: write    # Required for trusted PyPI publishing and sigstore attestations.
-  contents: write    # Required to create / update the GitHub release.
-  attestations: write
+# No workflow-level grants (#507): the build job executes repository code
+# through PEP 517 build hooks, so each job declares only what it needs.
+permissions: {}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.read_version.outputs.version }}
     steps:
@@ -44,15 +49,50 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Detected version: ${VERSION}"
 
-      - name: Verify tag matches pyproject.toml version
-        if: github.event_name == 'push'
+      - name: Verify the ref matches pyproject.toml version
+        # Runs on both triggers (#507). On a tag push the tag must equal
+        # v<version>. On workflow_dispatch the checked-out commit must already
+        # be tagged v<version>, which keeps the ENG-21 promise: no tag, no
+        # release, whatever pyproject.toml happens to hold on the chosen ref.
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          EXPECTED="v${{ steps.read_version.outputs.version }}"
-          if [ "${TAG}" != "${EXPECTED}" ]; then
-            echo "::error::Tag ${TAG} does not match pyproject.toml version ${EXPECTED}."
-            exit 1
+          VERSION="${{ steps.read_version.outputs.version }}"
+          EXPECTED="v${VERSION}"
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            if [ "${TAG}" != "${EXPECTED}" ]; then
+              echo "::error::Tag ${TAG} does not match pyproject.toml version ${EXPECTED}."
+              exit 1
+            fi
+          else
+            if ! TAG_COMMIT=$(git rev-parse --verify --quiet "refs/tags/${EXPECTED}^{commit}"); then
+              echo "::error::No tag ${EXPECTED} exists for pyproject.toml version ${VERSION}. Push the tag first; workflow_dispatch only republishes an already-tagged release."
+              exit 1
+            fi
+            HEAD_COMMIT=$(git rev-parse HEAD)
+            if [ "${TAG_COMMIT}" != "${HEAD_COMMIT}" ]; then
+              echo "::error::Tag ${EXPECTED} points at ${TAG_COMMIT} but the checked-out ref is ${HEAD_COMMIT}. Dispatch the workflow against the tag itself."
+              exit 1
+            fi
           fi
+
+      - name: Verify CHANGELOG.md has an entry for this version
+        # Mirrors the release-notes extraction regex in the publish job, so a
+        # missing changelog section fails here, before anything is published.
+        run: |
+          python - "${{ steps.read_version.outputs.version }}" <<'PYEOF'
+          import pathlib
+          import re
+          import sys
+
+          version = sys.argv[1]
+          changelog = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
+          pattern = re.compile(rf"^## \[{re.escape(version)}\][^\n]*$", re.MULTILINE)
+          if not pattern.search(changelog):
+              print(f"::error::CHANGELOG.md has no '## [{version}]' heading; "
+                    "add the release entry before publishing.")
+              sys.exit(1)
+          print(f"CHANGELOG.md contains an entry for {version}.")
+          PYEOF
 
       - name: Build sdist and wheel
         run: |
@@ -60,12 +100,20 @@ jobs:
           python -m build
 
       - name: Generate CycloneDX SBOM
-        # ENG-21 (#303) sub-item 3: SBOM ships alongside every release.
-        # cyclonedx-bom builds an SBOM from the installed environment, which
-        # mirrors the wheel's runtime dependency closure.
+        # ENG-21 (#303) sub-item 3: SBOM ships alongside every release. The
+        # SBOM must mirror the wheel's runtime dependency closure only (#507),
+        # so it is taken from a fresh virtualenv holding nothing but the built
+        # wheel and its runtime dependencies. cyclonedx-bom runs from a
+        # separate tooling venv, so neither it nor ``build`` can appear as
+        # components; the installers are removed before the scan.
         run: |
-          pip install "cyclonedx-bom>=5.0" "."
-          cyclonedx-py environment \
+          python -m venv /tmp/sbom-target
+          /tmp/sbom-target/bin/python -m pip install --quiet dist/*.whl
+          /tmp/sbom-target/bin/python -m pip uninstall --quiet -y setuptools wheel || true
+          /tmp/sbom-target/bin/python -m pip uninstall --quiet -y pip
+          python -m venv /tmp/sbom-tool
+          /tmp/sbom-tool/bin/python -m pip install --quiet "cyclonedx-bom>=5.0"
+          /tmp/sbom-tool/bin/cyclonedx-py environment /tmp/sbom-target/bin/python \
             --output-format JSON \
             --output-file "dist/sbom-${{ steps.read_version.outputs.version }}.cdx.json"
 
@@ -81,8 +129,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
-      id-token: write
-      contents: write
+      id-token: write    # Required for trusted PyPI publishing and sigstore attestations.
+      contents: write    # Required to create / update the GitHub release.
       attestations: write
     steps:
       - uses: actions/checkout@v7
@@ -104,15 +152,17 @@ jobs:
       - name: Publish to PyPI with sigstore attestations
         # ``attestations: true`` is the default on recent action versions, but
         # we set it explicitly so the SEC posture is visible in the workflow.
-        uses: pypa/gh-action-pypi-publish@release/v1
+        # Pinned to the commit that release/v1 resolved to (v1.14.2) so a
+        # moved branch cannot swap the publish code underneath us (#507).
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33  # v1.14.2
         with:
           attestations: true
 
       - name: Extract release notes from CHANGELOG.md
         # ENG-21 (#303) sub-item 4: the GitHub release page mirrors the
-        # CHANGELOG entry for the same version. Falls back to auto-generated
-        # notes if the section is missing.
-        id: notes
+        # CHANGELOG entry for the same version. The build job already verified
+        # the heading exists; a miss here is therefore a hard failure, not a
+        # silent fall-back to auto-generated notes (#507).
         run: |
           VERSION="${{ needs.build.outputs.version }}"
           NOTES_FILE="release-notes.md"
@@ -132,38 +182,32 @@ jobs:
               re.DOTALL | re.MULTILINE,
           )
           m = pattern.search(changelog)
-          if m:
-              out_path.write_text(m.group(1).strip() + "\n", encoding="utf-8")
-              print(f"Extracted release notes for v{version} ({len(m.group(1))} chars)")
-              sys.exit(0)
-          out_path.write_text("", encoding="utf-8")
-          print(f"::warning::CHANGELOG.md has no entry for v{version}; "
-                "release will use auto-generated notes.")
+          if not m:
+              print(f"::error::CHANGELOG.md has no entry for v{version}; "
+                    "refusing to create a release without notes.")
+              sys.exit(1)
+          out_path.write_text(m.group(1).strip() + "\n", encoding="utf-8")
+          print(f"Extracted release notes for v{version} ({len(m.group(1))} chars)")
           PYEOF
-          if [ -s "${NOTES_FILE}" ]; then
-            echo "have_notes=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "have_notes=false" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Create or update GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v${{ needs.build.outputs.version }}"
-          if [ "${{ steps.notes.outputs.have_notes }}" = "true" ]; then
-            NOTES_FLAG=(--notes-file release-notes.md)
-          else
-            NOTES_FLAG=(--generate-notes)
-          fi
+          # Target the checked-out commit explicitly (#507): without it a
+          # release-created tag would land on the default branch, not on the
+          # commit that was actually published. git rev-parse HEAD is used
+          # rather than GITHUB_SHA because a dispatch run may check out an
+          # inputs.ref that differs from github.ref.
+          TARGET="$(git rev-parse HEAD)"
           if gh release view "${TAG}" > /dev/null 2>&1; then
             echo "Release ${TAG} already exists; updating notes and uploading SBOM."
-            if [ "${{ steps.notes.outputs.have_notes }}" = "true" ]; then
-              gh release edit "${TAG}" --notes-file release-notes.md
-            fi
+            gh release edit "${TAG}" --notes-file release-notes.md
           else
             gh release create "${TAG}" \
+              --target "${TARGET}" \
               --title "${TAG}" \
-              "${NOTES_FLAG[@]}"
+              --notes-file release-notes.md
           fi
           gh release upload "${TAG}" sbom/sbom-*.cdx.json --clobber
