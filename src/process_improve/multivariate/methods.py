@@ -50,6 +50,7 @@ from ._nipals import (
     ssq,
     terminate_check,
 )
+from ._null import class_enrichment, permutation_q2, pipeline_null
 from ._opls import OPLS
 from ._pca import PCA
 from ._pls import PLS
@@ -86,6 +87,7 @@ __all__ = [
     "SpecificationWarning",
     "center",
     "check_random_state",
+    "class_enrichment",
     "coefficient_plot",
     "correlation_loadings_plot",
     "detect_outliers_esd",
@@ -99,6 +101,8 @@ __all__ = [
     "loading_plot",
     "nan_to_zeros",
     "observation_contributions",
+    "permutation_q2",
+    "pipeline_null",
     "predictions_vs_observed_plot",
     "project_variables",
     "quick_regress",
