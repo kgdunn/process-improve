@@ -11,6 +11,104 @@ those changes.
 
 ## [Unreleased]
 
+## [1.76.0] - 2026-08-29
+
+### Added
+
+- **New subpackage `process_improve.chemistry`**: preprocessing a
+  product-by-compound block of concentrations or peak areas, in the one order
+  that is defensible (trim, transform, centre, scale).
+  - `classify_zero_states` records what a zero in each column means, and
+    **defaults to `unknown`**. Calling a zero left-censored asserts a latent
+    value below a detection limit; calling it structurally absent asserts the
+    compound is not there. Those need opposite handling and the distinction is
+    not recoverable from an exported table, so the caller declares it. Passing
+    a detection limit is that declaration; nothing else is.
+  - `trim_by_prevalence` splits on the non-zero count and returns a presence
+    layer covering **every** compound, kept and dropped alike: for a rare
+    compound the binary fingerprint often carries more than a column of zeros.
+  - `normalisation_check` reports the row totals and those outside a fold-band
+    around the median, which is how an unrecorded dilution shows up.
+  - `choose_transform` / `apply_transform` pick between a log and a linear
+    scale from the range ratio of the detected values, with an honest
+    `"ambiguous"` in between that the caller resolves.
+  - `center_and_scale` offers autoscale and Pareto. `detected_only` defaults to
+    `False`: on zeros that were never imputed, excluding them makes the column
+    a large-magnitude binary and PLS then tracks how sparse a variable is
+    rather than how it relates to the response.
+  - `apply_fitted_transform` and `apply_fitted_center_scale` replay tables
+    computed elsewhere, which is what makes honest nested cross-validation
+    possible.
+- **New module `process_improve.sensory.diagnostics`**: whether an attribute
+  can be modelled as an intensity at all. `boundary_occupancy` reports floor,
+  ceiling and exact-zero occupancy separately (a panel recording "not
+  perceived" as a small positive number looks floor-pinned and is not);
+  `detection_rate` gives the product-by-attribute probability that suits a
+  pinned attribute; `assessor_variance_equality` tests the precondition under
+  which Grossmann et al. (2023,
+  [doi:10.1016/j.foodqual.2022.104792](https://doi.org/10.1016/j.foodqual.2022.104792))
+  show the Mixed Assessor Model misreads unequal assessor variance as a scaling
+  effect.
+- **`permutation_q2`, `pipeline_null` and `class_enrichment`** in
+  `process_improve.multivariate`, nulls that respond to signal.
+  `permutation_q2` permutes whole response rows and compares observed
+  out-of-sample performance against what reshuffling reaches; `pipeline_null`
+  does the same for a whole selection procedure and reports an empirical FDR
+  for the procedure as run; `class_enrichment` tests hypergeometrically whether
+  a chemically expected class sits at the top of a ranking.
+- **New provisional module `process_improve.interactions`**: `pair_coverage`,
+  `interaction_terms` and `stability_selection`. Its docstring states plainly
+  that all three are unvalidated on real data and that coverage is unit tests
+  only.
+- User-guide pages for each of the four: `chemistry`, `sensory_diagnostics`,
+  `permutation_nulls` and `interactions`.
+
+### Changed
+
+- `PLS.fit` raises a `SpecificationWarning` when `scale=False` is handed a
+  block whose column means are large relative to their spread. `scale=False`
+  centres nothing and fits no intercept, so a response on its natural scale
+  displaces every prediction by roughly the response mean: adding a constant to
+  the response of an otherwise perfect fit moves in-sample R2 from +0.99 to
+  -4.12, which reads as "no relationship in this data". The warning names the
+  symptom, not only the condition. It does **not** centre for you: `scale=False`
+  means "touch nothing", and centring silently would move the numbers for every
+  caller who already centres correctly.
+- `PLS.select_n_components` raises a `SpecificationWarning` when
+  `scale_inside_folds=True` receives an X that is already centred and
+  unit-variance scaled. In-fold re-standardisation overwrites a scaling the
+  caller applied on purpose, so two deliberately different strategies report
+  RMSECV identical to six decimal places and a comparison between them shows no
+  difference for reasons unrelated to the data. The existing warning fires on
+  `scale_inside_folds=False`, which is the wrong way round for pre-scaled input.
+
+### Fixed
+
+- `mixed_assessor_model` on a panel with no rows returned frames with **no
+  columns**, so an over-filtered panel surfaced as `KeyError:
+  'f_product_mam'` in the caller rather than as a diagnosable error at the
+  source. It now raises a `ValueError` naming the condition and pointing at the
+  filter that is the usual cause; missing schema columns are checked in the
+  same place.
+
+### Documentation
+
+- `center` and `scale`: the two return different kinds of quantity. `center`
+  returns the value it *subtracted*; `scale` returns the *multiplier* it
+  applied, which is the reciprocal of `func`. Dividing by what `scale` returns
+  is wrong by a factor of the variance. They also disagree on degrees of
+  freedom (`scale` defaults to `ddof=0`, `MCUVScaler` uses `ddof=1`). Both
+  docstrings now state the asymmetry and cross-reference `MCUVScaler`.
+- `spe_` and `hotellings_t2_` on `PCA` and `PLS` are `(n_samples,
+  n_components)`, one column per component. `np.asarray(m.spe_).ravel()` is
+  right at one component and silently yields `n * A` values above it; use
+  `.iloc[:, -1]`.
+- `vip`: `sum(VIP ** 2)` is exactly the number of X variables, which is what
+  makes "VIP > 1" a sensible relative cut-off and what makes a VIP-exceedance
+  count useless as a null statistic. Points at `permutation_q2` instead.
+- `safe_inverse`'s error message now lists the likely causes of a singular or
+  ill-conditioned matrix in the order worth checking.
+
 ## [1.75.2] - 2026-08-29
 
 ### Fixed
@@ -3786,7 +3884,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.75.2...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.76.0...HEAD
+[1.76.0]: https://github.com/kgdunn/process-improve/compare/v1.75.2...v1.76.0
 [1.75.2]: https://github.com/kgdunn/process-improve/compare/v1.75.1...v1.75.2
 [1.75.1]: https://github.com/kgdunn/process-improve/compare/v1.75.0...v1.75.1
 [1.75.0]: https://github.com/kgdunn/process-improve/compare/v1.74.0...v1.75.0
