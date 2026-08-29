@@ -73,8 +73,9 @@ pytest -m dataset -o "addopts="
 # CI runs the full suite (no marker filter).
 ```
 
-The markers are registered in `pytest.ini`; pytest will warn if you
-typo a marker name. Tag a test by adding the decorator above the
+The markers are registered in `pytest.ini`, and `addopts` includes
+`--strict-markers`, so a typo'd marker name is a collection error rather
+than a silent warning. Tag a test by adding the decorator above the
 function (or above the `class` to tag the whole class):
 
 ```python
@@ -244,8 +245,17 @@ wall-clock time. The rule of thumb:
 - A PR that knowingly slows a hot path by more than ~10% must say
   so in the PR description and justify the trade-off (correctness
   fix, security guard, deprecation prep).
-- Unknowing regressions are caught by the perf-baseline CI job
-  (planned: [ENG-15](https://github.com/kgdunn/process-improve/issues/297)).
+- The tests in `tests/perf/` are **not** wall-clock benchmarks. They
+  assert deterministic cost-shape properties of the ENG-18 lazy-frame
+  design (the public DataFrame views are built once and cached,
+  pickling excludes the cache, `transform` / `predict` never touch the
+  frame views) and of `check_random_state` (generator pass-through by
+  identity). They fail on a real structural regression, such as losing
+  a cache or re-routing a hot path through a DataFrame conversion, but
+  a plain slowdown does not trip them.
+- Wall-clock regression gating is the perf-baseline CI job, which is
+  still **planned**
+  ([ENG-15](https://github.com/kgdunn/process-improve/issues/297)).
   Until that job lands, the maintainer eyeballs perf on the hot
   paths during review.
 - Internal refactors (private modules, internal classes) carry no

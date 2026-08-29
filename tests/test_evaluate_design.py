@@ -1201,6 +1201,7 @@ def test_build_model_matrix_mixed_quadratic_is_partial_rsm() -> None:
     assert "I(x2**2)" in flat
 
 
+@pytest.mark.slow
 @_needs_pyoptex
 def test_generate_and_evaluate_mixed_level_design() -> None:
     """End-to-end: generate an optimal mixed-level design and evaluate it.

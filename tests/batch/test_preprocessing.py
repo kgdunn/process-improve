@@ -38,6 +38,7 @@ def test_scaling(dryer_data: dict) -> None:
     assert np.linalg.norm(orig[1] - dryer_data[1][columns_to_align]) == pytest.approx(0, abs=1e-10)
 
 
+@pytest.mark.slow
 def test_alignment(dryer_data: dict) -> None:
     """Test batch DTW alignment on dryer data."""
     columns_to_align = [
@@ -334,6 +335,7 @@ def test_find_reference_batch_rejects_zero_request(dryer_data: dict) -> None:
 # ---- Alignment helper tests (batch/alignment_helpers.py) ----
 
 
+@pytest.mark.slow
 def test_distance_matrix_identity() -> None:
     """distance_matrix of identical sequences should have zero diagonal."""
     ref = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])

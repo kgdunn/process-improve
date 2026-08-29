@@ -126,6 +126,7 @@ class TestHoltWintersChart:
         expectation, _ = integrate.quad(lambda z: rho(z) * stats.norm.pdf(z), -12, 12, limit=200)
         assert expectation == pytest.approx(1.0, abs=1e-3)
 
+    @pytest.mark.slow
     def test_limits_track_sigma_on_clean_data(self) -> None:
         """+/-3S limits on well-behaved N(mu, sigma) data must be ~3 sigma wide.
 
@@ -138,6 +139,7 @@ class TestHoltWintersChart:
         cc.calculate_limits(y)
         assert cc.s == pytest.approx(2.0, rel=0.15)
 
+    @pytest.mark.slow
     def test_warm_up_residuals_remove_the_trend(self) -> None:
         """A strong warm-up trend must not inflate sigma_0."""
         rng = np.random.default_rng(7)
