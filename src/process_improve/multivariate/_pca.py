@@ -599,7 +599,12 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             t_a_guess[np.isnan(t_a_guess)] = 0
             t_a = t_a_guess + 1.0
             p_a = np.zeros((K, 1))
-            while not (terminate_check(t_a_guess, t_a, iterations=itern, settings=settings)):
+            # ``itern == 0`` forces at least one NIPALS iteration. The ``+ 1.0``
+            # offset that primes the loop can be negligible relative to a
+            # large-magnitude seed column, and the relative criterion (#504)
+            # would then report convergence at entry, silently returning the
+            # unrefined seed as the score and the zero ``p_a`` as the loading.
+            while itern == 0 or not terminate_check(t_a_guess, t_a, iterations=itern, settings=settings):
                 t_a_guess = t_a.copy()
 
                 # Regress X onto t_a to get loadings p_a

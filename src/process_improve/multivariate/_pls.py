@@ -455,7 +455,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             u_a_guess[np.isnan(u_a_guess)] = 0
             u_a = u_a_guess + 1.0
 
-            while not terminate_check(u_a_guess, u_a, iterations=itern, settings=settings):
+            # ``itern == 0`` forces at least one NIPALS iteration. The ``+ 1.0``
+            # offset that primes the loop can be negligible relative to a
+            # large-magnitude seed column (e.g. entries ~1e154), and the relative
+            # criterion (#504) would then report convergence before ``t_a`` /
+            # ``w_a`` / ``c_a`` were ever assigned, raising UnboundLocalError
+            # below instead of fitting.
+            while itern == 0 or not terminate_check(u_a_guess, u_a, iterations=itern, settings=settings):
                 u_a_guess = u_a.copy()
 
                 # 1: w_a = X'u_a / (u_a'u_a)
