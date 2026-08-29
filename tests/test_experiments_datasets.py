@@ -11,19 +11,27 @@ from __future__ import annotations
 
 import urllib.error
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import pandas as pd
 import pytest
+
+if TYPE_CHECKING:
+    from typing import Self
 
 from process_improve.config import settings
 from process_improve.experiments import datasets
 
 
 def _load_or_skip(loader: Callable[[], pd.DataFrame]) -> pd.DataFrame:
-    """Call the network-backed loader, ``pytest.skip`` on any network error."""
+    """Call the network-backed loader, ``pytest.skip`` on any network error.
+
+    The loaders wrap network failures (including timeouts) in the module's
+    documented ``RuntimeError`` (#508), so that is the error to skip on.
+    """
     try:
         return loader()
-    except (urllib.error.URLError, urllib.error.HTTPError, OSError) as exc:
+    except (RuntimeError, urllib.error.URLError, urllib.error.HTTPError, OSError) as exc:
         pytest.skip(f"could not fetch from openmv.net: {exc}")
 
 
@@ -107,7 +115,7 @@ class _FakeResponse:
     def __init__(self, payload: bytes) -> None:
         self._payload = payload
 
-    def __enter__(self) -> _FakeResponse:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *args: object) -> None:
