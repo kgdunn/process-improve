@@ -8,6 +8,8 @@ ChartSpec and never used a constraint region.
 
 from __future__ import annotations
 
+import pytest
+
 from process_improve.visualization.adapters.echarts_adapter import EChartsAdapter
 from process_improve.visualization.spec import (
     Annotation,
@@ -74,7 +76,7 @@ def test_three_panel_grid_two_columns() -> None:
 
 
 def test_multi_panel_with_annotations() -> None:
-    """Multi-panel rendering should also place annotations on each panel."""
+    """Multi-panel rendering should place annotations on their own panel."""
     panel = _scatter_panel("p")
     panel.annotations = [
         Annotation(
@@ -89,8 +91,70 @@ def test_multi_panel_with_annotations() -> None:
         title="With annotations",
     )
     option = EChartsAdapter().render(spec)
-    # The first panel's series should carry the markLine.
-    assert "markLine" in option["series"][0]
+    # The first panel's series carries the markLine, bound to panel 0's axes.
+    first = option["series"][0]
+    assert first["xAxisIndex"] == 0
+    assert first["yAxisIndex"] == 0
+    mark_data = first["markLine"]["data"]
+    assert len(mark_data) == 1
+    assert mark_data[0]["yAxis"] == 1.5
+    assert mark_data[0]["label"]["formatter"] == "threshold"
+    # The annotation-free second panel must not pick up any marks.
+    assert "markLine" not in option["series"][1]
+    assert "markArea" not in option["series"][1]
+
+
+def test_annotation_only_panel_does_not_paint_previous_panel() -> None:
+    """A panel with annotations but no layers gets its own carrier series.
+
+    Regression test for the ``all_series[-1]`` bug: the middle panel's
+    annotation used to land on the previous panel's series.
+    """
+    empty_panel = PanelSpec(
+        layers=[],
+        title="empty",
+        annotations=[
+            Annotation(
+                annotation_type=AnnotationType.reference_line,
+                value=3.0,
+                axis="y",
+                label="only-here",
+            ),
+        ],
+    )
+    spec = ChartSpec(panels=[_scatter_panel("p0"), empty_panel, _scatter_panel("p2")])
+    option = EChartsAdapter().render(spec)
+
+    # Three panels -> two scatter series plus one empty carrier series.
+    assert len(option["series"]) == 3
+    scatter_0, carrier, scatter_2 = option["series"]
+    assert "markLine" not in scatter_0
+    assert "markLine" not in scatter_2
+    # The carrier is bound to the middle panel's axes and holds the markLine.
+    assert carrier["xAxisIndex"] == 1
+    assert carrier["yAxisIndex"] == 1
+    assert carrier["data"] == []
+    assert carrier["markLine"]["data"][0]["yAxis"] == 3.0
+
+
+def test_single_and_multi_panel_attach_annotations_identically() -> None:
+    """The same panel renders its annotation on the same series either way."""
+
+    def _annotated_panel() -> PanelSpec:
+        panel = _scatter_panel("p")
+        panel.annotations = [
+            Annotation(
+                annotation_type=AnnotationType.reference_line,
+                value=1.5,
+                axis="y",
+                label="threshold",
+            ),
+        ]
+        return panel
+
+    single = EChartsAdapter().render(ChartSpec(panels=[_annotated_panel()]))
+    multi = EChartsAdapter().render(ChartSpec(panels=[_annotated_panel(), _scatter_panel("p2")]))
+    assert single["series"][0]["markLine"]["data"] == multi["series"][0]["markLine"]["data"]
 
 
 # ---------------------------------------------------------------------------
@@ -355,3 +419,129 @@ def test_line_series_basic() -> None:
     assert series["smooth"] is True
     # The dash mapping should turn "dot" into "dotted".
     assert series["lineStyle"]["type"] == "dotted"
+
+
+# ---------------------------------------------------------------------------
+# Silent-wrong-output defects now raise (issue #509)
+# ---------------------------------------------------------------------------
+
+
+def _render_one(layer: LayerSpec) -> dict:
+    return EChartsAdapter().render(ChartSpec(panels=[PanelSpec(layers=[layer])]))
+
+
+def test_missing_paired_field_raises_key_error() -> None:
+    """A typo'd field name raises KeyError instead of plotting 0."""
+    layer = LayerSpec(
+        mark=MarkType.scatter,
+        data=[{"x": 1, "y": 2}],
+        x=Encoding(field="x"),
+        y=Encoding(field="wrong_name"),
+    )
+    with pytest.raises(KeyError, match="wrong_name"):
+        _render_one(layer)
+
+
+def test_missing_wireframe_field_raises_key_error() -> None:
+    """A wireframe row missing an encoded field raises KeyError."""
+    layer = LayerSpec(
+        mark=MarkType.wireframe,
+        data=[{"x": 1, "y": 2}],  # no "z" key
+        x=Encoding(field="x"),
+        y=Encoding(field="y"),
+        z=Encoding(field="z"),
+    )
+    with pytest.raises(KeyError, match="z"):
+        _render_one(layer)
+
+
+def test_ragged_heatmap_z_matrix_raises() -> None:
+    """A z_matrix that does not match the grids raises ValueError."""
+    layer = LayerSpec(
+        mark=MarkType.heatmap,
+        data=[],
+        name="surface",
+        style={
+            "z_matrix": [[1.0, 2.0], [3.0]],  # second row too short
+            "x_grid": [10, 20],
+            "y_grid": [100, 200],
+        },
+    )
+    with pytest.raises(ValueError, match=r"z_matrix.*surface"):
+        _render_one(layer)
+
+
+def test_heatmap_z_matrix_missing_row_raises() -> None:
+    """A z_matrix with fewer rows than y_grid raises ValueError."""
+    layer = LayerSpec(
+        mark=MarkType.heatmap,
+        data=[],
+        style={
+            "z_matrix": [[1.0, 2.0]],
+            "x_grid": [10, 20],
+            "y_grid": [100, 200],
+        },
+    )
+    with pytest.raises(ValueError, match="z_matrix"):
+        _render_one(layer)
+
+
+def test_short_bar_colors_raise() -> None:
+    """A colors list shorter than the data raises instead of dropping bars."""
+    layer = LayerSpec(
+        mark=MarkType.bar,
+        data=[{"x": "A", "y": 1.0}, {"x": "B", "y": 2.0}],
+        x=Encoding(field="x"),
+        y=Encoding(field="y"),
+        name="bars",
+        style={"colors": ["#ff0000"]},
+    )
+    with pytest.raises(ValueError, match=r"colors.*bars"):
+        _render_one(layer)
+
+
+def test_short_scatter_colors_raise() -> None:
+    """A colors list shorter than the data raises instead of dropping points."""
+    layer = LayerSpec(
+        mark=MarkType.scatter,
+        data=[{"x": 1, "y": 2}, {"x": 3, "y": 4}],
+        x=Encoding(field="x"),
+        y=Encoding(field="y"),
+        name="points",
+        style={"colors": ["#ff0000"]},
+    )
+    with pytest.raises(ValueError, match=r"colors.*points"):
+        _render_one(layer)
+
+
+def test_short_error_y_raises() -> None:
+    """An error_y list shorter than the data raises instead of truncating."""
+    layer = LayerSpec(
+        mark=MarkType.bar,
+        data=[{"x": "A", "y": 1.0}, {"x": "B", "y": 2.0}],
+        x=Encoding(field="x"),
+        y=Encoding(field="y"),
+        style={"error_y": [1.0]},
+    )
+    with pytest.raises(ValueError, match="error_y"):
+        _render_one(layer)
+
+
+def test_mark_type_area_raises_not_implemented() -> None:
+    """MarkType.area is declared but unimplemented; it must raise, not fall back."""
+    layer = LayerSpec(
+        mark=MarkType.area,
+        data=[{"x": 1, "y": 2}],
+        x=Encoding(field="x"),
+        y=Encoding(field="y"),
+    )
+    with pytest.raises(NotImplementedError, match="area"):
+        _render_one(layer)
+
+
+def test_annotation_type_label_raises_not_implemented() -> None:
+    """AnnotationType.label is declared but unimplemented; it must raise."""
+    panel = _scatter_panel("p")
+    panel.annotations = [Annotation(annotation_type=AnnotationType.label, value=1.0, label="note")]
+    with pytest.raises(NotImplementedError, match="label"):
+        EChartsAdapter().render(ChartSpec(panels=[panel]))
