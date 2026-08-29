@@ -303,3 +303,43 @@ class TestClassEnrichment:
     def test_top_n_below_one_raises(self) -> None:
         with pytest.raises(ValueError, match="top_n"):
             class_enrichment(["a"], ["a", "b"], "a", top_n=0)
+
+
+class TestDegenerateInputs:
+    """The paths where a Q2 cannot be formed, and the argument guards."""
+
+    def test_a_constant_response_column_gives_nan_rather_than_a_divide_by_zero(self) -> None:
+        x = pd.DataFrame({"a": np.arange(8.0)})
+        y = pd.DataFrame({"flat": np.full(8, 3.0)})
+        table = permutation_q2(lambda _x, yy: yy.to_numpy(), x, y, n_perm=3)
+        assert np.isnan(table["q2_observed"].iloc[0])
+        assert np.isnan(table["p_value"].iloc[0])
+        assert table["n_permutations"].iloc[0] == 0
+
+    def test_all_missing_predictions_give_nan(self) -> None:
+        x = pd.DataFrame({"a": np.arange(8.0)})
+        y = pd.DataFrame({"u": np.arange(8.0)})
+        table = permutation_q2(lambda _x, yy: np.full(yy.shape, np.nan), x, y, n_perm=3)
+        assert np.isnan(table["q2_observed"].iloc[0])
+
+    def test_permutation_q2_rejects_a_non_dataframe(self) -> None:
+        with pytest.raises(TypeError, match="must both be pandas DataFrames"):
+            permutation_q2(lambda _x, _y: None, np.zeros((8, 2)), pd.DataFrame({"y": np.zeros(8)}))
+
+    def test_permutation_q2_needs_at_least_two_products(self) -> None:
+        with pytest.raises(ValueError, match="at least 2 products"):
+            permutation_q2(lambda _x, yy: yy, pd.DataFrame({"a": [1.0]}), pd.DataFrame({"y": [1.0]}))
+
+    def test_pipeline_null_rejects_a_non_dataframe(self) -> None:
+        with pytest.raises(TypeError, match="must both be pandas DataFrames"):
+            pipeline_null(lambda _x, _y: [], np.zeros((8, 2)), pd.DataFrame({"y": np.zeros(8)}))
+
+    def test_pipeline_null_rejects_mismatched_rows(self) -> None:
+        x, y = _blocks(n_products=10, n_features=2)
+        with pytest.raises(ValueError, match="same number of rows"):
+            pipeline_null(lambda _x, _y: [], x, y.iloc[:4])
+
+    def test_pipeline_null_rejects_n_perm_below_one(self) -> None:
+        x, y = _blocks(n_products=10, n_features=2)
+        with pytest.raises(ValueError, match="n_perm"):
+            pipeline_null(lambda _x, _y: [], x, y, n_perm=0)

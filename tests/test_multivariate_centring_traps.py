@@ -24,6 +24,7 @@ from sklearn.model_selection import KFold
 
 from process_improve.multivariate import PLS, vip
 from process_improve.multivariate._common import SpecificationWarning
+from process_improve.multivariate._preprocessing import _looks_prescaled
 
 
 @contextlib.contextmanager
@@ -210,3 +211,27 @@ class TestVipNormalisation:
         # The observed count sits inside the null's range, so a test built on it
         # cannot separate signal from noise even though the signal here is strong.
         assert min(null_counts) <= observed <= max(null_counts)
+
+
+class TestPreScaledDetection:
+    """Direct tests of the helper the A3 warning is built on."""
+
+    def test_a_standardised_block_is_recognised(self) -> None:
+        assert _looks_prescaled(_standardised_x())
+
+    def test_a_ddof_zero_scaling_still_counts_as_standardised(self) -> None:
+        """Off by sqrt(n / (n - 1)), 2.6% at n=20, which is inside the tolerance."""
+        raw = _standardised_x()
+        assert _looks_prescaled((raw - raw.mean()) / raw.std(ddof=0))
+
+    def test_a_raw_block_is_not(self) -> None:
+        assert not _looks_prescaled(_standardised_x() * 100 + 50)
+
+    def test_an_all_constant_block_carries_no_evidence_either_way(self) -> None:
+        """No column has spread, so there is nothing to judge; the answer is False."""
+        assert not _looks_prescaled(pd.DataFrame({"a": [2.0, 2.0, 2.0], "b": [0.0, 0.0, 0.0]}))
+
+    def test_a_constant_column_alongside_standardised_ones_is_ignored(self) -> None:
+        block = _standardised_x()
+        block["constant"] = 7.0
+        assert _looks_prescaled(block)

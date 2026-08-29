@@ -260,3 +260,13 @@ class TestStabilitySelection:
         x, y = self._blocks()
         with pytest.raises(ValueError, match="n_iter"):
             stability_selection(self._selector(), x, y, n_iter=0)
+
+
+class TestArgumentGuards:
+    def test_interaction_terms_rejects_a_non_dataframe(self) -> None:
+        with pytest.raises(TypeError, match="x_log must be a pandas DataFrame"):
+            interaction_terms(np.zeros((4, 2)), [("a", "b")])
+
+    def test_stability_selection_rejects_a_non_dataframe(self) -> None:
+        with pytest.raises(TypeError, match="must both be pandas DataFrames"):
+            stability_selection(lambda _x, _y: [], np.zeros((8, 2)), pd.DataFrame({"y": np.zeros(8)}))

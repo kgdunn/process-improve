@@ -405,3 +405,37 @@ class TestNestedPipeline:
         assert list(applied["compound"]) == list(kept.columns)
         assert list(constants["compound"]) == list(kept.columns)
         assert scaled.shape == kept.shape
+
+
+class TestBlockValidation:
+    """The guards every function in the module shares, pinned once."""
+
+    def test_a_non_dataframe_raises_type_error(self) -> None:
+        with pytest.raises(TypeError, match="pandas DataFrame"):
+            classify_zero_states(np.zeros((3, 3)))
+
+    def test_a_block_with_no_compounds_raises(self) -> None:
+        with pytest.raises(ValueError, match="no compounds"):
+            trim_by_prevalence(pd.DataFrame(index=[0, 1, 2]))
+
+    def test_a_block_of_unreadable_dtypes_raises(self) -> None:
+        block = pd.DataFrame({"a": ["low", "high", "trace"]})
+        with pytest.raises(ValueError, match="could not read any numeric values"):
+            normalisation_check(block)
+
+    def test_an_all_missing_block_is_not_mistaken_for_unreadable(self) -> None:
+        """All-NaN is a legitimate (if useless) numeric block, not a dtype problem."""
+        states = classify_zero_states(pd.DataFrame({"a": [np.nan, np.nan]}))
+        assert states.set_index("compound").loc["a", "n_missing"] == 2
+
+    def test_center_and_scale_rejects_a_non_dataframe_mask(self, chem: pd.DataFrame) -> None:
+        transformed, _applied = apply_transform(chem)
+        with pytest.raises(TypeError, match="detected must be a DataFrame"):
+            center_and_scale(transformed, np.ones(chem.shape))
+
+    def test_apply_fitted_center_scale_needs_the_documented_columns(self, chem: pd.DataFrame) -> None:
+        _kept, _dropped, presence = trim_by_prevalence(chem, min_nonzero=0)
+        transformed, _applied = apply_transform(chem)
+        _scaled, constants = center_and_scale(transformed, presence)
+        with pytest.raises(ValueError, match="must carry the columns"):
+            apply_fitted_center_scale(transformed, constants.drop(columns=["divisor"]))

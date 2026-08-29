@@ -367,8 +367,12 @@ def _log_offset(values: np.ndarray, lod_value: float) -> float:
         return float(lod_value) / 2.0
     detected = values[np.isfinite(values) & (values > 0)]
     if detected.size == 0:
-        # Nothing was ever detected; any positive placeholder gives log(1) = 0
-        # for the whole column, which is the only honest constant here.
+        # Defensive, and unreachable through apply_transform today: the "log"
+        # rule requires two detected values to form a range ratio from, so a
+        # column with none never gets here. Kept so a future caller meets a
+        # constant rather than a ValueError from min() on an empty array. Any
+        # positive placeholder gives log(1) = 0 for the whole column, which is
+        # the only honest constant when nothing was ever detected.
         return 1.0
     return float(detected.min()) / 2.0
 

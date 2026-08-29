@@ -7,6 +7,8 @@ caller rather than as a diagnosable error at the source.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -274,3 +276,16 @@ class TestAssessorVarianceEquality:
     def test_empty_panel_raises(self) -> None:
         with pytest.raises(ValueError, match="no rows"):
             assessor_variance_equality(pd.DataFrame(columns=PANEL_COLUMNS))
+
+
+class TestPanelValidation:
+    """The schema guard the three diagnostics share, pinned once per function."""
+
+    @pytest.mark.parametrize(
+        "function",
+        [boundary_occupancy, detection_rate, assessor_variance_equality],
+    )
+    def test_missing_columns_name_the_caller_and_the_gap(self, function: Callable) -> None:
+        frame = pd.DataFrame({"panelist_id": ["a"], "product": ["p"], "score": [1.0]})
+        with pytest.raises(ValueError, match="long-format panel columns"):
+            function(frame)
