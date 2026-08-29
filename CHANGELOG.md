@@ -11,6 +11,52 @@ those changes.
 
 ## [Unreleased]
 
+## [1.74.0] - 2026-08-29
+
+The multivariate numerics cluster (#502, #503, #504). All three entries
+change numerical results or iteration behaviour, because the previous
+values were wrong.
+
+### Changed
+
+- NIPALS convergence in PCA, PLS, MBPCA and MBPLS is now judged on the
+  *relative* change between successive score-vector iterations (the norm of
+  the change divided by the norm of the current vector, with a floored
+  denominator), the form TPLS already used. The previous absolute criterion
+  made convergence depend on the units of the data: large-magnitude X burned
+  every `md_max_iter` iteration and tiny-magnitude X "converged" instantly.
+  Fitting `X` and `1000 * X` now takes the same number of iterations and
+  gives identical components up to the scale factor. The `md_tol` settings
+  key and the PLS `tol` parameter keep working, now as relative tolerances.
+  (#504)
+- The MBPCA and MBPLS default tolerances, previously absolute values at
+  machine precision (`eps**(9/10)` ~ 8.2e-15 and `eps**(6/7)` ~ 3.8e-14,
+  below the floating-point oscillation floor of a relative criterion), are
+  now the shared `epsqrt` (~1.49e-8) default used by PCA, PLS and TPLS, so
+  spurious non-convergence warnings on well-conditioned data are gone. An
+  explicit `tol` passed by the caller is still honoured, but is now
+  interpreted relatively. (#504)
+- MBPCA and MBPLS seed their NIPALS super-score / u-vector initialisation
+  deterministically from the column with the largest sum of squares, the way
+  single-block PCA / PLS already do, instead of a hard-coded
+  `np.random.default_rng(0)` that violated the reproducibility contract in
+  `docs/development/reproducibility.rst`. No RNG remains in these fit paths
+  and no `random_state` parameter is needed; repeated fits are
+  bit-identical, and fitted components are unchanged up to the existing sign
+  convention. (#503)
+- `TPLS.fit()` and `TPLS.diagnose()` now compute one and the same
+  Hotelling's T2: the cumulative per-component form `sum_a (t_a / s_a)^2`
+  used by PCA and PLS, with the score standard deviations on the unbiased
+  `N - 1` divisor. Previously `fit()` stored a full-Mahalanobis T2 with the
+  covariance divided by `N`, shape `(n_obs, 1)`, while `diagnose()` returned
+  the cumulative diagonal form, shape `(n_obs, n_components)`: two different
+  statistics under one name, and the `N` divisor inflated T2 by
+  `N / (N - 1)` relative to the F-distribution limit it is compared against.
+  `TPLS.hotellings_t2` is now shape `(n_samples, n_components)`, as its
+  docstring already promised; the full-model value is the last column.
+  `scaling_factor_for_scores` (which feeds `ellipse_coordinates`) also uses
+  the `N - 1` divisor, so TPLS score ellipses are slightly larger. (#502)
+
 ## [1.71.0] - 2026-08-22
 
 The multivariate statistical cluster from the 2026-08 audit triage (#513).
@@ -3475,7 +3521,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.71.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.74.0...HEAD
+[1.74.0]: https://github.com/kgdunn/process-improve/compare/v1.73.4...v1.74.0
 [1.71.0]: https://github.com/kgdunn/process-improve/compare/v1.70.0...v1.71.0
 [1.70.0]: https://github.com/kgdunn/process-improve/compare/v1.69.0...v1.70.0
 [1.69.0]: https://github.com/kgdunn/process-improve/compare/v1.68.0...v1.69.0
