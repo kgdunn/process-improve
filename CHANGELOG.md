@@ -11,6 +11,17 @@ those changes.
 
 ## [Unreleased]
 
+## [1.75.2] - 2026-08-29
+
+### Fixed
+
+- `test_point_exchange_always_returns_requested_run_count` (`tests/test_doe.py`)
+  pins several previously-failing seeds (122, 146, 199, 319, 338) for the
+  point-exchange fallback's run-count guarantee. The underlying fix is the
+  `1.75.0` entry below: raising this regression independently converged on
+  the same root causes (the exchange loop's addition-only growth and the
+  non-finite-score freeze), already fixed there.
+
 ## [1.75.1] - 2026-08-29
 
 ### Fixed
@@ -3775,7 +3786,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.75.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.75.2...HEAD
+[1.75.2]: https://github.com/kgdunn/process-improve/compare/v1.75.1...v1.75.2
 [1.75.1]: https://github.com/kgdunn/process-improve/compare/v1.75.0...v1.75.1
 [1.75.0]: https://github.com/kgdunn/process-improve/compare/v1.74.0...v1.75.0
 [1.74.0]: https://github.com/kgdunn/process-improve/compare/v1.73.4...v1.74.0
