@@ -601,7 +601,10 @@ def test_point_exchange_always_returns_requested_run_count() -> None:
     from pyDOE3 import fullfact
 
     candidates = pd.DataFrame(fullfact([3, 3, 3]) - 1.0, columns=["A", "B", "C"])
-    for random_state in range(40):
+    # Seeds 122, 146, 199, 319, and 338 all ended with 3 rows before the greedy
+    # completion step was added, so they exercise the completion path directly;
+    # the leading range guards the ordinary no-shortfall path.
+    for random_state in [*range(10), 122, 146, 199, 319, 338]:
         design, d_opt = point_exchange(candidates, number_points=4, random_state=random_state)
         assert design.shape[0] == 4
         assert np.isfinite(d_opt)
