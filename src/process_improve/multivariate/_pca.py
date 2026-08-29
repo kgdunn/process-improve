@@ -242,6 +242,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
     Attributes (after fitting)
     --------------------------
+    n_components_ : int
+        The resolved number of components actually fitted (the constructor
+        parameter clamped to ``min(n_samples, n_features)``; the parameter
+        itself is left as the user set it, including ``None``).
     scores_ : pd.DataFrame of shape (n_samples, n_components)
         The score matrix (T).
     loadings_ : pd.DataFrame of shape (n_features, n_components)
@@ -409,7 +413,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                 stacklevel=2,
             )
             A = min_dim
-        self.n_components = A
+        # The resolved (possibly clamped) component count is a fitted attribute;
+        # the constructor parameter n_components is left exactly as the user set
+        # it, per the sklearn clone/get_params contract (#505).
+        self.n_components_ = A
 
         # Detect missing data and resolve algorithm
         self.has_missing_data_ = bool(np.any(X.isna()))
@@ -826,8 +833,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
         # Hotelling's T² (cumulative)
         component_names = self._component_names
-        t2 = pd.DataFrame(np.zeros((X.shape[0], self.n_components)), columns=component_names, index=X.index)
-        for a in range(self.n_components):
+        t2 = pd.DataFrame(np.zeros((X.shape[0], self.n_components_)), columns=component_names, index=X.index)
+        for a in range(self.n_components_):
             t2.iloc[:, a] = (
                 t2.iloc[:, max(0, a - 1)] + (scores.iloc[:, a] / self.scaling_factor_for_scores_.iloc[a]) ** 2
             )

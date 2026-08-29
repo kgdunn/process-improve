@@ -259,3 +259,91 @@ def test_halving_grid_search_cv_with_mcuvscaler_and_pls() -> None:
     )
     rng_search.fit(X, Y.values.ravel())
     assert rng_search.best_params_["pls__n_components"] >= 1
+
+
+# ---------------------------------------------------------------------------
+# #505: fit() must not mutate constructor parameters (clone contract)
+# ---------------------------------------------------------------------------
+
+
+def _small_xy(n_samples: int = 12, n_features: int = 4, seed: int = 0) -> tuple[pd.DataFrame, pd.DataFrame]:
+    rng = np.random.default_rng(seed)
+    X = pd.DataFrame(rng.normal(size=(n_samples, n_features)))
+    beta = rng.normal(size=(n_features, 1))
+    Y = pd.DataFrame(X.values @ beta + 0.05 * rng.normal(size=(n_samples, 1)))
+    return X, Y
+
+
+def test_pca_fit_leaves_constructor_params_untouched() -> None:
+    """After fit(), get_params() returns exactly what was passed to __init__ (#505)."""
+    X, _ = _small_xy()
+    model = PCA(n_components=None).fit(X)
+    assert model.get_params()["n_components"] is None
+    assert model.n_components is None
+    assert model.n_components_ == min(X.shape)
+
+    with pytest.warns(UserWarning, match="requested number of components"):
+        clamped = PCA(n_components=99).fit(X)
+    assert clamped.get_params()["n_components"] == 99
+    assert clamped.n_components_ == min(X.shape)
+
+
+def test_pls_fit_leaves_constructor_params_untouched() -> None:
+    """PLS keeps n_components and missing_data_settings as the user set them (#505)."""
+    X, Y = _small_xy()
+    X_missing = X.copy()
+    X_missing.iloc[0, 0] = np.nan
+    requested = {"md_max_iter": 250}
+    model = PLS(n_components=2, missing_data_settings=dict(requested)).fit(X_missing, Y)
+    assert model.get_params()["n_components"] == 2
+    assert model.get_params()["missing_data_settings"] == requested
+    assert model.missing_data_settings == requested
+    assert model.n_components_ == 2
+
+    with pytest.warns(UserWarning, match="requested number of components"):
+        clamped = PLS(n_components=99).fit(X, Y)
+    assert clamped.get_params()["n_components"] == 99
+    assert clamped.n_components_ == min(X.shape)
+
+
+def test_clone_reproduces_requested_configuration_after_fit() -> None:
+    """clone() of a fitted estimator carries the request, not the resolved value (#505)."""
+    X, Y = _small_xy()
+    with pytest.warns(UserWarning, match="requested number of components"):
+        parent = PLS(n_components=99).fit(X, Y)
+    cloned = clone(parent)
+    assert cloned.get_params()["n_components"] == 99
+
+    pca_parent = PCA(n_components=None).fit(X)
+    assert clone(pca_parent).get_params()["n_components"] is None
+
+
+def test_refit_resolves_component_count_per_dataset() -> None:
+    """Fitting the same instance twice on different shapes re-derives the clamp (#505)."""
+    rng = np.random.default_rng(1)
+    model = PCA(n_components=None)
+    model.fit(pd.DataFrame(rng.normal(size=(10, 3))))
+    assert model.n_components_ == 3
+    model.fit(pd.DataFrame(rng.normal(size=(10, 6))))
+    assert model.n_components_ == 6
+    assert model.n_components is None
+
+
+def test_cross_validate_submodels_use_requested_n_components() -> None:
+    """cross_validate() resamples fit the user's requested configuration (#505)."""
+    X, Y = _small_xy(n_samples=20)
+    model = PLS(n_components=2).fit(X, Y)
+    seen: list[int | None] = []
+    original_fit = PLS.fit
+
+    def spy_fit(self: PLS, *args: object, **kwargs: object) -> PLS:
+        seen.append(self.get_params()["n_components"])
+        return original_fit(self, *args, **kwargs)
+
+    PLS.fit = spy_fit  # type: ignore[method-assign]
+    try:
+        model.cross_validate(X, Y, cv=3, random_state=0, show_progress=False)
+    finally:
+        PLS.fit = original_fit  # type: ignore[method-assign]
+    assert seen, "cross_validate() fitted no sub-models"
+    assert all(value == 2 for value in seen)

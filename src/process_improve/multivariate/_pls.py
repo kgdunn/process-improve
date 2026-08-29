@@ -177,6 +177,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
     Attributes (after fitting)
     --------------------------
+    n_components_ : int
+        The resolved number of components actually fitted (the constructor
+        parameter clamped to ``min(n_samples, n_features)``; the parameter
+        itself is left as the user set it, including ``None``).
     scores_ : pd.DataFrame of shape (n_samples, n_components)
         X-block score matrix (T). This is the primary score matrix; equivalent
         to ``x_scores`` in older versions.
@@ -692,19 +696,26 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 f"the number of columns ({K})."
             )
             warnings.warn(warn, SpecificationWarning, stacklevel=2)
-            A = self.n_components = min_dim
+            A = min_dim
+        # The resolved (possibly clamped) component count is a fitted attribute;
+        # the constructor parameter n_components is left exactly as the user set
+        # it, per the sklearn clone/get_params contract (#505).
+        self.n_components_ = A
 
+        resolved_mds = self.missing_data_settings
         if np.any(Y.isna()) or np.any(X.isna()):
             self.has_missing_data_ = True
             # Default to the NIPALS path because TSR / PMP for PLS are still
             # NotImplementedError in _fit_nipals; NIPALS handles per-cell NaN
-            # directly via skipna sums inside the NIPALS iterations.
+            # directly via skipna sums inside the NIPALS iterations.  The
+            # resolved settings stay local: mutating the constructor parameter
+            # would leak into clone() (#505).
             default_mds = dict(md_method="nipals", md_tol=epsqrt, md_max_iter=self.max_iter)
             if isinstance(self.missing_data_settings, dict):
                 default_mds.update(self.missing_data_settings)
-            self.missing_data_settings = default_mds
+            resolved_mds = default_mds
 
-        settings = self.missing_data_settings or {
+        settings = resolved_mds or {
             "md_method": "nipals",
             "md_tol": self.tol,
             "md_max_iter": self.max_iter,
@@ -2310,7 +2321,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         t2_new = np.asarray(diagnostics.hotellings_t2, dtype=float)
 
         n_samples = self.n_samples_
-        n_components = int(self.n_components)
+        n_components = int(self.n_components_)
 
         # Residual error std per Y variable: prefer the cross-validated RMSE
         # when a cross_validate() result is supplied (calibration RMSE is
