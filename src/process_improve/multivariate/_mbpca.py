@@ -235,6 +235,10 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         # single-block estimator.
         self.feature_names_in_ = np.concatenate([self._block_columns[name].to_numpy() for name in self.block_names_])
         n_components = int(self.n_components)
+        # Fitted mirror of the constructor parameter, so shared helpers (the
+        # T2 limit mixin, spe_limit, the plot pre-checks) read one resolved
+        # attribute across PCA / PLS / MBPCA / MBPLS (#505).
+        self.n_components_ = n_components
         n_blocks = len(self.block_names_)
 
         self.has_missing_data_ = any(np.any(X[name].isna().values) for name in self.block_names_)
