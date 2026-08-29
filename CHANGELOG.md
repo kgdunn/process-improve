@@ -11,16 +11,43 @@ those changes.
 
 ## [Unreleased]
 
-## [1.75.1] - 2026-08-29
+## [1.75.2] - 2026-08-29
 
 ### Fixed
 
 - `test_point_exchange_always_returns_requested_run_count` (`tests/test_doe.py`)
   pins several previously-failing seeds (122, 146, 199, 319, 338) for the
   point-exchange fallback's run-count guarantee. The underlying fix is the
-  `1.75.0` entry above: raising this regression independently converged on
+  `1.75.0` entry below: raising this regression independently converged on
   the same root causes (the exchange loop's addition-only growth and the
   non-finite-score freeze), already fixed there.
+
+## [1.75.1] - 2026-08-29
+
+### Fixed
+
+- Docstring accuracy pass: five docstrings had drifted from the code.
+  - `univariate/tools.py` (`confidence_interval` tool): the "robust" method
+    formula in the input schema had lost its `sqrt(pi/2)` factor. The actual
+    formula the code computes is
+    `median +/- t * MAD * sqrt(pi/2) / sqrt(n)` (MAD estimates sigma; the
+    sqrt(pi/2) is the asymptotic standard error of the median).
+  - `multivariate/_pls.py` (`PLS.select_n_components`): `n_repeats` said
+    "Default 10" but the signature default is `None`, which the function
+    resolves to 10 internally. Docstring updated to say so.
+  - `batch/preprocessing.py` (`determine_scaling`): the Returns section
+    described the "typical minimum" column as "robustly calculated". The
+    per-batch minimum is the raw `batch.min(axis=0)`; only the cross-batch
+    aggregation is median (robust) or mean (non-robust).
+  - `multivariate/plots.py` (`score_plot`): the default `"title"` in the
+    `settings` block was documented as `"Score plot of ..."`, but the true
+    default is the empty string on the 2D path and a "Score plot of
+    component ..." sentence only on the 3D path (`pc_depth > 0`).
+  - `regression/_robust_regression.py` (`robust_regression`): the
+    Returns block said `intercept` is "returned if fit_intercept==True,
+    otherwise 0". The full-fit path honours that; the degenerate
+    early-return stub sets `intercept` to `np.nan` regardless of
+    `fit_intercept`. The docstring now spells out both paths.
 
 ## [1.75.0] - 2026-08-29
 
@@ -3759,7 +3786,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.75.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.75.2...HEAD
+[1.75.2]: https://github.com/kgdunn/process-improve/compare/v1.75.1...v1.75.2
 [1.75.1]: https://github.com/kgdunn/process-improve/compare/v1.75.0...v1.75.1
 [1.75.0]: https://github.com/kgdunn/process-improve/compare/v1.74.0...v1.75.0
 [1.74.0]: https://github.com/kgdunn/process-improve/compare/v1.73.4...v1.74.0
