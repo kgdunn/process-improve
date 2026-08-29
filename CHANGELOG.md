@@ -11,6 +11,35 @@ those changes.
 
 ## [Unreleased]
 
+## [1.73.4] - 2026-08-29
+
+Test hygiene from the 2026-08 audit triage: dataset-loader timeouts (#508),
+live test tiers (#510), and perf tests that can actually fail (#511).
+
+### Fixed
+
+- The remote sample-dataset loaders (`distillateflow()`, `oildoe()`) fetch
+  with an explicit timeout instead of an unbounded `pd.read_csv(url)`, so a
+  black-holing host raises the documented `RuntimeError` rather than hanging
+  the caller indefinitely (#508). The default of 30 s is a new
+  `dataset_fetch_timeout` knob on the config settings singleton, overridable
+  via `PROCESS_IMPROVE_DATASET_FETCH_TIMEOUT`. No on-disk cache was added.
+
+### Changed
+
+- The ENG-29 test tiers are now real (#510): `--strict-markers` is on, the
+  one network-fetching test in `tests/test_multivariate.py` carries
+  `@pytest.mark.dataset` so `-m "not dataset"` performs no network access,
+  and the tests measured at >= 2 s carry `@pytest.mark.slow`. CI still runs
+  the full suite with no marker filter.
+- The tests in `tests/perf/` assert deterministic ENG-18 cost-shape
+  properties (lazy frames built once and cached, pickling excludes the
+  cache, hot paths rebuild no frames, `check_random_state` generator
+  pass-through by identity) instead of running assertion-free
+  pytest-benchmark timings that could never fail (#511). The ENG-15
+  wall-clock benchmark CI job remains planned;
+  `CONTRIBUTING.md`'s performance-regression policy now says so honestly.
+
 ## [1.71.0] - 2026-08-22
 
 The multivariate statistical cluster from the 2026-08 audit triage (#513).
@@ -3475,7 +3504,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.71.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.73.4...HEAD
+[1.73.4]: https://github.com/kgdunn/process-improve/compare/v1.73.3...v1.73.4
 [1.71.0]: https://github.com/kgdunn/process-improve/compare/v1.70.0...v1.71.0
 [1.70.0]: https://github.com/kgdunn/process-improve/compare/v1.69.0...v1.70.0
 [1.69.0]: https://github.com/kgdunn/process-improve/compare/v1.68.0...v1.69.0
