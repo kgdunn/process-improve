@@ -24,6 +24,7 @@ class TestRobustRegressionDegenerateX:
 
 
 class TestDTWDistance:
+    @pytest.mark.slow
     def test_distance_is_the_accumulated_cost(self) -> None:
         """The DTW distance must equal D[-1, -1], not a sum of prefix sums."""
         pytest.importorskip("numba")

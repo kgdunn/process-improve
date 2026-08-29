@@ -37,6 +37,7 @@ def test_all_themes_registered() -> None:
         assert isinstance(pio.templates[name], go.layout.Template)
 
 
+@pytest.mark.slow
 def test_import_does_not_change_global_default() -> None:
     """Importing the package registers themes but leaves the global default alone.
 

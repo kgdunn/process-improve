@@ -93,6 +93,7 @@ def _payload_strategy(input_schema: dict[str, Any]) -> st.SearchStrategy:
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
 )
+@pytest.mark.slow
 def test_tool_never_leaks_unexpected_exception(spec: dict[str, Any], data: st.DataObject) -> None:
     """No schema-shaped payload makes a tool leak an undocumented exception."""
     name = spec["name"]

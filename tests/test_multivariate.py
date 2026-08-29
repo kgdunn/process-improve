@@ -124,6 +124,7 @@ def test_regress_y_space_on_x() -> None:
     assert pytest.approx(np.array([[1, 1, 1, 1, float("nan"), 2 / 3]]).T, nan_ok=True) == regression_vector
 
 
+@pytest.mark.slow
 def test_pca_spe_limits() -> None:
     """Simulate data and see if SPE limit cuts off at 5%."""
     N = 1000
@@ -154,6 +155,7 @@ def test_pca_spe_limits() -> None:
     assert np.mean(outliers_99) == pytest.approx(0.01 * N, rel=0.1)
 
 
+@pytest.mark.dataset
 def test_pca_foods() -> None:
     """Arrays with no variance should not be able to have variance extracted."""
 
@@ -392,6 +394,7 @@ def test_scale_zero_variance_column_is_finite() -> None:
     assert np.allclose(np.asarray(scaled, dtype=float)[:, 1], 0.0)
 
 
+@pytest.mark.slow
 def test_pca_tablet_spectra(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarray]) -> None:
     r"""
     Check PCA characteristics.
@@ -798,6 +801,7 @@ def test_pca_select_n_components_rule_dispatch() -> None:
         PCA.select_n_components(X_s, max_components=3, cv=3, cv_scheme="bogus")  # type: ignore[arg-type]
 
 
+@pytest.mark.slow
 def test_pca_select_n_components_n_repeats_narrows_se() -> None:
     """Repeated ekf gives reproducible answers and a narrower per-component SE."""
     rng = np.random.default_rng(2026)
@@ -2657,6 +2661,7 @@ def test_pls_detect_outliers_ldpe(
         assert severities == sorted(severities, reverse=True)
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_synthetic() -> None:
     """Cross-validated component selection recovers a known low-rank structure."""
     rng = np.random.default_rng(42)
@@ -2723,6 +2728,7 @@ def test_pls_select_n_components_synthetic() -> None:
     assert not result.cv_predictions.isna().any().any()
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_ldpe(
     fixture_pls_ldpe_example: dict[str, pd.DataFrame | np.ndarray | float | int],
 ) -> None:
@@ -2749,6 +2755,7 @@ def test_pls_select_n_components_ldpe(
     assert result.cv_predictions.shape == (n_samples, n_targets)
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_accepts_splitters() -> None:
     """The cv argument accepts an int and any sklearn splitter object."""
     rng = np.random.default_rng(7)
@@ -2809,6 +2816,7 @@ def test_pls_select_n_components_argument_validation() -> None:
         PLS.select_n_components(X, Y, cv=5, n_repeats=0)
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_1se_default_picks_parsimony() -> None:
     """The default (1-SE rule) is more parsimonious than argmin RMSECV on noise-padded data.
 
@@ -2835,6 +2843,7 @@ def test_pls_select_n_components_1se_default_picks_parsimony() -> None:
     assert res_1se.n_components <= 8
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_repeated_kfold_stability() -> None:
     """Repeated K-fold gives reproducible answers given a random_state and
     narrows the per-component standard error as repeats grow.
@@ -2859,6 +2868,7 @@ def test_pls_select_n_components_repeated_kfold_stability() -> None:
     assert (many.se_rmsecv < few.se_rmsecv).all()
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_in_fold_scaling_no_leakage() -> None:
     """In-fold scaling is the default; raw, unscaled X/Y produce sensible RMSECV."""
     rng = np.random.default_rng(99)
@@ -2904,6 +2914,7 @@ def test_pls_select_n_components_in_fold_scaling_no_leakage() -> None:
     assert 1 <= leaky.n_components <= 5
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_q2_increment_rule() -> None:
     """The Q2-increment rule (from PR #371) is preserved as an opt-in."""
     rng = np.random.default_rng(2025)
@@ -2930,6 +2941,7 @@ def test_pls_select_n_components_q2_increment_rule() -> None:
         PLS.select_n_components(X, Y, max_components=3, cv=3, selection_rule="bogus")  # type: ignore[arg-type]
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_stability_signal() -> None:
     """Per-repeat vote distribution flags confident vs. uncertain recommendations."""
     rng = np.random.default_rng(0)
@@ -2999,6 +3011,7 @@ def test_pls_select_n_components_stability_signal() -> None:
     assert strict.selection_is_stable is False
 
 
+@pytest.mark.slow
 def test_pls_nested_cv_recovers_known_rank_and_reports_rmsep() -> None:
     """Nested CV converges on the true rank and reports honest RMSEP."""
     rng = np.random.default_rng(7)
@@ -3273,6 +3286,7 @@ def test_get_feature_names_out_mcuv_pca_pls() -> None:
     assert out.shape == (30, 2)
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_randomization_rule() -> None:
     """Van der Voet's randomization test picks a parsimonious model."""
     rng = np.random.default_rng(2026)
@@ -3963,6 +3977,7 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     assert predictions.spe is not None  # test the `Bunch` functionality
 
 
+@pytest.mark.slow
 def test_tpls_cross_validation(fixture_tpls_example: dict) -> None:
     """Test the prediction process of the TPLS model to ensure it functions as expected."""
     n_components = 3
@@ -4707,6 +4722,7 @@ def test_observation_contributions_pls() -> None:
         model.observation_contributions(n_components=5)
 
 
+@pytest.mark.slow
 def test_eigenvalue_summary_pca(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarray]) -> None:
     """Eigenvalue summary for PCA on a real dataset: tidy table, monotone cumulative."""
     spectra, _ = fixture_tablet_spectra_data
