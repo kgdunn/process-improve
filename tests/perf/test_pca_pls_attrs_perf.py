@@ -75,7 +75,9 @@ def test_pca_loadings_frame_built_once_and_cached(monkeypatch) -> None:
     calls: list[str] = []
     _count_lazyframe_builds(monkeypatch, calls)
 
-    assert model.loadings_ is model.loadings_
+    first = model.loadings_
+    second = model.loadings_
+    assert first is second, "repeated loadings_ access must return the cached object"
     assert len(calls) == 1
 
 
