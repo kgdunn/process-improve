@@ -564,7 +564,7 @@ def test_expt_repr() -> None:
 
 
 def test_optimization_function_basic() -> None:
-    """optimization_function should return log determinant of (X'X)^-1."""
+    """optimization_function should return the negative log determinant of X'X."""
     X = pd.DataFrame([[-1, -1], [1, -1], [-1, 1], [1, 1]])
     result = optimization_function(X)
     assert np.isfinite(result)

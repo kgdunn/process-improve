@@ -11,28 +11,82 @@ those changes.
 
 ## [Unreleased]
 
-## [1.74.1] - 2026-08-29
+## [1.75.1] - 2026-08-29
 
 ### Fixed
 
-- `dispatch_d_optimal`, `dispatch_i_optimal`, and `dispatch_a_optimal` now
-  floor the run budget at `k + 1` on the pyoptex path too, matching the
-  point-exchange fallback and the documented clamp contract. Previously a
-  budget below `k + 1` was passed to pyoptex unclamped, which handled the
-  infeasible run count unpredictably and made
-  `test_budget_clamped_to_minimum_model_size` fail intermittently.
-- `point_exchange` (the D-optimal fallback backend) now always returns
-  exactly `number_points` rows. Two bugs let it fall short: the exchange
-  loop only grows the design when an addition improves the criterion, and a
-  candidate consumed by a replacement was never reconsidered for addition,
-  so an unlucky shuffle could end below `number_points` on roughly 1 to 2%
-  of unseeded runs; the design is now completed greedily with the remaining
-  candidates that best preserve D-optimality. Separately, a numerically
-  singular `X'X` could pass `np.linalg.inv` without raising and score
-  `log|det| = -inf`, which the lower-is-better convention then ranked as
-  unbeatable and froze the exchange loop; non-finite scores now read as
-  unacceptable (`+inf`), matching the existing exactly-singular case. Both
-  were the underlying mechanism behind the dispatcher-level shortfall above.
+- `test_point_exchange_always_returns_requested_run_count` (`tests/test_doe.py`)
+  pins several previously-failing seeds (122, 146, 199, 319, 338) for the
+  point-exchange fallback's run-count guarantee. The underlying fix is the
+  `1.75.0` entry above: raising this regression independently converged on
+  the same root causes (the exchange loop's addition-only growth and the
+  non-finite-score freeze), already fixed there.
+
+## [1.75.0] - 2026-08-29
+
+D-optimal designs are now guaranteed estimable: every design these functions
+return has enough runs, and a full-rank model matrix, for the model that was
+asked for.
+
+### Fixed
+
+- `optimization_function` (`experiments/optimal.py`) no longer prefers designs
+  the model cannot be fitted to. It scored a design by inverting `X'X` and
+  taking `slogdet` of the inverse, treating a `LinAlgError` as "singular".
+  `numpy.linalg.inv` raises only when the LU factorisation hits an exactly-zero
+  pivot, which a rank-deficient design over +-1 levels routinely slips past; the
+  inverse then came back as numerical noise whose log-determinant is a large
+  *negative* number, i.e. the best possible score for a search that minimises
+  it. Inestimable designs were therefore actively selected, not merely tolerated.
+  The score is now `-log|det(X'X)|` from `slogdet` directly, guarded by an
+  explicit rank check that returns `+inf` for any design with fewer runs than
+  parameters or a rank-deficient model matrix. Over 500 draws of a 3-factor
+  D-optimal design at the minimum budget, rank-deficient results fell from
+  36 in 200 to 0 in 500.
+- The D-criterion is now computed on the model matrix `[1 | factors]` rather
+  than on the raw factor settings. Without the intercept column, a design
+  holding a factor at a single level scored perfectly well even though that
+  factor was completely aliased with the intercept.
+- `point_exchange` returns exactly `number_points` runs. It used to seed the
+  design with one row per factor and grow it only through additions that
+  improved D-optimality, so when no addition improved it the caller silently
+  received a shorter design than requested (measured: 3 in 400 at 4 points, and
+  designs of 10 or 11 rows when 12 were requested). The design size is a
+  constraint, not something the search may trade away; the search now seeds at
+  the requested size and only ever swaps one row for another.
+- `dispatch_d_optimal`, `dispatch_i_optimal` and `dispatch_a_optimal` raise the
+  budget to the declared model's coefficient count, logging a warning when they
+  do. Previously `dispatch_d_optimal`'s point-exchange fallback clamped to
+  `n_factors + 1`, the size of a main-effects model only, so an `interactions`
+  or `quadratic` request got a design far too small to fit it; and the pyoptex
+  path had no floor at all, failing with an upstream `ValueError` about "rank
+  collinearity" between model components that names neither the budget nor the
+  model. This also repairs the `budget = 2 * n_factors + 1` default, which is
+  below an interactions model's size from four factors up and a quadratic
+  model's from three: `dispatch_d_optimal(factors)` with four factors and the
+  default `model_type="interactions"` used to fail outright, and now returns
+  the 11 runs that model needs.
+- `point_exchange` raises `ValueError` when `x` has a duplicated index. The
+  search tracks the chosen rows by index label, so a repeated label made the
+  `.loc` lookup return every row carrying it: a request for 4 runs from a
+  6-row candidate set with one repeated label came back with all 6. Rows that
+  are duplicated by value are still fine, and dropped as before.
+
+### Changed
+
+- `point_exchange` requires `number_points` to be at least `x.shape[1] + 1`,
+  one run per column plus the intercept. The bound was `x.shape[1]`, one short
+  of the model being scored, so a request for exactly that many runs was
+  accepted and then spent 1000 attempts failing to find a non-singular start,
+  reported as a problem with the candidate set.
+- `point_exchange` raises when `number_points` exceeds the number of *unique*
+  candidate rows, instead of silently clamping the design down to that number.
+  The upper bound is also now checked after de-duplication, since the search
+  selects distinct rows and duplicates cannot make up a shortfall.
+- The D-optimality value returned by `point_exchange` (and reported as
+  `meta["d_optimality"]`) is `-log|det(X'X)|` on the model matrix. It was
+  `log|det((X'X)^-1)|` on the factor settings alone. Values are not comparable
+  across this release.
 
 ## [1.74.0] - 2026-08-29
 
@@ -3705,8 +3759,9 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.74.1...HEAD
-[1.74.1]: https://github.com/kgdunn/process-improve/compare/v1.74.0...v1.74.1
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.75.1...HEAD
+[1.75.1]: https://github.com/kgdunn/process-improve/compare/v1.75.0...v1.75.1
+[1.75.0]: https://github.com/kgdunn/process-improve/compare/v1.74.0...v1.75.0
 [1.74.0]: https://github.com/kgdunn/process-improve/compare/v1.73.4...v1.74.0
 [1.73.4]: https://github.com/kgdunn/process-improve/compare/v1.73.3...v1.73.4
 [1.73.3]: https://github.com/kgdunn/process-improve/compare/v1.73.2...v1.73.3
