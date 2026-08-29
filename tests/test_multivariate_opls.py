@@ -113,7 +113,7 @@ def test_opls_scores_shape_and_labels(cheese: tuple[pd.DataFrame, pd.DataFrame])
     opls = OPLS(n_orthogonal_components=2).fit(X, y)
     assert list(opls.scores_.columns) == ["t_predictive", "t_orthogonal_1", "t_orthogonal_2"]
     assert opls.scores_.shape == (X.shape[0], 3)
-    assert opls.n_components == 3
+    assert opls.n_components_ == 3
 
 
 def test_opls_transform_matches_predictive_scores(cheese: tuple[pd.DataFrame, pd.DataFrame]) -> None:

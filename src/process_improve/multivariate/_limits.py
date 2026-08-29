@@ -90,7 +90,7 @@ def spe_limit(model: BaseEstimator, conf_level: float = 0.95) -> float:
     check_is_fitted(model, "spe_")
 
     return spe_calculation(
-        spe_values=model.spe_.iloc[:, model.n_components - 1],
+        spe_values=model.spe_.iloc[:, model.n_components_ - 1],
         conf_level=conf_level,
     )
 
