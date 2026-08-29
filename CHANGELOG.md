@@ -11,6 +11,27 @@ those changes.
 
 ## [Unreleased]
 
+## [1.73.1] - 2026-08-29
+
+### Fixed
+
+- ECharts adapter (#509): a panel's annotations now always attach to a series
+  of that panel, in both the single-panel and multi-panel paths; a panel with
+  annotations but no layers gets an empty carrier series instead of painting
+  the previous panel. A data row missing an encoded field raises `KeyError`
+  (matching the Plotly adapter) instead of silently plotting 0; a ragged
+  `z_matrix` raises `ValueError` instead of filling missing cells with 0; and
+  per-point `colors` / `error_y` style lists whose length does not match the
+  data raise `ValueError` instead of silently truncating the series. Both
+  adapters now raise `NotImplementedError` for the declared-but-unimplemented
+  `MarkType.area` and `AnnotationType.label` instead of silently falling back
+  to a scatter trace or dropping the annotation.
+- Visualization tests (#512): the Plotly annotation-rendering tests now assert
+  on the rendered `layout.shapes` / `layout.annotations` structure instead of
+  a tautology, and `test_themes.py` restores the `plotly.io.templates.default`
+  value that was in effect before the test rather than forcing the package
+  default, so the theme no longer leaks into later tests in the same worker.
+
 ## [1.73.0] - 2026-08-29
 
 ### Fixed
@@ -3534,7 +3555,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.73.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.73.1...HEAD
+[1.73.1]: https://github.com/kgdunn/process-improve/compare/v1.73.0...v1.73.1
 [1.73.0]: https://github.com/kgdunn/process-improve/compare/v1.72.0...v1.73.0
 [1.72.0]: https://github.com/kgdunn/process-improve/compare/v1.71.0...v1.72.0
 [1.71.0]: https://github.com/kgdunn/process-improve/compare/v1.70.0...v1.71.0

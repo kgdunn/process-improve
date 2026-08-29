@@ -164,16 +164,26 @@ class PlotlyAdapter(AbstractAdapter):
     # Layer → Plotly trace
     # ------------------------------------------------------------------
 
-    def _layer_to_trace(self, layer: LayerSpec) -> tuple[BaseTraceType, bool]:  # noqa: PLR0911
+    def _layer_to_trace(self, layer: LayerSpec) -> tuple[BaseTraceType, bool]:  # noqa: C901, PLR0911
         """Convert a :class:`LayerSpec` to a Plotly trace.
 
         Returns
         -------
         tuple[go.BaseTraceType, bool]
             The trace and whether it targets the secondary y-axis.
+
+        Raises
+        ------
+        NotImplementedError
+            If the layer uses :attr:`MarkType.area`, which is declared in
+            the spec vocabulary but not implemented here.
         """
         on_secondary = layer.style.get("secondary_y", False)
         mark = layer.mark if isinstance(layer.mark, MarkType) else MarkType(layer.mark)
+
+        if mark == MarkType.area:
+            msg = "MarkType.area is declared in the spec vocabulary but not implemented in the Plotly adapter."
+            raise NotImplementedError(msg)
 
         # Marks that don't read from layer.x.field / layer.y.field at the
         # row level (they use layer.style grids or row-level ``q_stats``).
@@ -407,7 +417,7 @@ class PlotlyAdapter(AbstractAdapter):
     # Annotations → Plotly shapes / annotations
     # ------------------------------------------------------------------
 
-    def _add_annotation(  # noqa: C901
+    def _add_annotation(  # noqa: C901, PLR0912
         self,
         fig: go.Figure,
         ann: Annotation,
@@ -498,3 +508,7 @@ class PlotlyAdapter(AbstractAdapter):
                     row=row or "all",
                     col=col or "all",
                 )
+
+        elif at == AnnotationType.label:
+            msg = "AnnotationType.label is declared in the spec vocabulary but not implemented in the Plotly adapter."
+            raise NotImplementedError(msg)
