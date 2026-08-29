@@ -11,6 +11,17 @@ those changes.
 
 ## [Unreleased]
 
+## [1.74.1] - 2026-08-29
+
+### Fixed
+
+- `dispatch_d_optimal`, `dispatch_i_optimal`, and `dispatch_a_optimal` now
+  floor the run budget at `k + 1` on the pyoptex path too, matching the
+  point-exchange fallback and the documented clamp contract. Previously a
+  budget below `k + 1` was passed to pyoptex unclamped, which handled the
+  infeasible run count unpredictably and made
+  `test_budget_clamped_to_minimum_model_size` fail intermittently.
+
 ## [1.71.0] - 2026-08-22
 
 The multivariate statistical cluster from the 2026-08 audit triage (#513).
@@ -3475,7 +3486,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.71.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.74.1...HEAD
+[1.74.1]: https://github.com/kgdunn/process-improve/compare/v1.74.0...v1.74.1
 [1.71.0]: https://github.com/kgdunn/process-improve/compare/v1.70.0...v1.71.0
 [1.70.0]: https://github.com/kgdunn/process-improve/compare/v1.69.0...v1.70.0
 [1.69.0]: https://github.com/kgdunn/process-improve/compare/v1.68.0...v1.69.0
