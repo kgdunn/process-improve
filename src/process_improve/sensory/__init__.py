@@ -32,6 +32,11 @@ from process_improve.sensory.designed import (
     factorial_anova,
     tukey_hsd,
 )
+from process_improve.sensory.diagnostics import (
+    assessor_variance_equality,
+    boundary_occupancy,
+    detection_rate,
+)
 from process_improve.sensory.ingest import reshape_to_long
 from process_improve.sensory.mam import MAMResult, align_scores, mixed_assessor_model
 from process_improve.sensory.panel import PanelScorecard, apply_correction, panel_scorecard
@@ -54,7 +59,10 @@ __all__ = [
     "align_scores",
     "analyze_descriptive",
     "apply_correction",
+    "assessor_variance_equality",
+    "boundary_occupancy",
     "compare_products",
+    "detection_rate",
     "discriminate_observational",
     "dunnett_vs_control",
     "factorial_anova",

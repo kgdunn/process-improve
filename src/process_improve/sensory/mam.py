@@ -45,6 +45,9 @@ from process_improve.regression._robust_regression import repeated_median_slope
 #: who is flat or anti-correlated with the panel cannot be scale-corrected).
 _MIN_SLOPE = 0.2
 
+#: Columns :func:`mixed_assessor_model` reads out of the long-format panel.
+_REQUIRED_COLUMNS: tuple[str, ...] = ("panelist_id", "product", "attribute", "score")
+
 AlignMethod = str  # "both" | "location" | "scale"
 
 
@@ -107,11 +110,34 @@ def mixed_assessor_model(panel: pd.DataFrame) -> MAMResult:
         Per-panelist scaling coefficients and per-attribute F-tests; see the
         class docstring.
 
+    Raises
+    ------
+    ValueError
+        If a required column is missing, or the panel has no rows. An empty
+        panel is reachable whenever an upstream filter removes every attribute;
+        the frames built from it would have no columns at all, so the caller
+        would meet the problem as a ``KeyError`` on ``ftests["f_product_mam"]``
+        rather than here.
+
     Examples
     --------
     >>> mam = mixed_assessor_model(validated.normalized_df)
     >>> mam.scaling.query("attribute == 'saltiness'").sort_values("beta").head()
     """
+    missing = [column for column in _REQUIRED_COLUMNS if column not in panel.columns]
+    if missing:
+        raise ValueError(
+            f"mixed_assessor_model needs the long-format panel columns {list(_REQUIRED_COLUMNS)}; "
+            f"missing {missing}. Got columns {list(panel.columns)}."
+        )
+    if len(panel) == 0:
+        raise ValueError(
+            "mixed_assessor_model was given a panel with no rows, so there is no attribute "
+            "to fit. This usually means an upstream filter (an attribute list, a panelist "
+            "exclusion, a product subset) removed everything; check that filter rather than "
+            "this call."
+        )
+
     scaling_rows: list[dict[str, object]] = []
     ftest_rows: list[dict[str, object]] = []
 
