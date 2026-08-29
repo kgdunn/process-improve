@@ -71,7 +71,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from process_improve.experiments.designs_omars import _second_order_terms, is_omars, omars_properties
+from process_improve.experiments.designs_omars import _second_order_terms, is_omars
 
 try:
     import pulp
@@ -106,6 +106,16 @@ _SATISFICE_KEYS = ("d_efficiency", "max_second_order_correlation")
 # turn up a new distinct design: the feasible set is effectively exhausted (small
 # factor counts) and further solves only repeat designs already retained.
 _RESTART_PATIENCE = 25
+
+# The exhaustive search enumerates every feasible half-design multiset (counts
+# per sign class, replication allowed) when the class is small enough.  The caps
+# below bound the half-design size per factor count; beyond them, or past the
+# leaf budget, the search falls back to the randomized multistart.  The caps are
+# calibrated so the worst in-cap cell enumerates in seconds on ordinary hardware.
+_ENUM_MAX_HALF = {3: 18, 4: 12}
+_ENUM_MAX_LEAVES = 4_000_000
+# Batch size for the vectorised scoring of enumerated count vectors.
+_ENUM_SCORE_CHUNK = 65_536
 
 
 @dataclass
@@ -144,6 +154,14 @@ class OmarsSearchReport:
         Run count of the winning design.
     total_solve_seconds : float
         Cumulative wall-clock time spent inside the ILP solver.
+    search_mode : str
+        ``"exhaustive"`` when the feasible design class was enumerated in full
+        (the selection is then exact), ``"multistart"`` when the randomized
+        ILP multistart was used (the selection is then the best design found,
+        which may miss the optimum).
+    enumerated_designs : int
+        Number of feasible designs enumerated on the exhaustive path (0 on the
+        multistart path).
     """
 
     n_factors: int = 0
@@ -153,6 +171,8 @@ class OmarsSearchReport:
     feasible_designs: int = 0
     run_size: int = 0
     total_solve_seconds: float = 0.0
+    search_mode: str = ""
+    enumerated_designs: int = 0
 
 
 def _half_pool(n_factors: int) -> np.ndarray:
@@ -395,6 +415,7 @@ def _half_bounds(
     n_params: int,
     half_pool_size: int,
     min_half: int,
+    center_runs: int = 1,
 ) -> tuple[int, int]:
     """Inclusive ``(min, max)`` half-run window for a usable design.
 
@@ -403,17 +424,18 @@ def _half_bounds(
     * **Estimability**: ``min_half`` half-runs, from :func:`_min_half_runs`.
       Below this the sizing model is rank-deficient and cannot be fitted at
       all, whatever the parameter count says.
-    * **Error degrees of freedom**: ``n_runs > n_params``, so at least
-      ``n_params // 2 + 1`` half-runs.
+    * **Error degrees of freedom**: the total run count ``2h + center_runs``
+      must exceed ``n_params``.
 
     For the full second-order model estimability is the binding floor; for
-    ``"main_quadratic"`` the error-df floor usually is.
+    ``"main_quadratic"`` the error-df floor usually is.  *n_runs_range* is in
+    total runs, centre runs included.
     """
-    floor_half = max(1, min_half, n_params // 2 + 1)
+    floor_half = max(1, min_half, (n_params - center_runs) // 2 + 1)
     if n_runs_range is not None:
-        low, _high = n_runs_range
-        half_low = max(floor_half, math.ceil((low - 1) / 2))
-        half_high = max(half_low, (n_runs_range[1] - 1) // 2)
+        low, high = n_runs_range
+        half_low = max(floor_half, math.ceil((low - center_runs) / 2))
+        half_high = max(half_low, (high - center_runs) // 2)
     else:
         half_low = floor_half
         half_high = half_low + 6
@@ -488,6 +510,240 @@ def _sparsity(coded: np.ndarray) -> tuple[int, int]:
     return n_me0, n_ie0
 
 
+def _max_second_order_correlation_metric(coded: np.ndarray, tol: float = 1e-9) -> float:
+    """Largest absolute pairwise correlation among the second-order columns of a design.
+
+    Unlike the descriptive statistic in
+    :func:`process_improve.experiments.designs_omars.omars_properties` (which
+    skips constant columns), this selection metric returns ``inf`` when any
+    second-order column is constant: such a column belongs to a term the design
+    cannot estimate, and skipping it would flatter exactly the degenerate
+    designs a correlation-minimising selection would then crown as winners.
+    """
+    second_order, _ = _second_order_terms(coded)
+    if second_order.shape[1] < 2:
+        return 0.0
+    centered = second_order - second_order.mean(axis=0, keepdims=True)
+    norms = np.linalg.norm(centered, axis=0)
+    if np.any(norms <= tol):
+        return float("inf")
+    unit = centered / norms
+    corr = unit.T @ unit
+    off_diagonal = corr - np.diag(np.diag(corr))
+    return float(np.abs(off_diagonal).max())
+
+
+def _enumerate_feasible_counts(  # noqa: C901, PLR0915
+    pool: np.ndarray, n_half: int, max_leaves: int
+) -> tuple[np.ndarray, bool]:
+    """Enumerate every feasible half-design multiset of size *n_half*.
+
+    A foldover OMARS design is determined by how many times each sign class in
+    *pool* appears in the half-design (replication allowed), so the design class
+    at a fixed size is the set of count vectors ``m >= 0`` with
+    ``sum(m) = n_half`` that satisfy the pairwise main-effect orthogonality
+    equalities ``sum_r (x_ri * x_rj) m_r = 0``.  This walks that set with a
+    depth-first search over the counts, pruning on the running pair balances.
+
+    Returns ``(count_matrix, overflow)``: an integer array of shape
+    ``(n_designs, len(pool))`` with columns in the row order of *pool*, and an
+    ``overflow`` flag that is ``True`` when the *max_leaves* budget was hit
+    (the enumeration is then incomplete and must not be used).
+    """
+    n_rows, n_factors = pool.shape
+    pairs = list(itertools.combinations(range(n_factors), 2))
+    n_pairs = len(pairs)
+    # Deterministic order: widest-support rows first, so every orthogonality
+    # constraint closes out (and prunes) as early as possible; the k singleton
+    # rows, which touch no constraint, form the tail and are expanded
+    # vectorised below rather than recursed over.
+    support = (pool != 0).sum(axis=1)
+    order = sorted(range(n_rows), key=lambda r: (-int(support[r]), tuple(-pool[r])))
+    coeff: list[list[tuple[int, int]]] = []
+    for r in order:
+        row = pool[r]
+        coeff.append([(p, int(row[i] * row[j])) for p, (i, j) in enumerate(pairs) if row[i] * row[j] != 0])
+    tail_start = n_rows - n_factors
+    last_touch = [-1] * n_pairs
+    for pos, entries in enumerate(coeff):
+        for p, _ in entries:
+            last_touch[p] = pos
+    # Per DFS level: the constraints whose last touching row was just passed
+    # (they must have closed at zero) and those still open (prunable by the
+    # remaining budget).  Checking only these keeps the per-node work small.
+    closing_at = [[p for p in range(n_pairs) if last_touch[p] == pos - 1] for pos in range(tail_start + 1)]
+    open_at = [[p for p in range(n_pairs) if last_touch[p] >= pos] for pos in range(tail_start + 1)]
+
+    prefixes: list[tuple[tuple[int, ...], int]] = []
+    n_leaves = 0
+    counts = [0] * tail_start
+    balance = [0] * n_pairs
+    overflow = False
+    # Different prefixes converge on the same (position, remaining, balances)
+    # state; a state whose subtree yielded no feasible design once will yield
+    # none again, so dead states are memoized and skipped on revisits.
+    dead: set[tuple[int, ...]] = set()
+
+    def tail_leaves(remaining: int) -> int:
+        return math.comb(remaining + n_factors - 1, n_factors - 1)
+
+    def rec(pos: int, remaining: int) -> None:  # noqa: C901
+        nonlocal overflow, n_leaves
+        if overflow:
+            return
+        for p in closing_at[pos]:
+            if balance[p]:
+                return
+        if pos == tail_start:
+            n_leaves += tail_leaves(remaining)
+            if n_leaves > max_leaves:
+                overflow = True
+                return
+            prefixes.append((tuple(counts), remaining))
+            return
+        for p in open_at[pos]:
+            if abs(balance[p]) > remaining:
+                return
+        key = (pos, remaining, *(balance[p] for p in open_at[pos]))
+        if key in dead:
+            return
+        before = len(prefixes)
+        entries = coeff[pos]
+        for c in range(remaining, -1, -1):
+            counts[pos] = c
+            for p, v in entries:
+                balance[p] += c * v
+            rec(pos + 1, remaining - c)
+            for p, v in entries:
+                balance[p] -= c * v
+        counts[pos] = 0
+        if len(prefixes) == before and not overflow:
+            dead.add(key)
+
+    rec(0, n_half)
+    if overflow:
+        return np.empty((0, n_rows), dtype=np.int16), True
+
+    # Expand the unconstrained singleton tail: distribute each prefix's leftover
+    # budget over the n_factors singleton rows in every possible way.
+    comp_cache: dict[int, np.ndarray] = {}
+
+    def compositions(total: int) -> np.ndarray:
+        cached = comp_cache.get(total)
+        if cached is None:
+            rows = [
+                [total - sum(parts), *parts]
+                for parts in itertools.product(range(total + 1), repeat=n_factors - 1)
+                if sum(parts) <= total
+            ]
+            cached = np.asarray(rows, dtype=np.int16)
+            comp_cache[total] = cached
+        return cached
+
+    blocks = []
+    for prefix, remaining in prefixes:
+        tail = compositions(remaining)
+        head = np.tile(np.asarray(prefix, dtype=np.int16), (tail.shape[0], 1))
+        blocks.append(np.hstack([head, tail]))
+    if not blocks:
+        return np.empty((0, n_rows), dtype=np.int16), False
+    ordered = np.vstack(blocks)
+    # Map the DFS ordering back to pool row order.
+    inverse = np.argsort(order)
+    return ordered[:, inverse], False
+
+
+def _score_count_vectors(
+    count_matrix: np.ndarray,
+    pool: np.ndarray,
+    center_runs: int,
+    model: str,
+    tol: float = 1e-9,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Score enumerated count vectors: D-efficiency, A-optimality, max second-order correlation.
+
+    Works from the count vectors alone, without materialising any design: for a
+    foldover the model Gram matrix is a count-weighted sum of per-sign-class
+    contributions plus the centre-run block, and the second-order columns are
+    even functions, so their Gram doubles per half-row.  Scores match
+    :func:`_d_efficiency`, :func:`_a_optimality` and
+    :func:`_max_second_order_correlation_metric` evaluated on the materialised
+    design (foldover plus ``center_runs - 1`` appended centre rows).
+    """
+    n_rows = pool.shape[0]
+    n_leaves = count_matrix.shape[0]
+    n_half_total = int(count_matrix[0].sum()) if n_leaves else 0
+    n_total = 2 * n_half_total + center_runs
+
+    second_order, so_names = _second_order_terms(pool)
+    if model == "main_quadratic":
+        keep = [t for t, name in enumerate(so_names) if "^2" in name]
+        model_even = second_order[:, keep]
+    else:
+        model_even = second_order
+    # Model rows for +h and -h: [1 | +-x | even terms]; their outer products sum.
+    u_plus = np.column_stack([np.ones(n_rows), pool, model_even])
+    u_minus = np.column_stack([np.ones(n_rows), -pool, model_even])
+    n_params = u_plus.shape[1]
+    b_flat = (np.einsum("ri,rj->rij", u_plus, u_plus) + np.einsum("ri,rj->rij", u_minus, u_minus)).reshape(n_rows, -1)
+    b_center = np.zeros((n_params, n_params))
+    b_center[0, 0] = 1.0
+
+    q = second_order.shape[1]
+    so_gram_flat = 2.0 * np.einsum("ri,rj->rij", second_order, second_order).reshape(n_rows, -1)
+    so_colsum = 2.0 * second_order
+
+    d_eff = np.empty(n_leaves)
+    a_opt = np.empty(n_leaves)
+    max_corr = np.empty(n_leaves)
+    for start in range(0, n_leaves, _ENUM_SCORE_CHUNK):
+        chunk = count_matrix[start : start + _ENUM_SCORE_CHUNK].astype(float)
+        n_chunk = chunk.shape[0]
+        gram = (chunk @ b_flat).reshape(n_chunk, n_params, n_params)
+        gram += center_runs * b_center
+        eig = np.linalg.eigvalsh(gram)
+        singular = eig[:, 0] <= tol * np.maximum(1.0, eig[:, -1])
+        with np.errstate(divide="ignore", invalid="ignore"):
+            log_det = np.where(singular, -np.inf, np.log(np.where(eig > 0, eig, 1.0)).sum(axis=1))
+            d_chunk = np.where(singular, 0.0, 100.0 * np.exp(log_det / n_params) / n_total)
+            a_chunk = np.where(singular, np.inf, (1.0 / np.where(eig > 0, eig, 1.0)).sum(axis=1))
+
+        so_gram = (chunk @ so_gram_flat).reshape(n_chunk, q, q)
+        colsum = chunk @ so_colsum
+        centered = so_gram - colsum[:, :, None] * colsum[:, None, :] / n_total
+        variances = np.einsum("lii->li", centered)
+        constant = (variances <= tol).any(axis=1)
+        safe_var = np.where(variances > tol, variances, 1.0)
+        scale = np.sqrt(safe_var[:, :, None] * safe_var[:, None, :])
+        corr = np.abs(centered / scale)
+        idx = np.arange(q)
+        corr[:, idx, idx] = 0.0
+        corr_chunk = np.where(constant, np.inf, corr.max(axis=(1, 2)))
+
+        d_eff[start : start + n_chunk] = d_chunk
+        a_opt[start : start + n_chunk] = a_chunk
+        max_corr[start : start + n_chunk] = corr_chunk
+    return d_eff, a_opt, max_corr
+
+
+def _pick_exhaustive_winner(d_eff: np.ndarray, a_opt: np.ndarray, max_corr: np.ndarray, criterion: str) -> int:
+    """Index of the winning count vector, mirroring the tie-breaks of :func:`_select`.
+
+    All enumerated designs share the same run count, so the run-size terms of
+    the :func:`_select` tie-break tuples drop out.
+    """
+    if criterion == "d_efficiency":
+        keys = (max_corr, -d_eff)
+    elif criterion == "min_second_order_correlation":
+        keys = (-d_eff, max_corr)
+    elif criterion == "a_optimal":
+        keys = (max_corr, a_opt)
+    else:  # "dominance": the Pareto-front member with the highest D-efficiency.
+        keys = (max_corr, -d_eff)
+    # np.lexsort sorts by the last key first.
+    return int(np.lexsort(keys)[0])
+
+
 def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
     factors: list[Factor],
     *,
@@ -501,11 +757,16 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
     tol: float,
     verify: bool,
     random_seed: int,
+    center_runs: int = 1,
 ) -> tuple[np.ndarray, dict]:
-    """Run the ILP search and return ``(coded_matrix, metadata)`` for the winner.
+    """Run the design search and return ``(coded_matrix, metadata)`` for the winner.
 
-    The returned matrix is a foldover design and already contains exactly one
-    centre run; callers add any further centre runs during post-processing.
+    *n_runs*, *n_runs_range*, and every reported run count are **totals**,
+    centre runs included.  The returned matrix is a foldover design and
+    contains exactly one centre run; callers append the remaining
+    ``center_runs - 1`` centre rows during post-processing, but all quality
+    metrics here are computed with those rows included, so the metadata
+    describes the design the caller receives.
     """
     from process_improve.config import settings  # noqa: PLC0415
 
@@ -532,27 +793,35 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         if n_runs <= n_params:
             msg = (
                 f"n_runs={n_runs} leaves no error degrees of freedom: the {model} model has "
-                f"{n_params} parameters, so n_runs must exceed {n_params}."
+                f"{n_params} parameters, so n_runs (the total run count, centre runs included) "
+                f"must exceed {n_params}."
             )
             raise ValueError(msg)
-        if n_runs % 2 == 0:
-            msg = f"n_runs={n_runs} must be odd: a foldover OMARS design has 2*h+1 runs (a centre run plus +/-H)."
+        if n_runs <= center_runs or (n_runs - center_runs) % 2 != 0:
+            msg = (
+                f"n_runs={n_runs} is incompatible with center_runs={center_runs}: a foldover OMARS "
+                f"design has n_runs = 2*h + center_runs runs (h half-runs, their h mirrors, and the "
+                f"centre runs), so n_runs - center_runs must be a positive even number. "
+                f"Try n_runs={n_runs + 1} or n_runs={n_runs - 1}."
+            )
             raise ValueError(msg)
-        min_runs = _min_runs(n_factors, model)
+        min_runs = 2 * _min_half_runs(n_factors, model) + center_runs
         if n_runs < min_runs:
             msg = (
-                f"n_runs={n_runs} cannot estimate the {model} model for {n_factors} factors: a foldover "
-                f"design repeats its second-order terms across H and -H, so the model matrix stays "
-                f"rank-deficient below {min_runs} runs. Use n_runs >= {min_runs}, or "
-                'model="main_quadratic" to size for main effects and pure quadratics only.'
+                f"n_runs={n_runs} cannot estimate the {model} model for {n_factors} factors with "
+                f"center_runs={center_runs}: a foldover design repeats its second-order terms across "
+                f"H and -H, so the model matrix stays rank-deficient below {min_runs} runs. Use "
+                f'n_runs >= {min_runs}, or model="main_quadratic" to size for main effects and pure '
+                "quadratics only."
             )
             raise ValueError(msg)
-        target_half = (n_runs - 1) // 2
+        target_half = (n_runs - center_runs) // 2
 
     pool = _half_pool(n_factors)
     report = OmarsSearchReport(n_factors=n_factors, half_pool_size=pool.shape[0], n_restarts=n_restarts)
     candidates: list[_Candidate] = []
     seen: set[frozenset[int]] = set()
+    extra_centers = np.zeros((center_runs - 1, n_factors))
 
     def _solve(**solve_kwargs: Any) -> tuple[np.ndarray | None, str, list[int]]:  # noqa: ANN401
         started = time.perf_counter()
@@ -569,15 +838,17 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         seen.add(key)
         if verify and not is_omars(coded, tol=tol):
             return False
-        properties = omars_properties(coded, tol=tol)
+        # Score the design the caller will actually receive: the foldover plus
+        # the extra centre runs appended during post-processing.
+        scored = np.vstack([coded, extra_centers])
         candidates.append(
             _Candidate(
                 coded=coded,
-                n_runs=coded.shape[0],
+                n_runs=scored.shape[0],
                 half_indices=indices,
-                d_efficiency=_d_efficiency(coded, model),
-                a_optimality=_a_optimality(coded, model),
-                max_second_order_correlation=float(properties["max_second_order_correlation"]),
+                d_efficiency=_d_efficiency(scored, model),
+                a_optimality=_a_optimality(scored, model),
+                max_second_order_correlation=_max_second_order_correlation_metric(scored, tol=tol),
                 solver_status=status,
             )
         )
@@ -587,15 +858,81 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
     # the window (the minimize-size solution becomes the first candidate).
     if target_half is None:
         coded, status, indices = _solve(
-            half_bounds=_half_bounds(n_runs_range, n_params, pool.shape[0], _min_half_runs(n_factors, model)),
+            half_bounds=_half_bounds(
+                n_runs_range, n_params, pool.shape[0], _min_half_runs(n_factors, model), center_runs
+            ),
             minimize_size=True,
         )
         if coded is not None:
             target_half = len(indices)
             _record(coded, indices, status)
 
-    if target_half is not None:
-        report.run_size = 2 * target_half + 1
+    # Exhaustive path: when the design class at this size is small enough,
+    # enumerate every feasible half-design multiset (replication allowed) and
+    # pick the winner exactly.  The binary multistart below cannot even reach
+    # designs that repeat a half-run, so this is what makes the selection
+    # criteria live up to their names (issues #497, #498, #499).
+    exhausted = False
+    if target_half is not None and target_half <= _ENUM_MAX_HALF.get(n_factors, 0):
+        count_matrix, overflow = _enumerate_feasible_counts(pool, target_half, _ENUM_MAX_LEAVES)
+        n_enumerated = count_matrix.shape[0]
+        if not overflow:
+            if n_enumerated == 0:
+                target = f"n_runs={n_runs}" if n_runs is not None else f"n_runs_range={n_runs_range}"
+                msg = (
+                    f"No feasible OMARS design exists for {target} with center_runs={center_runs} "
+                    "(exhaustive enumeration). Try a different n_runs or a wider n_runs_range."
+                )
+                raise ValueError(msg)
+            d_eff, a_opt, max_corr = _score_count_vectors(count_matrix, pool, center_runs, model, tol=tol)
+            keep = np.ones(n_enumerated, dtype=bool)
+            if satisfice:
+                _satisfice([], satisfice)  # validate the threshold keys
+                d_min = satisfice.get("d_efficiency")
+                correlation_max = satisfice.get("max_second_order_correlation")
+                if d_min is not None:
+                    keep &= d_eff >= d_min
+                if correlation_max is not None:
+                    keep &= max_corr <= correlation_max
+                if not keep.any():
+                    finite_corr = max_corr[np.isfinite(max_corr)]
+                    best_corr = float(finite_corr.min()) if finite_corr.size else float("inf")
+                    msg = (
+                        f"No feasible OMARS design met the satisfice thresholds {satisfice}. "
+                        f"The best among {n_enumerated} enumerated design(s) reached "
+                        f"d_efficiency={float(d_eff.max()):.3f} and "
+                        f"max_second_order_correlation={best_corr:.3f}. Relax the thresholds "
+                        "or widen n_runs_range."
+                    )
+                    raise ValueError(msg)
+            kept_idx = np.flatnonzero(keep)
+            local = _pick_exhaustive_winner(d_eff[kept_idx], a_opt[kept_idx], max_corr[kept_idx], selection_criterion)
+            best = int(kept_idx[local])
+            counts = count_matrix[best]
+            coded = _foldover(np.repeat(pool, counts, axis=0))
+            half_indices = [int(r) for r in np.repeat(np.arange(pool.shape[0]), counts)]
+            candidates = [
+                _Candidate(
+                    coded=coded,
+                    n_runs=2 * target_half + center_runs,
+                    half_indices=half_indices,
+                    d_efficiency=float(d_eff[best]),
+                    a_optimality=float(a_opt[best]),
+                    max_second_order_correlation=float(max_corr[best]),
+                    solver_status="Enumerated",
+                )
+            ]
+            if verify and not is_omars(coded, tol=tol):  # pragma: no cover - defensive
+                msg = "Exhaustive OMARS enumeration produced a design that failed the is_omars re-check."
+                raise RuntimeError(msg)
+            report.search_mode = "exhaustive"
+            report.enumerated_designs = n_enumerated
+            report.feasible_designs = n_enumerated
+            exhausted = True
+
+    if not exhausted and target_half is not None:
+        report.run_size = 2 * target_half + center_runs
+        report.search_mode = "multistart"
 
         # A plain feasibility solve guarantees at least one design at this size,
         # even when n_restarts is 0 or every random objective turns out degenerate.
@@ -619,16 +956,23 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
             else:
                 stall += 1
 
-    report.feasible_designs = len(candidates)
+    if not exhausted:
+        report.feasible_designs = len(candidates)
     if not candidates:
         target = f"n_runs={n_runs}" if n_runs is not None else f"n_runs_range={n_runs_range}"
-        msg = f"No feasible OMARS design was found for {target}. Try a larger or odd n_runs, or a wider n_runs_range."
+        msg = (
+            f"No feasible OMARS design was found for {target}. "
+            "Try a different n_runs (n_runs - center_runs must be a positive even number), "
+            "or a wider n_runs_range."
+        )
         raise ValueError(msg)
 
     # Satisfice first (drop designs below the acceptability thresholds), then
-    # pick from the survivors by dominance / the chosen criterion.
+    # pick from the survivors by dominance / the chosen criterion.  On the
+    # exhaustive path the thresholds were already applied to the full
+    # enumeration, so the single retained winner passes them by construction.
     eligible = candidates
-    if satisfice:
+    if satisfice and not exhausted:
         eligible = _satisfice(candidates, satisfice)
         if not eligible:
             best_d = max(c.d_efficiency for c in candidates)
@@ -654,7 +998,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         "full_second_order_params": _full_second_order_params(n_factors),
         "model_rank": _model_rank(winner.coded, model),
         "expected_error_df": winner.n_runs - _model_rank(winner.coded, model),
-        "min_runs_for_model": _min_runs(n_factors, model),
+        "min_runs_for_model": 2 * _min_half_runs(n_factors, model) + center_runs,
         "sparsity": _sparsity(winner.coded),
         "selection_criterion": selection_criterion,
         "satisfice": dict(satisfice) if satisfice else None,
@@ -663,6 +1007,7 @@ def _search_best_omars(  # noqa: C901, PLR0912, PLR0913, PLR0915
         "max_second_order_correlation": winner.max_second_order_correlation,
         "solver": (solver_options or {}).get("solver", "pulp"),
         "solver_status": winner.solver_status,
+        "search_mode": report.search_mode,
         "omars_verified": is_omars(winner.coded, tol=tol),
         "omars_search": report,
     }
@@ -685,12 +1030,13 @@ def generate_omars(  # noqa: PLR0913
     random_seed: int = 42,
     verify: bool = True,
 ) -> DesignResult:
-    """Generate a foldover OMARS design by integer-programming run selection.
+    """Generate a foldover OMARS design by exhaustive or integer-programming run selection.
 
     Builds a three-level OMARS design large enough to leave error degrees of
     freedom for the chosen analysis *model*, so it can be analysed with
     :func:`process_improve.experiments.analyze_omars`.  The design is a foldover
-    ``[H; -H; 0]`` with ``2*h + 1`` runs (an odd run count).  Regardless of
+    ``[H; -H; 0]`` (half-runs, their mirrors, and a centre run) plus any further
+    centre runs, for ``2*h + center_runs`` runs in total.  Regardless of
     *model*, the design is a genuine OMARS design: the main effects stay
     orthogonal to every second-order term (quadratics and interactions alike).
 
@@ -699,20 +1045,33 @@ def generate_omars(  # noqa: PLR0913
     factors : list[Factor]
         At least three continuous factors.
     n_runs : int, optional
-        Exact (odd) run size.  Must exceed the number of parameters in the chosen
-        *model* (``1 + 2k + k(k-1)/2`` for ``"full_second_order"``, ``1 + 2k`` for
-        ``"main_quadratic"``).  If ``None`` a size is chosen automatically.
+        Exact total run size of the returned design, centre runs included.
+        ``n_runs - center_runs`` must be a positive even number (the half-runs
+        and their mirrors), and *n_runs* must exceed the number of parameters in
+        the chosen *model* (``1 + 2k + k(k-1)/2`` for ``"full_second_order"``,
+        ``1 + 2k`` for ``"main_quadratic"``).  If ``None`` a size is chosen
+        automatically.
     n_runs_range : tuple[int, int], optional
-        Inclusive ``(min, max)`` run-size window to search when *n_runs* is
-        ``None``; the smallest feasible size is used.
+        Inclusive ``(min, max)`` total-run-size window to search when *n_runs*
+        is ``None``; the smallest feasible size is used.
     selection_criterion : {"dominance", "d_efficiency", "min_second_order_correlation", "a_optimal"}
-        How to choose among the feasible designs found.  ``"dominance"``
-        (default) keeps the Pareto front on D-efficiency and the maximum
-        second-order correlation, then prefers the smallest, most efficient
-        design.  ``"a_optimal"`` minimises the summed coefficient variance
-        ``trace((X'X)^-1)`` of the sizing model (lower prediction variance on
-        average), which is the natural choice when the design is judged on
-        precision rather than on aliasing.
+        How to choose among the feasible designs.  When the design class at the
+        chosen size is small enough (currently up to four factors at moderate
+        sizes), the search enumerates it exhaustively and the selection is exact
+        for the stated objective; the metadata reports
+        ``search_mode="exhaustive"``.  Otherwise the criterion selects the best
+        design among those found by the randomized multistart
+        (``search_mode="multistart"``), which may miss the optimum.
+        ``"dominance"`` (default) keeps the Pareto front on D-efficiency and the
+        maximum second-order correlation, then prefers the smallest, most
+        efficient design.  ``"a_optimal"`` selects the design with the lowest
+        summed coefficient variance ``trace((X'X)^-1)`` of the sizing model
+        (lower prediction variance on average), which is the natural choice when
+        the design is judged on precision rather than on aliasing.  A design
+        containing a constant second-order column (a term the design cannot
+        estimate) scores ``inf`` on the correlation metric, so it is never
+        selected by ``"min_second_order_correlation"`` when an alternative with
+        every term present exists.
     satisfice : dict, optional
         Acceptability thresholds applied *before* selection: a design is kept
         only if it clears every threshold.  Supported keys are
@@ -722,7 +1081,9 @@ def generate_omars(  # noqa: PLR0913
         A ``ValueError`` is raised if no enumerated design meets the thresholds.
     center_runs : int, optional
         Number of centre runs in the design (at least one; the foldover already
-        contributes one).  Default 1.
+        contributes one).  Centre runs count towards *n_runs*: asking for
+        ``n_runs=17, center_runs=3`` returns 17 rows, 3 of them centre runs.
+        Default 1.
     n_restarts : int, optional
         Number of randomized-objective ILP solves used to search for a
         high-quality design.  Each restart drives the solver to a different
@@ -771,7 +1132,7 @@ def generate_omars(  # noqa: PLR0913
     ValueError
         If fewer than three factors are given, the factor count exceeds the
         combinatorial cap, *model* is not recognised, *n_runs* is too small or
-        even, or no feasible design is found.
+        incompatible with *center_runs*, or no feasible design is found.
     ImportError
         If PuLP (the ``ilp`` extra) is not installed.
 
@@ -810,6 +1171,7 @@ def generate_omars(  # noqa: PLR0913
         tol=tol,
         verify=verify,
         random_seed=random_seed,
+        center_runs=center_runs,
     )
     return build_design_result(
         coded_matrix=coded,
@@ -839,4 +1201,5 @@ def _dispatch_omars_ilp(factors: list[Factor], **kwargs: Any) -> tuple[np.ndarra
         tol=1e-9,
         verify=True,
         random_seed=42,
+        center_runs=1,
     )

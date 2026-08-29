@@ -98,6 +98,7 @@ def test_exact_run_size_is_respected() -> None:
 
     result = generate_omars(_factors(3), n_runs=15, solver_options=_SOLVER)
     assert result.metadata["n_runs_selected"] == 15
+    assert _coded(result).shape[0] == 15
     assert is_omars(_coded(result))
 
 
@@ -109,12 +110,15 @@ def test_run_size_below_parameters_raises() -> None:
         generate_omars(_factors(3), n_runs=10, solver_options=_SOLVER)
 
 
-def test_even_run_size_raises() -> None:
+def test_incompatible_run_size_parity_raises() -> None:
     from process_improve.experiments import generate_omars
 
-    # Foldover designs have an odd run count (2*h + 1).
-    with pytest.raises(ValueError, match="must be odd"):
+    # n_runs - center_runs is the foldover part (h half-runs plus their mirrors),
+    # so it must be a positive even number.
+    with pytest.raises(ValueError, match="n_runs - center_runs must be a positive even number"):
         generate_omars(_factors(3), n_runs=16, solver_options=_SOLVER)
+    with pytest.raises(ValueError, match="n_runs - center_runs must be a positive even number"):
+        generate_omars(_factors(3), n_runs=15, center_runs=2, solver_options=_SOLVER)
 
 
 def test_too_few_factors_raises() -> None:
@@ -147,6 +151,24 @@ def test_extra_center_runs_are_added() -> None:
     coded = _coded(result)
     n_center = int(np.sum(np.all(coded == 0, axis=1)))
     assert n_center == 3
+    assert is_omars(coded)
+
+
+@pytest.mark.parametrize(
+    ("n_runs", "center_runs"),
+    [(17, 3), (16, 2), (13, 1), (19, 5)],
+)
+def test_center_runs_count_towards_n_runs(n_runs: int, center_runs: int) -> None:
+    """n_runs is the total run count of the returned design, centre runs included (#496)."""
+    from process_improve.experiments import generate_omars
+
+    result = generate_omars(
+        _factors(3), n_runs=n_runs, center_runs=center_runs, model="main_quadratic", solver_options=_SOLVER
+    )
+    coded = _coded(result)
+    assert coded.shape[0] == n_runs
+    assert int(np.sum(np.all(coded == 0, axis=1))) == center_runs
+    assert result.metadata["n_runs_selected"] == n_runs
     assert is_omars(coded)
 
 
@@ -241,6 +263,7 @@ def test_multistart_reaches_catalogue_quality() -> None:
     assert result.metadata["d_efficiency"] >= 39.0
     report = result.metadata["omars_search"]
     assert report.n_restarts == 40
+    assert report.search_mode == "multistart"
     # The search retains many distinct designs, not the handful the old no-good cuts found.
     assert report.feasible_designs > 1
 
@@ -436,6 +459,10 @@ def test_search_report_records_diagnostics() -> None:
     assert report.ilp_iterations >= 1
     assert report.feasible_designs >= 1
     assert report.total_solve_seconds >= 0.0
+    # Three factors at the automatic size fall within the exhaustive regime.
+    assert report.search_mode == "exhaustive"
+    assert report.enumerated_designs == report.feasible_designs
+    assert result.metadata["search_mode"] == "exhaustive"
 
 
 def test_generate_omars_rejects_categorical_factor() -> None:
