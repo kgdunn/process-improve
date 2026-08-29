@@ -393,6 +393,14 @@ def dispatch_d_optimal(  # noqa: PLR0913
     k = len(factors)
     if budget is None:
         budget = 2 * k + 1
+    # A budget below k + 1 cannot estimate even the main-effects model. The
+    # point-exchange fallback already floors its run count this way; apply the
+    # same floor before the pyoptex path so the documented clamp contract holds
+    # on both backends (pyoptex handles an infeasible run count unpredictably).
+    # A budget that cannot even hold the fixed runs is left unclamped so the
+    # fixed-runs validation still raises on the requested value.
+    if fixed_runs is None or budget > len(fixed_runs):
+        budget = max(budget, k + 1)
 
     if fixed_runs is not None and not _PYOPTEX_AVAILABLE:
         raise ImportError(f"fixed_runs (design augmentation) requires pyoptex. {_PYOPTEX_INSTALL_HINT}")
@@ -472,6 +480,14 @@ def dispatch_i_optimal(  # noqa: PLR0913
     k = len(factors)
     if budget is None:
         budget = 2 * k + 1
+    # A budget below k + 1 cannot estimate even the main-effects model. The
+    # point-exchange fallback already floors its run count this way; apply the
+    # same floor before the pyoptex path so the documented clamp contract holds
+    # on both backends (pyoptex handles an infeasible run count unpredictably).
+    # A budget that cannot even hold the fixed runs is left unclamped so the
+    # fixed-runs validation still raises on the requested value.
+    if fixed_runs is None or budget > len(fixed_runs):
+        budget = max(budget, k + 1)
 
     matrix, meta = _run_pyoptex(
         factors,
@@ -524,6 +540,14 @@ def dispatch_a_optimal(  # noqa: PLR0913
     k = len(factors)
     if budget is None:
         budget = 2 * k + 1
+    # A budget below k + 1 cannot estimate even the main-effects model. The
+    # point-exchange fallback already floors its run count this way; apply the
+    # same floor before the pyoptex path so the documented clamp contract holds
+    # on both backends (pyoptex handles an infeasible run count unpredictably).
+    # A budget that cannot even hold the fixed runs is left unclamped so the
+    # fixed-runs validation still raises on the requested value.
+    if fixed_runs is None or budget > len(fixed_runs):
+        budget = max(budget, k + 1)
 
     matrix, meta = _run_pyoptex(
         factors,

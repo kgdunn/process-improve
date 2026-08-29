@@ -65,9 +65,10 @@ class TestBreuschPaganFailureLogged:
 
 class TestMcpErrorSanitisation:
     def test_unexpected_error_is_generic_no_leak(self) -> None:
-        # Guard on the submodule actually used: newer `mcp` releases ship a top-level
-        # package without `mcp.server.fastmcp`, so importorskip("mcp") does not fire.
-        pytest.importorskip("mcp.server.fastmcp")
+        # Guard on the submodule actually used: `mcp.server.mcpserver` only
+        # exists in the 2.x SDK the server targets, so importorskip("mcp")
+        # alone does not fire on an incompatible install.
+        pytest.importorskip("mcp.server.mcpserver")
         from process_improve.mcp_server import _serialise_tool_error
 
         internal_detail = "/home/app/internal/path/module.py line 42"
