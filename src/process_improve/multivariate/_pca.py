@@ -259,9 +259,17 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     spe_ : pd.DataFrame of shape (n_samples, n_components)
         Per-row SPE diagnostic; stored as the square root of the row
         sum-of-squared X-residuals (so it is on the residual scale, not the
-        squared scale).
+        squared scale). **One column per component, not one value per row**:
+        column ``a`` is the SPE of the model truncated at ``a`` components, and
+        the last column is the value at the full fitted model. Reach for a
+        single number per observation with ``model.spe_.iloc[:, -1]``, not with
+        ``np.asarray(model.spe_).ravel()``: ravel happens to give the right
+        answer at one component and silently gives ``n_samples * n_components``
+        values above it.
     hotellings_t2_ : pd.DataFrame of shape (n_samples, n_components)
-        Cumulative Hotelling's T² statistic.
+        Cumulative Hotelling's T² statistic. Per-component, exactly as ``spe_``
+        above: column ``a`` uses the first ``a`` components and the last column
+        is the value at the full fitted model.
     explained_variance_ : np.ndarray of shape (n_components,)
         Variance explained by each component.
     scaling_factor_for_scores_ : pd.Series of length n_components
