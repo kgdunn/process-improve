@@ -472,6 +472,7 @@ class TestStatisticalCorrectnessTriage:
         # And strictly wider than the uncorrected form that was shipped before.
         assert half_width > t_dist.ppf(0.975, df) * np.sqrt(1.0 + leverage) * rmse_n
 
+    @pytest.mark.slow
     def test_pls_r2y_never_goes_backwards_with_missing_data(self) -> None:
         """SS(Yhat)/SS(Y) is not monotone when missing data breaks orthogonality.
 
@@ -513,6 +514,7 @@ class TestStatisticalCorrectnessTriage:
         assert np.all(np.diff(r2_cumulative) >= -1e-12), "cumulative R2Y must be non-decreasing"
         assert np.all((r2_cumulative >= 0) & (r2_cumulative <= 1 + 1e-12))
 
+    @pytest.mark.slow
     def test_nested_cv_total_survives_a_missing_y_cell(self) -> None:
         """One NaN in Y used to make the headline total NaN via a plain sum()."""
         from sklearn.model_selection import KFold
@@ -524,6 +526,7 @@ class TestStatisticalCorrectnessTriage:
         result = PLS.nested_cv(X, Y, max_components=3, outer_cv=KFold(n_splits=4, shuffle=True, random_state=0))
         assert np.all(np.isfinite(np.asarray(result.q2y))), "no entry, including the total, may be NaN"
 
+    @pytest.mark.slow
     def test_nested_cv_does_not_inflate_q2_for_an_under_covering_splitter(self) -> None:
         """PRESS over covered rows against a TSS over all rows inflates Q2.
 

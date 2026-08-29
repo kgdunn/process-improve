@@ -86,14 +86,7 @@ class EChartsAdapter(AbstractAdapter):
             series.append(s)
 
         # Collect annotations as markLines / markAreas on the first series
-        mark_lines, mark_areas = self._collect_annotations(panel.annotations)
-        if series and (mark_lines or mark_areas):
-            if mark_lines:
-                self._merge_mark_lines(series[0], mark_lines)
-            if mark_areas:
-                series[0].setdefault("markArea", {})
-                series[0]["markArea"]["data"] = mark_areas
-                series[0]["markArea"]["silent"] = True
+        self._attach_annotations(series, panel.annotations)
 
         option: dict[str, Any] = {
             "title": {"text": title or panel.title, "left": "center"},
@@ -171,21 +164,19 @@ class EChartsAdapter(AbstractAdapter):
                 }
             )
 
+            # Build this panel's own series first, then attach this panel's
+            # annotations to them (never to a previous panel's series).
+            panel_series: list[dict[str, Any]] = []
             for layer in panel.layers:
                 s, _ = self._layer_to_series(layer)
+                panel_series.append(s)
+
+            self._attach_annotations(panel_series, panel.annotations)
+
+            for s in panel_series:
                 s["xAxisIndex"] = idx
                 s["yAxisIndex"] = idx
-                all_series.append(s)
-
-            mark_lines, mark_areas = self._collect_annotations(panel.annotations)
-            if all_series and (mark_lines or mark_areas):
-                last_series = all_series[-1]
-                if mark_lines:
-                    self._merge_mark_lines(last_series, mark_lines)
-                if mark_areas:
-                    last_series.setdefault("markArea", {})
-                    last_series["markArea"]["data"] = mark_areas
-                    last_series["markArea"]["silent"] = True
+            all_series.extend(panel_series)
 
         return {
             "title": {"text": spec.title, "left": "center"},
@@ -208,8 +199,18 @@ class EChartsAdapter(AbstractAdapter):
         -------
         tuple[dict, bool]
             The series dict and whether it is a 3D chart.
+
+        Raises
+        ------
+        NotImplementedError
+            If the layer uses :attr:`MarkType.area`, which is declared in
+            the spec vocabulary but not implemented here.
         """
         mark = layer.mark if isinstance(layer.mark, MarkType) else MarkType(layer.mark)
+
+        if mark == MarkType.area:
+            msg = "MarkType.area is declared in the spec vocabulary but not implemented in the ECharts adapter."
+            raise NotImplementedError(msg)
 
         if mark == MarkType.bar:
             return self._bar_series(layer), False
@@ -247,19 +248,18 @@ class EChartsAdapter(AbstractAdapter):
         }
         colors = layer.style.get("colors")
         if colors:
+            _check_per_point_style(layer, "colors", colors, len(data))
             series["itemStyle"] = {"color": None}
-            series["data"] = [
-                {"value": v, "itemStyle": {"color": c}}
-                for v, c in zip(data, colors)  # noqa: B905
-            ]
+            series["data"] = [{"value": v, "itemStyle": {"color": c}} for v, c in zip(data, colors, strict=True)]
         elif layer.color:
             series["itemStyle"] = {"color": layer.color}
 
         error_y = layer.style.get("error_y")
         if error_y and layer.x:
+            _check_per_point_style(layer, "error_y", error_y, len(data))
             categories = [row[layer.x.field] for row in layer.data]
             mark_data: list[list[dict[str, Any]]] = []
-            for cat, value, err in zip(categories, data, error_y):  # noqa: B905
+            for cat, value, err in zip(categories, data, error_y, strict=True):
                 if err is None:
                     continue
                 err_abs = abs(float(err))
@@ -308,26 +308,39 @@ class EChartsAdapter(AbstractAdapter):
             "symbolSize": size,
         }
         if colors:
-            series["data"] = [
-                {"value": d, "itemStyle": {"color": c}}
-                for d, c in zip(data, colors)  # noqa: B905
-            ]
+            _check_per_point_style(layer, "colors", colors, len(data))
+            series["data"] = [{"value": d, "itemStyle": {"color": c}} for d, c in zip(data, colors, strict=True)]
         elif layer.color:
             series["itemStyle"] = {"color": layer.color}
         return series
 
     def _heatmap_series(self, layer: LayerSpec) -> dict[str, Any]:
+        """Build an ECharts heatmap series from grid-style layer data.
+
+        Raises
+        ------
+        ValueError
+            If ``style['z_matrix']`` does not have exactly one row per
+            ``y_grid`` entry and one value per ``x_grid`` entry. A ragged
+            matrix would otherwise silently plot missing cells as 0.
+        """
         z_matrix = layer.style.get("z_matrix", [])
         x_grid = layer.style.get("x_grid", [])
         y_grid = layer.style.get("y_grid", [])
 
+        if len(z_matrix) != len(y_grid) or any(len(row) != len(x_grid) for row in z_matrix):
+            msg = (
+                f"style['z_matrix'] on layer {layer.name!r} must have shape "
+                f"({len(y_grid)}, {len(x_grid)}) to match y_grid and x_grid; "
+                f"got {len(z_matrix)} rows of lengths {[len(row) for row in z_matrix]}."
+            )
+            raise ValueError(msg)
+
         # ECharts heatmap needs [x_idx, y_idx, value] triples
         data = []
         for i, y_val in enumerate(y_grid):
-            row_data = z_matrix[i] if i < len(z_matrix) else []
             for j, x_val in enumerate(x_grid):
-                z_val = row_data[j] if j < len(row_data) else 0
-                data.append([x_val, y_val, z_val])
+                data.append([x_val, y_val, z_matrix[i][j]])
 
         return {
             "type": "heatmap",
@@ -364,15 +377,23 @@ class EChartsAdapter(AbstractAdapter):
         return series
 
     def _wireframe_series(self, layer: LayerSpec) -> dict[str, Any]:
+        """Build a 3D scatter series from a wireframe layer.
+
+        Raises
+        ------
+        KeyError
+            If a data row is missing an encoded field, matching the
+            Plotly adapter's behaviour for the same layer.
+        """
         data = []
         for row in layer.data:
             point: list[Any] = []
             if layer.x:
-                point.append(row.get(layer.x.field, 0))
+                point.append(row[layer.x.field])
             if layer.y:
-                point.append(row.get(layer.y.field, 0))
+                point.append(row[layer.y.field])
             if layer.z:
-                point.append(row.get(layer.z.field, 0))
+                point.append(row[layer.z.field])
             data.append(point)
 
         return {
@@ -391,7 +412,14 @@ class EChartsAdapter(AbstractAdapter):
         self,
         annotations: list[Annotation],
     ) -> tuple[list[dict], list[list[dict]]]:
-        """Convert annotations to ECharts markLine and markArea data."""
+        """Convert annotations to ECharts markLine and markArea data.
+
+        Raises
+        ------
+        NotImplementedError
+            If an annotation uses :attr:`AnnotationType.label`, which is
+            declared in the spec vocabulary but not implemented here.
+        """
         mark_lines: list[dict[str, Any]] = []
         mark_areas: list[list[dict[str, Any]]] = []
 
@@ -459,6 +487,13 @@ class EChartsAdapter(AbstractAdapter):
                             {"yAxis": y_max},
                         ]
                     )
+
+            elif at == AnnotationType.label:
+                msg = (
+                    "AnnotationType.label is declared in the spec vocabulary but not implemented "
+                    "in the ECharts adapter."
+                )
+                raise NotImplementedError(msg)
 
         return mark_lines, mark_areas
 
@@ -530,15 +565,89 @@ class EChartsAdapter(AbstractAdapter):
             existing.setdefault("symbol", "none")
 
     def _paired_data(self, layer: LayerSpec) -> list[list]:
-        """Build ECharts ``[[x, y], ...]`` paired data from a layer."""
+        """Build ECharts ``[[x, y], ...]`` paired data from a layer.
+
+        Raises
+        ------
+        KeyError
+            If a data row is missing the encoded x or y field, matching
+            the Plotly adapter's behaviour for the same layer.
+        """
         if not layer.x or not layer.y:
             return []
-        return [[row.get(layer.x.field, 0), row.get(layer.y.field, 0)] for row in layer.data]
+        return [[row[layer.x.field], row[layer.y.field]] for row in layer.data]
+
+    def _attach_annotations(
+        self,
+        series: list[dict[str, Any]],
+        annotations: list[Annotation],
+    ) -> None:
+        """Attach a panel's annotations to a series belonging to that panel.
+
+        The single-panel and multi-panel paths both call this with only the
+        current panel's series, so annotations can never end up on another
+        panel. When the panel has annotations but no layers, an empty,
+        invisible line series is created to carry them.
+
+        Parameters
+        ----------
+        series : list[dict]
+            The series built for the current panel; may be extended in place.
+        annotations : list[Annotation]
+            The panel's annotations.
+        """
+        mark_lines, mark_areas = self._collect_annotations(annotations)
+        if not (mark_lines or mark_areas):
+            return
+
+        if series:
+            target = series[0]
+        else:
+            target = {"type": "line", "name": "", "data": [], "silent": True}
+            series.append(target)
+
+        if mark_lines:
+            self._merge_mark_lines(target, mark_lines)
+        if mark_areas:
+            target.setdefault("markArea", {})
+            target["markArea"]["data"] = mark_areas
+            target["markArea"]["silent"] = True
 
 
 # ---------------------------------------------------------------------------
 # Module-level helpers
 # ---------------------------------------------------------------------------
+
+
+def _check_per_point_style(layer: LayerSpec, key: str, values: Any, n_points: int) -> None:  # noqa: ANN401
+    """Check that a per-point style list has one entry per data point.
+
+    A shorter list would otherwise silently truncate the series (marks
+    simply vanish from the chart), and a longer list indicates the style
+    was built for different data.
+
+    Parameters
+    ----------
+    layer : LayerSpec
+        The layer being rendered, used to name the offender in the message.
+    key : str
+        The ``layer.style`` key being checked (e.g. ``"colors"``).
+    values : Any
+        The per-point style entries.
+    n_points : int
+        Number of data points in the layer.
+
+    Raises
+    ------
+    ValueError
+        If ``len(values)`` differs from ``n_points``.
+    """
+    if len(values) != n_points:
+        msg = (
+            f"style[{key!r}] on layer {layer.name!r} has {len(values)} entries "
+            f"but the layer has {n_points} data points; provide one entry per point."
+        )
+        raise ValueError(msg)
 
 
 def _echarts_dash(dash: str) -> str:

@@ -165,7 +165,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     max_iter : int, default=1000
         Maximum number of iterations for the NIPALS algorithm.
     tol : float, default=sqrt(machine epsilon)
-        Convergence tolerance for the NIPALS algorithm.
+        Relative convergence tolerance for the NIPALS algorithm: the change
+        between two successive score-vector iterations, relative to the norm
+        of the current score vector (see :func:`terminate_check`).
     copy : bool, default=True
         Whether to copy X and Y before fitting.
     missing_data_settings : dict or None, default=None
@@ -175,6 +177,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
     Attributes (after fitting)
     --------------------------
+    n_components_ : int
+        The resolved number of components actually fitted (the constructor
+        parameter clamped to ``min(n_samples, n_features)``; the parameter
+        itself is left as the user set it, including ``None``).
     scores_ : pd.DataFrame of shape (n_samples, n_components)
         X-block score matrix (T). This is the primary score matrix; equivalent
         to ``x_scores`` in older versions.
@@ -453,7 +459,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             u_a_guess[np.isnan(u_a_guess)] = 0
             u_a = u_a_guess + 1.0
 
-            while not terminate_check(u_a_guess, u_a, iterations=itern, settings=settings):
+            # ``itern == 0`` forces at least one NIPALS iteration. The ``+ 1.0``
+            # offset that primes the loop can be negligible relative to a
+            # large-magnitude seed column (e.g. entries ~1e154), and the relative
+            # criterion (#504) would then report convergence before ``t_a`` /
+            # ``w_a`` / ``c_a`` were ever assigned, raising UnboundLocalError
+            # below instead of fitting.
+            while itern == 0 or not terminate_check(u_a_guess, u_a, iterations=itern, settings=settings):
                 u_a_guess = u_a.copy()
 
                 # 1: w_a = X'u_a / (u_a'u_a)
@@ -684,19 +696,26 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 f"the number of columns ({K})."
             )
             warnings.warn(warn, SpecificationWarning, stacklevel=2)
-            A = self.n_components = min_dim
+            A = min_dim
+        # The resolved (possibly clamped) component count is a fitted attribute;
+        # the constructor parameter n_components is left exactly as the user set
+        # it, per the sklearn clone/get_params contract (#505).
+        self.n_components_ = A
 
+        resolved_mds = self.missing_data_settings
         if np.any(Y.isna()) or np.any(X.isna()):
             self.has_missing_data_ = True
             # Default to the NIPALS path because TSR / PMP for PLS are still
             # NotImplementedError in _fit_nipals; NIPALS handles per-cell NaN
-            # directly via skipna sums inside the NIPALS iterations.
+            # directly via skipna sums inside the NIPALS iterations.  The
+            # resolved settings stay local: mutating the constructor parameter
+            # would leak into clone() (#505).
             default_mds = dict(md_method="nipals", md_tol=epsqrt, md_max_iter=self.max_iter)
             if isinstance(self.missing_data_settings, dict):
                 default_mds.update(self.missing_data_settings)
-            self.missing_data_settings = default_mds
+            resolved_mds = default_mds
 
-        settings = self.missing_data_settings or {
+        settings = resolved_mds or {
             "md_method": "nipals",
             "md_tol": self.tol,
             "md_max_iter": self.max_iter,
@@ -2302,7 +2321,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         t2_new = np.asarray(diagnostics.hotellings_t2, dtype=float)
 
         n_samples = self.n_samples_
-        n_components = int(self.n_components)
+        n_components = int(self.n_components_)
 
         # Residual error std per Y variable: prefer the cross-validated RMSE
         # when a cross_validate() result is supplied (calibration RMSE is

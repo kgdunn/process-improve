@@ -1,6 +1,6 @@
 [project]
 name = "process-improve"
-version = "1.72.0"
+version = "1.75.0"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = "MIT"
@@ -68,8 +68,9 @@ batch = [
     "scikit-image>=0.25.2",
 ]
 
-# MCP server entry-point.
-mcp = ["mcp>=1.0"]
+# MCP server entry-point. Requires the 2.x SDK: the server registers tools
+# through ``mcp.server.mcpserver.MCPServer`` (renamed from 1.x's FastMCP).
+mcp = ["mcp>=2.0"]
 
 # JIT-compiled inner loops in ``process_improve.batch.alignment_helpers``.
 # Without numba the module still imports and runs; the ``@jit`` decorator
@@ -92,7 +93,7 @@ ilp = ["pulp>=2.8"]
 # Meta extra: reproduces the pre-ENG-13 install closure.
 all = [
     "matplotlib>=3.10.8",
-    "mcp>=1.0",
+    "mcp>=2.0",
     "numba>=0.63.1",
     "openpyxl>=3.1.5",
     "plotly>=6.5.2",

@@ -9,7 +9,7 @@ rename ``__getattr__``. This module factors that out:
 * :class:`_RenameGetattrMixin` - the migration ``__getattr__`` driven by a
   per-class ``_ATTRIBUTE_RENAMES`` dict and ``_RENAME_CONTEXT`` label.
 * :class:`_HotellingsT2LimitMixin` - the ``hotellings_t2_limit`` method shared,
-  byte-identically, by PCA / PLS / MBPLS / MBPCA (it reads ``self.n_components``
+  byte-identically, by PCA / PLS / MBPLS / MBPCA (it reads ``self.n_components_``
   and ``self.n_samples_``).
 * :class:`_LatentVariableModel` - the PCA/PLS convenience-method surface plus
   ``ellipse_coordinates``.
@@ -165,19 +165,19 @@ class _RenameGetattrMixin:
 class _HotellingsT2LimitMixin:
     """The ``hotellings_t2_limit`` method shared by PCA / PLS / MBPLS / MBPCA.
 
-    Reads ``self.n_components`` and ``self.n_samples_``; identical across those
+    Reads ``self.n_components_`` and ``self.n_samples_``; identical across those
     four estimators. (TPLS reads a differently-named row count and keeps its own.)
     """
 
     if typing.TYPE_CHECKING:  # fitted attributes provided by concrete subclasses
-        n_components: int
+        n_components_: int
         n_samples_: int
 
     def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
         """Hotelling's T2 limit at the given confidence level (see :func:`hotellings_t2_limit`)."""
         return _hotellings_t2_limit(
             conf_level=conf_level,
-            n_components=self.n_components,
+            n_components=self.n_components_,
             n_rows=self.n_samples_,
         )
 
@@ -240,7 +240,7 @@ class _LatentVariableModel(_RenameGetattrMixin, _HotellingsT2LimitMixin, BaseEst
             score_vert=score_vert,
             conf_level=conf_level,
             n_points=n_points,
-            n_components=self.n_components,
+            n_components=self.n_components_,
             scaling_factor_for_scores=self.scaling_factor_for_scores_,
             n_rows=self.n_samples_,
         )

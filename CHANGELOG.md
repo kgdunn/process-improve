@@ -11,7 +11,7 @@ those changes.
 
 ## [Unreleased]
 
-## [1.72.0] - 2026-08-22
+## [1.75.0] - 2026-08-29
 
 D-optimal designs are now guaranteed estimable: every design these functions
 return has enough runs, and a full-rank model matrix, for the model that was
@@ -76,6 +76,213 @@ asked for.
   `meta["d_optimality"]`) is `-log|det(X'X)|` on the model matrix. It was
   `log|det((X'X)^-1)|` on the factor settings alone. Values are not comparable
   across this release.
+
+## [1.74.0] - 2026-08-29
+
+The multivariate numerics cluster (#502, #503, #504). All three entries
+change numerical results or iteration behaviour, because the previous
+values were wrong.
+
+### Changed
+
+- NIPALS convergence in PCA, PLS, MBPCA and MBPLS is now judged on the
+  *relative* change between successive score-vector iterations (the norm of
+  the change divided by the norm of the current vector, with a floored
+  denominator), the form TPLS already used. The previous absolute criterion
+  made convergence depend on the units of the data: large-magnitude X burned
+  every `md_max_iter` iteration and tiny-magnitude X "converged" instantly.
+  Fitting `X` and `1000 * X` now takes the same number of iterations and
+  gives identical components up to the scale factor. The `md_tol` settings
+  key and the PLS `tol` parameter keep working, now as relative tolerances.
+  (#504)
+- The MBPCA and MBPLS default tolerances, previously absolute values at
+  machine precision (`eps**(9/10)` ~ 8.2e-15 and `eps**(6/7)` ~ 3.8e-14,
+  below the floating-point oscillation floor of a relative criterion), are
+  now the shared `epsqrt` (~1.49e-8) default used by PCA, PLS and TPLS, so
+  spurious non-convergence warnings on well-conditioned data are gone. An
+  explicit `tol` passed by the caller is still honoured, but is now
+  interpreted relatively. (#504)
+- MBPCA and MBPLS seed their NIPALS super-score / u-vector initialisation
+  deterministically from the column with the largest sum of squares, the way
+  single-block PCA / PLS already do, instead of a hard-coded
+  `np.random.default_rng(0)` that violated the reproducibility contract in
+  `docs/development/reproducibility.rst`. No RNG remains in these fit paths
+  and no `random_state` parameter is needed; repeated fits are
+  bit-identical, and fitted components are unchanged up to the existing sign
+  convention. (#503)
+- `TPLS.fit()` and `TPLS.diagnose()` now compute one and the same
+  Hotelling's T2: the cumulative per-component form `sum_a (t_a / s_a)^2`
+  used by PCA and PLS, with the score standard deviations on the unbiased
+  `N - 1` divisor. Previously `fit()` stored a full-Mahalanobis T2 with the
+  covariance divided by `N`, shape `(n_obs, 1)`, while `diagnose()` returned
+  the cumulative diagonal form, shape `(n_obs, n_components)`: two different
+  statistics under one name, and the `N` divisor inflated T2 by
+  `N / (N - 1)` relative to the F-distribution limit it is compared against.
+  `TPLS.hotellings_t2` is now shape `(n_samples, n_components)`, as its
+  docstring already promised; the full-model value is the last column.
+  `scaling_factor_for_scores` (which feeds `ellipse_coordinates`) also uses
+  the `N - 1` divisor, so TPLS score ellipses are slightly larger. (#502)
+
+## [1.73.4] - 2026-08-29
+
+Test hygiene from the 2026-08 audit triage: dataset-loader timeouts (#508),
+live test tiers (#510), and perf tests that can actually fail (#511).
+
+### Fixed
+
+- The remote sample-dataset loaders (`distillateflow()`, `oildoe()`) fetch
+  with an explicit timeout instead of an unbounded `pd.read_csv(url)`, so a
+  black-holing host raises the documented `RuntimeError` rather than hanging
+  the caller indefinitely (#508). The default of 30 s is a new
+  `dataset_fetch_timeout` knob on the config settings singleton, overridable
+  via `PROCESS_IMPROVE_DATASET_FETCH_TIMEOUT`. No on-disk cache was added.
+
+### Changed
+
+- The ENG-29 test tiers are now real (#510): `--strict-markers` is on, the
+  one network-fetching test in `tests/test_multivariate.py` carries
+  `@pytest.mark.dataset` so `-m "not dataset"` performs no network access,
+  and the tests measured at >= 2 s carry `@pytest.mark.slow`. CI still runs
+  the full suite with no marker filter.
+- The tests in `tests/perf/` assert deterministic ENG-18 cost-shape
+  properties (lazy frames built once and cached, pickling excludes the
+  cache, hot paths rebuild no frames, `check_random_state` generator
+  pass-through by identity) instead of running assertion-free
+  pytest-benchmark timings that could never fail (#511). The ENG-15
+  wall-clock benchmark CI job remains planned;
+  `CONTRIBUTING.md`'s performance-regression policy now says so honestly.
+
+## [1.73.3] - 2026-08-29
+
+Release-pipeline hardening from the 2026-08 audit triage (#507). No library
+code changes.
+
+### Fixed
+
+- `publish.yml`: the version-vs-tag guard now runs on `workflow_dispatch` as
+  well as on tag pushes. A dispatch run must point at a commit already tagged
+  `v<version>` for the version in `pyproject.toml`, so a manual run can no
+  longer publish an untagged version from an arbitrary ref.
+- `publish.yml`: `gh release create` now passes `--target` with the SHA of the
+  checked-out commit, so a release created by the workflow tags the commit
+  that was actually published instead of the default branch head.
+- `publish.yml`: the CycloneDX SBOM is generated from a fresh virtualenv that
+  contains only the built wheel and its runtime dependencies (with the
+  installer tooling removed), so `build`, `cyclonedx-bom`, and their
+  transitive dependencies no longer appear as runtime components.
+- `publish.yml`: a missing `## [X.Y.Z]` heading in `CHANGELOG.md` now fails
+  the build job before anything is published, and the release-notes
+  extraction step errors instead of silently falling back to auto-generated
+  notes.
+
+### Changed
+
+- `publish.yml`: permissions are now per-job with least privilege. The build
+  job, which runs repository code through PEP 517 hooks, holds only
+  `contents: read`; the write scopes stay on the publish job.
+- `publish.yml`: `pypa/gh-action-pypi-publish` is pinned to the commit SHA of
+  v1.14.2 instead of the mutable `release/v1` branch ref.
+- `Makefile`: the `release` target no longer builds or publishes. It prints
+  the tag-gated release instructions and exits nonzero, so the gated workflow
+  is the only publish path.
+
+## [1.73.2] - 2026-08-29
+
+### Fixed
+
+- The MCP server (`process-improve-mcp`) now publishes each tool's real JSON
+  Schema (#506). Registration previously introspected a generic `(**kwargs)`
+  handler, so every tool appeared to MCP clients with an empty `inputSchema`:
+  no parameter names, types, required/optional split, enums, or bounds. Tools
+  are now registered as explicit `Tool` objects whose published `inputSchema`
+  is exactly the registry's `input_schema` from `get_tool_specs()`, so `anyOf`
+  unions (`int | None`, `Literal[...]`) survive intact. The server targets the
+  MCP 2.x SDK (`mcp.server.mcpserver.MCPServer`; the `mcp` extra now pins
+  `mcp>=2.0`), under which the old `FastMCP` import failed outright.
+  `mcp_server.py` is no longer omitted from coverage measurement.
+- The concurrent-dispatch MCP test no longer asserts on wall-clock elapsed
+  time, which could flake on loaded CI runners; it now proves the overlap with
+  a barrier both in-flight calls must reach (drive-by from #513).
+
+## [1.73.1] - 2026-08-29
+
+### Fixed
+
+- ECharts adapter (#509): a panel's annotations now always attach to a series
+  of that panel, in both the single-panel and multi-panel paths; a panel with
+  annotations but no layers gets an empty carrier series instead of painting
+  the previous panel. A data row missing an encoded field raises `KeyError`
+  (matching the Plotly adapter) instead of silently plotting 0; a ragged
+  `z_matrix` raises `ValueError` instead of filling missing cells with 0; and
+  per-point `colors` / `error_y` style lists whose length does not match the
+  data raise `ValueError` instead of silently truncating the series. Both
+  adapters now raise `NotImplementedError` for the declared-but-unimplemented
+  `MarkType.area` and `AnnotationType.label` instead of silently falling back
+  to a scatter trace or dropping the annotation.
+- Visualization tests (#512): the Plotly annotation-rendering tests now assert
+  on the rendered `layout.shapes` / `layout.annotations` structure instead of
+  a tautology, and `test_themes.py` restores the `plotly.io.templates.default`
+  value that was in effect before the test rather than forcing the package
+  default, so the theme no longer leaks into later tests in the same worker.
+
+## [1.73.0] - 2026-08-29
+
+### Fixed
+
+- `PCA`, `PLS`, and `OPLS` no longer mutate their constructor parameters inside
+  `fit()`, restoring the sklearn `get_params` / `clone` contract that
+  `PLS.cross_validate` and `GridSearchCV` depend on (#505). The resolved
+  (possibly clamped) component count now lives on the fitted attribute
+  `n_components_`; `n_components` stays exactly as the user set it, including
+  `None`, so cloned resamples fit the requested configuration and refitting the
+  same instance on differently shaped data re-derives the clamp each time.
+  `PLS.fit` likewise no longer writes the resolved missing-data settings back
+  to `missing_data_settings`.
+
+### Changed
+
+- Reading `model.n_components` after fitting now returns the user's request
+  (which can be `None`), not the resolved count: read `model.n_components_`
+  for the fitted value. `OPLS`, which has no `n_components` constructor
+  parameter, exposes the fitted count only as `n_components_` and raises a
+  helpful rename message for the old name. `MBPCA` and `MBPLS` also expose
+  `n_components_` so the shared limit and plot helpers read one attribute
+  across all four estimators.
+
+## [1.72.0] - 2026-08-29
+
+The OMARS generator cluster from the 2026-08 audit triage (#513): issues #496
+to #499.
+
+### Fixed
+
+- `generate_omars(n_runs=n, center_runs=c)` now returns exactly `n` runs:
+  `n_runs` is the total run count of the returned design, centre runs included,
+  and `n_runs - center_runs` must be a positive even number. Previously the
+  extra centre runs were appended on top, so the design had `n + c - 1` rows
+  (#496).
+- The `a_optimal`, `d_efficiency`, and `min_second_order_correlation` selection
+  criteria (and the D axis of the default `dominance` rule) now find the true
+  optimum whenever the design class is small enough to enumerate, currently up
+  to four factors at moderate sizes. The search enumerates every feasible
+  half-design multiset, including designs that repeat a half-run, which the
+  previous binary ILP multistart could not represent at all; the reported
+  metadata carries `search_mode="exhaustive"` when the selection is exact and
+  `"multistart"` when the heuristic search was used (#497, #498, #499).
+- Design metrics (`d_efficiency`, `a_optimality`, `max_second_order_correlation`)
+  are now computed on the full returned design, extra centre runs included,
+  so the metadata describes the design the caller receives (#496).
+
+### Changed
+
+- In `generate_omars` selection and satisficing, a design containing a constant
+  second-order column (a term the design cannot estimate) now scores `inf` on
+  the maximum second-order correlation metric instead of having the column
+  skipped, so `min_second_order_correlation` no longer favours degenerate
+  designs. The descriptive statistic in `omars_properties` is unchanged (#499).
+- `generate_omars` docstrings state when a selection criterion is exact and
+  when it is heuristic, instead of claiming optimisation unconditionally
+  (#497, #498).
 
 ## [1.71.0] - 2026-08-22
 
@@ -3541,7 +3748,14 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.72.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.75.0...HEAD
+[1.75.0]: https://github.com/kgdunn/process-improve/compare/v1.74.0...v1.75.0
+[1.74.0]: https://github.com/kgdunn/process-improve/compare/v1.73.4...v1.74.0
+[1.73.4]: https://github.com/kgdunn/process-improve/compare/v1.73.3...v1.73.4
+[1.73.3]: https://github.com/kgdunn/process-improve/compare/v1.73.2...v1.73.3
+[1.73.2]: https://github.com/kgdunn/process-improve/compare/v1.73.1...v1.73.2
+[1.73.1]: https://github.com/kgdunn/process-improve/compare/v1.73.0...v1.73.1
+[1.73.0]: https://github.com/kgdunn/process-improve/compare/v1.72.0...v1.73.0
 [1.72.0]: https://github.com/kgdunn/process-improve/compare/v1.71.0...v1.72.0
 [1.71.0]: https://github.com/kgdunn/process-improve/compare/v1.70.0...v1.71.0
 [1.70.0]: https://github.com/kgdunn/process-improve/compare/v1.69.0...v1.70.0

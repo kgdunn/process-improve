@@ -55,9 +55,13 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     max_iter : int, default=500
         Maximum NIPALS iterations per latent variable.
     tol : float or None, default=None
-        Convergence tolerance on the change in the Y-block score. If
-        ``None``, ``np.finfo(float).eps ** (6/7)`` is used (matching the
-        legacy multi-block reference implementation).
+        Relative convergence tolerance on the change in the Y-block score
+        ``u``: the norm of the change between two successive iterations,
+        divided by the norm of the current ``u`` vector (#504). If ``None``,
+        ``epsqrt`` (about 1.49e-8) is used, the same default as PCA / PLS /
+        TPLS. The legacy absolute tolerance ``np.finfo(float).eps ** (6/7)``
+        (about 3.8e-14) sits below the floating-point oscillation floor of a
+        relative criterion, so it would never be reached in practice.
     algorithm : str, default="auto"
         Algorithm to use for fitting the model.
 
@@ -272,6 +276,10 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         # single-block estimator.
         self.feature_names_in_ = np.concatenate([self._block_columns[name].to_numpy() for name in self.block_names_])
         n_components = int(self.n_components)
+        # Fitted mirror of the constructor parameter, so shared helpers (the
+        # T2 limit mixin, spe_limit, the plot pre-checks) read one resolved
+        # attribute across PCA / PLS / MBPCA / MBPLS (#505).
+        self.n_components_ = n_components
         n_blocks = len(self.block_names_)
 
         self.has_missing_data_ = any(np.any(X[name].isna().values) for name in self.block_names_) or bool(
@@ -374,15 +382,23 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         r2_y_var_cum = np.zeros((self.n_targets_, n_components))
         block_spe_np: dict[str, np.ndarray] = {name: np.zeros((n_samples, n_components)) for name in self.block_names_}
 
-        tol = float(np.finfo(float).eps ** (6 / 7)) if self.tol is None else float(self.tol)
+        tol = epsqrt if self.tol is None else float(self.tol)
         timing = np.zeros(n_components)
         iterations = np.zeros(n_components, dtype=int)
-        rng = np.random.default_rng(0)
 
         for a in range(n_components):
             start = time.time()
-            u_a = rng.standard_normal(n_samples)
-            prev = u_a * 2
+            # Deterministic start (#503): seed ``u`` from the column of the
+            # (deflated) Y block with the largest sum of squares, exactly as
+            # single-block PLS does (#195). No RNG is involved, so the fit is
+            # reproducible without a random_state parameter, and the
+            # highest-variance Y column is closest to the leading component.
+            # The sign convention applied after convergence makes the fitted
+            # signs independent of this seed. (NaN is replaced by 0 for the
+            # missing-data path.)
+            start_col = int(np.argmax(np.nansum(y_def**2, axis=0)))
+            u_a = np.nan_to_num(y_def[:, start_col].astype(float).copy())
+            prev = u_a + 1.0
             local_w: dict[str, np.ndarray] = {}
             local_t: dict[str, np.ndarray] = {}
             t_b_summary = np.zeros((n_samples, n_blocks))
@@ -390,7 +406,12 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             w_s = np.zeros(n_blocks)
             c_a = np.zeros(self.n_targets_)
             itern = 0
-            while np.linalg.norm(prev - u_a) > tol and itern < self.max_iter:
+            # Relative convergence criterion (#504): the change between two
+            # successive ``u`` iterations is judged against the size of the
+            # current ``u`` vector, so the decision is invariant to a global
+            # rescaling of the data. The denominator is floored via ``_nz`` so
+            # an all-zero ``u`` vector cannot divide by zero.
+            while np.linalg.norm(prev - u_a) / _nz(float(np.linalg.norm(u_a))) > tol and itern < self.max_iter:
                 prev = u_a
                 if algo == "nipals":
                     # Mask-aware NIPALS: each projection is a per-column (or

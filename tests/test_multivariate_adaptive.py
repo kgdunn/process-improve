@@ -120,7 +120,16 @@ def test_adaptive_pls_initial_matches_batch_ldpe(ldpe_data: tuple[pd.DataFrame, 
     X, Y = ldpe_data
     model = AdaptivePLS(n_components=6).fit(X, Y)
     batch = PLS(n_components=6, scale=True).fit(X, Y)
-    np.testing.assert_allclose(model.beta_coefficients_.to_numpy(), batch.beta_coefficients_.to_numpy(), atol=1e-7)
+    # rtol relaxed from the assert_allclose default of 1e-7 to 1e-6: the
+    # scale-relative NIPALS convergence criterion (#504) stops the batch fit
+    # once successive score iterations agree to epsqrt (~1.49e-8) *relative*
+    # accuracy, and the kernel-vs-NIPALS agreement on this fixture then sits
+    # just past 1e-7 relative (1.07e-7 on one of 70 elements). Both solvers
+    # are converged to their own criteria; 1e-6 keeps the comparison tight
+    # without asserting more agreement than the stopping rule guarantees.
+    np.testing.assert_allclose(
+        model.beta_coefficients_.to_numpy(), batch.beta_coefficients_.to_numpy(), rtol=1e-6, atol=1e-7
+    )
     # Predictions with the freshly-initialised model equal the batch predictions.
     np.testing.assert_allclose(model.predict(X).to_numpy(), batch.predictions_.to_numpy(), atol=1e-6)
 

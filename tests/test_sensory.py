@@ -439,6 +439,7 @@ def test_jackknife_breakdown_demotes_via_nonsignificance_and_sign_flip():
     assert not b2
 
 
+@pytest.mark.slow
 def test_relate_influence_deletions_two_demotes_two_support_spike():
     """`influence_deletions=2` demotes a two-product spike the default gate keeps."""
     n = len(LEVERAGE_PRODUCTS)
@@ -590,6 +591,7 @@ def _null_case(seed: int = 0) -> tuple[pd.DataFrame, pd.DataFrame]:
     return agg, cov
 
 
+@pytest.mark.slow
 def test_permutation_null_flags_drivers_over_noise():
     """Genuine drivers clear the permuted-column null; noise columns fall below them."""
     agg, cov = _null_case()
@@ -612,6 +614,7 @@ def test_permutation_null_flags_drivers_over_noise():
         assert not noise["cv_beta_exceeds_null"]
 
 
+@pytest.mark.slow
 def test_permutation_null_ignore_drops_columns():
     """`ignore` removes named descriptors from the fit and the output."""
     agg, cov = _null_case()
@@ -630,6 +633,7 @@ def test_permutation_null_unknown_ignore_name_raises():
         permutation_column_null(agg, cov, ignore=["not_a_real_column"], n_iter=2)
 
 
+@pytest.mark.slow
 def test_permutation_null_is_deterministic():
     """The same seed gives identical thresholds and flags."""
     agg, cov = _null_case()
@@ -649,6 +653,7 @@ def test_permutation_null_validates_parameters():
         permutation_column_null(agg, cov, min_knockoffs=0, n_iter=2)
 
 
+@pytest.mark.slow
 def test_permutation_null_max_knockoffs_caps_the_count():
     """`max_knockoffs` bounds the knockoff count even when the fraction is larger."""
     agg, cov = _null_case()

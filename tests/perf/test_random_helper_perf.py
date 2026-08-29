@@ -1,17 +1,15 @@
-"""Perf baseline for :func:`process_improve._random.check_random_state`.
+"""Deterministic cost-shape assertions for :func:`process_improve._random.check_random_state`.
 
-First example of the ENG-15 pattern. Use as a template when adding
-baselines for PCA fit, PLS fit/predict, ``analyze_experiment``, and
-``evaluate_design`` in follow-up PRs:
+The reproducibility contract makes this helper the first call of every
+RNG-touching public function, so its cost shape matters: a passed
+``Generator`` must be returned as-is (zero-copy pass-through, no wrapping or
+re-seeding), and an ``int`` seed must resolve to a fresh, deterministic
+generator each call.
 
-- One test per hot path.
-- Use the smallest representative input that exercises the
-  function; the baseline is about *change detection*, not real-world
-  workloads.
-- Name the test ``test_<function>_baseline`` so the regression-budget
-  CI job (planned follow-up) can identify them.
-- Mark anything that exceeds ~1 second per call as ``slow`` (see
-  CONTRIBUTING.md / ENG-29) so contributors can skip it locally.
+These tests assert those properties directly instead of timing them (#511):
+identity for the pass-through path, and bit-identical draws plus fresh state
+for the int path. Wall-clock benchmarking remains the planned ENG-15 CI job
+(see CONTRIBUTING.md, "Performance-regression policy").
 """
 
 from __future__ import annotations
@@ -21,14 +19,25 @@ import numpy as np
 from process_improve._random import check_random_state
 
 
-def test_check_random_state_int_baseline(benchmark) -> None:  # type: ignore[no-untyped-def]
-    """Resolving an ``int`` seed is the hot path inside any future
-    iterative algorithm; track regressions here.
+def test_check_random_state_generator_is_passed_through_unchanged() -> None:
+    """A pre-built ``Generator`` comes back as the identical object.
+
+    Identity (not equality) is the assertion: any wrapping, copying, or
+    re-seeding on this hot path would both cost time and silently take
+    ownership of the caller's RNG state.
     """
-    benchmark(check_random_state, 42)
-
-
-def test_check_random_state_generator_passthrough_baseline(benchmark) -> None:  # type: ignore[no-untyped-def]
-    """Passing a pre-built ``Generator`` should be near-zero overhead."""
     g = np.random.default_rng(42)
-    benchmark(check_random_state, g)
+    assert check_random_state(g) is g
+
+
+def test_check_random_state_int_returns_fresh_deterministic_generator() -> None:
+    """An ``int`` seed resolves to a new generator with bit-identical draws.
+
+    Two calls with the same seed must produce independent generators (no
+    shared, advancing state) whose draw sequences match exactly.
+    """
+    rng1 = check_random_state(42)
+    rng2 = check_random_state(42)
+    assert isinstance(rng1, np.random.Generator)
+    assert rng1 is not rng2, "each int resolution must return a fresh generator"
+    np.testing.assert_array_equal(rng1.random(16), rng2.random(16))
