@@ -120,7 +120,12 @@ def score_plot(  # noqa: C901, PLR0913
             {
                 "show_ellipse": True,          # bool: show the Hotelling's T2 ellipse
                 "ellipse_conf_level": 0.95,    # float: ellipse confidence level (< 1.00)
-                "title": "Score plot of ...",  # str: overall plot title
+                "title": "",                   # str: overall plot title. The
+                                               # default is the empty string on
+                                               # the 2D path (pc_depth <= 0) and
+                                               # a "Score plot of component ..."
+                                               # sentence on the 3D path
+                                               # (pc_depth > 0).
                 "show_labels": False,          # bool: add a label for each observation
                 "show_legend": True,           # bool: show clickable legend
                 "html_image_height": 500,      # int: image height in pixels

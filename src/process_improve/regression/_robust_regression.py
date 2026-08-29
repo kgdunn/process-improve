@@ -121,7 +121,10 @@ def robust_regression(  # noqa: PLR0913, PLR0915
 
         N:                        the number of observations used to fit the model
         coefficients:             a length-1 list containing the regression slope
-        intercept:                returned if fit_intercept==True, otherwise 0
+        intercept:                the fitted intercept on the full-fit path
+                                  (0 when ``fit_intercept=False``); ``np.nan``
+                                  on the degenerate early-return path (see
+                                  below), regardless of ``fit_intercept``
         standard_errors:          a length-1 list containing the standard error of the slope
         standard_error_intercept: standard error for the intercept (np.nan if fit_intercept=False)
         R2:                       the R^2 value
