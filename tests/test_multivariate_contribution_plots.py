@@ -644,3 +644,44 @@ def test_eq4_q_contributions_for_a_multiblock_model(
     from_arrays = model.spe_contributions(as_arrays)
     for name, frame in from_arrays.items():
         assert frame.to_numpy() == pytest.approx(contributions[name].to_numpy(), abs=1e-12)
+
+
+class TestFittedNComponentsResolution:
+    """_fitted_n_components covers the fitted, TPLS-parent, and unfitted paths (#505)."""
+
+    def test_reads_fitted_attribute_first(self) -> None:
+        from process_improve.multivariate.plots import _fitted_n_components
+
+        class Fitted:
+            n_components = None
+            n_components_ = 3
+
+        assert _fitted_n_components(Fitted()) == 3
+
+    def test_delegates_to_tpls_parent(self) -> None:
+        from process_improve.multivariate.plots import _fitted_n_components
+
+        class Parent:
+            n_components_ = 2
+
+        class SubModelWrapper:
+            _parent = Parent()
+
+        assert _fitted_n_components(SubModelWrapper()) == 2
+
+    def test_falls_back_to_integer_constructor_parameter(self) -> None:
+        from process_improve.multivariate.plots import _fitted_n_components
+
+        class TplsLike:
+            n_components = 4  # TPLS stores a plain int and has no n_components_
+
+        assert _fitted_n_components(TplsLike()) == 4
+
+    def test_unfitted_model_raises(self) -> None:
+        from process_improve.multivariate.plots import _fitted_n_components
+
+        class Unfitted:
+            n_components = None
+
+        with pytest.raises(AttributeError, match="fit the model first"):
+            _fitted_n_components(Unfitted())

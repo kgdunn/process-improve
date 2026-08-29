@@ -32,6 +32,30 @@ those changes.
   value that was in effect before the test rather than forcing the package
   default, so the theme no longer leaks into later tests in the same worker.
 
+## [1.73.0] - 2026-08-29
+
+### Fixed
+
+- `PCA`, `PLS`, and `OPLS` no longer mutate their constructor parameters inside
+  `fit()`, restoring the sklearn `get_params` / `clone` contract that
+  `PLS.cross_validate` and `GridSearchCV` depend on (#505). The resolved
+  (possibly clamped) component count now lives on the fitted attribute
+  `n_components_`; `n_components` stays exactly as the user set it, including
+  `None`, so cloned resamples fit the requested configuration and refitting the
+  same instance on differently shaped data re-derives the clamp each time.
+  `PLS.fit` likewise no longer writes the resolved missing-data settings back
+  to `missing_data_settings`.
+
+### Changed
+
+- Reading `model.n_components` after fitting now returns the user's request
+  (which can be `None`), not the resolved count: read `model.n_components_`
+  for the fitted value. `OPLS`, which has no `n_components` constructor
+  parameter, exposes the fitted count only as `n_components_` and raises a
+  helpful rename message for the old name. `MBPCA` and `MBPLS` also expose
+  `n_components_` so the shared limit and plot helpers read one attribute
+  across all four estimators.
+
 ## [1.72.0] - 2026-08-29
 
 The OMARS generator cluster from the 2026-08 audit triage (#513): issues #496
@@ -3533,6 +3557,7 @@ this entry records them together.
 
 [Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.73.1...HEAD
 [1.73.1]: https://github.com/kgdunn/process-improve/compare/v1.73.0...v1.73.1
+[1.73.0]: https://github.com/kgdunn/process-improve/compare/v1.72.0...v1.73.0
 [1.72.0]: https://github.com/kgdunn/process-improve/compare/v1.71.0...v1.72.0
 [1.71.0]: https://github.com/kgdunn/process-improve/compare/v1.70.0...v1.71.0
 [1.70.0]: https://github.com/kgdunn/process-improve/compare/v1.69.0...v1.70.0
