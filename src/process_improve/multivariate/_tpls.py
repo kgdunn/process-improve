@@ -23,8 +23,7 @@ from sklearn.metrics import r2_score
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
 
-from .._linalg import safe_inverse
-from ._common import _nz
+from ._common import _nz, epsqrt
 from ._limits import ellipse_coordinates as _ellipse_coordinates
 from ._limits import hotellings_t2_limit as _hotellings_t2_limit
 from ._limits import spe_calculation
@@ -305,9 +304,12 @@ class TPLS(RegressorMixin, BaseEstimator):
         the SPE limit. This is a deliberate divergence from the flat
         ``spe_limit`` method on PCA / PLS.
     hotellings_t2 : pd.DataFrame, shape (n_samples, n_components)
-        Cumulative Hotelling's T^2 per super-component.
+        Cumulative Hotelling's T^2 per super-component: column ``a`` holds
+        ``sum_{j<=a} (t_j / s_j)^2``, the same form as PCA / PLS and as
+        :meth:`diagnose` (#502).
     scaling_factor_for_scores : pd.Series
-        Per-component scaling factor used by ellipse / T^2 helpers.
+        Standard deviation of each super-score column, computed with the
+        unbiased (N - 1) divisor; used by the ellipse / T^2 helpers.
 
     .. note::
        TPLS deliberately does **not** follow the sklearn trailing-
@@ -781,13 +783,10 @@ class TPLS(RegressorMixin, BaseEstimator):
                 "Y"
             ][key]["scale"].to_numpy()[None, :] + self.preproc_["Y"][key]["center"].to_numpy()[None, :]
 
-        # Calculate the T2 values: for all the spaces
-        hotellings_t2.iloc[:, :] = (
-            # Last item in the statement here is not super_scores.values !! we want the result back as a DataFrame
-            t_scores_super.to_numpy()
-            @ np.diag(np.power(1 / self.scaling_factor_for_scores.to_numpy(), 2), 0)
-            * t_scores_super
-        ).cumsum(axis="columns")
+        # Calculate the T2 values, with the same cumulative per-component form
+        # (and the same rank-deficiency guard) as ``fit`` stores in
+        # ``self.hotellings_t2``, so the two agree for the same rows (#502).
+        hotellings_t2.iloc[:, :] = self._cumulative_hotellings_t2(t_scores_super.to_numpy())
 
         return Bunch(
             hat=hat,
@@ -1328,6 +1327,33 @@ class TPLS(RegressorMixin, BaseEstimator):
         r2_vector = r2_vector.reshape(1, -1)  # Ensure r2_vector is a row vector
         return np.sqrt(n * np.sum(r2_vector * (loadings**2), axis=1) / np.sum(r2_vector))
 
+    def _cumulative_hotellings_t2(self, t_scores_super: np.ndarray) -> np.ndarray:
+        """Cumulative Hotelling's T2 per component from super-scores.
+
+        Matches the PCA / PLS convention (#502): column ``a`` holds
+        ``sum_{j<=a} (t_j / s_j)^2`` where ``s_j`` is the training score
+        standard deviation (unbiased, N - 1 divisor) stored in
+        ``scaling_factor_for_scores``. A component whose score standard
+        deviation is ~0 (a rank-deficient fit) carries no T2 information: its
+        standardized score is 0/0, so it is skipped rather than dividing by
+        ~zero, the same guard as PCA.
+
+        Parameters
+        ----------
+        t_scores_super : np.ndarray of shape (n_obs, n_components)
+            Super-scores of the observations to evaluate.
+
+        Returns
+        -------
+        np.ndarray of shape (n_obs, n_components)
+            Cumulative Hotelling's T2 after each component.
+        """
+        scaling = self.scaling_factor_for_scores.to_numpy(dtype=float)
+        t2_tol = epsqrt * max(1.0, float(np.max(scaling, initial=0.0)))
+        usable = scaling > t2_tol
+        inv_sq = np.where(usable, 1.0 / np.where(usable, scaling, 1.0) ** 2, 0.0)
+        return np.cumsum((t_scores_super**2) * inv_sq[None, :], axis=1)
+
     def _calculate_model_statistics_and_limits(self) -> None:
         """Calculate and store the model limits.
 
@@ -1339,22 +1365,23 @@ class TPLS(RegressorMixin, BaseEstimator):
         1. The model's Y-space predictions are scaled back to the original space.
         """
 
-        # Calculate the Hotelling's T2 values, and limits. Could do a ddof correction (n-1) for the variance matrix.
-        variance_matrix = self.t_scores_super.T @ self.t_scores_super / self.t_scores_super.shape[0]
-        t2_values = np.sum(
-            (self.t_scores_super.to_numpy() @ safe_inverse(variance_matrix.to_numpy(), what="super-score covariance"))
-            * self.t_scores_super.to_numpy(),
-            axis=1,
-        )
-        self.hotellings_t2 = pd.DataFrame(
-            t2_values,
-            index=self.observation_names,
-            columns=["Hotelling's T^2"],
-        )
+        # Hotelling's T2, cumulative per component, in the same form as PCA / PLS
+        # and as ``diagnose`` (#502): column ``a`` holds ``sum_{j<=a} (t_j / s_j)^2``.
+        # The score standard deviations use the unbiased (N - 1) divisor
+        # (``max(1, N - 1)`` guards the single-observation case), which is the
+        # estimator the F-distribution limit in ``hotellings_t2_limit`` is
+        # derived for; the previous N divisor inflated T2 by N / (N - 1).
+        scores_np = self.t_scores_super.to_numpy()
+        n_obs = scores_np.shape[0]
         self.scaling_factor_for_scores = pd.Series(
-            np.sqrt(np.diag(variance_matrix)),
+            np.sqrt(np.diag(scores_np.T @ scores_np) / max(1, n_obs - 1)),
             index=[a + 1 for a in range(self.n_components)],
             name="Standard deviation per score",
+        )
+        self.hotellings_t2 = pd.DataFrame(
+            self._cumulative_hotellings_t2(scores_np),
+            index=self.observation_names,
+            columns=list(range(1, self.n_components + 1)),
         )
 
         # Squared prediction error limits. This is a measure of the prediction error = difference between the actual
