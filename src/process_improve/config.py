@@ -125,6 +125,8 @@ def _read_env_bool(name: str, default: bool) -> bool:
 DEFAULTS: Final[dict[str, Any]] = {
     # Tool-safety knobs (pre-existing).
     "tool_timeout": 10.0,
+    # Network budget for the remote sample-dataset loaders (#508).
+    "dataset_fetch_timeout": 30.0,
     "max_cells": 1_000_000,
     "max_string": 100_000,
     "max_depth": 10,
@@ -146,6 +148,7 @@ DEFAULTS: Final[dict[str, Any]] = {
 #: keep working without modification.
 ENV_VAR_NAMES: Final[dict[str, str]] = {
     "tool_timeout": "PROCESS_IMPROVE_TOOL_TIMEOUT",
+    "dataset_fetch_timeout": "PROCESS_IMPROVE_DATASET_FETCH_TIMEOUT",
     "max_cells": "PROCESS_IMPROVE_MAX_CELLS",
     "max_string": "PROCESS_IMPROVE_MAX_STRING",
     "max_depth": "PROCESS_IMPROVE_MAX_DEPTH",
@@ -201,6 +204,21 @@ class Settings:
     @tool_timeout.setter
     def tool_timeout(self, value: float) -> None:
         self._cache["tool_timeout"] = float(value)
+
+    @property
+    def dataset_fetch_timeout(self) -> float:
+        """Wall-clock seconds budget for downloading one remote sample dataset.
+
+        Bounds the ``urlopen`` call in
+        :func:`process_improve.experiments.datasets._read_remote_csv`, so a
+        black-holing host raises the module's documented ``RuntimeError``
+        instead of hanging the caller indefinitely (#508).
+        """
+        return self._get("dataset_fetch_timeout", _read_env_float)
+
+    @dataset_fetch_timeout.setter
+    def dataset_fetch_timeout(self, value: float) -> None:
+        self._cache["dataset_fetch_timeout"] = float(value)
 
     @property
     def max_cells(self) -> int:

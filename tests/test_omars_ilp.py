@@ -241,6 +241,7 @@ def test_satisfice_unknown_key_raises() -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 def test_multistart_reaches_catalogue_quality() -> None:
     """The randomized multistart finds a high-D-efficiency 25-run, 5-factor OMARS design.
 
@@ -275,6 +276,7 @@ def test_multistart_reaches_catalogue_quality() -> None:
     "spawns; the property it checks is platform-independent and stays covered on "
     "Linux and Windows",
 )
+@pytest.mark.slow
 def test_more_restarts_is_never_worse() -> None:
     """Adding restarts can only match or improve the selected design's quality.
 
@@ -303,6 +305,7 @@ def test_more_restarts_is_never_worse() -> None:
     assert searched.metadata["d_efficiency"] >= 39.0  # and it clears the catalogue-competitive bar
 
 
+@pytest.mark.slow
 def test_multistart_is_deterministic_for_seed() -> None:
     """The multistart path reproduces the same design for a fixed seed (k=5)."""
     from process_improve.experiments import generate_omars
@@ -332,6 +335,7 @@ def test_legacy_max_candidates_sets_restart_floor() -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 def test_main_quadratic_builds_sub_full_model_design() -> None:
     """A four-factor OMARS can be sized for the main-effects-plus-quadratics model.
 
@@ -352,6 +356,7 @@ def test_main_quadratic_builds_sub_full_model_design() -> None:
     assert is_omars(_coded(result))
 
 
+@pytest.mark.slow
 def test_main_quadratic_auto_size_is_smaller_than_full() -> None:
     from process_improve.experiments import generate_omars
 
@@ -385,6 +390,7 @@ def test_default_model_is_full_second_order() -> None:
     assert result.metadata["sizing_model"] == "full_second_order"
 
 
+@pytest.mark.slow
 def test_a_optimal_selects_minimum_coefficient_variance() -> None:
     """The a_optimal criterion returns the lowest trace((X'X)^-1) design enumerated.
 
@@ -419,12 +425,14 @@ def test_a_optimal_selects_minimum_coefficient_variance() -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 def test_registry_integration() -> None:
     result = generate_design(_factors(4), design_type="omars_ilp", budget=21)
     assert is_omars(result.design[result.factor_names].to_numpy(dtype=float))
     assert result.metadata["n_runs_selected"] == 21
 
 
+@pytest.mark.slow
 def test_omars_with_budget_reaches_ilp() -> None:
     """design_type="omars" with a budget routes to the ILP enumerator."""
     result = generate_design(_factors(4), design_type="omars", budget=21, n_center_points=0)

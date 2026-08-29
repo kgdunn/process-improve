@@ -951,6 +951,7 @@ class TestMBPLSMissingData:
         with pytest.raises(ValueError, match=r"Y has rows with all values missing"):
             MBPLS(n_components=2).fit(x, y_n)
 
+    @pytest.mark.slow
     def test_nipals_recovers_with_sparse_nan(self, two_block) -> None:
         from process_improve.multivariate.methods import MBPLS
 
