@@ -11,6 +11,40 @@ those changes.
 
 ## [Unreleased]
 
+## [1.73.3] - 2026-08-29
+
+Release-pipeline hardening from the 2026-08 audit triage (#507). No library
+code changes.
+
+### Fixed
+
+- `publish.yml`: the version-vs-tag guard now runs on `workflow_dispatch` as
+  well as on tag pushes. A dispatch run must point at a commit already tagged
+  `v<version>` for the version in `pyproject.toml`, so a manual run can no
+  longer publish an untagged version from an arbitrary ref.
+- `publish.yml`: `gh release create` now passes `--target` with the SHA of the
+  checked-out commit, so a release created by the workflow tags the commit
+  that was actually published instead of the default branch head.
+- `publish.yml`: the CycloneDX SBOM is generated from a fresh virtualenv that
+  contains only the built wheel and its runtime dependencies (with the
+  installer tooling removed), so `build`, `cyclonedx-bom`, and their
+  transitive dependencies no longer appear as runtime components.
+- `publish.yml`: a missing `## [X.Y.Z]` heading in `CHANGELOG.md` now fails
+  the build job before anything is published, and the release-notes
+  extraction step errors instead of silently falling back to auto-generated
+  notes.
+
+### Changed
+
+- `publish.yml`: permissions are now per-job with least privilege. The build
+  job, which runs repository code through PEP 517 hooks, holds only
+  `contents: read`; the write scopes stay on the publish job.
+- `publish.yml`: `pypa/gh-action-pypi-publish` is pinned to the commit SHA of
+  v1.14.2 instead of the mutable `release/v1` branch ref.
+- `Makefile`: the `release` target no longer builds or publishes. It prints
+  the tag-gated release instructions and exits nonzero, so the gated workflow
+  is the only publish path.
+
 ## [1.71.0] - 2026-08-22
 
 The multivariate statistical cluster from the 2026-08 audit triage (#513).
@@ -3475,7 +3509,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.71.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.73.3...HEAD
+[1.73.3]: https://github.com/kgdunn/process-improve/compare/v1.73.2...v1.73.3
 [1.71.0]: https://github.com/kgdunn/process-improve/compare/v1.70.0...v1.71.0
 [1.70.0]: https://github.com/kgdunn/process-improve/compare/v1.69.0...v1.70.0
 [1.69.0]: https://github.com/kgdunn/process-improve/compare/v1.68.0...v1.69.0
