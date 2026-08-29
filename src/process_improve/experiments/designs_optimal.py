@@ -79,6 +79,72 @@ _PYOPTEX_MODEL_MAP = {
     "quadratic": "quad",
 }
 
+
+def _n_model_parameters(factors: list[Factor], model_type: str) -> int:
+    """Return the number of coefficients in the model an optimal design is asked for.
+
+    A design with fewer runs than this cannot estimate the model at all: the
+    model matrix is rank deficient no matter which points are chosen. The count
+    is the estimability floor every backend is held to.
+
+    Each factor contributes one encoded column, except a categorical factor with
+    ``L`` levels, which contributes ``L - 1``. The model then has an intercept,
+    the main effects, the two-factor interactions (for ``"interactions"`` and
+    ``"quadratic"``), and one pure-quadratic term per non-categorical factor
+    (for ``"quadratic"`` only; a categorical factor has no square, which is why
+    ``_run_pyoptex`` drops it to a ``"tfi"`` model per factor).
+
+    Parameters
+    ----------
+    factors : list[Factor]
+        Factor specifications.
+    model_type : str
+        ``"main_effects"``, ``"interactions"`` or ``"quadratic"``. An unknown
+        value is treated as ``"interactions"``, matching ``_run_pyoptex``.
+
+    Returns
+    -------
+    int
+        The number of model coefficients.
+    """
+    from process_improve.experiments.factor import FactorType  # noqa: PLC0415
+
+    widths = [len(f.levels) - 1 if f.type == FactorType.categorical and f.levels else 1 for f in factors]
+    n_parameters = 1 + sum(widths)  # intercept + main effects
+    rsm_key = _PYOPTEX_MODEL_MAP.get(model_type, "tfi")
+    if rsm_key in {"tfi", "quad"}:
+        n_parameters += sum(widths[i] * widths[j] for i in range(len(widths)) for j in range(i + 1, len(widths)))
+    if rsm_key == "quad":
+        n_parameters += sum(1 for f in factors if f.type != FactorType.categorical)
+    return n_parameters
+
+
+def _floor_budget_at_model_size(factors: list[Factor], budget: int, model_type: str) -> int:
+    """Raise ``budget`` to the model's parameter count, warning when it does.
+
+    Both backends need this floor and neither imposed it consistently. pyoptex
+    failed with an upstream message about "rank collinearity" between model
+    components, which names neither the budget nor the model; the point-exchange
+    fallback clamped to one run per factor, one short of the intercept, and even
+    the default ``budget = 2 * n_factors + 1`` falls below the parameter count
+    of an interactions model from five factors up.
+    """
+    n_parameters = _n_model_parameters(factors, model_type)
+    if budget < n_parameters:
+        logger.warning(
+            "A budget of %d run(s) cannot estimate a '%s' model over %d factor(s), which has %d "
+            "coefficients; raising the budget to %d. Reduce the model or the number of factors to "
+            "run fewer experiments.",
+            budget,
+            model_type,
+            len(factors),
+            n_parameters,
+            n_parameters,
+        )
+        return n_parameters
+    return budget
+
+
 #: Map our optimality-criterion strings to pyoptex metric constructors.
 _PYOPTEX_METRIC_MAP: dict = {}
 if _PYOPTEX_AVAILABLE:  # pragma: no branch - false only in env-without-pyoptex
@@ -347,8 +413,12 @@ def _run_point_exchange_fallback(
     candidates = candidates_raw - 1.0
 
     candidates_df = pd.DataFrame(candidates, columns=[f.name for f in factors])
-    n_points = min(budget, candidates_df.shape[0])
-    n_points = max(n_points, k + 1)
+    # `dispatch_d_optimal` has already floored the budget at the model's
+    # parameter count; ``k + 1`` is the floor for the first-order model that
+    # `point_exchange` itself scores, kept here for a direct internal call.
+    # The candidate set caps the size from above: the search picks distinct
+    # rows, so it cannot return more runs than there are candidates.
+    n_points = max(min(budget, candidates_df.shape[0]), k + 1)
 
     design_df, d_opt = point_exchange(candidates_df, number_points=n_points)
     return design_df.values, {"d_optimality": float(d_opt), "backend": "point_exchange_fallback"}
@@ -393,14 +463,7 @@ def dispatch_d_optimal(  # noqa: PLR0913
     k = len(factors)
     if budget is None:
         budget = 2 * k + 1
-    # A budget below k + 1 cannot estimate even the main-effects model. The
-    # point-exchange fallback already floors its run count this way; apply the
-    # same floor before the pyoptex path so the documented clamp contract holds
-    # on both backends (pyoptex handles an infeasible run count unpredictably).
-    # A budget that cannot even hold the fixed runs is left unclamped so the
-    # fixed-runs validation still raises on the requested value.
-    if fixed_runs is None or budget > len(fixed_runs):
-        budget = max(budget, k + 1)
+    budget = _floor_budget_at_model_size(factors, budget, model_type)
 
     if fixed_runs is not None and not _PYOPTEX_AVAILABLE:
         raise ImportError(f"fixed_runs (design augmentation) requires pyoptex. {_PYOPTEX_INSTALL_HINT}")
@@ -480,14 +543,7 @@ def dispatch_i_optimal(  # noqa: PLR0913
     k = len(factors)
     if budget is None:
         budget = 2 * k + 1
-    # A budget below k + 1 cannot estimate even the main-effects model. The
-    # point-exchange fallback already floors its run count this way; apply the
-    # same floor before the pyoptex path so the documented clamp contract holds
-    # on both backends (pyoptex handles an infeasible run count unpredictably).
-    # A budget that cannot even hold the fixed runs is left unclamped so the
-    # fixed-runs validation still raises on the requested value.
-    if fixed_runs is None or budget > len(fixed_runs):
-        budget = max(budget, k + 1)
+    budget = _floor_budget_at_model_size(factors, budget, model_type)
 
     matrix, meta = _run_pyoptex(
         factors,
@@ -540,14 +596,7 @@ def dispatch_a_optimal(  # noqa: PLR0913
     k = len(factors)
     if budget is None:
         budget = 2 * k + 1
-    # A budget below k + 1 cannot estimate even the main-effects model. The
-    # point-exchange fallback already floors its run count this way; apply the
-    # same floor before the pyoptex path so the documented clamp contract holds
-    # on both backends (pyoptex handles an infeasible run count unpredictably).
-    # A budget that cannot even hold the fixed runs is left unclamped so the
-    # fixed-runs validation still raises on the requested value.
-    if fixed_runs is None or budget > len(fixed_runs):
-        budget = max(budget, k + 1)
+    budget = _floor_budget_at_model_size(factors, budget, model_type)
 
     matrix, meta = _run_pyoptex(
         factors,
