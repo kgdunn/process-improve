@@ -57,6 +57,24 @@ values were wrong.
   `scaling_factor_for_scores` (which feeds `ellipse_coordinates`) also uses
   the `N - 1` divisor, so TPLS score ellipses are slightly larger. (#502)
 
+## [1.73.2] - 2026-08-29
+
+### Fixed
+
+- The MCP server (`process-improve-mcp`) now publishes each tool's real JSON
+  Schema (#506). Registration previously introspected a generic `(**kwargs)`
+  handler, so every tool appeared to MCP clients with an empty `inputSchema`:
+  no parameter names, types, required/optional split, enums, or bounds. Tools
+  are now registered as explicit `Tool` objects whose published `inputSchema`
+  is exactly the registry's `input_schema` from `get_tool_specs()`, so `anyOf`
+  unions (`int | None`, `Literal[...]`) survive intact. The server targets the
+  MCP 2.x SDK (`mcp.server.mcpserver.MCPServer`; the `mcp` extra now pins
+  `mcp>=2.0`), under which the old `FastMCP` import failed outright.
+  `mcp_server.py` is no longer omitted from coverage measurement.
+- The concurrent-dispatch MCP test no longer asserts on wall-clock elapsed
+  time, which could flake on loaded CI runners; it now proves the overlap with
+  a barrier both in-flight calls must reach (drive-by from #513).
+
 ## [1.73.1] - 2026-08-29
 
 ### Fixed
@@ -3603,6 +3621,7 @@ this entry records them together.
 
 [Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.74.0...HEAD
 [1.74.0]: https://github.com/kgdunn/process-improve/compare/v1.73.4...v1.74.0
+[1.73.2]: https://github.com/kgdunn/process-improve/compare/v1.73.1...v1.73.2
 [1.73.1]: https://github.com/kgdunn/process-improve/compare/v1.73.0...v1.73.1
 [1.73.0]: https://github.com/kgdunn/process-improve/compare/v1.72.0...v1.73.0
 [1.72.0]: https://github.com/kgdunn/process-improve/compare/v1.71.0...v1.72.0
