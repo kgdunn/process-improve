@@ -62,7 +62,7 @@ def index_to_replace_in_design_row(
     return design_index[int(np.argmin(new_optimimum))]
 
 
-def point_exchange(
+def point_exchange(  # noqa: C901
     x: pd.DataFrame, number_points: int = 10, random_state: int | None = None
 ) -> tuple[pd.DataFrame, float]:
     """
@@ -138,5 +138,20 @@ def point_exchange(
                 design = potential_design
                 d_optimality_i = d_optimality_i_potential
                 # print(f"New D-optimality at {i=} (merge): {d_optimality_i}")
+
+    # The loop above grows the design only when an addition improves the
+    # criterion, and a candidate consumed by a replacement is never considered
+    # for addition, so an unlucky shuffle can end below number_points (about
+    # 1 to 2% of unseeded runs for a 27-candidate, 4-point request). The
+    # contract is to return number_points rows: complete the design greedily
+    # with the remaining candidates that best preserve D-optimality.
+    while design.shape[0] < number_points:
+        remaining = x.loc[~x.index.isin(design.index)]
+        if remaining.empty:  # pragma: no cover - number_points is capped at len(x) above
+            break
+        scores = [optimization_function(pd.concat([design, remaining.iloc[[j]]])) for j in range(remaining.shape[0])]
+        best_j = int(np.argmin(scores))
+        design = pd.concat([design, remaining.iloc[[best_j]]])
+        d_optimality_i = scores[best_j]
 
     return design.sort_index(), d_optimality_i
