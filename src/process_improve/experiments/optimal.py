@@ -22,7 +22,16 @@ def optimization_function(x: pd.DataFrame) -> float:
         xtx_i = np.linalg.inv(np.dot(np.transpose(x), x))
     except np.linalg.LinAlgError:
         return float(np.inf)
-    return float(np.linalg.slogdet(xtx_i)[1])
+    log_det_inverse = float(np.linalg.slogdet(xtx_i)[1])
+    if not np.isfinite(log_det_inverse):
+        # A numerically singular X'X can pass np.linalg.inv without raising and
+        # yield a garbage inverse whose determinant is exactly zero, scoring
+        # log|det| = -inf: under the lower-is-better convention that would rank
+        # the singular design as unbeatable, freezing the exchange loop (no
+        # replacement or addition can improve on -inf). Score it unacceptable
+        # instead, like the exactly singular case above.
+        return float(np.inf)
+    return log_det_inverse
 
 
 def index_to_replace_in_design_row(
