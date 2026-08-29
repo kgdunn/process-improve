@@ -154,6 +154,8 @@ def _assoc_row(assoc: pd.DataFrame, attribute: str, descriptor: str) -> pd.Serie
     return assoc[(assoc["attribute"] == attribute) & (assoc["descriptor"] == descriptor)].iloc[0]
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_pipeline_end_to_end():  # noqa: PLR0915
     panel, covariates = make_panel_and_covariates()
 

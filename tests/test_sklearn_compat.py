@@ -213,6 +213,8 @@ def test_make_column_transformer_with_mcuvscaler_and_pls() -> None:
     assert len(feature_names) == 6
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_halving_grid_search_cv_with_mcuvscaler_and_pls() -> None:
     """#398: HalvingGridSearchCV over Pipeline([MCUVScaler, PLS]) finishes and picks a config.
 
