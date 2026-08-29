@@ -3931,10 +3931,12 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
         5.59365285,
         5.54739917,
     ]
-    # Check that the Hotelling's T2 matches what would have been calculated by the model.
-    assert pytest.approx(tpls_test.hotellings_t2.loc[testing_samples]) == predictions["hotellings_t2"].values[
-        :, -1
-    ].reshape(-1, 1)
+    # Check that the Hotelling's T2 matches what would have been calculated by the model:
+    # fit() and diagnose() now share the same cumulative per-component form (#502), so the
+    # full (n_obs, n_components) frames agree, not just the last column.
+    assert pytest.approx(tpls_test.hotellings_t2.loc[testing_samples].to_numpy()) == predictions[
+        "hotellings_t2"
+    ].to_numpy()
 
     # from sklearn.model_selection import cross_val_score
 
@@ -3943,14 +3945,19 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     assert tpls_test.fitting_statistics["iterations"] == [11, 9, 27]
     assert all(tol < epsqrt for tol in tpls_test.fitting_statistics["convergance_tolerance"])
 
-    # Model parameters tested
-    assert pytest.approx(tpls_test.hotellings_t2.iloc[0:5].values.ravel()) == np.array(
+    # Model parameters tested. ``hotellings_t2`` is now the cumulative per-component form
+    # with the unbiased (N - 1) score-variance divisor (#502), shape (N, n_components); the
+    # full-model T2 is the last column. The training super-scores are orthogonal (largest
+    # normalized off-diagonal cross-product ~1e-17), so the previous full-Mahalanobis pins
+    # [2.49885911, 2.961537, 2.88846366, 4.58151729, 5.06621405] equal the diagonal form
+    # with the N divisor: the new values are exactly the old ones times (N-1)/N = 104/105.
+    assert pytest.approx(tpls_test.hotellings_t2.iloc[0:5, -1].values.ravel()) == np.array(
         [
-            2.49885911,
-            2.961537,
-            2.88846366,
-            4.58151729,
-            5.06621405,
+            2.47506046,
+            2.93333189,
+            2.86095448,
+            4.53788379,
+            5.01796439,
         ]
     )
 
@@ -4019,6 +4026,30 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     assert predictions["spe"]["Z"] == {}
     assert predictions["spe"]["F"] is not None
     assert predictions.spe is not None  # test the `Bunch` functionality
+
+
+def test_tpls_fit_and_diagnose_t2_agree(fixture_tpls_example: dict) -> None:
+    """#502: ``fit()`` and ``diagnose()`` compute Hotelling's T2 by the same
+    cumulative per-component formula with the unbiased (N - 1) score-variance
+    divisor, so the training rows give the same values, with the same
+    (n_obs, n_components) shape, from both entry points.
+    """
+    d_matrix = fixture_tpls_example.pop("D")
+    model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(fixture_tpls_example))
+    result = model.diagnose(
+        DataFrameDict({"Z": fixture_tpls_example["Z"], "F": fixture_tpls_example["F"]})
+    )
+    n_obs = model.t_scores_super.shape[0]
+    assert model.hotellings_t2.shape == (n_obs, 3)
+    assert result.hotellings_t2.shape == model.hotellings_t2.shape
+    np.testing.assert_allclose(result.hotellings_t2.to_numpy(), model.hotellings_t2.to_numpy(), atol=1e-10)
+
+    # The score standard deviations feed ellipse_coordinates; pin the unbiased
+    # (N - 1) computation against a direct calculation on the super-scores.
+    expected_sd = np.sqrt(
+        np.diag(model.t_scores_super.to_numpy().T @ model.t_scores_super.to_numpy()) / (n_obs - 1)
+    )
+    assert model.scaling_factor_for_scores.to_numpy() == pytest.approx(expected_sd, rel=1e-12)
 
 
 def test_tpls_cross_validation(fixture_tpls_example: dict) -> None:
