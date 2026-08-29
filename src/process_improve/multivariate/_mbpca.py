@@ -339,9 +339,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             # the current super-score, so the decision is invariant to a
             # global rescaling of the data. The denominator is floored via
             # ``_nz`` so an all-zero super-score cannot divide by zero.
-            while (
-                np.linalg.norm(prev - t_super) / _nz(float(np.linalg.norm(t_super))) > tol and itern < self.max_iter
-            ):
+            while np.linalg.norm(prev - t_super) / _nz(float(np.linalg.norm(t_super))) > tol and itern < self.max_iter:
                 prev = t_super
                 if algo == "nipals":
                     # Mask-aware NIPALS: each projection is a per-column (or

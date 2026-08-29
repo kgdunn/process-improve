@@ -101,15 +101,15 @@ def test_terminate_check_is_scale_relative() -> None:
     # (scale 1e-12) converged instantly.
     base_guess = np.array([1.0, 2.0, 3.0])
     base_new = base_guess * (1 + 1e-3)
-    for scale in (1e-12, 1.0, 1e9):
-        assert terminate_check(scale * base_guess, scale * base_new, iterations=1, settings=settings) is False
+    for magnitude in (1e-12, 1.0, 1e9):
+        assert terminate_check(magnitude * base_guess, magnitude * base_new, iterations=1, settings=settings) is False
 
     # A relative change of 1e-9: converged at md_tol=1e-6, at any magnitude.
     # The old absolute criterion could never reach 1e-6 at scale 1e9 (the
     # absolute gap is ~3.7), so it burned all md_max_iter iterations there.
     tiny_new = base_guess * (1 + 1e-9)
-    for scale in (1e-12, 1.0, 1e9):
-        assert terminate_check(scale * base_guess, scale * tiny_new, iterations=1, settings=settings) is True
+    for magnitude in (1e-12, 1.0, 1e9):
+        assert terminate_check(magnitude * base_guess, magnitude * tiny_new, iterations=1, settings=settings) is True
 
     # A fully-deflated, all-zero score vector: the floored denominator reports
     # convergence instead of dividing by zero.
@@ -3934,9 +3934,10 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     # Check that the Hotelling's T2 matches what would have been calculated by the model:
     # fit() and diagnose() now share the same cumulative per-component form (#502), so the
     # full (n_obs, n_components) frames agree, not just the last column.
-    assert pytest.approx(tpls_test.hotellings_t2.loc[testing_samples].to_numpy()) == predictions[
-        "hotellings_t2"
-    ].to_numpy()
+    assert (
+        pytest.approx(tpls_test.hotellings_t2.loc[testing_samples].to_numpy())
+        == predictions["hotellings_t2"].to_numpy()
+    )
 
     # from sklearn.model_selection import cross_val_score
 
@@ -4036,9 +4037,7 @@ def test_tpls_fit_and_diagnose_t2_agree(fixture_tpls_example: dict) -> None:
     """
     d_matrix = fixture_tpls_example.pop("D")
     model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(fixture_tpls_example))
-    result = model.diagnose(
-        DataFrameDict({"Z": fixture_tpls_example["Z"], "F": fixture_tpls_example["F"]})
-    )
+    result = model.diagnose(DataFrameDict({"Z": fixture_tpls_example["Z"], "F": fixture_tpls_example["F"]}))
     n_obs = model.t_scores_super.shape[0]
     assert model.hotellings_t2.shape == (n_obs, 3)
     assert result.hotellings_t2.shape == model.hotellings_t2.shape
@@ -4046,9 +4045,7 @@ def test_tpls_fit_and_diagnose_t2_agree(fixture_tpls_example: dict) -> None:
 
     # The score standard deviations feed ellipse_coordinates; pin the unbiased
     # (N - 1) computation against a direct calculation on the super-scores.
-    expected_sd = np.sqrt(
-        np.diag(model.t_scores_super.to_numpy().T @ model.t_scores_super.to_numpy()) / (n_obs - 1)
-    )
+    expected_sd = np.sqrt(np.diag(model.t_scores_super.to_numpy().T @ model.t_scores_super.to_numpy()) / (n_obs - 1))
     assert model.scaling_factor_for_scores.to_numpy() == pytest.approx(expected_sd, rel=1e-12)
 
 
