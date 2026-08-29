@@ -113,3 +113,25 @@ def test_tool_never_leaks_unexpected_exception(spec: dict[str, Any], data: st.Da
     else:
         assert isinstance(result, dict)
         json.dumps(result, default=str)
+
+
+def test_fit_pls_huge_magnitude_seed_column_regression() -> None:
+    """Deterministic regression for a fuzz find on the #504 rework: a Y column
+    with a ~1.9e154 entry made the additive ``+ 1.0`` loop-priming offset
+    negligible under the scale-relative NIPALS criterion, so the loop reported
+    convergence before its first iteration and ``fit_pls`` leaked
+    ``UnboundLocalError`` for the never-assigned ``t_a``. The loop now always
+    runs at least one iteration; the call must satisfy the boundary invariant
+    (a JSON-serialisable dict, or a documented exception).
+    """
+    payload = {
+        "x_data": [[], [], [], [0.0], [1.0]],
+        "y_data": [[], [], [], [0.0], [1.9e154]],
+        "n_components": 1,
+    }
+    try:
+        result = execute_tool_call("fit_pls", payload)
+    except _EXPECTED:
+        return  # documented validation / value failure - acceptable
+    assert isinstance(result, dict)
+    json.dumps(result, default=str)

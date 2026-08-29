@@ -1554,3 +1554,70 @@ class TestSimcaPCAComparison:
     PCA and PLS models. Deferred until PR2 brings the reference values into
     the repository.
     """
+
+
+class TestMultiblockDeterministicStart:
+    """#503: the MBPCA / MBPLS NIPALS loops seed their super-score / u vector
+    deterministically from the highest-sum-of-squares column, with no RNG in
+    the fit path, so repeated fits on the same data are bit-identical.
+    """
+
+    @pytest.fixture
+    def blocks_and_y(self) -> tuple[dict[str, pd.DataFrame], pd.DataFrame]:
+        rng = np.random.default_rng(2026)
+        n_rows = 40
+        latent = rng.standard_normal((n_rows, 2))
+        x_blocks = {
+            "A": pd.DataFrame(
+                latent @ rng.standard_normal((2, 5)) + 0.05 * rng.standard_normal((n_rows, 5)),
+                columns=[f"a{i}" for i in range(5)],
+            ),
+            "B": pd.DataFrame(
+                latent @ rng.standard_normal((2, 3)) + 0.05 * rng.standard_normal((n_rows, 3)),
+                columns=[f"b{i}" for i in range(3)],
+            ),
+        }
+        y_df = pd.DataFrame(
+            latent @ rng.standard_normal((2, 2)) + 0.05 * rng.standard_normal((n_rows, 2)),
+            columns=["y0", "y1"],
+        )
+        return x_blocks, y_df
+
+    def test_mbpca_repeated_fits_are_identical(self, blocks_and_y) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        x_blocks, _ = blocks_and_y
+        m1 = MBPCA(n_components=2, algorithm="nipals").fit(x_blocks)
+        m2 = MBPCA(n_components=2, algorithm="nipals").fit(x_blocks)
+        np.testing.assert_array_equal(m1.super_scores_.values, m2.super_scores_.values)
+        np.testing.assert_array_equal(m1.super_loadings_.values, m2.super_loadings_.values)
+        for name in m1.block_names_:
+            np.testing.assert_array_equal(m1.block_scores_[name].values, m2.block_scores_[name].values)
+            np.testing.assert_array_equal(m1.block_loadings_[name].values, m2.block_loadings_[name].values)
+
+    def test_mbpls_repeated_fits_are_identical(self, blocks_and_y) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = blocks_and_y
+        m1 = MBPLS(n_components=2, algorithm="nipals").fit(x_blocks, y_df)
+        m2 = MBPLS(n_components=2, algorithm="nipals").fit(x_blocks, y_df)
+        np.testing.assert_array_equal(m1.super_scores_.values, m2.super_scores_.values)
+        np.testing.assert_array_equal(m1.super_weights_.values, m2.super_weights_.values)
+        np.testing.assert_array_equal(m1.super_y_scores_.values, m2.super_y_scores_.values)
+        for name in m1.block_names_:
+            np.testing.assert_array_equal(m1.block_scores_[name].values, m2.block_scores_[name].values)
+            np.testing.assert_array_equal(m1.block_loadings_[name].values, m2.block_loadings_[name].values)
+
+    def test_no_nonconvergence_warning_on_well_conditioned_data(self, blocks_and_y) -> None:
+        """#504 acceptance: the default (now relative) tolerance produces no
+        spurious non-convergence warnings on ordinary well-conditioned data.
+        """
+        import warnings
+
+        from process_improve.multivariate.methods import MBPCA, MBPLS
+
+        x_blocks, y_df = blocks_and_y
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            MBPCA(n_components=2, algorithm="nipals").fit(x_blocks)
+            MBPLS(n_components=2, algorithm="nipals").fit(x_blocks, y_df)
