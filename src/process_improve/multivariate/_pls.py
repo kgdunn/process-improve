@@ -165,7 +165,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     max_iter : int, default=1000
         Maximum number of iterations for the NIPALS algorithm.
     tol : float, default=sqrt(machine epsilon)
-        Convergence tolerance for the NIPALS algorithm.
+        Relative convergence tolerance for the NIPALS algorithm: the change
+        between two successive score-vector iterations, relative to the norm
+        of the current score vector (see :func:`terminate_check`).
     copy : bool, default=True
         Whether to copy X and Y before fitting.
     missing_data_settings : dict or None, default=None

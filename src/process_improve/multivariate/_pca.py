@@ -237,7 +237,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
     missing_data_settings : dict or None, default=None
         Settings for iterative missing data algorithms (NIPALS, TSR).
-        Keys: ``md_tol`` (convergence tolerance), ``md_max_iter`` (max iterations).
+        Keys: ``md_tol`` (relative convergence tolerance on successive score
+        vectors; see :func:`terminate_check`), ``md_max_iter`` (max iterations).
 
     Attributes (after fitting)
     --------------------------

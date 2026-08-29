@@ -59,8 +59,13 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     max_iter : int, default=500
         Maximum NIPALS iterations per component in the hierarchical outer loop.
     tol : float or None, default=None
-        Convergence tolerance on the super-score change. ``None`` uses
-        ``np.finfo(float).eps ** (9/10)`` (matches the legacy reference).
+        Relative convergence tolerance on the super-score change: the norm of
+        the change between two successive super-score iterations, divided by
+        the norm of the current super-score vector (#504). ``None`` uses
+        ``epsqrt`` (about 1.49e-8), the same default as PCA / PLS / TPLS. The
+        legacy absolute tolerance ``np.finfo(float).eps ** (9/10)`` (about
+        8.2e-15) sits below the floating-point oscillation floor of a relative
+        criterion, so it would never be reached in practice.
     algorithm : str, default="auto"
         Algorithm to use for fitting the model.
 
@@ -305,21 +310,38 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         }
         block_spe_np: dict[str, np.ndarray] = {name: np.zeros((n_samples, n_components)) for name in self.block_names_}
 
-        tol = float(np.finfo(float).eps ** (9 / 10)) if self.tol is None else float(self.tol)
+        tol = epsqrt if self.tol is None else float(self.tol)
         timing = np.zeros(n_components)
         iterations = np.zeros(n_components, dtype=int)
-        rng = np.random.default_rng(0)
 
         for a in range(n_components):
             start = time.time()
-            t_super = rng.standard_normal(n_samples)
-            prev = t_super * 2
+            # Deterministic start (#503): seed the super-score from the column,
+            # across all blocks, with the largest sum of squares, mirroring the
+            # single-block PCA / PLS seeding (#195). No RNG is involved, so the
+            # fit is reproducible without a random_state parameter, and the
+            # highest-variance column is closest to the leading component. The
+            # sign convention applied after convergence makes the fitted signs
+            # independent of this seed. (NaN is replaced by 0 for the
+            # missing-data path.)
+            col_ssq = {name: np.nansum(x_def[name] ** 2, axis=0) for name in self.block_names_}
+            start_block = max(self.block_names_, key=lambda name: float(np.max(col_ssq[name], initial=0.0)))
+            start_col = int(np.argmax(col_ssq[start_block]))
+            t_super = np.nan_to_num(x_def[start_block][:, start_col].astype(float).copy())
+            prev = t_super + 1.0
             t_b_summary = np.zeros((n_samples, n_blocks))
             local_loadings: dict[str, np.ndarray] = {}
             local_scores: dict[str, np.ndarray] = {}
             p_s = np.zeros(n_blocks)
             itern = 0
-            while np.linalg.norm(prev - t_super) > tol and itern < self.max_iter:
+            # Relative convergence criterion (#504): the change between two
+            # successive super-score iterations is judged against the size of
+            # the current super-score, so the decision is invariant to a
+            # global rescaling of the data. The denominator is floored via
+            # ``_nz`` so an all-zero super-score cannot divide by zero.
+            while (
+                np.linalg.norm(prev - t_super) / _nz(float(np.linalg.norm(t_super))) > tol and itern < self.max_iter
+            ):
                 prev = t_super
                 if algo == "nipals":
                     # Mask-aware NIPALS: each projection is a per-column (or

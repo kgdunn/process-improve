@@ -77,7 +77,8 @@ def test_terminate_check_off_by_one_fixed() -> None:
     ``md_max_iter + 1``.
     """
 
-    # Unconverged scores: a tiny non-zero diff so the tolerance branch is False.
+    # Unconverged scores: the relative change ||diff|| / ||t_a|| is ~4.6e-4,
+    # far above md_tol, so the tolerance branch is False.
     t_a_guess = np.array([1.0, 2.0, 3.0])
     t_a = np.array([1.001, 2.001, 3.001])
     settings = {"md_tol": 1e-9, "md_max_iter": 5}
@@ -86,6 +87,63 @@ def test_terminate_check_off_by_one_fixed() -> None:
     assert terminate_check(t_a_guess, t_a, iterations=4, settings=settings) is False
     # iterations == md_max_iter -> terminated (post-fix).
     assert terminate_check(t_a_guess, t_a, iterations=5, settings=settings) is True
+
+
+def test_terminate_check_is_scale_relative() -> None:
+    """#504: terminate_check compares the successive-iteration change relative
+    to the norm of the current score vector, so the convergence decision is
+    invariant to a global rescaling of the vectors.
+    """
+    settings = {"md_tol": 1e-6, "md_max_iter": 500}
+
+    # A relative change of 1e-3 in each element: not converged at md_tol=1e-6,
+    # at any magnitude. The old absolute criterion declared the tiny pair
+    # (scale 1e-12) converged instantly.
+    base_guess = np.array([1.0, 2.0, 3.0])
+    base_new = base_guess * (1 + 1e-3)
+    for scale in (1e-12, 1.0, 1e9):
+        assert terminate_check(scale * base_guess, scale * base_new, iterations=1, settings=settings) is False
+
+    # A relative change of 1e-9: converged at md_tol=1e-6, at any magnitude.
+    # The old absolute criterion could never reach 1e-6 at scale 1e9 (the
+    # absolute gap is ~3.7), so it burned all md_max_iter iterations there.
+    tiny_new = base_guess * (1 + 1e-9)
+    for scale in (1e-12, 1.0, 1e9):
+        assert terminate_check(scale * base_guess, scale * tiny_new, iterations=1, settings=settings) is True
+
+    # A fully-deflated, all-zero score vector: the floored denominator reports
+    # convergence instead of dividing by zero.
+    zeros = np.zeros(3)
+    assert terminate_check(zeros, zeros, iterations=1, settings=settings) is True
+
+
+def test_nipals_fit_is_scale_invariant() -> None:
+    """#504: fitting on ``X`` and on ``1000 * X`` takes the same number of
+    NIPALS iterations, and gives identical loadings and scores up to the
+    scale factor, for both PCA and PLS.
+    """
+    rng = np.random.default_rng(42)
+    N, K, M, A = 40, 6, 2, 3
+    t_true = rng.standard_normal((N, 3))
+    p_true = rng.standard_normal((3, K))
+    X = pd.DataFrame(t_true @ p_true + 0.1 * rng.standard_normal((N, K)))
+    X = X - X.mean()  # mean-centre only: no unit-variance scaling, on purpose
+    Y = pd.DataFrame(X.values @ rng.standard_normal((K, M)) + 0.1 * rng.standard_normal((N, M)))
+    Y = Y - Y.mean()
+    factor = 1000.0
+
+    pca_base = PCA(n_components=A, algorithm="nipals").fit(X)
+    pca_scaled = PCA(n_components=A, algorithm="nipals").fit(X * factor)
+    assert pca_base.fitting_info_["iterations"] == pytest.approx(pca_scaled.fitting_info_["iterations"])
+    assert pca_scaled.loadings_.values == pytest.approx(pca_base.loadings_.values, rel=1e-8, abs=1e-10)
+    assert pca_scaled.scores_.values == pytest.approx(factor * pca_base.scores_.values, rel=1e-8)
+
+    # PLS with scale=False so the rescale actually reaches the NIPALS loop.
+    pls_base = PLS(n_components=A, scale=False).fit(X, Y)
+    pls_scaled = PLS(n_components=A, scale=False).fit(X * factor, Y * factor)
+    assert pls_base.fitting_info_["iterations"] == pytest.approx(pls_scaled.fitting_info_["iterations"])
+    assert pls_scaled.x_loadings_.values == pytest.approx(pls_base.x_loadings_.values, rel=1e-8, abs=1e-10)
+    assert pls_scaled.scores_.values == pytest.approx(factor * pls_base.scores_.values, rel=1e-8)
 
 
 def test_spe_calculation_handles_empty_negative_slice() -> None:

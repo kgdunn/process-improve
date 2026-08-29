@@ -82,12 +82,20 @@ def ssq(X: np.ndarray, axis: int | None = None) -> float | np.ndarray:
 
 
 def terminate_check(t_a_guess: np.ndarray, t_a: np.ndarray, iterations: int, settings: dict) -> bool:
-    """Terminate the PCA iterative algorithm when any one of these conditions is True.
+    """Terminate the PCA / PLS NIPALS iterative algorithm when any one of these conditions is True.
 
-    #. scores converge: the norm between two successive iterations
+    #. scores converge: the norm of the difference between two successive iterations, *relative to
+       the norm of the current score vector*, falls below ``settings["md_tol"]``
     #. maximum number of iterations is reached
+
+    The relative form makes the convergence decision invariant to a global rescaling of the input
+    data (#504): the previous absolute comparison burned every ``md_max_iter`` iteration on
+    large-magnitude data and "converged" instantly on tiny-magnitude data. ``md_tol`` is therefore
+    a *relative* tolerance. The denominator is floored via :func:`_nz` so a fully-deflated,
+    all-zero score vector cannot divide by zero (that case reports convergence, matching
+    ``_tpls._has_converged``).
     """
-    score_tol = np.linalg.norm(t_a_guess - t_a, ord=None)
+    score_tol = float(np.linalg.norm(t_a_guess - t_a, ord=None) / _nz(float(np.linalg.norm(t_a, ord=None))))
     converged = score_tol < settings["md_tol"]
     # SEC-33 (#282): use ``>=`` so the loop runs exactly ``md_max_iter``
     # iterations rather than ``md_max_iter + 1``.
