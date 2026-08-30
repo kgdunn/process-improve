@@ -12,6 +12,8 @@ The older :mod:`process_improve.multivariate._pca_pls` path is kept as a thin
 backward-compatibility shim that re-exports from here.
 """
 
+from typing import NoReturn
+
 from .._linalg import safe_inverse
 from .._random import check_random_state
 from ..univariate.metrics import detect_outliers_esd
@@ -50,7 +52,7 @@ from ._nipals import (
     ssq,
     terminate_check,
 )
-from ._null import class_enrichment, permutation_q2, pipeline_null
+from ._null import check_predictive_signal, class_enrichment, count_discoveries_under_null
 from ._opls import OPLS
 from ._pca import PCA
 from ._pls import PLS
@@ -86,10 +88,12 @@ __all__ = [
     "Resampler",
     "SpecificationWarning",
     "center",
+    "check_predictive_signal",
     "check_random_state",
     "class_enrichment",
     "coefficient_plot",
     "correlation_loadings_plot",
+    "count_discoveries_under_null",
     "detect_outliers_esd",
     "eigenvalue_summary",
     "ellipse_coordinates",
@@ -101,8 +105,6 @@ __all__ = [
     "loading_plot",
     "nan_to_zeros",
     "observation_contributions",
-    "permutation_q2",
-    "pipeline_null",
     "predictions_vs_observed_plot",
     "project_variables",
     "quick_regress",
@@ -128,3 +130,20 @@ __all__ = [
     "terminate_check",
     "vip",
 ]
+
+# ---------------------------------------------------------------------------
+# Migration helpers - old names raise helpful errors
+# ---------------------------------------------------------------------------
+
+_RENAMED = {
+    "permutation_q2": "check_predictive_signal",
+    "pipeline_null": "count_discoveries_under_null",
+}
+
+
+def __getattr__(name: str) -> NoReturn:
+    """Raise a helpful error when a renamed module attribute is accessed."""
+    if name in _RENAMED:
+        new = _RENAMED[name]
+        raise AttributeError(f"{name!r} has been renamed to {new!r}. Use: from {__name__} import {new}")
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
