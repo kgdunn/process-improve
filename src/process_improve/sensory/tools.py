@@ -235,6 +235,13 @@ class _AnalyzeInput(BaseModel):
             "Set false to skip it (faster)."
         ),
     )
+    discriminator: bool | None = Field(
+        None,
+        description=(
+            "Deprecated since 1.77.0, removed in 2.0.0: the old name for find_predictive. "
+            "Leave unset and use find_predictive."
+        ),
+    )
     n_permutations: int = Field(199, ge=1, description="Permutations for the selectivity-ratio null.")
     random_state: int = Field(0, description="Seed for the permutations and CV folds.")
     score_min: float | None = Field(None, description="Optional lower bound for the score scale.")
@@ -294,6 +301,7 @@ def sensory_analyze_descriptive(spec: _AnalyzeInput) -> dict:
         conf_level=spec.conf_level,
         alpha=spec.alpha,
         find_predictive=spec.find_predictive,
+        discriminator=spec.discriminator,
         n_permutations=spec.n_permutations,
         random_state=spec.random_state,
     )
