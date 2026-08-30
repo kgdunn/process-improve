@@ -159,8 +159,8 @@ The observational relate output is:
 - ``result.relate["associations"]`` gives the per-(attribute, descriptor)
   correlation with a raw p-value, a Benjamini-Hochberg ``q_value`` across the
   whole family of tests, and a ``significant`` flag.
-- ``result.relate["discriminator"]`` adds the out-of-sample evidence described
-  in the next section.
+- ``result.relate["predictive_descriptors"]`` adds the out-of-sample evidence
+  described in the next section.
 
 The result also carries supporting context: ``result.product_means`` (each
 product-by-attribute mean with a confidence interval) and ``result.pca`` (a PCA
@@ -169,20 +169,21 @@ sensory map of the products over the attributes).
 The designed-mode relate (factor *effects* rather than associations) is planned;
 ``mode="designed"`` raises ``NotImplementedError`` for now.
 
-Telling genuine drivers from proxies: the discriminator
--------------------------------------------------------
+Telling genuine drivers from proxies: the predictive descriptors
+-----------------------------------------------------------------
 
 The ``associations`` table reports *marginal* correlations: each
 attribute-descriptor pair on its own. A pair can be significant for three
 different reasons, which a marginal correlation cannot tell apart: the
 descriptor genuinely drives the attribute; the descriptor only rides on a
 genuine driver (a proxy); or the descriptor happens to line up with the
-attribute in this particular set of products (a coincidence). The
-``discriminator`` adds out-of-sample evidence to separate these:
+attribute in this particular set of products (a coincidence).
+:func:`~process_improve.sensory.find_predictive_descriptors` adds out-of-sample
+evidence to separate these:
 
 - a per-attribute **cross-validated** :math:`Q^2` (leave-one-out): is the
   attribute predictable from the descriptor block at all, on products the model
-  did not see? ``result.relate["discriminator"]["per_attribute"]`` reports
+  did not see? ``result.relate["predictive_descriptors"]["per_attribute"]`` reports
   ``q2_cv`` and a ``predictable`` flag. A coincidence does not predict held-out
   products, so its attribute often fails this gate.
 - a **selectivity ratio** per descriptor, computed on the *target-projected*
@@ -191,22 +192,40 @@ attribute in this particular set of products (a coincidence). The
   predictive direction explains; unlike the marginal correlation it is judged
   *given the other descriptors*, so a descriptor that adds nothing beyond the
   real drivers scores low. Significance is assessed with a permutation test that
-  controls for testing many descriptors at once (a max-statistic null), gated on
-  the attribute being predictable. ``result.relate["discriminator"]["descriptors"]``
-  reports ``selectivity_ratio``, a permutation ``q_value`` and a
-  ``discriminator_significant`` flag.
+  controls for testing many descriptors at once (a max-statistic, or
+  Westfall-Young, null), gated on the attribute being predictable.
+  ``result.relate["predictive_descriptors"]["descriptors"]`` reports
+  ``selectivity_ratio``, the raw permutation ``p_value``, the adjusted
+  ``p_value_fwer`` and an ``is_predictive`` flag.
+
+  .. important::
+
+     That adjustment is **within an attribute, not across attributes**. The
+     max-statistic null is rebuilt for each attribute over its own descriptors,
+     so ``p_value_fwer`` controls the family-wise error rate for that
+     attribute's descriptor family alone. On a panel of :math:`A` attributes at
+     ``alpha``, roughly :math:`\alpha A` attributes are expected to throw up a
+     spurious family by chance. Read one flagged descriptor on a wide panel with
+     that in mind.
 - a **collinear cluster id** per descriptor (``cluster_id``): descriptors whose
   absolute correlation exceeds a threshold are grouped. Two descriptors in the
-  same cluster carry the same information, so they predict equally well and the
-  discriminator keeps them both. This is the honest limit of an observational
+  same cluster carry the same information, so they predict equally well and
+  both are kept. This is the honest limit of an observational
   analysis: it can report that a group of descriptors is predictive, but it
   cannot say *which one* inside a collinear cluster is the cause. Separating
   them needs an external dataset that breaks the collinearity, a designed
   experiment, or mechanistic knowledge.
 
-So the discriminator demotes coincidences (they fail the gate or the
+So the search demotes coincidences (they fail the gate or the
 selectivity-ratio test) and groups proxies with their driver, but it does not,
 and cannot, rank descriptors within a collinear cluster.
+
+To screen a wide descriptor block *before* committing to this per-attribute
+work, :func:`~process_improve.sensory.permutation_column_null` fits a single
+multi-response PLS over the whole attribute block and returns one record per
+descriptor, against a knockoff null. It answers "which descriptors matter for
+the panel as a whole"; use it to triage, and this function when the answer has
+to name an attribute.
 
 Under the hood, the two predictive-importance steps are the standalone
 diagnostics :func:`~process_improve.multivariate.target_projection` and
@@ -491,14 +510,15 @@ correlates with Liking (r about -0.67) purely by chance in these eighteen
 products. A within-sample correlation on its own cannot tell these three cases
 apart.
 
-**Step 5, discriminate.** The discriminator adds the out-of-sample evidence.
+**Step 5, find the predictive descriptors.** This adds the out-of-sample
+evidence.
 
 .. code-block:: python
 
-   disc = result.relate["discriminator"]
+   disc = result.relate["predictive_descriptors"]
    gate = pd.DataFrame(disc["per_attribute"])      # cross-validated Q-squared per attribute
    drivers = pd.DataFrame(disc["descriptors"])     # selectivity ratio, q-value, cluster id
-   print(drivers[drivers["discriminator_significant"]])
+   print(drivers[drivers["is_predictive"]])
 
 It narrows the sixteen marginal hits to twelve:
 
@@ -510,7 +530,7 @@ It narrows the sixteen marginal hits to twelve:
   while the genuine ``brix`` and ``price`` for Liking remain significant. This is
   the coincidence caught.
 - ``brix``, ``refractive_index`` and ``specific_gravity`` all stay significant
-  for Sweetness and share one ``cluster_id``. The discriminator reports them as a
+  for Sweetness and share one ``cluster_id``. They are reported as a
   single inseparable group: from these data you cannot say which of the three is
   the cause, because each carries the same information.
 
@@ -539,8 +559,7 @@ and covariate tables as lists of row-records and returning JSON:
   with ``align=true``, the rescaled panel.
 - ``sensory_analyze_descriptive`` - the full pipeline, with a ``correction``
   option (``"none"`` / ``"align"`` / ``"drop"``), the MAM results, and (unless
-  ``discriminator`` is set false) the cross-validated discriminator in its
-  output.
+  ``find_predictive`` is set false) the predictive descriptors in its output.
 
 The analyze tool validates first and refuses to run if validation fails, so an
 agent cannot skip the gate.

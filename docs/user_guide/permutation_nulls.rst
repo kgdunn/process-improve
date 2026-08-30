@@ -43,13 +43,9 @@ performance.
 
 .. code-block:: python
 
-   from process_improve.multivariate import permutation_q2
+   from process_improve.multivariate import check_predictive_signal
 
-   def fit_predict(x, y):
-       """Return out-of-sample predictions, one row per product."""
-       ...  # your own CV loop; see the two responsibilities below
-
-   permutation_q2(fit_predict, chem_scaled, sensory_means, n_perm=999)
+   check_predictive_signal(chem, sensory_means, n_perm=999)
 
 .. code-block:: text
 
@@ -61,8 +57,27 @@ performance.
 ``green`` sits inside its own null. That is a distinction the VIP count above
 cannot draw.
 
-Two things :func:`~process_improve.multivariate.permutation_q2` leaves to you,
-inside ``fit_predict``:
+Note the blocks go in **unscaled**. The default cross-validates PLS for you and
+re-derives the centring and scaling constants inside every fold, which is the
+second of the two traps below; scaling first would hand each fold constants
+computed from the row it is meant to be predicting.
+
+This is expensive, and irreducibly so: every permutation refits once per fold,
+so leave-one-out on twenty products with ``n_perm=999`` is twenty thousand fits.
+Develop at ``n_perm=50`` and raise it for the number you intend to report.
+
+Pass your own ``fit_predict`` to use a different model or a cheaper fold scheme:
+
+.. code-block:: python
+
+   def fit_predict(x, y):
+       """Return out-of-sample predictions, one row per product."""
+       ...  # your own CV loop; see the two responsibilities below
+
+   check_predictive_signal(chem, sensory_means, fit_predict, n_perm=999)
+
+Two things :func:`~process_improve.multivariate.check_predictive_signal` then
+leaves to you, inside ``fit_predict``:
 
 * **The cross-validation scheme is yours to choose.** Leave-one-out is right
   when every product is precious, and needlessly expensive at hundreds of rows,
@@ -90,17 +105,22 @@ attributes needs a floor well below the corrected threshold.
 Testing the whole procedure, not one model
 ------------------------------------------
 
-:func:`~process_improve.multivariate.pipeline_null` takes a callable that runs
-filtering, transformation, scaling and selection end to end, and counts
-discoveries under a permuted response:
+:func:`~process_improve.multivariate.count_discoveries_under_null` takes a
+callable that runs filtering, transformation, scaling and selection end to end,
+and counts discoveries under a permuted response:
 
 .. code-block:: python
 
-   >>> result = pipeline_null(select, chem, sensory_means, n_perm=200)
-   >>> result["observed"], result["null_mean"], result["empirical_fdr"]
+   >>> result = count_discoveries_under_null(select, chem, sensory_means, n_perm=200)
+   >>> result["observed"], result["null_mean"], result["null_to_observed_ratio"]
    (9, 1.8, 0.2)
 
-That FDR is a property of the procedure **as run**, which is the only version
+``null_to_observed_ratio`` is not clipped. A value above 1 says shuffling found
+*more* than the real response did, which is the strongest evidence the procedure
+has nothing, and it is precisely the case worth seeing rather than rounding to a
+tidy-looking rate.
+
+That ratio is a property of the procedure **as run**, which is the only version
 worth quoting: a procedure whose selection step is honest but whose filtering
 step peeked at the response has an FDR no formula recovers.
 
