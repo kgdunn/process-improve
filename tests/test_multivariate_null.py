@@ -219,6 +219,9 @@ class TestPipelineNull:
             "null_to_observed_ratio",
             "null_counts",
             "selected",
+            # Deprecated since 1.77.0, removed in 2.0.0. Listed here so dropping
+            # it in 2.0.0 fails this test rather than passing silently.
+            "empirical_fdr",
         }
         assert len(result["null_counts"]) == 10
 
