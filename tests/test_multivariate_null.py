@@ -18,11 +18,12 @@ from sklearn.model_selection import KFold
 from process_improve.multivariate import (
     PLS,
     MCUVScaler,
+    check_predictive_signal,
     class_enrichment,
-    permutation_q2,
-    pipeline_null,
+    count_discoveries_under_null,
 )
 from process_improve.multivariate._common import SpecificationWarning
+from process_improve.multivariate._null import _loo_fit_predict
 
 
 def _blocks(
@@ -71,7 +72,7 @@ class TestPermutationQ2:
     @pytest.mark.slow
     def test_signal_beats_the_null_and_noise_does_not(self) -> None:
         x, y = _blocks()
-        table = permutation_q2(_cv_predict(), x, y, n_perm=99, seed=0).set_index("attribute")
+        table = check_predictive_signal(x, y, _cv_predict(), n_perm=99, seed=0).set_index("attribute")
         assert table.loc["real", "q2_observed"] > 0.5
         assert table.loc["real", "p_value"] <= 0.02
         assert table.loc["noise", "p_value"] > 0.10
@@ -80,20 +81,20 @@ class TestPermutationQ2:
     def test_the_null_mean_sits_below_zero(self) -> None:
         """A shuffled response predicts worse than the mean, so Q2 is negative."""
         x, y = _blocks()
-        table = permutation_q2(_cv_predict(), x, y, n_perm=99, seed=0).set_index("attribute")
+        table = check_predictive_signal(x, y, _cv_predict(), n_perm=99, seed=0).set_index("attribute")
         assert table.loc["real", "q2_null_mean"] < 0
         assert table.loc["real", "q2_observed"] > table.loc["real", "q2_null_p95"]
 
     @pytest.mark.slow
     def test_p_value_can_never_be_zero(self) -> None:
         x, y = _blocks(noise=0.01)
-        table = permutation_q2(_cv_predict(), x, y, n_perm=49, seed=0).set_index("attribute")
+        table = check_predictive_signal(x, y, _cv_predict(), n_perm=49, seed=0).set_index("attribute")
         assert table.loc["real", "p_value"] > 0
         assert table.loc["real", "p_value"] == pytest.approx(1 / 50)
 
     def test_columns_are_as_documented(self) -> None:
         x, y = _blocks()
-        table = permutation_q2(_cv_predict(), x, y, n_perm=9, seed=0)
+        table = check_predictive_signal(x, y, _cv_predict(), n_perm=9, seed=0)
         assert list(table.columns) == [
             "attribute",
             "q2_observed",
@@ -114,7 +115,7 @@ class TestPermutationQ2:
 
         x = pd.DataFrame({"a": np.arange(8.0)})
         y = pd.DataFrame({"u": np.arange(8.0), "v": np.arange(8.0) * 3})
-        permutation_q2(recorder, x, y, n_perm=5, seed=0)
+        check_predictive_signal(x, y, recorder, n_perm=5, seed=0)
         for frame in seen[1:]:
             # v == 3 * u in every row of every permutation: the pairing survived.
             assert np.allclose(frame["v"].to_numpy(), 3 * frame["u"].to_numpy())
@@ -122,37 +123,37 @@ class TestPermutationQ2:
     @pytest.mark.slow
     def test_seed_makes_the_answer_reproducible(self) -> None:
         x, y = _blocks()
-        first = permutation_q2(_cv_predict(), x, y, n_perm=19, seed=3)
-        second = permutation_q2(_cv_predict(), x, y, n_perm=19, seed=3)
+        first = check_predictive_signal(x, y, _cv_predict(), n_perm=19, seed=3)
+        second = check_predictive_signal(x, y, _cv_predict(), n_perm=19, seed=3)
         pd.testing.assert_frame_equal(first, second)
 
     @pytest.mark.slow
     def test_a_different_seed_moves_the_null(self) -> None:
         x, y = _blocks()
-        first = permutation_q2(_cv_predict(), x, y, n_perm=19, seed=1)
-        second = permutation_q2(_cv_predict(), x, y, n_perm=19, seed=2)
+        first = check_predictive_signal(x, y, _cv_predict(), n_perm=19, seed=1)
+        second = check_predictive_signal(x, y, _cv_predict(), n_perm=19, seed=2)
         assert first["q2_null_mean"].iloc[0] != second["q2_null_mean"].iloc[0]
 
     def test_a_one_dimensional_return_is_accepted(self) -> None:
         x = pd.DataFrame({"a": np.arange(10.0)})
         y = pd.DataFrame({"u": np.arange(10.0)})
-        table = permutation_q2(lambda _x, yy: np.asarray(yy).ravel(), x, y, n_perm=5)
+        table = check_predictive_signal(x, y, lambda _x, yy: np.asarray(yy).ravel(), n_perm=5)
         assert table["q2_observed"].iloc[0] == pytest.approx(1.0)
 
     def test_a_wrong_shape_return_raises(self) -> None:
         x, y = _blocks(n_products=8, n_features=2)
         with pytest.raises(ValueError, match="one out-of-sample prediction per row"):
-            permutation_q2(lambda _x, _y: np.zeros((3, 3)), x, y, n_perm=2)
+            check_predictive_signal(x, y, lambda _x, _y: np.zeros((3, 3)), n_perm=2)
 
     def test_mismatched_rows_raise(self) -> None:
         x, y = _blocks(n_products=8, n_features=2)
         with pytest.raises(ValueError, match="same number of rows"):
-            permutation_q2(_cv_predict(), x, y.iloc[:4], n_perm=2)
+            check_predictive_signal(x, y.iloc[:4], _cv_predict(), n_perm=2)
 
     def test_n_perm_below_one_raises(self) -> None:
         x, y = _blocks(n_products=8, n_features=2)
         with pytest.raises(ValueError, match="n_perm"):
-            permutation_q2(_cv_predict(), x, y, n_perm=0)
+            check_predictive_signal(x, y, _cv_predict(), n_perm=0)
 
 
 class TestPipelineNull:
@@ -164,14 +165,14 @@ class TestPipelineNull:
 
         return select
 
-    def test_a_real_relationship_gives_a_low_empirical_fdr(self) -> None:
+    def test_a_real_relationship_gives_a_low_null_to_observed_ratio(self) -> None:
         x, y = _blocks(n_products=40, noise=0.2)
-        result = pipeline_null(self._selector(), x, y[["real"]], n_perm=100, seed=0)
+        result = count_discoveries_under_null(self._selector(), x, y[["real"]], n_perm=100, seed=0)
         assert result["observed"] >= 1
-        assert result["empirical_fdr"] < 0.2
+        assert result["null_to_observed_ratio"] < 0.2
 
     @pytest.mark.slow
-    def test_pure_noise_gives_an_fdr_near_one(self) -> None:
+    def test_pure_noise_gives_a_ratio_near_one(self) -> None:
         """Averaged over responses, everything a noise pipeline finds is what noise finds.
 
         Read over one response draw the ratio is noisy in both directions, which
@@ -181,7 +182,7 @@ class TestPipelineNull:
         rng = np.random.default_rng(1)
         x = pd.DataFrame(rng.normal(size=(15, 30)), columns=[f"c{i}" for i in range(30)])
         results = [
-            pipeline_null(
+            count_discoveries_under_null(
                 self._selector(threshold=0.45),
                 x,
                 pd.DataFrame({"noise": np.random.default_rng(100 + draw).normal(size=15)}),
@@ -190,23 +191,30 @@ class TestPipelineNull:
             )
             for draw in range(7)
         ]
-        assert float(np.median([result["empirical_fdr"] for result in results])) > 0.5
+        ratios = [result["null_to_observed_ratio"] for result in results]
+        assert float(np.median(ratios)) > 0.5
         # And the count itself never gets out beyond the null it was drawn from.
         assert all(result["observed"] <= result["null_p95"] for result in results)
+        # The ratio is deliberately not clipped to [0, 1]: on pure noise some
+        # draws have shuffling out-finding the real response, and that reading
+        # is the point. Clipping it would round exactly this evidence away.
+        assert max(ratios) > 1.0
+        for result in results:
+            assert result["null_to_observed_ratio"] == pytest.approx(result["null_mean"] / result["observed"])
 
     def test_a_real_relationship_puts_the_count_beyond_the_null(self) -> None:
         x, y = _blocks(n_products=40, noise=0.2)
-        result = pipeline_null(self._selector(), x, y[["real"]], n_perm=100, seed=0)
+        result = count_discoveries_under_null(self._selector(), x, y[["real"]], n_perm=100, seed=0)
         assert result["observed"] > result["null_p95"]
 
     def test_keys_are_as_documented(self) -> None:
         x, y = _blocks(n_products=20)
-        result = pipeline_null(self._selector(), x, y[["real"]], n_perm=10, seed=0)
+        result = count_discoveries_under_null(self._selector(), x, y[["real"]], n_perm=10, seed=0)
         assert set(result) == {
             "observed",
             "null_mean",
             "null_p95",
-            "empirical_fdr",
+            "null_to_observed_ratio",
             "null_counts",
             "selected",
         }
@@ -214,9 +222,9 @@ class TestPipelineNull:
 
     def test_selecting_nothing_gives_nan_rather_than_a_divide_by_zero(self) -> None:
         x, y = _blocks(n_products=20)
-        result = pipeline_null(lambda _x, _y: [], x, y[["real"]], n_perm=5, seed=0)
+        result = count_discoveries_under_null(lambda _x, _y: [], x, y[["real"]], n_perm=5, seed=0)
         assert result["observed"] == 0
-        assert np.isnan(result["empirical_fdr"])
+        assert np.isnan(result["null_to_observed_ratio"])
 
     def test_a_nondeterministic_selector_warns(self) -> None:
         x, y = _blocks(n_products=12, n_features=3)
@@ -227,13 +235,13 @@ class TestPipelineNull:
             return ["c0"] if counter["n"] % 2 else ["c1"]
 
         with pytest.warns(SpecificationWarning, match="different names on two identical calls"):
-            pipeline_null(flaky, x, y, n_perm=3, seed=0)
+            count_discoveries_under_null(flaky, x, y, n_perm=3, seed=0)
 
     def test_a_deterministic_selector_does_not_warn(self) -> None:
         x, y = _blocks(n_products=12, n_features=3)
         with warnings.catch_warnings():
             warnings.simplefilter("error", SpecificationWarning)
-            pipeline_null(self._selector(), x, y, n_perm=3, seed=0)
+            count_discoveries_under_null(self._selector(), x, y, n_perm=3, seed=0)
 
     def test_the_selector_is_re_run_end_to_end_per_permutation(self) -> None:
         """Response-independent steps are not hoisted: that would be an assumption."""
@@ -244,7 +252,7 @@ class TestPipelineNull:
             return ["c0"]
 
         x, y = _blocks(n_products=10, n_features=2)
-        pipeline_null(counting, x, y, n_perm=7, seed=0)
+        count_discoveries_under_null(counting, x, y, n_perm=7, seed=0)
         # One observed call, one determinism check, seven permutations.
         assert sum(calls) == 9
 
@@ -311,7 +319,7 @@ class TestDegenerateInputs:
     def test_a_constant_response_column_gives_nan_rather_than_a_divide_by_zero(self) -> None:
         x = pd.DataFrame({"a": np.arange(8.0)})
         y = pd.DataFrame({"flat": np.full(8, 3.0)})
-        table = permutation_q2(lambda _x, yy: yy.to_numpy(), x, y, n_perm=3)
+        table = check_predictive_signal(x, y, lambda _x, yy: yy.to_numpy(), n_perm=3)
         assert np.isnan(table["q2_observed"].iloc[0])
         assert np.isnan(table["p_value"].iloc[0])
         assert table["n_permutations"].iloc[0] == 0
@@ -319,27 +327,97 @@ class TestDegenerateInputs:
     def test_all_missing_predictions_give_nan(self) -> None:
         x = pd.DataFrame({"a": np.arange(8.0)})
         y = pd.DataFrame({"u": np.arange(8.0)})
-        table = permutation_q2(lambda _x, yy: np.full(yy.shape, np.nan), x, y, n_perm=3)
+        table = check_predictive_signal(x, y, lambda _x, yy: np.full(yy.shape, np.nan), n_perm=3)
         assert np.isnan(table["q2_observed"].iloc[0])
 
-    def test_permutation_q2_rejects_a_non_dataframe(self) -> None:
+    def test_check_predictive_signal_rejects_a_non_dataframe(self) -> None:
         with pytest.raises(TypeError, match="must both be pandas DataFrames"):
-            permutation_q2(lambda _x, _y: None, np.zeros((8, 2)), pd.DataFrame({"y": np.zeros(8)}))
+            check_predictive_signal(np.zeros((8, 2)), pd.DataFrame({"y": np.zeros(8)}), lambda _x, _y: None)
 
-    def test_permutation_q2_needs_at_least_two_products(self) -> None:
+    def test_check_predictive_signal_needs_at_least_two_products(self) -> None:
         with pytest.raises(ValueError, match="at least 2 products"):
-            permutation_q2(lambda _x, yy: yy, pd.DataFrame({"a": [1.0]}), pd.DataFrame({"y": [1.0]}))
+            check_predictive_signal(pd.DataFrame({"a": [1.0]}), pd.DataFrame({"y": [1.0]}), lambda _x, yy: yy)
 
-    def test_pipeline_null_rejects_a_non_dataframe(self) -> None:
+    def test_count_discoveries_under_null_rejects_a_non_dataframe(self) -> None:
         with pytest.raises(TypeError, match="must both be pandas DataFrames"):
-            pipeline_null(lambda _x, _y: [], np.zeros((8, 2)), pd.DataFrame({"y": np.zeros(8)}))
+            count_discoveries_under_null(lambda _x, _y: [], np.zeros((8, 2)), pd.DataFrame({"y": np.zeros(8)}))
 
-    def test_pipeline_null_rejects_mismatched_rows(self) -> None:
+    def test_count_discoveries_under_null_rejects_mismatched_rows(self) -> None:
         x, y = _blocks(n_products=10, n_features=2)
         with pytest.raises(ValueError, match="same number of rows"):
-            pipeline_null(lambda _x, _y: [], x, y.iloc[:4])
+            count_discoveries_under_null(lambda _x, _y: [], x, y.iloc[:4])
 
-    def test_pipeline_null_rejects_n_perm_below_one(self) -> None:
+    def test_count_discoveries_under_null_rejects_n_perm_below_one(self) -> None:
         x, y = _blocks(n_products=10, n_features=2)
         with pytest.raises(ValueError, match="n_perm"):
-            pipeline_null(lambda _x, _y: [], x, y, n_perm=0)
+            count_discoveries_under_null(lambda _x, _y: [], x, y, n_perm=0)
+
+
+class TestDefaultFitPredict:
+    """The built-in leave-one-out default, which is what most callers will use."""
+
+    @pytest.mark.slow
+    def test_the_default_separates_signal_from_noise(self) -> None:
+        x, y = _blocks(n_products=20, n_features=5, noise=0.3)
+        table = check_predictive_signal(x, y, n_perm=49, seed=0).set_index("attribute")
+        assert table.loc["real", "q2_observed"] > 0.5
+        assert table.loc["real", "p_value"] <= 0.05
+        # The noise column must not look predictable: a negative Q-squared means
+        # the model does worse than predicting the mean.
+        assert table.loc["noise", "q2_observed"] < 0.0
+        assert table.loc["noise", "p_value"] > 0.2
+
+    @pytest.mark.slow
+    def test_the_default_matches_an_explicit_equivalent_callable(self) -> None:
+        x, y = _blocks(n_products=16, n_features=4)
+        default = check_predictive_signal(x, y, n_perm=19, seed=0)
+        explicit = check_predictive_signal(x, y, _loo_fit_predict(2), n_perm=19, seed=0)
+        pd.testing.assert_frame_equal(default, explicit)
+
+    @pytest.mark.slow
+    def test_pre_scaling_the_blocks_does_not_change_the_answer(self) -> None:
+        """The default must not be sensitive to preprocessing done by the caller.
+
+        Q-squared is invariant to an affine transform of ``y``, and the default
+        hands raw blocks to a PLS that re-derives its own constants inside every
+        fold. A caller who scales first therefore gets the same number, rather
+        than a quietly inflated one.
+        """
+        x, y = _blocks(n_products=16, n_features=4)
+        raw = check_predictive_signal(x, y, n_perm=9, seed=0)
+        scaled = check_predictive_signal(MCUVScaler().fit_transform(x), MCUVScaler().fit_transform(y), n_perm=9, seed=0)
+        np.testing.assert_allclose(raw["q2_observed"].to_numpy(), scaled["q2_observed"].to_numpy(), atol=1e-8)
+
+    def test_n_components_is_capped_at_what_the_block_supports(self) -> None:
+        """A silly component count must not raise; it is clamped to the block."""
+        x, y = _blocks(n_products=8, n_features=2)
+        table = check_predictive_signal(x, y, n_components=99, n_perm=3, seed=0)
+        assert len(table) == y.shape[1]
+        assert table["q2_observed"].notna().all()
+
+
+class TestRenamedNamesRaise:
+    """The 2.0.0 renames removed the old names outright; they must say so."""
+
+    def test_old_multivariate_names_name_their_replacement(self) -> None:
+        from process_improve import multivariate as mv
+        from process_improve.multivariate import _null, methods
+
+        for module in (mv, methods, _null):
+            with pytest.raises(AttributeError, match="check_predictive_signal"):
+                _ = module.permutation_q2
+            with pytest.raises(AttributeError, match="count_discoveries_under_null"):
+                _ = module.pipeline_null
+
+    def test_an_unrelated_missing_attribute_still_raises_plainly(self) -> None:
+        """Every surface carrying a migration helper must keep normal lookup honest.
+
+        The helper intercepts *all* failed attribute lookups, so its fallback
+        branch is what stands between a typo and a misleading rename message.
+        """
+        from process_improve import multivariate as mv
+        from process_improve.multivariate import _null, methods
+
+        for module in (mv, methods, _null):
+            with pytest.raises(AttributeError, match="has no attribute"):
+                _ = module.not_a_real_name

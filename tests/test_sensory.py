@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from process_improve import sensory
 from process_improve.sensory import (
     DESCRIPTIVE_LONG_COLUMNS,
     align_scores,
@@ -21,7 +22,7 @@ from process_improve.sensory import (
 from process_improve.sensory.analysis import (
     _collinear_clusters,
     _jackknife_correlation,
-    discriminate_observational,
+    find_predictive_descriptors,
     permutation_column_null,
     relate_designed,
 )
@@ -285,8 +286,8 @@ def test_scorecard_clean_panel_has_no_flags():
 
 def test_dropping_panelist_changes_means():
     validated = validate_descriptive(_panel(), _obs(), mode="observational")
-    kept = analyze_descriptive(validated, drop_panelists=None, discriminator=False)
-    dropped = analyze_descriptive(validated, drop_panelists="auto", discriminator=False)
+    kept = analyze_descriptive(validated, drop_panelists=None, find_predictive=False)
+    dropped = analyze_descriptive(validated, drop_panelists="auto", find_predictive=False)
     assert "P8" in dropped.dropped
     assert kept.product_means.shape == dropped.product_means.shape
     merged = kept.product_means.merge(dropped.product_means, on=["product", "attribute"], suffixes=("_keep", "_drop"))
@@ -310,7 +311,7 @@ def test_relate_designed_is_stub():
 
 def test_relate_observational_finds_descriptor():
     validated = validate_descriptive(_panel(), _obs(), mode="observational")
-    result = analyze_descriptive(validated, discriminator=False)
+    result = analyze_descriptive(validated, find_predictive=False)
     assoc = pd.DataFrame(result.relate["associations"])
     a_sodium = assoc[(assoc["attribute"] == "A") & (assoc["descriptor"] == "sodium")].iloc[0]
     a_fat = assoc[(assoc["attribute"] == "A") & (assoc["descriptor"] == "fat")].iloc[0]
@@ -321,7 +322,7 @@ def test_relate_observational_finds_descriptor():
 
 def test_relate_observational_q_values_monotone():
     validated = validate_descriptive(_panel(), _obs(), mode="observational")
-    result = analyze_descriptive(validated, discriminator=False)
+    result = analyze_descriptive(validated, find_predictive=False)
     assoc = pd.DataFrame(result.relate["associations"]).sort_values("p_value")
     assert np.all(np.diff(assoc["q_value"].to_numpy()) >= -1e-12)
 
@@ -335,13 +336,13 @@ def test_collinear_clusters_groups_correlated_descriptors():
     assert clusters["c"] != clusters["a"]  # an independent column is its own cluster
 
 
-def test_discriminator_gate_and_clusters():
+def test_predictive_descriptor_gate_and_clusters():
     products = [f"P{i}" for i in range(9)]
     rng = np.random.default_rng(3)
     u = np.linspace(0.0, 1.0, 9) + rng.normal(0, 0.02, 9)
     agg = pd.DataFrame({"A": 2.0 * u + rng.normal(0, 0.05, 9), "B": rng.normal(0, 1, 9)}, index=products)
     cov = pd.DataFrame({"d1": u, "d2": u + 0.005 * rng.normal(0, 1, 9), "d3": rng.normal(0, 1, 9)}, index=products)
-    disc = discriminate_observational(agg, cov, n_components=1, n_permutations=49, random_state=0)
+    disc = find_predictive_descriptors(agg, cov, n_components=1, n_permutations=49, random_state=0)
 
     # The collinear pair shares a cluster; the noise descriptor does not.
     assert disc["clusters"]["d1"] == disc["clusters"]["d2"] != disc["clusters"]["d3"]
@@ -351,11 +352,11 @@ def test_discriminator_gate_and_clusters():
     assert not bool(gate.loc["B", "predictable"])  # B is noise, not predictable
 
     desc = pd.DataFrame(disc["descriptors"])
-    assert set(desc.columns) >= {"selectivity_ratio", "p_value", "q_value", "discriminator_significant"}
+    assert set(desc.columns) >= {"selectivity_ratio", "p_value", "p_value_fwer", "is_predictive"}
     # Nothing is flagged for the unpredictable attribute, and the noise
     # descriptor is never flagged.
-    assert not desc[desc["attribute"] == "B"]["discriminator_significant"].any()
-    assert not desc[desc["descriptor"] == "d3"]["discriminator_significant"].any()
+    assert not desc[desc["attribute"] == "B"]["is_predictive"].any()
+    assert not desc[desc["descriptor"] == "d3"]["is_predictive"].any()
 
 
 def test_jackknife_correlation_edge_cases():
@@ -482,7 +483,7 @@ def test_relate_influence_deletions_two_demotes_two_support_spike():
     validated = validate_descriptive(panel, cov, mode="observational")
 
     def spike_robust(deletions: int) -> bool:
-        result = analyze_descriptive(validated, discriminator=False, influence_deletions=deletions)
+        result = analyze_descriptive(validated, find_predictive=False, influence_deletions=deletions)
         assoc = pd.DataFrame(result.relate["associations"])
         row = assoc[(assoc["attribute"] == "C") & (assoc["descriptor"] == "two_spike")].iloc[0]
         return bool(row["influence_robust"])
@@ -502,7 +503,7 @@ def test_relate_marginal_demotes_single_support_spike():
     """
     panel, cov = _leverage_case()
     validated = validate_descriptive(panel, cov, mode="observational")
-    result = analyze_descriptive(validated, discriminator=False)
+    result = analyze_descriptive(validated, find_predictive=False)
     assoc = pd.DataFrame(result.relate["associations"])
 
     # New influence-robustness fields are surfaced per association.
@@ -523,8 +524,8 @@ def test_relate_marginal_demotes_single_support_spike():
     assert genuine_a["significant"]
 
 
-def test_discriminator_demotes_single_support_spike():
-    """The cross-validated discriminator must also demote a single-support spike."""
+def test_predictive_search_demotes_single_support_spike():
+    """The predictive-descriptor search must also demote a single-support spike."""
     n = len(LEVERAGE_PRODUCTS)
     rng = np.random.default_rng(2)
     genuine = np.linspace(0.0, 1.0, n)
@@ -538,7 +539,7 @@ def test_discriminator_demotes_single_support_spike():
         index=LEVERAGE_PRODUCTS,
     )
     cov = pd.DataFrame({"genuine": genuine, "spike": spike, "noise": rng.normal(0, 1, n)}, index=LEVERAGE_PRODUCTS)
-    disc = discriminate_observational(agg, cov, n_components=1, n_permutations=99, random_state=0)
+    disc = find_predictive_descriptors(agg, cov, n_components=1, n_permutations=99, random_state=0)
     desc = pd.DataFrame(disc["descriptors"])
 
     assert "jackknife_significant" in desc.columns
@@ -546,7 +547,7 @@ def test_discriminator_demotes_single_support_spike():
     # spans zero and it is never confirmed.
     spike_rows = desc[desc["descriptor"] == "spike"]
     assert not spike_rows["jackknife_significant"].any()
-    assert not spike_rows["discriminator_significant"].any()
+    assert not spike_rows["is_predictive"].any()
     # The genuine driver stays jackknife-stable on the attribute it drives, so the
     # jackknife gate demotes the single-support spike without over-pruning a real
     # driver's predictive coefficient.
@@ -554,7 +555,7 @@ def test_discriminator_demotes_single_support_spike():
     assert genuine_a["jackknife_significant"]
 
 
-def test_discriminator_small_sample_skips_jackknife_gate():
+def test_predictive_search_small_sample_skips_jackknife_gate():
     """With too few products the LOO gate is skipped, so nothing is confirmed.
 
     Below the cross-validation floor the per-coefficient jackknife cannot be run, so
@@ -566,10 +567,10 @@ def test_discriminator_small_sample_skips_jackknife_gate():
     agg = pd.DataFrame({"A": 2.0 * u + rng.normal(0, 0.05, 4)}, index=products)
     cov = pd.DataFrame({"d1": u, "d2": rng.normal(0, 1, 4)}, index=products)
 
-    disc = discriminate_observational(agg, cov, n_components=1, n_permutations=19, random_state=0)
+    disc = find_predictive_descriptors(agg, cov, n_components=1, n_permutations=19, random_state=0)
     desc = pd.DataFrame(disc["descriptors"])
     assert not desc["jackknife_significant"].any()
-    assert not desc["discriminator_significant"].any()
+    assert not desc["is_predictive"].any()
 
 
 def _null_case(seed: int = 0) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -772,8 +773,8 @@ def test_analyze_correction_align_changes_means_and_reports_mam():
     panel = _scaling_panel()
     obs = pd.DataFrame({"product": sorted(panel["product"].unique()), "d": range(panel["product"].nunique())})
     validated = validate_descriptive(panel, obs, mode="observational")
-    none = analyze_descriptive(validated, correction="none", discriminator=False)
-    aligned = analyze_descriptive(validated, correction="align", discriminator=False)
+    none = analyze_descriptive(validated, correction="none", find_predictive=False)
+    aligned = analyze_descriptive(validated, correction="align", find_predictive=False)
     assert aligned.correction == "align"
     assert not aligned.mam.scaling.empty
     merged = none.product_means.merge(aligned.product_means, on=["product", "attribute"], suffixes=("_none", "_align"))
@@ -963,10 +964,34 @@ def test_tool_analyze_exposes_correction_and_mam():
         "covariates": [{"product": p, "d": i} for i, p in enumerate(products)],
         "mode": "observational",
         "correction": "align",
-        "discriminator": False,
+        "find_predictive": False,
     }
     out = execute_tool_call("sensory_analyze_descriptive", payload)
     assert out["ok"]
     assert out["correction"] == "align"
     ftest = out["mam"]["ftests"][0]
     assert ftest["f_product_mam"] > ftest["f_product_classical"]
+
+
+def test_renamed_sensory_name_points_at_its_replacement():
+    """The 2.0.0 rename removed the old name outright; it must say what to use."""
+    from process_improve import sensory
+    from process_improve.sensory import analysis
+
+    for module in (sensory, analysis):
+        with pytest.raises(AttributeError, match="find_predictive_descriptors"):
+            _ = module.discriminate_observational
+
+
+def test_permutation_column_null_is_still_exported():
+    """It was proposed for deletion and deliberately kept: block-level screening.
+
+    All three stated reasons for removing it failed on review - it answers a
+    block-level question the per-attribute function does not, its knockoff band
+    is not the VIP-exceedance count the library warns against, and a calibration
+    experiment measured it conservative rather than anti-conservative.
+    """
+    from process_improve.sensory import permutation_column_null
+
+    assert callable(permutation_column_null)
+    assert "permutation_column_null" in sensory.__all__

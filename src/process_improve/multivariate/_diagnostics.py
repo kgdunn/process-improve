@@ -88,11 +88,11 @@ def vip(model: BaseEstimator, n_components: int | None = None) -> pd.Series:
     false-discovery rate near 100% on data that genuinely contains signal. If
     you want to ask "is there anything here at all", permute the response and
     compare *out-of-sample* performance instead. See
-    :func:`~process_improve.multivariate.permutation_q2`.
+    :func:`~process_improve.multivariate.check_predictive_signal`.
 
     See Also
     --------
-    process_improve.multivariate.permutation_q2 :
+    process_improve.multivariate.check_predictive_signal :
         A permutation null on Q² that does respond to signal.
 
     Examples

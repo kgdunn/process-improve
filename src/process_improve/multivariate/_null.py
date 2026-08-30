@@ -13,18 +13,22 @@ false-discovery rate near 100% on data that does contain signal.
 
 What does work is asking a permutation what it can achieve:
 
-* :func:`permutation_q2` permutes the response across products, refits, and
-  compares observed *out-of-sample* performance with what random reassignment
-  reaches. Out-of-sample is what makes it bite; the same test on in-sample
-  :math:`R^2` would mostly measure model capacity.
-* :func:`pipeline_null` does the same for a whole selection procedure, counting
-  discoveries under a permuted response, which gives an empirical
-  false-discovery rate for the procedure as run rather than for a model in
-  isolation.
+* :func:`check_predictive_signal` permutes the response across products,
+  refits, and compares observed *out-of-sample* performance with what random
+  reassignment reaches. Out-of-sample is what makes it bite; the same test on
+  in-sample :math:`R^2` would mostly measure model capacity. Ask this first: if
+  it fails, nothing below can rescue the analysis.
+* :func:`count_discoveries_under_null` does the same for a whole selection
+  procedure, counting discoveries under a permuted response, which audits the
+  procedure as run rather than a model in isolation.
 * :func:`class_enrichment` asks whether a chemically expected class of compounds
   sits at the top of a ranking more often than chance allows. At small sample
   sizes this is frequently the stronger evidence: recovering the right class for
-  an attribute is structure that noise does not produce.
+  an attribute is structure that noise does not produce. Its name is unchanged
+  by the question-first naming used for the two functions above, because it
+  already states its question, and because it tests a *ranking* you supply
+  rather than a model this module fits: it sits alongside the pair, not on the
+  same ladder.
 
 References
 ----------
@@ -37,14 +41,16 @@ from __future__ import annotations
 import re
 import warnings
 from collections.abc import Callable, Iterable, Sequence
+from typing import NoReturn
 
 import numpy as np
 import pandas as pd
 from scipy.stats import hypergeom
 
 from ._common import SpecificationWarning
+from ._pls import PLS
 
-__all__ = ["class_enrichment", "permutation_q2", "pipeline_null"]
+__all__ = ["check_predictive_signal", "class_enrichment", "count_discoveries_under_null"]
 
 
 def _as_frame(values: pd.DataFrame | pd.Series | np.ndarray, like: pd.DataFrame) -> pd.DataFrame:
@@ -92,27 +98,59 @@ def _permute_rows(y: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
     return pd.DataFrame(y.to_numpy()[order], index=y.index, columns=y.columns)
 
 
-def permutation_q2(
-    fit_predict: Callable,
+def _loo_fit_predict(n_components: int) -> Callable:
+    """Return the default ``fit_predict``: leave-one-out cross-validated PLS.
+
+    The **raw** blocks are handed to :class:`PLS` with ``scale=True``, so each
+    leave-one-out fold derives its own centring and scaling constants from the
+    training rows only (:meth:`PLS.cross_validate` refits a clone per fold).
+    Scaling the blocks *before* calling this leaks the held-out row's mean and
+    spread into the fold, which is the trap the ``fit_predict`` documentation
+    warns about, so do not pre-scale.
+    """
+
+    def fit_predict(x: pd.DataFrame, y: pd.DataFrame) -> pd.DataFrame:
+        # PLS needs at least one component and cannot use more than the block
+        # supports; leave-one-out also costs a row.
+        a = max(1, min(int(n_components), x.shape[1], x.shape[0] - 2))
+        model = PLS(n_components=a, scale=True).fit(x, y)
+        return model.cross_validate(x, y, cv="loo", show_progress=False).y_hat_cv
+
+    return fit_predict
+
+
+def check_predictive_signal(  # noqa: PLR0913
     x: pd.DataFrame,
     y: pd.DataFrame,
+    fit_predict: Callable | None = None,
+    n_components: int = 2,
     n_perm: int = 500,
     seed: int = 0,
 ) -> pd.DataFrame:
-    """Test observed out-of-sample performance against a permuted response.
+    """Test whether the predictors carry signal, against a shuffled response.
 
-    This is the replacement for a VIP-exceedance null. The question a
+    Ask this before asking which columns carry the signal. The question a
     permutation test can answer is "does this model predict held-out products
     better than it would if the responses were shuffled", and unlike a VIP count
-    the answer responds to whether signal is present.
+    (see :func:`~process_improve.multivariate.vip`) the answer responds to
+    whether signal is present.
 
     Parameters
     ----------
-    fit_predict : callable
+    x : pandas.DataFrame
+        Predictor block, one row per product. Not permuted. Pass it **unscaled**
+        when using the default ``fit_predict``; see below.
+    y : pandas.DataFrame
+        Response block, one row per product and one column per attribute.
+    fit_predict : callable, optional
         ``fit_predict(x, y)`` returning **out-of-sample** predictions with one
         row per row of ``y`` and one column per attribute: a DataFrame, or an
-        array of the same shape. Everything the pipeline does lives inside this
-        callable, and two things about it are the caller's responsibility:
+        array of the same shape.
+
+        The default is leave-one-out cross-validated PLS with ``n_components``,
+        which is the right first thing to try and handles the two traps below
+        for you. Supply your own to use a different model or a cheaper
+        cross-validation scheme, in which case both traps become yours:
 
         * **The cross-validation scheme is yours to choose.** Leave-one-out is
           right when every product is precious and needlessly expensive at
@@ -123,12 +161,12 @@ def permutation_q2(
           and scale the response on the training rows, predict, then
           back-transform with those same training constants before the
           prediction is returned; otherwise the score is computed on a scale the
-          fold never saw.
+          fold never saw. Equivalently: do not scale ``x`` and ``y`` before
+          calling, because the constants would then carry the held-out row.
 
-    x : pandas.DataFrame
-        Predictor block, one row per product. Not permuted.
-    y : pandas.DataFrame
-        Response block, one row per product and one column per attribute.
+    n_components : int, default 2
+        Latent components for the default ``fit_predict``. Ignored when
+        ``fit_predict`` is supplied. Capped at what the block supports.
     n_perm : int, default 500
         Number of permutations. See the note on the p-value floor below.
     seed : int, default 0
@@ -161,6 +199,14 @@ def permutation_q2(
 
     Notes
     -----
+    **This is expensive, and irreducibly so.** Every permutation refits the
+    model once per cross-validation fold, so the default leave-one-out scheme
+    costs ``n_perm * n_products`` fits: on twenty products with the default 500
+    permutations that is ten thousand fits, a few minutes. The cost is the
+    method, not the implementation - an out-of-sample null has to refit to be
+    out-of-sample. Develop with ``n_perm`` around 50, then raise it for the
+    number you intend to report, keeping the p-value floor below in mind.
+
     The p-value uses the ``(1 + count) / (n_perm + 1)`` form, which counts the
     observed statistic as one of its own null draws so the result can never be
     exactly zero. That also puts a floor on it: **the smallest attainable
@@ -169,11 +215,22 @@ def permutation_q2(
     apply in mind, and remember that a multiplicity correction over many
     attributes needs a floor well below the corrected threshold.
 
+    See Also
+    --------
+    count_discoveries_under_null :
+        Audits a whole selection procedure rather than one model.
+
     Examples
     --------
+    The default cross-validates PLS for you, on unscaled blocks:
+
+    >>> check_predictive_signal(chem, sensory_means, n_perm=999)
+
+    Supply your own when the model or the fold scheme has to change:
+
     >>> def fit_predict(x, y):
     ...     return loo_predictions(x, y, n_components=2)  # your own CV loop
-    >>> permutation_q2(fit_predict, chem_scaled, sensory_means, n_perm=999)
+    >>> check_predictive_signal(chem, sensory_means, fit_predict, n_perm=999)
     """
     if not isinstance(x, pd.DataFrame) or not isinstance(y, pd.DataFrame):
         raise TypeError("x and y must both be pandas DataFrames, one row per product.")
@@ -183,6 +240,8 @@ def permutation_q2(
         raise ValueError(f"a permutation null needs at least 2 products; got {len(y)}.")
     if int(n_perm) < 1:
         raise ValueError(f"n_perm must be >= 1; got {n_perm!r}.")
+    if fit_predict is None:
+        fit_predict = _loo_fit_predict(n_components)
 
     observed = _q2_per_column(y, _as_frame(fit_predict(x, y), y))
 
@@ -219,17 +278,17 @@ def permutation_q2(
     )
 
 
-def pipeline_null(
+def count_discoveries_under_null(
     select: Callable,
     x: pd.DataFrame,
     y: pd.DataFrame,
     n_perm: int = 500,
     seed: int = 0,
 ) -> dict:
-    """Count a selection procedure's discoveries against a permuted response.
+    """Count how many of these findings shuffling alone would have produced.
 
-    :func:`permutation_q2` tests one model; this tests the whole procedure that
-    produced it. Pass a callable that runs filtering, transformation, scaling and
+    :func:`check_predictive_signal` tests one model; this tests the whole
+    procedure that produced it. Pass a callable that runs filtering, transformation, scaling and
     selection end to end, and it is re-run in full on each permuted response.
     The average number of discoveries under permutation, divided by the number
     actually made, is an empirical false-discovery rate for the procedure **as
@@ -269,11 +328,13 @@ def pipeline_null(
             Number of names selected on the real response.
         ``null_mean``, ``null_p95``
             Mean and 95th percentile of the selection count under permutation.
-        ``empirical_fdr``
-            ``null_mean / observed``, clipped to ``[0, 1]``; ``NaN`` when
-            nothing was selected. Read it as "of the names this procedure
-            returned, about this fraction is what shuffling alone would have
-            produced".
+        ``null_to_observed_ratio``
+            ``null_mean / observed``; ``NaN`` when nothing was selected. Read it
+            as "of the names this procedure returned, about this fraction is
+            what shuffling alone would have produced". It is **not** clipped:
+            a value above 1 means shuffling found *more* than the real response
+            did, which is the strongest evidence this procedure has nothing, and
+            clipping it away would hide exactly the case worth seeing.
         ``null_counts``
             The per-permutation counts, as an ndarray, for plotting the null.
         ``selected``
@@ -285,13 +346,18 @@ def pipeline_null(
     ValueError
         If the blocks disagree on rows or ``n_perm`` is below 1.
 
+    See Also
+    --------
+    check_predictive_signal :
+        Tests one model rather than the procedure around it.
+
     Examples
     --------
     >>> def select(x, y):
     ...     kept, _dropped, _presence = trim_by_prevalence(x)
     ...     return names_above_threshold(kept, y)
-    >>> result = pipeline_null(select, chem, sensory_means, n_perm=200)
-    >>> result["empirical_fdr"]
+    >>> result = count_discoveries_under_null(select, chem, sensory_means, n_perm=200)
+    >>> result["null_to_observed_ratio"]
     """
     if not isinstance(x, pd.DataFrame) or not isinstance(y, pd.DataFrame):
         raise TypeError("x and y must both be pandas DataFrames, one row per product.")
@@ -324,12 +390,14 @@ def pipeline_null(
 
     observed = len(selected)
     null_mean = float(counts.mean())
-    empirical_fdr = float(np.clip(null_mean / observed, 0.0, 1.0)) if observed else float("nan")
+    # Deliberately unclipped: a ratio above 1 says shuffling beat the real
+    # response, and that is the reading most worth surfacing.
+    ratio = float(null_mean / observed) if observed else float("nan")
     return {
         "observed": observed,
         "null_mean": null_mean,
         "null_p95": float(np.percentile(counts, 95)),
-        "empirical_fdr": empirical_fdr,
+        "null_to_observed_ratio": ratio,
         "null_counts": counts,
         "selected": selected,
     }
@@ -436,3 +504,23 @@ def class_enrichment(
         "p_value": p_value,
         "matched": matched,
     }
+
+
+# ---------------------------------------------------------------------------
+# Migration helpers - old names raise helpful errors
+# ---------------------------------------------------------------------------
+
+_RENAMED = {
+    "permutation_q2": "check_predictive_signal",
+    "pipeline_null": "count_discoveries_under_null",
+}
+
+
+def __getattr__(name: str) -> NoReturn:
+    """Raise a helpful error when a renamed module attribute is accessed."""
+    if name in _RENAMED:
+        new = _RENAMED[name]
+        raise AttributeError(
+            f"{name!r} has been renamed to {new!r}. Use: from process_improve.multivariate import {new}"
+        )
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

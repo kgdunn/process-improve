@@ -227,16 +227,16 @@ class _AnalyzeInput(BaseModel):
     n_components: int = Field(2, ge=1, description="Components for the PLS relate step and PCA map.")
     conf_level: float = Field(0.95, gt=0, lt=1, description="Confidence level for product-mean intervals.")
     alpha: float = Field(0.05, gt=0, lt=1, description="Target false-discovery rate for the relate step.")
-    discriminator: bool = Field(
+    find_predictive: bool = Field(
         True,
         description=(
-            "Run the cross-validated discriminator: a per-attribute out-of-sample Q-squared gate, a "
+            "Run the per-attribute predictive-descriptor search: an out-of-sample Q-squared gate, a "
             "selectivity ratio per descriptor with a permutation test, and collinear-cluster grouping. "
             "Set false to skip it (faster)."
         ),
     )
-    n_permutations: int = Field(199, ge=1, description="Permutations for the discriminator's selectivity-ratio null.")
-    random_state: int = Field(0, description="Seed for the discriminator's permutations and CV folds.")
+    n_permutations: int = Field(199, ge=1, description="Permutations for the selectivity-ratio null.")
+    random_state: int = Field(0, description="Seed for the permutations and CV folds.")
     score_min: float | None = Field(None, description="Optional lower bound for the score scale.")
     score_max: float | None = Field(None, description="Optional upper bound for the score scale.")
 
@@ -249,7 +249,7 @@ class _AnalyzeInput(BaseModel):
         "attribute to the product. Observational mode relates attributes to measured descriptors with "
         "PLS and correlations (association). Returns the panel scorecard flags, dropped panelists, the "
         "MAM scaling coefficients and product F-tests, the relate results with Benjamini-Hochberg "
-        "q-values, and (unless disabled) a cross-validated discriminator: a per-attribute Q-squared "
+        "q-values, and (unless disabled) the predictive descriptors: a per-attribute Q-squared "
         "gate, a selectivity ratio per descriptor with a permutation q-value, and collinear-cluster ids "
         "that mark proxies which cannot be separated from a genuine driver. Also returns product means "
         "with CIs and a PCA map. Refuses to run if validation fails. "
@@ -259,12 +259,12 @@ class _AnalyzeInput(BaseModel):
         "product_means, pca}. 'flagged'/'dropped' are panelist-id lists; 'mam' has 'scaling' and "
         "'ftests' (as in sensory_panel_check); 'product_means' is rows of product, attribute, mean, "
         "ci_low, ci_high; 'pca' has 'explained_variance' and 'scores'. 'relate' (observational) holds "
-        "{mode, n_components, alpha, vip, associations, discriminator}: 'vip' is rows of descriptor, vip; "
+        "{mode, n_components, alpha, vip, associations, predictive_descriptors}: 'vip' is rows of descriptor, vip; "
         "'associations' is the marginal table, rows of attribute, descriptor, r, p_value, q_value, "
-        "significant. 'discriminator' (present unless disabled) holds {per_attribute, descriptors, "
+        "significant. 'predictive_descriptors' (present unless disabled) holds {per_attribute, descriptors, "
         "clusters, alpha, n_permutations, cluster_threshold}: 'per_attribute' is rows of attribute, "
         "n_components_cv, q2_cv, rmsep_cv, predictable; 'descriptors' is rows of attribute, descriptor, "
-        "selectivity_ratio, p_value, q_value, discriminator_significant, cluster_id; 'clusters' maps "
+        "selectivity_ratio, p_value, p_value_fwer, is_predictive, cluster_id; 'clusters' maps "
         "each descriptor to an integer collinear-cluster id (descriptors sharing an id cannot be told "
         "apart, so a significant one may be a proxy for another in the same cluster)."
     ),
@@ -293,7 +293,7 @@ def sensory_analyze_descriptive(spec: _AnalyzeInput) -> dict:
         n_components=spec.n_components,
         conf_level=spec.conf_level,
         alpha=spec.alpha,
-        discriminator=spec.discriminator,
+        find_predictive=spec.find_predictive,
         n_permutations=spec.n_permutations,
         random_state=spec.random_state,
     )
