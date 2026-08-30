@@ -15,6 +15,7 @@ from process_improve.sensory import (
     DESCRIPTIVE_LONG_COLUMNS,
     align_scores,
     analyze_descriptive,
+    discriminate_observational,
     mixed_assessor_model,
     panel_scorecard,
     validate_descriptive,
@@ -25,6 +26,7 @@ from process_improve.sensory.analysis import (
     find_predictive_descriptors,
     permutation_column_null,
     relate_designed,
+    relate_observational,
 )
 from process_improve.sensory.ingest import reshape_to_long
 from process_improve.univariate.metrics import benjamini_hochberg
@@ -973,14 +975,48 @@ def test_tool_analyze_exposes_correction_and_mam():
     assert ftest["f_product_mam"] > ftest["f_product_classical"]
 
 
-def test_renamed_sensory_name_points_at_its_replacement():
-    """The 2.0.0 rename removed the old name outright; it must say what to use."""
-    from process_improve import sensory
-    from process_improve.sensory import analysis
+def _discriminator_case():
+    """Build a small predictable case: one real driver, one noise descriptor."""
+    rng = np.random.default_rng(0)
+    n = 12
+    lat = rng.normal(size=n)
+    index = [f"p{i}" for i in range(n)]
+    agg = pd.DataFrame({"A": 3 * lat + rng.normal(scale=0.3, size=n)}, index=index)
+    cov = pd.DataFrame({"d1": lat + rng.normal(scale=0.2, size=n), "d2": rng.normal(size=n)}, index=index)
+    return agg, cov
 
-    for module in (sensory, analysis):
-        with pytest.raises(AttributeError, match="find_predictive_descriptors"):
-            _ = module.discriminate_observational
+
+def test_discriminate_observational_warns_and_forwards():
+    """1.77.0 renamed it; the old spelling still works and warns until 2.0.0."""
+    agg, cov = _discriminator_case()
+    with pytest.warns(DeprecationWarning, match="find_predictive_descriptors"):
+        old = discriminate_observational(agg, cov, n_components=1, n_permutations=19, random_state=0)
+    new = find_predictive_descriptors(agg, cov, n_components=1, n_permutations=19, random_state=0)
+    assert pd.DataFrame(old["descriptors"]).equals(pd.DataFrame(new["descriptors"]))
+
+
+def test_deprecated_descriptor_fields_mirror_their_replacements():
+    """The old field names are still emitted, carrying identical values."""
+    agg, cov = _discriminator_case()
+    desc = pd.DataFrame(
+        find_predictive_descriptors(agg, cov, n_components=1, n_permutations=19, random_state=0)["descriptors"]
+    )
+    assert desc["q_value"].equals(desc["p_value_fwer"])
+    assert desc["discriminator_significant"].equals(desc["is_predictive"])
+
+
+def test_discriminator_keyword_still_works_and_warns():
+    agg, cov = _discriminator_case()
+    with pytest.warns(DeprecationWarning, match="find_predictive"):
+        result = relate_observational(agg, cov, n_components=1, discriminator=True, n_permutations=19)
+    # Both result keys reference the same object, so an existing reader is fine.
+    assert result["discriminator"] is result["predictive_descriptors"]
+
+
+def test_passing_both_spellings_of_the_keyword_is_an_error():
+    agg, cov = _discriminator_case()
+    with pytest.raises(ValueError, match="not both"):
+        relate_observational(agg, cov, find_predictive=False, discriminator=True)
 
 
 def test_permutation_column_null_is_still_exported():

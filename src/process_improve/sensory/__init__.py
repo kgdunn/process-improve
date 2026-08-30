@@ -15,12 +15,11 @@ The public entry points are :func:`validate_descriptive` and
 ``process_improve.sensory.tools``.
 """
 
-from typing import NoReturn
-
 from process_improve.sensory.analysis import (
     AnalysisResult,
     aggregate_to_product,
     analyze_descriptive,
+    discriminate_observational,
     find_predictive_descriptors,
     permutation_column_null,
     product_means,
@@ -65,6 +64,7 @@ __all__ = [
     "boundary_occupancy",
     "compare_products",
     "detection_rate",
+    "discriminate_observational",
     "dunnett_vs_control",
     "factorial_anova",
     "find_predictive_descriptors",
@@ -78,20 +78,3 @@ __all__ = [
     "tukey_hsd",
     "validate_descriptive",
 ]
-
-
-# ---------------------------------------------------------------------------
-# Migration helpers - old names raise helpful errors
-# ---------------------------------------------------------------------------
-
-_RENAMED = {
-    "discriminate_observational": "find_predictive_descriptors",
-}
-
-
-def __getattr__(name: str) -> NoReturn:
-    """Raise a helpful error when a renamed module attribute is accessed."""
-    if name in _RENAMED:
-        new = _RENAMED[name]
-        raise AttributeError(f"{name!r} has been renamed to {new!r}. Use: from {__name__} import {new}")
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -11,57 +11,59 @@ those changes.
 
 ## [Unreleased]
 
-## [2.0.0] - 2026-08-30
+## [1.77.0] - 2026-08-30
 
 Renames the functions that answer "is this relationship real, or is it noise?"
 so their names state the question rather than the technique, and fixes two
 naming defects the rename exposed.
 
-**No deprecation cycle.** `CONTRIBUTING.md` requires one for breaking changes;
-this release deliberately departs from that. The two multivariate names were
-added in 1.76.0, one release and one day before this one, and nothing depends
-on them yet, so warning shims would have carried dead weight to 2.0.0 for names
-nobody could have adopted. Every removed name raises `AttributeError` naming its
-replacement, following the migration-helper pattern already used in
-`process_improve.univariate.metrics`.
-
-### Removed
-
-- **`permutation_q2`** in `process_improve.multivariate`, renamed to
-  `check_predictive_signal`.
-- **`pipeline_null`** in `process_improve.multivariate`, renamed to
-  `count_discoveries_under_null`. "Pipeline" collided with
-  `sklearn.pipeline.Pipeline`, which it has nothing to do with, and "null" read
-  as a missing value.
-- **`discriminate_observational`** in `process_improve.sensory`, renamed to
-  `find_predictive_descriptors`. "Discriminate" read as discriminant analysis;
-  the function selects descriptors, it does not assign observations to classes.
-- The `q_value` field on the descriptor records of that function, renamed to
-  `p_value_fwer`; the `discriminator_significant` field, renamed to
-  `is_predictive`; the `empirical_fdr` key returned by the pipeline null,
-  renamed to `null_to_observed_ratio`.
-- The `discriminator=` keyword on `relate_observational`,
-  `analyze_descriptive` and the `sensory_analyze_descriptive` tool, renamed to
-  `find_predictive=`; the `result.relate["discriminator"]` key, renamed to
-  `result.relate["predictive_descriptors"]`.
+**Nothing is removed in this release.** Every old name, output key and keyword
+still works and now emits a `DeprecationWarning` naming its replacement. This is
+the Announce phase of `docs/development/deprecation_policy.rst`; removal is
+scheduled for 2.0.0.
 
 ### Added
 
-- **`check_predictive_signal`** takes `x` and `y` first and makes `fit_predict`
-  optional, defaulting to leave-one-out cross-validated PLS with `n_components`.
-  The default receives the raw blocks so every fold derives its own centring and
+- **`check_predictive_signal`** in `process_improve.multivariate`, replacing
+  `permutation_q2`. It takes `x` and `y` first and makes `fit_predict` optional,
+  defaulting to leave-one-out cross-validated PLS with `n_components`. The
+  default receives the raw blocks so every fold derives its own centring and
   scaling constants, which is the trap the parameter documentation warns callers
-  about. Its docstring now quantifies the cost: an out-of-sample null refits once
-  per fold per permutation, so leave-one-out on twenty products at the default
+  about. Its docstring quantifies the cost: an out-of-sample null refits once per
+  fold per permutation, so leave-one-out on twenty products at the default
   `n_perm=500` is ten thousand fits.
+- **`count_discoveries_under_null`**, replacing `pipeline_null`. "Pipeline"
+  collided with `sklearn.pipeline.Pipeline`, which it has nothing to do with, and
+  "null" read as a missing value.
+- **`find_predictive_descriptors`** in `process_improve.sensory`, replacing
+  `discriminate_observational`. "Discriminate" read as discriminant analysis; the
+  function selects descriptors, it does not assign observations to classes.
+- **`null_to_observed_ratio`**, the unclipped form of `empirical_fdr`. The old
+  key reported `1.0` whenever shuffling found at least as much as the real
+  response did, which is the single most informative reading the function can
+  produce; clipping rounded it away behind a number that looked like a
+  well-behaved rate. `empirical_fdr` is still returned, still clipped, so no
+  existing caller changes behaviour.
+- **`p_value_fwer`** and **`is_predictive`** on the descriptor records, replacing
+  `q_value` and `discriminator_significant`. Both old keys are still emitted with
+  identical values.
+- **`result.relate["predictive_descriptors"]`**, replacing
+  `result.relate["discriminator"]`. Both keys reference the same object.
+- **`find_predictive=`**, replacing the `discriminator=` keyword on
+  `relate_observational`, `analyze_descriptive` and the
+  `sensory_analyze_descriptive` tool. Passing both raises `ValueError`.
+
+### Deprecated
+
+Deprecated since 1.77.0; will be removed in 2.0.0:
+
+- `permutation_q2`, `pipeline_null` and `discriminate_observational`, which now
+  forward to their replacements and warn.
+- The `empirical_fdr`, `q_value`, `discriminator_significant` and
+  `discriminator` keys, and the `discriminator=` keyword.
 
 ### Changed
 
-- **`null_to_observed_ratio` is no longer clipped to `[0, 1]`.** The old
-  `empirical_fdr` reported 1.0 whenever shuffling found at least as much as the
-  real response did. That is the single most informative reading the function
-  can produce, and clipping rounded it away behind a number that looked like a
-  well-behaved rate.
 - `find_predictive_descriptors` documents that its multiplicity correction is
   **within an attribute, not across attributes**: the max-statistic null is
   rebuilt per attribute, so on a panel of `A` attributes at `alpha` roughly
@@ -89,7 +91,7 @@ replacement, following the migration-helper pattern already used in
 - **The field carrying that value was named `q_value`**, FDR vocabulary for a
   family-wise-error-adjusted p-value. `q_value` in the sibling `associations`
   list of the same result dict genuinely is a BH q-value, so one key name meant
-  two different quantities. It is now `p_value_fwer`.
+  two different quantities. The new `p_value_fwer` says what it holds.
 
 ## [1.76.0] - 2026-08-29
 
@@ -3964,8 +3966,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v2.0.0...HEAD
-[2.0.0]: https://github.com/kgdunn/process-improve/compare/v1.76.0...v2.0.0
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.77.0...HEAD
+[1.77.0]: https://github.com/kgdunn/process-improve/compare/v1.76.0...v1.77.0
 [1.76.0]: https://github.com/kgdunn/process-improve/compare/v1.75.2...v1.76.0
 [1.75.2]: https://github.com/kgdunn/process-improve/compare/v1.75.1...v1.75.2
 [1.75.1]: https://github.com/kgdunn/process-improve/compare/v1.75.0...v1.75.1

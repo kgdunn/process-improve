@@ -21,6 +21,8 @@ from process_improve.multivariate import (
     check_predictive_signal,
     class_enrichment,
     count_discoveries_under_null,
+    permutation_q2,
+    pipeline_null,
 )
 from process_improve.multivariate._common import SpecificationWarning
 from process_improve.multivariate._null import _loo_fit_predict
@@ -217,6 +219,9 @@ class TestPipelineNull:
             "null_to_observed_ratio",
             "null_counts",
             "selected",
+            # Deprecated since 1.77.0, removed in 2.0.0. Listed here so dropping
+            # it in 2.0.0 fails this test rather than passing silently.
+            "empirical_fdr",
         }
         assert len(result["null_counts"]) == 10
 
@@ -396,28 +401,46 @@ class TestDefaultFitPredict:
         assert table["q2_observed"].notna().all()
 
 
-class TestRenamedNamesRaise:
-    """The 2.0.0 renames removed the old names outright; they must say so."""
+class TestDeprecatedAliases:
+    """1.77.0 renamed these; the old spellings still work and warn until 2.0.0."""
 
-    def test_old_multivariate_names_name_their_replacement(self) -> None:
+    def test_permutation_q2_warns_and_forwards(self) -> None:
+        x, y = _blocks(n_products=12, n_features=3)
+        with pytest.warns(DeprecationWarning, match="check_predictive_signal"):
+            old = permutation_q2(lambda _x, yy: yy.to_numpy(), x, y, n_perm=3, seed=0)
+        new = check_predictive_signal(x, y, lambda _x, yy: yy.to_numpy(), n_perm=3, seed=0)
+        pd.testing.assert_frame_equal(old, new)
+
+    def test_pipeline_null_warns_and_forwards(self) -> None:
+        x, y = _blocks(n_products=12, n_features=3)
+        with pytest.warns(DeprecationWarning, match="count_discoveries_under_null"):
+            old = pipeline_null(lambda _x, _y: ["c0"], x, y, n_perm=3, seed=0)
+        new = count_discoveries_under_null(lambda _x, _y: ["c0"], x, y, n_perm=3, seed=0)
+        assert old["observed"] == new["observed"]
+        assert old["null_to_observed_ratio"] == new["null_to_observed_ratio"]
+
+    def test_empirical_fdr_is_still_returned_and_still_clipped(self) -> None:
+        """The old key keeps its old value, so an existing caller sees no change.
+
+        ``null_to_observed_ratio`` is the same quantity unclipped; the pair only
+        differ once shuffling out-finds the real response.
+        """
+        x, y = _blocks(n_products=12, n_features=3)
+        result = count_discoveries_under_null(lambda _x, _y: ["c0"], x, y, n_perm=5, seed=0)
+        assert "empirical_fdr" in result
+        assert result["empirical_fdr"] == pytest.approx(min(result["null_to_observed_ratio"], 1.0))
+        assert 0.0 <= result["empirical_fdr"] <= 1.0
+
+    def test_the_old_names_are_still_exported(self) -> None:
         from process_improve import multivariate as mv
-        from process_improve.multivariate import _null, methods
+        from process_improve.multivariate import methods
 
-        for module in (mv, methods, _null):
-            with pytest.raises(AttributeError, match="check_predictive_signal"):
-                _ = module.permutation_q2
-            with pytest.raises(AttributeError, match="count_discoveries_under_null"):
-                _ = module.pipeline_null
+        for module in (mv, methods):
+            assert "permutation_q2" in module.__all__
+            assert "pipeline_null" in module.__all__
 
     def test_an_unrelated_missing_attribute_still_raises_plainly(self) -> None:
-        """Every surface carrying a migration helper must keep normal lookup honest.
+        from process_improve.multivariate import _null
 
-        The helper intercepts *all* failed attribute lookups, so its fallback
-        branch is what stands between a typo and a misleading rename message.
-        """
-        from process_improve import multivariate as mv
-        from process_improve.multivariate import _null, methods
-
-        for module in (mv, methods, _null):
-            with pytest.raises(AttributeError, match="has no attribute"):
-                _ = module.not_a_real_name
+        with pytest.raises(AttributeError):
+            _ = _null.not_a_real_name

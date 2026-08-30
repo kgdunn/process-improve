@@ -1,7 +1,5 @@
 """Multivariate analysis: PCA, PLS, TPLS, scaling, and diagnostic plots."""
 
-from typing import NoReturn
-
 from process_improve.multivariate.methods import (
     OPLS,
     PCA,
@@ -17,6 +15,8 @@ from process_improve.multivariate.methods import (
     eigenvalue_summary,
     group_contributions,
     observation_contributions,
+    permutation_q2,
+    pipeline_null,
     project_variables,
     rv2_coefficient,
     rv_coefficient,
@@ -57,6 +57,8 @@ __all__ = [
     "group_contributions",
     "loading_plot",
     "observation_contributions",
+    "permutation_q2",
+    "pipeline_null",
     "predictions_vs_observed_plot",
     "project_variables",
     "rv2_coefficient",
@@ -71,20 +73,3 @@ __all__ = [
     "t2_plot",
     "vip",
 ]
-
-# ---------------------------------------------------------------------------
-# Migration helpers - old names raise helpful errors
-# ---------------------------------------------------------------------------
-
-_RENAMED = {
-    "permutation_q2": "check_predictive_signal",
-    "pipeline_null": "count_discoveries_under_null",
-}
-
-
-def __getattr__(name: str) -> NoReturn:
-    """Raise a helpful error when a renamed module attribute is accessed."""
-    if name in _RENAMED:
-        new = _RENAMED[name]
-        raise AttributeError(f"{name!r} has been renamed to {new!r}. Use: from {__name__} import {new}")
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
