@@ -400,7 +400,7 @@ class TestRenamedNamesRaise:
     """The 2.0.0 renames removed the old names outright; they must say so."""
 
     def test_old_multivariate_names_name_their_replacement(self) -> None:
-        import process_improve.multivariate as mv
+        from process_improve import multivariate as mv
         from process_improve.multivariate import _null, methods
 
         for module in (mv, methods, _null):
@@ -415,7 +415,7 @@ class TestRenamedNamesRaise:
         The helper intercepts *all* failed attribute lookups, so its fallback
         branch is what stands between a typo and a misleading rename message.
         """
-        import process_improve.multivariate as mv
+        from process_improve import multivariate as mv
         from process_improve.multivariate import _null, methods
 
         for module in (mv, methods, _null):
