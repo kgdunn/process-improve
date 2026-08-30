@@ -410,7 +410,14 @@ class TestRenamedNamesRaise:
                 _ = module.pipeline_null
 
     def test_an_unrelated_missing_attribute_still_raises_plainly(self) -> None:
-        from process_improve.multivariate import _null
+        """Every surface carrying a migration helper must keep normal lookup honest.
 
-        with pytest.raises(AttributeError, match="has no attribute"):
-            _ = _null.not_a_real_name
+        The helper intercepts *all* failed attribute lookups, so its fallback
+        branch is what stands between a typo and a misleading rename message.
+        """
+        import process_improve.multivariate as mv
+        from process_improve.multivariate import _null, methods
+
+        for module in (mv, methods, _null):
+            with pytest.raises(AttributeError, match="has no attribute"):
+                _ = module.not_a_real_name
