@@ -200,9 +200,7 @@ class TestPipelineNull:
         # is the point. Clipping it would round exactly this evidence away.
         assert max(ratios) > 1.0
         for result in results:
-            assert result["null_to_observed_ratio"] == pytest.approx(
-                result["null_mean"] / result["observed"]
-            )
+            assert result["null_to_observed_ratio"] == pytest.approx(result["null_mean"] / result["observed"])
 
     def test_a_real_relationship_puts_the_count_beyond_the_null(self) -> None:
         x, y = _blocks(n_products=40, noise=0.2)
