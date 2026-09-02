@@ -12,3 +12,4 @@ API Reference
    batch
    bivariate
    visualization
+   simulation

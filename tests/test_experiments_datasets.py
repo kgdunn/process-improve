@@ -11,18 +11,27 @@ from __future__ import annotations
 
 import urllib.error
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import pandas as pd
 import pytest
 
+if TYPE_CHECKING:
+    from typing import Self
+
+from process_improve.config import settings
 from process_improve.experiments import datasets
 
 
 def _load_or_skip(loader: Callable[[], pd.DataFrame]) -> pd.DataFrame:
-    """Call the network-backed loader, ``pytest.skip`` on any network error."""
+    """Call the network-backed loader, ``pytest.skip`` on any network error.
+
+    The loaders wrap network failures (including timeouts) in the module's
+    documented ``RuntimeError`` (#508), so that is the error to skip on.
+    """
     try:
         return loader()
-    except (urllib.error.URLError, urllib.error.HTTPError, OSError) as exc:
+    except (RuntimeError, urllib.error.URLError, urllib.error.HTTPError, OSError) as exc:
         pytest.skip(f"could not fetch from openmv.net: {exc}")
 
 
@@ -98,3 +107,63 @@ def test_data_dispatch_rejects_an_unknown_name() -> None:
     """An unknown name raises, and the message lists what is available."""
     with pytest.raises(ValueError, match="Unknown dataset 'nope'"):
         datasets.data("nope")
+
+
+class _FakeResponse:
+    """Minimal stand-in for the ``urlopen`` context-manager response."""
+
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self._payload
+
+
+class TestRemoteFetchTimeout:
+    """The remote loaders fetch with an explicit, configurable timeout (#508).
+
+    No test in this class performs network access; ``urlopen`` is
+    monkeypatched throughout.
+    """
+
+    def test_timeout_surfaces_as_runtime_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A hung host raises the documented ``RuntimeError``, naming the URL."""
+
+        def _hang(_url: str, timeout: float | None = None) -> _FakeResponse:
+            raise TimeoutError("timed out")
+
+        monkeypatch.setattr(datasets.urllib.request, "urlopen", _hang)
+        with pytest.raises(RuntimeError, match="Could not download the sample dataset"):
+            datasets.distillateflow()
+
+    def test_default_timeout_comes_from_settings(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """``urlopen`` receives ``settings.dataset_fetch_timeout`` and the payload is parsed."""
+        seen: dict[str, float | None] = {}
+
+        def _fake_urlopen(url: str, timeout: float | None = None) -> _FakeResponse:
+            seen["timeout"] = timeout
+            return _FakeResponse(b"A,B\n1,2\n")
+
+        monkeypatch.setattr(datasets.urllib.request, "urlopen", _fake_urlopen)
+        df = datasets._read_remote_csv("https://openmv.net/file/oil-company-doe.csv")
+        assert seen["timeout"] == settings.dataset_fetch_timeout
+        assert df.shape == (1, 2)
+        assert list(df.columns) == ["A", "B"]
+
+    def test_explicit_timeout_argument_wins(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A caller-supplied ``timeout`` is passed through unchanged."""
+        seen: dict[str, float | None] = {}
+
+        def _fake_urlopen(url: str, timeout: float | None = None) -> _FakeResponse:
+            seen["timeout"] = timeout
+            return _FakeResponse(b"A\n1\n")
+
+        monkeypatch.setattr(datasets.urllib.request, "urlopen", _fake_urlopen)
+        datasets._read_remote_csv("https://openmv.net/file/oil-company-doe.csv", timeout=2.5)
+        assert seen["timeout"] == 2.5

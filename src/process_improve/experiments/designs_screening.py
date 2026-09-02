@@ -55,17 +55,7 @@ def dispatch_fractional_factorial(
     meta: dict = {}
 
     if generators:
-        # Convert ["D=ABC", "E=AC"] to pyDOE3 gen string "a b c abc ac"
-        # The base factors are the first ones not appearing on the LHS
-        lhs_names = [g.split("=")[0].strip() for g in generators]
-        factor_names = [f.name for f in factors]
-        base_names = [n for n in factor_names if n not in lhs_names]
-        gen_parts = [n.lower() for n in base_names]
-        for g in generators:
-            rhs = g.split("=")[1].strip().lower()
-            gen_parts.append(rhs)
-        gen_string = " ".join(gen_parts)
-        coded_matrix = fracfact(gen_string)
+        coded_matrix = _fracfact_from_generators(factors, generators)
         meta["generators_used"] = generators
     elif resolution is not None:
         coded_matrix = fracfact_by_res(k, resolution)
@@ -82,6 +72,103 @@ def dispatch_fractional_factorial(
         coded_matrix = coded_matrix[:, :k]
 
     return coded_matrix, meta
+
+
+def _parse_generator_word(word: str, factor_names: list[str]) -> list[int]:
+    """Parse a generator word (e.g. ``"ABC"``) into factor indices by NAME.
+
+    Uses the same convention as ``evaluate._parse_word``: character-by-character
+    when every factor name is a single character, greedy longest-name-first
+    matching otherwise. Unlike that helper, unparseable content raises instead
+    of being silently skipped: a generator that does not resolve to real
+    factors would otherwise produce a design for the wrong fraction.
+    """
+    name_to_idx = {name: i for i, name in enumerate(factor_names)}
+    indices: list[int] = []
+    if all(len(n) == 1 for n in factor_names):
+        for ch in word:
+            if ch not in name_to_idx:
+                raise ValueError(f"Generator word {word!r} refers to {ch!r}, which is not a factor name.")
+            indices.append(name_to_idx[ch])
+        return indices
+    remaining = word
+    sorted_names = sorted(name_to_idx, key=len, reverse=True)
+    while remaining:
+        for name in sorted_names:
+            if remaining.startswith(name):
+                indices.append(name_to_idx[name])
+                remaining = remaining[len(name) :]
+                break
+        else:
+            raise ValueError(f"Generator word {word!r} does not resolve to factor names {factor_names}.")
+    return indices
+
+
+def _parse_generators(factor_names: list[str], generators: list[str]) -> tuple[list[int], list[tuple[list[int], bool]]]:
+    """Parse and validate generator strings into (derived indices, rhs terms)."""
+    derived_idx: list[int] = []
+    rhs_indices: list[tuple[list[int], bool]] = []
+    for g in generators:
+        if "=" not in g:
+            raise ValueError(f"Generator {g!r} must have the form 'D=ABC' (or 'D=-ABC').")
+        lhs_word, rhs_word = (part.strip() for part in g.split("=", 1))
+        negated = rhs_word.startswith("-")
+        rhs_word = rhs_word.lstrip("+-").strip()
+        lhs = _parse_generator_word(lhs_word, factor_names)
+        if len(lhs) != 1:
+            raise ValueError(f"Generator {g!r}: the left-hand side must be exactly one factor.")
+        rhs = _parse_generator_word(rhs_word, factor_names)
+        if lhs[0] in rhs:
+            raise ValueError(f"Generator {g!r}: the left-hand factor may not appear on the right-hand side.")
+        if lhs[0] in derived_idx:
+            raise ValueError(f"Generator {g!r}: factor {factor_names[lhs[0]]!r} is derived more than once.")
+        derived_idx.append(lhs[0])
+        rhs_indices.append((rhs, negated))
+
+    base_idx = [i for i in range(len(factor_names)) if i not in derived_idx]
+    for (rhs, _neg), g in zip(rhs_indices, generators, strict=True):
+        not_base = [i for i in rhs if i not in base_idx]
+        if not_base:
+            names = [factor_names[i] for i in not_base]
+            raise ValueError(f"Generator {g!r}: right-hand factors {names} are themselves derived factors.")
+    return derived_idx, rhs_indices
+
+
+def _fracfact_from_generators(factors: list[Factor], generators: list[str]) -> np.ndarray:
+    """Build a coded fractional-factorial matrix from explicit generators.
+
+    The previous implementation handed pyDOE3 the base factors followed by the
+    derived ones and returned the columns in that order, while the caller
+    assigns column ``i`` to ``factors[i]``: whenever a generator's left-hand
+    factor was not the LAST factor (e.g. ``"B=AC"`` with factors A, B, C), the
+    factor columns were silently swapped. It also lower-cased raw factor names
+    into the pyDOE3 string, so any multi-character name was misread as a
+    product of single-letter factors. Generators are now parsed against the
+    real factor names, translated to canonical single letters for pyDOE3, and
+    the resulting columns are re-ordered back to the caller's factor order.
+    """
+    factor_names = [f.name for f in factors]
+    k = len(factors)
+    derived_idx, rhs_indices = _parse_generators(factor_names, generators)
+    base_idx = [i for i in range(k) if i not in derived_idx]
+
+    letters = "abcdefghijklmnopqrstuvwxyz"
+    if len(base_idx) > len(letters):
+        raise ValueError(f"At most {len(letters)} base factors are supported; got {len(base_idx)}.")
+    base_letter = {factor_index: letters[pos] for pos, factor_index in enumerate(base_idx)}
+    tokens = [base_letter[i] for i in base_idx]
+    for rhs, negated in rhs_indices:
+        word = "".join(base_letter[i] for i in rhs)
+        tokens.append(f"-{word}" if negated else word)
+
+    coded = fracfact(" ".join(tokens))
+    if coded.shape[1] != k:
+        raise ValueError(f"pyDOE3 returned {coded.shape[1]} columns for {k} factors; the generators are inconsistent.")
+    # pyDOE3 column order is (bases..., derived...); map back to factor order.
+    reordered = np.empty_like(coded)
+    for position, factor_index in enumerate(base_idx + derived_idx):
+        reordered[:, factor_index] = coded[:, position]
+    return reordered
 
 
 def dispatch_plackett_burman(factors: list[Factor]) -> tuple[np.ndarray, dict]:

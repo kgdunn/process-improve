@@ -11,3 +11,8 @@ User Guide
    design_evaluation
    omars_designs
    sensory_panel
+   sensory_diagnostics
+   chemistry
+   permutation_nulls
+   interactions
+   batch_simulator

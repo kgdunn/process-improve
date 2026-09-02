@@ -256,10 +256,25 @@ class TestFixedRuns:
             generate_design(_mixed_factors(), design_type="i_optimal", budget=14, fixed_runs=pd.DataFrame(frame))
 
     def test_fixed_runs_must_leave_room_to_optimize(self) -> None:
-
-        centre = pd.DataFrame([{"cat": "A", "x1": 0.0, "x2": 0.0}])
+        # A main-effects model over these factors has 5 coefficients (intercept,
+        # two columns for the 3-level categorical, x1, x2), which is the floor
+        # the budget is raised to. Fixing all 5 runs leaves nothing to optimise.
+        # This used to be written as `budget=1` with a single fixed run, which
+        # no longer reaches the check: a budget of 1 cannot estimate any model,
+        # so it is now raised to the model size before `fixed_runs` is examined.
+        fixed = pd.DataFrame(
+            [
+                {"cat": "A", "x1": 0.0, "x2": 0.0},
+                {"cat": "B", "x1": 1.0, "x2": -1.0},
+                {"cat": "C", "x1": -1.0, "x2": 1.0},
+                {"cat": "A", "x1": 1.0, "x2": 1.0},
+                {"cat": "B", "x1": -1.0, "x2": -1.0},
+            ]
+        )
         with pytest.raises(ValueError, match="budget must exceed"):
-            generate_design(_mixed_factors(), design_type="i_optimal", budget=1, fixed_runs=centre)
+            generate_design(
+                _mixed_factors(), design_type="i_optimal", budget=5, model_type="main_effects", fixed_runs=fixed
+            )
 
     def test_fixed_runs_must_be_a_dataframe(self) -> None:
         with pytest.raises(TypeError, match="must be a pandas DataFrame"):

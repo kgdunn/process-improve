@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from scipy.stats import chi2, f, norm
+from scipy.stats import chi2, f
+from scipy.stats import t as t_dist
 from sklearn.base import BaseEstimator
 from sklearn.utils.validation import check_is_fitted
 
@@ -36,11 +37,29 @@ def hotellings_t2_limit(conf_level: float = 0.95, n_components: int = 0, n_rows:
     float
         The Hotelling's T2 limit at the given level of confidence. Returns
         ``inf`` when ``n_components == n_rows``.
+
+    Raises
+    ------
+    ValueError
+        If ``conf_level`` is outside (0, 1), if ``n_rows`` is not positive, or
+        if ``n_components`` exceeds ``n_rows`` (which would otherwise return a
+        silent NaN from a negative F denominator degrees of freedom).
     """
     if not 0.0 < conf_level < 1.0:
         raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
     if n_rows <= 0:
         raise ValueError(f"n_rows must be positive; got {n_rows}.")
+    if n_components < 0:
+        raise ValueError(f"n_components must be non-negative; got {n_components}.")
+    if n_components > n_rows:
+        # Beyond equality the F denominator degrees of freedom go negative and
+        # scipy returns NaN, so the caller silently receives a limit that no
+        # value can ever exceed. A model cannot have more components than
+        # observations, so this is a bad call, not a degenerate model.
+        raise ValueError(
+            f"n_components ({n_components}) cannot exceed n_rows ({n_rows}); "
+            "a model cannot have more components than observations."
+        )
     if n_components == n_rows:
         return float("inf")
     return (
@@ -71,7 +90,7 @@ def spe_limit(model: BaseEstimator, conf_level: float = 0.95) -> float:
     check_is_fitted(model, "spe_")
 
     return spe_calculation(
-        spe_values=model.spe_.iloc[:, model.n_components - 1],
+        spe_values=model.spe_.iloc[:, model.n_components_ - 1],
         conf_level=conf_level,
     )
 
@@ -91,6 +110,21 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
     float
         The limit, above which we judge observations in the model to have a different correlation
         structure than those values which were used to build the model.
+
+    Notes
+    -----
+    When the squared SPE values have no relative spread (a perfect-fit
+    training set where ``A == K``, or an all-equal SPE column), the
+    Jackson-Mudholkar chi-square approximation degenerates. In that case
+    the limit falls back to ``sqrt(center_spe)``: there is no spread to
+    bound, so any value above the centre is by construction out of family.
+    See SEC-21 (#270), sub-item 3.
+
+    The degeneracy test is on the coefficient of variation of the squared
+    SPE, which is dimensionless, so it is unaffected by the units the data
+    happen to be in. An earlier version compared the variance of the squared
+    SPE (an SPE^4 quantity) against an absolute tolerance, which fired on
+    well-scaled data whose SPE values were merely small in magnitude.
     """
     if not 0.0 < conf_level < 1.0:
         raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
@@ -105,7 +139,20 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
     # zero below and yield NaN limits silently. Return the centre as the
     # limit -- there is no spread to bound, so anything above the centre
     # is by definition out of family. SEC-21 (#270) sub-item 3.
-    if variance_spe <= epsqrt or center_spe <= epsqrt:
+    #
+    # The degeneracy test must be RELATIVE. ``variance_spe`` is in SPE^4
+    # units and ``center_spe`` in SPE^2, so comparing either against the
+    # absolute ``epsqrt`` (the previous behaviour) made the test depend on
+    # the units of the data: SPE values a thousand times smaller tripped the
+    # guard despite having exactly the same relative spread, and the returned
+    # "95% limit" was then the RMS SPE, which around 42 percent of the
+    # training data exceeded. The coefficient of variation of the squared SPE
+    # is dimensionless and unchanged by rescaling.
+    if center_spe <= 0.0:
+        # Every SPE is exactly zero: a perfect fit.
+        return 0.0
+    relative_spread = float(np.sqrt(variance_spe)) / center_spe
+    if relative_spread <= epsqrt:
         return float(np.sqrt(center_spe))
     g = variance_spe / (2 * center_spe)
     h = (2 * (center_spe**2)) / variance_spe
@@ -116,10 +163,16 @@ def spe_calculation(spe_values: np.ndarray, conf_level: float = 0.95) -> float:
 def score_limit(model: BaseEstimator, conf_level: float = 0.95) -> np.ndarray:
     """Return two-sided confidence limits for each score component.
 
-    The scores of component ``a`` have mean zero and are normally distributed,
-    so the symmetric limit at the requested confidence level is
-    ``z * std(score_a)``, with ``z`` the standard-normal quantile. A score
-    outside ``[-limit, +limit]`` is unusual at that confidence level.
+    The scores of component ``a`` have mean zero, and their standard deviation
+    is *estimated* from the same ``N`` observations, so the symmetric limit at
+    the requested confidence level is ``t_{N - 1} * std(score_a)`` with
+    ``t_{N - 1}`` the Student-t quantile on ``N - 1`` degrees of freedom. A
+    score outside ``[-limit, +limit]`` is unusual at that confidence level.
+
+    The Student-t quantile is used rather than the standard-normal ``z``
+    because ``s_a`` is an estimate: ``z`` is only its large-``N`` limit and is
+    too narrow otherwise (1.96 against 2.26 at ``N = 10``, a limit 15 percent
+    too tight; the gap falls below 3 percent by ``N = 50``).
 
     Parameters
     ----------
@@ -136,17 +189,18 @@ def score_limit(model: BaseEstimator, conf_level: float = 0.95) -> np.ndarray:
 
     References
     ----------
-    Score limits: the score ``t_a`` is normally distributed, so the limit is
-    ``z_{(1 + conf_level) / 2} * s_a``. Equivalently ``(t_a / s_a) ** 2``
-    follows an ``F(1, N - 1)`` distribution.
+    Score limits: the limit is ``t_{(1 + conf_level) / 2, N - 1} * s_a``.
+    Equivalently ``(t_a / s_a) ** 2`` follows an ``F(1, N - 1)`` distribution,
+    since ``sqrt(F(1, N - 1))`` is exactly the two-sided ``t_{N - 1}``
+    quantile.
     """
     assert 0.0 < conf_level < 1.0, "conf_level must be a value between (0.0, 1.0)"
     check_is_fitted(model, "scores_")
 
     scores = np.asarray(model.scores_, dtype=float)
     std_per_component = scores.std(axis=0, ddof=1)
-    z = norm.ppf(1 - (1 - conf_level) / 2)
-    return z * std_per_component
+    critical_value = t_dist.ppf(1 - (1 - conf_level) / 2, scores.shape[0] - 1)
+    return critical_value * std_per_component
 
 
 def ellipse_coordinates(  # noqa: PLR0913
@@ -217,10 +271,19 @@ def ellipse_coordinates(  # noqa: PLR0913
         raise ValueError(f"conf_level must lie in (0, 1); got {conf_level}.")
     if n_rows <= 0:
         raise ValueError(f"n_rows must be positive; got {n_rows}.")
+    if n_points < 2:
+        raise ValueError(f"n_points must be >= 2 to draw an ellipse; got {n_points}.")
     assert scaling_factor_for_scores is not None  # required for the ellipse scaling
     s_h = scaling_factor_for_scores.iloc[score_horiz - 1]
     s_v = scaling_factor_for_scores.iloc[score_vert - 1]
-    t2_limit_specific = np.sqrt(hotellings_t2_limit(conf_level, n_components=n_components, n_rows=n_rows))
+    # The ellipse is the joint confidence region for the TWO plotted scores,
+    # so the T2 limit is computed with 2 degrees of freedom:
+    # 2 (N^2 - 1) / (N (N - 2)) * F(alpha; 2, N - 2), the convention used in
+    # Wold's texts. Using the full model's A here (the previous behaviour)
+    # draws a strictly larger ellipse (~42% too wide per axis at A=5, N=50;
+    # ~2x the area), silently hiding genuine outliers.
+    # ``n_components`` is still used above to bound the score indices.
+    t2_limit_specific = np.sqrt(hotellings_t2_limit(conf_level, n_components=2, n_rows=n_rows))
     dt = 2 * np.pi / (n_points - 1)
     steps = np.linspace(0, n_points - 1, n_points)
     x = np.cos(steps * dt) * t2_limit_specific * s_h

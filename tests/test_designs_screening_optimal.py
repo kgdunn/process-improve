@@ -6,6 +6,7 @@ paths that the high-level ``generate_design`` API does not reach.
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 from process_improve.experiments import designs_optimal
@@ -131,9 +132,15 @@ class TestDOptimalDispatch:
             dispatch_d_optimal(_continuous(16), budget=40)
 
     def test_budget_clamped_to_minimum_model_size(self) -> None:
-        """A budget below k + 1 is raised to k + 1 so the model is estimable."""
+        """A budget below the model size is raised to it, so the model is estimable.
+
+        The floor used to be ``k + 1``, the size of a main-effects model, even
+        for the default ``model_type="interactions"``: three factors give
+        1 + 3 + 3 = 7 coefficients, not 4.
+        """
         design, _meta = dispatch_d_optimal(_continuous(3), budget=2)
-        assert design.shape[0] >= 4
+        assert design.shape[0] == 7
+        assert np.linalg.matrix_rank(np.column_stack([np.ones(design.shape[0]), design])) == 4
 
     def test_budget_capped_to_candidate_set(self) -> None:
         """A budget above the 3**k candidate set is capped to its size."""
@@ -141,11 +148,17 @@ class TestDOptimalDispatch:
         assert design.shape[1] == 2
         assert design.shape[0] <= 9  # 3**2 candidate rows
 
-    @pytest.mark.parametrize("model_type", ["main_effects", "interactions", "quadratic"])
-    def test_model_type_accepted_on_fallback_path(self, model_type: str) -> None:
-        """model_type is accepted (though unused) by the point-exchange fallback."""
+    @pytest.mark.parametrize(("model_type", "n_runs"), [("main_effects", 8), ("interactions", 8), ("quadratic", 10)])
+    def test_model_type_sets_the_budget_floor_on_the_fallback_path(self, model_type: str, n_runs: int) -> None:
+        """model_type is no longer inert on this path: it sets the estimability floor.
+
+        A quadratic model over three factors has 10 coefficients, so a budget of
+        8 is raised to 10; the other two models fit inside 8 and are left alone.
+        The point-exchange criterion itself is still first-order.
+        """
         design, meta = dispatch_d_optimal(_continuous(3), budget=8, model_type=model_type)
         assert design.shape[1] == 3
+        assert design.shape[0] == n_runs
         assert meta["backend"] == "point_exchange_fallback"
 
 

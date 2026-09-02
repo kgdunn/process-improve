@@ -73,8 +73,9 @@ pytest -m dataset -o "addopts="
 # CI runs the full suite (no marker filter).
 ```
 
-The markers are registered in `pytest.ini`; pytest will warn if you
-typo a marker name. Tag a test by adding the decorator above the
+The markers are registered in `pytest.ini`, and `addopts` includes
+`--strict-markers`, so a typo'd marker name is a collection error rather
+than a silent warning. Tag a test by adding the decorator above the
 function (or above the `class` to tag the whole class):
 
 ```python
@@ -117,6 +118,30 @@ still be rejected by CI.
   data before fitting models.
 - **Prose:** do not use em-dashes in code, comments, docstrings, or commit
   messages; use a hyphen, a semicolon, or split the sentence.
+
+### API consistency
+
+Functions and estimators that do the same job must present the same API.
+Concretely, across a family of siblings (`PCA` / `PLS` / `TPLS` / `MBPLS` /
+`MBPCA`, or `robust_regression` / `multiple_linear_regression`):
+
+- **The same key or attribute name means the same quantity everywhere.** If
+  one function returns `t_value`, every sibling that can compute it returns
+  `t_value`, holding the same statistic. Reusing a name for a different
+  quantity is worse than not providing it at all.
+- **A key that is documented must be populated.** Do not document a return
+  value the code never assigns; either compute it or remove it from the
+  docstring. Where a value is genuinely undefined (a degenerate fit, for
+  example), return `NaN` and say so in the docstring.
+- **Sibling methods return the same shape of thing.** A method that returns a
+  `DataFrame` on one estimator should not return a `Series` on its sibling.
+- **A convention chosen once applies everywhere.** Degrees of freedom,
+  permutation-test corrections, centred versus uncentred moments, and similar
+  choices should not vary between neighbouring functions. If two conventions
+  are genuinely both needed, name the difference in both docstrings.
+
+When a fix makes one member of a family better, check the others in the same
+change; a divergence introduced quietly is expensive to find later.
 
 ### Naming conventions
 
@@ -220,8 +245,17 @@ wall-clock time. The rule of thumb:
 - A PR that knowingly slows a hot path by more than ~10% must say
   so in the PR description and justify the trade-off (correctness
   fix, security guard, deprecation prep).
-- Unknowing regressions are caught by the perf-baseline CI job
-  (planned: [ENG-15](https://github.com/kgdunn/process-improve/issues/297)).
+- The tests in `tests/perf/` are **not** wall-clock benchmarks. They
+  assert deterministic cost-shape properties of the ENG-18 lazy-frame
+  design (the public DataFrame views are built once and cached,
+  pickling excludes the cache, `transform` / `predict` never touch the
+  frame views) and of `check_random_state` (generator pass-through by
+  identity). They fail on a real structural regression, such as losing
+  a cache or re-routing a hot path through a DataFrame conversion, but
+  a plain slowdown does not trip them.
+- Wall-clock regression gating is the perf-baseline CI job, which is
+  still **planned**
+  ([ENG-15](https://github.com/kgdunn/process-improve/issues/297)).
   Until that job lands, the maintainer eyeballs perf on the hot
   paths during review.
 - Internal refactors (private modules, internal classes) carry no

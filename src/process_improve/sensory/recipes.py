@@ -47,8 +47,10 @@ _INTAKE = AnalysisRecipe(
         "descriptive panel",
     ],
     inputs_needed=[
-        "the parsed spreadsheet as rows (the front end or a code sandbox reads the file first; these "
-        "recipes do not read files themselves)",
+        (
+            "the parsed spreadsheet as rows (the front end or a code sandbox reads the file first; these "
+            "recipes do not read files themselves)"
+        ),
         "which columns hold the panelist, product, attribute, replicate, session and score",
         "the layout: one column per attribute, one column per product, or already one row per score",
         "the valid score range if known (for example 0 to 10)",
@@ -195,8 +197,9 @@ _RELATE_COVARIATES = AnalysisRecipe(
     title="Relate panel attributes to product covariates",
     summary=(
         "Relate each sensory attribute to measured product covariates and separate genuine drivers from "
-        "proxies and chance correlations. Runs PLS plus per-pair correlations and the cross-validated "
-        "discriminator (out-of-sample Q-squared gate, selectivity ratio, collinear clustering), then "
+        "proxies and chance correlations. Runs PLS plus per-pair correlations and the per-attribute "
+        "predictive-descriptor search (out-of-sample Q-squared gate, selectivity ratio, collinear "
+        "clustering), then "
         "interprets which descriptors really carry signal. Use this after the panel has been processed."
     ),
     domain=_DOMAIN,
@@ -241,7 +244,7 @@ _RELATE_COVARIATES = AnalysisRecipe(
                 "correction to what was already applied in the processing recipe (use 'none' if the panel "
                 "is already aligned) and drop the genuine disagreers identified there. This one call "
                 "validates, relates the attributes to the descriptors with PLS and per-pair correlations, "
-                "and runs the cross-validated discriminator."
+                "and finds the predictive descriptors per attribute."
             ),
             tools=["sensory_analyze_descriptive"],
             arg_hints={
@@ -262,19 +265,20 @@ _RELATE_COVARIATES = AnalysisRecipe(
         RecipeStep(
             order=4,
             directive=(
-                "Read the discriminator in relate.discriminator: per_attribute gives the cross-validated "
-                "q2_cv and a predictable flag; descriptors gives, per (attribute, descriptor), the "
-                "selectivity_ratio, a permutation q_value, a discriminator_significant flag, and a "
-                "cluster_id."
+                "Read relate.predictive_descriptors: per_attribute gives the cross-validated q2_cv and a "
+                "predictable flag; descriptors gives, per (attribute, descriptor), the "
+                "selectivity_ratio, a raw permutation p_value, a family-wise-error-adjusted "
+                "p_value_fwer, an is_predictive flag, and a cluster_id. The p_value_fwer correction "
+                "is within an attribute, not across attributes."
             ),
         ),
         RecipeStep(
             order=5,
             directive=(
-                "Interpret for a non-statistician. An association that survives the discriminator (the "
-                "attribute is predictable out of sample and the descriptor is selectivity-significant) "
-                "carries real, transferable predictive signal. An association that the marginal test flags "
-                "but the discriminator demotes is most likely a coincidence of this sample. Descriptors "
+                "Interpret for a non-statistician. An association that is is_predictive (the attribute is "
+                "predictable out of sample and the descriptor is selectivity-significant) carries "
+                "real, transferable predictive signal. An association that the marginal test flags "
+                "but this step demotes is most likely a coincidence of this sample. Descriptors "
                 "that share a cluster_id carry the same information and cannot be told apart, so a "
                 "significant one may be a proxy riding on the true driver."
             ),
@@ -297,7 +301,7 @@ _VISUALISATION = AnalysisRecipe(
     key="sensory_visualisation",
     title="Sensory visualisation (planned)",
     summary=(
-        "A planned workflow to turn relate and discriminator output into sensory maps, driver biplots and "
+        "A planned workflow to turn relate and predictive-descriptor output into sensory maps, driver biplots and "
         "small-multiple panels. Not yet available; this entry advertises the workflow so the agent can tell "
         "the user it is coming rather than improvising plots."
     ),

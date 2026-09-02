@@ -11,6 +11,17 @@ those changes.
 
 ## [Unreleased]
 
+## [1.77.0] - 2026-08-30
+
+Renames the functions that answer "is this relationship real, or is it noise?"
+so their names state the question rather than the technique, and fixes two
+naming defects the rename exposed.
+
+**Nothing is removed in this release.** Every old name, output key and keyword
+still works and now emits a `DeprecationWarning` naming its replacement. This is
+the Announce phase of `docs/development/deprecation_policy.rst`; removal is
+scheduled for 2.0.0.
+
 ### Added
 
 - `omars_trade_off_table(..., anchors=True)` marks where the two standard
@@ -38,6 +49,835 @@ those changes.
   budget while `omars_anchor_entry("bbd", 5)` reports the 46-run Box-Behnken
   design. The capability thresholds are unchanged, being set by the number of
   distinct half-rows, which extra centre runs do not alter.
+- **`check_predictive_signal`** in `process_improve.multivariate`, replacing
+  `permutation_q2`. It takes `x` and `y` first and makes `fit_predict` optional,
+  defaulting to leave-one-out cross-validated PLS with `n_components`. The
+  default receives the raw blocks so every fold derives its own centring and
+  scaling constants, which is the trap the parameter documentation warns callers
+  about. Its docstring quantifies the cost: an out-of-sample null refits once per
+  fold per permutation, so leave-one-out on twenty products at the default
+  `n_perm=500` is ten thousand fits.
+- **`count_discoveries_under_null`**, replacing `pipeline_null`. "Pipeline"
+  collided with `sklearn.pipeline.Pipeline`, which it has nothing to do with, and
+  "null" read as a missing value.
+- **`find_predictive_descriptors`** in `process_improve.sensory`, replacing
+  `discriminate_observational`. "Discriminate" read as discriminant analysis; the
+  function selects descriptors, it does not assign observations to classes.
+- **`null_to_observed_ratio`**, the unclipped form of `empirical_fdr`. The old
+  key reported `1.0` whenever shuffling found at least as much as the real
+  response did, which is the single most informative reading the function can
+  produce; clipping rounded it away behind a number that looked like a
+  well-behaved rate. `empirical_fdr` is still returned, still clipped, so no
+  existing caller changes behaviour.
+- **`p_value_fwer`** and **`is_predictive`** on the descriptor records, replacing
+  `q_value` and `discriminator_significant`. Both old keys are still emitted with
+  identical values.
+- **`result.relate["predictive_descriptors"]`**, replacing
+  `result.relate["discriminator"]`. Both keys reference the same object.
+- **`find_predictive=`**, replacing the `discriminator=` keyword on
+  `relate_observational`, `analyze_descriptive` and the
+  `sensory_analyze_descriptive` tool. Passing both raises `ValueError`.
+
+### Deprecated
+
+Deprecated since 1.77.0; will be removed in 2.0.0:
+
+- `permutation_q2`, `pipeline_null` and `discriminate_observational`, which now
+  forward to their replacements and warn.
+- The `empirical_fdr`, `q_value`, `discriminator_significant` and
+  `discriminator` keys, and the `discriminator=` keyword.
+
+### Changed
+
+- `find_predictive_descriptors` documents that its multiplicity correction is
+  **within an attribute, not across attributes**: the max-statistic null is
+  rebuilt per attribute, so on a panel of `A` attributes at `alpha` roughly
+  `alpha * A` are expected to yield a spurious family. Documented, not changed;
+  closing the gap would change results and belongs on its own.
+- `q2_cv > 0.0` in the same function is annotated as what it is: a cheap,
+  deliberately uncalibrated pre-screen that decides whether the permutation loop
+  is worth running, ANDed with the calibrated p-value and the jackknife flag.
+  Passing it cannot make a descriptor a finding.
+- `permutation_column_null` and `find_predictive_descriptors` now cross-
+  reference each other, stating that the first is a block-level screen over one
+  multi-response fit and the second is per-attribute with family-wise error
+  control, so the choice between them is explicit.
+- `class_enrichment` keeps its name. The module docstring now says why: it
+  already states its question, and it tests a ranking you supply rather than a
+  model this module fits.
+
+### Fixed
+
+- **`find_predictive_descriptors` claimed a correction it never applied.** Its
+  docstring said the permutation p-value was Benjamini-Hochberg corrected across
+  the whole family. The code builds a max-statistic (Westfall-Young) null, as its
+  own inline comment says; `_attach_fdr`, the real BH helper, is only ever called
+  from `relate_observational`.
+- **The field carrying that value was named `q_value`**, FDR vocabulary for a
+  family-wise-error-adjusted p-value. `q_value` in the sibling `associations`
+  list of the same result dict genuinely is a BH q-value, so one key name meant
+  two different quantities. The new `p_value_fwer` says what it holds.
+
+## [1.76.0] - 2026-08-29
+
+### Added
+
+- **New subpackage `process_improve.chemistry`**: preprocessing a
+  product-by-compound block of concentrations or peak areas, in the one order
+  that is defensible (trim, transform, centre, scale).
+  - `classify_zero_states` records what a zero in each column means, and
+    **defaults to `unknown`**. Calling a zero left-censored asserts a latent
+    value below a detection limit; calling it structurally absent asserts the
+    compound is not there. Those need opposite handling and the distinction is
+    not recoverable from an exported table, so the caller declares it. Passing
+    a detection limit is that declaration; nothing else is.
+  - `trim_by_prevalence` splits on the non-zero count and returns a presence
+    layer covering **every** compound, kept and dropped alike: for a rare
+    compound the binary fingerprint often carries more than a column of zeros.
+  - `normalisation_check` reports the row totals and those outside a fold-band
+    around the median, which is how an unrecorded dilution shows up.
+  - `choose_transform` / `apply_transform` pick between a log and a linear
+    scale from the range ratio of the detected values, with an honest
+    `"ambiguous"` in between that the caller resolves.
+  - `center_and_scale` offers autoscale and Pareto. `detected_only` defaults to
+    `False`: on zeros that were never imputed, excluding them makes the column
+    a large-magnitude binary and PLS then tracks how sparse a variable is
+    rather than how it relates to the response.
+  - `apply_fitted_transform` and `apply_fitted_center_scale` replay tables
+    computed elsewhere, which is what makes honest nested cross-validation
+    possible.
+- **New module `process_improve.sensory.diagnostics`**: whether an attribute
+  can be modelled as an intensity at all. `boundary_occupancy` reports floor,
+  ceiling and exact-zero occupancy separately (a panel recording "not
+  perceived" as a small positive number looks floor-pinned and is not);
+  `detection_rate` gives the product-by-attribute probability that suits a
+  pinned attribute; `assessor_variance_equality` tests the precondition under
+  which Grossmann et al. (2023,
+  [doi:10.1016/j.foodqual.2022.104792](https://doi.org/10.1016/j.foodqual.2022.104792))
+  show the Mixed Assessor Model misreads unequal assessor variance as a scaling
+  effect.
+- **`permutation_q2`, `pipeline_null` and `class_enrichment`** in
+  `process_improve.multivariate`, nulls that respond to signal.
+  `permutation_q2` permutes whole response rows and compares observed
+  out-of-sample performance against what reshuffling reaches; `pipeline_null`
+  does the same for a whole selection procedure and reports an empirical FDR
+  for the procedure as run; `class_enrichment` tests hypergeometrically whether
+  a chemically expected class sits at the top of a ranking.
+- **New provisional module `process_improve.interactions`**: `pair_coverage`,
+  `interaction_terms` and `stability_selection`. Its docstring states plainly
+  that all three are unvalidated on real data and that coverage is unit tests
+  only.
+- User-guide pages for each of the four: `chemistry`, `sensory_diagnostics`,
+  `permutation_nulls` and `interactions`.
+
+### Changed
+
+- `PLS.fit` raises a `SpecificationWarning` when `scale=False` is handed a
+  block whose column means are large relative to their spread. `scale=False`
+  centres nothing and fits no intercept, so a response on its natural scale
+  displaces every prediction by roughly the response mean: adding a constant to
+  the response of an otherwise perfect fit moves in-sample R2 from +0.99 to
+  -4.12, which reads as "no relationship in this data". The warning names the
+  symptom, not only the condition. It does **not** centre for you: `scale=False`
+  means "touch nothing", and centring silently would move the numbers for every
+  caller who already centres correctly.
+- `PLS.select_n_components` raises a `SpecificationWarning` when
+  `scale_inside_folds=True` receives an X that is already centred and
+  unit-variance scaled. In-fold re-standardisation overwrites a scaling the
+  caller applied on purpose, so two deliberately different strategies report
+  RMSECV identical to six decimal places and a comparison between them shows no
+  difference for reasons unrelated to the data. The existing warning fires on
+  `scale_inside_folds=False`, which is the wrong way round for pre-scaled input.
+
+### Fixed
+
+- `mixed_assessor_model` on a panel with no rows returned frames with **no
+  columns**, so an over-filtered panel surfaced as `KeyError:
+  'f_product_mam'` in the caller rather than as a diagnosable error at the
+  source. It now raises a `ValueError` naming the condition and pointing at the
+  filter that is the usual cause; missing schema columns are checked in the
+  same place.
+
+### Documentation
+
+- `center` and `scale`: the two return different kinds of quantity. `center`
+  returns the value it *subtracted*; `scale` returns the *multiplier* it
+  applied, which is the reciprocal of `func`. Dividing by what `scale` returns
+  is wrong by a factor of the variance. They also disagree on degrees of
+  freedom (`scale` defaults to `ddof=0`, `MCUVScaler` uses `ddof=1`). Both
+  docstrings now state the asymmetry and cross-reference `MCUVScaler`.
+- `spe_` and `hotellings_t2_` on `PCA` and `PLS` are `(n_samples,
+  n_components)`, one column per component. `np.asarray(m.spe_).ravel()` is
+  right at one component and silently yields `n * A` values above it; use
+  `.iloc[:, -1]`.
+- `vip`: `sum(VIP ** 2)` is exactly the number of X variables, which is what
+  makes "VIP > 1" a sensible relative cut-off and what makes a VIP-exceedance
+  count useless as a null statistic. Points at `permutation_q2` instead.
+- `safe_inverse`'s error message now lists the likely causes of a singular or
+  ill-conditioned matrix in the order worth checking.
+
+## [1.75.2] - 2026-08-29
+
+### Fixed
+
+- `test_point_exchange_always_returns_requested_run_count` (`tests/test_doe.py`)
+  pins several previously-failing seeds (122, 146, 199, 319, 338) for the
+  point-exchange fallback's run-count guarantee. The underlying fix is the
+  `1.75.0` entry below: raising this regression independently converged on
+  the same root causes (the exchange loop's addition-only growth and the
+  non-finite-score freeze), already fixed there.
+
+## [1.75.1] - 2026-08-29
+
+### Fixed
+
+- Docstring accuracy pass: five docstrings had drifted from the code.
+  - `univariate/tools.py` (`confidence_interval` tool): the "robust" method
+    formula in the input schema had lost its `sqrt(pi/2)` factor. The actual
+    formula the code computes is
+    `median +/- t * MAD * sqrt(pi/2) / sqrt(n)` (MAD estimates sigma; the
+    sqrt(pi/2) is the asymptotic standard error of the median).
+  - `multivariate/_pls.py` (`PLS.select_n_components`): `n_repeats` said
+    "Default 10" but the signature default is `None`, which the function
+    resolves to 10 internally. Docstring updated to say so.
+  - `batch/preprocessing.py` (`determine_scaling`): the Returns section
+    described the "typical minimum" column as "robustly calculated". The
+    per-batch minimum is the raw `batch.min(axis=0)`; only the cross-batch
+    aggregation is median (robust) or mean (non-robust).
+  - `multivariate/plots.py` (`score_plot`): the default `"title"` in the
+    `settings` block was documented as `"Score plot of ..."`, but the true
+    default is the empty string on the 2D path and a "Score plot of
+    component ..." sentence only on the 3D path (`pc_depth > 0`).
+  - `regression/_robust_regression.py` (`robust_regression`): the
+    Returns block said `intercept` is "returned if fit_intercept==True,
+    otherwise 0". The full-fit path honours that; the degenerate
+    early-return stub sets `intercept` to `np.nan` regardless of
+    `fit_intercept`. The docstring now spells out both paths.
+
+## [1.75.0] - 2026-08-29
+
+D-optimal designs are now guaranteed estimable: every design these functions
+return has enough runs, and a full-rank model matrix, for the model that was
+asked for.
+
+### Fixed
+
+- `optimization_function` (`experiments/optimal.py`) no longer prefers designs
+  the model cannot be fitted to. It scored a design by inverting `X'X` and
+  taking `slogdet` of the inverse, treating a `LinAlgError` as "singular".
+  `numpy.linalg.inv` raises only when the LU factorisation hits an exactly-zero
+  pivot, which a rank-deficient design over +-1 levels routinely slips past; the
+  inverse then came back as numerical noise whose log-determinant is a large
+  *negative* number, i.e. the best possible score for a search that minimises
+  it. Inestimable designs were therefore actively selected, not merely tolerated.
+  The score is now `-log|det(X'X)|` from `slogdet` directly, guarded by an
+  explicit rank check that returns `+inf` for any design with fewer runs than
+  parameters or a rank-deficient model matrix. Over 500 draws of a 3-factor
+  D-optimal design at the minimum budget, rank-deficient results fell from
+  36 in 200 to 0 in 500.
+- The D-criterion is now computed on the model matrix `[1 | factors]` rather
+  than on the raw factor settings. Without the intercept column, a design
+  holding a factor at a single level scored perfectly well even though that
+  factor was completely aliased with the intercept.
+- `point_exchange` returns exactly `number_points` runs. It used to seed the
+  design with one row per factor and grow it only through additions that
+  improved D-optimality, so when no addition improved it the caller silently
+  received a shorter design than requested (measured: 3 in 400 at 4 points, and
+  designs of 10 or 11 rows when 12 were requested). The design size is a
+  constraint, not something the search may trade away; the search now seeds at
+  the requested size and only ever swaps one row for another.
+- `dispatch_d_optimal`, `dispatch_i_optimal` and `dispatch_a_optimal` raise the
+  budget to the declared model's coefficient count, logging a warning when they
+  do. Previously `dispatch_d_optimal`'s point-exchange fallback clamped to
+  `n_factors + 1`, the size of a main-effects model only, so an `interactions`
+  or `quadratic` request got a design far too small to fit it; and the pyoptex
+  path had no floor at all, failing with an upstream `ValueError` about "rank
+  collinearity" between model components that names neither the budget nor the
+  model. This also repairs the `budget = 2 * n_factors + 1` default, which is
+  below an interactions model's size from four factors up and a quadratic
+  model's from three: `dispatch_d_optimal(factors)` with four factors and the
+  default `model_type="interactions"` used to fail outright, and now returns
+  the 11 runs that model needs.
+- `point_exchange` raises `ValueError` when `x` has a duplicated index. The
+  search tracks the chosen rows by index label, so a repeated label made the
+  `.loc` lookup return every row carrying it: a request for 4 runs from a
+  6-row candidate set with one repeated label came back with all 6. Rows that
+  are duplicated by value are still fine, and dropped as before.
+
+### Changed
+
+- `point_exchange` requires `number_points` to be at least `x.shape[1] + 1`,
+  one run per column plus the intercept. The bound was `x.shape[1]`, one short
+  of the model being scored, so a request for exactly that many runs was
+  accepted and then spent 1000 attempts failing to find a non-singular start,
+  reported as a problem with the candidate set.
+- `point_exchange` raises when `number_points` exceeds the number of *unique*
+  candidate rows, instead of silently clamping the design down to that number.
+  The upper bound is also now checked after de-duplication, since the search
+  selects distinct rows and duplicates cannot make up a shortfall.
+- The D-optimality value returned by `point_exchange` (and reported as
+  `meta["d_optimality"]`) is `-log|det(X'X)|` on the model matrix. It was
+  `log|det((X'X)^-1)|` on the factor settings alone. Values are not comparable
+  across this release.
+
+## [1.74.0] - 2026-08-29
+
+The multivariate numerics cluster (#502, #503, #504). All three entries
+change numerical results or iteration behaviour, because the previous
+values were wrong.
+
+### Changed
+
+- NIPALS convergence in PCA, PLS, MBPCA and MBPLS is now judged on the
+  *relative* change between successive score-vector iterations (the norm of
+  the change divided by the norm of the current vector, with a floored
+  denominator), the form TPLS already used. The previous absolute criterion
+  made convergence depend on the units of the data: large-magnitude X burned
+  every `md_max_iter` iteration and tiny-magnitude X "converged" instantly.
+  Fitting `X` and `1000 * X` now takes the same number of iterations and
+  gives identical components up to the scale factor. The `md_tol` settings
+  key and the PLS `tol` parameter keep working, now as relative tolerances.
+  (#504)
+- The MBPCA and MBPLS default tolerances, previously absolute values at
+  machine precision (`eps**(9/10)` ~ 8.2e-15 and `eps**(6/7)` ~ 3.8e-14,
+  below the floating-point oscillation floor of a relative criterion), are
+  now the shared `epsqrt` (~1.49e-8) default used by PCA, PLS and TPLS, so
+  spurious non-convergence warnings on well-conditioned data are gone. An
+  explicit `tol` passed by the caller is still honoured, but is now
+  interpreted relatively. (#504)
+- MBPCA and MBPLS seed their NIPALS super-score / u-vector initialisation
+  deterministically from the column with the largest sum of squares, the way
+  single-block PCA / PLS already do, instead of a hard-coded
+  `np.random.default_rng(0)` that violated the reproducibility contract in
+  `docs/development/reproducibility.rst`. No RNG remains in these fit paths
+  and no `random_state` parameter is needed; repeated fits are
+  bit-identical, and fitted components are unchanged up to the existing sign
+  convention. (#503)
+- `TPLS.fit()` and `TPLS.diagnose()` now compute one and the same
+  Hotelling's T2: the cumulative per-component form `sum_a (t_a / s_a)^2`
+  used by PCA and PLS, with the score standard deviations on the unbiased
+  `N - 1` divisor. Previously `fit()` stored a full-Mahalanobis T2 with the
+  covariance divided by `N`, shape `(n_obs, 1)`, while `diagnose()` returned
+  the cumulative diagonal form, shape `(n_obs, n_components)`: two different
+  statistics under one name, and the `N` divisor inflated T2 by
+  `N / (N - 1)` relative to the F-distribution limit it is compared against.
+  `TPLS.hotellings_t2` is now shape `(n_samples, n_components)`, as its
+  docstring already promised; the full-model value is the last column.
+  `scaling_factor_for_scores` (which feeds `ellipse_coordinates`) also uses
+  the `N - 1` divisor, so TPLS score ellipses are slightly larger. (#502)
+
+## [1.73.4] - 2026-08-29
+
+Test hygiene from the 2026-08 audit triage: dataset-loader timeouts (#508),
+live test tiers (#510), and perf tests that can actually fail (#511).
+
+### Fixed
+
+- The remote sample-dataset loaders (`distillateflow()`, `oildoe()`) fetch
+  with an explicit timeout instead of an unbounded `pd.read_csv(url)`, so a
+  black-holing host raises the documented `RuntimeError` rather than hanging
+  the caller indefinitely (#508). The default of 30 s is a new
+  `dataset_fetch_timeout` knob on the config settings singleton, overridable
+  via `PROCESS_IMPROVE_DATASET_FETCH_TIMEOUT`. No on-disk cache was added.
+
+### Changed
+
+- The ENG-29 test tiers are now real (#510): `--strict-markers` is on, the
+  one network-fetching test in `tests/test_multivariate.py` carries
+  `@pytest.mark.dataset` so `-m "not dataset"` performs no network access,
+  and the tests measured at >= 2 s carry `@pytest.mark.slow`. CI still runs
+  the full suite with no marker filter.
+- The tests in `tests/perf/` assert deterministic ENG-18 cost-shape
+  properties (lazy frames built once and cached, pickling excludes the
+  cache, hot paths rebuild no frames, `check_random_state` generator
+  pass-through by identity) instead of running assertion-free
+  pytest-benchmark timings that could never fail (#511). The ENG-15
+  wall-clock benchmark CI job remains planned;
+  `CONTRIBUTING.md`'s performance-regression policy now says so honestly.
+
+## [1.73.3] - 2026-08-29
+
+Release-pipeline hardening from the 2026-08 audit triage (#507). No library
+code changes.
+
+### Fixed
+
+- `publish.yml`: the version-vs-tag guard now runs on `workflow_dispatch` as
+  well as on tag pushes. A dispatch run must point at a commit already tagged
+  `v<version>` for the version in `pyproject.toml`, so a manual run can no
+  longer publish an untagged version from an arbitrary ref.
+- `publish.yml`: `gh release create` now passes `--target` with the SHA of the
+  checked-out commit, so a release created by the workflow tags the commit
+  that was actually published instead of the default branch head.
+- `publish.yml`: the CycloneDX SBOM is generated from a fresh virtualenv that
+  contains only the built wheel and its runtime dependencies (with the
+  installer tooling removed), so `build`, `cyclonedx-bom`, and their
+  transitive dependencies no longer appear as runtime components.
+- `publish.yml`: a missing `## [X.Y.Z]` heading in `CHANGELOG.md` now fails
+  the build job before anything is published, and the release-notes
+  extraction step errors instead of silently falling back to auto-generated
+  notes.
+
+### Changed
+
+- `publish.yml`: permissions are now per-job with least privilege. The build
+  job, which runs repository code through PEP 517 hooks, holds only
+  `contents: read`; the write scopes stay on the publish job.
+- `publish.yml`: `pypa/gh-action-pypi-publish` is pinned to the commit SHA of
+  v1.14.2 instead of the mutable `release/v1` branch ref.
+- `Makefile`: the `release` target no longer builds or publishes. It prints
+  the tag-gated release instructions and exits nonzero, so the gated workflow
+  is the only publish path.
+
+## [1.73.2] - 2026-08-29
+
+### Fixed
+
+- The MCP server (`process-improve-mcp`) now publishes each tool's real JSON
+  Schema (#506). Registration previously introspected a generic `(**kwargs)`
+  handler, so every tool appeared to MCP clients with an empty `inputSchema`:
+  no parameter names, types, required/optional split, enums, or bounds. Tools
+  are now registered as explicit `Tool` objects whose published `inputSchema`
+  is exactly the registry's `input_schema` from `get_tool_specs()`, so `anyOf`
+  unions (`int | None`, `Literal[...]`) survive intact. The server targets the
+  MCP 2.x SDK (`mcp.server.mcpserver.MCPServer`; the `mcp` extra now pins
+  `mcp>=2.0`), under which the old `FastMCP` import failed outright.
+  `mcp_server.py` is no longer omitted from coverage measurement.
+- The concurrent-dispatch MCP test no longer asserts on wall-clock elapsed
+  time, which could flake on loaded CI runners; it now proves the overlap with
+  a barrier both in-flight calls must reach (drive-by from #513).
+
+## [1.73.1] - 2026-08-29
+
+### Fixed
+
+- ECharts adapter (#509): a panel's annotations now always attach to a series
+  of that panel, in both the single-panel and multi-panel paths; a panel with
+  annotations but no layers gets an empty carrier series instead of painting
+  the previous panel. A data row missing an encoded field raises `KeyError`
+  (matching the Plotly adapter) instead of silently plotting 0; a ragged
+  `z_matrix` raises `ValueError` instead of filling missing cells with 0; and
+  per-point `colors` / `error_y` style lists whose length does not match the
+  data raise `ValueError` instead of silently truncating the series. Both
+  adapters now raise `NotImplementedError` for the declared-but-unimplemented
+  `MarkType.area` and `AnnotationType.label` instead of silently falling back
+  to a scatter trace or dropping the annotation.
+- Visualization tests (#512): the Plotly annotation-rendering tests now assert
+  on the rendered `layout.shapes` / `layout.annotations` structure instead of
+  a tautology, and `test_themes.py` restores the `plotly.io.templates.default`
+  value that was in effect before the test rather than forcing the package
+  default, so the theme no longer leaks into later tests in the same worker.
+
+## [1.73.0] - 2026-08-29
+
+### Fixed
+
+- `PCA`, `PLS`, and `OPLS` no longer mutate their constructor parameters inside
+  `fit()`, restoring the sklearn `get_params` / `clone` contract that
+  `PLS.cross_validate` and `GridSearchCV` depend on (#505). The resolved
+  (possibly clamped) component count now lives on the fitted attribute
+  `n_components_`; `n_components` stays exactly as the user set it, including
+  `None`, so cloned resamples fit the requested configuration and refitting the
+  same instance on differently shaped data re-derives the clamp each time.
+  `PLS.fit` likewise no longer writes the resolved missing-data settings back
+  to `missing_data_settings`.
+
+### Changed
+
+- Reading `model.n_components` after fitting now returns the user's request
+  (which can be `None`), not the resolved count: read `model.n_components_`
+  for the fitted value. `OPLS`, which has no `n_components` constructor
+  parameter, exposes the fitted count only as `n_components_` and raises a
+  helpful rename message for the old name. `MBPCA` and `MBPLS` also expose
+  `n_components_` so the shared limit and plot helpers read one attribute
+  across all four estimators.
+
+## [1.72.0] - 2026-08-29
+
+The OMARS generator cluster from the 2026-08 audit triage (#513): issues #496
+to #499.
+
+### Fixed
+
+- `generate_omars(n_runs=n, center_runs=c)` now returns exactly `n` runs:
+  `n_runs` is the total run count of the returned design, centre runs included,
+  and `n_runs - center_runs` must be a positive even number. Previously the
+  extra centre runs were appended on top, so the design had `n + c - 1` rows
+  (#496).
+- The `a_optimal`, `d_efficiency`, and `min_second_order_correlation` selection
+  criteria (and the D axis of the default `dominance` rule) now find the true
+  optimum whenever the design class is small enough to enumerate, currently up
+  to four factors at moderate sizes. The search enumerates every feasible
+  half-design multiset, including designs that repeat a half-run, which the
+  previous binary ILP multistart could not represent at all; the reported
+  metadata carries `search_mode="exhaustive"` when the selection is exact and
+  `"multistart"` when the heuristic search was used (#497, #498, #499).
+- Design metrics (`d_efficiency`, `a_optimality`, `max_second_order_correlation`)
+  are now computed on the full returned design, extra centre runs included,
+  so the metadata describes the design the caller receives (#496).
+
+### Changed
+
+- In `generate_omars` selection and satisficing, a design containing a constant
+  second-order column (a term the design cannot estimate) now scores `inf` on
+  the maximum second-order correlation metric instead of having the column
+  skipped, so `min_second_order_correlation` no longer favours degenerate
+  designs. The descriptive statistic in `omars_properties` is unchanged (#499).
+- `generate_omars` docstrings state when a selection criterion is exact and
+  when it is heuristic, instead of claiming optimisation unconditionally
+  (#497, #498).
+
+## [1.71.0] - 2026-08-22
+
+The multivariate statistical cluster from the 2026-08 audit triage (#513).
+Most entries change numerical results, because the previous values were wrong.
+
+### Changed
+
+- `PLS.prediction_interval` now puts the residual error on the same
+  `N - A - 1` degrees of freedom as the t quantile it is multiplied by.
+  `rmse_` divides by `N`, so the interval was too narrow by
+  `sqrt(N / (N - A - 1))`. Measured coverage of a nominal 95% interval rises
+  from 0.710 to 0.804 at `N = 15`, 0.869 to 0.916 at `N = 25` and 0.921 to
+  0.935 at `N = 60` (K=8, A=5, 800 replicates). **Intervals are wider.** The
+  residual gap to 95% is a separate matter: PLS consumes more effective
+  degrees of freedom than `A`. The `cv_result` branch is unchanged, since a
+  cross-validated error is already out of sample.
+- `spe_calculation`'s degeneracy test is now on the coefficient of variation
+  of the squared SPE, which is dimensionless, instead of comparing an SPE^4
+  quantity against an absolute tolerance. The old test fired on well-scaled
+  data whose SPE values were merely small in magnitude, returning the RMS SPE
+  as the claimed 95% limit: around 42 percent of the training data then
+  exceeded its own limit. The genuinely degenerate fallbacks (a perfect fit,
+  an all-equal SPE column) are unchanged.
+- `PLS.select_n_components` divides PRESS by the number of test-row
+  evaluations the splitter actually performs, and weights each TSS row by how
+  often that row was tested, instead of assuming the splitter partitions the
+  rows once per repeat. KFold and RepeatedKFold results are bit-identical; a
+  caller-supplied splitter that is not a partition was previously wrong. A
+  `ShuffleSplit(n_splits=10, test_size=0.5)` produces `5N` evaluations but was
+  still divided by `N`, inflating RMSECV by `sqrt(5)` and reporting Q2Y of
+  -0.03 for a model KFold scores at 0.81; a caller-built `RepeatedKFold` was
+  inflated by `sqrt(n_repeats)`.
+- `PLS` computes R2Y as `1 - SSE/SST`, matching the convention already used on
+  the X side, for both `r2_cumulative_` and `r2y_per_variable_`. The two forms
+  agree exactly when the scores are orthogonal, but missing data breaks that,
+  and `SS(Yhat)` could then decrease as a component was added. Across 120
+  missing-data fits, 75 produced a negative per-component R2Y and 11 returned
+  NaN VIP scores; both are now zero.
+- `hotellings_t2_limit` raises `ValueError` when `n_components` exceeds
+  `n_rows`. Beyond equality the F denominator degrees of freedom go negative
+  and scipy returns NaN, so the caller silently received a limit that nothing
+  could exceed, including through `ellipse_coordinates`.
+
+### Fixed
+
+- `PLS.nested_cv` computes its Q2Y denominators over the same rows and cells
+  as its PRESS numerators. A TSS over every row against a PRESS over only the
+  covered rows inflated Q2: an outer `ShuffleSplit` covering 15 percent of the
+  data reported Q2 = 0.68 for pure-noise X, where the honest value is about
+  zero. The headline total also used a NaN-propagating sum where the
+  per-column values used `nansum`, so a single missing Y cell returned finite
+  per-column values and a NaN total.
+- `PCA.detect_outliers` and `PLS.detect_outliers` no longer divide by a
+  degenerate limit. A perfect fit gives an SPE limit of zero, which raised
+  `ZeroDivisionError`; a limit at machine-epsilon scale produced severities
+  that were ratios of floating-point noise. A limit carrying no information
+  now contributes no severity, and the test is on the limit being positive and
+  finite rather than on an absolute epsilon, so it stays scale-invariant.
+- `_pca_ekf_press` records `NaN` for a fold that holds out no cells, rather
+  than a structural zero that the caller counted as a real fold with perfect
+  prediction. On a matrix with fewer cells than folds this fabricated a
+  standard error, which fed the 1-SE selection rule. PRESS itself is
+  unchanged; only the per-fold spread was affected.
+
+## [1.70.0] - 2026-08-22
+
+The univariate cluster from the 2026-08 audit triage (#513). Several entries
+change numerical results, because the previous values were wrong.
+
+### Changed
+
+- `Sn` now follows the Rousseeuw-Croux definition exactly, taking the HIGH
+  median inside and the LOW median outside. These are order statistics that
+  differ from the averaging median precisely when the sample size is even, so
+  using `np.median` for both understated every even-`n` estimate: 0.443 in
+  place of 0.886 at `n = 2`, 1.422 against 1.138 at `n = 4`, and still 0.5
+  percent low at `n = 1500`. A Monte Carlo check put the old estimator 4 to 23
+  percent below sigma at even `n` on standard-normal data. **Sn values change
+  for every even-sized sample**, and now reproduce `robustbase::Sn` for both
+  parities; the test file's claim that R "does not follow the formula presented
+  in the original paper" was backwards and has been removed.
+- `detect_outliers_esd` raises `ValueError` when `max_outliers_detected`
+  exceeds the sample size minus two. The statistic for the i-th suspected
+  outlier uses `t` on `N - i - 1` degrees of freedom, so beyond that the
+  critical value is NaN, every later iteration is silently inert, and the empty
+  result read as "no outliers" rather than "this sample cannot be tested". The
+  `detect_outliers` tool's own cap moves from `N - 1` to `N - 2` for the same
+  reason.
+
+### Fixed
+
+- `detect_outliers_esd` rejects `alpha <= 0`, which was previously accepted and
+  silently produced NaN critical values; only the upper bound was checked.
+- `detect_outliers_esd` computes the Grubbs p-value from the sample actually in
+  hand at each iteration. The sample size was captured once and never
+  refreshed, so from the second iteration onwards the reported p-value belonged
+  to a larger sample than the statistic came from. The ESD critical values are
+  unaffected: those are defined against the original N (NIST / Rosner) and
+  still use it.
+- `detect_outliers_esd` no longer raises `KeyError` when the data contain an
+  infinity. A NaN p-value set the row index to the sentinel `-1`, which is not
+  a label in the reset index, so the subsequent drop failed. There is now no
+  sentinel: an iteration with no usable candidate records `None` and drops
+  nothing.
+- `ttest_independent_from_df` and `ttest_paired_from_df` take their group list
+  from the cleaned data rather than the raw frame. A group whose values are all
+  missing, or a NaN group label, previously survived and was compared against
+  an empty sample, yielding a silent all-NaN row (or an opaque length-mismatch
+  error in the paired case).
+- `summary_stats` returns NaN for `rsd` and `rsd_classical` when the centre is
+  zero, instead of `inf` plus a `RuntimeWarning` raised through the public API
+  and the agent-facing `robust_summary_stats` tool. Relative spread is
+  undefined at a zero centre, which is a natural input here since mean-centred
+  process variables are common.
+
+### Added
+
+- `ttest_independent_from_df` and `ttest_paired_from_df` accept
+  `correction="holm"` or `correction="bh"` to adjust the family of pairwise
+  p-values, using the `holm_bonferroni` and `benjamini_hochberg` functions that
+  already lived in this module. The default is unchanged and uncorrected, and
+  the raw `p value` column is always kept; when a correction is requested,
+  `p value (adjusted)`, `reject` and `correction` columns are added. Both
+  docstrings now state that the default p-values are uncorrected across
+  `k(k-1)/2` comparisons.
+- `ttest_independent` returns correctly named `"t value"`, `"Std error of
+  difference"` and `"Pooled std dev"` entries, and the `ttest_two_samples` tool
+  gains `t_value`, `std_error_of_difference` and `pooled_std_dev`.
+
+### Deprecated
+
+- `"z value"` and `"Pooled standard deviation"` from `ttest_independent`, and
+  `z_value` and `pooled_std` from the `ttest_two_samples` tool. The statistic
+  is a t-statistic, not a z-statistic: its p-value is computed from the t
+  distribution on the reported degrees of freedom. `"Pooled standard
+  deviation"` holds the standard *error* of the difference in means,
+  `sqrt(svar * (1/nA + 1/nB))`, which is smaller than the pooled standard
+  deviation `sqrt(svar)` by a factor of `sqrt(nA*nB/(nA+nB))`. Deprecated since
+  1.70.0; both will be removed in 2.0. Use `"t value"` / `t_value` and
+  `"Std error of difference"` / `std_error_of_difference`.
+
+## [1.69.0] - 2026-08-22
+
+### Changed
+
+- `score_limit` now uses the Student-t quantile on `N - 1` degrees of freedom
+  instead of the standard-normal `z`. The score standard deviation `s_a` is
+  estimated from the same `N` observations, so `z` is only its large-`N`
+  limit: at `N = 10` the old limit was 15 percent too tight (1.96 against
+  2.26), still 2.5 percent at `N = 50`, and negligible past `N = 100`. This
+  makes the function agree with its own documented identity, that
+  `(t_a / s_a) ** 2` follows `F(1, N - 1)`, since `sqrt(F(1, N - 1))` is
+  exactly the two-sided `t_{N - 1}` quantile; the docstring previously
+  asserted that identity while computing `z`, which contradicted it.
+  **Score limits are wider than before, most noticeably on small data sets.**
+
+### Fixed
+
+- `robust_regression` now populates the `t_value` key it documents. It was
+  only ever initialised to `NaN`: the critical value was computed into a local
+  variable, used to build the intervals, and never assigned back. The key now
+  holds the t-statistic per coefficient (coefficient divided by its standard
+  error), which is what the sibling `multiple_linear_regression` has always
+  returned under that name, so the two agree on what `t_value` means. It stays
+  `NaN` on the degenerate paths, where the standard error is undefined.
+
+### Documentation
+
+- Record the API-consistency rules in `CONTRIBUTING.md`: one name means one
+  quantity across sibling functions, a documented key must be populated,
+  sibling methods return the same shape, and a convention chosen once applies
+  everywhere.
+- Remove references to discontinued software that can no longer be used to
+  re-validate anything (ProSensus Multivariate / ProMV, and the legacy
+  ConnectMV MATLAB code). The numerical values recorded from them are kept
+  unchanged and are now described for what they are: regression pins that lock
+  in behaviour that was correct when recorded, distinguished in the reference
+  test suite from values that can still be re-derived from the published Wold,
+  Esbensen & Geladi (1987) paper.
+- `tests/test_multiblock_reference.py::test_score_limit_at_95pct` now asserts
+  against `PCA.score_limit` itself instead of re-deriving the formula inside
+  the test. It previously had to reconstruct the limit by hand because the
+  shipped function used a different convention from the reference value it was
+  checking; with `score_limit` corrected, the public API reproduces that value
+  (7.8432) directly.
+
+## [1.68.0] - 2026-08-22
+
+A repo-wide correctness audit. Most entries below change numerical results
+because the previous values were statistically or numerically wrong; the
+regression tests in `tests/test_audit_regressions_*.py` pin each fix.
+
+### Fixed
+
+- PCA with `algorithm="tsr"`: the missing-data imputation used a wrongly
+  transposed singular-vector matrix whenever the data had at least as many
+  columns as rows (an `IndexError` for wide matrices, silently wrong imputation
+  for square ones), and the fitted scores were centred while `transform()`
+  projects uncentred, so `scores_`, SPE and R2 disagreed with `transform` on
+  the same data. TSR loadings now also follow the same sign convention as the
+  SVD and NIPALS fits.
+- The score-plot T2 confidence ellipse (`ellipse_coordinates`) now uses the
+  bivariate limit (2 degrees of freedom) instead of the full model's component
+  count. The old ellipse was ~42 percent too wide per axis for a 5-component
+  model on 50 observations, hiding genuine outliers.
+- `spe_plot(with_a=...)` and `t2_plot(with_a=...)` now draw the confidence
+  limit computed at the plotted component count instead of always the full
+  model's; the y-axis title no longer shows the limit legend text.
+- `PCA.select_n_components`: the 1-SE selection band compared the total PRESS
+  against a per-fold standard error (about n_folds times too narrow, silently
+  degenerating the `"1se"` rule to `"min"`), and the Q2 null model used the
+  uncentred sum of squares. `PLS.select_n_components` had the same too-narrow
+  Q2 standard-error band.
+- `PLS.cross_validate` with K-fold resampling: beta confidence intervals now
+  use the delete-a-block jackknife standard error; the plain sample standard
+  deviation previously used is `(K-1)/sqrt(K)` times too small (1.79x for
+  K=5), over-declaring significance.
+- PLS and PCA NIPALS now actually warn when the iteration cap is reached (the
+  PLS warning condition could never fire; PCA had no warning at all).
+- `target_projection` and `selectivity_ratio` used the raw-units regression
+  vector as a direction in the model's internal (scaled) space; with
+  `scale=True` (the default) the direction was wrong whenever the X columns
+  have different raw scales. The projection now uses the scaled-space beta and
+  maps X through the model's own scaler.
+- `TPLS.diagnose` poisoned an observation's scores, T2, SPE and predictions
+  with NaN if a single F or Z cell was missing (fit() handled the same case
+  correctly).
+- Hotelling's T2 in `fit()` skips components with ~zero score variance instead
+  of dividing by ~zero (a rank-deficient fit produced inf/NaN T2 for every
+  observation); `n_components < 1` is now rejected.
+- `MCUVScaler` treats a column with fewer than two observed values (NaN
+  standard deviation) as constant instead of emitting an all-NaN column;
+  `center()`/`scale()` with `axis=1` no longer broadcast the row statistic
+  across columns (a `ValueError` for rectangular input, silently wrong for
+  square input).
+- Generalized ESD outlier test (`detect_outliers_esd`): the number of outliers
+  is the LARGEST i with `R_i > lambda_i` (NIST/Rosner); the first crossing was
+  used, under-reporting in exactly the masking scenarios the test exists for.
+- Robust confidence interval for the median (metrics and the agent tool): the
+  missing `sqrt(pi/2)` factor on the median's standard error gave ~87 percent
+  coverage for a nominal 95 percent interval.
+- `variance_decomposition`: `between_stddev` now reports the between-group
+  variance component `sqrt((MS_between - MS_within)/n0)` instead of
+  `sqrt(MS_between)`, which mixed the within-group noise into the "between"
+  number (the docstring example itself showed the wrong value).
+- `biweight_midvariance` now uses the midvariance tuning constant c = 9; the
+  previous c = 6 is the biweight location constant and biased the scale low.
+- Holt-Winters control chart: the biweight rho function conflated the
+  consistency constant with the cutoff k = 2.52, making every derived scale
+  estimate 12 percent too small (nominal +/-3S limits were really +/-2.63
+  sigma, about 3x the false-alarm rate). Warm-up residuals now subtract the
+  fitted trend `beta_0 * t` rather than the constant `beta_0`. The lambda grid
+  search is NaN-aware (for 10 <= N < 20 every grid cell was NaN and (0.1, 0.1)
+  always won silently). An explicit `ld_1=0.0` is respected. Unknown chart
+  variants are rejected at construction with a clear message.
+- `calculate_cpk`: `rsd` is now the relative standard deviation of the data
+  itself; it previously divided by the distance-to-spec centre and changed
+  value when the specification moved. The capability tool reports an undefined
+  Cpk as "could not be computed" instead of "Poor capability".
+- Clear effects (`evaluate_design(metric="clear_effects")`) now follow Wu and
+  Hamada: an effect is clear only when every alias has order >= 3. The old
+  rule declared every main effect of a resolution-III design clear.
+- Explicit fractional-factorial generators: a generator on a non-last factor
+  (for example `"B=AC"`) silently swapped factor columns, and multi-character
+  factor names were misread as products of single letters. Generators are now
+  parsed against the real factor names and the columns mapped back to the
+  requested factor order; negative generators are supported and inconsistent
+  generator sets are rejected.
+- `Column.to_coded`/`to_realworld` no longer ignore an explicit `center=0`
+  (falsy); missing or zero-width ranges raise a clear error. `gather()` no
+  longer silently discards positional arguments.
+- D-optimal point exchange: the scorer no longer de-duplicates the design
+  before computing `|X'X|` (replicated runs carry information), and an
+  improving swap onto the row with index label 0 is no longer discarded;
+  `point_exchange` accepts `random_state`.
+- The lack-of-fit test can now find replicates on generated designs: it groups
+  on the model's factor columns (with rounded numeric values) instead of the
+  whole frame, whose unique-per-row `RunOrder` column made every group a
+  singleton.
+- Robust regression: the degenerate-x guard branch itself divided by the
+  ~zero x sum-of-squares; the leverage there is exactly 1/N.
+- Batch DTW: the reported alignment distance summed the cumulative cost matrix
+  entries along the warping path (not a distance); it is now the accumulated
+  cost `D[-1, -1]`. Kassidas alignment weights now up-weight (rather than
+  effectively zero out) variables whose trajectories align near-perfectly.
+- Residual diagnostics (`analyze_experiment`): p-values that underflow to
+  exactly 0.0 (the most significant possible result) are no longer rendered as
+  "not available".
+- `Settings` (config) now genuinely caches on first access (the `setdefault`
+  pattern re-read the environment on every access and re-raised later if the
+  env var went bad after a successful read); numeric knobs must be positive.
+- `clean()` now serialises `numpy.bool_`, numpy-keyed dicts, sets and the
+  remaining numpy scalar types, closing "internal error" failures at the MCP
+  boundary.
+- `discover_tools` no longer swallows a missing FIRST-PARTY module as an
+  optional dependency: a typo'd or renamed `process_improve` module now
+  propagates instead of silently dropping a whole tool category.
+- `safe_execute_tool_call` runs each default-path call in a private worker
+  pool. The shared module pool was not thread-safe: with concurrent calls
+  (the MCP server runs tools on executor threads) one thread's teardown could
+  kill the worker running another thread's task, mis-diagnosed as a memory
+  limit kill, or leak an orphaned worker.
+- `raincloud` without the `plotting` extra now raises the documented
+  "install the extra" `ImportError` at the call site instead of an
+  `AttributeError` from the module stub.
+
+### Changed
+
+- `detect_outliers_esd` and the `detect_outliers` agent tool now default to
+  the classical (mean/std) statistic, `robust_variant=False`. The MAD-scaled
+  variant is tested against critical values derived for the classical
+  statistic and declares outliers in clean data; it stays available as an
+  explicitly documented screening heuristic. This changes results for callers
+  who relied on the old default.
+- `PROCESS_IMPROVE_*` boolean environment variables now reject unrecognized
+  values with a `ValueError` instead of silently reading them as false; a typo
+  in `PROCESS_IMPROVE_MCP_SAFE_MODE` previously disabled safe mode with no
+  error.
+- The agent-facing `control_chart` tool no longer advertises a `cusum` chart
+  type: it never existed and always failed with a misleading error. The
+  package docstring's "CUSUM, EWMA" claim is corrected likewise.
+- CI: the no-op `create` trigger is removed from the test workflow, and both
+  workflows now grant least-privilege token scopes (the docs build job no
+  longer carries Pages-deploy credentials while executing PR code).
+
+## [1.67.1] - 2026-08-22
+
+### Fixed
+
+- The lint gate is green again under ruff 0.16, which the dependency bump in
+  #492 allowed in without adjusting the configuration. Three preview or changed
+  rules fired repo-wide: `PLR0917` (too many positional arguments) is now
+  ignored, because it reports the same wide scientific signatures that
+  `PLR0913` already covers case by case; `S310` is scoped off for `tests/**`,
+  because 0.15 reports it for `urllib.request.Request` and 0.16 only for
+  `urlopen`, so an inline directive is required by one version and reported as
+  unused (`RUF100`) by the other; and Markdown is excluded from the formatter,
+  which began reflowing Python snippets inside fenced code blocks in 0.16 and
+  stripped the deliberate comment alignment from the README and CONTRIBUTING
+  examples. Both gates now give identical results on ruff 0.15 and 0.16.
+- Three genuine findings from the same ruff upgrade: `TPLS.score` annotated
+  `sample_weight` as `None | np.ndarray` (`RUF036`, `None` belongs last);
+  `_serialise_tool_error` called `logger.exception()` outside an exception
+  handler (`LOG004`) and now logs the exception it is passed explicitly via
+  `exc_info`, which also puts its previously unused `exc` argument to work; and
+  a recipe in `sensory/recipes.py` relied on unparenthesised implicit string
+  concatenation inside a list (`ISC004`), the classic missing-comma trap.
+
+## [1.67.0] - 2026-08-21
+
+### Fixed
 
 - `omars_properties` and `is_omars` now reject a design that leaves a factor at
   the middle level in every run. The check that each factor is genuinely
@@ -60,6 +900,27 @@ those changes.
 
 ### Added
 
+- `simulation.batch`: a deterministic fed-batch bioreactor simulator with
+  tunable disturbance channels, the quantitative baseline for batch trajectory
+  adaptation and, later, mid-course correction. Growth follows the Rosso et
+  al. (1995) cardinal temperature and pH model with Luedeking-Piret
+  production, an oxygen-transfer ceiling with hypoxic death, hypothermic
+  growth arrest and substrate-coupled production, so the optimal schedule
+  genuinely depends on each batch's initial conditions. Public surface:
+  `BioreactorConfig`, `BioreactorSimulator` (single batches, replay /
+  historical / adapted campaigns, the true optimal trajectory for any initial
+  conditions, a golden trajectory, and a `sensitivity_budget` that publishes
+  how the titer responds to input perturbations), `sample_initial_conditions`
+  (an 11-variable upstream Z block with three feed classes),
+  `variance_decomposition` (the split into before-batch, within-batch and
+  noise sources with the interaction residual reported explicitly), and the
+  cardinal functions. Fully reproducible from a `random_state`, including
+  across processes; campaign output uses the standard batch dictionary
+  format so it feeds `dict_to_wide` and the alignment tooling directly.
+- Two agent tools, `simulate_batch_campaign` and
+  `decompose_batch_quality_variance`, plus the `golden_batch_baseline`
+  analysis recipe chaining them into the argument for why replaying a golden
+  batch does not reproduce it.
 - Minimum moment aberration (Xu, 2003) for two-level designs, as
   `process_improve.experiments.moment_aberration` and as a new
   `moment_aberration` metric on `evaluate_design`. Unlike the existing
@@ -139,6 +1000,31 @@ those changes.
 
 - The `trade_off_table` MCP tool is untouched: same tool name, same `runs` and
   `factors` schema keys, same output. Only its internal call site moved.
+
+### Documentation
+
+- Docstring audit correcting drift between NumPy-style docstrings and the
+  actual runtime behaviour, no runtime changes:
+  `dispatch_ccd` and `generate_design` now warn that a numeric `alpha`
+  is only honored for the fractional-cube CCD path;
+  `PCA.select_n_components` documents `return_consensus` and the four
+  extra keys it exposes; `PLS.select_n_components` completes the
+  truncated `selection_mode` sentence; `MBPLS`, `MBPCA`, and `TPLS`
+  now list every fitted attribute set in `fit()` (TPLS also notes that
+  it deliberately does not follow the sklearn trailing-underscore
+  convention); `OPLS.spe_` clarifies that per-column values are
+  broadcasts of the final-component SPE; `spe_calculation` documents
+  the SEC-21 / #270 low-variance fallback; `robust_regression` and
+  `multiple_linear_regression` describe their full dict outputs
+  (including the degenerate/unfitted-path shapes and the
+  `R2_regression_based` / `R2_residual_based` / `k` /
+  `conf_interval_intercept` keys); `t_value` and `t_value_cdf` use a
+  concrete `v=10` in doctest examples with correct `-inf` / `inf`
+  renderings; `find_elbow_point` documents the secondary NaN return
+  path; `analyze_experiment` enumerates every key on the always-
+  present `model_summary` dict; `ControlChart.__init__` marks
+  `'cusum'` as an unimplemented future variant.
+
 ## [1.66.1] - 2026-08-09
 
 ### Changed
@@ -3105,7 +3991,25 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.66.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.77.0...HEAD
+[1.77.0]: https://github.com/kgdunn/process-improve/compare/v1.76.0...v1.77.0
+[1.76.0]: https://github.com/kgdunn/process-improve/compare/v1.75.2...v1.76.0
+[1.75.2]: https://github.com/kgdunn/process-improve/compare/v1.75.1...v1.75.2
+[1.75.1]: https://github.com/kgdunn/process-improve/compare/v1.75.0...v1.75.1
+[1.75.0]: https://github.com/kgdunn/process-improve/compare/v1.74.0...v1.75.0
+[1.74.0]: https://github.com/kgdunn/process-improve/compare/v1.73.4...v1.74.0
+[1.73.4]: https://github.com/kgdunn/process-improve/compare/v1.73.3...v1.73.4
+[1.73.3]: https://github.com/kgdunn/process-improve/compare/v1.73.2...v1.73.3
+[1.73.2]: https://github.com/kgdunn/process-improve/compare/v1.73.1...v1.73.2
+[1.73.1]: https://github.com/kgdunn/process-improve/compare/v1.73.0...v1.73.1
+[1.73.0]: https://github.com/kgdunn/process-improve/compare/v1.72.0...v1.73.0
+[1.72.0]: https://github.com/kgdunn/process-improve/compare/v1.71.0...v1.72.0
+[1.71.0]: https://github.com/kgdunn/process-improve/compare/v1.70.0...v1.71.0
+[1.70.0]: https://github.com/kgdunn/process-improve/compare/v1.69.0...v1.70.0
+[1.69.0]: https://github.com/kgdunn/process-improve/compare/v1.68.0...v1.69.0
+[1.68.0]: https://github.com/kgdunn/process-improve/compare/v1.67.1...v1.68.0
+[1.67.1]: https://github.com/kgdunn/process-improve/compare/v1.67.0...v1.67.1
+[1.67.0]: https://github.com/kgdunn/process-improve/compare/v1.66.1...v1.67.0
 [1.66.1]: https://github.com/kgdunn/process-improve/compare/v1.66.0...v1.66.1
 [1.66.0]: https://github.com/kgdunn/process-improve/compare/v1.65.0...v1.66.0
 [1.65.0]: https://github.com/kgdunn/process-improve/compare/v1.64.0...v1.65.0

@@ -987,7 +987,16 @@ def _effect_order(term: str, factor_names: list[str]) -> int:
 
 
 def _compute_clear_effects(ctx: _EvalContext) -> dict[str, Any]:
-    """Identify effects whose aliases are all of higher order."""
+    """Identify clear effects per Wu & Hamada's definition.
+
+    An effect (a main effect or a two-factor interaction) is *clear* when it
+    is aliased with no other main effect AND no two-factor interaction, i.e.
+    every alias has order >= 3. The previous rule only required the aliases
+    to be of *higher* order than the effect itself, which declared every main
+    effect of a resolution-III design "clear" (A = BC has order 2 > 1) -
+    exactly the designs whose whole point is that the main effects are NOT
+    clear of two-factor interactions.
+    """
     alias_result = _compute_alias_structure(ctx)
     alias_chains = alias_result.get("alias_structure", [])
 
@@ -1002,11 +1011,12 @@ def _compute_clear_effects(ctx: _EvalContext) -> dict[str, Any]:
         order = _effect_order(effect, ctx.factor_names)
 
         alias_terms = [a.strip().lstrip("+-") for a in aliases_str.strip().split(" + ")]
-        all_higher = all(_effect_order(a, ctx.factor_names) > order for a in alias_terms)
+        min_alias_order = 3
+        all_clear = all(_effect_order(a, ctx.factor_names) >= min_alias_order for a in alias_terms)
 
-        if all_higher and order == 1:
+        if all_clear and order == 1:
             clear_main.append(effect)
-        elif all_higher and order == 2:
+        elif all_clear and order == 2:
             clear_2fi.append(effect)
 
     return {

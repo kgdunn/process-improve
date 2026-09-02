@@ -188,7 +188,22 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
     -------
     dict[str, Any]
         Results keyed by analysis type.  Always includes ``"model_summary"``
-        with R², adj-R², pred-R², and adequate precision.
+        with the keys:
+
+        - ``formula`` - the resolved patsy formula that was fitted.
+        - ``r_squared`` - R^2 of the fit.
+        - ``r_squared_adj`` - adjusted R^2.
+        - ``r_squared_pred`` - prediction R^2 (leave-one-out style).
+        - ``adequate_precision`` - signal-to-noise ratio (>= 4 is
+          considered adequate).
+        - ``n_obs`` - number of observations used to fit.
+        - ``n_terms`` - number of columns in the model matrix.
+        - ``model_rank`` - numerical rank of the model matrix; less
+          than ``n_terms`` implies aliasing / rank deficiency.
+        - ``rank_deficient`` - ``True`` if ``model_rank < n_terms``.
+        - ``df_model`` - model degrees of freedom.
+        - ``df_residual`` - residual degrees of freedom.
+        - ``mse_residual`` - mean squared error of the residuals.
 
     Examples
     --------
@@ -336,7 +351,7 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
         elif t == "residual_diagnostics":
             results.update(_run_residual_diagnostics(ols_result))
         elif t == "lack_of_fit":
-            results.update(_run_lack_of_fit(ols_result, df, response_col))
+            results.update(_run_lack_of_fit(ols_result, df, response_col, factor_cols))
         elif t == "curvature_test":
             results.update(_run_curvature_test(ols_result, df, response_col, factor_cols))
         elif t == "model_selection":

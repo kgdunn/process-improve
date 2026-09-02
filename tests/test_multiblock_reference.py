@@ -1,15 +1,15 @@
 """
 Reference numerical tests for multivariate and (eventually) multi-block methods.
 
-These tests are ported from a legacy MATLAB multi-block latent-variable methods
-codebase (ConnectMV, 2010-2012). The MATLAB codebase contained a large
-``unit_tests.m`` suite that locked in expected numerical values both from the
-chemometrics literature and from cross-checks against commercial packages
-(ProSensus Multivariate / ProMV, Simca-P).
+The expected values are pinned numerical oracles. Those marked with a page
+number come from the published Wold, Esbensen & Geladi (1987) PCA paper and
+can be re-derived from it. The remainder were captured from an earlier
+implementation of these methods; the software that produced them is no longer
+available, so they cannot be re-derived and are kept purely as regression
+pins: they lock in behaviour that was correct when recorded, and a change to
+any of them needs justifying on the mathematics, not by appeal to a source.
 
-Phase 1 of the multi-block port to ``process-improve`` lifts as many of those
-numerical assertions into Python as possible *without needing a MATLAB
-session*. The strategy is:
+The strategy is:
 
 1. Tests that assert against published literature values (Wold, Esbensen &
    Geladi, 1987) run today against the existing single-block :class:`PCA`
@@ -21,19 +21,18 @@ session*. The strategy is:
    split into two blocks. They will turn green when the corresponding
    classes land in the planned PRs.
 
-3. Tests that need real reference datasets (LDPE, FMC, kamyr-digester) or a
-   ProSensus / Simca-P numerical comparison are marked ``pytest.mark.skip``
-   with a reason. They become runnable once the datasets land in
-   ``process_improve.datasets`` (planned in PR2).
+3. Tests that need real reference datasets (LDPE, FMC, kamyr-digester) are
+   marked ``pytest.mark.skip`` with a reason. They become runnable once the
+   datasets land in ``process_improve.datasets`` (planned in PR2).
 
 Conventions
 -----------
-- The legacy MATLAB code defines SPE as :math:`e'e` (raw row sum of squares).
+- The recorded SPE values are :math:`e'e` (raw row sum of squares), while
   ``process_improve.PCA`` stores ``spe_`` as ``sqrt(e'e)``. Every assertion
-  against a MATLAB / ProMV SPE value compares against ``spe_ ** 2``.
-- The legacy MATLAB code stores the *inverse* standard deviation as the
-  scaling vector. :class:`MCUVScaler` stores the standard deviation itself.
-  Hence ``[1, 1, 0.5, 1]`` in MATLAB corresponds to ``[1, 1, 2, 1]`` here.
+  against a recorded SPE value therefore compares against ``spe_ ** 2``.
+- The recorded scaling vector is the *inverse* standard deviation, while
+  :class:`MCUVScaler` stores the standard deviation itself. Hence a recorded
+  ``[1, 1, 0.5, 1]`` corresponds to ``[1, 1, 2, 1]`` here.
 - Sign convention: largest-magnitude element of every loading vector is
   positive (Wold, Esbensen & Geladi, 1987, p 42). Both implementations follow
   this, so loading and score signs should agree without manual flipping.
@@ -50,6 +49,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import stats
 
 from process_improve.multivariate.methods import (
     PCA,
@@ -59,10 +59,9 @@ from process_improve.multivariate.methods import (
 # ---------------------------------------------------------------------------
 # Wold/Esbensen/Geladi 1987 reference data and expectations
 # ---------------------------------------------------------------------------
-# The 3x4 worked example used throughout the 1987 PCA paper. All expected
-# values below come straight from that paper's pages 40-43, plus a small
-# number of cross-checks from ProSensus Multivariate (2010, Revision 302)
-# captured in the legacy ``unit_tests.m``.
+# The 3x4 worked example used throughout the 1987 PCA paper. Values marked
+# with a page number come straight from that paper's pages 40-43; the rest are
+# regression pins recorded from an earlier implementation (see module docstring).
 
 WOLD_X = np.array(
     [
@@ -75,7 +74,7 @@ WOLD_X = np.array(
 # Page 40: column means of WOLD_X
 WOLD_CENTER = np.array([4.0, 4.0, 4.0, 3.0])
 
-# Page 40: standard deviations (ddof=1) of WOLD_X. Note that the MATLAB code
+# Page 40: standard deviations (ddof=1) of WOLD_X. The recorded reference
 # stores the *inverse* of this: [1, 1, 0.5, 1].
 WOLD_SCALE = np.array([1.0, 1.0, 2.0, 1.0])
 
@@ -91,18 +90,18 @@ WOLD_R2_PER_COMPONENT = np.array([0.831, 0.169])
 # Page 43, residual sum of squares per column after PC1
 WOLD_RESIDUAL_SSQ_AFTER_PC1 = np.array([0.0551, 1.189, 0.0551, 0.0551])
 
-# ProMV cross-check: SPE = e'e per row, after PC1
-PROMV_SPE_AFTER_PC1 = np.array([0.366107, 0.877964, 0.110178])
+# Regression pin: SPE = e'e per row, after PC1
+REF_SPE_AFTER_PC1 = np.array([0.366107, 0.877964, 0.110178])
 
-# ProMV cross-check: VIP per variable after PC1 and after PC2
-PROMV_VIP_AFTER_PC1 = np.array([1.082, 0.6987, 1.082, 1.082])
-PROMV_VIP_AFTER_PC2 = np.array([1.0, 1.0, 1.0, 1.0])
+# Regression pin: VIP per variable after PC1 and after PC2
+REF_VIP_AFTER_PC1 = np.array([1.082, 0.6987, 1.082, 1.082])
+REF_VIP_AFTER_PC2 = np.array([1.0, 1.0, 1.0, 1.0])
 
-# Statistical limits at 95% confidence (legacy ``unit_tests.m`` lines 210-212)
+# Regression pins: statistical limits at 95% confidence
 WOLD_T2_LIMIT_PC1 = 24.684
 WOLD_SPE_LIMIT_PC1 = 1.2236
-# Score limit uses t.ppf(0.975, N-1) * std(scores, ddof=1); not exposed
-# directly by process_improve.PCA, so it is reconstructed inside the test.
+# Score limit: t.ppf(0.975, N-1) * std(scores, ddof=1), which is what
+# ``PCA.score_limit`` now computes, so the test calls it directly.
 WOLD_SCORE_LIMIT_PC1 = 7.8432
 
 # Two new observations whose projection onto the model is checked.
@@ -140,8 +139,8 @@ class TestWold1987PCA:
 
     The 3x4 worked example from that paper is the smallest non-trivial PCA
     that exercises preprocessing, NIPALS/SVD, sign convention, R² and SPE
-    bookkeeping. Every assertion below comes from the published values or
-    from the legacy ``unit_tests.m`` cross-checks against ProMV.
+    bookkeeping. Every assertion below is either a published value or a
+    recorded regression pin (see the module docstring).
     """
 
     def test_preprocessing_center(self) -> None:
@@ -189,10 +188,10 @@ class TestWold1987PCA:
         np.testing.assert_array_almost_equal(residual_ssq_per_col, np.zeros(4), decimal=6)
 
     def test_spe_per_observation_after_one_pc(self) -> None:
-        # process_improve stores spe_ as sqrt(e'e); ProMV / MATLAB store e'e.
+        # process_improve stores spe_ as sqrt(e'e); the pinned values are e'e.
         model, _, _ = _fit_pca_on_wold(n_components=1)
         spe_squared = model.spe_.iloc[:, 0].values ** 2
-        np.testing.assert_array_almost_equal(spe_squared, PROMV_SPE_AFTER_PC1, decimal=4)
+        np.testing.assert_array_almost_equal(spe_squared, REF_SPE_AFTER_PC1, decimal=4)
 
     def test_spe_per_observation_after_two_pc_is_zero(self) -> None:
         model, _, _ = _fit_pca_on_wold(n_components=2)
@@ -202,12 +201,12 @@ class TestWold1987PCA:
     def test_vip_after_one_pc(self) -> None:
         model, _, _ = _fit_pca_on_wold(n_components=2)
         vip_pc1 = model.vip(n_components=1).values
-        np.testing.assert_array_almost_equal(vip_pc1, PROMV_VIP_AFTER_PC1, decimal=3)
+        np.testing.assert_array_almost_equal(vip_pc1, REF_VIP_AFTER_PC1, decimal=3)
 
     def test_vip_after_two_pc(self) -> None:
         model, _, _ = _fit_pca_on_wold(n_components=2)
         vip_pc2 = model.vip(n_components=2).values
-        np.testing.assert_array_almost_equal(vip_pc2, PROMV_VIP_AFTER_PC2, decimal=3)
+        np.testing.assert_array_almost_equal(vip_pc2, REF_VIP_AFTER_PC2, decimal=3)
 
     def test_t2_limit_at_95pct(self) -> None:
         model, _, _ = _fit_pca_on_wold(n_components=1)
@@ -216,24 +215,28 @@ class TestWold1987PCA:
     def test_spe_limit_at_95pct(self) -> None:
         # process_improve.spe_limit consumes the model's spe_ values
         # (which are stored as sqrt(e'e)) and returns a limit on the same
-        # scale. The MATLAB / ProMV limit is on the e'e scale, so we square
-        # the Python limit to compare.
+        # scale. The pinned limit is on the e'e scale, so we square the
+        # Python limit to compare.
         model, _, _ = _fit_pca_on_wold(n_components=1)
         spe_limit_squared = model.spe_limit(conf_level=0.95) ** 2
         assert spe_limit_squared == pytest.approx(WOLD_SPE_LIMIT_PC1, abs=5e-3)
 
     def test_score_limit_at_95pct(self) -> None:
-        # Score limit per component using the t-distribution:
-        # lim.t = t.ppf(0.975, N-1) * std(scores, ddof=1)
-        # The MATLAB code uses this form; process_improve does not expose
-        # the limit directly but exposes the score scaling factor.
-        from scipy import stats
-
+        # The score limit is t.ppf(0.975, N-1) * std(scores, ddof=1). This is
+        # exactly what PCA.score_limit computes, so assert against the public
+        # API rather than reconstructing the formula in the test: the point is
+        # to test the shipped limit, not a private re-derivation of it.
         model, _, _ = _fit_pca_on_wold(n_components=1)
-        score_std_ddof1 = model.scaling_factor_for_scores_.iloc[0]
-        n_rows = WOLD_X.shape[0]
-        score_limit = stats.t.ppf(0.975, n_rows - 1) * score_std_ddof1
-        assert score_limit == pytest.approx(WOLD_SCORE_LIMIT_PC1, abs=5e-3)
+        limits = model.score_limit(conf_level=0.95)
+        assert limits.shape == (1,)
+        assert limits[0] == pytest.approx(WOLD_SCORE_LIMIT_PC1, abs=5e-3)
+
+        # The score scaling factor is the standard deviation the limit is
+        # built from, so the two must stay consistent.
+        assert limits[0] == pytest.approx(
+            stats.t.ppf(0.975, WOLD_X.shape[0] - 1) * model.scaling_factor_for_scores_.iloc[0],
+            rel=1e-12,
+        )
 
     def test_predict_new_observations_one_pc(self) -> None:
         model, scaler, _ = _fit_pca_on_wold(n_components=1)
@@ -259,7 +262,7 @@ class TestWold1987PCA:
     def test_predict_training_spe_matches_fit_spe(self) -> None:
         model, _, df_pp = _fit_pca_on_wold(n_components=1)
         result = model.predict(df_pp)
-        np.testing.assert_array_almost_equal(result.spe.values**2, PROMV_SPE_AFTER_PC1, decimal=4)
+        np.testing.assert_array_almost_equal(result.spe.values**2, REF_SPE_AFTER_PC1, decimal=4)
 
 
 # ---------------------------------------------------------------------------
@@ -948,6 +951,7 @@ class TestMBPLSMissingData:
         with pytest.raises(ValueError, match=r"Y has rows with all values missing"):
             MBPLS(n_components=2).fit(x, y_n)
 
+    @pytest.mark.slow
     def test_nipals_recovers_with_sparse_nan(self, two_block) -> None:
         from process_improve.multivariate.methods import MBPLS
 
@@ -1056,8 +1060,8 @@ class TestMBPLSOnLDPE:
     - Y (5 vars): Conv, Mn, Mw, LCB, SCB. Quality block; used as Y in
       MBPLS or as a fourth X-block in MBPCA.
 
-    The legacy ConnectMV ``test_mbpls.m`` used a 2-block zone split
-    purely to make a single-block-PLS oracle assertion convenient.
+    The earlier implementation used a 2-block zone split purely to make a
+    single-block-PLS oracle assertion convenient.
     The 4-block split here is the chemometrically meaningful one.
     """
 
@@ -1550,3 +1554,70 @@ class TestSimcaPCAComparison:
     PCA and PLS models. Deferred until PR2 brings the reference values into
     the repository.
     """
+
+
+class TestMultiblockDeterministicStart:
+    """#503: the MBPCA / MBPLS NIPALS loops seed their super-score / u vector
+    deterministically from the highest-sum-of-squares column, with no RNG in
+    the fit path, so repeated fits on the same data are bit-identical.
+    """
+
+    @pytest.fixture
+    def blocks_and_y(self) -> tuple[dict[str, pd.DataFrame], pd.DataFrame]:
+        rng = np.random.default_rng(2026)
+        n_rows = 40
+        latent = rng.standard_normal((n_rows, 2))
+        x_blocks = {
+            "A": pd.DataFrame(
+                latent @ rng.standard_normal((2, 5)) + 0.05 * rng.standard_normal((n_rows, 5)),
+                columns=[f"a{i}" for i in range(5)],
+            ),
+            "B": pd.DataFrame(
+                latent @ rng.standard_normal((2, 3)) + 0.05 * rng.standard_normal((n_rows, 3)),
+                columns=[f"b{i}" for i in range(3)],
+            ),
+        }
+        y_df = pd.DataFrame(
+            latent @ rng.standard_normal((2, 2)) + 0.05 * rng.standard_normal((n_rows, 2)),
+            columns=["y0", "y1"],
+        )
+        return x_blocks, y_df
+
+    def test_mbpca_repeated_fits_are_identical(self, blocks_and_y) -> None:
+        from process_improve.multivariate.methods import MBPCA
+
+        x_blocks, _ = blocks_and_y
+        m1 = MBPCA(n_components=2, algorithm="nipals").fit(x_blocks)
+        m2 = MBPCA(n_components=2, algorithm="nipals").fit(x_blocks)
+        np.testing.assert_array_equal(m1.super_scores_.values, m2.super_scores_.values)
+        np.testing.assert_array_equal(m1.super_loadings_.values, m2.super_loadings_.values)
+        for name in m1.block_names_:
+            np.testing.assert_array_equal(m1.block_scores_[name].values, m2.block_scores_[name].values)
+            np.testing.assert_array_equal(m1.block_loadings_[name].values, m2.block_loadings_[name].values)
+
+    def test_mbpls_repeated_fits_are_identical(self, blocks_and_y) -> None:
+        from process_improve.multivariate.methods import MBPLS
+
+        x_blocks, y_df = blocks_and_y
+        m1 = MBPLS(n_components=2, algorithm="nipals").fit(x_blocks, y_df)
+        m2 = MBPLS(n_components=2, algorithm="nipals").fit(x_blocks, y_df)
+        np.testing.assert_array_equal(m1.super_scores_.values, m2.super_scores_.values)
+        np.testing.assert_array_equal(m1.super_weights_.values, m2.super_weights_.values)
+        np.testing.assert_array_equal(m1.super_y_scores_.values, m2.super_y_scores_.values)
+        for name in m1.block_names_:
+            np.testing.assert_array_equal(m1.block_scores_[name].values, m2.block_scores_[name].values)
+            np.testing.assert_array_equal(m1.block_loadings_[name].values, m2.block_loadings_[name].values)
+
+    def test_no_nonconvergence_warning_on_well_conditioned_data(self, blocks_and_y) -> None:
+        """#504 acceptance: the default (now relative) tolerance produces no
+        spurious non-convergence warnings on ordinary well-conditioned data.
+        """
+        import warnings
+
+        from process_improve.multivariate.methods import MBPCA, MBPLS
+
+        x_blocks, y_df = blocks_and_y
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            MBPCA(n_components=2, algorithm="nipals").fit(x_blocks)
+            MBPLS(n_components=2, algorithm="nipals").fit(x_blocks, y_df)

@@ -122,7 +122,13 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
     rng = np.random.default_rng(random_state)
 
     total_folds = n_folds * n_repeats
-    per_fold_press = np.zeros((max_components, total_folds))
+    # NaN, not zero: a fold that holds out no cells has no PRESS, and leaving
+    # a structural zero there let the caller's standard error treat it as a
+    # real fold that happened to predict perfectly. On a matrix with fewer
+    # cells than folds every cell lands in the last fold, so the empty folds
+    # fabricated a standard error out of zeros. np.nansum below keeps the
+    # PRESS total itself unchanged, since an empty fold contributes nothing.
+    per_fold_press = np.full((max_components, total_folds), np.nan)
     fold_counter = 0
 
     n_cells = n * p
@@ -208,8 +214,9 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
                 per_fold_press[a - 1, fold_counter] = float(np.sum((X[mask] - Xa[mask]) ** 2))
             fold_counter += 1
 
-    # Average over repeats so PRESS stays on the per-cell scale.
-    press = per_fold_press.sum(axis=1) / max(1, n_repeats)
+    # Average over repeats so PRESS stays on the per-cell scale. nansum so the
+    # empty-fold NaNs above do not propagate into the total.
+    press = np.nansum(per_fold_press, axis=1) / max(1, n_repeats)
     return press, per_fold_press
 
 
@@ -230,10 +237,15 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
     missing_data_settings : dict or None, default=None
         Settings for iterative missing data algorithms (NIPALS, TSR).
-        Keys: ``md_tol`` (convergence tolerance), ``md_max_iter`` (max iterations).
+        Keys: ``md_tol`` (relative convergence tolerance on successive score
+        vectors; see :func:`terminate_check`), ``md_max_iter`` (max iterations).
 
     Attributes (after fitting)
     --------------------------
+    n_components_ : int
+        The resolved number of components actually fitted (the constructor
+        parameter clamped to ``min(n_samples, n_features)``; the parameter
+        itself is left as the user set it, including ``None``).
     scores_ : pd.DataFrame of shape (n_samples, n_components)
         The score matrix (T).
     loadings_ : pd.DataFrame of shape (n_features, n_components)
@@ -247,9 +259,17 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     spe_ : pd.DataFrame of shape (n_samples, n_components)
         Per-row SPE diagnostic; stored as the square root of the row
         sum-of-squared X-residuals (so it is on the residual scale, not the
-        squared scale).
+        squared scale). **One column per component, not one value per row**:
+        column ``a`` is the SPE of the model truncated at ``a`` components, and
+        the last column is the value at the full fitted model. Reach for a
+        single number per observation with ``model.spe_.iloc[:, -1]``, not with
+        ``np.asarray(model.spe_).ravel()``: ravel happens to give the right
+        answer at one component and silently gives ``n_samples * n_components``
+        values above it.
     hotellings_t2_ : pd.DataFrame of shape (n_samples, n_components)
-        Cumulative Hotelling's T² statistic.
+        Cumulative Hotelling's T² statistic. Per-component, exactly as ``spe_``
+        above: column ``a`` uses the first ``a`` components and the last column
+        is the value at the full fitted model.
     explained_variance_ : np.ndarray of shape (n_components,)
         Variance explained by each component.
     scaling_factor_for_scores_ : pd.Series of length n_components
@@ -388,6 +408,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
         # Clamp n_components
         min_dim = int(min(N, K))
+        if self.n_components is not None and int(self.n_components) < 1:
+            raise ValueError(f"n_components must be >= 1; got {self.n_components}.")
         A = min_dim if self.n_components is None else int(self.n_components)
         if min_dim < A:
             warnings.warn(
@@ -399,7 +421,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                 stacklevel=2,
             )
             A = min_dim
-        self.n_components = A
+        # The resolved (possibly clamped) component count is a fitted attribute;
+        # the constructor parameter n_components is left exactly as the user set
+        # it, per the sklearn clone/get_params contract (#505).
+        self.n_components_ = A
 
         # Detect missing data and resolve algorithm
         self.has_missing_data_ = bool(np.any(X.isna()))
@@ -471,17 +496,23 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             name="Standard deviation per score",
         )
 
-        # Hotelling's T² (cumulative across components)
+        # Hotelling's T² (cumulative across components). A component whose
+        # score standard deviation is ~0 (a rank-deficient fit, e.g. asking
+        # for min(N, K) components from mean-centred data, whose rank is at
+        # most min(N-1, K)) carries no T² information: its standardized score
+        # is 0/0. Skip such components rather than dividing by ~zero, which
+        # previously poisoned T² (and everything downstream of it) with
+        # inf/NaN for every observation.
         self.hotellings_t2_ = pd.DataFrame(
             np.zeros((N, A)),
             columns=component_names,
             index=self._sample_index,
         )
+        scaling_factors = self.scaling_factor_for_scores_.to_numpy()
+        t2_tol = epsqrt * max(1.0, float(np.max(scaling_factors, initial=0.0)))
         for a in range(A):
-            self.hotellings_t2_.iloc[:, a] = (
-                self.hotellings_t2_.iloc[:, max(0, a - 1)]
-                + (self._scores[:, a] / self.scaling_factor_for_scores_.iloc[a]) ** 2
-            )
+            contribution = (self._scores[:, a] / scaling_factors[a]) ** 2 if scaling_factors[a] > t2_tol else 0.0
+            self.hotellings_t2_.iloc[:, a] = self.hotellings_t2_.iloc[:, max(0, a - 1)] + contribution
 
         # Clean up temporary numpy staging names (the kept ndarrays above alias
         # the same arrays, so they survive these del statements).
@@ -583,7 +614,12 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             t_a_guess[np.isnan(t_a_guess)] = 0
             t_a = t_a_guess + 1.0
             p_a = np.zeros((K, 1))
-            while not (terminate_check(t_a_guess, t_a, iterations=itern, settings=settings)):
+            # ``itern == 0`` forces at least one NIPALS iteration. The ``+ 1.0``
+            # offset that primes the loop can be negligible relative to a
+            # large-magnitude seed column, and the relative criterion (#504)
+            # would then report convergence at entry, silently returning the
+            # unrefined seed as the score and the zero ``p_a`` as the loading.
+            while itern == 0 or not terminate_check(t_a_guess, t_a, iterations=itern, settings=settings):
                 t_a_guess = t_a.copy()
 
                 # Regress X onto t_a to get loadings p_a
@@ -599,6 +635,15 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             iterations_arr = typing.cast("np.ndarray", self.fitting_info_["iterations"])
             timing_arr[a] = time.time() - start_time
             iterations_arr[a] = itern
+            # terminate_check stops the loop at ``iterations >= md_max_iter``;
+            # warn on non-convergence (previously the PCA path was silent).
+            if itern >= settings["md_max_iter"]:
+                warnings.warn(
+                    f"PCA NIPALS: component {a + 1} reached the maximum number of "
+                    f"iterations ({settings['md_max_iter']}) without converging.",
+                    SpecificationWarning,
+                    stacklevel=2,
+                )
             logger.debug(
                 "PCA NIPALS: component %d converged in %d iterations (md_tol=%g)",
                 a + 1,
@@ -648,18 +693,28 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         mmap = np.isnan(Xd)
         Xd[mmap] = 0.0
         itern = 0
-        while (itern < settings["md_max_iter"]) and (delta > settings["md_tol"]):
+        # No missing cells means nothing to impute: skip the EM loop entirely
+        # (previously ``np.mean`` over the empty ``Xd[mmap]`` emitted a
+        # RuntimeWarning every iteration and produced a NaN delta).
+        while np.any(mmap) and (itern < settings["md_max_iter"]) and (delta > settings["md_tol"]):
             itern += 1
             missing_X = Xd[mmap]
             mean_X = np.mean(Xd, axis=0)
             S = np.cov(Xd, rowvar=False, ddof=1)
             Xc = Xd - mean_X
+            # Both branches must end with V of shape (K, A): rows indexed by
+            # feature, columns by component. svd(Xc) returns the loadings as
+            # the ROWS of Vt (so transpose), while svd(Xc.T) returns them as
+            # the COLUMNS of U (already oriented; do not transpose). The
+            # previous shared ``V = V.T[:, 0:A]`` transposed the second branch
+            # wrongly: an IndexError for N < K, and a silently wrong
+            # imputation regression for N == K.
             if N > K:
-                _, _, V = np.linalg.svd(Xc, full_matrices=False)
+                _, _, Vt = np.linalg.svd(Xc, full_matrices=False)
+                V = Vt.T[:, 0:A]
             else:
-                V, _, _ = np.linalg.svd(Xc.T, full_matrices=False)
-
-            V = V.T[:, 0:A]
+                U, _, _ = np.linalg.svd(Xc.T, full_matrices=False)
+                V = U[:, 0:A]
             for n in range(N):
                 row_mis = mmap[n, :]
                 row_obs = ~row_mis
@@ -677,7 +732,22 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         _, _, V = np.linalg.svd(S, full_matrices=False)
 
         self._loadings_np = (V[0:A, :]).T  # K x A
-        self._scores_np = (Xd - np.mean(Xd, axis=0)) @ self._loadings_np
+
+        # Sign convention: flip so the largest-magnitude element in each
+        # loading is positive, matching _fit_svd / _fit_nipals (previously
+        # the TSR loading signs were LAPACK-dependent).
+        for a in range(A):
+            max_el_idx = np.argmax(np.abs(self._loadings_np[:, a]))
+            if self._loadings_np[max_el_idx, a] < 0:
+                self._loadings_np[:, a] *= -1.0
+
+        # Project the imputed matrix as-is (no extra centring), exactly as
+        # transform() will project new data: the package convention is that X
+        # is preprocessed (e.g. MCUVScaler) before fit. The previous code
+        # centred here, so scores_ disagreed with transform(X) on the very
+        # same data, and the residuals below mixed centred reconstructions
+        # with uncentred data (inflating SPE and deflating R2).
+        self._scores_np = Xd @ self._loadings_np
 
         # R2 and SPE
         self._r2_np = np.zeros(A)
@@ -771,8 +841,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
         # Hotelling's T² (cumulative)
         component_names = self._component_names
-        t2 = pd.DataFrame(np.zeros((X.shape[0], self.n_components)), columns=component_names, index=X.index)
-        for a in range(self.n_components):
+        t2 = pd.DataFrame(np.zeros((X.shape[0], self.n_components_)), columns=component_names, index=X.index)
+        for a in range(self.n_components_):
             t2.iloc[:, a] = (
                 t2.iloc[:, max(0, a - 1)] + (scores.iloc[:, a] / self.scaling_factor_for_scores_.iloc[a]) ** 2
             )
@@ -1067,6 +1137,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             step. Ignored under ``cv_scheme="row_wise"``.
         random_state : int, optional
             Seed for the ekf element-fold permutation.
+        return_consensus : bool, default False
+            When ``True``, also cross-check the CV recommendation against
+            two cheap alternative selectors: Minka's PPCA MLE
+            (:meth:`minka_mle`) and Horn's parallel analysis
+            (:meth:`parallel_analysis`). The result Bunch then gains the
+            ``minka_n_components``, ``parallel_analysis_n_components``,
+            ``consensus``, and ``consensus_counts`` keys (see Returns).
         threshold : float, optional
             Deprecated. The original Wold PRESS-ratio cutoff. Passing it
             emits a :class:`DeprecationWarning`; the value is ignored. Use
@@ -1105,6 +1182,17 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
               (preserved for back-compat).
             - ``cv_scheme`` - the scheme used (``"ekf"`` or ``"row_wise"``).
             - ``selection_rule`` - the rule used to pick ``n_components``.
+
+            When ``return_consensus=True``, the Bunch additionally carries:
+
+            - ``minka_n_components`` - the Minka PPCA MLE estimate (int).
+            - ``parallel_analysis_n_components`` - Horn's parallel-analysis
+              estimate (int).
+            - ``consensus`` - ``"agree"`` if the three integer estimates
+              (CV recommendation, Minka, parallel analysis) span at most
+              1, otherwise ``"disagree"``.
+            - ``consensus_counts`` - the tuple
+              ``(recommended, minka_n, parallel_analysis_n)``.
 
         References
         ----------
@@ -1150,8 +1238,14 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         component_index = pd.Index(range(1, max_components + 1), name="n_components")
         X_arr = np.asarray(X, dtype=float)
 
+        # ``press`` under ekf is the TOTAL PRESS per repeat (n_folds times the
+        # mean per-fold PRESS), while row_wise's press is already a per-fold
+        # mean; the per-fold SE computed further below must be rescaled by
+        # this factor so the 1-SE rule compares like with like.
+        press_scale_multiplier = 1
         if cv_scheme == "ekf":
             n_folds = cv if isinstance(cv, int) else 5
+            press_scale_multiplier = n_folds
             if n_repeats < 1:
                 raise ValueError(f"n_repeats must be >= 1; got {n_repeats}.")
             press_arr, per_fold_press_arr = _pca_ekf_press(
@@ -1171,10 +1265,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                 columns=[f"fold_{i + 1}" for i in range(per_fold_press_arr.shape[1])],
             )
             cv_scores = per_fold_press
-            # Q^2 normalisation: total sum-of-squares of X (the null-model
-            # "predict the column mean" reference, which on mean-centred data
-            # is the total variance). Bro 2008's q^2_x normalisation.
-            null_model_ss = float(np.nansum(X_arr**2))
+            # Q^2 normalisation: the null-model "predict the column mean"
+            # reference is the CENTRED total sum-of-squares, sum((x - x_bar)^2).
+            # PRESS is accumulated in the original units, so the raw unscaled
+            # matrix may be passed here; the uncentred sum(x^2) previously used
+            # coincides only when X is already mean-centred and otherwise
+            # inflates the denominator, biasing Q^2 optimistically.
+            null_model_ss = float(np.nansum((X_arr - np.nanmean(X_arr, axis=0)) ** 2))
             q2 = 1.0 - press / null_model_ss if null_model_ss > epsqrt else press * np.nan
         elif cv_scheme == "row_wise":
             warnings.warn(
@@ -1201,7 +1298,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             # PRESS contributions, so don't pretend they are. Build a parallel
             # per_fold_press by undoing the negation.
             per_fold_press = -cv_scores
-            null_model_ss = float(np.nanmean(X_arr**2))
+            null_model_ss = float(np.nanmean((X_arr - np.nanmean(X_arr, axis=0)) ** 2))
             q2 = 1.0 - press / null_model_ss if null_model_ss > epsqrt else press * np.nan
         else:
             raise ValueError(f"Unknown cv_scheme {cv_scheme!r}; expected 'ekf' or 'row_wise'.")
@@ -1220,6 +1317,11 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             per_fold_arr = per_fold_press.to_numpy()
             n_folds_per_a = np.maximum(1, np.sum(~np.isnan(per_fold_arr), axis=1))
             se_values = np.nanstd(per_fold_arr, axis=1, ddof=1) / np.sqrt(n_folds_per_a)
+        # Rescale the per-fold-mean SE onto the same scale as ``press`` (see
+        # press_scale_multiplier above). Previously the ekf band was ~n_folds
+        # times too narrow, silently degenerating selection_rule="1se" to
+        # "min".
+        se_values = se_values * press_scale_multiplier
         se_press = pd.Series(se_values, index=component_index, name="SE(PRESS)")
 
         # The same constant null-model sum-of-squares that normalises Q2
@@ -1359,7 +1461,23 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
             spe_val = float(spe_values.iloc[i])
             t2_val = float(t2_values.iloc[i])
-            severity = max(spe_val / spe_lim, t2_val / t2_lim)
+            # A degenerate limit carries no information about how severe an
+            # observation is, so it must not contribute to the ranking. A
+            # perfect fit gives spe_lim == 0, which used to raise
+            # ZeroDivisionError outright, and a limit at machine-epsilon scale
+            # produced impressive-looking severities that were ratios of
+            # floating-point noise. An infinite T2 limit (A == N) contributes
+            # 0 already, but is made explicit here.
+            # The ratio itself is scale-invariant (value and limit share units),
+            # so the guard is only against a limit that carries no information:
+            # zero (a perfect fit, which used to raise ZeroDivisionError) or
+            # infinite (A == N). Deliberately NOT an absolute epsilon, which
+            # would make severity depend on the units of the data.
+            ratios = [
+                spe_val / spe_lim if spe_lim > 0.0 else 0.0,
+                t2_val / t2_lim if np.isfinite(t2_lim) and t2_lim > 0.0 else 0.0,
+            ]
+            severity = max(ratios)
 
             results.append(
                 {

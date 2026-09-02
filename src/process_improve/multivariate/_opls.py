@@ -75,6 +75,9 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
 
     Attributes (after fitting)
     --------------------------
+    n_components_ : int
+        The fitted component count: one predictive plus
+        ``n_orthogonal_components`` orthogonal components.
     predictive_scores_ : pd.DataFrame of shape (n_samples, 1)
         Predictive score ``t_p``.
     predictive_weights_ : pd.Series of length n_features
@@ -99,7 +102,13 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         The orthogonal-signal-corrected X (``X`` with the orthogonal variation
         removed), on the scaled fitting scale.
     spe_ : pd.DataFrame
-        Per-row SPE after reconstructing X from all components.
+        Per-row SPE after reconstructing X from all components. Unlike
+        the PCA / PLS ``spe_`` (which stores a per-component
+        progression, one column per component), the OPLS ``spe_`` only
+        holds the final-component SPE and broadcasts that single
+        column across every ``t_predictive`` / ``t_orthogonal_i``
+        column, so all columns are identical. This keeps the shape
+        aligned with :attr:`scores_` for the inherited SPE plots.
     hotellings_t2_ : pd.DataFrame
         Cumulative Hotelling's T2 over the combined score space.
 
@@ -124,7 +133,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
     (4, 1)
     """
 
-    _ATTRIBUTE_RENAMES: typing.ClassVar[dict[str, str]] = {}
+    _ATTRIBUTE_RENAMES: typing.ClassVar[dict[str, str]] = {"n_components": "n_components_"}
     _RENAME_CONTEXT: typing.ClassVar[str] = "OPLS"
 
     # Lazily-built DataFrame views over the private ndarrays (ENG-18), matching
@@ -204,7 +213,10 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         n_ortho = int(self.n_orthogonal_components)
         if n_ortho < 0:
             raise ValueError("n_orthogonal_components must be >= 0.")
-        self.n_components = 1 + n_ortho
+        # Fitted attribute: 1 predictive plus n_ortho orthogonal components.
+        # OPLS has no n_components constructor parameter, so the resolved
+        # count lives only on the fitted attribute (#505).
+        self.n_components_ = 1 + n_ortho
 
         self._x_scaler: MCUVScaler | None = None
         self._y_scaler: MCUVScaler | None = None
@@ -295,7 +307,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         self.x_filtered_ = pd.DataFrame(Xmat @ filt, index=X.index, columns=X.columns)
         x_hat = t_p @ p_p.T + T_o @ P_o.T
         residuals = Xmat - x_hat
-        self._spe = np.sqrt(np.sum(residuals**2, axis=1)).reshape(-1, 1) * np.ones((1, self.n_components))
+        self._spe = np.sqrt(np.sum(residuals**2, axis=1)).reshape(-1, 1) * np.ones((1, self.n_components_))
 
         # Cumulative Hotelling's T2 across the combined score space.
         std = self.scaling_factor_for_scores_.to_numpy()

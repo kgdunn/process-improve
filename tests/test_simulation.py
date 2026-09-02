@@ -475,14 +475,16 @@ class TestRegistryIntegration:
         names = {s["name"] for s in get_tool_specs()}
         assert {"create_simulator", "simulate_process", "reveal_simulator"} <= names
 
-    def test_simulation_helper_lists_all_three(self):
+    def test_simulation_helper_lists_all_registered(self):
         specs = get_simulation_tool_specs()
         assert {s["name"] for s in specs} == {
             "create_simulator",
             "simulate_process",
             "reveal_simulator",
+            "simulate_batch_campaign",
+            "decompose_batch_quality_variance",
         }
-        assert len(specs) == 3
+        assert len(specs) == 5
 
     def test_dispatch_via_execute_tool_call(self):
         out = execute_tool_call(

@@ -59,8 +59,13 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     max_iter : int, default=500
         Maximum NIPALS iterations per component in the hierarchical outer loop.
     tol : float or None, default=None
-        Convergence tolerance on the super-score change. ``None`` uses
-        ``np.finfo(float).eps ** (9/10)`` (matches the legacy reference).
+        Relative convergence tolerance on the super-score change: the norm of
+        the change between two successive super-score iterations, divided by
+        the norm of the current super-score vector (#504). ``None`` uses
+        ``epsqrt`` (about 1.49e-8), the same default as PCA / PLS / TPLS. The
+        legacy absolute tolerance ``np.finfo(float).eps ** (9/10)`` (about
+        8.2e-15) sits below the floating-point oscillation floor of a relative
+        criterion, so it would never be reached in practice.
     algorithm : str, default="auto"
         Algorithm to use for fitting the model.
 
@@ -82,25 +87,63 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
 
     Attributes (after fitting)
     --------------------------
-    block_names_, block_widths_                       (as MBPLS)
-    super_scores_                                     DataFrame (N x A)
-    super_loadings_                                   DataFrame (B x A)
-    block_scores_, block_loadings_                    dict[str, DataFrame]
-    r2_x_per_block_cumulative_, r2_x_per_block_per_component_
-    r2_x_per_variable_                                dict[str, DataFrame]
-    block_vip_
-    block_spe_, block_hotellings_t2_, super_hotellings_t2_
-    explained_variance_, scaling_factor_for_super_scores_
-    fitting_info_, has_missing_data_, algorithm_
+    block_names_ : list[str]
+        Ordered list of X-block names (the keys of the input dict).
+    block_widths_ : dict[str, int]
+        Number of variables in each X-block.
+    n_samples_ : int
+        Number of rows fitted.
+    n_features_in_ : int
+        Total number of X variables summed across blocks.
+    feature_names_in_ : np.ndarray
+        Concatenated column names, one per feature, in block order.
+    preproc_ : dict[str, MCUVScaler]
+        Per-block preprocessors used to mean-centre and unit-variance
+        scale each X-block.
+    super_scores_ : pd.DataFrame, shape (n_samples, n_components)
+        Super-block (consensus) scores ``T``.
+    super_loadings_ : pd.DataFrame, shape (n_blocks, n_components)
+        Super-block loadings ``p_super``; rows indexed by block name.
+    super_hotellings_t2_ : pd.DataFrame, shape (n_samples, n_components)
+        Cumulative Hotelling's T^2 on the super-scores per component.
+    block_scores_ : dict[str, pd.DataFrame]
+        Per-block scores ``t_b``, each shape ``(n_samples, n_components)``.
+    block_loadings_ : dict[str, pd.DataFrame]
+        Per-block loadings ``p_b``, each shape ``(K_b, n_components)``.
+    block_spe_ : dict[str, pd.DataFrame]
+        Per-block squared prediction error per sample and component.
+    block_hotellings_t2_ : dict[str, pd.DataFrame]
+        Per-block cumulative Hotelling's T^2 per sample and component.
+    block_vip_ : dict[str, pd.Series]
+        Per-block variable-importance in projection, indexed by variable
+        name inside each block.
+    r2_x_per_block_cumulative_ : pd.DataFrame, shape (n_blocks, n_components)
+        Cumulative R^2X per block and component.
+    r2_x_per_block_per_component_ : pd.DataFrame, shape (n_blocks, n_components)
+        Incremental R^2X per block and component.
+    r2_x_per_variable_ : dict[str, pd.DataFrame]
+        Cumulative R^2X per variable within each block.
+    explained_variance_ : np.ndarray, shape (n_components,)
+        Variance of the super-score per component (ddof=1).
+    scaling_factor_for_super_scores_ : pd.Series
+        ``sqrt(explained_variance_)`` per component.
+    fitting_info_ : dict
+        Per-component iteration count and timing.
+    has_missing_data_ : bool
+        Whether any X-block had NaN values.
+    algorithm_ : str
+        The resolved algorithm actually used for the fit. With
+        ``algorithm="auto"``, this is ``"dense"`` for complete data
+        and ``"nipals"`` for NaN-containing data.
 
     Notes
     -----
     The deflation step is :math:`X_b \leftarrow X_b - t_{\rm super}\,
     (p_b\,p_s[b]\,\sqrt{K_b})^\top`, derived in Westerhuis et al. 1998.
-    The legacy MATLAB ``mbpca.m`` had this step marked as broken by the
-    original author; this implementation re-derives it directly from the
-    paper and is independently validated against the pure-numpy reference
-    oracles in the test suite.
+    An earlier implementation of this method had this step marked as broken
+    by its author; this implementation re-derives it directly from the paper
+    and is independently validated against the pure-numpy reference oracles
+    in the test suite.
 
     Missing data
     ------------
@@ -197,6 +240,10 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         # single-block estimator.
         self.feature_names_in_ = np.concatenate([self._block_columns[name].to_numpy() for name in self.block_names_])
         n_components = int(self.n_components)
+        # Fitted mirror of the constructor parameter, so shared helpers (the
+        # T2 limit mixin, spe_limit, the plot pre-checks) read one resolved
+        # attribute across PCA / PLS / MBPCA / MBPLS (#505).
+        self.n_components_ = n_components
         n_blocks = len(self.block_names_)
 
         self.has_missing_data_ = any(np.any(X[name].isna().values) for name in self.block_names_)
@@ -267,21 +314,36 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         }
         block_spe_np: dict[str, np.ndarray] = {name: np.zeros((n_samples, n_components)) for name in self.block_names_}
 
-        tol = float(np.finfo(float).eps ** (9 / 10)) if self.tol is None else float(self.tol)
+        tol = epsqrt if self.tol is None else float(self.tol)
         timing = np.zeros(n_components)
         iterations = np.zeros(n_components, dtype=int)
-        rng = np.random.default_rng(0)
 
         for a in range(n_components):
             start = time.time()
-            t_super = rng.standard_normal(n_samples)
-            prev = t_super * 2
+            # Deterministic start (#503): seed the super-score from the column,
+            # across all blocks, with the largest sum of squares, mirroring the
+            # single-block PCA / PLS seeding (#195). No RNG is involved, so the
+            # fit is reproducible without a random_state parameter, and the
+            # highest-variance column is closest to the leading component. The
+            # sign convention applied after convergence makes the fitted signs
+            # independent of this seed. (NaN is replaced by 0 for the
+            # missing-data path.)
+            col_ssq = {name: np.nansum(x_def[name] ** 2, axis=0) for name in self.block_names_}
+            start_block = max(self.block_names_, key=lambda name: float(np.max(col_ssq[name], initial=0.0)))
+            start_col = int(np.argmax(col_ssq[start_block]))
+            t_super = np.nan_to_num(x_def[start_block][:, start_col].astype(float).copy())
+            prev = t_super + 1.0
             t_b_summary = np.zeros((n_samples, n_blocks))
             local_loadings: dict[str, np.ndarray] = {}
             local_scores: dict[str, np.ndarray] = {}
             p_s = np.zeros(n_blocks)
             itern = 0
-            while np.linalg.norm(prev - t_super) > tol and itern < self.max_iter:
+            # Relative convergence criterion (#504): the change between two
+            # successive super-score iterations is judged against the size of
+            # the current super-score, so the decision is invariant to a
+            # global rescaling of the data. The denominator is floored via
+            # ``_nz`` so an all-zero super-score cannot divide by zero.
+            while np.linalg.norm(prev - t_super) / _nz(float(np.linalg.norm(t_super))) > tol and itern < self.max_iter:
                 prev = t_super
                 if algo == "nipals":
                     # Mask-aware NIPALS: each projection is a per-column (or

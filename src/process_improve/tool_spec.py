@@ -201,9 +201,18 @@ def clean(value: Any) -> Any:  # noqa: PLR0911, ANN401
     so that every tool output is JSON-serialisable.
     """
     if isinstance(value, dict):
-        return {k: clean(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple)):
+        # Keys need unwrapping too: json.dumps rejects numpy scalar keys (a
+        # dict keyed by np.int64 group labels from a pandas groupby is the
+        # common case), and previously they leaked through untouched. Only
+        # numpy scalars are unwrapped - other key types pass through so
+        # hashability is never at risk.
+        return {(k.item() if isinstance(k, np.generic) else k): clean(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set, frozenset)):
         return [clean(v) for v in value]
+    # np.bool_ subclasses neither np.integer nor Python bool, and json.dumps
+    # rejects it; it must be tested before the numeric branches.
+    if isinstance(value, np.bool_):
+        return bool(value)
     if isinstance(value, np.integer):
         return int(value)
     if isinstance(value, np.floating):
@@ -213,6 +222,10 @@ def clean(value: Any) -> Any:  # noqa: PLR0911, ANN401
         return None if math.isnan(value) or math.isinf(value) else value
     if isinstance(value, np.ndarray):
         return clean(value.tolist())
+    if isinstance(value, np.generic):
+        # Catch-all for the remaining numpy scalar types (datetime64,
+        # complex, str_, ...): unwrap to the closest Python equivalent.
+        return clean(value.item())
     return value
 
 
@@ -236,7 +249,16 @@ def _import_tool_module(module: str) -> None:
     try:
         importlib.import_module(module)
     except ModuleNotFoundError as exc:
-        logger.warning("Tool module %r not loaded (missing dependency): %s", module, exc)
+        # ModuleNotFoundError is raised for ANY unresolvable module path,
+        # including a typo inside the tools module itself or a renamed
+        # internal module after a refactor. Only tolerate it when the module
+        # that is actually missing (exc.name) is a third-party dependency;
+        # a missing first-party module is a real bug and must propagate,
+        # exactly as the docstring above promises.
+        missing = exc.name or ""
+        if missing.split(".")[0] == "process_improve":
+            raise
+        logger.warning("Tool module %r not loaded (missing dependency %r): %s", module, missing, exc)
 
 
 def discover_tools() -> None:

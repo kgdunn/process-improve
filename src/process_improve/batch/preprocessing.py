@@ -47,8 +47,12 @@ def determine_scaling(
     Returns
     -------
     range_scalers: DataFrame
-        J rows, 2 columns: column 1 = range of each tag (approx. q98 - q02),
-        column 2 = typical minimum of each tag (robustly calculated).
+        J rows, 2 columns: column 1 = the per-tag range (approximately
+        ``q98 - q02`` when ``settings["robust"]`` is True, else raw
+        ``max - min``); column 2 = the per-tag minimum. Both columns are
+        aggregated across batches with the median when ``robust=True`` and
+        the mean otherwise, but the per-batch minimum itself is always the
+        raw ``batch.min(axis=0)``, not a quantile.
 
     TODO: put this in a scikit-learn style: .fit() and .apply() style
     """
@@ -402,7 +406,16 @@ def batch_dtw(  # noqa: C901, PLR0915
             # TODO: make this a configurable setting
             # problematic_threshold = dist_df["Distance"].quantile(0.95)
 
-        next_weights = 1.0 / np.where(next_weights > epsqrt, next_weights, 10000)
+        # Kassidas: each variable's weight is inversely proportional to its
+        # summed squared deviation from the average trajectory, so a variable
+        # that aligns consistently (SSQ ~ 0) must get a LARGE weight. The
+        # previous guard substituted the magic value 10000 for a near-zero
+        # SSQ, handing the best-aligned variables a weight of ~1e-4 - the
+        # exact opposite - and the constant was scale-dependent. Floor the
+        # SSQ (relative to the largest observed SSQ) instead, so the weight
+        # stays large but finite.
+        ssq_floor = max(epsqrt, 1e-6 * float(np.max(next_weights)))
+        next_weights = 1.0 / np.maximum(next_weights, ssq_floor)
         weight_vector = (next_weights / np.sum(next_weights) * len(columns_to_align)).ravel()
         # If change in delta_weight is small, we terminate early; no need to fine-tune excessively.
         delta_weight = np.diag(weight_matrix) - weight_vector  # old - new

@@ -121,7 +121,10 @@ def robust_regression(  # noqa: PLR0913, PLR0915
 
         N:                        the number of observations used to fit the model
         coefficients:             a length-1 list containing the regression slope
-        intercept:                returned if fit_intercept==True, otherwise 0
+        intercept:                the fitted intercept on the full-fit path
+                                  (0 when ``fit_intercept=False``); ``np.nan``
+                                  on the degenerate early-return path (see
+                                  below), regardless of ``fit_intercept``
         standard_errors:          a length-1 list containing the standard error of the slope
         standard_error_intercept: standard error for the intercept (np.nan if fit_intercept=False)
         R2:                       the R^2 value
@@ -130,11 +133,20 @@ def robust_regression(  # noqa: PLR0913, PLR0915
         k:                        the number of model parameters (2 if fit_intercept else 1)
         fitted_values:            the N predicted values, one per row in y
         residuals:                the N residuals
+        t_value:                  the t-values for the standard errors, one per
+                                  coefficient (same meaning as in
+                                  ``multiple_linear_regression``)
         conf_intervals:           K rows x 2 columns (lower, upper) confidence intervals
         conf_interval_intercept:  (lower, upper) confidence interval for the intercept
         pi_range:                 prediction intervals above and below, over the range of data
         leverage:                 the hat-matrix diagonal (leverage) for each observation
         influence:                Cook-style influence values for each observation
+
+    On the degenerate early-return path (fewer than three usable observations
+    in ``x`` or ``y``), the returned dictionary is the initialization stub:
+    ``N`` is ``None``, ``x_ssq`` is absent, and ``leverage``, ``influence``,
+    ``pi_range``, ``t_value``, ``fitted_values``, ``residuals``, and the
+    coefficient/interval arrays hold ``np.nan``.
     """
 
     out: dict[str, Any] = {
@@ -221,7 +233,12 @@ def robust_regression(  # noqa: PLR0913, PLR0915
             np.nan,
         ]
         out["pi_range"] = np.vstack([pi_range, pi_y_pred, pi_y_pred]).T
-        out["leverage"] = 1 / out["N"] + np.power(x - mean_x, 2) / out["x_ssq"]
+        # With no variation in x every observation carries the same weight:
+        # the leverage is exactly 1/N. The previous code divided the ~zero
+        # deviations by the ~zero x_ssq (0/0), poisoning the leverage and
+        # the influence values computed from it with NaN/inf - inside the
+        # very branch that exists to guard against the degenerate x.
+        out["leverage"] = np.full(int(out["N"]), 1.0 / out["N"])
 
     else:
         out["standard_errors"] = [
@@ -246,6 +263,13 @@ def robust_regression(  # noqa: PLR0913, PLR0915
         lower = pi_y_pred - c_t * std_y
         upper = pi_y_pred + c_t * std_y
         out["pi_range"] = np.vstack([pi_range, lower, upper]).T
+
+    # The t-statistic per coefficient: coefficient / standard error. This
+    # matches `multiple_linear_regression`, so the two functions agree on what
+    # the "t_value" key means. It is NaN on the degenerate-x path, where the
+    # standard error is itself undefined. Note `c_t` is a different quantity:
+    # the critical value used to set the interval widths.
+    out["t_value"] = np.array([out["coefficients"][0] / out["standard_errors"][0]])
 
     out["conf_intervals"] = np.array(
         [
@@ -301,16 +325,23 @@ def multiple_linear_regression(  # noqa: PLR0913
     Returns a dictionary of outputs. Keys always present::
 
         N:                        number of observations actually used to fit
-        coefficients:             a vector of K coefficients, one for each column in X
+        coefficients:             a vector of K coefficients, one for each column in X;
+                                  shape ``[np.nan]`` on the degenerate/unfitted path
         intercept:                returned if fit_intercept==True
         standard_errors:          a vector of K standard errors, one per column in X
         standard_error_intercept: standard error for the intercept
         R2:                       the R^2 value
+        R2_regression_based:      R^2 computed as ``RegSS / TSS`` (added post-fit)
+        R2_residual_based:        R^2 computed as ``1 - RSS / TSS`` (added post-fit)
+        k:                        the number of model parameters (added post-fit)
         SE:                       the model's standard error
         fitted_values:            the N predicted values, one per row in y
         residuals:                the N residuals
         t_value:                  the t-values for the standard errors
-        conf_intervals:           K rows x 2 columns (lower, upper) confidence intervals
+        conf_intervals:           K rows x 2 columns (lower, upper) confidence intervals;
+                                  shape ``[np.nan, np.nan]`` on the degenerate/unfitted path
+        conf_interval_intercept:  (lower, upper) confidence interval for the intercept
+                                  (added post-fit)
 
     Keys present only for single-feature ``X`` (and only when ``fit_intercept``
     is True and there is enough non-degenerate data)::

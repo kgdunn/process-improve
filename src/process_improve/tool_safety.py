@@ -31,6 +31,7 @@ from __future__ import annotations
 import contextlib
 import multiprocessing
 import sys
+import threading
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from concurrent.futures.process import BrokenProcessPool
@@ -326,8 +327,27 @@ def _worker_run(tool_name: str, tool_input: dict[str, Any]) -> Any:  # noqa: ANN
 # ---------------------------------------------------------------------------
 
 
-_pool: ProcessPoolExecutor | None = None
-_pool_memory_mb: int | None = None
+#: The module-level pool and the memory cap it was built with, or None.
+_pool_state: tuple[ProcessPoolExecutor, int] | None = None
+#: Guards the module-level ``_pool_state``. The MCP
+#: server runs tool calls on executor threads, so pool creation and teardown
+#: race without it: two threads could each construct an executor (orphaning
+#: one worker forever), and one thread's teardown could SIGKILL a worker
+#: still running another thread's task, which then surfaced as a bogus
+#: "likely exceeded memory limit" BrokenProcessPool diagnosis.
+_pool_lock = threading.Lock()
+
+
+def _create_pool(memory_mb: int, max_workers: int = 1) -> ProcessPoolExecutor:
+    """Construct a new worker pool with the standard initializer/context."""
+    kwargs: dict[str, Any] = {
+        "max_workers": max_workers,
+        "initializer": _pool_initializer,
+        "initargs": (memory_mb,),
+    }
+    if _DEFAULT_MP_CONTEXT is not None:
+        kwargs["mp_context"] = _DEFAULT_MP_CONTEXT
+    return ProcessPoolExecutor(**kwargs)
 
 
 def get_pool(memory_mb: int | None = None, max_workers: int = 1) -> ProcessPoolExecutor:
@@ -335,23 +355,16 @@ def get_pool(memory_mb: int | None = None, max_workers: int = 1) -> ProcessPoolE
 
     The pool is recreated if ``memory_mb`` changes (e.g. tests override it).
     Passing ``None`` resolves the cap from :data:`settings.max_memory_mb` at
-    call time (ENG-09 / ENG-27).
+    call time (ENG-09 / ENG-27). Thread-safe.
     """
     if memory_mb is None:
         memory_mb = settings.max_memory_mb
-    global _pool, _pool_memory_mb  # noqa: PLW0603
-    if _pool is None or _pool_memory_mb != memory_mb:
-        shutdown_pool()
-        kwargs: dict[str, Any] = {
-            "max_workers": max_workers,
-            "initializer": _pool_initializer,
-            "initargs": (memory_mb,),
-        }
-        if _DEFAULT_MP_CONTEXT is not None:
-            kwargs["mp_context"] = _DEFAULT_MP_CONTEXT
-        _pool = ProcessPoolExecutor(**kwargs)
-        _pool_memory_mb = memory_mb
-    return _pool
+    global _pool_state  # noqa: PLW0603
+    with _pool_lock:
+        if _pool_state is None or _pool_state[1] != memory_mb:
+            _shutdown_pool_locked()
+            _pool_state = (_create_pool(memory_mb, max_workers=max_workers), memory_mb)
+        return _pool_state[0]
 
 
 def _terminate_workers(pool: ProcessPoolExecutor) -> None:
@@ -381,18 +394,24 @@ def _terminate_workers(pool: ProcessPoolExecutor) -> None:
                 proc.kill()
 
 
+def _shutdown_pool_locked() -> None:
+    """Tear down the module-level pool. Caller must hold ``_pool_lock``."""
+    global _pool_state  # noqa: PLW0603
+    if _pool_state is not None:
+        pool = _pool_state[0]
+        _terminate_workers(pool)
+        pool.shutdown(wait=False, cancel_futures=True)
+        _pool_state = None
+
+
 def shutdown_pool() -> None:
     """Shut down the module-level pool, if any. Safe to call repeatedly.
 
     Worker processes are force-terminated first so a runaway task cannot keep
-    holding a CPU after the executor is torn down.
+    holding a CPU after the executor is torn down. Thread-safe.
     """
-    global _pool, _pool_memory_mb  # noqa: PLW0603
-    if _pool is not None:
-        _terminate_workers(_pool)
-        _pool.shutdown(wait=False, cancel_futures=True)
-        _pool = None
-        _pool_memory_mb = None
+    with _pool_lock:
+        _shutdown_pool_locked()
 
 
 # ---------------------------------------------------------------------------
@@ -428,11 +447,13 @@ def safe_execute_tool_call(  # noqa: PLR0913
         On overrun the subprocess dies and :class:`ToolMemoryExceededError`
         is raised.
     executor:
-        Optional caller-provided pool. When *None* (default) a module-level
-        singleton is used and is recycled after every call, so each call runs
+        Optional caller-provided pool. When *None* (default) a PRIVATE pool
+        is created for this call and torn down afterwards, so each call runs
         in a fresh worker with isolated process-global state and reclaimed
-        memory. A caller-provided executor is never recycled or terminated by
-        this function - the caller owns its lifecycle.
+        memory, and concurrent calls (e.g. from the threaded MCP server)
+        never share or tear down each other's workers. A caller-provided
+        executor is never recycled or terminated by this function - the
+        caller owns its lifecycle.
 
     Raises
     ------
@@ -473,7 +494,16 @@ def safe_execute_tool_call(  # noqa: PLR0913
     if model_cls is not None:
         _validate_against_model(tool_name, tool_input, model_cls)
 
-    pool = executor if executor is not None else get_pool(memory_mb=memory_mb)
+    # The default path builds a PRIVATE pool per call rather than sharing the
+    # module-level singleton. The previous design shared the singleton across
+    # calls and tore it down in ``finally``, which was not thread-safe: with
+    # concurrent calls (the MCP server runs tools on executor threads), one
+    # thread's teardown SIGKILLed the worker still running another thread's
+    # task, whose failure was then mis-diagnosed as a memory-limit kill.
+    # A private pool keeps the per-call fresh-worker guarantee (clean
+    # process-global state, reclaimed memory) with no cross-thread coupling,
+    # at the same cost as the old create-per-call recycling.
+    pool = executor if executor is not None else _create_pool(memory_mb)
     future = pool.submit(_worker_run, tool_name, tool_input)
 
     try:
@@ -497,11 +527,10 @@ def safe_execute_tool_call(  # noqa: PLR0913
             details={"tool_name": tool_name, "memory_mb": memory_mb},
         ) from exc
     finally:
-        # Recycle the module-managed pool after every call: each call then runs in
-        # a fresh worker with clean process-global state (RNG, matplotlib, cached
-        # imports) and reclaimed memory, and any worker that overran the timeout
-        # or hit the memory cap is force-terminated here rather than left holding
-        # a CPU. A caller-provided executor is left untouched - the caller owns
-        # its lifecycle.
+        # Tear down the private per-call pool: any worker that overran the
+        # timeout or hit the memory cap is force-terminated here rather than
+        # left holding a CPU. A caller-provided executor is left untouched -
+        # the caller owns its lifecycle.
         if executor is None:
-            shutdown_pool()
+            _terminate_workers(pool)
+            pool.shutdown(wait=False, cancel_futures=True)

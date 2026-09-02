@@ -564,7 +564,7 @@ def test_expt_repr() -> None:
 
 
 def test_optimization_function_basic() -> None:
-    """optimization_function should return log determinant of (X'X)^-1."""
+    """optimization_function should return the negative log determinant of X'X."""
     X = pd.DataFrame([[-1, -1], [1, -1], [-1, 1], [1, 1]])
     result = optimization_function(X)
     assert np.isfinite(result)
@@ -587,3 +587,24 @@ def test_point_exchange_simple() -> None:
     assert design.shape[0] == 4
     assert design.shape[1] == 2
     assert np.isfinite(d_opt)
+
+
+def test_point_exchange_always_returns_requested_run_count() -> None:
+    """point_exchange returns exactly number_points rows for every shuffle (deflake).
+
+    The exchange loop grows the design only when an addition improves the
+    criterion, and a candidate consumed by a replacement is never considered
+    for addition, so before the greedy completion step an unlucky shuffle
+    ended below number_points on roughly 1 to 2% of unseeded runs (the
+    intermittent `assert 3 >= 4` in the D-optimal dispatch test).
+    """
+    from pyDOE3 import fullfact
+
+    candidates = pd.DataFrame(fullfact([3, 3, 3]) - 1.0, columns=["A", "B", "C"])
+    # Seeds 122, 146, 199, 319, and 338 all ended with 3 rows before the greedy
+    # completion step was added, so they exercise the completion path directly;
+    # the leading range guards the ordinary no-shortfall path.
+    for random_state in [*range(10), 122, 146, 199, 319, 338]:
+        design, d_opt = point_exchange(candidates, number_points=4, random_state=random_state)
+        assert design.shape[0] == 4
+        assert np.isfinite(d_opt)

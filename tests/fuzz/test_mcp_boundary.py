@@ -31,7 +31,16 @@ _EXPECTED = (ValueError, TypeError, KeyError, ToolInputInvalidError)
 _finite_floats = st.floats(allow_nan=False, allow_infinity=False, width=64)
 
 discover_tools()
-_SPECS = sorted(get_tool_specs(), key=lambda s: s["name"])
+# Exclude test-only tools (leading underscore). tests/test_tool_safety.py
+# registers real tools at import time, including a deliberate infinite loop
+# (_safety_test_busy_loop) and a memory bomb; whether they are visible here
+# depends only on module import order (the pytest command line, xdist worker
+# assignment), and fuzzing them IN-PROCESS with no timeout hangs the run
+# until CI's 6-hour limit. Production tools never start with "_".
+_SPECS = sorted(
+    (s for s in get_tool_specs() if not s["name"].startswith("_")),
+    key=lambda s: s["name"],
+)
 
 
 def _scalar_strategy(schema: dict[str, Any]) -> st.SearchStrategy:  # noqa: C901, PLR0911
@@ -84,6 +93,7 @@ def _payload_strategy(input_schema: dict[str, Any]) -> st.SearchStrategy:
     deadline=None,
     suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
 )
+@pytest.mark.slow
 def test_tool_never_leaks_unexpected_exception(spec: dict[str, Any], data: st.DataObject) -> None:
     """No schema-shaped payload makes a tool leak an undocumented exception."""
     name = spec["name"]
@@ -103,3 +113,25 @@ def test_tool_never_leaks_unexpected_exception(spec: dict[str, Any], data: st.Da
     else:
         assert isinstance(result, dict)
         json.dumps(result, default=str)
+
+
+def test_fit_pls_huge_magnitude_seed_column_regression() -> None:
+    """Deterministic regression for a fuzz find on the #504 rework: a Y column
+    with a ~1.9e154 entry made the additive ``+ 1.0`` loop-priming offset
+    negligible under the scale-relative NIPALS criterion, so the loop reported
+    convergence before its first iteration and ``fit_pls`` leaked
+    ``UnboundLocalError`` for the never-assigned ``t_a``. The loop now always
+    runs at least one iteration; the call must satisfy the boundary invariant
+    (a JSON-serialisable dict, or a documented exception).
+    """
+    payload = {
+        "x_data": [[], [], [], [0.0], [1.0]],
+        "y_data": [[], [], [], [0.0], [1.9e154]],
+        "n_components": 1,
+    }
+    try:
+        result = execute_tool_call("fit_pls", payload)
+    except _EXPECTED:
+        return  # documented validation / value failure - acceptable
+    assert isinstance(result, dict)
+    json.dumps(result, default=str)

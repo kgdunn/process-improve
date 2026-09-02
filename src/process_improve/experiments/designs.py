@@ -332,6 +332,12 @@ def generate_design(  # noqa: PLR0913
     alpha : str, float, or None
         Axial distance for CCD designs: ``"rotatable"``,
         ``"face_centered"``, ``"orthogonal"``, or a numeric value.
+
+        .. note::
+           A numeric ``alpha`` is only honored when ``cube="fractional"``.
+           For ``cube="full"`` (the default) the underlying pyDOE3
+           ``ccdesign`` call does not accept an arbitrary axial distance,
+           so a numeric value is silently treated as ``"orthogonal"``.
     cube : str
         For CCD designs, how to build the cube (factorial) portion:
         ``"full"`` (default) uses the complete 2^k factorial; ``"fractional"``
