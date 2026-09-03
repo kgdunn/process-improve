@@ -70,9 +70,10 @@ def test_loaders_reset_row_index() -> None:
 def _load_or_skip(loader: Callable[[], T]) -> T:
     """Call a remote loader, skipping the test when the download fails."""
     try:
-        return loader()
+        data = loader()
     except RuntimeError as exc:
         pytest.skip(f"Cannot download the dataset: {exc}")
+    return data
 
 
 @pytest.mark.dataset

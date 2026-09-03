@@ -46,6 +46,7 @@ def load_script(name: str) -> ModuleType:
 def load_or_skip(loader: Callable[[], T]) -> T:
     """Call a remote data loader, skipping the calling test when the download fails."""
     try:
-        return loader()
+        data = loader()
     except RuntimeError as exc:
         pytest.skip(f"Cannot download the dataset: {exc}")
+    return data
