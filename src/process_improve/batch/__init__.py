@@ -21,7 +21,10 @@ from process_improve.batch.data_input import (
 from process_improve.batch.datasets import (
     load_batch_fake_data,
     load_dryer,
+    load_dupont,
+    load_fmc,
     load_nylon,
+    load_sbr,
 )
 from process_improve.batch.features import (
     cross,
@@ -87,7 +90,10 @@ __all__ = [
     # Bundled datasets
     "load_batch_fake_data",
     "load_dryer",
+    "load_dupont",
+    "load_fmc",
     "load_nylon",
+    "load_sbr",
     "melted_to_dict",
     "melted_to_wide",
     "midcourse_correction",
