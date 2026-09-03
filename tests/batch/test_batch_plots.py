@@ -213,11 +213,10 @@ def test_time_varying_loading_plot_accepts_a_plain_pca_on_unfolded_data(aligned_
 
 def test_time_varying_loading_plot_shows_batch_pls_weights(aligned_nylon: dict) -> None:
     """For a BatchPLS the profiles are the X-weights and the axis says so."""
-    # One target that is an exact trajectory sample leaves no Y variance after one component.
     quality = pd.DataFrame(
-        {"final": [float(b["Tag01"].iloc[-1]) for b in aligned_nylon.values()]}, index=list(aligned_nylon)
+        {"final": [float(b["Tag01"].mean()) for b in aligned_nylon.values()]}, index=list(aligned_nylon)
     )
-    model = BatchPLS(n_components=1).fit(aligned_nylon, quality)
+    model = BatchPLS(n_components=2).fit(aligned_nylon, quality)
     fig = time_varying_loading_plot(model, component=1)
     assert len(fig.data) == model.n_tags_
     assert "weights" in fig.layout.title.text
