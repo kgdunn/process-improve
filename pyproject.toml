@@ -1,6 +1,6 @@
 [project]
 name = "process-improve"
-version = "1.77.0"
+version = "1.78.0"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = "MIT"
@@ -81,6 +81,10 @@ fast = ["numba>=0.63.1"]
 # CBC solver in its wheels, so no system package is required.
 ilp = ["pulp>=2.8"]
 
+# Mid-course correction QP solver (batch.control). osqp ships prebuilt wheels
+# for every platform CI tests, so no system package is required.
+control = ["osqp>=1.0"]
+
 # NOTE: ``pyoptex`` (coordinate-exchange I-/A-optimal and split-plot designs in
 # ``experiments.designs_optimal``) is intentionally *not* a declared extra. Its
 # latest release (1.2.1) pins ``plotly~=5.24`` (i.e. < 6), which conflicts with
@@ -96,6 +100,7 @@ all = [
     "mcp>=2.0",
     "numba>=0.63.1",
     "openpyxl>=3.1.5",
+    "osqp>=1.0",
     "plotly>=6.5.2",
     "pulp>=2.8",
     "pyDOE3>=1.0",
@@ -177,6 +182,14 @@ dev = [
 override-dependencies = [
     "plotly>=6.5.2",
     "numba>=0.63.1",
+]
+# scipy 1.18.1 was published without CPython 3.13 wheels (cp312 only), and CI
+# re-resolves on a stale lockfile whenever this file changes, so a fresh
+# resolution on Python 3.13 picks it and fails to install. Exclude that one
+# release; drop this constraint once scipy uploads cp313 wheels for it or
+# publishes a newer release.
+constraint-dependencies = [
+    "scipy!=1.18.1",
 ]
 
 

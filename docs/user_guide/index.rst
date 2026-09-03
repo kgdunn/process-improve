@@ -16,3 +16,4 @@ User Guide
    permutation_nulls
    interactions
    batch_simulator
+   batch_control

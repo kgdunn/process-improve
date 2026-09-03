@@ -36,6 +36,7 @@ from ._common import (
 )
 from ._nipals import quick_regress, ssq, terminate_check
 from ._preprocessing import MCUVScaler
+from ._projection import coerce_observed_mask, operator_for_pattern, project_rows
 
 logger = logging.getLogger(__name__)
 
@@ -870,6 +871,126 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             stacklevel=2,
         )
         return self.diagnose(X)
+
+    def project(self, X: DataMatrix, *, method: str = "tsr", ridge: float = 0.0) -> Bunch:
+        """Estimate scores and diagnostics for rows that may contain missing values.
+
+        Whereas :meth:`transform` and :meth:`diagnose` propagate NaN, this
+        method estimates the scores of partially-observed rows from the
+        observed columns only, using the missing-data estimators of Arteaga
+        and Ferrer (2002): trimmed score regression (``"tsr"``, the default
+        and the statistically strongest), single-component projection
+        (``"scp"``), or projection to the model plane (``"pmp"``). Rows with
+        no missing values take the standard complete-data path, so their
+        scores are bitwise identical to :meth:`transform`.
+
+        This is the "batch so far" primitive of online batch monitoring: the
+        future part of an unfolded batch row is missing by construction, and
+        the score estimate at each time sample is this projection (see
+        Garcia-Munoz, Kourti and MacGregor, 2004).
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            New data in the model's (centred and scaled) space; NaN marks a
+            missing entry. Rows that are entirely NaN are rejected.
+        method : {"tsr", "scp", "pmp"}, default="tsr"
+            The score estimator; see
+            :mod:`process_improve.multivariate._projection`.
+        ridge : float, default=0.0
+            Non-negative regularisation added to the matrix inverted by the
+            ``"tsr"`` and ``"pmp"`` estimators. Raise it above zero when
+            ``condition_number`` reports near-singularity (typically very
+            early in a batch, when few columns are observed).
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With keys ``scores`` (DataFrame, n_samples x n_components),
+            ``hotellings_t2`` (Series; total over all components, computed
+            with the training score variances), ``spe`` (Series; the square
+            root of the residual sum of squares over the *observed* columns
+            only), ``condition_number`` (Series; the conditioning diagnostic
+            of each row's estimator, 1.0 when nothing is missing) and
+            ``n_observed`` (Series; observed features per row). SPE and T2
+            for a partially-observed row must be compared against limits
+            built from the same missingness pattern, not against the
+            full-observation limits; see
+            :class:`process_improve.batch.BatchMonitor`.
+        """
+        check_is_fitted(self, "loadings_")
+        if isinstance(X, pd.DataFrame):
+            X = _align_to_fit_features(X, self._feature_names)
+        sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
+        X_arr = validate_data(
+            self,
+            X,
+            reset=False,
+            accept_sparse=False,
+            dtype="numeric",
+            ensure_all_finite="allow-nan",
+        )
+        if sample_index is None:
+            sample_index = pd.RangeIndex(X_arr.shape[0])  # type: ignore[assignment]
+        raw = project_rows(
+            self._loadings,
+            self._loadings,
+            np.asarray(self.explained_variance_, dtype=float),
+            np.asarray(X_arr, dtype=float),
+            method=method,
+            ridge=ridge,
+        )
+        scores = pd.DataFrame(raw.scores, index=sample_index, columns=self._component_names)
+        s = self.scaling_factor_for_scores_.to_numpy(dtype=float)
+        t2 = pd.Series(np.sum((raw.scores / s) ** 2, axis=1), index=sample_index, name="Hotelling's T2")
+        return Bunch(
+            scores=scores,
+            hotellings_t2=t2,
+            spe=pd.Series(raw.spe, index=sample_index, name="SPE"),
+            condition_number=pd.Series(raw.condition_number, index=sample_index, name="condition_number"),
+            n_observed=pd.Series(raw.n_observed, index=sample_index, name="n_observed"),
+        )
+
+    def projection_matrix(self, observed: object, *, method: str = "tsr", ridge: float = 0.0) -> Bunch:
+        """Build the fixed linear operator mapping observed columns to score estimates.
+
+        For a fixed missingness pattern, every estimator in :meth:`project`
+        is a fixed linear map ``t_hat = M @ z_observed``. This method exposes
+        that matrix so callers that reuse one pattern many times (an online
+        monitor at time sample ``k``, or an optimiser treating candidate
+        columns as observed) can precompute it once.
+
+        Parameters
+        ----------
+        observed : array-like
+            Either a boolean mask of length ``n_features_in_`` (True =
+            observed), or a list of feature labels to treat as observed.
+        method : {"tsr", "scp", "pmp"}, default="tsr"
+        ridge : float, default=0.0
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With keys ``matrix`` (DataFrame, n_components x n_observed,
+            columns labelled by the observed features), ``condition_number``
+            (float) and ``method``.
+        """
+        check_is_fitted(self, "loadings_")
+        mask = coerce_observed_mask(observed, self._feature_names)
+        op = operator_for_pattern(
+            self._loadings,
+            self._loadings,
+            np.asarray(self.explained_variance_, dtype=float),
+            mask,
+            method=method,
+            ridge=ridge,
+        )
+        matrix = pd.DataFrame(
+            op.matrix,
+            index=self._component_names,
+            columns=pd.Index(self._feature_names)[mask],
+        )
+        return Bunch(matrix=matrix, condition_number=op.condition_number, method=op.method)
 
     def score(self, X: DataMatrix, y: DataMatrix | None = None) -> float:  # noqa: ARG002
         """Negative mean squared reconstruction error (higher is better).
