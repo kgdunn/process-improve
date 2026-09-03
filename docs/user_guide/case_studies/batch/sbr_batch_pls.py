@@ -5,7 +5,7 @@ polymerization in a batch reactor; five quality attributes of the latex are
 measured at the end of each batch. Because these 53 batches were simulated
 from a first-principles model, the fault is known: batches 34 and 37 both
 received 30% more organic impurity in the butadiene feed, from the very
-start of batch 37 and partway through batch 34. This script fits a
+start of batch 37 and midway through batch 34. This script fits a
 batchwise-unfolded PLS from the six trajectories to the five quality
 attributes and follows the diagnosis of the course notes: the score plot
 flags both batches, the whole-batch SPE does not, the weights and the
@@ -150,7 +150,7 @@ def diagnose_batch_37(model: BatchPLS, trajectories: dict) -> pd.DataFrame:
     print(f"batch {FAULT_FROM_START}: t1 contributions per tag = " + describe(by_tag))
     print(f"batch {FAULT_FROM_START}: share of the t1 contribution per fifth of the batch = {share_per_fifth(row)}")
     print(
-        f"batch {FAULT_FROM_START}: first sample more than 2 sd away from the other batches: {first_departure(trajectories, FAULT_FROM_START)}"
+        f"batch {FAULT_FROM_START}: first sustained departure from the other batches: {sustained_departure(trajectories, FAULT_FROM_START)}"
     )
     return contributions
 
@@ -167,19 +167,24 @@ def share_per_fifth(row: pd.Series) -> str:
     return ", ".join(f"{share:.0%}" for share in fifths / fifths.sum())
 
 
-def first_departure(trajectories: dict, batch_id: int, n_sd: float = 2.0) -> dict[str, int | None]:
-    """Return the first sample where each tag of one batch leaves the band of the other batches.
+def sustained_departure(trajectories: dict, batch_id: int, n_sd: float = 2.0, run: int = 20) -> dict[str, int | None]:
+    """Return the first sample from which each tag of one batch stays outside the band of the normal batches.
 
-    The band is the mean of the other batches plus or minus ``n_sd`` standard
-    deviations, sample by sample; ``None`` means the tag never leaves it.
+    The band is the mean of the batches without the fault plus or minus ``n_sd``
+    standard deviations, sample by sample. A tag has departed once it stays
+    outside the band for ``run`` consecutive samples, a tenth of the batch by
+    default, so that a single noisy excursion does not count. ``None`` means
+    the tag never departs.
     """
-    others = np.stack([batch.to_numpy() for key, batch in trajectories.items() if key != batch_id])
+    others = np.stack([batch.to_numpy() for key, batch in trajectories.items() if key not in FAULT_BATCHES])
     z = (trajectories[batch_id].to_numpy() - others.mean(axis=0)) / others.std(axis=0, ddof=1)
-    outside = np.abs(z) > n_sd
-    return {
-        tag: (int(np.argmax(outside[:, j])) if outside[:, j].any() else None)
-        for j, tag in enumerate(trajectories[batch_id].columns)
-    }
+    outside = (np.abs(z) > n_sd).astype(int)
+    window = np.ones(run, dtype=int)
+    onset: dict[str, int | None] = {}
+    for j, tag in enumerate(trajectories[batch_id].columns):
+        runs = np.convolve(outside[:, j], window, mode="valid") == run
+        onset[tag] = int(np.argmax(runs)) if runs.any() else None
+    return onset
 
 
 # -- end: batch-37 --
@@ -187,14 +192,14 @@ def first_departure(trajectories: dict, batch_id: int, n_sd: float = 2.0) -> dic
 
 # -- section: batch-34 --
 def diagnose_batch_34(model: BatchPLS, trajectories: dict) -> pd.DataFrame:
-    """Score contributions to t2: the same fault, but starting partway through batch 34."""
+    """Score contributions to t2: the same fault, but starting midway through batch 34."""
     contributions = model.score_contributions(model.unfold_and_scale(trajectories), component=2)
     row = contributions.loc[FAULT_MID_BATCH]
     by_tag = row.groupby(level="tag", sort=False).sum()
     print(f"batch {FAULT_MID_BATCH}: t2 contributions per tag = " + describe(by_tag))
     print(f"batch {FAULT_MID_BATCH}: share of the t2 contribution per fifth of the batch = {share_per_fifth(row)}")
     print(
-        f"batch {FAULT_MID_BATCH}: first sample more than 2 sd away from the other batches: {first_departure(trajectories, FAULT_MID_BATCH)}"
+        f"batch {FAULT_MID_BATCH}: first sustained departure from the other batches: {sustained_departure(trajectories, FAULT_MID_BATCH)}"
     )
     return contributions
 

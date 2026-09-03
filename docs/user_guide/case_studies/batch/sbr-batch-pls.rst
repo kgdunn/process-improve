@@ -11,7 +11,7 @@ released), and five quality attributes of the latex are measured at the end
 The 53 batches were simulated from a first-principles model, which makes this
 a rare kind of case study: the fault is known. Batches 34 and 37 both received
 30% more organic impurity in the butadiene feed, from the very start of batch
-37 and partway through batch 34.
+37 and midway through batch 34.
 
 The complete script is ``sbr_batch_pls.py`` in this directory:
 
@@ -110,20 +110,24 @@ Batch 37: the fault from the start
    batch 37: t1 contributions per tag = Conversion -33.4, CoolingTemp -4.2, EnergyReleased -5.2,
                                        JacketTemp -4.3, LatexDensity -25.5, ReactorTemp -1.3
    batch 37: share of the t1 contribution per fifth of the batch = 15%, 18%, 19%, 26%, 22%
-   batch 37: first sample more than 2 sd away from the other batches: {'ReactorTemp': 3,
-             'CoolingTemp': 3, 'JacketTemp': 5, 'LatexDensity': 13, 'Conversion': 9, 'EnergyReleased': 14}
+   batch 37: first sustained departure from the other batches: {'ReactorTemp': None,
+             'CoolingTemp': None, 'JacketTemp': None, 'LatexDensity': 13, 'Conversion': 9, 'EnergyReleased': None}
 
 Batch 37 sits at the low end of :math:`t_1` because its conversion and latex
 density were below average, and the contribution is spread over the whole
 batch: every fifth of it carries between 15% and 26% of the total. The raw
-overlays confirm it. Every trajectory of batch 37 leaves the band of the other
-batches (their mean plus or minus two standard deviations, sample by sample)
-within the first fourteen samples, and conversion and latex density then run
-under the others to the end. The impurity slowed the reaction from the start,
-which is the injected fault.
+data confirm it. ``sustained_departure`` expresses each trajectory of a faulty
+batch as a distance from the mean of the normal batches, in units of their
+standard deviation at that sample, and reports the first sample from which a
+tag stays more than two standard deviations away for twenty samples in a row
+(a single crossing is not informative, because a noisy tag crosses that line
+now and then in every batch). Conversion and latex density of batch 37 depart
+at samples 9 and 13 and run under the other batches to the end; none of its
+other four trajectories stays outside the band for twenty samples. The
+impurity slowed the reaction from the start, which is the injected fault.
 
-Batch 34: the same fault, partway through
------------------------------------------
+Batch 34: the same fault, from the middle of the batch
+------------------------------------------------------
 
 .. literalinclude:: sbr_batch_pls.py
    :language: python
@@ -135,18 +139,19 @@ Batch 34: the same fault, partway through
    batch 34: t2 contributions per tag = Conversion +8.1, CoolingTemp +12.2, EnergyReleased +14.3,
                                        JacketTemp +12.3, LatexDensity +7.2, ReactorTemp +4.0
    batch 34: share of the t2 contribution per fifth of the batch = 6%, 9%, 17%, 39%, 29%
-   batch 34: first sample more than 2 sd away from the other batches: {'ReactorTemp': 33,
-             'CoolingTemp': 35, 'JacketTemp': 37, 'LatexDensity': 132, 'Conversion': 127, 'EnergyReleased': 11}
+   batch 34: first sustained departure from the other batches: {'ReactorTemp': None,
+             'CoolingTemp': 103, 'JacketTemp': 104, 'LatexDensity': 129, 'Conversion': 123, 'EnergyReleased': 105}
 
 Batch 34 is high on :math:`t_2`, and the contributions come from the energy
 released, the jacket temperature and the cooling-water temperature. The
 timing is different from batch 37 in both views. The first two fifths of the
 batch carry only 15% of the :math:`t_2` contribution and the last two fifths
-carry 68%, and in the raw data the reactor, cooling-water and jacket
-temperatures leave the band of the other batches at samples 33 to 37, while
-conversion and latex density only do so after sample 125. The same impurity,
-injected later, shows up first in the heat balance of the reactor and only
-much later in the extent of reaction.
+carry 68%, and in the raw data the cooling-water temperature, the jacket
+temperature and the energy released leave the band of the other batches at
+samples 103 to 105, the middle of the batch, while conversion and latex
+density only do so at samples 123 and 129. The same impurity, injected midway,
+shows up first in the heat balance of the reactor and only afterwards in the
+extent of reaction.
 :func:`process_improve.batch.contribution_at_time_plot` at sample 120 shows
 the same three tags carrying the deviation.
 
