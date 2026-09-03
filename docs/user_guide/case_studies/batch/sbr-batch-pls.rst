@@ -109,12 +109,18 @@ Batch 37: the fault from the start
 
    batch 37: t1 contributions per tag = Conversion -33.4, CoolingTemp -4.2, EnergyReleased -5.2,
                                        JacketTemp -4.3, LatexDensity -25.5, ReactorTemp -1.3
+   batch 37: share of the t1 contribution per fifth of the batch = 15%, 18%, 19%, 26%, 22%
+   batch 37: first sample more than 2 sd away from the other batches: {'ReactorTemp': 3,
+             'CoolingTemp': 3, 'JacketTemp': 5, 'LatexDensity': 13, 'Conversion': 9, 'EnergyReleased': 14}
 
 Batch 37 sits at the low end of :math:`t_1` because its conversion and latex
-density were below average, and the full contribution plot shows this for the
-whole length of the batch. The raw overlays confirm it: the two trajectories
-run under the others from the first sample. The impurity slowed the reaction
-from the start, which is exactly the injected fault.
+density were below average, and the contribution is spread over the whole
+batch: every fifth of it carries between 15% and 26% of the total. The raw
+overlays confirm it. Every trajectory of batch 37 leaves the band of the other
+batches (their mean plus or minus two standard deviations, sample by sample)
+within the first fourteen samples, and conversion and latex density then run
+under the others to the end. The impurity slowed the reaction from the start,
+which is the injected fault.
 
 Batch 34: the same fault, partway through
 -----------------------------------------
@@ -128,16 +134,21 @@ Batch 34: the same fault, partway through
 
    batch 34: t2 contributions per tag = Conversion +8.1, CoolingTemp +12.2, EnergyReleased +14.3,
                                        JacketTemp +12.3, LatexDensity +7.2, ReactorTemp +4.0
-   batch 34: 5% of the t2 contribution has accumulated by sample 38
+   batch 34: share of the t2 contribution per fifth of the batch = 6%, 9%, 17%, 39%, 29%
+   batch 34: first sample more than 2 sd away from the other batches: {'ReactorTemp': 33,
+             'CoolingTemp': 35, 'JacketTemp': 37, 'LatexDensity': 132, 'Conversion': 127, 'EnergyReleased': 11}
 
 Batch 34 is high on :math:`t_2`, and the contributions come from the energy
-released, the jacket temperature and the cooling-water temperature. The full
-contribution plot is flat for the first third of the batch and grows after
-it; :func:`process_improve.batch.contribution_at_time_plot` at one sample
-after the onset shows the same three tags. The raw overlays show the cooling
-water and jacket temperatures departing from the other batches partway
-through. The same impurity, injected later, first shows up in the heat
-balance rather than in the conversion.
+released, the jacket temperature and the cooling-water temperature. The
+timing is different from batch 37 in both views. The first two fifths of the
+batch carry only 15% of the :math:`t_2` contribution and the last two fifths
+carry 68%, and in the raw data the reactor, cooling-water and jacket
+temperatures leave the band of the other batches at samples 33 to 37, while
+conversion and latex density only do so after sample 125. The same impurity,
+injected later, shows up first in the heat balance of the reactor and only
+much later in the extent of reaction.
+:func:`process_improve.batch.contribution_at_time_plot` at sample 120 shows
+the same three tags carrying the deviation.
 
 The same fault appears in two different places of the score plot because it
 started at two different times. A batch model describes deviations in
