@@ -1,0 +1,39 @@
+{
+  "source": {
+    "repository": "https://github.com/kgdunn/gsk-teaching",
+    "commit": "87cfb3bbb02fa623bd19bd20e2813bff4a0cf5d4",
+    "files": {
+      "tests/SBRDATA.mat": "d3d4fd5161dc42929b9f5d416f28c9254705efcf",
+      "tests/SBR-expected.mat": "f579145f60926bbc0c285b36298e6652dc55b588"
+    }
+  },
+  "n_batches": 53,
+  "n_samples": 200,
+  "n_components": 2,
+  "tag_names": {
+    "F STRYRENE": "StyreneFlow",
+    "F BUTADIEN": "ButadieneFlow",
+    "T FEED": "FeedTemp",
+    "T REACTOR": "ReactorTemp",
+    "T COOLING": "CoolingTemp",
+    "T R. JACKT": "JacketTemp",
+    "LATEX DENS": "LatexDensity",
+    "CONVERSION": "Conversion",
+    "ENERGY REL": "EnergyReleased"
+  },
+  "quality_names": {
+    "Compositon": "Composition",
+    "Part. Size": "ParticleSize",
+    "Branching": "Branching",
+    "Cross Link": "CrossLinking",
+    "Polydisper": "Polydispersity"
+  },
+  "legacy_model": "unit_tests.m::PCA_batch_data: lvm({'X', batch_X}, min_lv=2) on all nine tags; columns mean-centred and scaled to unit variance (N-1); single block, no block weighting",
+  "legacy_r2_per_component": [
+    0.17085,
+    0.100531
+  ],
+  "legacy_tolerance": "assertEAE: relative 1e-2 on |t| and |p| (sign ignored), 1e-5 on R2",
+  "loadings_layout": "time-major: MATLAB row k * 9 + j is tag j at sample k",
+  "generated_at": "2026-09-03T21:03:59+0000"
+}

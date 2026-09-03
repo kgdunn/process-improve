@@ -19,6 +19,7 @@ import pytest
 if TYPE_CHECKING:
     from typing import Self
 
+from process_improve import _remote_data as remote_data
 from process_improve.config import settings
 from process_improve.experiments import datasets
 
@@ -138,7 +139,7 @@ class TestRemoteFetchTimeout:
         def _hang(_url: str, timeout: float | None = None) -> _FakeResponse:
             raise TimeoutError("timed out")
 
-        monkeypatch.setattr(datasets.urllib.request, "urlopen", _hang)
+        monkeypatch.setattr(remote_data.urllib.request, "urlopen", _hang)
         with pytest.raises(RuntimeError, match="Could not download the sample dataset"):
             datasets.distillateflow()
 
@@ -150,8 +151,8 @@ class TestRemoteFetchTimeout:
             seen["timeout"] = timeout
             return _FakeResponse(b"A,B\n1,2\n")
 
-        monkeypatch.setattr(datasets.urllib.request, "urlopen", _fake_urlopen)
-        df = datasets._read_remote_csv("https://openmv.net/file/oil-company-doe.csv")
+        monkeypatch.setattr(remote_data.urllib.request, "urlopen", _fake_urlopen)
+        df = remote_data.read_remote_csv("https://openmv.net/file/oil-company-doe.csv")
         assert seen["timeout"] == settings.dataset_fetch_timeout
         assert df.shape == (1, 2)
         assert list(df.columns) == ["A", "B"]
@@ -164,6 +165,6 @@ class TestRemoteFetchTimeout:
             seen["timeout"] = timeout
             return _FakeResponse(b"A\n1\n")
 
-        monkeypatch.setattr(datasets.urllib.request, "urlopen", _fake_urlopen)
-        datasets._read_remote_csv("https://openmv.net/file/oil-company-doe.csv", timeout=2.5)
+        monkeypatch.setattr(remote_data.urllib.request, "urlopen", _fake_urlopen)
+        remote_data.read_remote_csv("https://openmv.net/file/oil-company-doe.csv", timeout=2.5)
         assert seen["timeout"] == 2.5

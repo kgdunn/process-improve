@@ -2,50 +2,14 @@
 
 from __future__ import annotations
 
-import io
-import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 
 import pandas as pd
 
-from process_improve.config import settings
+from process_improve._remote_data import read_remote_csv
 
 _DATASETS_DIR = Path(__file__).resolve().parents[1] / "datasets" / "experiments"
-
-
-def _read_remote_csv(url: str, timeout: float | None = None) -> pd.DataFrame:
-    """Fetch a sample-dataset CSV from a (hard-coded, trusted) remote host.
-
-    The URL is not user-supplied. The download is bounded by an explicit
-    timeout (``settings.dataset_fetch_timeout``, default 30 s, overridable via
-    ``PROCESS_IMPROVE_DATASET_FETCH_TIMEOUT``), so a black-holing host raises
-    instead of hanging the caller indefinitely (#508). Network failures,
-    timeouts, and parse failures are surfaced as a clear ``RuntimeError``
-    (``TimeoutError`` and ``urllib.error.URLError`` are both ``OSError``
-    subclasses) rather than a lower-level error, so callers get an actionable
-    message. Note that the content is fetched over the network and is
-    therefore trusted only as far as the remote host is.
-
-    Parameters
-    ----------
-    url : str
-        The https URL of the CSV file to fetch.
-    timeout : float, optional
-        Seconds to wait before giving up. Defaults to
-        ``settings.dataset_fetch_timeout``.
-    """
-    if timeout is None:
-        timeout = settings.dataset_fetch_timeout
-    try:
-        with urllib.request.urlopen(url, timeout=timeout) as response:  # noqa: S310 - fixed https URLs
-            payload = response.read()
-        return pd.read_csv(io.BytesIO(payload))
-    except (OSError, ValueError) as exc:
-        raise RuntimeError(
-            f"Could not download the sample dataset from {url!r}: {exc}. "
-            "Check your network connection; this dataset is fetched from a remote host."
-        ) from exc
 
 
 def distillateflow() -> pd.DataFrame:
@@ -66,7 +30,7 @@ def distillateflow() -> pd.DataFrame:
 
 
     """
-    return _read_remote_csv("https://openmv.net/file/distillate-flow.csv")
+    return read_remote_csv("https://openmv.net/file/distillate-flow.csv")
 
 
 def pollutant() -> pd.DataFrame:
@@ -131,7 +95,7 @@ def oildoe() -> pd.DataFrame:
     Data from a confidential industrial source.
 
     """
-    return _read_remote_csv("https://openmv.net/file/oil-company-doe.csv")
+    return read_remote_csv("https://openmv.net/file/oil-company-doe.csv")
 
 
 def golf() -> pd.DataFrame:

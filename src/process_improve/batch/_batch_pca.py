@@ -18,7 +18,6 @@ MSPC", Comprehensive Chemometrics, Elsevier, 2009, for the methodology.
 
 from __future__ import annotations
 
-import functools
 import typing
 
 import numpy as np
@@ -27,6 +26,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
+from ..multivariate._diagnostics import score_contributions as _score_contributions
 from ..multivariate._diagnostics import spe_contributions as _spe_contributions
 from ..multivariate._diagnostics import t2_contributions as _t2_contributions
 from ..multivariate._limits import score_limit as _score_limit
@@ -38,6 +38,7 @@ from ..multivariate.plots import loading_plot as _loading_plot
 from ..multivariate.plots import score_plot as _score_plot
 from ..multivariate.plots import spe_plot as _spe_plot
 from ..multivariate.plots import t2_plot as _t2_plot
+from ._common import inner_method
 from .data_input import check_valid_batch_dict, dict_to_wide
 
 if typing.TYPE_CHECKING:
@@ -45,23 +46,8 @@ if typing.TYPE_CHECKING:
 
 
 def _pca_method(fn: Callable[..., typing.Any]) -> Callable[..., typing.Any]:
-    """Wrap a module-level ``fn(model, ...)`` as a method forwarding ``self._pca``.
-
-    The convenience plots, limits, and contribution functions in
-    :mod:`process_improve.multivariate` read only fitted attributes that the
-    internal PCA model carries (``scores_``, ``loadings_``, ``spe_``,
-    ``scaling_factor_for_scores_``, ``n_components``, ``n_samples_``), so the
-    :class:`BatchPCA` methods forward to them with the wrapped estimator as
-    the ``model`` argument. Mirrors ``_model_method`` (ENG-05), so ``help``
-    and ``inspect.signature`` report the underlying function.
-    """
-
-    @functools.wraps(fn)
-    def method(self: BatchPCA, *args, **kwargs) -> object:
-        check_is_fitted(self, "loadings_")
-        return fn(self._pca, *args, **kwargs)
-
-    return method
+    """Forward a standalone ``fn(model, ...)`` to the inner PCA (see :func:`inner_method`)."""
+    return inner_method(fn, inner="_pca", fitted="loadings_")
 
 
 class BatchPCA(TransformerMixin, BaseEstimator):
@@ -538,6 +524,35 @@ class BatchPCA(TransformerMixin, BaseEstimator):
             raise ValueError("initial_conditions for a single batch must have exactly one row.")
         return frame.set_axis(["_online_"], axis=0)
 
+    def unfold_and_scale(
+        self,
+        X: dict[Hashable, pd.DataFrame],
+        *,
+        initial_conditions: pd.DataFrame | None = None,
+    ) -> pd.DataFrame:
+        """Unfold batches batchwise and apply the training centring and scaling.
+
+        Parameters
+        ----------
+        X : dict[Hashable, pd.DataFrame]
+            Standard batch-data dictionary of aligned batches with the same
+            tags and number of samples as the training data.
+        initial_conditions : pd.DataFrame, optional
+            The Z block for the batches; required if (and only if) the model
+            was fitted with one.
+
+        Returns
+        -------
+        pd.DataFrame of shape (n_batches, n_unfolded_features)
+            The one-row-per-batch ``[Z | X]`` matrix in the model's scaled
+            space, indexed by batch identifier, with the 2-level unfolded
+            column index. This is the ``X`` argument that
+            :meth:`score_contributions`, :meth:`spe_contributions` and
+            :meth:`t2_contributions` expect; passing the training batches
+            reproduces the fitted scores.
+        """
+        return self._scaled_wide(X, initial_conditions)
+
     def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
         """Hotelling's T2 limit at the given confidence level."""
         check_is_fitted(self, "loadings_")
@@ -570,3 +585,4 @@ class BatchPCA(TransformerMixin, BaseEstimator):
     score_limit = _pca_method(_score_limit)
     t2_contributions = _pca_method(_t2_contributions)
     spe_contributions = _pca_method(_spe_contributions)
+    score_contributions = _pca_method(_score_contributions)
