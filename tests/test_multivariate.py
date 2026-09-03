@@ -77,7 +77,8 @@ def test_terminate_check_off_by_one_fixed() -> None:
     ``md_max_iter + 1``.
     """
 
-    # Unconverged scores: a tiny non-zero diff so the tolerance branch is False.
+    # Unconverged scores: the relative change ||diff|| / ||t_a|| is ~4.6e-4,
+    # far above md_tol, so the tolerance branch is False.
     t_a_guess = np.array([1.0, 2.0, 3.0])
     t_a = np.array([1.001, 2.001, 3.001])
     settings = {"md_tol": 1e-9, "md_max_iter": 5}
@@ -86,6 +87,63 @@ def test_terminate_check_off_by_one_fixed() -> None:
     assert terminate_check(t_a_guess, t_a, iterations=4, settings=settings) is False
     # iterations == md_max_iter -> terminated (post-fix).
     assert terminate_check(t_a_guess, t_a, iterations=5, settings=settings) is True
+
+
+def test_terminate_check_is_scale_relative() -> None:
+    """#504: terminate_check compares the successive-iteration change relative
+    to the norm of the current score vector, so the convergence decision is
+    invariant to a global rescaling of the vectors.
+    """
+    settings = {"md_tol": 1e-6, "md_max_iter": 500}
+
+    # A relative change of 1e-3 in each element: not converged at md_tol=1e-6,
+    # at any magnitude. The old absolute criterion declared the tiny pair
+    # (scale 1e-12) converged instantly.
+    base_guess = np.array([1.0, 2.0, 3.0])
+    base_new = base_guess * (1 + 1e-3)
+    for magnitude in (1e-12, 1.0, 1e9):
+        assert terminate_check(magnitude * base_guess, magnitude * base_new, iterations=1, settings=settings) is False
+
+    # A relative change of 1e-9: converged at md_tol=1e-6, at any magnitude.
+    # The old absolute criterion could never reach 1e-6 at scale 1e9 (the
+    # absolute gap is ~3.7), so it burned all md_max_iter iterations there.
+    tiny_new = base_guess * (1 + 1e-9)
+    for magnitude in (1e-12, 1.0, 1e9):
+        assert terminate_check(magnitude * base_guess, magnitude * tiny_new, iterations=1, settings=settings) is True
+
+    # A fully-deflated, all-zero score vector: the floored denominator reports
+    # convergence instead of dividing by zero.
+    zeros = np.zeros(3)
+    assert terminate_check(zeros, zeros, iterations=1, settings=settings) is True
+
+
+def test_nipals_fit_is_scale_invariant() -> None:
+    """#504: fitting on ``X`` and on ``1000 * X`` takes the same number of
+    NIPALS iterations, and gives identical loadings and scores up to the
+    scale factor, for both PCA and PLS.
+    """
+    rng = np.random.default_rng(42)
+    N, K, M, A = 40, 6, 2, 3
+    t_true = rng.standard_normal((N, 3))
+    p_true = rng.standard_normal((3, K))
+    X = pd.DataFrame(t_true @ p_true + 0.1 * rng.standard_normal((N, K)))
+    X = X - X.mean()  # mean-centre only: no unit-variance scaling, on purpose
+    Y = pd.DataFrame(X.values @ rng.standard_normal((K, M)) + 0.1 * rng.standard_normal((N, M)))
+    Y = Y - Y.mean()
+    factor = 1000.0
+
+    pca_base = PCA(n_components=A, algorithm="nipals").fit(X)
+    pca_scaled = PCA(n_components=A, algorithm="nipals").fit(X * factor)
+    assert pca_base.fitting_info_["iterations"] == pytest.approx(pca_scaled.fitting_info_["iterations"])
+    assert pca_scaled.loadings_.values == pytest.approx(pca_base.loadings_.values, rel=1e-8, abs=1e-10)
+    assert pca_scaled.scores_.values == pytest.approx(factor * pca_base.scores_.values, rel=1e-8)
+
+    # PLS with scale=False so the rescale actually reaches the NIPALS loop.
+    pls_base = PLS(n_components=A, scale=False).fit(X, Y)
+    pls_scaled = PLS(n_components=A, scale=False).fit(X * factor, Y * factor)
+    assert pls_base.fitting_info_["iterations"] == pytest.approx(pls_scaled.fitting_info_["iterations"])
+    assert pls_scaled.x_loadings_.values == pytest.approx(pls_base.x_loadings_.values, rel=1e-8, abs=1e-10)
+    assert pls_scaled.scores_.values == pytest.approx(factor * pls_base.scores_.values, rel=1e-8)
 
 
 def test_spe_calculation_handles_empty_negative_slice() -> None:
@@ -124,6 +182,7 @@ def test_regress_y_space_on_x() -> None:
     assert pytest.approx(np.array([[1, 1, 1, 1, float("nan"), 2 / 3]]).T, nan_ok=True) == regression_vector
 
 
+@pytest.mark.slow
 def test_pca_spe_limits() -> None:
     """Simulate data and see if SPE limit cuts off at 5%."""
     N = 1000
@@ -154,6 +213,7 @@ def test_pca_spe_limits() -> None:
     assert np.mean(outliers_99) == pytest.approx(0.01 * N, rel=0.1)
 
 
+@pytest.mark.dataset
 def test_pca_foods() -> None:
     """Arrays with no variance should not be able to have variance extracted."""
 
@@ -392,6 +452,7 @@ def test_scale_zero_variance_column_is_finite() -> None:
     assert np.allclose(np.asarray(scaled, dtype=float)[:, 1], 0.0)
 
 
+@pytest.mark.slow
 def test_pca_tablet_spectra(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarray]) -> None:
     r"""
     Check PCA characteristics.
@@ -798,6 +859,7 @@ def test_pca_select_n_components_rule_dispatch() -> None:
         PCA.select_n_components(X_s, max_components=3, cv=3, cv_scheme="bogus")  # type: ignore[arg-type]
 
 
+@pytest.mark.slow
 def test_pca_select_n_components_n_repeats_narrows_se() -> None:
     """Repeated ekf gives reproducible answers and a narrower per-component SE."""
     rng = np.random.default_rng(2026)
@@ -2657,6 +2719,7 @@ def test_pls_detect_outliers_ldpe(
         assert severities == sorted(severities, reverse=True)
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_synthetic() -> None:
     """Cross-validated component selection recovers a known low-rank structure."""
     rng = np.random.default_rng(42)
@@ -2723,6 +2786,7 @@ def test_pls_select_n_components_synthetic() -> None:
     assert not result.cv_predictions.isna().any().any()
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_ldpe(
     fixture_pls_ldpe_example: dict[str, pd.DataFrame | np.ndarray | float | int],
 ) -> None:
@@ -2749,6 +2813,7 @@ def test_pls_select_n_components_ldpe(
     assert result.cv_predictions.shape == (n_samples, n_targets)
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_accepts_splitters() -> None:
     """The cv argument accepts an int and any sklearn splitter object."""
     rng = np.random.default_rng(7)
@@ -2809,6 +2874,7 @@ def test_pls_select_n_components_argument_validation() -> None:
         PLS.select_n_components(X, Y, cv=5, n_repeats=0)
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_1se_default_picks_parsimony() -> None:
     """The default (1-SE rule) is more parsimonious than argmin RMSECV on noise-padded data.
 
@@ -2835,6 +2901,7 @@ def test_pls_select_n_components_1se_default_picks_parsimony() -> None:
     assert res_1se.n_components <= 8
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_repeated_kfold_stability() -> None:
     """Repeated K-fold gives reproducible answers given a random_state and
     narrows the per-component standard error as repeats grow.
@@ -2859,6 +2926,7 @@ def test_pls_select_n_components_repeated_kfold_stability() -> None:
     assert (many.se_rmsecv < few.se_rmsecv).all()
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_in_fold_scaling_no_leakage() -> None:
     """In-fold scaling is the default; raw, unscaled X/Y produce sensible RMSECV."""
     rng = np.random.default_rng(99)
@@ -2904,6 +2972,7 @@ def test_pls_select_n_components_in_fold_scaling_no_leakage() -> None:
     assert 1 <= leaky.n_components <= 5
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_q2_increment_rule() -> None:
     """The Q2-increment rule (from PR #371) is preserved as an opt-in."""
     rng = np.random.default_rng(2025)
@@ -2930,6 +2999,7 @@ def test_pls_select_n_components_q2_increment_rule() -> None:
         PLS.select_n_components(X, Y, max_components=3, cv=3, selection_rule="bogus")  # type: ignore[arg-type]
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_stability_signal() -> None:
     """Per-repeat vote distribution flags confident vs. uncertain recommendations."""
     rng = np.random.default_rng(0)
@@ -2999,6 +3069,7 @@ def test_pls_select_n_components_stability_signal() -> None:
     assert strict.selection_is_stable is False
 
 
+@pytest.mark.slow
 def test_pls_nested_cv_recovers_known_rank_and_reports_rmsep() -> None:
     """Nested CV converges on the true rank and reports honest RMSEP."""
     rng = np.random.default_rng(7)
@@ -3273,6 +3344,7 @@ def test_get_feature_names_out_mcuv_pca_pls() -> None:
     assert out.shape == (30, 2)
 
 
+@pytest.mark.slow
 def test_pls_select_n_components_randomization_rule() -> None:
     """Van der Voet's randomization test picks a parsimonious model."""
     rng = np.random.default_rng(2026)
@@ -3873,10 +3945,13 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
         5.59365285,
         5.54739917,
     ]
-    # Check that the Hotelling's T2 matches what would have been calculated by the model.
-    assert pytest.approx(tpls_test.hotellings_t2.loc[testing_samples]) == predictions["hotellings_t2"].values[
-        :, -1
-    ].reshape(-1, 1)
+    # Check that the Hotelling's T2 matches what would have been calculated by the model:
+    # fit() and diagnose() now share the same cumulative per-component form (#502), so the
+    # full (n_obs, n_components) frames agree, not just the last column.
+    assert (
+        pytest.approx(tpls_test.hotellings_t2.loc[testing_samples].to_numpy())
+        == predictions["hotellings_t2"].to_numpy()
+    )
 
     # from sklearn.model_selection import cross_val_score
 
@@ -3885,14 +3960,19 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     assert tpls_test.fitting_statistics["iterations"] == [11, 9, 27]
     assert all(tol < epsqrt for tol in tpls_test.fitting_statistics["convergance_tolerance"])
 
-    # Model parameters tested
-    assert pytest.approx(tpls_test.hotellings_t2.iloc[0:5].values.ravel()) == np.array(
+    # Model parameters tested. ``hotellings_t2`` is now the cumulative per-component form
+    # with the unbiased (N - 1) score-variance divisor (#502), shape (N, n_components); the
+    # full-model T2 is the last column. The training super-scores are orthogonal (largest
+    # normalized off-diagonal cross-product ~1e-17), so the previous full-Mahalanobis pins
+    # [2.49885911, 2.961537, 2.88846366, 4.58151729, 5.06621405] equal the diagonal form
+    # with the N divisor: the new values are exactly the old ones times (N-1)/N = 104/105.
+    assert pytest.approx(tpls_test.hotellings_t2.iloc[0:5, -1].values.ravel()) == np.array(
         [
-            2.49885911,
-            2.961537,
-            2.88846366,
-            4.58151729,
-            5.06621405,
+            2.47506046,
+            2.93333189,
+            2.86095448,
+            4.53788379,
+            5.01796439,
         ]
     )
 
@@ -3963,6 +4043,27 @@ def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PL
     assert predictions.spe is not None  # test the `Bunch` functionality
 
 
+def test_tpls_fit_and_diagnose_t2_agree(fixture_tpls_example: dict) -> None:
+    """#502: ``fit()`` and ``diagnose()`` compute Hotelling's T2 by the same
+    cumulative per-component formula with the unbiased (N - 1) score-variance
+    divisor, so the training rows give the same values, with the same
+    (n_obs, n_components) shape, from both entry points.
+    """
+    d_matrix = fixture_tpls_example.pop("D")
+    model = TPLS(n_components=3, d_matrix=d_matrix).fit(DataFrameDict(fixture_tpls_example))
+    result = model.diagnose(DataFrameDict({"Z": fixture_tpls_example["Z"], "F": fixture_tpls_example["F"]}))
+    n_obs = model.t_scores_super.shape[0]
+    assert model.hotellings_t2.shape == (n_obs, 3)
+    assert result.hotellings_t2.shape == model.hotellings_t2.shape
+    np.testing.assert_allclose(result.hotellings_t2.to_numpy(), model.hotellings_t2.to_numpy(), atol=1e-10)
+
+    # The score standard deviations feed ellipse_coordinates; pin the unbiased
+    # (N - 1) computation against a direct calculation on the super-scores.
+    expected_sd = np.sqrt(np.diag(model.t_scores_super.to_numpy().T @ model.t_scores_super.to_numpy()) / (n_obs - 1))
+    assert model.scaling_factor_for_scores.to_numpy() == pytest.approx(expected_sd, rel=1e-12)
+
+
+@pytest.mark.slow
 def test_tpls_cross_validation(fixture_tpls_example: dict) -> None:
     """Test the prediction process of the TPLS model to ensure it functions as expected."""
     n_components = 3
@@ -4707,6 +4808,7 @@ def test_observation_contributions_pls() -> None:
         model.observation_contributions(n_components=5)
 
 
+@pytest.mark.slow
 def test_eigenvalue_summary_pca(fixture_tablet_spectra_data: tuple[pd.DataFrame, np.ndarray]) -> None:
     """Eigenvalue summary for PCA on a real dataset: tidy table, monotone cumulative."""
     spectra, _ = fixture_tablet_spectra_data

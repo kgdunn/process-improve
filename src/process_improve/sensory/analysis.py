@@ -18,8 +18,8 @@ attribute to the product. The relate step dispatches on the validation mode:
 The observational relate corrects across the family of tests with
 Benjamini-Hochberg FDR and returns supporting product means with confidence
 intervals and a PCA sensory map. Both the marginal associations and the
-cross-validated discriminator are additionally gated on a leave-one-out
-jackknife, so an association or predictive coefficient that rests on a single
+per-attribute predictive-descriptor search are additionally gated on a
+leave-one-out jackknife, so an association or predictive coefficient that rests on a single
 high-leverage observation (a predictor that is non-zero on only one product,
 common in sparse, wide descriptor blocks) is demoted rather than reported. The
 jackknife adds no threshold of its own: it reuses the same ``alpha`` and the
@@ -113,6 +113,29 @@ _MIN_OBS_FOR_JACKKNIFE = 4
 #: Correlations are clipped off +/-1 before the Fisher-z transform so ``arctanh``
 #: stays finite.
 _R_CLIP = 1.0 - 1e-12
+
+
+def _resolve_find_predictive(find_predictive: bool, discriminator: bool | None) -> bool:
+    """Accept the deprecated ``discriminator=`` spelling of ``find_predictive=``.
+
+    .. deprecated:: 1.77.0
+        ``discriminator`` will be removed in 2.0.0.
+    """
+    if discriminator is None:
+        return find_predictive
+    if not find_predictive:
+        msg = (
+            "Pass either 'find_predictive' or the deprecated 'discriminator', not both. "
+            "They set the same thing: whether to run the per-attribute predictive-descriptor search."
+        )
+        raise ValueError(msg)
+    warnings.warn(
+        "The 'discriminator' argument is deprecated since 1.77.0 and will be removed in 2.0.0; "
+        "use 'find_predictive' instead.",
+        category=DeprecationWarning,
+        stacklevel=3,
+    )
+    return discriminator
 
 
 def _attach_fdr(records: list[dict[str, Any]], alpha: float) -> list[dict[str, Any]]:
@@ -261,8 +284,8 @@ def _collinear_clusters(x_block: pd.DataFrame, threshold: float) -> dict[str, in
     two descriptors join the same cluster when their absolute Pearson
     correlation is at least ``threshold``. Returns ``{descriptor: cluster_id}``
     with cluster ids assigned in column order (a singleton descriptor gets its
-    own id). Collinear proxies therefore share an id, which is how the
-    discriminator reports that they cannot be told apart.
+    own id). Collinear proxies therefore share an id, which is how
+    :func:`find_predictive_descriptors` reports that they cannot be told apart.
     """
     cols = list(x_block.columns)
     n = len(cols)
@@ -292,7 +315,7 @@ def _collinear_clusters(x_block: pd.DataFrame, threshold: float) -> dict[str, in
     return cluster_of
 
 
-def discriminate_observational(  # noqa: PLR0913, PLR0915
+def find_predictive_descriptors(  # noqa: PLR0913, PLR0915
     agg: pd.DataFrame,
     covariates: pd.DataFrame,
     *,
@@ -303,7 +326,7 @@ def discriminate_observational(  # noqa: PLR0913, PLR0915
     cluster_threshold: float = 0.95,
     max_components_cv: int = 4,
 ) -> dict[str, Any]:
-    """Cross-validated discriminator of which descriptors carry predictive signal.
+    """Find which descriptors carry predictive signal, per attribute.
 
     The marginal associations (:func:`relate_observational`) flag every
     descriptor that correlates with an attribute in-sample, genuine drivers and
@@ -312,15 +335,27 @@ def discriminate_observational(  # noqa: PLR0913, PLR0915
     1. a per-attribute cross-validated Q-squared gate (is the attribute
        predictable from the descriptor block at all),
     2. a selectivity ratio per descriptor on the target-projected predictive
-       direction, with a permutation p-value (Benjamini-Hochberg corrected
-       across the whole family), so a descriptor that merely correlates by
-       chance but does not enter the predictive direction is demoted, and
+       direction, with a permutation p-value corrected for multiplicity by the
+       max-statistic (Westfall-Young) permutation, so a descriptor that merely
+       correlates by chance but does not enter the predictive direction is
+       demoted, and
     3. a collinear-cluster id per descriptor.
 
     What it cannot do is rank descriptors *within* a collinear cluster: two
     descriptors that carry the same information predict equally well out of
     sample, so they share a cluster id and both stay significant. Separating
     them needs an external dataset or a designed experiment.
+
+    .. important::
+
+       **The multiplicity correction is within an attribute, not across them.**
+       The max-statistic null is rebuilt for each attribute over its own
+       descriptors, so ``p_value_fwer`` controls the family-wise error rate for
+       *that attribute's* descriptor family only. Nothing corrects across
+       attributes: on a panel of ``A`` attributes at ``alpha``, roughly
+       ``alpha * A`` attributes are expected to produce a spurious family by
+       chance alone. Read a single flagged descriptor on a many-attribute panel
+       with that in mind.
 
     Parameters
     ----------
@@ -346,12 +381,23 @@ def discriminate_observational(  # noqa: PLR0913, PLR0915
     -------
     dict
         ``per_attribute`` (the Q-squared gate per attribute), ``descriptors``
-        (the per attribute-descriptor selectivity ratio, permutation q-value,
+        (the per attribute-descriptor selectivity ratio, raw permutation
+        ``p_value``, family-wise-error-adjusted ``p_value_fwer``,
         ``jackknife_significant`` flag from the leave-one-out beta confidence
-        interval, ``discriminator_significant`` flag and ``cluster_id``),
-        ``clusters`` (the descriptor-to-cluster map), and the settings used. A
-        descriptor is ``discriminator_significant`` only when it also survives the
-        jackknife, so a coefficient carried by a single product is demoted.
+        interval, ``is_predictive`` flag and ``cluster_id``), ``clusters`` (the
+        descriptor-to-cluster map), and the settings used. A descriptor is
+        ``is_predictive`` only when it also survives the jackknife, so a
+        coefficient carried by a single product is demoted.
+
+    See Also
+    --------
+    permutation_column_null :
+        The block-level counterpart. It fits one multi-response PLS over the
+        whole attribute block and returns one record per descriptor, answering
+        "which descriptors matter for the panel as a whole" rather than "which
+        matter for this attribute". Reach for it to screen a descriptor block
+        before committing to per-attribute work; reach for this function when
+        the answer has to name the attribute.
     """
     x_all = covariates.loc[agg.index]
     descriptors = [c for c in x_all.columns if c != "product" and pd.api.types.is_numeric_dtype(x_all[c])]
@@ -383,6 +429,16 @@ def discriminate_observational(  # noqa: PLR0913, PLR0915
         #    coefficient (Martens' uncertainty test); it is reused below so a
         #    descriptor whose predictive weight rests on a single high-leverage
         #    product is demoted even when it survives the permutation null.
+        #
+        #    `q2_cv > 0.0` is deliberately a low, uncalibrated bar. It is a
+        #    cheap pre-screen, not the test: it decides whether the 199-refit
+        #    permutation loop below is worth running, and it is ANDed with the
+        #    calibrated max-statistic p-value and the jackknife flag when
+        #    `is_predictive` is set. Passing it therefore cannot make a
+        #    descriptor a finding; only failing it can rule one out early.
+        #    Tightening it would remove findings that already cleared a
+        #    family-wise-error-controlled null, at the cost of a permutation
+        #    null per attribute on top of the one already here.
         predictable = False
         q2_cv = float("nan")
         rmsep_cv = float("nan")
@@ -451,8 +507,14 @@ def discriminate_observational(  # noqa: PLR0913, PLR0915
                     "descriptor": str(desc),
                     "selectivity_ratio": float(sr_values[i]),
                     "p_value": float(p_raw[i]),
+                    "p_value_fwer": float(p_maxt[i]),
+                    # Deprecated since 1.77.0, removed in 2.0.0: q_value is the
+                    # old name for p_value_fwer. It was always a family-wise
+                    # error rate, never an FDR q-value, which is why it moved.
                     "q_value": float(p_maxt[i]),
                     "jackknife_significant": bool(desc_robust),
+                    "is_predictive": bool(p_maxt[i] <= alpha and predictable and desc_robust),
+                    # Deprecated since 1.77.0, removed in 2.0.0.
                     "discriminator_significant": bool(p_maxt[i] <= alpha and predictable and desc_robust),
                     "cluster_id": clusters[str(desc)],
                 }
@@ -499,10 +561,11 @@ def relate_observational(  # noqa: PLR0913
     *,
     n_components: int = 2,
     alpha: float = 0.05,
-    discriminator: bool = True,
+    find_predictive: bool = True,
     n_permutations: int = 199,
     random_state: int = 0,
     influence_deletions: int = 1,
+    discriminator: bool | None = None,
 ) -> dict[str, Any]:
     """Relate the attribute block to measured descriptors with PLS plus correlations.
 
@@ -514,6 +577,7 @@ def relate_observational(  # noqa: PLR0913
     sets how many observations are removed together: raise it to 2 to also demote a
     correlation carried by a single pair of observations.
     """
+    find_predictive = _resolve_find_predictive(find_predictive, discriminator)
     x_block = covariates.loc[agg.index].astype(float)
     y_block = agg.astype(float)
     max_comp = max(1, min(n_components, x_block.shape[1], x_block.shape[0] - 1))
@@ -552,8 +616,8 @@ def relate_observational(  # noqa: PLR0913
         "vip": drivers,
         "associations": assoc,
     }
-    if discriminator:
-        result["discriminator"] = discriminate_observational(
+    if find_predictive:
+        result["predictive_descriptors"] = find_predictive_descriptors(
             agg,
             covariates.loc[agg.index],
             n_components=max_comp,
@@ -561,6 +625,9 @@ def relate_observational(  # noqa: PLR0913
             n_permutations=n_permutations,
             random_state=random_state,
         )
+        # Deprecated since 1.77.0, removed in 2.0.0: the same object under its
+        # old key, so an existing caller reading result["discriminator"] works.
+        result["discriminator"] = result["predictive_descriptors"]
     return result
 
 
@@ -639,6 +706,19 @@ def permutation_column_null(  # noqa: PLR0913
         ``descriptors`` (per surviving descriptor: ``vip`` / ``cv_beta`` and the
         ``*_null_threshold`` and ``*_exceeds_null`` fields), plus the settings used and
         the counts (``n_descriptors``, ``n_knockoffs``, ``n_iter``, ``ignored``).
+
+    See Also
+    --------
+    find_predictive_descriptors :
+        The per-attribute counterpart, and the one to prefer when the answer
+        has to name an attribute. It reports one record per (attribute,
+        descriptor) pair and controls the family-wise error rate within each
+        attribute by a max-statistic permutation. This function instead fits a
+        single multi-response PLS over the whole attribute block and returns one
+        record per descriptor, so it answers "which descriptors matter for the
+        panel as a whole"; its knockoff quantile band is a calibrated screen
+        rather than formal error control. Use it to triage a wide descriptor
+        block before committing to the per-attribute work.
     """
     if fraction <= 0.0:
         raise ValueError(f"fraction must be positive, got {fraction}.")
@@ -758,10 +838,11 @@ def analyze_descriptive(  # noqa: PLR0913
     n_components: int = 2,
     conf_level: float = 0.95,
     alpha: float = 0.05,
-    discriminator: bool = True,
+    find_predictive: bool = True,
     n_permutations: int = 199,
     random_state: int = 0,
     influence_deletions: int = 1,
+    discriminator: bool | None = None,
 ) -> AnalysisResult:
     """Run the descriptive pipeline: panel check, correction, and relate.
 
@@ -790,13 +871,13 @@ def analyze_descriptive(  # noqa: PLR0913
         Confidence level for the product-mean intervals.
     alpha : float
         Target false-discovery rate for the relate step.
-    discriminator : bool
-        Whether to run the cross-validated discriminator
-        (:func:`discriminate_observational`) in the observational relate step.
+    find_predictive : bool
+        Whether to run the per-attribute predictive-descriptor search
+        (:func:`find_predictive_descriptors`) in the observational relate step.
     n_permutations : int
-        Permutations for the discriminator's selectivity-ratio null.
+        Permutations for the selectivity-ratio null.
     random_state : int
-        Seed for the discriminator's permutations and cross-validation folds.
+        Seed for the permutations and cross-validation folds.
     influence_deletions : int
         How many observations the marginal-association jackknife removes together
         (default 1, ordinary leave-one-out). Raising it to 2 also demotes a
@@ -832,6 +913,7 @@ def analyze_descriptive(  # noqa: PLR0913
         dropped = drop_panelists
     else:
         dropped = []
+    find_predictive = _resolve_find_predictive(find_predictive, discriminator)
     clean = apply_correction(working, dropped)
 
     agg = aggregate_to_product(clean)
@@ -843,7 +925,7 @@ def analyze_descriptive(  # noqa: PLR0913
             validated.covariates,
             n_components=n_components,
             alpha=alpha,
-            discriminator=discriminator,
+            find_predictive=find_predictive,
             n_permutations=n_permutations,
             random_state=random_state,
             influence_deletions=influence_deletions,
@@ -865,10 +947,52 @@ def analyze_descriptive(  # noqa: PLR0913
             "n_components": n_components,
             "conf_level": conf_level,
             "alpha": alpha,
-            "discriminator": discriminator,
+            "find_predictive": find_predictive,
+            # Deprecated since 1.77.0, removed in 2.0.0.
+            "discriminator": find_predictive,
             "n_permutations": n_permutations,
             "random_state": random_state,
             "influence_deletions": influence_deletions,
             "content_hash": validated.content_hash,
         },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Deprecated aliases - removal scheduled for 2.0.0
+# ---------------------------------------------------------------------------
+
+
+def discriminate_observational(  # noqa: PLR0913
+    agg: pd.DataFrame,
+    covariates: pd.DataFrame,
+    *,
+    n_components: int = 2,
+    alpha: float = 0.05,
+    n_permutations: int = 199,
+    random_state: int = 0,
+    cluster_threshold: float = 0.95,
+    max_components_cv: int = 4,
+) -> dict[str, Any]:
+    """Forward to :func:`find_predictive_descriptors`; emits a :class:`DeprecationWarning`.
+
+    .. deprecated:: 1.77.0
+        Use :func:`find_predictive_descriptors` instead. Will be removed in
+        2.0.0.
+    """
+    warnings.warn(
+        "process_improve.sensory.discriminate_observational is deprecated since 1.77.0 and will "
+        "be removed in 2.0.0; use find_predictive_descriptors instead.",
+        category=DeprecationWarning,
+        stacklevel=2,
+    )
+    return find_predictive_descriptors(
+        agg,
+        covariates,
+        n_components=n_components,
+        alpha=alpha,
+        n_permutations=n_permutations,
+        random_state=random_state,
+        cluster_threshold=cluster_threshold,
+        max_components_cv=max_components_cv,
     )

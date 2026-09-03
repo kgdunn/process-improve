@@ -176,6 +176,39 @@ def center(
     *Missing values*: The sample mean is computed by taking the sum along the `axis`, skipping
     any missing data, and dividing by N = number of values which are present. Values which were
     missing before, are left as missing after.
+
+    Returns
+    -------
+    centred : DataMatrix
+        The centred data, returned when ``extra_output=False`` (the default).
+    (centred, centre_vector) : tuple[DataMatrix, np.ndarray]
+        When ``extra_output=True``, a tuple of the centred data and the
+        centring vector.
+
+    Notes
+    -----
+    **The extra output of** :func:`center` **and** :func:`scale` **are not the
+    same kind of quantity.** :func:`center` returns the value that was
+    *subtracted*, so replaying it means subtracting again. :func:`scale`
+    returns the *multiplier* it applied, which is the reciprocal of `func`, so
+    replaying that one means multiplying, not dividing. Getting the two the
+    same way round is wrong by a factor of the variance::
+
+        centred, subtrahend = center(X, extra_output=True)
+        scaled, multiplier = scale(centred, extra_output=True)
+        # replay on new rows:
+        new_scaled = (new_X - subtrahend) * multiplier   # note: minus, then times
+
+    They also disagree on degrees of freedom: :func:`scale` defaults to
+    ``ddof=0`` while :class:`MCUVScaler` uses ``ddof=1``, a factor of
+    ``sqrt(n / (n - 1))``. Prefer :class:`MCUVScaler` when preparing data for a
+    PCA / PLS fit; it does both steps together, keeps the constants as fitted
+    attributes, and has an :meth:`~MCUVScaler.inverse_transform`.
+
+    See Also
+    --------
+    MCUVScaler : Mean-centre and unit-variance scale in one fitted estimator.
+    scale : The scaling counterpart, whose extra output is a multiplier.
     """
     # pandas-stubs types apply()'s axis as a Literal, so a plain ``int`` axis does
     # not match any overload; the call is valid at runtime.
@@ -249,6 +282,29 @@ def scale(
         `axis`, with zero entries replaced by 1.0 to leave constant columns
         unchanged) is returned instead.
 
+    Notes
+    -----
+    **The extra output of** :func:`scale` **and** :func:`center` **are not the
+    same kind of quantity.** This function returns the *multiplier* it applied
+    (the reciprocal of `func`), whereas :func:`center` returns the value it
+    *subtracted*. Replaying a scaling on new rows therefore means multiplying
+    by ``scale_vector``; dividing by it is wrong by a factor of the variance.
+    If dividing reads more naturally, invert it explicitly and name the
+    variable for what it is::
+
+        scaled, multiplier = scale(centred, extra_output=True)
+        divisor = 1.0 / multiplier
+
+    The two also disagree on degrees of freedom: this function defaults to
+    ``ddof=0`` while :class:`MCUVScaler` uses ``ddof=1``, a factor of
+    ``sqrt(n / (n - 1))``. Prefer :class:`MCUVScaler` when preparing data for a
+    PCA / PLS fit.
+
+    See Also
+    --------
+    MCUVScaler : Mean-centre and unit-variance scale in one fitted estimator.
+    center : The centring counterpart, whose extra output is a subtrahend.
+
     """
     if func is np.std and "ddof" not in kwargs:
         kwargs["ddof"] = ddof
@@ -267,3 +323,82 @@ def scale(
         return np.multiply(X, vector), vector
     else:
         return np.multiply(X, vector)
+
+
+#: A column whose ``|mean| / sd`` exceeds this is treated as un-centred. The
+#: number is chosen from the damage it does: fitting without an intercept
+#: displaces every prediction by roughly the block mean, which costs
+#: approximately ``(mean / sd) ** 2`` of R², so 0.5 is the point where a quarter
+#: of the variance has already been thrown away.
+_UNCENTRED_MEAN_RATIO: float = 0.5
+
+#: Tolerances for recognising a block the caller has already mean-centred and
+#: unit-variance scaled. Loose enough to accept a ``ddof=0`` scaling (which is
+#: off by ``sqrt(n / (n - 1))``, i.e. 2.6% at n=20) as "already scaled".
+_PRESCALED_MEAN_ATOL: float = 0.05
+_PRESCALED_SD_ATOL: float = 0.05
+
+
+def _column_moments(X: DataMatrix) -> tuple[np.ndarray, np.ndarray]:
+    """Return the NaN-skipping column means and sample (``ddof=1``) standard deviations."""
+    values = np.asarray(pd.DataFrame(X), dtype=float)
+    with warnings.catch_warnings():
+        # All-NaN and single-observation columns raise numpy RuntimeWarnings;
+        # both are filtered out by the callers below.
+        warnings.simplefilter("ignore", RuntimeWarning)
+        means = np.nanmean(values, axis=0)
+        sds = np.nanstd(values, axis=0, ddof=1)
+    return means, sds
+
+
+def _uncentred_columns(X: DataMatrix, ratio: float = _UNCENTRED_MEAN_RATIO) -> list:
+    """Return the labels of columns whose mean is large relative to their own spread.
+
+    A column with no spread at all cannot have been centred unless its mean is
+    also zero, so a constant non-zero column is always reported.
+
+    Parameters
+    ----------
+    X : DataMatrix
+        The block to inspect.
+    ratio : float
+        Report a column when ``|mean| / sd`` exceeds this. See
+        :data:`_UNCENTRED_MEAN_RATIO`.
+
+    Returns
+    -------
+    list
+        Column labels, in column order. Empty when the block looks centred.
+    """
+    frame = pd.DataFrame(X)
+    means, sds = _column_moments(frame)
+    # A tiny spread is treated as no spread, mirroring MCUVScaler's constant-column
+    # guard, so the division below cannot overflow.
+    tiny = float(np.finfo(float).tiny) ** 0.5
+    degenerate = ~np.isfinite(sds) | (sds <= tiny)
+    with np.errstate(invalid="ignore"):
+        flagged = np.where(
+            degenerate,
+            np.isfinite(means) & (np.abs(means) > tiny),
+            np.abs(means) > ratio * np.where(degenerate, 1.0, sds),
+        )
+    return [label for label, flag in zip(frame.columns, flagged, strict=True) if bool(flag)]
+
+
+def _looks_prescaled(X: DataMatrix) -> bool:
+    """Return True when every non-constant column is already centred and unit-variance.
+
+    Used to warn a caller who has done their own scaling and is about to have it
+    re-done (and therefore erased) inside cross-validation folds. Constant
+    columns carry no scaling evidence either way and are ignored, unless every
+    column is constant, in which case there is nothing to judge and the answer
+    is ``False``.
+    """
+    means, sds = _column_moments(X)
+    usable = np.isfinite(means) & np.isfinite(sds) & (sds > 0)
+    if not np.any(usable):
+        return False
+    return bool(
+        np.all(np.abs(means[usable]) <= _PRESCALED_MEAN_ATOL)
+        and np.all(np.abs(sds[usable] - 1.0) <= _PRESCALED_SD_ATOL)
+    )

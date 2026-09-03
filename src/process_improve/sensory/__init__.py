@@ -20,6 +20,7 @@ from process_improve.sensory.analysis import (
     aggregate_to_product,
     analyze_descriptive,
     discriminate_observational,
+    find_predictive_descriptors,
     permutation_column_null,
     product_means,
     relate_designed,
@@ -31,6 +32,11 @@ from process_improve.sensory.designed import (
     dunnett_vs_control,
     factorial_anova,
     tukey_hsd,
+)
+from process_improve.sensory.diagnostics import (
+    assessor_variance_equality,
+    boundary_occupancy,
+    detection_rate,
 )
 from process_improve.sensory.ingest import reshape_to_long
 from process_improve.sensory.mam import MAMResult, align_scores, mixed_assessor_model
@@ -54,10 +60,14 @@ __all__ = [
     "align_scores",
     "analyze_descriptive",
     "apply_correction",
+    "assessor_variance_equality",
+    "boundary_occupancy",
     "compare_products",
+    "detection_rate",
     "discriminate_observational",
     "dunnett_vs_control",
     "factorial_anova",
+    "find_predictive_descriptors",
     "mixed_assessor_model",
     "panel_scorecard",
     "permutation_column_null",

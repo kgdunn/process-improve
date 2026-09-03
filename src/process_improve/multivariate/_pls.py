@@ -44,7 +44,7 @@ from ._diagnostics import (
     target_projection as _target_projection,
 )
 from ._nipals import quick_regress, ssq, terminate_check
-from ._preprocessing import MCUVScaler
+from ._preprocessing import MCUVScaler, _looks_prescaled, _uncentred_columns
 from ._projection import coerce_observed_mask, operator_for_pattern, project_rows
 from .plots import (
     coefficient_plot as _coefficient_plot,
@@ -140,6 +140,51 @@ def _vandervoet_randomization(
     return recommended, p_values
 
 
+def _format_labels(labels: list, limit: int = 4) -> str:
+    """Render column labels for a warning message, truncating a long list."""
+    shown = ", ".join(repr(str(label)) for label in labels[:limit])
+    if len(labels) > limit:
+        shown += f", ... ({len(labels)} columns in total)"
+    return shown
+
+
+def _warn_if_uncentred(X: pd.DataFrame, Y: pd.DataFrame) -> None:
+    """Warn when ``PLS(scale=False)`` is handed a block that was never centred.
+
+    With ``scale=False`` nothing is centred and no intercept is fitted, so a
+    block carrying a non-zero mean displaces every prediction. The response is
+    the damaging case: predictions come out offset by roughly the response mean,
+    which drives R² and Q² large and negative on data that does contain a
+    relationship. That reads as "there is nothing here", so the failure has to be
+    announced rather than left to the caller to notice.
+
+    Deliberately a warning, not an automatic centring: ``scale=False`` currently
+    means "touch nothing", and quietly centring would change the numbers for
+    every caller who already centres correctly.
+    """
+    for block, name in ((Y, "Y"), (X, "X")):
+        offenders = _uncentred_columns(block)
+        if not offenders:
+            continue
+        symptom = (
+            "every prediction is offset by roughly the response mean, so R2 and Q2 "
+            "go large and negative and the fit reads as 'no relationship in this "
+            "data' even when the relationship is strong"
+            if name == "Y"
+            else "the un-centred columns act as an uncontrolled constant term, so the "
+            "loadings and R2 describe the offset rather than the variation around it"
+        )
+        warnings.warn(
+            f"PLS(scale=False) fits no intercept and centres nothing, but column(s) "
+            f"{_format_labels(offenders)} of the {name} block have a mean that is large "
+            f"relative to their own spread. The consequence is not an error: "
+            f"{symptom}. Centre both blocks first (MCUVScaler().fit_transform(...), or "
+            f"X - X.mean()), or pass scale=True and let the model do it.",
+            SpecificationWarning,
+            stacklevel=3,
+        )
+
+
 class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator):
     """Projection to Latent Structures (PLS) regression with diagnostics.
 
@@ -163,10 +208,20 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         ``scale=False`` to avoid the (idempotent) double scaling. Note: the
         cross-validation helpers (:meth:`select_n_components`) always re-fit an
         :class:`MCUVScaler` inside each training fold regardless of this flag.
+
+        ``scale=False`` fits **no intercept**, so both blocks must already be
+        centred. A response left on its natural scale is the trap: predictions
+        come out offset by the response mean, and R² / Q² go large and negative
+        on data that does contain a relationship. ``fit`` raises a
+        :class:`SpecificationWarning` when either block's column means are large
+        relative to their spread; it does not centre for you, because
+        ``scale=False`` means "touch nothing".
     max_iter : int, default=1000
         Maximum number of iterations for the NIPALS algorithm.
     tol : float, default=sqrt(machine epsilon)
-        Convergence tolerance for the NIPALS algorithm.
+        Relative convergence tolerance for the NIPALS algorithm: the change
+        between two successive score-vector iterations, relative to the norm
+        of the current score vector (see :func:`terminate_check`).
     copy : bool, default=True
         Whether to copy X and Y before fitting.
     missing_data_settings : dict or None, default=None
@@ -176,6 +231,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
     Attributes (after fitting)
     --------------------------
+    n_components_ : int
+        The resolved number of components actually fitted (the constructor
+        parameter clamped to ``min(n_samples, n_features)``; the parameter
+        itself is left as the user set it, including ``None``).
     scores_ : pd.DataFrame of shape (n_samples, n_components)
         X-block score matrix (T). This is the primary score matrix; equivalent
         to ``x_scores`` in older versions.
@@ -199,9 +258,17 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     spe_ : pd.DataFrame of shape (n_samples, n_components)
         Per-row SPE diagnostic; stored as the square root of the row
         sum-of-squared X-residuals (so it is on the residual scale, not the
-        squared scale).
+        squared scale). **One column per component, not one value per row**:
+        column ``a`` is the SPE of the model truncated at ``a`` components, and
+        the last column is the value at the full fitted model. Reach for a
+        single number per observation with ``model.spe_.iloc[:, -1]``, not with
+        ``np.asarray(model.spe_).ravel()``: ravel happens to give the right
+        answer at one component and silently gives ``n_samples * n_components``
+        values above it.
     hotellings_t2_ : pd.DataFrame of shape (n_samples, n_components)
-        Cumulative Hotelling's T² statistic.
+        Cumulative Hotelling's T² statistic. Per-component, exactly as ``spe_``
+        above: column ``a`` uses the first ``a`` components and the last column
+        is the value at the full fitted model.
     r2_per_component_ : pd.Series of length n_components
         Fractional R² (on Y) explained by each component.
     r2_cumulative_ : pd.Series of length n_components
@@ -454,7 +521,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             u_a_guess[np.isnan(u_a_guess)] = 0
             u_a = u_a_guess + 1.0
 
-            while not terminate_check(u_a_guess, u_a, iterations=itern, settings=settings):
+            # ``itern == 0`` forces at least one NIPALS iteration. The ``+ 1.0``
+            # offset that primes the loop can be negligible relative to a
+            # large-magnitude seed column (e.g. entries ~1e154), and the relative
+            # criterion (#504) would then report convergence before ``t_a`` /
+            # ``w_a`` / ``c_a`` were ever assigned, raising UnboundLocalError
+            # below instead of fitting.
+            while itern == 0 or not terminate_check(u_a_guess, u_a, iterations=itern, settings=settings):
                 u_a_guess = u_a.copy()
 
                 # 1: w_a = X'u_a / (u_a'u_a)
@@ -671,6 +744,8 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             self._y_scaler = MCUVScaler().fit(y_fit_rows)
             X = self._x_scaler.transform(X)
             Y = self._y_scaler.transform(Y)
+        else:
+            _warn_if_uncentred(X, Y)
 
         # Check if number of components is supported against maximum requested
         min_dim = min(N, K)
@@ -685,19 +760,26 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 f"the number of columns ({K})."
             )
             warnings.warn(warn, SpecificationWarning, stacklevel=2)
-            A = self.n_components = min_dim
+            A = min_dim
+        # The resolved (possibly clamped) component count is a fitted attribute;
+        # the constructor parameter n_components is left exactly as the user set
+        # it, per the sklearn clone/get_params contract (#505).
+        self.n_components_ = A
 
+        resolved_mds = self.missing_data_settings
         if np.any(Y.isna()) or np.any(X.isna()):
             self.has_missing_data_ = True
             # Default to the NIPALS path because TSR / PMP for PLS are still
             # NotImplementedError in _fit_nipals; NIPALS handles per-cell NaN
-            # directly via skipna sums inside the NIPALS iterations.
+            # directly via skipna sums inside the NIPALS iterations.  The
+            # resolved settings stay local: mutating the constructor parameter
+            # would leak into clone() (#505).
             default_mds = dict(md_method="nipals", md_tol=epsqrt, md_max_iter=self.max_iter)
             if isinstance(self.missing_data_settings, dict):
                 default_mds.update(self.missing_data_settings)
-            self.missing_data_settings = default_mds
+            resolved_mds = default_mds
 
-        settings = self.missing_data_settings or {
+        settings = resolved_mds or {
             "md_method": "nipals",
             "md_tol": self.tol,
             "md_max_iter": self.max_iter,
@@ -1372,12 +1454,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             and is used as-is (``n_repeats`` is then ignored).
         n_repeats : int, optional
             Number of times the K-fold split is repeated with a fresh shuffle,
-            used only when ``cv`` is an integer. Default ``10`` (giving a
-            ``cv * 10`` per-fold sample for the 1-SE rule); pass ``1`` to
-            disable repeats. Repeated K-fold's standard errors are slightly
-            optimistic because test folds overlap across repeats; that is fine
-            for the 1-SE *selection* rule but should not be reported as an
-            unbiased generalisation variance.
+            used only when ``cv`` is an integer. The signature default is
+            ``None``, which is resolved to ``10`` inside the function
+            (giving a ``cv * 10`` per-fold sample for the 1-SE rule); pass
+            ``1`` to disable repeats. Repeated K-fold's standard errors are
+            slightly optimistic because test folds overlap across repeats;
+            that is fine for the 1-SE *selection* rule but should not be
+            reported as an unbiased generalisation variance.
         random_state : int, optional
             Seed forwarded to ``KFold`` / ``RepeatedKFold`` for reproducible
             shuffling. Ignored when ``cv`` is a pre-built splitter.
@@ -1400,6 +1483,17 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             scaling leakage of the prior default. Set to False to keep the
             pre-1.28 behaviour, in which case ``X`` and ``Y`` should already
             be scaled; a :class:`SpecificationWarning` is emitted.
+
+            Pass the **raw, unscaled** blocks under the default. In-fold
+            re-standardisation overwrites whatever scaling the caller applied,
+            so two deliberately different strategies (autoscale versus Pareto,
+            say) become the same model and report RMSECV identical to several
+            decimal places: a comparison between them shows no difference for
+            reasons that have nothing to do with the data. A
+            :class:`SpecificationWarning` is emitted when ``X`` arrives already
+            centred and unit-variance scaled, which is the detectable half of
+            that case; a block scaled some other way cannot be recognised, so
+            the rule is the caller's to keep.
         min_q2_increase : float, default 0.01
             Threshold used only when ``selection_rule="q2_increment"``: the
             smallest increase in cumulative validated :math:`Q^2_Y` that
@@ -1507,6 +1601,21 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 "scale_inside_folds=False leaks centring/scaling estimated on the "
                 "full dataset into every CV fold, making the reported RMSECV "
                 "optimistic. The default scale_inside_folds=True is preferred.",
+                SpecificationWarning,
+                stacklevel=2,
+            )
+        elif _looks_prescaled(X):
+            warnings.warn(
+                "X is already centred and unit-variance scaled, so "
+                "scale_inside_folds=True is not protecting you from leakage: it "
+                "re-standardises inside every training fold and overwrites the "
+                "scaling you chose. Two deliberately different scalings (say "
+                "autoscale versus Pareto) collapse onto the same model this way "
+                "and report the same RMSECV to several decimal places, so a "
+                "comparison between them silently shows no difference. Pass the "
+                "raw, unscaled X and let the folds scale it, or keep your own "
+                "scaling and set scale_inside_folds=False (accepting the "
+                "optimism that flag warns about).",
                 SpecificationWarning,
                 stacklevel=2,
             )
@@ -2435,7 +2544,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         t2_new = np.asarray(diagnostics.hotellings_t2, dtype=float)
 
         n_samples = self.n_samples_
-        n_components = int(self.n_components)
+        n_components = int(self.n_components_)
 
         # Residual error std per Y variable: prefer the cross-validated RMSE
         # when a cross_validate() result is supplied (calibration RMSE is

@@ -8,9 +8,11 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
+from pyDOE3 import fullfact
 
 from process_improve.experiments.analysis import analyze_experiment
 from process_improve.experiments.designs import generate_design
+from process_improve.experiments.designs_optimal import _n_model_parameters, dispatch_d_optimal
 from process_improve.experiments.evaluate import evaluate_design
 from process_improve.experiments.factor import Factor
 from process_improve.experiments.optimal import (
@@ -140,20 +142,154 @@ class TestDOptimal:
         """The scorer must NOT de-duplicate: n copies of a point carry more
         information than one copy.
         """
-        base = pd.DataFrame([[1.0, 1.0], [1.0, -1.0]])
-        replicated = pd.DataFrame([[1.0, 1.0], [1.0, -1.0], [1.0, 1.0]])
+        base = pd.DataFrame([[-1.0, -1.0], [1.0, -1.0], [-1.0, 1.0]])
+        replicated = pd.DataFrame([[-1.0, -1.0], [1.0, -1.0], [-1.0, 1.0], [-1.0, -1.0]])
         assert optimization_function(replicated) < optimization_function(base)  # lower = better
+
+    def test_rank_deficient_designs_are_rejected_not_preferred(self) -> None:
+        """A design the model cannot be fitted to must score ``+inf``.
+
+        The scorer used to invert ``X'X``. ``np.linalg.inv`` raises only on an
+        exactly-zero LU pivot, which these rank-deficient +-1 designs slip past;
+        the log-determinant of the resulting numerical noise came back as a
+        large NEGATIVE number, so the minimising search treated an inestimable
+        design as the best one available and actively selected it.
+        """
+        constant_factor = pd.DataFrame([[1.0, -1.0, -1.0], [1.0, 1.0, -1.0], [1.0, -1.0, 1.0], [1.0, 1.0, 1.0]])
+        aliased = pd.DataFrame([[1.0, 0.0, -1.0], [0.0, 1.0, -1.0], [1.0, -1.0, 1.0], [-1.0, 1.0, 1.0]])
+        too_few_runs = pd.DataFrame([[1.0, 1.0], [1.0, -1.0]])
+        for degenerate in (constant_factor, aliased, too_few_runs):
+            model_matrix = np.column_stack([np.ones(degenerate.shape[0]), degenerate])
+            assert np.linalg.matrix_rank(model_matrix) < model_matrix.shape[1]
+            assert optimization_function(degenerate) == float(np.inf)
 
     def test_swap_onto_row_label_zero_is_not_discarded(self) -> None:
         """A best-swap row with index LABEL 0 is falsy; the caller previously
         skipped the improving swap entirely.
         """
-        design = pd.DataFrame([[1.0, 0.05], [1.0, -1.0]], index=[0, 1])
-        candidate = pd.DataFrame([[1.0, 1.0]], index=[99])
+        design = pd.DataFrame([[-1.0, 0.05], [1.0, -1.0], [-1.0, 1.0]], index=[0, 1, 2])
+        candidate = pd.DataFrame([[-1.0, -1.0]], index=[99])
         current = optimization_function(design)
         chosen = index_to_replace_in_design_row(design, candidate, current, optimization_function)
         assert chosen == 0
         assert chosen is not None
+
+    def test_point_exchange_returns_the_requested_number_of_points(self) -> None:
+        """The design size is a constraint, not something the search may trade away.
+
+        The design used to be seeded with one row per factor and grown towards
+        `number_points` only by additions that improved D-optimality, so when no
+        addition improved it the caller silently received a short design. A
+        design with fewer runs than model parameters cannot be fitted at all.
+        """
+        candidates = pd.DataFrame(fullfact([3] * 3) - 1.0, columns=["X1", "X2", "X3"])
+        for number_points in (4, 5, 8, 12):
+            sizes = {
+                point_exchange(candidates, number_points=number_points, random_state=seed)[0].shape[0]
+                for seed in range(25)
+            }
+            assert sizes == {number_points}, f"requested {number_points}, got sizes {sorted(sizes)}"
+
+    def test_d_optimal_below_minimum_budget_is_estimable(self) -> None:
+        """A budget below the model size yields a design the model can be fitted to."""
+        from process_improve.experiments import designs_optimal as _designs_optimal
+
+        original = _designs_optimal._PYOPTEX_AVAILABLE
+        _designs_optimal._PYOPTEX_AVAILABLE = False
+        try:
+            factors = [Factor(name=f"X{i + 1}", low=0, high=10) for i in range(3)]
+            for _ in range(25):
+                design, _meta = dispatch_d_optimal(factors, budget=2)
+                assert design.shape[0] >= 4, "intercept plus 3 main effects needs at least 4 runs"
+                # Estimability is the point: the model matrix must have full rank.
+                model_matrix = np.column_stack([np.ones(design.shape[0]), design])
+                assert np.linalg.matrix_rank(model_matrix) == 4
+        finally:
+            _designs_optimal._PYOPTEX_AVAILABLE = original
+
+    def test_point_exchange_minimum_size_counts_the_intercept(self) -> None:
+        """One run per factor is one short: the model this scores has an intercept.
+
+        The bound used to be ``x.shape[1]``, so a request for exactly that many
+        runs was accepted and then spent 1000 attempts failing to find a
+        non-singular start, reported as a candidate-set problem.
+        """
+        candidates = pd.DataFrame(fullfact([3] * 3) - 1.0, columns=["X1", "X2", "X3"])
+        with pytest.raises(ValueError, match="at least 4"):
+            point_exchange(candidates, number_points=3, random_state=0)
+
+    def test_point_exchange_will_not_silently_shrink_to_the_candidate_count(self) -> None:
+        """More runs than unique candidates is an error, not a quiet clamp."""
+        candidates = pd.DataFrame([[-1.0, -1.0], [1.0, -1.0], [-1.0, 1.0], [1.0, 1.0], [1.0, 1.0]])
+        with pytest.raises(ValueError, match="at most 4"):
+            point_exchange(candidates, number_points=5, random_state=0)
+
+    @pytest.mark.parametrize(
+        ("model_type", "n_parameters"),
+        [("main_effects", 4), ("interactions", 7), ("quadratic", 10)],
+    )
+    def test_budget_floor_matches_the_declared_model(
+        self, model_type: str, n_parameters: int, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """An under-budget request is raised to the DECLARED model's size, not to one run per factor.
+
+        The floor used to be ``n_factors + 1`` regardless of `model_type`, which
+        is the size of a main-effects model only; an interactions or quadratic
+        model was handed a design far too small to fit it.
+        """
+        from process_improve.experiments import designs_optimal as _designs_optimal
+
+        monkeypatch.setattr(_designs_optimal, "_PYOPTEX_AVAILABLE", False)
+        factors = [Factor(name=f"X{i + 1}", low=0, high=10) for i in range(3)]
+        assert _n_model_parameters(factors, model_type) == n_parameters
+        with caplog.at_level("WARNING", logger="process_improve.experiments.designs_optimal"):
+            design, _meta = dispatch_d_optimal(factors, budget=2, model_type=model_type)
+        assert design.shape[0] == n_parameters
+        assert "raising the budget" in caplog.text  # the clamp is announced, not silent
+
+    def test_default_budget_supports_the_declared_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The ``2 * n_factors + 1`` default is itself below an interactions model from k=4 up."""
+        from process_improve.experiments import designs_optimal as _designs_optimal
+
+        monkeypatch.setattr(_designs_optimal, "_PYOPTEX_AVAILABLE", False)
+        factors = [Factor(name=f"X{i + 1}", low=0, high=10) for i in range(4)]
+        design, _meta = dispatch_d_optimal(factors, model_type="interactions")  # default budget = 9
+        assert design.shape[0] == _n_model_parameters(factors, "interactions") == 11
+
+    def test_n_model_parameters_counts_categorical_levels(self) -> None:
+        """A categorical factor with L levels is L - 1 columns, and has no square."""
+        factors = [
+            Factor(name="X1", low=0, high=10),
+            Factor(name="X2", low=0, high=10),
+            Factor(name="C", type="categorical", levels=["A", "B", "C"]),
+        ]
+        # 1 + (1 + 1 + 2) main effects = 5
+        assert _n_model_parameters(factors, "main_effects") == 5
+        # + interactions 1*1 + 1*2 + 1*2 = 5, so 10
+        assert _n_model_parameters(factors, "interactions") == 10
+        # + a square for each of the two continuous factors only, so 12
+        assert _n_model_parameters(factors, "quadratic") == 12
+
+    def test_point_exchange_rejects_a_duplicated_index(self) -> None:
+        """A repeated index label made `.loc` return every row carrying it.
+
+        These six candidate rows are all distinct by value, so de-duplication
+        leaves them alone; the repeated label 0 made a request for 4 runs come
+        back with all 6.
+        """
+        candidates = pd.DataFrame(
+            [[-1.0, -1.0], [1.0, -1.0], [-1.0, 1.0], [1.0, 1.0], [0.0, 0.0], [0.0, 1.0]],
+            index=[0, 0, 1, 2, 3, 4],
+        )
+        with pytest.raises(ValueError, match="unique index"):
+            point_exchange(candidates, number_points=4, random_state=0)
+
+    def test_point_exchange_reports_a_candidate_set_it_cannot_start_from(self) -> None:
+        """Collinear candidate columns make every subset singular, whatever the size."""
+        repeated = [-1.0, -1.0, 1.0, 1.0, 0.0, 0.0]
+        candidates = pd.DataFrame({"a": repeated, "b": [-1.0, 1.0, -1.0, 1.0, -1.0, 1.0], "c": repeated})
+        with pytest.raises(ValueError, match="non-singular starting design"):
+            point_exchange(candidates, number_points=4, random_state=0)
 
     def test_point_exchange_is_reproducible_with_random_state(self) -> None:
         rng = np.random.default_rng(0)

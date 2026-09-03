@@ -46,9 +46,26 @@ def _decode_highlight_style(key: str) -> dict:
         ) from exc
 
 
+def _fitted_n_components(model: BaseEstimator) -> int:
+    """Return the resolved component count of a fitted model (or its TPLS parent).
+
+    Reads the fitted ``n_components_`` (#505: the constructor parameter is the
+    user's request and can be ``None``); TPLS sub-model wrappers without one
+    delegate to their ``_parent``.
+    """
+    for candidate in (model, getattr(model, "_parent", None)):
+        if candidate is None:
+            continue
+        if hasattr(candidate, "n_components_"):
+            return int(candidate.n_components_)
+        if getattr(candidate, "n_components", None) is not None:
+            return int(candidate.n_components)
+    raise AttributeError("The model has no fitted n_components_; fit the model first.")
+
+
 def plot_pre_checks(model: BaseEstimator, pc_horiz: int, pc_vert: int, pc_depth: int) -> bool:
     """Check the inputs for the plot functions are valid."""
-    n_components = model.n_components if hasattr(model, "n_components") else model._parent.n_components
+    n_components = _fitted_n_components(model)
     if not 0 < pc_horiz <= n_components:
         raise ValueError(f"The model has {n_components} components. Ensure that 1 <= pc_horiz <= {n_components}.")
     if not 0 < pc_vert <= n_components:
@@ -103,7 +120,12 @@ def score_plot(  # noqa: C901, PLR0913
             {
                 "show_ellipse": True,          # bool: show the Hotelling's T2 ellipse
                 "ellipse_conf_level": 0.95,    # float: ellipse confidence level (< 1.00)
-                "title": "Score plot of ...",  # str: overall plot title
+                "title": "",                   # str: overall plot title. The
+                                               # default is the empty string on
+                                               # the 2D path (pc_depth <= 0) and
+                                               # a "Score plot of component ..."
+                                               # sentence on the 3D path
+                                               # (pc_depth > 0).
                 "show_labels": False,          # bool: add a label for each observation
                 "show_legend": True,           # bool: show clickable legend
                 "html_image_height": 500,      # int: image height in pixels
@@ -456,8 +478,9 @@ def spe_plot(  # noqa: C901
     elif with_a == 0:
         raise ValueError("`with_a` must be >= 1, or specified with negative indexing.")
 
-    if not with_a <= model.n_components:
-        raise ValueError(f"`with_a` must be <= the number of components fitted ({model.n_components}); got {with_a}.")
+    n_components = _fitted_n_components(model)
+    if not with_a <= n_components:
+        raise ValueError(f"`with_a` must be <= the number of components fitted ({n_components}); got {with_a}.")
 
     class Settings(BaseModel):
         """Validated display settings for the SPE plot."""
@@ -612,8 +635,9 @@ def t2_plot(  # noqa: C901
     elif with_a == 0:
         raise ValueError("`with_a` must be >= 1, or specified with negative indexing.")
 
-    if not with_a <= model.n_components:
-        raise ValueError(f"`with_a` must be <= the number of components fitted ({model.n_components}); got {with_a}.")
+    n_components = _fitted_n_components(model)
+    if not with_a <= n_components:
+        raise ValueError(f"`with_a` must be <= the number of components fitted ({n_components}); got {with_a}.")
 
     class Settings(BaseModel):
         """Validated display settings for the Hotelling's T2 plot."""

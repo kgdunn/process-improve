@@ -12,7 +12,7 @@ nuisances. Three assessors are planted to misbehave:
 * ``J03`` rates everything high (a location shift),
 * ``J09`` uses only the middle of the scale (a compressed range).
 
-The covariate families exercise the cross-validated discriminator: it keeps the
+The covariate families exercise the predictive-descriptor search: it keeps the
 genuine drivers, reports the collinear proxies as one inseparable cluster, and
 demotes a nuisance that correlates with an attribute only by chance.
 """
@@ -111,7 +111,7 @@ def make_panel_and_covariates(seed: int = 0) -> tuple[pd.DataFrame, pd.DataFrame
     # Three unrelated measurement-condition nuisances (no causal link to any
     # attribute). A dedicated RNG seed is chosen so one of them (lab_humidity)
     # lands a chance correlation with an attribute in this small sample, which
-    # the marginal test flags but the cross-validated discriminator demotes.
+    # the marginal test flags but the predictive-descriptor search demotes.
     noise_rng = np.random.default_rng(16)
     covariates["headspace_volume"] = _sig(noise_rng.uniform(5.0, 25.0, n), 3)  # mL
     covariates["sample_mass"] = _sig(noise_rng.uniform(180.0, 260.0, n), 3)  # g
@@ -154,6 +154,8 @@ def _assoc_row(assoc: pd.DataFrame, attribute: str, descriptor: str) -> pd.Serie
     return assoc[(assoc["attribute"] == attribute) & (assoc["descriptor"] == descriptor)].iloc[0]
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_pipeline_end_to_end():  # noqa: PLR0915
     panel, covariates = make_panel_and_covariates()
 
@@ -211,16 +213,16 @@ def test_pipeline_end_to_end():  # noqa: PLR0915
     assert set(assoc["attribute"]) == set(ATTRIBUTES)
     assert _assoc_row(assoc, "Bitterness", "polyphenols")["significant"]
 
-    # Step 5: the cross-validated discriminator separates predictive structure
+    # Step 5: the predictive-descriptor search separates predictive structure
     # from in-sample coincidence.
-    disc = result.relate["discriminator"]
+    disc = result.relate["predictive_descriptors"]
     gate = pd.DataFrame(disc["per_attribute"]).set_index("attribute")
     desc = pd.DataFrame(disc["descriptors"])
     clusters = disc["clusters"]
 
     def _disc(attribute: str, descriptor: str) -> bool:
         row = desc[(desc["attribute"] == attribute) & (desc["descriptor"] == descriptor)].iloc[0]
-        return bool(row["discriminator_significant"])
+        return bool(row["is_predictive"])
 
     # Q-squared gate: attributes with a real driver are predictable out of
     # sample; attributes with none are not.
@@ -242,20 +244,20 @@ def test_pipeline_end_to_end():  # noqa: PLR0915
     assert clusters["titratable_acidity"] != clusters["brix"]
 
     # Trap A: a nuisance that correlates with an attribute only by chance is
-    # flagged by the marginal test but demoted by the discriminator, while the
+    # flagged by the marginal test but demoted by the predictive search, while the
     # genuine drivers of that same attribute survive.
     assert _assoc_row(assoc, "Liking", "lab_humidity")["significant"]
     assert not _disc("Liking", "lab_humidity")
     assert _disc("Liking", "brix")
     assert _disc("Liking", "price")
 
-    # No measurement-condition nuisance is ever discriminator-significant, and
-    # the discriminator flags strictly fewer pairs than the marginal test.
+    # No measurement-condition nuisance is ever flagged predictive, and the
+    # search flags strictly fewer pairs than the marginal test.
     nuisances = {"headspace_volume", "sample_mass", "lab_humidity", "serving_temperature"}
-    assert not desc[desc["descriptor"].isin(nuisances)]["discriminator_significant"].any()
+    assert not desc[desc["descriptor"].isin(nuisances)]["is_predictive"].any()
     marginal_pairs = set(map(tuple, assoc[assoc["significant"]][["attribute", "descriptor"]].to_numpy()))
-    disc_pairs = set(map(tuple, desc[desc["discriminator_significant"]][["attribute", "descriptor"]].to_numpy()))
-    assert disc_pairs < marginal_pairs  # strict subset: the discriminator narrows the findings
+    disc_pairs = set(map(tuple, desc[desc["is_predictive"]][["attribute", "descriptor"]].to_numpy()))
+    assert disc_pairs < marginal_pairs  # strict subset: the predictive search narrows the findings
 
 
 def test_means_only_table_is_refused():

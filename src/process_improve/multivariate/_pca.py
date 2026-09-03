@@ -238,10 +238,15 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
     missing_data_settings : dict or None, default=None
         Settings for iterative missing data algorithms (NIPALS, TSR).
-        Keys: ``md_tol`` (convergence tolerance), ``md_max_iter`` (max iterations).
+        Keys: ``md_tol`` (relative convergence tolerance on successive score
+        vectors; see :func:`terminate_check`), ``md_max_iter`` (max iterations).
 
     Attributes (after fitting)
     --------------------------
+    n_components_ : int
+        The resolved number of components actually fitted (the constructor
+        parameter clamped to ``min(n_samples, n_features)``; the parameter
+        itself is left as the user set it, including ``None``).
     scores_ : pd.DataFrame of shape (n_samples, n_components)
         The score matrix (T).
     loadings_ : pd.DataFrame of shape (n_features, n_components)
@@ -255,9 +260,17 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     spe_ : pd.DataFrame of shape (n_samples, n_components)
         Per-row SPE diagnostic; stored as the square root of the row
         sum-of-squared X-residuals (so it is on the residual scale, not the
-        squared scale).
+        squared scale). **One column per component, not one value per row**:
+        column ``a`` is the SPE of the model truncated at ``a`` components, and
+        the last column is the value at the full fitted model. Reach for a
+        single number per observation with ``model.spe_.iloc[:, -1]``, not with
+        ``np.asarray(model.spe_).ravel()``: ravel happens to give the right
+        answer at one component and silently gives ``n_samples * n_components``
+        values above it.
     hotellings_t2_ : pd.DataFrame of shape (n_samples, n_components)
-        Cumulative Hotelling's T² statistic.
+        Cumulative Hotelling's T² statistic. Per-component, exactly as ``spe_``
+        above: column ``a`` uses the first ``a`` components and the last column
+        is the value at the full fitted model.
     explained_variance_ : np.ndarray of shape (n_components,)
         Variance explained by each component.
     scaling_factor_for_scores_ : pd.Series of length n_components
@@ -409,7 +422,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                 stacklevel=2,
             )
             A = min_dim
-        self.n_components = A
+        # The resolved (possibly clamped) component count is a fitted attribute;
+        # the constructor parameter n_components is left exactly as the user set
+        # it, per the sklearn clone/get_params contract (#505).
+        self.n_components_ = A
 
         # Detect missing data and resolve algorithm
         self.has_missing_data_ = bool(np.any(X.isna()))
@@ -599,7 +615,12 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             t_a_guess[np.isnan(t_a_guess)] = 0
             t_a = t_a_guess + 1.0
             p_a = np.zeros((K, 1))
-            while not (terminate_check(t_a_guess, t_a, iterations=itern, settings=settings)):
+            # ``itern == 0`` forces at least one NIPALS iteration. The ``+ 1.0``
+            # offset that primes the loop can be negligible relative to a
+            # large-magnitude seed column, and the relative criterion (#504)
+            # would then report convergence at entry, silently returning the
+            # unrefined seed as the score and the zero ``p_a`` as the loading.
+            while itern == 0 or not terminate_check(t_a_guess, t_a, iterations=itern, settings=settings):
                 t_a_guess = t_a.copy()
 
                 # Regress X onto t_a to get loadings p_a
@@ -821,8 +842,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
         # Hotelling's T² (cumulative)
         component_names = self._component_names
-        t2 = pd.DataFrame(np.zeros((X.shape[0], self.n_components)), columns=component_names, index=X.index)
-        for a in range(self.n_components):
+        t2 = pd.DataFrame(np.zeros((X.shape[0], self.n_components_)), columns=component_names, index=X.index)
+        for a in range(self.n_components_):
             t2.iloc[:, a] = (
                 t2.iloc[:, max(0, a - 1)] + (scores.iloc[:, a] / self.scaling_factor_for_scores_.iloc[a]) ** 2
             )

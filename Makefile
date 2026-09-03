@@ -60,10 +60,12 @@ docs:		## generate Sphinx HTML documentation, including API docs
 servedocs: docs 	## compile the docs watching for changes
 	uv run watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
 
-release: check test  	## release to PyPI
-	git pull
-	uv build
-	uv publish
+release:	## explain how releases are cut (publishing only happens via the gated workflow)
+	@echo "Direct publishing from a laptop is disabled (#507)."
+	@echo "Releases go through the tag-gated workflow .github/workflows/publish.yml:"
+	@echo "    git tag vX.Y.Z && git push origin vX.Y.Z"
+	@echo "or re-run an already-tagged release via workflow_dispatch on GitHub."
+	@exit 1
 
 install: 	## install the package in dev mode (incl. all optional extras)
 	uv sync --dev --all-extras

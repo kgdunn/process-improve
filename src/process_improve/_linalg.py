@@ -70,7 +70,14 @@ def safe_inverse(
     if is_singular(a, cond_limit=cond_limit):
         raise np.linalg.LinAlgError(
             f"{what} is singular or ill-conditioned (condition number exceeds "
-            f"{cond_limit:.2e}); cannot invert reliably. Reduce the number of "
-            "components/terms or remove collinear columns."
+            f"{cond_limit:.2e}); cannot invert reliably. Likely causes, in the "
+            "order worth checking: exactly or near-exactly collinear columns "
+            "(a duplicated variable, a column that is a sum of others, a "
+            "one-hot set that includes every level); a constant or all-missing "
+            "column; a component count that has exhausted the variance left in "
+            "the deflated block; or values spanning so many orders of magnitude "
+            "that the cross-product loses precision (centre and scale first). "
+            "Reduce the number of components/terms or remove the offending "
+            "columns."
         )
     return np.linalg.inv(a)

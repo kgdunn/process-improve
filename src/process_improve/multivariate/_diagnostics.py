@@ -68,6 +68,33 @@ def vip(model: BaseEstimator, n_components: int | None = None) -> pd.Series:
         If the model is not fitted, if neither ``x_weights_`` nor
         ``loadings_`` is found, or if *n_components* is out of range.
 
+    Notes
+    -----
+    The ``K`` factor in the formula above normalises the scores so that
+
+    .. math::
+
+        \sum_{j=1}^{K} \text{VIP}_j^2 = K
+
+    *exactly*, for any model, on any data. That identity is what makes the
+    familiar "VIP > 1" rule a sensible relative cut-off: the mean square is 1
+    by construction, so a score above 1 means the variable is
+    above-average within this model.
+
+    It also means **the number of variables exceeding VIP 1 is not a test
+    statistic.** That count describes the *shape* of the VIP distribution, not
+    whether any relationship exists, and it barely moves when the response is
+    permuted: a null built on it has almost no power and will report a
+    false-discovery rate near 100% on data that genuinely contains signal. If
+    you want to ask "is there anything here at all", permute the response and
+    compare *out-of-sample* performance instead. See
+    :func:`~process_improve.multivariate.check_predictive_signal`.
+
+    See Also
+    --------
+    process_improve.multivariate.check_predictive_signal :
+        A permutation null on Q² that does respond to signal.
+
     Examples
     --------
     >>> pls = PLS(n_components=3).fit(X_scaled, Y_scaled)

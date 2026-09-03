@@ -47,8 +47,12 @@ def determine_scaling(
     Returns
     -------
     range_scalers: DataFrame
-        J rows, 2 columns: column 1 = range of each tag (approx. q98 - q02),
-        column 2 = typical minimum of each tag (robustly calculated).
+        J rows, 2 columns: column 1 = the per-tag range (approximately
+        ``q98 - q02`` when ``settings["robust"]`` is True, else raw
+        ``max - min``); column 2 = the per-tag minimum. Both columns are
+        aggregated across batches with the median when ``robust=True`` and
+        the mean otherwise, but the per-batch minimum itself is always the
+        raw ``batch.min(axis=0)``, not a quantile.
 
     TODO: put this in a scikit-learn style: .fit() and .apply() style
     """
