@@ -6,6 +6,7 @@ from process_improve.batch._batch_plots import (
     contribution_at_time_plot,
     online_monitoring_plot,
     time_varying_loading_plot,
+    unfolded_contribution_plot,
 )
 from process_improve.batch._batch_pls import BatchPLS
 from process_improve.batch.control import MidCourseCorrector, midcourse_correction
@@ -100,6 +101,7 @@ __all__ = [
     "online_monitoring_plot",
     "resample_to_reference",
     "time_varying_loading_plot",
+    "unfolded_contribution_plot",
     "wide_to_dict",
     "wide_to_melted",
 ]

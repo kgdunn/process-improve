@@ -1,13 +1,17 @@
 # (c) Kevin Dunn, 2010-2026. MIT License. Based on own private work over the years.
-"""Model-level plots for batchwise-unfolded (multiway) PCA of batch data.
+"""Model-level plots for batchwise-unfolded (multiway) PCA and PLS of batch data.
 
 These complement the batch score / SPE / T2 plots, which are inherited from the
-multivariate package (they operate on the internal PCA model). Two plots are
-specific to the batch (unfolded) structure:
+multivariate package (they operate on the internal PCA or PLS model). Three
+plots are specific to the batch (unfolded) structure:
 
-- :func:`time_varying_loading_plot`: the loadings of one component drawn as a
-  function of time, one trace per tag, so the reader sees how each variable
-  contributes to a component over the batch evolution.
+- :func:`time_varying_loading_plot`: the loadings (or PLS weights) of one
+  component drawn as a function of time, one trace per tag, so the reader sees
+  how each variable contributes to a component over the batch evolution.
+- :func:`unfolded_contribution_plot`: for one batch, its whole contribution
+  vector over the unfolded ``(tag, time)`` axis, grouped and coloured by tag,
+  or summed into one bar per tag. This is the classic batch contribution plot
+  that answers "which variables, and when".
 - :func:`contribution_at_time_plot`: for one batch, the per-tag contribution to
   SPE or Hotelling's T2 at a chosen time sample, drawn as a bar chart to
   diagnose which variable drives an abnormal event.
@@ -30,36 +34,63 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
 from ..visualization.themes import DEFAULT_THEME, LIMIT_LINE_COLOR, REFERENCE_LINE_COLOR
 
 if typing.TYPE_CHECKING:
+    from sklearn.base import BaseEstimator
+
     from ._batch_monitor import BatchMonitor
     from ._batch_pca import BatchPCA
+    from ._batch_pls import BatchPLS
+
+_UNFOLDED_INDEX_ERROR = (
+    "needs the 2-level (tag, sequence) index that process_improve.batch.dict_to_wide produces. "
+    "When scaling the unfolded matrix yourself, re-attach ``wide.columns`` after MCUVScaler, "
+    "which drops the multi-level labels."
+)
 
 
-def _split_loadings(model: BatchPCA, component: int) -> tuple[pd.DataFrame, pd.Series]:
+def _unfolded_loadings(model: BaseEstimator) -> pd.DataFrame:
+    """Return the model's loadings (PCA) or X-weights (PLS) on the unfolded index, or raise."""
+    loadings = getattr(model, "loadings_", None)
+    if loadings is None:
+        loadings = getattr(model, "x_weights_", None)
+    if loadings is None:
+        raise ValueError("Model is not fitted, or has neither loadings_ nor x_weights_. Call fit() first.")
+    is_unfolded = isinstance(loadings, pd.DataFrame) and set(loadings.index.names) == {"tag", "sequence"}
+    if not is_unfolded:
+        raise ValueError(f"The model's loadings index {_UNFOLDED_INDEX_ERROR}")
+    return loadings
+
+
+def _split_loadings(model: BaseEstimator, component: int) -> tuple[pd.DataFrame, pd.Series]:
     """Split one component's loadings into a (tag x time) grid and a Z series.
 
     Returns the trajectory loadings reshaped to rows = tags, columns = time
     (in fitted order), and the initial-condition loadings as a plain Series
-    (empty when the model was fitted without a Z block).
+    (empty when the model was fitted without a Z block). Works for the batch
+    classes and for any :mod:`process_improve.multivariate` model fitted on a
+    :func:`process_improve.batch.dict_to_wide` matrix: the tag and time order
+    are read from the model when it records them and from the index otherwise.
     """
-    loading = model.loadings_.iloc[:, component - 1]
+    loading = _unfolded_loadings(model).iloc[:, component - 1]
     sequence = loading.index.get_level_values("sequence")
     is_traj = sequence != ""
     traj = loading[is_traj]
     # Reshape to tags x time, preserving the fitted tag and time order.
     grid = traj.unstack(level="sequence")  # noqa: PD010 - direct inverse of the unfold; pivot_table would aggregate
-    grid = grid.reindex(index=model.tag_names_, columns=model.time_index_)
+    tag_names = getattr(model, "tag_names_", None) or list(dict.fromkeys(traj.index.get_level_values("tag")))
+    time_index = getattr(model, "time_index_", None) or list(dict.fromkeys(traj.index.get_level_values("sequence")))
+    grid = grid.reindex(index=tag_names, columns=time_index)
     z_loadings = loading[~is_traj]
     z_loadings.index = z_loadings.index.get_level_values("tag")
     return grid, z_loadings
 
 
 def time_varying_loading_plot(
-    model: BatchPCA,
+    model: BatchPCA | BatchPLS | BaseEstimator,
     component: int = 1,
     fig: go.Figure | None = None,
     show_initial_conditions: bool = True,
 ) -> go.Figure:
-    """Plot one component's loadings as a function of time, one trace per tag.
+    """Plot one component's loadings (or weights) as a function of time, one trace per tag.
 
     The batchwise-unfolded model has a separate loading for every
     ``(tag, time)`` cell, so a component's loadings can be read as a set of
@@ -69,8 +100,12 @@ def time_varying_loading_plot(
 
     Parameters
     ----------
-    model : BatchPCA
-        A fitted :class:`process_improve.batch.BatchPCA` model.
+    model : BatchPCA, BatchPLS or a fitted multivariate model
+        A fitted :class:`process_improve.batch.BatchPCA` (loadings ``p``), a
+        fitted :class:`process_improve.batch.BatchPLS` (weights ``w``), or any
+        :mod:`process_improve.multivariate` model whose ``loadings_`` or
+        ``x_weights_`` carry the 2-level ``(tag, sequence)`` index of a
+        :func:`process_improve.batch.dict_to_wide` matrix.
     component : int, default=1
         1-based component index whose loadings to plot.
     fig : plotly.graph_objects.Figure, optional
@@ -83,16 +118,18 @@ def time_varying_loading_plot(
     -------
     plotly.graph_objects.Figure
     """
-    if not 0 < component <= model.n_components:
-        raise ValueError(f"The model has {model.n_components} components; need 1 <= component <= {model.n_components}.")
+    n_components = _unfolded_loadings(model).shape[1]
+    if not 0 < component <= n_components:
+        raise ValueError(f"The model has {n_components} components; need 1 <= component <= {n_components}.")
     grid, z_loadings = _split_loadings(model, component)
+    symbol, kind = ("w", "weights") if hasattr(model, "x_weights_") else ("p", "loadings")
 
     if fig is None:
         fig = go.Figure()
-    for tag in model.tag_names_:
+    for tag in grid.index:
         fig.add_trace(
             go.Scatter(
-                x=list(model.time_index_),
+                x=list(grid.columns),
                 y=grid.loc[tag].to_numpy(),
                 mode="lines",
                 name=str(tag),
@@ -112,10 +149,130 @@ def time_varying_loading_plot(
     fig.add_hline(y=0, line_color=REFERENCE_LINE_COLOR, line_width=1)
     fig.update_layout(
         template=DEFAULT_THEME,
-        title=f"Time-varying loadings for component {component}",
+        title=f"Time-varying {kind} for component {component}",
         xaxis_title="Time [sequence order]",
-        yaxis_title=f"Loading p{component}",
+        yaxis_title=f"{kind.capitalize()[:-1]} {symbol}{component}",
     )
+    return fig
+
+
+def _contribution_row(
+    contributions: pd.DataFrame, batch_id: typing.Hashable | None
+) -> tuple[typing.Hashable, pd.Series]:
+    """Validate a contribution matrix and return one batch's row (default: the first)."""
+    if contributions.columns.nlevels != 2 or set(contributions.columns.names) != {"tag", "sequence"}:
+        raise ValueError(
+            "contributions must have a 2-level (tag, sequence) column index, as returned by "
+            "the score_contributions / spe_contributions / t2_contributions methods of BatchPCA and BatchPLS."
+        )
+    if batch_id is None:
+        batch_id = contributions.index[0]
+    elif batch_id not in contributions.index:
+        raise ValueError(f"batch_id {batch_id!r} is not a row of the contributions matrix.")
+    position = typing.cast("int", contributions.index.get_loc(batch_id))
+    return batch_id, typing.cast("pd.Series", contributions.iloc[position])
+
+
+def unfolded_contribution_plot(
+    contributions: pd.DataFrame,
+    batch_id: typing.Hashable | None = None,
+    *,
+    by_tag: bool = False,
+    fig: go.Figure | None = None,
+) -> go.Figure:
+    """Bar chart of one batch's contributions over the whole unfolded ``(tag, time)`` axis.
+
+    Takes a contribution matrix (one row per batch, the 2-level
+    ``(tag, sequence)`` column index of the unfolded data) and draws one
+    batch's row as bars in unfolded column order, one trace per tag so the
+    legend toggles tags and the colour identifies them. The tag names are
+    written under the centre of each tag's block of samples. Reading the
+    plot left to right answers "which variables, and at which time" for the
+    score, SPE or T2 of that batch.
+
+    With ``by_tag=True`` the bars are summed over time, one bar per tag,
+    which is the compact summary used to rank the variables. The sum is
+    signed: for score contributions it is the tag's contribution to the
+    score; for SPE contributions (signed residuals) pass ``contributions ** 2``
+    to get each tag's share of the SPE.
+
+    Parameters
+    ----------
+    contributions : pd.DataFrame
+        Output of ``score_contributions``, ``spe_contributions`` or
+        ``t2_contributions`` on :class:`process_improve.batch.BatchPCA` or
+        :class:`process_improve.batch.BatchPLS`, or of the standalone
+        :mod:`process_improve.multivariate` functions on a model fitted to a
+        :func:`process_improve.batch.dict_to_wide` matrix whose column index
+        was re-attached after scaling.
+    batch_id : Hashable, optional
+        Which batch (row) to plot. Defaults to the first row.
+    by_tag : bool, default=False
+        Sum the contributions over time and draw one bar per tag.
+    fig : plotly.graph_objects.Figure, optional
+        Figure to draw into; a new one is created when omitted.
+
+    Returns
+    -------
+    plotly.graph_objects.Figure
+    """
+    batch_id, row = _contribution_row(contributions, batch_id)
+    values = row.to_numpy(dtype=float)
+    tags = row.index.get_level_values("tag")
+    sequence = row.index.get_level_values("sequence")
+    is_traj = np.asarray(sequence != "")
+    tag_order = list(dict.fromkeys(tags[is_traj]))
+
+    if fig is None:
+        fig = go.Figure()
+    if by_tag:
+        sums = row.groupby(level="tag", sort=False).sum()
+        labels = [str(tag) for tag in sums.index]
+        totals = sums.to_numpy(dtype=float)
+        fig.add_trace(go.Bar(x=labels, y=totals, marker_color=np.where(totals >= 0, "#2563EB", "#DC2626")))
+        fig.update_layout(
+            template=DEFAULT_THEME,
+            title=f"Contributions for batch {batch_id}, summed over time",
+            xaxis_title="Tag",
+            yaxis_title="Contribution",
+        )
+    else:
+        positions = np.arange(len(row))
+        if not is_traj.all():
+            z_mask = ~is_traj
+            fig.add_trace(
+                go.Bar(
+                    x=positions[z_mask],
+                    y=values[z_mask],
+                    name="initial conditions",
+                    text=[str(tag) for tag in tags[z_mask]],
+                    hovertemplate="%{text}<br>%{y:.3g}<extra>initial conditions</extra>",
+                )
+            )
+        tick_positions, tick_labels = [], []
+        for tag in tag_order:
+            mask = np.asarray(tags == tag) & is_traj
+            fig.add_trace(
+                go.Bar(
+                    x=positions[mask],
+                    y=values[mask],
+                    name=str(tag),
+                    customdata=np.asarray(sequence[mask]),
+                    hovertemplate="%{customdata}<br>%{y:.3g}<extra>" + str(tag) + "</extra>",
+                )
+            )
+            tick_positions.append(float(positions[mask].mean()))
+            tick_labels.append(str(tag))
+        fig.update_xaxes(tickvals=tick_positions, ticktext=tick_labels)
+        fig.update_layout(
+            template=DEFAULT_THEME,
+            title=f"Contributions for batch {batch_id}",
+            xaxis_title="Unfolded (tag, time) cells",
+            yaxis_title="Contribution",
+            barmode="overlay",
+            bargap=0,
+        )
+    fig.add_hline(y=0, line_color=REFERENCE_LINE_COLOR, line_width=1)
     return fig
 
 
@@ -152,18 +309,7 @@ def contribution_at_time_plot(
     -------
     plotly.graph_objects.Figure
     """
-    if contributions.columns.nlevels != 2 or set(contributions.columns.names) != {"tag", "sequence"}:
-        raise ValueError(
-            "contributions must have a 2-level (tag, sequence) column index, as returned by "
-            "BatchPCA.spe_contributions / t2_contributions."
-        )
-    if batch_id is None:
-        batch_id = contributions.index[0]
-    elif batch_id not in contributions.index:
-        raise ValueError(f"batch_id {batch_id!r} is not a row of the contributions matrix.")
-
-    position = typing.cast("int", contributions.index.get_loc(batch_id))
-    row = typing.cast("pd.Series", contributions.iloc[position])
+    batch_id, row = _contribution_row(contributions, batch_id)
     at_k = row[row.index.get_level_values("sequence") == k]
     if at_k.empty:
         raise ValueError(f"No contributions at time sample k={k}; available samples run over the batch length.")
