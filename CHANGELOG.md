@@ -11,6 +11,47 @@ those changes.
 
 ## [Unreleased]
 
+## [1.79.0] - 2026-09-03
+
+Three batch case studies from the 2011-2012 latent-variable short course,
+rebuilt as plain Python scripts with narrative pages (issues #154, #155,
+#156), and the loaders, plots and estimator conveniences they needed.
+
+### Added
+
+- Three batch case studies as plain Python scripts with narrative pages in
+  the user guide (`docs/user_guide/case_studies/batch/`): batch PCA outlier
+  diagnosis on the DuPont polymerization reactor (#155), batch PLS fault
+  diagnosis on the simulated SBR reactor (#156), and the multiblock batch PLS
+  ladder on the FMC batch dryer (#154). Each script fetches its data from
+  openmv.net when it runs and writes its figures to an output directory; each
+  page quotes the script section by section and states what it prints.
+- Remote batch dataset loaders `batch.load_dupont`, `batch.load_fmc` and
+  `batch.load_sbr`, fetched from openmv.net under the same bounded timeout as
+  the experiments loaders, with a `url` override for mirrors and local copies.
+- `batch.unfolded_contribution_plot`: one bar per unfolded `(tag, sequence)`
+  cell of a batch's contribution vector, grouped and coloured by tag, or one
+  bar per tag summed over time.
+- `BatchPCA.score_contributions` and `BatchPCA.unfold_and_scale`; on
+  `BatchPLS` the forwards `score_plot`, `spe_plot`, `t2_plot`, `spe_limit`,
+  `score_limit`, `hotellings_t2_limit`, `ellipse_coordinates`,
+  `score_contributions`, `spe_contributions`, `t2_contributions` and
+  `unfold_and_scale`, the fitted attributes `predictions_` (original quality
+  units) and `r2_per_variable_`, and `predictions_vs_observed_plot`.
+- `batch.time_varying_loading_plot` accepts a `BatchPLS` (it draws the
+  weights) and any multivariate model fitted on a `dict_to_wide` matrix
+  whose loadings carry the `(tag, sequence)` index.
+- Reference tests for the FMC multiblock ladder (`TestFMCReference`, which
+  replaces the skipped placeholder), the DuPont and SBR narrative numbers,
+  and a vendored fixture of the legacy MATLAB batch-PCA output on the SBR
+  data (`tests/fixtures/sbr_batch_pca/`).
+
+### Changed
+
+- The remote sample-dataset fetch helper moved from `experiments.datasets`
+  to the shared private module `process_improve._remote_data`, gaining an
+  Excel variant. Error messages, timeouts and loader behaviour are unchanged.
+
 ## [1.78.0] - 2026-08-30
 
 ### Added
@@ -4002,7 +4043,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.78.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.79.0...HEAD
+[1.79.0]: https://github.com/kgdunn/process-improve/compare/v1.78.0...v1.79.0
 [1.78.0]: https://github.com/kgdunn/process-improve/compare/v1.77.0...v1.78.0
 [1.77.0]: https://github.com/kgdunn/process-improve/compare/v1.76.0...v1.77.0
 [1.76.0]: https://github.com/kgdunn/process-improve/compare/v1.75.2...v1.76.0
