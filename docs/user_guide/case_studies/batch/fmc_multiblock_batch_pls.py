@@ -201,8 +201,12 @@ def unfold_trajectories(trajectories: dict) -> tuple[pd.DataFrame, pd.DataFrame]
 
 
 # -- section: batch-pca --
-def batch_pca_on_trajectories(x_scaled: pd.DataFrame) -> tuple[PCA, pd.DataFrame]:
-    """Two-component batch PCA on the trajectories alone."""
+def batch_pca_on_trajectories(x_scaled: pd.DataFrame) -> tuple[PCA, pd.DataFrame, int]:
+    """Two-component batch PCA on the trajectories alone.
+
+    Returns the model, the SPE share of every cell, and the complete batch
+    with the largest SPE.
+    """
     model = PCA(n_components=N_COMPONENTS).fit(x_scaled)  # NIPALS, because of the missing cells
     print(f"batch PCA on X: R2 cumulative = {cumulative(model.r2_cumulative_)}")
     spe_share = model.spe_contributions(x_scaled) ** 2  # all-NaN rows for the batches with missing cells
@@ -213,7 +217,7 @@ def batch_pca_on_trajectories(x_scaled: pd.DataFrame) -> tuple[PCA, pd.DataFrame
         f"largest SPE among the complete batches: batch {worst}; share per tag = "
         + ", ".join(f"{tag} {share:.0%}" for tag, share in (by_tag / by_tag.sum()).items())
     )
-    return model, spe_share
+    return model, spe_share, worst
 
 
 # -- end: batch-pca --
@@ -291,11 +295,10 @@ def main(argv: list[str] | None = None) -> int:
     save(mbpls_z.super_weights_bar_plot(component=1), "mbpls-z-super-weights")
 
     wide, x_scaled = unfold_trajectories(data.X)
-    pca_x, spe_share = batch_pca_on_trajectories(x_scaled)
+    pca_x, spe_share, worst = batch_pca_on_trajectories(x_scaled)
     save(pca_x.score_plot(settings=LABELS), "batch-pca-scores")
     save(pca_x.spe_plot(settings=LABELS), "batch-pca-spe")
     save(time_varying_loading_plot(pca_x, component=1), "batch-pca-loadings-p1")
-    worst = pca_x.spe_.loc[spe_share.dropna(how="all").index].iloc[:, -1].idxmax()
     save(unfolded_contribution_plot(spe_share, worst, by_tag=True), f"batch-pca-spe-contributions-{worst}")
     for tag in ("D-Temp", "Power", "Torque"):
         save(plot_raw(data.X, tag, [OPERATING_OUTLIER]), f"raw-{tag}-batch-20")

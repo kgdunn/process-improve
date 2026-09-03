@@ -25,7 +25,7 @@ from tests._case_study_scripts import SBR_URL_OVERRIDE, load_or_skip
 
 FIXTURE_DIR = pathlib.Path(__file__).resolve().parents[1] / "fixtures" / "sbr_batch_pca"
 
-pytestmark = pytest.mark.dataset
+pytestmark = [pytest.mark.dataset, pytest.mark.slow]
 
 
 @pytest.fixture(scope="module")

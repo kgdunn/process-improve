@@ -22,7 +22,6 @@ MSPC", Comprehensive Chemometrics, Elsevier, 2009.
 
 from __future__ import annotations
 
-import functools
 import typing
 
 import pandas as pd
@@ -41,6 +40,7 @@ from ..multivariate.plots import predictions_vs_observed_plot as _predictions_vs
 from ..multivariate.plots import score_plot as _score_plot
 from ..multivariate.plots import spe_plot as _spe_plot
 from ..multivariate.plots import t2_plot as _t2_plot
+from ._common import inner_method
 from .data_input import check_valid_batch_dict, dict_to_wide
 
 if typing.TYPE_CHECKING:
@@ -51,24 +51,8 @@ if typing.TYPE_CHECKING:
 
 
 def _pls_method(fn: Callable[..., typing.Any]) -> Callable[..., typing.Any]:
-    """Wrap a module-level ``fn(model, ...)`` as a method forwarding ``self._pls``.
-
-    Mirrors ``_pca_method`` on :class:`process_improve.batch.BatchPCA`: the
-    standalone plots, limits and contribution functions in
-    :mod:`process_improve.multivariate` read only fitted attributes that the
-    inner PLS carries (``scores_``, ``spe_``, ``hotellings_t2_``,
-    ``direct_weights_``, ``x_loadings_``, ...), so the :class:`BatchPLS`
-    methods forward to them with the wrapped estimator as the ``model``
-    argument. ``functools.wraps`` keeps ``help`` and ``inspect.signature``
-    reporting the underlying function.
-    """
-
-    @functools.wraps(fn)
-    def method(self: BatchPLS, *args, **kwargs) -> object:
-        check_is_fitted(self, "x_weights_")
-        return fn(self._pls, *args, **kwargs)
-
-    return method
+    """Forward a standalone ``fn(model, ...)`` to the inner PLS (see :func:`inner_method`)."""
+    return inner_method(fn, inner="_pls", fitted="x_weights_")
 
 
 class BatchPLS(RegressorMixin, BaseEstimator):
@@ -130,9 +114,9 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         units, indexed by batch identifier.
     r2_per_variable_ : pd.DataFrame of shape (n_unfolded_features, n_components)
         Cumulative R2 of each unfolded ``[Z | X]`` column after each
-        component, on the 2-level unfolded index. Every column has unit
-        variance after scaling, so the column mean is the R2 of the whole
-        block.
+        component, on the 2-level unfolded index. With ``scale=True`` every
+        column has unit variance, so the column mean is the R2 of the whole
+        block; with ``scale=False`` it is an unweighted average.
     scores_, spe_, hotellings_t2_ : pd.DataFrame
         Batch-level scores and diagnostics; one row per batch.
     center_, scale_ : pd.Series of length n_unfolded_features
@@ -543,6 +527,11 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         if not isinstance(y_observed, pd.DataFrame):
             raise TypeError(
                 f"y_observed must be a pandas DataFrame indexed by batch id; got {type(y_observed).__name__}."
+            )
+        missing = set(self.predictions_.index) - set(y_observed.index)
+        if missing:
+            raise ValueError(
+                f"y_observed must have a row for every training batch; missing batch ids: {sorted(missing, key=str)}."
             )
         aligned = y_observed.reindex(self.predictions_.index)
         return _predictions_vs_observed_plot(self, y_observed=aligned, variable=variable, settings=settings, fig=fig)

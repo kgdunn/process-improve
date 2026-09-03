@@ -217,11 +217,17 @@ def unfolded_contribution_plot(
     plotly.graph_objects.Figure
     """
     batch_id, row = _contribution_row(contributions, batch_id)
+    tags = row.index.get_level_values("tag")
+    is_traj = np.asarray(row.index.get_level_values("sequence") != "")
+    tag_order = list(dict.fromkeys(tags[is_traj]))
+    # Give every tag one contiguous block of samples (the (sequence, tag) layout of
+    # ``group_by_batch=True`` interleaves them), keeping the fitted tag and time order.
+    blocks = [np.flatnonzero(~is_traj)] + [np.flatnonzero(np.asarray(tags == tag) & is_traj) for tag in tag_order]
+    row = row.iloc[np.concatenate(blocks)]
     values = row.to_numpy(dtype=float)
     tags = row.index.get_level_values("tag")
     sequence = row.index.get_level_values("sequence")
     is_traj = np.asarray(sequence != "")
-    tag_order = list(dict.fromkeys(tags[is_traj]))
 
     if fig is None:
         fig = go.Figure()

@@ -295,3 +295,11 @@ def test_group_by_batch_layout_with_initial_conditions(aligned_dryer: dict, drye
     z = pd.DataFrame({"charge": [float(i) for i in range(len(ids))]}, index=ids)
     model = BatchPLS(n_components=2, group_by_batch=True).fit(aligned_dryer, dryer_quality, initial_conditions=z)
     assert ("", "charge") in model.feature_columns_
+
+
+@pytest.mark.dataset
+def test_predictions_vs_observed_plot_rejects_missing_batches(aligned_dryer: dict, dryer_quality: pd.DataFrame) -> None:
+    """A quality frame without every training batch is refused rather than drawn with gaps."""
+    model = BatchPLS(n_components=2).fit(aligned_dryer, dryer_quality)
+    with pytest.raises(ValueError, match="missing batch ids"):
+        model.predictions_vs_observed_plot(dryer_quality.iloc[:-5])

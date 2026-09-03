@@ -133,11 +133,11 @@ def read_remote_excel(
     ImportError
         When ``openpyxl`` is not installed.
     """
-    payload = fetch_remote_bytes(url, timeout=timeout)
     try:
-        import openpyxl  # noqa: F401, PLC0415 - probed here so the error names the extra to install
+        import openpyxl  # noqa: F401, PLC0415 - probed before downloading so the error is immediate
     except ImportError as exc:
         raise require_extra("openpyxl", "batch") from exc
+    payload = fetch_remote_bytes(url, timeout=timeout)
     try:
         sheets = pd.read_excel(io.BytesIO(payload), sheet_name=sheet_name, engine="openpyxl")
     except (ValueError, zipfile.BadZipFile) as exc:

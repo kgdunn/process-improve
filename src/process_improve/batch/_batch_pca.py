@@ -18,7 +18,6 @@ MSPC", Comprehensive Chemometrics, Elsevier, 2009, for the methodology.
 
 from __future__ import annotations
 
-import functools
 import typing
 
 import numpy as np
@@ -39,6 +38,7 @@ from ..multivariate.plots import loading_plot as _loading_plot
 from ..multivariate.plots import score_plot as _score_plot
 from ..multivariate.plots import spe_plot as _spe_plot
 from ..multivariate.plots import t2_plot as _t2_plot
+from ._common import inner_method
 from .data_input import check_valid_batch_dict, dict_to_wide
 
 if typing.TYPE_CHECKING:
@@ -46,23 +46,8 @@ if typing.TYPE_CHECKING:
 
 
 def _pca_method(fn: Callable[..., typing.Any]) -> Callable[..., typing.Any]:
-    """Wrap a module-level ``fn(model, ...)`` as a method forwarding ``self._pca``.
-
-    The convenience plots, limits, and contribution functions in
-    :mod:`process_improve.multivariate` read only fitted attributes that the
-    internal PCA model carries (``scores_``, ``loadings_``, ``spe_``,
-    ``scaling_factor_for_scores_``, ``n_components``, ``n_samples_``), so the
-    :class:`BatchPCA` methods forward to them with the wrapped estimator as
-    the ``model`` argument. Mirrors ``_model_method`` (ENG-05), so ``help``
-    and ``inspect.signature`` report the underlying function.
-    """
-
-    @functools.wraps(fn)
-    def method(self: BatchPCA, *args, **kwargs) -> object:
-        check_is_fitted(self, "loadings_")
-        return fn(self._pca, *args, **kwargs)
-
-    return method
+    """Forward a standalone ``fn(model, ...)`` to the inner PCA (see :func:`inner_method`)."""
+    return inner_method(fn, inner="_pca", fitted="loadings_")
 
 
 class BatchPCA(TransformerMixin, BaseEstimator):

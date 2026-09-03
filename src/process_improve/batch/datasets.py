@@ -179,11 +179,11 @@ def load_dupont(*, url: str | None = None, timeout: float | None = None) -> dict
     The worked example of Nomikos and MacGregor (1995): 55 batches from an
     industrial batch polymerization reactor, each already aligned to 100 equal
     time intervals, with ten process measurements per interval. Values are
-    scaled for confidentiality and there are no missing values. The tags, in
-    file order, are three reactor temperatures ``TempR-1`` to ``TempR-3``,
-    the pressures ``Press-1``, ``Press-2`` and ``Press-3``, the feed flows
-    ``Flow-1`` and ``Flow-2``, and the heating- and cooling-medium
-    temperatures ``TempH-1`` and ``TempC-1``.
+    scaled for confidentiality and there are no missing values. The ten tags,
+    in file order, are ``TempR-1``, ``TempR-2``, ``TempR-3`` (reactor
+    temperatures), ``Press-1`` (a pressure), ``Flow-1`` (a feed flow),
+    ``TempH-1`` and ``TempC-1`` (heating- and cooling-medium temperatures),
+    ``Press-2`` and ``Press-3`` (pressures) and ``Flow-2`` (a feed flow).
 
     The final quality of each batch is not part of the dataset. The paper
     reports that batches 40, 41, 42, 50, 51, 53, 54 and 55 had a quality

@@ -166,7 +166,7 @@ def main(argv: list[str] | None = None) -> int:
         "legacy_r2_per_component": LEGACY_R2_PER_COMPONENT,
         "legacy_tolerance": "assertEAE: relative 1e-2 on |t| and |p| (sign ignored), 1e-5 on R2",
         "loadings_layout": "time-major: MATLAB row k * 9 + j is tag j at sample k",
-        "generated_at": datetime.datetime.now(tz=datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S+0000"),
+        "generated_at": datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+0000"),
     }
     METADATA_JSON.write_text(json.dumps(metadata, indent=2) + "\n")
     write_workbook(melted, quality, args.workbook)

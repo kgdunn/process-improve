@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pathlib
-from typing import TYPE_CHECKING, TypeVar
 
 import pandas as pd
 import pytest
@@ -17,11 +16,7 @@ from process_improve.batch.datasets import (
     load_nylon,
     load_sbr,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
-T = TypeVar("T")
+from tests._case_study_scripts import load_or_skip
 
 
 def test_load_nylon() -> None:
@@ -68,18 +63,11 @@ def test_loaders_reset_row_index() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _load_or_skip(loader: Callable[[], T]) -> T:
-    """Call a remote loader, skipping the test when the download fails."""
-    try:
-        return loader()
-    except RuntimeError as exc:
-        raise pytest.skip.Exception(f"Cannot download the dataset: {exc}") from exc
-
-
 @pytest.mark.dataset
+@pytest.mark.slow
 def test_load_dupont() -> None:
     """DuPont loads as 55 aligned, complete batches of 100 samples and 10 tags."""
-    batches = _load_or_skip(load_dupont)
+    batches = load_or_skip(load_dupont)
     assert sorted(batches) == list(range(1, 56))
     assert check_valid_batch_dict(batches, no_nan=True)
     first = batches[1]
@@ -91,9 +79,10 @@ def test_load_dupont() -> None:
 
 
 @pytest.mark.dataset
+@pytest.mark.slow
 def test_load_fmc() -> None:
     """FMC loads as four blocks over the same 59 batches, with its missing cells kept."""
-    fmc = _load_or_skip(load_fmc)
+    fmc = load_or_skip(load_fmc)
     assert set(fmc) >= {"X", "Y", "Zop", "Zchem", "batch_ids", "missing_chemistry"}
     assert len(fmc.X) == 59
     assert fmc.batch_ids[0] == 2
@@ -117,9 +106,10 @@ def test_load_fmc() -> None:
 
 
 @pytest.mark.dataset
+@pytest.mark.slow
 def test_load_sbr() -> None:
     """SBR loads as 53 complete batches of 200 samples and 9 tags, plus 5 quality attributes."""
-    sbr = _load_or_skip(load_sbr)
+    sbr = load_or_skip(load_sbr)
     assert sorted(sbr.X) == list(range(1, 54))
     assert check_valid_batch_dict(sbr.X, no_nan=True)
     assert sbr.X[1].shape == (200, 9)

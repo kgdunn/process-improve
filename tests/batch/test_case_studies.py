@@ -89,8 +89,9 @@ class TestDuPont:
         assert (table["T2"] < table["T2 limit"]).all()
         assert (table["SPE"] < table["SPE limit"]).all()
 
+    @pytest.mark.usefixtures("dupont_batches")
     def test_script_runs_end_to_end(self, dupont_script, tmp_path: pathlib.Path) -> None:
-        """The whole script executes and writes its figures."""
+        """The whole script executes and writes its figures (skipped with the data when offline)."""
         assert dupont_script.main(["--output-dir", str(tmp_path)]) == 0
         assert len(list(tmp_path.glob("*.html"))) >= 15
 

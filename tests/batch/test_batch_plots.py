@@ -255,3 +255,20 @@ def test_time_varying_loading_plot_rejects_an_unfitted_model() -> None:
     """An unfitted model has no loadings to draw."""
     with pytest.raises(ValueError, match="not fitted"):
         time_varying_loading_plot(BatchPCA(n_components=2))
+
+
+def test_unfolded_contribution_plot_handles_the_time_major_layout(aligned_nylon: dict) -> None:
+    """With group_by_batch=True the cells are interleaved; the plot still draws one block per tag."""
+    default = BatchPCA(n_components=2).fit(aligned_nylon)
+    interleaved = BatchPCA(n_components=2, group_by_batch=True).fit(aligned_nylon)
+    fig_default = unfolded_contribution_plot(
+        default.spe_contributions(default.unfold_and_scale(aligned_nylon)) ** 2, 49
+    )
+    fig_interleaved = unfolded_contribution_plot(
+        interleaved.spe_contributions(interleaved.unfold_and_scale(aligned_nylon)) ** 2, 49
+    )
+    assert list(fig_interleaved.layout.xaxis.tickvals) == list(fig_default.layout.xaxis.tickvals)
+    assert list(fig_interleaved.layout.xaxis.ticktext) == list(fig_default.layout.xaxis.ticktext)
+    for trace_a, trace_b in zip(fig_default.data, fig_interleaved.data, strict=True):
+        assert trace_a.name == trace_b.name
+        assert np.allclose(trace_a.y, trace_b.y)

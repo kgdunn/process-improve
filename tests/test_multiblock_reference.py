@@ -1606,8 +1606,9 @@ class TestFMCReference:
 
     def test_batch_pca_on_trajectories(self, fmc_script, fmc_unfolded) -> None:
         _wide, x_scaled = fmc_unfolded
-        model, spe_share = fmc_script.batch_pca_on_trajectories(x_scaled)
+        model, spe_share, worst = fmc_script.batch_pca_on_trajectories(x_scaled)
         np.testing.assert_allclose(model.r2_cumulative_.to_numpy(), [0.197, 0.349], atol=2e-3)
+        assert worst == 51
         assert list(model.loadings_.index.names) == ["tag", "sequence"]
         assert list(spe_share.columns.names) == ["tag", "sequence"]
         assert spe_share.loc[20].isna().all()  # a batch with missing cells has no contributions
@@ -1627,9 +1628,18 @@ class TestFMCReference:
         assert vip["Zop"] > vip["X"] > vip["Zchem"]
         assert list(model.block_weights_["X"].index.names) == ["tag", "sequence"]
 
+    @pytest.mark.usefixtures("fmc_data")
     def test_script_runs_end_to_end(self, fmc_script, tmp_path) -> None:
         assert fmc_script.main(["--output-dir", str(tmp_path)]) == 0
         assert len(list(tmp_path.glob("*.html"))) >= 20
+
+
+@pytest.mark.skip(reason="Requires kamyr-digester / Simca-P reference values (planned in PR2 of the multi-block port).")
+class TestSimcaPCAComparison:
+    """Numerical comparison against Simca-P 11.5.0.0 (2006) for kamyr-digester
+    PCA and PLS models. Deferred until PR2 brings the reference values into
+    the repository.
+    """
 
 
 class TestMultiblockDeterministicStart:
