@@ -22,6 +22,7 @@ MSPC", Comprehensive Chemometrics, Elsevier, 2009.
 
 from __future__ import annotations
 
+import functools
 import typing
 
 import pandas as pd
@@ -29,12 +30,45 @@ from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
+from ..multivariate._diagnostics import score_contributions as _score_contributions
+from ..multivariate._diagnostics import spe_contributions as _spe_contributions
+from ..multivariate._diagnostics import t2_contributions as _t2_contributions
+from ..multivariate._limits import score_limit as _score_limit
+from ..multivariate._limits import spe_limit as _spe_limit
 from ..multivariate._pls import PLS
 from ..multivariate._preprocessing import MCUVScaler
+from ..multivariate.plots import predictions_vs_observed_plot as _predictions_vs_observed_plot
+from ..multivariate.plots import score_plot as _score_plot
+from ..multivariate.plots import spe_plot as _spe_plot
+from ..multivariate.plots import t2_plot as _t2_plot
 from .data_input import check_valid_batch_dict, dict_to_wide
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Hashable
+    from collections.abc import Callable, Hashable
+
+    import numpy as np
+    import plotly.graph_objects as go
+
+
+def _pls_method(fn: Callable[..., typing.Any]) -> Callable[..., typing.Any]:
+    """Wrap a module-level ``fn(model, ...)`` as a method forwarding ``self._pls``.
+
+    Mirrors ``_pca_method`` on :class:`process_improve.batch.BatchPCA`: the
+    standalone plots, limits and contribution functions in
+    :mod:`process_improve.multivariate` read only fitted attributes that the
+    inner PLS carries (``scores_``, ``spe_``, ``hotellings_t2_``,
+    ``direct_weights_``, ``x_loadings_``, ...), so the :class:`BatchPLS`
+    methods forward to them with the wrapped estimator as the ``model``
+    argument. ``functools.wraps`` keeps ``help`` and ``inspect.signature``
+    reporting the underlying function.
+    """
+
+    @functools.wraps(fn)
+    def method(self: BatchPLS, *args, **kwargs) -> object:
+        check_is_fitted(self, "x_weights_")
+        return fn(self._pls, *args, **kwargs)
+
+    return method
 
 
 class BatchPLS(RegressorMixin, BaseEstimator):
@@ -91,6 +125,14 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         Cumulative R2 of the quality block after each component.
     rmse_ : pd.DataFrame of shape (n_targets, n_components)
         Root-mean-square error of the fit, on the original quality units.
+    predictions_ : pd.DataFrame of shape (n_batches, n_targets)
+        Fitted quality of every training batch, on the original quality
+        units, indexed by batch identifier.
+    r2_per_variable_ : pd.DataFrame of shape (n_unfolded_features, n_components)
+        Cumulative R2 of each unfolded ``[Z | X]`` column after each
+        component, on the 2-level unfolded index. Every column has unit
+        variance after scaling, so the column mean is the R2 of the whole
+        block.
     scores_, spe_, hotellings_t2_ : pd.DataFrame
         Batch-level scores and diagnostics; one row per batch.
     center_, scale_ : pd.Series of length n_unfolded_features
@@ -272,6 +314,10 @@ class BatchPLS(RegressorMixin, BaseEstimator):
             columns=self._pls.beta_coefficients_.columns,
         )
         self.rmse_ = self._pls.rmse_.mul(y_scaler.scale_.to_numpy(), axis=0)
+        self.predictions_ = y_scaler.inverse_transform(self._pls.predictions_)
+        self.r2_per_variable_ = pd.DataFrame(
+            self._pls.r2_per_variable_.to_numpy(), index=wide.columns, columns=self._pls.r2_per_variable_.columns
+        )
         self.y_loadings_ = self._pls.y_loadings_
         self.r2_cumulative_ = self._pls.r2_cumulative_
         self.explained_variance_ = self._pls.explained_variance_
@@ -411,3 +457,103 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         """
         check_is_fitted(self, "x_weights_")
         return self._pls.projection_matrix(observed, method=method, ridge=ridge)
+
+    def unfold_and_scale(
+        self,
+        X: dict[Hashable, pd.DataFrame],
+        *,
+        initial_conditions: pd.DataFrame | None = None,
+    ) -> pd.DataFrame:
+        """Unfold batches batchwise and apply the training centring and scaling.
+
+        Parameters
+        ----------
+        X : dict[Hashable, pd.DataFrame]
+            Standard batch-data dictionary of aligned batches with the same
+            tags and length as the training data.
+        initial_conditions : pd.DataFrame, optional
+            The Z block for the batches; required if the model was fitted
+            with one.
+
+        Returns
+        -------
+        pd.DataFrame of shape (n_batches, n_unfolded_features)
+            The one-row-per-batch ``[Z | X]`` matrix in the model's scaled
+            space, indexed by batch identifier, with the 2-level unfolded
+            column index. This is the ``X`` argument that
+            :meth:`score_contributions`, :meth:`spe_contributions` and
+            :meth:`t2_contributions` expect; passing the training batches
+            reproduces the fitted scores.
+        """
+        return self._scaled_wide(X, initial_conditions)
+
+    def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
+        """Hotelling's T2 limit at the given confidence level."""
+        check_is_fitted(self, "x_weights_")
+        return self._pls.hotellings_t2_limit(conf_level=conf_level)
+
+    def ellipse_coordinates(
+        self,
+        score_horiz: int,
+        score_vert: int,
+        conf_level: float = 0.95,
+        n_points: int = 100,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Coordinates of the T2 confidence ellipse for a score plot."""
+        check_is_fitted(self, "x_weights_")
+        return self._pls.ellipse_coordinates(
+            score_horiz=score_horiz,
+            score_vert=score_vert,
+            conf_level=conf_level,
+            n_points=n_points,
+        )
+
+    def predictions_vs_observed_plot(
+        self,
+        y_observed: pd.DataFrame,
+        variable: str | None = None,
+        settings: dict | None = None,
+        fig: go.Figure | None = None,
+    ) -> go.Figure:
+        """Observed-versus-predicted (parity) plot of the training batches.
+
+        Both axes are on the original quality units: the fitted values come
+        from ``predictions_`` and the observed values from ``y_observed``,
+        matched by batch identifier.
+
+        Parameters
+        ----------
+        y_observed : pd.DataFrame
+            The quality block passed to :meth:`fit`, indexed by batch
+            identifier. Rows are aligned to ``predictions_`` by label, so the
+            row order does not matter.
+        variable : str, optional
+            Which quality variable to plot. Defaults to the first one.
+        settings : dict, optional
+            Plot settings, as for
+            :func:`process_improve.multivariate.plots.predictions_vs_observed_plot`.
+        fig : go.Figure, optional
+            An existing figure to draw onto.
+
+        Returns
+        -------
+        go.Figure
+        """
+        check_is_fitted(self, "x_weights_")
+        if not isinstance(y_observed, pd.DataFrame):
+            raise TypeError(
+                f"y_observed must be a pandas DataFrame indexed by batch id; got {type(y_observed).__name__}."
+            )
+        aligned = y_observed.reindex(self.predictions_.index)
+        return _predictions_vs_observed_plot(self, y_observed=aligned, variable=variable, settings=settings, fig=fig)
+
+    # Convenience methods forwarding to the standalone multivariate functions
+    # with the internal (batchwise-unfolded) PLS as the model argument.
+    score_plot = _pls_method(_score_plot)
+    spe_plot = _pls_method(_spe_plot)
+    t2_plot = _pls_method(_t2_plot)
+    spe_limit = _pls_method(_spe_limit)
+    score_limit = _pls_method(_score_limit)
+    score_contributions = _pls_method(_score_contributions)
+    spe_contributions = _pls_method(_spe_contributions)
+    t2_contributions = _pls_method(_t2_contributions)

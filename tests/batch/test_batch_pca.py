@@ -183,3 +183,28 @@ def test_unscaled_keeps_centring_only() -> None:
     np.testing.assert_allclose(model.scale_.to_numpy(), 1.0)
     # centring is non-trivial
     assert np.any(np.abs(model.center_.to_numpy()) > 1e-6)
+
+
+def test_unfold_and_scale_matches_training_matrix(aligned_nylon: dict) -> None:
+    """The public scaled matrix is the MCUV-scaled unfolded training data, on the fitted layout."""
+    from process_improve.batch.data_input import dict_to_wide
+    from process_improve.multivariate import MCUVScaler
+
+    model = BatchPCA(n_components=2).fit(aligned_nylon)
+    scaled = model.unfold_and_scale(aligned_nylon)
+    assert list(scaled.columns) == list(model.feature_columns_)
+    assert list(scaled.index) == model.batch_ids_
+    expected = MCUVScaler().fit_transform(dict_to_wide(aligned_nylon)).to_numpy()
+    assert np.allclose(scaled.to_numpy(), expected, atol=1e-8)
+    # Projecting the public matrix through the inner PCA reproduces the fitted scores.
+    assert np.allclose(model.transform(aligned_nylon).to_numpy(), model.scores_.to_numpy(), atol=1e-8)
+
+
+def test_score_contributions_sum_to_scores(aligned_nylon: dict) -> None:
+    """Score contributions keep the (tag, sequence) index and add up to the fitted scores."""
+    model = BatchPCA(n_components=2).fit(aligned_nylon)
+    scaled = model.unfold_and_scale(aligned_nylon)
+    for component in (1, 2):
+        contributions = model.score_contributions(scaled, component=component)
+        assert list(contributions.columns.names) == ["tag", "sequence"]
+        assert np.allclose(contributions.sum(axis=1), model.scores_.iloc[:, component - 1], atol=1e-8)
