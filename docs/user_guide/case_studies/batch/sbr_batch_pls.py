@@ -5,7 +5,7 @@ polymerization in a batch reactor; five quality attributes of the latex are
 measured at the end of each batch. Because these 53 batches were simulated
 from a first-principles model, the fault is known: batches 34 and 37 both
 received 30% more organic impurity in the butadiene feed, from the very
-start of batch 37 and from midway through batch 34. This script fits a
+start of batch 37 and partway through batch 34. This script fits a
 batchwise-unfolded PLS from the six trajectories to the five quality
 attributes and follows the diagnosis of the course notes: the score plot
 flags both batches, the whole-batch SPE does not, the weights and the
@@ -50,7 +50,7 @@ CONF_LEVEL = 0.95
 FAULT_FROM_START = 37
 FAULT_MID_BATCH = 34
 FAULT_BATCHES = [FAULT_MID_BATCH, FAULT_FROM_START]
-INSPECT_SAMPLE = 120  # a sample well after the mid-batch fault has developed
+INSPECT_SAMPLE = 120  # a sample well after the fault in batch 34 has developed
 HIGHLIGHT = '{"color": "red", "width": 4}'  # Plotly line style, JSON-encoded, for the highlighted batches
 LABELS = {"show_labels": True}
 # -- end: constants --
@@ -145,12 +145,41 @@ def plot_r2_over_time(grid: pd.DataFrame) -> go.Figure:
 def diagnose_batch_37(model: BatchPLS, trajectories: dict) -> pd.DataFrame:
     """Score contributions to t1: why batch 37 sits at the low end of t1."""
     contributions = model.score_contributions(model.unfold_and_scale(trajectories), component=1)
-    by_tag = contributions.loc[FAULT_FROM_START].groupby(level="tag", sort=False).sum()
+    row = contributions.loc[FAULT_FROM_START]
+    by_tag = row.groupby(level="tag", sort=False).sum()
+    print(f"batch {FAULT_FROM_START}: t1 contributions per tag = " + describe(by_tag))
+    print(f"batch {FAULT_FROM_START}: share of the t1 contribution per fifth of the batch = {share_per_fifth(row)}")
     print(
-        f"batch {FAULT_FROM_START}: t1 contributions per tag = "
-        + ", ".join(f"{tag} {value:+.1f}" for tag, value in by_tag.items())
+        f"batch {FAULT_FROM_START}: first sample more than 2 sd away from the other batches: {first_departure(trajectories, FAULT_FROM_START)}"
     )
     return contributions
+
+
+def describe(by_tag: pd.Series) -> str:
+    """Format per-tag contributions as one line."""
+    return ", ".join(f"{tag} {value:+.1f}" for tag, value in by_tag.items())
+
+
+def share_per_fifth(row: pd.Series) -> str:
+    """Split a batch's contribution vector into five equal time blocks and give each block's share."""
+    by_time = row.groupby(level="sequence").sum()
+    fifths = by_time.groupby(np.arange(len(by_time)) * 5 // len(by_time)).sum()
+    return ", ".join(f"{share:.0%}" for share in fifths / fifths.sum())
+
+
+def first_departure(trajectories: dict, batch_id: int, n_sd: float = 2.0) -> dict[str, int | None]:
+    """Return the first sample where each tag of one batch leaves the band of the other batches.
+
+    The band is the mean of the other batches plus or minus ``n_sd`` standard
+    deviations, sample by sample; ``None`` means the tag never leaves it.
+    """
+    others = np.stack([batch.to_numpy() for key, batch in trajectories.items() if key != batch_id])
+    z = (trajectories[batch_id].to_numpy() - others.mean(axis=0)) / others.std(axis=0, ddof=1)
+    outside = np.abs(z) > n_sd
+    return {
+        tag: (int(np.argmax(outside[:, j])) if outside[:, j].any() else None)
+        for j, tag in enumerate(trajectories[batch_id].columns)
+    }
 
 
 # -- end: batch-37 --
@@ -158,17 +187,15 @@ def diagnose_batch_37(model: BatchPLS, trajectories: dict) -> pd.DataFrame:
 
 # -- section: batch-34 --
 def diagnose_batch_34(model: BatchPLS, trajectories: dict) -> pd.DataFrame:
-    """Score contributions to t2: the same fault, but starting midway through batch 34."""
+    """Score contributions to t2: the same fault, but starting partway through batch 34."""
     contributions = model.score_contributions(model.unfold_and_scale(trajectories), component=2)
     row = contributions.loc[FAULT_MID_BATCH]
     by_tag = row.groupby(level="tag", sort=False).sum()
-    by_time = row.groupby(level="sequence").sum()
-    onset = int(by_time.index[(by_time.cumsum() > 0.05 * by_time.sum()).to_numpy().argmax()])
+    print(f"batch {FAULT_MID_BATCH}: t2 contributions per tag = " + describe(by_tag))
+    print(f"batch {FAULT_MID_BATCH}: share of the t2 contribution per fifth of the batch = {share_per_fifth(row)}")
     print(
-        f"batch {FAULT_MID_BATCH}: t2 contributions per tag = "
-        + ", ".join(f"{tag} {value:+.1f}" for tag, value in by_tag.items())
+        f"batch {FAULT_MID_BATCH}: first sample more than 2 sd away from the other batches: {first_departure(trajectories, FAULT_MID_BATCH)}"
     )
-    print(f"batch {FAULT_MID_BATCH}: 5% of the t2 contribution has accumulated by sample {onset}")
     return contributions
 
 

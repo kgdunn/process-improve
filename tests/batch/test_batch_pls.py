@@ -263,3 +263,35 @@ def test_predictions_vs_observed_plot(aligned_dryer: dict, dryer_quality: pd.Dat
         model.predictions_vs_observed_plot(dryer_quality, variable="nope")
     with pytest.raises(TypeError, match="pandas DataFrame"):
         model.predictions_vs_observed_plot(dryer_quality.to_numpy())
+
+
+@pytest.mark.dataset
+def test_initial_conditions_are_validated(aligned_dryer: dict, dryer_quality: pd.DataFrame) -> None:
+    """The Z block must be a numeric, complete DataFrame with exactly one row per batch."""
+    ids = list(aligned_dryer)
+    good_z = pd.DataFrame({"charge": [float(i) for i in range(len(ids))]}, index=ids)
+    with pytest.raises(TypeError, match="pandas DataFrame"):
+        BatchPLS(n_components=2).fit(aligned_dryer, dryer_quality, initial_conditions=good_z.to_numpy())
+    with pytest.raises(ValueError, match="exactly one row per batch"):
+        BatchPLS(n_components=2).fit(aligned_dryer, dryer_quality, initial_conditions=good_z.iloc[:-1])
+    with pytest.raises(ValueError, match="numeric"):
+        BatchPLS(n_components=2).fit(aligned_dryer, dryer_quality, initial_conditions=good_z.assign(kind="a"))
+    with pytest.raises(ValueError, match="missing"):
+        BatchPLS(n_components=2).fit(aligned_dryer, dryer_quality, initial_conditions=good_z.mask(good_z > 5.0))
+
+
+@pytest.mark.dataset
+def test_unscaled_fit_keeps_centring_only(aligned_dryer: dict, dryer_quality: pd.DataFrame) -> None:
+    """scale=False centres the unfolded columns but leaves their spread alone."""
+    model = BatchPLS(n_components=2, scale=False).fit(aligned_dryer, dryer_quality)
+    assert (model.scale_ == 1.0).all()
+    assert model.r2_cumulative_.iloc[-1] > 0.0
+
+
+@pytest.mark.dataset
+def test_group_by_batch_layout_with_initial_conditions(aligned_dryer: dict, dryer_quality: pd.DataFrame) -> None:
+    """With group_by_batch the Z columns are labelled ("", name) to match the (sequence, tag) layout."""
+    ids = list(aligned_dryer)
+    z = pd.DataFrame({"charge": [float(i) for i in range(len(ids))]}, index=ids)
+    model = BatchPLS(n_components=2, group_by_batch=True).fit(aligned_dryer, dryer_quality, initial_conditions=z)
+    assert ("", "charge") in model.feature_columns_

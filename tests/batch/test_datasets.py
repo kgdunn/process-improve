@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pathlib
 from typing import TYPE_CHECKING, TypeVar
 
 import pandas as pd
@@ -70,10 +71,9 @@ def test_loaders_reset_row_index() -> None:
 def _load_or_skip(loader: Callable[[], T]) -> T:
     """Call a remote loader, skipping the test when the download fails."""
     try:
-        data = loader()
+        return loader()
     except RuntimeError as exc:
-        pytest.skip(f"Cannot download the dataset: {exc}")
-    return data
+        raise pytest.skip.Exception(f"Cannot download the dataset: {exc}") from exc
 
 
 @pytest.mark.dataset
@@ -127,4 +127,80 @@ def test_load_sbr() -> None:
     assert sbr.Y.shape == (53, 5)
     assert list(sbr.Y.columns) == ["Composition", "ParticleSize", "Branching", "CrossLinking", "Polydispersity"]
     assert list(sbr.Y.index) == list(sbr.X)
+    assert sbr.fault_batches == [34, 37]
+
+
+# ---------------------------------------------------------------------------
+# The same loaders on local copies (file:// URLs), so their logic is tested offline
+# ---------------------------------------------------------------------------
+
+
+def _write_workbook(path: pathlib.Path, sheets: dict[str, pd.DataFrame]) -> str:
+    pytest.importorskip("openpyxl")
+    with pd.ExcelWriter(path, engine="openpyxl") as writer:
+        for name, frame in sheets.items():
+            frame.to_excel(writer, sheet_name=name, index=False)
+    return path.as_uri()
+
+
+def test_load_dupont_from_a_local_copy(tmp_path: pathlib.Path) -> None:
+    """A file:// URL reads a local copy; the time column is dropped and batches are keyed by id."""
+    melted = pd.DataFrame(
+        {
+            "batch_id": [1, 1, 2, 2],
+            "time": [1, 2, 1, 2],
+            "TempR-1": [0.5, 0.6, 0.7, 0.8],
+            "Flow-2": [1.0, 1.1, 1.2, 1.3],
+        }
+    )
+    path = tmp_path / "polymerization.csv"
+    melted.to_csv(path, index=False)
+    batches = load_dupont(url=path.as_uri())
+    assert list(batches) == [1, 2]
+    assert list(batches[1].columns) == ["TempR-1", "Flow-2"]
+    assert batches[2].shape == (2, 2)
+    assert batches[2].index.tolist() == [0, 1]
+
+
+def test_load_fmc_from_a_local_copy(tmp_path: pathlib.Path) -> None:
+    """The four sheets come back as a batch dictionary plus per-batch tables aligned to it."""
+    url = _write_workbook(
+        tmp_path / "batch-dryer.xlsx",
+        {
+            "Z_operations": pd.DataFrame({"batch_id": [7, 5], "Level1": [1.0, 2.0]}),
+            "Z_chemistry": pd.DataFrame({"batch_id": [5, 7], "Z1": [0.1, None]}),
+            "X_batch": pd.DataFrame(
+                {"batch_id": [5, 5, 7, 7], "CTankLvl": [0.0, 1.0, 0.0, 2.0], "ClockTime": [1, 2, 1, 2]}
+            ),
+            "Y_quality": pd.DataFrame({"batch_id": [5, 7], "Y1": [10.0, 11.0]}),
+        },
+    )
+    fmc = load_fmc(url=url)
+    assert list(fmc.X) == [5, 7]
+    assert fmc.batch_ids == [5, 7]
+    assert list(fmc.X[5].columns) == ["CTankLvl", "ClockTime"]
+    assert list(fmc.Zop.index) == [5, 7]  # reindexed into trajectory order
+    assert fmc.Zop.loc[5, "Level1"] == 2.0
+    assert int(fmc.Zchem.isna().sum().sum()) == 1
+    assert list(fmc.Y.columns) == ["Y1"]
+    assert len(fmc.missing_chemistry) == 13
+
+
+def test_load_sbr_from_a_local_copy(tmp_path: pathlib.Path) -> None:
+    """The two sheets come back as a batch dictionary (time dropped) and a quality table."""
+    tags = ["StyreneFlow", "ButadieneFlow", "FeedTemp", "ReactorTemp", "CoolingTemp", "JacketTemp"]
+    tags += ["LatexDensity", "Conversion", "EnergyReleased"]
+    x = pd.DataFrame({"batch_id": [1, 1, 2, 2], "time": [1, 2, 1, 2]})
+    for j, tag in enumerate(tags):
+        x[tag] = [j, j + 0.5, j + 1.0, j + 1.5]
+    y = pd.DataFrame({"batch_id": [1, 2]})
+    for name in ("Composition", "ParticleSize", "Branching", "CrossLinking", "Polydispersity"):
+        y[name] = [1.0, 2.0]
+    sbr = load_sbr(url=_write_workbook(tmp_path / "sbr-batch-reactor.xlsx", {"X_batch": x, "Y_quality": y}))
+    assert list(sbr.X) == [1, 2]
+    assert list(sbr.X[1].columns) == tags
+    assert "time" not in sbr.X[1].columns
+    assert sbr.Y.shape == (2, 5)
+    assert list(sbr.Y.index) == [1, 2]
+    assert set(sbr.trajectory_tags) <= set(tags)
     assert sbr.fault_batches == [34, 37]

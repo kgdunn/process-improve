@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import io
 import re
+import sys
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -132,3 +133,11 @@ def test_read_remote_csv_reads_a_local_file_url(tmp_path: pathlib.Path) -> None:
     csv_path.write_text("batch_id,time,Temp\n1,1,0.5\n1,2,0.6\n")
     frame = remote_data.read_remote_csv(csv_path.as_uri())
     pd.testing.assert_frame_equal(frame, pd.DataFrame({"batch_id": [1, 1], "time": [1, 2], "Temp": [0.5, 0.6]}))
+
+
+def test_read_remote_excel_names_the_extra_when_openpyxl_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without openpyxl the error tells the caller which extra to install."""
+    monkeypatch.setattr(remote_data.urllib.request, "urlopen", _serve(b"irrelevant"))
+    monkeypatch.setitem(sys.modules, "openpyxl", None)  # makes ``import openpyxl`` raise ImportError
+    with pytest.raises(ImportError, match="batch"):
+        remote_data.read_remote_excel("https://openmv.net/file/x.xlsx")

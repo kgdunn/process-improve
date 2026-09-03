@@ -62,6 +62,6 @@ reactor for Paul Nomikos, *Statistical process control of batch processes*,
 PhD thesis, McMaster University, 1995, and were used as course material by
 ConnectMV (Kevin Dunn) in 2011-2012. Batches 34 and 37 carry the same
 injected fault (30% more organic impurity in the butadiene feed), starting
-at the beginning of batch 37 and midway through batch 34. The reference
+at the beginning of batch 37 and partway through batch 34. The reference
 numbers are the mathematical output of running the legacy toolkit on those
 data; no MATLAB source code is copied into this repository.

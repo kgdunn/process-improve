@@ -221,3 +221,37 @@ def test_time_varying_loading_plot_shows_batch_pls_weights(aligned_nylon: dict) 
     assert len(fig.data) == model.n_tags_
     assert "weights" in fig.layout.title.text
     assert fig.layout.yaxis.title.text.endswith("w1")
+
+
+def test_plots_draw_into_an_existing_figure(
+    fitted_model: BatchPCA, spe_contributions: pd.DataFrame, aligned_nylon: dict
+) -> None:
+    """Every plot accepts a figure to draw into and returns that same figure."""
+    fig = go.Figure()
+    assert time_varying_loading_plot(fitted_model, fig=fig) is fig
+    assert unfolded_contribution_plot(spe_contributions, 49, fig=fig) is fig
+    assert unfolded_contribution_plot(spe_contributions, 49, by_tag=True, fig=fig) is fig
+    assert contribution_at_time_plot(spe_contributions, k=0, fig=fig) is fig
+    good = {k: v for k, v in aligned_nylon.items() if 1 <= k <= 20}
+    monitor = BatchMonitor(BatchPCA(n_components=2).fit(good), conf_level=0.95).fit(good)
+    assert online_monitoring_plot(monitor, aligned_nylon[1], fig=fig) is fig
+
+
+def test_time_varying_loading_plot_reads_the_weights_of_a_plain_pls(aligned_nylon: dict) -> None:
+    """A multivariate PLS on unfolded data has x_weights_ but no loadings_; the plot uses the weights."""
+    from process_improve.multivariate import PLS
+
+    wide = dict_to_wide(aligned_nylon)
+    scaled = MCUVScaler().fit_transform(wide)
+    scaled.columns = wide.columns
+    quality = pd.DataFrame({"final": [float(b["Tag01"].mean()) for b in aligned_nylon.values()]}, index=wide.index)
+    pls = PLS(n_components=1, scale=False).fit(scaled, MCUVScaler().fit_transform(quality))
+    fig = time_varying_loading_plot(pls, component=1)
+    assert len(fig.data) == 10
+    assert "weights" in fig.layout.title.text
+
+
+def test_time_varying_loading_plot_rejects_an_unfitted_model() -> None:
+    """An unfitted model has no loadings to draw."""
+    with pytest.raises(ValueError, match="not fitted"):
+        time_varying_loading_plot(BatchPCA(n_components=2))

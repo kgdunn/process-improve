@@ -11,7 +11,7 @@ released), and five quality attributes of the latex are measured at the end
 The 53 batches were simulated from a first-principles model, which makes this
 a rare kind of case study: the fault is known. Batches 34 and 37 both received
 30% more organic impurity in the butadiene feed, from the very start of batch
-37 and from midway through batch 34.
+37 and partway through batch 34.
 
 The complete script is ``sbr_batch_pls.py`` in this directory:
 
@@ -116,8 +116,8 @@ whole length of the batch. The raw overlays confirm it: the two trajectories
 run under the others from the first sample. The impurity slowed the reaction
 from the start, which is exactly the injected fault.
 
-Batch 34: the same fault, midway through
-----------------------------------------
+Batch 34: the same fault, partway through
+-----------------------------------------
 
 .. literalinclude:: sbr_batch_pls.py
    :language: python

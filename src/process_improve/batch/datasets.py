@@ -318,8 +318,8 @@ def load_sbr(*, url: str | None = None, timeout: float | None = None) -> Bunch:
     53 batches of 200 samples with nine trajectories, and five final quality
     attributes per batch. Because the data are simulated, the fault is
     known: batches 34 and 37 both received 30% more organic impurity in the
-    butadiene feed, from the start of batch 37 and from midway through batch
-    34. The two feed-flow trajectories are constant in the simulation.
+    butadiene feed, from the start of batch 37 and partway through batch 34.
+    The two feed-flow trajectories are constant in the simulation.
 
     Parameters
     ----------
