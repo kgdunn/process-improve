@@ -11,6 +11,26 @@ those changes.
 
 ## [Unreleased]
 
+## [1.78.1] - 2026-09-04
+
+Fixes surfaced by executing every Python case in the *Process Improvement using
+Data* book against this package (kgdunn/pid-book#274).
+
+### Fixed
+
+- `AdaptivePCA.fit` and `AdaptivePLS.fit` now set `n_components_`, so the
+  inherited `hotellings_t2_limit` method works on the adaptive estimators instead
+  of raising `AttributeError` (#542). The value agrees with the
+  `hotellings_t2_limit` field of the `update()` Bunch.
+- The robust-regression tool description claimed the repeated-median slope
+  tolerates "~29%" contamination, which is the Theil-Sen figure; Siegel's
+  repeated median, the estimator implemented, has a 50% breakdown point (#544).
+- Project URLs in `pyproject.toml` and the Sphinx `github_url` pointed at
+  `github.com/kgdunn/process_improve` (underscore, HTTP 403); corrected to
+  `process-improve` (#543).
+- The `raincloud` docstring no longer claims a package default theme is applied
+  when `template=None`; none is.
+
 ## [1.78.0] - 2026-08-30
 
 ### Added
@@ -4002,7 +4022,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.78.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.78.1...HEAD
+[1.78.1]: https://github.com/kgdunn/process-improve/compare/v1.78.0...v1.78.1
 [1.78.0]: https://github.com/kgdunn/process-improve/compare/v1.77.0...v1.78.0
 [1.77.0]: https://github.com/kgdunn/process-improve/compare/v1.76.0...v1.77.0
 [1.76.0]: https://github.com/kgdunn/process-improve/compare/v1.75.2...v1.76.0

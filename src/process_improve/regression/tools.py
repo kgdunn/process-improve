@@ -61,8 +61,8 @@ class RobustRegressionInput(BaseModel):
     description=(
         "Fit a robust simple linear regression between x and y variables using the repeated "
         "median slope estimator. Unlike ordinary least squares, the repeated median method is "
-        "highly resistant to outliers - up to ~29% of the data can be contaminated without "
-        "affecting the fit. "
+        "highly resistant to outliers - up to half of the data can be contaminated before "
+        "the slope estimate breaks down (Siegel's repeated median has a 50% breakdown point). "
         "Returns slope, intercept, R-squared, standard errors, prediction intervals, and "
         "fitted values. "
         "Use this when you suspect outliers in the data or want a more reliable fit."
