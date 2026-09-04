@@ -2734,10 +2734,9 @@ def test_pls_select_n_components_synthetic() -> None:
     gamma = rng.normal(size=(2, 1))
     Y = pd.DataFrame(T_true @ gamma + 0.3 * rng.normal(size=(N, 1)), columns=["y"])
 
-    X_s = MCUVScaler().fit_transform(X)
-    Y_s = MCUVScaler().fit_transform(Y)
-
-    result = PLS.select_n_components(X_s, Y_s, max_components=10, random_state=0)
+    # Raw blocks: the default scale_inside_folds=True fits the scaling on each
+    # training fold, which is the usage the library recommends.
+    result = PLS.select_n_components(X, Y, max_components=10, random_state=0)
 
     assert isinstance(result, Bunch)
     assert set(result.keys()) == {
@@ -2797,11 +2796,8 @@ def test_pls_select_n_components_ldpe(
     n_samples, n_features = X.shape
     n_targets = Y.shape[1]
 
-    X_s = MCUVScaler().fit_transform(X)
-    Y_s = MCUVScaler().fit_transform(Y)
-
     max_comp = 6
-    result = PLS.select_n_components(X_s, Y_s, max_components=max_comp, cv=5)
+    result = PLS.select_n_components(X, Y, max_components=max_comp, cv=5)
 
     assert 1 <= result.n_components <= max_comp
     assert result.rmsecv.shape == (max_comp, n_targets + 1)
@@ -2821,14 +2817,12 @@ def test_pls_select_n_components_accepts_splitters() -> None:
     X = pd.DataFrame(rng.standard_normal((N, K)), columns=[f"x{i}" for i in range(K)])
     beta = rng.standard_normal((K, 2))
     Y = pd.DataFrame(X.values @ beta + 0.2 * rng.standard_normal((N, 2)), columns=["y0", "y1"])
-    X_s = MCUVScaler().fit_transform(X)
-    Y_s = MCUVScaler().fit_transform(Y)
 
-    res_kfold = PLS.select_n_components(X_s, Y_s, max_components=4, cv=KFold(5, shuffle=True, random_state=0))
+    res_kfold = PLS.select_n_components(X, Y, max_components=4, cv=KFold(5, shuffle=True, random_state=0))
     assert 1 <= res_kfold.n_components <= 4
     assert res_kfold.rmsecv.shape == (4, 3)
 
-    res_loo = PLS.select_n_components(X_s, Y_s, max_components=4, cv=LeaveOneOut())
+    res_loo = PLS.select_n_components(X, Y, max_components=4, cv=LeaveOneOut())
     assert 1 <= res_loo.n_components <= 4
     assert res_loo.cv_predictions.shape == (N, 2)
     assert not res_loo.cv_predictions.isna().any().any()
@@ -2840,14 +2834,12 @@ def test_pls_select_n_components_caps_max_components() -> None:
     N, K = 30, 25
     X = pd.DataFrame(rng.standard_normal((N, K)), columns=[f"x{i}" for i in range(K)])
     Y = pd.DataFrame(rng.standard_normal((N, 1)), columns=["y"])
-    X_s = MCUVScaler().fit_transform(X)
-    Y_s = MCUVScaler().fit_transform(Y)
 
     # 5-fold CV leaves a training fold of 24 rows; in-fold mean-centring
     # removes one DoF, so at most 23 components can be evaluated despite the
     # absurdly large request. (n_repeats=1 keeps the cap-vs-singularity test
     # focused on the cap; the rank-boundary fit is fragile by nature.)
-    result = PLS.select_n_components(X_s, Y_s, max_components=1000, cv=5, n_repeats=1, random_state=0)
+    result = PLS.select_n_components(X, Y, max_components=1000, cv=5, n_repeats=1, random_state=0)
     assert len(result.rmsecv) == 23
     assert result.n_components <= 23
 
