@@ -11,6 +11,45 @@ those changes.
 
 ## [Unreleased]
 
+## [1.80.0] - 2026-09-05
+
+### Added
+
+- `MidCourseCorrector.predict`: the monitoring question at a decision point.
+  Predicts the final quality of a running batch from its initial conditions,
+  the samples recorded so far and the planned remaining schedule, with a
+  prediction interval built from the model's error *at that decision point*
+  (`limits_at(k).rmse_k`: the training batches re-projected under the same
+  missingness pattern, against their measured quality), the SPE validity
+  statistics of the batch so far, and the condition number of the
+  score-estimation operator. `limits_at` also reports `rmse_k` and the two
+  operators' condition numbers.
+- `evaluate_control_policies` records each batch's no-change prediction and
+  interval half-width at the first decision point.
+
+### Changed
+
+- The no-correction dead band of `MidCourseCorrector.correct` is measured
+  against the prediction interval at the decision point (from `predict`),
+  not against the full-row training RMSE. Early decision points, where the
+  score estimate rests on few observed columns and can be ill-conditioned,
+  are now held to a correspondingly wider band; the old interval could not see
+  this and let nonsensical early projections trigger harmful corrections. The
+  no-change prediction and the movement penalty now use the currently planned
+  remainder (the implemented schedule after an earlier correction) rather than
+  always the nominal schedule. `correct` reports `y_hat_no_change`,
+  `half_width` and `condition_number` on every outcome. With the interval now
+  calibrated at the decision point, `evaluate_control_policies` defaults to
+  `dead_band=1.0` (the class default: correct only when the whole interval
+  falls short of the target) instead of the 2.5 that compensated for the old
+  interval. A corrector built without `y_target` can `predict` but not
+  `correct` (the target check moved from the constructor to `correct`).
+
+### Fixed
+
+- `midcourse_correction` no longer fails with `n_knots` set when a tag has a
+  single remaining free sample (the last decision point before the batch ends).
+
 ## [1.79.0] - 2026-09-04
 
 ### Changed
@@ -4030,7 +4069,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.79.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.80.0...HEAD
+[1.80.0]: https://github.com/kgdunn/process-improve/compare/v1.79.0...v1.80.0
 [1.79.0]: https://github.com/kgdunn/process-improve/compare/v1.78.0...v1.79.0
 [1.78.0]: https://github.com/kgdunn/process-improve/compare/v1.77.0...v1.78.0
 [1.77.0]: https://github.com/kgdunn/process-improve/compare/v1.76.0...v1.77.0

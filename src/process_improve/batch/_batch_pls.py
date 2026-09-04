@@ -227,6 +227,10 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         # point's missingness pattern to build time-varying SPE and T2 limits
         # (Garcia-Munoz, Kourti and MacGregor, 2004).
         self._x_scaled_training = x_mcuv
+        # The scaled Y block is kept for the same reason: the corrector needs
+        # the training batches' quality to measure the prediction error of the
+        # model at each decision point (a time-varying prediction interval).
+        self._y_scaled_training = y_mcuv
         self._expose_fitted_attributes(wide, x_scaler, y_scaler)
 
         first_batch = X[next(iter(X.keys()))]
