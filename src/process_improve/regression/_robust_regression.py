@@ -327,7 +327,9 @@ def multiple_linear_regression(  # noqa: PLR0913
         N:                        number of observations actually used to fit
         coefficients:             a vector of K coefficients, one for each column in X;
                                   shape ``[np.nan]`` on the degenerate/unfitted path
-        intercept:                returned if fit_intercept==True
+        intercept:                the fitted intercept; ``np.nan`` when
+                                  ``fit_intercept=False`` or on the
+                                  degenerate/unfitted path
         standard_errors:          a vector of K standard errors, one per column in X
         standard_error_intercept: standard error for the intercept
         R2:                       the R^2 value

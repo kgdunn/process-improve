@@ -104,9 +104,14 @@ def build_formula(
 
 @dataclass
 class AnalysisResult:
-    """Container returned by :func:`analyze_experiment`.
+    """Internal, unused container.
 
-    Holds the fitted OLS result and all requested analysis outputs.
+    Retained for backwards compatibility with any external caller that
+    imports the name from this module. :func:`analyze_experiment` returns
+    a plain :class:`dict` (see its ``Returns`` section), not an instance of
+    this class, so downstream code that expects the return type of
+    ``analyze_experiment`` should key into that dict rather than access
+    attributes here.
     """
 
     ols_result: RegressionResultsWrapper = None

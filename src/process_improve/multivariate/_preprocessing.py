@@ -168,7 +168,7 @@ def center(
     Perform centering of data, using a function, `func` (default: np.mean).
     The function, if supplied, must return a vector with as many columns as the matrix X.
 
-    `axis` [optional; default=0] {integer or None}
+    `axis` [optional; default=0] {integer}
 
     This specifies the axis along which the centering vector will be calculated if not provided.
     The function is applied along the `axis`: 0=down the columns; 1 = across the rows.
@@ -269,7 +269,7 @@ def scale(
     X = ...  # data matrix
     X = scale(center(X))
     X = scale(center(X), ddof=1)  # sample standard deviation, matches MCUVScaler
-    my_scale = np.mad
+    from scipy.stats import median_abs_deviation as my_scale
     X = scale(center(X), func=my_scale)
 
     Returns

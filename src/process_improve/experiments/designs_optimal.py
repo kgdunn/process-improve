@@ -455,6 +455,11 @@ def dispatch_d_optimal(  # noqa: PLR0913
         Factor-space constraints (logged as warning; not yet enforced).
     model_type : str
         Model assumption: ``"main_effects"``, ``"interactions"``, or ``"quadratic"``.
+    fixed_runs : pd.DataFrame or None
+        Runs to hold fixed while the optimizer fills the rest (design
+        augmentation). Requires pyoptex; a value here raises ``ImportError``
+        when pyoptex is not installed. Occupies the first rows of the returned
+        design and counts towards ``budget``.
 
     Returns
     -------
@@ -524,9 +529,14 @@ def dispatch_i_optimal(  # noqa: PLR0913
     hard_to_change : list[str] or None
         Names of hard-to-change factors.
     constraints : list[Constraint] or None
-        Factor-space constraints.
+        Factor-space constraints (logged; not yet enforced by the underlying
+        pyoptex path).
     model_type : str
         Model assumption.
+    fixed_runs : pd.DataFrame or None
+        Runs to hold fixed while the optimizer fills the rest (design
+        augmentation). Occupies the first rows of the returned design and
+        counts towards ``budget``.
 
     Returns
     -------
@@ -577,9 +587,14 @@ def dispatch_a_optimal(  # noqa: PLR0913
     hard_to_change : list[str] or None
         Names of hard-to-change factors.
     constraints : list[Constraint] or None
-        Factor-space constraints.
+        Factor-space constraints (logged; not yet enforced by the underlying
+        pyoptex path).
     model_type : str
         Model assumption.
+    fixed_runs : pd.DataFrame or None
+        Runs to hold fixed while the optimizer fills the rest (design
+        augmentation). Occupies the first rows of the returned design and
+        counts towards ``budget``.
 
     Returns
     -------

@@ -108,12 +108,17 @@ def apply_scaling(
     batches : dict[str, pd.DataFrame]
         The batches, in standard format.
     scale_df : pd.DataFrame
-        The scaling dataframe, from `determine_scaling`
+        The scaling dataframe, from `determine_scaling`.
+    columns_to_align : list, pd.Index, or None, optional
+        Which columns of each batch to scale. Columns outside this list are
+        dropped from the output. When ``None`` (the default) the columns of
+        the first batch are used, matching :func:`determine_scaling`.
 
     Returns
     -------
     dict
-        The scaled batch data.
+        The scaled batch data. Each value carries only the ``columns_to_align``
+        columns, in the same order as the input.
     """
     # TODO: handle the case of DataFrames still
     if columns_to_align is None:
@@ -140,7 +145,24 @@ def reverse_scaling(
     scale_df: pd.DataFrame,
     columns_to_align: list | pd.Index | None = None,
 ) -> dict:
-    """Reverse the scaling applied by `apply_scaling`."""
+    """Reverse the scaling applied by `apply_scaling`.
+
+    Parameters
+    ----------
+    batches : dict[str, pd.DataFrame]
+        The scaled batches, in standard format.
+    scale_df : pd.DataFrame
+        The scaling dataframe, from :func:`determine_scaling`.
+    columns_to_align : list, pd.Index, or None, optional
+        Which columns of each batch to un-scale. Columns outside this list
+        are dropped from the output. When ``None`` (the default) the columns
+        of the first batch are used, matching :func:`apply_scaling`.
+
+    Returns
+    -------
+    dict
+        The un-scaled batch data.
+    """
     # TODO: handle the case of DataFrames still
     if columns_to_align is None:
         if isinstance(batches, dict):
