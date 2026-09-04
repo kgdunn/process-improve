@@ -1,6 +1,6 @@
 [project]
 name = "process-improve"
-version = "1.78.0"
+version = "1.78.1"
 description = 'Designed Experiments; Latent Variables (PCA, PLS, multivariate methods with missing data); Process Monitoring; Batch data analysis.'
 readme = "README.md"
 license = "MIT"
@@ -134,9 +134,9 @@ dev = [
 process-improve-mcp = "process_improve.mcp_server:main"
 
 [project.urls]
-Homepage = "https://github.com/kgdunn/process_improve"
-Repository = "https://github.com/kgdunn/process_improve"
-Issues = "https://github.com/kgdunn/process_improve/issues"
+Homepage = "https://github.com/kgdunn/process-improve"
+Repository = "https://github.com/kgdunn/process-improve"
+Issues = "https://github.com/kgdunn/process-improve/issues"
 
 
 [build-system]

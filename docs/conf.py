@@ -80,7 +80,7 @@ html_theme = "pydata_sphinx_theme"
 html_static_path = ["_static"]
 
 html_theme_options = {
-    "github_url": "https://github.com/kgdunn/process_improve",
+    "github_url": "https://github.com/kgdunn/process-improve",
     "show_toc_level": 2,
     "navigation_with_keys": True,
     "pygments_light_style": "default",
