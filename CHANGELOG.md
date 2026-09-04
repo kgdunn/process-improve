@@ -11,6 +11,34 @@ those changes.
 
 ## [Unreleased]
 
+## [1.79.0] - 2026-09-04
+
+### Changed
+
+- `PCA.select_n_components` now carries the same two `SpecificationWarning`s as
+  `PLS.select_n_components` (#533): one on `scale_inside_folds=False`, where
+  scaling fit on the full matrix leaks into every element-fold, and one on
+  `scale_inside_folds=True` when the X handed in is already centred and
+  unit-variance scaled, where the in-fold re-standardisation erases the scaling
+  the caller chose. Both fire only under `cv_scheme="ekf"`, the scheme that
+  honours the flag. The two selectors share one helper, so their messages and
+  their detection rule (`_looks_prescaled`) cannot drift apart.
+- The pre-scaled warning's wording no longer claims identical RMSECV "to several
+  decimal places". That was true for PLS, where RMSECV is in the units of Y,
+  but PCA reports PRESS in the units X arrived in; the message now says that a
+  comparison between two pre-scalings reflects only those units, never which
+  scaling suits the data.
+
+### Documentation
+
+- The user guide (`cross_validation`, `showcase`), the quickstart and the README
+  pass the raw, unscaled blocks to `PCA.select_n_components` and
+  `PLS.select_n_components`, which is the usage the default
+  `scale_inside_folds=True` is designed for. A reader who copied the previous
+  examples was warned by the library for following them. The PCA docstring said
+  the opposite ("should already be on the analysis scale") and now matches PLS.
+- The library's own tests do the same, so the suite no longer emits the warning.
+
 ## [1.78.0] - 2026-08-30
 
 ### Added
@@ -4002,7 +4030,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.78.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.79.0...HEAD
+[1.79.0]: https://github.com/kgdunn/process-improve/compare/v1.78.0...v1.79.0
 [1.78.0]: https://github.com/kgdunn/process-improve/compare/v1.77.0...v1.78.0
 [1.77.0]: https://github.com/kgdunn/process-improve/compare/v1.76.0...v1.77.0
 [1.76.0]: https://github.com/kgdunn/process-improve/compare/v1.75.2...v1.76.0
