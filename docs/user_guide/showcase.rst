@@ -5,8 +5,9 @@ After fitting a PCA or PLS model, the next questions are practical: how many
 components should the model keep, how well does it predict, and which
 variables drive it? This page is a worked tour of the evaluation and plotting
 tools, built around a PLS model that relates a set of process measurements
-(``X``) to quality outcomes (``Y``). Each example assumes ``X`` and ``Y`` are
-already scaled, for example with ``MCUVScaler``.
+(``X``) to quality outcomes (``Y``). ``X`` and ``Y`` are the raw blocks: the
+component selector scales them inside each fold, and the fitted models below
+scale them once with ``MCUVScaler``.
 
 Choosing the Number of Components
 ---------------------------------
@@ -18,8 +19,9 @@ the validated explained variance:
 
 .. code-block:: python
 
-   from process_improve.multivariate import PLS
+   from process_improve.multivariate import PLS, MCUVScaler
 
+   # Raw blocks in: each training fold fits its own scaling.
    result = PLS.select_n_components(X, Y, max_components=8, cv=5)
    print(result.n_components)        # recommended component count
    print(result.rmsecv["total"])     # RMSECV per component count
@@ -35,7 +37,9 @@ each component captures, both per component and cumulatively:
 
 .. code-block:: python
 
-   model = PLS(n_components=result.n_components).fit(X, Y)
+   X_s = MCUVScaler().fit_transform(X)
+   Y_s = MCUVScaler().fit_transform(Y)
+   model = PLS(n_components=result.n_components).fit(X_s, Y_s)
    model.explained_variance_plot()
 
 For PCA the bars refer to variance in the X-block; for PLS they refer to the
@@ -73,7 +77,7 @@ RMSE annotation:
 
 .. code-block:: python
 
-   model.predictions_vs_observed_plot(y_observed=Y, variable="quality")
+   model.predictions_vs_observed_plot(y_observed=Y_s, variable="quality")
 
 Points close to the reference line indicate accurate predictions; systematic
 departures from it point to model bias.
