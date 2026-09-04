@@ -78,7 +78,11 @@ def spe_limit(model: BaseEstimator, conf_level: float = 0.95) -> float:
     ----------
     model : BaseEstimator
         A fitted multivariate model exposing a ``spe_`` attribute and an
-        ``n_components`` attribute (e.g. a fitted PCA or PLS instance).
+        ``n_components_`` attribute (e.g. a fitted PCA or PLS instance).
+        The fitted ``n_components_`` (with the trailing underscore) is used,
+        not the constructor's ``n_components`` parameter, so a model whose
+        component count was clamped at ``min(n_samples, n_features)`` at fit
+        time is read with the value it actually holds.
     conf_level : float, optional
         Fractional confidence limit, less that 1.00; by default 0.95
 
