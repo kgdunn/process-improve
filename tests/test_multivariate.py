@@ -718,8 +718,9 @@ def test_pca_select_n_components() -> None:
     P_true = rng.standard_normal((2, K))
     P_true /= np.linalg.norm(P_true, axis=1, keepdims=True)
     noise = rng.standard_normal((N, K)) * 1.0
+    # Raw block: the default scale_inside_folds=True fits the scaling on each
+    # element-fold's in-fold cells, which is the usage the library recommends.
     X = pd.DataFrame(T_true @ P_true + noise)
-    X = MCUVScaler().fit_transform(X)
 
     max_comp = 6
     result = PCA.select_n_components(X, max_components=max_comp, cv=5, random_state=0)
@@ -733,10 +734,12 @@ def test_pca_select_n_components() -> None:
     assert result.selection_rule == "min"
 
     # q2_se is the per-component Q2-scale standard error (the +/-1 SE band): an
-    # exact rescale of se_press by the constant null-model sum-of-squares.
+    # exact rescale of se_press by the constant null-model sum-of-squares,
+    # which is the CENTRED total SS because X is passed raw.
     assert "q2_se" in result
     assert (result.q2_se >= 0).all()
-    null_ss = float(np.nansum(np.asarray(X, dtype=float) ** 2))
+    X_arr = np.asarray(X, dtype=float)
+    null_ss = float(np.nansum((X_arr - X_arr.mean(axis=0)) ** 2))
     np.testing.assert_allclose(result.q2_se.to_numpy(), result.se_press.to_numpy() / null_ss, rtol=1e-9)
 
     # With 2 true components and N < K, should recommend 2 (or at most 3)
@@ -767,8 +770,7 @@ def test_pca_select_n_components() -> None:
     assert result.q2[2] > result.q2[1]
     # Q2 is exactly the normalised PRESS under ekf (total SS rather than
     # mean-cell SS so it stays directly comparable to r2_cumulative_).
-    null_model_ss = float(np.nansum(np.asarray(X, dtype=float) ** 2))
-    assert result.q2.to_numpy() == pytest.approx(1.0 - result.press.to_numpy() / null_model_ss)
+    assert result.q2.to_numpy() == pytest.approx(1.0 - result.press.to_numpy() / null_ss)
 
     # cv_scores aliases per_fold_press under ekf; shape (A, n_folds).
     assert isinstance(result.cv_scores, pd.DataFrame)
@@ -790,9 +792,8 @@ def test_pca_select_n_components_ekf_recovers_known_rank() -> None:
     P = rng.standard_normal((true_rank, K))
     P /= np.linalg.norm(P, axis=1, keepdims=True)
     X = pd.DataFrame(T @ P + 0.3 * rng.standard_normal((N, K)))
-    X_s = MCUVScaler().fit_transform(X)
 
-    result = PCA.select_n_components(X_s, max_components=10, cv=5, random_state=0)
+    result = PCA.select_n_components(X, max_components=10, cv=5, random_state=0)
     # ekf with GlobalMin recovers the true rank (or one beside it).
     assert true_rank - 1 <= result.n_components <= true_rank + 1
     # PRESS rises again past the true rank when extra components fit noise.
@@ -807,17 +808,18 @@ def test_pca_select_n_components_row_wise_warns_and_overselects() -> None:
     T = rng.standard_normal((N, true_rank)) * np.array([6.0, 4.0])
     P = rng.standard_normal((true_rank, K))
     X = pd.DataFrame(T @ P + 0.4 * rng.standard_normal((N, K)))
-    X_s = MCUVScaler().fit_transform(X)
 
+    # Both schemes scale inside the folds (row_wise through PCA(scale=True)),
+    # so the raw block goes in.
     with pytest.warns(SpecificationWarning, match="row_wise"):
-        legacy = PCA.select_n_components(X_s, max_components=8, cv=5, cv_scheme="row_wise", random_state=0)
+        legacy = PCA.select_n_components(X, max_components=8, cv=5, cv_scheme="row_wise", random_state=0)
     assert legacy.cv_scheme == "row_wise"
     # The row-wise scheme over-fits monotonically; argmin sits at (or near) the
     # maximum even though the true rank is 2.
     a_star_legacy = int(np.argmin(legacy.press.to_numpy())) + 1
     assert a_star_legacy >= 6
     # The ekf scheme on the same data lands much closer to the true rank.
-    ekf = PCA.select_n_components(X_s, max_components=8, cv=5, random_state=0)
+    ekf = PCA.select_n_components(X, max_components=8, cv=5, random_state=0)
     a_star_ekf = int(np.argmin(ekf.press.to_numpy())) + 1
     assert a_star_ekf <= a_star_legacy
 
@@ -825,7 +827,7 @@ def test_pca_select_n_components_row_wise_warns_and_overselects() -> None:
 def test_pca_select_n_components_threshold_deprecated() -> None:
     """The legacy ``threshold`` kwarg emits a DeprecationWarning and is ignored."""
     rng = np.random.default_rng(0)
-    X = pd.DataFrame(MCUVScaler().fit_transform(pd.DataFrame(rng.standard_normal((30, 8)))))
+    X = pd.DataFrame(rng.standard_normal((30, 8)) * 3.0 + 10.0)
     with pytest.warns(DeprecationWarning, match="threshold"):
         result = PCA.select_n_components(X, max_components=4, cv=3, threshold=0.95, random_state=0)
     assert 1 <= result.n_components <= 4
@@ -838,12 +840,11 @@ def test_pca_select_n_components_rule_dispatch() -> None:
     T = rng.standard_normal((N, true_rank)) * np.array([6.0, 4.0])
     P = rng.standard_normal((true_rank, K))
     X = pd.DataFrame(T @ P + 0.35 * rng.standard_normal((N, K)))
-    X_s = MCUVScaler().fit_transform(X)
 
-    res_min = PCA.select_n_components(X_s, max_components=6, cv=5, random_state=0)
-    res_1se = PCA.select_n_components(X_s, max_components=6, cv=5, random_state=0, selection_rule="1se")
+    res_min = PCA.select_n_components(X, max_components=6, cv=5, random_state=0)
+    res_1se = PCA.select_n_components(X, max_components=6, cv=5, random_state=0, selection_rule="1se")
     res_q2 = PCA.select_n_components(
-        X_s,
+        X,
         max_components=6,
         cv=5,
         random_state=0,
@@ -856,7 +857,7 @@ def test_pca_select_n_components_rule_dispatch() -> None:
     assert 1 <= res_q2.n_components <= 6
 
     with pytest.raises(ValueError, match="Unknown cv_scheme"):
-        PCA.select_n_components(X_s, max_components=3, cv=3, cv_scheme="bogus")  # type: ignore[arg-type]
+        PCA.select_n_components(X, max_components=3, cv=3, cv_scheme="bogus")  # type: ignore[arg-type]
 
 
 @pytest.mark.slow
@@ -867,10 +868,9 @@ def test_pca_select_n_components_n_repeats_narrows_se() -> None:
     T = rng.standard_normal((N, true_rank)) * np.array([6.0, 4.0, 2.5])
     P = rng.standard_normal((true_rank, K))
     X = pd.DataFrame(T @ P + 0.4 * rng.standard_normal((N, K)))
-    X_s = MCUVScaler().fit_transform(X)
 
-    one = PCA.select_n_components(X_s, max_components=8, cv=5, n_repeats=1, random_state=0)
-    many = PCA.select_n_components(X_s, max_components=8, cv=5, n_repeats=8, random_state=0)
+    one = PCA.select_n_components(X, max_components=8, cv=5, n_repeats=1, random_state=0)
+    many = PCA.select_n_components(X, max_components=8, cv=5, n_repeats=8, random_state=0)
     # 1 repeat -> 5 fold columns; 8 repeats -> 40.
     assert one.per_fold_press.shape == (8, 5)
     assert many.per_fold_press.shape == (8, 40)
@@ -879,12 +879,12 @@ def test_pca_select_n_components_n_repeats_narrows_se() -> None:
     # SE narrows with more repeats (more samples of fold-PRESS).
     assert (many.se_press <= one.se_press + 1e-9).all()
     # Reproducible given a fixed seed.
-    again = PCA.select_n_components(X_s, max_components=8, cv=5, n_repeats=8, random_state=0)
+    again = PCA.select_n_components(X, max_components=8, cv=5, n_repeats=8, random_state=0)
     np.testing.assert_allclose(many.press.to_numpy(), again.press.to_numpy())
     np.testing.assert_allclose(many.per_fold_press.to_numpy(), again.per_fold_press.to_numpy())
 
     with pytest.raises(ValueError, match="n_repeats must be >= 1"):
-        PCA.select_n_components(X_s, max_components=3, cv=3, n_repeats=0)
+        PCA.select_n_components(X, max_components=3, cv=3, n_repeats=0)
 
 
 def test_pca_select_n_components_scale_inside_folds_no_leakage() -> None:
@@ -904,18 +904,20 @@ def test_pca_select_n_components_scale_inside_folds_no_leakage() -> None:
     assert (raw.press > 0).all()
     assert 1 <= raw.n_components <= 6
 
-    # Opt-out path: caller pre-scales (the prior contract) and asks for the
-    # legacy iterative-recentering EM behaviour. Both should converge to a
-    # comparable recommendation on this clean low-rank data.
+    # Opt-out path: caller pre-scales (the prior contract), is warned about
+    # the leakage, and gets the legacy iterative-recentering EM behaviour.
+    # Both should converge to a comparable recommendation on this clean
+    # low-rank data.
     X_s = MCUVScaler().fit_transform(X_raw)
-    legacy = PCA.select_n_components(
-        X_s,
-        max_components=6,
-        cv=5,
-        n_repeats=2,
-        random_state=0,
-        scale_inside_folds=False,
-    )
+    with pytest.warns(SpecificationWarning, match="leaks"):
+        legacy = PCA.select_n_components(
+            X_s,
+            max_components=6,
+            cv=5,
+            n_repeats=2,
+            random_state=0,
+            scale_inside_folds=False,
+        )
     assert 1 <= legacy.n_components <= 6
 
 

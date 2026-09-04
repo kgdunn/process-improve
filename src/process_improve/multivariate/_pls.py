@@ -44,7 +44,7 @@ from ._diagnostics import (
     target_projection as _target_projection,
 )
 from ._nipals import quick_regress, ssq, terminate_check
-from ._preprocessing import MCUVScaler, _looks_prescaled, _uncentred_columns
+from ._preprocessing import MCUVScaler, _uncentred_columns, _warn_scaling_traps
 from ._projection import coerce_observed_mask, operator_for_pattern, project_rows
 from .plots import (
     coefficient_plot as _coefficient_plot,
@@ -1596,29 +1596,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         elif not isinstance(Y, pd.DataFrame):
             Y = pd.DataFrame(Y)
 
-        if not scale_inside_folds:
-            warnings.warn(
-                "scale_inside_folds=False leaks centring/scaling estimated on the "
-                "full dataset into every CV fold, making the reported RMSECV "
-                "optimistic. The default scale_inside_folds=True is preferred.",
-                SpecificationWarning,
-                stacklevel=2,
-            )
-        elif _looks_prescaled(X):
-            warnings.warn(
-                "X is already centred and unit-variance scaled, so "
-                "scale_inside_folds=True is not protecting you from leakage: it "
-                "re-standardises inside every training fold and overwrites the "
-                "scaling you chose. Two deliberately different scalings (say "
-                "autoscale versus Pareto) collapse onto the same model this way "
-                "and report the same RMSECV to several decimal places, so a "
-                "comparison between them silently shows no difference. Pass the "
-                "raw, unscaled X and let the folds scale it, or keep your own "
-                "scaling and set scale_inside_folds=False (accepting the "
-                "optimism that flag warns about).",
-                SpecificationWarning,
-                stacklevel=2,
-            )
+        _warn_scaling_traps(X, scale_inside_folds=scale_inside_folds, fold="CV fold", metric="RMSECV")
 
         N, K = X.shape
         M = Y.shape[1]
