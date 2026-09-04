@@ -35,12 +35,18 @@ The pieces
   is a quadratic program; the hard SPE and T2 caps are quadratic constraints,
   handled by an outer iteration on their penalty weights.
 - :class:`~process_improve.batch.control.MidCourseCorrector` wraps the
-  decision-point workflow: the SPE validity gate (an out-of-family batch is
+  decision-point workflow. Its ``predict`` method answers the monitoring
+  question at a decision point: the predicted final quality with a
+  prediction interval built from the model's error *at that decision point*
+  (the training batches re-projected under the same missingness pattern,
+  against their measured quality), the SPE of the batch so far against its
+  limit, and the condition number of the score estimator. Its ``correct``
+  method adds the decision: the SPE validity gate (an out-of-family batch is
   not corrected, following Flores-Cerrillo and MacGregor, 2004), the
   no-correction dead band (correct only when the projected shortfall is
-  significant against the model's prediction interval, the practical lesson
-  of Yabuki and MacGregor, 1997), and per-decision-point limits built by
-  re-projecting the training batches under the same missingness pattern
+  significant against that interval, the practical lesson of Yabuki and
+  MacGregor, 1997; the default of 1.0 asks that the whole interval fall
+  short of the target), and per-decision-point limits built the same way
   (Garcia-Munoz, Kourti and MacGregor, 2004).
 - :func:`~process_improve.batch.control.evaluate_control_policies` runs the
   whole comparison end to end.

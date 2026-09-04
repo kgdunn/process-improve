@@ -681,12 +681,13 @@ class CorrectBatchMidcourseInput(BaseModel):
         ),
     )
     dead_band: float = Field(
-        2.5,
+        1.0,
         ge=0.0,
         le=10.0,
         description=(
-            "No-correction dead band in prediction-interval half-widths: correct only when the projected "
-            "shortfall is significant (Yabuki and MacGregor's lesson; 0 corrects every below-target batch)."
+            "No-correction dead band in half-widths of the prediction interval at the decision point: 1.0 corrects "
+            "only when the whole interval falls short of the target (Yabuki and MacGregor's no-control region); "
+            "0 corrects every below-target batch."
         ),
     )
     random_state: int = Field(0, ge=0, le=2**31 - 1, description="Seed; the same seed reproduces everything.")
@@ -784,7 +785,10 @@ class EvaluateBatchControlPolicyInput(BaseModel):
     )
     decision_point: int = Field(8, ge=1, le=19, description="Sample index of the decision point.")
     dead_band: float = Field(
-        2.5, ge=0.0, le=10.0, description="No-correction dead band in prediction-interval half-widths."
+        1.0,
+        ge=0.0,
+        le=10.0,
+        description="No-correction dead band in half-widths of the prediction interval at the decision point.",
     )
     include_ceilings: bool = Field(
         default=False,

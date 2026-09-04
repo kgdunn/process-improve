@@ -361,14 +361,17 @@ def test_corrector_validation_errors(fitted: BatchPLS) -> None:
     nominal = pd.DataFrame({"u": np.zeros(fitted.n_timesteps_)})
     with pytest.raises(ValueError, match="mv_tags contains tags"):
         MidCourseCorrector(fitted, nominal, mv_tags=["nope"], y_target=0.0)
+    batches, _ = _synthetic_batches()
+    # No target: the monitoring question is answered, the decision is refused.
+    watcher = MidCourseCorrector(fitted, nominal, mv_tags=["u"])
+    assert float(watcher.predict(batches["b0"].iloc[:4], k=4).half_width.iloc[0]) > 0
     with pytest.raises(ValueError, match="y_target is required"):
-        MidCourseCorrector(fitted, nominal, mv_tags=["u"])
+        watcher.correct(batches["b0"].iloc[:4], k=4)
     with pytest.raises(ValueError, match="target_side must be"):
         MidCourseCorrector(fitted, nominal, mv_tags=["u"], y_target=0.0, target_side="sideways")
     with pytest.raises(ValueError, match=r"rows \(one per aligned sample\)"):
         MidCourseCorrector(fitted, nominal.iloc[:3], mv_tags=["u"], y_target=0.0)
     corrector = MidCourseCorrector(fitted, nominal, mv_tags=["u"], y_target=0.0)
-    batches, _ = _synthetic_batches()
     with pytest.raises(ValueError, match="k must lie in"):
         corrector.correct(batches["b0"], k=0)
 
@@ -410,7 +413,7 @@ def test_executed_correction_gains_on_simulator() -> None:
             rate_limits={"temperature": 3.0, "pH": 0.5},
             spe_cap="limit",
             t2_cap="limit",
-            dead_band=2.5,
+            dead_band=1.0,
             target_side="below",
             n_knots=4,
         )
@@ -468,3 +471,88 @@ def test_evaluate_control_policies_structure() -> None:
         random_state=0,
     )
     pd.testing.assert_frame_equal(result.batches, again.batches)
+
+
+def test_limits_carry_decision_point_error_and_conditioning(corrector: MidCourseCorrector) -> None:
+    """rmse_k is the model's error under the decision point's pattern; at the full row it is the training RMSE."""
+    model = corrector.model
+    T = model.n_timesteps_
+    # k=1 observes two columns for three components: the estimator is singular
+    # there, by construction. Two samples are the earliest usable point.
+    early, full = corrector.limits_at(2), corrector.limits_at(T)
+    assert np.all(np.isfinite(early.rmse_k))
+    assert float(early.rmse_k.iloc[0]) > 0
+    assert early.condition_number_candidate >= 1.0
+    assert early.condition_number_monitor >= 1.0
+    # With everything observed the candidate pattern is the complete row, so the
+    # error equals the full-row training RMSE on N - A - 1 degrees of freedom.
+    n, A = model.n_samples_, int(model.n_components)
+    expected = float(model.rmse_.iloc[0, -1]) * np.sqrt(n / (n - A - 1))
+    assert abs(float(full.rmse_k.iloc[0]) - expected) < 1e-8
+    # Less of the batch observed cannot make the model's own fit better.
+    assert float(early.rmse_k.iloc[0]) > float(full.rmse_k.iloc[0])
+
+
+def test_predict_is_the_no_change_prediction_and_narrows(corrector: MidCourseCorrector) -> None:
+    """predict() matches correct()'s no-change prediction, widens early, and equals predict() at the end."""
+    batches, _ = _synthetic_batches()
+    bid = "b7"
+    batch = batches[bid]
+    model = corrector.model
+    T = model.n_timesteps_
+    early = corrector.predict(batch.iloc[:2], k=2)
+    late = corrector.predict(batch.iloc[:T], k=T)
+    assert float(early.half_width.iloc[0]) > float(late.half_width.iloc[0])
+    assert float(early.lower.iloc[0]) < float(early.y_hat.iloc[0]) < float(early.upper.iloc[0])
+    assert early.in_control
+    assert early.condition_number >= 1.0
+    # The complete row: the same prediction as the model's ordinary predict().
+    ordinary = model.predict({bid: batch})
+    assert abs(float(late.y_hat.iloc[0]) - float(ordinary.y_hat.iloc[0, 0])) < 1e-8
+    # correct() reports predict()'s numbers, whatever it decides.
+    out = corrector.correct(batch.iloc[:4], k=4)
+    same = corrector.predict(batch.iloc[:4], k=4)
+    assert abs(float(out.y_hat_no_change.iloc[0]) - float(same.y_hat.iloc[0])) < 1e-10
+    assert abs(float(out.half_width.iloc[0]) - float(same.half_width.iloc[0])) < 1e-10
+    assert out.condition_number == same.condition_number
+    with pytest.raises(ValueError, match="k must lie in"):
+        corrector.predict(batch, k=T + 1)
+    with pytest.raises(ValueError, match="schedule must have"):
+        corrector.predict(batch.iloc[:4], schedule=corrector.nominal_schedule.iloc[:3], k=4)
+
+
+def test_predict_uses_the_planned_schedule(corrector: MidCourseCorrector) -> None:
+    """A different remaining schedule changes the prediction; the past rows do not matter to it."""
+    batches, _ = _synthetic_batches()
+    batch = batches["b7"]
+    k = 4
+    nominal = corrector.predict(batch.iloc[:k], k=k)
+    moved = corrector.nominal_schedule.copy()
+    moved.iloc[k:, 0] = 0.5
+    with_move = corrector.predict(batch.iloc[:k], schedule=moved, k=k)
+    assert abs(float(with_move.y_hat.iloc[0]) - float(nominal.y_hat.iloc[0])) > 1e-3
+    past_only = moved.copy()
+    past_only.iloc[k:, 0] = corrector.nominal_schedule.iloc[k:, 0]
+    past_only.iloc[:k, 0] = 9.0
+    unchanged = corrector.predict(batch.iloc[:k], schedule=past_only, k=k)
+    assert abs(float(unchanged.y_hat.iloc[0]) - float(nominal.y_hat.iloc[0])) < 1e-12
+
+
+def test_correct_at_penultimate_sample_with_knots(fitted: BatchPLS) -> None:
+    """One remaining free sample cannot carry a knot basis; the correction still runs."""
+    nominal = pd.DataFrame({"u": np.zeros(fitted.n_timesteps_)})
+    knotted = MidCourseCorrector(
+        fitted,
+        nominal,
+        mv_tags=["u"],
+        mode="target",
+        y_target=0.5,
+        dead_band=0.0,
+        n_knots=4,
+        weights={"target": 5.0, "movement": 1e-3},
+    )
+    batches, _ = _synthetic_batches()
+    T = fitted.n_timesteps_
+    out = knotted.correct(batches["b5"].iloc[: T - 1], k=T - 1)
+    assert out.reason in ("corrected", "dead_band")
+    assert out.schedule.shape[0] == T

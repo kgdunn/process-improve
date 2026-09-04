@@ -336,6 +336,22 @@ The third item of #374, double cross-validation for PLS, is already provided by
   dev"` is `NaN` under Welch (JSON `null` through the tool layer), because Welch
   forms no pooled estimate and a number there would imply one.
 
+- **`MidCourseCorrector.predict` (#541).** The monitoring question at a decision
+  point: the final quality of a running batch, predicted from its initial
+  conditions, the samples recorded so far and the planned remaining schedule,
+  with a prediction interval built from the model's error *at that decision
+  point*, the SPE of the batch so far against its limit (`in_control`), the
+  candidate row's T2 against the per-decision-point score covariance, and the
+  condition number of the score-estimation operator. A corrector built with only
+  the model, the nominal schedule and `mv_tags` can predict but not correct.
+
+  `limits_at(k)` now also reports `rmse_k`: the training batches re-projected
+  under the same missingness pattern, their predicted quality against their
+  measured quality, on N - A - 1 degrees of freedom (the construction of
+  `PLS.prediction_interval`; at the full row it equals the training RMSE), and
+  the condition numbers of the monitoring and candidate operators.
+  `evaluate_control_policies` records each batch's no-change prediction and
+  interval half-width at the first decision point.
 
 ### Changed
 
@@ -428,6 +444,25 @@ The third item of #374, double cross-validation for PLS, is already provided by
   Setting either to a non-default value now raises a `DeprecationWarning`.
   Removal is scheduled for 2.0, per
   `docs/development/deprecation_policy.rst`.
+- **The no-correction dead band of `MidCourseCorrector.correct` is measured
+  against the interval at the decision point (#541).** It was measured against
+  an interval built from the full-row training RMSE, which cannot see that a
+  score estimate resting on a few observed columns is far less certain than
+  one resting on the whole row, nor that the estimator can be ill-conditioned
+  early in the batch; that interval declared nonsensical early projections
+  precise and let them trigger harmful corrections. The band now comes from
+  `predict`, so an early decision point is held to a correspondingly wider
+  interval. With the interval calibrated at the decision point,
+  `evaluate_control_policies` and the two agent tools default to
+  `dead_band=1.0` (the class default: correct only when the whole interval
+  falls short of the target) instead of the 2.5 that compensated for the old
+  interval.
+
+  The no-change prediction and the movement penalty use the currently planned
+  remainder (the implemented schedule after an earlier decision point) rather
+  than always the nominal schedule. `correct` reports `y_hat_no_change`,
+  `half_width` and `condition_number` on every outcome, and the `y_target`
+  check moved from the constructor to `correct`.
 
 ### Fixed
 
@@ -556,6 +591,10 @@ The third item of #374, double cross-validation for PLS, is already provided by
   `"robust"` fell through to the classical branch, so `style="rubost"` returned a
   different interval with nothing to signal it. Unknown values now raise
   `ValueError` naming the two accepted ones.
+
+- **`midcourse_correction` with `n_knots` at the last decision point (#541).**
+  It failed when a tag had a single remaining free sample; the knot
+  parameterisation now collapses to that one sample.
 
 ### Documentation
 
