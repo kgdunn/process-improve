@@ -965,6 +965,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         ----------
         X : array-like of shape (n_samples, n_features)
         Y : array-like of shape (n_samples, n_targets)
+            Required despite the ``None`` default: the default is present only
+            for signature-compatibility with the sklearn ``fit_transform``
+            protocol, and PLS cannot be fitted without responses. Calling
+            without ``Y`` raises :class:`AssertionError`.
 
         Returns
         -------
