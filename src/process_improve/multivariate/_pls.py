@@ -195,8 +195,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
     Parameters
     ----------
-    n_components : int
-        Number of latent components to extract.
+    n_components : int or None
+        Number of latent components to extract. ``None`` asks for as many
+        components as the data supports: it is clamped at fit time to
+        ``min(n_samples, n_features)``, and the resolved count is available on
+        the fitted attribute ``n_components_``.
     scale : bool, default=True
         Mean-center and unit-variance-scale both the X and Y blocks internally
         before fitting (``ddof=1``, done with :class:`MCUVScaler`). This mirrors
