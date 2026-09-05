@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from process_improve.batch import BatchMonitor, BatchPLS
 from tests._case_study_scripts import SBR_URL_OVERRIDE, load_or_skip, load_script
 
 pytestmark = [pytest.mark.dataset, pytest.mark.slow]
@@ -47,6 +48,46 @@ def sbr_data(sbr_script) -> tuple[dict, pd.DataFrame]:
 @pytest.fixture(scope="module")
 def sbr_model(sbr_script, sbr_data):
     return sbr_script.fit_model(*sbr_data)
+
+
+SBR_FAULT_BATCHES = (34, 37)
+SBR_CONF_LEVEL = 0.99
+ALARM_RUN = 3
+
+
+@pytest.fixture(scope="module")
+def sbr_reference(sbr_data) -> tuple[dict, BatchPLS]:
+    """Return the normal batches (34 and 37 left out) and the 2-component reference model fitted on them."""
+    trajectories, quality = sbr_data
+    normal = {batch_id: batch for batch_id, batch in trajectories.items() if batch_id not in SBR_FAULT_BATCHES}
+    return normal, BatchPLS(n_components=2).fit(normal, quality.loc[list(normal)])
+
+
+@pytest.fixture(scope="module")
+def sbr_monitor_instantaneous(sbr_reference) -> BatchMonitor:
+    """Per-sample limits from the normal batches, charting the per-interval (instantaneous) SPE."""
+    normal, reference = sbr_reference
+    return BatchMonitor(reference, conf_level=SBR_CONF_LEVEL, spe_statistic="instantaneous").fit(normal)
+
+
+@pytest.fixture(scope="module")
+def sbr_monitor_cumulative(sbr_reference) -> BatchMonitor:
+    """Fit the same limits, charting the SPE accumulated over every sample observed so far."""
+    normal, reference = sbr_reference
+    return BatchMonitor(reference, conf_level=SBR_CONF_LEVEL, spe_statistic="cumulative").fit(normal)
+
+
+def first_sustained_alarm(alarm: np.ndarray, run: int = ALARM_RUN) -> int | None:
+    """Return the 1-based sample at which ``run`` consecutive alarms begin, or None if there is no such run.
+
+    A single sample above a 99% limit is expected now and then on a normal
+    batch, so the case study only acts on three consecutive alarms.
+    """
+    flags = np.asarray(alarm, dtype=bool)
+    for start in range(len(flags) - run + 1):
+        if flags[start : start + run].all():
+            return start + 1
+    return None
 
 
 class TestDuPont:
@@ -141,3 +182,87 @@ class TestSBR:
             argv += ["--data-url", SBR_URL_OVERRIDE]
         assert sbr_script.main(argv) == 0
         assert len(list(tmp_path.glob("*.html"))) >= 15
+
+    @pytest.mark.dataset
+    @pytest.mark.slow
+    def test_reference_monitor_flags_batch_37_in_the_scores_early(
+        self, sbr_reference, sbr_monitor_instantaneous, sbr_data
+    ) -> None:
+        """Batch 37 is off from the start: its T2 stays above the limit from about sample 23 onwards."""
+        normal, reference = sbr_reference
+        trajectories, _quality = sbr_data
+        n_reference = len(normal)
+        assert n_reference == 51
+        assert reference.n_components == 2
+        monitor = sbr_monitor_instantaneous
+        assert monitor.n_reference_batches_ == n_reference
+        expected_mean = reference.n_components * (n_reference - 1) / n_reference
+        np.testing.assert_allclose(monitor.t2_mean_over_time_, expected_mean, rtol=1e-9)
+        assert monitor.t2_limit_over_time_[0] == pytest.approx(10.54, abs=0.05)
+        first_t2 = first_sustained_alarm(monitor.monitor(trajectories[37]).t2_alarm)
+        assert first_t2 is not None
+        assert 15 < first_t2 <= 30
+        assert first_t2 == pytest.approx(23, abs=2)
+
+    @pytest.mark.dataset
+    @pytest.mark.slow
+    def test_batch_34_is_caught_by_the_instantaneous_spe_when_its_fault_begins(
+        self, sbr_monitor_instantaneous, sbr_data
+    ) -> None:
+        """The fault enters batch 34 around sample 100; the per-interval SPE sustains an alarm from about 105."""
+        trajectories, _quality = sbr_data
+        result = sbr_monitor_instantaneous.monitor(trajectories[34])
+        first_spe = first_sustained_alarm(result.spe_alarm)
+        assert first_spe is not None
+        assert 100 <= first_spe <= 115
+        assert first_sustained_alarm(result.spe_alarm[:95]) is None
+        # The scores react much later: the departure is off the reference plane, not along it.
+        first_t2 = first_sustained_alarm(result.t2_alarm)
+        assert first_t2 is None or first_t2 > 150
+
+    @pytest.mark.dataset
+    @pytest.mark.slow
+    def test_cumulative_spe_alarms_later_than_the_instantaneous_spe(
+        self, sbr_monitor_instantaneous, sbr_monitor_cumulative, sbr_data
+    ) -> None:
+        """Accumulating the residual over the whole batch so far dilutes a fresh fault, so it alarms later."""
+        trajectories, _quality = sbr_data
+        first_instantaneous = first_sustained_alarm(sbr_monitor_instantaneous.monitor(trajectories[34]).spe_alarm)
+        first_cumulative = first_sustained_alarm(sbr_monitor_cumulative.monitor(trajectories[34]).spe_alarm)
+        assert first_instantaneous is not None
+        assert first_cumulative is not None
+        assert first_cumulative > first_instantaneous
+
+    @pytest.mark.dataset
+    @pytest.mark.slow
+    def test_normal_batches_rarely_cross_the_limits(self, sbr_reference, sbr_monitor_instantaneous) -> None:
+        """At the 99% level the normal batches spend well under 3% of their samples above either limit."""
+        normal, _reference = sbr_reference
+        results = [sbr_monitor_instantaneous.monitor(batch) for batch in normal.values()]
+        t2_fraction = float(np.mean([result.t2_alarm.mean() for result in results]))
+        spe_fraction = float(np.mean([result.spe_alarm.mean() for result in results]))
+        assert t2_fraction < 0.03
+        assert spe_fraction < 0.03
+
+    @pytest.mark.dataset
+    @pytest.mark.slow
+    def test_evolving_prediction_of_batch_4_converges_to_the_fitted_value(self, sbr_model, sbr_data) -> None:
+        """With the 53-batch model the trace of batch 4 ends at predictions_, and the RMSEE shrinks over the batch."""
+        trajectories, quality = sbr_data
+        trace = sbr_model.predict_online_trace(trajectories[4])
+        np.testing.assert_allclose(
+            trace.y_hat.iloc[-1].to_numpy(), sbr_model.predictions_.loc[4].to_numpy(), rtol=1e-12, atol=0
+        )
+        evolving = trace.y_hat["ParticleSize"]
+        np.testing.assert_allclose(
+            evolving.loc[[10, 25, 50, 100, 150, 200]].to_numpy(),
+            [1251.0, 1248.1, 1255.3, 1254.9, 1257.4, 1257.1],
+            atol=0.05,
+        )
+        rmse = sbr_model.online_rmse(trajectories, quality)["ParticleSize"]
+        assert rmse.index.name == "upto_k"
+        assert rmse.iloc[-1] == pytest.approx(float(sbr_model.rmse_.loc["ParticleSize"].iloc[-1]), rel=1e-9)
+        np.testing.assert_allclose(
+            rmse.loc[[10, 50, 100, 150, 200]].to_numpy(), [8.81, 4.34, 3.99, 1.93, 1.87], atol=0.01
+        )
+        assert rmse.loc[10] > 3 * rmse.iloc[-1]

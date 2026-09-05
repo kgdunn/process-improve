@@ -109,3 +109,21 @@ def test_predict_online_rejects_unexpected_initial_conditions(aligned_nylon: dic
     model = BatchPCA(n_components=2).fit({k: v for k, v in aligned_nylon.items() if k <= 10})
     with pytest.raises(ValueError, match="without initial conditions"):
         model.predict_online(aligned_nylon[1], upto_k=10, initial_conditions=pd.Series({"charge": 1.0}))
+
+
+def test_reference_t2_averages_a_times_n_minus_one_over_n(good_model_and_monitor: tuple) -> None:
+    """The mean T2 of the reference batches is A(N-1)/N at every sample.
+
+    The T2 at sample k is t_k' S_k^-1 t_k with S_k the reference batches'
+    score covariance at that sample. Summing over the N reference batches
+    gives the trace of S_k^-1 S_k scaled by N - 1, so the mean is
+    A(N-1)/N, whatever the batch data. A departure from this value would
+    mean the covariance and the scores it standardises are out of step.
+    """
+    model, monitor, good = good_model_and_monitor
+    n_components, n_reference = model.n_components, len(good)
+    assert monitor.n_reference_batches_ == n_reference
+    expected = n_components * (n_reference - 1) / n_reference
+    np.testing.assert_allclose(monitor.t2_mean_over_time_, expected, rtol=1e-9)
+    assert np.unique(monitor.t2_limit_over_time_).size == 1
+    assert monitor.score_covariance_over_time_.shape == (monitor.n_timesteps_, n_components, n_components)
