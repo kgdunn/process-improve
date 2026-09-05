@@ -362,7 +362,7 @@ def multiple_linear_regression(  # noqa: PLR0913
 
 
 class OLS(RegressorMixin, BaseEstimator):
-    """Ordinary Least Squares regression with statistical diagnostics.
+    r"""Ordinary Least Squares regression with statistical diagnostics.
 
     A scikit-learn-compatible estimator that fits an OLS model and exposes
     inferential statistics (standard errors, t-values, p-values, confidence
@@ -425,9 +425,10 @@ class OLS(RegressorMixin, BaseEstimator):
     residuals_ : np.ndarray of shape (N_original,)
         In-sample residuals (NaN at rows removed by ``na_rm``).
     leverage_ : np.ndarray of shape (N,)
-        Hat-matrix diagonal (only computed for single-feature X).
+        Hat-matrix diagonal :math:`h_i = \mathbf{x}_i^T (X^T X)^{-1} \mathbf{x}_i`, over
+        the rows that were fitted. Matches ``statsmodels`` ``hat_matrix_diag``.
     influence_ : np.ndarray of shape (N,)
-        Cook's distance (only computed for single-feature X with intercept).
+        Cook's distance per fitted row. Matches ``statsmodels`` ``cooks_distance``.
     pi_range_ : np.ndarray of shape (pi_resolution, 3) or float
         Columns are x-grid, lower bound, upper bound of the prediction
         interval. ``np.nan`` if not applicable.
@@ -622,10 +623,29 @@ class OLS(RegressorMixin, BaseEstimator):
         self.r2_regression_based_ = regression_ssq / total_ssq if total_ssq > 0 else float("nan")
         self.r2_residual_based_ = 1.0 - residual_ssq / total_ssq if total_ssq > 0 else float("nan")
 
-        # Single-feature diagnostics: leverage, influence, and a prediction interval grid.
+        # Leverage and Cook's distance, for any number of predictors. Both come from
+        # the hat-matrix diagonal of the model matrix statsmodels fitted, so they hold
+        # for multiple regression and with or without an intercept. The pseudo-inverse
+        # keeps a rank-deficient model matrix from raising.
+        exog = np.asarray(results.model.exog, dtype=float)
+        self.leverage_ = np.einsum("ij,ji->i", exog, np.linalg.pinv(exog))
+
+        eps = np.finfo(np.float32).eps
+        residual_room = 1.0 - self.leverage_
+        if self.se_ < eps or np.any(np.abs(residual_room) < eps):
+            # A saturated fit has no residual to distribute, or a row with leverage 1
+            # determines its own fitted value; either way Cook's distance is not defined
+            # by the usual ratio, and reporting zero movement is the honest reading.
+            self.influence_ = np.zeros_like(self.leverage_)
+        else:
+            # np.asarray: results.resid is a Series when y arrives as one, and the
+            # documented type of both diagnostics is a plain array.
+            resid = np.asarray(results.resid, dtype=float)
+            self.influence_ = np.power(resid / (residual_room * self.se_), 2) * self.leverage_ / k_params
+
+        # A prediction-interval grid and the x sum of squares only mean something for a
+        # single predictor with an intercept.
         self.x_ssq_ = float("nan")
-        self.leverage_ = np.array([np.nan])
-        self.influence_ = np.array([np.nan])
         self.pi_range_: np.ndarray | float = float("nan")
 
         if n_features == 1:
@@ -634,22 +654,13 @@ class OLS(RegressorMixin, BaseEstimator):
             x_ssq = float(np.sum(np.power(x_col - mean_x, 2)))
             self.x_ssq_ = x_ssq
 
-            if self.fit_intercept and x_ssq > 0:
-                self.leverage_ = 1.0 / n_samples + np.power(x_col - mean_x, 2) / x_ssq
-
-                eps = np.finfo(np.float32).eps
-                if self.se_ < eps:
-                    self.influence_ = np.zeros(n_samples)
-                else:
-                    self.influence_ = (
-                        np.power(results.resid / ((1 - self.leverage_) * self.se_), 2) * self.leverage_ / k_params
-                    )
-                    pi_range = np.linspace(np.min(x_col), np.max(x_col), self.pi_resolution)
-                    pi_y_pred = self.intercept_ + self.coefficients_[0] * pi_range
-                    var_y = (self.se_**2) * (1 + 1.0 / n_samples + (pi_range - mean_x) ** 2 / x_ssq)
-                    std_y = np.sqrt(var_y)
-                    c_t = t_value(1 - (1 - self.conflevel) / 2, n_samples - 2)
-                    self.pi_range_ = np.vstack([pi_range, pi_y_pred - c_t * std_y, pi_y_pred + c_t * std_y]).T
+            if self.fit_intercept and x_ssq > 0 and self.se_ >= eps:
+                pi_range = np.linspace(np.min(x_col), np.max(x_col), self.pi_resolution)
+                pi_y_pred = self.intercept_ + self.coefficients_[0] * pi_range
+                var_y = (self.se_**2) * (1 + 1.0 / n_samples + (pi_range - mean_x) ** 2 / x_ssq)
+                std_y = np.sqrt(var_y)
+                c_t = t_value(1 - (1 - self.conflevel) / 2, n_samples - 2)
+                self.pi_range_ = np.vstack([pi_range, pi_y_pred - c_t * std_y, pi_y_pred + c_t * std_y]).T
 
         self._k_ = k_params
         self.is_fitted_ = True

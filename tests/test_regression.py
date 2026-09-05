@@ -874,3 +874,71 @@ def test_get_regression_tool_specs_lists_both_tools() -> None:
     specs = get_regression_tool_specs()
     names = {spec.get("name") for spec in specs}
     assert {"robust_regression", "repeated_median"}.issubset(names)
+
+
+class TestLeverageAndInfluence:
+    """`leverage_` and `influence_` hold for any number of predictors (#545).
+
+    Both used to be computed only for a single predictor with an intercept, and to
+    hold a lone ``nan`` otherwise, which is silent when a reader applies the
+    single-predictor recipe to a multiple regression. They now come from the
+    hat-matrix diagonal of the fitted model matrix, so they are defined wherever
+    the model is, and agree with the reference implementation in statsmodels.
+    """
+
+    @staticmethod
+    def _reference(X: pd.DataFrame, y: pd.Series, *, fit_intercept: bool) -> tuple[np.ndarray, np.ndarray]:
+        sm = pytest.importorskip("statsmodels.api")
+        from statsmodels.stats.outliers_influence import OLSInfluence
+
+        exog = sm.add_constant(X) if fit_intercept else X
+        influence = OLSInfluence(sm.OLS(y, exog).fit())
+        return np.asarray(influence.hat_matrix_diag), np.asarray(influence.cooks_distance[0])
+
+    @pytest.fixture
+    def data(self) -> tuple[pd.DataFrame, pd.Series]:
+        rng = np.random.default_rng(7)
+        n = 40
+        X = pd.DataFrame(
+            {"a": rng.normal(size=n), "b": rng.normal(size=n), "c": rng.normal(size=n)},
+        )
+        X.loc[0, "a"] = 6.0  # one high-leverage row, so the test has something to detect
+        y = pd.Series(2.0 + 3.0 * X["a"] - 1.5 * X["b"] + rng.normal(scale=0.4, size=n), name="y")
+        return X, y
+
+    @pytest.mark.parametrize("columns", [["a"], ["a", "b"], ["a", "b", "c"]])
+    def test_matches_statsmodels_with_intercept(self, data: tuple[pd.DataFrame, pd.Series], columns: list[str]) -> None:
+        X, y = data
+        model = OLS().fit(X[columns], y)
+        hat, cooks = self._reference(X[columns], y, fit_intercept=True)
+        assert model.leverage_ == pytest.approx(hat)
+        assert model.influence_ == pytest.approx(cooks)
+
+    def test_matches_statsmodels_without_intercept(self, data: tuple[pd.DataFrame, pd.Series]) -> None:
+        X, y = data
+        model = OLS(fit_intercept=False).fit(X[["a", "b"]], y)
+        hat, cooks = self._reference(X[["a", "b"]], y, fit_intercept=False)
+        assert model.leverage_ == pytest.approx(hat)
+        assert model.influence_ == pytest.approx(cooks)
+
+    def test_leverage_sums_to_the_parameter_count(self, data: tuple[pd.DataFrame, pd.Series]) -> None:
+        """A property of the hat matrix: its trace is the number of parameters."""
+        X, y = data
+        model = OLS().fit(X, y)
+        assert float(np.sum(model.leverage_)) == pytest.approx(4.0)  # intercept plus three predictors
+        assert model.leverage_.shape == (len(y),)
+        assert model.influence_.shape == (len(y),)
+
+    def test_high_leverage_row_is_flagged(self, data: tuple[pd.DataFrame, pd.Series]) -> None:
+        X, y = data
+        model = OLS().fit(X, y)
+        assert int(np.argmax(model.leverage_)) == 0
+        assert model.leverage_[0] > 4.0 / len(y)  # above the 2k/n rule of thumb
+
+    def test_saturated_fit_reports_zero_influence(self) -> None:
+        """With as many parameters as rows there is no residual to redistribute."""
+        X = pd.DataFrame({"a": [0.0, 1.0, 2.0]})
+        y = pd.Series([1.0, 3.0, 2.0])
+        model = OLS().fit(pd.concat([X, X**2], axis=1).set_axis(["a", "a2"], axis=1), y)
+        assert np.all(np.isfinite(model.leverage_))
+        assert model.influence_ == pytest.approx(np.zeros(3))

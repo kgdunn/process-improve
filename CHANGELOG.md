@@ -11,10 +11,25 @@ those changes.
 
 ## [Unreleased]
 
-## [1.78.1] - 2026-09-04
+## [1.79.0] - 2026-09-04
 
-Fixes surfaced by executing every Python case in the *Process Improvement using
-Data* book against this package (kgdunn/pid-book#274).
+Everything here was surfaced by executing every Python case in the *Process
+Improvement using Data* book against this package (kgdunn/pid-book#274).
+
+### Added
+
+- `OLS.leverage_` and `OLS.influence_` are computed for **any** number of
+  predictors, with or without an intercept (#545). Both come from the hat-matrix
+  diagonal of the fitted model matrix and agree with `statsmodels`'
+  `hat_matrix_diag` and `cooks_distance` to machine precision. They previously
+  held a single `nan` outside the single-predictor-with-intercept case, which is
+  silent when the single-predictor recipe is applied to a multiple regression.
+  `x_ssq_` and `pi_range_` remain single-predictor quantities.
+
+### Changed
+
+- `OLS.influence_` is now always a plain `np.ndarray`, matching its documented
+  type and `leverage_`. It was a `pd.Series` when `y` arrived as one.
 
 ### Fixed
 
@@ -4022,8 +4037,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.78.1...HEAD
-[1.78.1]: https://github.com/kgdunn/process-improve/compare/v1.78.0...v1.78.1
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.79.0...HEAD
+[1.79.0]: https://github.com/kgdunn/process-improve/compare/v1.78.0...v1.79.0
 [1.78.0]: https://github.com/kgdunn/process-improve/compare/v1.77.0...v1.78.0
 [1.77.0]: https://github.com/kgdunn/process-improve/compare/v1.76.0...v1.77.0
 [1.76.0]: https://github.com/kgdunn/process-improve/compare/v1.75.2...v1.76.0
