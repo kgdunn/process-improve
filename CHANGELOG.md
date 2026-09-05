@@ -18,6 +18,10 @@ running batch can be assessed before it ends: the missing-data projection the
 library already had for `BatchPCA` now serves `BatchPLS` too, and the monitor
 compares each sample against the reference batches at that same sample.
 
+Three batch case studies from the 2011-2012 latent-variable short course,
+rebuilt as plain Python scripts with narrative pages (issues #154, #155,
+#156), and the loaders, plots and estimator conveniences they needed.
+
 ### Added
 
 - `BatchPLS.predict_online(batch, upto_k)`: the final-quality prediction of a
@@ -46,33 +50,6 @@ compares each sample against the reference batches at that same sample.
 - The SBR case-study page gains two sections, predicting the quality before
   the batch ends and monitoring the two faulty batches on-line against a
   reference model of the normal batches, with the script functions behind them.
-
-### Changed
-
-- `BatchMonitor` standardises Hotelling's T2 at each sample by the covariance
-  of the reference batches' score estimates at that sample, with the F limit
-  for the number of reference batches, instead of by the end-of-batch score
-  variances. Score estimates early in a batch are shrunk and noisy compared
-  with those near its end, so the old yardstick was wrong where it matters
-  most: a normal SBR batch read T2 = 220 after four samples against a limit
-  of 10.5, and now reads 0.5. The reference batches' mean T2 is `A (N - 1) / N`
-  at every sample. The SPE limits are unchanged.
-
-### Fixed
-
-- The DuPont case-study page described batch 39 as a representative member of
-  the second group of batches; it now reads the group's mean contribution
-  against the model centre, which names `TempC-1` and `Press-3` and shows the
-  `TempH-1` contribution to be a feature of individual batches, not of the
-  group.
-
-## [1.79.0] - 2026-09-03
-
-Three batch case studies from the 2011-2012 latent-variable short course,
-rebuilt as plain Python scripts with narrative pages (issues #154, #155,
-#156), and the loaders, plots and estimator conveniences they needed.
-
-### Added
 
 - Three batch case studies as plain Python scripts with narrative pages in
   the user guide (`docs/user_guide/case_studies/batch/`): batch PCA outlier
@@ -103,9 +80,77 @@ rebuilt as plain Python scripts with narrative pages (issues #154, #155,
 
 ### Changed
 
+- `BatchMonitor` standardises Hotelling's T2 at each sample by the covariance
+  of the reference batches' score estimates at that sample, with the F limit
+  for the number of reference batches, instead of by the end-of-batch score
+  variances. Score estimates early in a batch are shrunk and noisy compared
+  with those near its end, so the old yardstick was wrong where it matters
+  most: a normal SBR batch read T2 = 220 after four samples against a limit
+  of 10.5, and now reads 0.5. The reference batches' mean T2 is `A (N - 1) / N`
+  at every sample. The SPE limits are unchanged.
+
 - The remote sample-dataset fetch helper moved from `experiments.datasets`
   to the shared private module `process_improve._remote_data`, gaining an
   Excel variant. Error messages, timeouts and loader behaviour are unchanged.
+
+### Fixed
+
+- The DuPont case-study page described batch 39 as a representative member of
+  the second group of batches; it now reads the group's mean contribution
+  against the model centre, which names `TempC-1` and `Press-3` and shows the
+  `TempH-1` contribution to be a feature of individual batches, not of the
+  group.
+
+## [1.79.1] - 2026-09-05
+
+### Documentation
+
+- The cross-validation user guide described `PCA.select_n_components` as K-fold
+  PRESS with Wold's criterion, which it has not been since the element-wise
+  k-fold (ekf) rebuild, and its example passed the deprecated `threshold=0.95`,
+  so a reader who copied it was answered with a `DeprecationWarning`. The page
+  now describes the ekf scheme (cells held out, not rows, and why that matters),
+  lists the keys the result actually carries, and has a table of the four
+  selection rules, including which of them is the closest equivalent to the
+  retired `threshold`. The stale Wold's-criterion cross-references in the PCA
+  and PLS guides are corrected in the same way, as is the PLS claim that
+  `n_components` is the lowest-RMSECV count: the default has been the 1-SE rule
+  since 1.28.
+- The `pca-food-texture` and `pca-spectral-data` case-study notebooks passed a
+  pre-scaled `X` to `PCA.select_n_components`, so every rendered build showed
+  the pre-scaled `SpecificationWarning` added in 1.79.0. They now pass the raw
+  block to the selector and keep the scaled block for fitting the model, which
+  is the same shape as the rest of the documentation. The recommended component
+  count is unchanged in both (2 and 5).
+
+## [1.79.0] - 2026-09-04
+
+### Changed
+
+- `PCA.select_n_components` now carries the same two `SpecificationWarning`s as
+  `PLS.select_n_components` (#533): one on `scale_inside_folds=False`, where
+  scaling fit on the full matrix leaks into every element-fold, and one on
+  `scale_inside_folds=True` when the X handed in is already centred and
+  unit-variance scaled, where the in-fold re-standardisation erases the scaling
+  the caller chose. Both fire only under `cv_scheme="ekf"`, the scheme that
+  honours the flag. The two selectors share one helper, so their messages and
+  their detection rule (`_looks_prescaled`) cannot drift apart.
+- The pre-scaled warning's wording no longer claims identical RMSECV "to several
+  decimal places". That was true for PLS, where RMSECV is in the units of Y,
+  but PCA reports PRESS in the units X arrived in; the message now says that a
+  comparison between two pre-scalings reflects only those units, never which
+  scaling suits the data.
+
+### Documentation
+
+- The user guide (`cross_validation`, `showcase`), the quickstart and the README
+  pass the raw, unscaled blocks to `PCA.select_n_components` and
+  `PLS.select_n_components`, which is the usage the default
+  `scale_inside_folds=True` is designed for. A reader who copied the previous
+  examples was warned by the library for following them. The PCA docstring said
+  the opposite ("should already be on the analysis scale") and now matches PLS.
+- The library's own tests do the same, so the suite no longer emits the warning.
+
 
 ## [1.78.0] - 2026-08-30
 
@@ -4099,7 +4144,8 @@ this entry records them together.
   "Why not scikit-learn?" comparison table.
 
 [Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.80.0...HEAD
-[1.80.0]: https://github.com/kgdunn/process-improve/compare/v1.79.0...v1.80.0
+[1.80.0]: https://github.com/kgdunn/process-improve/compare/v1.79.1...v1.80.0
+[1.79.1]: https://github.com/kgdunn/process-improve/compare/v1.79.0...v1.79.1
 [1.79.0]: https://github.com/kgdunn/process-improve/compare/v1.78.0...v1.79.0
 [1.78.0]: https://github.com/kgdunn/process-improve/compare/v1.77.0...v1.78.0
 [1.77.0]: https://github.com/kgdunn/process-improve/compare/v1.76.0...v1.77.0

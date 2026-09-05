@@ -35,7 +35,7 @@ from ._common import (
     epsqrt,
 )
 from ._nipals import quick_regress, ssq, terminate_check
-from ._preprocessing import MCUVScaler
+from ._preprocessing import MCUVScaler, _warn_scaling_traps
 from ._projection import coerce_observed_mask, operator_for_pattern, project_rows
 
 logger = logging.getLogger(__name__)
@@ -1212,8 +1212,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            Training data. Should already be on the analysis scale (e.g.
-            mean-centred and unit-variance via :class:`MCUVScaler`).
+            Training data. With the default ``scale_inside_folds=True`` pass
+            the raw, unscaled X; mean-centring and unit-variance scaling are
+            fit on each fold's in-fold cells. Pre-scale it yourself only
+            with ``scale_inside_folds=False``.
         max_components : int, optional
             Maximum number of components to evaluate. Default is
             ``min(n_samples - 1, n_features)``.
@@ -1251,8 +1253,22 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             leakage of the prior implementation. Set to ``False`` to
             reproduce the previous behaviour (column mean recomputed each
             EM iteration from the imputed matrix, no scaling); this is
-            useful only when ``X`` is already pre-scaled. Ignored under
-            ``cv_scheme="row_wise"``.
+            useful only when ``X`` is already pre-scaled, and a
+            :class:`SpecificationWarning` is emitted because scaling
+            constants fit on the full matrix leak into every element-fold.
+            Ignored under ``cv_scheme="row_wise"``.
+
+            Pass the **raw, unscaled** X under the default. In-fold
+            re-standardisation overwrites whatever scaling the caller
+            applied, so two deliberately different strategies (autoscale
+            versus Pareto, say) become the same model and report the same
+            PRESS: a comparison between them shows no difference for
+            reasons that have nothing to do with the data. A
+            :class:`SpecificationWarning` is emitted when ``X`` arrives
+            already centred and unit-variance scaled, which is the
+            detectable half of that case; a block scaled some other way
+            cannot be recognised, so the rule is the caller's to keep.
+            Same contract as :meth:`PLS.select_n_components`.
         n_iter, tol : int and float, default 50 and 1e-6
             EM iteration cap and convergence tolerance for the ekf imputation
             step. Ignored under ``cv_scheme="row_wise"``.
@@ -1369,6 +1385,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             press_scale_multiplier = n_folds
             if n_repeats < 1:
                 raise ValueError(f"n_repeats must be >= 1; got {n_repeats}.")
+            # Same two traps as PLS.select_n_components, checked only here
+            # because row_wise ignores the flag.
+            _warn_scaling_traps(X, scale_inside_folds=scale_inside_folds, fold="element-fold", metric="PRESS")
             press_arr, per_fold_press_arr = _pca_ekf_press(
                 X_arr,
                 max_components,

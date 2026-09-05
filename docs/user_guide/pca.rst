@@ -343,9 +343,11 @@ stop. The cross-validated Q² metric *decreases* once the model begins
 fitting noise rather than systematic structure. The point where Q² stops
 improving indicates the useful number of components.
 
-Use ``PCA.select_n_components()`` for automated selection via PRESS
-cross-validation with Wold's criterion (see :doc:`cross_validation` for
-details). Remember that the answer is never exact - examine one or two
+Use ``PCA.select_n_components()`` for automated selection. It cross-validates
+by holding out individual cells of ``X`` (the element-wise k-fold scheme) and
+recommends the component count with the lowest cross-validated PRESS; other
+selection rules are available (see :doc:`cross_validation` for details).
+Remember that the answer is never exact - examine one or two
 components beyond and before the suggestion, and consider the interpretability
 of each additional component in the context of your application.
 
