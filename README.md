@@ -190,8 +190,8 @@ result.y_hat                      # point predictions
 result.spe                        # squared prediction error
 result.hotellings_t2              # Hotelling's T² for new observations
 
-# Cross-validated component selection
-cv_select = PLS.select_n_components(X_s, Y_s, max_components=6)
+# Cross-validated component selection: raw blocks in, each fold scales itself
+cv_select = PLS.select_n_components(X, Y, max_components=6)
 print(cv_select.n_components)     # recommended number of components
 print(cv_select.rmsecv)           # RMSECV per component count
 

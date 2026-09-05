@@ -16,7 +16,7 @@ import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import _check_feature_names_in, check_is_fitted, validate_data
 
-from ._common import DataMatrix
+from ._common import DataMatrix, SpecificationWarning
 
 
 class MCUVScaler(TransformerMixin, BaseEstimator):
@@ -402,3 +402,53 @@ def _looks_prescaled(X: DataMatrix) -> bool:
         np.all(np.abs(means[usable]) <= _PRESCALED_MEAN_ATOL)
         and np.all(np.abs(sds[usable] - 1.0) <= _PRESCALED_SD_ATOL)
     )
+
+
+def _warn_scaling_traps(X: DataMatrix, *, scale_inside_folds: bool, fold: str, metric: str) -> None:
+    """Warn about the two ways scaling goes wrong in ``select_n_components``.
+
+    Shared by :meth:`PCA.select_n_components` and :meth:`PLS.select_n_components`
+    so the two selectors keep the same contract. With ``scale_inside_folds=False``
+    the caller's full-data scaling leaks into every fold. With ``True`` and an
+    ``X`` that is already centred and unit-variance scaled, the in-fold
+    re-standardisation erases the scaling the caller chose, so a comparison
+    between two scalings can never show which suits the data.
+
+    Parameters
+    ----------
+    X : array-like of shape (n_samples, n_features)
+        The block handed to the selector, before any in-fold scaling.
+    scale_inside_folds : bool
+        The flag as the caller passed it.
+    fold : str
+        What one fold is called in the message, e.g. ``"CV fold"`` or
+        ``"element-fold"``.
+    metric : str
+        The reported error the message names, e.g. ``"RMSECV"`` or ``"PRESS"``.
+
+    Notes
+    -----
+    ``stacklevel=3`` attributes the warning to the caller of the selector,
+    not to the selector or to this helper.
+    """
+    if not scale_inside_folds:
+        warnings.warn(
+            f"scale_inside_folds=False leaks centring/scaling estimated on the full "
+            f"dataset into every {fold}, making the reported {metric} optimistic. "
+            "The default scale_inside_folds=True is preferred.",
+            SpecificationWarning,
+            stacklevel=3,
+        )
+    elif _looks_prescaled(X):
+        warnings.warn(
+            "X is already centred and unit-variance scaled, so scale_inside_folds=True "
+            f"is not protecting you from leakage: it re-standardises inside every {fold} "
+            "and overwrites the scaling you chose. Two deliberately different scalings "
+            "(say autoscale versus Pareto) collapse onto the same standardised model "
+            f"this way, so a comparison of their {metric} reflects only the units the "
+            "blocks arrived in, never which scaling suits the data. Pass the raw, "
+            "unscaled X and let the folds scale it, or keep your own scaling and set "
+            "scale_inside_folds=False (accepting the optimism that flag warns about).",
+            SpecificationWarning,
+            stacklevel=3,
+        )

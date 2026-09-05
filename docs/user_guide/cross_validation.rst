@@ -28,12 +28,13 @@ Sum of Squares (PRESS) with K-fold cross-validation:
 
 .. code-block:: python
 
-   from process_improve.multivariate.methods import PCA, MCUVScaler
+   from process_improve.multivariate.methods import PCA
 
-   X_scaled = MCUVScaler().fit_transform(X)
-
+   # Pass the raw, unscaled X: with the default ``scale_inside_folds=True``
+   # the centring and scaling are fit inside each fold, so nothing about the
+   # held-out cells leaks into the model that predicts them.
    result = PCA.select_n_components(
-       X_scaled,
+       X,
        max_components=10,
        cv=7,  # 7-fold cross-validation
        threshold=0.95,  # Wold's criterion threshold
@@ -70,16 +71,24 @@ components are added.
 
 .. code-block:: python
 
-   from process_improve.multivariate.methods import PLS, MCUVScaler
+   from process_improve.multivariate.methods import PLS
 
-   X_s = MCUVScaler().fit_transform(X)
-   Y_s = MCUVScaler().fit_transform(Y)
-
-   result = PLS.select_n_components(X_s, Y_s, max_components=8, cv=5)
+   # Raw, unscaled blocks: each training fold fits its own MCUVScaler and
+   # RMSECV is reported on the original Y scale.
+   result = PLS.select_n_components(X, Y, max_components=8, cv=5)
 
    print(f"Recommended components: {result.n_components}")
    print(result.rmsecv["total"])         # RMSECV per component count
    print(result.r2y_validated["total"])  # Validated R2 of Y
+
+Do not scale the blocks yourself before calling either selector. In-fold
+re-standardisation overwrites whatever scaling you applied, so two
+deliberately different choices (autoscale versus Pareto, say) become the
+same model and a comparison between them shows no difference. Both
+selectors emit a ``SpecificationWarning`` when they receive an ``X`` that
+is already centred and unit-variance scaled. If you must keep your own
+scaling, pass ``scale_inside_folds=False``; the scaling then leaks from the
+full dataset into every fold, and a warning says so.
 
 The result is a ``Bunch`` with:
 

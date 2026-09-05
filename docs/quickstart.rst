@@ -71,11 +71,13 @@ PLS Example
 Component Selection
 -------------------
 
-Use cross-validation to select the number of PCA components:
+Use cross-validation to select the number of PCA components. Pass the raw
+``X``, not ``X_scaled``: the selector fits the centring and scaling inside
+each fold, and warns if it is handed a block that is already scaled.
 
 .. code-block:: python
 
-   result = PCA.select_n_components(X_scaled, max_components=10)
+   result = PCA.select_n_components(X, max_components=10)
    print(f"Recommended: {result.n_components} components")
    print(f"PRESS ratios: {result.press_ratio}")
 
