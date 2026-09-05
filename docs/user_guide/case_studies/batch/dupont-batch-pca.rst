@@ -159,13 +159,23 @@ with three components.
              TempC-1 +4.9, TempH-1 +1.7, TempR-1 -0.1, TempR-2 +0.9, TempR-3 +0.2
 
 With the extreme batches gone, a second group separates on the
-:math:`t_2` and :math:`t_3` plane: batches 37, 39 and 43 to 48. Batch 39 is
-a representative member; its :math:`t_3` contributions point at ``Press-3``,
-``TempC-1`` and ``Flow-2``, and the raw overlay shows that these batches
-were run on a slightly different pressure profile. Their quality was
-acceptable. They are not bad batches, they were operated differently, and a
-model of normal operation should either contain enough of them to describe
-that mode or leave them out; the course notes leave them out.
+:math:`t_2` and :math:`t_3` plane: batches 37, 39 and 43 to 48, at a mean
+:math:`t_2` of 15.0 and a mean :math:`t_3` of 14.8 against -3.0 on both for
+the other 40 batches. The :math:`t_3` contributions of batch 39 printed
+above point at ``Press-3`` and ``TempC-1``, and the group's mean
+contribution vector against the model centre, averaged over the eight
+members, names the same two tags on both components. Samples 0 to 25 carry
+66% of the :math:`t_2` contribution and 90% of the :math:`t_3` contribution,
+so the difference lies in how these batches were started. ``TempH-1``,
+which stands out for some members on their own, takes both signs across
+the eight (from -3.8 to +6.3 on :math:`t_2`, from -3.1 to +2.1 on
+:math:`t_3`): it is a feature of particular members rather than of the
+group as a whole. The raw overlay shows that
+these batches were run on a slightly different pressure profile. Their
+quality was acceptable. They are not bad batches, they were operated
+differently, and a model of normal operation should either contain enough
+of them to describe that mode or leave them out; the course notes leave them
+out.
 
 Model C: the reference model
 ----------------------------

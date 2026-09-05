@@ -190,6 +190,161 @@ low on every attribute; batch 34 is predicted only mildly low on
 polydispersity, because the :math:`t_2` direction that carries its fault
 explains 6.9% of the quality block.
 
+Predicting quality before the batch ends
+----------------------------------------
+
+The model above was fitted on complete batches, and a plant would like to
+know the quality while the batch is still running. The unfolded row of a
+running batch is complete up to the newest sample and missing after it, so
+this is a missing-data problem: after :math:`k` samples, estimate the scores
+from the cells observed so far, and read the quality prediction off the
+scores through the model's Y loadings. The scores are estimated with trimmed
+score regression (Garcia-Munoz, Kourti and MacGregor, 2004), a regression of
+the scores on the observed cells built from the training batches.
+:meth:`process_improve.batch.BatchPLS.predict_online` does this for one
+point in time, and
+:meth:`process_improve.batch.BatchPLS.predict_online_trace` for every sample
+of a complete batch, as the prediction would have evolved in real time.
+
+.. literalinclude:: sbr_batch_pls.py
+   :language: python
+   :start-after: # -- section: online-prediction --
+   :end-before: # -- end: online-prediction --
+
+.. code-block:: text
+
+   batch 4: ParticleSize measured 1256.9, fitted from the complete batch 1257.1
+   batch 4: ParticleSize predicted after 10 samples 1251.0, 25 samples 1248.1, 50 samples 1255.3,
+            100 samples 1254.9, 150 samples 1257.4, 200 samples 1257.1
+   RMSEE / sd of ParticleSize after 10 samples 2.84, 50 samples 1.40, 100 samples 1.29,
+                                  150 samples 0.62, 200 samples 0.60
+   RMSEE / sd of Branching after 10 samples 2.10, 50 samples 0.88, 100 samples 0.81,
+                               150 samples 0.32, 200 samples 0.24
+
+Batch 4 is the batch whose trajectories lie closest to the average. Its
+particle size is predicted 6 to 9 units away from the measured value in the
+first 25 samples and within about 2 units from sample 50 onwards, and after
+200 samples the prediction equals the fitted value from the complete batch,
+as it must, because the row is then complete. One batch says little about
+the error, though. :meth:`process_improve.batch.BatchPLS.online_rmse` traces
+every training batch and pools the squared errors sample by sample; on the
+training batches this is the root-mean-square error of estimation, RMSEE, as
+a function of how much of the batch has been observed, and its last value is
+the RMSEE of the model fitted on complete batches. Dividing by the standard
+deviation of each attribute puts the five attributes on one axis, where a
+ratio of about 1 is the error of predicting the average batch every time.
+
+For particle size the ratio is 2.84 after 10 samples, still 1.29 at the
+halfway point and 0.62 after 150 samples: in the first half of the batch the
+prediction is no better than the average batch, and it improves in the
+second half. Branching, whose final RMSEE is a quarter of its standard
+deviation, is below 1 by sample 50. The early predictions are worse than the
+average because few cells have been observed, and they are the cells where
+every batch begins alike (the :math:`R^2` breakdown showed this), so the
+score estimate carries little information about the batch. The RMSEE is
+measured on the batches the model was fitted to. Refitting the model with
+one batch left out and tracing that batch, which the script leaves out
+because it refits 53 models, gives a prediction error, RMSEP, of 3.10, 1.66,
+1.65, 0.84 and 0.78 standard deviations at the same five samples: the same
+shape, at a higher level.
+
+Would the model have caught it on-line?
+---------------------------------------
+
+The score plot flagged both faulty batches once they were complete. The
+question here is whether a chart could have flagged them while they were
+running, and after how many samples. Two things change from the model
+above. A reference model must describe normal operation, so batches 34 and
+37 are left out and a two-component model is refitted on the other 51
+batches. And a running batch needs a limit at every sample rather than one
+limit for the whole batch: the score estimates early in a batch are shrunk
+and noisy compared with those near its end, so the scatter of the reference
+batches differs from sample to sample.
+:class:`process_improve.batch.BatchMonitor` passes every reference batch
+through ``predict_online_trace`` and summarises the spread at each sample,
+following Nomikos and MacGregor (1995). The :math:`T^2` at sample :math:`k`
+is standardised by the covariance of the reference batches' score estimates
+at that sample, which gives one limit for the whole batch, and the SPE
+limit is a chi-squared limit fitted to the reference batches' SPE at that
+sample. The SPE charted is the instantaneous one, the residual of the newest
+sample only, which reacts in the sample a fault begins; the cumulative SPE
+over every cell observed so far is diluted by the earlier, normal samples,
+and here it reacts to batch 34 after 112 samples instead of 105.
+:func:`process_improve.batch.online_monitoring_plot` draws either chart.
+
+.. literalinclude:: sbr_batch_pls.py
+   :language: python
+   :start-after: # -- section: online-monitoring --
+   :end-before: # -- end: online-monitoring --
+
+.. code-block:: text
+
+   reference model on 51 batches; T2 limit 10.54 at every sample
+   batch 34: first 3 consecutive samples above the limit: T2 after 190 samples,
+             SPE after 105 samples
+   batch 37: first 3 consecutive samples above the limit: T2 after 23 samples,
+             SPE after 145 samples
+   normal batches: 0.17% of the T2 values and 1.24% of the SPE values above their limits
+   batch 34: share of the SPE after 105 samples per tag = ReactorTemp 40%, CoolingTemp 30%,
+             JacketTemp 16%, EnergyReleased 11%, Conversion 2%, LatexDensity 1%
+   batch 34: share of the SPE after 109 samples per tag = CoolingTemp 36%, JacketTemp 29%,
+             EnergyReleased 19%, ReactorTemp 12%, Conversion 2%, LatexDensity 1%
+   batch 37 Conversion, mean of the samples after 30: forecast 0.6472, actual 0.6420,
+                        average of the normal batches 0.6609
+   batch 37 Conversion, mean of the samples after 60: forecast 0.6480, actual 0.6477,
+                        average of the normal batches 0.6656
+   batch 34 CoolingTemp, mean of the samples after 60: forecast 46.6357, actual 46.7744,
+                         average of the normal batches 46.6152
+   batch 34 CoolingTemp, mean of the samples after 115: forecast 46.6366, actual 46.8173,
+                         average of the normal batches 46.6015
+
+An alarm counts once the statistic stays above its 99% limit for three
+consecutive samples. A single crossing is not informative: the normal
+batches put 0.17% of their :math:`T^2` values and 1.24% of their SPE values
+above the limits, so a batch of 200 samples crosses the SPE limit now and
+then (batch 34 has one isolated crossing after 37 samples, and batch 4, the
+near-average batch, one after 26).
+
+Batch 37 shows in the :math:`T^2` chart after 23 samples: its :math:`T^2`
+is 9.6 after 21 samples, 10.2 after 22, 10.7 after 23 and 11.9 after 25,
+against a limit of 10.54, and it stays above the limit for the rest of the
+batch. The impurity slowed the reaction from the first sample, and low
+conversion and latex density is the direction the reference model's first
+component describes, so the score estimate moves along :math:`t_1` as soon
+as enough samples have been observed to estimate it. The instantaneous SPE
+of batch 37 does not react until sample 145; the deviation lies in the model
+plane and leaves little residual.
+
+Batch 34 shows in the SPE chart after 105 samples, within a couple of
+samples of the point where the cooling-water temperature, the jacket
+temperature and the energy released leave the band of the other batches in
+the raw data (samples 103 to 105). At the alarm sample the reactor
+temperature carries 40% of the squared residual and the cooling-water
+temperature 30%; four samples later the cooling-water temperature, the
+jacket temperature and the energy released carry 84% between them, the same
+three tags the whole-batch contribution plot named. The :math:`T^2` of
+batch 34 does not alarm until sample 190. None of the reference batches has
+a heat-balance deviation that starts midway, so the reference model has no
+component for it; the deviation is off the model plane and shows in the
+residual, not in the scores. The two charts answer different questions: the
+:math:`T^2` reacts to a deviation along the components the reference
+batches exhibited, the SPE to a direction the reference model never saw,
+and which chart catches a fault first depends on the fault.
+
+The same distinction decides whether the model can forecast the rest of a
+running batch. ``predict_online`` also returns a ``forecast``: the batch's
+own values up to the newest sample, and beyond it the trajectories implied
+by the score estimate, Eq. 4 of Wold, Kettaneh-Wold, MacGregor and Dunn
+(2009). For batch 37 the forecast from 30 samples puts the mean conversion
+of the remaining samples at 0.6472, against 0.6420 observed and 0.6609 for
+the average normal batch; from 60 samples the forecast is 0.6480 against
+0.6477 observed. The scores had picked up the slow reaction, and the
+forecast follows it. For batch 34 the forecast of the cooling-water
+temperature stays at the average of the normal batches, 46.64 from 60
+samples and again from 115 samples, while the batch ran at 46.77 and 46.82.
+The fault of batch 34 does not move the scores of the reference model, and a
+forecast made from the scores cannot see it.
+
 Running the script
 ------------------
 
@@ -206,5 +361,16 @@ References
 * Paul Nomikos and John F. MacGregor, "Multi-way partial least squares in
   monitoring batch processes", *Chemometrics and Intelligent Laboratory
   Systems*, **30**, 97-108, 1995.
+* Paul Nomikos and John F. MacGregor, "Multivariate SPC charts for monitoring
+  batch processes", *Technometrics*, **37**, 41-59, 1995,
+  https://literature.learnche.org/item/34/multivariate-spc-charts-for-monitoring-batch-processes
+* Salvador Garcia-Munoz, Theodora Kourti and John F. MacGregor, "Model
+  predictive monitoring for batch processes", *Industrial & Engineering
+  Chemistry Research*, **43**, 5929-5941, 2004,
+  https://doi.org/10.1021/ie034020w
+* Svante Wold, Nouna Kettaneh-Wold, John F. MacGregor and Kevin G. Dunn,
+  "Batch process modeling and MSPC", *Comprehensive Chemometrics*, chapter
+  2.10, 163-197, 2009,
+  https://literature.learnche.org/item/155/batch-process-modeling-and-mspc
 * Kevin Dunn, *Latent Variable Methods* course notes (ConnectMV, 2011-2012),
   the SBR batch PLS example, CC BY-SA 3.0.
