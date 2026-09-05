@@ -515,8 +515,14 @@ def test_predict_is_the_no_change_prediction_and_narrows(corrector: MidCourseCor
     assert abs(float(out.y_hat_no_change.iloc[0]) - float(same.y_hat.iloc[0])) < 1e-10
     assert abs(float(out.half_width.iloc[0]) - float(same.half_width.iloc[0])) < 1e-10
     assert out.condition_number == same.condition_number
+    # k defaults to the number of samples handed in.
+    default_k = corrector.predict(batch.iloc[:4])
+    assert default_k.k == 4
+    assert abs(float(default_k.y_hat.iloc[0]) - float(same.y_hat.iloc[0])) < 1e-12
     with pytest.raises(ValueError, match="k must lie in"):
         corrector.predict(batch, k=T + 1)
+    with pytest.raises(ValueError, match="batch_so_far has 3 samples"):
+        corrector.predict(batch.iloc[:3], k=4)
     with pytest.raises(ValueError, match="schedule must have"):
         corrector.predict(batch.iloc[:4], schedule=corrector.nominal_schedule.iloc[:3], k=4)
 
