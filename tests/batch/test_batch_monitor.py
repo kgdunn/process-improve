@@ -127,3 +127,36 @@ def test_reference_t2_averages_a_times_n_minus_one_over_n(good_model_and_monitor
     np.testing.assert_allclose(monitor.t2_mean_over_time_, expected, rtol=1e-9)
     assert np.unique(monitor.t2_limit_over_time_).size == 1
     assert monitor.score_covariance_over_time_.shape == (monitor.n_timesteps_, n_components, n_components)
+
+
+def test_spe_window_pools_neighbouring_samples(good_model_and_monitor: tuple) -> None:
+    """``spe_window`` pools the reference SPE of neighbouring samples before each limit is fitted.
+
+    A window of 0 is the per-sample fit; a window that spans the whole batch
+    pools every reference value into one limit; a window of 1 at an interior
+    sample fits the limit to the three samples' values, which is checked
+    against the reference traces directly. The mean trace is never pooled.
+    """
+    from process_improve.multivariate._limits import spe_calculation
+
+    model, monitor, good = good_model_and_monitor
+    same = BatchMonitor(model, conf_level=0.99, spe_window=0).fit(good)
+    np.testing.assert_allclose(same.spe_limit_over_time_, monitor.spe_limit_over_time_)
+
+    everything = BatchMonitor(model, conf_level=0.99, spe_window=monitor.n_timesteps_).fit(good)
+    assert np.unique(everything.spe_limit_over_time_.round(9)).size == 1
+    np.testing.assert_allclose(everything.spe_mean_over_time_, monitor.spe_mean_over_time_)
+
+    one = BatchMonitor(model, conf_level=0.99, spe_window=1).fit(good)
+    reference_spe = np.stack(
+        [np.asarray(model.predict_online_trace(batch).spe, dtype=float) for batch in good.values()]
+    )
+    k = monitor.n_timesteps_ // 2
+    expected = spe_calculation(reference_spe[:, k - 1 : k + 2].ravel(), conf_level=0.99)
+    assert one.spe_limit_over_time_[k] == pytest.approx(expected, rel=1e-12)
+    assert one.spe_limit_over_time_[0] == pytest.approx(
+        spe_calculation(reference_spe[:, :2].ravel(), conf_level=0.99), rel=1e-12
+    )
+
+    with pytest.raises(ValueError, match="spe_window"):
+        BatchMonitor(model, conf_level=0.99, spe_window=-1).fit(good)

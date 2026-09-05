@@ -266,7 +266,10 @@ following Nomikos and MacGregor (1995). The :math:`T^2` at sample :math:`k`
 is standardised by the covariance of the reference batches' score estimates
 at that sample, which gives one limit for the whole batch, and the SPE
 limit is a chi-squared limit fitted to the reference batches' SPE at that
-sample. The SPE charted is the instantaneous one, the residual of the newest
+sample (``spe_window`` pools the values of neighbouring samples into that
+fit, which steadies the limits when few reference batches are available;
+on these 51 batches a window of two samples either side leaves every alarm
+sample unchanged). The SPE charted is the instantaneous one, the residual of the newest
 sample only, which reacts in the sample a fault begins; the cumulative SPE
 over every cell observed so far is diluted by the earlier, normal samples,
 and here it reacts to batch 34 after 112 samples instead of 105.

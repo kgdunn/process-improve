@@ -60,7 +60,9 @@ class BatchMonitor(BaseEstimator):
     observed so far (``"cumulative"``) or over the newest sample only
     (``"instantaneous"``, the per-interval SPE of Nomikos and MacGregor,
     which reacts in the sample a fault begins); its limit at each sample is
-    the moment-matched chi-squared limit on the reference batches' values.
+    the moment-matched chi-squared limit on the reference batches' values at
+    that sample, or pooled over a window of neighbouring samples
+    (``spe_window``).
 
     Parameters
     ----------
@@ -76,6 +78,15 @@ class BatchMonitor(BaseEstimator):
         is compared against the reference-batch spread computed the same way.
     spe_statistic : {"cumulative", "instantaneous"}, default="cumulative"
         Which SPE to chart and to build limits for (see above).
+    spe_window : int, default=0
+        Half-width of the window of neighbouring samples whose reference SPE
+        values are pooled with those of sample ``k`` before its limit is
+        fitted: ``0`` fits each limit to the reference values of that sample
+        alone, ``2`` to the values of samples ``k - 2`` to ``k + 2`` (fewer at
+        the two ends of the batch). Pooling steadies the limits when few
+        reference batches are available, at the cost of blurring a limit
+        across samples where the reference SPE changes level. The mean trace
+        ``spe_mean_over_time_`` is never pooled.
     ridge : float, default=0.0
         Regularisation for the ``"tsr"`` / ``"pmp"`` estimators, passed to
         ``predict_online_trace``.
@@ -103,22 +114,25 @@ class BatchMonitor(BaseEstimator):
         "conf_level": [float],
         "method": [str],
         "spe_statistic": [str],
+        "spe_window": [int],
         "ridge": [float, int],
     }
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         model: BatchPCA | BatchPLS,
         *,
         conf_level: float = 0.99,
         method: str = "tsr",
         spe_statistic: str = "cumulative",
+        spe_window: int = 0,
         ridge: float = 0.0,
     ) -> None:
         self.model = model
         self.conf_level = conf_level
         self.method = method
         self.spe_statistic = spe_statistic
+        self.spe_window = spe_window
         self.ridge = ridge
 
     def _trace_for_batch(self, batch: pd.DataFrame, initial_conditions: pd.Series | pd.DataFrame | None) -> Bunch:
@@ -161,6 +175,9 @@ class BatchMonitor(BaseEstimator):
         """
         if self.spe_statistic not in SPE_STATISTICS:
             raise ValueError(f"spe_statistic must be one of {SPE_STATISTICS}; got {self.spe_statistic!r}.")
+        window = operator.index(self.spe_window)
+        if window < 0:
+            raise ValueError(f"spe_window must be a non-negative integer; got {self.spe_window!r}.")
         check_is_fitted(self.model, "loadings_")
         n_timesteps = int(self.model.n_timesteps_)
         n_components = int(self.model.loadings_.shape[1])  # the fitted width, also when n_components=None
@@ -199,8 +216,13 @@ class BatchMonitor(BaseEstimator):
         self._score_precision_over_time = precision
         t2_matrix = np.stack([self._t2_from_scores(scores[row]) for row in range(n_reference)])
 
+        # Each limit is fitted to the reference values of that sample, pooled with those of its
+        # ``window`` neighbours on either side when asked; the pool is shorter at the two ends.
         spe_limits = np.array(
-            [spe_calculation(spe_matrix[:, k], conf_level=self.conf_level) for k in range(n_timesteps)]
+            [
+                spe_calculation(spe_matrix[:, max(0, k - window) : k + window + 1].ravel(), conf_level=self.conf_level)
+                for k in range(n_timesteps)
+            ]
         )
         t2_limit = hotellings_t2_limit(conf_level=self.conf_level, n_components=n_components, n_rows=n_reference)
 

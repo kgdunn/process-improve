@@ -46,7 +46,10 @@ rebuilt as plain Python scripts with narrative pages (issues #154, #155,
   `spe_statistic="instantaneous"` to chart the SPE of the newest sample only
   (the per-interval statistic of Nomikos and MacGregor, 1995) beside the
   cumulative statistic, which stays the default. `monitor()` also returns the
-  score estimates.
+  score estimates. `spe_window` pools the reference SPE values of neighbouring
+  samples before each per-sample limit is fitted, which steadies the limits
+  when few reference batches are available; the default of 0 keeps the fit to
+  one sample's values.
 - The SBR case-study page gains two sections, predicting the quality before
   the batch ends and monitoring the two faulty batches on-line against a
   reference model of the normal batches, with the script functions behind them.
