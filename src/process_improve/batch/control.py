@@ -32,7 +32,9 @@ movement-suppression term, the soft T2 term, and the SPE check on the
 measurements so far that gates whether a correction is computed at all;
 Yabuki and MacGregor (1997) give the no-correction dead band, their
 "no-control region"; Garcia-Munoz, Kourti and MacGregor (2004) give the
-per-decision-point score covariance and limits; Arteaga and Ferrer (2002)
+per-decision-point score covariance and limits, and the prediction interval
+at a decision point is built in the same spirit, from the training batches
+re-projected under that point's missingness pattern; Arteaga and Ferrer (2002)
 give the trimmed score regression used to estimate the scores of a partially
 observed row, which Golshan et al. (2010) also apply in the LV-MPC setting.
 
@@ -480,7 +482,10 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
         for positions_in_free in by_tag.values():
             ordered = sorted(positions_in_free, key=lambda j: free_labels[j][1])
             order.extend(ordered)
-            blocks.append(_knot_matrix(len(ordered), min(n_knots, len(ordered))))
+            # A tag with a single remaining sample has nothing to interpolate
+            # (the last decision point before the batch ends); it keeps its
+            # one decision variable.
+            blocks.append(_knot_matrix(len(ordered), min(n_knots, len(ordered))) if len(ordered) >= 2 else np.eye(1))
         permute = np.zeros((n_free, n_free))
         for row_pos, j in enumerate(order):
             permute[j, row_pos] = 1.0
@@ -631,12 +636,15 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
 class MidCourseCorrector:
     """Decision-point workflow around :func:`midcourse_correction`.
 
-    Holds the model, the nominal schedule and the tuning, and at each decision
-    point: checks the batch-so-far against the model (the SPE validity gate of
-    Flores-Cerrillo and MacGregor, 2004), applies the no-correction dead band
-    (Yabuki and MacGregor, 1997) in target mode, builds the per-decision-point
-    reference limits (Garcia-Munoz et al., 2004), solves the QP, and returns
-    the full corrected schedule ready to implement (or to hand to
+    Holds the model, the nominal schedule and the tuning. :meth:`predict`
+    answers the monitoring question at a decision point (the predicted final
+    quality with its interval, and the validity statistics of the batch so
+    far). :meth:`correct` adds the decision: it checks the batch-so-far
+    against the model (the SPE validity gate of Flores-Cerrillo and
+    MacGregor, 2004), applies the no-correction dead band (Yabuki and
+    MacGregor, 1997) in target mode, builds the per-decision-point reference
+    limits (Garcia-Munoz et al., 2004), solves the QP, and returns the full
+    corrected schedule ready to implement (or to hand to
     :meth:`process_improve.simulation.BioreactorSimulator.simulate_batch`).
 
     Parameters
@@ -653,7 +661,10 @@ class MidCourseCorrector:
         tag is a response, treated as missing after the decision point.
     mode : {"target", "maximize"}, default="target"
     y_target : Series, dict, or float, optional
-        Required for ``mode="target"``.
+        Required by :meth:`correct` in ``mode="target"``. A corrector built
+        with only ``model``, ``nominal_schedule`` and ``mv_tags`` can
+        :meth:`predict` (the monitoring question needs no target) but not
+        correct.
     weights, bounds, rate_limits, method, ridge, n_knots
         Passed through to :func:`midcourse_correction`.
     spe_cap, t2_cap : float, "limit", or None, default="limit"
@@ -668,6 +679,10 @@ class MidCourseCorrector:
         Multiplier on the prediction-interval half-width: in target mode the
         correction is skipped while the no-change prediction lies within
         ``dead_band`` half-widths of the target for every quality variable.
+        The half-width is the interval *at the decision point* (see
+        :meth:`predict`): it carries the model's prediction error under that
+        point's missingness pattern, so early decision points, where the
+        estimate rests on few observed columns, are held to a wider band.
         Set to 0.0 to correct at every decision point. Ignored in maximize
         mode.
     target_side : {"both", "below", "above"}, default="both"
@@ -705,8 +720,6 @@ class MidCourseCorrector:
             raise ValueError("MidCourseCorrector requires a model fitted with group_by_batch=False.")
         if mode not in _MODES:
             raise ValueError(f"mode must be one of {list(_MODES)}; got {mode!r}.")
-        if mode == "target" and y_target is None:
-            raise ValueError("y_target is required when mode='target'.")
         unknown_tags = [t for t in mv_tags if t not in model.tag_names_]
         if unknown_tags:
             raise ValueError(f"mv_tags contains tags the model does not carry: {unknown_tags}.")
@@ -771,7 +784,11 @@ class MidCourseCorrector:
         and the F-distribution T2 limit on the candidate-pattern score
         estimates with their own covariance (Garcia-Munoz et al., 2004).
 
-        Results are cached per ``k``.
+        Also returned: ``rmse_k`` (Series over the targets, original units),
+        the prediction error of the model at this decision point, from the
+        candidate-pattern estimates of the training batches; and the
+        condition numbers of the two pattern operators. Results are cached
+        per ``k``.
         """
         if k in self._limit_cache:
             return self._limit_cache[k]
@@ -797,11 +814,29 @@ class MidCourseCorrector:
         score_cov = np.cov(candidate.scores, rowvar=False, ddof=1)
         score_cov = np.atleast_2d(score_cov)
         t2_limit = float((A * (n**2 - 1)) / (n * (n - A)) * f_dist.ppf(self.conf_level, A, n - A))
+
+        # The prediction error of the model *at this decision point*: the
+        # quality predicted from the candidate-pattern score estimates of the
+        # training batches, against their measured quality, on the same
+        # N - A - 1 degrees of freedom as the full-row training RMSE that
+        # PLS.prediction_interval uses. Early in the batch the estimate rests
+        # on few observed columns and this error can be much larger than the
+        # full-row RMSE (orders of magnitude when the restricted estimator is
+        # ill-conditioned); it is what the prediction interval, and hence the
+        # dead band, must carry at that decision point.
+        y_loadings = np.asarray(self.model.y_loadings_, dtype=float)
+        y_scaled = self.model._y_scaled_training.to_numpy(dtype=float)
+        residual = candidate.scores @ y_loadings.T - y_scaled
+        df = max(n - A - 1, 1)
+        rmse_k = np.sqrt(np.sum(residual**2, axis=0) / df) * self.model.y_scale_.to_numpy(dtype=float)
         result = Bunch(
             spe_limit_monitor=float(spe_calculation(monitor.spe, conf_level=self.conf_level)),
             spe_limit_candidate=float(spe_calculation(candidate.spe, conf_level=self.conf_level)),
             t2_limit=t2_limit,
             score_covariance=score_cov,
+            rmse_k=pd.Series(rmse_k, index=self.model.target_names_, name="rmse_k"),
+            condition_number_monitor=float(monitor.condition_number[0]),
+            condition_number_candidate=float(candidate.condition_number[0]),
         )
         self._limit_cache[k] = result
         return result
@@ -835,7 +870,120 @@ class MidCourseCorrector:
                 entries[(tag, s)] = float(batch_so_far.iloc[s][tag])
         return pd.Series(entries)
 
-    def correct(  # noqa: C901, PLR0912, PLR0915 - the decision-point workflow is one narrative
+    def predict(
+        self,
+        batch_so_far: pd.DataFrame,
+        *,
+        initial_conditions: pd.Series | pd.DataFrame | None = None,
+        schedule: pd.DataFrame | None = None,
+        k: int | None = None,
+    ) -> Bunch:
+        """Predict the final quality of a running batch at decision point ``k``.
+
+        The monitoring question "where is this batch heading if nothing more
+        is changed": the initial conditions and the samples recorded so far
+        are known, the remaining manipulated-variable samples are taken from
+        ``schedule`` (the nominal schedule by default), and the remaining
+        response samples are missing and estimated. The prediction interval
+        uses the model's prediction error *at this decision point*
+        (``limits_at(k).rmse_k``) with the leverage of the estimated scores,
+        so it is wide early in the batch, when the estimate rests on few
+        observed columns, and narrows as the batch runs.
+
+        Parameters
+        ----------
+        batch_so_far : pd.DataFrame
+            The recorded tag trajectories up to the decision point: the first
+            ``k`` samples, columns = the model's tags.
+        initial_conditions : pd.Series or pd.DataFrame, optional
+            The batch's Z values; required if the model was fitted with a Z
+            block.
+        schedule : pd.DataFrame, optional
+            The setpoint schedule whose remaining rows are assumed (same
+            layout as ``nominal_schedule``). Defaults to the nominal schedule.
+        k : int, optional
+            The decision point (number of completed samples). Defaults to
+            ``len(batch_so_far)``. At ``k == n_timesteps_`` the row is
+            complete and the prediction equals the model's ordinary one.
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With keys ``y_hat``, ``half_width``, ``lower`` and ``upper``
+            (Series over the targets, original units; the interval is at
+            ``conf_level``), ``spe_so_far`` and ``spe_limit_monitor`` (the
+            validity check on the measurements so far), ``in_control``
+            (bool, ``spe_so_far <= spe_limit_monitor``), ``t2`` and
+            ``t2_limit`` (the candidate row against the per-decision-point
+            score covariance), ``condition_number`` (of the candidate-pattern
+            operator; a very large value means the estimate at this decision
+            point is not trustworthy, whatever the batch looks like), and
+            ``k``.
+        """
+        from .._linalg import safe_inverse  # noqa: PLC0415
+
+        model = self.model
+        if k is None:
+            k = len(batch_so_far)
+        if not 1 <= k <= model.n_timesteps_:
+            raise ValueError(f"k must lie in [1, {model.n_timesteps_}]; got {k}.")
+        if len(batch_so_far) < k:
+            raise ValueError(f"batch_so_far has {len(batch_so_far)} samples but k={k} were requested.")
+        schedule = schedule if schedule is not None else self.nominal_schedule
+        if schedule.shape[0] != model.n_timesteps_:
+            raise ValueError(f"schedule must have {model.n_timesteps_} rows; got {schedule.shape[0]}.")
+
+        limits = self.limits_at(k)
+        masks = self._masks_at(k)
+        observed = self._observed_series(batch_so_far, initial_conditions, k)
+        features = pd.Index(model.feature_columns_)
+        center = model.center_.to_numpy(dtype=float)
+        scale = model.scale_.to_numpy(dtype=float)
+        loadings = model.x_loadings_.to_numpy(dtype=float)
+        guide = model.direct_weights_.to_numpy(dtype=float)
+        variances = np.asarray(model.explained_variance_, dtype=float)
+
+        row = np.full(len(features), np.nan)
+        positions = features.get_indexer(observed.index)
+        row[positions] = (observed.to_numpy(dtype=float) - center[positions]) / scale[positions]
+        so_far = project_rows(loadings, guide, variances, row[None, :], method=self.method, ridge=self.ridge)
+        spe_so_far = float(so_far.spe[0])
+
+        candidate = row.copy()
+        free_positions = np.flatnonzero(masks.free)
+        if free_positions.size:
+            free_labels = list(features[masks.free])
+            planned = np.array([float(schedule.iloc[s][tag]) for (tag, s) in free_labels])
+            candidate[free_positions] = (planned - center[free_positions]) / scale[free_positions]
+        projected = project_rows(loadings, guide, variances, candidate[None, :], method=self.method, ridge=self.ridge)
+        scores = projected.scores[0]
+        s_inv = safe_inverse(limits.score_covariance, what="score_covariance")
+        t2 = float(scores @ s_inv @ scores)
+
+        y_loadings = np.asarray(model.y_loadings_, dtype=float)
+        y_hat = model.y_center_.to_numpy(dtype=float) + model.y_scale_.to_numpy(dtype=float) * (y_loadings @ scores)
+        n = model.n_samples_
+        df = max(n - int(model.n_components) - 1, 1)
+        t_crit = t_dist.ppf(1 - (1 - self.conf_level) / 2, df)
+        leverage = 1.0 / n + t2 / (n - 1)
+        half_width = t_crit * np.sqrt(1.0 + leverage) * limits.rmse_k.to_numpy(dtype=float)
+        targets = model.target_names_
+        return Bunch(
+            y_hat=pd.Series(y_hat, index=targets, name="y_hat"),
+            half_width=pd.Series(half_width, index=targets, name="half_width"),
+            lower=pd.Series(y_hat - half_width, index=targets, name="lower"),
+            upper=pd.Series(y_hat + half_width, index=targets, name="upper"),
+            conf_level=self.conf_level,
+            spe_so_far=spe_so_far,
+            spe_limit_monitor=limits.spe_limit_monitor,
+            in_control=bool(spe_so_far <= limits.spe_limit_monitor),
+            t2=t2,
+            t2_limit=limits.t2_limit,
+            condition_number=float(projected.condition_number[0]),
+            k=k,
+        )
+
+    def correct(  # noqa: C901, PLR0912 - the decision-point workflow is one narrative
         self,
         batch_so_far: pd.DataFrame,
         *,
@@ -870,13 +1018,20 @@ class MidCourseCorrector:
             ``reason`` (``"corrected"``, ``"spe_gate"``, ``"dead_band"`` or
             ``"batch_complete"``), ``k``, ``spe_so_far`` and
             ``spe_limit_monitor`` (the validity gate), ``y_hat_no_change``
-            and, in target mode, ``dead_band_margin`` (Series; deviation of
-            the no-change prediction from the target in units of the
-            prediction-interval half-width), plus ``correction`` (the full
+            and ``half_width`` (the prediction and its interval half-width
+            at this decision point, from :meth:`predict`),
+            ``condition_number`` (of the candidate-pattern operator), in
+            target mode ``dead_band_margin`` (Series; deviation of the
+            no-change prediction from the target in units of the
+            half-width), plus ``y_hat`` and ``correction`` (the full
             :func:`midcourse_correction` Bunch) when a correction was
             computed.
         """
         model = self.model
+        if self.mode == "target" and self.y_target is None:
+            raise ValueError(
+                "y_target is required to correct in mode='target' (a corrector without one can only predict)."
+            )
         if k is None:
             k = len(batch_so_far)
         if not 1 <= k <= model.n_timesteps_:
@@ -892,36 +1047,29 @@ class MidCourseCorrector:
         limits = self.limits_at(k)
         masks = self._masks_at(k)
         observed = self._observed_series(batch_so_far, initial_conditions, k)
-
-        # --- SPE validity gate on the batch so far -------------------------
         features = pd.Index(model.feature_columns_)
-        center = model.center_.to_numpy(dtype=float)
-        scale = model.scale_.to_numpy(dtype=float)
-        row = np.full(len(features), np.nan)
-        positions = features.get_indexer(observed.index)
-        row[positions] = (observed.to_numpy(dtype=float) - center[positions]) / scale[positions]
-        so_far = project_rows(
-            model.x_loadings_.to_numpy(dtype=float),
-            model.direct_weights_.to_numpy(dtype=float),
-            np.asarray(model.explained_variance_, dtype=float),
-            row[None, :],
-            method=self.method,
-            ridge=self.ridge,
-        )
-        spe_so_far = float(so_far.spe[0])
-        if spe_so_far > limits.spe_limit_monitor:
-            return Bunch(
-                schedule=schedule,
-                corrected=False,
-                reason="spe_gate",
-                k=k,
-                spe_so_far=spe_so_far,
-                spe_limit_monitor=limits.spe_limit_monitor,
-            )
 
-        # --- Assemble the QP inputs ---------------------------------------
+        # --- The no-change prediction, and the SPE validity gate on the
+        # batch so far. The prediction assumes the currently planned
+        # remainder (the implemented schedule's future rows), which is the
+        # nominal schedule unless an earlier decision point changed it. ------
+        prediction = self.predict(batch_so_far, initial_conditions=initial_conditions, schedule=schedule, k=k)
+        spe_so_far = prediction.spe_so_far
+        common = {
+            "k": k,
+            "spe_so_far": spe_so_far,
+            "spe_limit_monitor": limits.spe_limit_monitor,
+            "y_hat_no_change": prediction.y_hat,
+            "half_width": prediction.half_width,
+            "condition_number": prediction.condition_number,
+        }
+        if spe_so_far > limits.spe_limit_monitor:
+            return Bunch(schedule=schedule, corrected=False, reason="spe_gate", **common)
+
+        # --- Assemble the QP inputs. The movement penalty is measured from
+        # the currently planned remainder, for the same reason. ---------------
         free_labels = list(features[masks.free])
-        nominal_remaining = pd.Series({(tag, s): float(self.nominal_schedule.iloc[s][tag]) for (tag, s) in free_labels})
+        nominal_remaining = pd.Series({(tag, s): float(schedule.iloc[s][tag]) for (tag, s) in free_labels})
         seam = {tag: float(schedule.iloc[k - 1][tag]) for tag in self.mv_tags} if k > 0 else None
         caps: dict[str, float | None] = {}
         for name, setting, resolved in (
@@ -936,28 +1084,12 @@ class MidCourseCorrector:
                 caps[name] = float(typing.cast("float", setting))
 
         # --- Dead band (target mode): correct only when the projected
-        # deviation is significant against the prediction interval. ---------
+        # deviation is significant against the prediction interval at this
+        # decision point. ----------------------------------------------------
         dead_band_margin = None
         if self.mode == "target" and (self.dead_band > 0 or self.target_side != "both"):
-            probe = midcourse_correction(
-                model,
-                observed=observed,
-                free_columns=free_labels,
-                mode="target",
-                y_target=self.y_target,
-                weights={"target": 0.0, "movement": 1.0},
-                nominal_remaining=nominal_remaining,
-                score_covariance=limits.score_covariance,
-                method=self.method,
-                ridge=self.ridge,
-            )
-            y0 = probe.y_hat_no_change
-            n = model.n_samples_
-            df = max(n - int(model.n_components) - 1, 1)
-            t_crit = t_dist.ppf(1 - (1 - self.conf_level) / 2, df)
-            leverage = 1.0 / n + probe.t2 / (n - 1)
-            error_std = model.rmse_.iloc[:, -1].to_numpy(dtype=float)
-            half_width = t_crit * np.sqrt(1.0 + leverage) * error_std
+            y0 = prediction.y_hat
+            half_width = prediction.half_width.to_numpy(dtype=float)
             target = pd.Series(self.y_target) if not isinstance(self.y_target, (int, float)) else None
             target_values = (
                 target.reindex(model.target_names_).to_numpy(dtype=float)
@@ -974,14 +1106,7 @@ class MidCourseCorrector:
             dead_band_margin = pd.Series(deviation / half_width, index=model.target_names_, name="dead_band_margin")
             if bool((deviation <= self.dead_band * half_width).all()):
                 return Bunch(
-                    schedule=schedule,
-                    corrected=False,
-                    reason="dead_band",
-                    k=k,
-                    spe_so_far=spe_so_far,
-                    spe_limit_monitor=limits.spe_limit_monitor,
-                    y_hat_no_change=y0,
-                    dead_band_margin=dead_band_margin,
+                    schedule=schedule, corrected=False, reason="dead_band", dead_band_margin=dead_band_margin, **common
                 )
 
         result = midcourse_correction(
@@ -1009,15 +1134,12 @@ class MidCourseCorrector:
             schedule=schedule,
             corrected=True,
             reason="corrected",
-            k=k,
-            spe_so_far=spe_so_far,
-            spe_limit_monitor=limits.spe_limit_monitor,
             spe_limit_candidate=limits.spe_limit_candidate,
             t2_limit=limits.t2_limit,
             y_hat=result.y_hat,
-            y_hat_no_change=result.y_hat_no_change,
             dead_band_margin=dead_band_margin,
             correction=result,
+            **common,
         )
 
 
@@ -1067,7 +1189,7 @@ def _oracle_remaining(  # noqa: PLR0913 - explicit oracle inputs
     return float(-min(first.fun, second.fun))
 
 
-def evaluate_control_policies(  # noqa: PLR0913, PLR0915, C901 - one executed comparison, kept linear
+def evaluate_control_policies(  # noqa: PLR0912, PLR0913, PLR0915, C901 - one executed comparison, kept linear
     simulator: object,
     *,
     y_target: float,
@@ -1077,7 +1199,7 @@ def evaluate_control_policies(  # noqa: PLR0913, PLR0915, C901 - one executed co
     n_components: int = 4,
     decision_points: tuple[int, ...] = (8,),
     target_side: str = "below",
-    dead_band: float = 2.5,
+    dead_band: float = 1.0,
     weights: dict | None = None,
     bounds: dict | None = None,
     rate_limits: dict | None = None,
@@ -1172,7 +1294,9 @@ def evaluate_control_policies(  # noqa: PLR0913, PLR0915, C901 - one executed co
         min and max titer), ``batches`` (DataFrame: per-batch replay /
         mid-course / adapted / oracle titers, the assigned and true feed
         class, whether and why each batch was or was not corrected, the
-        decision point used, and the corrector's predicted quality),
+        decision point used, the corrector's predicted quality, and the
+        no-change prediction with its interval half-width at the first
+        decision point),
         ``n_corrected``, ``n_harmed`` (corrected batches whose executed
         titer fell more than 0.01 below replay), and ``models`` (per-class
         fit R2).
@@ -1268,6 +1392,8 @@ def evaluate_control_policies(  # noqa: PLR0913, PLR0915, C901 - one executed co
         reason = None
         first_k = None
         y_hat_predicted = np.nan
+        y_hat_no_change = np.nan
+        half_width = np.nan
         current = base
         for k in decision_points:
             outcome = corrector.correct(
@@ -1276,6 +1402,9 @@ def evaluate_control_policies(  # noqa: PLR0913, PLR0915, C901 - one executed co
                 implemented_schedule=schedule,
                 k=int(k),
             )
+            if np.isnan(y_hat_no_change) and "y_hat_no_change" in outcome:
+                y_hat_no_change = float(outcome.y_hat_no_change.iloc[0])
+                half_width = float(outcome.half_width.iloc[0])
             reason = outcome.reason if reason is None or not corrected else reason
             if outcome.corrected:
                 schedule = outcome.schedule
@@ -1298,6 +1427,8 @@ def evaluate_control_policies(  # noqa: PLR0913, PLR0915, C901 - one executed co
             "reason": reason,
             "decision_point": first_k,
             "y_hat_predicted": y_hat_predicted,
+            "y_hat_no_change": y_hat_no_change,
+            "half_width": half_width,
         }
         if include_adapted:
             best = simulator.optimal_trajectory(  # type: ignore[attr-defined]
