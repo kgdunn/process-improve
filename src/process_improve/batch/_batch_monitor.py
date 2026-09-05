@@ -19,6 +19,7 @@ Processes", Technometrics, 37, 41-59, 1995.
 
 from __future__ import annotations
 
+import operator
 import typing
 
 import numpy as np
@@ -48,10 +49,14 @@ class BatchMonitor(BaseEstimator):
     and SPE are compared against the limit for that sample, flagging abnormal
     behaviour while the batch is still running.
 
-    The T2 at sample ``k`` is ``t_k' S_k^-1 t_k`` with ``S_k`` the covariance
-    of the reference batches' score estimates at that sample, and its limit is
-    the F-distribution limit for the number of reference batches and
-    components. The SPE is either the length of the residual over every cell
+    The T2 at sample ``k`` is ``t_k' S_k^-1 t_k`` with ``S_k`` the scatter of
+    the reference batches' score estimates at that sample about zero, the
+    centre of the training scores (so the reference batches' mean T2 is
+    ``A (N - 1) / N`` at every sample), and its limit is the F-distribution
+    limit for the number of reference batches and components. The reference
+    batches are normally the batches the model was fitted on, as in Nomikos
+    and MacGregor; a different reference set is centred on the model's
+    training batches, not on itself. The SPE is either the length of the residual over every cell
     observed so far (``"cumulative"``) or over the newest sample only
     (``"instantaneous"``, the per-interval SPE of Nomikos and MacGregor,
     which reacts in the sample a fault begins); its limit at each sample is
@@ -71,6 +76,9 @@ class BatchMonitor(BaseEstimator):
         is compared against the reference-batch spread computed the same way.
     spe_statistic : {"cumulative", "instantaneous"}, default="cumulative"
         Which SPE to chart and to build limits for (see above).
+    ridge : float, default=0.0
+        Regularisation for the ``"tsr"`` / ``"pmp"`` estimators, passed to
+        ``predict_online_trace``.
 
     Attributes (after fitting)
     --------------------------
@@ -82,8 +90,8 @@ class BatchMonitor(BaseEstimator):
     spe_mean_over_time_, t2_mean_over_time_ : np.ndarray of shape (n_timesteps,)
         The mean reference-batch statistic at each sample.
     score_covariance_over_time_ : np.ndarray of shape (n_timesteps, n_components, n_components)
-        The covariance of the reference batches' score estimates at each
-        sample.
+        The scatter matrix (about zero, divided by ``N - 1``) of the reference
+        batches' score estimates at each sample.
     n_reference_batches_ : int
         Number of reference batches the limits were built from.
     n_timesteps_ : int
@@ -95,6 +103,7 @@ class BatchMonitor(BaseEstimator):
         "conf_level": [float],
         "method": [str],
         "spe_statistic": [str],
+        "ridge": [float, int],
     }
 
     def __init__(
@@ -104,15 +113,19 @@ class BatchMonitor(BaseEstimator):
         conf_level: float = 0.99,
         method: str = "tsr",
         spe_statistic: str = "cumulative",
+        ridge: float = 0.0,
     ) -> None:
         self.model = model
         self.conf_level = conf_level
         self.method = method
         self.spe_statistic = spe_statistic
+        self.ridge = ridge
 
     def _trace_for_batch(self, batch: pd.DataFrame, initial_conditions: pd.Series | pd.DataFrame | None) -> Bunch:
         """Return the model's online trace (scores, T2, SPE, ...) over every time sample for one batch."""
-        return self.model.predict_online_trace(batch, initial_conditions=initial_conditions, method=self.method)
+        return self.model.predict_online_trace(
+            batch, initial_conditions=initial_conditions, method=self.method, ridge=self.ridge
+        )
 
     def _spe_from_trace(self, trace: Bunch) -> np.ndarray:
         """Return the SPE trace selected by ``spe_statistic``."""
@@ -150,7 +163,7 @@ class BatchMonitor(BaseEstimator):
             raise ValueError(f"spe_statistic must be one of {SPE_STATISTICS}; got {self.spe_statistic!r}.")
         check_is_fitted(self.model, "loadings_")
         n_timesteps = int(self.model.n_timesteps_)
-        n_components = int(self.model.n_components)
+        n_components = int(self.model.loadings_.shape[1])  # the fitted width, also when n_components=None
         batch_ids = list(good_batches.keys())
         n_reference = len(batch_ids)
         if n_reference <= n_components:
@@ -168,12 +181,21 @@ class BatchMonitor(BaseEstimator):
             spe_matrix[row] = self._spe_from_trace(trace)
 
         # The score estimates early in a batch are shrunk and noisy compared
-        # with those near its end, so T2 is standardised sample by sample.
+        # with those near its end, so T2 is standardised sample by sample. The
+        # scatter is taken about zero, the centre of the training scores, so
+        # the quadratic form and its normalisation agree.
         covariance = np.empty((n_timesteps, n_components, n_components))
         precision = np.empty_like(covariance)
         for k in range(n_timesteps):
-            covariance[k] = np.atleast_2d(np.cov(scores[:, k, :], rowvar=False, ddof=1))
-            precision[k] = safe_inverse(covariance[k], what=f"reference score covariance at sample {k + 1}")
+            at_k = scores[:, k, :]
+            covariance[k] = at_k.T @ at_k / (n_reference - 1)
+            if np.linalg.matrix_rank(covariance[k]) < n_components:
+                raise ValueError(
+                    f"The reference batches' score estimates after {k + 1} sample(s) span fewer than "
+                    f"{n_components} dimensions, so no T2 limit can be formed there: fewer cells than components "
+                    "are observed. Use fewer components, add initial conditions, or pass a ridge."
+                )
+            precision[k] = safe_inverse(covariance[k], what=f"reference score scatter at sample {k + 1}")
         self._score_precision_over_time = precision
         t2_matrix = np.stack([self._t2_from_scores(scores[row]) for row in range(n_reference)])
 
@@ -200,12 +222,20 @@ class BatchMonitor(BaseEstimator):
     ) -> Bunch:
         """Track a batch in real time against the per-sample limits.
 
+        This replays a complete, aligned batch and reports the statistics up
+        to ``upto_k``, which is how limits are checked on historical batches.
+        A batch that is genuinely still running, with only its first samples
+        in hand, is scored with the model's ``predict_online`` and compared
+        with ``spe_limit_over_time_`` and ``t2_limit_over_time_`` at that
+        sample.
+
         Parameters
         ----------
         batch : pd.DataFrame
-            A single aligned batch to monitor (the training tags as columns).
+            A single complete, aligned batch to monitor (the training tags as
+            columns).
         upto_k : int, optional
-            Track only up to this time sample (simulating a still-running
+            Report only up to this time sample (simulating a still-running
             batch). Defaults to the full batch length.
         initial_conditions : pd.Series or pd.DataFrame, optional
             The Z block for this batch; required if the model was fitted with
@@ -222,7 +252,7 @@ class BatchMonitor(BaseEstimator):
             statistic exceeds its limit).
         """
         check_is_fitted(self, "spe_limit_over_time_")
-        end = self.n_timesteps_ if upto_k is None else int(upto_k)
+        end = self.n_timesteps_ if upto_k is None else operator.index(upto_k)
         if not 1 <= end <= self.n_timesteps_:
             raise ValueError(f"upto_k must lie in [1, {self.n_timesteps_}]; got {upto_k}.")
 

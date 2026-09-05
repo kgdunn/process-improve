@@ -92,6 +92,25 @@ def coerce_single_initial_conditions(
     return frame.set_axis(["_online_"], axis=0)
 
 
+def _initial_condition_entries(
+    model: OnlineModel, initial_conditions: pd.Series | pd.DataFrame | None
+) -> dict[tuple[Hashable, Hashable], float]:
+    """Return the ``(name, "")`` entries of a batch's initial conditions, validated against ``model``."""
+    if model.n_initial_conditions_ == 0:
+        if initial_conditions is not None:
+            raise ValueError("The model was fitted without initial conditions; do not pass any.")
+        return {}
+    if initial_conditions is None:
+        raise ValueError("The model was fitted with initial conditions; they are required here.")
+    z_row = initial_conditions.iloc[0] if isinstance(initial_conditions, pd.DataFrame) else initial_conditions
+    entries: dict[tuple[Hashable, Hashable], float] = {}
+    for name in model.initial_condition_names_:
+        if name not in z_row.index:
+            raise ValueError(f"initial_conditions is missing {name!r}.")
+        entries[(name, "")] = float(z_row.get(name, np.nan))
+    return entries
+
+
 def observed_series(
     model: OnlineModel,
     batch_so_far: pd.DataFrame,
@@ -106,7 +125,8 @@ def observed_series(
         A fitted batch model.
     batch_so_far : pd.DataFrame
         The batch's trajectories, at least ``k`` rows, the training tags as
-        columns.
+        columns (in any order; extra columns are ignored). A NaN cell within
+        the first ``k`` rows is carried as a missing cell.
     initial_conditions : pd.Series or pd.DataFrame, optional
         The batch's Z values; required if (and only if) the model was fitted
         with initial conditions.
@@ -119,28 +139,22 @@ def observed_series(
         Indexed by the unfolded labels ``(name, "")`` and ``(tag, s)`` for
         ``s`` in ``0 .. k-1``, in engineering units.
     """
-    if list(batch_so_far.columns) != list(model.tag_names_):
+    missing_tags = [tag for tag in model.tag_names_ if tag not in batch_so_far.columns]
+    if missing_tags:
         raise ValueError(
-            f"batch_so_far must carry exactly the training tags {model.tag_names_}; got {list(batch_so_far.columns)}."
+            f"batch_so_far is missing the training tag(s) {missing_tags}; it must carry {list(model.tag_names_)}."
         )
     if len(batch_so_far) < k:
         raise ValueError(f"batch_so_far has {len(batch_so_far)} rows; at least k = {k} are needed.")
-    entries: dict[tuple[Hashable, Hashable], float] = {}
-    if model.n_initial_conditions_:
-        if initial_conditions is None:
-            raise ValueError("The model was fitted with initial conditions; they are required here.")
-        z_row = initial_conditions.iloc[0] if isinstance(initial_conditions, pd.DataFrame) else initial_conditions
-        for name in model.initial_condition_names_:
-            if name not in z_row.index:
-                raise ValueError(f"initial_conditions is missing {name!r}.")
-            entries[(name, "")] = float(z_row.get(name, np.nan))
-    elif initial_conditions is not None:
-        raise ValueError("The model was fitted without initial conditions; do not pass any.")
-    values = batch_so_far.iloc[:k].to_numpy(dtype=float)
+    entries = _initial_condition_entries(model, initial_conditions)
+    values = batch_so_far[list(model.tag_names_)].iloc[:k].to_numpy(dtype=float)
     for j, tag in enumerate(model.tag_names_):
         for s in range(k):
             entries[(tag, s)] = float(values[s, j])
-    return pd.Series(entries)
+    series = pd.Series(entries)
+    if list(model.feature_columns_.names) == ["sequence", "tag"]:  # a model unfolded with group_by_batch=True
+        series.index = pd.MultiIndex.from_tuples([(s, tag) for (tag, s) in series.index], names=["sequence", "tag"])
+    return series
 
 
 def scaled_row(model: OnlineModel, observed: pd.Series) -> np.ndarray:

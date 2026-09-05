@@ -22,6 +22,7 @@ MSPC", Comprehensive Chemometrics, Elsevier, 2009.
 
 from __future__ import annotations
 
+import operator
 import typing
 
 import numpy as np
@@ -448,7 +449,11 @@ class BatchPLS(RegressorMixin, BaseEstimator):
 
         The batch may be truncated to the samples observed so far (at least
         ``upto_k`` rows) or be a complete aligned batch; only its first
-        ``upto_k`` rows are used. To compare the returned statistics against
+        ``upto_k`` rows are used, the tags are matched by name, and a NaN cell
+        among them counts as one more missing cell. The first few samples
+        constrain the scores weakly, so read the early predictions together
+        with ``condition_number`` (and consider ``ridge``); the estimate
+        settles as samples accumulate. To compare the returned statistics against
         control limits use :class:`process_improve.batch.BatchMonitor`, which
         builds per-sample limits from reference batches with the same
         estimator; the ``hotellings_t2`` returned here uses the end-of-batch
@@ -488,6 +493,7 @@ class BatchPLS(RegressorMixin, BaseEstimator):
             Eq. 4 of Wold et al., 2009).
         """
         check_is_fitted(self, "x_weights_")
+        upto_k = operator.index(upto_k)
         if not 1 <= upto_k <= self.n_timesteps_:
             raise ValueError(f"upto_k must lie in [1, {self.n_timesteps_}]; got {upto_k}.")
         observed = observed_series(self, batch, initial_conditions, upto_k)
@@ -626,9 +632,19 @@ class BatchPLS(RegressorMixin, BaseEstimator):
             raise TypeError(f"Y must be a pandas DataFrame indexed by batch identifier; got {type(Y).__name__}.")
         if list(Y.columns) != list(self.target_names_):
             raise ValueError(f"Y must carry exactly the training targets {self.target_names_}; got {list(Y.columns)}.")
+        if not X:
+            raise ValueError("X is empty; at least one batch is needed.")
+        if not Y.index.is_unique:
+            raise ValueError("Y must have one row per batch identifier; its index is not unique.")
         missing = [batch_id for batch_id in X if batch_id not in Y.index]
         if missing:
             raise ValueError(f"Y has no row for batch id(s) {missing[:5]}.")
+        if Y.loc[list(X)].isna().to_numpy().any():
+            raise ValueError("Y contains missing values for the batches in X; the error cannot be formed.")
+        if initial_conditions is not None:
+            absent = [batch_id for batch_id in X if batch_id not in initial_conditions.index]
+            if absent:
+                raise ValueError(f"initial_conditions has no row for batch id(s) {absent[:5]}.")
         squared = np.zeros((self.n_timesteps_, len(self.target_names_)))
         for batch_id, batch in X.items():
             z = None if initial_conditions is None else initial_conditions.loc[[batch_id]]

@@ -18,6 +18,7 @@ MSPC", Comprehensive Chemometrics, Elsevier, 2009, for the methodology.
 
 from __future__ import annotations
 
+import operator
 import typing
 
 import numpy as np
@@ -416,11 +417,18 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         result : sklearn.utils.Bunch
             With keys ``scores`` (Series, one entry per component),
             ``hotellings_t2`` (float, cumulative over all components),
-            ``spe`` (float, over the observed columns), and
-            ``condition_number`` (float, the estimator's conditioning
-            diagnostic at this pattern).
+            ``spe`` (float, the length of the residual over the observed
+            columns), ``spe_instantaneous`` (float, the length of the residual
+            over the newest observed sample only), ``condition_number`` (float,
+            the estimator's conditioning diagnostic at this pattern),
+            ``residuals`` (Series over ``feature_columns_``, NaN where
+            unobserved) and ``forecast`` (DataFrame, ``n_timesteps_`` rows by
+            the training tags, in engineering units: the batch's own values up
+            to ``upto_k`` and the model's imputation of the remainder, Eq. 4 of
+            Wold et al., 2009).
         """
         check_is_fitted(self, "loadings_")
+        upto_k = operator.index(upto_k)
         if not 1 <= upto_k <= self.n_timesteps_:
             raise ValueError(f"upto_k must lie in [1, {self.n_timesteps_}]; got {upto_k}.")
 
@@ -470,7 +478,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         ``1 .. n_timesteps_``, but the batch is unfolded and scaled once and
         all the per-sample patterns are projected together, which is what an
         online monitor needs (:class:`process_improve.batch.BatchMonitor`
-        builds its time-varying limits this way).
+        builds its per-sample limits this way).
 
         Parameters
         ----------
@@ -490,8 +498,9 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         result : sklearn.utils.Bunch
             With keys ``time`` (1-based sample indices), ``scores``
             (DataFrame, n_timesteps x n_components; row ``k-1`` is the score
-            estimate using samples up to ``k``), ``hotellings_t2``, ``spe``
-            and ``condition_number`` (np.ndarray of length n_timesteps).
+            estimate using samples up to ``k``), ``hotellings_t2``, ``spe``,
+            ``spe_instantaneous`` (the residual over the newest observed sample
+            only) and ``condition_number`` (np.ndarray of length n_timesteps).
         """
         check_is_fitted(self, "loadings_")
         z_frame = self._coerce_online_initial_conditions(initial_conditions)
