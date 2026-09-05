@@ -1570,7 +1570,12 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         q2.index = component_index
 
         # PRESS ratio: still computable under either scheme, kept for inspection.
-        ratio_values = {a: press[a] / press[a - 1] for a in range(2, max_components + 1)}
+        # A block with no variation anywhere gives PRESS 0 at every component
+        # count, and 0/0 should reach the caller as a NaN ratio rather than as a
+        # numpy warning pointing into this function. The standard error below
+        # already guards the same case.
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratio_values = {a: press[a] / press[a - 1] for a in range(2, max_components + 1)}
         press_ratio = pd.Series(ratio_values, name="PRESS ratio")
         press_ratio.index.name = "n_components"
 

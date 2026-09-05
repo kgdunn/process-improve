@@ -61,6 +61,11 @@ Improvement using Data* book against this package (kgdunn/pid-book#274).
 
 ### Fixed
 
+- `PCA.select_n_components` no longer leaks a numpy `RuntimeWarning` from its
+  own internals when handed a block with no variation in it. `press` is then
+  zero at every component count and the `press_ratio` is 0/0, which now reaches
+  the caller as `NaN` rather than as a warning pointing into library code. The
+  standard error beside it already guarded the same case.
 - The element-wise cross-validation's EM loop judged convergence on the held-out
   cells in the input units, so a column re-expressed in different units changed
   how many iterations were taken and moved the result in the last significant

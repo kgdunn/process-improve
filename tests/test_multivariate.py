@@ -3,6 +3,7 @@
 import io
 import pathlib
 import urllib.request
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -990,6 +991,56 @@ def test_pca_select_n_components_ekf_q2_per_variable_reconciles() -> None:
     # noise column drags it down, which is exactly what this table is for.
     at_rank = result.q2_per_variable.loc[result.n_components]
     assert at_rank["noise"] < result.q2[result.n_components] < at_rank.drop("noise").min()
+
+
+def test_pca_select_n_components_ekf_q2_per_variable_is_nan_for_a_flat_column() -> None:
+    """A column with no spread has no Q2, rather than a spurious zero (#546)."""
+    rng = np.random.default_rng(21)
+    N, K = 40, 6
+    T = rng.standard_normal((N, 2))
+    P = rng.standard_normal((2, K))
+    X = pd.DataFrame(T @ P + 0.3 * rng.standard_normal((N, K)), columns=[f"v{j}" for j in range(K)])
+    X["flat"] = 7.5
+
+    result = PCA.select_n_components(X, max_components=3, cv=5, n_repeats=2, random_state=0)
+
+    # The null model predicts a constant column exactly, so its reference sum of
+    # squares is zero and the ratio is undefined. Reporting 0.0 there would read
+    # as "predicted no better than the mean" rather than "nothing to predict".
+    assert result.q2_per_variable["flat"].isna().all()
+    # It is only that column: the rest are unaffected and the pooled figure,
+    # which the flat column contributes nothing to on either side of the ratio,
+    # stays finite.
+    assert np.isfinite(result.q2_per_variable.drop(columns="flat").to_numpy()).all()
+    assert np.isfinite(result.q2.to_numpy()).all()
+
+
+def test_pca_select_n_components_ekf_degenerate_blocks_stay_quiet() -> None:
+    """Degenerate inputs give NaN answers, not exceptions and not numpy warnings.
+
+    Two edges the element-wise loop has to survive: a matrix small enough that a
+    column can be left with a single in-fold cell to estimate its centre from,
+    and a matrix with no variation at all, where the null model is exact and the
+    ratio PRESS / null is 0/0.
+    """
+    rng = np.random.default_rng(5)
+    tiny = pd.DataFrame(rng.standard_normal((4, 3)))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        small = PCA.select_n_components(tiny, max_components=2, cv=4, random_state=0)
+    assert 1 <= small.n_components <= 2
+    assert np.isfinite(small.q2.to_numpy()).all()
+
+    flat = pd.DataFrame(np.full((20, 4), 3.0))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        result = PCA.select_n_components(flat, max_components=2, cv=5, random_state=0)
+    # Nothing varies, so nothing is predicted and nothing is left over: PRESS is
+    # zero and every Q2 is undefined rather than a perfect 1.0.
+    assert (result.press.to_numpy() == 0).all()
+    assert result.q2.isna().all()
+    assert result.q2_per_variable.isna().to_numpy().all()
+    assert result.press_ratio.isna().all()
 
 
 def test_pca_select_n_components_ekf_q2_matches_on_raw_and_prescaled_ldpe() -> None:
