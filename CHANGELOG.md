@@ -18,6 +18,14 @@ Improvement using Data* book against this package (kgdunn/pid-book#274).
 
 ### Added
 
+- `PCA.select_n_components` reports `q2_per_variable`, the cross-validated `Q2`
+  of each column beside the pooled figure, which is what shows
+  whether one variable is carrying the curve (#546). `NaN` under
+  `cv_scheme="row_wise"`, which scores whole rows and has no per-cell error to
+  split.
+- `PCA.select_n_components` reports `press_input_units`, the PRESS curve in the
+  units of the matrix that was passed in, for comparing prediction error against
+  instrument error (#546).
 - `OLS.leverage_` and `OLS.influence_` are computed for **any** number of
   predictors, with or without an intercept (#545). Both come from the hat-matrix
   diagonal of the fitted model matrix and agree with `statsmodels`'
@@ -30,11 +38,33 @@ Improvement using Data* book against this package (kgdunn/pid-book#274).
 
 ### Changed
 
+- **`PCA.select_n_components(cv_scheme="ekf")` returns different `press`, `q2`,
+  `se_press` and `q2_se` values** (#546). The element-wise scheme standardises
+  the matrix inside every fold, but it used to undo that standardisation before
+  measuring the error, so PRESS came back in the input units and each variable
+  weighed on the curve in proportion to its variance rather than its structure.
+  On the LDPE data the `Mw` column carries 99.5% of the raw sum of squares, and
+  the raw block (which the library's own warning recommends passing) gave the
+  `Q2` curve of `Mw` alone: monotonic to 0.94, with none of the turnover at two
+  components that the same data show once every variable counts equally. PRESS
+  is now measured in the space each fold was fitted in, and compared against a
+  null model measured the same way, so the curve no longer depends on the units
+  the columns arrived in. Passing the raw block and passing the pre-scaled block
+  now give the same answer, and re-expressing one column in different units
+  leaves the curve unmoved. `Q2` keeps its meaning, "the fraction of held-out
+  variation the model predicts", and stays comparable to `r2_cumulative_`; the
+  numbers it takes are lower on a block with one dominant column, because they
+  are no longer that column's numbers. `scale_inside_folds=False`, the opt-out
+  for callers who scale their own block, is unchanged.
 - `OLS.influence_` is now always a plain `np.ndarray`, matching its documented
   type and `leverage_`. It was a `pd.Series` when `y` arrived as one.
 
 ### Fixed
 
+- The element-wise cross-validation's EM loop judged convergence on the held-out
+  cells in the input units, so a column re-expressed in different units changed
+  how many iterations were taken and moved the result in the last significant
+  figures (#546). It now judges convergence in the space the fold is fitted in.
 - `AdaptivePCA.fit` and `AdaptivePLS.fit` now set `n_components_`, so the
   inherited `hotellings_t2_limit` method works on the adaptive estimators instead
   of raising `AttributeError` (#542). The value agrees with the
@@ -47,6 +77,7 @@ Improvement using Data* book against this package (kgdunn/pid-book#274).
   `process-improve` (#543).
 - The `raincloud` docstring no longer claims a package default theme is applied
   when `template=None`; none is.
+
 ## [1.79.1] - 2026-09-05
 
 ### Documentation

@@ -22,6 +22,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import Bunch
 
+from process_improve.multivariate._pca import _pca_ekf_press
 from process_improve.multivariate.methods import (
     PCA,
     PLS,
@@ -734,12 +735,13 @@ def test_pca_select_n_components() -> None:
     assert result.selection_rule == "min"
 
     # q2_se is the per-component Q2-scale standard error (the +/-1 SE band): an
-    # exact rescale of se_press by the constant null-model sum-of-squares,
-    # which is the CENTRED total SS because X is passed raw.
+    # exact rescale of se_press by the null-model sum of squares, which the
+    # folds measure in the space they were fitted in (#546), so it comes back
+    # from the helper rather than being recomputed here.
     assert "q2_se" in result
     assert (result.q2_se >= 0).all()
     X_arr = np.asarray(X, dtype=float)
-    null_ss = float(np.nansum((X_arr - X_arr.mean(axis=0)) ** 2))
+    null_ss = _pca_ekf_press(X_arr, max_comp, n_folds=5, random_state=0).null_model_ss
     np.testing.assert_allclose(result.q2_se.to_numpy(), result.se_press.to_numpy() / null_ss, rtol=1e-9)
 
     # With 2 true components and N < K, should recommend 2 (or at most 3)
@@ -768,9 +770,14 @@ def test_pca_select_n_components() -> None:
     assert np.isfinite(result.q2.to_numpy()).all()
     assert (result.q2 <= 1.0 + 1e-9).all()
     assert result.q2[2] > result.q2[1]
-    # Q2 is exactly the normalised PRESS under ekf (total SS rather than
-    # mean-cell SS so it stays directly comparable to r2_cumulative_).
+    # Q2 is exactly the normalised PRESS under ekf, against the reference the
+    # folds measured, so it stays directly comparable to r2_cumulative_.
     assert result.q2.to_numpy() == pytest.approx(1.0 - result.press.to_numpy() / null_ss)
+
+    # Every variable's own Q2 is reported beside the pooled figure, which is
+    # what shows whether one column is carrying it (#546).
+    assert result.q2_per_variable.shape == (max_comp, X.shape[1])
+    assert list(result.q2_per_variable.index) == list(range(1, max_comp + 1))
 
     # cv_scores aliases per_fold_press under ekf; shape (A, n_folds).
     assert isinstance(result.cv_scores, pd.DataFrame)
@@ -876,8 +883,18 @@ def test_pca_select_n_components_n_repeats_narrows_se() -> None:
     assert many.per_fold_press.shape == (8, 40)
     # PRESS stays on the per-cell scale (averaged over repeats).
     assert (many.press > 0).all()
-    # SE narrows with more repeats (more samples of fold-PRESS).
-    assert (many.se_press <= one.se_press + 1e-9).all()
+    # SE narrows with more repeats: 8 repeats sample fold-PRESS 40 times rather
+    # than 5, so the standard error of the mean shrinks by roughly sqrt(8) ~ 2.8x.
+    # Checked on the median across components rather than component by component:
+    # an SE built from only 5 folds carries a relative sampling error near
+    # 1 / sqrt(2 * (5 - 1)) ~ 35%, so a single component can come out lower on 5
+    # folds than on 40 by chance. The per-component bound catches a real blow-up
+    # without pinning that noise.
+    se_ratio = (many.se_press / one.se_press).to_numpy()
+    assert np.median(se_ratio) < 0.7
+    assert (se_ratio < 1.5).all()
+    # The extra repeats sharpen the estimate without moving the recommendation.
+    assert one.n_components == many.n_components == true_rank
     # Reproducible given a fixed seed.
     again = PCA.select_n_components(X, max_components=8, cv=5, n_repeats=8, random_state=0)
     np.testing.assert_allclose(many.press.to_numpy(), again.press.to_numpy())
@@ -919,6 +936,125 @@ def test_pca_select_n_components_scale_inside_folds_no_leakage() -> None:
             scale_inside_folds=False,
         )
     assert 1 <= legacy.n_components <= 6
+
+
+def test_pca_select_n_components_ekf_q2_is_scale_invariant() -> None:
+    """Re-expressing one column in different units must not move the Q2 curve (#546).
+
+    The element-wise scheme standardises inside every fold, so what it fits does
+    not depend on a column's units. Before #546 it then measured PRESS after
+    inverting that standardisation, and a column carried weight in proportion to
+    its variance: multiplying one column by 1000 handed it the whole curve.
+    """
+    rng = np.random.default_rng(11)
+    N, K, true_rank = 45, 10, 3
+    T = rng.standard_normal((N, true_rank)) * np.array([5.0, 3.0, 1.5])
+    P = rng.standard_normal((true_rank, K))
+    X = pd.DataFrame(T @ P + 0.3 * rng.standard_normal((N, K)))
+    X_stretched = X.copy()
+    X_stretched.iloc[:, 0] *= 1000.0
+
+    kwargs = {"max_components": 6, "cv": 5, "n_repeats": 3, "random_state": 7}
+    base = PCA.select_n_components(X, **kwargs)
+    stretched = PCA.select_n_components(X_stretched, **kwargs)
+
+    # The folds are the same cells in both runs and the in-fold standardisation
+    # removes the factor of 1000 exactly, so this is an identity, not an
+    # approximation: only floating point separates the two curves.
+    np.testing.assert_allclose(stretched.q2.to_numpy(), base.q2.to_numpy(), rtol=1e-8, atol=1e-10)
+    np.testing.assert_allclose(stretched.press.to_numpy(), base.press.to_numpy(), rtol=1e-8)
+    assert stretched.n_components == base.n_components == true_rank
+
+    # press_input_units does follow the units, which is the point of having it:
+    # the stretched column contributes a million times more squared error.
+    assert (stretched.press_input_units > base.press_input_units).all()
+
+
+def test_pca_select_n_components_ekf_q2_per_variable_reconciles() -> None:
+    """The per-variable Q2 splits the pooled figure rather than restating it (#546)."""
+    rng = np.random.default_rng(12)
+    N, K = 40, 8
+    T = rng.standard_normal((N, 2))
+    P = rng.standard_normal((2, K))
+    # One column is pure noise: it has nothing for a component to predict, so
+    # its own Q2 should sit far below the pooled value.
+    X = pd.DataFrame(T @ P + 0.3 * rng.standard_normal((N, K)), columns=[f"v{j}" for j in range(K)])
+    X["noise"] = rng.standard_normal(N) * 4.0
+
+    result = PCA.select_n_components(X, max_components=4, cv=5, n_repeats=3, random_state=3)
+
+    assert list(result.q2_per_variable.columns) == list(X.columns)
+    assert result.q2_per_variable.shape == (4, X.shape[1])
+    assert np.isfinite(result.q2_per_variable.to_numpy()).all()
+    # Every structured column beats the pooled figure at the chosen rank; the
+    # noise column drags it down, which is exactly what this table is for.
+    at_rank = result.q2_per_variable.loc[result.n_components]
+    assert at_rank["noise"] < result.q2[result.n_components] < at_rank.drop("noise").min()
+
+
+def test_pca_select_n_components_ekf_q2_matches_on_raw_and_prescaled_ldpe() -> None:
+    """On LDPE the raw and pre-scaled blocks now give the same curve (#546).
+
+    ``Mw`` holds over 99% of the raw block's sum of squares. Before #546, passing
+    the raw block (which the library's own warning recommends) produced the Q2
+    curve of ``Mw`` alone, rising monotonically past 0.9 with no interior
+    maximum, while the pre-scaled block peaked at two components. The two are the
+    same computation and must agree.
+    """
+    folder = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate"
+    ldpe = pd.read_csv(folder / "LDPE" / "LDPE.csv", index_col=0)
+    # The premise of the test: one column dominates the raw sum of squares.
+    centred = ldpe - ldpe.mean()
+    assert (centred**2).sum().max() / (centred**2).to_numpy().sum() > 0.99
+    assert (centred**2).sum().idxmax() == "Mw"
+
+    kwargs = {"max_components": 11, "cv": 7, "n_repeats": 3, "random_state": 42}
+    raw = PCA.select_n_components(ldpe, **kwargs)
+    with pytest.warns(SpecificationWarning, match="already centred and unit-variance"):
+        prescaled = PCA.select_n_components(MCUVScaler().fit_transform(ldpe), **kwargs)
+
+    # Not bit-identical: pre-scaling uses each column's whole-sample mean and
+    # standard deviation, the raw path uses each fold's own, so the two runs
+    # standardise by slightly different constants. The gap has to be negligible
+    # against the curve's own standard error, which is about 0.015 here.
+    gap = np.abs(raw.q2.to_numpy() - prescaled.q2.to_numpy())
+    assert gap.max() < 0.001
+    assert gap.max() < 0.1 * float(raw.q2_se.min())
+    assert raw.q2.idxmax() == prescaled.q2.idxmax()
+
+    # The curve turns over inside the range rather than climbing to the end,
+    # which is the reading these data support and which the Mw-dominated curve
+    # this used to produce did not show.
+    assert raw.q2[2] > raw.q2[1]
+    assert raw.q2[7] < raw.q2[2]
+    assert raw.q2.loc[1:8].idxmax() == 2
+
+
+def test_pca_select_n_components_scale_inside_folds_false_is_unchanged() -> None:
+    """The opt-out path keeps its input-units PRESS and centred reference (#546).
+
+    #546 changes what ``scale_inside_folds=True`` measures. ``False`` is the
+    legacy contract for callers who scale their own block, and stays as it was:
+    PRESS in the units of the matrix passed in, against the centred total sum of
+    squares of that same matrix.
+    """
+    rng = np.random.default_rng(13)
+    N, K = 40, 9
+    T = rng.standard_normal((N, 2))
+    P = rng.standard_normal((2, K))
+    X = pd.DataFrame(MCUVScaler().fit_transform(pd.DataFrame(T @ P + 0.3 * rng.standard_normal((N, K)))))
+
+    with pytest.warns(SpecificationWarning, match="leaks"):
+        result = PCA.select_n_components(
+            X, max_components=5, cv=5, n_repeats=2, random_state=0, scale_inside_folds=False
+        )
+
+    # No in-fold scale, so the two PRESS scales coincide.
+    np.testing.assert_allclose(result.press_input_units.to_numpy(), result.press.to_numpy(), rtol=1e-12)
+    # And Q2 is still normalised by the caller-side centred sum of squares.
+    X_arr = np.asarray(X, dtype=float)
+    null_ss = float(np.nansum((X_arr - np.nanmean(X_arr, axis=0)) ** 2))
+    np.testing.assert_allclose(result.q2.to_numpy(), 1.0 - result.press.to_numpy() / null_ss, rtol=1e-12)
 
 
 def test_pca_minka_mle_recovers_known_rank() -> None:
