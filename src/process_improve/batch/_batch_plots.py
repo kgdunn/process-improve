@@ -343,13 +343,17 @@ def online_monitoring_plot(
     initial_conditions: pd.Series | pd.DataFrame | None = None,
     fig: go.Figure | None = None,
 ) -> go.Figure:
-    """Plot a batch's online SPE or T2 trace against the time-varying limit.
+    """Plot a batch's online SPE or T2 trace against the per-sample limit.
 
     Tracks the batch through the fitted
-    :class:`process_improve.batch.BatchMonitor` and draws its statistic over
-    time overlaid on the control limit and the mean good-batch trace, with the
-    alarm samples marked. This is the online (real-time) monitoring chart of
-    Nomikos and MacGregor.
+    :class:`process_improve.batch.BatchMonitor` (built on a
+    :class:`process_improve.batch.BatchPCA` or
+    :class:`process_improve.batch.BatchPLS` model) and draws its statistic
+    over time overlaid on the control limit and the mean reference-batch
+    trace, with the alarm samples marked. This is the online (real-time)
+    monitoring chart of Nomikos and MacGregor. The SPE drawn is the one the
+    monitor was fitted with (cumulative over the observed cells, or the
+    newest sample only).
 
     Parameters
     ----------
@@ -377,7 +381,7 @@ def online_monitoring_plot(
     if statistic == "spe":
         trace, limit, alarm = result.spe, result.spe_limit, result.spe_alarm
         mean_trace = monitor.spe_mean_over_time_[: len(time)]
-        label = "SPE"
+        label = "SPE (instantaneous)" if getattr(monitor, "spe_statistic", "cumulative") == "instantaneous" else "SPE"
     else:
         trace, limit, alarm = result.hotellings_t2, result.t2_limit, result.t2_alarm
         mean_trace = monitor.t2_mean_over_time_[: len(time)]
