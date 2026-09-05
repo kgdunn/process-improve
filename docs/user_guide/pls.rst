@@ -173,8 +173,11 @@ because PLS can overfit more aggressively: it will find directions that
 correlate X with Y in the training data even if those correlations are
 spurious. Cross-validation is essential.
 
-The same PRESS / Wold's criterion approach described in
-:doc:`cross_validation` applies. A practical check: if the training R² is
+``PLS.select_n_components()`` handles this: it reports RMSECV per component
+count from repeated K-fold cross-validation and, by default, applies the
+1-SE rule, which prefers the smallest model whose error is within one
+standard error of the best (see :doc:`cross_validation`). A practical check:
+if the training R² is
 much higher than the test-set R² (gap > 0.15–0.20), overfitting is likely
 and you should reduce the number of components.
 
