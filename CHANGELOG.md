@@ -11,6 +11,28 @@ those changes.
 
 ## [Unreleased]
 
+## [1.79.1] - 2026-09-05
+
+### Documentation
+
+- The cross-validation user guide described `PCA.select_n_components` as K-fold
+  PRESS with Wold's criterion, which it has not been since the element-wise
+  k-fold (ekf) rebuild, and its example passed the deprecated `threshold=0.95`,
+  so a reader who copied it was answered with a `DeprecationWarning`. The page
+  now describes the ekf scheme (cells held out, not rows, and why that matters),
+  lists the keys the result actually carries, and has a table of the four
+  selection rules, including which of them is the closest equivalent to the
+  retired `threshold`. The stale Wold's-criterion cross-references in the PCA
+  and PLS guides are corrected in the same way, as is the PLS claim that
+  `n_components` is the lowest-RMSECV count: the default has been the 1-SE rule
+  since 1.28.
+- The `pca-food-texture` and `pca-spectral-data` case-study notebooks passed a
+  pre-scaled `X` to `PCA.select_n_components`, so every rendered build showed
+  the pre-scaled `SpecificationWarning` added in 1.79.0. They now pass the raw
+  block to the selector and keep the scaled block for fitting the model, which
+  is the same shape as the rest of the documentation. The recommended component
+  count is unchanged in both (2 and 5).
+
 ## [1.79.0] - 2026-09-04
 
 ### Changed
@@ -4030,7 +4052,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.79.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.79.1...HEAD
+[1.79.1]: https://github.com/kgdunn/process-improve/compare/v1.79.0...v1.79.1
 [1.79.0]: https://github.com/kgdunn/process-improve/compare/v1.78.0...v1.79.0
 [1.78.0]: https://github.com/kgdunn/process-improve/compare/v1.77.0...v1.78.0
 [1.77.0]: https://github.com/kgdunn/process-improve/compare/v1.76.0...v1.77.0
