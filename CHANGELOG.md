@@ -110,6 +110,31 @@ scheduled for 2.0.0.
 
 ### Added
 
+- `omars_trade_off_table(..., anchors=True)` marks where the two standard
+  designs fall, so a column shows the whole span of the family for that factor
+  count. The definitive screening design is the smallest member and the
+  Box-Behnken design is among the largest. Each is marked in place, on the row
+  of its own run count, by appending `" | DSD"` or `" | BBD"` to the cell.
+
+  Rows are added where a Box-Behnken run count is not already a budget (15, 27,
+  46, 54 and 62 for three to seven factors), and a column is left blank below
+  its Box-Behnken cell, where every remaining row would repeat `Full` on more
+  runs. The default is `False`, which leaves the returned frame exactly as it
+  was.
+
+  Three supporting functions are public: `definitive_screening_runs(k)`,
+  `box_behnken_runs(k)` (returning `None` where Box and Behnken published no
+  design), and `omars_anchor_entry(design, k)`, the counterpart of
+  `get_omars_trade_off_table_entry` for a named design.
+
+  A named design is classified without the `2h + 1` parity gate, since it
+  carries whatever centre replication its published form specifies: a
+  Box-Behnken design has three or six centre runs rather than one, so its total
+  is even from five factors upwards, and
+  `get_omars_trade_off_table_entry(46, 5)` correctly reports no design at that
+  budget while `omars_anchor_entry("bbd", 5)` reports the 46-run Box-Behnken
+  design. The capability thresholds are unchanged, being set by the number of
+  distinct half-rows, which extra centre runs do not alter.
 - **`check_predictive_signal`** in `process_improve.multivariate`, replacing
   `permutation_q2`. It takes `x` and `y` first and makes `fit_predict` optional,
   defaulting to leave-one-out cross-validated PLS with `n_components`. The
