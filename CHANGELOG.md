@@ -11,6 +11,61 @@ those changes.
 
 ## [Unreleased]
 
+## [1.80.0] - 2026-09-05
+
+Mid-batch prediction and on-line monitoring for batch PLS models, so a
+running batch can be assessed before it ends: the missing-data projection the
+library already had for `BatchPCA` now serves `BatchPLS` too, and the monitor
+compares each sample against the reference batches at that same sample.
+
+### Added
+
+- `BatchPLS.predict_online(batch, upto_k)`: the final-quality prediction of a
+  running batch from its first `upto_k` samples, with the scores estimated
+  from the observed cells alone (trimmed score regression by default, or SCP
+  or PMP). Accepts a truncated batch-so-far or a complete batch, and returns
+  the prediction in the original quality units, the residuals of the observed
+  part, the SPE of the newest sample, and the model's forecast of the rest of
+  the trajectories (Wold, Kettaneh-Wold, MacGregor and Dunn, 2009, Eq. 4) in
+  engineering units. At `upto_k == n_timesteps_` it reproduces `predict`.
+- `BatchPLS.predict_online_trace(batch)`: the same at every sample of a
+  complete batch in one call, the evolving prediction as it would have looked
+  in real time.
+- `BatchPLS.online_rmse(X, Y)`: one root-mean-square error curve per quality
+  attribute against the number of samples observed; the estimation error on
+  the training batches, or the prediction error when the model was fitted
+  without the batch.
+- `BatchPCA.predict_online` returns the same three new keys (`residuals`,
+  `spe_instantaneous`, `forecast`) and `predict_online_trace` the per-sample
+  `spe_instantaneous`; their existing outputs are unchanged.
+- `BatchMonitor` accepts a `BatchPLS` model as well as a `BatchPCA`, and takes
+  `spe_statistic="instantaneous"` to chart the SPE of the newest sample only
+  (the per-interval statistic of Nomikos and MacGregor, 1995) beside the
+  cumulative statistic, which stays the default. `monitor()` also returns the
+  score estimates.
+- The SBR case-study page gains two sections, predicting the quality before
+  the batch ends and monitoring the two faulty batches on-line against a
+  reference model of the normal batches, with the script functions behind them.
+
+### Changed
+
+- `BatchMonitor` standardises Hotelling's T2 at each sample by the covariance
+  of the reference batches' score estimates at that sample, with the F limit
+  for the number of reference batches, instead of by the end-of-batch score
+  variances. Score estimates early in a batch are shrunk and noisy compared
+  with those near its end, so the old yardstick was wrong where it matters
+  most: a normal SBR batch read T2 = 220 after four samples against a limit
+  of 10.5, and now reads 0.5. The reference batches' mean T2 is `A (N - 1) / N`
+  at every sample. The SPE limits are unchanged.
+
+### Fixed
+
+- The DuPont case-study page described batch 39 as a representative member of
+  the second group of batches; it now reads the group's mean contribution
+  against the model centre, which names `TempC-1` and `Press-3` and shows the
+  `TempH-1` contribution to be a feature of individual batches, not of the
+  group.
+
 ## [1.79.0] - 2026-09-03
 
 Three batch case studies from the 2011-2012 latent-variable short course,
@@ -4043,7 +4098,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.79.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.80.0...HEAD
+[1.80.0]: https://github.com/kgdunn/process-improve/compare/v1.79.0...v1.80.0
 [1.79.0]: https://github.com/kgdunn/process-improve/compare/v1.78.0...v1.79.0
 [1.78.0]: https://github.com/kgdunn/process-improve/compare/v1.77.0...v1.78.0
 [1.77.0]: https://github.com/kgdunn/process-improve/compare/v1.76.0...v1.77.0
