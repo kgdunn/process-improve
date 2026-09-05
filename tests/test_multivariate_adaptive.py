@@ -564,3 +564,26 @@ def test_adaptation_plot_builds(
     pca.partial_fit(synthetic_pca_data)
     fig_pca = pca.adaptation_plot()
     assert len(fig_pca.data) == 3  # 2 preprocessing + 1 kernel trace (no channels)
+
+
+def test_adaptive_models_expose_hotellings_t2_limit(
+    synthetic_pca_data: pd.DataFrame, synthetic_pls_data: tuple[pd.DataFrame, pd.DataFrame]
+) -> None:
+    """The inherited limit method needs ``n_components_``; both adaptive fits must set it.
+
+    Regression test for #542: ``hotellings_t2_limit`` raised ``AttributeError`` on a
+    fitted ``AdaptivePLS`` because ``fit`` stored the count only in ``n_components``.
+    The value must also agree with the limit the ``update`` Bunch reports.
+    """
+    pca = AdaptivePCA(n_components=2).fit(synthetic_pca_data)
+    assert pca.n_components_ == 2
+    limit_pca = float(pca.hotellings_t2_limit(conf_level=0.99))
+    assert np.isfinite(limit_pca)
+    assert limit_pca > 0
+
+    X, Y = synthetic_pls_data
+    pls = AdaptivePLS(n_components=2, forgetting_factor=0, lambda_center=0, alpha_scale=0, conf_level=0.99).fit(X, Y)
+    assert pls.n_components_ == 2
+    limit_pls = float(pls.hotellings_t2_limit(conf_level=0.99))
+    probe = pls.update(X.iloc[0].to_numpy())
+    assert limit_pls == pytest.approx(float(probe.hotellings_t2_limit))
