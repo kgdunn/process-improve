@@ -39,6 +39,14 @@ from ..multivariate.plots import score_plot as _score_plot
 from ..multivariate.plots import spe_plot as _spe_plot
 from ..multivariate.plots import t2_plot as _t2_plot
 from ._common import inner_method
+from ._online import (
+    coerce_single_initial_conditions,
+    forecast_frame,
+    instantaneous_spe,
+    residuals_of,
+    stack_online_patterns,
+    unfolded_layout,
+)
 from .data_input import check_valid_batch_dict, dict_to_wide
 
 if typing.TYPE_CHECKING:
@@ -426,18 +434,26 @@ class BatchPCA(TransformerMixin, BaseEstimator):
 
         # Observed columns: initial conditions (sequence == "") plus trajectory
         # columns whose time sample is strictly before upto_k.
-        sequence = wide.columns.get_level_values("sequence")
-        observed = np.array([s == "" or (isinstance(s, (int, np.integer)) and s < upto_k) for s in sequence])
+        layout = unfolded_layout(wide.columns)
+        observed = layout.is_z | (layout.sequence < upto_k)
 
         scaled = pd.DataFrame(self._scaler.transform(wide).to_numpy(), index=wide.index, columns=wide.columns)
         scaled.iloc[0, ~observed] = np.nan
         result = self._pca.project(scaled, method=method, ridge=ridge)
 
+        row = scaled.to_numpy(dtype=float)
+        scores = result.scores.to_numpy(dtype=float)
+        loadings = self.loadings_.to_numpy(dtype=float)
+        residual = residuals_of(row, scores, loadings)[0]
+        newest = layout.sequence == upto_k - 1
         return Bunch(
-            scores=pd.Series(result.scores.iloc[0].to_numpy(), index=self.scores_.columns, name="scores"),
+            scores=pd.Series(scores[0], index=self.scores_.columns, name="scores"),
             hotellings_t2=float(result.hotellings_t2.iloc[0]),
             spe=float(result.spe.iloc[0]),
+            spe_instantaneous=float(np.sqrt(np.nansum(residual[newest] ** 2))),
             condition_number=float(result.condition_number.iloc[0]),
+            residuals=pd.Series(residual, index=self.feature_columns_, name="residuals"),
+            forecast=forecast_frame(self, scores[0], batch, upto_k, loadings),
         )
 
     def predict_online_trace(
@@ -486,43 +502,28 @@ class BatchPCA(TransformerMixin, BaseEstimator):
                 f"length ({self.n_timesteps_} samples) and pass the same tags and initial conditions."
             )
         scaled_row = self._scaler.transform(wide).to_numpy(dtype=float)[0]
-        sequence = wide.columns.get_level_values("sequence")
-        is_z = np.array([s == "" for s in sequence])
-        seq_values = np.array([-1 if z else int(s) for s, z in zip(sequence, is_z, strict=True)])
+        layout = unfolded_layout(wide.columns)
 
         n = self.n_timesteps_
-        stacked = np.tile(scaled_row, (n, 1))
-        for k in range(1, n + 1):
-            observed = is_z | (seq_values < k)
-            stacked[k - 1, ~observed] = np.nan
+        stacked = stack_online_patterns(scaled_row, layout, n)
         frame = pd.DataFrame(stacked, columns=wide.columns, index=pd.RangeIndex(n))
         result = self._pca.project(frame, method=method, ridge=ridge)
+        scores = result.scores.to_numpy(dtype=float)
+        residual = residuals_of(stacked, scores, self.loadings_.to_numpy(dtype=float))
         return Bunch(
             time=np.arange(1, n + 1),
-            scores=pd.DataFrame(result.scores.to_numpy(), index=pd.RangeIndex(n), columns=self.scores_.columns),
+            scores=pd.DataFrame(scores, index=pd.RangeIndex(n), columns=self.scores_.columns),
             hotellings_t2=result.hotellings_t2.to_numpy(),
             spe=result.spe.to_numpy(),
+            spe_instantaneous=instantaneous_spe(residual, layout),
             condition_number=result.condition_number.to_numpy(),
         )
 
     def _coerce_online_initial_conditions(
         self, initial_conditions: pd.Series | pd.DataFrame | None
     ) -> pd.DataFrame | None:
-        """Normalise a single batch's initial conditions to a 1-row DataFrame.
-
-        Accepts a Series (one value per initial condition) or a single-row
-        DataFrame, and validates presence against how the model was fitted.
-        """
-        if self.n_initial_conditions_ == 0:
-            if initial_conditions is not None:
-                raise ValueError("The model was fitted without initial conditions; do not pass any.")
-            return None
-        if initial_conditions is None:
-            raise ValueError("The model was fitted with initial conditions; they are required here.")
-        frame = initial_conditions.to_frame().T if isinstance(initial_conditions, pd.Series) else initial_conditions
-        if frame.shape[0] != 1:
-            raise ValueError("initial_conditions for a single batch must have exactly one row.")
-        return frame.set_axis(["_online_"], axis=0)
+        """Normalise a single batch's initial conditions to a 1-row DataFrame (see :mod:`._online`)."""
+        return coerce_single_initial_conditions(self, initial_conditions)
 
     def unfold_and_scale(
         self,
