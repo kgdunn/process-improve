@@ -942,3 +942,20 @@ class TestLeverageAndInfluence:
         model = OLS().fit(pd.concat([X, X**2], axis=1).set_axis(["a", "a2"], axis=1), y)
         assert np.all(np.isfinite(model.leverage_))
         assert model.influence_ == pytest.approx(np.zeros(3))
+
+    def test_one_row_at_leverage_one_does_not_blank_the_others(self) -> None:
+        """A single determined row reads zero; the rest keep their own values.
+
+        An indicator column that is on for exactly one row fits that row exactly, so its
+        leverage is 1 and its Cook's distance is not defined by the usual ratio. That is
+        a property of that row, not of the fit, so the other rows still report.
+        """
+        rng = np.random.default_rng(3)
+        n = 12
+        X = pd.DataFrame({"a": rng.normal(size=n), "only_row_0": np.eye(n)[0]})
+        y = pd.Series(rng.normal(size=n))
+        model = OLS().fit(X, y)
+        assert model.leverage_[0] == pytest.approx(1.0)
+        assert model.influence_[0] == 0.0
+        assert np.count_nonzero(model.influence_[1:]) == n - 1
+        assert np.all(np.isfinite(model.influence_))

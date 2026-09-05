@@ -24,7 +24,9 @@ Improvement using Data* book against this package (kgdunn/pid-book#274).
   `hat_matrix_diag` and `cooks_distance` to machine precision. They previously
   held a single `nan` outside the single-predictor-with-intercept case, which is
   silent when the single-predictor recipe is applied to a multiple regression.
-  `x_ssq_` and `pi_range_` remain single-predictor quantities.
+  `x_ssq_` and `pi_range_` remain single-predictor quantities. A row whose
+  leverage is 1 sets its own fitted value, so its Cook's distance is reported as
+  zero while every other row keeps its own value.
 
 ### Changed
 

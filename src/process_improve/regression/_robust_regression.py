@@ -632,16 +632,18 @@ class OLS(RegressorMixin, BaseEstimator):
 
         eps = np.finfo(np.float32).eps
         residual_room = 1.0 - self.leverage_
-        if self.se_ < eps or np.any(np.abs(residual_room) < eps):
-            # A saturated fit has no residual to distribute, or a row with leverage 1
-            # determines its own fitted value; either way Cook's distance is not defined
-            # by the usual ratio, and reporting zero movement is the honest reading.
-            self.influence_ = np.zeros_like(self.leverage_)
-        else:
+        self.influence_ = np.zeros_like(self.leverage_)
+        if self.se_ >= eps:
+            # A row with leverage 1 sets its own fitted value, so it has no residual to
+            # redistribute and Cook's distance is not defined by the usual ratio. Zero is
+            # the reading for that row alone; every other row keeps its own value.
             # np.asarray: results.resid is a Series when y arrives as one, and the
             # documented type of both diagnostics is a plain array.
             resid = np.asarray(results.resid, dtype=float)
-            self.influence_ = np.power(resid / (residual_room * self.se_), 2) * self.leverage_ / k_params
+            movable = np.abs(residual_room) >= eps
+            self.influence_[movable] = (
+                np.power(resid[movable] / (residual_room[movable] * self.se_), 2) * self.leverage_[movable] / k_params
+            )
 
         # A prediction-interval grid and the x sum of squares only mean something for a
         # single predictor with an intercept.
