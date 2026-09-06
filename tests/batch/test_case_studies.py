@@ -123,6 +123,15 @@ class TestDuPont:
         assert model_c.n_batches_ == 40
         np.testing.assert_allclose(model_c.r2_per_component_.to_numpy(), [0.3752, 0.1143, 0.0637], atol=5e-4)
 
+    def test_model_c_flags_every_batch_left_out_of_it(self, dupont_script, dupont_batches) -> None:
+        """The 15 batches removed before model C all lie above its SPE limit; seven above its T2 limit too."""
+        model_c = dupont_script.fit_model_c(dupont_batches)
+        table = dupont_script.verify_left_out(model_c, dupont_batches)
+        assert sorted(table.index) == [37, 39, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55]
+        assert (table["SPE"] > model_c.spe_limit(conf_level=0.95)).all()
+        above_t2 = set(table.index[table["T2"] > model_c.hotellings_t2_limit(conf_level=0.95)])
+        assert above_t2 == {37, 50, 51, 52, 53, 54, 55}
+
     def test_poor_quality_batches_are_inside_both_limits(self, dupont_script, dupont_batches) -> None:
         """Observability: dupont_batches 38, 40, 41, 42 leave no trace in the trajectories."""
         table = dupont_script.observability_table(dupont_script.fit_model_c(dupont_batches))

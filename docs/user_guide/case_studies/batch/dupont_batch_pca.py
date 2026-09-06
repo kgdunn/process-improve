@@ -197,8 +197,29 @@ def fit_model_c(batches: dict) -> BatchPCA:
     return model
 
 
+def verify_left_out(model: BatchPCA, batches: dict) -> pd.DataFrame:
+    """Project the 15 batches left out of model C onto it and compare them with its 95% limits.
+
+    The on-line projection at the last sample of a complete batch gives its scores, T2 and
+    SPE against the centre and scale of the model it was not part of.
+    """
+    left_out = [SPE_OUTLIER, *SCORE_OUTLIERS, *DIFFERENT_BUT_ACCEPTABLE]
+    projected = {b: model.predict_online(batches[b], upto_k=model.n_timesteps_) for b in left_out}
+    table = pd.DataFrame(
+        {b: (float(r.hotellings_t2), float(r.spe)) for b, r in projected.items()}, index=["T2", "SPE"]
+    ).T
+    t2_limit, spe_limit = model.hotellings_t2_limit(conf_level=CONF_LEVEL), model.spe_limit(conf_level=CONF_LEVEL)
+    print(
+        f"Model C: left-out batches above the SPE limit ({spe_limit:.1f}): {sorted(table.index[table['SPE'] > spe_limit])}"
+    )
+    print(
+        f"Model C: left-out batches above the T2 limit ({t2_limit:.2f}): {sorted(table.index[table['T2'] > t2_limit])}"
+    )
+    return table
+
+
 def observability_table(model: BatchPCA) -> pd.DataFrame:
-    """T2 and SPE of the poor-quality batches that the trajectories do not reveal."""
+    """T2 and SPE of the poor-quality batches that the trajectories do not reveal, against the limits."""
     table = pd.DataFrame(
         {
             "T2": model.hotellings_t2_.loc[POOR_QUALITY_NOT_VISIBLE].iloc[:, -1],
@@ -207,7 +228,8 @@ def observability_table(model: BatchPCA) -> pd.DataFrame:
             "SPE limit": model.spe_limit(conf_level=CONF_LEVEL),
         }
     )
-    print("Model C: poor-quality batches against the limits\n" + table.round(2).to_string())
+    inside = bool((table["T2"] < table["T2 limit"]).all() and (table["SPE"] < table["SPE limit"]).all())
+    print(f"Model C: batches {POOR_QUALITY_NOT_VISIBLE} inside both limits: {inside}")
     return table
 
 
@@ -256,6 +278,7 @@ def main(argv: list[str] | None = None) -> int:
 
     model_c = fit_model_c(batches)
     save(model_c.score_plot(settings=LABELS), "model-c-scores")
+    verify_left_out(model_c, batches)
     observability_table(model_c)
     print(f"figures written to {args.output_dir}")
     return 0

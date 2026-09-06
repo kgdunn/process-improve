@@ -159,26 +159,30 @@ with three components.
              TempC-1 +4.9, TempH-1 +1.7, TempR-1 -0.1, TempR-2 +0.9, TempR-3 +0.2
 
 With the extreme batches gone, a second group separates on the
-:math:`t_2` and :math:`t_3` plane: batches 37, 39 and 43 to 48, at a mean
-:math:`t_2` of 15.0 and a mean :math:`t_3` of 14.8 against -3.0 on both for
-the other 40 batches. The :math:`t_3` contributions of batch 39 printed
-above point at ``Press-3`` and ``TempC-1``, and the group's mean
-contribution vector against the model centre, averaged over the eight
-members, names the same two tags on both components. Samples 0 to 25 carry
-66% of the :math:`t_2` contribution and 90% of the :math:`t_3` contribution,
-so the difference lies in how these batches were started. ``TempH-1``,
-which stands out for some members on their own, takes both signs across
-the eight (from -3.8 to +6.3 on :math:`t_2`, from -3.1 to +2.1 on
-:math:`t_3`): it is a feature of particular members rather than of the
-group as a whole. The raw overlay shows that
-these batches were run on a slightly different pressure profile. Their
-quality was acceptable. They are not bad batches, they were operated
-differently, and a model of normal operation should either contain enough
-of them to describe that mode or leave them out; the course notes leave them
-out.
+:math:`t_2` and :math:`t_3` plane: batches 37, 39 and 43 to 48. A
+contribution is the weighted difference between two points, and either
+point can be the average of a group. The group's mean contribution vector
+against the model centre, averaged over the eight members, names
+``Press-3`` and ``TempC-1`` on both components, with the contribution
+concentrated in the first 25 samples, so the difference lies in how these
+batches were started; the :math:`t_3` contributions of batch 39 printed
+above point at the same two tags. Not every member is consistent with the
+average: ``TempH-1`` takes both signs across the eight. The raw overlay
+shows that these batches were run on a slightly different pressure
+profile. Their quality was acceptable. They are not bad batches, they were
+operated differently, and a model of normal operation should either
+contain enough of them to describe that mode or leave them out; the course
+notes leave them out.
 
-Model C: the reference model
-----------------------------
+Model C: the final model, used to verify the unusual batches
+------------------------------------------------------------
+
+Model C is fitted on the 40 batches that remain once batch 49, batches 50
+to 55 and the eight batches of the second group are removed. The 15
+left-out batches are then projected onto it (``predict_online`` at the last
+sample gives a complete batch's scores, :math:`T^2` and SPE against a model
+it was not part of) and compared with the 95% limits of the 40 training
+batches.
 
 .. literalinclude:: dupont_batch_pca.py
    :language: python
@@ -188,22 +192,20 @@ Model C: the reference model
 .. code-block:: text
 
    Model C (40 batches): R2 per component = 0.375, 0.114, 0.064
-   Model C: poor-quality batches against the limits
-               T2  T2 limit    SPE  SPE limit
-   batch_id
-   38        3.86      9.27  19.52      24.17
-   40        0.80      9.27  19.95      24.17
-   41        0.28      9.27  18.01      24.17
-   42        0.09      9.27  23.59      24.17
+   Model C: left-out batches above the SPE limit (24.2): [37, 39, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55]
+   Model C: left-out batches above the T2 limit (9.27): [37, 50, 51, 52, 53, 54, 55]
+   Model C: batches [38, 40, 41, 42] inside both limits: True
 
-The score distribution of the third model is even. Batches 38, 40, 41 and 42
-are known to have had poor quality, yet all four sit inside both the
-Hotelling's :math:`T^2` limit and the SPE limit: nothing in the ten
-trajectories distinguishes them from the good batches. This is the lesson the
-case study is built around. A model can only detect what the measurements
-contain; if the cause of poor quality leaves no trace in the recorded
-variables, no amount of modelling will find it, and the fix is to measure
-something else.
+Every one of the 15 lies above the SPE limit, and the six score outliers
+and batch 37 above the :math:`T^2` limit as well: the model built without
+them flags them. Batches 38, 40, 41 and 42, known to have had poor quality
+and kept in the training set, sit inside both limits: nothing in the ten
+trajectories distinguishes them from the good batches. This is the lesson
+the case study is built around. A model can only detect what the
+measurements contain; if the cause of poor quality leaves no trace in the
+recorded variables, no amount of modelling will find it, and the fix is to
+measure something else. The SBR case-study page runs the same check sample
+by sample with :class:`~process_improve.batch.BatchMonitor`.
 
 Running the script
 ------------------

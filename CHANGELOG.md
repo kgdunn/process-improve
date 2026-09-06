@@ -103,6 +103,10 @@ rebuilt as plain Python scripts with narrative pages (issues #154, #155,
   against the model centre, which names `TempC-1` and `Press-3` and shows the
   `TempH-1` contribution to be a feature of individual batches, not of the
   group.
+- The DuPont case-study page's final model is checked by projecting the 15
+  batches left out of it (`verify_left_out` in the companion script): every
+  one lies above the SPE limit, seven above the T2 limit as well, while the
+  four poor-quality batches kept in the training set stay inside both limits.
 
 ## [1.80.0] - 2026-09-05
 
