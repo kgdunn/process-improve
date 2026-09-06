@@ -76,6 +76,14 @@ rebuilt as plain Python scripts with narrative pages (issues #154, #155,
   `score_contributions`, `spe_contributions`, `t2_contributions` and
   `unfold_and_scale`, the fitted attributes `predictions_` (original quality
   units) and `r2_per_variable_`, and `predictions_vs_observed_plot`.
+- `spe_contributions`, `score_contributions` and `t2_contributions` (and the
+  `PCA`, `PLS`, `BatchPCA` and `BatchPLS` methods that forward to them)
+  accept rows with missing cells. The scores of such a row are estimated
+  from its observed cells with the same missing-data estimators as
+  `project` (`method="scp"` by default, which reproduces the NIPALS fit,
+  or `"tsr"` or `"pmp"`), and the contributions are then defined at every
+  observed cell and missing only at the cells the row lacks. Such rows
+  used to come back as all-NaN. Complete rows are unchanged.
 - `batch.time_varying_loading_plot` accepts a `BatchPLS` (it draws the
   weights) and any multivariate model fitted on a `dict_to_wide` matrix
   whose loadings carry the `(tag, sequence)` index.

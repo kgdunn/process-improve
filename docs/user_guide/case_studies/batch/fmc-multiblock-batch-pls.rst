@@ -173,16 +173,17 @@ it.
 
    unfolded trajectories: 46 batches x 3575 columns, 1340 missing cells
    batch PCA on X: R2 cumulative = 0.231, 0.376
-   largest SPE among the complete batches: batch 41; share per tag = Agitator 2%, CTankLvl 4%, ClockTime 2%,
-       D-Temp 1%, D-Temp-SP 3%, DiffPres 39%, DryPress 4%, J-Temp 5%, J-Temp-SP 38%, Power 1%, Torque 1%
+   batch 20, above both limits: share of the SPE per tag = Agitator 3%, CTankLvl 4%, ClockTime 3%, D-Temp 9%,
+       D-Temp-SP 6%, DiffPres 4%, DryPress 49%, J-Temp 6%, J-Temp-SP 3%, Power 6%, Torque 6%
 
 Two components describe 38% of the batch-to-batch variation in the
 trajectories, and the time-varying loading plot shows where in the batch each
-component acts. Contribution plots are only defined for batches with complete
-trajectories, so batch 20 is examined through its raw overlays (dryer
-temperature, power and torque), while the SPE contributions of batch 41, the
-complete batch with the largest SPE, point at the differential pressure and
-the jacket temperature set point, half of them in the cooling phase.
+component acts. Batch 20 is above both limits, and its trajectories lack
+samples 34 to 109. Its scores are estimated from the observed cells, so its
+SPE contributions are defined at every observed cell and absent at the missing
+ones, which carry no residual: half of its SPE sits in the dryer pressure, most
+of that in the first phase. The raw overlays of the dryer temperature, power
+and torque show the same batch against the rest.
 
 Trajectories to quality
 -----------------------

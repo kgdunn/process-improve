@@ -213,23 +213,23 @@ def unfold_trajectories(trajectories: dict) -> tuple[pd.DataFrame, pd.DataFrame]
 
 
 # -- section: batch-pca --
-def batch_pca_on_trajectories(x_scaled: pd.DataFrame) -> tuple[PCA, pd.DataFrame, int]:
+def batch_pca_on_trajectories(x_scaled: pd.DataFrame) -> tuple[PCA, pd.DataFrame]:
     """Two-component batch PCA on the trajectories alone.
 
-    Returns the model, the SPE share of every cell, and the complete batch
-    with the largest SPE.
+    Returns the model and the share of every cell in each batch's SPE. A batch
+    with missing cells has its scores estimated from the observed cells, so its
+    contributions are defined everywhere except at the cells it lacks.
     """
     model = PCA(n_components=N_COMPONENTS).fit(x_scaled)  # NIPALS, because of the missing cells
     print(f"batch PCA on X: R2 cumulative = {cumulative(model.r2_cumulative_)}")
-    spe_share = model.spe_contributions(x_scaled) ** 2  # all-NaN rows for the batches with missing cells
-    complete = spe_share.dropna(how="all")
-    worst = model.spe_.loc[complete.index].iloc[:, -1].idxmax()
-    by_tag = spe_share.loc[worst].groupby(level="tag", sort=False).sum()
+    squared = model.spe_contributions(x_scaled) ** 2  # NaN only at the missing cells
+    spe_share = squared.div(squared.sum(axis=1), axis=0) * 100
+    by_tag = spe_share.loc[OPERATING_OUTLIER].groupby(level="tag", sort=False).sum()
     print(
-        f"largest SPE among the complete batches: batch {worst}; share per tag = "
-        + ", ".join(f"{tag} {share:.0%}" for tag, share in (by_tag / by_tag.sum()).items())
+        f"batch {OPERATING_OUTLIER}, above both limits: share of the SPE per tag = "
+        + ", ".join(f"{tag} {share:.0f}%" for tag, share in by_tag.items())
     )
-    return model, spe_share, worst
+    return model, spe_share
 
 
 # -- end: batch-pca --
@@ -399,11 +399,14 @@ def main(argv: list[str] | None = None) -> int:
     save(mbpls_z.super_weights_bar_plot(component=1), "mbpls-z-super-weights")
 
     wide, x_scaled = unfold_trajectories(data.X)
-    pca_x, spe_share, worst = batch_pca_on_trajectories(x_scaled)
+    pca_x, spe_share = batch_pca_on_trajectories(x_scaled)
     save(pca_x.score_plot(settings=LABELS), "batch-pca-scores")
     save(pca_x.spe_plot(settings=LABELS), "batch-pca-spe")
     save(time_varying_loading_plot(pca_x, component=1), "batch-pca-loadings-p1")
-    save(unfolded_contribution_plot(spe_share, worst, by_tag=True), f"batch-pca-spe-contributions-{worst}")
+    save(
+        unfolded_contribution_plot(spe_share.fillna(0.0), OPERATING_OUTLIER, by_tag=True),
+        f"batch-pca-spe-contributions-{OPERATING_OUTLIER}",
+    )
     for tag in ("D-Temp", "Power", "Torque"):
         save(plot_raw(data.X, tag, [OPERATING_OUTLIER]), f"raw-{tag}-batch-20")
 

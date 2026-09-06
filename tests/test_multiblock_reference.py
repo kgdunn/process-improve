@@ -1608,12 +1608,16 @@ class TestFMCReference:
 
     def test_batch_pca_on_trajectories(self, fmc_script, fmc_unfolded) -> None:
         _wide, x_scaled = fmc_unfolded
-        model, spe_share, worst = fmc_script.batch_pca_on_trajectories(x_scaled)
+        model, spe_share = fmc_script.batch_pca_on_trajectories(x_scaled)
         np.testing.assert_allclose(model.r2_cumulative_.to_numpy(), [0.231, 0.376], atol=2e-3)
-        assert worst == 41
         assert list(model.loadings_.index.names) == ["tag", "sequence"]
         assert list(spe_share.columns.names) == ["tag", "sequence"]
-        assert spe_share.loc[20].isna().all()  # a batch with missing cells has no contributions
+        row = spe_share.loc[20]  # a batch with missing cells: contributions everywhere except at those cells
+        assert row.isna().equals(x_scaled.loc[20].isna())
+        assert row.sum() == pytest.approx(100.0)
+        by_tag = row.groupby(level="tag", sort=False).sum()
+        assert by_tag.idxmax() == "DryPress"  # half of batch 20's SPE sits in the dryer pressure
+        assert 45 < by_tag["DryPress"] < 53
 
     def test_batch_pls_to_quality(self, fmc_script, fmc_unfolded, fmc_quality) -> None:
         _wide, x_scaled = fmc_unfolded
