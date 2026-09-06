@@ -224,9 +224,10 @@ References
 ----------
 
 * Paul Nomikos and John F. MacGregor, "Multivariate SPC charts for monitoring
-  batch processes", *Technometrics*, **37**, 41-59, 1995.
+  batch processes", *Technometrics*, **37**, 41-59, 1995,
+  https://literature.learnche.org/item/34/multivariate-spc-charts-for-monitoring-batch-processes
 * Paul Nomikos and John F. MacGregor, "Monitoring batch processes using
   multiway principal component analysis", *AIChE Journal*, **40**, 1361-1375,
-  1994.
+  1994, https://literature.learnche.org/item/30/monitoring-batch-processes-using-multiway-principal-component-analysis
 * Kevin Dunn, *Latent Variable Methods* course notes (ConnectMV, 2011-2012),
   the DuPont nylon example, CC BY-SA 3.0.

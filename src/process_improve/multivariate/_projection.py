@@ -39,15 +39,16 @@ References
 ----------
 Arteaga, F. and Ferrer, A., "Dealing with missing data in MSPC: several
 methods, different interpretations, some examples", Journal of Chemometrics,
-16, 408-418, 2002. https://doi.org/10.1002/cem.750
+16, 408-418, 2002. https://literature.learnche.org/item/20/
 
 Garcia-Munoz, S., Kourti, T. and MacGregor, J.F., "Model Predictive
 Monitoring for Batch Processes", Industrial & Engineering Chemistry Research,
-43, 5929-5941, 2004. https://doi.org/10.1021/ie034020w
+43, 5929-5941, 2004. https://literature.learnche.org/item/157/
 
 Nelson, P.R.C., Taylor, P.A. and MacGregor, J.F., "Missing data methods in
 PCA and PLS: score calculations with incomplete observations", Chemometrics
 and Intelligent Laboratory Systems, 35, 45-65, 1996.
+https://literature.learnche.org/item/68/
 """
 
 from __future__ import annotations

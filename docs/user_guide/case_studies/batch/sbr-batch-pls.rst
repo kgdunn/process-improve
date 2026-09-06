@@ -369,20 +369,23 @@ References
   McMaster University, 1995.
 * Paul Nomikos and John F. MacGregor, "Monitoring batch processes using
   multiway principal component analysis", *AIChE Journal*, **40**, 1361-1375,
-  1994. The simulation and the two faulty batches.
+  1994, https://literature.learnche.org/item/30/monitoring-batch-processes-using-multiway-principal-component-analysis
+  The simulation and the two faulty batches.
 * Paul Nomikos and John F. MacGregor, "Multi-way partial least squares in
   monitoring batch processes", *Chemometrics and Intelligent Laboratory
-  Systems*, **30**, 97-108, 1995.
+  Systems*, **30**, 97-108, 1995,
+  https://literature.learnche.org/item/32/multi-way-partial-least-squares-in-monitoring-batch-processes
 * Paul Nomikos and John F. MacGregor, "Multivariate SPC charts for monitoring
   batch processes", *Technometrics*, **37**, 41-59, 1995,
   https://literature.learnche.org/item/34/multivariate-spc-charts-for-monitoring-batch-processes
 * Francisco Arteaga and Alberto Ferrer, "Dealing with missing data in MSPC:
   several methods, different interpretations, some examples", *Journal of
-  Chemometrics*, **16**, 408-418, 2002, https://doi.org/10.1002/cem.750
+  Chemometrics*, **16**, 408-418, 2002,
+  https://literature.learnche.org/item/20/dealing-with-missing-data-in-mspc-several-methods-different-interpretations-some-examples
 * Salvador Garcia-Munoz, Theodora Kourti and John F. MacGregor, "Model
   predictive monitoring for batch processes", *Industrial & Engineering
   Chemistry Research*, **43**, 5929-5941, 2004,
-  https://doi.org/10.1021/ie034020w
+  https://literature.learnche.org/item/157/model-predictive-monitoring-for-batch-processes
 * Svante Wold, Nouna Kettaneh-Wold, John F. MacGregor and Kevin G. Dunn,
   "Batch process modeling and MSPC", *Comprehensive Chemometrics*, chapter
   2.10, 163-197, 2009,

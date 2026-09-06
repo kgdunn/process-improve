@@ -295,14 +295,17 @@ References
 * Salvador Garcia-Munoz, Theodora Kourti, John F. MacGregor, Antonio G. Mateos
   and Gerry Murphy, "Troubleshooting of an industrial batch process using
   multivariate methods", *Industrial and Engineering Chemistry Research*,
-  **42**, 3592-3601, 2003.
+  **42**, 3592-3601, 2003,
+  https://literature.learnche.org/item/24/troubleshooting-of-an-industrial-batch-process-using-multivariate-methods
 * Svante Wold, Nouna Kettaneh-Wold, John F. MacGregor and Kevin G. Dunn,
   "Batch process modeling and MSPC", *Comprehensive Chemometrics*, **2.10**,
-  163-197, 2009.
+  163-197, 2009, https://literature.learnche.org/item/155/batch-process-modeling-and-mspc
 * Salvador Garcia-Munoz, *Batch process improvement using latent variable
-  methods*, PhD thesis, McMaster University, 2004.
+  methods*, PhD thesis, McMaster University, 2004,
+  https://literature.learnche.org/item/3/batch-process-improvement-using-latent-variable-methods
 * Paul Nomikos and John F. MacGregor, "Multivariate SPC charts for monitoring
-  batch processes", *Technometrics*, **37**, 41-59, 1995. Section 7 on why a
-  batch model is not a cause-and-effect model.
+  batch processes", *Technometrics*, **37**, 41-59, 1995,
+  https://literature.learnche.org/item/34/multivariate-spc-charts-for-monitoring-batch-processes
+  Section 7 on why a batch model is not a cause-and-effect model.
 * Kevin Dunn, *Latent Variable Methods* course notes (ConnectMV, 2011-2012),
   the FMC multiblock batch PLS example, CC BY-SA 3.0.
