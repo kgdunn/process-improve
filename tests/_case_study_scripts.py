@@ -25,8 +25,8 @@ T = TypeVar("T")
 
 CASE_STUDY_DIR = pathlib.Path(__file__).resolve().parents[1] / "docs" / "user_guide" / "case_studies" / "batch"
 
-# The SBR workbook is served from openmv.net; until it is uploaded, or when
-# working offline, point the SBR tests at a local copy with a file:// URL.
+# The SBR workbook is served from openmv.net; when working offline, point the
+# SBR tests at a local copy with a file:// URL.
 SBR_URL_OVERRIDE = os.environ.get("PROCESS_IMPROVE_SBR_URL")
 
 
