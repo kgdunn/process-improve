@@ -777,16 +777,21 @@ class MidCourseCorrector:
         training = self.model._x_scaled_training.to_numpy(dtype=float)
         loadings = self.model.x_loadings_.to_numpy(dtype=float)
         guide = self.model.direct_weights_.to_numpy(dtype=float)
+        weights = self.model.x_weights_.to_numpy(dtype=float)
         variances = np.asarray(self.model.explained_variance_, dtype=float)
 
         monitor_rows = training.copy()
         monitor_rows[:, ~masks.observed] = np.nan
-        monitor = project_rows(loadings, guide, variances, monitor_rows, method=self.method, ridge=self.ridge)
+        monitor = project_rows(
+            loadings, guide, variances, monitor_rows, method=self.method, ridge=self.ridge, x_weights=weights
+        )
 
         candidate_mask = masks.observed | masks.free
         candidate_rows = training.copy()
         candidate_rows[:, ~candidate_mask] = np.nan
-        candidate = project_rows(loadings, guide, variances, candidate_rows, method=self.method, ridge=self.ridge)
+        candidate = project_rows(
+            loadings, guide, variances, candidate_rows, method=self.method, ridge=self.ridge, x_weights=weights
+        )
 
         n = training.shape[0]
         A = int(self.model.n_components)
@@ -879,6 +884,7 @@ class MidCourseCorrector:
             row[None, :],
             method=self.method,
             ridge=self.ridge,
+            x_weights=model.x_weights_.to_numpy(dtype=float),
         )
         spe_so_far = float(so_far.spe[0])
         if spe_so_far > limits.spe_limit_monitor:

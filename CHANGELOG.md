@@ -111,6 +111,19 @@ rebuilt as plain Python scripts with narrative pages (issues #154, #155,
 
 ### Fixed
 
+- The `"scp"` (single-component projection) score estimator of `project`,
+  `projection_matrix`, `predict_online`, the contribution helpers and the
+  mid-course corrector projected onto the loadings for a PLS model, where
+  NIPALS projects onto the weights and deflates with the loadings. With
+  nothing missing the estimate differed from the model's own scores by up
+  to a score standard deviation, and an incomplete row did not reproduce
+  the score the fit had stored for it. SCP now takes the weights
+  (`x_weights` on `operator_for_pattern` and `project_rows`; PCA is
+  unchanged, its weights being its loadings). `"pmp"` is the least-squares
+  fit onto the loading plane and, for PLS, does not reduce to the model's
+  scores even with nothing missing; the docstrings now say so, and TSR (the
+  default) and SCP do. A test module runs every missing-data path on data
+  without missing values and checks it against the direct computation.
 - `PCA.r2_per_variable_` is cumulative on every fit path, as documented. The
   NIPALS path (taken whenever `X` has missing cells) divided each column's
   residual by its sum of squares *after* the previous component, so column

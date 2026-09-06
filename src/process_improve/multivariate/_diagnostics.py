@@ -565,6 +565,8 @@ def _scores_and_guides(  # noqa: PLR0913 - the model, its two matrices, the data
     scores = np.full((X_values.shape[0], R.shape[1]), np.nan)
     scores[complete] = X_values[complete] @ R  # the complete rows keep the exact complete-data path
     variances = np.asarray(model.explained_variance_, dtype=float)
+    # SCP projects onto the weights, as NIPALS does; for PCA they are the loadings (the operator's default).
+    weights = np.asarray(model.x_weights_, dtype=float) if hasattr(model, "direct_weights_") else None
     guides = np.broadcast_to(R, (X_values.shape[0], *R.shape)).copy()
     patterns: dict[bytes, list[int]] = {}
     for i in np.flatnonzero(~complete):
@@ -574,7 +576,7 @@ def _scores_and_guides(  # noqa: PLR0913 - the model, its two matrices, the data
         if not mask.any():
             msg = f"Row {rows[0]} has no observed features (all-NaN); its contributions cannot be computed."
             raise ValueError(msg)
-        operator = operator_for_pattern(P, R, variances, mask, method=method, ridge=ridge)
+        operator = operator_for_pattern(P, R, variances, mask, method=method, ridge=ridge, x_weights=weights)
         guide = np.zeros_like(R)
         guide[mask, :] = operator.matrix.T
         guides[rows] = guide
