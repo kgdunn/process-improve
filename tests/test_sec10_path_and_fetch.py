@@ -8,7 +8,7 @@ import urllib.error
 
 import pytest
 
-from process_improve.experiments import datasets
+from process_improve import _remote_data as remote_data
 from process_improve.experiments.knowledge import engine
 
 
@@ -56,9 +56,9 @@ class TestRemoteCsvErrorHandling:
         def _boom(_url, timeout=None):
             raise OSError("name resolution failed")
 
-        monkeypatch.setattr(datasets.urllib.request, "urlopen", _boom)
+        monkeypatch.setattr(remote_data.urllib.request, "urlopen", _boom)
         with pytest.raises(RuntimeError, match="Could not download the sample dataset"):
-            datasets._read_remote_csv("https://openmv.net/file/distillate-flow.csv")
+            remote_data.read_remote_csv("https://openmv.net/file/distillate-flow.csv")
 
     def test_timeout_raises_clear_error_naming_the_url(self, monkeypatch) -> None:
         """A black-holing host surfaces as the documented ``RuntimeError`` (#508)."""
@@ -66,14 +66,14 @@ class TestRemoteCsvErrorHandling:
         def _hang(_url, timeout=None):
             raise TimeoutError("timed out")
 
-        monkeypatch.setattr(datasets.urllib.request, "urlopen", _hang)
+        monkeypatch.setattr(remote_data.urllib.request, "urlopen", _hang)
         with pytest.raises(RuntimeError, match=r"distillate-flow\.csv.*timed out"):
-            datasets._read_remote_csv("https://openmv.net/file/distillate-flow.csv")
+            remote_data.read_remote_csv("https://openmv.net/file/distillate-flow.csv")
 
     def test_url_error_raises_clear_error(self, monkeypatch) -> None:
         def _refuse(_url, timeout=None):
             raise urllib.error.URLError("connection refused")
 
-        monkeypatch.setattr(datasets.urllib.request, "urlopen", _refuse)
+        monkeypatch.setattr(remote_data.urllib.request, "urlopen", _refuse)
         with pytest.raises(RuntimeError, match="Could not download the sample dataset"):
-            datasets._read_remote_csv("https://openmv.net/file/oil-company-doe.csv")
+            remote_data.read_remote_csv("https://openmv.net/file/oil-company-doe.csv")

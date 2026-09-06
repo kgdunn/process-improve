@@ -11,6 +11,136 @@ those changes.
 
 ## [Unreleased]
 
+## [1.81.0] - 2026-09-05
+
+Mid-batch prediction and on-line monitoring for batch PLS models, so a
+running batch can be assessed before it ends: the missing-data projection the
+library already had for `BatchPCA` now serves `BatchPLS` too, and the monitor
+compares each sample against the reference batches at that same sample.
+
+Three batch case studies from the 2011-2012 latent-variable short course,
+rebuilt as plain Python scripts with narrative pages (issues #154, #155,
+#156), and the loaders, plots and estimator conveniences they needed.
+
+### Added
+
+- `BatchPLS.predict_online(batch, upto_k)`: the final-quality prediction of a
+  running batch from its first `upto_k` samples, with the scores estimated
+  from the observed cells alone (trimmed score regression by default, or SCP
+  or PMP). Accepts a truncated batch-so-far or a complete batch, and returns
+  the prediction in the original quality units, the residuals of the observed
+  part, the SPE of the newest sample, and the model's forecast of the rest of
+  the trajectories (Wold, Kettaneh-Wold, MacGregor and Dunn, 2009, Eq. 4) in
+  engineering units. At `upto_k == n_timesteps_` it reproduces `predict`.
+- `BatchPLS.predict_online_trace(batch)`: the same at every sample of a
+  complete batch in one call, the evolving prediction as it would have looked
+  in real time.
+- `BatchPLS.online_rmse(X, Y)`: one root-mean-square error curve per quality
+  attribute against the number of samples observed; the estimation error on
+  the training batches, or the prediction error when the model was fitted
+  without the batch.
+- `BatchPCA.predict_online` returns the same three new keys (`residuals`,
+  `spe_instantaneous`, `forecast`) and `predict_online_trace` the per-sample
+  `spe_instantaneous`; their existing outputs are unchanged.
+- `BatchMonitor` accepts a `BatchPLS` model as well as a `BatchPCA`, and takes
+  `spe_statistic="instantaneous"` to chart the SPE of the newest sample only
+  (the per-interval statistic of Nomikos and MacGregor, 1995) beside the
+  cumulative statistic, which stays the default. `monitor()` also returns the
+  score estimates. `spe_window` pools the reference SPE values of neighbouring
+  samples before each per-sample limit is fitted, which steadies the limits
+  when few reference batches are available; the default of 0 keeps the fit to
+  one sample's values.
+- The SBR case-study page gains two sections, predicting the quality before
+  the batch ends and monitoring the two faulty batches on-line against a
+  reference model of the normal batches, with the script functions behind them.
+
+- Three batch case studies as plain Python scripts with narrative pages in
+  the user guide (`docs/user_guide/case_studies/batch/`): batch PCA outlier
+  diagnosis on the DuPont polymerization reactor (#155), batch PLS fault
+  diagnosis on the simulated SBR reactor (#156), and the multiblock batch PLS
+  ladder on the FMC batch dryer (#154), with the clock time as the eleventh
+  trajectory of every batch model and a last section that reads, from the
+  block scores, the batches whose trajectories say off-specification while
+  the product was on-specification. Each script fetches its data from
+  openmv.net when it runs and writes its figures to an output directory; each
+  page quotes the script section by section and states what it prints.
+- Remote batch dataset loaders `batch.load_dupont`, `batch.load_fmc` and
+  `batch.load_sbr`, fetched from openmv.net under the same bounded timeout as
+  the experiments loaders, with a `url` override for mirrors and local copies.
+- `batch.unfolded_contribution_plot`: one bar per unfolded `(tag, sequence)`
+  cell of a batch's contribution vector, grouped and coloured by tag, or one
+  bar per tag summed over time.
+- `BatchPCA.score_contributions` and `BatchPCA.unfold_and_scale`; on
+  `BatchPLS` the forwards `score_plot`, `spe_plot`, `t2_plot`, `spe_limit`,
+  `score_limit`, `hotellings_t2_limit`, `ellipse_coordinates`,
+  `score_contributions`, `spe_contributions`, `t2_contributions` and
+  `unfold_and_scale`, the fitted attributes `predictions_` (original quality
+  units) and `r2_per_variable_`, and `predictions_vs_observed_plot`.
+- `spe_contributions`, `score_contributions` and `t2_contributions` (and the
+  `PCA`, `PLS`, `BatchPCA` and `BatchPLS` methods that forward to them)
+  accept rows with missing cells. The scores of such a row are estimated
+  from its observed cells with the same missing-data estimators as
+  `project` (`method="scp"` by default, which reproduces the NIPALS fit,
+  or `"tsr"` or `"pmp"`), and the contributions are then defined at every
+  observed cell and missing only at the cells the row lacks. Such rows
+  used to come back as all-NaN. Complete rows are unchanged.
+- `batch.time_varying_loading_plot` accepts a `BatchPLS` (it draws the
+  weights) and any multivariate model fitted on a `dict_to_wide` matrix
+  whose loadings carry the `(tag, sequence)` index.
+- Reference tests for the FMC multiblock ladder (`TestFMCReference`, which
+  replaces the skipped placeholder), the DuPont and SBR narrative numbers,
+  and a vendored fixture of the legacy MATLAB batch-PCA output on the SBR
+  data (`tests/fixtures/sbr_batch_pca/`).
+
+### Changed
+
+- `BatchMonitor` standardises Hotelling's T2 at each sample by the covariance
+  of the reference batches' score estimates at that sample, with the F limit
+  for the number of reference batches, instead of by the end-of-batch score
+  variances (the time-varying covariance Nomikos and MacGregor, 1995, note
+  the T2 chart needs, computed as Garcia-Munoz, Kourti and MacGregor, 2004,
+  do). Score estimates early in a batch are shrunk and noisy compared
+  with those near its end, so the old yardstick was wrong where it matters
+  most: a normal SBR batch read T2 = 220 after four samples against a limit
+  of 10.5, and now reads 0.5. The reference batches' mean T2 is `A (N - 1) / N`
+  at every sample. The SPE limits are unchanged.
+
+- The remote sample-dataset fetch helper moved from `experiments.datasets`
+  to the shared private module `process_improve._remote_data`, gaining an
+  Excel variant. Error messages, timeouts and loader behaviour are unchanged.
+
+### Fixed
+
+- The `"scp"` (single-component projection) score estimator of `project`,
+  `projection_matrix`, `predict_online`, the contribution helpers and the
+  mid-course corrector projected onto the loadings for a PLS model, where
+  NIPALS projects onto the weights and deflates with the loadings. With
+  nothing missing the estimate differed from the model's own scores by up
+  to a score standard deviation, and an incomplete row did not reproduce
+  the score the fit had stored for it. SCP now takes the weights
+  (`x_weights` on `operator_for_pattern` and `project_rows`; PCA is
+  unchanged, its weights being its loadings). `"pmp"` is the least-squares
+  fit onto the loading plane and, for PLS, does not reduce to the model's
+  scores even with nothing missing; the docstrings now say so, and TSR (the
+  default) and SCP do. A test module runs every missing-data path on data
+  without missing values and checks it against the direct computation.
+- `PCA.r2_per_variable_` is cumulative on every fit path, as documented. The
+  NIPALS path (taken whenever `X` has missing cells) divided each column's
+  residual by its sum of squares *after* the previous component, so column
+  `a` held the share of what was left that component `a` explained, not the
+  R2 after `a` components; only the first column was right. The TSR path
+  never filled the attribute at all and returned zeros. Both now match the
+  complete-data path and `PLS`.
+- The DuPont case-study page described batch 39 as a representative member of
+  the second group of batches; it now reads the group's mean contribution
+  against the model centre, which names `TempC-1` and `Press-3` and shows the
+  `TempH-1` contribution to be a feature of individual batches, not of the
+  group.
+- The DuPont case-study page's final model is checked by projecting the 15
+  batches left out of it (`verify_left_out` in the companion script): every
+  one lies above the SPE limit, seven above the T2 limit as well, while the
+  four poor-quality batches kept in the training set stay inside both limits.
+
 ## [1.80.0] - 2026-09-05
 
 Everything here was surfaced by executing every Python case in the *Process
@@ -83,6 +213,7 @@ Improvement using Data* book against this package (kgdunn/pid-book#274).
 - The `raincloud` docstring no longer claims a package default theme is applied
   when `template=None`; none is.
 
+
 ## [1.79.1] - 2026-09-05
 
 ### Documentation
@@ -132,6 +263,7 @@ Improvement using Data* book against this package (kgdunn/pid-book#274).
   examples was warned by the library for following them. The PCA docstring said
   the opposite ("should already be on the analysis scale") and now matches PLS.
 - The library's own tests do the same, so the suite no longer emits the warning.
+
 
 ## [1.78.0] - 2026-08-30
 
@@ -4124,7 +4256,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.80.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.81.0...HEAD
+[1.81.0]: https://github.com/kgdunn/process-improve/compare/v1.80.0...v1.81.0
 [1.80.0]: https://github.com/kgdunn/process-improve/compare/v1.79.1...v1.80.0
 [1.79.1]: https://github.com/kgdunn/process-improve/compare/v1.79.0...v1.79.1
 [1.79.0]: https://github.com/kgdunn/process-improve/compare/v1.78.0...v1.79.0

@@ -2,7 +2,7 @@ Case studies
 ============
 
 End-to-end worked analyses on real datasets. Each case study is a single
-Jupyter notebook that runs against live data hosted at
+script or notebook that runs against live data hosted at
 `openmv.net <https://openmv.net/>`_, so you can re-execute and modify it
 locally with no extra setup.
 
@@ -17,6 +17,7 @@ the book lines up with a case study here.
    least-squares-modelling/index
    design-analysis-experiments/index
    process-monitoring/index
+   batch/index
 
 Sources and attribution
 -----------------------

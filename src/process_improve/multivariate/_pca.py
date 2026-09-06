@@ -681,6 +681,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         """Fit PCA using the NIPALS algorithm (handles missing data)."""
         Xd = X_values.copy()
         base_variance = ssq(Xd)
+        base_ss_col = ssq(Xd, axis=0)  # the denominator of the cumulative per-variable R2, fixed before deflation
 
         self._loadings_np = np.zeros((K, A))
         self._scores_np = np.zeros((N, A))
@@ -767,7 +768,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             # Per-variable R^2 is undefined for a column with no variance to
             # explain; emit NaN there. SEC-21 (#270) sub-item 4.
             self._r2_per_var_np[:, a] = np.where(
-                start_ss_col > 0, 1 - col_ssx / np.where(start_ss_col > 0, start_ss_col, 1.0), np.nan
+                base_ss_col > 0, 1 - col_ssx / np.where(base_ss_col > 0, base_ss_col, 1.0), np.nan
             )
             self._r2cum_np[a] = 1 - np.sum(row_ssx) / base_variance if base_variance > 0 else np.nan
             self._r2_np[a] = self._r2cum_np[a] - self._r2cum_np[a - 1] if a > 0 else self._r2cum_np[a]
@@ -862,10 +863,14 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         self._r2_per_var_np = np.zeros((K, A))
         self._spe_np = np.zeros((N, A))
 
+        base_ss_col = ssq(X_original, axis=0)
         for a in range(A):
             residuals = self._scores_np[:, : a + 1] @ self._loadings_np[:, : a + 1].T - X_original
             self._r2cum_np[a] = 1 - ssq(residuals, axis=None) / base_variance
             self._r2_np[a] = self._r2cum_np[a] - self._r2cum_np[a - 1] if a > 0 else self._r2cum_np[a]
+            self._r2_per_var_np[:, a] = np.where(
+                base_ss_col > 0, 1 - ssq(residuals, axis=0) / np.where(base_ss_col > 0, base_ss_col, 1.0), np.nan
+            )
             self._spe_np[:, a] = np.sqrt(ssq(residuals, axis=1))
 
         self.fitting_info_ = {"iterations": itern, "timing": time.time() - start_time}

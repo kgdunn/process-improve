@@ -18,7 +18,7 @@ MSPC", Comprehensive Chemometrics, Elsevier, 2009, for the methodology.
 
 from __future__ import annotations
 
-import functools
+import operator
 import typing
 
 import numpy as np
@@ -27,6 +27,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
+from ..multivariate._diagnostics import score_contributions as _score_contributions
 from ..multivariate._diagnostics import spe_contributions as _spe_contributions
 from ..multivariate._diagnostics import t2_contributions as _t2_contributions
 from ..multivariate._limits import score_limit as _score_limit
@@ -38,6 +39,15 @@ from ..multivariate.plots import loading_plot as _loading_plot
 from ..multivariate.plots import score_plot as _score_plot
 from ..multivariate.plots import spe_plot as _spe_plot
 from ..multivariate.plots import t2_plot as _t2_plot
+from ._common import inner_method
+from ._online import (
+    coerce_single_initial_conditions,
+    forecast_frame,
+    instantaneous_spe,
+    residuals_of,
+    stack_online_patterns,
+    unfolded_layout,
+)
 from .data_input import check_valid_batch_dict, dict_to_wide
 
 if typing.TYPE_CHECKING:
@@ -45,23 +55,8 @@ if typing.TYPE_CHECKING:
 
 
 def _pca_method(fn: Callable[..., typing.Any]) -> Callable[..., typing.Any]:
-    """Wrap a module-level ``fn(model, ...)`` as a method forwarding ``self._pca``.
-
-    The convenience plots, limits, and contribution functions in
-    :mod:`process_improve.multivariate` read only fitted attributes that the
-    internal PCA model carries (``scores_``, ``loadings_``, ``spe_``,
-    ``scaling_factor_for_scores_``, ``n_components``, ``n_samples_``), so the
-    :class:`BatchPCA` methods forward to them with the wrapped estimator as
-    the ``model`` argument. Mirrors ``_model_method`` (ENG-05), so ``help``
-    and ``inspect.signature`` report the underlying function.
-    """
-
-    @functools.wraps(fn)
-    def method(self: BatchPCA, *args, **kwargs) -> object:
-        check_is_fitted(self, "loadings_")
-        return fn(self._pca, *args, **kwargs)
-
-    return method
+    """Forward a standalone ``fn(model, ...)`` to the inner PCA (see :func:`inner_method`)."""
+    return inner_method(fn, inner="_pca", fitted="loadings_")
 
 
 class BatchPCA(TransformerMixin, BaseEstimator):
@@ -422,11 +417,18 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         result : sklearn.utils.Bunch
             With keys ``scores`` (Series, one entry per component),
             ``hotellings_t2`` (float, cumulative over all components),
-            ``spe`` (float, over the observed columns), and
-            ``condition_number`` (float, the estimator's conditioning
-            diagnostic at this pattern).
+            ``spe`` (float, the length of the residual over the observed
+            columns), ``spe_instantaneous`` (float, the length of the residual
+            over the newest observed sample only), ``condition_number`` (float,
+            the estimator's conditioning diagnostic at this pattern),
+            ``residuals`` (Series over ``feature_columns_``, NaN where
+            unobserved) and ``forecast`` (DataFrame, ``n_timesteps_`` rows by
+            the training tags, in engineering units: the batch's own values up
+            to ``upto_k`` and the model's imputation of the remainder, Eq. 4 of
+            Wold et al., 2009).
         """
         check_is_fitted(self, "loadings_")
+        upto_k = operator.index(upto_k)
         if not 1 <= upto_k <= self.n_timesteps_:
             raise ValueError(f"upto_k must lie in [1, {self.n_timesteps_}]; got {upto_k}.")
 
@@ -440,18 +442,26 @@ class BatchPCA(TransformerMixin, BaseEstimator):
 
         # Observed columns: initial conditions (sequence == "") plus trajectory
         # columns whose time sample is strictly before upto_k.
-        sequence = wide.columns.get_level_values("sequence")
-        observed = np.array([s == "" or (isinstance(s, (int, np.integer)) and s < upto_k) for s in sequence])
+        layout = unfolded_layout(wide.columns)
+        observed = layout.is_z | (layout.sequence < upto_k)
 
         scaled = pd.DataFrame(self._scaler.transform(wide).to_numpy(), index=wide.index, columns=wide.columns)
         scaled.iloc[0, ~observed] = np.nan
         result = self._pca.project(scaled, method=method, ridge=ridge)
 
+        row = scaled.to_numpy(dtype=float)
+        scores = result.scores.to_numpy(dtype=float)
+        loadings = self.loadings_.to_numpy(dtype=float)
+        residual = residuals_of(row, scores, loadings)[0]
+        newest = layout.sequence == upto_k - 1
         return Bunch(
-            scores=pd.Series(result.scores.iloc[0].to_numpy(), index=self.scores_.columns, name="scores"),
+            scores=pd.Series(scores[0], index=self.scores_.columns, name="scores"),
             hotellings_t2=float(result.hotellings_t2.iloc[0]),
             spe=float(result.spe.iloc[0]),
+            spe_instantaneous=float(np.sqrt(np.nansum(residual[newest] ** 2))),
             condition_number=float(result.condition_number.iloc[0]),
+            residuals=pd.Series(residual, index=self.feature_columns_, name="residuals"),
+            forecast=forecast_frame(self, scores[0], batch, upto_k, loadings),
         )
 
     def predict_online_trace(
@@ -468,7 +478,7 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         ``1 .. n_timesteps_``, but the batch is unfolded and scaled once and
         all the per-sample patterns are projected together, which is what an
         online monitor needs (:class:`process_improve.batch.BatchMonitor`
-        builds its time-varying limits this way).
+        builds its per-sample limits this way).
 
         Parameters
         ----------
@@ -488,8 +498,9 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         result : sklearn.utils.Bunch
             With keys ``time`` (1-based sample indices), ``scores``
             (DataFrame, n_timesteps x n_components; row ``k-1`` is the score
-            estimate using samples up to ``k``), ``hotellings_t2``, ``spe``
-            and ``condition_number`` (np.ndarray of length n_timesteps).
+            estimate using samples up to ``k``), ``hotellings_t2``, ``spe``,
+            ``spe_instantaneous`` (the residual over the newest observed sample
+            only) and ``condition_number`` (np.ndarray of length n_timesteps).
         """
         check_is_fitted(self, "loadings_")
         z_frame = self._coerce_online_initial_conditions(initial_conditions)
@@ -500,43 +511,57 @@ class BatchPCA(TransformerMixin, BaseEstimator):
                 f"length ({self.n_timesteps_} samples) and pass the same tags and initial conditions."
             )
         scaled_row = self._scaler.transform(wide).to_numpy(dtype=float)[0]
-        sequence = wide.columns.get_level_values("sequence")
-        is_z = np.array([s == "" for s in sequence])
-        seq_values = np.array([-1 if z else int(s) for s, z in zip(sequence, is_z, strict=True)])
+        layout = unfolded_layout(wide.columns)
 
         n = self.n_timesteps_
-        stacked = np.tile(scaled_row, (n, 1))
-        for k in range(1, n + 1):
-            observed = is_z | (seq_values < k)
-            stacked[k - 1, ~observed] = np.nan
+        stacked = stack_online_patterns(scaled_row, layout, n)
         frame = pd.DataFrame(stacked, columns=wide.columns, index=pd.RangeIndex(n))
         result = self._pca.project(frame, method=method, ridge=ridge)
+        scores = result.scores.to_numpy(dtype=float)
+        residual = residuals_of(stacked, scores, self.loadings_.to_numpy(dtype=float))
         return Bunch(
             time=np.arange(1, n + 1),
-            scores=pd.DataFrame(result.scores.to_numpy(), index=pd.RangeIndex(n), columns=self.scores_.columns),
+            scores=pd.DataFrame(scores, index=pd.RangeIndex(n), columns=self.scores_.columns),
             hotellings_t2=result.hotellings_t2.to_numpy(),
             spe=result.spe.to_numpy(),
+            spe_instantaneous=instantaneous_spe(residual, layout),
             condition_number=result.condition_number.to_numpy(),
         )
 
     def _coerce_online_initial_conditions(
         self, initial_conditions: pd.Series | pd.DataFrame | None
     ) -> pd.DataFrame | None:
-        """Normalise a single batch's initial conditions to a 1-row DataFrame.
+        """Normalise a single batch's initial conditions to a 1-row DataFrame (see :mod:`._online`)."""
+        return coerce_single_initial_conditions(self, initial_conditions)
 
-        Accepts a Series (one value per initial condition) or a single-row
-        DataFrame, and validates presence against how the model was fitted.
+    def unfold_and_scale(
+        self,
+        X: dict[Hashable, pd.DataFrame],
+        *,
+        initial_conditions: pd.DataFrame | None = None,
+    ) -> pd.DataFrame:
+        """Unfold batches batchwise and apply the training centring and scaling.
+
+        Parameters
+        ----------
+        X : dict[Hashable, pd.DataFrame]
+            Standard batch-data dictionary of aligned batches with the same
+            tags and number of samples as the training data.
+        initial_conditions : pd.DataFrame, optional
+            The Z block for the batches; required if (and only if) the model
+            was fitted with one.
+
+        Returns
+        -------
+        pd.DataFrame of shape (n_batches, n_unfolded_features)
+            The one-row-per-batch ``[Z | X]`` matrix in the model's scaled
+            space, indexed by batch identifier, with the 2-level unfolded
+            column index. This is the ``X`` argument that
+            :meth:`score_contributions`, :meth:`spe_contributions` and
+            :meth:`t2_contributions` expect; passing the training batches
+            reproduces the fitted scores.
         """
-        if self.n_initial_conditions_ == 0:
-            if initial_conditions is not None:
-                raise ValueError("The model was fitted without initial conditions; do not pass any.")
-            return None
-        if initial_conditions is None:
-            raise ValueError("The model was fitted with initial conditions; they are required here.")
-        frame = initial_conditions.to_frame().T if isinstance(initial_conditions, pd.Series) else initial_conditions
-        if frame.shape[0] != 1:
-            raise ValueError("initial_conditions for a single batch must have exactly one row.")
-        return frame.set_axis(["_online_"], axis=0)
+        return self._scaled_wide(X, initial_conditions)
 
     def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
         """Hotelling's T2 limit at the given confidence level."""
@@ -570,3 +595,4 @@ class BatchPCA(TransformerMixin, BaseEstimator):
     score_limit = _pca_method(_score_limit)
     t2_contributions = _pca_method(_t2_contributions)
     spe_contributions = _pca_method(_spe_contributions)
+    score_contributions = _pca_method(_score_contributions)
