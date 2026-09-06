@@ -111,6 +111,13 @@ rebuilt as plain Python scripts with narrative pages (issues #154, #155,
 
 ### Fixed
 
+- `PCA.r2_per_variable_` is cumulative on every fit path, as documented. The
+  NIPALS path (taken whenever `X` has missing cells) divided each column's
+  residual by its sum of squares *after* the previous component, so column
+  `a` held the share of what was left that component `a` explained, not the
+  R2 after `a` components; only the first column was right. The TSR path
+  never filled the attribute at all and returned zeros. Both now match the
+  complete-data path and `PLS`.
 - The DuPont case-study page described batch 39 as a representative member of
   the second group of batches; it now reads the group's mean contribution
   against the model centre, which names `TempC-1` and `Press-3` and shows the
