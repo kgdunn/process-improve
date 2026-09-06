@@ -199,8 +199,10 @@ running batch is complete up to the newest sample and missing after it, so
 this is a missing-data problem: after :math:`k` samples, estimate the scores
 from the cells observed so far, and read the quality prediction off the
 scores through the model's Y loadings. The scores are estimated with trimmed
-score regression (Garcia-Munoz, Kourti and MacGregor, 2004), a regression of
-the scores on the observed cells built from the training batches.
+score regression (Arteaga and Ferrer, 2002), a regression of the scores on
+the observed cells built from the training batches, the estimator that
+Garcia-Munoz, Kourti and MacGregor (2004) found gives stable score estimates
+from the first samples of a batch.
 :meth:`process_improve.batch.BatchPLS.predict_online` does this for one
 point in time, and
 :meth:`process_improve.batch.BatchPLS.predict_online_trace` for every sample
@@ -367,6 +369,9 @@ References
 * Paul Nomikos and John F. MacGregor, "Multivariate SPC charts for monitoring
   batch processes", *Technometrics*, **37**, 41-59, 1995,
   https://literature.learnche.org/item/34/multivariate-spc-charts-for-monitoring-batch-processes
+* Francisco Arteaga and Alberto Ferrer, "Dealing with missing data in MSPC:
+  several methods, different interpretations, some examples", *Journal of
+  Chemometrics*, **16**, 408-418, 2002, https://doi.org/10.1002/cem.750
 * Salvador Garcia-Munoz, Theodora Kourti and John F. MacGregor, "Model
   predictive monitoring for batch processes", *Industrial & Engineering
   Chemistry Research*, **43**, 5929-5941, 2004,
