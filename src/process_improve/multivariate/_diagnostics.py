@@ -22,6 +22,7 @@ from sklearn.utils import Bunch
 
 from ._common import DataMatrix, _align_to_fit_features, epsqrt
 from ._preprocessing import center
+from ._projection import operator_for_pattern
 
 # These diagnostics operate on a *fitted* PCA or PLS model via duck typing (they
 # read attributes such as ``scores_`` / ``spe_`` after guarding with
@@ -543,7 +544,52 @@ def _contribution_inputs(model: BaseEstimator, X: DataMatrix) -> tuple[pd.DataFr
     return X, R, P
 
 
-def t2_contributions(model: BaseEstimator, X: DataMatrix, components: list[int] | None = None) -> pd.DataFrame:
+def _scores_and_guides(  # noqa: PLR0913 - the model, its two matrices, the data and the estimator choice
+    model: BaseEstimator, X_values: np.ndarray, R: np.ndarray, P: np.ndarray, method: str, ridge: float
+) -> tuple[np.ndarray, np.ndarray | None]:
+    """Return the scores of every row and, when rows have missing cells, the per-row score-generating matrices.
+
+    A complete row's score is ``x @ R``. A row with missing cells has its scores
+    estimated from the observed cells with the missing-data operator ``M`` of
+    :func:`~process_improve.multivariate._projection.operator_for_pattern`
+    (``t_hat = M @ x_observed``), so its contributions use ``M`` where a
+    complete row uses ``R``. The second return value is ``None`` when every
+    row is complete, and otherwise an array of shape (n_samples, n_features,
+    n_components) holding ``R`` for the complete rows and, for the others,
+    ``M.T`` on the observed features and zero on the missing ones.
+    """
+    observed = ~np.isnan(X_values)
+    complete = observed.all(axis=1)
+    if complete.all():
+        return X_values @ R, None
+    scores = np.full((X_values.shape[0], R.shape[1]), np.nan)
+    scores[complete] = X_values[complete] @ R  # the complete rows keep the exact complete-data path
+    variances = np.asarray(model.explained_variance_, dtype=float)
+    guides = np.broadcast_to(R, (X_values.shape[0], *R.shape)).copy()
+    patterns: dict[bytes, list[int]] = {}
+    for i in np.flatnonzero(~complete):
+        patterns.setdefault(observed[i].tobytes(), []).append(int(i))
+    for key, rows in patterns.items():
+        mask = np.frombuffer(key, dtype=bool)
+        if not mask.any():
+            msg = f"Row {rows[0]} has no observed features (all-NaN); its contributions cannot be computed."
+            raise ValueError(msg)
+        operator = operator_for_pattern(P, R, variances, mask, method=method, ridge=ridge)
+        guide = np.zeros_like(R)
+        guide[mask, :] = operator.matrix.T
+        guides[rows] = guide
+        scores[rows] = np.where(observed[rows], X_values[rows], 0.0) @ guide
+    return scores, guides
+
+
+def t2_contributions(
+    model: BaseEstimator,
+    X: DataMatrix,
+    components: list[int] | None = None,
+    *,
+    method: str = "scp",
+    ridge: float = 0.0,
+) -> pd.DataFrame:
     r"""Per-variable contributions to Hotelling's :math:`T^2`.
 
     Works with fitted :class:`PCA` and :class:`PLS` models. Decomposes each
@@ -563,6 +609,16 @@ def t2_contributions(model: BaseEstimator, X: DataMatrix, components: list[int] 
     observation away from the model centre. This is the standard MSPC
     diagnostic (Westerhuis, Gurden and Smilde, 2000).
 
+    A row with missing cells (NaN) gets its scores from its observed cells
+    alone, with the estimator named by ``method``, the missing-data operators
+    of :meth:`PCA.project` and :meth:`PLS.project`. Its contributions are then
+    defined at every observed cell and NaN at the missing ones, so the row
+    sums (``sum(axis=1)``, which skips NaN) keep their meaning. The default
+    ``"scp"`` is the single-component projection the NIPALS fit uses, so on a
+    PCA model fitted with missing data the training rows reproduce the stored
+    ``scores_``, ``hotellings_t2_`` and ``spe_`` to within the NIPALS
+    convergence tolerance, as the complete rows do.
+
     Parameters
     ----------
     model : PCA or PLS
@@ -575,12 +631,19 @@ def t2_contributions(model: BaseEstimator, X: DataMatrix, components: list[int] 
         **1-based** component indices to decompose over, matching the model's
         column convention. ``None`` (default) uses all fitted components, so the
         row sums equal the cumulative :math:`T^2`.
+    method : {"scp", "tsr", "pmp"}, default="scp"
+        Score estimator for the rows with missing cells; ignored when ``X`` is
+        complete. See :meth:`PCA.project`.
+    ridge : float, default=0.0
+        Regularisation for the ``"tsr"`` and ``"pmp"`` estimators, as in
+        :meth:`PCA.project`.
 
     Returns
     -------
     pd.DataFrame
-        Signed contributions of shape (n_samples, n_features). Each row sums to
-        the observation's :math:`T^2` over the selected components.
+        Signed contributions of shape (n_samples, n_features), NaN at the
+        missing cells. Each row sums to the observation's :math:`T^2` over the
+        selected components.
 
     Examples
     --------
@@ -593,7 +656,7 @@ def t2_contributions(model: BaseEstimator, X: DataMatrix, components: list[int] 
     spe_contributions : The residual-space counterpart.
     PCA.score_contributions : Decomposes a single score-space movement.
     """
-    X_df, R, _ = _contribution_inputs(model, X)
+    X_df, R, P = _contribution_inputs(model, X)
     X_values = X_df.to_numpy(dtype=float)
     A = R.shape[1]
 
@@ -611,12 +674,17 @@ def t2_contributions(model: BaseEstimator, X: DataMatrix, components: list[int] 
     # result (mirrors ``score_contributions(weighted=True)``).
     s2 = np.where(s**2 > epsqrt, s**2, 1.0)
 
-    scores = X_values @ R[:, idx]  # (n, len(idx))
-    contributions = X_values * ((scores / s2) @ R[:, idx].T)
+    scores, guides = _scores_and_guides(model, X_values, R, P, method, ridge)
+    weights = scores[:, idx] / s2  # (n, len(idx))
+    factors = weights @ R[:, idx].T  # exact for the complete rows
+    if guides is not None:
+        rows = np.flatnonzero(np.isnan(X_values).any(axis=1))
+        factors[rows] = np.einsum("ia,ika->ik", weights[rows], guides[rows][:, :, idx])
+    contributions = X_values * factors
     return pd.DataFrame(contributions, index=X_df.index, columns=X_df.columns)
 
 
-def spe_contributions(model: BaseEstimator, X: DataMatrix) -> pd.DataFrame:
+def spe_contributions(model: BaseEstimator, X: DataMatrix, *, method: str = "scp", ridge: float = 0.0) -> pd.DataFrame:
     r"""Per-variable squared-prediction-error (SPE / DModX) contributions.
 
     Works with fitted :class:`PCA` and :class:`PLS` models. Returns the signed
@@ -634,6 +702,16 @@ def spe_contributions(model: BaseEstimator, X: DataMatrix) -> pd.DataFrame:
     variable sits above or below its reconstruction, which is the standard SPE
     contribution plot used to diagnose why an observation has a high residual.
 
+    A row with missing cells (NaN) gets its scores from its observed cells
+    alone, with the estimator named by ``method``, the missing-data operators
+    of :meth:`PCA.project` and :meth:`PLS.project`. Its contributions are then
+    defined at every observed cell and NaN at the missing ones, so the row
+    sums (``sum(axis=1)``, which skips NaN) keep their meaning. The default
+    ``"scp"`` is the single-component projection the NIPALS fit uses, so on a
+    PCA model fitted with missing data the training rows reproduce the stored
+    ``scores_``, ``hotellings_t2_`` and ``spe_`` to within the NIPALS
+    convergence tolerance, as the complete rows do.
+
     Parameters
     ----------
     model : PCA or PLS
@@ -641,12 +719,19 @@ def spe_contributions(model: BaseEstimator, X: DataMatrix) -> pd.DataFrame:
     X : array-like of shape (n_samples, n_features)
         Preprocessed data, scaled the same way as the training data. Passing the
         training data reproduces the model's stored ``spe_``.
+    method : {"scp", "tsr", "pmp"}, default="scp"
+        Score estimator for the rows with missing cells; ignored when ``X`` is
+        complete. See :meth:`PCA.project`.
+    ridge : float, default=0.0
+        Regularisation for the ``"tsr"`` and ``"pmp"`` estimators, as in
+        :meth:`PCA.project`.
 
     Returns
     -------
     pd.DataFrame
-        Signed per-variable residuals of shape (n_samples, n_features). The
-        squared row sums equal the observation's SPE.
+        Signed per-variable residuals of shape (n_samples, n_features), NaN at
+        the missing cells. The squared row sums equal the observation's SPE
+        squared, over its observed cells.
 
     Examples
     --------
@@ -660,7 +745,7 @@ def spe_contributions(model: BaseEstimator, X: DataMatrix) -> pd.DataFrame:
     """
     X_df, R, P = _contribution_inputs(model, X)
     X_values = X_df.to_numpy(dtype=float)
-    scores = X_values @ R
+    scores, _guides = _scores_and_guides(model, X_values, R, P, method, ridge)
     residuals = X_values - scores @ P.T
     return pd.DataFrame(residuals, index=X_df.index, columns=X_df.columns)
 
@@ -709,11 +794,14 @@ def _reject_score_vector_call(X: object, keywords: dict) -> None:
         raise TypeError(msg)
 
 
-def score_contributions(
+def score_contributions(  # noqa: PLR0913 - the estimator choice for missing cells adds two keywords
     model: BaseEstimator,
     X: DataMatrix,
     component: int = 1,
     scaling: str = "none",
+    *,
+    method: str = "scp",
+    ridge: float = 0.0,
     **deprecated: object,
 ) -> pd.DataFrame:
     r"""Per-variable contributions to a single score, :math:`t_a`.
@@ -741,6 +829,16 @@ def score_contributions(
     Ranking variables by loading can therefore point at a different cause than
     ranking them by contribution.
 
+    A row with missing cells (NaN) gets its scores from its observed cells
+    alone, with the estimator named by ``method``, the missing-data operators
+    of :meth:`PCA.project` and :meth:`PLS.project`. Its contributions are then
+    defined at every observed cell and NaN at the missing ones, so the row
+    sums (``sum(axis=1)``, which skips NaN) keep their meaning. The default
+    ``"scp"`` is the single-component projection the NIPALS fit uses, so on a
+    PCA model fitted with missing data the training rows reproduce the stored
+    ``scores_``, ``hotellings_t2_`` and ``spe_`` to within the NIPALS
+    convergence tolerance, as the complete rows do.
+
     Parameters
     ----------
     model : PCA or PLS
@@ -761,6 +859,12 @@ def score_contributions(
         contributions, so each row is on a common footing. Both scalings leave
         the *pattern* of bars within a row unchanged; neither preserves the sum
         to the score.
+    method : {"scp", "tsr", "pmp"}, default="scp"
+        Score estimator for the rows with missing cells; ignored when ``X`` is
+        complete. See :meth:`PCA.project`.
+    ridge : float, default=0.0
+        Regularisation for the ``"tsr"`` and ``"pmp"`` estimators, as in
+        :meth:`PCA.project`.
     **deprecated
         Rejected. Captures ``t_end``, ``components`` and ``weighted`` so that a
         call passing a score vector rather than ``X`` raises a
@@ -770,9 +874,9 @@ def score_contributions(
     Returns
     -------
     pd.DataFrame
-        Signed contributions of shape (n_samples, n_features). With the default
-        ``scaling="none"``, each row sums to that observation's score on the
-        selected component.
+        Signed contributions of shape (n_samples, n_features), NaN at the
+        missing cells. With the default ``scaling="none"``, each row sums to
+        that observation's score on the selected component.
 
     Examples
     --------
@@ -801,7 +905,10 @@ def score_contributions(
     """
     _reject_score_vector_call(X, deprecated)
     X_df, r_a = _score_contribution_terms(model, X, component)
-    contributions = X_df.to_numpy(dtype=float) * r_a
+    X_values = X_df.to_numpy(dtype=float)
+    _, R, P = _contribution_inputs(model, X)
+    _scores, guides = _scores_and_guides(model, X_values, R, P, method, ridge)
+    contributions = X_values * (r_a if guides is None else guides[:, :, int(component) - 1])
 
     if scaling == "maximum":
         largest = float(np.abs(contributions).max())
