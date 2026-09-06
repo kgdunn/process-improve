@@ -3,9 +3,10 @@
 Case study for issue #156. Styrene-butadiene rubber is made by emulsion
 polymerization in a batch reactor; five quality attributes of the latex are
 measured at the end of each batch. Because these 53 batches were simulated
-from a first-principles model, the fault is known: batches 34 and 37 both
-received 30% more organic impurity in the butadiene feed, from the very
-start of batch 37 and midway through batch 34. This script fits a
+from a first-principles model, the fault is known (Nomikos and MacGregor,
+1994): batch 37 received 30% more organic impurity in the butadiene feed
+than the normal batches from its very start, and batch 34 50% more from
+midway through. This script fits a
 batchwise-unfolded PLS from the six trajectories to the five quality
 attributes and follows the diagnosis of the course notes: the score plot
 flags both batches, the whole-batch SPE does not, the weights and the
@@ -20,8 +21,11 @@ Data: https://openmv.net/info/sbr-batch-reactor (53 batches x 200 samples x
 9 tags, plus 5 quality attributes), downloaded when the script runs.
 
 Source: Nomikos, P., "Statistical process control of batch processes", PhD
-thesis, McMaster University, 1995, and the ConnectMV latent-variable course
-notes (2011-2012, CC BY-SA 3.0).
+thesis, McMaster University, 1995; Nomikos, P. and MacGregor, J.F.,
+"Monitoring batch processes using multiway principal component analysis",
+AIChE Journal, 40, 1361-1375, 1994 (the simulation and the two faulty
+batches); and the ConnectMV latent-variable course notes (2011-2012,
+CC BY-SA 3.0).
 
 Run from the repository root::
 

@@ -9,9 +9,10 @@ water and jacket temperatures, latex density, conversion and the energy
 released), and five quality attributes of the latex are measured at the end
 (composition, particle size, branching, cross-linking and polydispersity).
 The 53 batches were simulated from a first-principles model, which makes this
-a rare kind of case study: the fault is known. Batches 34 and 37 both received
-30% more organic impurity in the butadiene feed, from the very start of batch
-37 and midway through batch 34.
+a rare kind of case study: the fault is known (Nomikos and MacGregor, 1994).
+Batch 37 received 30% more organic impurity in the butadiene feed than the
+normal batches from its very start, and batch 34 50% more from midway
+through.
 
 The complete script is ``sbr_batch_pls.py`` in this directory:
 
@@ -264,9 +265,12 @@ and noisy compared with those near its end, so the scatter of the reference
 batches differs from sample to sample.
 :class:`process_improve.batch.BatchMonitor` passes every reference batch
 through ``predict_online_trace`` and summarises the spread at each sample,
-following Nomikos and MacGregor (1995). The :math:`T^2` at sample :math:`k`
+following Nomikos and MacGregor (1995), who set the limits of their score
+charts from that spread and note that the :math:`T^2` chart needs the score
+covariance at each sample as well. The :math:`T^2` at sample :math:`k`
 is standardised by the covariance of the reference batches' score estimates
-at that sample, which gives one limit for the whole batch, and the SPE
+at that sample, as Garcia-Munoz, Kourti and MacGregor (2004) compute it,
+which gives one limit for the whole batch, and the SPE
 limit is a chi-squared limit fitted to the reference batches' SPE at that
 sample (``spe_window`` pools the values of neighbouring samples into that
 fit, which steadies the limits when few reference batches are available;
@@ -363,6 +367,9 @@ References
 
 * Paul Nomikos, *Statistical process control of batch processes*, PhD thesis,
   McMaster University, 1995.
+* Paul Nomikos and John F. MacGregor, "Monitoring batch processes using
+  multiway principal component analysis", *AIChE Journal*, **40**, 1361-1375,
+  1994. The simulation and the two faulty batches.
 * Paul Nomikos and John F. MacGregor, "Multi-way partial least squares in
   monitoring batch processes", *Chemometrics and Intelligent Laboratory
   Systems*, **30**, 97-108, 1995.

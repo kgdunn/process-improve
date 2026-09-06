@@ -317,9 +317,11 @@ def load_sbr(*, url: str | None = None, timeout: float | None = None) -> Bunch:
     first-principles model for the batch monitoring work of Nomikos (1995):
     53 batches of 200 samples with nine trajectories, and five final quality
     attributes per batch. Because the data are simulated, the fault is
-    known: batches 34 and 37 both received 30% more organic impurity in the
-    butadiene feed, from the start of batch 37 and midway through batch 34.
-    The two feed-flow trajectories are constant in the simulation.
+    known (Nomikos and MacGregor, 1994): batch 37 received 30% more organic
+    impurity in the butadiene feed than the normal batches from its start,
+    and batch 34 50% more from midway through, at sample 100. The two feed
+    flows and the feed temperature carry only the noise the simulation adds
+    to them, under 2% and 0.1% of their values.
 
     Parameters
     ----------
@@ -340,7 +342,7 @@ def load_sbr(*, url: str | None = None, timeout: float | None = None) -> Bunch:
         ``EnergyReleased``), ``Y`` (53 x 5: ``Composition``,
         ``ParticleSize``, ``Branching``, ``CrossLinking`` and
         ``Polydispersity``, indexed by batch identifier), ``trajectory_tags``
-        (the six tags the original study modelled, without the feed tags) and
+        (the six reactor tags this case study models, without the feed tags) and
         ``fault_batches`` (``[34, 37]``).
 
     Raises
@@ -351,7 +353,10 @@ def load_sbr(*, url: str | None = None, timeout: float | None = None) -> Bunch:
     Source
     ------
     Nomikos, P., "Statistical process control of batch processes", PhD
-    thesis, McMaster University, 1995. Hosted at
+    thesis, McMaster University, 1995, and Nomikos, P. and MacGregor, J.F.,
+    "Monitoring batch processes using multiway principal component
+    analysis", AIChE Journal, 40, 1361-1375, 1994, which describes the
+    simulation and the two faulty batches. Hosted at
     https://openmv.net/info/sbr-batch-reactor.
 
     Examples

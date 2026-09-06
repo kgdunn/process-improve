@@ -11,10 +11,15 @@ limits are learned from the same projection applied to the reference batches,
 so the statistic at each sample is compared against the reference-batch spread
 at that same point in the batch evolution: the score estimates early in a batch
 are noisier than the estimates near its end, and the T2 at each sample uses the
-covariance of the reference batches' score estimates at that sample.
+covariance of the reference batches' score estimates at that sample. Nomikos and
+MacGregor set the limits of their score charts from that spread and note that
+the T2 chart needs the time-varying covariance as well; Garcia-Munoz, Kourti and
+MacGregor compute it, which is what this module does.
 
 See Nomikos and MacGregor, "Multivariate SPC Charts for Monitoring Batch
-Processes", Technometrics, 37, 41-59, 1995.
+Processes", Technometrics, 37, 41-59, 1995, and Garcia-Munoz, Kourti and
+MacGregor, "Model predictive monitoring for batch processes", Industrial and
+Engineering Chemistry Research, 43, 5929-5941, 2004.
 """
 
 from __future__ import annotations

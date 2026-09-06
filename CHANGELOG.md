@@ -58,7 +58,10 @@ rebuilt as plain Python scripts with narrative pages (issues #154, #155,
   the user guide (`docs/user_guide/case_studies/batch/`): batch PCA outlier
   diagnosis on the DuPont polymerization reactor (#155), batch PLS fault
   diagnosis on the simulated SBR reactor (#156), and the multiblock batch PLS
-  ladder on the FMC batch dryer (#154). Each script fetches its data from
+  ladder on the FMC batch dryer (#154), with the clock time as the eleventh
+  trajectory of every batch model and a last section that reads, from the
+  block scores, the batches whose trajectories say off-specification while
+  the product was on-specification. Each script fetches its data from
   openmv.net when it runs and writes its figures to an output directory; each
   page quotes the script section by section and states what it prints.
 - Remote batch dataset loaders `batch.load_dupont`, `batch.load_fmc` and
@@ -86,7 +89,9 @@ rebuilt as plain Python scripts with narrative pages (issues #154, #155,
 - `BatchMonitor` standardises Hotelling's T2 at each sample by the covariance
   of the reference batches' score estimates at that sample, with the F limit
   for the number of reference batches, instead of by the end-of-batch score
-  variances. Score estimates early in a batch are shrunk and noisy compared
+  variances (the time-varying covariance Nomikos and MacGregor, 1995, note
+  the T2 chart needs, computed as Garcia-Munoz, Kourti and MacGregor, 2004,
+  do). Score estimates early in a batch are shrunk and noisy compared
   with those near its end, so the old yardstick was wrong where it matters
   most: a normal SBR batch read T2 = 220 after four samples against a limit
   of 10.5, and now reads 0.5. The reference batches' mean T2 is `A (N - 1) / N`

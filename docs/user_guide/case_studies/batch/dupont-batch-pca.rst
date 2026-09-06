@@ -204,8 +204,13 @@ trajectories distinguishes them from the good batches. This is the lesson
 the case study is built around. A model can only detect what the
 measurements contain; if the cause of poor quality leaves no trace in the
 recorded variables, no amount of modelling will find it, and the fix is to
-measure something else. The SBR case-study page runs the same check sample
-by sample with :class:`~process_improve.batch.BatchMonitor`.
+measure something else. Nomikos and MacGregor (1995) also left these four
+batches out of their reference set, on the principle that it should hold
+only batches with acceptable operation and acceptable product, and built
+their monitoring model on the remaining 36 batches with three components;
+they are kept in model C here so that the check can be made. The SBR
+case-study page runs the same check sample by sample with
+:class:`~process_improve.batch.BatchMonitor`.
 
 Running the script
 ------------------
