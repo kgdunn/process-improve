@@ -173,17 +173,25 @@ class TestSelectNComponentsScales:
         np.testing.assert_allclose(result.se_press.to_numpy(), expected_se)
 
     def test_q2_null_model_is_centred(self) -> None:
+        """A large column offset must not make every Q2 look like 1.
+
+        The uncentred ``sum(x^2)`` reference this replaced was dominated by the
+        offset, so it could not discriminate between component counts. The
+        reference is now each fold's own held-out cells, measured the same way
+        PRESS is, which is centred by construction.
+        """
         rng = np.random.default_rng(10)
         x = _low_rank_matrix(n=30, k=6, rank=2, noise=0.4, seed=11) + 100.0  # large offset
         x += rng.standard_normal(x.shape) * 0.01
         result = PCA.select_n_components(pd.DataFrame(x), max_components=3, cv=4, random_state=0)
-        x_arr = np.asarray(x, dtype=float)
-        null_ss = float(np.nansum((x_arr - np.nanmean(x_arr, axis=0)) ** 2))
-        expected_q2 = 1.0 - result.press.to_numpy() / null_ss
-        np.testing.assert_allclose(result.q2.to_numpy(), expected_q2)
-        # With the uncentred sum(x^2) null model the offset made every Q2
-        # indistinguishable from 1; the centred reference must discriminate.
         assert result.q2.iloc[0] < 0.9999
+        # The identity Q2 = 1 - PRESS / null_model_ss still holds, against the
+        # reference the folds measured rather than one recomputed out here.
+        from process_improve.multivariate._pca import _pca_ekf_press
+
+        ekf = _pca_ekf_press(np.asarray(x, dtype=float), 3, n_folds=4, random_state=0)
+        expected_q2 = 1.0 - result.press.to_numpy() / ekf.null_model_ss
+        np.testing.assert_allclose(result.q2.to_numpy(), expected_q2)
 
 
 class TestPLSInference:
@@ -426,7 +434,8 @@ class TestStatisticalCorrectnessTriage:
         """
         from process_improve.multivariate._pca import _pca_ekf_press
 
-        press, per_fold = _pca_ekf_press(np.array([[1.0, 2], [3, 4]]), 1, n_folds=5, random_state=0)
+        result_ekf = _pca_ekf_press(np.array([[1.0, 2], [3, 4]]), 1, n_folds=5, random_state=0)
+        press, per_fold = result_ekf.press, result_ekf.per_fold_press
         assert np.isnan(per_fold[0, :4]).all(), "empty folds must be NaN, not zero"
         assert np.isfinite(per_fold[0, 4])
         # PRESS itself is unchanged: an empty fold contributes nothing to a sum.
@@ -441,7 +450,8 @@ class TestStatisticalCorrectnessTriage:
 
         rng = np.random.default_rng(0)
         X = rng.normal(size=(20, 4))
-        press, per_fold = _pca_ekf_press(X, 3, n_folds=5, random_state=42)
+        result_ekf = _pca_ekf_press(X, 3, n_folds=5, random_state=42)
+        press, per_fold = result_ekf.press, result_ekf.per_fold_press
         assert not np.isnan(per_fold).any()
         assert np.all(np.isfinite(press))
 

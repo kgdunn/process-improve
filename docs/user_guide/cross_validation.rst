@@ -58,14 +58,51 @@ The result is a ``Bunch`` with:
 
 - ``n_components``: recommended number of components
 - ``press``: PRESS for each number of components
+- ``press_input_units``: the same curve in the units of the matrix that was
+  passed in, for comparing the prediction error against a known instrument
+  error
 - ``q2``: cross-validated :math:`R^2_X` per component count, on the same
   scale as the calibration ``r2_cumulative_`` of a fitted model
+- ``q2_per_variable``: that same quantity for each column on its own
 - ``per_fold_press``, ``se_press`` and ``q2_se``: the per-fold PRESS
   contributions and the standard error built from them, which is what the
   1-SE rule needs
 - ``press_ratio``: the ratio ``PRESS_a / PRESS_{a-1}``, for inspection
 - ``cv_scores``: per-fold scores (an alias of ``per_fold_press`` under ekf)
 - ``cv_scheme`` and ``selection_rule``: which scheme and rule were used
+
+What PRESS is measured in
+--------------------------
+
+With ``scale_inside_folds=True`` each fold centres and scales the matrix
+before fitting it, and the error is measured in that same space. Every
+variable therefore contributes to ``press`` in proportion to how much of its
+own variation the model predicts, not in proportion to its units. This
+matters whenever the columns are on different scales: on the LDPE data used
+in the book, the ``Mw`` column carries 99.5% of the raw sum of squares, so a
+PRESS accumulated in the raw units would be ``Mw``'s prediction error and
+almost nothing else.
+
+``q2`` is that PRESS divided by what a null model would have got wrong on the
+same held-out cells, measured the same way. The null model predicts each
+held-out cell by the mean of the cells that were not held out, so
+:math:`Q^2 = 0` is "no better than the column mean" and :math:`Q^2 = 1` is
+exact prediction, the same reading as ``r2_cumulative_``.
+
+Two consequences are worth knowing. Re-expressing a column in different units
+(kilograms instead of grams, say) leaves the whole curve unchanged. And
+passing the raw block gives the same curve as passing a mean-centred,
+unit-variance block, so the recommendation in the paragraph above costs
+nothing.
+
+When a single number in the original units is what you need, for instance to
+compare the prediction error against a known instrument error, read
+``press_input_units`` instead. To see whether one column is carrying the
+pooled figure, read ``q2_per_variable``, which splits ``q2`` by variable.
+
+``scale_inside_folds=False`` is the opt-out for callers who have scaled their
+own block. There is then no in-fold scale, so ``press`` is in the units of
+whatever matrix was passed and the two PRESS fields coincide.
 
 ``n_repeats`` runs the whole pass again with a fresh fold permutation.
 Each repeat still covers every cell exactly once; more repeats narrow

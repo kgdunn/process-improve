@@ -45,8 +45,8 @@ def raincloud(  # noqa: PLR0913
         ``"h"`` draws horizontal rainclouds (the default and usual
         orientation); ``"v"`` draws them vertically.
     template : str or None, optional
-        Plotly template name. When ``None``, the package's registered default
-        theme is used.
+        Plotly template name applied to the figure. When ``None`` (the default),
+        no template is set and plotly's active default applies.
 
     Returns
     -------

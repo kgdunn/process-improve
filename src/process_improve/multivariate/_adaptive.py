@@ -646,6 +646,7 @@ class AdaptivePCA(_AdaptiveModel, TransformerMixin, BaseEstimator):
         N, K = X_df.shape
         A = int(self.n_components)
         self.n_components = A
+        self.n_components_ = A
         self.n_features_in_ = K
         self.n_samples_ = N
         self._component_names = list(range(1, A + 1))
@@ -972,6 +973,7 @@ class AdaptivePLS(_AdaptiveModel, RegressorMixin, TransformerMixin, BaseEstimato
         M = Y_df.shape[1]
         A = int(self.n_components)
         self.n_components = A
+        self.n_components_ = A
         self.n_features_in_ = K
         self.n_targets_ = M
         self.n_samples_ = N
