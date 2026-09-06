@@ -6,16 +6,24 @@ three recipe phases (solvent collection, a temperature ramp, cool-down), and
 the solvent is collected in a side tank. Chemical changes take place in the
 solid during drying, and the operators adjust a few set points. Besides the
 ten process trajectories there are three one-row-per-batch blocks: the
-chemistry of the cake before the batch (Zchem), the operating conditions and
-recipe timings (Zop), and eight final quality attributes (Y).
+chemistry of the cake before the batch (Zchem), the weight of the cake and
+eight landmarks of the batch's own trajectories, read off at the alignment
+(Zop: the collector level and the dryer temperature at the end of the first
+phase, the peak temperature, the length of each phase and of the high-speed
+agitation, and the slope of the temperature ramp), and eight final quality
+attributes (Y).
 
 This script follows the ladder of models in the original course material, two
 components each: PCA on the quality block, PLS from each initial-condition
 block, multiblock PLS on both, batch PCA on the trajectories, batch PLS to
 quality, and finally the batch multiblock PLS that joins all three X blocks.
 The trajectories were aligned within each phase before the data were
-archived; ``ClockTime``, the wall time at each aligned sample, is carried
-along as a trajectory so the warping itself is part of the data.
+archived; ``ClockTime``, the wall time at each aligned sample, is the eleventh
+trajectory of every batch model here, so the pace of each batch is part of
+the data. A last section finds the batches classed good whose trajectories
+sit with the abnormal batches in the trajectory block of the final model, and
+reads what set them apart from the block scores and from the contributions of
+the operating-condition block.
 
 The data contain genuine missing cells, so the models here are the
 :mod:`process_improve.multivariate` estimators, whose NIPALS path handles
@@ -47,6 +55,7 @@ import pathlib
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from sklearn.utils import Bunch
 
 from process_improve.batch import dict_to_wide, load_fmc, time_varying_loading_plot, unfolded_contribution_plot
@@ -60,7 +69,9 @@ CONF_LEVEL = 0.95
 QUALITY_GROUP = [61, 14]  # one batch from each group in the quality score plot
 OPERATING_OUTLIER = 20  # stands out on the operating conditions and on the trajectories
 TRAJECTORY_BATCHES = [13, 5, 7]  # batches examined in the batch PLS
+DISPOSITION = {"good": 33, "abnormal": 61, "high solvent": 71}  # the plant's classes: the last batch number of each
 HIGHLIGHT = '{"color": "red", "width": 4}'  # Plotly line style, JSON-encoded, for the highlighted batches
+NEIGHBOUR = '{"color": "teal", "width": 3}'  # the same, for the batches a highlighted batch is compared with
 LABELS = {"show_labels": True}
 # -- end: constants --
 
@@ -184,11 +195,12 @@ def mbpls_on_initial_conditions(data: Bunch) -> MBPLS:
 def unfold_trajectories(trajectories: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Unfold the trajectories batchwise and scale every column.
 
-    One row per batch, 10 tags x 325 samples = 3250 columns. ``MCUVScaler``
-    returns flat column labels, so the 2-level ``(tag, sequence)`` index is
-    re-attached; the batch plots need it.
+    One row per batch, 11 tags x 325 samples = 3575 columns: the ten process
+    measurements and ``ClockTime``, the eleventh trajectory that records how
+    each batch used time. ``MCUVScaler`` returns flat column labels, so the
+    2-level ``(tag, sequence)`` index is re-attached; the batch plots need it.
     """
-    wide = dict_to_wide({batch_id: batch.drop(columns="ClockTime") for batch_id, batch in trajectories.items()})
+    wide = dict_to_wide(trajectories)
     x_scaled = MCUVScaler().fit_transform(wide)
     x_scaled.columns = wide.columns
     print(
@@ -256,6 +268,98 @@ def batch_mbpls(data: Bunch, wide: pd.DataFrame) -> tuple[MBPLS, dict]:
 # -- end: batch-mbpls --
 
 
+# -- section: anomalous --
+def disposition(batch_ids: list) -> pd.Series:
+    """Return the plant's disposition of each batch, which is encoded in the batch numbering."""
+    edges = [0, *DISPOSITION.values()]
+    return pd.Series(pd.cut(batch_ids, bins=edges, labels=list(DISPOSITION)).astype(str), index=batch_ids)
+
+
+def nearer_group(scores: pd.DataFrame, groups: pd.Series) -> pd.Series:
+    """Place each batch with the group, good or abnormal, whose average point is nearer in this score plot."""
+    centres = {name: scores.loc[groups == name].mean() for name in ("good", "abnormal")}
+    return pd.DataFrame({name: ((scores - centre) ** 2).sum(axis=1) for name, centre in centres.items()}).idxmin(axis=1)
+
+
+def off_spec_trajectories_on_spec_product(model: MBPLS, blocks: dict) -> Bunch:
+    """Find the batches classed good whose trajectories sit with the abnormal batches, and what set them apart.
+
+    Every block of the batch multiblock PLS has its own score plot, and a
+    batch is placed in each of them with the group whose average point is
+    nearer. The batches classed good that the trajectory block places with
+    the abnormal batches, while both initial-condition blocks place them with
+    the good ones, are compared with their nearest abnormal neighbours in the
+    trajectory block: the contribution from the neighbours' average to theirs
+    in the operating-condition block names what differed.
+    """
+    groups = disposition(list(model.super_scores_.index))
+    placed = pd.DataFrame({name: nearer_group(scores, groups) for name, scores in model.block_scores_.items()})
+    with_abnormal = [b for b in placed.index if groups[b] == "good" and placed.loc[b, "X"] == "abnormal"]
+    anomalous = [b for b in with_abnormal if (placed.loc[b, ["Zchem", "Zop"]] == "good").all()]
+    print(f"batches classed good that the trajectory block places with the abnormal batches: {with_abnormal}")
+    print(f"of these, placed with the good batches by both initial-condition blocks: {anomalous}")
+    x_scores = model.block_scores_["X"]
+    abnormal = x_scores.loc[groups == "abnormal"]
+    nearest = {int(b) for a in anomalous for b in ((abnormal - x_scores.loc[a]) ** 2).sum(axis=1).nsmallest(2).index}
+    neighbours = sorted(nearest)
+    contributions = model.score_contributions(blocks, component=1)["Zop"]
+    move = contributions.loc[anomalous].mean() - contributions.loc[neighbours].mean()
+    print(f"their nearest abnormal batches in the trajectory block: {neighbours}")
+    print(
+        "Zop contribution from the neighbours' average to the anomalous batches' average: "
+        + ", ".join(f"{name} {value:+.2f}" for name, value in move.items())
+    )
+    return Bunch(anomalous=anomalous, neighbours=neighbours, placed=placed, zop_move=move)
+
+
+def plot_block_scores(model: MBPLS, mark: list[int]) -> go.Figure:
+    """Draw the score plot of every block side by side, coloured by the plant's disposition, with `mark` labelled."""
+    groups = disposition(list(model.super_scores_.index))
+    colours = {"good": "steelblue", "abnormal": "purple", "high solvent": "teal"}
+    fig = make_subplots(
+        rows=1, cols=len(model.block_scores_), subplot_titles=[f"{n} block" for n in model.block_scores_]
+    )
+    for col, (name, scores) in enumerate(model.block_scores_.items(), start=1):
+        for label, colour in colours.items():
+            members = [b for b in scores.index if groups[b] == label and b not in mark]
+            fig.add_trace(
+                go.Scatter(
+                    x=scores.loc[members].iloc[:, 0],
+                    y=scores.loc[members].iloc[:, 1],
+                    mode="markers",
+                    name=f"classed {label}",
+                    marker={"color": colour},
+                    text=members,
+                    hovertemplate="batch %{text}",
+                    showlegend=col == 1,
+                ),
+                row=1,
+                col=col,
+            )
+        fig.add_trace(
+            go.Scatter(
+                x=scores.loc[mark].iloc[:, 0],
+                y=scores.loc[mark].iloc[:, 1],
+                mode="markers+text",
+                text=[str(b) for b in mark],
+                textposition="top right",
+                name="anomalous",
+                marker={"color": "red", "size": 10},
+                showlegend=col == 1,
+            ),
+            row=1,
+            col=col,
+        )
+        r2 = np.diff([0.0, *model.r2_x_per_block_cumulative_.loc[name].to_numpy(dtype=float)])
+        fig.update_xaxes(title_text=f"t1 [{r2[0]:.1%}]", row=1, col=col)
+        fig.update_yaxes(title_text=f"t2 [{r2[1]:.1%}]", row=1, col=col)
+    fig.update_layout(title="Block scores of the batch multiblock PLS", height=420)
+    return fig
+
+
+# -- end: anomalous --
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the whole case study and write its figures."""
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
@@ -321,6 +425,21 @@ def main(argv: list[str] | None = None) -> int:
         "batch-mbpls-x-contributions-13",
     )
     save(mbpls_x.predictions_vs_observed_plot(data.Y, variable="SolventConc"), "batch-mbpls-observed-vs-predicted")
+
+    found = off_spec_trajectories_on_spec_product(mbpls_x, blocks)
+    save(plot_block_scores(mbpls_x, found.anomalous), "batch-mbpls-block-scores")
+    save(
+        plot_bars(found.zop_move, "Zop contribution from the neighbours' average to the anomalous batches'"),
+        "batch-mbpls-zop-move",
+    )
+    for tag in ("CTankLvl", "ClockTime", "D-Temp", "D-Temp-SP"):
+        fig = plot_all_batches_per_tag(
+            data.X,
+            tag,
+            batches_to_highlight={HIGHLIGHT: found.anomalous, NEIGHBOUR: found.neighbours},
+            extra_info=f"anomalous {found.anomalous} in red, their neighbours {found.neighbours} in teal",
+        )
+        save(fig, f"raw-{tag}-anomalous")
     print(f"figures written to {args.output_dir}")
     return 0
 

@@ -1576,7 +1576,8 @@ class TestFMCReference:
     ``process_improve.batch.load_fmc``), so these tests skip offline. The
     course notes quote no numbers for this case; every value here is a
     regression pin recorded when the case study was rebuilt, two components
-    throughout, after excluding the thirteen batches without chemistry data.
+    throughout, after excluding the thirteen batches without chemistry data,
+    with ``ClockTime`` as the eleventh trajectory of the unfolded block.
     The script under test is ``docs/user_guide/case_studies/batch/fmc_multiblock_batch_pls.py``.
     """
 
@@ -1585,7 +1586,8 @@ class TestFMCReference:
         assert len(fmc_data.X) == 46
         assert int(fmc_data.Y.isna().sum().sum()) == 19
         assert int(fmc_data.Zchem.isna().sum().sum()) == 1
-        assert int(wide.isna().sum().sum()) == 1220
+        assert wide.shape == (46, 11 * 325)
+        assert int(wide.isna().sum().sum()) == 1340  # 1220 in the ten process tags plus 120 in ClockTime
         incomplete = {batch_id for batch_id, batch in fmc_data.X.items() if batch.isna().any().any()}
         assert incomplete == {20, 22, 27, 28, 31, 55, 60, 61, 67, 71}
 
@@ -1607,8 +1609,8 @@ class TestFMCReference:
     def test_batch_pca_on_trajectories(self, fmc_script, fmc_unfolded) -> None:
         _wide, x_scaled = fmc_unfolded
         model, spe_share, worst = fmc_script.batch_pca_on_trajectories(x_scaled)
-        np.testing.assert_allclose(model.r2_cumulative_.to_numpy(), [0.197, 0.349], atol=2e-3)
-        assert worst == 51
+        np.testing.assert_allclose(model.r2_cumulative_.to_numpy(), [0.231, 0.376], atol=2e-3)
+        assert worst == 41
         assert list(model.loadings_.index.names) == ["tag", "sequence"]
         assert list(spe_share.columns.names) == ["tag", "sequence"]
         assert spe_share.loc[20].isna().all()  # a batch with missing cells has no contributions
@@ -1617,16 +1619,34 @@ class TestFMCReference:
         _wide, x_scaled = fmc_unfolded
         _model, y_scaled = fmc_quality
         model, contributions = fmc_script.batch_pls_to_quality(x_scaled, y_scaled)
-        np.testing.assert_allclose(model.r2_cumulative_.to_numpy(), [0.274, 0.392], atol=2e-3)
+        np.testing.assert_allclose(model.r2_cumulative_.to_numpy(), [0.266, 0.410], atol=2e-3)
         assert np.isfinite(contributions.loc[13]).all()
+        by_tag = contributions.loc[13].groupby(level="tag", sort=False).sum()
+        assert set(by_tag.nsmallest(2).index) == {"ClockTime", "CTankLvl"}  # the two tags that lead batch 13's t1
 
     def test_batch_mbpls(self, fmc_script, fmc_data, fmc_unfolded) -> None:
         wide, _x_scaled = fmc_unfolded
         model, _blocks = fmc_script.batch_mbpls(fmc_data, wide)
-        np.testing.assert_allclose(model.r2_y_cumulative_.to_numpy(), [0.375, 0.468], atol=2e-3)
+        np.testing.assert_allclose(model.r2_y_cumulative_.to_numpy(), [0.370, 0.472], atol=2e-3)
         vip = model.super_vip_
-        assert vip["Zop"] > vip["X"] > vip["Zchem"]
+        assert vip["Zchem"] < min(vip["Zop"], vip["X"])  # the chemistry ranks last
+        assert abs(vip["Zop"] - vip["X"]) < 0.05  # the other two blocks are about equal
         assert list(model.block_weights_["X"].index.names) == ["tag", "sequence"]
+
+    def test_four_good_batches_have_off_spec_trajectories_and_on_spec_initial_conditions(
+        self, fmc_script, fmc_data, fmc_unfolded
+    ) -> None:
+        wide, _x_scaled = fmc_unfolded
+        model, blocks = fmc_script.batch_mbpls(fmc_data, wide)
+        found = fmc_script.off_spec_trajectories_on_spec_product(model, blocks)
+        assert found.anomalous == [2, 3, 6, 7]
+        assert found.neighbours == [42, 43, 44, 47, 50]
+        assert (found.placed.loc[found.anomalous, "X"] == "abnormal").all()
+        assert (found.placed.loc[found.anomalous, ["Zchem", "Zop"]] == "good").all().all()
+        move = found.zop_move
+        assert move.idxmax() == "Time3"  # the longer cool-down is the largest single difference
+        assert (move[["Time2", "Time3", "Time4", "TempSlope"]] > 0).all()  # the later phases were run differently
+        assert (move[["Level1", "WgtCake"]] < 0).all()  # the charge and the first phase were not
 
     @pytest.mark.usefixtures("fmc_data")
     def test_script_runs_end_to_end(self, fmc_script, tmp_path) -> None:

@@ -8,17 +8,23 @@ solid with its embedded solvent, is charged to the dryer and dried through
 three recipe phases: the solvent is collected in a side tank, the temperature
 is ramped, and the batch is cooled down. Chemical changes take place in the
 solid during drying, and the operators can adjust a few set points. Ten
-trajectories are recorded over each batch, and three more blocks describe
-each batch with one row: the chemistry of the cake before the batch
-(``Zchem``, eleven measurements), the operating conditions and recipe timings
-(``Zop``, nine values), and eight final quality attributes (``Y``). This is
-the multiblock case study of Garcia-Munoz and co-workers (2003).
+trajectories are recorded over each batch, the clock time at each aligned
+sample is carried as an eleventh, and three more blocks describe each batch
+with one row: the chemistry of the cake before the batch (``Zchem``, eleven
+measurements), the weight of the cake with eight landmarks of the batch's own
+trajectories (``Zop``, nine values: the collector level and the dryer
+temperature at the end of the first phase, the peak temperature, the length
+of each phase and of the high-speed agitation, and the slope of the
+temperature ramp), and eight final quality attributes (``Y``). This is the
+multiblock case study of Garcia-Munoz and co-workers (2003).
 
 The questions are the ones a plant asks in this order: what does product
 quality look like, do the initial conditions explain it, what do the
 trajectories add, and which batches deserve a closer look. The original course
 material answers them with a ladder of models, two components each, and this
-script follows the same ladder.
+script follows the same ladder, then reads the block scores of the final
+model for the batches whose trajectories say off-specification while the
+product was on-specification.
 
 The complete script is ``fmc_multiblock_batch_pls.py`` in this directory:
 
@@ -147,8 +153,9 @@ The trajectories alone
 ----------------------
 
 The trajectories are unfolded batchwise with
-:func:`process_improve.batch.dict_to_wide`: one row per batch of 10 tags times
-325 samples. ``MCUVScaler`` returns flat column labels, so the 2-level
+:func:`process_improve.batch.dict_to_wide`: one row per batch of 11 tags (the
+ten process measurements and ``ClockTime``) times 325 samples, 3575 columns.
+``MCUVScaler`` returns flat column labels, so the 2-level
 ``(tag, sequence)`` index is re-attached after scaling; the batch plots read
 it.
 
@@ -164,18 +171,18 @@ it.
 
 .. code-block:: text
 
-   unfolded trajectories: 46 batches x 3250 columns, 1220 missing cells
-   batch PCA on X: R2 cumulative = 0.197, 0.349
-   largest SPE among the complete batches: batch 51; share per tag = Agitator 5%, CTankLvl 0%, D-Temp 12%,
-       D-Temp-SP 27%, DiffPres 1%, DryPress 6%, J-Temp 24%, J-Temp-SP 18%, Power 3%, Torque 4%
+   unfolded trajectories: 46 batches x 3575 columns, 1340 missing cells
+   batch PCA on X: R2 cumulative = 0.231, 0.376
+   largest SPE among the complete batches: batch 41; share per tag = Agitator 2%, CTankLvl 4%, ClockTime 2%,
+       D-Temp 1%, D-Temp-SP 3%, DiffPres 39%, DryPress 4%, J-Temp 5%, J-Temp-SP 38%, Power 1%, Torque 1%
 
-Two components describe 35% of the batch-to-batch variation in the
+Two components describe 38% of the batch-to-batch variation in the
 trajectories, and the time-varying loading plot shows where in the batch each
 component acts. Contribution plots are only defined for batches with complete
 trajectories, so batch 20 is examined through its raw overlays (dryer
-temperature, power and torque), while the SPE contributions of batch 51, the
-complete batch with the largest SPE, point at the dryer and jacket temperature
-set points and the jacket temperature.
+temperature, power and torque), while the SPE contributions of batch 41, the
+complete batch with the largest SPE, point at the differential pressure and
+the jacket temperature set point, half of them in the cooling phase.
 
 Trajectories to quality
 -----------------------
@@ -187,14 +194,15 @@ Trajectories to quality
 
 .. code-block:: text
 
-   batch PLS X -> Y: R2Y cumulative = 0.274, 0.392
-   batch 13: t1 contributions per tag = Agitator -2.0, CTankLvl -9.0, D-Temp -5.3, D-Temp-SP -2.3, DiffPres -1.5,
-             DryPress -1.2, J-Temp -1.5, J-Temp-SP -4.8, Power -3.5, Torque -3.3
+   batch PLS X -> Y: R2Y cumulative = 0.266, 0.410
+   batch 13: t1 contributions per tag = Agitator -1.7, CTankLvl -8.0, ClockTime -8.1, D-Temp -4.7, D-Temp-SP -1.7,
+             DiffPres -1.4, DryPress -1.0, J-Temp -1.1, J-Temp-SP -4.2, Power -2.9, Torque -2.7
 
-The trajectories explain 39% of the quality block, more than the initial
+The trajectories explain 41% of the quality block, more than the initial
 conditions did. Batch 13 is at one end of :math:`t_1`, and its contributions
-are spread over the tags with the collector tank level (the solvent removal)
-and the dryer temperature leading; batches 5 and 7 are examined the same way.
+are spread over the tags with the clock time and the collector tank level
+(the pace of the batch and the solvent removal) leading; batches 5 and 7 are
+examined the same way.
 The observed-versus-predicted plot of ``SolventConc`` shows how well the
 residual solvent, the attribute the plant cares most about, follows from the
 trajectories.
@@ -203,7 +211,7 @@ Batch multiblock PLS
 --------------------
 
 The final model joins all three X blocks. The trajectory block enters as
-3250 columns, and its :math:`1/\sqrt{K_b}` weight keeps it from drowning out
+3575 columns, and its :math:`1/\sqrt{K_b}` weight keeps it from drowning out
 the two small blocks.
 
 .. literalinclude:: fmc_multiblock_batch_pls.py
@@ -213,17 +221,55 @@ the two small blocks.
 
 .. code-block:: text
 
-   batch MBPLS: R2Y cumulative = 0.375, 0.468; R2X per block after 2 components = Zchem 0.243, Zop 0.308, X 0.217
-   super VIP per block: Zchem 0.88, Zop 1.10, X 1.00
+   batch MBPLS: R2Y cumulative = 0.370, 0.472; R2X per block after 2 components = Zchem 0.233, Zop 0.304, X 0.259
+   super VIP per block: Zchem 0.86, Zop 1.07, X 1.06
 
 The combined model explains 47% of the quality block, and the super VIP
-ranks the operating conditions first, the trajectories second and the
+puts the operating conditions and the trajectories about level and the
 chemistry last. This is the model to build the stagewise monitoring and the
 final-quality prediction on: the super-score plot places every batch in one
 space, the block scores say whether a batch is unusual in its chemistry, its
 operation or its trajectories, and the X-block contributions of a batch, drawn
 with :func:`process_improve.batch.unfolded_contribution_plot`, name the tags
 and the phase.
+
+Off-specification trajectories, on-specification product
+--------------------------------------------------------
+
+The block scores are read next. Each batch is placed, block by block, with
+the group (good or abnormal, by the plant's disposition) whose average point
+is nearer in that block's score plot. Four batches classed good are placed
+with the abnormal batches by the trajectory block and with the good batches
+by both initial-condition blocks; batch 5, placed with the abnormal batches
+by the operating-condition block as well, is left aside. The four are
+compared with their nearest abnormal neighbours in the trajectory block
+through the contribution from the neighbours' average to theirs in the
+operating-condition block.
+
+.. literalinclude:: fmc_multiblock_batch_pls.py
+   :language: python
+   :start-after: # -- section: anomalous --
+   :end-before: # -- end: anomalous --
+
+.. code-block:: text
+
+   batches classed good that the trajectory block places with the abnormal batches: [2, 3, 5, 6, 7]
+   of these, placed with the good batches by both initial-condition blocks: [2, 3, 6, 7]
+   their nearest abnormal batches in the trajectory block: [42, 43, 44, 47, 50]
+   Zop contribution from the neighbours' average to the anomalous batches' average: Level1 -0.05, Temp1 +0.02,
+       Temp2 +0.00, Time4 +0.05, Time1 -0.00, Time2 +0.06, Time3 +0.11, TempSlope +0.06, WgtCake -0.05
+
+The four batches share their neighbours' heavy charge and high collector
+level (``WgtCake`` and ``Level1`` pull towards the abnormal side) and differ
+from them in the later phases: a longer cool-down (``Time3``, the largest
+single contribution), a shorter and steeper temperature ramp (``Time2``,
+``TempSlope``) and a shorter high-speed agitation (``Time4``). The peak
+temperature set point does not differ, so this is not a set point that was
+moved but a difference in how long each phase was run. Whether the later
+phases were run that way to correct for the first, the record does not say,
+and the model describes how the batches co-varied, not cause and effect
+(Nomikos and MacGregor, 1995). Garcia-Munoz (2004) reads the same four
+batches the same way in Appendix 1 of the thesis.
 
 Where to go next
 ----------------
@@ -254,5 +300,8 @@ References
   163-197, 2009.
 * Salvador Garcia-Munoz, *Batch process improvement using latent variable
   methods*, PhD thesis, McMaster University, 2004.
+* Paul Nomikos and John F. MacGregor, "Multivariate SPC charts for monitoring
+  batch processes", *Technometrics*, **37**, 41-59, 1995. Section 7 on why a
+  batch model is not a cause-and-effect model.
 * Kevin Dunn, *Latent Variable Methods* course notes (ConnectMV, 2011-2012),
   the FMC multiblock batch PLS example, CC BY-SA 3.0.
