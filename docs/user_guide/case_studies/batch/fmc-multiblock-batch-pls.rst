@@ -178,8 +178,8 @@ it.
 
 Two components describe 38% of the batch-to-batch variation in the
 trajectories, and the time-varying loading plot shows where in the batch each
-component acts. Batch 20 is above both limits, and its trajectories lack
-samples 34 to 109. Its scores are estimated from the observed cells, so its
+component acts. Batch 20 is above both limits, and its record has gaps
+between samples 34 and 109. Its scores are estimated from the observed cells, so its
 SPE contributions are defined at every observed cell and absent at the missing
 ones, which carry no residual: half of its SPE sits in the dryer pressure, most
 of that in the first phase. The raw overlays of the dryer temperature, power
