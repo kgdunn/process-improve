@@ -971,16 +971,19 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Y : array-like of shape (n_samples, n_targets)
             Required despite the ``None`` default: the default is present only
             for signature-compatibility with the sklearn ``fit_transform``
-            protocol, and PLS cannot be fitted without responses. The check is
-            an ``assert``, so omitting ``Y`` raises :class:`AssertionError`
-            under default Python; under ``python -O`` the assert is stripped
-            and the call fails further down in :meth:`fit` instead.
+            protocol, and PLS cannot be fitted without responses. Omitting
+            ``Y`` raises :class:`ValueError`, under ``python -O`` as well.
 
         Returns
         -------
         X_scores : pd.DataFrame of shape (n_samples, n_components)
         """
-        assert Y is not None, "PLS requires Y to be supplied to fit_transform."
+        if Y is None:
+            raise ValueError(
+                "Y is required by PLS.fit_transform; got None. The None default exists only to "
+                "match the sklearn fit_transform(X, y=None) signature, and PLS cannot be fitted "
+                "without responses. Pass the response block, e.g. model.fit_transform(X, Y)."
+            )
         self.fit(X, Y)
         return self.scores_
 
