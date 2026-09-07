@@ -44,7 +44,7 @@ from ._diagnostics import (
     target_projection as _target_projection,
 )
 from ._nipals import quick_regress, ssq, terminate_check
-from ._preprocessing import MCUVScaler, _looks_prescaled, _uncentred_columns
+from ._preprocessing import MCUVScaler, _uncentred_columns, _warn_scaling_traps
 from ._projection import coerce_observed_mask, operator_for_pattern, project_rows
 from .plots import (
     coefficient_plot as _coefficient_plot,
@@ -1113,9 +1113,15 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         from the observed columns only, using the missing-data estimators of
         Arteaga and Ferrer (2002): trimmed score regression (``"tsr"``, the
         default and statistically the strongest), single-component projection
-        (``"scp"``), or projection to the model plane (``"pmp"``). Rows with
-        no missing values take the standard complete-data path, so their
-        scores are bitwise identical to :meth:`transform`.
+        (``"scp"``, the score step of NIPALS itself: project onto the observed
+        part of each weight vector, deflate with the loadings), or projection
+        to the model plane (``"pmp"``). Rows with no missing values take the
+        standard complete-data path, so their scores are bitwise identical to
+        :meth:`transform`. As the observed part grows to the whole row, TSR
+        and SCP tend to the model's own scores; PMP, the least-squares fit of
+        the observed columns onto the loadings, does not for a PLS model,
+        whose scores come from the weights rather than the loadings, so
+        prefer the other two here.
 
         This is the "batch so far" primitive for predicting the final quality
         of a running batch: the future part of the unfolded row is missing by
@@ -1177,6 +1183,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             X_df.to_numpy(dtype=float),
             method=method,
             ridge=ridge,
+            x_weights=self._x_weights,
         )
         scores = pd.DataFrame(raw.scores, index=sample_index, columns=self._component_names)
         s = self.scaling_factor_for_scores_.to_numpy(dtype=float)
@@ -1229,6 +1236,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             mask,
             method=method,
             ridge=ridge,
+            x_weights=self._x_weights,
         )
         matrix = pd.DataFrame(
             op.matrix,
@@ -1603,29 +1611,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         elif not isinstance(Y, pd.DataFrame):
             Y = pd.DataFrame(Y)
 
-        if not scale_inside_folds:
-            warnings.warn(
-                "scale_inside_folds=False leaks centring/scaling estimated on the "
-                "full dataset into every CV fold, making the reported RMSECV "
-                "optimistic. The default scale_inside_folds=True is preferred.",
-                SpecificationWarning,
-                stacklevel=2,
-            )
-        elif _looks_prescaled(X):
-            warnings.warn(
-                "X is already centred and unit-variance scaled, so "
-                "scale_inside_folds=True is not protecting you from leakage: it "
-                "re-standardises inside every training fold and overwrites the "
-                "scaling you chose. Two deliberately different scalings (say "
-                "autoscale versus Pareto) collapse onto the same model this way "
-                "and report the same RMSECV to several decimal places, so a "
-                "comparison between them silently shows no difference. Pass the "
-                "raw, unscaled X and let the folds scale it, or keep your own "
-                "scaling and set scale_inside_folds=False (accepting the "
-                "optimism that flag warns about).",
-                SpecificationWarning,
-                stacklevel=2,
-            )
+        _warn_scaling_traps(X, scale_inside_folds=scale_inside_folds, fold="CV fold", metric="RMSECV")
 
         N, K = X.shape
         M = Y.shape[1]

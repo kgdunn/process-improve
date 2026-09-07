@@ -35,10 +35,21 @@ from ._common import (
     epsqrt,
 )
 from ._nipals import quick_regress, ssq, terminate_check
-from ._preprocessing import MCUVScaler
+from ._preprocessing import MCUVScaler, _warn_scaling_traps
 from ._projection import coerce_observed_mask, operator_for_pattern, project_rows
 
 logger = logging.getLogger(__name__)
+
+
+class _EkfPress(typing.NamedTuple):
+    """What one element-wise k-fold pass measured. See :func:`_pca_ekf_press`."""
+
+    press: np.ndarray
+    per_fold_press: np.ndarray
+    per_column_press: np.ndarray
+    null_model_ss: float
+    per_column_null_ss: np.ndarray
+    press_input_units: np.ndarray
 
 
 def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
@@ -51,7 +62,7 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
     tol: float = 1e-6,
     scale_inside_folds: bool = True,
     random_state: int | None = None,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> _EkfPress:
     """Element-wise k-fold (ekf) PCA cross-validation.
 
     Partitions the elements of ``X`` into ``n_folds`` element-folds (each cell
@@ -89,24 +100,48 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
     scale_inside_folds : bool, default True
         If True, fit per-column mean and unit-variance constants on each
         fold's in-fold cells and apply them to the whole matrix before
-        running EM; predictions are inverse-transformed before PRESS is
-        accumulated. This removes the centring/scaling leakage of the
+        running EM. This removes the centring/scaling leakage of the
         previous default (which used a single set of constants iteratively
-        recomputed from the imputed matrix). If False, the scheme reverts
-        to the prior behaviour (caller is responsible for scaling, and the
-        in-loop column-mean is allowed to drift with the EM imputation).
+        recomputed from the imputed matrix). PRESS is then measured in that
+        same space, so a variable's contribution reflects its correlation
+        structure rather than its units; ``press_input_units`` carries the
+        other scale for callers who need it. If False, the scheme reverts to
+        the prior behaviour: the caller is responsible for scaling, the
+        in-loop column-mean drifts with the EM imputation, and PRESS is in
+        the units of whatever matrix was passed.
     random_state : int, optional
         Seed for the element-fold permutation, for reproducibility across
         repeats.
 
     Returns
     -------
-    press : np.ndarray of shape (max_components,)
-        Per-cell PRESS per component count, averaged over ``n_repeats``
-        passes so the scale is comparable to a single-pass run.
-    per_fold_press : np.ndarray of shape (max_components, n_folds * n_repeats)
-        Per-fold PRESS contributions across every fold of every repeat;
-        drives the 1-SE rule's standard error.
+    _EkfPress
+        A named tuple with five fields. Under ``scale_inside_folds=True`` the
+        first three live in the space each fold was fitted in, so every column
+        contributes to the total in proportion to its correlation structure
+        rather than its units; under ``False`` there is no in-fold scale and
+        they are in the input units, unchanged from earlier releases.
+
+        press : np.ndarray of shape (max_components,)
+            PRESS per component count, averaged over ``n_repeats`` passes so
+            the scale is comparable to a single-pass run.
+        per_fold_press : np.ndarray of shape (max_components, n_folds * n_repeats)
+            Per-fold PRESS contributions across every fold of every repeat;
+            drives the 1-SE rule's standard error.
+        per_column_press : np.ndarray of shape (max_components, n_features)
+            The same total, split by variable, for the per-variable Q2.
+        null_model_ss : float
+            What the null model ("predict every held-out cell by the mean of
+            the cells that were not held out") got wrong, measured the same
+            way ``press`` is: the reference ``press`` is compared against.
+            Computed here rather than by the caller because it needs each
+            fold's own centring and scaling constants.
+        per_column_null_ss : np.ndarray of shape (n_features,)
+            That reference, split by variable.
+        press_input_units : np.ndarray of shape (max_components,)
+            PRESS in the units of the matrix that was passed in, for callers
+            comparing prediction error against instrument error. Always in
+            input units, whatever ``scale_inside_folds`` is.
 
     References
     ----------
@@ -130,6 +165,15 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
     # fabricated a standard error out of zeros. np.nansum below keeps the
     # PRESS total itself unchanged, since an empty fold contributes nothing.
     per_fold_press = np.full((max_components, total_folds), np.nan)
+    # PRESS is what the model got wrong; the null reference is what predicting
+    # the in-fold column mean would have got wrong on the same cells. Both are
+    # accumulated here, in the same space, because only this loop knows each
+    # fold's centring and scaling constants. The reference does not depend on
+    # the component count, hence one value per fold rather than a grid.
+    per_fold_null = np.zeros(total_folds)
+    per_column_press = np.zeros((max_components, p))
+    per_column_null = np.zeros(p)
+    press_input_units = np.zeros(max_components)
     fold_counter = 0
 
     n_cells = n * p
@@ -153,21 +197,21 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
                 fold_counter += 1
                 continue
 
-            # Fit per-column centring/scaling on the in-fold cells. Only
-            # consumed under scale_inside_folds=True; the False path uses
-            # in_fold_vals.mean() for the initial imputation and recomputes
-            # the column mean inside EM, so we skip the work here.
+            # Fit per-column centring/scaling on the in-fold cells. The centre
+            # is needed either way, as the null model's prediction for every
+            # held-out cell in this fold; only the True path also centres and
+            # scales the matrix it fits, and recomputes nothing inside EM.
             col_centre = np.zeros(p)
             col_scale = np.ones(p)
-            if scale_inside_folds:
-                for j in range(p):
-                    in_fold = X[~mask[:, j], j]
-                    if in_fold.size > 1:
-                        col_centre[j] = float(in_fold.mean())
+            for j in range(p):
+                in_fold = X[~mask[:, j], j]
+                if in_fold.size > 1:
+                    col_centre[j] = float(in_fold.mean())
+                    if scale_inside_folds:
                         sd = float(in_fold.std(ddof=1))
                         col_scale[j] = sd if sd > epsqrt else 1.0
-                    elif in_fold.size == 1:
-                        col_centre[j] = float(in_fold[0])
+                elif in_fold.size == 1:
+                    col_centre[j] = float(in_fold[0])
 
             # Initial imputation in original space: held-out cells take the
             # in-fold column mean (which is ``col_centre`` under
@@ -176,15 +220,26 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
             for j in range(p):
                 m_j = mask[:, j]
                 if m_j.any():
-                    if scale_inside_folds:
-                        Xtr[m_j, j] = col_centre[j]
-                    else:
-                        in_fold_vals = X[~m_j, j]
-                        Xtr[m_j, j] = in_fold_vals.mean() if in_fold_vals.size > 0 else 0.0
+                    Xtr[m_j, j] = col_centre[j]
+
+            # The cells' own scale and centre for this fold, one value per
+            # held-out cell. Under scale_inside_folds=False the scale is 1, so
+            # every measurement below stays in the input units, as it was.
+            cell_scale = np.broadcast_to(col_scale, X.shape)[mask]
+            cell_centre = np.broadcast_to(col_centre, X.shape)[mask]
+            column_of_cell = np.broadcast_to(np.arange(p), X.shape)[mask]
+            null_residual = (X[mask] - cell_centre) / cell_scale
+            per_fold_null[fold_counter] = float(np.sum(null_residual**2))
+            per_column_null += np.bincount(column_of_cell, weights=null_residual**2, minlength=p)
 
             for a in range(1, max_components + 1):
                 Xa = Xtr.copy()
-                prev_held = Xa[mask].copy()
+                # Convergence is judged on the held-out cells in the space the
+                # fold is fitted in, not in the input units. Otherwise a column
+                # re-expressed in different units dominates the norm and changes
+                # how many EM iterations are taken (#546). Under
+                # scale_inside_folds=False the divisor is 1 throughout.
+                prev_held = Xa[mask] / cell_scale
                 for _iteration in range(n_iter):
                     if scale_inside_folds:
                         # Centre and scale by the FIXED in-fold constants; the
@@ -206,19 +261,70 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
                         recon_centred = (Xc @ Vt[:rank].T) @ Vt[:rank]
                         recon = recon_centred + col_mean
                     Xa[mask] = recon[mask]
-                    delta = np.linalg.norm(Xa[mask] - prev_held)
+                    held = Xa[mask] / cell_scale
+                    delta = np.linalg.norm(held - prev_held)
                     scale = max(1.0, float(np.linalg.norm(prev_held)))
                     if delta < tol * scale:
                         break
-                    prev_held = Xa[mask].copy()
+                    prev_held = held
 
-                per_fold_press[a - 1, fold_counter] = float(np.sum((X[mask] - Xa[mask]) ** 2))
+                error_input_units = X[mask] - Xa[mask]
+                error = error_input_units / cell_scale
+                per_fold_press[a - 1, fold_counter] = float(np.sum(error**2))
+                per_column_press[a - 1] += np.bincount(column_of_cell, weights=error**2, minlength=p)
+                press_input_units[a - 1] += float(np.sum(error_input_units**2))
             fold_counter += 1
 
     # Average over repeats so PRESS stays on the per-cell scale. nansum so the
     # empty-fold NaNs above do not propagate into the total.
-    press = np.nansum(per_fold_press, axis=1) / max(1, n_repeats)
-    return press, per_fold_press
+    repeats = max(1, n_repeats)
+    press = np.nansum(per_fold_press, axis=1) / repeats
+    return _EkfPress(
+        press=press,
+        per_fold_press=per_fold_press,
+        per_column_press=per_column_press / repeats,
+        null_model_ss=float(np.sum(per_fold_null)) / repeats,
+        per_column_null_ss=per_column_null / repeats,
+        press_input_units=press_input_units / repeats,
+    )
+
+
+def _ekf_null_reference(
+    ekf: _EkfPress,
+    X: np.ndarray,
+    *,
+    scale_inside_folds: bool,
+) -> tuple[float, np.ndarray]:
+    """Return the sum of squares :math:`Q^2` measures the ekf PRESS against.
+
+    The reference has to be measured the same way PRESS was, or the ratio of the
+    two is not a fraction of anything. Under in-fold scaling it therefore comes
+    from the fold loop, which is the only place that knows each fold's constants;
+    a reference computed out here could only be in the input units, and then a
+    single high-variance column would set the whole curve however the folds were
+    actually fitted (#546). Under ``scale_inside_folds=False`` there is no
+    in-fold scale to match, so the centred total sum of squares of the matrix the
+    caller passed stays the reference, unchanged from earlier releases.
+
+    Parameters
+    ----------
+    ekf : _EkfPress
+        What the fold loop measured.
+    X : np.ndarray of shape (n_samples, n_features)
+        The matrix as it was passed to the cross-validation.
+    scale_inside_folds : bool
+        Whether each fold standardised the matrix before fitting it.
+
+    Returns
+    -------
+    tuple[float, np.ndarray]
+        The pooled reference, and the same split by variable (shape
+        ``(n_features,)``).
+    """
+    if scale_inside_folds:
+        return ekf.null_model_ss, ekf.per_column_null_ss
+    centred_ss = np.nansum((X - np.nanmean(X, axis=0)) ** 2, axis=0)
+    return float(centred_ss.sum()), centred_ss
 
 
 class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
@@ -579,6 +685,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         """Fit PCA using the NIPALS algorithm (handles missing data)."""
         Xd = X_values.copy()
         base_variance = ssq(Xd)
+        base_ss_col = ssq(Xd, axis=0)  # the denominator of the cumulative per-variable R2, fixed before deflation
 
         self._loadings_np = np.zeros((K, A))
         self._scores_np = np.zeros((N, A))
@@ -665,7 +772,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             # Per-variable R^2 is undefined for a column with no variance to
             # explain; emit NaN there. SEC-21 (#270) sub-item 4.
             self._r2_per_var_np[:, a] = np.where(
-                start_ss_col > 0, 1 - col_ssx / np.where(start_ss_col > 0, start_ss_col, 1.0), np.nan
+                base_ss_col > 0, 1 - col_ssx / np.where(base_ss_col > 0, base_ss_col, 1.0), np.nan
             )
             self._r2cum_np[a] = 1 - np.sum(row_ssx) / base_variance if base_variance > 0 else np.nan
             self._r2_np[a] = self._r2cum_np[a] - self._r2cum_np[a - 1] if a > 0 else self._r2cum_np[a]
@@ -760,10 +867,14 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         self._r2_per_var_np = np.zeros((K, A))
         self._spe_np = np.zeros((N, A))
 
+        base_ss_col = ssq(X_original, axis=0)
         for a in range(A):
             residuals = self._scores_np[:, : a + 1] @ self._loadings_np[:, : a + 1].T - X_original
             self._r2cum_np[a] = 1 - ssq(residuals, axis=None) / base_variance
             self._r2_np[a] = self._r2cum_np[a] - self._r2cum_np[a - 1] if a > 0 else self._r2cum_np[a]
+            self._r2_per_var_np[:, a] = np.where(
+                base_ss_col > 0, 1 - ssq(residuals, axis=0) / np.where(base_ss_col > 0, base_ss_col, 1.0), np.nan
+            )
             self._spe_np[:, a] = np.sqrt(ssq(residuals, axis=1))
 
         self.fitting_info_ = {"iterations": itern, "timing": time.time() - start_time}
@@ -1216,8 +1327,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            Training data. Should already be on the analysis scale (e.g.
-            mean-centred and unit-variance via :class:`MCUVScaler`).
+            Training data. With the default ``scale_inside_folds=True`` pass
+            the raw, unscaled X; mean-centring and unit-variance scaling are
+            fit on each fold's in-fold cells. Pre-scale it yourself only
+            with ``scale_inside_folds=False``.
         max_components : int, optional
             Maximum number of components to evaluate. Default is
             ``min(n_samples - 1, n_features)``.
@@ -1255,8 +1368,22 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             leakage of the prior implementation. Set to ``False`` to
             reproduce the previous behaviour (column mean recomputed each
             EM iteration from the imputed matrix, no scaling); this is
-            useful only when ``X`` is already pre-scaled. Ignored under
-            ``cv_scheme="row_wise"``.
+            useful only when ``X`` is already pre-scaled, and a
+            :class:`SpecificationWarning` is emitted because scaling
+            constants fit on the full matrix leak into every element-fold.
+            Ignored under ``cv_scheme="row_wise"``.
+
+            Pass the **raw, unscaled** X under the default. In-fold
+            re-standardisation overwrites whatever scaling the caller
+            applied, so two deliberately different strategies (autoscale
+            versus Pareto, say) become the same model and report the same
+            PRESS: a comparison between them shows no difference for
+            reasons that have nothing to do with the data. A
+            :class:`SpecificationWarning` is emitted when ``X`` arrives
+            already centred and unit-variance scaled, which is the
+            detectable half of that case; a block scaled some other way
+            cannot be recognised, so the rule is the caller's to keep.
+            Same contract as :meth:`PLS.select_n_components`.
         n_iter, tol : int and float, default 50 and 1e-6
             EM iteration cap and convergence tolerance for the ekf imputation
             step. Ignored under ``cv_scheme="row_wise"``.
@@ -1287,7 +1414,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
             - ``n_components`` - recommended number of components (int).
             - ``press`` - pooled PRESS per component count (pd.Series,
-              indexed ``1..A_max``).
+              indexed ``1..A_max``). Under ``cv_scheme="ekf"`` with
+              ``scale_inside_folds=True`` this is measured in the space each
+              fold was fitted in, so every variable weighs the same; see
+              ``press_input_units`` for the other scale.
+            - ``press_input_units`` - the same curve in the units of the
+              matrix that was passed in, for comparing prediction error
+              against instrument error (pd.Series, indexed ``1..A_max``).
             - ``per_fold_press`` - per-fold PRESS contributions
               (pd.DataFrame, ``A_max`` rows x ``n_folds`` columns).
             - ``se_press`` - standard error of the per-fold PRESS curve
@@ -1299,9 +1432,15 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
               (pd.Series, indexed ``2..A_max``).
             - ``q2`` - cross-validated :math:`R^2_X` per component count
               (pd.Series, indexed ``1..A_max``). Computed as
-              ``1 - press / (n_samples * n_features * mean_cell_ss)``,
-              so it is directly comparable to ``r2_cumulative_`` and to
-              PLS's ``r2y_validated``.
+              ``1 - press / null_model_ss``, where the null model predicts
+              each held-out cell by its in-fold column mean, measured the
+              same way ``press`` is. Directly comparable to
+              ``r2_cumulative_`` and to PLS's ``r2y_validated``.
+            - ``q2_per_variable`` - that same quantity split by variable
+              (pd.DataFrame, ``A_max`` rows x ``K`` columns), which is what
+              shows whether one column is carrying the pooled figure. All
+              ``NaN`` under ``cv_scheme="row_wise"``, which has no per-cell
+              error to split.
             - ``cv_scores`` - alias of ``per_fold_press`` under ekf, or
               per-fold negative MSE from ``cross_val_score`` under row-wise
               (preserved for back-compat).
@@ -1373,7 +1512,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             press_scale_multiplier = n_folds
             if n_repeats < 1:
                 raise ValueError(f"n_repeats must be >= 1; got {n_repeats}.")
-            press_arr, per_fold_press_arr = _pca_ekf_press(
+            # Same two traps as PLS.select_n_components, checked only here
+            # because row_wise ignores the flag.
+            _warn_scaling_traps(X, scale_inside_folds=scale_inside_folds, fold="element-fold", metric="PRESS")
+            ekf = _pca_ekf_press(
                 X_arr,
                 max_components,
                 n_folds=n_folds,
@@ -1383,21 +1525,21 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                 scale_inside_folds=scale_inside_folds,
                 random_state=random_state,
             )
-            press = pd.Series(press_arr, index=component_index, name="PRESS")
+            press = pd.Series(ekf.press, index=component_index, name="PRESS")
             per_fold_press = pd.DataFrame(
-                per_fold_press_arr,
+                ekf.per_fold_press,
                 index=component_index,
-                columns=[f"fold_{i + 1}" for i in range(per_fold_press_arr.shape[1])],
+                columns=[f"fold_{i + 1}" for i in range(ekf.per_fold_press.shape[1])],
             )
             cv_scores = per_fold_press
-            # Q^2 normalisation: the null-model "predict the column mean"
-            # reference is the CENTRED total sum-of-squares, sum((x - x_bar)^2).
-            # PRESS is accumulated in the original units, so the raw unscaled
-            # matrix may be passed here; the uncentred sum(x^2) previously used
-            # coincides only when X is already mean-centred and otherwise
-            # inflates the denominator, biasing Q^2 optimistically.
-            null_model_ss = float(np.nansum((X_arr - np.nanmean(X_arr, axis=0)) ** 2))
+            press_input_units = pd.Series(ekf.press_input_units, index=component_index, name="PRESS (input units)")
+            null_model_ss, per_column_null_ss = _ekf_null_reference(ekf, X_arr, scale_inside_folds=scale_inside_folds)
             q2 = 1.0 - press / null_model_ss if null_model_ss > epsqrt else press * np.nan
+            # A column with no spread across the held-out cells has nothing to
+            # predict, so its Q^2 is undefined rather than zero.
+            safe_null = np.where(per_column_null_ss > epsqrt, per_column_null_ss, np.nan)
+            per_variable = 1.0 - ekf.per_column_press / safe_null
+            q2_per_variable = pd.DataFrame(per_variable, index=component_index, columns=list(X.columns))
         elif cv_scheme == "row_wise":
             warnings.warn(
                 "cv_scheme='row_wise' uses the legacy whole-row CV scheme that "
@@ -1425,6 +1567,11 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             per_fold_press = -cv_scores
             null_model_ss = float(np.nanmean((X_arr - np.nanmean(X_arr, axis=0)) ** 2))
             q2 = 1.0 - press / null_model_ss if null_model_ss > epsqrt else press * np.nan
+            # row_wise scores whole rows through the estimator, so there is no
+            # per-cell error to split by variable and no in-fold scale to
+            # report against. Both fields exist so the Bunch has one shape.
+            press_input_units = press.rename("PRESS (input units)")
+            q2_per_variable = pd.DataFrame(np.nan, index=component_index, columns=list(X.columns))
         else:
             raise ValueError(f"Unknown cv_scheme {cv_scheme!r}; expected 'ekf' or 'row_wise'.")
 
@@ -1432,7 +1579,12 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         q2.index = component_index
 
         # PRESS ratio: still computable under either scheme, kept for inspection.
-        ratio_values = {a: press[a] / press[a - 1] for a in range(2, max_components + 1)}
+        # A block with no variation anywhere gives PRESS 0 at every component
+        # count, and 0/0 should reach the caller as a NaN ratio rather than as a
+        # numpy warning pointing into this function. The standard error below
+        # already guards the same case.
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratio_values = {a: press[a] / press[a - 1] for a in range(2, max_components + 1)}
         press_ratio = pd.Series(ratio_values, name="PRESS ratio")
         press_ratio.index.name = "n_components"
 
@@ -1493,6 +1645,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             q2_se=q2_se,
             press_ratio=press_ratio,
             q2=q2,
+            q2_per_variable=q2_per_variable,
+            press_input_units=press_input_units,
             cv_scores=cv_scores,
             cv_scheme=cv_scheme,
             selection_rule=selection_rule,

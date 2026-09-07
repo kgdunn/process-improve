@@ -16,12 +16,16 @@ batch-monitoring comparison of Garcia-Munoz, Kourti and MacGregor (2004):
   strongest of the three in both papers' comparisons, and the inverted matrix
   is only (A x A).
 - ``"scp"`` (single-component projection): estimate each component
-  sequentially with deflation, using only the observed part of each loading
-  vector. Simple and never ill-conditioned, but the weakest estimator, and
-  errors propagate through the deflation.
+  sequentially with deflation, using only the observed part of each weight
+  vector (for PCA the loading vector), exactly as NIPALS computes the score
+  of an incomplete row during the fit. Simple and never ill-conditioned, but
+  the weakest estimator, and errors propagate through the deflation.
 - ``"pmp"`` (projection to the model plane): least-squares fit of the
   observed columns onto the corresponding loading rows. Can be
-  ill-conditioned early in a batch, when few columns are observed.
+  ill-conditioned early in a batch, when few columns are observed. For a PLS
+  model the plane is spanned by the loadings while the scores are generated
+  by the weights, so PMP does not reduce to the model's own scores even when
+  nothing is missing; TSR and SCP do.
 
 For a fixed missingness pattern each estimator is a fixed linear operator on
 the observed columns, exposed by :func:`operator_for_pattern` so callers that
@@ -35,15 +39,16 @@ References
 ----------
 Arteaga, F. and Ferrer, A., "Dealing with missing data in MSPC: several
 methods, different interpretations, some examples", Journal of Chemometrics,
-16, 408-418, 2002. https://doi.org/10.1002/cem.750
+16, 408-418, 2002. https://literature.learnche.org/item/20/
 
 Garcia-Munoz, S., Kourti, T. and MacGregor, J.F., "Model Predictive
 Monitoring for Batch Processes", Industrial & Engineering Chemistry Research,
-43, 5929-5941, 2004. https://doi.org/10.1021/ie034020w
+43, 5929-5941, 2004. https://literature.learnche.org/item/157/
 
 Nelson, P.R.C., Taylor, P.A. and MacGregor, J.F., "Missing data methods in
 PCA and PLS: score calculations with incomplete observations", Chemometrics
 and Intelligent Laboratory Systems, 35, 45-65, 1996.
+https://literature.learnche.org/item/68/
 """
 
 from __future__ import annotations
@@ -98,6 +103,7 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
     *,
     method: str = "tsr",
     ridge: float = 0.0,
+    x_weights: np.ndarray | None = None,
 ) -> Bunch:
     """Build the linear score-estimation operator for one missingness pattern.
 
@@ -129,6 +135,11 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
         inverted (``tsr`` and ``pmp`` only; ``scp`` inverts nothing). Use when
         ``condition_number`` reports near-singularity, at the cost of a small
         bias toward zero scores.
+    x_weights : np.ndarray of shape (n_features, n_components), optional
+        The weights ``W`` that NIPALS projects onto when it computes a score,
+        used by ``scp`` for the projection step (the deflation always uses
+        ``x_loadings``). For PLS pass ``x_weights_``; for PCA the weights are
+        the loadings, which is the default when omitted.
 
     Returns
     -------
@@ -136,8 +147,8 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
         With keys ``matrix`` (np.ndarray of shape (n_components, n_observed),
         the operator ``M``), ``condition_number`` (float; for ``tsr`` and
         ``pmp`` the 2-norm condition number of the inverted matrix, for
-        ``scp`` the largest per-component loading-norm inflation
-        ``||p_a||^2 / ||p_a_observed||^2``; 1.0 means no loss), and
+        ``scp`` the largest per-component weight-norm inflation
+        ``||w_a||^2 / ||w_a_observed||^2``; 1.0 means no loss), and
         ``method``.
     """
     method = _validate_method(method)
@@ -154,6 +165,10 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
 
     p_obs = x_loadings[observed, :]
     g_obs = guide[observed, :]
+    weights = x_loadings if x_weights is None else np.asarray(x_weights, dtype=float)
+    if weights.shape != x_loadings.shape:
+        raise ValueError(f"x_weights must have the shape of x_loadings {x_loadings.shape}; got {weights.shape}.")
+    w_obs = weights[observed, :]
     A = x_loadings.shape[1]
 
     if method == "pmp":
@@ -170,17 +185,17 @@ def operator_for_pattern(  # noqa: PLR0913 - the operator inputs are irreducible
         matrix = np.zeros((A, n_observed))
         worst = 1.0
         for a in range(A):
-            p_a = p_obs[:, a]
-            denom = float(p_a @ p_a)
-            full = float(x_loadings[:, a] @ x_loadings[:, a])
+            w_a = w_obs[:, a]  # project onto the weights (NIPALS's own score step) ...
+            denom = float(w_a @ w_a)
+            full = float(weights[:, a] @ weights[:, a])
             if denom > _EPS:
                 worst = max(worst, full / denom)
-                row = (p_a @ deflate) / denom
+                row = (w_a @ deflate) / denom
             else:
                 worst = np.inf
                 row = np.zeros(n_observed)
             matrix[a, :] = row
-            deflate = deflate - np.outer(p_a, row)
+            deflate = deflate - np.outer(p_obs[:, a], row)  # ... and deflate with the loadings
         condition = worst
 
     return Bunch(matrix=matrix, condition_number=condition, method=method)
@@ -194,6 +209,7 @@ def project_rows(  # noqa: PLR0913 - mirrors operator_for_pattern
     *,
     method: str = "tsr",
     ridge: float = 0.0,
+    x_weights: np.ndarray | None = None,
 ) -> Bunch:
     """Estimate scores, SPE and conditioning for rows that may contain NaN.
 
@@ -212,6 +228,8 @@ def project_rows(  # noqa: PLR0913 - mirrors operator_for_pattern
         missing entries.
     method : {"tsr", "scp", "pmp"}, default="tsr"
     ridge : float, default=0.0
+    x_weights : np.ndarray of shape (n_features, n_components), optional
+        As in :func:`operator_for_pattern`: the PLS weights for ``scp``.
 
     Returns
     -------
@@ -249,7 +267,9 @@ def project_rows(  # noqa: PLR0913 - mirrors operator_for_pattern
             if not mask.any():
                 bad = row_ids[0]
                 raise ValueError(f"Row {bad} has no observed features (all-NaN); scores cannot be estimated for it.")
-            op = operator_for_pattern(x_loadings, guide, score_variances, mask, method=method, ridge=ridge)
+            op = operator_for_pattern(
+                x_loadings, guide, score_variances, mask, method=method, ridge=ridge, x_weights=x_weights
+            )
             z_obs = x_scaled[np.ix_(np.asarray(row_ids), np.flatnonzero(mask))]
             t_hat = z_obs @ op.matrix.T
             scores[row_ids] = t_hat

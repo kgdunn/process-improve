@@ -22,7 +22,7 @@ import pandas as pd
 import pytest
 from sklearn.model_selection import KFold
 
-from process_improve.multivariate import PLS, vip
+from process_improve.multivariate import PCA, PLS, vip
 from process_improve.multivariate._common import SpecificationWarning
 from process_improve.multivariate._preprocessing import _looks_prescaled
 
@@ -184,6 +184,81 @@ class TestPreScaledInsideFoldsWarning:
             }
         assert np.isclose(rmsecv["autoscale"], rmsecv["pareto"])
         assert not np.isclose(unscaled["autoscale"], unscaled["pareto"])
+
+
+class TestPreScaledInsideFoldsWarningPCA:
+    """A3 for PCA: ``PCA.select_n_components`` carries the same two warnings as PLS."""
+
+    _EQUAL_SPREADS = np.full(8, 25.0)
+    _UNEQUAL_SPREADS = np.array([0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0, 500.0])
+
+    @staticmethod
+    def _blocks(column_spreads: np.ndarray) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """Raw, autoscaled and Pareto-scaled views of one low-rank block.
+
+        Each raw column is given exactly the spread requested. With equal spreads
+        the Pareto block is the autoscaled block times one constant, so the two
+        in-fold standardised matrices are identical cell for cell and the collapse
+        can be pinned exactly. With unequal spreads the two scalings weight the
+        columns differently, which is what a caller comparing them wants to see.
+        """
+        rng = np.random.default_rng(0)
+        scores = rng.normal(size=(40, 2)) * np.array([6.0, 3.0])
+        loadings = rng.normal(size=(2, 8))
+        raw = pd.DataFrame(scores @ loadings + 0.3 * rng.normal(size=(40, 8)), columns=[f"v{i}" for i in range(8)])
+        raw = (raw - raw.mean()) / raw.std(ddof=1) * column_spreads + 100.0
+        autoscale = (raw - raw.mean()) / raw.std(ddof=1)
+        pareto = (raw - raw.mean()) / np.sqrt(raw.std(ddof=1))
+        return raw, autoscale, pareto
+
+    @staticmethod
+    def _q2_curve(block: pd.DataFrame, *, scale_inside_folds: bool) -> np.ndarray:
+        result = PCA.select_n_components(
+            block, max_components=4, cv=5, random_state=0, scale_inside_folds=scale_inside_folds
+        )
+        return result["q2"].to_numpy()
+
+    def test_prescaled_x_warns(self) -> None:
+        _raw, autoscale, _pareto = self._blocks(self._UNEQUAL_SPREADS)
+        with pytest.warns(SpecificationWarning, match="already centred and unit-variance"):
+            PCA.select_n_components(autoscale, max_components=4, cv=5, random_state=0)
+
+    def test_scale_inside_folds_false_warns(self) -> None:
+        _raw, autoscale, _pareto = self._blocks(self._UNEQUAL_SPREADS)
+        with pytest.warns(SpecificationWarning, match="leaks"):
+            PCA.select_n_components(autoscale, max_components=4, cv=5, random_state=0, scale_inside_folds=False)
+
+    def test_raw_x_does_not_warn(self) -> None:
+        raw, _autoscale, _pareto = self._blocks(self._UNEQUAL_SPREADS)
+        with _no_specification_warning():
+            PCA.select_n_components(raw, max_components=4, cv=5, random_state=0)
+
+    def test_row_wise_ignores_the_flag_and_so_does_the_warning(self) -> None:
+        """``row_wise`` warns about itself only; the flag it ignores earns no second warning."""
+        _raw, autoscale, _pareto = self._blocks(self._UNEQUAL_SPREADS)
+        with pytest.warns(SpecificationWarning) as record:
+            PCA.select_n_components(autoscale, max_components=4, cv=5, cv_scheme="row_wise", random_state=0)
+        messages = [str(w.message) for w in record if issubclass(w.category, SpecificationWarning)]
+        assert len(messages) == 1
+        assert "row_wise" in messages[0]
+
+    def test_two_deliberate_scalings_collapse_inside_folds(self) -> None:
+        """The behaviour the warning is about: in-fold standardisation undoes the caller's scaling.
+
+        With equal column spreads the Pareto block is a constant multiple of the
+        autoscaled one, so the in-fold standardised matrices coincide exactly and
+        so do the Q2 curves. The same two blocks with unequal spreads are told
+        apart only when the folds leave the caller's scaling alone.
+        """
+        _raw, autoscale, pareto = self._blocks(self._EQUAL_SPREADS)
+        with _numbers_only():
+            inside = [self._q2_curve(block, scale_inside_folds=True) for block in (autoscale, pareto)]
+        np.testing.assert_allclose(inside[0], inside[1], rtol=1e-10)
+
+        _raw, autoscale, pareto = self._blocks(self._UNEQUAL_SPREADS)
+        with _numbers_only():
+            kept = [self._q2_curve(block, scale_inside_folds=False) for block in (autoscale, pareto)]
+        assert not np.allclose(kept[0], kept[1])
 
 
 class TestVipNormalisation:

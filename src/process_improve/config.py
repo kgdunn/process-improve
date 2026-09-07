@@ -210,7 +210,7 @@ class Settings:
         """Wall-clock seconds budget for downloading one remote sample dataset.
 
         Bounds the ``urlopen`` call in
-        :func:`process_improve.experiments.datasets._read_remote_csv`, so a
+        :func:`process_improve._remote_data.fetch_remote_bytes`, so a
         black-holing host raises the module's documented ``RuntimeError``
         instead of hanging the caller indefinitely (#508).
         """

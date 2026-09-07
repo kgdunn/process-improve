@@ -91,6 +91,7 @@ from sklearn.utils import Bunch
 
 from ..multivariate._limits import spe_calculation
 from ..multivariate._projection import project_rows
+from ._online import observed_series, scaled_row, unfolded_layout
 
 if typing.TYPE_CHECKING:
     from ._batch_pls import BatchPLS
@@ -744,16 +745,11 @@ class MidCourseCorrector:
 
     def _masks_at(self, k: int) -> Bunch:
         """Boolean masks over the unfolded features for decision point ``k``."""
-        features = self.model.feature_columns_
-        if not isinstance(features, pd.MultiIndex):
-            raise TypeError("The model's feature columns must carry the 2-level (tag, sequence) index.")
-        sequence = features.get_level_values("sequence")
-        tags = features.get_level_values("tag")
-        is_z = np.array([s == "" for s in sequence])
-        seq_num = np.array([-1 if z else int(s) for s, z in zip(sequence, is_z, strict=True)])
+        layout = unfolded_layout(self.model.feature_columns_)
+        is_z, seq_num = layout.is_z, layout.sequence
         past = ~is_z & (seq_num < k)
         future = ~is_z & (seq_num >= k)
-        is_mv = np.array([t in set(self.mv_tags) for t in tags])
+        is_mv = np.array([t in set(self.mv_tags) for t in layout.tags])
         observed = is_z | past
         free = future & is_mv
         return Bunch(observed=observed, free=free, missing=future & ~is_mv)
@@ -781,16 +777,21 @@ class MidCourseCorrector:
         training = self.model._x_scaled_training.to_numpy(dtype=float)
         loadings = self.model.x_loadings_.to_numpy(dtype=float)
         guide = self.model.direct_weights_.to_numpy(dtype=float)
+        weights = self.model.x_weights_.to_numpy(dtype=float)
         variances = np.asarray(self.model.explained_variance_, dtype=float)
 
         monitor_rows = training.copy()
         monitor_rows[:, ~masks.observed] = np.nan
-        monitor = project_rows(loadings, guide, variances, monitor_rows, method=self.method, ridge=self.ridge)
+        monitor = project_rows(
+            loadings, guide, variances, monitor_rows, method=self.method, ridge=self.ridge, x_weights=weights
+        )
 
         candidate_mask = masks.observed | masks.free
         candidate_rows = training.copy()
         candidate_rows[:, ~candidate_mask] = np.nan
-        candidate = project_rows(loadings, guide, variances, candidate_rows, method=self.method, ridge=self.ridge)
+        candidate = project_rows(
+            loadings, guide, variances, candidate_rows, method=self.method, ridge=self.ridge, x_weights=weights
+        )
 
         n = training.shape[0]
         A = int(self.model.n_components)
@@ -812,28 +813,8 @@ class MidCourseCorrector:
         initial_conditions: pd.Series | pd.DataFrame | None,
         k: int,
     ) -> pd.Series:
-        """Build the engineering-unit observed Series for decision point ``k``."""
-        model = self.model
-        if list(batch_so_far.columns) != list(model.tag_names_):
-            raise ValueError(
-                f"batch_so_far must carry exactly the training tags {model.tag_names_}; "
-                f"got {list(batch_so_far.columns)}."
-            )
-        entries: dict = {}
-        if model.n_initial_conditions_:
-            if initial_conditions is None:
-                raise ValueError("The model was fitted with initial conditions; they are required here.")
-            z_row = initial_conditions.iloc[0] if isinstance(initial_conditions, pd.DataFrame) else initial_conditions
-            for name in model.initial_condition_names_:
-                if name not in z_row.index:
-                    raise ValueError(f"initial_conditions is missing {name!r}.")
-                entries[(name, "")] = float(z_row[name])
-        elif initial_conditions is not None:
-            raise ValueError("The model was fitted without initial conditions; do not pass any.")
-        for s in range(k):
-            for tag in model.tag_names_:
-                entries[(tag, s)] = float(batch_so_far.iloc[s][tag])
-        return pd.Series(entries)
+        """Build the engineering-unit observed Series for decision point ``k`` (see :mod:`._online`)."""
+        return observed_series(self.model, batch_so_far, initial_conditions, k)
 
     def correct(  # noqa: C901, PLR0912, PLR0915 - the decision-point workflow is one narrative
         self,
@@ -895,11 +876,7 @@ class MidCourseCorrector:
 
         # --- SPE validity gate on the batch so far -------------------------
         features = pd.Index(model.feature_columns_)
-        center = model.center_.to_numpy(dtype=float)
-        scale = model.scale_.to_numpy(dtype=float)
-        row = np.full(len(features), np.nan)
-        positions = features.get_indexer(observed.index)
-        row[positions] = (observed.to_numpy(dtype=float) - center[positions]) / scale[positions]
+        row = scaled_row(model, observed)
         so_far = project_rows(
             model.x_loadings_.to_numpy(dtype=float),
             model.direct_weights_.to_numpy(dtype=float),
@@ -907,6 +884,7 @@ class MidCourseCorrector:
             row[None, :],
             method=self.method,
             ridge=self.ridge,
+            x_weights=model.x_weights_.to_numpy(dtype=float),
         )
         spe_so_far = float(so_far.spe[0])
         if spe_so_far > limits.spe_limit_monitor:

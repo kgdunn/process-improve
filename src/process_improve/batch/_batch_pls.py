@@ -22,19 +22,48 @@ MSPC", Comprehensive Chemometrics, Elsevier, 2009.
 
 from __future__ import annotations
 
+import operator
 import typing
 
+import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
+from ..multivariate._diagnostics import score_contributions as _score_contributions
+from ..multivariate._diagnostics import spe_contributions as _spe_contributions
+from ..multivariate._diagnostics import t2_contributions as _t2_contributions
+from ..multivariate._limits import score_limit as _score_limit
+from ..multivariate._limits import spe_limit as _spe_limit
 from ..multivariate._pls import PLS
 from ..multivariate._preprocessing import MCUVScaler
+from ..multivariate.plots import predictions_vs_observed_plot as _predictions_vs_observed_plot
+from ..multivariate.plots import score_plot as _score_plot
+from ..multivariate.plots import spe_plot as _spe_plot
+from ..multivariate.plots import t2_plot as _t2_plot
+from ._common import inner_method
+from ._online import (
+    coerce_single_initial_conditions,
+    forecast_frame,
+    instantaneous_spe,
+    observed_series,
+    residuals_of,
+    scaled_row,
+    stack_online_patterns,
+    unfolded_layout,
+)
 from .data_input import check_valid_batch_dict, dict_to_wide
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Hashable
+    from collections.abc import Callable, Hashable
+
+    import plotly.graph_objects as go
+
+
+def _pls_method(fn: Callable[..., typing.Any]) -> Callable[..., typing.Any]:
+    """Forward a standalone ``fn(model, ...)`` to the inner PLS (see :func:`inner_method`)."""
+    return inner_method(fn, inner="_pls", fitted="x_weights_")
 
 
 class BatchPLS(RegressorMixin, BaseEstimator):
@@ -91,6 +120,14 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         Cumulative R2 of the quality block after each component.
     rmse_ : pd.DataFrame of shape (n_targets, n_components)
         Root-mean-square error of the fit, on the original quality units.
+    predictions_ : pd.DataFrame of shape (n_batches, n_targets)
+        Fitted quality of every training batch, on the original quality
+        units, indexed by batch identifier.
+    r2_per_variable_ : pd.DataFrame of shape (n_unfolded_features, n_components)
+        Cumulative R2 of each unfolded ``[Z | X]`` column after each
+        component, on the 2-level unfolded index. With ``scale=True`` every
+        column has unit variance, so the column mean is the R2 of the whole
+        block; with ``scale=False`` it is an unweighted average.
     scores_, spe_, hotellings_t2_ : pd.DataFrame
         Batch-level scores and diagnostics; one row per batch.
     center_, scale_ : pd.Series of length n_unfolded_features
@@ -272,6 +309,10 @@ class BatchPLS(RegressorMixin, BaseEstimator):
             columns=self._pls.beta_coefficients_.columns,
         )
         self.rmse_ = self._pls.rmse_.mul(y_scaler.scale_.to_numpy(), axis=0)
+        self.predictions_ = y_scaler.inverse_transform(self._pls.predictions_)
+        self.r2_per_variable_ = pd.DataFrame(
+            self._pls.r2_per_variable_.to_numpy(), index=wide.columns, columns=self._pls.r2_per_variable_.columns
+        )
         self.y_loadings_ = self._pls.y_loadings_
         self.r2_cumulative_ = self._pls.r2_cumulative_
         self.explained_variance_ = self._pls.explained_variance_
@@ -384,6 +425,236 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         """Return the batch-level PLS scores for ``X`` (in the input batch order)."""
         return self._pls.transform(self._scaled_wide(X, initial_conditions)).reindex(list(X.keys()))
 
+    def predict_online(
+        self,
+        batch: pd.DataFrame,
+        upto_k: int,
+        *,
+        initial_conditions: pd.Series | pd.DataFrame | None = None,
+        method: str = "tsr",
+        ridge: float = 0.0,
+    ) -> Bunch:
+        """Predict the final quality of a running batch from its data so far.
+
+        The unfolded row of a batch that has run for ``upto_k`` samples is
+        complete up to that sample and missing after it. This method scales
+        the observed part, estimates the batch's scores from those cells alone
+        with the shared missing-data projection
+        (:meth:`process_improve.multivariate.PLS.project`), and maps the
+        scores to a quality prediction through the model's Y loadings. It is
+        the "batch so far" primitive of Garcia-Munoz, Kourti and MacGregor
+        (2004), and Eqs. 2 and 5 of Wold, Kettaneh-Wold, MacGregor and Dunn
+        (2009) when ``method="pmp"``. The default estimator is trimmed score
+        regression.
+
+        The batch may be truncated to the samples observed so far (at least
+        ``upto_k`` rows) or be a complete aligned batch; only its first
+        ``upto_k`` rows are used, the tags are matched by name, and a NaN cell
+        among them counts as one more missing cell. The first few samples
+        constrain the scores weakly, so read the early predictions together
+        with ``condition_number`` (and consider ``ridge``); the estimate
+        settles as samples accumulate. To compare the returned statistics against
+        control limits use :class:`process_improve.batch.BatchMonitor`, which
+        builds per-sample limits from reference batches with the same
+        estimator; the ``hotellings_t2`` returned here uses the end-of-batch
+        score scaling and is not a per-sample statistic.
+
+        Parameters
+        ----------
+        batch : pd.DataFrame
+            The batch's trajectories (the training tags as columns), at least
+            ``upto_k`` rows.
+        upto_k : int
+            Number of leading time samples to treat as observed, in
+            ``1 .. n_timesteps_``. At ``upto_k == n_timesteps_`` the row is
+            complete and ``y_hat`` equals :meth:`predict` for that batch.
+        initial_conditions : pd.Series or pd.DataFrame, optional
+            The Z block for this batch (required if the model was fitted with
+            one).
+        method : {"tsr", "scp", "pmp"}, default="tsr"
+            The missing-data score estimator; see
+            :meth:`process_improve.multivariate.PLS.project`.
+        ridge : float, default=0.0
+            Regularisation for the ``"tsr"`` / ``"pmp"`` estimators.
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With keys ``scores`` (Series, one entry per component), ``y_hat``
+            (Series in the original quality units, one entry per target),
+            ``hotellings_t2`` (float, end-of-batch scaling), ``spe`` (float,
+            the length of the residual over the observed cells),
+            ``spe_instantaneous`` (float, the length of the residual over the
+            newest observed sample only), ``condition_number`` (float),
+            ``residuals`` (Series over ``feature_columns_``, NaN where
+            unobserved) and ``forecast`` (DataFrame, ``n_timesteps_`` rows by
+            the training tags, in engineering units: the batch's own values
+            up to ``upto_k`` and the model's imputation of the remainder,
+            Eq. 4 of Wold et al., 2009).
+        """
+        check_is_fitted(self, "x_weights_")
+        upto_k = operator.index(upto_k)
+        if not 1 <= upto_k <= self.n_timesteps_:
+            raise ValueError(f"upto_k must lie in [1, {self.n_timesteps_}]; got {upto_k}.")
+        observed = observed_series(self, batch, initial_conditions, upto_k)
+        row = scaled_row(self, observed)
+        frame = pd.DataFrame(row[None, :], index=["_online_"], columns=self.feature_columns_)
+        result = self._pls.project(frame, method=method, ridge=ridge)
+
+        scores = result.scores.to_numpy(dtype=float)
+        loadings = self.x_loadings_.to_numpy(dtype=float)
+        layout = unfolded_layout(self.feature_columns_)
+        residual = residuals_of(row[None, :], scores, loadings)[0]
+        newest = layout.sequence == upto_k - 1
+        y_hat = self._y_scaler_own.inverse_transform(result.y_hat)
+        return Bunch(
+            scores=pd.Series(scores[0], index=self.scores_.columns, name="scores"),
+            y_hat=pd.Series(y_hat.to_numpy(dtype=float)[0], index=self.target_names_, name="y_hat"),
+            hotellings_t2=float(result.hotellings_t2.iloc[0]),
+            spe=float(result.spe.iloc[0]),
+            spe_instantaneous=float(np.sqrt(np.nansum(residual[newest] ** 2))),
+            condition_number=float(result.condition_number.iloc[0]),
+            residuals=pd.Series(residual, index=self.feature_columns_, name="residuals"),
+            forecast=forecast_frame(self, scores[0], batch, upto_k, loadings),
+        )
+
+    def predict_online_trace(
+        self,
+        batch: pd.DataFrame,
+        *,
+        initial_conditions: pd.Series | pd.DataFrame | None = None,
+        method: str = "tsr",
+        ridge: float = 0.0,
+    ) -> Bunch:
+        """Predict the final quality at every time sample of a complete batch, in one call.
+
+        Equivalent to :meth:`predict_online` for ``upto_k`` in
+        ``1 .. n_timesteps_``: the batch is unfolded and scaled once and all
+        the per-sample missingness patterns are projected together. This is
+        the evolving prediction of a batch as it would have looked in real
+        time, and what :class:`process_improve.batch.BatchMonitor` uses to
+        build its per-sample limits.
+
+        Parameters
+        ----------
+        batch : pd.DataFrame
+            A single complete batch, aligned to the training length, the
+            training tags as columns.
+        initial_conditions : pd.Series or pd.DataFrame, optional
+            The Z block for this batch; required if the model was fitted
+            with one.
+        method : {"tsr", "scp", "pmp"}, default="tsr"
+            The missing-data score estimator.
+        ridge : float, default=0.0
+            Regularisation for the ``"tsr"`` / ``"pmp"`` estimators.
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With keys ``time`` (1-based number of samples observed),
+            ``scores`` (DataFrame, n_timesteps x n_components; row ``k - 1``
+            uses samples up to ``k``), ``y_hat`` (DataFrame, n_timesteps x
+            n_targets, original quality units, index named ``upto_k``),
+            ``hotellings_t2``, ``spe``, ``spe_instantaneous`` and
+            ``condition_number`` (arrays of length n_timesteps). For a
+            training batch the last row of ``y_hat`` equals its entry in
+            ``predictions_``.
+        """
+        check_is_fitted(self, "x_weights_")
+        z_frame = coerce_single_initial_conditions(self, initial_conditions)
+        wide = self._scaled_wide({"_online_": batch}, z_frame)
+        full_row = wide.to_numpy(dtype=float)[0]
+        layout = unfolded_layout(self.feature_columns_)
+        n = self.n_timesteps_
+        stacked = stack_online_patterns(full_row, layout, n)
+        frame = pd.DataFrame(stacked, columns=self.feature_columns_, index=pd.RangeIndex(n))
+        result = self._pls.project(frame, method=method, ridge=ridge)
+
+        scores = result.scores.to_numpy(dtype=float)
+        residual = residuals_of(stacked, scores, self.x_loadings_.to_numpy(dtype=float))
+        time = np.arange(1, n + 1)
+        y_hat = self._y_scaler_own.inverse_transform(result.y_hat)
+        return Bunch(
+            time=time,
+            scores=pd.DataFrame(scores, index=pd.RangeIndex(n), columns=self.scores_.columns),
+            y_hat=pd.DataFrame(
+                y_hat.to_numpy(dtype=float), index=pd.Index(time, name="upto_k"), columns=self.target_names_
+            ),
+            hotellings_t2=result.hotellings_t2.to_numpy(dtype=float),
+            spe=result.spe.to_numpy(dtype=float),
+            spe_instantaneous=instantaneous_spe(residual, layout),
+            condition_number=result.condition_number.to_numpy(dtype=float),
+        )
+
+    def online_rmse(
+        self,
+        X: dict[Hashable, pd.DataFrame],
+        Y: pd.DataFrame,
+        *,
+        initial_conditions: pd.DataFrame | None = None,
+        method: str = "tsr",
+        ridge: float = 0.0,
+    ) -> pd.DataFrame:
+        """Root-mean-square error of the evolving quality prediction, per sample and target.
+
+        Each batch in ``X`` is traced with :meth:`predict_online_trace` and
+        its prediction after ``k`` samples compared with its measured quality
+        in ``Y``; the errors are squared, averaged over the batches and
+        rooted, giving one curve per target over the batch. On the training
+        batches this is the estimation error (RMSEE) as a function of how
+        much of the batch has been observed. On batches the model was not
+        fitted on (for example one held-out batch at a time) it is the
+        prediction error (RMSEP).
+
+        Parameters
+        ----------
+        X : dict[Hashable, pd.DataFrame]
+            Standard batch-data dictionary of complete, aligned batches.
+        Y : pd.DataFrame
+            Measured final quality, one row per batch in ``X`` (indexed by
+            batch identifier), the training targets as columns.
+        initial_conditions : pd.DataFrame, optional
+            The Z block for the batches; required if the model was fitted
+            with one.
+        method : {"tsr", "scp", "pmp"}, default="tsr"
+            The missing-data score estimator.
+        ridge : float, default=0.0
+            Regularisation for the ``"tsr"`` / ``"pmp"`` estimators.
+
+        Returns
+        -------
+        pd.DataFrame of shape (n_timesteps, n_targets)
+            Indexed by ``upto_k`` (1-based number of samples observed), in
+            the original quality units.
+        """
+        check_is_fitted(self, "x_weights_")
+        if not isinstance(Y, pd.DataFrame):
+            raise TypeError(f"Y must be a pandas DataFrame indexed by batch identifier; got {type(Y).__name__}.")
+        if list(Y.columns) != list(self.target_names_):
+            raise ValueError(f"Y must carry exactly the training targets {self.target_names_}; got {list(Y.columns)}.")
+        if not X:
+            raise ValueError("X is empty; at least one batch is needed.")
+        if not Y.index.is_unique:
+            raise ValueError("Y must have one row per batch identifier; its index is not unique.")
+        missing = [batch_id for batch_id in X if batch_id not in Y.index]
+        if missing:
+            raise ValueError(f"Y has no row for batch id(s) {missing[:5]}.")
+        if Y.loc[list(X)].isna().to_numpy().any():
+            raise ValueError("Y contains missing values for the batches in X; the error cannot be formed.")
+        if initial_conditions is not None:
+            absent = [batch_id for batch_id in X if batch_id not in initial_conditions.index]
+            if absent:
+                raise ValueError(f"initial_conditions has no row for batch id(s) {absent[:5]}.")
+        squared = np.zeros((self.n_timesteps_, len(self.target_names_)))
+        for batch_id, batch in X.items():
+            z = None if initial_conditions is None else initial_conditions.loc[[batch_id]]
+            trace = self.predict_online_trace(batch, initial_conditions=z, method=method, ridge=ridge)
+            squared += (trace.y_hat.to_numpy(dtype=float) - Y.loc[[batch_id]].to_numpy(dtype=float)[0]) ** 2
+        rmse = np.sqrt(squared / len(X))
+        return pd.DataFrame(
+            rmse, index=pd.Index(np.arange(1, self.n_timesteps_ + 1), name="upto_k"), columns=self.target_names_
+        )
+
     def projection_matrix(self, observed: object, *, method: str = "tsr", ridge: float = 0.0) -> Bunch:
         """Build the fixed operator mapping observed unfolded columns to score estimates.
 
@@ -411,3 +682,108 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         """
         check_is_fitted(self, "x_weights_")
         return self._pls.projection_matrix(observed, method=method, ridge=ridge)
+
+    def unfold_and_scale(
+        self,
+        X: dict[Hashable, pd.DataFrame],
+        *,
+        initial_conditions: pd.DataFrame | None = None,
+    ) -> pd.DataFrame:
+        """Unfold batches batchwise and apply the training centring and scaling.
+
+        Parameters
+        ----------
+        X : dict[Hashable, pd.DataFrame]
+            Standard batch-data dictionary of aligned batches with the same
+            tags and length as the training data.
+        initial_conditions : pd.DataFrame, optional
+            The Z block for the batches; required if the model was fitted
+            with one.
+
+        Returns
+        -------
+        pd.DataFrame of shape (n_batches, n_unfolded_features)
+            The one-row-per-batch ``[Z | X]`` matrix in the model's scaled
+            space, indexed by batch identifier, with the 2-level unfolded
+            column index. This is the ``X`` argument that
+            :meth:`score_contributions`, :meth:`spe_contributions` and
+            :meth:`t2_contributions` expect; passing the training batches
+            reproduces the fitted scores.
+        """
+        return self._scaled_wide(X, initial_conditions)
+
+    def hotellings_t2_limit(self, conf_level: float = 0.95) -> float:
+        """Hotelling's T2 limit at the given confidence level."""
+        check_is_fitted(self, "x_weights_")
+        return self._pls.hotellings_t2_limit(conf_level=conf_level)
+
+    def ellipse_coordinates(
+        self,
+        score_horiz: int,
+        score_vert: int,
+        conf_level: float = 0.95,
+        n_points: int = 100,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Coordinates of the T2 confidence ellipse for a score plot."""
+        check_is_fitted(self, "x_weights_")
+        return self._pls.ellipse_coordinates(
+            score_horiz=score_horiz,
+            score_vert=score_vert,
+            conf_level=conf_level,
+            n_points=n_points,
+        )
+
+    def predictions_vs_observed_plot(
+        self,
+        y_observed: pd.DataFrame,
+        variable: str | None = None,
+        settings: dict | None = None,
+        fig: go.Figure | None = None,
+    ) -> go.Figure:
+        """Observed-versus-predicted (parity) plot of the training batches.
+
+        Both axes are on the original quality units: the fitted values come
+        from ``predictions_`` and the observed values from ``y_observed``,
+        matched by batch identifier.
+
+        Parameters
+        ----------
+        y_observed : pd.DataFrame
+            The quality block passed to :meth:`fit`, indexed by batch
+            identifier. Rows are aligned to ``predictions_`` by label, so the
+            row order does not matter.
+        variable : str, optional
+            Which quality variable to plot. Defaults to the first one.
+        settings : dict, optional
+            Plot settings, as for
+            :func:`process_improve.multivariate.plots.predictions_vs_observed_plot`.
+        fig : go.Figure, optional
+            An existing figure to draw onto.
+
+        Returns
+        -------
+        go.Figure
+        """
+        check_is_fitted(self, "x_weights_")
+        if not isinstance(y_observed, pd.DataFrame):
+            raise TypeError(
+                f"y_observed must be a pandas DataFrame indexed by batch id; got {type(y_observed).__name__}."
+            )
+        missing = set(self.predictions_.index) - set(y_observed.index)
+        if missing:
+            raise ValueError(
+                f"y_observed must have a row for every training batch; missing batch ids: {sorted(missing, key=str)}."
+            )
+        aligned = y_observed.reindex(self.predictions_.index)
+        return _predictions_vs_observed_plot(self, y_observed=aligned, variable=variable, settings=settings, fig=fig)
+
+    # Convenience methods forwarding to the standalone multivariate functions
+    # with the internal (batchwise-unfolded) PLS as the model argument.
+    score_plot = _pls_method(_score_plot)
+    spe_plot = _pls_method(_spe_plot)
+    t2_plot = _pls_method(_t2_plot)
+    spe_limit = _pls_method(_spe_limit)
+    score_limit = _pls_method(_score_limit)
+    score_contributions = _pls_method(_score_contributions)
+    spe_contributions = _pls_method(_spe_contributions)
+    t2_contributions = _pls_method(_t2_contributions)

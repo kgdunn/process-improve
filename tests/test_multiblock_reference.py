@@ -1543,9 +1543,119 @@ class TestLDPEReference:
     """
 
 
-@pytest.mark.skip(reason="Requires FMC reference dataset (planned in PR2 of the multi-block port).")
+@pytest.fixture(scope="module")
+def fmc_script():
+    from tests._case_study_scripts import load_script
+
+    return load_script("fmc_multiblock_batch_pls")
+
+
+@pytest.fixture(scope="module")
+def fmc_data(fmc_script):
+    from tests._case_study_scripts import load_or_skip
+
+    return load_or_skip(fmc_script.load_and_exclude)
+
+
+@pytest.fixture(scope="module")
+def fmc_quality(fmc_script, fmc_data):
+    return fmc_script.pca_on_quality(fmc_data.Y)
+
+
+@pytest.fixture(scope="module")
+def fmc_unfolded(fmc_script, fmc_data):
+    return fmc_script.unfold_trajectories(fmc_data.X)
+
+
+@pytest.mark.dataset
+@pytest.mark.slow
 class TestFMCReference:
-    """FMC dataset MBPLS assertions, deferred until PR2."""
+    """The FMC batch dryer ladder of models, pinned on the case-study script.
+
+    The FMC dataset is served from openmv.net (see
+    ``process_improve.batch.load_fmc``), so these tests skip offline. The
+    course notes quote no numbers for this case; every value here is a
+    regression pin recorded when the case study was rebuilt, two components
+    throughout, after excluding the thirteen batches without chemistry data,
+    with ``ClockTime`` as the eleventh trajectory of the unfolded block.
+    The script under test is ``docs/user_guide/case_studies/batch/fmc_multiblock_batch_pls.py``.
+    """
+
+    def test_exclusion_leaves_46_batches_with_the_documented_missing_cells(self, fmc_data, fmc_unfolded) -> None:
+        wide, _scaled = fmc_unfolded
+        assert len(fmc_data.X) == 46
+        assert int(fmc_data.Y.isna().sum().sum()) == 19
+        assert int(fmc_data.Zchem.isna().sum().sum()) == 1
+        assert wide.shape == (46, 11 * 325)
+        assert int(wide.isna().sum().sum()) == 1340  # 1220 in the ten process tags plus 120 in ClockTime
+        incomplete = {batch_id for batch_id, batch in fmc_data.X.items() if batch.isna().any().any()}
+        assert incomplete == {20, 22, 27, 28, 31, 55, 60, 61, 67, 71}
+
+    def test_pca_on_quality(self, fmc_quality) -> None:
+        model, _y_scaled = fmc_quality
+        np.testing.assert_allclose(model.r2_cumulative_.to_numpy(), [0.500, 0.703], atol=2e-3)
+        assert model.has_missing_data_
+
+    def test_pls_from_each_initial_condition_block(self, fmc_script, fmc_data, fmc_quality) -> None:
+        _model, y_scaled = fmc_quality
+        pls_chem, pls_op, _zop_scaled = fmc_script.pls_from_initial_conditions(fmc_data, y_scaled)
+        np.testing.assert_allclose(pls_chem.r2_cumulative_.to_numpy(), [0.163, 0.222], atol=2e-3)
+        np.testing.assert_allclose(pls_op.r2_cumulative_.to_numpy(), [0.207, 0.262], atol=2e-3)
+
+    def test_mbpls_on_initial_conditions(self, fmc_script, fmc_data) -> None:
+        model = fmc_script.mbpls_on_initial_conditions(fmc_data)
+        np.testing.assert_allclose(model.r2_y_cumulative_.to_numpy(), [0.292, 0.364], atol=2e-3)
+
+    def test_batch_pca_on_trajectories(self, fmc_script, fmc_unfolded) -> None:
+        _wide, x_scaled = fmc_unfolded
+        model, spe_share = fmc_script.batch_pca_on_trajectories(x_scaled)
+        np.testing.assert_allclose(model.r2_cumulative_.to_numpy(), [0.231, 0.376], atol=2e-3)
+        assert list(model.loadings_.index.names) == ["tag", "sequence"]
+        assert list(spe_share.columns.names) == ["tag", "sequence"]
+        row = spe_share.loc[20]  # a batch with missing cells: contributions everywhere except at those cells
+        assert row.isna().equals(x_scaled.loc[20].isna())
+        assert row.sum() == pytest.approx(100.0)
+        by_tag = row.groupby(level="tag", sort=False).sum()
+        assert by_tag.idxmax() == "DryPress"  # half of batch 20's SPE sits in the dryer pressure
+        assert 45 < by_tag["DryPress"] < 53
+
+    def test_batch_pls_to_quality(self, fmc_script, fmc_unfolded, fmc_quality) -> None:
+        _wide, x_scaled = fmc_unfolded
+        _model, y_scaled = fmc_quality
+        model, contributions = fmc_script.batch_pls_to_quality(x_scaled, y_scaled)
+        np.testing.assert_allclose(model.r2_cumulative_.to_numpy(), [0.266, 0.410], atol=2e-3)
+        assert np.isfinite(contributions.loc[13]).all()
+        by_tag = contributions.loc[13].groupby(level="tag", sort=False).sum()
+        assert set(by_tag.nsmallest(2).index) == {"ClockTime", "CTankLvl"}  # the two tags that lead batch 13's t1
+
+    def test_batch_mbpls(self, fmc_script, fmc_data, fmc_unfolded) -> None:
+        wide, _x_scaled = fmc_unfolded
+        model, _blocks = fmc_script.batch_mbpls(fmc_data, wide)
+        np.testing.assert_allclose(model.r2_y_cumulative_.to_numpy(), [0.370, 0.472], atol=2e-3)
+        vip = model.super_vip_
+        assert vip["Zchem"] < min(vip["Zop"], vip["X"])  # the chemistry ranks last
+        assert abs(vip["Zop"] - vip["X"]) < 0.05  # the other two blocks are about equal
+        assert list(model.block_weights_["X"].index.names) == ["tag", "sequence"]
+
+    def test_four_good_batches_have_off_spec_trajectories_and_on_spec_initial_conditions(
+        self, fmc_script, fmc_data, fmc_unfolded
+    ) -> None:
+        wide, _x_scaled = fmc_unfolded
+        model, blocks = fmc_script.batch_mbpls(fmc_data, wide)
+        found = fmc_script.off_spec_trajectories_on_spec_product(model, blocks)
+        assert found.anomalous == [2, 3, 6, 7]
+        assert found.neighbours == [42, 43, 44, 47, 50]
+        assert (found.placed.loc[found.anomalous, "X"] == "abnormal").all()
+        assert (found.placed.loc[found.anomalous, ["Zchem", "Zop"]] == "good").all().all()
+        move = found.zop_move
+        assert move.idxmax() == "Time3"  # the longer cool-down is the largest single difference
+        assert (move[["Time2", "Time3", "Time4", "TempSlope"]] > 0).all()  # the later phases were run differently
+        assert (move[["Level1", "WgtCake"]] < 0).all()  # the charge and the first phase were not
+
+    @pytest.mark.usefixtures("fmc_data")
+    def test_script_runs_end_to_end(self, fmc_script, tmp_path) -> None:
+        assert fmc_script.main(["--output-dir", str(tmp_path)]) == 0
+        assert len(list(tmp_path.glob("*.html"))) >= 20
 
 
 @pytest.mark.skip(reason="Requires kamyr-digester / Simca-P reference values (planned in PR2 of the multi-block port).")

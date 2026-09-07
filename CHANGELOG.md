@@ -11,7 +11,7 @@ those changes.
 
 ## [Unreleased]
 
-## [1.78.1] - 2026-09-04
+## [1.81.1] - 2026-09-07
 
 ### Changed
 
@@ -25,6 +25,260 @@ those changes.
   `apply_scaling` / `reverse_scaling`,
   `multivariate.TPLS.score`, and `sensory.validate_descriptive`. No
   runtime behaviour changed.
+
+## [1.81.0] - 2026-09-05
+
+Mid-batch prediction and on-line monitoring for batch PLS models, so a
+running batch can be assessed before it ends: the missing-data projection the
+library already had for `BatchPCA` now serves `BatchPLS` too, and the monitor
+compares each sample against the reference batches at that same sample.
+
+Three batch case studies from the 2011-2012 latent-variable short course,
+rebuilt as plain Python scripts with narrative pages (issues #154, #155,
+#156), and the loaders, plots and estimator conveniences they needed.
+
+### Added
+
+- `BatchPLS.predict_online(batch, upto_k)`: the final-quality prediction of a
+  running batch from its first `upto_k` samples, with the scores estimated
+  from the observed cells alone (trimmed score regression by default, or SCP
+  or PMP). Accepts a truncated batch-so-far or a complete batch, and returns
+  the prediction in the original quality units, the residuals of the observed
+  part, the SPE of the newest sample, and the model's forecast of the rest of
+  the trajectories (Wold, Kettaneh-Wold, MacGregor and Dunn, 2009, Eq. 4) in
+  engineering units. At `upto_k == n_timesteps_` it reproduces `predict`.
+- `BatchPLS.predict_online_trace(batch)`: the same at every sample of a
+  complete batch in one call, the evolving prediction as it would have looked
+  in real time.
+- `BatchPLS.online_rmse(X, Y)`: one root-mean-square error curve per quality
+  attribute against the number of samples observed; the estimation error on
+  the training batches, or the prediction error when the model was fitted
+  without the batch.
+- `BatchPCA.predict_online` returns the same three new keys (`residuals`,
+  `spe_instantaneous`, `forecast`) and `predict_online_trace` the per-sample
+  `spe_instantaneous`; their existing outputs are unchanged.
+- `BatchMonitor` accepts a `BatchPLS` model as well as a `BatchPCA`, and takes
+  `spe_statistic="instantaneous"` to chart the SPE of the newest sample only
+  (the per-interval statistic of Nomikos and MacGregor, 1995) beside the
+  cumulative statistic, which stays the default. `monitor()` also returns the
+  score estimates. `spe_window` pools the reference SPE values of neighbouring
+  samples before each per-sample limit is fitted, which steadies the limits
+  when few reference batches are available; the default of 0 keeps the fit to
+  one sample's values.
+- The SBR case-study page gains two sections, predicting the quality before
+  the batch ends and monitoring the two faulty batches on-line against a
+  reference model of the normal batches, with the script functions behind them.
+
+- Three batch case studies as plain Python scripts with narrative pages in
+  the user guide (`docs/user_guide/case_studies/batch/`): batch PCA outlier
+  diagnosis on the DuPont polymerization reactor (#155), batch PLS fault
+  diagnosis on the simulated SBR reactor (#156), and the multiblock batch PLS
+  ladder on the FMC batch dryer (#154), with the clock time as the eleventh
+  trajectory of every batch model and a last section that reads, from the
+  block scores, the batches whose trajectories say off-specification while
+  the product was on-specification. Each script fetches its data from
+  openmv.net when it runs and writes its figures to an output directory; each
+  page quotes the script section by section and states what it prints.
+- Remote batch dataset loaders `batch.load_dupont`, `batch.load_fmc` and
+  `batch.load_sbr`, fetched from openmv.net under the same bounded timeout as
+  the experiments loaders, with a `url` override for mirrors and local copies.
+- `batch.unfolded_contribution_plot`: one bar per unfolded `(tag, sequence)`
+  cell of a batch's contribution vector, grouped and coloured by tag, or one
+  bar per tag summed over time.
+- `BatchPCA.score_contributions` and `BatchPCA.unfold_and_scale`; on
+  `BatchPLS` the forwards `score_plot`, `spe_plot`, `t2_plot`, `spe_limit`,
+  `score_limit`, `hotellings_t2_limit`, `ellipse_coordinates`,
+  `score_contributions`, `spe_contributions`, `t2_contributions` and
+  `unfold_and_scale`, the fitted attributes `predictions_` (original quality
+  units) and `r2_per_variable_`, and `predictions_vs_observed_plot`.
+- `spe_contributions`, `score_contributions` and `t2_contributions` (and the
+  `PCA`, `PLS`, `BatchPCA` and `BatchPLS` methods that forward to them)
+  accept rows with missing cells. The scores of such a row are estimated
+  from its observed cells with the same missing-data estimators as
+  `project` (`method="scp"` by default, which reproduces the NIPALS fit,
+  or `"tsr"` or `"pmp"`), and the contributions are then defined at every
+  observed cell and missing only at the cells the row lacks. Such rows
+  used to come back as all-NaN. Complete rows are unchanged.
+- `batch.time_varying_loading_plot` accepts a `BatchPLS` (it draws the
+  weights) and any multivariate model fitted on a `dict_to_wide` matrix
+  whose loadings carry the `(tag, sequence)` index.
+- Reference tests for the FMC multiblock ladder (`TestFMCReference`, which
+  replaces the skipped placeholder), the DuPont and SBR narrative numbers,
+  and a vendored fixture of the legacy MATLAB batch-PCA output on the SBR
+  data (`tests/fixtures/sbr_batch_pca/`).
+
+### Changed
+
+- `BatchMonitor` standardises Hotelling's T2 at each sample by the covariance
+  of the reference batches' score estimates at that sample, with the F limit
+  for the number of reference batches, instead of by the end-of-batch score
+  variances (the time-varying covariance Nomikos and MacGregor, 1995, note
+  the T2 chart needs, computed as Garcia-Munoz, Kourti and MacGregor, 2004,
+  do). Score estimates early in a batch are shrunk and noisy compared
+  with those near its end, so the old yardstick was wrong where it matters
+  most: a normal SBR batch read T2 = 220 after four samples against a limit
+  of 10.5, and now reads 0.5. The reference batches' mean T2 is `A (N - 1) / N`
+  at every sample. The SPE limits are unchanged.
+
+- The remote sample-dataset fetch helper moved from `experiments.datasets`
+  to the shared private module `process_improve._remote_data`, gaining an
+  Excel variant. Error messages, timeouts and loader behaviour are unchanged.
+
+### Fixed
+
+- The `"scp"` (single-component projection) score estimator of `project`,
+  `projection_matrix`, `predict_online`, the contribution helpers and the
+  mid-course corrector projected onto the loadings for a PLS model, where
+  NIPALS projects onto the weights and deflates with the loadings. With
+  nothing missing the estimate differed from the model's own scores by up
+  to a score standard deviation, and an incomplete row did not reproduce
+  the score the fit had stored for it. SCP now takes the weights
+  (`x_weights` on `operator_for_pattern` and `project_rows`; PCA is
+  unchanged, its weights being its loadings). `"pmp"` is the least-squares
+  fit onto the loading plane and, for PLS, does not reduce to the model's
+  scores even with nothing missing; the docstrings now say so, and TSR (the
+  default) and SCP do. A test module runs every missing-data path on data
+  without missing values and checks it against the direct computation.
+- `PCA.r2_per_variable_` is cumulative on every fit path, as documented. The
+  NIPALS path (taken whenever `X` has missing cells) divided each column's
+  residual by its sum of squares *after* the previous component, so column
+  `a` held the share of what was left that component `a` explained, not the
+  R2 after `a` components; only the first column was right. The TSR path
+  never filled the attribute at all and returned zeros. Both now match the
+  complete-data path and `PLS`.
+- The DuPont case-study page described batch 39 as a representative member of
+  the second group of batches; it now reads the group's mean contribution
+  against the model centre, which names `TempC-1` and `Press-3` and shows the
+  `TempH-1` contribution to be a feature of individual batches, not of the
+  group.
+- The DuPont case-study page's final model is checked by projecting the 15
+  batches left out of it (`verify_left_out` in the companion script): every
+  one lies above the SPE limit, seven above the T2 limit as well, while the
+  four poor-quality batches kept in the training set stay inside both limits.
+
+## [1.80.0] - 2026-09-05
+
+Everything here was surfaced by executing every Python case in the *Process
+Improvement using Data* book against this package (kgdunn/pid-book#274).
+
+### Added
+
+- `PCA.select_n_components` reports `q2_per_variable`, the cross-validated `Q2`
+  of each column beside the pooled figure, which is what shows
+  whether one variable is carrying the curve (#546). `NaN` under
+  `cv_scheme="row_wise"`, which scores whole rows and has no per-cell error to
+  split.
+- `PCA.select_n_components` reports `press_input_units`, the PRESS curve in the
+  units of the matrix that was passed in, for comparing prediction error against
+  instrument error (#546).
+- `OLS.leverage_` and `OLS.influence_` are computed for **any** number of
+  predictors, with or without an intercept (#545). Both come from the hat-matrix
+  diagonal of the fitted model matrix and agree with `statsmodels`'
+  `hat_matrix_diag` and `cooks_distance` to machine precision. They previously
+  held a single `nan` outside the single-predictor-with-intercept case, which is
+  silent when the single-predictor recipe is applied to a multiple regression.
+  `x_ssq_` and `pi_range_` remain single-predictor quantities. A row whose
+  leverage is 1 sets its own fitted value, so its Cook's distance is reported as
+  zero while every other row keeps its own value.
+
+### Changed
+
+- **`PCA.select_n_components(cv_scheme="ekf")` returns different `press`, `q2`,
+  `se_press` and `q2_se` values** (#546). The element-wise scheme standardises
+  the matrix inside every fold, but it used to undo that standardisation before
+  measuring the error, so PRESS came back in the input units and each variable
+  weighed on the curve in proportion to its variance rather than its structure.
+  On the LDPE data the `Mw` column carries 99.5% of the raw sum of squares, and
+  the raw block (which the library's own warning recommends passing) gave the
+  `Q2` curve of `Mw` alone: monotonic to 0.94, with none of the turnover at two
+  components that the same data show once every variable counts equally. PRESS
+  is now measured in the space each fold was fitted in, and compared against a
+  null model measured the same way, so the curve no longer depends on the units
+  the columns arrived in. Passing the raw block and passing the pre-scaled block
+  now give the same answer, and re-expressing one column in different units
+  leaves the curve unmoved. `Q2` keeps its meaning, "the fraction of held-out
+  variation the model predicts", and stays comparable to `r2_cumulative_`; the
+  numbers it takes are lower on a block with one dominant column, because they
+  are no longer that column's numbers. `scale_inside_folds=False`, the opt-out
+  for callers who scale their own block, is unchanged.
+- `OLS.influence_` is now always a plain `np.ndarray`, matching its documented
+  type and `leverage_`. It was a `pd.Series` when `y` arrived as one.
+
+### Fixed
+
+- `PCA.select_n_components` no longer leaks a numpy `RuntimeWarning` from its
+  own internals when handed a block with no variation in it. `press` is then
+  zero at every component count and the `press_ratio` is 0/0, which now reaches
+  the caller as `NaN` rather than as a warning pointing into library code. The
+  standard error beside it already guarded the same case.
+- The element-wise cross-validation's EM loop judged convergence on the held-out
+  cells in the input units, so a column re-expressed in different units changed
+  how many iterations were taken and moved the result in the last significant
+  figures (#546). It now judges convergence in the space the fold is fitted in.
+- `AdaptivePCA.fit` and `AdaptivePLS.fit` now set `n_components_`, so the
+  inherited `hotellings_t2_limit` method works on the adaptive estimators instead
+  of raising `AttributeError` (#542). The value agrees with the
+  `hotellings_t2_limit` field of the `update()` Bunch.
+- The robust-regression tool description claimed the repeated-median slope
+  tolerates "~29%" contamination, which is the Theil-Sen figure; Siegel's
+  repeated median, the estimator implemented, has a 50% breakdown point (#544).
+- Project URLs in `pyproject.toml` and the Sphinx `github_url` pointed at
+  `github.com/kgdunn/process_improve` (underscore, HTTP 403); corrected to
+  `process-improve` (#543).
+- The `raincloud` docstring no longer claims a package default theme is applied
+  when `template=None`; none is.
+
+
+## [1.79.1] - 2026-09-05
+
+### Documentation
+
+- The cross-validation user guide described `PCA.select_n_components` as K-fold
+  PRESS with Wold's criterion, which it has not been since the element-wise
+  k-fold (ekf) rebuild, and its example passed the deprecated `threshold=0.95`,
+  so a reader who copied it was answered with a `DeprecationWarning`. The page
+  now describes the ekf scheme (cells held out, not rows, and why that matters),
+  lists the keys the result actually carries, and has a table of the four
+  selection rules, including which of them is the closest equivalent to the
+  retired `threshold`. The stale Wold's-criterion cross-references in the PCA
+  and PLS guides are corrected in the same way, as is the PLS claim that
+  `n_components` is the lowest-RMSECV count: the default has been the 1-SE rule
+  since 1.28.
+- The `pca-food-texture` and `pca-spectral-data` case-study notebooks passed a
+  pre-scaled `X` to `PCA.select_n_components`, so every rendered build showed
+  the pre-scaled `SpecificationWarning` added in 1.79.0. They now pass the raw
+  block to the selector and keep the scaled block for fitting the model, which
+  is the same shape as the rest of the documentation. The recommended component
+  count is unchanged in both (2 and 5).
+
+## [1.79.0] - 2026-09-04
+
+### Changed
+
+- `PCA.select_n_components` now carries the same two `SpecificationWarning`s as
+  `PLS.select_n_components` (#533): one on `scale_inside_folds=False`, where
+  scaling fit on the full matrix leaks into every element-fold, and one on
+  `scale_inside_folds=True` when the X handed in is already centred and
+  unit-variance scaled, where the in-fold re-standardisation erases the scaling
+  the caller chose. Both fire only under `cv_scheme="ekf"`, the scheme that
+  honours the flag. The two selectors share one helper, so their messages and
+  their detection rule (`_looks_prescaled`) cannot drift apart.
+- The pre-scaled warning's wording no longer claims identical RMSECV "to several
+  decimal places". That was true for PLS, where RMSECV is in the units of Y,
+  but PCA reports PRESS in the units X arrived in; the message now says that a
+  comparison between two pre-scalings reflects only those units, never which
+  scaling suits the data.
+
+### Documentation
+
+- The user guide (`cross_validation`, `showcase`), the quickstart and the README
+  pass the raw, unscaled blocks to `PCA.select_n_components` and
+  `PLS.select_n_components`, which is the usage the default
+  `scale_inside_folds=True` is designed for. A reader who copied the previous
+  examples was warned by the library for following them. The PCA docstring said
+  the opposite ("should already be on the analysis scale") and now matches PLS.
+- The library's own tests do the same, so the suite no longer emits the warning.
+
 
 ## [1.78.0] - 2026-08-30
 
@@ -4017,8 +4271,12 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.78.1...HEAD
-[1.78.1]: https://github.com/kgdunn/process-improve/compare/v1.78.0...v1.78.1
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.81.1...HEAD
+[1.81.1]: https://github.com/kgdunn/process-improve/compare/v1.81.0...v1.81.1
+[1.81.0]: https://github.com/kgdunn/process-improve/compare/v1.80.0...v1.81.0
+[1.80.0]: https://github.com/kgdunn/process-improve/compare/v1.79.1...v1.80.0
+[1.79.1]: https://github.com/kgdunn/process-improve/compare/v1.79.0...v1.79.1
+[1.79.0]: https://github.com/kgdunn/process-improve/compare/v1.78.0...v1.79.0
 [1.78.0]: https://github.com/kgdunn/process-improve/compare/v1.77.0...v1.78.0
 [1.77.0]: https://github.com/kgdunn/process-improve/compare/v1.76.0...v1.77.0
 [1.76.0]: https://github.com/kgdunn/process-improve/compare/v1.75.2...v1.76.0

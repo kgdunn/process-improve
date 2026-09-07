@@ -194,3 +194,112 @@ def test_fits_simulator_historical_campaign() -> None:
         fresh.quality["titer"].to_numpy(),
     )[0, 1]
     assert corr > 0.7
+
+
+@pytest.mark.dataset
+def test_convenience_forwards(aligned_dryer: dict, dryer_quality: pd.DataFrame) -> None:
+    """Plots, limits and contributions forward to the inner PLS with the batch layout intact."""
+    go = pytest.importorskip("plotly.graph_objects")
+    model = BatchPLS(n_components=2).fit(aligned_dryer, dryer_quality)
+    for name in ("score_plot", "spe_plot", "t2_plot"):
+        assert isinstance(getattr(model, name)(), go.Figure)
+    assert model.spe_limit(conf_level=0.95) > 0
+    assert model.hotellings_t2_limit(conf_level=0.95) > 0
+    assert len(model.score_limit(conf_level=0.95)) == 2
+    x_ellipse, y_ellipse = model.ellipse_coordinates(score_horiz=1, score_vert=2, n_points=50)
+    assert len(x_ellipse) == len(y_ellipse) == 50
+
+    scaled = model.unfold_and_scale(aligned_dryer)
+    assert list(scaled.columns) == list(model.feature_columns_)
+    score_c = model.score_contributions(scaled, component=1)
+    assert list(score_c.columns.names) == ["tag", "sequence"]
+    assert np.allclose(score_c.sum(axis=1), model.scores_.iloc[:, 0], atol=1e-8)
+    spe_c = model.spe_contributions(scaled)
+    assert np.allclose((spe_c**2).sum(axis=1), model.spe_.iloc[:, -1] ** 2, rtol=1e-6)
+    t2_c = model.t2_contributions(scaled)
+    assert np.allclose(t2_c.sum(axis=1), model.hotellings_t2_.iloc[:, -1], rtol=1e-6)
+
+
+def test_forwards_require_a_fitted_model(aligned_dryer: dict) -> None:
+    """Every forwarded method refuses to run before fit()."""
+    from sklearn.exceptions import NotFittedError
+
+    model = BatchPLS(n_components=2)
+    with pytest.raises(NotFittedError):
+        model.spe_limit()
+    with pytest.raises(NotFittedError):
+        model.unfold_and_scale(aligned_dryer)
+
+
+@pytest.mark.dataset
+def test_predictions_attribute_in_original_units(aligned_dryer: dict, dryer_quality: pd.DataFrame) -> None:
+    """predictions_ equals predict() on the training batches, and r2_per_variable_ keeps the unfolded index."""
+    model = BatchPLS(n_components=2).fit(aligned_dryer, dryer_quality)
+    assert list(model.predictions_.index) == model.batch_ids_
+    assert list(model.predictions_.columns) == ["final"]
+    y_hat = model.predict(aligned_dryer).y_hat.reindex(model.predictions_.index)
+    assert np.allclose(model.predictions_.to_numpy(), y_hat.to_numpy(), atol=1e-8)
+
+    r2 = model.r2_per_variable_
+    assert list(r2.index.names) == ["tag", "sequence"]
+    assert r2.shape == (len(model.feature_columns_), 2)
+    values = r2.to_numpy()
+    finite = values[np.isfinite(values)]
+    assert finite.min() >= -1e-9
+    assert finite.max() <= 1.0 + 1e-9
+    assert np.nanmin(np.diff(values, axis=1)) >= -1e-9
+
+
+@pytest.mark.dataset
+def test_predictions_vs_observed_plot(aligned_dryer: dict, dryer_quality: pd.DataFrame) -> None:
+    """The parity plot aligns observed rows by batch id and validates its inputs."""
+    go = pytest.importorskip("plotly.graph_objects")
+    model = BatchPLS(n_components=2).fit(aligned_dryer, dryer_quality)
+    fig = model.predictions_vs_observed_plot(dryer_quality)
+    assert isinstance(fig, go.Figure)
+    reversed_fig = model.predictions_vs_observed_plot(dryer_quality.iloc[::-1])
+    assert np.allclose(fig.data[0].y, reversed_fig.data[0].y)
+    with pytest.raises(ValueError, match="Unknown Y-variable"):
+        model.predictions_vs_observed_plot(dryer_quality, variable="nope")
+    with pytest.raises(TypeError, match="pandas DataFrame"):
+        model.predictions_vs_observed_plot(dryer_quality.to_numpy())
+
+
+@pytest.mark.dataset
+def test_initial_conditions_are_validated(aligned_dryer: dict, dryer_quality: pd.DataFrame) -> None:
+    """The Z block must be a numeric, complete DataFrame with exactly one row per batch."""
+    ids = list(aligned_dryer)
+    good_z = pd.DataFrame({"charge": [float(i) for i in range(len(ids))]}, index=ids)
+    with pytest.raises(TypeError, match="pandas DataFrame"):
+        BatchPLS(n_components=2).fit(aligned_dryer, dryer_quality, initial_conditions=good_z.to_numpy())
+    with pytest.raises(ValueError, match="exactly one row per batch"):
+        BatchPLS(n_components=2).fit(aligned_dryer, dryer_quality, initial_conditions=good_z.iloc[:-1])
+    with pytest.raises(ValueError, match="numeric"):
+        BatchPLS(n_components=2).fit(aligned_dryer, dryer_quality, initial_conditions=good_z.assign(kind="a"))
+    with pytest.raises(ValueError, match="missing"):
+        BatchPLS(n_components=2).fit(aligned_dryer, dryer_quality, initial_conditions=good_z.mask(good_z > 5.0))
+
+
+@pytest.mark.dataset
+def test_unscaled_fit_keeps_centring_only(aligned_dryer: dict, dryer_quality: pd.DataFrame) -> None:
+    """scale=False centres the unfolded columns but leaves their spread alone."""
+    model = BatchPLS(n_components=2, scale=False).fit(aligned_dryer, dryer_quality)
+    assert (model.scale_ == 1.0).all()
+    assert model.r2_cumulative_.iloc[-1] > 0.0
+
+
+@pytest.mark.dataset
+def test_group_by_batch_layout_with_initial_conditions(aligned_dryer: dict, dryer_quality: pd.DataFrame) -> None:
+    """With group_by_batch the Z columns are labelled ("", name) to match the (sequence, tag) layout."""
+    ids = list(aligned_dryer)
+    z = pd.DataFrame({"charge": [float(i) for i in range(len(ids))]}, index=ids)
+    model = BatchPLS(n_components=2, group_by_batch=True).fit(aligned_dryer, dryer_quality, initial_conditions=z)
+    assert ("", "charge") in model.feature_columns_
+
+
+@pytest.mark.dataset
+def test_predictions_vs_observed_plot_rejects_missing_batches(aligned_dryer: dict, dryer_quality: pd.DataFrame) -> None:
+    """A quality frame without every training batch is refused rather than drawn with gaps."""
+    model = BatchPLS(n_components=2).fit(aligned_dryer, dryer_quality)
+    with pytest.raises(ValueError, match="missing batch ids"):
+        model.predictions_vs_observed_plot(dryer_quality.iloc[:-5])
