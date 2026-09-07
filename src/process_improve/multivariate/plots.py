@@ -81,6 +81,48 @@ def plot_pre_checks(model: BaseEstimator, pc_horiz: int, pc_vert: int, pc_depth:
     return True
 
 
+def _area_scale(sizes: pd.Series | None, index: pd.Index, size_max: float) -> dict:
+    """Return the Plotly keys that make a marker's area, not its diameter, proportional to ``sizes``.
+
+    One ``sizeref`` is computed for the whole series and shared by every trace, so that a
+    highlighted point and a plain one of the same value are drawn the same size. Values that
+    cannot be an area, or that do not cover the observations being plotted, raise instead.
+    """
+    if sizes is None:
+        return {}
+    values = pd.Series(sizes).reindex(index).astype(float)
+    if values.isna().any():
+        msg = f"`sizes` has no value for these observations: {list(values.index[values.isna()])[:5]}"
+        raise ValueError(msg)
+    if (values < 0).any():
+        msg = "`sizes` cannot be negative: the marker area is proportional to it."
+        raise ValueError(msg)
+    largest = float(values.max())
+    if largest <= 0:
+        msg = "`sizes` must have at least one positive value to set the marker scale."
+        raise ValueError(msg)
+    return {"sizemode": "area", "sizeref": 2.0 * largest / size_max**2, "sizemin": 2}
+
+
+def _sized_marker(styling: dict, index: list, sizes: pd.Series | None, marker_area: dict) -> dict:
+    """Return the marker specification for one trace, with its area carrying ``sizes`` when given."""
+    if sizes is None:
+        return styling
+    return {**styling, "size": pd.Series(sizes).reindex(index).astype(float).to_numpy(), **marker_area}
+
+
+def _size_hover(index: list, sizes: pd.Series | None, size_name: str) -> dict:
+    """Return hover text reporting the value the marker area stands for, so it can be read exactly."""
+    if sizes is None:
+        return {}
+    values = pd.Series(sizes).reindex(index).astype(float)
+    label = size_name or "size"
+    return {
+        "customdata": values.to_numpy(),
+        "hovertemplate": "%{text}<br>" + label + ": %{customdata:.4g}<extra></extra>",
+    }
+
+
 def score_plot(  # noqa: C901, PLR0913
     model: BaseEstimator,
     pc_horiz: int = 1,
@@ -89,6 +131,9 @@ def score_plot(  # noqa: C901, PLR0913
     items_to_highlight: dict[str, list] | None = None,
     settings: dict | None = None,
     fig: go.Figure | None = None,
+    *,
+    sizes: pd.Series | None = None,
+    size_name: str = "",
 ) -> go.Figure:
     """Generate a 2D or 3D score plot for the given latent variable model.
 
@@ -114,6 +159,17 @@ def score_plot(  # noqa: C901, PLR0913
 
         will highlight the items in ``items_in_red`` with the given colour and shape.
 
+    sizes : pd.Series, optional
+        One non-negative value per observation, indexed as the scores are. The marker
+        **area** is made proportional to it, so that a marker of twice the area stands for
+        twice the value, and the largest value is drawn ``settings["size_max"]`` pixels
+        across. The plain and the highlighted traces share one scale, and a highlighted
+        point keeps its own area rather than being enlarged, because two meanings on one
+        channel cannot both be read. Give the reader that scale as well: an area cannot be
+        read off a plot on its own.
+    size_name : str, optional
+        What ``sizes`` measures, for example ``"SPE"``; it names the value in the hover text.
+
     settings : dict
         Default settings::
 
@@ -128,6 +184,8 @@ def score_plot(  # noqa: C901, PLR0913
                                                # (pc_depth > 0).
                 "show_labels": False,          # bool: add a label for each observation
                 "show_legend": True,           # bool: show clickable legend
+                "size_max": 26,                # float: diameter in pixels of the
+                                               # largest marker, when `sizes` is given
                 "html_image_height": 500,      # int: image height in pixels
                 "html_aspect_ratio_w_over_h": 16/9,  # float: width as ratio of height
                 "template": "pi_journal",        # str: registered Plotly theme name
@@ -167,11 +225,13 @@ def score_plot(  # noqa: C901, PLR0913
         )
         show_labels: bool = False
         show_legend: bool = True
+        size_max: float = 26.0
         html_image_height: float = 500.0
         html_aspect_ratio_w_over_h: float = 16 / 9.0
         template: str = DEFAULT_THEME
 
     setdict = Settings(**settings).model_dump() if settings else Settings().model_dump()
+    marker_area = _area_scale(sizes, data_to_plot.index, setdict["size_max"])
     if fig is None:
         fig = go.Figure()
 
@@ -198,11 +258,10 @@ def score_plot(  # noqa: C901, PLR0913
                 z=data_to_plot.loc[default_index, pc_depth],
                 name=name,
                 mode="markers+text" if setdict["show_labels"] else "markers",
-                marker=dict(
-                    symbol="circle",
-                ),
+                marker=_sized_marker({"symbol": "circle"}, default_index, sizes, marker_area),
                 text=list(default_index),
                 textposition="top center",
+                **_size_hover(default_index, sizes, size_name),
             )
         )
         # Items to highlight, if any
@@ -215,9 +274,10 @@ def score_plot(  # noqa: C901, PLR0913
                     z=data_to_plot.loc[index, pc_depth],
                     name=name,
                     mode="markers+text" if setdict["show_labels"] else "markers",
-                    marker=styling,
+                    marker=_sized_marker(styling, index, sizes, marker_area),
                     text=list(index),
                     textposition="top center",
+                    **_size_hover(index, sizes, size_name),
                 )
             )
     else:
@@ -228,12 +288,10 @@ def score_plot(  # noqa: C901, PLR0913
                 y=data_to_plot.loc[default_index, pc_vert],
                 name=name,
                 mode="markers+text" if setdict["show_labels"] else "markers",
-                marker=dict(
-                    symbol="circle",
-                    size=7,
-                ),
+                marker=_sized_marker({"symbol": "circle", "size": 7}, default_index, sizes, marker_area),
                 text=default_index,
                 textposition="top center",
+                **_size_hover(default_index, sizes, size_name),
             )
         )
         # Items to highlight, if any
@@ -245,9 +303,10 @@ def score_plot(  # noqa: C901, PLR0913
                     y=data_to_plot.loc[index, pc_vert],
                     name=name,
                     mode="markers+text" if setdict["show_labels"] else "markers",
-                    marker=styling,
+                    marker=_sized_marker(styling, index, sizes, marker_area),
                     text=list(index),
                     textposition="top center",
+                    **_size_hover(index, sizes, size_name),
                 )
             )
         if setdict["show_ellipse"]:
