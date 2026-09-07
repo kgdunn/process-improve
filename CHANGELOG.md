@@ -25,6 +25,19 @@ those changes.
   series that does not cover every observation, or an all-zero series raises
   rather than drawing a plot that cannot be read.
 
+## [1.81.2] - 2026-09-07
+
+### Fixed
+
+- `PLS.fit_transform` now raises `ValueError` when called without `Y`, instead
+  of tripping a bare `assert`. `Y` carries a `None` default only to match
+  sklearn's `fit_transform(X, y=None)` signature; under `python -O` the assert
+  was stripped and the call instead failed inside `fit` with
+  `ValueError: at least one array or dtype is required`, which named neither
+  `Y` nor `fit_transform`. This is a caller-contract violation, so it follows
+  case 1 of `docs/development/error_handling.rst`. Callers catching
+  `AssertionError` here should catch `ValueError` instead.
+
 ## [1.81.1] - 2026-09-07
 
 ### Changed
@@ -4286,7 +4299,8 @@ this entry records them together.
   "Why not scikit-learn?" comparison table.
 
 [Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.82.0...HEAD
-[1.82.0]: https://github.com/kgdunn/process-improve/compare/v1.81.1...v1.82.0
+[1.82.0]: https://github.com/kgdunn/process-improve/compare/v1.81.2...v1.82.0
+[1.81.2]: https://github.com/kgdunn/process-improve/compare/v1.81.1...v1.81.2
 [1.81.1]: https://github.com/kgdunn/process-improve/compare/v1.81.0...v1.81.1
 [1.81.0]: https://github.com/kgdunn/process-improve/compare/v1.80.0...v1.81.0
 [1.80.0]: https://github.com/kgdunn/process-improve/compare/v1.79.1...v1.80.0

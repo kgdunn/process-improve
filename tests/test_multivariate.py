@@ -4439,6 +4439,35 @@ def test_pca_fit_transform() -> None:
     np.testing.assert_allclose(scores.values, model.scores_.values, atol=1e-10)
 
 
+def test_pls_fit_transform_without_y_raises_value_error() -> None:
+    """ENG-11 / #293 case 1: the missing-Y check must survive ``python -O``.
+
+    ``Y`` carries a ``None`` default only to match sklearn's
+    ``fit_transform(X, y=None)`` signature. The check used to be an ``assert``,
+    which ``python -O`` strips: the call then reached ``fit`` and died with
+    ``ValueError: at least one array or dtype is required`` from inside
+    sklearn, far from the argument the caller got wrong. It is a caller-contract
+    violation, so it raises ``ValueError`` up front and names ``Y``.
+    """
+    rng = np.random.default_rng(42)
+    X = MCUVScaler().fit_transform(pd.DataFrame(rng.standard_normal((20, 4))))
+
+    with pytest.raises(ValueError, match=r"Y is required by PLS\.fit_transform"):
+        PLS(n_components=2).fit_transform(X)
+
+
+def test_pls_fit_transform_with_y_matches_fit() -> None:
+    """The happy path is unchanged: fit_transform equals fit() then ``scores_``."""
+    rng = np.random.default_rng(42)
+    X = MCUVScaler().fit_transform(pd.DataFrame(rng.standard_normal((20, 4))))
+    Y = pd.DataFrame({"y": X.values @ rng.standard_normal(4)})
+
+    scores = PLS(n_components=2).fit_transform(X, Y)
+    model = PLS(n_components=2).fit(X, Y)
+
+    np.testing.assert_allclose(scores.values, model.scores_.values, atol=1e-10)
+
+
 def test_ellipse_coordinates_basic() -> None:
     """ellipse_coordinates should return x, y arrays forming a closed ellipse."""
     scaling = pd.Series([2.0, 1.5, 1.0])
