@@ -333,11 +333,11 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     Parameters
     ----------
     n_components : int or None
-        Number of principal components to extract. ``None`` (also accepted by
-        ``_parameter_constraints``) asks for as many components as the data
-        supports: it is clamped at fit time to ``min(n_samples, n_features)``,
-        and the resolved count is available on the fitted attribute
-        ``n_components_``.
+        Number of principal components to extract. ``None`` asks for as many
+        components as the data supports: it is resolved at fit time to
+        ``min(n_samples, n_features)``, which is also the ceiling an explicit
+        request is clamped to (with a ``SpecificationWarning``). The resolved
+        count is available on the fitted attribute ``n_components_``.
 
     algorithm : str, default="auto"
         Algorithm to use for fitting the model.

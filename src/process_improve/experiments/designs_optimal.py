@@ -529,8 +529,9 @@ def dispatch_i_optimal(  # noqa: PLR0913
     hard_to_change : list[str] or None
         Names of hard-to-change factors.
     constraints : list[Constraint] or None
-        Factor-space constraints (logged; not yet enforced by the underlying
-        pyoptex path).
+        Factor-space constraints. Not enforced by the pyoptex path: when a
+        value is given, the returned metadata carries
+        ``constraints_enforced=False`` to record that.
     model_type : str
         Model assumption.
     fixed_runs : pd.DataFrame or None
@@ -587,8 +588,9 @@ def dispatch_a_optimal(  # noqa: PLR0913
     hard_to_change : list[str] or None
         Names of hard-to-change factors.
     constraints : list[Constraint] or None
-        Factor-space constraints (logged; not yet enforced by the underlying
-        pyoptex path).
+        Factor-space constraints. Not enforced by the pyoptex path: when a
+        value is given, the returned metadata carries
+        ``constraints_enforced=False`` to record that.
     model_type : str
         Model assumption.
     fixed_runs : pd.DataFrame or None

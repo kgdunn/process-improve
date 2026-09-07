@@ -156,9 +156,9 @@ def validate_descriptive(  # noqa: PLR0912, PLR0913, PLR0915, C901
         factor levels) is not implemented yet.
     mode : {"observational", "designed"}
         How the covariate table is interpreted. Only ``"observational"`` is
-        supported for now; ``"designed"`` is accepted by the argument parser
-        but raises ``NotImplementedError`` at call time, and is planned for a
-        later release. Any other value raises ``ValueError`` up front.
+        supported for now; ``"designed"`` passes the up-front value check but
+        then raises ``NotImplementedError``, and is planned for a later
+        release. Any other value raises ``ValueError``.
     score_min, score_max : float or None
         Optional inclusive bounds for the ``score`` column; out-of-range values
         are reported as a warning.

@@ -118,7 +118,7 @@ def apply_scaling(
     -------
     dict
         The scaled batch data. Each value carries only the ``columns_to_align``
-        columns, in the same order as the input.
+        columns, in that order.
     """
     # TODO: handle the case of DataFrames still
     if columns_to_align is None:
