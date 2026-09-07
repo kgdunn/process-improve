@@ -11,6 +11,20 @@ those changes.
 
 ## [Unreleased]
 
+## [1.82.0] - 2026-09-07
+
+### Added
+
+- `score_plot(sizes=...)`: a value per observation, whose **area** the marker
+  then carries, so a score plot can answer two questions at once (which batches
+  are extreme along the components, and how far each sits off them). Area, not
+  diameter, is proportional to the value, and one scale is shared by the plain
+  and the highlighted traces, so a highlighted point keeps its own area rather
+  than being enlarged. `settings["size_max"]` sets the diameter of the largest
+  marker and `size_name` names the value in the hover text. A negative value, a
+  series that does not cover every observation, or an all-zero series raises
+  rather than drawing a plot that cannot be read.
+
 ## [1.81.0] - 2026-09-05
 
 Mid-batch prediction and on-line monitoring for batch PLS models, so a
@@ -4256,7 +4270,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.81.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.82.0...HEAD
+[1.82.0]: https://github.com/kgdunn/process-improve/compare/v1.81.0...v1.82.0
 [1.81.0]: https://github.com/kgdunn/process-improve/compare/v1.80.0...v1.81.0
 [1.80.0]: https://github.com/kgdunn/process-improve/compare/v1.79.1...v1.80.0
 [1.79.1]: https://github.com/kgdunn/process-improve/compare/v1.79.0...v1.79.1

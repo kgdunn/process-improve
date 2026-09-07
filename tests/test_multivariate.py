@@ -4552,6 +4552,44 @@ def test_score_plot_basic(fixture_pca_for_plots: PCA) -> None:
     assert len(fig.data) >= 1  # at least the scores trace
 
 
+def test_score_plot_sizes_area_encoding(fixture_pca_for_plots: PCA) -> None:
+    """`sizes` puts the value on the marker area, on one scale shared by every trace."""
+    model = fixture_pca_for_plots
+    spe = model.spe_.iloc[:, -1]
+    plain = model.score_plot()
+    assert plain.data[0].marker.sizemode is None  # the default path is untouched
+    assert plain.data[0].marker.size == 7
+
+    fig = model.score_plot(sizes=spe, size_name="SPE")
+    marker = fig.data[0].marker
+    assert marker.sizemode == "area"
+    assert marker.size == pytest.approx(spe.to_numpy())
+    # sizeref is what turns a value into an area: the largest value fills `size_max` pixels.
+    assert marker.sizeref == pytest.approx(2.0 * spe.max() / 26.0**2)
+    assert "SPE" in fig.data[0].hovertemplate
+
+    highlighted = model.score_plot(
+        items_to_highlight={'{"color": "red"}': list(spe.index[:2])}, sizes=spe, size_name="SPE"
+    )
+    refs = {trace.marker.sizeref for trace in highlighted.data if trace.marker.sizeref is not None}
+    assert len(refs) == 1, "the highlighted trace must be read on the same scale as the rest"
+
+
+def test_score_plot_sizes_settings_and_guards(fixture_pca_for_plots: PCA) -> None:
+    """`size_max` sets the largest marker, and a value that cannot be an area is refused."""
+    model = fixture_pca_for_plots
+    spe = model.spe_.iloc[:, -1]
+    fig = model.score_plot(sizes=spe, settings={"size_max": 40})
+    assert fig.data[0].marker.sizeref == pytest.approx(2.0 * spe.max() / 40.0**2)
+
+    with pytest.raises(ValueError, match="cannot be negative"):
+        model.score_plot(sizes=-spe)
+    with pytest.raises(ValueError, match="no value for these observations"):
+        model.score_plot(sizes=spe.iloc[:3])
+    with pytest.raises(ValueError, match="at least one positive value"):
+        model.score_plot(sizes=spe * 0.0)
+
+
 def test_score_plot_with_ellipse(fixture_pca_for_plots: PCA) -> None:
     """score_plot with ellipse should have an extra trace for the ellipse."""
     fig = fixture_pca_for_plots.score_plot(settings={"show_ellipse": True})
