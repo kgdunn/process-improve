@@ -195,8 +195,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
 
     Parameters
     ----------
-    n_components : int
-        Number of latent components to extract.
+    n_components : int or None
+        Number of latent components to extract. ``None`` asks for as many
+        components as the data supports: it is resolved at fit time to
+        ``min(n_samples, n_features)``, which is also the ceiling an explicit
+        request is clamped to (with a ``SpecificationWarning``). The resolved
+        count is available on the fitted attribute ``n_components_``.
     scale : bool, default=True
         Mean-center and unit-variance-scale both the X and Y blocks internally
         before fitting (``ddof=1``, done with :class:`MCUVScaler`). This mirrors
@@ -965,6 +969,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         ----------
         X : array-like of shape (n_samples, n_features)
         Y : array-like of shape (n_samples, n_targets)
+            Required despite the ``None`` default: the default is present only
+            for signature-compatibility with the sklearn ``fit_transform``
+            protocol, and PLS cannot be fitted without responses. The check is
+            an ``assert``, so omitting ``Y`` raises :class:`AssertionError`
+            under default Python; under ``python -O`` the assert is stripped
+            and the call fails further down in :meth:`fit` instead.
 
         Returns
         -------

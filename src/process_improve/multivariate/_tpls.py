@@ -864,23 +864,33 @@ class TPLS(RegressorMixin, BaseEstimator):
         return output
 
     def score(self, X: DataFrameDict, y: None = None, sample_weight: np.ndarray | None = None) -> float:  # noqa: ARG002
-        """Return r2_score` on test data.
+        """Return the mean :func:`~sklearn.metrics.r2_score` across Y blocks on test data.
 
-        See RegressorMixin.score for more details.
+        See RegressorMixin.score for the general contract.
 
         Parameters
         ----------
         X : DataFrameDict
-            Test samples.
+            Test samples. The nested ``"Y"`` block supplies the actual response
+            values; ``X["Z"]`` and ``X["F"]`` drive the prediction.
 
-        y : Not used. In the `X` input, there is a already a "Y" block. This will be the Y-data.
+        y : None
+            Ignored. The Y-data comes from ``X["Y"]``, not from a separate
+            argument (the sklearn ``RegressorMixin.score`` signature is preserved
+            only for API compatibility).
 
-        sample_weight : Not used.
+        sample_weight : np.ndarray or None
+            Optional per-sample weight forwarded to
+            :func:`~sklearn.metrics.r2_score`.
 
         Returns
         -------
         score : float
-            :math:`R^2` of ``self.diagnose(X)``.
+            The mean of :func:`~sklearn.metrics.r2_score` computed separately on
+            every Y block in ``X["Y"]``, using ``self.diagnose(X).hat`` as the
+            prediction. A single Y block gives its own :math:`R^2`; more than
+            one is an unweighted average across blocks (not a pooled multiblock
+            :math:`R^2`).
         """
         # Use diagnose() directly to avoid emitting the predict()
         # DeprecationWarning from inside the package's own score path.

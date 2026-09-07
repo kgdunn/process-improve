@@ -11,6 +11,21 @@ those changes.
 
 ## [Unreleased]
 
+## [1.81.1] - 2026-09-07
+
+### Changed
+
+- Docs-only sweep across the computational and user-facing APIs: fixed
+  sixteen concrete drifts between docstrings and current code behaviour,
+  covering `multivariate.scale` / `center` / `spe_limit` /
+  `PCA.n_components` / `PLS.n_components` / `PLS.fit_transform`,
+  `regression.multiple_linear_regression`,
+  `experiments.dispatch_d_optimal` / `dispatch_i_optimal` /
+  `dispatch_a_optimal` / `AnalysisResult`, `batch.f_crossing` /
+  `apply_scaling` / `reverse_scaling`,
+  `multivariate.TPLS.score`, and `sensory.validate_descriptive`. No
+  runtime behaviour changed.
+
 ## [1.81.0] - 2026-09-05
 
 Mid-batch prediction and on-line monitoring for batch PLS models, so a
@@ -4256,7 +4271,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.81.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.81.1...HEAD
+[1.81.1]: https://github.com/kgdunn/process-improve/compare/v1.81.0...v1.81.1
 [1.81.0]: https://github.com/kgdunn/process-improve/compare/v1.80.0...v1.81.0
 [1.80.0]: https://github.com/kgdunn/process-improve/compare/v1.79.1...v1.80.0
 [1.79.1]: https://github.com/kgdunn/process-improve/compare/v1.79.0...v1.79.1

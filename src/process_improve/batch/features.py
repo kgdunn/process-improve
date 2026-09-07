@@ -640,13 +640,14 @@ def f_crossing(  # noqa: PLR0913
     between the indices. If you prefer the index itself, use `only_index=True`,
     but the default for that setting is `False`.
 
-    Does this for each unique batch in the `batch_col` indicator column, and
-    within each unique phase, per batch, of the `phase_col` column.
+    Does this for each unique batch in the `batch_col` indicator column. The
+    `phase_col` argument is accepted for signature-compatibility with the
+    other ``f_*`` features but is not consumed here: the crossing is looked
+    up over the whole batch, not per phase.
 
     `suffix`: what to add to the data tag, to name to this feature.
 
-    Note: NaN is returned for a given batch and phase, if the crossing is not
-    found.
+    Note: NaN is returned for a given batch, if the crossing is not found.
 
     """
     base_name = f"cross-{int(threshold)}" if suffix is None else str(suffix)
