@@ -924,14 +924,121 @@ class TestMBPLSMissingData:
         with pytest.raises(ValueError, match="columns with all values missing"):
             MBPLS(n_components=2).fit(x_n, y)
 
-    def test_x_row_all_nan_raises(self, two_block) -> None:
+    def test_x_row_all_nan_in_one_block_is_still_scored(self, two_block) -> None:
+        """An observation missing one whole block keeps a super score, from the blocks it has.
+
+        The score comes from one masked regression of the row onto the stacked weights, so the
+        cells the row does have carry it. The block that was not observed has no score of its
+        own, and says so with NaN rather than sitting at the origin as though it were average.
+        """
         from process_improve.multivariate.methods import MBPLS
 
         x, y = two_block
         x_n = {name: df.copy() for name, df in x.items()}
         x_n["A"].iloc[7, :] = np.nan
-        with pytest.raises(ValueError, match="rows with all values missing"):
+        model = MBPLS(n_components=2).fit(x_n, y)
+        assert np.all(np.isfinite(model.super_scores_.iloc[7].to_numpy()))
+        assert np.all(np.isnan(model.block_scores_["A"].iloc[7].to_numpy()))
+        assert np.all(np.isnan(model.block_spe_["A"].iloc[7].to_numpy()))
+        assert np.all(np.isfinite(model.block_scores_["B"].iloc[7].to_numpy()))
+
+    def test_x_row_all_nan_in_every_block_raises(self, two_block) -> None:
+        """A row observed nowhere carries no information, and is refused."""
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        x_n = {name: df.copy() for name, df in x.items()}
+        for df in x_n.values():
+            df.iloc[7, :] = np.nan
+        with pytest.raises(ValueError, match=r"all values missing in every X-block"):
             MBPLS(n_components=2).fit(x_n, y)
+
+    def test_pooled_super_score_leaves_complete_data_untouched(self, two_block) -> None:
+        """On a complete row the pooled regression is algebraically the weighted sum of block scores.
+
+        This is the invariant that lets the missing-data path change without moving any fitted
+        model: it pins the super score against the sum it replaces, evaluated by hand.
+        """
+        from process_improve.multivariate._preprocessing import MCUVScaler
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        model = MBPLS(n_components=2).fit(x, y)
+        sqrt_kb = {name: np.sqrt(x[name].shape[1]) for name in x}
+        x_pp = {name: MCUVScaler().fit_transform(x[name]).to_numpy() for name in x}
+        t_b = np.column_stack([x_pp[name] @ model.block_weights_[name].to_numpy()[:, 0] / sqrt_kb[name] for name in x])
+        by_hand = t_b @ model.super_weights_.to_numpy()[:, 0]
+        assert np.allclose(by_hand, model.super_scores_.to_numpy()[:, 0], atol=1e-10)
+
+    def test_super_score_of_a_partly_observed_row_is_the_pooled_regression(self, two_block) -> None:
+        """The super score of a row with missing cells is one regression of the whole row.
+
+        Written out by hand from the model's own weights, so the test fails if the score goes back
+        to being a sum of per-block scores: the two differ once a row is not complete.
+        """
+        from process_improve.multivariate.methods import MBPLS
+
+        x, y = two_block
+        model = MBPLS(n_components=2).fit(x, y)
+        row = {name: df.iloc[[3]].copy() for name, df in x.items()}
+        row["A"].iloc[0, 1:] = np.nan  # block A observed in one variable out of six
+
+        scores = model.transform(row).to_numpy()[0]
+        sqrt_kb = {name: np.sqrt(x[name].shape[1]) for name in x}
+        x_pp = {name: model.preproc_[name].transform(row[name]).to_numpy()[0] for name in x}
+        w_s = model.super_weights_.to_numpy()[:, 0]
+        g = np.concatenate(
+            [w_s[b] * model.block_weights_[name].to_numpy()[:, 0] / sqrt_kb[name] for b, name in enumerate(x)]
+        )
+        cells = np.concatenate([x_pp[name] for name in x])
+        seen = ~np.isnan(cells)
+        pooled = float(np.nan_to_num(cells) @ g) / float(seen @ (g**2)) * float(g @ g) / float(w_s @ w_s)
+        assert scores[0] == pytest.approx(pooled, abs=1e-10)
+
+        by_block = float(
+            sum(
+                w_s[b] * np.nansum(x_pp[name] * model.block_weights_[name].to_numpy()[:, 0]) / sqrt_kb[name]
+                for b, name in enumerate(x)
+            )
+        )
+        assert abs(scores[0] - by_block) > 1e-6, "the two formulas must part company on an incomplete row"
+
+    def test_pooled_super_score_survives_heavy_missingness(self) -> None:
+        """With a quarter of the cells gone, the super scores still track the complete-data ones.
+
+        The blocks are deliberately lopsided, 14 variables against 3. Summing per-block scores lets
+        the narrow block speak as loudly as the wide one however little of it a row has, and the
+        correlation with the complete-data scores collapses to about 0.31; pooling holds it at 0.93.
+        """
+        from process_improve.multivariate.methods import MBPLS
+
+        rng = np.random.default_rng(11)
+        n_rows = 60
+        latent = rng.standard_normal((n_rows, 2))
+        widths = {"wide": 14, "narrow": 3}
+        x = {
+            name: pd.DataFrame(
+                latent @ rng.standard_normal((2, k)) + 0.5 * rng.standard_normal((n_rows, k)),
+                columns=[f"{name}{i}" for i in range(k)],
+            )
+            for name, k in widths.items()
+        }
+        y = pd.DataFrame(
+            latent @ rng.standard_normal((2, 2)) + 0.3 * rng.standard_normal((n_rows, 2)), columns=["y0", "y1"]
+        )
+        reference = MBPLS(n_components=2).fit(x, y).super_scores_.to_numpy()
+
+        rng = np.random.default_rng(3)
+        x_n = {}
+        for name, df in x.items():
+            out = df.copy().astype(float)
+            mask = rng.random(out.shape) < 0.25
+            mask[mask.all(axis=1), 0] = False  # never empty a whole block for a row
+            out.values[mask] = np.nan
+            x_n[name] = out
+        scores = MBPLS(n_components=2).fit(x_n, y).super_scores_.to_numpy()
+        agreement = np.mean([abs(np.corrcoef(reference[:, a], scores[:, a])[0, 1]) for a in range(2)])
+        assert agreement > 0.85
 
     def test_y_column_all_nan_raises(self, two_block) -> None:
         from process_improve.multivariate.methods import MBPLS
