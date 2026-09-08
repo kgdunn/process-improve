@@ -11,6 +11,33 @@ those changes.
 
 ## [Unreleased]
 
+## [1.83.0] - 2026-09-08
+
+### Changed
+
+- **`MBPLS` estimates the super score of a row with missing cells by one masked
+  regression of the whole row onto the stacked block weights**, instead of
+  scoring each block separately and adding the per-block scores up. On a
+  complete row the two are algebraically the same number, so **no complete-data
+  model changes**; on an incomplete row the pooled form lets every observed cell
+  carry its share, wherever in the blocks it sits, rather than letting a block
+  observed in one variable out of twenty speak as loudly as a block observed in
+  full. Measured against the complete-data fit, with a quarter of the cells
+  knocked out of a 14-variable and a 3-variable block, the super scores now
+  correlate 0.93 with the complete-data ones where the per-block sum reached
+  0.31; on the wider study across three blocks at 30% missing, 0.97 against
+  0.92. `transform`, `predict` and `score_contributions` use the same
+  estimate, so a projected score matches a fitted one.
+
+### Added
+
+- **`MBPLS` scores an observation that is missing one whole block**, from the
+  blocks it does have: the multiblock case of a batch that skipped an analysis.
+  The block that was not observed reports `NaN` in `block_scores_` and
+  `block_spe_`, rather than a zero that would place the row at that block's
+  average. Only a row observed in no block at all is refused, with a message
+  naming the rows.
+
 ## [1.82.0] - 2026-09-07
 
 ### Added
@@ -4298,7 +4325,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.82.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.83.0...HEAD
+[1.83.0]: https://github.com/kgdunn/process-improve/compare/v1.82.0...v1.83.0
 [1.82.0]: https://github.com/kgdunn/process-improve/compare/v1.81.2...v1.82.0
 [1.81.2]: https://github.com/kgdunn/process-improve/compare/v1.81.1...v1.81.2
 [1.81.1]: https://github.com/kgdunn/process-improve/compare/v1.81.0...v1.81.1

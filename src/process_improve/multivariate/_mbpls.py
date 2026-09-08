@@ -39,6 +39,63 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
 logger = logging.getLogger(__name__)
 
 
+def _stacked_super_weights(
+    block_weights: dict[str, np.ndarray],
+    super_weight: np.ndarray,
+    sqrt_kb: dict[str, float],
+    block_names: Sequence[str],
+) -> np.ndarray:
+    r"""Give the super score's weight on every variable, stacked over the blocks in ``block_names`` order.
+
+    Written out over the variables rather than over the blocks,
+
+    .. math::
+        t_i = \frac{1}{\mathbf{w}_s' \mathbf{w}_s} \sum_b w_{s,b}
+              \frac{\mathbf{x}_{ib}' \mathbf{w}_b}{\sqrt{K_b}}
+            = \frac{\mathbf{x}_i' \mathbf{g}}{\mathbf{w}_s' \mathbf{w}_s},
+        \qquad
+        \mathbf{g} = \big[\, w_{s,b}\, \mathbf{w}_b / \sqrt{K_b} \,\big]_b
+
+    the super score is one linear combination of all the variables of all the blocks.
+    ``g`` is that combination.
+    """
+    return np.concatenate([super_weight[b] * block_weights[name] / sqrt_kb[name] for b, name in enumerate(block_names)])
+
+
+def _pooled_super_score(
+    x_def: dict[str, np.ndarray],
+    stacked_weights: np.ndarray,
+    super_weight: np.ndarray,
+    block_names: Sequence[str],
+) -> np.ndarray:
+    r"""Score every row by one masked regression of the whole row onto the stacked weights.
+
+    The alternative is to score each block on its own and add the per-block scores up. On a
+    complete row the two give the same number, but they part company as soon as a row has missing
+    cells: a block observed in one variable out of twenty still hands a score built on that one
+    variable into the sum, weighted as though it were as well determined as the others. Regressing
+    the whole row at once instead lets every cell the row does have carry its share, wherever in
+    the blocks that cell sits.
+
+    The ratio is rescaled by :math:`\mathbf{g}'\mathbf{g}` so a complete row reproduces the
+    weighted sum of block scores exactly, which is what leaves every complete-data model
+    unchanged. A row with nothing observed under a non-zero weight has no score: it comes back
+    as NaN.
+    """
+    stacked_x = np.hstack([x_def[name] for name in block_names])
+    observed = ~np.isnan(stacked_x)
+    numerator = np.nan_to_num(stacked_x) @ stacked_weights
+    denominator = observed @ (stacked_weights**2)
+    scale = float(stacked_weights @ stacked_weights) / _nz(float(super_weight @ super_weight))
+    usable = denominator > 0
+    return np.where(usable, numerator / np.where(usable, denominator, 1.0) * scale, np.nan)
+
+
+def _rows_with_data(values: np.ndarray) -> np.ndarray:
+    """Report, for each row, whether it has at least one observed cell."""
+    return np.any(~np.isnan(values), axis=1)
+
+
 class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     r"""Multi-block PLS (hierarchical / superblock formulation).
 
@@ -75,6 +132,14 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
           complete (slower than ``"dense"`` but produces equivalent
           results).
 
+        With missing data the super score of each row is estimated by one masked regression of
+        the whole row onto the stacked block weights, rather than by adding up a score per block.
+        The two are the same number on a complete row, so no fitted model changes; on an
+        incomplete row the pooled form lets every observed cell carry its share, wherever in the
+        blocks it sits, instead of letting a block seen in one variable speak as loudly as a block
+        seen in twenty. A row with nothing observed in one block is therefore still scored, from
+        the blocks it does have; only a row observed in no block at all is refused.
+
     missing_data_settings : dict or None, default=None
         Settings for the iterative ``"nipals"`` path. Keys: ``md_tol``
         (convergence tolerance on the score-vector change between
@@ -101,7 +166,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
     y_preproc_ : MCUVScaler
         Preprocessor used on Y.
     super_scores_ : pd.DataFrame, shape (n_samples, n_components)
-        Super-block (consensus) X-scores ``T``.
+        Super-block (consensus) X-scores ``T``. Finite for every row that has at least one
+        observed cell, in any block.
     super_y_scores_ : pd.DataFrame, shape (n_samples, n_components)
         Super-block Y-scores ``U``.
     super_weights_ : pd.DataFrame, shape (n_blocks, n_components)
@@ -114,7 +180,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         Variable-importance in projection for each X-block, indexed by
         block name.
     block_scores_ : dict[str, pd.DataFrame]
-        Per-block X-scores ``t_b``, each shape ``(n_samples, n_components)``.
+        Per-block X-scores ``t_b``, each shape ``(n_samples, n_components)``. NaN for a row with
+        nothing observed in that block: the block has no score of its own there, and reporting
+        zero would place the row at the block's average instead.
     block_weights_ : dict[str, pd.DataFrame]
         Per-block X-weights ``w_b``, each shape ``(K_b, n_components)``.
         Each column has unit norm.
@@ -122,7 +190,8 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         Per-block X-loadings ``p_b`` (used for deflation), each shape
         ``(K_b, n_components)``.
     block_spe_ : dict[str, pd.DataFrame]
-        Per-block squared prediction error per sample and component.
+        Per-block squared prediction error per sample and component. NaN where the row has
+        nothing observed in that block, for the same reason as ``block_scores_``.
     block_hotellings_t2_ : dict[str, pd.DataFrame]
         Per-block cumulative Hotelling's T^2 per sample and component.
     block_vip_ : dict[str, pd.Series]
@@ -306,10 +375,12 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 raise ValueError("Tolerance should not be too large.")
             if not settings["md_tol"] > epsqrt**1.95:
                 raise ValueError("Tolerance must exceed machine precision.")
-            # Degeneracy guards: any column or any (block, row) entirely NaN
-            # leaves the masked NIPALS denominator at zero, which would
-            # silently produce a spurious score or loading. Refuse the fit
-            # rather than coerce the user into a misleading result.
+            # Degeneracy guards. A column with nothing in it leaves the masked NIPALS denominator
+            # at zero for that variable's loading, so it is refused. A *row* with nothing in one
+            # block is allowed: the super score is estimated from the cells that row has in the
+            # other blocks, which is the multiblock case of an observation missing one whole
+            # analysis. Only a row with nothing observed in any block carries no information at
+            # all, and that one is refused.
             for name in self.block_names_:
                 values = X[name].values
                 col_all_nan = np.all(np.isnan(values), axis=0)
@@ -318,13 +389,15 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                     raise ValueError(
                         f"Block '{name}' has columns with all values missing: {bad}. Drop these columns before fitting."
                     )
-                row_all_nan = np.all(np.isnan(values), axis=1)
-                if np.any(row_all_nan):
-                    bad_rows = np.where(row_all_nan)[0].tolist()
-                    raise ValueError(
-                        f"Block '{name}' has rows with all values missing at positions {bad_rows}. "
-                        "Drop these observations or impute them before fitting."
-                    )
+            observed_anywhere = np.zeros(n_samples, dtype=bool)
+            for name in self.block_names_:
+                observed_anywhere |= _rows_with_data(X[name].values)
+            if not np.all(observed_anywhere):
+                bad_rows = np.where(~observed_anywhere)[0].tolist()
+                raise ValueError(
+                    f"Rows at positions {bad_rows} have all values missing in every X-block. "
+                    "Drop these observations or impute them before fitting."
+                )
             y_values = y.values
             y_col_all_nan = np.all(np.isnan(y_values), axis=0)
             if np.any(y_col_all_nan):
@@ -348,6 +421,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
 
         # Algorithmic block weighting: X_b / sqrt(K_b)
         sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
+        # A row with nothing observed in a block has no score *for that block*; it still has a
+        # super score, estimated from the blocks it does have.
+        block_has_data = {name: _rows_with_data(x_blocks_pp[name]) for name in self.block_names_}
 
         # Storage (numpy arrays during fit; wrapped in pandas at the end)
         super_scores_np = np.zeros((n_samples, n_components))
@@ -425,7 +501,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                         t_b = quick_regress(x_def[name], w_b.reshape(-1, 1)).flatten() / sqrt_kb[name]
                         local_w[name] = w_b
                         local_t[name] = t_b
-                        t_b_summary[:, b_idx] = t_b
+                        t_b_summary[:, b_idx] = np.where(block_has_data[name], t_b, np.nan)
                 else:
                     for b_idx, name in enumerate(self.block_names_):
                         w_b = x_def[name].T @ u_a / _nz(float(u_a @ u_a))
@@ -435,9 +511,25 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                         local_t[name] = t_b
                         t_b_summary[:, b_idx] = t_b
 
-                w_s = t_b_summary.T @ u_a / _nz(float(u_a @ u_a))
+                if algo == "nipals":
+                    # Masked, so a block this row has nothing in does not vote on the super weight.
+                    w_s = quick_regress(t_b_summary, u_a.reshape(-1, 1)).flatten()
+                else:
+                    w_s = t_b_summary.T @ u_a / _nz(float(u_a @ u_a))
                 w_s = w_s / _nz(float(np.linalg.norm(w_s)))
-                t_super = t_b_summary @ w_s / _nz(float(w_s @ w_s))
+                # One masked regression of the whole row onto the stacked weights, rather than a
+                # weighted sum of per-block scores: identical on complete rows, and on a row with
+                # missing cells it uses every cell the row has instead of one score per block.
+                t_super = _pooled_super_score(
+                    x_def,
+                    _stacked_super_weights(local_w, w_s, sqrt_kb, self.block_names_),
+                    w_s,
+                    self.block_names_,
+                )
+                # A row observed only where the weights are zero has no score for this component:
+                # place it at the centre so the iteration stays finite. The guard above has already
+                # refused a row with nothing observed anywhere.
+                t_super = np.nan_to_num(t_super)
                 if algo == "nipals":
                     t_super_col = t_super.reshape(-1, 1)
                     c_a = quick_regress(y_def, t_super_col).flatten()
@@ -468,7 +560,7 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                 x_def[name] = x_def[name] - np.outer(t_super, p_b)
                 block_loadings_np[name][:, a] = p_b
                 block_weights_np[name][:, a] = local_w[name]
-                block_scores_np[name][:, a] = local_t[name]
+                block_scores_np[name][:, a] = np.where(block_has_data[name], local_t[name], np.nan)
             y_def = y_def - np.outer(t_super, c_a)
 
             super_scores_np[:, a] = t_super
@@ -490,7 +582,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
                     1 - ssq_remain_per_var / np.where(ssq_x_init_per_var[name] > 0, ssq_x_init_per_var[name], 1.0),
                     np.nan,
                 )
-                block_spe_np[name][:, a] = np.sqrt(np.nansum(x_def[name] ** 2, axis=1))
+                block_spe_np[name][:, a] = np.where(
+                    block_has_data[name], np.sqrt(np.nansum(x_def[name] ** 2, axis=1)), np.nan
+                )
             ssq_y_remain_per_var = np.nansum(y_def**2, axis=0)
             r2_y_cum[a] = 1 - np.sum(ssq_y_remain_per_var) / ssq_y_init if ssq_y_init > 0 else np.nan
             r2_y_var_cum[:, a] = np.where(
@@ -694,10 +788,13 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
 
         sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
         for a in range(int(component) - 1):
-            t_b_row = np.column_stack(
-                [x_def[name] @ self.block_weights_[name].values[:, a] / sqrt_kb[name] for name in self.block_names_]
+            w_s = self.super_weights_.values[:, a]
+            weights = {name: self.block_weights_[name].values[:, a] for name in self.block_names_}
+            t_super = np.nan_to_num(
+                _pooled_super_score(
+                    x_def, _stacked_super_weights(weights, w_s, sqrt_kb, self.block_names_), w_s, self.block_names_
+                )
             )
-            t_super = t_b_row @ self.super_weights_.values[:, a]
             for name in self.block_names_:
                 p_b = self.block_loadings_[name].values[:, a]
                 x_def[name] = x_def[name] - np.outer(t_super, p_b)
@@ -974,19 +1071,24 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         block_scores: dict[str, np.ndarray] = {name: np.zeros((n_new, n_components)) for name in self.block_names_}
 
         x_def = {name: x_pp[name].copy() for name in self.block_names_}
+        block_has_data = {name: _rows_with_data(x_pp[name]) for name in self.block_names_}
         for a in range(n_components):
-            t_b_row = np.zeros((n_new, len(self.block_names_)))
-            for b_idx, name in enumerate(self.block_names_):
+            weights = {}
+            for name in self.block_names_:
                 w_b = self.block_weights_[name].values[:, a]
-                t_b = x_def[name] @ w_b / sqrt_kb[name]
-                block_scores[name][:, a] = t_b
-                t_b_row[:, b_idx] = t_b
+                weights[name] = w_b
+                t_b = quick_regress(x_def[name], w_b.reshape(-1, 1)).flatten() / sqrt_kb[name]
+                block_scores[name][:, a] = np.where(block_has_data[name], t_b, np.nan)
             w_s = self.super_weights_.values[:, a]
-            t_super = t_b_row @ w_s
+            # The same pooled regression the fit uses, so a projected score matches a fitted one.
+            t_super = _pooled_super_score(
+                x_def, _stacked_super_weights(weights, w_s, sqrt_kb, self.block_names_), w_s, self.block_names_
+            )
             super_scores[:, a] = t_super
+            t_super_finite = np.nan_to_num(t_super)
             for name in self.block_names_:
                 p_b = self.block_loadings_[name].values[:, a]
-                x_def[name] = x_def[name] - np.outer(t_super, p_b)
+                x_def[name] = x_def[name] - np.outer(t_super_finite, p_b)
 
         component_names = list(range(1, n_components + 1))
         super_scores_df = pd.DataFrame(super_scores, index=sample_index, columns=component_names)
