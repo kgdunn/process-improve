@@ -809,6 +809,65 @@ def test_pca_select_n_components_ekf_recovers_known_rank() -> None:
     assert a_star <= true_rank + 1
 
 
+def test_pca_select_n_components_ekf_handles_missing_cells() -> None:
+    """A block that already has missing cells cross-validates, and agrees with the complete one.
+
+    ``PCA.fit`` has always taken a block with missing cells through NIPALS, but the
+    ekf scheme built its fold matrix from the raw array: the column centre and scale
+    came from ``mean()``/``std()`` over columns holding NaN, and only the held-out
+    cells were filled before the SVD, so the caller's own NaNs reached
+    ``np.linalg.svd`` and it raised ``LinAlgError: SVD did not converge``.
+    An unmeasured cell has no true value to predict, so it is now imputed by EM
+    alongside the held-out cells and never scored.
+    """
+    rng = np.random.default_rng(11)
+    N, K, true_rank = 60, 8, 2
+    T = rng.standard_normal((N, true_rank))
+    P = rng.standard_normal((true_rank, K))
+    complete = pd.DataFrame(T @ P + 0.3 * rng.standard_normal((N, K)))
+
+    holed = complete.copy()
+    holed.iloc[rng.choice(N, 12, replace=False), 1] = np.nan
+    assert holed.isna().sum().sum() == 12
+
+    intact = PCA.select_n_components(complete, max_components=4, cv=5, random_state=0)
+    with_gaps = PCA.select_n_components(holed, max_components=4, cv=5, random_state=0)
+
+    # Both find the true rank, and the missing cells cost accuracy rather than
+    # changing the answer: the Q2 curves peak at the same component count.
+    assert intact.n_components == true_rank
+    assert with_gaps.n_components == true_rank
+    assert int(np.argmax(intact.q2.to_numpy())) == int(np.argmax(with_gaps.q2.to_numpy()))
+    assert with_gaps.q2.to_numpy()[true_rank - 1] == pytest.approx(intact.q2.to_numpy()[true_rank - 1], abs=0.1)
+    # Nothing is scored against a cell that was never measured, so no NaN leaks
+    # into the PRESS or the per-column split.
+    assert np.isfinite(with_gaps.press.to_numpy()).all()
+    assert np.isfinite(with_gaps.q2.to_numpy()).all()
+
+
+def test_pca_select_n_components_ekf_q2_is_negative_on_noise() -> None:
+    """Pure noise has nothing to predict, so cumulative Q2 stays below zero.
+
+    This is the property the legacy row-wise scheme violates: it scores a held-out
+    row through its own values, so its "Q2" climbs towards 1 as components approach
+    the variable count even when the data carry no structure at all.
+    """
+    rng = np.random.default_rng(4)
+    noise = pd.DataFrame(rng.standard_normal((46, 8)))
+
+    ekf = PCA.select_n_components(noise, max_components=7, cv=5, random_state=0)
+    assert (ekf.q2.to_numpy() < 0).all()
+
+    with pytest.warns(SpecificationWarning, match="row_wise"):
+        legacy = PCA.select_n_components(noise, max_components=7, cv=5, cv_scheme="row_wise", random_state=0)
+    # The pathology, pinned so the contrast cannot quietly disappear: on noise the
+    # legacy scheme reports more than half the variation "predicted" at the widest
+    # model, and rises monotonically to get there.
+    legacy_q2 = legacy.q2.to_numpy()
+    assert legacy_q2[-1] > 0.5
+    assert np.all(np.diff(legacy_q2) > 0)
+
+
 def test_pca_select_n_components_row_wise_warns_and_overselects() -> None:
     """The legacy row-wise scheme is preserved with a SpecificationWarning."""
     rng = np.random.default_rng(7)

@@ -156,6 +156,10 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
     X = np.asarray(X, dtype=float)
     n, p = X.shape
     rng = np.random.default_rng(random_state)
+    # A cell the caller never measured has no true value to predict, so it is
+    # never held out and never scored. It still has to be filled for the SVD,
+    # which cannot see a NaN, so EM imputes it alongside the held-out cells.
+    observed = ~np.isnan(X)
 
     total_folds = n_folds * n_repeats
     # NaN, not zero: a fold that holds out no cells has no PRESS, and leaving
@@ -176,20 +180,21 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
     press_input_units = np.zeros(max_components)
     fold_counter = 0
 
-    n_cells = n * p
+    observed_positions = np.flatnonzero(observed)
+    n_cells = observed_positions.size
     fold_size = n_cells // n_folds
 
     for _ in range(n_repeats):
-        # Assign cells to folds via a balanced random permutation so every
-        # fold has ~n*p/n_folds cells (not all the same column, not the
-        # same row).
+        # Assign the observed cells to folds via a balanced random permutation
+        # so every fold has ~n_cells/n_folds cells (not all the same column,
+        # not the same row). Unmeasured cells stay at -1 and match no fold.
         perm = rng.permutation(n_cells)
-        fold = np.empty(n_cells, dtype=np.int64)
+        flat_fold = np.full(n * p, -1, dtype=np.int64)
         for k in range(n_folds):
             start = k * fold_size
             end = (k + 1) * fold_size if k < n_folds - 1 else n_cells
-            fold[perm[start:end]] = k
-        fold = fold.reshape(n, p)
+            flat_fold[observed_positions[perm[start:end]]] = k
+        fold = flat_fold.reshape(n, p)
 
         for k in range(n_folds):
             mask = fold == k  # (n, p) bool, True where the cell is held out
@@ -203,8 +208,11 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
             # scales the matrix it fits, and recomputes nothing inside EM.
             col_centre = np.zeros(p)
             col_scale = np.ones(p)
+            # Held out this fold, or never measured: both are unknown to the
+            # fit and both are filled by EM below. Only ``mask`` is scored.
+            impute = mask | ~observed
             for j in range(p):
-                in_fold = X[~mask[:, j], j]
+                in_fold = X[~impute[:, j], j]
                 if in_fold.size > 1:
                     col_centre[j] = float(in_fold.mean())
                     if scale_inside_folds:
@@ -218,7 +226,7 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
             # ``scale_inside_folds=True``, and the same value under False).
             Xtr = X.copy()
             for j in range(p):
-                m_j = mask[:, j]
+                m_j = impute[:, j]
                 if m_j.any():
                     Xtr[m_j, j] = col_centre[j]
 
@@ -239,7 +247,7 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
                 # re-expressed in different units dominates the norm and changes
                 # how many EM iterations are taken (#546). Under
                 # scale_inside_folds=False the divisor is 1 throughout.
-                prev_held = Xa[mask] / cell_scale
+                prev_held = Xa[impute] / np.broadcast_to(col_scale, X.shape)[impute]
                 for _iteration in range(n_iter):
                     if scale_inside_folds:
                         # Centre and scale by the FIXED in-fold constants; the
@@ -260,8 +268,8 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
                         rank = min(a, S.shape[0])
                         recon_centred = (Xc @ Vt[:rank].T) @ Vt[:rank]
                         recon = recon_centred + col_mean
-                    Xa[mask] = recon[mask]
-                    held = Xa[mask] / cell_scale
+                    Xa[impute] = recon[impute]
+                    held = Xa[impute] / np.broadcast_to(col_scale, X.shape)[impute]
                     delta = np.linalg.norm(held - prev_held)
                     scale = max(1.0, float(np.linalg.norm(prev_held)))
                     if delta < tol * scale:
