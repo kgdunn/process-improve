@@ -11,6 +11,27 @@ those changes.
 
 ## [Unreleased]
 
+## [1.83.1] - 2026-09-09
+
+### Fixed
+
+- **`PCA.select_n_components` cross-validates a block that already has missing
+  cells.** `PCA.fit` has always taken such a block through NIPALS, but the
+  element-wise k-fold scheme built its folds from the raw array: the per-column
+  centre and scale came from `mean()` and `std()` over columns holding `NaN`,
+  and only the held-out cells were filled before the SVD, so the caller's own
+  missing cells reached `numpy.linalg.svd`, which raised
+  `LinAlgError: SVD did not converge`. The legacy `cv_scheme="row_wise"` path
+  failed differently on the same input, with
+  `RuntimeError: Cross-validation produced NaN PRESS for every component count`.
+
+  A cell the caller never measured has no true value to predict, so it is now
+  imputed by EM alongside the held-out cells and never scored: folds are
+  assigned over the observed cells only, the column constants are fitted on
+  cells that are both in-fold and measured, and PRESS and the null reference
+  are accumulated over held-out measured cells alone. A block with no missing
+  cells takes an unchanged path and returns bit-identical numbers.
+
 ## [1.83.0] - 2026-09-08
 
 ### Changed
@@ -4325,7 +4346,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.83.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.83.1...HEAD
+[1.83.1]: https://github.com/kgdunn/process-improve/compare/v1.83.0...v1.83.1
 [1.83.0]: https://github.com/kgdunn/process-improve/compare/v1.82.0...v1.83.0
 [1.82.0]: https://github.com/kgdunn/process-improve/compare/v1.81.2...v1.82.0
 [1.81.2]: https://github.com/kgdunn/process-improve/compare/v1.81.1...v1.81.2
