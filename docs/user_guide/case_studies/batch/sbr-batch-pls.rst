@@ -224,7 +224,7 @@ of a complete batch, as the prediction would have evolved in real time.
    RMSEE / sd of Branching after 10 samples 2.10, 50 samples 0.88, 100 samples 0.81,
                                150 samples 0.32, 200 samples 0.24
 
-Batch 4 is the batch whose trajectories lie closest to the average. Its
+Batch 4 is the batch nearest the average quality of the 53. Its
 particle size is predicted 6 to 9 units away from the measured value in the
 first 25 samples and within about 2 units from sample 50 onwards, and after
 200 samples the prediction equals the fitted value from the complete batch,
