@@ -21,6 +21,12 @@ those changes.
   batch); in trajectory space batch 5 is nearer. The page and the companion script now
   say what batch 4 is, which is also what the textbook's version of this case study says.
 
+- **Two printed results on the FMC case-study page were stale.** The page's own script
+  prints `batch MBPLS: R2Y cumulative = 0.369, 0.470` with `Zchem 0.234, Zop 0.304,
+  X 0.258`, and `batch 61: t1 contributions = Y1 -0.84, ... Y11 -1.19`, where the page
+  showed values from before the multiblock super score was pooled over a row's observed
+  blocks (1.83.0). Both blocks now show what the script prints.
+
 ## [1.83.1] - 2026-09-09
 
 ### Fixed
