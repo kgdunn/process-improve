@@ -5458,6 +5458,25 @@ def test_cell_schemes_refuse_a_block_with_missing_cells() -> None:
     assert PCA.select_n_components(X, max_components=3, cv=5, random_state=0).q2.notna().all()
 
 
+def test_the_missing_cell_refusal_says_how_many_and_where() -> None:
+    """Where the gaps sit decides what to do about them, so the message says.
+
+    A block whose misses are all in one column is repaired by dropping that
+    column, keeping every row; one whose misses are scattered is not. Both were
+    the choice faced on a real quality block, so the error names which it is.
+    """
+    X = _known_rank_block(n=40, k=6).copy()
+    X.iloc[:9, 2] = np.nan
+    X.iloc[0, 0] = np.nan
+    with pytest.raises(ValueError, match=r"10 of 240, 9 of them in column 2"):
+        PCA.select_n_components(X, max_components=3, cv=5, cv_scheme="sacv")
+
+    scattered = _known_rank_block(n=40, k=6).copy()
+    scattered.iloc[0, 0] = scattered.iloc[1, 3] = scattered.iloc[2, 5] = np.nan
+    with pytest.raises(ValueError, match=r"3 of 240, spread over 3 columns"):
+        PCA.select_n_components(scattered, max_components=3, cv=5, cv_scheme="ek")
+
+
 def test_ek_warns_when_the_folds_cannot_reach_the_requested_components() -> None:
     """Each fold model is fitted on fewer rows or columns, so it saturates early."""
     X = _known_rank_block(n=30, k=8)

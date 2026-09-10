@@ -37,7 +37,9 @@ those changes.
     `FactoMineR` and `missMDA`.
 
   All three factorise the matrix directly, so they raise a clear `ValueError`
-  on a block with missing cells and they ignore `scale_inside_folds`,
+  on a block with missing cells, naming how many there are and whether they sit
+  in one column (drop it and keep every row) or are scattered (they cannot be
+  dropped that way), and they ignore `scale_inside_folds`,
   `n_repeats`, `n_iter` and `tol`. They report no per-fold spread, since none
   is held out in folds that could disagree, so `selection_rule="1se"` has
   nothing to work with. Both leverage schemes are first-order approximations

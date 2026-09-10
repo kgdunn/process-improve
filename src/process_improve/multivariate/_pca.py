@@ -363,11 +363,24 @@ def _preprocess_for_cell_schemes(X: np.ndarray, scheme: str) -> np.ndarray:
         If ``X`` holds missing cells. These schemes factorise ``X`` directly,
         and an SVD cannot see a NaN.
     """
-    if np.isnan(X).any():
+    per_column = np.isnan(X).sum(axis=0)
+    n_missing = int(per_column.sum())
+    if n_missing:
+        # Where the misses sit decides what to do about them, so say. A block whose
+        # gaps are one column's is repaired by dropping that column, keeping every
+        # row; one whose gaps are scattered is not.
+        worst = int(np.argmax(per_column))
+        share = int(per_column[worst])
+        where = (
+            f"{share} of them in column {worst}"
+            if share > n_missing / 2
+            else f"spread over {int((per_column > 0).sum())} columns"
+        )
         raise ValueError(
             f"cv_scheme={scheme!r} cannot take a block with missing cells, because it "
-            "factorises the matrix directly. Use cv_scheme='ekf', which imputes an "
-            "unmeasured cell alongside the held-out ones and never scores it."
+            f"factorises the matrix directly. This block has {n_missing} of {X.size}, "
+            f"{where}. Use cv_scheme='ekf', which imputes an unmeasured cell alongside "
+            "the held-out ones and never scores it, or drop what is missing first."
         )
     centre = X.mean(axis=0)
     spread = X.std(axis=0, ddof=1)
