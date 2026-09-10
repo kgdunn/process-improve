@@ -5492,3 +5492,27 @@ def test_gcv_reports_nothing_once_the_parameters_outnumber_the_data() -> None:
     assert exhausted.any(), "pick a shape where the guard actually fires"
     assert np.isnan(result.q2.to_numpy()[exhausted]).all()
     assert np.isfinite(result.q2.to_numpy()[~exhausted]).all()
+
+
+def test_a_criterion_that_never_turns_over_says_so() -> None:
+    """A count that is just the largest one tried is not a recommendation.
+
+    The leverage approximations inflate a residual, and on data whose fit
+    approaches one there is almost nothing left in that residual to inflate, so
+    the criterion can rise at every component count. That is the same failure
+    that makes the row-wise scheme useless, and it has to be visible.
+    """
+    rng = np.random.default_rng(3)
+    n, k = 54, 12
+    # Structure at many components and very little noise: R2 reaches ~1 early.
+    X = pd.DataFrame(rng.standard_normal((n, 8)) @ rng.standard_normal((8, k)) + 0.01 * rng.standard_normal((n, k)))
+
+    with pytest.warns(SpecificationWarning, match="did not turn over"):
+        result = PCA.select_n_components(X, max_components=6, cv_scheme="gcv", random_state=0)
+    assert result.n_components == 6
+
+    # The schemes that hold data out are not warned about on data where they do
+    # turn over, so the warning is a signal and not noise.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", SpecificationWarning)
+        PCA.select_n_components(_known_rank_block(), max_components=8, cv=7, n_repeats=5, random_state=0)

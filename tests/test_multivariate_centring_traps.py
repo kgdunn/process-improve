@@ -233,14 +233,19 @@ class TestPreScaledInsideFoldsWarningPCA:
         with _no_specification_warning():
             PCA.select_n_components(raw, max_components=4, cv=5, random_state=0)
 
-    def test_row_wise_ignores_the_flag_and_so_does_the_warning(self) -> None:
-        """``row_wise`` warns about itself only; the flag it ignores earns no second warning."""
+    def test_row_wise_ignores_the_flag_and_so_earns_no_scaling_warning(self) -> None:
+        """``row_wise`` ignores ``scale_inside_folds``, so the flag it ignores earns no warning.
+
+        It does earn two warnings of its own: that it is deprecated, and that its
+        criterion never turns over, which is the whole reason it is going. Neither
+        is about scaling, and that is what this test is guarding.
+        """
         _raw, autoscale, _pareto = self._blocks(self._UNEQUAL_SPREADS)
         with pytest.warns(SpecificationWarning) as record:
             PCA.select_n_components(autoscale, max_components=4, cv=5, cv_scheme="row_wise", random_state=0)
         messages = [str(w.message) for w in record if issubclass(w.category, SpecificationWarning)]
-        assert len(messages) == 1
-        assert "row_wise" in messages[0]
+        assert any("row_wise" in message for message in messages)
+        assert not any("scale_inside_folds" in message for message in messages)
 
     def test_two_deliberate_scalings_collapse_inside_folds(self) -> None:
         """The behaviour the warning is about: in-fold standardisation undoes the caller's scaling.

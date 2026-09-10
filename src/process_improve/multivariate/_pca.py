@@ -1968,6 +1968,24 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             min_q2_increase=min_q2_increase,
         )
 
+        # A criterion that never turns over has not found an optimum: it has run
+        # out of components to evaluate. The count returned is then the largest
+        # one tried rather than an answer, and saying so is the difference
+        # between a recommendation and a number. This is the failure mode that
+        # makes cv_scheme="row_wise" useless, and the leverage approximations
+        # can fall into it too on data whose R2 approaches one, where the
+        # residual they inflate has almost nothing left in it.
+        evaluated = q2.to_numpy()[~np.isnan(q2.to_numpy())]
+        if evaluated.size > 1 and np.all(np.diff(evaluated) > 0) and int(recommended) == max_components:
+            warnings.warn(
+                f"cv_scheme={cv_scheme!r} did not turn over: its Q2 rises at every one of the "
+                f"{max_components} component counts evaluated, so {recommended} is the largest "
+                "count tried rather than an optimum. Evaluate more components, or use a scheme "
+                "that holds data out (cv_scheme='ekf' or 'ek'), before reading this as an answer.",
+                SpecificationWarning,
+                stacklevel=2,
+            )
+
         consensus_fields: dict[str, object] = {}
         if return_consensus:
             # Two cheap cross-checks: Minka's PPCA MLE (mean-centred input,

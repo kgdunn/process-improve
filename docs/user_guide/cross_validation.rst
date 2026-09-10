@@ -83,6 +83,16 @@ component count approaches the number of variables, because a column's leverage
 approaches one and the divisor approaches zero with it. Read them well below
 that ceiling; ``FactoMineR`` defaults to five components for the same reason.
 
+They also lean on the residual having something left in it. On the LDPE data
+of 54 rows and 19 variables, whose fit reaches 99.98% by eleven components,
+``"ekf"`` and ``"ek"`` both turn over at two components, which is where Simca-P
+turns over on the same data. Neither ``"sacv"`` nor ``"gcv"`` turns over at all
+within the first five: their curves rise at every count, so the number they
+return is the largest one evaluated rather than an optimum. Any scheme that
+does that now says so, through a :class:`SpecificationWarning`. Treat the
+warning as the answer: the criterion failed on that data, and a scheme that
+holds values out should be used instead.
+
 .. code-block:: python
 
    from process_improve.multivariate.methods import PCA
