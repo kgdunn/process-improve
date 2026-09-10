@@ -42,7 +42,11 @@ those changes.
   is held out in folds that could disagree, so `selection_rule="1se"` has
   nothing to work with. Both leverage schemes are first-order approximations
   that degrade as the components approach the variables; the docstring says so
-  and a test pins it.
+  and a test pins it. Once every cell's leverage reaches one there is nothing
+  left to measure, and both report `NaN` rather than a number: totalling an
+  empty set would give zero error, which reads as a flawless model and would
+  win the selection outright. Where only some cells are dropped, the criterion
+  and the reference it is divided by cover the same cells.
 
 ### Deprecated
 

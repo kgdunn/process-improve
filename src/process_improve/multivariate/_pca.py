@@ -443,10 +443,12 @@ def _leverage_corrected_press(
     U, S, Vt = np.linalg.svd(X, full_matrices=False)
     press = np.full(max_components, np.nan)
     per_column_press = np.full((max_components, p), np.nan)
+    null_ss = np.sum(X**2, axis=0)
 
     for a in range(1, max_components + 1):
         rank = min(a, S.shape[0])
         residual = X - (U[:, :rank] * S[:rank]) @ Vt[:rank]
+        scored = np.ones_like(residual, dtype=bool)
         if method == "sacv":
             row_leverage = np.sum(U[:, :rank] ** 2, axis=1)
             column_leverage = np.sum(Vt[:rank] ** 2, axis=0)
@@ -454,8 +456,14 @@ def _leverage_corrected_press(
             # A cell whose leverage reaches one is reconstructed entirely by
             # itself, so its leave-one-out residual is not defined. Drop it
             # rather than let a division by ~0 dominate the total.
-            usable = denominator > epsqrt
-            corrected = np.where(usable, residual / np.where(usable, denominator, 1.0), np.nan)
+            scored = denominator > epsqrt
+            if not scored.any():
+                # Nothing is left to measure. Summing an empty total would
+                # report zero error, which reads as a perfect fit and would win
+                # the selection outright. Report nothing instead, as the
+                # generalised criterion does when its own guard fires.
+                continue
+            corrected = np.where(scored, residual / np.where(scored, denominator, 1.0), 0.0)
         else:
             remaining = (n - 1) * p - a * (n + p - a - 1)
             if remaining <= 0:
@@ -463,10 +471,16 @@ def _leverage_corrected_press(
                 # has nothing left to measure against.
                 continue
             corrected = residual * (n * p / remaining)
-        press[a - 1] = float(np.nansum(corrected**2))
-        per_column_press[a - 1] = np.nansum(corrected**2, axis=0)
+        # Both totals must cover the same cells. Where some were dropped, the
+        # error is rescaled onto the whole block, so that dividing it by the
+        # block's own sum of squares gives the criterion over the cells that
+        # were actually scored.
+        scored_null = np.sum(np.where(scored, X**2, 0.0), axis=0)
+        inflate = np.divide(null_ss, scored_null, out=np.ones_like(null_ss), where=scored_null > epsqrt)
+        per_column_press[a - 1] = np.sum(corrected**2, axis=0) * inflate
+        press[a - 1] = float(np.sum(per_column_press[a - 1]))
 
-    return press, per_column_press, float(np.sum(X**2)), np.sum(X**2, axis=0)
+    return press, per_column_press, float(np.sum(X**2)), null_ss
 
 
 def _eastment_krzanowski_press(
@@ -1977,11 +1991,20 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # residual they inflate has almost nothing left in it.
         evaluated = q2.to_numpy()[~np.isnan(q2.to_numpy())]
         if evaluated.size > 1 and np.all(np.diff(evaluated) > 0) and int(recommended) == max_components:
+            # A scheme that already holds data out has nothing better to switch
+            # to, so it is only told to widen the range; the others are told
+            # both, since a criterion that never turns over is the failure mode
+            # they share.
+            alternatives = [name for name in ("ekf", "ek") if name != cv_scheme]
+            remedy = "Evaluate more components"
+            if alternatives:
+                joined = " or ".join(f"cv_scheme={name!r}" for name in alternatives)
+                remedy += f", or use a scheme that holds data out ({joined})"
             warnings.warn(
                 f"cv_scheme={cv_scheme!r} did not turn over: its Q2 rises at every one of the "
-                f"{max_components} component counts evaluated, so {recommended} is the largest "
-                "count tried rather than an optimum. Evaluate more components, or use a scheme "
-                "that holds data out (cv_scheme='ekf' or 'ek'), before reading this as an answer.",
+                f"{evaluated.size} component counts it could evaluate, so {recommended} is the "
+                f"largest count tried rather than an optimum. {remedy}, before reading this as "
+                "an answer.",
                 SpecificationWarning,
                 stacklevel=2,
             )

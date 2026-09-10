@@ -23,7 +23,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import Bunch
 
-from process_improve.multivariate._pca import _pca_ekf_press
+from process_improve.multivariate._pca import _leverage_corrected_press, _pca_ekf_press
 from process_improve.multivariate.methods import (
     PCA,
     PLS,
@@ -5472,6 +5472,65 @@ def test_row_wise_is_deprecated_for_removal() -> None:
     with pytest.warns(DeprecationWarning, match="removed in 2.0"):
         result = PCA.select_n_components(X, max_components=4, cv=5, cv_scheme="row_wise", random_state=0)
     assert result.cv_scheme == "row_wise"
+
+
+def test_sacv_reports_nothing_rather_than_a_perfect_score_at_the_top() -> None:
+    """The counterpart of the generalised criterion's guard, on the smoothing one.
+
+    Once the components reach the variables every column leverage is one, so
+    every cell is dropped as undefined. Totalling an empty set gives zero error,
+    which reads as a flawless model and wins the selection outright. It must
+    come back as NaN, the way the generalised criterion already does.
+    """
+    n, p = 40, 5
+    X = _known_rank_block(n=n, k=p, rank=2)
+    result = PCA.select_n_components(X, max_components=p, cv_scheme="sacv", random_state=0)
+    q2 = result.q2.to_numpy()
+
+    assert np.isnan(q2[p - 1]), "the component count that equals the variable count means nothing"
+    assert np.isfinite(q2[: p - 1]).all()
+    assert int(result.n_components) < p
+
+
+def test_leverage_criterion_scores_the_same_cells_it_divides_by() -> None:
+    """A dropped cell leaves both totals, not just the error.
+
+    A cell whose leverage reaches one is not scored, so its share of the block's
+    variance must leave the reference too. Otherwise the criterion is an error
+    over part of the block against a null over all of it, which flatters the
+    model in proportion to how many cells were dropped.
+    """
+    n, p, components = 30, 8, 4
+    X = _known_rank_block(n=n, k=p, rank=3)
+    Z = MCUVScaler().fit_transform(X).to_numpy()
+    press, per_column, null_ss, per_column_null = _leverage_corrected_press(Z, components, method="sacv")
+
+    # Nothing is dropped at this shape, so the rescaling must be the identity and
+    # the totals must agree with a direct calculation of the same quantity.
+    assert np.isclose(null_ss, float(np.sum(Z**2)))
+    assert np.allclose(per_column_null, np.sum(Z**2, axis=0))
+    assert np.allclose(press, per_column.sum(axis=1))
+    U, S, Vt = np.linalg.svd(Z, full_matrices=False)
+    for a in range(1, components + 1):
+        residual = Z - (U[:, :a] * S[:a]) @ Vt[:a]
+        denominator = np.outer(1.0 - 1.0 / n - np.sum(U[:, :a] ** 2, axis=1), 1.0 - np.sum(Vt[:a] ** 2, axis=0))
+        assert (denominator > 0).all(), "pick a shape where no cell is dropped"
+        assert np.isclose(press[a - 1], float(np.sum((residual / denominator) ** 2)))
+
+
+def test_the_no_optimum_warning_names_a_scheme_other_than_the_one_in_use() -> None:
+    """Told that a criterion never turned over, the reader needs somewhere to go.
+
+    The remedy used to name both element-wise schemes whatever was running, so a
+    caller already using one was pointed back at it.
+    """
+    X = _known_rank_block(n=60, k=8)
+    for scheme, expected, forbidden in (("ekf", "'ek'", "cv_scheme='ekf' or"), ("ek", "'ekf'", "or cv_scheme='ek'")):
+        with pytest.warns(SpecificationWarning, match="did not turn over") as caught:
+            PCA.select_n_components(X, max_components=3, cv=5, cv_scheme=scheme, random_state=0)
+        message = next(str(w.message) for w in caught if "did not turn over" in str(w.message))
+        assert expected in message
+        assert forbidden not in message
 
 
 def test_gcv_reports_nothing_once_the_parameters_outnumber_the_data() -> None:

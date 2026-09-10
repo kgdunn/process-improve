@@ -82,6 +82,8 @@ Both leverage schemes are first-order approximations that degrade as the
 component count approaches the number of variables, because a column's leverage
 approaches one and the divisor approaches zero with it. Read them well below
 that ceiling; ``FactoMineR`` defaults to five components for the same reason.
+At the ceiling itself no cell has a defined leave-one-out residual at all, and
+both schemes report ``NaN`` rather than a number there.
 
 They also lean on the residual having something left in it. On the LDPE data
 of 54 rows and 19 variables, whose fit reaches 99.98% by eleven components,
