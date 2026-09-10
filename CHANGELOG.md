@@ -11,6 +11,22 @@ those changes.
 
 ## [Unreleased]
 
+## [1.83.2] - 2026-09-09
+
+### Fixed
+
+- **The SBR case-study page named the wrong reason for choosing batch 4.** It read
+  "the batch whose trajectories lie closest to the average", where batch 4 is nearest
+  the average *quality* (a standardised distance of 0.35 against 0.58 for the next
+  batch); in trajectory space batch 5 is nearer. The page and the companion script now
+  say what batch 4 is, which is also what the textbook's version of this case study says.
+
+- **Two printed results on the FMC case-study page were stale.** The page's own script
+  prints `batch MBPLS: R2Y cumulative = 0.369, 0.470` with `Zchem 0.234, Zop 0.304,
+  X 0.258`, and `batch 61: t1 contributions = Y1 -0.84, ... Y11 -1.19`, where the page
+  showed values from before the multiblock super score was pooled over a row's observed
+  blocks (1.83.0). Both blocks now show what the script prints.
+
 ## [1.83.1] - 2026-09-09
 
 ### Fixed
@@ -4346,7 +4362,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.83.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.83.2...HEAD
+[1.83.2]: https://github.com/kgdunn/process-improve/compare/v1.83.1...v1.83.2
 [1.83.1]: https://github.com/kgdunn/process-improve/compare/v1.83.0...v1.83.1
 [1.83.0]: https://github.com/kgdunn/process-improve/compare/v1.82.0...v1.83.0
 [1.82.0]: https://github.com/kgdunn/process-improve/compare/v1.81.2...v1.82.0

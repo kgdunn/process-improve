@@ -93,7 +93,7 @@ space before any process data are involved.
 .. code-block:: text
 
    PCA on Y: R2 cumulative = 0.500, 0.703
-   batch 61: t1 contributions = Y1 -0.76, Y2 missing, Y4 -1.04, Y6 -1.05, Y9 -0.10, Y10 -0.77, Y11 -1.07, SolventConc +0.02
+   batch 61: t1 contributions = Y1 -0.84, Y2 missing, Y4 -1.15, Y6 -1.17, Y9 -0.11, Y10 -0.86, Y11 -1.19, SolventConc +0.02
    batch 14: t1 contributions = Y1 +0.77, Y2 +0.28, Y4 +0.73, Y6 +0.78, Y9 -0.04, Y10 +0.84, Y11 +0.15, SolventConc -0.11
 
 Two components explain 70% of the quality block and the score plot shows two
@@ -222,7 +222,7 @@ the two small blocks.
 
 .. code-block:: text
 
-   batch MBPLS: R2Y cumulative = 0.370, 0.472; R2X per block after 2 components = Zchem 0.233, Zop 0.304, X 0.259
+   batch MBPLS: R2Y cumulative = 0.369, 0.470; R2X per block after 2 components = Zchem 0.234, Zop 0.304, X 0.258
    super VIP per block: Zchem 0.86, Zop 1.07, X 1.06
 
 The combined model explains 47% of the quality block, and the super VIP

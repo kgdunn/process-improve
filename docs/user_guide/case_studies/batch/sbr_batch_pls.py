@@ -237,7 +237,7 @@ def compare_predictions(model: BatchPLS, quality: pd.DataFrame) -> pd.DataFrame:
 
 
 # -- section: online-prediction --
-AVERAGE_BATCH = 4  # the batch whose trajectories lie closest to the average
+AVERAGE_BATCH = 4  # the batch nearest the average quality of the 53
 PREDICTION_SAMPLES = [10, 25, 50, 100, 150, 200]
 ERROR_SAMPLES = [10, 50, 100, 150, 200]
 
