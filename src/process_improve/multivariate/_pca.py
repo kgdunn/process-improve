@@ -2004,20 +2004,16 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # residual they inflate has almost nothing left in it.
         evaluated = q2.to_numpy()[~np.isnan(q2.to_numpy())]
         if evaluated.size > 1 and np.all(np.diff(evaluated) > 0) and int(recommended) == max_components:
-            # A scheme that already holds data out has nothing better to switch
-            # to, so it is only told to widen the range; the others are told
-            # both, since a criterion that never turns over is the failure mode
-            # they share.
-            alternatives = [name for name in ("ekf", "ek") if name != cv_scheme]
-            remedy = "Evaluate more components"
-            if alternatives:
-                joined = " or ".join(f"cv_scheme={name!r}" for name in alternatives)
-                remedy += f", or use a scheme that holds data out ({joined})"
+            # Name the schemes that hold data out, less whichever is running:
+            # pointing a caller back at the scheme being warned about is no
+            # remedy. One of the two always survives, since a scheme cannot be
+            # both.
+            alternatives = " or ".join(f"cv_scheme={name!r}" for name in ("ekf", "ek") if name != cv_scheme)
             warnings.warn(
                 f"cv_scheme={cv_scheme!r} did not turn over: its Q2 rises at every one of the "
                 f"{evaluated.size} component counts it could evaluate, so {recommended} is the "
-                f"largest count tried rather than an optimum. {remedy}, before reading this as "
-                "an answer.",
+                f"largest count tried rather than an optimum. Evaluate more components, or use "
+                f"a scheme that holds data out ({alternatives}), before reading this as an answer.",
                 SpecificationWarning,
                 stacklevel=2,
             )
