@@ -5359,7 +5359,10 @@ def test_vip_raises_without_weights_or_loadings() -> None:
 def _known_rank_block(seed: int = 0, n: int = 100, k: int = 12, rank: int = 3) -> pd.DataFrame:
     """Build a block whose true rank is known, so a criterion can be judged right or wrong."""
     rng = np.random.default_rng(seed)
-    scores = rng.standard_normal((n, rank)) * np.array([6.0, 4.0, 2.5])
+    # A fixed, decreasing set of component sizes, sliced to the rank asked for, so
+    # that the default rank of three keeps the values the other tests are pinned to.
+    spread = np.array([6.0, 4.0, 2.5, 1.8, 1.2])[:rank]
+    scores = rng.standard_normal((n, rank)) * spread
     return pd.DataFrame(scores @ rng.standard_normal((rank, k)) + rng.standard_normal((n, k)))
 
 
@@ -5469,3 +5472,23 @@ def test_row_wise_is_deprecated_for_removal() -> None:
     with pytest.warns(DeprecationWarning, match="removed in 2.0"):
         result = PCA.select_n_components(X, max_components=4, cv=5, cv_scheme="row_wise", random_state=0)
     assert result.cv_scheme == "row_wise"
+
+
+def test_gcv_reports_nothing_once_the_parameters_outnumber_the_data() -> None:
+    """The guard on the generalised criterion, exercised rather than assumed.
+
+    A rank-``a`` bilinear model spends ``a(n + p - a - 1)`` free parameters. Once
+    that reaches the ``(n - 1)p`` degrees of freedom available, the inflation
+    factor has a non-positive denominator and the criterion means nothing. It
+    must come back as NaN rather than as a number with the wrong sign.
+    """
+    n, p = 20, 6
+    X = _known_rank_block(n=n, k=p, rank=2)
+    result = PCA.select_n_components(X, max_components=p, cv_scheme="gcv", random_state=0)
+
+    spent = np.array([a * (n + p - a - 1) for a in range(1, p + 1)])
+    available = (n - 1) * p
+    exhausted = spent >= available
+    assert exhausted.any(), "pick a shape where the guard actually fires"
+    assert np.isnan(result.q2.to_numpy()[exhausted]).all()
+    assert np.isfinite(result.q2.to_numpy()[~exhausted]).all()
