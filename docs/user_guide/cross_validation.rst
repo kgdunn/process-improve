@@ -31,11 +31,57 @@ Element-wise Cross-Validation (PCA)
    ``selection_rule``.
 
 Holding out individual cells, rather than whole rows, is what keeps a
-prediction independent of the value being predicted. Under the legacy
+prediction independent of the value being predicted. Under the deprecated
 ``cv_scheme="row_wise"`` scheme a held-out row flows back through
 ``transform()`` into its own prediction, so PRESS shrinks monotonically and
-the recommendation tends to run to ``max_components``. That scheme is kept
-for backwards compatibility and emits a ``SpecificationWarning``.
+reaches zero once the components equal the variables. It measures compression
+rather than prediction and cannot select a component count. It is kept for one
+more release cycle and emits a ``DeprecationWarning``; it will be removed in
+2.0.
+
+Choosing among the schemes
+--------------------------
+
+Four schemes keep the prediction independent of the value predicted. They
+differ in what they hold out and what they cost.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 12 34 30 24
+
+   * - ``cv_scheme``
+     - What is held out
+     - Cost
+     - Use it when
+   * - ``"ekf"``
+     - Scattered cells, imputed by EM from a model that never saw them
+     - ``n_folds * n_repeats * max_components`` decompositions
+     - The default. The only one that takes a block with missing cells.
+   * - ``"ek"``
+     - Nothing directly: a score comes from a model without the cell's
+       column, a loading from a model without its row
+     - ``2 * n_folds`` decompositions
+     - A number has to line up with Simca-P or with ``pcaMethods::Q2``.
+   * - ``"sacv"``
+     - Nothing. Each residual is inflated by the leverage of the cell that
+       produced it, approximating leave-one-cell-out
+     - One decomposition
+     - The block is large and ``"ekf"`` is too slow.
+   * - ``"gcv"``
+     - Nothing. One averaged leverage instead of one per cell
+     - One decomposition
+     - Comparing against ``FactoMineR`` or ``missMDA``, whose default it is.
+
+The three new schemes factorise the matrix directly, so they raise on a block
+with missing cells, and they ignore ``scale_inside_folds``, ``n_repeats``,
+``n_iter`` and ``tol``. They hold nothing out in folds that could disagree, so
+they report no per-fold spread and ``selection_rule="1se"`` has nothing to work
+with.
+
+Both leverage schemes are first-order approximations that degrade as the
+component count approaches the number of variables, because a column's leverage
+approaches one and the divisor approaches zero with it. Read them well below
+that ceiling; ``FactoMineR`` defaults to five components for the same reason.
 
 .. code-block:: python
 
