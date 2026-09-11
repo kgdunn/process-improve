@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -20,9 +22,6 @@ def repeated_median() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Fixture for the repeated median slope calculation."""
     x = np.array([0, 1, 2, 3])
     y = np.array([5, 1, 6, 72])
-
-    # TODO: add a test where the inputs are Pandas Series. Should handle this case also.
-    # TODO: handle cases where there are nans in the vectors
 
     divzero_x = np.array([2, 2, 3, 4])
     divzero_y = np.array([0, 1, 2, 3])
@@ -959,3 +958,52 @@ class TestLeverageAndInfluence:
         assert model.influence_[0] == 0.0
         assert np.count_nonzero(model.influence_[1:]) == n - 1
         assert np.all(np.isfinite(model.influence_))
+
+
+class TestRepeatedMedianSlopeMissingValues:
+    """NaN handling in `repeated_median_slope`. Regression tests for #558.
+
+    Non-finite pairs are dropped pairwise before any slope is formed. Previously the
+    inner `np.nanmedian` received an all-NaN list for every point whose `y` was
+    missing: it warned and returned NaN, and the outer median then quietly dropped
+    those entries, so the slope came from whichever points happened to be clean.
+    """
+
+    def test_clean_input_is_unaffected(self) -> None:
+        slope = repeated_median_slope(np.array([0.0, 1, 2, 3]), np.array([5.0, 5.5, 6, 6.5]))
+        assert slope == pytest.approx(0.5)
+
+    def test_nan_pairs_are_dropped_without_warning(self) -> None:
+        """A NaN in y drops that pair; no RuntimeWarning escapes."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            slope = repeated_median_slope(np.array([0.0, 1, 2, 3]), np.array([5.0, np.nan, 6, 72]))
+
+        assert np.isfinite(slope)
+
+    def test_too_few_finite_pairs_raises(self) -> None:
+        with pytest.raises(ValueError, match=r"at least 3 finite \(x, y\) pairs; got 2 of 4"):
+            repeated_median_slope(np.array([0.0, 1, 2, 3]), np.array([5.0, np.nan, np.nan, 6]))
+
+    def test_all_missing_raises_rather_than_returning_nan(self) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            with pytest.raises(ValueError, match=r"got 0 of 4"):
+                repeated_median_slope(np.array([0.0, 1, 2, 3]), np.full(4, np.nan))
+
+    def test_infinities_are_treated_as_non_finite(self) -> None:
+        with pytest.raises(ValueError, match=r"got 2 of 4"):
+            repeated_median_slope(np.array([0.0, 1, 2, 3]), np.array([5.0, np.inf, -np.inf, 6]))
+
+    def test_pandas_series_input(self) -> None:
+        """Series inputs reach the finite mask as arrays, after the internal coercion."""
+        slope = repeated_median_slope(pd.Series([0.0, 1, 2, 3]), pd.Series([5.0, 5.5, 6, 6.5]))
+        assert slope == pytest.approx(0.5)
+
+    def test_all_equal_x_still_returns_nan_without_warning(self) -> None:
+        """The documented degenerate case: no slope is defined anywhere."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            slope = repeated_median_slope(np.array([2.0, 2, 2, 2]), np.array([5.0, 1, 6, 72]))
+
+        assert np.isnan(slope)

@@ -28,6 +28,49 @@ def fit_robust_lm(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     return rlm_results.params
 
 
+def _drop_non_finite_pairs(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Drop ``(x, y)`` pairs holding a NaN or an infinity in either vector.
+
+    A NaN in either vector makes every slope through that point undefined, so the inner
+    ``np.nanmedian`` of :func:`repeated_median_slope` used to receive an all-NaN list: it
+    emitted "All-NaN slice encountered" and returned NaN, which the outer median then
+    quietly dropped. The slope was therefore computed from whichever points happened to be
+    clean, with nothing in the return value recording the omission. (#558)
+
+    Parameters
+    ----------
+    x, y : np.ndarray
+        Equal-length 1-D arrays. Returned unchanged if their shapes differ, which the
+        ``nowarn=True`` path of the caller permits.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        The finite subset of each input.
+
+    Raises
+    ------
+    ValueError
+        If fewer than three finite pairs remain.
+    """
+    if x.shape != y.shape:
+        return x, y
+
+    finite = np.isfinite(x) & np.isfinite(y)
+    if finite.all():
+        return x, y
+
+    n_finite = int(finite.sum())
+    if n_finite < 3:
+        raise ValueError(
+            f"repeated_median_slope requires at least 3 finite (x, y) pairs; got {n_finite} "
+            f"of {x.size}. Non-finite pairs (NaN or infinite in either vector) are omitted."
+        )
+
+    return x[finite], y[finite]
+
+
 def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) -> float:
     """
     Robust slope calculation via Siegel's repeated-median estimator.
@@ -47,6 +90,7 @@ def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) ->
         Dependent variable. Must have the same length as ``x`` (unless ``nowarn=True``).
     nowarn : bool, optional
         If ``True``, skip the length and equal-length input assertions. Default ``False``.
+        The finite-data check is always applied when ``x`` and ``y`` have the same shape.
 
     Returns
     -------
@@ -54,8 +98,20 @@ def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) ->
         The repeated-median estimate of the slope. Returns ``np.nan`` if all inner medians
         are undefined (e.g. all ``x`` values are equal).
 
+    Raises
+    ------
+    ValueError
+        If fewer than three finite ``(x, y)`` pairs remain after non-finite pairs are
+        dropped, so no repeated median can be formed.
+
     Notes
     -----
+    Missing data: a pair is used only when both ``x[i]`` and ``y[i]`` are finite. Pairs
+    holding a ``NaN`` or an infinity in either vector are dropped before any slope is
+    formed, and the estimate is computed from the remainder. The dropping is pairwise and
+    silent, so check the inputs first if the count of usable observations matters to you.
+
+
     INVESTIGATE: algorithm speed-ups via these articles:
     https://link.springer.com/article/10.1007/PL00009190
     http://www.sciencedirect.com/science/article/pii/S0020019003003508
@@ -81,6 +137,8 @@ def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) ->
                 "algorithm; increase settings.max_regression_points if intentional."
             )
 
+    x, y = _drop_non_finite_pairs(x, y)
+
     for i in np.arange(len(x)):
         inner_medians = []
         for j in np.arange(len(y)):
@@ -88,9 +146,18 @@ def repeated_median_slope(x: np.ndarray, y: np.ndarray, nowarn: bool = False) ->
             if j != i and den != 0:
                 inner_medians.append((y[j] - y[i]) / den)
 
-        medians.append(np.nanmedian(inner_medians))
+        # An empty list means every other point shares this x value, so no slope
+        # through point i is defined. Record that directly instead of calling a
+        # median on an empty slice, which warns.
+        medians.append(np.median(inner_medians) if inner_medians else np.nan)
 
-    return np.nanmedian(medians)
+    if np.all(np.isnan(medians)):
+        # Documented degenerate case: no slope is defined anywhere (e.g. every x
+        # value is equal). Return NaN without routing an all-NaN list through
+        # np.nanmedian, which would warn.
+        return float("nan")
+
+    return float(np.nanmedian(medians))
 
 
 def robust_regression(  # noqa: PLR0913, PLR0915
