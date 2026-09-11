@@ -124,6 +124,17 @@ def test_rejects_malformed_blocks(blocks: object, error: type[Exception], messag
         MBPLS.select_n_components(blocks, y, max_components=1, cv=2)
 
 
+def test_rejects_a_component_count_below_one() -> None:
+    """Asking for no components is the caller's mistake, and the message names it.
+
+    The cap is applied afterwards with ``max(1, ...)``, so a fold too small to support
+    more components still supports one. Zero can only come from the argument.
+    """
+    blocks, y = _two_block_data(n=20)
+    with pytest.raises(ValueError, match=r"max_components must be at least 1; got 0"):
+        MBPLS.select_n_components(blocks, y, max_components=0, cv=2)
+
+
 def test_rejects_a_block_of_the_wrong_length() -> None:
     """A block that does not line up with y is named, with both row counts."""
     blocks, y = _two_block_data(n=20)

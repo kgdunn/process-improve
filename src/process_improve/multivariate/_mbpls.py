@@ -1147,12 +1147,15 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         else:
             splitter, repeats, n_splits = cv, 1, cv.get_n_splits(y)
 
+        if max_components is not None and int(max_components) < 1:
+            raise ValueError(f"max_components must be at least 1; got {max_components}.")
+
         splits = list(splitter.split(y))
         smallest_train = min(len(train) for train, _ in splits)
+        # At least one component is always evaluated: a fold too small to support more
+        # still supports one, and reporting nothing would hide that from the caller.
         ceiling = max(1, min(smallest_train - 1, total_width))
         A = ceiling if max_components is None else min(int(max_components), ceiling)
-        if A < 1:
-            raise ValueError("No component count could be evaluated; the folds are too small.")
 
         component_index = pd.Index(range(1, A + 1), name="n_components")
         targets = list(y.columns)
