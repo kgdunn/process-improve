@@ -11,6 +11,56 @@ those changes.
 
 ## [Unreleased]
 
+## [1.84.0] - 2026-09-10
+
+### Added
+
+- **`PCA.select_n_components` gains three cross-validation schemes**, so the
+  component count can be chosen the way the rest of the field chooses it.
+  A survey of what other packages implement prompted all three.
+
+  - `cv_scheme="ek"` is the two-model scheme of Eastment and Krzanowski (1982):
+    an element is predicted by a score from a model without its column and a
+    loading from a model without its row, so it enters neither decomposition.
+    This is what Simca-P reports as its PCA `Q2` and what
+    `pcaMethods::Q2` computes by default in R, so it is the scheme to use when
+    a number has to line up with either. Costs `2 * n_folds` decompositions.
+  - `cv_scheme="sacv"` is the leave-one-cell-out criterion of Josse and Husson
+    (2012), approximated without refitting anything: each residual is inflated
+    by the leverage of the cell that produced it, `(1 - 1/n - a_i)(1 - b_j)`,
+    the same device that turns a regression residual into its leave-one-out
+    counterpart. One decomposition in total, and on a rank-3 block it picks the
+    same count as the element-wise scheme and stays within five points of its
+    curve through the optimum.
+  - `cv_scheme="gcv"` replaces the two leverages with one averaged constant.
+    Blunter, and it keeps more components. These two are the defaults in
+    `FactoMineR` and `missMDA`.
+
+  All three factorise the matrix directly, so they raise a clear `ValueError`
+  on a block with missing cells, naming how many there are and whether they sit
+  in one column (drop it and keep every row) or are scattered (they cannot be
+  dropped that way), and they ignore `scale_inside_folds`,
+  `n_repeats`, `n_iter` and `tol`. They report no per-fold spread, since none
+  is held out in folds that could disagree, so `selection_rule="1se"` has
+  nothing to work with. Both leverage schemes are first-order approximations
+  that degrade as the components approach the variables; the docstring says so
+  and a test pins it. Once every cell's leverage reaches one there is nothing
+  left to measure, and both report `NaN` rather than a number: totalling an
+  empty set would give zero error, which reads as a flawless model and would
+  win the selection outright. Where only some cells are dropped, the criterion
+  and the reference it is divided by cover the same cells.
+
+### Deprecated
+
+- **`cv_scheme="row_wise"` is deprecated and will be removed in 2.0.** It now
+  emits a `DeprecationWarning` alongside the existing `SpecificationWarning`.
+  It measures how well a held-out row reproduces itself, which is a
+  compression error rather than a prediction error: the row supplies the
+  scores that rebuild it, so PRESS falls monotonically and reaches zero once
+  the components equal the variables. It cannot select a component count.
+  `mdatools` removed the equivalent from its own PCA and said publicly that it
+  had been a mistake. Use `"ekf"`, `"ek"`, `"sacv"` or `"gcv"`.
+
 ## [1.83.2] - 2026-09-09
 
 ### Fixed
@@ -4362,7 +4412,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.83.2...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.84.0...HEAD
+[1.84.0]: https://github.com/kgdunn/process-improve/compare/v1.83.2...v1.84.0
 [1.83.2]: https://github.com/kgdunn/process-improve/compare/v1.83.1...v1.83.2
 [1.83.1]: https://github.com/kgdunn/process-improve/compare/v1.83.0...v1.83.1
 [1.83.0]: https://github.com/kgdunn/process-improve/compare/v1.82.0...v1.83.0

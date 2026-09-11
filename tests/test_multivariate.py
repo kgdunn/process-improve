@@ -23,7 +23,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import Bunch
 
-from process_improve.multivariate._pca import _pca_ekf_press
+from process_improve.multivariate._pca import _leverage_corrected_press, _pca_ekf_press
 from process_improve.multivariate.methods import (
     PCA,
     PLS,
@@ -5349,3 +5349,248 @@ def test_vip_raises_without_weights_or_loadings() -> None:
 
     with pytest.raises(ValueError, match="x_weights_"):
         vip(_FakeFitted())
+
+
+# --------------------------------------------------------------------------
+# The cell-wise cross-validation schemes added in 1.84: "ek", "sacv", "gcv".
+# --------------------------------------------------------------------------
+
+
+def _known_rank_block(seed: int = 0, n: int = 100, k: int = 12, rank: int = 3) -> pd.DataFrame:
+    """Build a block whose true rank is known, so a criterion can be judged right or wrong."""
+    rng = np.random.default_rng(seed)
+    # A fixed, decreasing set of component sizes, sliced to the rank asked for, so
+    # that the default rank of three keeps the values the other tests are pinned to.
+    spread = np.array([6.0, 4.0, 2.5, 1.8, 1.2])[:rank]
+    scores = rng.standard_normal((n, rank)) * spread
+    return pd.DataFrame(scores @ rng.standard_normal((rank, k)) + rng.standard_normal((n, k)))
+
+
+@pytest.mark.parametrize("scheme", ["ek", "sacv", "gcv"])
+def test_cell_schemes_return_the_documented_bunch(scheme: str) -> None:
+    """Each new scheme fills the same Bunch, and reports no fabricated fold spread."""
+    X = _known_rank_block()
+    result = PCA.select_n_components(X, max_components=6, cv=5, cv_scheme=scheme, random_state=0)
+
+    assert result.cv_scheme == scheme
+    assert list(result.q2.index) == list(range(1, 7))
+    assert result.q2_per_variable.shape == (6, X.shape[1])
+    # Nothing is held out in folds that could disagree, so the spread is absent
+    # rather than zero: a zero would let the 1-SE rule read a false certainty.
+    assert result.per_fold_press.isna().to_numpy().all()
+    assert np.isnan(result.se_press.to_numpy()).all()
+
+
+def test_sacv_tracks_the_element_wise_scheme_it_approximates() -> None:
+    """The leverage correction stands in for holding cells out, over the range that is read."""
+    X = _known_rank_block()
+    ekf = PCA.select_n_components(X, max_components=8, cv=7, n_repeats=10, random_state=0)
+    sacv = PCA.select_n_components(X, max_components=8, cv_scheme="sacv", random_state=0)
+
+    # Same answer, for one decomposition instead of 560.
+    assert int(np.nanargmax(sacv.q2.to_numpy())) == int(np.nanargmax(ekf.q2.to_numpy())) == 2
+    # And the same curve, within five points, through the optimum and past it.
+    assert np.nanmax(np.abs(sacv.q2.to_numpy()[:5] - ekf.q2.to_numpy()[:5])) < 0.05
+
+
+def test_sacv_degrades_as_the_components_approach_the_variables() -> None:
+    """The trap in the leverage correction, pinned so nobody meets it unawares.
+
+    A column's leverage is the share of its variance inside the retained
+    subspace, and it reaches one when the components reach the variables. The
+    divisor goes to zero with it, so the corrected residual blows up. On a
+    12-variable block the approximation is faithful to about half that many
+    components and unusable near the top.
+    """
+    X = _known_rank_block(n=100, k=12)
+    ekf = PCA.select_n_components(X, max_components=8, cv=7, n_repeats=10, random_state=0).q2.to_numpy()
+    sacv = PCA.select_n_components(X, max_components=8, cv_scheme="sacv", random_state=0).q2.to_numpy()
+
+    assert np.max(np.abs(sacv[:6] - ekf[:6])) < 0.05
+    assert np.abs(sacv[7] - ekf[7]) > 0.5
+
+
+def test_cell_schemes_find_the_true_rank_where_the_row_wise_one_cannot() -> None:
+    """The point of all of this: an interior optimum exists, and row_wise has none."""
+    X = _known_rank_block()
+    for scheme in ("ekf", "sacv"):
+        kwargs = {"n_repeats": 10} if scheme == "ekf" else {}
+        result = PCA.select_n_components(X, max_components=11, cv=7, cv_scheme=scheme, random_state=0, **kwargs)
+        assert int(np.nanargmax(result.q2.to_numpy())) + 1 == 3, scheme
+
+    with pytest.warns((SpecificationWarning, DeprecationWarning)):
+        legacy = PCA.select_n_components(X, max_components=11, cv=7, cv_scheme="row_wise", random_state=0)
+    assert np.all(np.diff(legacy.q2.to_numpy()) > 0)
+
+
+def test_ek_never_lets_a_cell_reach_the_model_that_predicts_it() -> None:
+    """Eastment-Krzanowski's defining property, checked rather than assumed.
+
+    A cell sits in one row group and one column group. The scores come from a
+    decomposition that dropped its column, so perturbing the cell cannot move
+    them. Preprocessing is fitted on the whole matrix, as in the classical
+    scheme, so the loadings shift only through its column's centre and spread.
+    """
+    from process_improve.multivariate._pca import _preprocess_for_cell_schemes
+
+    rng = np.random.default_rng(1)
+    n, k = 40, 8
+    X = (rng.standard_normal((n, 3)) * np.array([5.0, 3.0, 1.5])) @ rng.standard_normal((3, k))
+    X += rng.standard_normal((n, k))
+
+    kept_columns = np.setdiff1d(np.arange(k), np.arange(0, k, 2))
+    scores_before, _, _ = np.linalg.svd(_preprocess_for_cell_schemes(X, "ek")[:, kept_columns], full_matrices=False)
+
+    moved = X.copy()
+    moved[0, 0] += 1000.0  # a cell inside the dropped column group
+    scores_after, _, _ = np.linalg.svd(_preprocess_for_cell_schemes(moved, "ek")[:, kept_columns], full_matrices=False)
+    assert np.abs(np.abs(scores_before) - np.abs(scores_after)).max() < 1e-12
+
+
+def test_cell_schemes_refuse_a_block_with_missing_cells() -> None:
+    """They factorise X directly, so they must say so rather than fail inside an SVD."""
+    X = _known_rank_block().copy()
+    X.iloc[0, 0] = np.nan
+    for scheme in ("ek", "sacv", "gcv"):
+        with pytest.raises(ValueError, match="missing cells"):
+            PCA.select_n_components(X, max_components=3, cv=5, cv_scheme=scheme)
+    # The default scheme does take it, which is the reason to reach for it.
+    assert PCA.select_n_components(X, max_components=3, cv=5, random_state=0).q2.notna().all()
+
+
+def test_the_missing_cell_refusal_says_how_many_and_where() -> None:
+    """Where the gaps sit decides what to do about them, so the message says.
+
+    A block whose misses are all in one column is repaired by dropping that
+    column, keeping every row; one whose misses are scattered is not. Both were
+    the choice faced on a real quality block, so the error names which it is.
+    """
+    X = _known_rank_block(n=40, k=6).copy()
+    X.iloc[:9, 2] = np.nan
+    X.iloc[0, 0] = np.nan
+    with pytest.raises(ValueError, match=r"10 of 240, 9 of them in column 2"):
+        PCA.select_n_components(X, max_components=3, cv=5, cv_scheme="sacv")
+
+    scattered = _known_rank_block(n=40, k=6).copy()
+    scattered.iloc[0, 0] = scattered.iloc[1, 3] = scattered.iloc[2, 5] = np.nan
+    with pytest.raises(ValueError, match=r"3 of 240, spread over 3 columns"):
+        PCA.select_n_components(scattered, max_components=3, cv=5, cv_scheme="ek")
+
+
+def test_ek_warns_when_the_folds_cannot_reach_the_requested_components() -> None:
+    """Each fold model is fitted on fewer rows or columns, so it saturates early."""
+    X = _known_rank_block(n=30, k=8)
+    with pytest.warns(SpecificationWarning, match="can evaluate at most"):
+        result = PCA.select_n_components(X, max_components=7, cv=7, cv_scheme="ek", random_state=0)
+    assert result.q2.isna().any()
+
+
+def test_row_wise_is_deprecated_for_removal() -> None:
+    """The announce phase of the deprecation schedule: it still works, and it says so."""
+    X = _known_rank_block(n=40, k=6)
+    with pytest.warns(DeprecationWarning, match="removed in 2.0"):
+        result = PCA.select_n_components(X, max_components=4, cv=5, cv_scheme="row_wise", random_state=0)
+    assert result.cv_scheme == "row_wise"
+
+
+def test_sacv_reports_nothing_rather_than_a_perfect_score_at_the_top() -> None:
+    """The counterpart of the generalised criterion's guard, on the smoothing one.
+
+    Once the components reach the variables every column leverage is one, so
+    every cell is dropped as undefined. Totalling an empty set gives zero error,
+    which reads as a flawless model and wins the selection outright. It must
+    come back as NaN, the way the generalised criterion already does.
+    """
+    n, p = 40, 5
+    X = _known_rank_block(n=n, k=p, rank=2)
+    result = PCA.select_n_components(X, max_components=p, cv_scheme="sacv", random_state=0)
+    q2 = result.q2.to_numpy()
+
+    assert np.isnan(q2[p - 1]), "the component count that equals the variable count means nothing"
+    assert np.isfinite(q2[: p - 1]).all()
+    assert int(result.n_components) < p
+
+
+def test_leverage_criterion_scores_the_same_cells_it_divides_by() -> None:
+    """A dropped cell leaves both totals, not just the error.
+
+    A cell whose leverage reaches one is not scored, so its share of the block's
+    variance must leave the reference too. Otherwise the criterion is an error
+    over part of the block against a null over all of it, which flatters the
+    model in proportion to how many cells were dropped.
+    """
+    n, p, components = 30, 8, 4
+    X = _known_rank_block(n=n, k=p, rank=3)
+    Z = MCUVScaler().fit_transform(X).to_numpy()
+    press, per_column, null_ss, per_column_null = _leverage_corrected_press(Z, components, method="sacv")
+
+    # Nothing is dropped at this shape, so the rescaling must be the identity and
+    # the totals must agree with a direct calculation of the same quantity.
+    assert np.isclose(null_ss, float(np.sum(Z**2)))
+    assert np.allclose(per_column_null, np.sum(Z**2, axis=0))
+    assert np.allclose(press, per_column.sum(axis=1))
+    U, S, Vt = np.linalg.svd(Z, full_matrices=False)
+    for a in range(1, components + 1):
+        residual = Z - (U[:, :a] * S[:a]) @ Vt[:a]
+        denominator = np.outer(1.0 - 1.0 / n - np.sum(U[:, :a] ** 2, axis=1), 1.0 - np.sum(Vt[:a] ** 2, axis=0))
+        assert (denominator > 0).all(), "pick a shape where no cell is dropped"
+        assert np.isclose(press[a - 1], float(np.sum((residual / denominator) ** 2)))
+
+
+def test_the_no_optimum_warning_names_a_scheme_other_than_the_one_in_use() -> None:
+    """Told that a criterion never turned over, the reader needs somewhere to go.
+
+    The remedy used to name both element-wise schemes whatever was running, so a
+    caller already using one was pointed back at it.
+    """
+    X = _known_rank_block(n=60, k=8)
+    for scheme, expected, forbidden in (("ekf", "'ek'", "cv_scheme='ekf' or"), ("ek", "'ekf'", "or cv_scheme='ek'")):
+        with pytest.warns(SpecificationWarning, match="did not turn over") as caught:
+            PCA.select_n_components(X, max_components=3, cv=5, cv_scheme=scheme, random_state=0)
+        message = next(str(w.message) for w in caught if "did not turn over" in str(w.message))
+        assert expected in message
+        assert forbidden not in message
+
+
+def test_gcv_reports_nothing_once_the_parameters_outnumber_the_data() -> None:
+    """The guard on the generalised criterion, exercised rather than assumed.
+
+    A rank-``a`` bilinear model spends ``a(n + p - a - 1)`` free parameters. Once
+    that reaches the ``(n - 1)p`` degrees of freedom available, the inflation
+    factor has a non-positive denominator and the criterion means nothing. It
+    must come back as NaN rather than as a number with the wrong sign.
+    """
+    n, p = 20, 6
+    X = _known_rank_block(n=n, k=p, rank=2)
+    result = PCA.select_n_components(X, max_components=p, cv_scheme="gcv", random_state=0)
+
+    spent = np.array([a * (n + p - a - 1) for a in range(1, p + 1)])
+    available = (n - 1) * p
+    exhausted = spent >= available
+    assert exhausted.any(), "pick a shape where the guard actually fires"
+    assert np.isnan(result.q2.to_numpy()[exhausted]).all()
+    assert np.isfinite(result.q2.to_numpy()[~exhausted]).all()
+
+
+def test_a_criterion_that_never_turns_over_says_so() -> None:
+    """A count that is just the largest one tried is not a recommendation.
+
+    The leverage approximations inflate a residual, and on data whose fit
+    approaches one there is almost nothing left in that residual to inflate, so
+    the criterion can rise at every component count. That is the same failure
+    that makes the row-wise scheme useless, and it has to be visible.
+    """
+    rng = np.random.default_rng(3)
+    n, k = 54, 12
+    # Structure at many components and very little noise: R2 reaches ~1 early.
+    X = pd.DataFrame(rng.standard_normal((n, 8)) @ rng.standard_normal((8, k)) + 0.01 * rng.standard_normal((n, k)))
+
+    with pytest.warns(SpecificationWarning, match="did not turn over"):
+        result = PCA.select_n_components(X, max_components=6, cv_scheme="gcv", random_state=0)
+    assert result.n_components == 6
+
+    # The schemes that hold data out are not warned about on data where they do
+    # turn over, so the warning is a signal and not noise.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", SpecificationWarning)
+        PCA.select_n_components(_known_rank_block(), max_components=8, cv=7, n_repeats=5, random_state=0)

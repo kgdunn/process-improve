@@ -335,6 +335,296 @@ def _ekf_null_reference(
     return float(centred_ss.sum()), centred_ss
 
 
+def _preprocess_for_cell_schemes(X: np.ndarray, scheme: str) -> np.ndarray:
+    """Mean-centre and unit-variance scale the whole matrix, once.
+
+    The schemes below are the classical ones, and all of them are defined on a
+    single preprocessed matrix rather than on per-fold constants: there are no
+    folds to fit constants on in ``"sacv"`` and ``"gcv"``, and the two SVD
+    families of ``"ek"`` are both taken from the same preprocessed matrix. That
+    is what ``FactoMineR`` and ``pcaMethods`` do, so a number computed here is
+    comparable with theirs.
+
+    Parameters
+    ----------
+    X : np.ndarray of shape (n_samples, n_features)
+        Raw data matrix. Missing cells are not supported by these schemes.
+    scheme : str
+        Name of the calling scheme, used only in the error message.
+
+    Returns
+    -------
+    np.ndarray
+        The centred, unit-variance scaled matrix.
+
+    Raises
+    ------
+    ValueError
+        If ``X`` holds missing cells. These schemes factorise ``X`` directly,
+        and an SVD cannot see a NaN.
+    """
+    per_column = np.isnan(X).sum(axis=0)
+    n_missing = int(per_column.sum())
+    if n_missing:
+        # Where the misses sit decides what to do about them, so say. A block whose
+        # gaps are one column's is repaired by dropping that column, keeping every
+        # row; one whose gaps are scattered is not.
+        worst = int(np.argmax(per_column))
+        share = int(per_column[worst])
+        where = (
+            f"{share} of them in column {worst}"
+            if share > n_missing / 2
+            else f"spread over {int((per_column > 0).sum())} columns"
+        )
+        raise ValueError(
+            f"cv_scheme={scheme!r} cannot take a block with missing cells, because it "
+            f"factorises the matrix directly. This block has {n_missing} of {X.size}, "
+            f"{where}. Use cv_scheme='ekf', which imputes an unmeasured cell alongside "
+            "the held-out ones and never scores it, or drop what is missing first."
+        )
+    centre = X.mean(axis=0)
+    spread = X.std(axis=0, ddof=1)
+    spread[spread < epsqrt] = 1.0
+    return (X - centre) / spread
+
+
+def _leverage_corrected_press(
+    X: np.ndarray,
+    max_components: int,
+    *,
+    method: typing.Literal["sacv", "gcv"],
+) -> tuple[np.ndarray, np.ndarray, float, np.ndarray]:
+    r"""Leave-one-cell-out prediction error, approximated without refitting anything.
+
+    Holding out one cell at a time and refitting costs :math:`n \times p` fits per
+    component count. Josse and Husson (2012) avoid all of them: fit once, then
+    inflate the ordinary residual by the leverage of the cell that produced it,
+    the same device that turns a regression residual into its
+    leave-one-out counterpart via :math:`e_i / (1 - h_{ii})`.
+
+    With :math:`\mathbf{U}`, :math:`\mathbf{V}` the first ``a`` left and right
+    singular vectors, the row and column leverages are
+    :math:`a_i = \sum_k u_{ik}^2` and :math:`b_j = \sum_k v_{jk}^2`, and
+
+    - ``"sacv"`` divides each residual by :math:`(1 - 1/n - a_i)(1 - b_j)`,
+      cell by cell. This is the *smoothing approximation* of the
+      cross-validation criterion.
+    - ``"gcv"`` replaces both leverages by one averaged constant,
+      :math:`np / [(n - 1)p - a(n + p - a - 1)]`, where the subtracted term
+      counts the free parameters of a centred rank-``a`` bilinear model. This
+      is *generalised* cross-validation, and it is the cheaper, blunter cousin.
+
+    Neither holds any data out. They correct the circularity analytically
+    instead, which is why they cost one SVD in total rather than one per fold.
+
+    Both are first-order approximations and both degrade as ``a`` approaches
+    the number of variables. A column's leverage is the share of its variance
+    inside the retained subspace, so it reaches one when the components reach
+    the variables, and the divisor reaches zero with it. Read these criteria
+    over a component count well below the number of variables; ``FactoMineR``
+    defaults to five for the same reason.
+
+    Parameters
+    ----------
+    X : np.ndarray of shape (n_samples, n_features)
+        Data matrix, already centred and scaled.
+    max_components : int
+        Largest component count to evaluate; the criterion is returned for
+        ``1 .. max_components``.
+    method : {"sacv", "gcv"}
+        Which of the two corrections to apply.
+
+    Returns
+    -------
+    press : np.ndarray of shape (max_components,)
+        The corrected sum of squared residuals per component count.
+    per_column_press : np.ndarray of shape (max_components, n_features)
+        The same total, split by variable.
+    null_model_ss : float
+        What predicting every cell by its column mean gets wrong. Since ``X``
+        arrives centred, that is its total sum of squares.
+    per_column_null_ss : np.ndarray of shape (n_features,)
+        That reference, split by variable.
+
+    References
+    ----------
+    Josse, J., & Husson, F. (2012). Selecting the number of components in
+    principal component analysis using cross-validation approximations.
+    *Computational Statistics & Data Analysis*, 56(6), 1869-1879.
+    """
+    n, p = X.shape
+    U, S, Vt = np.linalg.svd(X, full_matrices=False)
+    press = np.full(max_components, np.nan)
+    per_column_press = np.full((max_components, p), np.nan)
+    null_ss = np.sum(X**2, axis=0)
+
+    for a in range(1, max_components + 1):
+        rank = min(a, S.shape[0])
+        residual = X - (U[:, :rank] * S[:rank]) @ Vt[:rank]
+        scored = np.ones_like(residual, dtype=bool)
+        if method == "sacv":
+            row_leverage = np.sum(U[:, :rank] ** 2, axis=1)
+            column_leverage = np.sum(Vt[:rank] ** 2, axis=0)
+            denominator = np.outer(1.0 - 1.0 / n - row_leverage, 1.0 - column_leverage)
+            # A cell whose leverage reaches one is reconstructed entirely by
+            # itself, so its leave-one-out residual is not defined. Drop it
+            # rather than let a division by ~0 dominate the total.
+            scored = denominator > epsqrt
+            if not scored.any():
+                # Nothing is left to measure. Summing an empty total would
+                # report zero error, which reads as a perfect fit and would win
+                # the selection outright. Report nothing instead, as the
+                # generalised criterion does when its own guard fires.
+                continue
+            corrected = np.where(scored, residual / np.where(scored, denominator, 1.0), 0.0)
+        else:
+            remaining = (n - 1) * p - a * (n + p - a - 1)
+            if remaining <= 0:
+                # More free parameters than degrees of freedom: the criterion
+                # has nothing left to measure against.
+                continue
+            corrected = residual * (n * p / remaining)
+        # Both totals must cover the same cells. Where some were dropped, the
+        # error is rescaled onto the whole block, so that dividing it by the
+        # block's own sum of squares gives the criterion over the cells that
+        # were actually scored.
+        scored_null = np.sum(np.where(scored, X**2, 0.0), axis=0)
+        inflate = np.divide(null_ss, scored_null, out=np.ones_like(null_ss), where=scored_null > epsqrt)
+        per_column_press[a - 1] = np.sum(corrected**2, axis=0) * inflate
+        press[a - 1] = float(np.sum(per_column_press[a - 1]))
+
+    return press, per_column_press, float(np.sum(X**2)), null_ss
+
+
+def _eastment_krzanowski_press(
+    X: np.ndarray,
+    max_components: int,
+    *,
+    n_folds: int,
+    random_state: int | None = None,
+) -> tuple[np.ndarray, np.ndarray, float, np.ndarray]:
+    r"""Cross-validated prediction error by the two-model scheme of Eastment and Krzanowski.
+
+    An element is predicted by a score taken from a model that never saw its
+    **column** and a loading taken from a model that never saw its **row**, so
+    :math:`x_{ij}` enters neither decomposition:
+
+    .. math::
+        \hat{x}_{ij} = \sum_{k=1}^{a} u^{(-j)}_{ik}\sqrt{d^{(-j)}_k}\,
+                       \sqrt{d^{(-i)}_k}\, v^{(-i)}_{jk}
+
+    This is what Simca-P reports as its PCA :math:`Q^2`, and what
+    ``pcaMethods::Q2(type = "krzanowski")`` computes in R, so it is the scheme
+    to use when a number has to line up with either of those.
+
+    Rows and columns are each split into ``n_folds`` groups rather than deleted
+    one at a time, which costs ``2 * n_folds`` decompositions instead of
+    ``n + p``. The sign of every fold model's singular vectors is aligned to the
+    full-data fit, because an SVD fixes each vector only up to sign and two fold
+    models must agree before their product means anything.
+
+    One caveat, which the classical scheme and the reference implementations
+    share: centring and scaling are fitted once on the whole matrix, so a cell
+    reaches the fold models through its own column's centre and spread even
+    though it is absent from both decompositions. That path is of order
+    :math:`1/n` and vanishes as rows are added, but it is not nothing, and it is
+    why this scheme is not offered as the default. ``"ekf"`` fits its constants
+    inside each fold and has no such path.
+
+    Parameters
+    ----------
+    X : np.ndarray of shape (n_samples, n_features)
+        Data matrix, already centred and scaled, with no missing cells.
+    max_components : int
+        Largest component count to evaluate.
+    n_folds : int
+        Number of row groups, and of column groups.
+    random_state : int, optional
+        Seed for the row and column permutations.
+
+    Returns
+    -------
+    press : np.ndarray of shape (max_components,)
+        Prediction error sum of squares per component count.
+    per_column_press : np.ndarray of shape (max_components, n_features)
+        The same total, split by variable.
+    null_model_ss : float
+        What predicting every cell by its column mean gets wrong.
+    per_column_null_ss : np.ndarray of shape (n_features,)
+        That reference, split by variable.
+
+    References
+    ----------
+    Eastment, H. T., & Krzanowski, W. J. (1982). Cross-validatory choice of the
+    number of components from a principal component analysis. *Technometrics*,
+    24(1), 73-77.
+    """
+    n, p = X.shape
+    rng = np.random.default_rng(random_state)
+    row_group = np.array_split(rng.permutation(n), n_folds)
+    column_group = np.array_split(rng.permutation(p), n_folds)
+
+    _, _, Vt_full = np.linalg.svd(X, full_matrices=False)
+    U_full, _, _ = np.linalg.svd(X, full_matrices=False)
+
+    def aligned(vectors: np.ndarray, reference: np.ndarray) -> np.ndarray:
+        """Flip each column whose direction opposes the full-data fit."""
+        width = min(vectors.shape[1], reference.shape[1])
+        signs = np.sign(np.sum(vectors[:, :width] * reference[:, :width], axis=0))
+        signs[signs == 0] = 1.0
+        return vectors[:, :width] * signs
+
+    # Loadings from models that never saw the rows of their group.
+    loadings: list[np.ndarray] = []
+    row_singular: list[np.ndarray] = []
+    for rows in row_group:
+        kept = np.setdiff1d(np.arange(n), rows)
+        _, S_r, Vt_r = np.linalg.svd(X[kept], full_matrices=False)
+        loadings.append(aligned(Vt_r.T, Vt_full.T))
+        row_singular.append(S_r)
+
+    # Scores from models that never saw the columns of their group.
+    scores: list[np.ndarray] = []
+    column_singular: list[np.ndarray] = []
+    for columns in column_group:
+        kept = np.setdiff1d(np.arange(p), columns)
+        U_c, S_c, _ = np.linalg.svd(X[:, kept], full_matrices=False)
+        scores.append(aligned(U_c, U_full))
+        column_singular.append(S_c)
+
+    available = min(
+        *(v.shape[1] for v in loadings),
+        *(u.shape[1] for u in scores),
+        *(s.size for s in row_singular),
+        *(s.size for s in column_singular),
+    )
+    if available < max_components:
+        warnings.warn(
+            f"cv_scheme='ek' can evaluate at most {available} component(s) with "
+            f"{n_folds} folds on a {n} by {p} block, not {max_components}: each fold "
+            "model is fitted on fewer rows or columns than the whole. Component counts "
+            "above that are reported as NaN. Use fewer folds to evaluate more.",
+            SpecificationWarning,
+            stacklevel=2,
+        )
+
+    press = np.full(max_components, np.nan)
+    per_column_press = np.full((max_components, p), np.nan)
+    usable = min(available, max_components)
+    for a in range(1, usable + 1):
+        prediction = np.zeros_like(X)
+        for rows, V_r, S_r in zip(row_group, loadings, row_singular, strict=True):
+            for columns, U_c, S_c in zip(column_group, scores, column_singular, strict=True):
+                block = np.ix_(rows, columns)
+                weight = np.sqrt(S_c[:a]) * np.sqrt(S_r[:a])
+                prediction[block] = (U_c[rows, :a] * weight) @ V_r[columns, :a].T
+        squared = (X - prediction) ** 2
+        press[a - 1] = float(np.sum(squared))
+        per_column_press[a - 1] = np.sum(squared, axis=0)
+
+    return press, per_column_press, float(np.sum(X**2)), np.sum(X**2, axis=0)
+
+
 class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     """Principal Component Analysis with support for missing data.
 
@@ -1302,13 +1592,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         )
 
     @classmethod
-    def select_n_components(  # noqa: PLR0913, PLR0915, C901
+    def select_n_components(  # noqa: PLR0913, PLR0915, PLR0912, C901
         cls,
         X: DataMatrix,
         *,
         max_components: int | None = None,
         cv: int | BaseCrossValidator = 5,
-        cv_scheme: typing.Literal["row_wise", "ekf"] = "ekf",
+        cv_scheme: typing.Literal["ekf", "ek", "sacv", "gcv", "row_wise"] = "ekf",
         n_repeats: int = 1,
         selection_rule: SelectionRule = "min",
         min_q2_increase: float = Q2_MIN_INCREMENT,
@@ -1344,14 +1634,45 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             ``min(n_samples - 1, n_features)``.
         cv : int or sklearn CV splitter, default 5
             For ``cv_scheme="ekf"``: the integer number of element-folds
-            (splitter objects are ignored). For ``cv_scheme="row_wise"``:
+            (splitter objects are ignored). For ``cv_scheme="ek"``: the number
+            of row groups, and of column groups. For ``cv_scheme="row_wise"``:
             either an integer K (fed to ``KFold``) or any sklearn splitter.
-        cv_scheme : {"ekf", "row_wise"}, default "ekf"
-            ``"ekf"`` is the element-wise k-fold scheme of Bro et al. 2008
-            with EM imputation; the research-recommended default. The legacy
-            ``"row_wise"`` scheme is preserved for back-compat but emits a
-            :class:`SpecificationWarning` because it over-selects (see the
-            warning admonition below).
+            Ignored by ``"sacv"`` and ``"gcv"``, which hold nothing out.
+        cv_scheme : {"ekf", "ek", "sacv", "gcv", "row_wise"}, default "ekf"
+            How a held-out value is produced. Every one of these except
+            ``"row_wise"`` keeps the prediction independent of the value being
+            predicted; they differ in what they hold out and what they cost.
+
+            - ``"ekf"``, the default: element-wise k-fold with EM imputation.
+              Scattered cells are held out and each is imputed from a model
+              that never saw it. Fits its centring and scaling inside every
+              fold, and is the only scheme here that takes a block with
+              missing cells. Cost: ``n_folds * n_repeats * max_components``
+              decompositions.
+            - ``"ek"``: the two-model scheme of Eastment and Krzanowski
+              (1982). An element is predicted by a score from a model without
+              its column and a loading from a model without its row. This is
+              what Simca-P reports and what ``pcaMethods::Q2`` computes by
+              default, so use it when a number has to line up with either.
+              Cost: ``2 * n_folds`` decompositions.
+            - ``"sacv"``: leave-one-cell-out, approximated by inflating each
+              residual by the leverage of the cell that produced it, after
+              Josse and Husson (2012). The cheap version of holding cells out
+              one at a time. Cost: one decomposition.
+            - ``"gcv"``: the same idea with a single averaged leverage instead
+              of one per cell. Blunter, and it tends to keep more components.
+              Cost: one decomposition. This and ``"sacv"`` are the defaults in
+              ``FactoMineR`` and ``missMDA``.
+            - ``"row_wise"``: **deprecated, removed in 2.0.** See the warning
+              admonition below.
+
+            ``"ek"``, ``"sacv"`` and ``"gcv"`` factorise the matrix directly,
+            so they raise on a block with missing cells and they ignore
+            ``scale_inside_folds``, ``n_repeats``, ``n_iter`` and ``tol``.
+            They also report no per-fold spread, so ``selection_rule="1se"``
+            has nothing to work with; ``"min"`` takes the global optimum,
+            where ``FactoMineR`` instead stops at the first local worsening,
+            which can return a smaller count on the same data.
         n_repeats : int, default 1
             Repeat the ekf pass with a fresh random fold permutation this
             many times. Each repeat covers every cell exactly once;
@@ -1476,15 +1797,25 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         with the element-wise k-fold (ekf) algorithm: theoretical aspects.
         *J. Chemometrics*, 26(7), 361-373.
 
+        Eastment, H. T., & Krzanowski, W. J. (1982). Cross-validatory choice
+        of the number of components from a principal component analysis.
+        *Technometrics*, 24(1), 73-77.
+
+        Josse, J., & Husson, F. (2012). Selecting the number of components in
+        principal component analysis using cross-validation approximations.
+        *Computational Statistics & Data Analysis*, 56(6), 1869-1879.
+
         .. warning::
 
-           ``cv_scheme="row_wise"`` is preserved only for back-compat and
-           emits a :class:`SpecificationWarning`. It suffers from the
-           *trivial-fit* problem: holding out whole rows and projecting them
-           back via :meth:`transform` lets the held-out row's own values
-           reach its prediction, so PRESS shrinks monotonically with the
-           component count and the recommendation tends to run to the
-           maximum. Prefer the default ``"ekf"``.
+           ``cv_scheme="row_wise"`` is **deprecated since 1.84 and will be
+           removed in 2.0**. It emits a :class:`DeprecationWarning` and a
+           :class:`SpecificationWarning`. It suffers from the *trivial-fit*
+           problem: holding out whole rows and projecting them back via
+           :meth:`transform` lets the held-out row's own values reach its
+           prediction, so PRESS shrinks monotonically with the component
+           count and reaches zero once the components equal the variables.
+           It measures compression, not prediction, and cannot select a
+           component count. Use ``"ekf"``, ``"ek"``, ``"sacv"`` or ``"gcv"``.
         """
         if threshold is not None:
             warnings.warn(
@@ -1548,7 +1879,40 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             safe_null = np.where(per_column_null_ss > epsqrt, per_column_null_ss, np.nan)
             per_variable = 1.0 - ekf.per_column_press / safe_null
             q2_per_variable = pd.DataFrame(per_variable, index=component_index, columns=list(X.columns))
+        elif cv_scheme in {"ek", "sacv", "gcv"}:
+            Z = _preprocess_for_cell_schemes(X_arr, cv_scheme)
+            if cv_scheme == "ek":
+                n_folds = cv if isinstance(cv, int) else 5
+                raw_press, raw_per_column, null_model_ss, per_column_null = _eastment_krzanowski_press(
+                    Z, max_components, n_folds=n_folds, random_state=random_state
+                )
+            else:
+                raw_press, raw_per_column, null_model_ss, per_column_null = _leverage_corrected_press(
+                    Z, max_components, method=cv_scheme
+                )
+            press = pd.Series(raw_press, index=component_index, name="PRESS")
+            # None of these three splits the data into folds that could disagree:
+            # "ek" pools every cell into one total, and the other two hold nothing
+            # out at all. A per-fold spread would be fabricated, so it is absent
+            # rather than zero, and the 1-SE rule has nothing to work with.
+            per_fold_press = pd.DataFrame(np.nan, index=component_index, columns=["fold_1"])
+            cv_scores = per_fold_press
+            press_input_units = press.rename("PRESS (input units)")
+            q2 = 1.0 - press / null_model_ss if null_model_ss > epsqrt else press * np.nan
+            safe_null = np.where(per_column_null > epsqrt, per_column_null, np.nan)
+            q2_per_variable = pd.DataFrame(
+                1.0 - raw_per_column / safe_null, index=component_index, columns=list(X.columns)
+            )
         elif cv_scheme == "row_wise":
+            warnings.warn(
+                "cv_scheme='row_wise' is deprecated and will be removed in 2.0. It "
+                "measures how well a held-out row reproduces itself, which is a "
+                "compression error rather than a prediction error, so it cannot pick "
+                "a component count. Use the default cv_scheme='ekf', or 'ek', 'sacv' "
+                "or 'gcv'.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             warnings.warn(
                 "cv_scheme='row_wise' uses the legacy whole-row CV scheme that "
                 "Bro et al. 2008 flagged as invalid: held-out row values flow "
@@ -1581,7 +1945,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             press_input_units = press.rename("PRESS (input units)")
             q2_per_variable = pd.DataFrame(np.nan, index=component_index, columns=list(X.columns))
         else:
-            raise ValueError(f"Unknown cv_scheme {cv_scheme!r}; expected 'ekf' or 'row_wise'.")
+            raise ValueError(
+                f"Unknown cv_scheme {cv_scheme!r}; expected one of 'ekf', 'ek', 'sacv', 'gcv' or 'row_wise'."
+            )
 
         q2 = q2.rename("Q2")
         q2.index = component_index
@@ -1628,6 +1994,29 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             q2_cumulative=q2.to_numpy(),
             min_q2_increase=min_q2_increase,
         )
+
+        # A criterion that never turns over has not found an optimum: it has run
+        # out of components to evaluate. The count returned is then the largest
+        # one tried rather than an answer, and saying so is the difference
+        # between a recommendation and a number. This is the failure mode that
+        # makes cv_scheme="row_wise" useless, and the leverage approximations
+        # can fall into it too on data whose R2 approaches one, where the
+        # residual they inflate has almost nothing left in it.
+        evaluated = q2.to_numpy()[~np.isnan(q2.to_numpy())]
+        if evaluated.size > 1 and np.all(np.diff(evaluated) > 0) and int(recommended) == max_components:
+            # Name the schemes that hold data out, less whichever is running:
+            # pointing a caller back at the scheme being warned about is no
+            # remedy. One of the two always survives, since a scheme cannot be
+            # both.
+            alternatives = " or ".join(f"cv_scheme={name!r}" for name in ("ekf", "ek") if name != cv_scheme)
+            warnings.warn(
+                f"cv_scheme={cv_scheme!r} did not turn over: its Q2 rises at every one of the "
+                f"{evaluated.size} component counts it could evaluate, so {recommended} is the "
+                f"largest count tried rather than an optimum. Evaluate more components, or use "
+                f"a scheme that holds data out ({alternatives}), before reading this as an answer.",
+                SpecificationWarning,
+                stacklevel=2,
+            )
 
         consensus_fields: dict[str, object] = {}
         if return_consensus:
