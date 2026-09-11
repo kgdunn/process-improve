@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NoReturn
 
 import numpy as np
 import pandas as pd
@@ -339,36 +339,36 @@ def f_rupture(
     columns: list[str] | None = None,
     batch_col: str | None = None,
     phase_col: str | None = None,
-) -> None:
+) -> NoReturn:
     """
-    Feature:    rupture.
+    Feature:    rupture. Not implemented; always raises.
 
-    The breakpoint in a given tag in ``columns`` (usually it is 1 tag),
-    for each unique batch in the ``batch_col`` indicator column, and
-    within each unique phase, per batch, of the ``phase_col`` column.
+    The intended feature is the breakpoint in a given tag in ``columns``
+    (usually it is 1 tag), for each unique batch in the ``batch_col``
+    indicator column, and within each unique phase, per batch, of the
+    ``phase_col`` column.
+
+    This function has never had a working body. It previously raised
+    ``NotImplementedError`` only when given the wrong number of columns, and
+    returned ``None`` for a valid single-column call, which a caller cannot
+    distinguish from a successful empty result. It now raises in every case,
+    so the unimplemented state is visible at the call site.
+
+    Implementation, including the change-point detection approach and the
+    ``ruptures`` dependency it needs, is tracked on
+    https://github.com/kgdunn/process-improve/issues/198.
+
+    Raises
+    ------
+    NotImplementedError
+        Always.
     """
-    # Handle phase detection based on 1 column for now.
-    if columns is None or len(columns) != 1:
-        raise NotImplementedError(f"Phase detection currently supports a single column only; got {columns!r}.")
-
-    # TODO: see https://github.com/deepcharles/ruptures
-
-    # base_name = "rupture"
-    # prepared = _prepare_data(data, columns, batch_col, phase_col)
-    # feature_columns = prepared['columns']
-    # grouper = prepared['data']
-
-    # import ruptures as rpt
-    # import matplotlib.pyplot as plt
-    # output = pd.DataFrame()
-    # for batch_id, subset in grouper:
-    # signal = subset[columns[0]].values
-    # algo = rpt.Pelt(model="rbf").fit(signal)
-    # result = algo.predict(pen=100)
-    # print(result)
-    # plt.show()
-    # fig = rpt.display(signal, result, computed_chg_pts=result)
-    # fig.save(batchid)
+    raise NotImplementedError(
+        "f_rupture is not implemented: it has no working body, and previously returned None for a "
+        "valid single-column call. Change-point detection for batch data is tracked on "
+        "https://github.com/kgdunn/process-improve/issues/198. To extract breakpoints today, run a "
+        "change-point library such as `ruptures` directly on the per-batch signal."
+    )
 
 
 # Extreme features
