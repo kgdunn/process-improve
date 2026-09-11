@@ -11,6 +11,49 @@ those changes.
 
 ## [Unreleased]
 
+## [1.85.2] - 2026-09-11
+
+### Fixed
+
+- **#557: a gap at the start of a series no longer collapses the control limits to
+  zero width.** `ControlChart.calculate_limits` computed its scale estimate as
+  `np.sqrt(max(0.0, resids))`. That guard was written to stop a negative radicand
+  reaching `sqrt`, but `max(0.0, nan)` returns `0.0`, because `nan > 0.0` is `False`
+  and `max` keeps its first argument. Missing values at or near the start of the
+  series propagate through the Holt-Winters recursion and leave every training-sample
+  error NaN, so `resids` was NaN and the scale silently became zero: `self.s`, and the
+  plus/minus 3 sigma deltas taken from it, then described a chart whose limits had no
+  width, with no exception raised and only a `RuntimeWarning` as a signal. The
+  undefined case is now separated from the negative one the clamp was written for, and
+  is reported with a message naming the cause. Series with no missing data are
+  unaffected, to the last digit.
+
+  Two contributing paths were fixed at the same time, so no `RuntimeWarning` now
+  escapes `calculate_limits`: the recursion's own fallback for a missing error
+  (the median of the last ten absolute errors) is undefined when the gap is at the
+  very start, and the lambda grid search evaluated cells that carried no finite
+  error. Both now record the undefined result directly rather than routing an
+  all-NaN slice through `np.nanmedian` / `np.nanmean`.
+
+- **#558: `repeated_median_slope` no longer drops missing observations silently.**
+  A NaN in either vector makes every slope through that point undefined, so the
+  inner `np.nanmedian` received an all-NaN list: it warned and returned NaN, which
+  the outer median then quietly discarded. The slope was therefore computed from
+  whichever points happened to be clean, with nothing in the return value recording
+  the omission. Non-finite pairs are now dropped pairwise and up front, the
+  behaviour is documented, and fewer than three finite pairs raises `ValueError`
+  naming the count. This function supplies the warm-up trend for `ControlChart`,
+  which is where the leaked "All-NaN slice encountered" warning surfaced for callers
+  who had never named it.
+
+### Removed
+
+- `TODO.md`, the migration index that mapped its former sections to issues #188-219.
+  It stated it would be deleted once those were triaged, which is now done. The one
+  pointer it carried that is not reproduced in an issue body, `git show
+  50815c8:TODO.txt` for the original free-form checklist, was moved to a comment on
+  #199.
+
 ## [1.85.1] - 2026-09-11
 
 ### Fixed
@@ -4471,7 +4514,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.85.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.85.2...HEAD
+[1.85.2]: https://github.com/kgdunn/process-improve/compare/v1.85.1...v1.85.2
 [1.85.1]: https://github.com/kgdunn/process-improve/compare/v1.85.0...v1.85.1
 [1.85.0]: https://github.com/kgdunn/process-improve/compare/v1.84.0...v1.85.0
 [1.84.0]: https://github.com/kgdunn/process-improve/compare/v1.83.2...v1.84.0

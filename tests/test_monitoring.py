@@ -1,5 +1,6 @@
 import importlib
 import pathlib
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -118,9 +119,6 @@ class TestHoltWintersControlChart:
             99.462,
         ]
     )
-
-    # TODO: an example with NaN right at the start
-    # TODO: an example with NaN in the first few samples (warm up)
 
     # def test_asserts:
     # Checks that the required asserts are raised
@@ -521,3 +519,56 @@ def test_get_monitoring_tool_specs_lists_both_tools() -> None:
     specs = get_monitoring_tool_specs()
     names = {spec.get("name") for spec in specs}
     assert {"control_chart", "process_capability"}.issubset(names)
+
+
+class TestControlChartMissingValues:
+    """NaN handling in the Holt-Winters warm-up window. Regression tests for #557.
+
+    A gap at the very start of the series leaves the recursion with no finite error
+    history to fall back on, so every training-sample error stays NaN and the scale
+    estimate is undefined. That must be reported: the previous `max(0.0, resids)`
+    guard turned the NaN into a zero scale, giving control limits of zero width with
+    no exception raised.
+    """
+
+    @staticmethod
+    def _series(n: int = 40, seed: int = 42) -> np.ndarray:
+        """Return a well-behaved N(100, 2) series, deterministic across platforms."""
+        return np.random.default_rng(seed).normal(100, 2, n)
+
+    def test_clean_series_is_unaffected(self) -> None:
+        """The fix must not move the answer for data with no missing values."""
+        cc = ControlChart(style="robust", variant="HW")
+        cc.calculate_limits(self._series(), ld_1=0.4, ld_2=0.7)
+        assert cc.s == pytest.approx(2.305649, abs=1e-6)
+        assert cc.target == pytest.approx(99.933, abs=1e-3)
+
+    def test_single_nan_at_the_start_still_fits(self) -> None:
+        """One missing value leaves enough finite history for the recursion to recover."""
+        y = self._series()
+        y[0] = np.nan
+        cc = ControlChart(style="robust", variant="HW")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            cc.calculate_limits(y, ld_1=0.4, ld_2=0.7)
+
+        assert cc.s == pytest.approx(2.302721, abs=1e-6)
+        assert cc._delta_UCL_3sigma > cc._delta_LCL_3sigma
+
+    def test_nan_across_the_warm_up_raises_rather_than_collapsing_the_limits(self) -> None:
+        """Four leading gaps poison every training error, so the scale is undefined."""
+        y = self._series()
+        y[:4] = np.nan
+        cc = ControlChart(style="robust", variant="HW")
+        with pytest.raises(ValueError, match=r"none of the \d+ training-sample errors is finite"):
+            cc.calculate_limits(y, ld_1=0.4, ld_2=0.7)
+
+    def test_nan_warm_up_emits_no_runtime_warning(self) -> None:
+        """The failure is an exception, not a RuntimeWarning leaking from numpy."""
+        y = self._series()
+        y[:4] = np.nan
+        cc = ControlChart(style="robust", variant="HW")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            with pytest.raises(ValueError, match=r"training-sample errors is finite"):
+                cc.calculate_limits(y, ld_1=0.4, ld_2=0.7)
