@@ -111,12 +111,31 @@ def multiple_linear_regression_data() -> tuple[np.ndarray, np.ndarray]:
     return X, y
 
 
-def test_inconsistent_sizes(multiple_linear_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
-    """Verifies that inconsistencies are picked up."""
-    # TODO: X = 5 x 2, y = 7 x 1
-    # TODO: X = 5 x 4, y = 5 x 1:  n=5, k=5: should work
-    # TODO: X = 5 x 5, y = 5 x 1:  n=5, k=5+1 (with intercept): should fail
-    _X, _y = multiple_linear_regression_data
+def test_inconsistent_sizes() -> None:
+    """Dimension mismatches are rejected, and the saturated boundary case is characterised.
+
+    These three shapes were listed as TODOs here for years while the test body asserted
+    nothing at all. The behaviour is correct; only the assertions were missing.
+    """
+    rng = np.random.default_rng(3)
+
+    # Row mismatch: 5 rows of X against 7 of y.
+    with pytest.raises(ValueError, match=r"X and y must have the same number of rows: got 5 and 7"):
+        multiple_linear_regression(rng.normal(size=(5, 2)), rng.normal(size=7))
+
+    # n = 5, k = 4 + intercept = 5: exactly saturated, so it fits, but there are no
+    # residual degrees of freedom. R2 is 1 by construction and the standard errors are
+    # infinite, so the coefficients carry no usable inference.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        saturated = multiple_linear_regression(rng.normal(size=(5, 4)), rng.normal(size=5))
+
+    assert saturated["R2"] == pytest.approx(1.0)
+    assert np.isinf(np.asarray(saturated["standard_errors"])).all()
+
+    # n = 5, k = 5 + intercept = 6: more columns than rows, so it cannot be fitted.
+    with pytest.raises(ValueError, match=r"N >= K"):
+        multiple_linear_regression(rng.normal(size=(5, 5)), rng.normal(size=5))
 
 
 def test_regression_model_with_intercept(multiple_linear_regression_data: tuple[np.ndarray, np.ndarray]) -> None:
