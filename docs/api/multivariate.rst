@@ -40,7 +40,7 @@ loop, so blocks of unequal width contribute fairly to the consensus
 super-score.
 
 .. autoclass:: MBPLS
-   :members: fit, transform, predict, spe_contributions,
+   :members: fit, transform, predict, select_n_components, spe_contributions,
              block_spe_limit, super_spe_limit, display_results,
              super_score_plot, super_weights_bar_plot,
              predictions_vs_observed_plot

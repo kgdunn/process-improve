@@ -11,7 +11,7 @@ those changes.
 
 ## [Unreleased]
 
-## [1.84.1] - 2026-09-11
+## [1.85.1] - 2026-09-11
 
 ### Fixed
 
@@ -43,6 +43,32 @@ those changes.
   - `monitoring/control_charts.ControlChart.__init__`: document that only
     `variant="hw"` and `variant="xbar.no.subgroup"` are currently accepted;
     `variant="cusum"` raises `ValueError`.
+
+## [1.85.0] - 2026-09-11
+
+### Added
+
+- **`MBPLS.select_n_components`**, cross-validation for a multi-block PLS.
+  Whole rows are held out, as for `PLS.select_n_components`, and the argument
+  that makes that sound is untouched by there being several X-blocks: a
+  held-out row's super score is computed from its X-blocks alone, so its Y
+  never reaches its own prediction. Each block is centred and scaled inside
+  `fit`, on the training rows only.
+
+  PRESS and the "predict the mean" reference are both taken on the original Y
+  scale, and the reference is weighted by how often each row is actually held
+  out, so a splitter that tests some rows more than others is handled exactly.
+  Both choices match `PLS.select_n_components`, which is what lets a multi-block
+  row and a single-block row be read in the same column.
+
+  One model is fitted per fold and per component count, because hierarchical
+  NIPALS deflation means an `a`-component model cannot be recovered from an
+  `A`-component one. The cost is `cv * n_repeats * max_components` fits.
+
+  Note that a fitted model's `r2_y_cumulative_` is computed on the scaled Y,
+  where every target carries equal weight, while the returned `r2y_validated`
+  is on the original Y scale. On targets of unequal spread the two differ
+  widely, and they are not comparable with each other.
 
 ## [1.84.0] - 2026-09-10
 
@@ -4445,8 +4471,9 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.84.1...HEAD
-[1.84.1]: https://github.com/kgdunn/process-improve/compare/v1.84.0...v1.84.1
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.85.1...HEAD
+[1.85.1]: https://github.com/kgdunn/process-improve/compare/v1.85.0...v1.85.1
+[1.85.0]: https://github.com/kgdunn/process-improve/compare/v1.84.0...v1.85.0
 [1.84.0]: https://github.com/kgdunn/process-improve/compare/v1.83.2...v1.84.0
 [1.83.2]: https://github.com/kgdunn/process-improve/compare/v1.83.1...v1.83.2
 [1.83.1]: https://github.com/kgdunn/process-improve/compare/v1.83.0...v1.83.1
