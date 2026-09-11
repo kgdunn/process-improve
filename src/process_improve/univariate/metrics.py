@@ -986,7 +986,10 @@ def detect_outliers_esd(
             'cc-robust': Build a robust control-chart for the sequence `x` and
             points should lie outside the +/- 3 sigma limits are considered
             outliers.
-            Not Implemented Yet: left here as an idea for the future, but not confirmed yet.
+            Not Implemented Yet: left here as an idea for the future, but not
+            confirmed yet. Passing ``algorithm='cc-robust'`` (or any other value
+            besides ``'esd'``) silently returns an empty outlier list and an
+            empty details dict; it does not raise.
 
         max_outliers_detected -- The maximum number of outliers that
             should be detected, as required by the algorithms.
