@@ -165,7 +165,11 @@ def analyze_experiment(  # noqa: PLR0912, PLR0913, PLR0915, C901
         Factor settings per run.  May also contain the response column(s).
     responses : DataFrame, Series, or None
         Response column(s).  If *None*, ``response_column`` must name a
-        column already present in *design_matrix*.
+        column already present in *design_matrix*. When a DataFrame with
+        more than one column is passed, only the first column is analysed;
+        the rest are added to the working frame but ignored by every
+        subsequent step. Use ``response_column`` to pick a specific column
+        explicitly.
     model : str or None
         ``"main_effects"``, ``"interactions"``, ``"quadratic"``, an explicit
         formula, or *None* (defaults to ``"interactions"``).
