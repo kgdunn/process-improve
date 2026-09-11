@@ -24,6 +24,68 @@ logger = logging.getLogger(__name__)
 epsqrt = np.sqrt(np.finfo(float).eps)
 
 
+def _resolve_columns_to_align(
+    batches: dict[str, pd.DataFrame],
+    columns_to_align: list | pd.Index | None,
+    caller: str,
+) -> list | pd.Index:
+    """
+    Validate the batch container and resolve which columns to operate on.
+
+    The scaling functions take batches as a dict keyed by batch identifier. A single
+    wide DataFrame holding every batch used to get past the column-resolution branch
+    and then fail several lines later inside the loop, because ``DataFrame.items()``
+    yields ``(column, Series)`` pairs rather than ``(batch_id, frame)``. The error
+    that surfaced named a ``Series`` the caller never created. Reject the
+    unsupported container here instead, and say how to convert it. (#560)
+
+    Parameters
+    ----------
+    batches : dict[str, pd.DataFrame]
+        Batch data, in the standard format (keyed by batch identifier).
+    columns_to_align : list, pd.Index, or None
+        Passed through when given; resolved from the first batch when ``None``.
+    caller : str
+        Name of the calling function, used in the error messages.
+
+    Returns
+    -------
+    list or pd.Index
+        The columns to operate on.
+
+    Raises
+    ------
+    TypeError
+        If ``batches`` is a DataFrame, or is not a dict.
+    ValueError
+        If ``batches`` is an empty dict, so there is no batch to take columns from.
+    """
+    if isinstance(batches, pd.DataFrame):
+        raise TypeError(
+            f"{caller} expects `batches` as a dict of per-batch DataFrames, keyed by batch "
+            f"identifier; got a single {type(batches).__name__} holding every batch, which is not "
+            "supported yet (tracked on #199). Split it per batch first, for example: "
+            "`dict(tuple(df.groupby(batch_col)))`."
+        )
+
+    if not isinstance(batches, dict):
+        raise TypeError(
+            f"{caller} expects `batches` as a dict of per-batch DataFrames, keyed by batch "
+            f"identifier; got {type(batches).__name__}."
+        )
+
+    if columns_to_align is not None:
+        return columns_to_align
+
+    if not batches:
+        raise ValueError(
+            f"{caller} cannot resolve `columns_to_align` from an empty `batches` dict; "
+            "pass `columns_to_align` explicitly, or supply at least one batch."
+        )
+
+    return batches[next(iter(batches))].columns
+
+
 def determine_scaling(
     batches: dict[str, pd.DataFrame],
     columns_to_align: list | pd.Index | None = None,
@@ -62,8 +124,7 @@ def determine_scaling(
         default_settings.update(settings)
 
     settings = default_settings
-    if columns_to_align is None:
-        columns_to_align = batches[next(iter(batches.keys()))].columns
+    columns_to_align = _resolve_columns_to_align(batches, columns_to_align, "determine_scaling")
 
     collector_rnge = []
     collector_mins = []
@@ -120,15 +181,7 @@ def apply_scaling(
         The scaled batch data. Each value carries only the ``columns_to_align``
         columns, in that order.
     """
-    # TODO: handle the case of DataFrames still
-    if columns_to_align is None:
-        if isinstance(batches, dict):
-            batch1 = batches[next(iter(batches.keys()))]
-            columns_to_align = batch1.columns
-        elif isinstance(batches, pd.DataFrame):
-            columns_to_align = batches.columns
-        else:
-            raise TypeError("Undefined input type")
+    columns_to_align = _resolve_columns_to_align(batches, columns_to_align, "apply_scaling")
     out = {}
     for batch_id, batch in batches.items():
         out[batch_id] = batch[columns_to_align].copy()
@@ -163,14 +216,7 @@ def reverse_scaling(
     dict
         The un-scaled batch data.
     """
-    # TODO: handle the case of DataFrames still
-    if columns_to_align is None:
-        if isinstance(batches, dict):
-            columns_to_align = batches[next(iter(batches.keys()))].columns
-        elif isinstance(batches, pd.DataFrame):
-            columns_to_align = batches.columns
-        else:
-            raise TypeError("Undefined input type")
+    columns_to_align = _resolve_columns_to_align(batches, columns_to_align, "reverse_scaling")
     out = {}
     for batch_id, batch in batches.items():
         out[batch_id] = batch[columns_to_align].copy()
