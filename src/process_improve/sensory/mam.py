@@ -204,9 +204,16 @@ def align_scores(panel: pd.DataFrame, *, method: AlignMethod = "both", robust: b
     mean offset (so "rates everything high/low" goes away) and the scale lever
     divides by the panelist's scaling coefficient ``beta`` (so a compressor's
     narrow range is stretched toward the panel's). This rescales the whole panel
-    (standard MAM practice), keeping panelists rather than dropping them; a
-    panelist who is flat or anti-correlated with the panel (``beta`` not usable)
-    is left location-corrected only.
+    (standard MAM practice), keeping panelists rather than dropping them.
+
+    When a panelist is flat or anti-correlated with the panel (``beta`` is not
+    finite or below ``_MIN_SLOPE``), the scale lever is skipped for that
+    panelist and the fallback depends on ``method``:
+
+    - ``"both"``: the panelist is left location-corrected only.
+    - ``"scale"``: the panelist is left as-is (no correction applied).
+    - ``"location"``: the slope is not consulted, so the location correction
+      is always applied.
 
     Parameters
     ----------

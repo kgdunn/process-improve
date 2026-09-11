@@ -457,7 +457,10 @@ def observation_contributions(model: BaseEstimator, n_components: int | None = N
 
     Values lie between 0 and 1 and each column sums to 1, so a contribution
     well above the average :math:`1/N` flags an observation that strongly
-    shapes that component.
+    shapes that component. The exception is a component whose score column
+    has zero variance (``sum(t_{ia}^2) = 0``): the division cannot be
+    computed, so the column is returned as zeros rather than NaN, and its
+    sum is 0 rather than 1.
 
     Note that this is *not* the same diagnostic as the ``score_contributions``
     method, despite the similar name. ``score_contributions`` is *per-variable*
@@ -480,7 +483,8 @@ def observation_contributions(model: BaseEstimator, n_components: int | None = N
     -------
     pd.DataFrame
         Contributions of shape (n_samples, n_components), indexed by sample.
-        Each column sums to 1.
+        Each column sums to 1 except columns for components whose score has
+        zero variance, which are returned as zeros and sum to 0.
 
     Raises
     ------

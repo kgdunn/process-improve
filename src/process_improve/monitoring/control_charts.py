@@ -42,7 +42,7 @@ def rho(x: float, k: float = 2.52) -> float:
 
 def psi(x: float, k: float = 2.0) -> float:
     """
-    Pre-clean based on the Huber y-function.
+    Pre-clean based on the Huber psi function.
 
     Can be interpreted as replacing unexpected high or low values by a more likely value.
     From p 288 of the paper
@@ -63,24 +63,28 @@ class ControlChart:
             Other choice is 'regular' (i.e. not-robust) calculations. User should then ensure that
             no outliers are present in the data.
 
-            variant (str, optional): Many variants of control charts are available. The variant
-                string is compared case-insensitively (it is normalised via ``.strip().lower()``
-                on assignment), so ``'HW'``, ``'hw'``, and ``'Hw'`` are all equivalent.
+            variant (str, optional): Only two variants are currently accepted:
+                ``'hw'`` (the default) and ``'xbar.no.subgroup'``. Any other value,
+                including ``'cusum'``, raises ``ValueError`` at construction time.
+                The variant string is compared case-insensitively (it is normalised
+                via ``.strip().lower()`` on assignment), so ``'HW'``, ``'hw'``, and
+                ``'Hw'`` are all equivalent.
 
                 The default is a Holt-Winters (`'hw'`) chart, with automatic determination of
                 control chart parameters. This chart is a blend of infinite history (CUSUM)
                 charts, and an instantaneous (no history taken into account) Shewhart chart. The
                 exact blend is specified by parameters `ld_1` (lambda 1) and `ld_2` (lambda 2).
 
-                Other variants are:
+                The other accepted variant is:
 
                 'xbar.no.subgroup' [Shewhart chart, with no subgroups]. In other words, each
                 observation is independently plotted on the control chart.
 
                 A pure 'cusum' (CUmulative SUM) chart is a planned future variant but
-                is not currently implemented; the Holt-Winters ('hw') default already
-                blends CUSUM-style infinite history with Shewhart-style
-                instantaneous behaviour via its lambda parameters.
+                is not currently implemented; passing ``variant='cusum'`` raises
+                ``ValueError``. The Holt-Winters ('hw') default already blends
+                CUSUM-style infinite history with Shewhart-style instantaneous
+                behaviour via its lambda parameters.
         """
         self.style = style.strip()
         self.variant = variant.strip().lower()
