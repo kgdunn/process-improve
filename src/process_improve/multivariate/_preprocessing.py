@@ -241,9 +241,11 @@ def scale(
 
 
     `func` [optional; default=np.std] {a function}
-        The default (np.std) uses NumPy to calculate the standard deviation of
-        the data along the required `axis`, skipping over any missing data, and
-        uses that as `scale`.
+        The default (``np.std``) uses NumPy to calculate the standard deviation
+        of the data along the required `axis` and uses that as `scale`. Any
+        NaN along the reduction axis propagates into the resulting scale
+        vector, so an entire row or column of the returned data can end up
+        NaN. Pass ``func=np.nanstd`` to skip missing entries instead.
 
     `axis` [optional; default=0] {integer}
         Transformations are applied on slices of data.  This specifies the
