@@ -17,12 +17,20 @@ from collections.abc import Sequence
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, RegressorMixin, _fit_context
+from sklearn.model_selection import BaseCrossValidator, KFold, RepeatedKFold
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
 from ..visualization.themes import REFERENCE_LINE_COLOR
 from ._base import _HotellingsT2LimitMixin
-from ._common import SpecificationWarning, _nz, _scale_block_contributions, epsqrt
+from ._common import (
+    SelectionRule,
+    SpecificationWarning,
+    _nz,
+    _scale_block_contributions,
+    _select_n_components,
+    epsqrt,
+)
 from ._diagnostics import _select_rows
 from ._limits import spe_calculation
 from ._nipals import quick_regress, ssq
@@ -1024,6 +1032,195 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
         """
         check_is_fitted(self, "super_weights_")
         return self._project(X)
+
+    @classmethod
+    def select_n_components(  # noqa: PLR0913, PLR0915
+        cls,
+        X: dict[str, pd.DataFrame],
+        y: pd.DataFrame,
+        *,
+        max_components: int | None = None,
+        cv: int | BaseCrossValidator = 5,
+        n_repeats: int | None = None,
+        random_state: int | None = None,
+        selection_rule: SelectionRule = "1se",
+        **mbpls_kwargs,
+    ) -> Bunch:
+        """Select the number of multi-block PLS components by cross-validation.
+
+        Whole rows are held out. The super score of a held-out row is computed
+        from its X-blocks alone and its Y is what the model predicts, so the
+        value being predicted never enters its own prediction. That is the same
+        argument that makes row-wise cross-validation sound for a single-block
+        :meth:`PLS.select_n_components`, and it is unaffected by there being
+        several X-blocks.
+
+        Each block is centred and scaled inside :meth:`fit`, on the training
+        rows only, so the fold statistics never see the held-out rows.
+
+        One model is fitted per fold **and** per component count, because the
+        hierarchical NIPALS deflation means an ``a``-component model is not
+        recoverable from an ``A``-component one. The cost is
+        ``cv * n_repeats * max_components`` fits.
+
+        Parameters
+        ----------
+        X : dict[str, pd.DataFrame]
+            X-blocks, keyed by block name, all sharing ``y``'s row index.
+        y : pd.DataFrame
+            Y-block, one row per observation.
+        max_components : int, optional
+            Largest component count to evaluate. Defaults to the largest the
+            smallest training fold supports, capped at the total width of the
+            X-blocks.
+        cv : int or sklearn CV splitter, default 5
+            An integer is used as the ``n_splits`` of a shuffled
+            :class:`~sklearn.model_selection.KFold`, or of a
+            :class:`~sklearn.model_selection.RepeatedKFold` when
+            ``n_repeats > 1``. A splitter object is used as given, and
+            ``n_repeats`` is then ignored.
+        n_repeats : int, optional
+            How many times to repeat the split with a fresh shuffle. Resolved
+            to 10 when ``cv`` is an integer; pass 1 to disable repeats.
+        random_state : int, optional
+            Seed for the shuffling. Ignored when ``cv`` is a splitter.
+        selection_rule : {"1se", "min", "q2_increment"}, default "1se"
+            How ``n_components`` is chosen from the curve. See
+            :data:`~process_improve.multivariate._common.SelectionRule`.
+            ``"randomization"`` is not offered here.
+        **mbpls_kwargs
+            Passed to every :class:`MBPLS` fitted, for instance ``tol`` or
+            ``algorithm``.
+
+        Returns
+        -------
+        sklearn.utils.Bunch
+            With ``n_components`` (int), ``rmsecv`` and ``se_rmsecv`` (Series
+            indexed ``1..A``), ``per_fold_rmsecv`` (DataFrame, components by
+            fold), ``press`` (Series), ``r2y_validated`` (DataFrame with one
+            column per target plus ``"total"``), ``cv_predictions`` (DataFrame
+            of the held-out predictions of the recommended model, averaged
+            over repeats) and ``selection_rule``.
+
+        Raises
+        ------
+        ValueError
+            If ``X`` is not a non-empty dict of frames sharing ``y``'s index,
+            or if no component count could be evaluated.
+
+        Examples
+        --------
+        >>> import numpy as np, pandas as pd
+        >>> from process_improve.multivariate.methods import MBPLS
+        >>> rng = np.random.default_rng(0)
+        >>> t = rng.standard_normal((40, 2))
+        >>> blocks = {
+        ...     "a": pd.DataFrame(t @ rng.standard_normal((2, 5)) + rng.standard_normal((40, 5)) * 0.3),
+        ...     "b": pd.DataFrame(t @ rng.standard_normal((2, 4)) + rng.standard_normal((40, 4)) * 0.3),
+        ... }
+        >>> Y = pd.DataFrame(t @ rng.standard_normal((2, 2)) + rng.standard_normal((40, 2)) * 0.3)
+        >>> out = MBPLS.select_n_components(blocks, Y, max_components=3, cv=5, n_repeats=2, random_state=0)
+        >>> 1 <= out.n_components <= 3
+        True
+        """
+        if not isinstance(X, dict):
+            raise TypeError(f"X must be a dict of DataFrames, one per block; got {type(X).__name__}.")
+        if not X:
+            raise ValueError("X must hold at least one block.")
+        y = pd.DataFrame(y)
+        for name, block in X.items():
+            if not isinstance(block, pd.DataFrame):
+                raise TypeError(f"Block {name!r} must be a pandas DataFrame; got {type(block).__name__}.")
+            if len(block) != len(y):
+                raise ValueError(f"Block {name!r} has {len(block)} rows; y has {len(y)}.")
+        n_samples = len(y)
+        total_width = sum(block.shape[1] for block in X.values())
+
+        if isinstance(cv, int):
+            repeats = 10 if n_repeats is None else int(n_repeats)
+            splitter: BaseCrossValidator = (
+                KFold(cv, shuffle=True, random_state=random_state)
+                if repeats == 1
+                else RepeatedKFold(n_splits=cv, n_repeats=repeats, random_state=random_state)
+            )
+            n_splits = cv
+        else:
+            splitter, repeats, n_splits = cv, 1, cv.get_n_splits(y)
+
+        splits = list(splitter.split(y))
+        smallest_train = min(len(train) for train, _ in splits)
+        ceiling = max(1, min(smallest_train - 1, total_width))
+        A = ceiling if max_components is None else min(int(max_components), ceiling)
+        if A < 1:
+            raise ValueError("No component count could be evaluated; the folds are too small.")
+
+        component_index = pd.Index(range(1, A + 1), name="n_components")
+        targets = list(y.columns)
+        press = np.zeros((A, len(targets)))
+        per_fold = np.full((A, len(splits)), np.nan)
+        gathered: dict[int, list[pd.DataFrame]] = {a: [] for a in component_index}
+        tested = np.zeros(n_samples)  # how often each row is held out, which need not be uniform
+
+        for fold, (train, test) in enumerate(splits):
+            tested[test] += 1.0
+            tr, te = y.index[train], y.index[test]
+            train_blocks = {name: block.iloc[train] for name, block in X.items()}
+            test_blocks = {name: block.iloc[test] for name, block in X.items()}
+            for a in component_index:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", SpecificationWarning)
+                    model = cls(n_components=a, **mbpls_kwargs).fit(train_blocks, y.loc[tr])
+                    predicted = model.diagnose(test_blocks).predictions
+                residual = y.loc[te].to_numpy(dtype=float) - np.asarray(predicted, dtype=float)
+                press[a - 1] += np.nansum(residual**2, axis=0)
+                per_fold[a - 1, fold] = float(np.sqrt(np.nanmean(residual**2)))
+                gathered[a].append(pd.DataFrame(predicted, index=te, columns=targets))
+
+        # Weight the "predict the mean" reference by the same per-row coverage that
+        # built PRESS, so each row counts in the denominator exactly as often as it
+        # counted in the numerator. A splitter that tests some rows more than others,
+        # or not at all, is then handled exactly rather than by a flat repeat count.
+        # This is what PLS.select_n_components does, and both sides are on the
+        # original Y scale, so the two are directly comparable.
+        values = y.to_numpy(dtype=float)
+        centred_sq = (values - np.nanmean(values, axis=0)) ** 2
+        tss = np.nansum(tested[:, None] * centred_sq, axis=0)
+        per_target = np.where(tss > 0, 1.0 - press / np.where(tss > 0, tss, 1.0), np.nan)
+        total = np.where(tss.sum() > 0, 1.0 - press.sum(axis=1) / tss.sum(), np.nan)
+
+        n_predicted = float(tested.sum())
+        rmsecv = pd.Series(
+            np.sqrt(press.sum(axis=1) / max(n_predicted * len(targets), 1.0)), index=component_index, name="RMSECV"
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            se = np.nanstd(per_fold, axis=1, ddof=1) / np.sqrt(np.maximum(1, np.sum(~np.isnan(per_fold), axis=1)))
+        se_rmsecv = pd.Series(se, index=component_index, name="SE of RMSECV")
+        r2y_validated = pd.DataFrame(
+            np.column_stack([per_target, total]), index=component_index, columns=[*targets, "total"]
+        )
+
+        recommended = _select_n_components(
+            selection_rule,
+            mean_error=rmsecv.to_numpy(),
+            se_error=se_rmsecv.to_numpy(),
+            q2_cumulative=r2y_validated["total"].to_numpy(),
+        )
+        held_out = pd.concat(gathered[recommended]).groupby(level=0).mean().reindex(y.index)
+
+        return Bunch(
+            n_components=int(recommended),
+            rmsecv=rmsecv,
+            se_rmsecv=se_rmsecv,
+            per_fold_rmsecv=pd.DataFrame(
+                per_fold, index=component_index, columns=[f"fold_{i + 1}" for i in range(len(splits))]
+            ),
+            press=pd.Series(press.sum(axis=1), index=component_index, name="PRESS"),
+            r2y_validated=r2y_validated,
+            cv_predictions=held_out,
+            selection_rule=selection_rule,
+            n_splits=n_splits,
+        )
 
     def predict(self, X: dict[str, pd.DataFrame]) -> Bunch:
         """Forward to :meth:`diagnose`; emits a :class:`DeprecationWarning`.
