@@ -40,6 +40,94 @@ def rho(x: float, k: float = 2.52) -> float:
     return c_k if np.abs(x) > k else c_k * (1 - np.power(1 - np.power(x / k, 2), 3))
 
 
+def _finite(values: pd.Series | np.ndarray) -> bool:
+    """Return ``True`` if at least one entry of ``values`` is finite."""
+    return bool(np.isfinite(np.asarray(values, dtype=float)).any())
+
+
+def _training_error_radicand(future_errors: pd.Series, rho_func: np.vectorize) -> float:
+    """
+    Return tau squared for the training-sample errors, or NaN when it is undefined.
+
+    Equation 16 of the Holt-Winters paper. This is the shared computation behind the
+    lambda grid search, which treats an undefined cell as a non-contender, and
+    :func:`_tau_from_training_errors`, which rejects it. Returning NaN rather than
+    routing an all-NaN slice through ``np.nanmedian`` / ``np.nanmean`` keeps a
+    ``RuntimeWarning`` from escaping ``calculate_limits``. (#557)
+
+    Parameters
+    ----------
+    future_errors : pd.Series
+        One-step-ahead errors over the training samples (those after the warm-up).
+    rho_func : np.vectorize
+        Element-wise bounded loss applied to the standardised errors.
+
+    Returns
+    -------
+    float
+        The radicand, or ``np.nan`` when the errors hold nothing finite or carry no
+        usable spread.
+    """
+    if not _finite(future_errors):
+        return float("nan")
+
+    s_t_median_error = 1.48 * future_errors.abs().median()
+    if not np.isfinite(s_t_median_error) or s_t_median_error <= 0:
+        return float("nan")
+
+    return float(np.power(s_t_median_error, 2) * np.nanmean(rho_func(future_errors / s_t_median_error)))
+
+
+def _tau_from_training_errors(future_errors: pd.Series, rho_func: np.vectorize) -> float:
+    """
+    Return the robust scale estimate (tau) for the training-sample errors.
+
+    Equation 16 of the Holt-Winters paper, with each way the estimate can come out
+    undefined reported rather than silently reduced to zero. The previous
+    ``np.sqrt(max(0.0, resids))`` was written to stop a negative radicand reaching
+    ``sqrt``, but ``max(0.0, nan)`` returns ``0.0``: ``nan > 0.0`` is ``False``, so
+    ``max`` keeps its first argument. A NaN therefore became a zero scale, which the
+    caller carried outward as control limits of zero width. (#557)
+
+    Parameters
+    ----------
+    future_errors : pd.Series
+        One-step-ahead errors over the training samples (those after the warm-up).
+    rho_func : np.vectorize
+        Element-wise bounded loss applied to the standardised errors.
+
+    Returns
+    -------
+    float
+        The scale estimate, strictly positive.
+
+    Raises
+    ------
+    ValueError
+        If no training error is finite, or if the resulting radicand is non-finite
+        or not positive (the errors carry no usable spread).
+    """
+    if not _finite(future_errors):
+        # Missing values at or near the start of the series propagate through the
+        # Holt-Winters recursion and leave every training error NaN.
+        raise ValueError(
+            f"The control-chart scale estimate is undefined: none of the {future_errors.size} "
+            "training-sample errors is finite. Missing values at or near the start of the "
+            "series propagate through the Holt-Winters recursion and leave every error NaN. "
+            "Supply a series without leading gaps, or pass an explicit positive 's'."
+        )
+
+    resids = _training_error_radicand(future_errors, rho_func)
+    if not np.isfinite(resids) or resids <= 0:
+        raise ValueError(
+            f"The control-chart scale estimate is undefined (tau^2 = {resids}), so the control "
+            "limits would have zero width. Supply more representative data, or pass an "
+            "explicit positive 's'."
+        )
+
+    return float(np.sqrt(resids))
+
+
 def psi(x: float, k: float = 2.0) -> float:
     """
     Pre-clean based on the Huber psi function.
@@ -291,10 +379,11 @@ class ControlChart:
                     # np.median/np.average every grid cell became NaN and the
                     # search silently "chose" (0.1, 0.1) via argmin-of-NaN.
                     future_errors = self.df["error"].iloc[np.asarray(self.train_samples, dtype=int)]
-                    S_T_median_error = 1.48 * np.nanmedian(np.abs(future_errors))
-                    residuals[i, j] = np.power(S_T_median_error, 2) * np.nanmean(
-                        rho_func(future_errors / S_T_median_error)
-                    )
+
+                    # An unusable cell records NaN and cannot win the search; the
+                    # `np.all(np.isnan(residuals))` check below still catches the case
+                    # where every cell is unusable. (#557)
+                    residuals[i, j] = _training_error_radicand(future_errors, rho_func)
 
             if np.all(np.isnan(residuals)):
                 raise ValueError(
@@ -312,11 +401,7 @@ class ControlChart:
 
         # Common code for both branches of if-else above
         future_errors = self.df["error"].iloc[np.asarray(self.train_samples, dtype=int)]
-        S_T_median_error = 1.48 * future_errors.abs().median()  # must handle NaNs!
-        resids = np.power(S_T_median_error, 2) * np.nanmean(rho_func(future_errors / S_T_median_error))
-
-        # Ensure no negative square root is taken
-        self._tau = np.sqrt(max(0.0, resids))
+        self._tau = _tau_from_training_errors(future_errors, rho_func)
         if self.target is None:
             # Estimate the target as the median of the y-star (cleaned) y-values
             self.target = self.df["y_star"].median()
@@ -414,8 +499,15 @@ class ControlChart:
             error_i = df["y"][i] - (df["alpha_hat"][i - 1] + df["beta_hat"][i - 1])
             if np.isnan(error_i):
                 # If there is an error, replace it with the median of the last 10 error estimates
-                # or as many points as available.
-                error_i = df["error"].iloc[max(i - 10, 0) : i].abs().median()
+                # or as many points as available. When the gap is at the very start of the series
+                # there is no finite history to take that median over, so `error_i` stays NaN and
+                # propagates through alpha_hat / beta_hat / sigma_hat for the rest of the
+                # recursion; `calculate_limits` raises on that downstream. Filter to the finite
+                # history explicitly rather than letting an all-NaN slice reach pandas' median,
+                # which returns NaN but emits "Mean of empty slice". (#557)
+                recent_errors = df["error"].iloc[max(i - 10, 0) : i].abs().to_numpy(dtype=float)
+                recent_errors = recent_errors[np.isfinite(recent_errors)]
+                error_i = float(np.median(recent_errors)) if recent_errors.size else np.nan
             rho_i = error_i / df["sigma_hat"][i - 1]
             prior_variance = np.power(df["sigma_hat"][i - 1], 2)
             sigma_i = np.sqrt(rho(rho_i) * ld_s * prior_variance + (1.0 - ld_s) * prior_variance)
