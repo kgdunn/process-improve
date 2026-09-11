@@ -27,7 +27,7 @@ except ImportError:
 @jit(nopython=True)
 def distance_matrix(test: np.ndarray, ref: np.ndarray, weight_matrix: np.ndarray) -> np.ndarray:
     """Compute the DTW distance matrix between test and reference batch trajectories."""
-    # TODO: allow user to specify `band`. The code below assumes that `band` is fixed as shown
+    # TODO(#197): allow user to specify `band`. The code below assumes `band` is fixed as shown
     # here, so therefore, if user provide `band`, the code needs to be adjusted.
     nt = test.shape[0]  # 'test' data; will be align to the 'reference' data
     nr = ref.shape[0]
@@ -39,7 +39,7 @@ def distance_matrix(test: np.ndarray, ref: np.ndarray, weight_matrix: np.ndarray
     for idx, row in enumerate(test):  # reset_index(drop=True).iterrows():
         dist[:, idx] = np.diag((row - ref) @ weight_matrix @ ((row - ref).T))
 
-    # TODO: Sakoe-Chiba constraints could still be added
+    # TODO(#197): Sakoe-Chiba constraints could still be added
     D = np.zeros((nr, nt)) * np.nan
     D[0, 0] = dist[0, 0]
     for jdx in np.arange(1, nt):

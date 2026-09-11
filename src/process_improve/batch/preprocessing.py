@@ -115,9 +115,9 @@ def determine_scaling(
         aggregated across batches with the median when ``robust=True`` and
         the mean otherwise, but the per-batch minimum itself is always the
         raw ``batch.min(axis=0)``, not a quantile.
-
-    TODO: put this in a scikit-learn style: .fit() and .apply() style
     """
+    # TODO(#199): reshape this trio of functions into a scikit-learn style estimator
+    # with .fit() / .transform(), the way MCUVScaler already works.
     # This will be clumsy, until we have Python 3.9
     default_settings = {"robust": True}
     if settings:
@@ -130,7 +130,7 @@ def determine_scaling(
     collector_mins = []
     for batch in batches.values():
         if settings["robust"]:
-            # TODO: consider f_iqr feature here. Would that work?
+            # TODO(#198): consider the f_iqr feature here instead of q98 - q02. Would that work?
             rnge = batch[columns_to_align].quantile(0.98) - batch[columns_to_align].quantile(0.02)
         else:
             rnge = batch[columns_to_align].max() - batch[columns_to_align].min()
@@ -271,8 +271,9 @@ def align_with_path(md_path: np.ndarray, batch: pd.DataFrame) -> pd.DataFrame:
             synced.iloc[row, :] = temp = batch.iloc[md_path[idx, 1], :]
 
         else:
-            # TODO : Come back to page 181 of thesis: where more than 1 point in the target
-            #        trajectory is aligned with the reference: compute the average,
+            # More than one batch sample maps to this reference index (a compression in
+            # the warping path), so the synced value is the average of those samples.
+            # Pinned by tests/batch/test_dtw_align_with_path.py.
             temp = np.vstack((temp, batch.iloc[md_path[idx, 1], :]))
             synced.iloc[row, :] = np.nanmean(temp, axis=0)
 
@@ -389,8 +390,9 @@ def batch_dtw(  # noqa: C901, PLR0915
     Returns
     -------
     dict
-        Various outputs relevant to the alignment.
-        TODO: Document completely later.
+        Various outputs relevant to the alignment, keyed by ``scale_df``,
+        ``aligned_batch_objects``, ``aligned_batch_dfdict``, ``last_average_batch``
+        and ``weight_history``.
 
     Notation
     --------
@@ -463,15 +465,15 @@ def batch_dtw(  # noqa: C901, PLR0915
         next_weights = np.zeros((1, refbatch_sc.shape[1]))
         for result in aligned_batches.values():
             next_weights = next_weights + np.nansum(np.power(result.synced - average_batch, 2), axis=0)
-            # TODO: use quadratic weights for now, but try sum of the absolute values instead
+            # TODO(#199): quadratic weights for now; try the sum of absolute values instead
             #  np.abs(result.synced - average_batch).sum(axis=0)
 
-            # TODO: leave out worst batches when computing the weights
+            # TODO(#199): leave out the worst batches when computing the weights
             # dist_df = pd.DataFrame(distances).set_index("batch_id")
             # dist_df.hist("Distance", bins=50)
             # Now find the average trajectory, but ignore problematic batches:
             #      for example, top 5% of the distances.
-            # TODO: make this a configurable setting
+            # TODO(#199): make the problematic-batch threshold a configurable setting
             # problematic_threshold = dist_df["Distance"].quantile(0.95)
 
         # Kassidas: each variable's weight is inversely proportional to its

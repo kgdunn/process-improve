@@ -214,7 +214,7 @@ def test_alignment(dryer_data: dict) -> None:
         settings={"robust": False, "tolerance": 0.06, "show_progress": True},
     )
     assert outputs["weight_history"].shape == (3, 5)
-    # TODO: still work on this, depending on how you terminate DTW.
+    # TODO(#197): restore this assertion once DTW termination is settled.
     # assert [0.43702525, 1.33206459, 0.98298667, 0.93599197, 1.31193153] == pytest.approx(
     #     outputs["weight_history"][4, :], abs=1e-7
     # )
