@@ -11,6 +11,39 @@ those changes.
 
 ## [Unreleased]
 
+## [1.84.1] - 2026-09-11
+
+### Fixed
+
+- **Docstring corrections across the package** to bring the documented
+  behaviour into line with what the code actually does. No compute behaviour
+  changed; only docstrings were updated.
+
+  - `multivariate/_preprocessing.center()`: the default `func=np.mean`
+    propagates NaN rather than skipping missing data; the docstring now says
+    so and points at `np.nanmean` for the skip-missing behaviour.
+  - `multivariate/_preprocessing.scale()`: same clarification for the default
+    `func=np.std` versus `np.nanstd`.
+  - `sensory/mam.align_scores()`: clarify that the location-only fallback
+    applies to `method="both"`; under `method="scale"` a panelist with an
+    unusable slope is left as-is.
+  - `experiments/augment._augment_replicate`: replace "one or more" with
+    "zero or more (default 1 when `n_additional_runs` is None)".
+  - `multivariate/_diagnostics.observation_contributions()`: note that
+    columns sum to 1 except when the component has zero score variance,
+    in which case the column is all zeros.
+  - `experiments/augment.augment_design()`: clarify that for `replicate`,
+    `n_additional_runs` is the number of complete-design copies added.
+  - `experiments/analysis.analyze_experiment()`: state that only the first
+    response column is analysed when a multi-column DataFrame is passed.
+  - `monitoring/control_charts.psi()`: replace "Huber y-function" with the
+    correct "Huber psi function".
+  - `univariate/metrics.detect_outliers_esd()`: note that the `"cc-robust"`
+    method is not implemented and currently returns empty results.
+  - `monitoring/control_charts.ControlChart.__init__`: document that only
+    `variant="hw"` and `variant="xbar.no.subgroup"` are currently accepted;
+    `variant="cusum"` raises `ValueError`.
+
 ## [1.84.0] - 2026-09-10
 
 ### Added
@@ -4412,7 +4445,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.84.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.84.1...HEAD
+[1.84.1]: https://github.com/kgdunn/process-improve/compare/v1.84.0...v1.84.1
 [1.84.0]: https://github.com/kgdunn/process-improve/compare/v1.83.2...v1.84.0
 [1.83.2]: https://github.com/kgdunn/process-improve/compare/v1.83.1...v1.83.2
 [1.83.1]: https://github.com/kgdunn/process-improve/compare/v1.83.0...v1.83.1
