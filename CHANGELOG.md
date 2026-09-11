@@ -11,6 +11,61 @@ those changes.
 
 ## [Unreleased]
 
+## [1.85.4] - 2026-09-11
+
+### Changed
+
+- **Every `# TODO` in the package and the test suite now carries an issue number, and
+  ruff's `TD003` is enabled to keep it that way.** A TODO/FIXME audit found five
+  markers that had outlived the issues tracking them, because nothing tied the comment
+  to the tracker: `TD003` (missing-todo-link) was in the ignore list. It is now enabled,
+  with a comment in `pyproject.toml` recording why, so a TODO without an issue link
+  fails lint. The surviving markers point at #197, #198, #199, #213 and #561.
+
+- Two TODOs sat in docstrings, where they reached users through `help()`:
+  `determine_scaling` advertised its own pending scikit-learn-style refactor, and
+  `batch_dtw` said "Document completely later" in place of its Returns section. The
+  first moved into a code comment; the second was replaced by the five keys the
+  function actually returns.
+
+- The `_nipals.quick_regress` comment asking whether a denominator is "always 1.0" is
+  replaced by the answer, because acting on the guess would have been a silent
+  correctness bug. It is 1.0 only when `x` is unit-norm *and* the row of Y has no
+  missing cell; two call sites pass the `c_a` vector that NIPALS never renormalises.
+  Measured over real fits: 1.0 for every complete-data PCA call, but only half the
+  complete-data PLS calls and 46% of calls with missing data.
+
+- The IRSP reference parked in `confidence_interval` is about Welch's unequal-variance
+  two-sample t-test, so it moved to `ttest_independent`, which is pooled-variance only,
+  as a `TODO(#561)`.
+
+### Added
+
+- `make test-one T=tests/test_x.py::test_y`, replacing a `# TODO` in the `Makefile`
+  that held a half-remembered pytest invocation.
+
+- `test_inconsistent_sizes` now asserts the three shapes it had listed as TODOs for
+  years while its body asserted nothing: a row mismatch raises `ValueError`; the
+  exactly-saturated case (n = 5, k = 4 + intercept) fits but yields `R2 == 1` with
+  infinite standard errors, so it carries no usable inference; and more columns than
+  rows raises. The behaviour was already correct; only the assertions were missing.
+
+### Removed
+
+- Eight stale TODO markers whose work was verified done, and two dead tests that
+  asserted nothing and duplicated coverage elsewhere: `test_distribution_check`
+  (covered by `test_distribution_fit_normal_and_non_normal`) and
+  `test_pca_no_more_variance` (covered by the `NotEnoughVarianceError` test). The
+  commented-out SIMCA reconstruction in `test_pls_compare_sklearn_1_component` is also
+  gone; `test_pls_compare_model_api` asserts all of it on the same fixture.
+
+- The note claiming Sn returning zero on a particular sequence needed fixing. It does
+  not: eleven of those twenty values are tied, so eleven points have an inner high
+  median of zero and the outer low median lands inside that block. MAD is also exactly
+  zero on the same data. This is a property of any median-of-differences scale
+  estimator under a tied majority, and `summary_stats` already falls back to mean/std
+  when it happens. The docstring now says so instead.
+
 ## [1.85.3] - 2026-09-11
 
 ### Changed
@@ -4543,7 +4598,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.85.3...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.85.4...HEAD
+[1.85.4]: https://github.com/kgdunn/process-improve/compare/v1.85.3...v1.85.4
 [1.85.3]: https://github.com/kgdunn/process-improve/compare/v1.85.2...v1.85.3
 [1.85.2]: https://github.com/kgdunn/process-improve/compare/v1.85.1...v1.85.2
 [1.85.1]: https://github.com/kgdunn/process-improve/compare/v1.85.0...v1.85.1
