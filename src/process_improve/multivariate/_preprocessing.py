@@ -173,9 +173,11 @@ def center(
     This specifies the axis along which the centering vector will be calculated if not provided.
     The function is applied along the `axis`: 0=down the columns; 1 = across the rows.
 
-    *Missing values*: The sample mean is computed by taking the sum along the `axis`, skipping
-    any missing data, and dividing by N = number of values which are present. Values which were
-    missing before, are left as missing after.
+    *Missing values*: with the default ``func=np.mean``, any NaN along the reduction axis
+    propagates into the centring vector, so an entire row or column of the returned data can end
+    up NaN. To skip missing entries instead (summing along the `axis`, dividing by the number of
+    values that are present, and leaving pre-existing NaNs as NaNs in the output), pass
+    ``func=np.nanmean``.
 
     Returns
     -------
