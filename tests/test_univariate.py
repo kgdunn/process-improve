@@ -112,9 +112,14 @@ def test_univariate_robust_scale() -> None:
     > robustbase::Sn(seq(1, 19))                # 6.259503
     > robustbase::Sn(seq(1, 1500))              # 447.225
 
-    TODO: found this weird sequence that gives Sn of zero, even though there is variability:
+    Sn is exactly zero when a strict majority of the sample is tied, for example:
     99, 95, 95, 100, 100, 100, 100, 95, 100, 100, 100, 100, 105, 105, 100, 95, 105, 100, 95, 100
-    How to make it robust to this weird situation?
+    Eleven of those twenty values are 100, so eleven points have an inner high median of
+    zero, and the outer low median lands inside that block of zeros. MAD is also exactly
+    zero on the same data. This is a property of any median-of-differences scale estimator
+    under a tied majority, not a defect in this implementation: `summary_stats` detects
+    `spread == 0` while `max > min` and falls back to mean/std, which
+    `test_summary_stats_corner_case_with_robust_scale` pins.
     """
 
     # Every value above is reproduced, at both odd and even n. Sn uses the high
@@ -402,8 +407,9 @@ def test_confidence_interval() -> None:
     out = univariate.confidence_interval(data - 90, "values", conflevel=0.95, style="regular")
     assert out[0] == pytest.approx(expected_LB, abs=1e-4)
     assert out[1] == pytest.approx(expected_UB, abs=1e-4)
-    out = univariate.confidence_interval(data - 90, "values", conflevel=0.95, style="robust")
-    # TODO: complete the test for the robust case
+    # The robust branch is pinned in tests/test_audit_regressions_univariate_monitoring.py
+    # (TestMedianConfidenceInterval): the half-width against c_t * MAD * sqrt(pi / 2) /
+    # sqrt(n) at rel=1e-12, plus ~95% coverage over 400 simulations.
 
 
 # ---------------------------------------------------------------------------
@@ -1044,16 +1050,6 @@ def test_sequence_compare_r(outliers_data: tuple[list[float], list[float]]) -> N
             [np.nan],
         )
     )
-
-
-def test_distribution_check() -> None:
-    """
-    R code for the KS test.
-
-    > y1 = []
-    > ks.test(y1,"pnorm")
-    """
-    # TODO
 
 
 def test_biweight_midvariance_robust_to_outliers() -> None:
