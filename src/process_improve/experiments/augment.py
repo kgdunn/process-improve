@@ -326,7 +326,12 @@ def _augment_add_center_points(ctx: _AugmentContext) -> dict[str, Any]:
 
 
 def _augment_replicate(ctx: _AugmentContext) -> dict[str, Any]:
-    """Append one or more complete copies of the existing design."""
+    """Append zero or more complete copies of the existing design.
+
+    The number of copies is ``ctx.n_additional_runs`` (default 1 when
+    ``ctx.n_additional_runs`` is ``None``); passing 0 leaves the design
+    unchanged.
+    """
     df = ctx.existing_design[ctx.factor_names].copy()
     n_copies = ctx.n_additional_runs if ctx.n_additional_runs is not None else 1
 
@@ -722,7 +727,10 @@ def augment_design(  # noqa: PLR0913
     n_additional_runs : int or None
         Budget for additional runs.  Interpretation depends on the
         augmentation type (number of center points, number of D-optimal
-        runs, number of replicates, or number of blocks).
+        runs, number of blocks, ...). For ``"replicate"``, this is the
+        number of complete copies of the existing design that are appended
+        (each copy adds ``len(existing_design)`` runs); the default of
+        ``None`` becomes 1 complete copy.
     fold_on : str or None
         For ``"semifold"`` only: which factor to fold on.  If ``None``,
         the best factor is auto-selected.
