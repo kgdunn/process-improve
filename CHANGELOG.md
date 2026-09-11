@@ -11,6 +11,35 @@ those changes.
 
 ## [Unreleased]
 
+## [1.85.3] - 2026-09-11
+
+### Changed
+
+- **#559: `f_rupture` now raises `NotImplementedError` for every call, instead of
+  returning `None` for a valid one.** The function has never had a working body:
+  everything after the argument check was commented out. It raised only when given
+  the wrong number of columns, so a caller passing the single column the docstring
+  describes received `None`, which cannot be told apart from a successful empty
+  result. It is exported from `process_improve.batch`, has no tests, no
+  documentation and no entry in the tool map, and `ruptures` is not a dependency.
+  The signature is unchanged and nothing is removed, so this is a behaviour fix
+  rather than a breaking change (`CONTRIBUTING.md`: "a documented bug is fixed"),
+  recorded here per the mid-cycle clause in
+  `docs/development/deprecation_policy.rst`. Implementation stays tracked on #198,
+  which now also carries the commented-out sketch removed from the source.
+
+- **#560: the batch scaling functions reject an unsupported `batches` container
+  with a `TypeError` that names the fix.** `determine_scaling`, `apply_scaling` and
+  `reverse_scaling` take a dict of per-batch frames keyed by batch identifier. A
+  single wide DataFrame holding every batch got past the column-resolution branch
+  and then failed several lines later with `AttributeError: 'Series' object has no
+  attribute 'columns'`, because `DataFrame.items()` yields `(column, Series)` pairs
+  rather than `(batch_id, frame)`. The three functions now share one guard, which
+  rejects a DataFrame up front and suggests `dict(tuple(df.groupby(batch_col)))`;
+  an empty dict with no explicit `columns_to_align` raises `ValueError` rather than
+  `StopIteration`. Supporting the DataFrame form itself remains tracked on #199.
+  The dict path is unchanged.
+
 ## [1.85.2] - 2026-09-11
 
 ### Fixed
@@ -4514,7 +4543,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.85.2...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.85.3...HEAD
+[1.85.3]: https://github.com/kgdunn/process-improve/compare/v1.85.2...v1.85.3
 [1.85.2]: https://github.com/kgdunn/process-improve/compare/v1.85.1...v1.85.2
 [1.85.1]: https://github.com/kgdunn/process-improve/compare/v1.85.0...v1.85.1
 [1.85.0]: https://github.com/kgdunn/process-improve/compare/v1.84.0...v1.85.0
