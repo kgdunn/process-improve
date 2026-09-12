@@ -908,6 +908,18 @@ class TPLS(RegressorMixin, BaseEstimator):
         reached, and every fold is recorded as ``NaN`` behind a ``UserWarning``.
         Verified by instrumentation: this method is called 3 times out of 3 folds
         under default scoring and 0 times under ``scoring="r2"``. Tracked on #565.
+
+        Because the failure happens inside sklearn, TPLS cannot intercept it and turn
+        it into a clear error. sklearn's own ``error_score`` decides whether you see
+        it: the default, ``np.nan``, is what records the folds as ``NaN``, while
+        ``error_score="raise"`` surfaces the underlying ``TypeError``::
+
+            cross_val_score(TPLS(...), X=DataFrameDict(blocks), cv=5,
+                            scoring="r2", error_score="raise")
+            # TypeError: _Scorer._score() missing 1 required positional argument: 'y_true'
+
+        Pass ``error_score="raise"`` whenever a silent ``NaN`` would be worse than a
+        failure, which for a scoring run is usually.
         """
         # Use diagnose() directly to avoid emitting the predict()
         # DeprecationWarning from inside the package's own score path.
