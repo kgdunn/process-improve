@@ -580,7 +580,16 @@ def _scores_and_guides(  # noqa: PLR0913 - the model, its two matrices, the data
         if not mask.any():
             msg = f"Row {rows[0]} has no observed features (all-NaN); its contributions cannot be computed."
             raise ValueError(msg)
-        operator = operator_for_pattern(P, R, variances, mask, method=method, ridge=ridge, x_weights=weights)
+        operator = operator_for_pattern(
+            P,
+            R,
+            variances,
+            mask,
+            method=method,
+            ridge=ridge,
+            x_weights=weights,
+            x_residuals=getattr(model, "_x_residuals", None),
+        )
         guide = np.zeros_like(R)
         guide[mask, :] = operator.matrix.T
         guides[rows] = guide

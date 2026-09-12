@@ -238,7 +238,11 @@ The result is a ``Bunch`` with:
 - ``rmsecv``: root-mean-square error of cross-validation, per Y variable and overall
 - ``se_rmsecv`` / ``q2_se``: the standard error of that curve, on the RMSECV
   and the :math:`Q^2` scale respectively
-- ``r2y_validated`` / ``r2x_validated``: validated explained variance, per variable and overall
+- ``r2y_validated`` / ``r2x_validated``: validated explained variance, per
+  variable and overall. ``r2y_validated`` carries two overall columns:
+  ``"total"`` pools the targets on the original Y scale, and
+  ``"scaled_total"`` gives every target equal weight (see
+  `Comparing the fitted and the validated R2`_)
 - ``press``: overall Y prediction error sum of squares per component count
 - ``cv_predictions``: out-of-fold Y predictions at the recommended count
 - ``selection_rule``: the rule that produced ``n_components``
@@ -248,6 +252,30 @@ object, such as ``KFold`` or ``LeaveOneOut``. When it is an integer, the
 split is repeated ``n_repeats`` times (10 by default) with a fresh shuffle,
 which is what gives the 1-SE rule a usable standard error. A splitter object
 is used as-is and ``n_repeats`` is then ignored.
+
+Comparing the fitted and the validated R2
+------------------------------------------
+
+A fitted model's ``r2_y_cumulative_`` is computed on the scaled Y, where every
+target carries equal weight. ``r2y_validated["total"]`` is computed on the
+original Y scale, where a target with a wide range carries more weight than a
+narrow one. Read side by side on targets of unequal spread, the two can differ
+by tens of percent, or disagree in sign, without the model having changed.
+
+``r2y_validated["scaled_total"]`` is the held-out number on the fitted model's
+footing: every target weighted equally, which on autoscaled Y is the arithmetic
+mean of the per-target values. Compare fitted against held-out with those two,
+and keep ``"total"`` for the question it answers, which is how much of the Y
+variation *in its own units* the model predicts.
+
+.. code-block:: python
+
+   fitted = PLS(n_components=result.n_components).fit(X, Y)
+   print(fitted.r2_y_cumulative_)                        # fitted, equal weight
+   print(result.r2y_validated["scaled_total"])           # held out, equal weight
+   print(result.r2y_validated["total"])                  # held out, original Y scale
+
+``MBPLS.select_n_components`` returns the same two columns, on the same footing.
 
 PLS Beta Coefficient Error Bars
 --------------------------------

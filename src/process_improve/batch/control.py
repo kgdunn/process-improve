@@ -782,15 +782,30 @@ class MidCourseCorrector:
 
         monitor_rows = training.copy()
         monitor_rows[:, ~masks.observed] = np.nan
+        residuals = self.model._x_residuals
         monitor = project_rows(
-            loadings, guide, variances, monitor_rows, method=self.method, ridge=self.ridge, x_weights=weights
+            loadings,
+            guide,
+            variances,
+            monitor_rows,
+            method=self.method,
+            ridge=self.ridge,
+            x_weights=weights,
+            x_residuals=residuals,
         )
 
         candidate_mask = masks.observed | masks.free
         candidate_rows = training.copy()
         candidate_rows[:, ~candidate_mask] = np.nan
         candidate = project_rows(
-            loadings, guide, variances, candidate_rows, method=self.method, ridge=self.ridge, x_weights=weights
+            loadings,
+            guide,
+            variances,
+            candidate_rows,
+            method=self.method,
+            ridge=self.ridge,
+            x_weights=weights,
+            x_residuals=residuals,
         )
 
         n = training.shape[0]
@@ -885,6 +900,7 @@ class MidCourseCorrector:
             method=self.method,
             ridge=self.ridge,
             x_weights=model.x_weights_.to_numpy(dtype=float),
+            x_residuals=model._x_residuals,
         )
         spe_so_far = float(so_far.spe[0])
         if spe_so_far > limits.spe_limit_monitor:

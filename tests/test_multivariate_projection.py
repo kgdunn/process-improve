@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from process_improve.multivariate import PCA, PLS, MCUVScaler
+from process_improve.multivariate._common import SpecificationWarning
 from process_improve.multivariate._projection import (
     PROJECTION_METHODS,
     coerce_observed_mask,
@@ -191,3 +192,88 @@ def test_scp_matches_adaptive_kernel_shape(fitted_pca: PCA, correlated_data: pd.
         expected[a] = float(deflate @ p_a) / float(p_a @ p_a)
         deflate = deflate - expected[a] * p_a
     np.testing.assert_allclose(op.matrix.to_numpy() @ z_obs, expected, rtol=1e-12)
+
+
+def test_tsr_is_the_regression_of_scores_on_trimmed_scores(fitted_pca: PCA, correlated_data: pd.DataFrame) -> None:
+    """TSR is what its name says: the model's scores regressed on the trimmed scores.
+
+    Arteaga and Ferrer (2002) write the operator in closed form,
+    ``Theta P*' G* [G*' S** G*]^-1 G*'``, with ``S**`` the covariance of the
+    observed columns in the training data. That is algebraically the
+    least-squares fit of the training scores on the trimmed scores, which is
+    computed here from the data as the reference.
+    """
+    scaled = MCUVScaler().fit_transform(correlated_data)
+    mask = np.zeros(correlated_data.shape[1], dtype=bool)
+    mask[:3] = True
+
+    operator = fitted_pca.projection_matrix(mask, method="tsr").matrix.to_numpy()
+
+    loadings = fitted_pca.loadings_.to_numpy()
+    trimmed = scaled.to_numpy()[:, mask] @ loadings[mask, :]
+    coefficients = np.linalg.lstsq(trimmed, fitted_pca.scores_.to_numpy(), rcond=None)[0]
+    np.testing.assert_allclose(operator, (loadings[mask, :] @ coefficients).T, rtol=1e-8, atol=1e-10)
+
+
+def test_tsr_is_not_projection_to_the_model_plane(fitted_pca: PCA, correlated_data: pd.DataFrame) -> None:
+    """Dropping the residual term from the TSR inner matrix turns it into PMP.
+
+    For a PCA the guide is the loading matrix, so ``G*' P* Theta P*' G*`` alone
+    cancels down to ``(P*'P*)^-1 P*'``: the two operators were bitwise equal,
+    and one of the three estimators was a relabelling of another.
+    """
+    mask = np.zeros(correlated_data.shape[1], dtype=bool)
+    mask[:3] = True
+    tsr = fitted_pca.projection_matrix(mask, method="tsr").matrix.to_numpy()
+    pmp = fitted_pca.projection_matrix(mask, method="pmp").matrix.to_numpy()
+    assert not np.allclose(tsr, pmp, atol=1e-6)
+
+
+def test_tsr_without_training_residuals_warns_and_falls_back(fitted_pca: PCA, correlated_data: pd.DataFrame) -> None:
+    """Called bare, the operator says it is giving PMP rather than doing so quietly."""
+    mask = np.zeros(correlated_data.shape[1], dtype=bool)
+    mask[:3] = True
+    loadings = fitted_pca.loadings_.to_numpy()
+    variances = np.asarray(fitted_pca.explained_variance_, dtype=float)
+
+    with pytest.warns(SpecificationWarning, match="not .*trimmed score regression"):
+        bare = operator_for_pattern(loadings, loadings, variances, mask, method="tsr")
+    pmp = operator_for_pattern(loadings, loadings, variances, mask, method="pmp")
+    np.testing.assert_allclose(bare.matrix, pmp.matrix, atol=1e-10)
+
+
+def test_tsr_shrinks_where_the_observed_columns_say_little(fitted_pca: PCA, correlated_data: pd.DataFrame) -> None:
+    """With few columns observed TSR stays inside the training spread; PMP does not.
+
+    Columns 0 and 3 point almost the same way in the loading plane, so they
+    pin the first score and say little about the second. The regression has
+    seen that and shrinks the second score toward the mean row; PMP fits the
+    plane to whatever it is given and overshoots. Lower error for TSR is the
+    ranking Arteaga and Ferrer report.
+    """
+    scaled = MCUVScaler().fit_transform(correlated_data)
+    hidden = scaled.copy()
+    hidden.iloc[:, [1, 2, 4, 5, 6, 7]] = np.nan  # columns 0 and 3 left
+
+    true_scores = fitted_pca.scores_.to_numpy()
+    training_spread = true_scores.std(axis=0, ddof=1)
+    tsr = fitted_pca.project(hidden, method="tsr").scores.to_numpy()
+    pmp = fitted_pca.project(hidden, method="pmp").scores.to_numpy()
+
+    assert (tsr.std(axis=0, ddof=1) <= training_spread * 1.01).all()
+    assert (pmp.std(axis=0, ddof=1) / training_spread).max() > 1.2
+    assert np.mean((tsr - true_scores) ** 2) < np.mean((pmp - true_scores) ** 2)
+
+
+def test_pls_tsr_is_the_regression_of_scores_on_trimmed_scores(fitted_pls: PLS, correlated_data: pd.DataFrame) -> None:
+    """The same identity holds for PLS, where the guide is the direct weights."""
+    mask = np.zeros(correlated_data.shape[1], dtype=bool)
+    mask[:3] = True
+
+    operator = fitted_pls.projection_matrix(mask, method="tsr").matrix.to_numpy()
+
+    guide = fitted_pls.direct_weights_.to_numpy()
+    scaled = fitted_pls._x_scaler.transform(correlated_data).to_numpy()
+    trimmed = scaled[:, mask] @ guide[mask, :]
+    coefficients = np.linalg.lstsq(trimmed, fitted_pls.scores_.to_numpy(), rcond=None)[0]
+    np.testing.assert_allclose(operator, (guide[mask, :] @ coefficients).T, rtol=1e-7, atol=1e-9)

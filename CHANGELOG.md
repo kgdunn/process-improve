@@ -11,7 +11,7 @@ those changes.
 
 ## [Unreleased]
 
-## [1.85.6] - 2026-09-12
+## [1.87.1] - 2026-09-12
 
 ### Fixed
 
@@ -35,9 +35,9 @@ those changes.
   and PCA has neither weights nor Y loadings, so asking for them is a category error.
 
 - **#564: `TPLS.plot.loadings()` raised `AttributeError: 'function' object has no
-  attribute 'loc'`.** The same expression, reached along the accessor path. `Plot.loadings`
-  passes the accessor rather than the estimator, mirroring `Plot.scores`, so
-  `model.loadings` resolved to `Plot.loadings` itself and `.loc` was called on a bound
+  attribute 'loc'`.** The same expression, reached along the accessor path.
+  `Plot.loadings` passes the accessor rather than the estimator, mirroring `Plot.scores`,
+  so `model.loadings` resolved to `Plot.loadings` itself and `.loc` was called on a bound
   method. TPLS was the only model to get that far, because PCA and PLS satisfied an
   earlier branch. It now renders the super-level weights, the loadings analogue of the
   `t_scores_super` that `score_plot` already uses.
@@ -57,6 +57,93 @@ those changes.
   Supporting named scorers would mean accepting a conventional `y`, which is an API
   change and stays open on #565.
 
+## [1.87.0] - 2026-09-12
+
+### Fixed
+
+- **`method="tsr"` was not trimmed score regression.** It is the default estimator
+  everywhere a score is computed from an incomplete row: `PCA.project`, `PLS.project`,
+  `projection_matrix`, the contribution plots for rows with missing cells,
+  `BatchPCA` / `BatchPLS` on-line prediction, `BatchMonitor`, and the mid-course
+  corrector.
+
+  Arteaga and Ferrer (2002) regress the model's scores on the *trimmed* scores, the
+  ones the observed columns produce. The regression's inner matrix is the covariance
+  of those observed columns over the training rows, `S** = P* Theta P*' + E*'E*/(N-1)`:
+  the model plane, plus the spread around it. Only the first term was implemented. For
+  a PCA the second term is what stops the expression cancelling, so without it
+  `method="tsr"` returned the `method="pmp"` operator, bitwise; three estimators were
+  offered and two of them were the same one.
+
+  The consequence is worst where the estimator matters most. Projection to the model
+  plane uses nothing but the plane, so early in a batch, with a handful of columns
+  observed, it is free to put the row anywhere on the plane those columns allow: score
+  estimates ran seven to a hundred and twenty times the spread of the training scores.
+  The regression has seen how much those same columns predicted each score in the past,
+  and shrinks toward the mean row while they say little.
+
+  The residual block is now carried on the fitted model (`N x K`, the size of the
+  training data) and contracted to `A` columns inside the estimator, so nothing of size
+  `K x K` is ever built. `operator_for_pattern` and `project_rows` take it as
+  `x_residuals`; called without it, `method="tsr"` raises a `SpecificationWarning`
+  saying it is returning the plane-only operator rather than doing so quietly.
+
+  What moves: score estimates and everything derived from them for incomplete rows,
+  which on the SBR case study means the on-line quality prediction (the particle-size
+  RMSEE after 10 samples falls from 8.8 to 3.0 in the original units) and the
+  conditioning reported alongside it. On complete rows nothing moves: the complete-data
+  path is untouched, and TSR still reproduces `transform` there exactly. The alarm
+  samples of the SBR monitoring section are unchanged.
+
+### Changed
+
+- The module docstring of `multivariate/_projection.py` ranked the three estimators
+  without saying what separates them. It now explains that TSR is the only one of the
+  three that uses the training data beyond the model plane, which is why it is the
+  strongest, and that SCP's weakness is error propagation through its deflation rather
+  than a lack of information alone.
+
+## [1.86.0] - 2026-09-12
+
+### Added
+
+- **`PLS.select_n_components` and `MBPLS.select_n_components` report a
+  `"scaled_total"` column in `r2y_validated`**, the held-out R2 of Y with every target
+  weighted equally.
+
+  The existing `"total"` column pools PRESS and the "predict the mean" reference on the
+  original Y scale, so a target whose spread is two orders of magnitude wider than its
+  neighbours' decides the number nearly on its own. A fitted model's
+  `r2_y_cumulative_`, in contrast, is computed on the scaled Y, where every target
+  counts the same. Read side by side on targets of unequal spread, the fitted and the
+  validated numbers could differ by tens of percent, or disagree in sign, without the
+  model having changed. That was noted in the 1.85.0 entry as a caveat; this is the
+  column that removes it.
+
+  After mean-centring and unit-variance scaling every target's sum of squares is the
+  same, so the equal-weight pooling is the arithmetic mean of the per-target values. A
+  target with no spread contributes no per-target value and is left out of the mean
+  rather than voiding it.
+
+  `"total"` keeps its meaning and its place: it answers how much of the Y variation, in
+  its own units, the model predicts. `"scaled_total"` is the column to set beside
+  `r2_y_cumulative_`. The component-selection rules are untouched: they are driven by
+  RMSECV, which stays on the original Y scale.
+
+## [1.85.6] - 2026-09-12
+
+### Fixed
+
+- **`PLS.select_n_components` reported a `q2_se` band `n_repeats` times too narrow.**
+  The standard error is built from the per-fold PRESS and rescaled to the total PRESS
+  of a single pass over the data, but it was then divided by `tss_y.sum()`, whose
+  per-row coverage weighting counts every row once per repeat that tested it. The
+  denominator therefore carried `n_repeats` passes against the numerator's one. Both
+  sides are now on one pass. The Q2 values themselves never moved, being a ratio of two
+  equally weighted sums; only the band was wrong, and only for a repeated splitter,
+  where it quietly turned `selection_rule="1se"` into `"min"`. `PCA.select_n_components`
+  divides its PRESS and its null-model reference by the repeat count alike and was not
+  affected; `MBPLS.select_n_components` reports no `q2_se`.
 ## [1.85.5] - 2026-09-12
 
 ### Added
@@ -4684,7 +4771,10 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.85.6...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.87.1...HEAD
+[1.87.1]: https://github.com/kgdunn/process-improve/compare/v1.87.0...v1.87.1
+[1.87.0]: https://github.com/kgdunn/process-improve/compare/v1.86.0...v1.87.0
+[1.86.0]: https://github.com/kgdunn/process-improve/compare/v1.85.6...v1.86.0
 [1.85.6]: https://github.com/kgdunn/process-improve/compare/v1.85.5...v1.85.6
 [1.85.5]: https://github.com/kgdunn/process-improve/compare/v1.85.4...v1.85.5
 [1.85.4]: https://github.com/kgdunn/process-improve/compare/v1.85.3...v1.85.4

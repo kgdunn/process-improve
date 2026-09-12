@@ -217,39 +217,47 @@ of a complete batch, as the prediction would have evolved in real time.
 .. code-block:: text
 
    batch 4: ParticleSize measured 1256.9, fitted from the complete batch 1257.1
-   batch 4: ParticleSize predicted after 10 samples 1251.0, 25 samples 1248.1, 50 samples 1255.3,
-            100 samples 1254.9, 150 samples 1257.4, 200 samples 1257.1
-   RMSEE / sd of ParticleSize after 10 samples 2.84, 50 samples 1.40, 100 samples 1.29,
+   batch 4: ParticleSize predicted after 10 samples 1256.8, 25 samples 1255.4, 50 samples 1256.5,
+            100 samples 1256.4, 150 samples 1257.4, 200 samples 1257.1
+   RMSEE / sd of ParticleSize after 10 samples 0.95, 50 samples 0.88, 100 samples 0.85,
                                   150 samples 0.62, 200 samples 0.60
-   RMSEE / sd of Branching after 10 samples 2.10, 50 samples 0.88, 100 samples 0.81,
+   RMSEE / sd of Branching after 10 samples 0.92, 50 samples 0.60, 100 samples 0.51,
                                150 samples 0.32, 200 samples 0.24
 
-Batch 4 is the batch nearest the average quality of the 53. Its
-particle size is predicted 6 to 9 units away from the measured value in the
-first 25 samples and within about 2 units from sample 50 onwards, and after
-200 samples the prediction equals the fitted value from the complete batch,
-as it must, because the row is then complete. One batch says little about
-the error, though. :meth:`process_improve.batch.BatchPLS.online_rmse` traces
-every training batch and pools the squared errors sample by sample; on the
-training batches this is the root-mean-square error of estimation, RMSEE, as
-a function of how much of the batch has been observed, and its last value is
-the RMSEE of the model fitted on complete batches. Dividing by the standard
-deviation of each attribute puts the five attributes on one axis, where a
-ratio of about 1 is the error of predicting the average batch every time.
+Batch 4 is the batch nearest the average quality of the 53, and its
+prediction sits within about 2 units of the measured value from the tenth
+sample on. That is the estimator at work rather than the batch: while few
+cells have been observed the regression has little to go on and shrinks the
+scores toward the average batch, which for batch 4 is nearly the right
+answer already. After 200 samples the prediction equals the fitted value
+from the complete batch, as it must, because the row is then complete.
 
-For particle size the ratio is 2.84 after 10 samples, still 1.29 at the
-halfway point and 0.62 after 150 samples: in the first half of the batch the
-prediction is no better than the average batch, and it improves in the
-second half. Branching, whose final RMSEE is a quarter of its standard
-deviation, is below 1 by sample 50. The early predictions are worse than the
-average because few cells have been observed, and they are the cells where
-every batch begins alike (the :math:`R^2` breakdown showed this), so the
-score estimate carries little information about the batch. The RMSEE is
-measured on the batches the model was fitted to. Refitting the model with
-one batch left out and tracing that batch, which the script leaves out
-because it refits 53 models, gives a prediction error, RMSEP, of 3.10, 1.66,
-1.65, 0.84 and 0.78 standard deviations at the same five samples: the same
-shape, at a higher level.
+One batch says little about the error.
+:meth:`process_improve.batch.BatchPLS.online_rmse` traces every training
+batch and pools the squared errors sample by sample; on the training batches
+this is the root-mean-square error of estimation, RMSEE, as a function of
+how much of the batch has been observed, and its last value is the RMSEE of
+the model fitted on complete batches. Dividing by the standard deviation of
+each attribute puts the five attributes on one axis, where a ratio of about
+1 is the error of predicting the average batch every time.
+
+The RMSEE starts just below 1 for every attribute and falls from there:
+particle size 0.95 after 10 samples, 0.85 at the halfway point and 0.60 at
+the end; branching, whose final RMSEE is a quarter of its standard
+deviation, is at 0.60 by sample 50. The shrinkage is why no curve begins
+above 1: with few cells observed, and those the cells where every batch
+begins alike (the :math:`R^2` breakdown showed this), the estimate falls
+back on the average batch rather than extrapolating from what little it has.
+
+The RMSEE is measured on the batches the model was fitted to. Refitting the
+model with one batch left out and tracing that batch, which the script
+leaves out because it refits 53 models, gives a prediction error, RMSEP, of
+1.01, 1.06, 1.11, 0.86 and 0.78 standard deviations at the same five
+samples. That curve carries the practical answer: for the first half of the
+batch the model predicts particle size no better than the average batch
+does, and it improves in the second half. Branching and cross-linking are
+the attributes that become predictable early, reaching 0.72 by sample 50 and
+0.28 by the end.
 
 Would the model have caught it on-line?
 ---------------------------------------
