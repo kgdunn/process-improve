@@ -280,8 +280,19 @@ def align_with_path(md_path: np.ndarray, batch: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(synced)
 
 
-def dtw_core(test: pd.DataFrame, ref: pd.DataFrame, weight_matrix: np.ndarray) -> DTWresult:
-    """Compute DTW alignment of test batch against reference batch."""
+def dtw_core(
+    test: pd.DataFrame,
+    ref: pd.DataFrame,
+    weight_matrix: np.ndarray,
+    band: object = None,
+) -> DTWresult:
+    """
+    Compute DTW alignment of test batch against reference batch.
+
+    ``band`` is an optional constraint on the warping path, resolved by
+    :func:`~process_improve.batch.alignment_helpers.resolve_band`. The default
+    ``None`` places no constraint.
+    """
     nt = test.shape[0]  # 'test' data; will be align to the 'reference' data
     nr = ref.shape[0]
     if test.shape[1] != ref.shape[1]:
@@ -290,7 +301,7 @@ def dtw_core(test: pd.DataFrame, ref: pd.DataFrame, weight_matrix: np.ndarray) -
             f"got test.shape[1]={test.shape[1]}, ref.shape[1]={ref.shape[1]}."
         )
 
-    D = distance_matrix(test.values, ref.values, weight_matrix)
+    D = distance_matrix(test.values, ref.values, weight_matrix, band=band)
     md_path, distance = backtrack_optimal_path(D)
     warping_path = np.zeros(nr)
     for idx in range(nr):
@@ -360,7 +371,7 @@ def one_iteration_dtw(
     settings: dict | None = None,
 ) -> tuple[dict, pd.DataFrame]:
     """Perform one iteration of the DTW alignment algorithm."""
-    default_settings = {"show_progress": True, "subsample": 1}
+    default_settings: dict = {"show_progress": True, "subsample": 1, "band": None}
     if settings:
         default_settings.update(settings)
     settings = default_settings
@@ -373,13 +384,15 @@ def one_iteration_dtw(
         try:
             # see Kassidas, page 180
             batch_subset = batch.iloc[:: int(settings["subsample"]), :]
-            result = dtw_core(batch_subset, refbatch_sc, weight_matrix=weight_matrix)
+            result = dtw_core(batch_subset, refbatch_sc, weight_matrix=weight_matrix, band=settings["band"])
             average_batch = average_batch + result.synced
             aligned_batches[batch_id] = result
             successful_alignments += 1
 
-        except ValueError:  # noqa: PERF203
-            raise ValueError(f"Failed on batch {batch_id}") from None
+        except ValueError as exc:  # noqa: PERF203
+            # Chain the cause: a band constraint that is too narrow explains itself, and
+            # that explanation is the actionable part. `from None` discarded it.
+            raise ValueError(f"Failed on batch {batch_id}: {exc}") from exc
 
     average_batch = average_batch / successful_alignments
 
@@ -416,6 +429,7 @@ def batch_dtw(  # noqa: C901, PLR0915
                 "show_progress": True,     # show progress
                 "subsample": 1,            # use every sample
                 "weighting": "quadratic",  # "quadratic" or "absolute"; see below
+                "band": None,              # warping-path constraint; see below
                 "interpolate_time_axis_maximum": 100,  # resample time axis to this scale
                 "interpolate_time_axis_delta": 1,      # resolution of resampled axis
                 "interpolate_method": "cubic",         # any scipy.interpolate.interp1d method
@@ -441,6 +455,23 @@ def batch_dtw(  # noqa: C901, PLR0915
             the path to it differ. Offered for comparison; it is not the published
             method, and the effect on your own data should be measured rather than
             assumed.
+
+        ``band`` constrains the warping path: the reference rows each test sample may
+        map to. ``None`` (the default) places no constraint. Pass an ``(n_test, 2)``
+        array of half-open row bounds, or a callable of ``(n_test, n_ref)`` returning
+        one, since the two lengths differ from batch to batch and are not known until
+        each pair is aligned::
+
+            from process_improve.batch.alignment_helpers import sakoe_chiba, itakura
+
+            settings = {"band": sakoe_chiba(window=0.1)}   # 10% of the batch duration
+            settings = {"band": itakura(max_slope=2.0)}
+
+        A constraint speeds up the dynamic programme, from ``O(n_ref * n_test)`` to
+        ``O(window * n_test)``, which matters because every batch is re-aligned on
+        every iteration. It also changes the result: a corridor that excludes the true
+        warp changes the aligned trajectories, so the iterated average converges to a
+        different fixed point. Widen it until the alignment stops changing.
 
     Returns
     -------
@@ -471,6 +502,7 @@ def batch_dtw(  # noqa: C901, PLR0915
         show_progress=True,  # show progress
         subsample=1,  # use every sample
         weighting="quadratic",  # how to accumulate deviations: "quadratic" or "absolute"
+        band=None,  # warping-path constraint; None places none. See `sakoe_chiba`, `itakura`.
         interpolate_time_axis_maximum=100,  # interpolates everything to be on this scale
         interpolate_time_axis_delta=1,
         interpolate_method="cubic",  # any method from scipy.interpolate.interp1d allowed
@@ -486,6 +518,13 @@ def batch_dtw(  # noqa: C901, PLR0915
         raise ValueError(
             f"settings['weighting']={settings['weighting']!r} is not recognized; expected "
             "'quadratic' (the default, and the published method) or 'absolute'."
+        )
+    band = settings["band"]
+    if not (band is None or callable(band) or isinstance(band, np.ndarray)):
+        raise TypeError(
+            f"settings['band']={band!r} is not a band constraint; expected None, an "
+            "(n_test, 2) array of row bounds, or a callable of (n_test, n_ref). See "
+            "`alignment_helpers.sakoe_chiba` and `alignment_helpers.itakura`."
         )
     if reference_batch not in batches:
         raise KeyError(f"`reference_batch` was not found in the dict of batches; got {reference_batch!r}.")
