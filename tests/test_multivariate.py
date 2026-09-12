@@ -59,6 +59,7 @@ from process_improve.multivariate.methods import (
     terminate_check,
     vip,
 )
+from process_improve.multivariate.plots import _x_space_loadings
 
 pd.options.plotting.backend = "plotly"
 pd.options.display.max_columns = 20
@@ -1555,6 +1556,31 @@ class TestLoadingPlotResolvesEveryModel:
         """Previously this silently plotted whatever the eager default had resolved."""
         with pytest.raises(ValueError, match=r"loadings_type='zzz' is not recognized"):
             self._pls().loading_plot(loadings_type="zzz")
+
+    def test_a_model_with_no_loadings_at_all_is_reported(self) -> None:
+        """The resolver's own failure path: nothing to draw, on the model or its parent.
+
+        Exercised directly because `loading_plot` would stop earlier, in
+        `plot_pre_checks`, for an object this incomplete.
+        """
+
+        class Bare:
+            """Exposes none of `loadings_`, `x_loadings_` or `w_loadings_super`."""
+
+        with pytest.raises(AttributeError, match=r"Bare exposes no X-space loadings to plot"):
+            _x_space_loadings(Bare())
+
+    def test_the_parent_is_consulted_when_the_accessor_has_nothing(self) -> None:
+        """The TPLS route: the accessor carries no loadings, so `_parent` supplies them."""
+
+        class Parent:
+            w_loadings_super = pd.DataFrame({1: [0.1, 0.2], 2: [0.3, 0.4]})
+
+        class Accessor:
+            _parent = Parent()
+
+        resolved = _x_space_loadings(Accessor())
+        assert resolved is Parent.w_loadings_super
 
 
 def test_pls_structural_identities_synthetic() -> None:
