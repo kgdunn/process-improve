@@ -426,15 +426,24 @@ def _banded_distance_matrix(
     dist = np.zeros((nr, nt)) * np.nan
 
     # Mahalanobis distance, computed only where the band admits it. Filling every cell
-    # first and then constraining the accumulation would leave the whole function
-    # quadratic in the two batch lengths however narrow the band: on random 1000-sample
-    # series a 10% band then ran only 1.3x faster than no band at all. With the cost
-    # restricted too, the work per test sample scales with the band's width. For the
-    # default full band the slice is the entire array, so the arithmetic is unchanged.
-    for idx in np.arange(nt):
-        lower, upper = band[idx, 0], band[idx, 1]
-        deviation = test[idx] - ref[lower:upper]
-        dist[lower:upper, idx] = np.diag(deviation @ weight_matrix @ deviation.T)
+    # first and then constraining only the accumulation would leave the whole function
+    # quadratic in the two batch lengths however narrow the band: on random 700-sample
+    # series a 10% band was then 7x faster, against 359x once the cost is restricted too.
+    #
+    # The two cases are separate loops rather than one loop over runtime bounds. The
+    # bounds are monotone, so these two entries decide whether the band spans everything;
+    # when it does, the original whole-array expression is used. A slice of the same
+    # extent taken with runtime bounds is not free: numba cannot prove it contiguous and
+    # compiles a slower matmul, which cost the unconstrained default 4x at 700 samples.
+    if band[nt - 1, 0] == 0 and band[0, 1] == nr:
+        for idx in np.arange(nt):
+            deviation = test[idx] - ref
+            dist[:, idx] = np.diag(deviation @ weight_matrix @ deviation.T)
+    else:
+        for idx in np.arange(nt):
+            lower, upper = band[idx, 0], band[idx, 1]
+            deviation = test[idx] - ref[lower:upper]
+            dist[lower:upper, idx] = np.diag(deviation @ weight_matrix @ deviation.T)
 
     D = np.zeros((nr, nt)) * np.nan
     D[0, 0] = dist[0, 0]
