@@ -877,14 +877,24 @@ class TestDetermineScalingZeroRangeWarning:
     value for over half a batch has no interquartile spread at all.
     """
 
-    def test_a_constant_tag_is_reported_once_for_the_whole_call(self, dryer_data: dict) -> None:
+    def test_a_tag_flat_in_some_batches_is_reported_once_for_the_whole_call(self, dryer_data: dict) -> None:
         with pytest.warns(UserWarning, match="zero range and substituted 1.0") as caught:
-            determine_scaling(dryer_data)  # every column, including the constant batch_id
+            determine_scaling(dryer_data)
 
         assert len(caught) == 1, "one aggregated warning, not one per batch"
-        message = str(caught[0].message)
-        assert "'batch_id' (71 of 71 batches)" in message
-        assert "'DifferentialPressure' (16 of 71 batches)" in message
+        assert "'DifferentialPressure' (16 of 71 batches)" in str(caught[0].message)
+
+    def test_the_identifier_column_is_not_reported_because_it_is_not_aligned(self, dryer_data: dict) -> None:
+        """It used to head this warning on every default call, before it was excluded.
+
+        `batch_id` is flat in every batch, so column resolution now drops it and it never
+        reaches the zero-range substitution. `DifferentialPressure` is the real case: flat
+        in 16 of the 71 batches and varying in the rest, so it is aligned and reported.
+        """
+        with pytest.warns(UserWarning, match="zero range and substituted 1.0") as caught:
+            determine_scaling(dryer_data)
+
+        assert "batch_id" not in str(caught[0].message)
 
     def test_tags_that_vary_produce_no_warning(self, dryer_data: dict) -> None:
         with warnings.catch_warnings():
