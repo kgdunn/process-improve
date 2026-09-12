@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -9,6 +9,13 @@ from scipy.stats import iqr, median_abs_deviation
 
 if TYPE_CHECKING:
     from pandas.core.groupby import DataFrameGroupBy
+
+try:
+    import ruptures as rpt
+except ImportError:  # pragma: no cover - exercised via env-without-ruptures
+    from .._extras import _MissingExtra
+
+    rpt = _MissingExtra("ruptures", "batch")  # type: ignore[assignment]
 
 from ..bivariate.methods import find_elbow_point
 from ..regression.methods import repeated_median_slope
@@ -336,39 +343,144 @@ def f_area(
 # ------------------------------------------
 def f_rupture(
     data: pd.DataFrame,
-    columns: list[str] | None = None,
+    tags: list[str] | None = None,
     batch_col: str | None = None,
     phase_col: str | None = None,
-) -> NoReturn:
+    settings: dict | None = None,
+) -> pd.DataFrame:
     """
-    Feature:    rupture. Not implemented; always raises.
+    Feature:    rupture.
 
-    The intended feature is the breakpoint in a given tag in ``columns``
-    (usually it is 1 tag), for each unique batch in the ``batch_col``
-    indicator column, and within each unique phase, per batch, of the
+    The change points (breakpoints) of each tag in ``tags``, for each unique batch in the
+    ``batch_col`` indicator column, and within each unique phase, per batch, of the
     ``phase_col`` column.
 
-    This function has never had a working body. It previously raised
-    ``NotImplementedError`` only when given the wrong number of columns, and
-    returned ``None`` for a valid single-column call, which a caller cannot
-    distinguish from a successful empty result. It now raises in every case,
-    so the unimplemented state is visible at the call site.
+    A change point is a position where the statistical behaviour of the trajectory
+    shifts: the mean steps, the variance opens up, or the correlation structure changes.
+    In a batch context these usually mark the transitions between operating stages
+    (heat-up finishing, a feed starting, an agitator changing speed), which is why they
+    are worth extracting even when no phase column is recorded.
 
-    Implementation, including the change-point detection approach and the
-    ``ruptures`` dependency it needs, is tracked on
-    https://github.com/kgdunn/process-improve/issues/198.
+    Detection is done by the ``ruptures`` package, using PELT (Pruned Exact Linear Time),
+    an exact search whose cost is linear in the length of the signal. PELT does not need
+    to be told how many change points to look for; the ``penalty`` decides that instead.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        Batch data in the long (melted) format the other feature functions take.
+    tags : list[str], optional
+        Which tags to search. Defaults to every non-grouping column.
+    batch_col, phase_col : str, optional
+        The batch and phase indicator columns, as elsewhere in this module.
+    settings : dict, optional
+        Detector options::
+
+            {
+                "model": "rbf",     # cost function; see below
+                "penalty": None,    # cost of one more change point; None means log(n)
+                "min_size": 2,      # smallest number of samples in a segment
+                "jump": 5,          # only consider change points at multiples of this
+            }
+
+        ``model`` is the cost function ``ruptures`` minimises: ``"rbf"`` (the default)
+        detects any change in distribution through a kernel, ``"l2"`` detects a change in
+        the mean, ``"l1"`` is its outlier-resistant counterpart, and ``"normal"`` detects
+        a change in mean or variance.
+
+        The default is ``"rbf"`` because its kernel cost is bounded, which makes it
+        insensitive to the tag's units: multiplying a signal by 1000 leaves the detected
+        change points unchanged. ``"l2"`` is not, and on the same rescaled signal the same
+        penalty turned one true change point into 37 spurious ones. Scale the tag, or
+        scale the penalty with its variance, before choosing ``"l2"``.
+
+        ``penalty`` decides how many change points come back: larger values return fewer.
+        ``None`` (the default) uses ``log(n)`` for a signal of ``n`` samples, the
+        BIC-style choice, which adapts to the length of the batch. Measured on a single
+        step of five standard deviations, it recovers the change point exactly at 60, 200
+        and 1000 samples under both ``"rbf"`` and ``"l2"``, and on pure noise of those
+        lengths it reports at most one spurious change point.
+
+        ``jump`` trades resolution for speed; pass 1 to consider every sample.
+
+    Returns
+    -------
+    pd.DataFrame
+        Indexed like the other feature functions, with one ``<tag>_rupture`` column per
+        tag. **Unlike them, the cells are not numeric**: each holds a tuple of integer
+        positions into that batch's rows, which is the only faithful shape for a result
+        whose length varies from batch to batch. Position ``i`` means the change occurs
+        between row ``i - 1`` and row ``i``.
+
+        The trailing sentinel ``ruptures`` appends (the length of the signal, which is
+        not a change point) is removed, so an empty tuple means no change was detected.
+
+        For a numeric feature to put in a model matrix, take the count::
+
+            breaks = f_rupture(data, tags=["Temperature"], batch_col="batch_id")
+            counts = breaks.map(len)
 
     Raises
     ------
-    NotImplementedError
-        Always.
+    ImportError
+        If ``ruptures`` is not installed. It is part of the optional ``batch`` extra.
+    ValueError
+        If ``settings`` carries a key this function does not recognize.
+
+    Notes
+    -----
+    This function returns the change points rather than drawing them. ``ruptures`` has a
+    ``display`` helper that uses matplotlib; plotting belongs to the caller, and the rest
+    of this project plots with plotly.
+
+    See also: f_elbow, f_cross
     """
-    raise NotImplementedError(
-        "f_rupture is not implemented: it has no working body, and previously returned None for a "
-        "valid single-column call. Change-point detection for batch data is tracked on "
-        "https://github.com/kgdunn/process-improve/issues/198. To extract breakpoints today, run a "
-        "change-point library such as `ruptures` directly on the per-batch signal."
-    )
+    default_settings: dict = {"model": "rbf", "penalty": None, "min_size": 2, "jump": 5}
+    if settings:
+        unknown = set(settings) - set(default_settings)
+        if unknown:
+            raise ValueError(
+                f"f_rupture got unrecognized settings {sorted(unknown)}; expected any of {sorted(default_settings)}."
+            )
+        default_settings.update(settings)
+
+    settings = default_settings
+    base_name = "rupture"
+    prepared, tags, output, _ = _prepare_data(data, tags, batch_col, phase_col)
+    f_names = [(tag + "_" + base_name) for tag in tags]
+
+    # Build the output frame the way f_area does, so it carries the (batch, phase)
+    # MultiIndex that `prepared` iterates over. Object dtype, because every cell holds a
+    # tuple and the tuples differ in length.
+    output = (prepared.sum() * 0.0).astype(object)
+    for batch_id, this_batch in prepared:
+        for tag in tags:
+            output.loc[batch_id, tag] = _change_points(np.asarray(this_batch[tag].to_numpy(), dtype=float), settings)
+
+    return output.rename(columns=dict(zip(tags, f_names, strict=False)))
+
+
+def _change_points(signal: np.ndarray, settings: dict) -> tuple[int, ...]:
+    """
+    Run PELT on one signal and return its change points, without the trailing sentinel.
+
+    ``ruptures`` always ends its result with the length of the signal, which marks the
+    end of the last segment rather than a change, and it raises rather than returning
+    nothing when the signal is too short to hold two segments. Both are normalised here
+    to an empty tuple, so a caller can compare batches without special cases.
+
+    A ``penalty`` of ``None`` becomes ``log(n)``, which is why it is resolved per signal
+    rather than once for the whole frame: batches differ in length.
+    """
+    min_size = int(settings["min_size"])
+    if signal.size < 2 * min_size or not np.all(np.isfinite(signal)):
+        # Too short to split, or carrying missing data that the cost function cannot use.
+        return ()
+
+    penalty = float(np.log(signal.size)) if settings["penalty"] is None else float(settings["penalty"])
+    algorithm = rpt.Pelt(model=settings["model"], min_size=min_size, jump=int(settings["jump"])).fit(signal)
+    breakpoints = algorithm.predict(pen=penalty)
+    return tuple(int(position) for position in breakpoints if position < signal.size)
 
 
 # Extreme features

@@ -62,9 +62,11 @@ expt = [
 ]
 
 # Batch process data analysis: image-IO + Excel readers used by the
-# batch alignment / fixture loaders.
+# batch alignment / fixture loaders, plus change-point detection for
+# ``features.f_rupture``.
 batch = [
     "openpyxl>=3.1.5",
+    "ruptures>=1.1.9",
     "scikit-image>=0.25.2",
 ]
 
