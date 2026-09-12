@@ -48,6 +48,7 @@ from process_improve.batch.features import (
     f_sum,
 )
 from process_improve.batch.preprocessing import (
+    BatchScaler,
     batch_dtw,
     determine_scaling,
     find_reference_batch,
@@ -59,6 +60,7 @@ __all__ = [
     "BatchMonitor",
     "BatchPCA",
     "BatchPLS",
+    "BatchScaler",
     "MidCourseCorrector",
     # Preprocessing/alignment
     "batch_dtw",

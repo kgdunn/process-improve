@@ -11,6 +11,118 @@ those changes.
 
 ## [Unreleased]
 
+## [1.92.0] - 2026-09-12
+
+### Added
+
+- **`BatchScaler` wraps the scaling trio as a fit / transform estimator.**
+  `determine_scaling`, `apply_scaling` and `reverse_scaling` remain public and unchanged;
+  this carries the fitted scaling as one object that composes with
+  `sklearn.pipeline.Pipeline` and survives `clone`, the way `MCUVScaler` already does.
+
+  ```python
+  scaler = BatchScaler(columns_to_align=["Temperature"])
+  scaled = scaler.fit_transform(batches)
+  original = scaler.inverse_transform(scaled)
+  ```
+
+  It also accepts the melted-DataFrame input the functions reject: pass
+  `BatchScaler(batch_col="batch_id")` and it splits the frame itself. (#199)
+
+- **`batch_dtw` accepts `settings["batch_weighting"]`**, either `"equal"` (the default,
+  unchanged) or `"huber"`. Under equal weighting one badly aligned batch inflates the
+  summed deviation of whichever variables it misfits and depresses their weights for every
+  other batch. Huber weights each batch by the robust z-score of its `normalized_distance`
+  against the median and MAD of the batch set: weight 1 inside a cutoff of 1.345, falling
+  off as `1 / |z|` beyond it, rescaled to average 1.0.
+
+  Huber rather than a redescending function because it never reaches zero: a downweighted
+  batch pulls the average away from itself and so looks worse next iteration, and a weight
+  that could reach zero would make that a one-way door. Weights are recomputed each
+  iteration and floored, so a batch that recovers is counted again.
+
+  On the dryer data it leaves 53 of 71 batches at full weight and downweights batches 23,
+  48 and 34 hardest, which are exactly the three the `distances` output reports as worst.
+  (#199)
+
+- **`f_rupture` detects change points**, the last unimplemented feature function. It has
+  never had a working body: before 1.85.x it returned `None` for a valid call, and since
+  then it raised `NotImplementedError`. Detection uses PELT from `ruptures`, which is
+  exact, linear in the signal length, and does not need to be told how many change points
+  to look for.
+
+  ```python
+  breaks = f_rupture(data, tags=["DryerTemp"], batch_col="batch_id")
+  counts = breaks.map(len)          # a numeric feature for a model matrix
+  ```
+
+  One `<tag>_rupture` column per tag, each cell a tuple of positions. Unlike the other
+  feature functions the cells are not numeric, because the number of change points varies
+  from batch to batch. The trailing sentinel `ruptures` appends (the signal length, which
+  is not a change point) is stripped, and a signal too short to split or carrying missing
+  data gives an empty tuple rather than raising.
+
+  The default penalty is `log(n)`, the BIC-style choice, not a fixed number: the `rbf`
+  cost is bounded, so the 100.0 of the original sketch is unreachable on a 100-sample
+  signal and finds nothing at all. Measured on a single five-sigma step, `log(n)` recovers
+  the change point exactly at 60, 200 and 1000 samples under both `rbf` and `l2`, and on
+  pure noise reports at most one spurious point. The default model is `rbf` because its
+  cost is scale-free: multiplying a signal by 1000 leaves the result unchanged, where `l2`
+  at the same penalty turned one true change point into 37 spurious ones. (#198)
+
+- **`determine_scaling` accepts `settings["robust_range"]`**, either `"q98-q02"` (the
+  default, unchanged) or `"iqr"`. This answers the question the TODO there posed, whether
+  `f_iqr` would serve as the robust range. It works, but it is not interchangeable: the
+  IQR spans the middle half of a batch against nearly all of it, and because a batch
+  trajectory is not Gaussian the ratio varies by tag, from 1.02 to 4.23 on the dryer data
+  and 1.21 to 2.95 on nylon. Switching re-weights the tags against each other rather than
+  rescaling them together, so it is offered rather than substituted. (#198)
+
+### Changed
+
+- **`ruptures` joins the optional `batch` extra**, for `f_rupture`. The module still
+  imports without it; calling `f_rupture` then raises an `ImportError` naming the extra.
+  (#198)
+
+- **`f_rupture`'s first keyword is now `tags`, not `columns`**, matching every other
+  feature function in the module. The function never returned a value, so no working
+  caller can be affected. (#198)
+
+### Fixed
+
+- **Batch identifiers may be of any type**, including strings. `melted_to_dict` never
+  coerced its keys, but two functions downstream assumed every column was numeric, so a
+  string identifier raised `TypeError: Cannot convert [...] to numeric` in
+  `determine_scaling` and then `TypeError: unsupported operand type(s) for /: 'str' and
+  'int'` in `align_with_path`. Two causes, both fixed:
+
+  `determine_scaling` took its per-batch minimum over every column rather than over
+  `columns_to_align`. With integer identifiers this did not raise, but it still returned
+  rows for columns that were never scaled, each carrying a real `Minimum` against a NaN
+  `Range`. `align_with_path` averaged whole rows, so a compression in the warping path
+  averaged the identifier too; with integer identifiers it wrote that mean into the
+  aligned frame, and pandas had already begun warning that assigning a string into the
+  float frame would become an error. Non-numeric columns are now carried through
+  unaveraged, keeping their own dtype. The integer path is unchanged, verified
+  bit-identical in weights, average batch and aligned values. (#197)
+
+- **The resampled percentage axis accepts any resolution.** The target axis came from
+  `np.arange(0, maximum, delta)` while the source axis was rebuilt as `maximum - delta`;
+  those agree only when the delta divides the maximum exactly, so
+  `interpolate_time_axis_delta` of 0.3 or 7 failed a bare `assert`. Under `python -O`,
+  which strips asserts, it extrapolated silently instead. The source axis now takes its
+  endpoints from the target axis, so any delta works. An axis that cannot be built (a
+  non-positive value, or a delta no smaller than the maximum) is rejected up front with a
+  message naming both values. (#197)
+
+- **`determine_scaling` no longer silently substitutes 1.0 for a zero range.** A tag that
+  holds one value across a batch got `1.0` as its range and was left unscaled, with
+  nothing said, which `docs/development/error_handling.rst` names as a `warnings.warn`
+  case. One aggregated `UserWarning` per call now names each affected tag and how many
+  batches it affected. On the dryer data with the default `columns_to_align` this reports
+  `batch_id` in 71 of 71 batches, which is worth knowing on its own: the identifier column
+  is swept in as a tag whenever the columns are left unspecified. (#198)
+
 ## [1.89.0] - 2026-09-12
 
 ### Added
@@ -4875,7 +4987,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.89.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.92.0...HEAD
+[1.92.0]: https://github.com/kgdunn/process-improve/compare/v1.89.0...v1.92.0
 [1.89.0]: https://github.com/kgdunn/process-improve/compare/v1.88.0...v1.89.0
 [1.88.0]: https://github.com/kgdunn/process-improve/compare/v1.87.1...v1.88.0
 [1.87.1]: https://github.com/kgdunn/process-improve/compare/v1.87.0...v1.87.1
