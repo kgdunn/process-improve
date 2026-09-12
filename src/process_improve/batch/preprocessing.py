@@ -309,6 +309,50 @@ def dtw_core(test: pd.DataFrame, ref: pd.DataFrame, weight_matrix: np.ndarray) -
     )
 
 
+def _accumulate_deviations(
+    aligned_batches: dict,
+    average_batch: pd.DataFrame,
+    weighting: str,
+    n_columns: int,
+) -> np.ndarray:
+    """
+    Sum each variable's deviation from the average trajectory, across all batches.
+
+    The reciprocal of this becomes the variable's alignment weight, so a variable that
+    tracks the average trajectory consistently earns a large weight.
+
+    Parameters
+    ----------
+    aligned_batches : dict
+        The :class:`DTWresult` of each batch from the current iteration. Every
+        ``synced`` frame sits on the reference grid, so all batches contribute the same
+        number of rows and no length correction is needed.
+    average_batch : pd.DataFrame
+        The average trajectory of the current iteration.
+    weighting : str
+        ``"quadratic"`` for the sum of squared deviations, which makes the reciprocal an
+        inverse-variance (precision) weight and matches the Mahalanobis form of the
+        weighted DTW distance; ``"absolute"`` for the sum of absolute deviations, which
+        is less sensitive to one badly aligned batch but is not a precision, and changes
+        both the fixed point and the number of iterations to reach it.
+    n_columns : int
+        Number of columns being aligned.
+
+    Returns
+    -------
+    np.ndarray
+        Row vector, one accumulated deviation per column.
+    """
+    accumulated = np.zeros((1, n_columns))
+    square = weighting == "quadratic"
+    for result in aligned_batches.values():
+        deviation = result.synced - average_batch
+        term = np.power(deviation, 2) if square else np.abs(deviation)
+        accumulated = accumulated + np.nansum(term, axis=0)
+
+    return accumulated
+
+
 def one_iteration_dtw(
     batches_scaled: dict,
     refbatch_sc: pd.DataFrame,
@@ -322,7 +366,6 @@ def one_iteration_dtw(
     settings = default_settings
 
     aligned_batches = {}
-    distances = []
     average_batch = refbatch_sc.copy().reset_index(drop=True) * 0.0
     successful_alignments = 0
 
@@ -334,13 +377,6 @@ def one_iteration_dtw(
             average_batch = average_batch + result.synced
             aligned_batches[batch_id] = result
             successful_alignments += 1
-            distances.append(
-                {
-                    "batch_id": batch_id,
-                    "Distance": result.distance,
-                    "Normalized distance": result.normalized_distance,
-                }
-            )
 
         except ValueError:  # noqa: PERF203
             raise ValueError(f"Failed on batch {batch_id}") from None
@@ -379,6 +415,7 @@ def batch_dtw(  # noqa: C901, PLR0915
                 "robust": True,            # use robust scaling
                 "show_progress": True,     # show progress
                 "subsample": 1,            # use every sample
+                "weighting": "quadratic",  # "quadratic" or "absolute"; see below
                 "interpolate_time_axis_maximum": 100,  # resample time axis to this scale
                 "interpolate_time_axis_delta": 1,      # resolution of resampled axis
                 "interpolate_method": "cubic",         # any scipy.interpolate.interp1d method
@@ -387,12 +424,37 @@ def batch_dtw(  # noqa: C901, PLR0915
         The default settings resample the time axis to 100 data points, starting at 0 and
         ending at 99. Adjust the delta for more points, or change the maximum.
 
+        ``weighting`` selects how a variable's deviation from the average trajectory is
+        accumulated before the weight is taken as its reciprocal:
+
+        ``"quadratic"`` (the default)
+            The sum of squared deviations, as in Kassidas et al. The reciprocal is then
+            an inverse-variance (precision) weight, which is what the weighted distance
+            in :func:`~process_improve.batch.alignment_helpers.distance_matrix` expects:
+            that distance is a Mahalanobis form, quadratic in the deviations.
+        ``"absolute"``
+            The sum of absolute deviations. Less sensitive to a single badly aligned
+            batch, but the reciprocal is no longer a precision, so the weighted distance
+            loses its Mahalanobis reading. It does not simply flatten the weighting:
+            on the bundled dryer data the ratio of largest to smallest weight rose from
+            2.8 to 6.0 and the iteration count from 2 to 3, so both the fixed point and
+            the path to it differ. Offered for comparison; it is not the published
+            method, and the effect on your own data should be measured rather than
+            assumed.
+
     Returns
     -------
     dict
         Various outputs relevant to the alignment, keyed by ``scale_df``,
-        ``aligned_batch_objects``, ``aligned_batch_dfdict``, ``last_average_batch``
-        and ``weight_history``.
+        ``aligned_batch_objects``, ``aligned_batch_dfdict``, ``last_average_batch``,
+        ``weight_history`` and ``distances``.
+
+        ``distances`` is a DataFrame indexed by batch identifier, with the ``Distance``
+        and ``Normalized distance`` of each batch to the reference on the final
+        iteration. ``Normalized distance`` divides by the summed path length, so it is
+        comparable across batches of unequal duration. Use it to see which batches
+        aligned poorly, for instance ``outputs["distances"]["Normalized distance"]
+        .nlargest(5)``.
 
     Notation
     --------
@@ -408,6 +470,7 @@ def batch_dtw(  # noqa: C901, PLR0915
         robust=True,  # use robust scaling
         show_progress=True,  # show progress
         subsample=1,  # use every sample
+        weighting="quadratic",  # how to accumulate deviations: "quadratic" or "absolute"
         interpolate_time_axis_maximum=100,  # interpolates everything to be on this scale
         interpolate_time_axis_delta=1,
         interpolate_method="cubic",  # any method from scipy.interpolate.interp1d allowed
@@ -418,6 +481,11 @@ def batch_dtw(  # noqa: C901, PLR0915
     if settings["maximum_iterations"] < 3:
         raise ValueError(
             f"At least 3 iterations are required; got maximum_iterations={settings['maximum_iterations']}."
+        )
+    if settings["weighting"] not in {"quadratic", "absolute"}:
+        raise ValueError(
+            f"settings['weighting']={settings['weighting']!r} is not recognized; expected "
+            "'quadratic' (the default, and the published method) or 'absolute'."
         )
     if reference_batch not in batches:
         raise KeyError(f"`reference_batch` was not found in the dict of batches; got {reference_batch!r}.")
@@ -461,20 +529,16 @@ def batch_dtw(  # noqa: C901, PLR0915
             settings=settings,
         )
 
-        # Deviations from the average batch:
-        next_weights = np.zeros((1, refbatch_sc.shape[1]))
-        for result in aligned_batches.values():
-            next_weights = next_weights + np.nansum(np.power(result.synced - average_batch, 2), axis=0)
-            # TODO(#199): quadratic weights for now; try the sum of absolute values instead
-            #  np.abs(result.synced - average_batch).sum(axis=0)
+        next_weights = _accumulate_deviations(
+            aligned_batches, average_batch, settings["weighting"], refbatch_sc.shape[1]
+        )
 
-            # TODO(#199): leave out the worst batches when computing the weights
-            # dist_df = pd.DataFrame(distances).set_index("batch_id")
-            # dist_df.hist("Distance", bins=50)
-            # Now find the average trajectory, but ignore problematic batches:
-            #      for example, top 5% of the distances.
-            # TODO(#199): make the problematic-batch threshold a configurable setting
-            # problematic_threshold = dist_df["Distance"].quantile(0.95)
+        # TODO(#199): every batch contributes equally here. Downweighting the badly
+        # aligned ones continuously, rather than trimming a fixed quantile, is the open
+        # question; the `distances` output now returned makes the distribution visible
+        # so the weight function can be chosen from data. Note the feedback risk: a
+        # downweighted batch pulls the average away from itself and is then downweighted
+        # further, so any such weight must be recomputed per iteration and floored.
 
         # Kassidas: each variable's weight is inversely proportional to its
         # summed squared deviation from the average trajectory, so a variable
@@ -483,7 +547,8 @@ def batch_dtw(  # noqa: C901, PLR0915
         # SSQ, handing the best-aligned variables a weight of ~1e-4 - the
         # exact opposite - and the constant was scale-dependent. Floor the
         # SSQ (relative to the largest observed SSQ) instead, so the weight
-        # stays large but finite.
+        # stays large but finite. The floor is relative to the largest observed value,
+        # so it holds for either `weighting` choice despite the SSQ-era name.
         ssq_floor = max(epsqrt, 1e-6 * float(np.max(next_weights)))
         next_weights = 1.0 / np.maximum(next_weights, ssq_floor)
         weight_vector = (next_weights / np.sum(next_weights) * len(columns_to_align)).ravel()
@@ -547,12 +612,26 @@ def batch_dtw(  # noqa: C901, PLR0915
     last_average_batch = reverse_scaling(dict(avg=cast("pd.DataFrame", average_batch)), scale_df)["avg"]
     aligned_batch_dfdict = melted_to_dict(aligned_df, batch_id_col="batch_id")
 
+    # Each DTWresult already carries its distance to the reference, so the per-batch
+    # distances need no extra computation: they are the final iteration's values.
+    distances = pd.DataFrame(
+        [
+            {
+                "batch_id": batch_id,
+                "Distance": result.distance,
+                "Normalized distance": result.normalized_distance,
+            }
+            for batch_id, result in aligned_batches.items()
+        ]
+    ).set_index("batch_id")
+
     return dict(
         scale_df=scale_df,
         aligned_batch_objects=aligned_batches,
         aligned_batch_dfdict=aligned_batch_dfdict,
         last_average_batch=last_average_batch,
         weight_history=pd.DataFrame(weight_history, columns=columns_to_align),
+        distances=distances,
     )
 
 
