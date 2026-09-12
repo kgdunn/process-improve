@@ -2,7 +2,17 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from process_improve.batch.alignment_helpers import backtrack_optimal_path, distance_matrix
+from process_improve.batch.alignment_helpers import (
+    backtrack_optimal_path,
+    distance_matrix,
+    full_band,
+    itakura,
+    itakura_band,
+    resolve_band,
+    sakoe_chiba,
+    sakoe_chiba_band,
+    validate_band,
+)
 from process_improve.batch.preprocessing import (
     apply_scaling,
     batch_dtw,
@@ -530,3 +540,261 @@ class TestBatchDtwWeightingSetting:
         """Without this it fell silently into the absolute branch."""
         with pytest.raises(ValueError, match=r"weighting'\]='geometric' is not recognized"):
             self._weights(dryer_data, weighting="geometric")
+
+
+class TestFullBand:
+    """The default band, which must reproduce the behaviour from before #197."""
+
+    def test_it_admits_every_reference_row(self) -> None:
+        band = full_band(n_test=4, n_ref=7)
+
+        assert band.shape == (4, 2)
+        assert band.dtype == np.int64
+        assert band[:, 0].tolist() == [0, 0, 0, 0]
+        assert band[:, 1].tolist() == [7, 7, 7, 7]
+
+    def test_it_is_what_band_none_resolves_to(self) -> None:
+        assert np.array_equal(resolve_band(None, 5, 9), full_band(5, 9))
+
+    def test_the_default_cost_matrix_is_unchanged_by_the_band_machinery(self) -> None:
+        """Passing the full band explicitly must give bit-identical numbers to passing nothing."""
+        rng = np.random.default_rng(7)
+        test, ref, weights = rng.normal(size=(23, 3)), rng.normal(size=(31, 3)), np.eye(3)
+
+        implicit = distance_matrix(test, ref, weights)
+        explicit = distance_matrix(test, ref, weights, band=full_band(23, 31))
+
+        assert np.array_equal(implicit, explicit, equal_nan=True)
+        assert not np.isnan(implicit).any(), "an unconstrained matrix has no unreachable cells"
+
+
+class TestSakoeChibaBand:
+    """A fixed-width corridor around the diagonal (#197)."""
+
+    def test_it_centres_on_the_diagonal_between_unequal_lengths(self) -> None:
+        """With 5 test samples and 9 reference rows the centre advances 2 rows per sample."""
+        band = sakoe_chiba_band(n_test=5, n_ref=9, window=2)
+
+        centres = (band[:, 0] + band[:, 1] - 1) / 2
+        assert centres.tolist() == [1.0, 2.0, 4.0, 6.0, 7.0]
+
+    def test_both_corners_are_always_admitted(self) -> None:
+        for n_test, n_ref, window in ((10, 10, 1), (10, 40, 1), (40, 10, 1), (3, 97, 0.01)):
+            band = sakoe_chiba_band(n_test, n_ref, window)
+            assert band[0, 0] == 0, (n_test, n_ref, window)
+            assert band[-1, 1] == n_ref, (n_test, n_ref, window)
+
+    def test_the_radius_is_floored_at_the_diagonal_step(self) -> None:
+        """A one-row corridor across a steep diagonal would leave gaps no path can cross."""
+        band = sakoe_chiba_band(n_test=5, n_ref=41, window=1)
+
+        validate_band(band, 5, 41)  # would raise if the flooring were absent
+        assert (band[:, 1] - band[:, 0]).min() > 1
+
+    def test_an_integer_window_counts_rows_and_a_float_counts_fraction(self) -> None:
+        rows = sakoe_chiba_band(n_test=21, n_ref=21, window=2)
+        fraction = sakoe_chiba_band(n_test=21, n_ref=21, window=0.1)  # 0.1 * 20 = 2 rows
+
+        assert np.array_equal(rows, fraction)
+
+    def test_a_bool_window_is_rejected(self) -> None:
+        """`True` would silently mean a one-row radius."""
+        with pytest.raises(TypeError, match="must be an int"):
+            sakoe_chiba_band(10, 10, window=True)
+
+    @pytest.mark.parametrize(
+        ("window", "message"), [(0, "at least 1"), (-3, "at least 1"), (0.0, r"\(0, 1\]"), (1.5, r"\(0, 1\]")]
+    )
+    def test_a_window_outside_its_range_is_rejected(self, window: float, message: str) -> None:
+        with pytest.raises(ValueError, match=message):
+            sakoe_chiba_band(10, 10, window=window)
+
+    def test_a_wide_enough_window_recovers_the_unconstrained_distance(self) -> None:
+        rng = np.random.default_rng(11)
+        test, ref, weights = rng.normal(size=(30, 3)), rng.normal(size=(34, 3)), np.eye(3)
+
+        unconstrained = backtrack_optimal_path(distance_matrix(test, ref, weights))[1]
+        wide = backtrack_optimal_path(distance_matrix(test, ref, weights, band=sakoe_chiba(1.0)))[1]
+
+        assert wide == unconstrained
+
+    def test_a_narrow_window_can_only_cost_more(self) -> None:
+        """The corridor is a subset of the search space, so the optimum cannot improve."""
+        rng = np.random.default_rng(11)
+        test, ref, weights = rng.normal(size=(30, 3)), rng.normal(size=(34, 3)), np.eye(3)
+
+        unconstrained = backtrack_optimal_path(distance_matrix(test, ref, weights))[1]
+        narrow = backtrack_optimal_path(distance_matrix(test, ref, weights, band=sakoe_chiba(2)))[1]
+
+        assert narrow > unconstrained
+
+    def test_out_of_band_cells_are_left_unreachable(self) -> None:
+        rng = np.random.default_rng(3)
+        test, ref, weights = rng.normal(size=(20, 2)), rng.normal(size=(20, 2)), np.eye(2)
+
+        D = distance_matrix(test, ref, weights, band=sakoe_chiba(3))
+
+        assert np.isnan(D).any(), "a constrained matrix has unreachable cells"
+        assert not np.isnan(D[0, 0])
+        assert not np.isnan(D[-1, -1])
+
+
+class TestItakuraBand:
+    """A slope-bounded parallelogram (#197)."""
+
+    def test_the_corner_columns_are_one_cell_wide(self) -> None:
+        band = resolve_band(itakura(max_slope=2.0), n_test=12, n_ref=12)
+
+        assert band[0].tolist() == [0, 1]
+        assert band[-1].tolist() == [11, 12]
+
+    def test_it_is_widest_in_the_middle(self) -> None:
+        """A fixed-width corridor does not do this, which is what separates the two."""
+        widths = np.diff(itakura_band(n_test=21, n_ref=21, max_slope=2.0), axis=1).ravel()
+
+        assert widths.argmax() not in (0, len(widths) - 1)
+        assert widths[len(widths) // 2] > widths[0]
+
+    def test_no_column_is_empty_for_unequal_lengths(self) -> None:
+        """Rounding the edges inwards empties a column whose corridor is under one row wide."""
+        band = itakura_band(n_test=40, n_ref=97, max_slope=2.0)
+
+        validate_band(band, 40, 97)
+        assert (band[:, 1] - band[:, 0]).min() >= 1
+
+    def test_a_slope_below_one_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match=r"at least 1\.0"):
+            itakura_band(10, 10, max_slope=0.9)
+
+    def test_very_unequal_lengths_are_refused_and_point_at_sakoe_chiba(self) -> None:
+        """Its corner columns are one cell wide, so a steep climb has nowhere to start."""
+        with pytest.raises(ValueError, match=r"at any slope.*Sakoe-Chiba"):
+            itakura_band(n_test=2, n_ref=40, max_slope=5.0)
+
+    @pytest.mark.parametrize(("n_test", "n_ref"), [(3, 12), (5, 40), (12, 97), (40, 97)])
+    def test_the_slope_the_refusal_advises_is_actually_accepted(self, n_test: int, n_ref: int) -> None:
+        """A threshold quoted from a closed form and then rounded for display can fall below it."""
+        with pytest.raises(ValueError, match="Use max_slope") as caught:
+            itakura_band(n_test, n_ref, max_slope=1.0)
+
+        advised = float(str(caught.value).split("Use max_slope >= ")[-1].rstrip("."))
+        itakura_band(n_test, n_ref, max_slope=advised)  # must not raise
+
+
+class TestBandValidation:
+    """`validate_band` rejects a corridor no monotone warping path can follow (#197)."""
+
+    def test_the_wrong_shape_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match=r"shape \(4, 2\)"):
+            validate_band(np.zeros((3, 2), dtype=np.int64), n_test=4, n_ref=6)
+
+    def test_an_empty_column_is_rejected(self) -> None:
+        band = full_band(4, 6)
+        band[2] = [3, 3]
+        with pytest.raises(ValueError, match="empty at test sample 2"):
+            validate_band(band, 4, 6)
+
+    def test_non_monotone_bounds_are_rejected(self) -> None:
+        band = np.array([[0, 6], [2, 6], [1, 6], [0, 6]], dtype=np.int64)
+        with pytest.raises(ValueError, match="non-decreasing"):
+            validate_band(band, 4, 6)
+
+    def test_a_band_missing_the_starting_cell_is_rejected(self) -> None:
+        band = full_band(4, 6)
+        band[:, 0] = 1
+        with pytest.raises(ValueError, match="starting cell"):
+            validate_band(band, 4, 6)
+
+    def test_a_band_missing_the_final_cell_is_rejected(self) -> None:
+        band = full_band(4, 6)
+        band[:, 1] = 5
+        with pytest.raises(ValueError, match="final cell"):
+            validate_band(band, 4, 6)
+
+    def test_a_disconnected_band_is_rejected(self) -> None:
+        """A path steps at most one row per column, so a jump leaves it stranded."""
+        band = np.array([[0, 2], [4, 6], [4, 6], [4, 6]], dtype=np.int64)
+        with pytest.raises(ValueError, match="disconnected between test samples 0 and 1"):
+            validate_band(band, 4, 6)
+
+    def test_rows_outside_the_reference_are_rejected(self) -> None:
+        band = np.array([[0, 9], [0, 9], [0, 9], [0, 9]], dtype=np.int64)
+        with pytest.raises(ValueError, match=r"within \[0, 6\]"):
+            validate_band(band, 4, 6)
+
+    def test_a_float_band_is_rejected(self) -> None:
+        with pytest.raises(TypeError, match="integer row bounds"):
+            resolve_band(np.zeros((4, 2)), 4, 6)
+
+
+class TestBacktrackingUnreachableCells:
+    """Out-of-band cells are NaN, and NaN used to reach a bare `AssertionError` (#197)."""
+
+    def test_an_unreachable_final_cell_raises_a_named_error(self) -> None:
+        D = np.array([[0.0, 1.0], [1.0, np.nan]])
+
+        with pytest.raises(ValueError, match="not reachable"):
+            backtrack_optimal_path(D)
+
+    def test_an_unreachable_interior_cell_raises_rather_than_asserting(self) -> None:
+        D = np.array([[0.0, np.nan, np.nan], [np.nan, np.nan, np.nan], [np.nan, np.nan, 1.0]])
+
+        with pytest.raises(ValueError, match="no reachable predecessor"):
+            backtrack_optimal_path(D)
+
+    def test_ties_still_prefer_the_diagonal_then_the_horizontal(self) -> None:
+        """The finite-only selection must not change the unconstrained tie order."""
+        D = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
+
+        path, _distance = backtrack_optimal_path(D)
+
+        # All costs equal, so every step takes the diagonal: a two-step path.
+        assert path.tolist() == [[0, 0], [1, 1], [2, 2]]
+
+
+class TestBatchDtwBandSetting:
+    """`settings["band"]` constrains the warping path for the whole alignment (#197)."""
+
+    def _run(self, dryer_data: dict, **extra_settings: object) -> dict:
+        settings: dict = {"robust": False, "tolerance": 0.1, "show_progress": False}
+        settings.update(extra_settings)
+        return batch_dtw(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS, reference_batch=2, settings=settings)
+
+    def test_the_default_places_no_constraint(self, dryer_data: dict) -> None:
+        implicit = self._run(dryer_data)["weight_history"].iloc[-1].to_numpy()
+        explicit = self._run(dryer_data, band=None)["weight_history"].iloc[-1].to_numpy()
+
+        assert implicit == pytest.approx(explicit, rel=1e-12)
+        # The same pinned values as the unbanded alignment produces; see
+        # TestBatchDtwWeightingSetting.
+        assert implicit == pytest.approx(
+            [0.48684365176347233, 1.372434900728356, 0.987884606056083, 0.915196609356401, 1.2376402320956883],
+            rel=1e-6,
+        )
+
+    def test_a_wide_corridor_reproduces_the_unconstrained_alignment(self, dryer_data: dict) -> None:
+        """The dryer batches run 89 to 201 samples; a 50% window contains every true warp."""
+        unconstrained = self._run(dryer_data)["weight_history"].iloc[-1].to_numpy()
+        wide = self._run(dryer_data, band=sakoe_chiba(0.5))["weight_history"].iloc[-1].to_numpy()
+
+        assert wide == pytest.approx(unconstrained, rel=1e-9)
+
+    def test_narrowing_the_corridor_degrades_the_alignment(self, dryer_data: dict) -> None:
+        """Measured on this fixture: excluding the true warp makes every batch fit worse."""
+        worst = [
+            self._run(dryer_data, band=band)["distances"]["Normalized distance"].max()
+            for band in (None, sakoe_chiba(0.2), sakoe_chiba(0.1), sakoe_chiba(0.05))
+        ]
+
+        assert worst == sorted(worst), f"expected monotone degradation, got {worst}"
+        assert worst[0] == pytest.approx(0.0714267, rel=1e-4)
+        assert worst[-1] == pytest.approx(0.235022, rel=1e-4)
+
+    def test_a_band_of_the_wrong_kind_is_rejected_once(self, dryer_data: dict) -> None:
+        with pytest.raises(TypeError, match="is not a band constraint"):
+            self._run(dryer_data, band="sakoe-chiba")
+
+    def test_an_impossible_band_explains_itself(self, dryer_data: dict) -> None:
+        """The per-batch handler used to discard the cause, which is the actionable part."""
+        with pytest.raises(ValueError, match=r"Failed on batch .*starting cell"):
+            self._run(dryer_data, band=lambda n_test, n_ref: np.full((n_test, 2), [1, n_ref], dtype=np.int64))
