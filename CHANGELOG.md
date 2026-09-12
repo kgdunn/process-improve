@@ -11,9 +11,39 @@ those changes.
 
 ## [Unreleased]
 
-## [1.91.0] - 2026-09-12
+## [1.92.0] - 2026-09-12
 
 ### Added
+
+- **`BatchScaler` wraps the scaling trio as a fit / transform estimator.**
+  `determine_scaling`, `apply_scaling` and `reverse_scaling` remain public and unchanged;
+  this carries the fitted scaling as one object that composes with
+  `sklearn.pipeline.Pipeline` and survives `clone`, the way `MCUVScaler` already does.
+
+  ```python
+  scaler = BatchScaler(columns_to_align=["Temperature"])
+  scaled = scaler.fit_transform(batches)
+  original = scaler.inverse_transform(scaled)
+  ```
+
+  It also accepts the melted-DataFrame input the functions reject: pass
+  `BatchScaler(batch_col="batch_id")` and it splits the frame itself. (#199)
+
+- **`batch_dtw` accepts `settings["batch_weighting"]`**, either `"equal"` (the default,
+  unchanged) or `"huber"`. Under equal weighting one badly aligned batch inflates the
+  summed deviation of whichever variables it misfits and depresses their weights for every
+  other batch. Huber weights each batch by the robust z-score of its `normalized_distance`
+  against the median and MAD of the batch set: weight 1 inside a cutoff of 1.345, falling
+  off as `1 / |z|` beyond it, rescaled to average 1.0.
+
+  Huber rather than a redescending function because it never reaches zero: a downweighted
+  batch pulls the average away from itself and so looks worse next iteration, and a weight
+  that could reach zero would make that a one-way door. Weights are recomputed each
+  iteration and floored, so a batch that recovers is counted again.
+
+  On the dryer data it leaves 53 of 71 batches at full weight and downweights batches 23,
+  48 and 34 hardest, which are exactly the three the `distances` output reports as worst.
+  (#199)
 
 - **`f_rupture` detects change points**, the last unimplemented feature function. It has
   never had a working body: before 1.85.x it returned `None` for a valid call, and since
@@ -4957,8 +4987,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.91.0...HEAD
-[1.91.0]: https://github.com/kgdunn/process-improve/compare/v1.89.0...v1.91.0
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.92.0...HEAD
+[1.92.0]: https://github.com/kgdunn/process-improve/compare/v1.89.0...v1.92.0
 [1.89.0]: https://github.com/kgdunn/process-improve/compare/v1.88.0...v1.89.0
 [1.88.0]: https://github.com/kgdunn/process-improve/compare/v1.87.1...v1.88.0
 [1.87.1]: https://github.com/kgdunn/process-improve/compare/v1.87.0...v1.87.1
