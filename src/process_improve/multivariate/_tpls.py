@@ -891,6 +891,23 @@ class TPLS(RegressorMixin, BaseEstimator):
             prediction. A single Y block gives its own :math:`R^2`; more than
             one is an unweighted average across blocks (not a pooled multiblock
             :math:`R^2`).
+
+        Notes
+        -----
+        Only sklearn's **default** scoring reaches this method. Cross-validation
+        helpers must therefore be called without a ``scoring=`` string::
+
+            cross_val_score(TPLS(...), X=DataFrameDict(blocks), cv=5)          # works
+            cross_val_score(TPLS(...), X=DataFrameDict(blocks), cv=5,
+                            scoring="r2")                                      # all NaN
+
+        A named scorer such as ``scoring="r2"`` is built by sklearn as a
+        ``_Scorer``, which requires a ``y_true`` argument. TPLS carries its
+        response inside ``X["Y"]``, so ``cross_val_score`` receives no ``y`` to
+        hand the scorer, the call fails inside sklearn before this method is
+        reached, and every fold is recorded as ``NaN`` behind a ``UserWarning``.
+        Verified by instrumentation: this method is called 3 times out of 3 folds
+        under default scoring and 0 times under ``scoring="r2"``. Tracked on #565.
         """
         # Use diagnose() directly to avoid emitting the predict()
         # DeprecationWarning from inside the package's own score path.
