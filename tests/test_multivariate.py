@@ -549,13 +549,12 @@ def test_pca_invalid_calls() -> None:
     with pytest.raises(ValueError, match=r"Algorithm .* is not recognized(.*)"):
         _ = PCA(n_components=A, algorithm="SCP").fit(data)
 
-    # TODO(#213): assert the sparse-input rejection below. Plain numpy IS accepted by
-    # design (sklearn compatibility), so this is about sparse, not about DataFrames.
-    # from scipy.sparse import csr_matrix
-    # sparse_data = csr_matrix([[1, 2, 0], [0, 0, 3], [4, 0, 5]])
-    # with pytest.raises(TypeError, match="This PCA class does not support sparse input."):
-    #     model = PCA(n_components=2)
-    #     model.fit(sparse_data)
+    # Plain numpy IS accepted by design (sklearn compatibility), so the rejection
+    # below is about sparse input specifically, not about DataFrames. sklearn's own
+    # validate_data() raises this message; PCA does not roll its own.
+    sparse_data = csr_matrix([[1, 2, 0], [0, 0, 3], [4, 0, 5]])
+    with pytest.raises(TypeError, match="Sparse data was passed for X, but dense data is required"):
+        PCA(n_components=2).fit(sparse_data)
 
 
 def test_pca_columns_with_no_variance() -> None:
@@ -620,20 +619,19 @@ def test_pca_wold_model_results(fixture_pca_pca_wold_etal_paper: pd.DataFrame) -
     pca_1 = PCA(n_components=1)
     pca_1.fit(X_preproc.copy())
 
-    # TODO(#213): assert the page-43 residual sums-of-squares after one component
+    # The remaining sum of squares, page 43. The paper's SS is on data scaled with
+    # ddof=1 (unit-variance total SS = N - 1 = 2 per column); `X_preproc` above uses
+    # scale()'s default ddof=0 (total SS = N = 3), so the two residual SS differ by
+    # the uniform factor N / (N - 1) = 1.5 that ddof applies identically to every
+    # column. Refit on the ddof=1 preprocessing to compare like with like; the
+    # dimensionless R2 (pca_1.r2_per_variable_ below) is unaffected either way.
+    X_preproc_ddof1 = scale(center(fixture_pca_pca_wold_etal_paper), ddof=1)
+    pca_1_ddof1 = PCA(n_components=1).fit(X_preproc_ddof1.copy())
+    residuals = X_preproc_ddof1.to_numpy() - pca_1_ddof1.scores_.to_numpy() @ pca_1_ddof1.loadings_.to_numpy().T
+    ss_x = np.sum(residuals**2, axis=0)
+    assert ss_x == pytest.approx([0.0551, 1.189, 0.0551, 0.0551], abs=1e-3)
 
-    # The remaining sum of squares, on page 43
-    # SS_X = np.sum(pca_1["residuals"].values ** 2, axis=0)
-    # self.assertTrue(
-    #     np.all(compare_entries(SS_X, np.array([0.0551, 1.189, 0.0551, 0.0551]), 3))
-    # )
-
-    # # The residuals after 1 component
-    # self.assertTrue(
-    #     np.all(compare_entries(SS_X, np.array([0.0551, 1.189, 0.0551, 0.0551]), 3))
-    # )
-
-    # # With 2 components, the loadings are, page 40
+    # With 2 components, the loadings are, page 40
     # P.T = [ 0.5410, 0.3493,  0.5410,  0.5410],
     #      [-0.2017, 0.9370, -0.2017, -0.2017]
     X_preproc = scale(center(fixture_pca_pca_wold_etal_paper))
@@ -1475,17 +1473,120 @@ def test_pca_detect_outliers() -> None:
         pca.detect_outliers(conf_level=1.0)
 
 
-def test_pls_properties_todo() -> None:
+def _pls_identity_residuals(model: PLS) -> dict[str, float]:
     """
-    Complete this later.
+    Return the worst-case departure from each of the five structural PLS identities.
 
-    TODO(#213): none of the identities below is asserted anywhere in the suite.
-    diag(T.T * T) related to S
-    W.T * W = I for PLS only
-    P.T * W: ones on diagonal, zeros below diagonal
-    W.T * R: ones on diagonal, zeros below diagonal
-    R.T * P = ID
+    Keys, with ``W`` = ``x_weights_``, ``P`` = ``x_loadings_``, ``T`` = ``scores_``,
+    ``R`` = ``direct_weights_`` and ``S`` = ``scaling_factor_for_scores_``:
+
+    ``s_definition``
+        ``S`` against ``sqrt(diag(T'T) / (N - 1))``, i.e. the score standard
+        deviation at ddof=1.
+    ``w_orthonormal``
+        ``W'W`` against the identity. This one is specific to PLS; PCA's ``W`` is
+        not separate from its loadings.
+    ``pw_lower`` / ``pw_diag``
+        ``P'W`` must be upper triangular with a unit diagonal.
+    ``wr_lower`` / ``wr_diag``
+        ``W'R`` likewise. When ``W'W = I`` it equals ``inv(P'W)``, and the inverse
+        of a unit-diagonal upper-triangular matrix has the same shape.
+    ``rp_identity``
+        ``R'P`` against the identity, which follows from ``R = W inv(P'W)``.
     """
+    weights = model.x_weights_.to_numpy()
+    loadings = model.x_loadings_.to_numpy()
+    scores = model.scores_.to_numpy()
+    rotations = model.direct_weights_.to_numpy()
+    n_samples, n_components = scores.shape
+    identity = np.eye(n_components)
+
+    score_sd = np.asarray(model.scaling_factor_for_scores_).ravel()
+    p_w = loadings.T @ weights
+    w_r = weights.T @ rotations
+
+    return {
+        "s_definition": np.abs(score_sd - np.sqrt(np.diag(scores.T @ scores) / (n_samples - 1))).max(),
+        "w_orthonormal": np.abs(weights.T @ weights - identity).max(),
+        "pw_lower": np.abs(np.tril(p_w, -1)).max(),
+        "pw_diag": np.abs(np.diag(p_w) - 1).max(),
+        "wr_lower": np.abs(np.tril(w_r, -1)).max(),
+        "wr_diag": np.abs(np.diag(w_r) - 1).max(),
+        "rp_identity": np.abs(rotations.T @ loadings - identity).max(),
+    }
+
+
+def test_pls_structural_identities_synthetic() -> None:
+    """The five structural PLS identities hold to machine precision on complete data.
+
+    None of these was asserted anywhere in the suite before (#213), even though the
+    whole NIPALS deflation scheme depends on them.
+    """
+    rng = np.random.default_rng(7)
+    n_samples, n_features = 60, 6
+    beta = rng.standard_normal((n_features, 1))
+    x_data = pd.DataFrame(rng.standard_normal((n_samples, n_features)))
+    y_data = pd.DataFrame(x_data.to_numpy() @ beta + 0.1 * rng.standard_normal((n_samples, 1)))
+    model = PLS(n_components=3).fit(MCUVScaler().fit_transform(x_data), MCUVScaler().fit_transform(y_data))
+
+    for name, residual in _pls_identity_residuals(model).items():
+        assert residual == pytest.approx(0, abs=1e-12), f"identity {name!r} violated by {residual:.3e}"
+
+
+def test_pls_structural_identities_ldpe(
+    fixture_pls_ldpe_example: dict[str, pd.DataFrame | np.ndarray | float | int],
+) -> None:
+    """The same five identities on the real, multi-response LDPE data (54 x 14, 5 Y, A=6)."""
+    data = fixture_pls_ldpe_example
+    assert isinstance(data["X"], np.ndarray)
+    assert isinstance(data["Y"], np.ndarray)
+    assert isinstance(data["A"], int)
+    model = PLS(n_components=int(data["A"])).fit(
+        MCUVScaler().fit_transform(pd.DataFrame(data["X"])),
+        MCUVScaler().fit_transform(pd.DataFrame(data["Y"])),
+    )
+
+    for name, residual in _pls_identity_residuals(model).items():
+        assert residual == pytest.approx(0, abs=1e-12), f"identity {name!r} violated by {residual:.3e}"
+
+
+def test_pls_structural_identities_split_under_missing_data(
+    fixture_pls_ldpe_example: dict[str, pd.DataFrame | np.ndarray | float | int],
+) -> None:
+    """Two of the five identities are definitional and survive missing data; three are not.
+
+    ``S`` is defined from ``T``, and ``R`` is defined as ``W inv(P'W)``, so those two
+    identities hold to machine precision whatever the data. The orthogonality and
+    triangularity of ``W``, ``P'W`` and ``W'R`` are instead *outcomes* of NIPALS
+    deflation on a complete matrix. Under single-component projection the weights are
+    computed from partial rows, so they degrade: a single NaN in this 54 x 14 block
+    moves ``W'W`` off the identity by about 2e-2, not 1e-16.
+
+    This is expected for missing-data NIPALS rather than a defect, but it means code
+    must not assume ``W'W = I`` on a model fitted with gaps. The loose bound below
+    pins that the degradation stays small without asserting a brittle exact value.
+    """
+    data = fixture_pls_ldpe_example
+    assert isinstance(data["X"], np.ndarray)
+    assert isinstance(data["A"], int)
+    x_gapped = pd.DataFrame(data["X"]).copy()
+    x_gapped.iloc[11, 0] = np.nan
+    model = PLS(n_components=int(data["A"]), missing_data_settings=dict(md_method="scp")).fit(
+        MCUVScaler().fit_transform(x_gapped),
+        MCUVScaler().fit_transform(pd.DataFrame(data["Y"])),
+    )
+    residuals = _pls_identity_residuals(model)
+
+    # Definitional: still exact.
+    assert residuals["s_definition"] == pytest.approx(0, abs=1e-12)
+    assert residuals["rp_identity"] == pytest.approx(0, abs=1e-12)
+
+    # Outcomes of deflation: no longer exact, but must not fall apart.
+    for name in ("w_orthonormal", "pw_lower", "pw_diag", "wr_lower", "wr_diag"):
+        assert residuals[name] < 0.1, f"identity {name!r} degraded further than expected: {residuals[name]:.3e}"
+    assert residuals["w_orthonormal"] > 1e-6, (
+        "W'W is exact under missing data; if the missing-data path improved, tighten this test"
+    )
 
 
 @pytest.mark.skip(reason="API still has to be improved to handle this case")
@@ -2003,7 +2104,8 @@ def fixture_pls_simca_2_components() -> dict[str, pd.DataFrame | np.ndarray | fl
         ]
     )
 
-    # TODO(#213): DModX is defined here but never asserted; there is no dmodx accessor
+    # SIMCA's "distance to the model in X". Used by `test_pls_compare_api` as the
+    # external reference for our SPE; see the derivation there.
     out["DModX"] = np.array(
         [
             0.8796755,
@@ -2066,9 +2168,26 @@ def test_pls_compare_api(fixture_pls_simca_2_components: dict) -> None:
 
     # Check the model's predictions (full diagnostics)
     result = plsmodel.diagnose(X_mcuv.transform(data["X"]))
-    # TODO(#213): a check on SPE vs Simca-P. Here we check the SPE from the
-    # model building, to model-using, but not against an external library.
+    # Model-building SPE against model-using SPE.
     assert plsmodel.spe_.iloc[:, -1].values == pytest.approx(result.spe, abs=1e-10)
+
+    # SPE against an external reference (Simca-P), via its DModX column. Simca reports
+    # the distance to the model in X as a residual standard deviation normalised by the
+    # model's pooled one:
+    #
+    #     DModX_i = s_i / s_0,   s_i = spe_i / sqrt(K - A),
+    #                            s_0 = sqrt(sum_ik e_ik^2 / (N * (K - A)))
+    #
+    # and `spe_` here is sqrt(sum_k e_ik^2) per row, so sum_i spe_i^2 is that total.
+    # The two (K - A) factors cancel in the ratio, which is what makes this a check on
+    # SPE itself rather than on Simca's normalisation convention. Note K - A = 1 for
+    # this 14 x 3 two-component fixture, so it cannot on its own discriminate the
+    # (K - A) placement; the ratio is what is being pinned.
+    spe_model = plsmodel.spe_.iloc[:, -1].to_numpy()
+    n_samples = data["X"].shape[0]
+    n_features, n_components = data["X"].shape[1], int(data["A"])
+    pooled_residual_sd = np.sqrt((spe_model**2).sum() / (n_samples * (n_features - n_components)))
+    assert spe_model / pooled_residual_sd == pytest.approx(data["DModX"], abs=1e-5)
     assert data["Tsq"] == pytest.approx(result.hotellings_t2, abs=1e-5)
     assert data["expected_y_predicted"] == pytest.approx(
         Y_mcuv.inverse_transform(result.y_hat).values.ravel(), abs=1e-5
@@ -4101,9 +4220,41 @@ def test_tpls_model_plots(fixture_tpls_example: dict) -> None:
     tpls_test = TPLS(n_components=n_components, d_matrix=fixture_tpls_example.pop("D"))
     tpls_test.fit(DataFrameDict(fixture_tpls_example))
 
-    # TODO(#213): perform various assertions on the model's Plotly plots
-    assert tpls_test.plot.scores() is not None
-    # assert tpls_test.plot.loadings() is not None
+    fig = tpls_test.plot.scores()
+    assert isinstance(fig, go.Figure)
+
+    # One marker trace carrying every observation, plus the 95% Hotelling's T2 ellipse.
+    assert [trace.name for trace in fig.data] == ["Scores [T]", "Hotelling's T^2 [95%]"]
+    scores_trace, ellipse_trace = fig.data
+    assert scores_trace.mode == "markers"
+    assert len(scores_trace.x) == tpls_test.n_samples == 105
+    assert ellipse_trace.mode == "lines"
+
+    # The ellipse is a closed curve centred on the origin, not a degenerate line.
+    ellipse_x, ellipse_y = np.asarray(ellipse_trace.x), np.asarray(ellipse_trace.y)
+    assert len(ellipse_x) >= 50
+    assert ellipse_x.min() < 0 < ellipse_x.max()
+    assert ellipse_y.min() < 0 < ellipse_y.max()
+    # Centred on the origin: the extents are symmetric. The x pair is symmetric only to
+    # ~0.05% of its range because 100 angular samples do not land exactly on the extremum.
+    assert ellipse_x.max() == pytest.approx(-ellipse_x.min(), rel=1e-3)
+    assert ellipse_y.max() == pytest.approx(-ellipse_y.min(), rel=1e-3)
+    # Closed curve: it returns to its starting point.
+    assert (ellipse_x[0], ellipse_y[0]) == pytest.approx((ellipse_x[-1], ellipse_y[-1]))
+
+    assert fig.layout.xaxis.title.text == "PC 1"
+    assert fig.layout.yaxis.title.text == "PC 2"
+    # Two crosshair lines through the origin.
+    assert [shape.type for shape in fig.layout.shapes] == ["line", "line"]
+
+    # `plot.loadings()` is broken for TPLS. `Plot.loadings` passes the accessor itself
+    # into `loading_plot`, whose fallback chain is `loadings_` -> `direct_weights_` ->
+    # `loadings`. TPLS has neither of the first two (its loadings are per-block:
+    # p_loadings_z, q_loadings_y, ...), so the third resolves to `Plot.loadings`, the
+    # bound method, and `plots.py` then calls `.loc` on it. PCA and PLS never reach the
+    # fallback. Pinned here so the fix is noticed; tracked on #564.
+    with pytest.raises(AttributeError, match=r"'function' object has no attribute 'loc'"):
+        tpls_test.plot.loadings()
 
 
 def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PLR0915
@@ -4269,15 +4420,50 @@ def test_tpls_fit_and_diagnose_t2_agree(fixture_tpls_example: dict) -> None:
 def test_tpls_cross_validation(fixture_tpls_example: dict) -> None:
     """Test the prediction process of the TPLS model to ensure it functions as expected."""
     n_components = 3
-    full_model = TPLS(n_components=n_components, d_matrix=fixture_tpls_example.pop("D"))
-    _ = cross_val_score(
-        estimator=full_model,
-        X=DataFrameDict(fixture_tpls_example),
+    d_matrix = fixture_tpls_example.pop("D")
+    blocks = DataFrameDict(fixture_tpls_example)
+
+    # Default scoring routes through TPLS.score(), which needs no separate `y` because
+    # the response block travels inside the DataFrameDict.
+    scores = cross_val_score(
+        estimator=TPLS(n_components=n_components, d_matrix=d_matrix),
+        X=blocks,
         cv=5,
-        scoring="r2",
         n_jobs=1,
     )
-    # TODO(#213): assert the cross_val_score output, not just that the call returns
+    scores = np.asarray(scores)
+    assert scores.shape == (5,)
+    assert np.isfinite(scores).all(), f"cross_val_score produced non-finite folds: {scores}"
+    # R2 is bounded above by 1; it may well be negative on held-out folds for this
+    # small T-shaped block, and here it is, so do not assert a positive floor.
+    assert (scores <= 1.0).all()
+
+    # Deterministic: KFold without shuffling gives the same folds, so the same scores.
+    repeat = np.asarray(
+        cross_val_score(
+            estimator=TPLS(n_components=n_components, d_matrix=d_matrix),
+            X=blocks,
+            cv=5,
+            n_jobs=1,
+        )
+    )
+    assert repeat == pytest.approx(scores, rel=1e-12)
+
+    # `scoring="r2"` cannot work here: the string scorer is called with a `y_true` that
+    # sklearn never received, so every fold fails and is recorded as NaN behind a
+    # UserWarning. This test used to pass `scoring="r2"` and assert nothing, so the
+    # all-NaN result went unnoticed. Pinned so the fix is noticed; tracked on #565.
+    with pytest.warns(UserWarning, match="Scoring failed"):
+        r2_scores = np.asarray(
+            cross_val_score(
+                estimator=TPLS(n_components=n_components, d_matrix=d_matrix),
+                X=blocks,
+                cv=5,
+                scoring="r2",
+                n_jobs=1,
+            )
+        )
+    assert np.isnan(r2_scores).all()
 
 
 def test_tpls_score_single_block_y(fixture_tpls_example: dict) -> None:
