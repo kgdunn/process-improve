@@ -11,6 +11,46 @@ those changes.
 
 ## [Unreleased]
 
+## [1.85.5] - 2026-09-12
+
+### Added
+
+- **The five structural PLS identities are now asserted** (#213). Nothing in the suite
+  checked them, although the NIPALS deflation scheme depends on all five: `S` against
+  `sqrt(diag(T'T) / (N - 1))`, `W'W = I`, `P'W` and `W'R` upper triangular with unit
+  diagonals, and `R'P = I`. Checked to 1e-12 on synthetic data and on the real
+  multi-response LDPE block (54 x 14, 5 responses, 6 components).
+
+  A third test records that the five split in two under missing data. `S` is defined
+  from `T` and `R` is defined as `W inv(P'W)`, so those two stay exact whatever the
+  data. The orthogonality and triangularity of `W`, `P'W` and `W'R` are instead
+  outcomes of deflating a complete matrix: with a single NaN in that LDPE block,
+  single-component projection computes the weights from partial rows and `W'W` moves
+  off the identity by about 2e-2. That is expected for missing-data NIPALS rather than
+  a defect, but callers must not assume `W'W = I` on a model fitted with gaps.
+
+- **SPE is now cross-checked against an external reference** (#213). The Simca-P
+  fixture carried a `DModX` column that nothing used. Simca reports the distance to
+  the model in X as a residual standard deviation normalised by the model's pooled
+  one, so `spe_` is proportional to it with the constant
+  `sqrt(sum_ik e_ik^2 / (N * (K - A)))`; the ratio matches the published values to
+  1e-5. Until now the SPE checks compared model-building against model-using SPE,
+  both from this library.
+
+- **Assertions for the PCA sparse-input rejection, the Wold et al. page-43 residual
+  sums-of-squares, the TPLS score plot, and TPLS cross-validation** (#213). The Wold
+  case needed care: the paper's residual SS is on data scaled with `ddof=1`, while
+  `scale()` defaults to `ddof=0`, a uniform `N / (N - 1)` factor on every column. The
+  test refits on the `ddof=1` preprocessing and reproduces `[0.0551, 1.189, 0.0551,
+  0.0551]` exactly.
+
+### Changed
+
+- `test_tpls_cross_validation` now exercises the default scoring, which routes through
+  `TPLS.score()` and returns finite values, and asserts shape, finiteness and
+  determinism. It previously passed `scoring="r2"`, discarded the result and asserted
+  nothing, which hid #565.
+
 ## [1.85.4] - 2026-09-11
 
 ### Changed
@@ -4598,7 +4638,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.85.4...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.85.5...HEAD
+[1.85.5]: https://github.com/kgdunn/process-improve/compare/v1.85.4...v1.85.5
 [1.85.4]: https://github.com/kgdunn/process-improve/compare/v1.85.3...v1.85.4
 [1.85.3]: https://github.com/kgdunn/process-improve/compare/v1.85.2...v1.85.3
 [1.85.2]: https://github.com/kgdunn/process-improve/compare/v1.85.1...v1.85.2
