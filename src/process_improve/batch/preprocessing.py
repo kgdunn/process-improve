@@ -24,6 +24,68 @@ logger = logging.getLogger(__name__)
 epsqrt = np.sqrt(np.finfo(float).eps)
 
 
+def _resolve_columns_to_align(
+    batches: dict[str, pd.DataFrame],
+    columns_to_align: list | pd.Index | None,
+    caller: str,
+) -> list | pd.Index:
+    """
+    Validate the batch container and resolve which columns to operate on.
+
+    The scaling functions take batches as a dict keyed by batch identifier. A single
+    wide DataFrame holding every batch used to get past the column-resolution branch
+    and then fail several lines later inside the loop, because ``DataFrame.items()``
+    yields ``(column, Series)`` pairs rather than ``(batch_id, frame)``. The error
+    that surfaced named a ``Series`` the caller never created. Reject the
+    unsupported container here instead, and say how to convert it. (#560)
+
+    Parameters
+    ----------
+    batches : dict[str, pd.DataFrame]
+        Batch data, in the standard format (keyed by batch identifier).
+    columns_to_align : list, pd.Index, or None
+        Passed through when given; resolved from the first batch when ``None``.
+    caller : str
+        Name of the calling function, used in the error messages.
+
+    Returns
+    -------
+    list or pd.Index
+        The columns to operate on.
+
+    Raises
+    ------
+    TypeError
+        If ``batches`` is a DataFrame, or is not a dict.
+    ValueError
+        If ``batches`` is an empty dict, so there is no batch to take columns from.
+    """
+    if isinstance(batches, pd.DataFrame):
+        raise TypeError(
+            f"{caller} expects `batches` as a dict of per-batch DataFrames, keyed by batch "
+            f"identifier; got a single {type(batches).__name__} holding every batch, which is not "
+            "supported yet (tracked on #199). Split it per batch first, for example: "
+            "`dict(tuple(df.groupby(batch_col)))`."
+        )
+
+    if not isinstance(batches, dict):
+        raise TypeError(
+            f"{caller} expects `batches` as a dict of per-batch DataFrames, keyed by batch "
+            f"identifier; got {type(batches).__name__}."
+        )
+
+    if columns_to_align is not None:
+        return columns_to_align
+
+    if not batches:
+        raise ValueError(
+            f"{caller} cannot resolve `columns_to_align` from an empty `batches` dict; "
+            "pass `columns_to_align` explicitly, or supply at least one batch."
+        )
+
+    return batches[next(iter(batches))].columns
+
+
 def determine_scaling(
     batches: dict[str, pd.DataFrame],
     columns_to_align: list | pd.Index | None = None,
@@ -53,23 +115,22 @@ def determine_scaling(
         aggregated across batches with the median when ``robust=True`` and
         the mean otherwise, but the per-batch minimum itself is always the
         raw ``batch.min(axis=0)``, not a quantile.
-
-    TODO: put this in a scikit-learn style: .fit() and .apply() style
     """
+    # TODO(#199): reshape this trio of functions into a scikit-learn style estimator
+    # with .fit() / .transform(), the way MCUVScaler already works.
     # This will be clumsy, until we have Python 3.9
     default_settings = {"robust": True}
     if settings:
         default_settings.update(settings)
 
     settings = default_settings
-    if columns_to_align is None:
-        columns_to_align = batches[next(iter(batches.keys()))].columns
+    columns_to_align = _resolve_columns_to_align(batches, columns_to_align, "determine_scaling")
 
     collector_rnge = []
     collector_mins = []
     for batch in batches.values():
         if settings["robust"]:
-            # TODO: consider f_iqr feature here. Would that work?
+            # TODO(#198): consider the f_iqr feature here instead of q98 - q02. Would that work?
             rnge = batch[columns_to_align].quantile(0.98) - batch[columns_to_align].quantile(0.02)
         else:
             rnge = batch[columns_to_align].max() - batch[columns_to_align].min()
@@ -120,15 +181,7 @@ def apply_scaling(
         The scaled batch data. Each value carries only the ``columns_to_align``
         columns, in that order.
     """
-    # TODO: handle the case of DataFrames still
-    if columns_to_align is None:
-        if isinstance(batches, dict):
-            batch1 = batches[next(iter(batches.keys()))]
-            columns_to_align = batch1.columns
-        elif isinstance(batches, pd.DataFrame):
-            columns_to_align = batches.columns
-        else:
-            raise TypeError("Undefined input type")
+    columns_to_align = _resolve_columns_to_align(batches, columns_to_align, "apply_scaling")
     out = {}
     for batch_id, batch in batches.items():
         out[batch_id] = batch[columns_to_align].copy()
@@ -163,14 +216,7 @@ def reverse_scaling(
     dict
         The un-scaled batch data.
     """
-    # TODO: handle the case of DataFrames still
-    if columns_to_align is None:
-        if isinstance(batches, dict):
-            columns_to_align = batches[next(iter(batches.keys()))].columns
-        elif isinstance(batches, pd.DataFrame):
-            columns_to_align = batches.columns
-        else:
-            raise TypeError("Undefined input type")
+    columns_to_align = _resolve_columns_to_align(batches, columns_to_align, "reverse_scaling")
     out = {}
     for batch_id, batch in batches.items():
         out[batch_id] = batch[columns_to_align].copy()
@@ -225,8 +271,9 @@ def align_with_path(md_path: np.ndarray, batch: pd.DataFrame) -> pd.DataFrame:
             synced.iloc[row, :] = temp = batch.iloc[md_path[idx, 1], :]
 
         else:
-            # TODO : Come back to page 181 of thesis: where more than 1 point in the target
-            #        trajectory is aligned with the reference: compute the average,
+            # More than one batch sample maps to this reference index (a compression in
+            # the warping path), so the synced value is the average of those samples.
+            # Pinned by tests/batch/test_dtw_align_with_path.py.
             temp = np.vstack((temp, batch.iloc[md_path[idx, 1], :]))
             synced.iloc[row, :] = np.nanmean(temp, axis=0)
 
@@ -343,8 +390,9 @@ def batch_dtw(  # noqa: C901, PLR0915
     Returns
     -------
     dict
-        Various outputs relevant to the alignment.
-        TODO: Document completely later.
+        Various outputs relevant to the alignment, keyed by ``scale_df``,
+        ``aligned_batch_objects``, ``aligned_batch_dfdict``, ``last_average_batch``
+        and ``weight_history``.
 
     Notation
     --------
@@ -417,15 +465,15 @@ def batch_dtw(  # noqa: C901, PLR0915
         next_weights = np.zeros((1, refbatch_sc.shape[1]))
         for result in aligned_batches.values():
             next_weights = next_weights + np.nansum(np.power(result.synced - average_batch, 2), axis=0)
-            # TODO: use quadratic weights for now, but try sum of the absolute values instead
+            # TODO(#199): quadratic weights for now; try the sum of absolute values instead
             #  np.abs(result.synced - average_batch).sum(axis=0)
 
-            # TODO: leave out worst batches when computing the weights
+            # TODO(#199): leave out the worst batches when computing the weights
             # dist_df = pd.DataFrame(distances).set_index("batch_id")
             # dist_df.hist("Distance", bins=50)
             # Now find the average trajectory, but ignore problematic batches:
             #      for example, top 5% of the distances.
-            # TODO: make this a configurable setting
+            # TODO(#199): make the problematic-batch threshold a configurable setting
             # problematic_threshold = dist_df["Distance"].quantile(0.95)
 
         # Kassidas: each variable's weight is inversely proportional to its

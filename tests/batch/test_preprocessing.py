@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import pytest
 
 from process_improve.batch.alignment_helpers import backtrack_optimal_path, distance_matrix
@@ -213,7 +214,7 @@ def test_alignment(dryer_data: dict) -> None:
         settings={"robust": False, "tolerance": 0.06, "show_progress": True},
     )
     assert outputs["weight_history"].shape == (3, 5)
-    # TODO: still work on this, depending on how you terminate DTW.
+    # TODO(#197): restore this assertion once DTW termination is settled.
     # assert [0.43702525, 1.33206459, 0.98298667, 0.93599197, 1.31193153] == pytest.approx(
     #     outputs["weight_history"][4, :], abs=1e-7
     # )
@@ -378,3 +379,47 @@ def test_backtrack_optimal_path_returns_sum() -> None:
     _path, path_sum = backtrack_optimal_path(d_matrix)
     assert np.isfinite(path_sum)
     assert path_sum >= 0
+
+
+class TestScalingRejectsUnsupportedContainers:
+    """The scaling functions take a dict of per-batch frames. Regression tests for #560.
+
+    A single wide DataFrame used to pass the column-resolution branch and then fail
+    inside the loop with ``AttributeError: 'Series' object has no attribute
+    'columns'``, because ``DataFrame.items()`` yields ``(column, Series)`` pairs.
+    """
+
+    @staticmethod
+    def _wide_frame() -> pd.DataFrame:
+        return pd.DataFrame({"temp": [10.0, 11, 12], "press": [1.0, 2, 3]})
+
+    def test_determine_scaling_rejects_a_dataframe(self) -> None:
+        with pytest.raises(TypeError, match=r"determine_scaling expects `batches` as a dict"):
+            determine_scaling(self._wide_frame())
+
+    def test_apply_scaling_rejects_a_dataframe(self) -> None:
+        with pytest.raises(TypeError, match=r"apply_scaling expects `batches` as a dict"):
+            apply_scaling(self._wide_frame(), scale_df=None)
+
+    def test_reverse_scaling_rejects_a_dataframe(self) -> None:
+        with pytest.raises(TypeError, match=r"reverse_scaling expects `batches` as a dict"):
+            reverse_scaling(self._wide_frame(), scale_df=None)
+
+    def test_the_message_names_the_conversion(self) -> None:
+        """The error is actionable: it says how to turn the frame into the right shape."""
+        with pytest.raises(TypeError, match=r"dict\(tuple\(df\.groupby\(batch_col\)\)\)"):
+            determine_scaling(self._wide_frame())
+
+    def test_non_mapping_input_is_rejected(self) -> None:
+        with pytest.raises(TypeError, match=r"got list"):
+            determine_scaling([self._wide_frame()])
+
+    def test_empty_dict_without_explicit_columns_raises(self) -> None:
+        with pytest.raises(ValueError, match=r"cannot resolve `columns_to_align` from an empty"):
+            determine_scaling({})
+
+    def test_dict_input_is_unaffected(self, dryer_data: dict) -> None:
+        """The supported path keeps working, and still resolves columns from batch one."""
+        scale_df = determine_scaling(dryer_data)
+        assert list(scale_df.columns) == ["Range", "Minimum"]
+        assert not scale_df.empty

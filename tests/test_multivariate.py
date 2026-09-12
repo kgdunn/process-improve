@@ -549,32 +549,13 @@ def test_pca_invalid_calls() -> None:
     with pytest.raises(ValueError, match=r"Algorithm .* is not recognized(.*)"):
         _ = PCA(n_components=A, algorithm="SCP").fit(data)
 
-    # TODO: replace with a check to ensure the data is in a DataFrame.
+    # TODO(#213): assert the sparse-input rejection below. Plain numpy IS accepted by
+    # design (sklearn compatibility), so this is about sparse, not about DataFrames.
     # from scipy.sparse import csr_matrix
     # sparse_data = csr_matrix([[1, 2, 0], [0, 0, 3], [4, 0, 5]])
     # with pytest.raises(TypeError, match="This PCA class does not support sparse input."):
     #     model = PCA(n_components=2)
     #     model.fit(sparse_data)
-
-
-def test_pca_no_more_variance() -> None:
-    """Create a rank 2 matrix and it should fail on the 3rd component."""
-
-    K = 17
-    N = 12
-    A = 3
-    rng = np.random.default_rng()
-    T = rng.uniform(low=-1, high=1, size=(N, 2))
-    P = rng.uniform(low=-1, high=1, size=(K, 2))
-    X = T @ P.T
-    meanX = X.mean(axis=0)
-    stdX = X.std(axis=0, ddof=0)
-    _ = pd.DataFrame((X - meanX) / stdX)
-    _ = PCA(n_components=A)
-
-    # with pytest.raises(RuntimeError):
-    #    m.fit(X)
-    # TODO: check that the m.R2[2] (3rd PC is zero.)
 
 
 def test_pca_columns_with_no_variance() -> None:
@@ -639,7 +620,7 @@ def test_pca_wold_model_results(fixture_pca_pca_wold_etal_paper: pd.DataFrame) -
     pca_1 = PCA(n_components=1)
     pca_1.fit(X_preproc.copy())
 
-    # TODO: complete these tests
+    # TODO(#213): assert the page-43 residual sums-of-squares after one component
 
     # The remaining sum of squares, on page 43
     # SS_X = np.sum(pca_1["residuals"].values ** 2, axis=0)
@@ -1498,7 +1479,7 @@ def test_pls_properties_todo() -> None:
     """
     Complete this later.
 
-    TODO:
+    TODO(#213): none of the identities below is asserted anywhere in the suite.
     diag(T.T * T) related to S
     W.T * W = I for PLS only
     P.T * W: ones on diagonal, zeros below diagonal
@@ -1542,7 +1523,8 @@ def fixture_pls_model_simca_1_component() -> dict[str, pd.DataFrame | np.ndarray
 
     When X and y are mean centered and scaled, the model should provide the loadings as listed here
 
-    TODO: test against R
+    The R output quoted below is the source of `expected_y_predicted`, which
+    `test_pls_compare_model_api` asserts.
 
     X = matrix(c(41.1187, 21.2833, 21.1523,  0.2446, -0.0044, -0.131,  1.12,
                  41.7755, 22.0978, 21.1653,  0.3598,  0.1622, -0.9325, 1.01,
@@ -1802,28 +1784,9 @@ def test_pls_compare_sklearn_1_component(fixture_pls_model_simca_1_component: di
     assert data["t1"] == pytest.approx(t1_predict.ravel(), abs=1e-5)
     # assert y_pp == pytest.approx((data["y"] - data["Yavg"]) / data["Yws"], abs=1e-6)
 
-    # Manually make the PLS prediction
-    # X_check = data["X"].copy()
-    # X_check_mcuv = (X_check - plsmodel._x_mean) / plsmodel._x_std
-    # t1_predict_manually = X_check_mcuv @ plsmodel.x_weights_
-
-    # TODO: fix the rest of this test. Not sure what the purpose of this test is anyway.
-
-    # # Simca's C:
-    # N = data["X"].shape[0]
-    # simca_C = (y_pp.reshape(1, N) @ t1_predict) / (t1_predict.T @ t1_predict)
-    # # assert simca_C == pytest.approx(data["loadings_y_c1"], 1e-6)
-    # assert t1_predict_manually.values.ravel() == pytest.approx(t1_predict.ravel(), 1e-9)
-
-    # # Deflate the X's:
-    # X_check_mcuv = X_check_mcuv - t1_predict_manually @ plsmodel.x_loadings_.T
-    # y_hat = t1_predict_manually @ simca_C
-    # y_hat_rawunits = y_hat * plsmodel._y_std + plsmodel._y_mean
-    # assert data["expected_y_predicted"] == pytest.approx(y_hat_rawunits.values.ravel(), abs=1e-5)
-
-    # prediction_error = data["y"].values - y_hat_rawunits.values
-    # R2_y = (data["y"].var(ddof=1) - prediction_error.var(ddof=1)) / data["y"].var(ddof=1)
-    # assert R2_y == pytest.approx(data["R2Y"], abs=1e-6)
+    # The manual y_hat reconstruction, Simca's C, the deflation step and R2Y are all
+    # asserted on this same fixture by `test_pls_compare_model_api`; this test's purpose
+    # is the sklearn-versus-SIMCA cross-check above.
 
 
 def test_pls_compare_model_api(
@@ -2021,7 +1984,6 @@ def fixture_pls_simca_2_components() -> dict[str, pd.DataFrame | np.ndarray | fl
             [-0.3550123, -1.803074],
         ]
     )
-    # TODO: test against this still
     out["Tsq"] = np.array(
         [
             1.513014,
@@ -2041,7 +2003,7 @@ def fixture_pls_simca_2_components() -> dict[str, pd.DataFrame | np.ndarray | fl
         ]
     )
 
-    # TODO: test against this still
+    # TODO(#213): DModX is defined here but never asserted; there is no dmodx accessor
     out["DModX"] = np.array(
         [
             0.8796755,
@@ -2104,7 +2066,7 @@ def test_pls_compare_api(fixture_pls_simca_2_components: dict) -> None:
 
     # Check the model's predictions (full diagnostics)
     result = plsmodel.diagnose(X_mcuv.transform(data["X"]))
-    # TODO: a check on SPE vs Simca-P. Here we are doing a check between the SPE from the
+    # TODO(#213): a check on SPE vs Simca-P. Here we check the SPE from the
     # model building, to model-using, but not against an external library.
     assert plsmodel.spe_.iloc[:, -1].values == pytest.approx(result.spe, abs=1e-10)
     assert data["Tsq"] == pytest.approx(result.hotellings_t2, abs=1e-5)
@@ -4139,7 +4101,7 @@ def test_tpls_model_plots(fixture_tpls_example: dict) -> None:
     tpls_test = TPLS(n_components=n_components, d_matrix=fixture_tpls_example.pop("D"))
     tpls_test.fit(DataFrameDict(fixture_tpls_example))
 
-    # TODO: perform various assertions on the model's Plotly plots
+    # TODO(#213): perform various assertions on the model's Plotly plots
     assert tpls_test.plot.scores() is not None
     # assert tpls_test.plot.loadings() is not None
 
@@ -4315,7 +4277,7 @@ def test_tpls_cross_validation(fixture_tpls_example: dict) -> None:
         scoring="r2",
         n_jobs=1,
     )
-    # TODO: tests on the output
+    # TODO(#213): assert the cross_val_score output, not just that the call returns
 
 
 def test_tpls_score_single_block_y(fixture_tpls_example: dict) -> None:

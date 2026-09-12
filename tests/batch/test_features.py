@@ -289,3 +289,29 @@ def test_f_elbow_no_elbow_records_nan() -> None:
     value = result.iloc[0, 0]
     assert isinstance(value, float)
     assert np.isnan(value)
+
+
+class TestFRuptureNotImplemented:
+    """`f_rupture` has no working body and must say so. Regression test for #559.
+
+    It previously raised only for the wrong number of columns and returned ``None``
+    for a valid single-column call, which a caller cannot tell apart from a
+    successful empty result.
+    """
+
+    @staticmethod
+    def _frame() -> pd.DataFrame:
+        return pd.DataFrame({"batch_id": [1, 1, 1, 2, 2, 2], "temp": [10.0, 11, 12, 20, 21, 22]})
+
+    def test_valid_single_column_call_raises_rather_than_returning_none(self) -> None:
+        with pytest.raises(NotImplementedError, match=r"f_rupture is not implemented"):
+            features.f_rupture(self._frame(), columns=["temp"], batch_col="batch_id")
+
+    def test_message_points_at_the_tracking_issue(self) -> None:
+        with pytest.raises(NotImplementedError, match=r"issues/198"):
+            features.f_rupture(self._frame(), columns=["temp"], batch_col="batch_id")
+
+    @pytest.mark.parametrize("columns", [None, [], ["temp", "batch_id"]])
+    def test_other_arities_also_raise(self, columns: list[str] | None) -> None:
+        with pytest.raises(NotImplementedError):
+            features.f_rupture(self._frame(), columns=columns, batch_col="batch_id")

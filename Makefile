@@ -44,7 +44,8 @@ test:		## run tests quickly with the default Python
 	rm -fr .pytest_cache
 	uv run python -W ignore -m pytest -v  -r=s -r=a -n auto --cov=process_improve
 
-# TODO: single test: ['-p', 'vscode_pytest', '--rootdir=/rootdir', '--capture=no', '/rootdir/tests/test_file.py::test_func']
+test-one:  ## run a single test or file: make test-one T=tests/test_x.py::test_y
+	uv run pytest $(T) --no-cov -v
 
 coverage:	## check code coverage quickly with the default Python
 	coverage html --precision=1 --skip-covered --skip-empty --title="Process Improve Coverage Report"

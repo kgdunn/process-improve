@@ -238,6 +238,9 @@ def ttest_independent(sample_A: pd.Series, sample_B: pd.Series, conflevel: float
             deviation ``sqrt(svar)``. Use ``"t value"`` and ``"Std error of
             difference"`` instead.
     """
+    # TODO(#561): offer a Welch (unequal-variance) option. This is a pooled-variance
+    # Student's t-test; Delacre, Lakens & Leys (2017) argue Welch's should be the
+    # default. https://rips-irsp.com/articles/10.5334/irsp.82
     axis: Literal[0] = 0
     v1, v2 = sample_A.var(axis=axis, ddof=1), sample_B.var(axis=axis, ddof=1)
     n_A, n_B = sample_A.shape[axis], sample_B.shape[axis]
@@ -527,8 +530,6 @@ def confidence_interval(df: pd.DataFrame, column_name: str, conflevel: float = 0
 
     Missing values are ignored.
     """
-
-    # TODO : http://www.rips-irsp.com/article/10.5334/irsp.82/
 
     data = df[column_name]
     n = data.count()

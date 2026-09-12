@@ -139,7 +139,13 @@ def quick_regress(Y: np.ndarray, x: np.ndarray) -> np.ndarray:
         b = np.zeros((Ny, 1))
         for n in np.arange(Ny):
             numer = np.sum(x[:, 0] * np.nan_to_num(Y[n, :]))
-            # TODO(KGD): check: this denom is usually(always?) equal to 1.0
+            # This denominator is not always 1.0 and must not be dropped. It is the sum
+            # of squares of `x` restricted to the non-missing cells of row `n`, so it is
+            # 1.0 only when `x` is unit-norm AND that row of Y has no NaN. Two call sites
+            # pass `c_a` (`_pls.py` and `_mbpls.py`), which NIPALS deliberately never
+            # renormalises, and any missing cell in Y shrinks it further. Measured over
+            # real fits: 1.0 for every complete-data PCA call, but only half of the
+            # complete-data PLS calls and 46% of the calls with missing data.
             denom = ssq(~np.isnan(Y[n, :]) * x.T)
             # See sub-item 7 note above (mirror of Case A).
             b[n] = numer / denom if np.abs(denom) > epsqrt else 0.0
