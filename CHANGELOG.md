@@ -11,6 +11,62 @@ those changes.
 
 ## [Unreleased]
 
+## [1.89.0] - 2026-09-12
+
+### Added
+
+- **The DTW warping path can now be constrained by a band**, through
+  `batch_dtw(settings={"band": ...})` or `distance_matrix(..., band=...)`. A constraint
+  is `None` (unconstrained, the default), a literal `(n_test, 2)` array of half-open
+  reference-row bounds, or a callable of the two batch lengths. Two standard geometries
+  ship as factories returning such callables:
+
+  ```python
+  from process_improve.batch.alignment_helpers import sakoe_chiba, itakura
+
+  batch_dtw(..., settings={"band": sakoe_chiba(window=0.1)})   # 10% of batch duration
+  batch_dtw(..., settings={"band": itakura(max_slope=2.0)})
+  ```
+
+  `sakoe_chiba_band` is a fixed-width corridor centred on the line joining the two
+  corners, so it is correct for batches of unequal duration; its `window` is an `int`
+  (reference rows) or a `float` (fraction of the reference length). `itakura_band` is a
+  slope-bounded parallelogram, narrow at the corners and widest in the middle, which
+  unlike a fixed-width corridor forbids long flat runs. `full_band`, `resolve_band` and
+  `validate_band` are public for anyone writing a third geometry.
+
+  A constraint changes results as well as cost: a corridor that excludes the true warp
+  changes the aligned trajectories, so the iterated average converges to a different
+  fixed point. On the bundled dryer data (71 batches, 89 to 201 samples) a 50% window
+  reproduces the unconstrained weights to nine figures, while narrowing it degrades the
+  alignment monotonically, the worst normalized distance rising from 0.0714 to 0.235 at
+  a 5% window. Widen the window until the alignment stops changing.
+
+  Closes the two band items of #197.
+
+### Fixed
+
+- **`backtrack_optimal_path` no longer ends at a bare `AssertionError`.** It chose a
+  predecessor with `<=` comparison chains falling through to `else: raise
+  AssertionError`. NaN fails every comparison, so any cost matrix with an unreachable
+  cell reached that raise with no message. It now selects the cheapest finite
+  predecessor, preserving the previous tie order on unconstrained input, and raises a
+  `ValueError` naming the cause. (#197)
+
+- **The DTW cost matrix is computed only where it is used**, so a band saves the cost
+  evaluation as well as the accumulation. Constraining only the accumulation would leave
+  the function quadratic in the two batch lengths however narrow the band. Measured on
+  random series at 100, 300 and 700 samples, a 10% band now runs 5.7x, 7.6x and 323x
+  faster than no band. The unconstrained default keeps the original whole-array
+  expression and is verified bit-identical to previous releases at those three sizes, and
+  no slower: a slice of the full extent taken with runtime bounds is not free under
+  numba, which cannot prove it contiguous. (#197)
+
+- **`one_iteration_dtw` no longer discards the reason a batch failed.** It re-raised
+  every per-batch `ValueError` as `Failed on batch {id}` with `from None`, dropping the
+  original message. The cause is now interpolated into the message and chained. (#197)
+
+
 ## [1.88.0] - 2026-09-12
 
 ### Added
@@ -4819,7 +4875,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.88.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.89.0...HEAD
+[1.89.0]: https://github.com/kgdunn/process-improve/compare/v1.88.0...v1.89.0
 [1.88.0]: https://github.com/kgdunn/process-improve/compare/v1.87.1...v1.88.0
 [1.87.1]: https://github.com/kgdunn/process-improve/compare/v1.87.0...v1.87.1
 [1.87.0]: https://github.com/kgdunn/process-improve/compare/v1.86.0...v1.87.0
