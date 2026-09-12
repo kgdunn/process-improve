@@ -423,3 +423,110 @@ class TestScalingRejectsUnsupportedContainers:
         scale_df = determine_scaling(dryer_data)
         assert list(scale_df.columns) == ["Range", "Minimum"]
         assert not scale_df.empty
+
+
+_DRYER_ALIGN_COLUMNS = [
+    "AgitatorPower",
+    "AgitatorTorque",
+    "JacketTemperatureSP",
+    "JacketTemperature",
+    "DryerTemp",
+]
+
+
+class TestBatchDtwDistancesOutput:
+    """`batch_dtw` reports each batch's distance to the reference (#199).
+
+    The per-batch distances were computed on every iteration and thrown away, so there
+    was no way to see which batches aligned badly. They come from the `DTWresult`
+    objects already returned, so nothing extra is computed.
+    """
+
+    def _run(self, dryer_data: dict, **extra_settings: object) -> dict:
+        settings = {"robust": False, "tolerance": 0.1, "show_progress": False}
+        settings.update(extra_settings)
+        return batch_dtw(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS, reference_batch=2, settings=settings)
+
+    def test_distances_are_reported_for_every_batch(self, dryer_data: dict) -> None:
+        outputs = self._run(dryer_data)
+        distances = outputs["distances"]
+
+        assert list(distances.columns) == ["Distance", "Normalized distance"]
+        assert len(distances) == len(outputs["aligned_batch_objects"]) == 71
+        assert distances.index.name == "batch_id"
+        assert (distances >= 0).to_numpy().all()
+
+    def test_the_reference_batch_has_zero_distance_to_itself(self, dryer_data: dict) -> None:
+        distances = self._run(dryer_data)["distances"]
+
+        assert distances.loc[2, "Distance"] == pytest.approx(0.0)
+        assert distances.loc[2, "Normalized distance"] == pytest.approx(0.0)
+
+    def test_distances_agree_with_the_result_objects(self, dryer_data: dict) -> None:
+        """They are read from the DTWresults, not recomputed, so they must match exactly."""
+        outputs = self._run(dryer_data)
+
+        for batch_id, result in outputs["aligned_batch_objects"].items():
+            assert outputs["distances"].loc[batch_id, "Distance"] == result.distance
+            assert outputs["distances"].loc[batch_id, "Normalized distance"] == result.normalized_distance
+
+    def test_normalizing_changes_the_ranking_of_unequal_length_batches(self, dryer_data: dict) -> None:
+        """The normalized column divides by path length, so it is the comparable one."""
+        distances = self._run(dryer_data)["distances"]
+        lengths = {bid: df.shape[0] for bid, df in dryer_data.items()}
+
+        assert min(lengths.values()) != max(lengths.values()), "fixture must hold unequal lengths"
+        # The two orderings are not the same, which is the point of reporting both.
+        assert list(distances["Distance"].nlargest(10).index) != list(
+            distances["Normalized distance"].nlargest(10).index
+        )
+
+
+class TestBatchDtwWeightingSetting:
+    """`settings["weighting"]` selects how deviations accumulate (#199).
+
+    The default stays "quadratic", the published Kassidas choice, whose reciprocal is an
+    inverse-variance weight and so matches the Mahalanobis form of the weighted DTW
+    distance. "absolute" is offered for comparison.
+    """
+
+    def _weights(self, dryer_data: dict, **extra_settings: object) -> pd.DataFrame:
+        settings = {"robust": False, "tolerance": 0.1, "show_progress": False}
+        settings.update(extra_settings)
+        return batch_dtw(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS, reference_batch=2, settings=settings)[
+            "weight_history"
+        ]
+
+    def test_the_default_is_quadratic_and_unchanged(self, dryer_data: dict) -> None:
+        """Pinned against the values this produced before the setting existed."""
+        implicit = self._weights(dryer_data)
+        explicit = self._weights(dryer_data, weighting="quadratic")
+
+        assert implicit.iloc[-1].to_numpy() == pytest.approx(explicit.iloc[-1].to_numpy(), rel=1e-12)
+        # Captured from this fixture; rel=1e-6 is far tighter than the ~50% the
+        # "absolute" functional moves these by, while leaving room for platform float
+        # noise in an iterative DTW across the CI matrix.
+        assert implicit.iloc[-1].to_numpy() == pytest.approx(
+            [
+                0.48684365176347233,
+                1.372434900728356,
+                0.987884606056083,
+                0.915196609356401,
+                1.2376402320956883,
+            ],
+            rel=1e-6,
+        )
+
+    def test_absolute_gives_a_different_fixed_point(self, dryer_data: dict) -> None:
+        """Measured, not assumed: it widens the weight spread here rather than flattening it."""
+        quadratic = self._weights(dryer_data).iloc[-1].to_numpy()
+        absolute = self._weights(dryer_data, weighting="absolute").iloc[-1].to_numpy()
+
+        assert absolute != pytest.approx(quadratic, rel=1e-6)
+        spread = lambda weights: weights.max() / weights.min()  # noqa: E731
+        assert spread(absolute) > spread(quadratic)
+
+    def test_an_unrecognised_weighting_is_rejected(self, dryer_data: dict) -> None:
+        """Without this it fell silently into the absolute branch."""
+        with pytest.raises(ValueError, match=r"weighting'\]='geometric' is not recognized"):
+            self._weights(dryer_data, weighting="geometric")
