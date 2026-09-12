@@ -11,6 +11,52 @@ those changes.
 
 ## [Unreleased]
 
+## [1.87.1] - 2026-09-12
+
+### Fixed
+
+- **#568: `PLS.loading_plot()` raised for every `loadings_type`, including the two its
+  own docstring gives as examples.** `loading_plot` computed a "PCA default" eagerly, on
+  the line before the branch meant to override it, so any model without `loadings_`
+  evaluated `model.loadings` there and raised whatever was asked for. A fitted `PLS` has
+  `x_loadings_`, not `loadings_`, so `p`, `w`, `w*`, `w*c` and `c` all failed with
+  `AttributeError: 'PLS' object has no attribute 'loadings'`, and the `direct_weights_`
+  branch intended to handle PLS was never reached. No test called `loading_plot` on a
+  PLS model.
+
+  The matrix is now resolved lazily from `loadings_type`, through a shared
+  `_x_space_loadings()` helper that tries `loadings_` (PCA), then `x_loadings_` (PLS and
+  the multi-block models), then the super-level `w_loadings_super` by way of `_parent`
+  (TPLS). An unrecognised `loadings_type` raises `ValueError` rather than silently
+  plotting whatever the eager default produced. PCA's plot is unchanged and still draws
+  `loadings_`.
+
+  `PCA.loading_plot(loadings_type="w")` still raises: W, W\* and C are PLS quantities
+  and PCA has neither weights nor Y loadings, so asking for them is a category error.
+
+- **#564: `TPLS.plot.loadings()` raised `AttributeError: 'function' object has no
+  attribute 'loc'`.** The same expression, reached along the accessor path.
+  `Plot.loadings` passes the accessor rather than the estimator, mirroring `Plot.scores`,
+  so `model.loadings` resolved to `Plot.loadings` itself and `.loc` was called on a bound
+  method. TPLS was the only model to get that far, because PCA and PLS satisfied an
+  earlier branch. It now renders the super-level weights, the loadings analogue of the
+  `t_scores_super` that `score_plot` already uses.
+
+- `loading_plot` passes point labels to Plotly as strings. The index may hold any dtype,
+  and `Scatter`'s `text` expects a string sequence; mypy surfaced this once the helper
+  gave `what` a concrete type.
+
+### Documented
+
+- **#565: `TPLS.score` now states that only sklearn's default scoring reaches it.** A
+  named scorer such as `scoring="r2"` is built as a `_Scorer` requiring `y_true`; TPLS
+  carries its response inside `X["Y"]`, so `cross_val_score` has no `y` to supply, the
+  call fails inside sklearn, and every fold is recorded as `NaN` behind a `UserWarning`.
+  Instrumentation confirms `TPLS.score` is called 3 times out of 3 folds under default
+  scoring and 0 times under `scoring="r2"`, so TPLS cannot intercept this itself.
+  Supporting named scorers would mean accepting a conventional `y`, which is an API
+  change and stays open on #565.
+
 ## [1.87.0] - 2026-09-12
 
 ### Fixed
@@ -4725,7 +4771,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.87.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.87.1...HEAD
+[1.87.1]: https://github.com/kgdunn/process-improve/compare/v1.87.0...v1.87.1
 [1.87.0]: https://github.com/kgdunn/process-improve/compare/v1.86.0...v1.87.0
 [1.86.0]: https://github.com/kgdunn/process-improve/compare/v1.85.6...v1.86.0
 [1.85.6]: https://github.com/kgdunn/process-improve/compare/v1.85.5...v1.85.6

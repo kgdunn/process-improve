@@ -59,6 +59,7 @@ from process_improve.multivariate.methods import (
     terminate_check,
     vip,
 )
+from process_improve.multivariate.plots import _x_space_loadings
 
 pd.options.plotting.backend = "plotly"
 pd.options.display.max_columns = 20
@@ -1514,6 +1515,72 @@ def _pls_identity_residuals(model: PLS) -> dict[str, float]:
         "wr_diag": np.abs(np.diag(w_r) - 1).max(),
         "rp_identity": np.abs(rotations.T @ loadings - identity).max(),
     }
+
+
+class TestLoadingPlotResolvesEveryModel:
+    """`loading_plot` must resolve a matrix for each model and each documented type.
+
+    Regression tests for #568 and #564. The previous version computed a "PCA default"
+    eagerly, on the line before the branch meant to override it, so every model without
+    `loadings_` raised there whatever `loadings_type` asked for. `PLS.loading_plot()`
+    was broken for all five documented values, including the two its own docstring gives
+    as examples, and nothing in the suite called it.
+    """
+
+    @staticmethod
+    def _pls() -> PLS:
+        rng = np.random.default_rng(0)
+        x_data = pd.DataFrame(rng.normal(size=(40, 6)))
+        y_data = pd.DataFrame({"y": x_data.to_numpy() @ rng.normal(size=6)})
+        return PLS(n_components=2).fit(MCUVScaler().fit_transform(x_data), MCUVScaler().fit_transform(y_data))
+
+    @pytest.mark.parametrize("loadings_type", ["p", "w", "w*", "w*c", "c"])
+    def test_pls_supports_every_documented_loadings_type(self, loadings_type: str) -> None:
+        assert isinstance(self._pls().loading_plot(loadings_type=loadings_type), go.Figure)
+
+    def test_pls_p_loadings_are_the_x_loadings(self) -> None:
+        """For PLS the P loadings are `x_loadings_`, not a PCA-style `loadings_`."""
+        model = self._pls()
+        trace = model.loading_plot(loadings_type="p").data[0]
+        assert trace.x == pytest.approx(model.x_loadings_.loc[:, 1].to_numpy())
+        assert trace.y == pytest.approx(model.x_loadings_.loc[:, 2].to_numpy())
+
+    def test_pca_p_loadings_are_unchanged(self) -> None:
+        rng = np.random.default_rng(1)
+        x_data = MCUVScaler().fit_transform(pd.DataFrame(rng.normal(size=(40, 5))))
+        model = PCA(n_components=2).fit(x_data)
+        trace = model.loading_plot().data[0]
+        assert trace.x == pytest.approx(model.loadings_.loc[:, 1].to_numpy())
+
+    def test_unrecognised_loadings_type_is_rejected(self) -> None:
+        """Previously this silently plotted whatever the eager default had resolved."""
+        with pytest.raises(ValueError, match=r"loadings_type='zzz' is not recognized"):
+            self._pls().loading_plot(loadings_type="zzz")
+
+    def test_a_model_with_no_loadings_at_all_is_reported(self) -> None:
+        """The resolver's own failure path: nothing to draw, on the model or its parent.
+
+        Exercised directly because `loading_plot` would stop earlier, in
+        `plot_pre_checks`, for an object this incomplete.
+        """
+
+        class Bare:
+            """Exposes none of `loadings_`, `x_loadings_` or `w_loadings_super`."""
+
+        with pytest.raises(AttributeError, match=r"Bare exposes no X-space loadings to plot"):
+            _x_space_loadings(Bare())
+
+    def test_the_parent_is_consulted_when_the_accessor_has_nothing(self) -> None:
+        """The TPLS route: the accessor carries no loadings, so `_parent` supplies them."""
+
+        class Parent:
+            w_loadings_super = pd.DataFrame({1: [0.1, 0.2], 2: [0.3, 0.4]})
+
+        class Accessor:
+            _parent = Parent()
+
+        resolved = _x_space_loadings(Accessor())
+        assert resolved is Parent.w_loadings_super
 
 
 def test_pls_structural_identities_synthetic() -> None:
@@ -4333,14 +4400,17 @@ def test_tpls_model_plots(fixture_tpls_example: dict) -> None:
     # Two crosshair lines through the origin.
     assert [shape.type for shape in fig.layout.shapes] == ["line", "line"]
 
-    # `plot.loadings()` is broken for TPLS. `Plot.loadings` passes the accessor itself
-    # into `loading_plot`, whose fallback chain is `loadings_` -> `direct_weights_` ->
-    # `loadings`. TPLS has neither of the first two (its loadings are per-block:
-    # p_loadings_z, q_loadings_y, ...), so the third resolves to `Plot.loadings`, the
-    # bound method, and `plots.py` then calls `.loc` on it. PCA and PLS never reach the
-    # fallback. Pinned here so the fix is noticed; tracked on #564.
-    with pytest.raises(AttributeError, match=r"'function' object has no attribute 'loc'"):
-        tpls_test.plot.loadings()
+    # The loadings plot reaches the super-level weights through `_parent`, the same way
+    # the score plot reaches `t_scores_super`. Before #564 the fallback resolved to
+    # `Plot.loadings` itself and raised AttributeError on a bound method.
+    loadings_fig = tpls_test.plot.loadings()
+    assert isinstance(loadings_fig, go.Figure)
+    # One point per super block (Z and F), against components 1 and 2.
+    assert tpls_test.w_loadings_super.shape == (2, n_components)
+    loadings_trace = loadings_fig.data[0]
+    assert len(loadings_trace.x) == 2
+    assert loadings_trace.x == pytest.approx(tpls_test.w_loadings_super.loc[:, 1].to_numpy())
+    assert loadings_trace.y == pytest.approx(tpls_test.w_loadings_super.loc[:, 2].to_numpy())
 
 
 def test_tpls_model_predictions(fixture_tpls_example: dict) -> None:  # noqa: PLR0915
@@ -4538,7 +4608,11 @@ def test_tpls_cross_validation(fixture_tpls_example: dict) -> None:
     # `scoring="r2"` cannot work here: the string scorer is called with a `y_true` that
     # sklearn never received, so every fold fails and is recorded as NaN behind a
     # UserWarning. This test used to pass `scoring="r2"` and assert nothing, so the
-    # all-NaN result went unnoticed. Pinned so the fix is noticed; tracked on #565.
+    # all-NaN result went unnoticed. The failure is inside sklearn's `_Scorer.__call__`,
+    # before TPLS is reached: instrumenting `TPLS.score` shows 0 calls here against 3 of
+    # 3 folds under the default scoring above. TPLS therefore cannot intercept it, and
+    # making named scorers work would mean accepting a conventional `y`. Documented on
+    # `TPLS.score` and pinned here; tracked on #565.
     with pytest.warns(UserWarning, match="Scoring failed"):
         r2_scores = np.asarray(
             cross_val_score(

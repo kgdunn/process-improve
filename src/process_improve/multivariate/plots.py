@@ -63,6 +63,47 @@ def _fitted_n_components(model: BaseEstimator) -> int:
     raise AttributeError("The model has no fitted n_components_; fit the model first.")
 
 
+def _x_space_loadings(model: BaseEstimator) -> pd.DataFrame:
+    """
+    Return the X-space (P) loadings of any model the loading plot supports.
+
+    PCA calls them ``loadings_``; PLS and the multi-block models call them
+    ``x_loadings_``. TPLS has no single loadings matrix (its loadings are per block:
+    ``p_loadings_z``, ``q_loadings_y``, and so on), so the super-level weights stand in,
+    mirroring `score_plot`, which uses the super-level ``t_scores_super``.
+
+    The plot functions can be handed either the estimator or its ``Plot`` accessor, so
+    the parent is consulted when the accessor itself carries none of these names.
+
+    Parameters
+    ----------
+    model : BaseEstimator
+        A fitted estimator, or the ``Plot`` accessor wrapping one.
+
+    Returns
+    -------
+    pd.DataFrame
+        Loadings, with one column per component.
+
+    Raises
+    ------
+    AttributeError
+        If neither the model nor its parent exposes a usable loadings matrix.
+    """
+    for candidate in (model, getattr(model, "_parent", None)):
+        if candidate is None:
+            continue
+        for attr in ("loadings_", "x_loadings_", "w_loadings_super"):
+            if hasattr(candidate, attr):
+                return getattr(candidate, attr)
+
+    raise AttributeError(
+        f"{type(model).__name__} exposes no X-space loadings to plot: expected one of "
+        "`loadings_`, `x_loadings_` or `w_loadings_super`, on the model or its `_parent`. "
+        "Has the model been fitted?"
+    )
+
+
 def plot_pre_checks(model: BaseEstimator, pc_horiz: int, pc_vert: int, pc_depth: int) -> bool:
     """Check the inputs for the plot functions are valid."""
     n_components = _fitted_n_components(model)
@@ -417,22 +458,30 @@ def loading_plot(  # noqa: PLR0913
     if fig is None:
         fig = go.Figure()
 
-    what = model.loadings_ if hasattr(model, "loadings_") else model.loadings  # PCA default
-    if hasattr(model, "direct_weights_"):
-        what = model.direct_weights_  # PLS default
+    # Resolve exactly one matrix, lazily. The previous version computed a "PCA default"
+    # eagerly, before the branch that was meant to override it, so any model without
+    # `loadings_` raised on that line whatever `loadings_type` asked for. That broke
+    # `PLS.loading_plot()` for all five documented values (#568), and on the accessor
+    # path the same expression resolved to `Plot.loadings`, the bound method, which then
+    # reached `.loc` below (#564).
     extra = None
-    if loadings_type.lower() == "p":
-        what = model.loadings_ if hasattr(model, "loadings_") else model.loadings
-    if loadings_type.lower() == "w":
+    requested = loadings_type.lower()
+    if requested == "p":
+        what = _x_space_loadings(model)
+    elif requested == "w":
         what = model.x_weights_
-    elif loadings_type.lower() == "w*":
+    elif requested == "w*":
         what = model.direct_weights_
-    elif loadings_type.lower() == "w*c":
+    elif requested == "w*c":
         loadings_type = loadings_type[0:-1]
         what = model.direct_weights_
         extra = model.y_loadings_
-    elif loadings_type.lower() == "c":
+    elif requested == "c":
         what = model.y_loadings_
+    else:
+        raise ValueError(
+            f"loadings_type={loadings_type!r} is not recognized; expected one of 'p', 'w', 'w*', 'w*c' or 'c'."
+        )
 
     fig.add_trace(
         go.Scatter(
@@ -444,7 +493,8 @@ def loading_plot(  # noqa: PLR0913
                 symbol="circle",
                 size=7,
             ),
-            text=what.index,
+            # Plotly's `text` wants a sequence of strings; the index may hold any dtype.
+            text=[str(label) for label in what.index],
             textposition="top center",
         )
     )
