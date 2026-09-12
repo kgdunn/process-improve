@@ -827,6 +827,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         self.beta_coefficients_ = pd.DataFrame(beta_coefficients, index=X.columns, columns=Y.columns)
         # ``max(1, N-1)`` -- see SEC-21 (#270) sub-item 6.
         self.explained_variance_ = np.diag(self._scores.T @ self._scores) / max(1, N - 1)
+        # The training residual block, kept for the trimmed-score-regression
+        # estimator in ``project`` / ``projection_matrix``: TSR regresses on
+        # the covariance of the observed columns, which is the model plane
+        # plus this spread around it. Kept as E (N x K) rather than its K x K
+        # Gram, because the estimator contracts it to A columns straight away.
+        # A missing training cell has no residual, so it enters as zero.
+        self._x_residuals = np.nan_to_num(X.to_numpy(dtype=float) - self._scores @ self._x_loadings.T)
         self.scaling_factor_for_scores_ = pd.Series(
             np.sqrt(self.explained_variance_),
             index=component_names,
@@ -1191,6 +1198,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             method=method,
             ridge=ridge,
             x_weights=self._x_weights,
+            x_residuals=getattr(self, "_x_residuals", None),
         )
         scores = pd.DataFrame(raw.scores, index=sample_index, columns=self._component_names)
         s = self.scaling_factor_for_scores_.to_numpy(dtype=float)
@@ -1244,6 +1252,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             method=method,
             ridge=ridge,
             x_weights=self._x_weights,
+            x_residuals=getattr(self, "_x_residuals", None),
         )
         matrix = pd.DataFrame(
             op.matrix,

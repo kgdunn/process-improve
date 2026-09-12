@@ -11,6 +11,52 @@ those changes.
 
 ## [Unreleased]
 
+## [1.87.0] - 2026-09-12
+
+### Fixed
+
+- **`method="tsr"` was not trimmed score regression.** It is the default estimator
+  everywhere a score is computed from an incomplete row: `PCA.project`, `PLS.project`,
+  `projection_matrix`, the contribution plots for rows with missing cells,
+  `BatchPCA` / `BatchPLS` on-line prediction, `BatchMonitor`, and the mid-course
+  corrector.
+
+  Arteaga and Ferrer (2002) regress the model's scores on the *trimmed* scores, the
+  ones the observed columns produce. The regression's inner matrix is the covariance
+  of those observed columns over the training rows, `S** = P* Theta P*' + E*'E*/(N-1)`:
+  the model plane, plus the spread around it. Only the first term was implemented. For
+  a PCA the second term is what stops the expression cancelling, so without it
+  `method="tsr"` returned the `method="pmp"` operator, bitwise; three estimators were
+  offered and two of them were the same one.
+
+  The consequence is worst where the estimator matters most. Projection to the model
+  plane uses nothing but the plane, so early in a batch, with a handful of columns
+  observed, it is free to put the row anywhere on the plane those columns allow: score
+  estimates ran seven to a hundred and twenty times the spread of the training scores.
+  The regression has seen how much those same columns predicted each score in the past,
+  and shrinks toward the mean row while they say little.
+
+  The residual block is now carried on the fitted model (`N x K`, the size of the
+  training data) and contracted to `A` columns inside the estimator, so nothing of size
+  `K x K` is ever built. `operator_for_pattern` and `project_rows` take it as
+  `x_residuals`; called without it, `method="tsr"` raises a `SpecificationWarning`
+  saying it is returning the plane-only operator rather than doing so quietly.
+
+  What moves: score estimates and everything derived from them for incomplete rows,
+  which on the SBR case study means the on-line quality prediction (the particle-size
+  RMSEE after 10 samples falls from 8.8 to 3.0 in the original units) and the
+  conditioning reported alongside it. On complete rows nothing moves: the complete-data
+  path is untouched, and TSR still reproduces `transform` there exactly. The alarm
+  samples of the SBR monitoring section are unchanged.
+
+### Changed
+
+- The module docstring of `multivariate/_projection.py` ranked the three estimators
+  without saying what separates them. It now explains that TSR is the only one of the
+  three that uses the training data beyond the model plane, which is why it is the
+  strongest, and that SCP's weakness is error propagation through its deflation rather
+  than a lack of information alone.
+
 ## [1.86.0] - 2026-09-12
 
 ### Added
@@ -4640,7 +4686,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.86.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.87.0...HEAD
+[1.87.0]: https://github.com/kgdunn/process-improve/compare/v1.86.0...v1.87.0
 [1.86.0]: https://github.com/kgdunn/process-improve/compare/v1.85.5...v1.86.0
 [1.85.5]: https://github.com/kgdunn/process-improve/compare/v1.85.4...v1.85.5
 [1.85.4]: https://github.com/kgdunn/process-improve/compare/v1.85.3...v1.85.4

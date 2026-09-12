@@ -882,6 +882,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         self._loadings = self._loadings_np
         self._scores = self._scores_np
         self._spe = self._spe_np
+        # The training residual block, kept for the trimmed-score-regression
+        # estimator in ``project`` / ``projection_matrix``: TSR regresses on
+        # the covariance of the observed columns, which is the model plane
+        # plus this spread around it. Kept as E (N x K) rather than its K x K
+        # Gram, because the estimator contracts it to A columns straight away.
+        # A missing training cell has no residual, so it enters as zero.
+        self._x_residuals = np.nan_to_num(X_values - self._scores_np @ self._loadings_np.T)
 
         self.r2_per_component_ = pd.Series(
             self._r2_np,
@@ -1352,6 +1359,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             np.asarray(X_arr, dtype=float),
             method=method,
             ridge=ridge,
+            x_residuals=getattr(self, "_x_residuals", None),
         )
         scores = pd.DataFrame(raw.scores, index=sample_index, columns=self._component_names)
         s = self.scaling_factor_for_scores_.to_numpy(dtype=float)
@@ -1397,6 +1405,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             mask,
             method=method,
             ridge=ridge,
+            x_residuals=getattr(self, "_x_residuals", None),
         )
         matrix = pd.DataFrame(
             op.matrix,

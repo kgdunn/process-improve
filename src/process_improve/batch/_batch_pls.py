@@ -320,6 +320,10 @@ class BatchPLS(RegressorMixin, BaseEstimator):
         self.spe_ = self._pls.spe_
         self.hotellings_t2_ = self._pls.hotellings_t2_
         self.scaling_factor_for_scores_ = self._pls.scaling_factor_for_scores_
+        # Forwarded so the mid-course corrector, which projects rows against this
+        # model's arrays directly, can hand the TSR estimator the same training
+        # residual block that ``_pls.project`` uses.
+        self._x_residuals = self._pls._x_residuals
         self.center_ = x_scaler.center_
         self.scale_ = x_scaler.scale_
         self.y_center_ = y_scaler.center_

@@ -265,13 +265,19 @@ class TestSBR:
         evolving = trace.y_hat["ParticleSize"]
         np.testing.assert_allclose(
             evolving.loc[[10, 25, 50, 100, 150, 200]].to_numpy(),
-            [1251.0, 1248.1, 1255.3, 1254.9, 1257.4, 1257.1],
+            [1256.8, 1255.4, 1256.5, 1256.4, 1257.4, 1257.1],
             atol=0.05,
         )
         rmse = sbr_model.online_rmse(trajectories, quality)["ParticleSize"]
         assert rmse.index.name == "upto_k"
         assert rmse.iloc[-1] == pytest.approx(float(sbr_model.rmse_.loc["ParticleSize"].iloc[-1]), rel=1e-9)
         np.testing.assert_allclose(
-            rmse.loc[[10, 50, 100, 150, 200]].to_numpy(), [8.81, 4.34, 3.99, 1.93, 1.87], atol=0.01
+            rmse.loc[[10, 50, 100, 150, 200]].to_numpy(), [2.94, 2.72, 2.63, 1.93, 1.87], atol=0.01
         )
-        assert rmse.loc[10] > 3 * rmse.iloc[-1]
+        assert rmse.loc[10] > rmse.iloc[-1]
+        # Trimmed score regression shrinks toward the mean batch while little of
+        # the batch has been seen, so the estimation error never exceeds the
+        # error of predicting the average batch every time. The estimator this
+        # replaced had no such information and ran to 4.7 standard deviations
+        # after one sample.
+        assert (rmse <= float(quality["ParticleSize"].std(ddof=1))).all()
