@@ -1282,3 +1282,84 @@ class TestCostMatrixDiagonal:
 
         assert accumulated.shape == (4000, 30)
         assert np.isfinite(accumulated[-1, -1])
+
+
+class TestColumnResolution:
+    """Only columns that carry a trajectory are aligned (#199)."""
+
+    @staticmethod
+    def _batches(**columns: object) -> dict:
+        """Two batches, each holding the given columns; scalars become constant columns."""
+        return {
+            batch_id: pd.DataFrame(
+                {name: (value if isinstance(value, list) else [value] * 4) for name, value in columns.items()}
+            )
+            for batch_id in (1, 2)
+        }
+
+    def test_a_non_numeric_column_is_skipped_by_default(self) -> None:
+        batches = self._batches(temp=[10.0, 11.0, 12.0, 13.0], operator="alice")
+
+        scale_df = determine_scaling(batches)
+
+        assert list(scale_df.index) == ["temp"]
+
+    def test_a_non_numeric_column_named_explicitly_raises(self) -> None:
+        """The caller asked for it by name, so dropping it silently would hide the mistake."""
+        batches = self._batches(temp=[10.0, 11.0, 12.0, 13.0], operator="alice")
+
+        with pytest.raises(ValueError, match=r"can only align numeric columns.*'operator' \(object\)"):
+            determine_scaling(batches, columns_to_align=["temp", "operator"])
+
+    def test_a_column_flat_in_every_batch_is_skipped(self) -> None:
+        """An identifier looks exactly like this, and it is numeric, so dtype alone misses it."""
+        batches = self._batches(temp=[10.0, 11.0, 12.0, 13.0], batch_id=7)
+
+        scale_df = determine_scaling(batches)
+
+        assert list(scale_df.index) == ["temp"]
+
+    def test_a_column_flat_in_only_the_first_batch_is_kept(self) -> None:
+        """Every batch is checked, so a tag that starts flat but moves later still counts."""
+        batches = {
+            1: pd.DataFrame({"temp": [10.0, 11.0, 12.0], "pressure": [5.0, 5.0, 5.0]}),
+            2: pd.DataFrame({"temp": [10.0, 11.0, 12.0], "pressure": [5.0, 6.0, 7.0]}),
+        }
+
+        scale_df = determine_scaling(batches)
+
+        assert sorted(scale_df.index) == ["pressure", "temp"]
+
+    def test_a_constant_column_named_explicitly_is_left_alone(self) -> None:
+        """Constant over these batches does not mean constant in general; the caller may know."""
+        batches = self._batches(temp=[10.0, 11.0, 12.0, 13.0], setpoint=50.0)
+
+        with pytest.warns(UserWarning, match="zero range"):
+            scale_df = determine_scaling(batches, columns_to_align=["temp", "setpoint"])
+
+        assert sorted(scale_df.index) == ["setpoint", "temp"]
+
+    def test_no_alignable_column_raises_and_lists_what_was_there(self) -> None:
+        batches = self._batches(label="a", identifier=3)
+
+        with pytest.raises(ValueError, match=r"found no column to align.*\['label', 'identifier'\]"):
+            determine_scaling(batches)
+
+    def test_an_all_nan_column_counts_as_flat(self) -> None:
+        """No usable value means no spread, so it carries nothing to align."""
+        batches = self._batches(temp=[10.0, 11.0, 12.0, 13.0], broken=[np.nan] * 4)
+
+        scale_df = determine_scaling(batches)
+
+        assert list(scale_df.index) == ["temp"]
+
+    def test_a_column_absent_from_some_batches_is_judged_on_the_rest(self) -> None:
+        batches = {
+            1: pd.DataFrame({"temp": [10.0, 11.0, 12.0]}),
+            2: pd.DataFrame({"temp": [10.0, 11.0, 12.0], "extra": [1.0, 2.0, 3.0]}),
+        }
+
+        # `extra` is absent from the first batch, so it is not in the resolved set, which
+        # comes from that batch's columns. The point is that checking spread across every
+        # batch does not raise on the batch where the column is missing.
+        assert list(determine_scaling(batches).index) == ["temp"]
