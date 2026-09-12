@@ -3,6 +3,8 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.base import clone
+from sklearn.exceptions import NotFittedError
 
 from process_improve.batch.alignment_helpers import (
     backtrack_optimal_path,
@@ -16,6 +18,8 @@ from process_improve.batch.alignment_helpers import (
     validate_band,
 )
 from process_improve.batch.preprocessing import (
+    BatchScaler,
+    _batch_weights,
     align_with_path,
     apply_scaling,
     batch_dtw,
@@ -1042,3 +1046,152 @@ class TestInterpolationAxisResolution:
     ) -> None:
         with pytest.raises(ValueError, match=message):
             self._rows(dryer_data, maximum, delta)
+
+
+class TestBatchWeighting:
+    """`settings["batch_weighting"]` downweights badly aligned batches (#199)."""
+
+    def _run(self, dryer_data: dict, batch_weighting: str) -> dict:
+        return batch_dtw(
+            dryer_data,
+            columns_to_align=_DRYER_ALIGN_COLUMNS,
+            reference_batch=2,
+            settings={
+                "robust": False,
+                "tolerance": 0.1,
+                "show_progress": False,
+                "batch_weighting": batch_weighting,
+            },
+        )
+
+    def test_equal_weighting_gives_every_batch_exactly_one(self, dryer_data: dict) -> None:
+        """Exactly 1.0, so multiplying by it is a no-op and the default cannot drift."""
+        aligned = self._run(dryer_data, "equal")["aligned_batch_objects"]
+
+        weights = _batch_weights(aligned, "equal")
+        assert weights.tolist() == [1.0] * len(aligned)
+
+    def test_the_default_is_equal_weighting(self, dryer_data: dict) -> None:
+        implicit = batch_dtw(
+            dryer_data,
+            columns_to_align=_DRYER_ALIGN_COLUMNS,
+            reference_batch=2,
+            settings={"robust": False, "tolerance": 0.1, "show_progress": False},
+        )["weight_history"]
+
+        assert implicit.iloc[-1].to_numpy() == pytest.approx(
+            self._run(dryer_data, "equal")["weight_history"].iloc[-1].to_numpy(), rel=1e-12
+        )
+
+    def test_huber_downweights_the_batches_the_distances_output_flags(self, dryer_data: dict) -> None:
+        """The diagnostic from #570 and the weighting must agree on which batches are worst."""
+        outputs = self._run(dryer_data, "huber")
+        aligned = outputs["aligned_batch_objects"]
+
+        weights = pd.Series(_batch_weights(aligned, "huber"), index=list(aligned))
+        worst_by_distance = set(outputs["distances"]["Normalized distance"].nlargest(3).index)
+
+        assert set(weights.nsmallest(3).index) == worst_by_distance
+
+    def test_huber_leaves_the_bulk_of_batches_at_full_weight(self, dryer_data: dict) -> None:
+        """A robust weight should touch the tail, not reshape the whole set."""
+        aligned = self._run(dryer_data, "huber")["aligned_batch_objects"]
+
+        weights = _batch_weights(aligned, "huber")
+        at_full_weight = int((weights >= weights.max() - 1e-12).sum())
+        assert at_full_weight > len(weights) / 2
+        assert at_full_weight < len(weights), "something must be downweighted on this fixture"
+
+    def test_no_batch_is_ever_silenced(self, dryer_data: dict) -> None:
+        """Huber never reaches zero, so a downweighted batch can recover next iteration."""
+        aligned = self._run(dryer_data, "huber")["aligned_batch_objects"]
+
+        assert _batch_weights(aligned, "huber").min() > 0.0
+
+    def test_the_weights_average_to_one(self, dryer_data: dict) -> None:
+        """Which keeps the accumulated deviations on the magnitude equal weighting gives."""
+        aligned = self._run(dryer_data, "huber")["aligned_batch_objects"]
+
+        assert float(np.mean(_batch_weights(aligned, "huber"))) == pytest.approx(1.0)
+
+    def test_huber_changes_the_variable_weights(self, dryer_data: dict) -> None:
+        equal = self._run(dryer_data, "equal")["weight_history"].iloc[-1].to_numpy()
+        huber = self._run(dryer_data, "huber")["weight_history"].iloc[-1].to_numpy()
+
+        assert huber != pytest.approx(equal, rel=1e-6)
+
+    def test_indistinguishable_batches_fall_back_to_equal_weights(self) -> None:
+        """A zero MAD means there is nothing to tell apart, not a reason to divide by zero."""
+
+        class _Result:
+            def __init__(self, distance: float) -> None:
+                self.normalized_distance = distance
+
+        identical = {index: _Result(0.5) for index in range(5)}
+        assert _batch_weights(identical, "huber").tolist() == [1.0] * 5
+
+    def test_an_unrecognized_batch_weighting_is_rejected(self, dryer_data: dict) -> None:
+        with pytest.raises(ValueError, match=r"batch_weighting'\]='tukey' is not recognized"):
+            self._run(dryer_data, "tukey")
+
+
+class TestBatchScaler:
+    """The fit / transform wrapper over the scaling functions (#199)."""
+
+    def test_it_matches_the_functions_it_wraps(self, dryer_data: dict) -> None:
+        scaler = BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS)
+        scaled = scaler.fit_transform(dryer_data)
+
+        scale_df = determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS)
+        expected = apply_scaling(dryer_data, scale_df, columns_to_align=_DRYER_ALIGN_COLUMNS)
+
+        assert np.array_equal(scaler.scale_df_.to_numpy(), scale_df.to_numpy(), equal_nan=True)
+        for batch_id, frame in expected.items():
+            assert np.array_equal(scaled[batch_id].to_numpy(), frame.to_numpy())
+
+    def test_it_round_trips(self, dryer_data: dict) -> None:
+        scaler = BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS)
+        restored = scaler.inverse_transform(scaler.fit_transform(dryer_data))
+
+        for batch_id, frame in dryer_data.items():
+            assert restored[batch_id].to_numpy() == pytest.approx(frame[_DRYER_ALIGN_COLUMNS].to_numpy(), abs=1e-10)
+
+    def test_it_accepts_a_melted_frame_when_the_batch_column_is_named(self, dryer_data: dict) -> None:
+        """The DataFrame input case the functions reject outright."""
+        melted = pd.concat(dryer_data.values(), ignore_index=True)
+
+        from_frame = BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS, batch_col="batch_id").fit_transform(melted)
+        from_dict = BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS).fit_transform(dryer_data)
+
+        assert set(from_frame) == set(from_dict)
+        for batch_id, frame in from_dict.items():
+            assert np.array_equal(from_frame[batch_id].to_numpy(), frame.to_numpy())
+
+    def test_a_frame_without_a_batch_column_says_what_to_do(self, dryer_data: dict) -> None:
+        melted = pd.concat(dryer_data.values(), ignore_index=True)
+
+        with pytest.raises(TypeError, match="no `batch_col`"):
+            BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS).fit(melted)
+
+    def test_transform_before_fit_raises(self, dryer_data: dict) -> None:
+        with pytest.raises(NotFittedError):
+            BatchScaler().transform(dryer_data)
+
+    def test_it_follows_the_sklearn_estimator_contract(self, dryer_data: dict) -> None:
+        scaler = BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS).fit(dryer_data)
+
+        assert sorted(BatchScaler().get_params()) == ["batch_col", "columns_to_align", "robust", "robust_range"]
+        assert scaler.n_features_in_ == len(_DRYER_ALIGN_COLUMNS)
+        assert scaler.columns_to_align_ == _DRYER_ALIGN_COLUMNS
+        # `clone` must give back an unfitted estimator with the same parameters.
+        cloned = clone(scaler)
+        assert not hasattr(cloned, "scale_df_")
+        assert cloned.get_params() == scaler.get_params()
+
+    def test_the_settings_reach_determine_scaling(self, dryer_data: dict) -> None:
+        wide = BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS).fit(dryer_data)
+        iqr = BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS, robust_range="iqr").fit(dryer_data)
+        raw = BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS, robust=False).fit(dryer_data)
+
+        assert (iqr.scale_df_["Range"] < wide.scale_df_["Range"]).all()
+        assert not np.array_equal(raw.scale_df_["Range"].to_numpy(), wide.scale_df_["Range"].to_numpy())

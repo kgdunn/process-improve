@@ -16,6 +16,9 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
 
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.utils.validation import check_is_fitted
+
 from ..multivariate.methods import PCA, MCUVScaler
 from .alignment_helpers import backtrack_optimal_path, distance_matrix
 from .data_input import check_valid_batch_dict, dict_to_wide, melted_to_dict
@@ -165,9 +168,8 @@ def determine_scaling(
         the mean otherwise, but the per-batch minimum itself is always the
         raw ``batch.min(axis=0)``, not a quantile.
     """
-    # TODO(#199): reshape this trio of functions into a scikit-learn style estimator
-    # with .fit() / .transform(), the way MCUVScaler already works.
-    # This will be clumsy, until we have Python 3.9
+    # A fit / transform wrapper over this trio now exists as :class:`BatchScaler`, which
+    # also accepts the melted-DataFrame input these functions reject (#199).
     default_settings: dict = {"robust": True, "robust_range": "q98-q02"}
     if settings:
         default_settings.update(settings)
@@ -314,6 +316,113 @@ class DTWresult:
         self.normalized_distance = normalized_distance
 
 
+class BatchScaler(TransformerMixin, BaseEstimator):
+    """
+    Range-scale batch trajectories, as a fit / transform estimator.
+
+    Wraps the three functions :func:`determine_scaling`, :func:`apply_scaling` and
+    :func:`reverse_scaling` in the estimator shape the rest of this package uses, so
+    batch preprocessing composes with :class:`~sklearn.pipeline.Pipeline` and with
+    ``clone`` / ``get_params`` / ``set_params`` the way
+    :class:`~process_improve.multivariate.MCUVScaler` already does (#199). The three
+    functions remain public and unchanged; this adds a way to carry the fitted scaling
+    around as one object instead of threading a ``scale_df`` through every call.
+
+    Each tag is mapped to roughly ``[0, 1]`` by subtracting a per-tag minimum and
+    dividing by a per-tag range, both aggregated across the batches seen in
+    :meth:`fit`. That is a different normalisation from mean-centring to unit variance:
+    it preserves the shape of a trajectory within its own operating range, which is what
+    the alignment distance needs.
+
+    Parameters
+    ----------
+    columns_to_align : list or None, optional
+        The tags to scale. ``None`` (the default) takes the columns of the first batch,
+        matching :func:`determine_scaling`.
+    batch_col : str or None, optional
+        When set, :meth:`fit` and :meth:`transform` also accept a single melted
+        DataFrame holding every batch, and split it on this column. This is the
+        DataFrame input case #199 asked for: the functions reject a DataFrame outright
+        and tell the caller to split it themselves.
+    robust : bool, optional
+        Use a robust per-batch range (the default) rather than ``max - min``.
+    robust_range : str, optional
+        Which robust range: ``"q98-q02"`` (the default) or ``"iqr"``. See
+        :func:`determine_scaling` for what separates them.
+
+    Attributes
+    ----------
+    scale_df_ : pd.DataFrame
+        The fitted scaling, exactly as :func:`determine_scaling` returns it: a ``Range``
+        and a ``Minimum`` per tag.
+    columns_to_align_ : list
+        The tags actually scaled, resolved during :meth:`fit`.
+    n_features_in_ : int
+        Number of tags scaled, for the sklearn contract.
+
+    Examples
+    --------
+    >>> scaler = BatchScaler(columns_to_align=["Temperature"])       # doctest: +SKIP
+    >>> scaled = scaler.fit_transform(batches)                       # doctest: +SKIP
+    >>> original = scaler.inverse_transform(scaled)                  # doctest: +SKIP
+
+    A melted frame works when the batch column is named:
+
+    >>> scaler = BatchScaler(batch_col="batch_id")                   # doctest: +SKIP
+    >>> scaled = scaler.fit_transform(melted_frame)                  # doctest: +SKIP
+    """
+
+    def __init__(
+        self,
+        columns_to_align: list | None = None,
+        batch_col: str | None = None,
+        robust: bool = True,
+        robust_range: str = "q98-q02",
+    ) -> None:
+        self.columns_to_align = columns_to_align
+        self.batch_col = batch_col
+        self.robust = robust
+        self.robust_range = robust_range
+
+    def _as_batches(self, X: dict | pd.DataFrame) -> dict:
+        """Accept either the dict format or, when ``batch_col`` is set, a melted frame."""
+        if isinstance(X, pd.DataFrame):
+            if self.batch_col is None:
+                raise TypeError(
+                    f"{type(self).__name__} was given a single DataFrame but no `batch_col`, so it "
+                    "cannot tell which column identifies the batch. Pass "
+                    f"{type(self).__name__}(batch_col=...), or split the frame yourself with "
+                    "`dict(tuple(df.groupby(batch_col)))`."
+                )
+            return melted_to_dict(X, batch_id_col=self.batch_col)
+        return X
+
+    def fit(self, X: dict | pd.DataFrame, y: object = None) -> BatchScaler:  # noqa: ARG002
+        """
+        Determine the per-tag range and minimum from these batches.
+
+        ``y`` is accepted and ignored, per the sklearn transformer contract.
+        """
+        batches = self._as_batches(X)
+        settings = {"robust": self.robust, "robust_range": self.robust_range}
+        self.scale_df_ = determine_scaling(batches, columns_to_align=self.columns_to_align, settings=settings)
+        self.columns_to_align_ = list(
+            _resolve_columns_to_align(batches, self.columns_to_align, f"{type(self).__name__}.fit")
+        )
+        self.n_features_in_ = len(self.columns_to_align_)
+        return self
+
+    def transform(self, X: dict | pd.DataFrame) -> dict:
+        """Scale these batches with the fitted range and minimum."""
+        check_is_fitted(self, "scale_df_")
+        return apply_scaling(self._as_batches(X), self.scale_df_, columns_to_align=self.columns_to_align_)
+
+    def inverse_transform(self, X: dict | pd.DataFrame) -> dict:
+        """Undo :meth:`transform`, returning the batches to their original units."""
+        check_is_fitted(self, "scale_df_")
+        return reverse_scaling(self._as_batches(X), self.scale_df_, columns_to_align=self.columns_to_align_)
+
+
 def align_with_path(md_path: np.ndarray, batch: pd.DataFrame) -> pd.DataFrame:
     """Align a batch to the reference using the DTW path.
 
@@ -401,11 +510,82 @@ def dtw_core(
     )
 
 
+#: Huber's tuning constant, the value giving 95% efficiency at the Gaussian.
+_HUBER_CUTOFF = 1.345
+
+#: Smallest batch weight :func:`_batch_weights` will return, so no batch is ever silenced.
+_MIN_BATCH_WEIGHT = 1e-3
+
+
+def _batch_weights(aligned_batches: dict, batch_weighting: str) -> np.ndarray:
+    """
+    Weight each batch by how well it aligned, for the variable-weight update.
+
+    Every batch contributes equally to the variable weights under ``"equal"``, so one
+    badly aligned batch inflates the summed deviation of whichever variables it misfits
+    and depresses their weights for every other batch. ``"huber"`` downweights such a
+    batch in proportion to how far its alignment distance sits from the rest.
+
+    The distance used is each batch's ``normalized_distance``, which divides by the
+    summed path length and so compares across batches of unequal duration. It is turned
+    into a robust z-score against the median and the MAD of the batch set, then passed
+    through Huber's function: weight 1 inside the cutoff, falling off as ``1 / |z|``
+    outside it.
+
+    Huber rather than a redescending function (Tukey's bisquare, say) because it never
+    reaches zero. A batch that is downweighted pulls the average trajectory away from
+    itself, which makes it look worse on the next iteration; a weight that can reach
+    zero turns that feedback into a one-way door, where a batch excluded once can never
+    return. The weights are recomputed from scratch every iteration and floored at
+    ``_MIN_BATCH_WEIGHT`` for the same reason.
+
+    Parameters
+    ----------
+    aligned_batches : dict
+        The :class:`DTWresult` of each batch from the current iteration.
+    batch_weighting : str
+        ``"equal"`` (every batch weight 1.0) or ``"huber"``.
+
+    Returns
+    -------
+    np.ndarray
+        One weight per batch, in the iteration order of ``aligned_batches``, scaled so
+        they average 1.0. That scaling keeps the accumulated deviations on the magnitude
+        they had under equal weighting, so the existing relative floor on them, and the
+        convergence tolerance, keep their meaning.
+    """
+    n_batches = len(aligned_batches)
+    if batch_weighting == "equal" or n_batches == 0:
+        return np.ones(n_batches)
+
+    distances = np.array([result.normalized_distance for result in aligned_batches.values()], dtype=float)
+    finite = np.isfinite(distances)
+    if not finite.any():
+        return np.ones(n_batches)
+
+    median = float(np.median(distances[finite]))
+    # 1.4826 scales the MAD to estimate the standard deviation of a Gaussian.
+    mad = 1.4826 * float(np.median(np.abs(distances[finite] - median)))
+    if mad <= epsqrt:
+        # The batches are indistinguishable on this measure (or over half of them share
+        # one distance exactly), so there is nothing to tell apart. MAD can be zero on
+        # data that does vary, which is why this returns equal weights rather than
+        # dividing by a floored MAD and manufacturing a spread.
+        return np.ones(n_batches)
+
+    z_scores = np.abs(distances - median) / mad
+    weights = np.where(z_scores <= _HUBER_CUTOFF, 1.0, _HUBER_CUTOFF / np.maximum(z_scores, epsqrt))
+    weights = np.where(finite, weights, _MIN_BATCH_WEIGHT)
+    weights = np.maximum(weights, _MIN_BATCH_WEIGHT)
+    return weights / float(np.mean(weights))
+
+
 def _accumulate_deviations(
     aligned_batches: dict,
     average_batch: pd.DataFrame,
     weighting: str,
     n_columns: int,
+    batch_weighting: str = "equal",
 ) -> np.ndarray:
     """
     Sum each variable's deviation from the average trajectory, across all batches.
@@ -429,6 +609,10 @@ def _accumulate_deviations(
         both the fixed point and the number of iterations to reach it.
     n_columns : int
         Number of columns being aligned.
+    batch_weighting : str, optional
+        How much each batch contributes, resolved by :func:`_batch_weights`. The default
+        ``"equal"`` gives every batch a weight of exactly 1.0, which is the behaviour
+        this function had before batch weighting existed.
 
     Returns
     -------
@@ -437,10 +621,11 @@ def _accumulate_deviations(
     """
     accumulated = np.zeros((1, n_columns))
     square = weighting == "quadratic"
-    for result in aligned_batches.values():
+    batch_weights = _batch_weights(aligned_batches, batch_weighting)
+    for weight, result in zip(batch_weights, aligned_batches.values(), strict=True):
         deviation = result.synced - average_batch
         term = np.power(deviation, 2) if square else np.abs(deviation)
-        accumulated = accumulated + np.nansum(term, axis=0)
+        accumulated = accumulated + weight * np.nansum(term, axis=0)
 
     return accumulated
 
@@ -503,6 +688,33 @@ def _validate_time_axis(settings: dict) -> None:
         )
 
 
+def _validate_dtw_settings(settings: dict) -> None:
+    """
+    Reject an unusable ``batch_dtw`` setting once, before any alignment work is done.
+
+    Each of these would otherwise surface far from its cause: an unrecognized string
+    silently taking the other branch, or a band constraint failing once per batch.
+    """
+    if settings["weighting"] not in {"quadratic", "absolute"}:
+        raise ValueError(
+            f"settings['weighting']={settings['weighting']!r} is not recognized; expected "
+            "'quadratic' (the default, and the published method) or 'absolute'."
+        )
+    if settings["batch_weighting"] not in {"equal", "huber"}:
+        raise ValueError(
+            f"settings['batch_weighting']={settings['batch_weighting']!r} is not recognized; "
+            "expected 'equal' (the default) or 'huber'."
+        )
+    _validate_time_axis(settings)
+    band = settings["band"]
+    if not (band is None or callable(band) or isinstance(band, np.ndarray)):
+        raise TypeError(
+            f"settings['band']={band!r} is not a band constraint; expected None, an "
+            "(n_test, 2) array of row bounds, or a callable of (n_test, n_ref). See "
+            "`alignment_helpers.sakoe_chiba` and `alignment_helpers.itakura`."
+        )
+
+
 def batch_dtw(  # noqa: C901, PLR0915
     batches: dict[str, pd.DataFrame],
     columns_to_align: list,
@@ -533,6 +745,7 @@ def batch_dtw(  # noqa: C901, PLR0915
                 "show_progress": True,     # show progress
                 "subsample": 1,            # use every sample
                 "weighting": "quadratic",  # "quadratic" or "absolute"; see below
+                "batch_weighting": "equal",  # "equal" or "huber"; see below
                 "band": None,              # warping-path constraint; see below
                 "interpolate_time_axis_maximum": 100,  # resample time axis to this scale
                 "interpolate_time_axis_delta": 1,      # resolution of the resampled axis
@@ -563,6 +776,20 @@ def batch_dtw(  # noqa: C901, PLR0915
             the path to it differ. Offered for comparison; it is not the published
             method, and the effect on your own data should be measured rather than
             assumed.
+
+        ``batch_weighting`` decides how much each batch contributes to the variable
+        weights. Under ``"equal"`` (the default) every batch counts the same, so one badly
+        aligned batch inflates the summed deviation of whichever variables it misfits and
+        depresses their weights for every other batch. ``"huber"`` weights each batch by
+        Huber's function applied to the robust z-score of its ``normalized_distance``,
+        against the median and MAD of the batch set: weight 1 inside a cutoff of 1.345,
+        falling off as ``1 / |z|`` beyond it, then rescaled to average 1.0.
+
+        Huber rather than a redescending function because it never reaches zero. A
+        downweighted batch pulls the average trajectory away from itself, so it looks
+        worse on the next iteration; a weight that could reach zero would make that a
+        one-way door. The weights are recomputed from scratch each iteration and floored,
+        so a batch that recovers is counted again.
 
         ``band`` constrains the warping path: the reference rows each test sample may
         map to. ``None`` (the default) places no constraint. Pass an ``(n_test, 2)``
@@ -610,6 +837,7 @@ def batch_dtw(  # noqa: C901, PLR0915
         show_progress=True,  # show progress
         subsample=1,  # use every sample
         weighting="quadratic",  # how to accumulate deviations: "quadratic" or "absolute"
+        batch_weighting="equal",  # how much each batch contributes: "equal" or "huber"
         band=None,  # warping-path constraint; None places none. See `sakoe_chiba`, `itakura`.
         interpolate_time_axis_maximum=100,  # interpolates everything to be on this scale
         interpolate_time_axis_delta=1,
@@ -622,19 +850,7 @@ def batch_dtw(  # noqa: C901, PLR0915
         raise ValueError(
             f"At least 3 iterations are required; got maximum_iterations={settings['maximum_iterations']}."
         )
-    if settings["weighting"] not in {"quadratic", "absolute"}:
-        raise ValueError(
-            f"settings['weighting']={settings['weighting']!r} is not recognized; expected "
-            "'quadratic' (the default, and the published method) or 'absolute'."
-        )
-    _validate_time_axis(settings)
-    band = settings["band"]
-    if not (band is None or callable(band) or isinstance(band, np.ndarray)):
-        raise TypeError(
-            f"settings['band']={band!r} is not a band constraint; expected None, an "
-            "(n_test, 2) array of row bounds, or a callable of (n_test, n_ref). See "
-            "`alignment_helpers.sakoe_chiba` and `alignment_helpers.itakura`."
-        )
+    _validate_dtw_settings(settings)
     if reference_batch not in batches:
         raise KeyError(f"`reference_batch` was not found in the dict of batches; got {reference_batch!r}.")
 
@@ -678,15 +894,12 @@ def batch_dtw(  # noqa: C901, PLR0915
         )
 
         next_weights = _accumulate_deviations(
-            aligned_batches, average_batch, settings["weighting"], refbatch_sc.shape[1]
+            aligned_batches,
+            average_batch,
+            settings["weighting"],
+            refbatch_sc.shape[1],
+            settings["batch_weighting"],
         )
-
-        # TODO(#199): every batch contributes equally here. Downweighting the badly
-        # aligned ones continuously, rather than trimming a fixed quantile, is the open
-        # question; the `distances` output now returned makes the distribution visible
-        # so the weight function can be chosen from data. Note the feedback risk: a
-        # downweighted batch pulls the average away from itself and is then downweighted
-        # further, so any such weight must be recomputed per iteration and floored.
 
         # Kassidas: each variable's weight is inversely proportional to its
         # summed squared deviation from the average trajectory, so a variable
