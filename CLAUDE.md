@@ -226,6 +226,16 @@ during a session, leave it uncommitted; if it is already staged, unstage it with
 `git restore --staged <lockfile>`. The user refreshes lock files manually
 outside of Claude Code sessions.
 
+## Communication style
+
+- Lead with the result. Your first sentence answers "what happened" or "what's
+  the answer."
+- Cut narration. Don't restate the request, the plan, or each step you took.
+  Report outcomes, decisions, and anything the user must act on.
+- Short by default. Answer simple questions in 1-3 sentences of plain prose.
+- Never trade correctness for brevity. Error reports and other technical
+  content keep their full content.
+
 ## Updating this file (CLAUDE.md)
 
 If during a session you notice a recurring pattern, convention, or piece of
