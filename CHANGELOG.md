@@ -11,6 +11,21 @@ those changes.
 
 ## [Unreleased]
 
+## [1.85.5] - 2026-09-12
+
+### Fixed
+
+- **`PLS.select_n_components` reported a `q2_se` band `n_repeats` times too narrow.**
+  The standard error is built from the per-fold PRESS and rescaled to the total PRESS
+  of a single pass over the data, but it was then divided by `tss_y.sum()`, whose
+  per-row coverage weighting counts every row once per repeat that tested it. The
+  denominator therefore carried `n_repeats` passes against the numerator's one. Both
+  sides are now on one pass. The Q2 values themselves never moved, being a ratio of two
+  equally weighted sums; only the band was wrong, and only for a repeated splitter,
+  where it quietly turned `selection_rule="1se"` into `"min"`. `PCA.select_n_components`
+  divides its PRESS and its null-model reference by the repeat count alike and was not
+  affected; `MBPLS.select_n_components` reports no `q2_se`.
+
 ## [1.85.4] - 2026-09-11
 
 ### Changed
@@ -4598,7 +4613,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.85.4...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.85.5...HEAD
+[1.85.5]: https://github.com/kgdunn/process-improve/compare/v1.85.4...v1.85.5
 [1.85.4]: https://github.com/kgdunn/process-improve/compare/v1.85.3...v1.85.4
 [1.85.3]: https://github.com/kgdunn/process-improve/compare/v1.85.2...v1.85.3
 [1.85.2]: https://github.com/kgdunn/process-improve/compare/v1.85.1...v1.85.2

@@ -1787,23 +1787,28 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         se_rmsecv = pd.Series(se_values, index=component_index, name="SE(RMSECV)")
 
         # Q2 standard error: the standard error of the per-fold total PRESS,
-        # rescaled by the same total Y sum-of-squares that normalises the
-        # validated Q2 (Q2_Y_total = 1 - PRESS / tss_y.sum()). This is the
-        # half-width of a +/-1 SE band around the ``r2y_validated["total"]``
-        # curve, computed the same way as PCA's ``q2_se``.
-        ss_y_total = float(tss_y.sum())
+        # rescaled by the Y sum-of-squares that normalises the validated Q2
+        # (Q2_Y_total = 1 - PRESS / tss_y.sum()). This is the half-width of a
+        # +/-1 SE band around the ``r2y_validated["total"]`` curve, computed
+        # the same way as PCA's ``q2_se``.
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
             se_press_total = np.nanstd(per_fold_press_total, axis=1, ddof=1) / np.sqrt(
                 np.maximum(1, np.sum(~np.isnan(per_fold_press_total), axis=1))
             )
-        # The Q2 curve normalises the TOTAL PRESS per repeat (the sum over the
-        # folds of one pass), which is ``first_repeat_fold_count`` times the
-        # mean per-fold PRESS whose standard error was just computed. Rescale
-        # so the +/-1 SE band is on the same scale as the Q2 values; the
-        # unscaled band was ~n_folds times too narrow.
-        se_press_total = se_press_total * max(1, first_repeat_fold_count)
-        q2_se_values = se_press_total / ss_y_total if ss_y_total > 0 else se_press_total * np.nan
+        # Both sides of the ratio have to be on the scale of one pass over the
+        # data. The numerator is put there by multiplying the mean per-fold
+        # PRESS by the folds in a pass. ``tss_y`` is not: its per-row coverage
+        # weighting counts every row once per repeat that tested it, so it
+        # carries ``repeats`` passes and has to be divided down to match.
+        # Without that the band came out a factor of ``n_repeats`` too narrow,
+        # which quietly turned selection_rule="1se" into "min" whenever a
+        # repeated splitter was used.
+        folds_per_pass = max(1, first_repeat_fold_count)
+        repeats = max(1, n_folds_total // folds_per_pass)
+        se_press_total = se_press_total * folds_per_pass
+        ss_y_pass = float(tss_y.sum()) / repeats
+        q2_se_values = se_press_total / ss_y_pass if ss_y_pass > 0 else se_press_total * np.nan
         q2_se = pd.Series(q2_se_values, index=component_index, name="SE(Q2)")
 
         # If every CV fold produced NaN (e.g. zero-variance Y per fold) the

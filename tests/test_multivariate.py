@@ -2929,6 +2929,36 @@ def test_pls_detect_outliers_ldpe(
         assert severities == sorted(severities, reverse=True)
 
 
+def test_pls_select_n_components_q2_se_scales_with_repeats() -> None:
+    """The Q2 band shrinks like the square root of the repeats, not like the repeats.
+
+    ``tss_y`` carries a per-row coverage weighting, so it counts every row once
+    per repeat that tested it, while the numerator of ``q2_se`` is put on the
+    scale of a single pass. Dividing one by the other without matching the two
+    made the band a factor of ``n_repeats`` too narrow, which turned
+    ``selection_rule="1se"`` into ``"min"`` for any repeated splitter.
+    """
+    rng = np.random.default_rng(0)
+    N, K, M = 60, 8, 3
+    T = rng.normal(size=(N, 2))
+    X = pd.DataFrame(T @ rng.normal(size=(2, K)) + 0.5 * rng.normal(size=(N, K)))
+    Y = pd.DataFrame(T @ rng.normal(size=(2, M)) + 0.3 * rng.normal(size=(N, M)))
+
+    one = PLS.select_n_components(X, Y, max_components=3, cv=5, n_repeats=1, random_state=0)
+    many = PLS.select_n_components(X, Y, max_components=3, cv=5, n_repeats=25, random_state=0)
+
+    # Q2 itself is a ratio of two coverage-weighted sums, so it is unmoved by
+    # the repeat count; only its band should tighten.
+    np.testing.assert_allclose(one.r2y_validated["total"].to_numpy(), many.r2y_validated["total"].to_numpy(), atol=0.02)
+    # Twenty-five repeats sample the fold PRESS 125 times rather than 5, so the
+    # standard error of the mean shrinks by about sqrt(25) = 5. A band that
+    # shrank by the repeat count itself would be 25x narrower, which is the
+    # regression this pins: the ratio has to stay well above 1/25.
+    ratio = float(np.median((many.q2_se / one.q2_se).to_numpy()))
+    assert 1.0 / 12.0 < ratio < 1.0
+    assert ((many.q2_se > 0) & np.isfinite(many.q2_se)).all()
+
+
 @pytest.mark.slow
 def test_pls_select_n_components_synthetic() -> None:
     """Cross-validated component selection recovers a known low-rank structure."""
