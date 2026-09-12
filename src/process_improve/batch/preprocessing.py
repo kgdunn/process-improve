@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import cast
 
 import numpy as np
@@ -86,6 +87,35 @@ def _resolve_columns_to_align(
     return batches[next(iter(batches))].columns
 
 
+#: Quantile pair behind each ``settings["robust_range"]`` choice in :func:`determine_scaling`.
+_ROBUST_RANGE_QUANTILES = {"q98-q02": (0.02, 0.98), "iqr": (0.25, 0.75)}
+
+
+def _warn_about_collapsed_ranges(collapsed: dict[str, int], n_batches: int) -> None:
+    """
+    Report tags whose range was zero and was replaced by 1.0, once for the whole call.
+
+    A zero range means the tag held a single value across the batch, so the substitution
+    leaves it unscaled. That is recoverable, but the caller should know: a constant tag
+    carries nothing for the alignment to work with, and an identifier column swept in by
+    the default ``columns_to_align`` shows up here too.
+    """
+    if not collapsed:
+        return
+
+    listed = ", ".join(
+        f"{tag!r} ({count} of {n_batches} batches)"
+        for tag, count in sorted(collapsed.items(), key=lambda item: (-item[1], item[0]))
+    )
+    warnings.warn(
+        f"determine_scaling found tags with a zero range and substituted 1.0, leaving them "
+        f"unscaled: {listed}. A tag that holds one value across a batch carries no information "
+        f"for alignment; exclude it with `columns_to_align`.",
+        category=UserWarning,
+        stacklevel=3,
+    )
+
+
 def determine_scaling(
     batches: dict[str, pd.DataFrame],
     columns_to_align: list | pd.Index | None = None,
@@ -102,9 +132,28 @@ def determine_scaling(
         The column names (tags) to be scaled. If ``None``, the columns of the
         first batch are used.
     settings : dict, optional
-        Optional overrides. Currently supports the key ``"robust"`` (bool,
-        default ``True``) which switches between a robust range (q98 - q02)
-        and the raw (max - min) range.
+        Optional overrides:
+
+        ``"robust"`` (bool, default ``True``)
+            Switches between a robust per-batch range and the raw ``max - min``.
+        ``"robust_range"`` (str, default ``"q98-q02"``)
+            Which robust range to use when ``robust`` is True, either
+            ``"q98-q02"`` or ``"iqr"`` (q75 - q25, the interquartile range that
+            :func:`~process_improve.batch.features.f_iqr` computes). Ignored when
+            ``robust`` is False.
+
+            The two are not interchangeable, which is the answer to the question the
+            old TODO here posed. The IQR spans the middle half of a batch; q98 - q02
+            spans nearly all of it. On a Gaussian tag the second is about 3.05 times
+            the first, but a batch trajectory is not Gaussian, so the ratio varies by
+            tag: measured per tag on the bundled data it runs from 1.02 to 4.23
+            (dryer) and 1.21 to 2.95 (nylon). Switching therefore re-weights the tags
+            against each other rather than rescaling them together. The IQR also
+            collapses to zero more often, because a tag that holds one value for more
+            than half of a batch has no interquartile spread at all:
+            ``DifferentialPressure`` collapses in 21 of the 71 dryer batches under the
+            IQR against 16 under q98 - q02. Prefer the IQR when the tags carry
+            excursions you want the scaling to ignore; the default otherwise.
 
     Returns
     -------
@@ -119,26 +168,37 @@ def determine_scaling(
     # TODO(#199): reshape this trio of functions into a scikit-learn style estimator
     # with .fit() / .transform(), the way MCUVScaler already works.
     # This will be clumsy, until we have Python 3.9
-    default_settings = {"robust": True}
+    default_settings: dict = {"robust": True, "robust_range": "q98-q02"}
     if settings:
         default_settings.update(settings)
 
     settings = default_settings
+    if settings["robust_range"] not in _ROBUST_RANGE_QUANTILES:
+        raise ValueError(
+            f"settings['robust_range']={settings['robust_range']!r} is not recognized; expected "
+            f"one of {sorted(_ROBUST_RANGE_QUANTILES)}."
+        )
     columns_to_align = _resolve_columns_to_align(batches, columns_to_align, "determine_scaling")
 
     collector_rnge = []
     collector_mins = []
+    collapsed: dict[str, int] = {}
     for batch in batches.values():
         if settings["robust"]:
-            # TODO(#198): consider the f_iqr feature here instead of q98 - q02. Would that work?
-            rnge = batch[columns_to_align].quantile(0.98) - batch[columns_to_align].quantile(0.02)
+            lower, upper = _ROBUST_RANGE_QUANTILES[settings["robust_range"]]
+            rnge = batch[columns_to_align].quantile(upper) - batch[columns_to_align].quantile(lower)
         else:
             rnge = batch[columns_to_align].max() - batch[columns_to_align].min()
 
         rnge = cast("pd.Series", rnge)
-        rnge[rnge.to_numpy() == 0] = 1.0
+        is_zero = rnge.to_numpy() == 0
+        for tag in rnge.index[is_zero]:
+            collapsed[str(tag)] = collapsed.get(str(tag), 0) + 1
+        rnge[is_zero] = 1.0
         collector_rnge.append(rnge)
         collector_mins.append(batch.min(axis=0))
+
+    _warn_about_collapsed_ranges(collapsed, len(batches))
 
     if settings["robust"]:
         scalings = pd.concat(

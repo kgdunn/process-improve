@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -798,3 +800,88 @@ class TestBatchDtwBandSetting:
         """The per-batch handler used to discard the cause, which is the actionable part."""
         with pytest.raises(ValueError, match=r"Failed on batch .*starting cell"):
             self._run(dryer_data, band=lambda n_test, n_ref: np.full((n_test, 2), [1, n_ref], dtype=np.int64))
+
+
+class TestDetermineScalingRobustRange:
+    """`settings["robust_range"]` chooses the robust per-batch range (#198).
+
+    The old TODO asked whether `f_iqr` would work here instead of q98 - q02. It does,
+    but it is not interchangeable, so it is offered rather than substituted.
+    """
+
+    def test_the_default_is_q98_minus_q02(self, dryer_data: dict) -> None:
+        implicit = determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS)
+        explicit = determine_scaling(
+            dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS, settings={"robust_range": "q98-q02"}
+        )
+
+        assert np.array_equal(implicit.to_numpy(), explicit.to_numpy(), equal_nan=True)
+
+    def test_the_iqr_is_narrower_on_every_tag(self, dryer_data: dict) -> None:
+        """It spans the middle half of a batch, against nearly all of it."""
+        wide = determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS)["Range"]
+        iqr = determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS, settings={"robust_range": "iqr"})[
+            "Range"
+        ]
+
+        narrower = iqr.loc[_DRYER_ALIGN_COLUMNS] < wide.loc[_DRYER_ALIGN_COLUMNS]
+        assert narrower.all(), f"expected the IQR to be narrower everywhere, got {iqr / wide}"
+
+    def test_the_two_are_not_a_uniform_rescale(self, dryer_data: dict) -> None:
+        """The default is not simply switched because the tags move by different factors."""
+        wide = determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS)["Range"]
+        iqr = determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS, settings={"robust_range": "iqr"})[
+            "Range"
+        ]
+
+        ratio = (wide / iqr).loc[_DRYER_ALIGN_COLUMNS]
+        assert ratio.max() / ratio.min() > 1.5, f"expected tag-dependent ratios, got {ratio.to_dict()}"
+
+    def test_robust_false_ignores_the_setting(self, dryer_data: dict) -> None:
+        raw = determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS, settings={"robust": False})
+        also_raw = determine_scaling(
+            dryer_data,
+            columns_to_align=_DRYER_ALIGN_COLUMNS,
+            settings={"robust": False, "robust_range": "iqr"},
+        )
+
+        assert np.array_equal(raw.to_numpy(), also_raw.to_numpy(), equal_nan=True)
+
+    def test_an_unrecognized_range_is_rejected(self, dryer_data: dict) -> None:
+        with pytest.raises(ValueError, match=r"robust_range'\]='mad' is not recognized"):
+            determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS, settings={"robust_range": "mad"})
+
+
+class TestDetermineScalingZeroRangeWarning:
+    """A zero range is replaced by 1.0; that substitution is no longer silent (#198).
+
+    `docs/development/error_handling.rst` names a dropped constant column as a
+    `warnings.warn` case, and the IQR option makes it more likely: a tag holding one
+    value for over half a batch has no interquartile spread at all.
+    """
+
+    def test_a_constant_tag_is_reported_once_for_the_whole_call(self, dryer_data: dict) -> None:
+        with pytest.warns(UserWarning, match="zero range and substituted 1.0") as caught:
+            determine_scaling(dryer_data)  # every column, including the constant batch_id
+
+        assert len(caught) == 1, "one aggregated warning, not one per batch"
+        message = str(caught[0].message)
+        assert "'batch_id' (71 of 71 batches)" in message
+        assert "'DifferentialPressure' (16 of 71 batches)" in message
+
+    def test_tags_that_vary_produce_no_warning(self, dryer_data: dict) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS)
+
+    def test_the_iqr_collapses_more_often_than_q98_q02(self, dryer_data: dict) -> None:
+        """Measured on this fixture: the same tag, in more batches."""
+        columns = [*_DRYER_ALIGN_COLUMNS, "DifferentialPressure"]
+
+        def collapse_count(robust_range: str) -> int:
+            with pytest.warns(UserWarning, match="DifferentialPressure") as caught:
+                determine_scaling(dryer_data, columns_to_align=columns, settings={"robust_range": robust_range})
+            return int(str(caught[0].message).split("(")[1].split(" of ")[0])
+
+        assert collapse_count("q98-q02") == 16
+        assert collapse_count("iqr") == 21
