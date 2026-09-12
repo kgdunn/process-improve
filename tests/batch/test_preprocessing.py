@@ -1,6 +1,10 @@
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.base import clone
+from sklearn.exceptions import NotFittedError
 
 from process_improve.batch.alignment_helpers import (
     backtrack_optimal_path,
@@ -14,6 +18,9 @@ from process_improve.batch.alignment_helpers import (
     validate_band,
 )
 from process_improve.batch.preprocessing import (
+    BatchScaler,
+    _batch_weights,
+    align_with_path,
     apply_scaling,
     batch_dtw,
     determine_scaling,
@@ -224,10 +231,22 @@ def test_alignment(dryer_data: dict) -> None:
         settings={"robust": False, "tolerance": 0.06, "show_progress": True},
     )
     assert outputs["weight_history"].shape == (3, 5)
-    # TODO(#197): restore this assertion once DTW termination is settled.
-    # assert [0.43702525, 1.33206459, 0.98298667, 0.93599197, 1.31193153] == pytest.approx(
-    #     outputs["weight_history"][4, :], abs=1e-7
-    # )
+    # Restored (#197). The assertion was commented out while DTW termination was in flux;
+    # it indexed `weight_history[4, :]`, a row that does not exist in a 3-row history, and
+    # positional indexing no longer works on what is now a DataFrame. These are the values
+    # this tolerance actually converges to, captured from a run rather than transcribed.
+    assert outputs["weight_history"].iloc[-1].to_numpy() == pytest.approx(
+        [
+            0.4436887267921799,
+            1.3462170688939308,
+            0.971991318132117,
+            0.9288826144452699,
+            1.3092202717365031,
+        ],
+        rel=1e-6,
+    )
+    # The first iteration always starts from unit weights, whatever the tolerance.
+    assert outputs["weight_history"].iloc[0].to_numpy() == pytest.approx([1, 1, 1, 1, 1])
 
 
 def test_reference_batch_selection_dryer(dryer_data: dict) -> None:
@@ -798,3 +817,402 @@ class TestBatchDtwBandSetting:
         """The per-batch handler used to discard the cause, which is the actionable part."""
         with pytest.raises(ValueError, match=r"Failed on batch .*starting cell"):
             self._run(dryer_data, band=lambda n_test, n_ref: np.full((n_test, 2), [1, n_ref], dtype=np.int64))
+
+
+class TestDetermineScalingRobustRange:
+    """`settings["robust_range"]` chooses the robust per-batch range (#198).
+
+    The old TODO asked whether `f_iqr` would work here instead of q98 - q02. It does,
+    but it is not interchangeable, so it is offered rather than substituted.
+    """
+
+    def test_the_default_is_q98_minus_q02(self, dryer_data: dict) -> None:
+        implicit = determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS)
+        explicit = determine_scaling(
+            dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS, settings={"robust_range": "q98-q02"}
+        )
+
+        assert np.array_equal(implicit.to_numpy(), explicit.to_numpy(), equal_nan=True)
+
+    def test_the_iqr_is_narrower_on_every_tag(self, dryer_data: dict) -> None:
+        """It spans the middle half of a batch, against nearly all of it."""
+        wide = determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS)["Range"]
+        iqr = determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS, settings={"robust_range": "iqr"})[
+            "Range"
+        ]
+
+        narrower = iqr.loc[_DRYER_ALIGN_COLUMNS] < wide.loc[_DRYER_ALIGN_COLUMNS]
+        assert narrower.all(), f"expected the IQR to be narrower everywhere, got {iqr / wide}"
+
+    def test_the_two_are_not_a_uniform_rescale(self, dryer_data: dict) -> None:
+        """The default is not simply switched because the tags move by different factors."""
+        wide = determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS)["Range"]
+        iqr = determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS, settings={"robust_range": "iqr"})[
+            "Range"
+        ]
+
+        ratio = (wide / iqr).loc[_DRYER_ALIGN_COLUMNS]
+        assert ratio.max() / ratio.min() > 1.5, f"expected tag-dependent ratios, got {ratio.to_dict()}"
+
+    def test_robust_false_ignores_the_setting(self, dryer_data: dict) -> None:
+        raw = determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS, settings={"robust": False})
+        also_raw = determine_scaling(
+            dryer_data,
+            columns_to_align=_DRYER_ALIGN_COLUMNS,
+            settings={"robust": False, "robust_range": "iqr"},
+        )
+
+        assert np.array_equal(raw.to_numpy(), also_raw.to_numpy(), equal_nan=True)
+
+    def test_an_unrecognized_range_is_rejected(self, dryer_data: dict) -> None:
+        with pytest.raises(ValueError, match=r"robust_range'\]='mad' is not recognized"):
+            determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS, settings={"robust_range": "mad"})
+
+
+class TestDetermineScalingZeroRangeWarning:
+    """A zero range is replaced by 1.0; that substitution is no longer silent (#198).
+
+    `docs/development/error_handling.rst` names a dropped constant column as a
+    `warnings.warn` case, and the IQR option makes it more likely: a tag holding one
+    value for over half a batch has no interquartile spread at all.
+    """
+
+    def test_a_constant_tag_is_reported_once_for_the_whole_call(self, dryer_data: dict) -> None:
+        with pytest.warns(UserWarning, match="zero range and substituted 1.0") as caught:
+            determine_scaling(dryer_data)  # every column, including the constant batch_id
+
+        assert len(caught) == 1, "one aggregated warning, not one per batch"
+        message = str(caught[0].message)
+        assert "'batch_id' (71 of 71 batches)" in message
+        assert "'DifferentialPressure' (16 of 71 batches)" in message
+
+    def test_tags_that_vary_produce_no_warning(self, dryer_data: dict) -> None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS)
+
+    def test_the_iqr_collapses_more_often_than_q98_q02(self, dryer_data: dict) -> None:
+        """Measured on this fixture: the same tag, in more batches."""
+        columns = [*_DRYER_ALIGN_COLUMNS, "DifferentialPressure"]
+
+        def collapse_count(robust_range: str) -> int:
+            with pytest.warns(UserWarning, match="DifferentialPressure") as caught:
+                determine_scaling(dryer_data, columns_to_align=columns, settings={"robust_range": robust_range})
+            return int(str(caught[0].message).split("(")[1].split(" of ")[0])
+
+        assert collapse_count("q98-q02") == 16
+        assert collapse_count("iqr") == 21
+
+
+class TestBatchDtwTermination:
+    """A tighter tolerance runs more iterations, and the weights settle (#197)."""
+
+    def _history(self, dryer_data: dict, tolerance: float) -> pd.DataFrame:
+        return batch_dtw(
+            dryer_data,
+            columns_to_align=_DRYER_ALIGN_COLUMNS,
+            reference_batch=2,
+            settings={"robust": False, "tolerance": tolerance, "show_progress": False},
+        )["weight_history"]
+
+    @pytest.mark.slow
+    def test_a_tighter_tolerance_runs_more_iterations(self, dryer_data: dict) -> None:
+        counts = [self._history(dryer_data, tolerance).shape[0] for tolerance in (1.0, 0.06, 0.01)]
+
+        assert counts == [1, 3, 11]
+
+    @pytest.mark.slow
+    def test_every_run_starts_from_unit_weights(self, dryer_data: dict) -> None:
+        for tolerance in (1.0, 0.06, 0.01):
+            history = self._history(dryer_data, tolerance)
+            assert history.iloc[0].to_numpy() == pytest.approx([1, 1, 1, 1, 1])
+
+    @pytest.mark.slow
+    def test_the_iterations_are_a_prefix_of_the_tighter_run(self, dryer_data: dict) -> None:
+        """The same fixed-point iteration, stopped earlier: tolerance only decides when."""
+        loose = self._history(dryer_data, 0.06).to_numpy()
+        tight = self._history(dryer_data, 0.01).to_numpy()
+
+        assert loose == pytest.approx(tight[: loose.shape[0], :], rel=1e-9)
+
+
+class TestNonNumericBatchIdentifiers:
+    """Batch identifiers need not be numbers, and the identifier column is not a tag (#197)."""
+
+    @staticmethod
+    def _with_string_ids(dryer_data: dict) -> dict:
+        """Relabel the bundled batches with string identifiers, changing nothing else."""
+        relabelled = {}
+        for batch_id, batch in dryer_data.items():
+            frame = batch.copy()
+            frame["batch_id"] = f"B{batch_id}"
+            relabelled[f"B{batch_id}"] = frame
+        return relabelled
+
+    def _run(self, batches: dict, reference: object) -> dict:
+        return batch_dtw(
+            batches,
+            columns_to_align=_DRYER_ALIGN_COLUMNS,
+            reference_batch=reference,
+            settings={"show_progress": False, "maximum_iterations": 4, "tolerance": 0.1, "robust": False},
+        )
+
+    @pytest.mark.slow
+    def test_string_identifiers_align_to_the_same_numbers_as_integer_ones(self, dryer_data: dict) -> None:
+        """Two failures used to sit on this path: a TypeError in each of two functions."""
+        integers = self._run(dryer_data, 2)
+        strings = self._run(self._with_string_ids(dryer_data), "B2")
+
+        assert integers["weight_history"].iloc[-1].to_numpy() == pytest.approx(
+            strings["weight_history"].iloc[-1].to_numpy(), rel=1e-12
+        )
+        # Compared as sets: string keys order differently from integer ones, and the
+        # ordering of the output dict is not what this test is about.
+        assert set(strings["aligned_batch_dfdict"]) == {f"B{key}" for key in integers["aligned_batch_dfdict"]}
+        for key, aligned in integers["aligned_batch_dfdict"].items():
+            assert strings["aligned_batch_dfdict"][f"B{key}"][_DRYER_ALIGN_COLUMNS].to_numpy() == pytest.approx(
+                aligned[_DRYER_ALIGN_COLUMNS].to_numpy(), rel=1e-12
+            )
+
+    def test_determine_scaling_takes_the_minimum_only_over_the_aligned_columns(self, dryer_data: dict) -> None:
+        """Over every column it raised on a string identifier, and reported rows never scaled."""
+        scale_df = determine_scaling(
+            self._with_string_ids(dryer_data), columns_to_align=_DRYER_ALIGN_COLUMNS, settings={"robust": False}
+        )
+
+        assert list(scale_df.index) == _DRYER_ALIGN_COLUMNS
+        assert not scale_df.isna().to_numpy().any(), "no row should carry a Minimum without a Range"
+
+    def test_align_with_path_carries_a_label_column_through_unaveraged(self) -> None:
+        """Averaging an identifier is meaningless even when it happens to be a number."""
+        batch = pd.DataFrame({"batch_id": ["B7"] * 4, "temp": [10.0, 20.0, 30.0, 40.0]})
+        # Rows 1 and 2 of the batch both map to reference index 1, so they are averaged.
+        md_path = np.array([[0, 0], [1, 1], [1, 2], [2, 3]])
+
+        synced = align_with_path(md_path, batch)
+
+        assert list(synced.columns) == ["batch_id", "temp"]
+        assert list(synced["batch_id"]) == ["B7", "B7", "B7"]
+        assert synced["temp"].tolist() == [10.0, 25.0, 40.0]
+
+
+class TestInterpolationAxisResolution:
+    """The resampled percentage axis takes any resolution (#197)."""
+
+    def _rows(self, dryer_data: dict, maximum: float, delta: float) -> int:
+        subset = {key: dryer_data[key] for key in list(dryer_data)[:4]}
+        outputs = batch_dtw(
+            subset,
+            columns_to_align=_DRYER_ALIGN_COLUMNS,
+            reference_batch=next(iter(subset)),
+            settings={
+                "show_progress": False,
+                "maximum_iterations": 3,
+                "interpolate_time_axis_maximum": maximum,
+                "interpolate_time_axis_delta": delta,
+            },
+        )
+        return len(next(iter(outputs["aligned_batch_dfdict"].values())))
+
+    @pytest.mark.slow
+    @pytest.mark.parametrize(
+        ("maximum", "delta", "expected"), [(100, 1, 100), (100, 0.5, 200), (100, 2, 50), (50, 1, 50)]
+    )
+    def test_a_delta_that_divides_the_maximum(
+        self, dryer_data: dict, maximum: float, delta: float, expected: int
+    ) -> None:
+        assert self._rows(dryer_data, maximum, delta) == expected
+
+    @pytest.mark.slow
+    @pytest.mark.parametrize(("maximum", "delta", "expected"), [(100, 0.3, 334), (100, 7, 15)])
+    def test_a_delta_that_does_not_divide_the_maximum(
+        self, dryer_data: dict, maximum: float, delta: float, expected: int
+    ) -> None:
+        """These raised a bare AssertionError, and under `python -O` extrapolated silently."""
+        assert self._rows(dryer_data, maximum, delta) == expected
+
+    @pytest.mark.parametrize(
+        ("maximum", "delta", "message"),
+        [
+            (100, 0, "must both be positive"),
+            (0, 1, "must both be positive"),
+            (100, -1, "must both be positive"),
+            (10, 10, "must be smaller than"),
+            (10, 20, "must be smaller than"),
+        ],
+    )
+    def test_an_axis_that_cannot_be_built_is_rejected_up_front(
+        self, dryer_data: dict, maximum: float, delta: float, message: str
+    ) -> None:
+        with pytest.raises(ValueError, match=message):
+            self._rows(dryer_data, maximum, delta)
+
+
+class TestBatchWeighting:
+    """`settings["batch_weighting"]` downweights badly aligned batches (#199)."""
+
+    def _run(self, dryer_data: dict, batch_weighting: str) -> dict:
+        return batch_dtw(
+            dryer_data,
+            columns_to_align=_DRYER_ALIGN_COLUMNS,
+            reference_batch=2,
+            settings={
+                "robust": False,
+                "tolerance": 0.1,
+                "show_progress": False,
+                "batch_weighting": batch_weighting,
+            },
+        )
+
+    def test_equal_weighting_gives_every_batch_exactly_one(self, dryer_data: dict) -> None:
+        """Exactly 1.0, so multiplying by it is a no-op and the default cannot drift."""
+        aligned = self._run(dryer_data, "equal")["aligned_batch_objects"]
+
+        weights = _batch_weights(aligned, "equal")
+        assert weights.tolist() == [1.0] * len(aligned)
+
+    def test_the_default_is_equal_weighting(self, dryer_data: dict) -> None:
+        implicit = batch_dtw(
+            dryer_data,
+            columns_to_align=_DRYER_ALIGN_COLUMNS,
+            reference_batch=2,
+            settings={"robust": False, "tolerance": 0.1, "show_progress": False},
+        )["weight_history"]
+
+        assert implicit.iloc[-1].to_numpy() == pytest.approx(
+            self._run(dryer_data, "equal")["weight_history"].iloc[-1].to_numpy(), rel=1e-12
+        )
+
+    def test_huber_downweights_the_batches_the_distances_output_flags(self, dryer_data: dict) -> None:
+        """The diagnostic from #570 and the weighting must agree on which batches are worst."""
+        outputs = self._run(dryer_data, "huber")
+        aligned = outputs["aligned_batch_objects"]
+
+        weights = pd.Series(_batch_weights(aligned, "huber"), index=list(aligned))
+        worst_by_distance = set(outputs["distances"]["Normalized distance"].nlargest(3).index)
+
+        assert set(weights.nsmallest(3).index) == worst_by_distance
+
+    def test_huber_leaves_the_bulk_of_batches_at_full_weight(self, dryer_data: dict) -> None:
+        """A robust weight should touch the tail, not reshape the whole set."""
+        aligned = self._run(dryer_data, "huber")["aligned_batch_objects"]
+
+        weights = _batch_weights(aligned, "huber")
+        at_full_weight = int((weights >= weights.max() - 1e-12).sum())
+        assert at_full_weight > len(weights) / 2
+        assert at_full_weight < len(weights), "something must be downweighted on this fixture"
+
+    def test_no_batch_is_ever_silenced(self, dryer_data: dict) -> None:
+        """Huber never reaches zero, so a downweighted batch can recover next iteration."""
+        aligned = self._run(dryer_data, "huber")["aligned_batch_objects"]
+
+        assert _batch_weights(aligned, "huber").min() > 0.0
+
+    def test_the_weights_average_to_one(self, dryer_data: dict) -> None:
+        """Which keeps the accumulated deviations on the magnitude equal weighting gives."""
+        aligned = self._run(dryer_data, "huber")["aligned_batch_objects"]
+
+        assert float(np.mean(_batch_weights(aligned, "huber"))) == pytest.approx(1.0)
+
+    def test_huber_changes_the_variable_weights(self, dryer_data: dict) -> None:
+        equal = self._run(dryer_data, "equal")["weight_history"].iloc[-1].to_numpy()
+        huber = self._run(dryer_data, "huber")["weight_history"].iloc[-1].to_numpy()
+
+        assert huber != pytest.approx(equal, rel=1e-6)
+
+    @staticmethod
+    def _results(distances: list[float]) -> dict:
+        """Build the minimal stand-ins: one attribute is all `_batch_weights` reads."""
+
+        class _Result:
+            def __init__(self, distance: float) -> None:
+                self.normalized_distance = distance
+
+        return {index: _Result(distance) for index, distance in enumerate(distances)}
+
+    def test_indistinguishable_batches_fall_back_to_equal_weights(self) -> None:
+        """A zero MAD means there is nothing to tell apart, not a reason to divide by zero."""
+        assert _batch_weights(self._results([0.5] * 5), "huber").tolist() == [1.0] * 5
+
+    def test_all_non_finite_distances_fall_back_to_equal_weights(self) -> None:
+        """With no usable distance there is no basis to rank batches, so none is penalised."""
+        assert _batch_weights(self._results([float("nan")] * 4), "huber").tolist() == [1.0] * 4
+
+    def test_a_single_non_finite_distance_is_floored_not_dropped(self) -> None:
+        """That batch still counts, at the floor, rather than vanishing from the sum."""
+        weights = _batch_weights(self._results([0.01, 0.011, 0.012, 0.013, float("nan")]), "huber")
+
+        assert len(weights) == 5
+        assert weights[-1] > 0.0
+        assert weights[-1] == weights.min()
+
+    def test_no_batches_gives_no_weights(self) -> None:
+        """`zip(..., strict=True)` in the caller needs the lengths to agree even at zero."""
+        for batch_weighting in ("equal", "huber"):
+            assert _batch_weights({}, batch_weighting).tolist() == []
+
+    def test_an_unrecognized_batch_weighting_is_rejected(self, dryer_data: dict) -> None:
+        with pytest.raises(ValueError, match=r"batch_weighting'\]='tukey' is not recognized"):
+            self._run(dryer_data, "tukey")
+
+
+class TestBatchScaler:
+    """The fit / transform wrapper over the scaling functions (#199)."""
+
+    def test_it_matches_the_functions_it_wraps(self, dryer_data: dict) -> None:
+        scaler = BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS)
+        scaled = scaler.fit_transform(dryer_data)
+
+        scale_df = determine_scaling(dryer_data, columns_to_align=_DRYER_ALIGN_COLUMNS)
+        expected = apply_scaling(dryer_data, scale_df, columns_to_align=_DRYER_ALIGN_COLUMNS)
+
+        assert np.array_equal(scaler.scale_df_.to_numpy(), scale_df.to_numpy(), equal_nan=True)
+        for batch_id, frame in expected.items():
+            assert np.array_equal(scaled[batch_id].to_numpy(), frame.to_numpy())
+
+    def test_it_round_trips(self, dryer_data: dict) -> None:
+        scaler = BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS)
+        restored = scaler.inverse_transform(scaler.fit_transform(dryer_data))
+
+        for batch_id, frame in dryer_data.items():
+            assert restored[batch_id].to_numpy() == pytest.approx(frame[_DRYER_ALIGN_COLUMNS].to_numpy(), abs=1e-10)
+
+    def test_it_accepts_a_melted_frame_when_the_batch_column_is_named(self, dryer_data: dict) -> None:
+        """The DataFrame input case the functions reject outright."""
+        melted = pd.concat(dryer_data.values(), ignore_index=True)
+
+        from_frame = BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS, batch_col="batch_id").fit_transform(melted)
+        from_dict = BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS).fit_transform(dryer_data)
+
+        assert set(from_frame) == set(from_dict)
+        for batch_id, frame in from_dict.items():
+            assert np.array_equal(from_frame[batch_id].to_numpy(), frame.to_numpy())
+
+    def test_a_frame_without_a_batch_column_says_what_to_do(self, dryer_data: dict) -> None:
+        melted = pd.concat(dryer_data.values(), ignore_index=True)
+
+        with pytest.raises(TypeError, match="no `batch_col`"):
+            BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS).fit(melted)
+
+    def test_transform_before_fit_raises(self, dryer_data: dict) -> None:
+        with pytest.raises(NotFittedError):
+            BatchScaler().transform(dryer_data)
+
+    def test_it_follows_the_sklearn_estimator_contract(self, dryer_data: dict) -> None:
+        scaler = BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS).fit(dryer_data)
+
+        assert sorted(BatchScaler().get_params()) == ["batch_col", "columns_to_align", "robust", "robust_range"]
+        assert scaler.n_features_in_ == len(_DRYER_ALIGN_COLUMNS)
+        assert scaler.columns_to_align_ == _DRYER_ALIGN_COLUMNS
+        # `clone` must give back an unfitted estimator with the same parameters.
+        cloned = clone(scaler)
+        assert not hasattr(cloned, "scale_df_")
+        assert cloned.get_params() == scaler.get_params()
+
+    def test_the_settings_reach_determine_scaling(self, dryer_data: dict) -> None:
+        wide = BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS).fit(dryer_data)
+        iqr = BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS, robust_range="iqr").fit(dryer_data)
+        raw = BatchScaler(columns_to_align=_DRYER_ALIGN_COLUMNS, robust=False).fit(dryer_data)
+
+        assert (iqr.scale_df_["Range"] < wide.scale_df_["Range"]).all()
+        assert not np.array_equal(raw.scale_df_["Range"].to_numpy(), wide.scale_df_["Range"].to_numpy())

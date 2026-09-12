@@ -291,27 +291,112 @@ def test_f_elbow_no_elbow_records_nan() -> None:
     assert np.isnan(value)
 
 
-class TestFRuptureNotImplemented:
-    """`f_rupture` has no working body and must say so. Regression test for #559.
-
-    It previously raised only for the wrong number of columns and returned ``None``
-    for a valid single-column call, which a caller cannot tell apart from a
-    successful empty result.
-    """
+class TestFRupture:
+    """Change-point detection via `ruptures` (#198)."""
 
     @staticmethod
-    def _frame() -> pd.DataFrame:
-        return pd.DataFrame({"batch_id": [1, 1, 1, 2, 2, 2], "temp": [10.0, 11, 12, 20, 21, 22]})
+    def _stepped(steps: dict[str, int], n_samples: int = 100) -> pd.DataFrame:
+        """One batch per entry, each with a single step at the given position."""
+        rng = np.random.default_rng(0)
+        frames = [
+            pd.DataFrame(
+                {
+                    "batch_id": batch_id,
+                    "Temperature": np.concatenate([rng.normal(0, 0.1, step), rng.normal(5, 0.1, n_samples - step)]),
+                    "Flat": 7.0,
+                }
+            )
+            for batch_id, step in steps.items()
+        ]
+        return pd.concat(frames, ignore_index=True)
 
-    def test_valid_single_column_call_raises_rather_than_returning_none(self) -> None:
-        with pytest.raises(NotImplementedError, match=r"f_rupture is not implemented"):
-            features.f_rupture(self._frame(), columns=["temp"], batch_col="batch_id")
+    def test_it_finds_a_known_step_exactly(self) -> None:
+        steps = {"A": 40, "B": 70, "C": 25}
+        found = features.f_rupture(
+            self._stepped(steps), tags=["Temperature"], batch_col="batch_id", settings={"jump": 1}
+        ).droplevel(-1)
 
-    def test_message_points_at_the_tracking_issue(self) -> None:
-        with pytest.raises(NotImplementedError, match=r"issues/198"):
-            features.f_rupture(self._frame(), columns=["temp"], batch_col="batch_id")
+        assert list(found.columns) == ["Temperature_rupture"]
+        for batch_id, step in steps.items():
+            assert found.loc[batch_id, "Temperature_rupture"] == (step,)
 
-    @pytest.mark.parametrize("columns", [None, [], ["temp", "batch_id"]])
-    def test_other_arities_also_raise(self, columns: list[str] | None) -> None:
-        with pytest.raises(NotImplementedError):
-            features.f_rupture(self._frame(), columns=columns, batch_col="batch_id")
+    def test_a_constant_tag_has_no_change_points(self) -> None:
+        found = features.f_rupture(self._stepped({"A": 40}), tags=["Flat"], batch_col="batch_id")
+
+        assert found.iloc[0, 0] == ()
+
+    def test_the_trailing_sentinel_is_removed(self) -> None:
+        """`ruptures` ends its result with the signal length, which is not a change point."""
+        found = features.f_rupture(
+            self._stepped({"A": 40}), tags=["Temperature"], batch_col="batch_id", settings={"jump": 1}
+        )
+
+        assert 100 not in found.iloc[0, 0]
+
+    def test_counts_give_a_numeric_feature(self) -> None:
+        """The documented way to get a column that fits in a model matrix."""
+        found = features.f_rupture(
+            self._stepped({"A": 40, "B": 70}), tags=["Temperature", "Flat"], batch_col="batch_id"
+        ).droplevel(-1)
+
+        counts = found.map(len)
+        assert counts.loc["A", "Temperature_rupture"] == 1
+        assert counts.loc["A", "Flat_rupture"] == 0
+
+    def test_a_larger_penalty_returns_no_more_change_points(self) -> None:
+        data = self._stepped({"A": 40})
+        found = [
+            len(
+                features.f_rupture(
+                    data, tags=["Temperature"], batch_col="batch_id", settings={"penalty": penalty, "jump": 1}
+                ).iloc[0, 0]
+            )
+            for penalty in (1.0, 10.0, 1000.0)
+        ]
+
+        assert found == sorted(found, reverse=True), f"expected monotone, got {found}"
+
+    def test_the_default_penalty_adapts_to_the_signal_length(self) -> None:
+        """`None` means log(n); a fixed 100.0 finds nothing under the bounded rbf cost."""
+        data = self._stepped({"A": 40}, n_samples=100)
+
+        adaptive = features.f_rupture(data, tags=["Temperature"], batch_col="batch_id", settings={"jump": 1})
+        fixed = features.f_rupture(
+            data, tags=["Temperature"], batch_col="batch_id", settings={"penalty": 100.0, "jump": 1}
+        )
+
+        assert adaptive.iloc[0, 0] == (40,)
+        assert fixed.iloc[0, 0] == ()
+
+    def test_a_signal_too_short_to_split_returns_empty(self) -> None:
+        tiny = pd.DataFrame({"batch_id": ["A", "A", "A"], "T": [1.0, 2.0, 3.0]})
+
+        assert features.f_rupture(tiny, tags=["T"], batch_col="batch_id").iloc[0, 0] == ()
+
+    def test_missing_data_returns_empty_rather_than_raising(self) -> None:
+        signal = np.concatenate([np.zeros(50), [np.nan], np.ones(49) * 5])
+        data = pd.DataFrame({"batch_id": "A", "T": signal})
+
+        assert features.f_rupture(data, tags=["T"], batch_col="batch_id").iloc[0, 0] == ()
+
+    def test_an_unrecognized_setting_is_rejected(self) -> None:
+        """`pen` is the ruptures spelling; this function takes `penalty`."""
+        with pytest.raises(ValueError, match=r"unrecognized settings \['pen'\]"):
+            features.f_rupture(
+                self._stepped({"A": 40}), tags=["Temperature"], batch_col="batch_id", settings={"pen": 1}
+            )
+
+    @pytest.mark.dataset
+    def test_it_runs_on_the_dryer_data(self) -> None:
+        folder = pathlib.Path(__file__).parents[2] / "src" / "process_improve" / "datasets" / "batch"
+        dryer = pd.read_csv(folder / "dryer.csv")
+        subset = dryer[dryer["batch_id"].isin(dryer["batch_id"].unique()[:3])]
+
+        found = features.f_rupture(subset, tags=["DryerTemp"], batch_col="batch_id").droplevel(-1)
+
+        assert len(found) == 3
+        # Every batch of this dryer run has structure to find, and the positions are
+        # inside the batch rather than at its ends.
+        for breaks in found["DryerTemp_rupture"]:
+            assert len(breaks) > 0
+            assert all(0 < position < len(subset) for position in breaks)
