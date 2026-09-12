@@ -33,6 +33,7 @@ from ._common import (
     SelectionRule,
     SpecificationWarning,
     _align_to_fit_features,
+    _equal_weight_r2_total,
     _model_method,
     _select_n_components,
     epsqrt,
@@ -1558,7 +1559,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
               i.e. the half-width of a +/-1 SE band around
               ``r2y_validated["total"]`` (pd.Series, indexed ``1..A``).
             - ``r2y_validated`` - validated cumulative :math:`R^2_Y`
-              (pd.DataFrame, same shape as ``rmsecv``).
+              (pd.DataFrame, indexed ``1..A``; one column per Y-variable, then
+              ``"total"`` and ``"scaled_total"``). ``"total"`` pools the
+              targets on the original Y scale, so a wide-ranging target
+              dominates it; ``"scaled_total"`` weights every target equally,
+              which is the pooling a fitted model's ``r2_y_cumulative_`` uses,
+              so those two are the columns to compare fitted against held-out.
             - ``r2x_validated`` - validated cumulative :math:`R^2_X`
               (pd.DataFrame, indexed ``1..A``; columns are the X-variable
               names plus ``"total"``).
@@ -1759,10 +1765,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             total = np.where(tss.sum() > 0, 1.0 - press.sum(axis=1) / tss.sum(), np.nan)
             return np.column_stack([per_var, total])
 
+        r2y_columns = _validated_r2(press_y, tss_y)
         r2y_validated = pd.DataFrame(
-            _validated_r2(press_y, tss_y),
+            np.column_stack([r2y_columns, _equal_weight_r2_total(r2y_columns[:, :M])]),
             index=component_index,
-            columns=[*y_columns, "total"],
+            columns=[*y_columns, "total", "scaled_total"],
         )
         r2x_validated = pd.DataFrame(
             _validated_r2(press_x, tss_x),

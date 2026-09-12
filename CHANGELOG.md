@@ -11,6 +11,33 @@ those changes.
 
 ## [Unreleased]
 
+## [1.86.0] - 2026-09-12
+
+### Added
+
+- **`PLS.select_n_components` and `MBPLS.select_n_components` report a
+  `"scaled_total"` column in `r2y_validated`**, the held-out R2 of Y with every target
+  weighted equally.
+
+  The existing `"total"` column pools PRESS and the "predict the mean" reference on the
+  original Y scale, so a target whose spread is two orders of magnitude wider than its
+  neighbours' decides the number nearly on its own. A fitted model's
+  `r2_y_cumulative_`, in contrast, is computed on the scaled Y, where every target
+  counts the same. Read side by side on targets of unequal spread, the fitted and the
+  validated numbers could differ by tens of percent, or disagree in sign, without the
+  model having changed. That was noted in the 1.85.0 entry as a caveat; this is the
+  column that removes it.
+
+  After mean-centring and unit-variance scaling every target's sum of squares is the
+  same, so the equal-weight pooling is the arithmetic mean of the per-target values. A
+  target with no spread contributes no per-target value and is left out of the mean
+  rather than voiding it.
+
+  `"total"` keeps its meaning and its place: it answers how much of the Y variation, in
+  its own units, the model predicts. `"scaled_total"` is the column to set beside
+  `r2_y_cumulative_`. The component-selection rules are untouched: they are driven by
+  RMSECV, which stays on the original Y scale.
+
 ## [1.85.5] - 2026-09-12
 
 ### Fixed
@@ -4613,7 +4640,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.85.5...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.86.0...HEAD
+[1.86.0]: https://github.com/kgdunn/process-improve/compare/v1.85.5...v1.86.0
 [1.85.5]: https://github.com/kgdunn/process-improve/compare/v1.85.4...v1.85.5
 [1.85.4]: https://github.com/kgdunn/process-improve/compare/v1.85.3...v1.85.4
 [1.85.3]: https://github.com/kgdunn/process-improve/compare/v1.85.2...v1.85.3

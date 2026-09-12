@@ -26,6 +26,7 @@ from ._base import _HotellingsT2LimitMixin
 from ._common import (
     SelectionRule,
     SpecificationWarning,
+    _equal_weight_r2_total,
     _nz,
     _scale_block_contributions,
     _select_n_components,
@@ -1098,7 +1099,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             With ``n_components`` (int), ``rmsecv`` and ``se_rmsecv`` (Series
             indexed ``1..A``), ``per_fold_rmsecv`` (DataFrame, components by
             fold), ``press`` (Series), ``r2y_validated`` (DataFrame with one
-            column per target plus ``"total"``), ``cv_predictions`` (DataFrame
+            column per target, plus ``"total"`` on the original Y scale and
+            ``"scaled_total"`` with every target weighted equally),
+            ``cv_predictions`` (DataFrame
             of the held-out predictions of the recommended model, averaged
             over repeats) and ``selection_rule``.
 
@@ -1200,7 +1203,9 @@ class MBPLS(_HotellingsT2LimitMixin, RegressorMixin, BaseEstimator):
             se = np.nanstd(per_fold, axis=1, ddof=1) / np.sqrt(np.maximum(1, np.sum(~np.isnan(per_fold), axis=1)))
         se_rmsecv = pd.Series(se, index=component_index, name="SE of RMSECV")
         r2y_validated = pd.DataFrame(
-            np.column_stack([per_target, total]), index=component_index, columns=[*targets, "total"]
+            np.column_stack([per_target, total, _equal_weight_r2_total(per_target)]),
+            index=component_index,
+            columns=[*targets, "total", "scaled_total"],
         )
 
         recommended = _select_n_components(

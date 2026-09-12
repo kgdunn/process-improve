@@ -11,6 +11,7 @@ sibling submodules, so it sits at the base of the dependency graph.
 from __future__ import annotations
 
 import functools
+import warnings
 from collections.abc import Callable
 from typing import Any, Literal, TypeAlias
 
@@ -278,6 +279,45 @@ def _select_n_components(
         f"'1se', 'min', 'q2_increment', 'randomization' "
         f"('randomization' is handled by PLS.select_n_components, not this dispatcher)."
     )
+
+
+def _equal_weight_r2_total(per_target: np.ndarray) -> np.ndarray:
+    r"""Pool per-target validated :math:`R^2_Y` with every target weighted equally.
+
+    The ``"total"`` column of a validated-:math:`R^2_Y` table is
+    ``1 - sum_m PRESS_m / sum_m TSS_m`` on the *original* Y scale, so a target
+    whose spread is two orders of magnitude larger than its neighbours' decides
+    the number almost on its own. Autoscaling Y first fixes that, and costs
+    nothing to compute here: after mean-centring and unit-variance scaling every
+    target's TSS is the same, so the pooled ratio collapses to the arithmetic
+    mean of the per-target values,
+
+    .. math::
+
+        1 - \frac{\sum_m \mathrm{PRESS}_m / s_m^2}{\sum_m \mathrm{TSS}_m / s_m^2}
+        = \frac{1}{M} \sum_m \left(1 - \frac{\mathrm{PRESS}_m}{\mathrm{TSS}_m}\right).
+
+    Targets with no spread contribute ``NaN`` per-target values and are left out
+    of the mean rather than dragging it to ``NaN``.
+
+    Parameters
+    ----------
+    per_target : np.ndarray
+        Validated :math:`R^2` per target, shape ``(A, M)``.
+
+    Returns
+    -------
+    np.ndarray
+        The equal-weight pooled value per component count, shape ``(A,)``.
+    """
+    values = np.asarray(per_target, dtype=float)
+    if values.ndim != 2:
+        raise ValueError(f"per_target must be 2-D (A x M); got shape {values.shape}.")
+    with warnings.catch_warnings():
+        # An all-NaN row (every target constant) means "nothing to pool"; NaN
+        # is the right answer and the RuntimeWarning that says so is noise.
+        warnings.simplefilter("ignore", RuntimeWarning)
+        return np.nanmean(values, axis=1) if values.shape[1] else np.full(values.shape[0], np.nan)
 
 
 def _model_method(fn: Callable[..., Any]) -> Callable[..., Any]:

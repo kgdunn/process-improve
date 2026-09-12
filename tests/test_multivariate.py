@@ -2959,6 +2959,62 @@ def test_pls_select_n_components_q2_se_scales_with_repeats() -> None:
     assert ((many.q2_se > 0) & np.isfinite(many.q2_se)).all()
 
 
+def test_pls_select_n_components_scaled_total_is_the_autoscaled_q2() -> None:
+    """``scaled_total`` is what ``total`` would have been on an autoscaled Y.
+
+    The ``"total"`` column pools PRESS and TSS on the original Y scale, so a
+    target whose spread is a hundred times its neighbour's decides it almost
+    alone; here ``y_big`` is pure noise and ``y_small`` is well predicted, and
+    the two columns end up on opposite sides of zero. Running the same
+    cross-validation on a mean-centred, unit-variance Y is the reference: the
+    per-target results are unchanged by that affine map, and its ``"total"``
+    has to reproduce ``"scaled_total"`` from the raw-scale run exactly.
+    """
+    rng = np.random.default_rng(11)
+    N, K = 80, 6
+    T = rng.normal(size=(N, 2))
+    X = pd.DataFrame(T @ rng.normal(size=(2, K)) + 0.3 * rng.normal(size=(N, K)), columns=[f"x{i}" for i in range(K)])
+    Y = pd.DataFrame(
+        {
+            "y_small": T[:, 0] * 0.1 + 0.01 * rng.normal(size=N),
+            "y_big": 200.0 * rng.normal(size=N),
+        }
+    )
+
+    raw = PLS.select_n_components(X, Y, max_components=2, cv=5, n_repeats=2, random_state=0)
+    scaled = PLS.select_n_components(
+        X, MCUVScaler().fit_transform(Y), max_components=2, cv=5, n_repeats=2, random_state=0
+    )
+
+    np.testing.assert_allclose(
+        raw.r2y_validated["scaled_total"].to_numpy(), scaled.r2y_validated["total"].to_numpy(), rtol=1e-10
+    )
+    # Equivalently, the equal-weight pooling is the mean over targets.
+    np.testing.assert_allclose(
+        raw.r2y_validated["scaled_total"].to_numpy(),
+        raw.r2y_validated[["y_small", "y_big"]].mean(axis=1).to_numpy(),
+        rtol=1e-12,
+    )
+    # The point of the column: on this Y the two pooled numbers disagree in sign.
+    assert raw.r2y_validated["total"].iloc[0] < 0.0 < raw.r2y_validated["scaled_total"].iloc[0]
+
+
+def test_pls_select_n_components_scaled_total_ignores_a_constant_target() -> None:
+    """A target with no spread is left out of the mean, not allowed to void it."""
+    rng = np.random.default_rng(3)
+    N, K = 40, 4
+    T = rng.normal(size=(N, 1))
+    X = pd.DataFrame(T @ rng.normal(size=(1, K)) + 0.2 * rng.normal(size=(N, K)))
+    Y = pd.DataFrame({"live": T[:, 0] + 0.1 * rng.normal(size=N), "flat": np.full(N, 7.0)})
+
+    result = PLS.select_n_components(X, Y, max_components=2, cv=4, n_repeats=1, random_state=0)
+
+    assert result.r2y_validated["flat"].isna().all()
+    np.testing.assert_allclose(
+        result.r2y_validated["scaled_total"].to_numpy(), result.r2y_validated["live"].to_numpy(), rtol=1e-12
+    )
+
+
 @pytest.mark.slow
 def test_pls_select_n_components_synthetic() -> None:
     """Cross-validated component selection recovers a known low-rank structure."""
@@ -3041,7 +3097,7 @@ def test_pls_select_n_components_ldpe(
 
     assert 1 <= result.n_components <= max_comp
     assert result.rmsecv.shape == (max_comp, n_targets + 1)
-    assert result.r2y_validated.shape == (max_comp, n_targets + 1)
+    assert result.r2y_validated.shape == (max_comp, n_targets + 2)  # targets, "total", "scaled_total"
     assert result.r2x_validated.shape == (max_comp, n_features + 1)
     assert (result.rmsecv.to_numpy() > 0).all()
     assert (result.press > 0).all()
