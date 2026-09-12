@@ -11,7 +11,7 @@ those changes.
 
 ## [Unreleased]
 
-## [1.90.0] - 2026-09-12
+## [1.91.0] - 2026-09-12
 
 ### Added
 
@@ -60,6 +60,31 @@ those changes.
 
 ### Fixed
 
+- **Batch identifiers may be of any type**, including strings. `melted_to_dict` never
+  coerced its keys, but two functions downstream assumed every column was numeric, so a
+  string identifier raised `TypeError: Cannot convert [...] to numeric` in
+  `determine_scaling` and then `TypeError: unsupported operand type(s) for /: 'str' and
+  'int'` in `align_with_path`. Two causes, both fixed:
+
+  `determine_scaling` took its per-batch minimum over every column rather than over
+  `columns_to_align`. With integer identifiers this did not raise, but it still returned
+  rows for columns that were never scaled, each carrying a real `Minimum` against a NaN
+  `Range`. `align_with_path` averaged whole rows, so a compression in the warping path
+  averaged the identifier too; with integer identifiers it wrote that mean into the
+  aligned frame, and pandas had already begun warning that assigning a string into the
+  float frame would become an error. Non-numeric columns are now carried through
+  unaveraged, keeping their own dtype. The integer path is unchanged, verified
+  bit-identical in weights, average batch and aligned values. (#197)
+
+- **The resampled percentage axis accepts any resolution.** The target axis came from
+  `np.arange(0, maximum, delta)` while the source axis was rebuilt as `maximum - delta`;
+  those agree only when the delta divides the maximum exactly, so
+  `interpolate_time_axis_delta` of 0.3 or 7 failed a bare `assert`. Under `python -O`,
+  which strips asserts, it extrapolated silently instead. The source axis now takes its
+  endpoints from the target axis, so any delta works. An axis that cannot be built (a
+  non-positive value, or a delta no smaller than the maximum) is rejected up front with a
+  message naming both values. (#197)
+
 - **`determine_scaling` no longer silently substitutes 1.0 for a zero range.** A tag that
   holds one value across a batch got `1.0` as its range and was left unscaled, with
   nothing said, which `docs/development/error_handling.rst` names as a `warnings.warn`
@@ -67,7 +92,6 @@ those changes.
   batches it affected. On the dryer data with the default `columns_to_align` this reports
   `batch_id` in 71 of 71 batches, which is worth knowing on its own: the identifier column
   is swept in as a tag whenever the columns are left unspecified. (#198)
-
 
 ## [1.89.0] - 2026-09-12
 
@@ -4933,8 +4957,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.90.0...HEAD
-[1.90.0]: https://github.com/kgdunn/process-improve/compare/v1.89.0...v1.90.0
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.91.0...HEAD
+[1.91.0]: https://github.com/kgdunn/process-improve/compare/v1.89.0...v1.91.0
 [1.89.0]: https://github.com/kgdunn/process-improve/compare/v1.88.0...v1.89.0
 [1.88.0]: https://github.com/kgdunn/process-improve/compare/v1.87.1...v1.88.0
 [1.87.1]: https://github.com/kgdunn/process-improve/compare/v1.87.0...v1.87.1
