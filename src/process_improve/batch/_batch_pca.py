@@ -264,6 +264,10 @@ class BatchPCA(TransformerMixin, BaseEstimator):
         self.r2_per_component_ = self._pca.r2_per_component_
         self.r2_cumulative_ = self._pca.r2_cumulative_
         self.scaling_factor_for_scores_ = self._pca.scaling_factor_for_scores_
+        # Forwarded so the mid-course corrector, which projects rows against this
+        # model's arrays directly, can hand the TSR estimator the same training
+        # residual block that ``_pca.project`` uses.
+        self._x_residuals = self._pca._x_residuals
 
         first_batch = X[next(iter(X.keys()))]
         self.batch_ids_ = list(wide.index)

@@ -37,10 +37,41 @@ def test_returns_the_documented_bunch() -> None:
     assert out.rmsecv.index.name == "n_components"
     assert out.se_rmsecv.shape == (4,)
     assert out.per_fold_rmsecv.shape == (4, 10)  # five folds, twice over
-    assert list(out.r2y_validated.columns) == [*y.columns, "total"]
+    assert list(out.r2y_validated.columns) == [*y.columns, "total", "scaled_total"]
     assert out.cv_predictions.shape == y.shape
     assert out.selection_rule == "1se"
     assert 1 <= out.n_components <= 4
+
+
+def test_scaled_total_weights_every_target_equally() -> None:
+    """``scaled_total`` is the equal-weight pooling; ``total`` is the raw-scale one.
+
+    Stretching one target by a constant leaves every per-target value alone, and
+    leaves ``scaled_total`` alone with them, while ``total`` follows the stretched
+    target. That is the whole difference between the two columns.
+    """
+    blocks, y = _two_block_data()
+    stretched = y.copy()
+    stretched[1] = stretched[1] * 500.0
+
+    plain = MBPLS.select_n_components(blocks, y, max_components=2, cv=5, n_repeats=1, random_state=0)
+    wide = MBPLS.select_n_components(blocks, stretched, max_components=2, cv=5, n_repeats=1, random_state=0)
+
+    # NIPALS is iterative, so rescaling a target moves the fit in the last few
+    # digits; 1e-6 is far below the effect being tested.
+    np.testing.assert_allclose(plain.r2y_validated[[0, 1]].to_numpy(), wide.r2y_validated[[0, 1]].to_numpy(), rtol=1e-6)
+    np.testing.assert_allclose(
+        wide.r2y_validated["scaled_total"].to_numpy(),
+        wide.r2y_validated[[0, 1]].mean(axis=1).to_numpy(),
+        rtol=1e-12,
+    )
+    np.testing.assert_allclose(
+        plain.r2y_validated["scaled_total"].to_numpy(), wide.r2y_validated["scaled_total"].to_numpy(), rtol=1e-6
+    )
+    # ``total`` is not invariant: it now tracks the stretched target alone, and
+    # has moved away from the value it took on the unstretched Y.
+    np.testing.assert_allclose(wide.r2y_validated["total"].to_numpy(), wide.r2y_validated[1].to_numpy(), atol=1e-4)
+    assert abs(wide.r2y_validated["total"].iloc[0] - plain.r2y_validated["total"].iloc[0]) > 0.05
 
 
 def test_holding_out_rows_costs_something() -> None:

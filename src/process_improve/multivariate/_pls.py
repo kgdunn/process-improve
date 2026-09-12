@@ -33,6 +33,7 @@ from ._common import (
     SelectionRule,
     SpecificationWarning,
     _align_to_fit_features,
+    _equal_weight_r2_total,
     _model_method,
     _select_n_components,
     epsqrt,
@@ -826,6 +827,13 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         self.beta_coefficients_ = pd.DataFrame(beta_coefficients, index=X.columns, columns=Y.columns)
         # ``max(1, N-1)`` -- see SEC-21 (#270) sub-item 6.
         self.explained_variance_ = np.diag(self._scores.T @ self._scores) / max(1, N - 1)
+        # The training residual block, kept for the trimmed-score-regression
+        # estimator in ``project`` / ``projection_matrix``: TSR regresses on
+        # the covariance of the observed columns, which is the model plane
+        # plus this spread around it. Kept as E (N x K) rather than its K x K
+        # Gram, because the estimator contracts it to A columns straight away.
+        # A missing training cell has no residual, so it enters as zero.
+        self._x_residuals = np.nan_to_num(X.to_numpy(dtype=float) - self._scores @ self._x_loadings.T)
         self.scaling_factor_for_scores_ = pd.Series(
             np.sqrt(self.explained_variance_),
             index=component_names,
@@ -1190,6 +1198,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             method=method,
             ridge=ridge,
             x_weights=self._x_weights,
+            x_residuals=getattr(self, "_x_residuals", None),
         )
         scores = pd.DataFrame(raw.scores, index=sample_index, columns=self._component_names)
         s = self.scaling_factor_for_scores_.to_numpy(dtype=float)
@@ -1243,6 +1252,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             method=method,
             ridge=ridge,
             x_weights=self._x_weights,
+            x_residuals=getattr(self, "_x_residuals", None),
         )
         matrix = pd.DataFrame(
             op.matrix,
@@ -1558,7 +1568,12 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
               i.e. the half-width of a +/-1 SE band around
               ``r2y_validated["total"]`` (pd.Series, indexed ``1..A``).
             - ``r2y_validated`` - validated cumulative :math:`R^2_Y`
-              (pd.DataFrame, same shape as ``rmsecv``).
+              (pd.DataFrame, indexed ``1..A``; one column per Y-variable, then
+              ``"total"`` and ``"scaled_total"``). ``"total"`` pools the
+              targets on the original Y scale, so a wide-ranging target
+              dominates it; ``"scaled_total"`` weights every target equally,
+              which is the pooling a fitted model's ``r2_y_cumulative_`` uses,
+              so those two are the columns to compare fitted against held-out.
             - ``r2x_validated`` - validated cumulative :math:`R^2_X`
               (pd.DataFrame, indexed ``1..A``; columns are the X-variable
               names plus ``"total"``).
@@ -1759,10 +1774,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             total = np.where(tss.sum() > 0, 1.0 - press.sum(axis=1) / tss.sum(), np.nan)
             return np.column_stack([per_var, total])
 
+        r2y_columns = _validated_r2(press_y, tss_y)
         r2y_validated = pd.DataFrame(
-            _validated_r2(press_y, tss_y),
+            np.column_stack([r2y_columns, _equal_weight_r2_total(r2y_columns[:, :M])]),
             index=component_index,
-            columns=[*y_columns, "total"],
+            columns=[*y_columns, "total", "scaled_total"],
         )
         r2x_validated = pd.DataFrame(
             _validated_r2(press_x, tss_x),
@@ -1787,23 +1803,28 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         se_rmsecv = pd.Series(se_values, index=component_index, name="SE(RMSECV)")
 
         # Q2 standard error: the standard error of the per-fold total PRESS,
-        # rescaled by the same total Y sum-of-squares that normalises the
-        # validated Q2 (Q2_Y_total = 1 - PRESS / tss_y.sum()). This is the
-        # half-width of a +/-1 SE band around the ``r2y_validated["total"]``
-        # curve, computed the same way as PCA's ``q2_se``.
-        ss_y_total = float(tss_y.sum())
+        # rescaled by the Y sum-of-squares that normalises the validated Q2
+        # (Q2_Y_total = 1 - PRESS / tss_y.sum()). This is the half-width of a
+        # +/-1 SE band around the ``r2y_validated["total"]`` curve, computed
+        # the same way as PCA's ``q2_se``.
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
             se_press_total = np.nanstd(per_fold_press_total, axis=1, ddof=1) / np.sqrt(
                 np.maximum(1, np.sum(~np.isnan(per_fold_press_total), axis=1))
             )
-        # The Q2 curve normalises the TOTAL PRESS per repeat (the sum over the
-        # folds of one pass), which is ``first_repeat_fold_count`` times the
-        # mean per-fold PRESS whose standard error was just computed. Rescale
-        # so the +/-1 SE band is on the same scale as the Q2 values; the
-        # unscaled band was ~n_folds times too narrow.
-        se_press_total = se_press_total * max(1, first_repeat_fold_count)
-        q2_se_values = se_press_total / ss_y_total if ss_y_total > 0 else se_press_total * np.nan
+        # Both sides of the ratio have to be on the scale of one pass over the
+        # data. The numerator is put there by multiplying the mean per-fold
+        # PRESS by the folds in a pass. ``tss_y`` is not: its per-row coverage
+        # weighting counts every row once per repeat that tested it, so it
+        # carries ``repeats`` passes and has to be divided down to match.
+        # Without that the band came out a factor of ``n_repeats`` too narrow,
+        # which quietly turned selection_rule="1se" into "min" whenever a
+        # repeated splitter was used.
+        folds_per_pass = max(1, first_repeat_fold_count)
+        repeats = max(1, n_folds_total // folds_per_pass)
+        se_press_total = se_press_total * folds_per_pass
+        ss_y_pass = float(tss_y.sum()) / repeats
+        q2_se_values = se_press_total / ss_y_pass if ss_y_pass > 0 else se_press_total * np.nan
         q2_se = pd.Series(q2_se_values, index=component_index, name="SE(Q2)")
 
         # If every CV fold produced NaN (e.g. zero-variance Y per fold) the
