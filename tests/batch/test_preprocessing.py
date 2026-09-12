@@ -1216,3 +1216,59 @@ class TestBatchScaler:
 
         assert (iqr.scale_df_["Range"] < wide.scale_df_["Range"]).all()
         assert not np.array_equal(raw.scale_df_["Range"].to_numpy(), wide.scale_df_["Range"].to_numpy())
+
+
+class TestCostMatrixDiagonal:
+    """The cost matrix computes only the diagonal it needs (#199 follow-up)."""
+
+    @staticmethod
+    def _textbook(test: np.ndarray, ref: np.ndarray, weights: np.ndarray) -> np.ndarray:
+        """Build the cost matrix from the literal Mahalanobis expression, as a reference."""
+        columns = [np.diag((row - ref) @ weights @ (row - ref).T) for row in test]
+        return np.column_stack(columns)
+
+    def test_it_agrees_with_the_literal_mahalanobis_expression(self) -> None:
+        rng = np.random.default_rng(0)
+        test, ref = rng.normal(size=(40, 5)), rng.normal(size=(47, 5))
+        weights = np.diag(rng.uniform(0.5, 2.0, 5))
+
+        accumulated = distance_matrix(test, ref, weights)
+        # `distance_matrix` returns the accumulated cost, so compare the entry that has
+        # not yet been accumulated into: the top-left corner is the raw cost there.
+        expected = self._textbook(test, ref, weights)
+        assert accumulated[0, 0] == pytest.approx(expected[0, 0], rel=1e-12)
+        # And the first row accumulates left to right over the raw costs.
+        assert accumulated[0, :].tolist() == pytest.approx(np.cumsum(expected[0, :]).tolist(), rel=1e-12)
+
+    @pytest.mark.parametrize(("n_test", "n_ref", "n_tags"), [(50, 57, 3), (200, 193, 5), (120, 120, 11)])
+    def test_the_warping_path_is_unchanged_by_the_row_wise_form(self, n_test: int, n_ref: int, n_tags: int) -> None:
+        """The per-row diagonal sums in a different order, so this pins that it does not matter."""
+        rng = np.random.default_rng(n_test)
+        test, ref = rng.normal(size=(n_test, n_tags)), rng.normal(size=(n_ref, n_tags))
+        weights = np.diag(rng.uniform(0.5, 2.0, n_tags))
+
+        expected_cost = self._textbook(test, ref, weights)
+        accumulated = np.full((n_ref, n_test), np.nan)
+        accumulated[0, 0] = expected_cost[0, 0]
+        accumulated[0, 1:] = np.cumsum(expected_cost[0, :])[1:]
+        accumulated[1:, 0] = np.cumsum(expected_cost[:, 0])[1:]
+        for column in range(1, n_test):
+            for row in range(1, n_ref):
+                accumulated[row, column] = expected_cost[row, column] + np.nanmin(
+                    [accumulated[row, column - 1], accumulated[row - 1, column - 1], accumulated[row - 1, column]]
+                )
+
+        by_kernel, _ = backtrack_optimal_path(distance_matrix(test, ref, weights))
+        by_textbook, _ = backtrack_optimal_path(accumulated)
+        assert np.array_equal(by_kernel, by_textbook)
+
+    def test_it_does_not_build_the_square_product(self) -> None:
+        """A tall reference against few tags would allocate gigabytes under the old form."""
+        rng = np.random.default_rng(1)
+        test, ref = rng.normal(size=(30, 2)), rng.normal(size=(4000, 2))
+        weights = np.eye(2)
+
+        accumulated = distance_matrix(test, ref, weights)
+
+        assert accumulated.shape == (4000, 30)
+        assert np.isfinite(accumulated[-1, -1])

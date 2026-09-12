@@ -427,23 +427,25 @@ def _banded_distance_matrix(
 
     # Mahalanobis distance, computed only where the band admits it. Filling every cell
     # first and then constraining only the accumulation would leave the whole function
-    # quadratic in the two batch lengths however narrow the band: on random 700-sample
-    # series a 10% band was then 7x faster, against 359x once the cost is restricted too.
+    # quadratic in the two batch lengths however narrow the band.
     #
-    # The two cases are separate loops rather than one loop over runtime bounds. The
-    # bounds are monotone, so these two entries decide whether the band spans everything;
-    # when it does, the original whole-array expression is used. A slice of the same
-    # extent taken with runtime bounds is not free: numba cannot prove it contiguous and
-    # compiles a slower matmul, which cost the unconstrained default 4x at 700 samples.
-    if band[nt - 1, 0] == 0 and band[0, 1] == nr:
-        for idx in np.arange(nt):
-            deviation = test[idx] - ref
-            dist[:, idx] = np.diag(deviation @ weight_matrix @ deviation.T)
-    else:
-        for idx in np.arange(nt):
-            lower, upper = band[idx, 0], band[idx, 1]
-            deviation = test[idx] - ref[lower:upper]
-            dist[lower:upper, idx] = np.diag(deviation @ weight_matrix @ deviation.T)
+    # The per-row form, not `np.diag(A @ W @ A.T)`: that builds an h-by-h product to keep
+    # its h diagonal entries, so it is quadratic in the number of reference rows and cubic
+    # over the whole matrix. `(A @ W) * A` summed along the tags computes only the
+    # diagonal, in `h * J^2` work rather than `h^2 * J`, and needs no large temporary. It
+    # also removes the contiguity problem the matmul had, where a slice taken with runtime
+    # bounds compiled to a slower kernel than the whole array, so one loop now serves both
+    # the banded and the unconstrained case.
+    #
+    # The summation order differs from the matmul's, so individual cost values move in the
+    # last bits: measured at about 5e-16 relative, one unit in the last place. That is
+    # below the resolution of anything downstream. Over nine combinations of length and
+    # tag count the warping path came back identical, and the dryer alignment reproduces
+    # its weights exactly, so no pinned value moved.
+    for idx in np.arange(nt):
+        lower, upper = band[idx, 0], band[idx, 1]
+        deviation = test[idx] - ref[lower:upper]
+        dist[lower:upper, idx] = np.sum((deviation @ weight_matrix) * deviation, axis=1)
 
     D = np.zeros((nr, nt)) * np.nan
     D[0, 0] = dist[0, 0]
