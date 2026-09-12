@@ -1120,15 +1120,36 @@ class TestBatchWeighting:
 
         assert huber != pytest.approx(equal, rel=1e-6)
 
-    def test_indistinguishable_batches_fall_back_to_equal_weights(self) -> None:
-        """A zero MAD means there is nothing to tell apart, not a reason to divide by zero."""
+    @staticmethod
+    def _results(distances: list[float]) -> dict:
+        """Build the minimal stand-ins: one attribute is all `_batch_weights` reads."""
 
         class _Result:
             def __init__(self, distance: float) -> None:
                 self.normalized_distance = distance
 
-        identical = {index: _Result(0.5) for index in range(5)}
-        assert _batch_weights(identical, "huber").tolist() == [1.0] * 5
+        return {index: _Result(distance) for index, distance in enumerate(distances)}
+
+    def test_indistinguishable_batches_fall_back_to_equal_weights(self) -> None:
+        """A zero MAD means there is nothing to tell apart, not a reason to divide by zero."""
+        assert _batch_weights(self._results([0.5] * 5), "huber").tolist() == [1.0] * 5
+
+    def test_all_non_finite_distances_fall_back_to_equal_weights(self) -> None:
+        """With no usable distance there is no basis to rank batches, so none is penalised."""
+        assert _batch_weights(self._results([float("nan")] * 4), "huber").tolist() == [1.0] * 4
+
+    def test_a_single_non_finite_distance_is_floored_not_dropped(self) -> None:
+        """That batch still counts, at the floor, rather than vanishing from the sum."""
+        weights = _batch_weights(self._results([0.01, 0.011, 0.012, 0.013, float("nan")]), "huber")
+
+        assert len(weights) == 5
+        assert weights[-1] > 0.0
+        assert weights[-1] == weights.min()
+
+    def test_no_batches_gives_no_weights(self) -> None:
+        """`zip(..., strict=True)` in the caller needs the lengths to agree even at zero."""
+        for batch_weighting in ("equal", "huber"):
+            assert _batch_weights({}, batch_weighting).tolist() == []
 
     def test_an_unrecognized_batch_weighting_is_rejected(self, dryer_data: dict) -> None:
         with pytest.raises(ValueError, match=r"batch_weighting'\]='tukey' is not recognized"):
