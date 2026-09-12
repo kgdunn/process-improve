@@ -11,6 +11,54 @@ those changes.
 
 ## [Unreleased]
 
+## [1.88.0] - 2026-09-12
+
+### Added
+
+- **`batch_dtw` now reports each batch's distance to the reference**, under the
+  `distances` key: a DataFrame indexed by batch identifier with `Distance` and
+  `Normalized distance` (the latter divided by the summed path length, so it compares
+  across batches of unequal duration). These were computed on every iteration and
+  discarded, so there was no way to see which batches aligned badly. They are read off
+  the `DTWresult` objects the function already returns, so nothing extra is computed and
+  no behaviour changes. Use them to inspect the distribution, for example
+  `outputs["distances"]["Normalized distance"].nlargest(5)`.
+
+- **`settings["weighting"]` selects how a variable's deviation from the average
+  trajectory is accumulated** before its weight is taken as the reciprocal, either
+  `"quadratic"` (the default) or `"absolute"`. The default is the published Kassidas
+  choice and is bit-identical to previous releases: the reciprocal of a sum of squares is
+  an inverse-variance (precision) weight, which is what the weighted DTW distance
+  expects, that distance being a Mahalanobis form and so quadratic in the deviations.
+
+  `"absolute"` is less sensitive to a single badly aligned batch, but its reciprocal is
+  not a precision, so the weighted distance loses that reading. It does not merely
+  flatten the weighting: on the bundled dryer data the ratio of largest to smallest
+  weight rose from 2.8 to 6.0 and the iteration count from 2 to 3, so both the fixed
+  point and the path to it differ. Measure it on your own data rather than assuming.
+
+  An unrecognised value raises `ValueError` rather than silently taking the
+  absolute branch.
+
+### Changed (internal)
+
+- The deviation accumulation moved into `_accumulate_deviations`, so the new setting has
+  a named, testable home and `batch_dtw` stays inside its branch budget without a new
+  `noqa` (#307).
+
+- `one_iteration_dtw` no longer builds a per-batch `distances` list on every iteration
+  and discards it. The same information reaches `batch_dtw` from the `DTWresult`
+  objects.
+
+### Documented
+
+- **#565: `TPLS.score`** now records that sklearn's `error_score` decides whether the
+  named-scorer failure is visible. The default, `np.nan`, is what records the folds as
+  `NaN`; `error_score="raise"` surfaces the underlying `TypeError`. Since the failure
+  happens inside sklearn before TPLS is reached, this is the only way to make it loud,
+  and the docstring now says to use it whenever a silent `NaN` would be worse than a
+  failure.
+
 ## [1.87.1] - 2026-09-12
 
 ### Fixed
@@ -4771,7 +4819,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.87.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.88.0...HEAD
+[1.88.0]: https://github.com/kgdunn/process-improve/compare/v1.87.1...v1.88.0
 [1.87.1]: https://github.com/kgdunn/process-improve/compare/v1.87.0...v1.87.1
 [1.87.0]: https://github.com/kgdunn/process-improve/compare/v1.86.0...v1.87.0
 [1.86.0]: https://github.com/kgdunn/process-improve/compare/v1.85.6...v1.86.0
