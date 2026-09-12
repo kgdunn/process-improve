@@ -196,7 +196,13 @@ def determine_scaling(
             collapsed[str(tag)] = collapsed.get(str(tag), 0) + 1
         rnge[is_zero] = 1.0
         collector_rnge.append(rnge)
-        collector_mins.append(batch.min(axis=0))
+        # Restricted to `columns_to_align`, as the range above is. Taking the minimum over
+        # every column raised `TypeError: Cannot convert [...] to numeric` the moment a
+        # batch carried a non-numeric column, which a batch identifier of string type
+        # always is (#197). With integer identifiers it did not raise, but it still put
+        # rows in the result for columns that were never scaled, leaving `Range` NaN
+        # against a real `Minimum` for each of them.
+        collector_mins.append(batch[columns_to_align].min(axis=0))
 
     _warn_about_collapsed_ranges(collapsed, len(batches))
 
@@ -319,25 +325,40 @@ def align_with_path(md_path: np.ndarray, batch: pd.DataFrame) -> pd.DataFrame:
     ``initial_row`` argument seeded it from the reference row (in one caller) or
     from an out-of-space batch index (in the other), which mixed an unrelated row
     into the row-0 average (#197).
+
+    Non-numeric columns are carried through rather than averaged. A batch frame from
+    :func:`~process_improve.batch.data_input.melted_to_dict` still holds its identifier
+    column, and averaging a label is meaningless even when it happens to be a number:
+    with string identifiers it raised ``TypeError: unsupported operand type(s) for /``,
+    and with integer ones it silently wrote the mean of the identifier into the aligned
+    frame. Such a column is constant within a batch, so the first value is taken (#197).
     """
+    numeric = batch.select_dtypes(include="number")
+    passthrough = batch.columns.difference(numeric.columns, sort=False)
+
     row = 0
     nr = md_path[:, 0].max() + 1  # to account for the zero-based indexing
-    synced = pd.DataFrame(np.zeros((nr, batch.shape[1])), columns=batch.columns)
-    synced.iloc[row, :] = batch.iloc[md_path[0, 1], :]
-    temp: pd.Series | np.ndarray = batch.iloc[md_path[0, 1], :]
+    synced = pd.DataFrame(np.zeros((nr, numeric.shape[1])), columns=numeric.columns)
+    synced.iloc[row, :] = numeric.iloc[md_path[0, 1], :]
+    temp: pd.Series | np.ndarray = numeric.iloc[md_path[0, 1], :]
     for idx in np.arange(1, md_path.shape[0]):
         if md_path[idx, 0] != md_path[idx - 1, 0]:
             row += 1
-            synced.iloc[row, :] = temp = batch.iloc[md_path[idx, 1], :]
+            synced.iloc[row, :] = temp = numeric.iloc[md_path[idx, 1], :]
 
         else:
             # More than one batch sample maps to this reference index (a compression in
             # the warping path), so the synced value is the average of those samples.
             # Pinned by tests/batch/test_dtw_align_with_path.py.
-            temp = np.vstack((temp, batch.iloc[md_path[idx, 1], :]))
+            temp = np.vstack((temp, numeric.iloc[md_path[idx, 1], :]))
             synced.iloc[row, :] = np.nanmean(temp, axis=0)
 
-    return pd.DataFrame(synced)
+    for column in passthrough:
+        # Constant within a batch, so every row gets the same value and the column keeps
+        # its own dtype instead of being coerced into the float frame.
+        synced[column] = batch[column].iloc[0]
+
+    return pd.DataFrame(synced[batch.columns])
 
 
 def dtw_core(
@@ -459,6 +480,29 @@ def one_iteration_dtw(
     return aligned_batches, average_batch
 
 
+def _validate_time_axis(settings: dict) -> None:
+    """
+    Check the resampled time axis is well formed, before any alignment work is done.
+
+    The axis has to hold more than one point for the interpolation to have anything to
+    interpolate along, and both values have to be positive for ``np.arange`` to produce
+    an increasing axis at all.
+    """
+    maximum = float(settings["interpolate_time_axis_maximum"])
+    delta = float(settings["interpolate_time_axis_delta"])
+    if delta <= 0 or maximum <= 0:
+        raise ValueError(
+            f"settings['interpolate_time_axis_maximum'] and ['interpolate_time_axis_delta'] must both "
+            f"be positive; got maximum={maximum} and delta={delta}."
+        )
+    if delta >= maximum:
+        raise ValueError(
+            f"settings['interpolate_time_axis_delta']={delta} must be smaller than "
+            f"['interpolate_time_axis_maximum']={maximum}, so that the resampled axis has more than "
+            "one point."
+        )
+
+
 def batch_dtw(  # noqa: C901, PLR0915
     batches: dict[str, pd.DataFrame],
     columns_to_align: list,
@@ -491,12 +535,16 @@ def batch_dtw(  # noqa: C901, PLR0915
                 "weighting": "quadratic",  # "quadratic" or "absolute"; see below
                 "band": None,              # warping-path constraint; see below
                 "interpolate_time_axis_maximum": 100,  # resample time axis to this scale
-                "interpolate_time_axis_delta": 1,      # resolution of resampled axis
+                "interpolate_time_axis_delta": 1,      # resolution of the resampled axis
                 "interpolate_method": "cubic",         # any scipy.interpolate.interp1d method
             }
 
-        The default settings resample the time axis to 100 data points, starting at 0 and
-        ending at 99. Adjust the delta for more points, or change the maximum.
+        The default settings resample the time axis to 100 points, starting at 0 and ending
+        at 99, so each point is one percent of the batch's duration however long the batch
+        actually ran. Lower the delta for a finer axis (``0.5`` gives 200 points, ``0.25``
+        gives 400) or change the maximum for a different scale. The delta no longer has to
+        divide the maximum exactly: values such as ``0.3`` or ``7`` used to fail an
+        assertion.
 
         ``weighting`` selects how a variable's deviation from the average trajectory is
         accumulated before the weight is taken as its reciprocal:
@@ -579,6 +627,7 @@ def batch_dtw(  # noqa: C901, PLR0915
             f"settings['weighting']={settings['weighting']!r} is not recognized; expected "
             "'quadratic' (the default, and the published method) or 'absolute'."
         )
+    _validate_time_axis(settings)
     band = settings["band"]
     if not (band is None or callable(band) or isinstance(band, np.ndarray)):
         raise TypeError(
@@ -673,15 +722,15 @@ def batch_dtw(  # noqa: C901, PLR0915
             result.md_path,
             batches[batch_id].iloc[:: int(settings["subsample"]), :],
         )
-        # Resample the trajectories of the aligned data now along this sequence.
-        sequence = np.linspace(
-            0,
-            settings["interpolate_time_axis_maximum"] - settings["interpolate_time_axis_delta"],
-            synced.shape[0],
-        )
-        # Internal invariants on the just-built axes; not user input.
-        assert new_time_axis.min() == sequence.min()  # post-construction invariant
-        assert new_time_axis.max() == sequence.max()  # post-construction invariant
+        # Resample the trajectories of the aligned data now along this sequence, whose
+        # endpoints are taken from the target axis rather than recomputed. Deriving them
+        # separately assumed the delta divided the maximum exactly: `np.arange` stops at
+        # the last multiple below the maximum, while `maximum - delta` does not, so a
+        # delta of 0.3 or 7 put the two axes' endpoints in different places. Two asserts
+        # caught that as a bare AssertionError, and `python -O` strips asserts, so under
+        # optimisation it silently extrapolated instead (#197). Sharing the endpoints
+        # makes any delta work and leaves nothing to assert.
+        sequence = np.linspace(new_time_axis[0], new_time_axis[-1], synced.shape[0])
 
         synced_interpolated = pd.DataFrame()
         for column in synced:
