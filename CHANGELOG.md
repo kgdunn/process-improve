@@ -11,6 +11,42 @@ those changes.
 
 ## [Unreleased]
 
+## [1.93.0] - 2026-09-12
+
+### Changed
+
+- **`columns_to_align=None` now resolves to the columns that carry a trajectory**, not
+  every column of the first batch. Two kinds are skipped: columns that are not numeric,
+  and numeric columns that are flat through every batch. The second is what an identifier
+  column looks like, and a dtype test alone does not catch it, because the identifier
+  `melted_to_dict` leaves in place is usually an integer.
+
+  This was not harmless. On the dryer data `batch_id` was scaled as though it were a tag.
+  It took almost no weight itself (0.000051, since its forced range of 1.0 leaves the raw
+  identifiers deviating wildly from the average), but it joined the distance the alignment
+  minimises and the normalisation that follows, moving the real weights a long way:
+  measured over ten batches, `JacketTemperatureSP` went from 0.132 to 0.472.
+
+  A non-numeric column named explicitly in `columns_to_align` now raises, naming the
+  column and its dtype, rather than being silently dropped: the caller asked for it by
+  name, and whether to carry, encode or discard it is theirs to decide. A constant column
+  named explicitly is left alone, since constant over one set of batches does not mean
+  constant in general. (#199)
+
+- **The DTW cost matrix is computed per row instead of through a square product.**
+  `np.diag(A @ W @ A.T)` built an h-by-h product to keep its h diagonal entries, quadratic
+  in the reference length per test sample and cubic over the whole matrix. Summing
+  `(A @ W) * A` along the tags computes only the diagonal, in `h * J^2` work rather than
+  `h^2 * J`, with no large temporary. Measured unconstrained on random series: 2.08 ms to
+  1.49 ms at 100 samples, 24.98 to 11.69 at 300, 272.65 to 82.14 at 700, and 885.63 to
+  240.06 at 1200.
+
+  Results are unchanged in practice. Individual cost values differ by about 5e-16
+  relative, one unit in the last place, because the summation order changes; over nine
+  combinations of length and tag count the warping path is identical, and the dryer
+  alignment reproduces its final weights exactly.
+
+
 ## [1.92.0] - 2026-09-12
 
 ### Added
@@ -4987,7 +5023,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.92.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.93.0...HEAD
+[1.93.0]: https://github.com/kgdunn/process-improve/compare/v1.92.0...v1.93.0
 [1.92.0]: https://github.com/kgdunn/process-improve/compare/v1.89.0...v1.92.0
 [1.89.0]: https://github.com/kgdunn/process-improve/compare/v1.88.0...v1.89.0
 [1.88.0]: https://github.com/kgdunn/process-improve/compare/v1.87.1...v1.88.0

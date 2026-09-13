@@ -28,6 +28,25 @@ logger = logging.getLogger(__name__)
 epsqrt = np.sqrt(np.finfo(float).eps)
 
 
+def _varies_within_any_batch(batches: dict[str, pd.DataFrame], column: object) -> bool:
+    """
+    Report whether ``column`` takes more than one value inside at least one batch.
+
+    A column that is flat through every batch carries no trajectory for the alignment to
+    work with. Every batch is checked rather than only the first, so a tag that happens to
+    be flat in the first batch but moves in a later one is kept.
+    """
+    return any(_has_spread(batch[column].to_numpy()) for batch in batches.values() if column in batch)
+
+
+def _has_spread(values: np.ndarray) -> bool:
+    """Report whether a numeric array holds more than one distinct usable value."""
+    usable = values[np.isfinite(values)]
+    # min against max rather than counting distinct values: one pass, no hashing, and the
+    # question is only whether the column moves at all.
+    return bool(usable.size and usable.min() != usable.max())
+
+
 def _resolve_columns_to_align(
     batches: dict[str, pd.DataFrame],
     columns_to_align: list | pd.Index | None,
@@ -48,7 +67,8 @@ def _resolve_columns_to_align(
     batches : dict[str, pd.DataFrame]
         Batch data, in the standard format (keyed by batch identifier).
     columns_to_align : list, pd.Index, or None
-        Passed through when given; resolved from the first batch when ``None``.
+        Checked when given; resolved from the numeric columns of the first batch when
+        ``None``.
     caller : str
         Name of the calling function, used in the error messages.
 
@@ -62,7 +82,31 @@ def _resolve_columns_to_align(
     TypeError
         If ``batches`` is a DataFrame, or is not a dict.
     ValueError
-        If ``batches`` is an empty dict, so there is no batch to take columns from.
+        If ``batches`` is an empty dict, so there is no batch to take columns from; if a
+        batch holds no numeric column at all; or if an explicit ``columns_to_align``
+        names a column that is not numeric.
+
+    Notes
+    -----
+    Only numeric columns are aligned. Resolving from every column swept in whatever else
+    a batch frame carried, most often the batch identifier that
+    :func:`~process_improve.batch.data_input.melted_to_dict` leaves in place: constant
+    within a batch, so it contributed a zero range, and meaningless to scale. A column
+    that is not numeric is not a trajectory, and what to do with it (carry it, drop it,
+    encode it) is the caller's decision, not something to guess at here.
+
+    A numeric column that holds one value throughout every batch is dropped for the same
+    reason. That is what an identifier column looks like, and the identifier
+    :func:`~process_improve.batch.data_input.melted_to_dict` leaves in place is usually a
+    number, so a dtype test alone does not catch it. Including it is not harmless: on the
+    dryer data it takes almost no weight itself (0.000051) but moves the others
+    substantially, ``JacketTemperatureSP`` from 0.132 to 0.472, because it joins the
+    distance the alignment minimises and the normalisation that follows.
+
+    An explicit ``columns_to_align`` naming a non-numeric column raises rather than
+    quietly dropping it, since the caller asked for it by name. A constant column named
+    explicitly is left alone: constant over this particular set of batches does not mean
+    constant in general, and the caller may know better.
     """
     if isinstance(batches, pd.DataFrame):
         raise TypeError(
@@ -78,16 +122,38 @@ def _resolve_columns_to_align(
             f"identifier; got {type(batches).__name__}."
         )
 
-    if columns_to_align is not None:
-        return columns_to_align
-
     if not batches:
         raise ValueError(
             f"{caller} cannot resolve `columns_to_align` from an empty `batches` dict; "
             "pass `columns_to_align` explicitly, or supply at least one batch."
         )
 
-    return batches[next(iter(batches))].columns
+    first_batch = batches[next(iter(batches))]
+    if columns_to_align is not None:
+        non_numeric = {
+            str(column): str(first_batch[column].dtype)
+            for column in columns_to_align
+            if column in first_batch and not pd.api.types.is_numeric_dtype(first_batch[column])
+        }
+        if non_numeric:
+            listed = ", ".join(f"{name!r} ({dtype})" for name, dtype in sorted(non_numeric.items()))
+            raise ValueError(
+                f"{caller} can only align numeric columns, but `columns_to_align` names: {listed}. "
+                "Drop them from `columns_to_align`; a non-numeric column is not a trajectory, and "
+                "carrying, encoding or discarding it is yours to decide."
+            )
+        return columns_to_align
+
+    numeric = first_batch.select_dtypes(include="number").columns
+    varying = [column for column in numeric if _varies_within_any_batch(batches, column)]
+    if not varying:
+        raise ValueError(
+            f"{caller} found no column to align in the first batch, whose columns are "
+            f"{list(first_batch.columns)}. A column must be numeric and must vary within at least "
+            "one batch. Pass `columns_to_align` explicitly, or supply batches holding at least one "
+            "numeric trajectory."
+        )
+    return varying
 
 
 #: Quantile pair behind each ``settings["robust_range"]`` choice in :func:`determine_scaling`.

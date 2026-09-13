@@ -877,14 +877,24 @@ class TestDetermineScalingZeroRangeWarning:
     value for over half a batch has no interquartile spread at all.
     """
 
-    def test_a_constant_tag_is_reported_once_for_the_whole_call(self, dryer_data: dict) -> None:
+    def test_a_tag_flat_in_some_batches_is_reported_once_for_the_whole_call(self, dryer_data: dict) -> None:
         with pytest.warns(UserWarning, match="zero range and substituted 1.0") as caught:
-            determine_scaling(dryer_data)  # every column, including the constant batch_id
+            determine_scaling(dryer_data)
 
         assert len(caught) == 1, "one aggregated warning, not one per batch"
-        message = str(caught[0].message)
-        assert "'batch_id' (71 of 71 batches)" in message
-        assert "'DifferentialPressure' (16 of 71 batches)" in message
+        assert "'DifferentialPressure' (16 of 71 batches)" in str(caught[0].message)
+
+    def test_the_identifier_column_is_not_reported_because_it_is_not_aligned(self, dryer_data: dict) -> None:
+        """It used to head this warning on every default call, before it was excluded.
+
+        `batch_id` is flat in every batch, so column resolution now drops it and it never
+        reaches the zero-range substitution. `DifferentialPressure` is the real case: flat
+        in 16 of the 71 batches and varying in the rest, so it is aligned and reported.
+        """
+        with pytest.warns(UserWarning, match="zero range and substituted 1.0") as caught:
+            determine_scaling(dryer_data)
+
+        assert "batch_id" not in str(caught[0].message)
 
     def test_tags_that_vary_produce_no_warning(self, dryer_data: dict) -> None:
         with warnings.catch_warnings():
@@ -1216,3 +1226,140 @@ class TestBatchScaler:
 
         assert (iqr.scale_df_["Range"] < wide.scale_df_["Range"]).all()
         assert not np.array_equal(raw.scale_df_["Range"].to_numpy(), wide.scale_df_["Range"].to_numpy())
+
+
+class TestCostMatrixDiagonal:
+    """The cost matrix computes only the diagonal it needs (#199 follow-up)."""
+
+    @staticmethod
+    def _textbook(test: np.ndarray, ref: np.ndarray, weights: np.ndarray) -> np.ndarray:
+        """Build the cost matrix from the literal Mahalanobis expression, as a reference."""
+        columns = [np.diag((row - ref) @ weights @ (row - ref).T) for row in test]
+        return np.column_stack(columns)
+
+    def test_it_agrees_with_the_literal_mahalanobis_expression(self) -> None:
+        rng = np.random.default_rng(0)
+        test, ref = rng.normal(size=(40, 5)), rng.normal(size=(47, 5))
+        weights = np.diag(rng.uniform(0.5, 2.0, 5))
+
+        accumulated = distance_matrix(test, ref, weights)
+        # `distance_matrix` returns the accumulated cost, so compare the entry that has
+        # not yet been accumulated into: the top-left corner is the raw cost there.
+        expected = self._textbook(test, ref, weights)
+        assert accumulated[0, 0] == pytest.approx(expected[0, 0], rel=1e-12)
+        # And the first row accumulates left to right over the raw costs.
+        assert accumulated[0, :].tolist() == pytest.approx(np.cumsum(expected[0, :]).tolist(), rel=1e-12)
+
+    @pytest.mark.parametrize(("n_test", "n_ref", "n_tags"), [(50, 57, 3), (200, 193, 5), (120, 120, 11)])
+    def test_the_warping_path_is_unchanged_by_the_row_wise_form(self, n_test: int, n_ref: int, n_tags: int) -> None:
+        """The per-row diagonal sums in a different order, so this pins that it does not matter."""
+        rng = np.random.default_rng(n_test)
+        test, ref = rng.normal(size=(n_test, n_tags)), rng.normal(size=(n_ref, n_tags))
+        weights = np.diag(rng.uniform(0.5, 2.0, n_tags))
+
+        expected_cost = self._textbook(test, ref, weights)
+        accumulated = np.full((n_ref, n_test), np.nan)
+        accumulated[0, 0] = expected_cost[0, 0]
+        accumulated[0, 1:] = np.cumsum(expected_cost[0, :])[1:]
+        accumulated[1:, 0] = np.cumsum(expected_cost[:, 0])[1:]
+        for column in range(1, n_test):
+            for row in range(1, n_ref):
+                accumulated[row, column] = expected_cost[row, column] + np.nanmin(
+                    [accumulated[row, column - 1], accumulated[row - 1, column - 1], accumulated[row - 1, column]]
+                )
+
+        by_kernel, _ = backtrack_optimal_path(distance_matrix(test, ref, weights))
+        by_textbook, _ = backtrack_optimal_path(accumulated)
+        assert np.array_equal(by_kernel, by_textbook)
+
+    def test_it_does_not_build_the_square_product(self) -> None:
+        """A tall reference against few tags would allocate gigabytes under the old form."""
+        rng = np.random.default_rng(1)
+        test, ref = rng.normal(size=(30, 2)), rng.normal(size=(4000, 2))
+        weights = np.eye(2)
+
+        accumulated = distance_matrix(test, ref, weights)
+
+        assert accumulated.shape == (4000, 30)
+        assert np.isfinite(accumulated[-1, -1])
+
+
+class TestColumnResolution:
+    """Only columns that carry a trajectory are aligned (#199)."""
+
+    @staticmethod
+    def _batches(**columns: object) -> dict:
+        """Two batches, each holding the given columns; scalars become constant columns."""
+        return {
+            batch_id: pd.DataFrame(
+                {name: (value if isinstance(value, list) else [value] * 4) for name, value in columns.items()}
+            )
+            for batch_id in (1, 2)
+        }
+
+    def test_a_non_numeric_column_is_skipped_by_default(self) -> None:
+        batches = self._batches(temp=[10.0, 11.0, 12.0, 13.0], operator="alice")
+
+        scale_df = determine_scaling(batches)
+
+        assert list(scale_df.index) == ["temp"]
+
+    def test_a_non_numeric_column_named_explicitly_raises(self) -> None:
+        """The caller asked for it by name, so dropping it silently would hide the mistake."""
+        batches = self._batches(temp=[10.0, 11.0, 12.0, 13.0], operator="alice")
+
+        with pytest.raises(ValueError, match=r"can only align numeric columns.*'operator' \(object\)"):
+            determine_scaling(batches, columns_to_align=["temp", "operator"])
+
+    def test_a_column_flat_in_every_batch_is_skipped(self) -> None:
+        """An identifier looks exactly like this, and it is numeric, so dtype alone misses it."""
+        batches = self._batches(temp=[10.0, 11.0, 12.0, 13.0], batch_id=7)
+
+        scale_df = determine_scaling(batches)
+
+        assert list(scale_df.index) == ["temp"]
+
+    def test_a_column_flat_in_only_the_first_batch_is_kept(self) -> None:
+        """Every batch is checked, so a tag that starts flat but moves later still counts."""
+        batches = {
+            1: pd.DataFrame({"temp": [10.0, 11.0, 12.0], "pressure": [5.0, 5.0, 5.0]}),
+            2: pd.DataFrame({"temp": [10.0, 11.0, 12.0], "pressure": [5.0, 6.0, 7.0]}),
+        }
+
+        scale_df = determine_scaling(batches)
+
+        assert sorted(scale_df.index) == ["pressure", "temp"]
+
+    def test_a_constant_column_named_explicitly_is_left_alone(self) -> None:
+        """Constant over these batches does not mean constant in general; the caller may know."""
+        batches = self._batches(temp=[10.0, 11.0, 12.0, 13.0], setpoint=50.0)
+
+        with pytest.warns(UserWarning, match="zero range"):
+            scale_df = determine_scaling(batches, columns_to_align=["temp", "setpoint"])
+
+        assert sorted(scale_df.index) == ["setpoint", "temp"]
+
+    def test_no_alignable_column_raises_and_lists_what_was_there(self) -> None:
+        batches = self._batches(label="a", identifier=3)
+
+        with pytest.raises(ValueError, match=r"found no column to align.*\['label', 'identifier'\]"):
+            determine_scaling(batches)
+
+    def test_an_all_nan_column_counts_as_flat(self) -> None:
+        """No usable value means no spread, so it carries nothing to align."""
+        batches = self._batches(temp=[10.0, 11.0, 12.0, 13.0], broken=[np.nan] * 4)
+
+        scale_df = determine_scaling(batches)
+
+        assert list(scale_df.index) == ["temp"]
+
+    def test_a_column_absent_from_some_batches_is_judged_on_the_rest(self) -> None:
+        batches = {
+            1: pd.DataFrame({"temp": [10.0, 11.0, 12.0]}),
+            2: pd.DataFrame({"temp": [10.0, 11.0, 12.0], "extra": [1.0, 2.0, 3.0]}),
+        }
+
+        # `extra` is absent from the first batch, so it is not in the resolved set, which
+        # comes from that batch's columns. The point is that checking spread across every
+        # batch does not raise on the batch where the column is missing.
+        assert list(determine_scaling(batches).index) == ["temp"]
