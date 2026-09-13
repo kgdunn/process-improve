@@ -16,9 +16,11 @@ Windows these tests are skipped.
 
 from __future__ import annotations
 
-import contextlib
+import json
 import os
+import subprocess
 import sys
+import textwrap
 import time
 
 import numpy as np
@@ -31,10 +33,8 @@ from process_improve.tool_safety import (
     ToolMemoryExceededError,
     ToolSafetyError,
     ToolTimeoutError,
-    _apply_memory_limit,
     _count_numeric_leaves,
     _lookup_input_model,
-    _pool_initializer,
     _terminate_workers,
     _validate_against_model,
     _worker_run,
@@ -310,6 +310,48 @@ class _FakePool:
         self._processes = dict(enumerate(procs))
 
 
+#: Applying an address-space limit is checked in a child process, never in the test
+#: runner. RLIMIT_AS starts at infinity here, and lowering it is permitted while raising
+#: it back is not ("not allowed to raise maximum limit"), so a `finally` that restores
+#: the original silently fails and leaves the runner capped for the rest of the session.
+#: Worse for a test: once the cap is in place, asserting that the function applied it is
+#: satisfied whether or not the function did anything. A child process sheds the limit on
+#: exit, so the assertion means what it says.
+_CAP_MB = 1024 * 1024  # 1 TB: a real change from infinity, far above anything in use.
+
+
+def _address_space_in_child(body: str) -> dict:
+    """Run `body` in a fresh interpreter and return the JSON dict it prints."""
+    # Assembled by concatenation, not by interpolating into an indented f-string: only
+    # the first line of an interpolated block picks up the surrounding indent, which
+    # leaves `textwrap.dedent` nothing in common to strip and the child with an
+    # IndentationError.
+    source = "import json, resource\n" + textwrap.dedent(body).strip() + "\nprint(json.dumps(result))\n"
+    completed = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", source], capture_output=True, text=True, check=True
+    )
+    return json.loads(completed.stdout)
+
+
+def _platform_allows_lowering_address_space() -> bool:
+    """Report whether a plain `setrlimit` works here, independent of the code under test.
+
+    Probing separately keeps the skip honest: if this returns True and the function under
+    test still leaves the limit alone, that is a real failure rather than a platform quirk.
+    """
+    probe = _address_space_in_child(
+        f"""
+        cap = {_CAP_MB} * 1024 * 1024
+        try:
+            resource.setrlimit(resource.RLIMIT_AS, (cap, cap))
+            result = {{"allowed": True}}
+        except (ValueError, OSError):
+            result = {{"allowed": False}}
+        """
+    )
+    return bool(probe["allowed"])
+
+
 class TestTerminateWorkers:
     def test_no_processes_attr_is_noop(self) -> None:
         # A pool object without a _processes table is handled gracefully.
@@ -482,33 +524,56 @@ class TestHelpers:
         assert _count_numeric_leaves("a string", depth=0, max_depth=10) == 0
 
     @pytest.mark.skipif(sys.platform == "win32", reason="RLIMIT_AS is POSIX-only")
-    def test_apply_memory_limit_is_safe_with_generous_cap(self) -> None:
-        """A very large cap leaves the running process unharmed."""
-        import resource
+    def test_apply_memory_limit_applies_the_cap_it_was_given(self) -> None:
+        """The cap reaches RLIMIT_AS, checked in a child process.
 
-        original = resource.getrlimit(resource.RLIMIT_AS)
-        try:
-            # 1 TB cap: far above this process, so nothing is actually constrained.
-            _apply_memory_limit(1024 * 1024)
-        finally:
-            with contextlib.suppress(ValueError, OSError):
-                resource.setrlimit(resource.RLIMIT_AS, original)
+        The body used to call `_apply_memory_limit` and assert nothing, so it passed
+        whether or not the limit was applied. It cannot be checked in the runner: see the
+        note on `_address_space_in_child`.
+        """
+        if not _platform_allows_lowering_address_space():
+            pytest.skip("this environment does not permit lowering RLIMIT_AS")
+
+        observed = _address_space_in_child(
+            f"""
+            from process_improve.tool_safety import _apply_memory_limit
+            _apply_memory_limit({_CAP_MB})
+            result = {{"soft": resource.getrlimit(resource.RLIMIT_AS)[0]}}
+            """
+        )
+
+        assert observed["soft"] == _CAP_MB * 1024 * 1024
 
     def test_worker_run_dispatches_to_registry(self) -> None:
         """_worker_run executes a registered tool in the current process."""
         assert _worker_run("_safety_test_echo", {"value": 99}) == {"value": 99}
 
     @pytest.mark.skipif(sys.platform == "win32", reason="RLIMIT_AS is POSIX-only")
-    def test_pool_initializer_warms_registry(self) -> None:
-        """_pool_initializer discovers tools and applies the memory cap."""
-        import resource
+    def test_pool_initializer_warms_registry_and_applies_the_cap(self) -> None:
+        """Both halves of what `_pool_initializer` promises, checked in a child process.
 
-        original = resource.getrlimit(resource.RLIMIT_AS)
-        try:
-            _pool_initializer(1024 * 1024)
-        finally:
-            with contextlib.suppress(ValueError, OSError):
-                resource.setrlimit(resource.RLIMIT_AS, original)
+        The body used to assert neither, so it passed even if the initializer discovered
+        nothing and set no limit.
+        """
+        if not _platform_allows_lowering_address_space():
+            pytest.skip("this environment does not permit lowering RLIMIT_AS")
+
+        observed = _address_space_in_child(
+            f"""
+            from process_improve.tool_safety import _pool_initializer
+            from process_improve.tool_spec import _TOOL_REGISTRY
+            _pool_initializer({_CAP_MB})
+            result = {{
+                "soft": resource.getrlimit(resource.RLIMIT_AS)[0],
+                "n_tools": len(_TOOL_REGISTRY),
+                "has_known_tool": "robust_regression" in _TOOL_REGISTRY,
+            }}
+            """
+        )
+
+        assert observed["soft"] == _CAP_MB * 1024 * 1024
+        assert observed["n_tools"] > 0
+        assert observed["has_known_tool"]
 
     @_skip_if_not_linux
     def test_get_pool_returns_cached_instance(self) -> None:
