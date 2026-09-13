@@ -20,10 +20,11 @@ from collections.abc import Iterator
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.base import clone
 from sklearn.model_selection import KFold
 
 from process_improve.multivariate import PCA, PLS, vip
-from process_improve.multivariate._common import SpecificationWarning
+from process_improve.multivariate._common import SpecificationWarning, UncentredDataWarning
 from process_improve.multivariate._preprocessing import _looks_prescaled
 
 
@@ -131,6 +132,83 @@ class TestUncentredBlockWarning:
         y = pd.DataFrame({"y": 2 * x["a"] - x["b"]})
         with _no_specification_warning():
             PLS(n_components=2, scale=False).fit(x, y)
+
+
+class TestUncentredWarningOptOut:
+    """A deliberate un-centred fit needs a narrower escape than silencing the category."""
+
+    @staticmethod
+    def _offset_blocks() -> tuple[pd.DataFrame, pd.DataFrame]:
+        x = _standardised_x()
+        return x, pd.DataFrame({"y": 2 * x["a"] - x["b"] + 5.0})
+
+    def test_warning_is_its_own_class_under_the_parent(self) -> None:
+        """Filters and ``pytest.warns`` written against the parent keep matching."""
+        assert issubclass(UncentredDataWarning, SpecificationWarning)
+        x, y = self._offset_blocks()
+        with pytest.warns(UncentredDataWarning, match="fits no intercept"):
+            PLS(n_components=2, scale=False).fit(x, y)
+
+    def test_flag_silences_the_warning_under_simplefilter_error(self) -> None:
+        """The reported symptom: ``filterwarnings = error`` turned the warning into a fit failure."""
+        x, y = self._offset_blocks()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            PLS(n_components=2, scale=False, warn_on_uncentred=False).fit(x, y)
+
+    def test_flag_does_not_silence_other_specification_warnings(self) -> None:
+        """What blanket suppression costs: a second, unrelated warning from the same fit."""
+        x, y = self._offset_blocks()
+        with pytest.warns(SpecificationWarning, match="more than can be computed") as record:
+            PLS(n_components=40, scale=False, warn_on_uncentred=False).fit(x, y)
+        assert not [w for w in record if issubclass(w.category, UncentredDataWarning)]
+
+    def test_category_filter_is_the_wider_opt_out(self) -> None:
+        """For callers who cannot reach the constructor, e.g. a model built by other code."""
+        x, y = self._offset_blocks()
+        with warnings.catch_warnings(record=True) as record:
+            warnings.simplefilter("error")
+            warnings.simplefilter("ignore", UncentredDataWarning)
+            with pytest.warns(SpecificationWarning, match="more than can be computed"):
+                PLS(n_components=40, scale=False).fit(x, y)
+        assert not [w for w in record if issubclass(w.category, UncentredDataWarning)]
+
+    def test_flag_changes_only_the_warning_never_the_fit(self) -> None:
+        """Opting out must not quietly centre the data or otherwise move the numbers."""
+        x, y = self._offset_blocks()
+        with _numbers_only():
+            loud = PLS(n_components=2, scale=False).fit(x, y)
+        quiet = PLS(n_components=2, scale=False, warn_on_uncentred=False).fit(x, y)
+        np.testing.assert_allclose(
+            np.asarray(loud.predict(x), dtype=float),
+            np.asarray(quiet.predict(x), dtype=float),
+        )
+
+    def test_flag_is_a_no_op_when_scale_is_true(self) -> None:
+        """``scale=True`` centres both blocks itself, so there is nothing to opt out of."""
+        x, y = self._offset_blocks()
+        with _no_specification_warning():
+            PLS(n_components=2, scale=True, warn_on_uncentred=False).fit(x, y)
+
+    def test_flag_survives_get_params_and_clone(self) -> None:
+        """It has to reach a fit that a Pipeline or a grid search constructs."""
+        model = PLS(n_components=2, scale=False, warn_on_uncentred=False)
+        assert model.get_params()["warn_on_uncentred"] is False
+        x, y = self._offset_blocks()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            clone(model).fit(x, y)
+
+    def test_default_stays_on(self) -> None:
+        """The warning is correct; the opt-out is opt-in."""
+        assert PLS(n_components=2).get_params()["warn_on_uncentred"] is True
+
+    def test_message_points_at_the_flag(self) -> None:
+        """A caller who hits this by surprise should not have to search for the remedy."""
+        x, y = self._offset_blocks()
+        with pytest.warns(UncentredDataWarning) as record:
+            PLS(n_components=2, scale=False).fit(x, y)
+        assert "warn_on_uncentred=False" in str(record[0].message)
 
 
 class TestPreScaledInsideFoldsWarning:

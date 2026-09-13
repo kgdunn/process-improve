@@ -27,6 +27,7 @@ __all__ = [
     "NotEnoughVarianceError",
     "SelectionRule",
     "SpecificationWarning",
+    "UncentredDataWarning",
     "epsqrt",
 ]
 
@@ -88,6 +89,31 @@ def _nz(denominator: float) -> float:
 
 class SpecificationWarning(UserWarning):
     """Parent warning class."""
+
+
+class UncentredDataWarning(SpecificationWarning):
+    """Emitted when a model that fits no intercept is handed an un-centred block.
+
+    Raised by :meth:`PLS.fit <process_improve.multivariate.PLS.fit>` under
+    ``scale=False``, which centres nothing and fits no intercept, so a block
+    carrying a non-zero mean displaces every prediction.
+
+    It exists as its own class so a caller who fits un-centred data on purpose
+    can permit *this* diagnostic without going blind to the rest. Under a
+    ``filterwarnings = error`` policy::
+
+        # pytest.ini / pyproject.toml, or @pytest.mark.filterwarnings on one test
+        filterwarnings =
+            error
+            ignore::process_improve.multivariate.UncentredDataWarning
+
+    Narrower still, and with no global filter at all, is the estimator flag:
+    ``PLS(..., scale=False, warn_on_uncentred=False)`` silences the check for
+    that one model and leaves every other ``SpecificationWarning`` in force.
+
+    Subclasses :class:`SpecificationWarning`, so filters and ``pytest.warns``
+    assertions written against the parent keep matching it.
+    """
 
 
 class NotEnoughVarianceError(RuntimeError):

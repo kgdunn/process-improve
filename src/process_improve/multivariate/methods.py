@@ -17,7 +17,7 @@ from .._random import check_random_state
 from ..univariate.metrics import detect_outliers_esd
 from ..visualization.themes import REFERENCE_LINE_COLOR
 from ._adaptive import AdaptivePCA, AdaptivePLS
-from ._common import NotEnoughVarianceError, SpecificationWarning, epsqrt
+from ._common import NotEnoughVarianceError, SpecificationWarning, UncentredDataWarning, epsqrt
 from ._diagnostics import (
     eigenvalue_summary,
     group_contributions,
@@ -91,6 +91,7 @@ __all__ = [
     "Plot",
     "Resampler",
     "SpecificationWarning",
+    "UncentredDataWarning",
     "center",
     "check_predictive_signal",
     "check_random_state",
