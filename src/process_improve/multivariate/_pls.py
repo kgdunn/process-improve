@@ -32,6 +32,7 @@ from ._common import (
     NotEnoughVarianceError,
     SelectionRule,
     SpecificationWarning,
+    UncentredDataWarning,
     _align_to_fit_features,
     _equal_weight_r2_total,
     _model_method,
@@ -162,6 +163,12 @@ def _warn_if_uncentred(X: pd.DataFrame, Y: pd.DataFrame) -> None:
     Deliberately a warning, not an automatic centring: ``scale=False`` currently
     means "touch nothing", and quietly centring would change the numbers for
     every caller who already centres correctly.
+
+    The category is :class:`UncentredDataWarning`, a :class:`SpecificationWarning`
+    subclass, so a caller who fits un-centred on purpose can permit this one
+    diagnostic without going blind to the rest. Narrower again, and touching no
+    global filter: ``PLS(..., warn_on_uncentred=False)`` skips the call to this
+    helper entirely.
     """
     for block, name in ((Y, "Y"), (X, "X")):
         offenders = _uncentred_columns(block)
@@ -180,8 +187,10 @@ def _warn_if_uncentred(X: pd.DataFrame, Y: pd.DataFrame) -> None:
             f"{_format_labels(offenders)} of the {name} block have a mean that is large "
             f"relative to their own spread. The consequence is not an error: "
             f"{symptom}. Centre both blocks first (MCUVScaler().fit_transform(...), or "
-            f"X - X.mean()), or pass scale=True and let the model do it.",
-            SpecificationWarning,
+            f"X - X.mean()), or pass scale=True and let the model do it. Fitting "
+            f"un-centred on purpose? Pass warn_on_uncentred=False to silence this for "
+            f"this model alone.",
+            UncentredDataWarning,
             stacklevel=3,
         )
 
@@ -217,10 +226,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         ``scale=False`` fits **no intercept**, so both blocks must already be
         centred. A response left on its natural scale is the trap: predictions
         come out offset by the response mean, and R² / Q² go large and negative
-        on data that does contain a relationship. ``fit`` raises a
-        :class:`SpecificationWarning` when either block's column means are large
+        on data that does contain a relationship. ``fit`` raises an
+        :class:`UncentredDataWarning` when either block's column means are large
         relative to their spread; it does not centre for you, because
-        ``scale=False`` means "touch nothing".
+        ``scale=False`` means "touch nothing". Set ``warn_on_uncentred=False``
+        when that fit is deliberate.
     max_iter : int, default=1000
         Maximum number of iterations for the NIPALS algorithm.
     tol : float, default=sqrt(machine epsilon)
@@ -229,6 +239,26 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         of the current score vector (see :func:`terminate_check`).
     copy : bool, default=True
         Whether to copy X and Y before fitting.
+    warn_on_uncentred : bool, default=True
+        Emit the :class:`UncentredDataWarning` described under ``scale`` when
+        ``scale=False`` and a block arrives un-centred. Set it to ``False`` for
+        a fit that is un-centred on purpose (a demonstration of the offset, or a
+        test that some other centring check fires), where the diagnostic is the
+        expected outcome rather than a problem.
+
+        This is the narrowest of the three opt-outs, and the one to reach for
+        first. It silences the check for this model only, so an unrelated
+        :class:`SpecificationWarning` raised elsewhere in the same block, or by
+        this same ``fit`` call, still arrives. Filtering
+        ``UncentredDataWarning`` as a category is next narrowest; suppressing
+        all of ``SpecificationWarning`` is the blunt instrument, and hides
+        clamped component counts and NIPALS non-convergence along with it.
+
+        Has no effect when ``scale=True``: the model centres both blocks itself,
+        so the condition cannot arise. Like every constructor parameter it is
+        stored verbatim and survives :func:`~sklearn.base.clone`, so a
+        deliberately un-centred fit stays quiet inside a ``Pipeline`` or a
+        grid search.
     missing_data_settings : dict or None, default=None
         Settings for missing data algorithms (NIPALS/TSR for PLS).
         Keys: ``md_method`` (``"tsr"``, ``"scp"``, ``"nipals"``),
@@ -325,6 +355,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         max_iter: int = 1000,
         tol: float = epsqrt,
         copy: bool = True,
+        warn_on_uncentred: bool = True,
         # Own extra inputs, for the case when there is missing data
         missing_data_settings: dict | None = None,
     ):
@@ -338,6 +369,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         self.max_iter = max_iter
         self.tol = tol
         self.copy = copy
+        # Read only in fit(), and only on the scale=False branch: with scale=True
+        # the model centres both blocks itself, so there is nothing to warn about.
+        self.warn_on_uncentred = warn_on_uncentred
         self.missing_data_settings = missing_data_settings
 
     def __sklearn_tags__(self):
@@ -749,7 +783,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             self._y_scaler = MCUVScaler().fit(y_fit_rows)
             X = self._x_scaler.transform(X)
             Y = self._y_scaler.transform(Y)
-        else:
+        elif self.warn_on_uncentred:
             _warn_if_uncentred(X, Y)
 
         # Check if number of components is supported against maximum requested
