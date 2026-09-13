@@ -11,6 +11,26 @@ those changes.
 
 ## [Unreleased]
 
+## [1.93.1] - 2026-09-13
+
+### Fixed
+
+- **Two tests in `tests/test_tool_safety.py` could not fail.** `_apply_memory_limit`
+  applying its cap, and `_pool_initializer` warming the tool registry, were each named for
+  a postcondition the body never asserted: the tests called the function, restored the
+  rlimit in a `finally`, and checked nothing. Both now verify what they claim, in a child
+  process.
+
+  The child process is necessary rather than tidy. `RLIMIT_AS` starts at infinity;
+  lowering it is permitted and raising it back is not, so the `finally` restore raises
+  "not allowed to raise maximum limit", is suppressed, and leaves the test runner capped
+  for the remainder of the session. Once anything has lowered the limit, asserting in the
+  runner that the function applied it is satisfied whether or not the function did
+  anything. Verified by mutation: with `_apply_memory_limit` replaced by `return` both
+  tests fail, and with the `discover_tools()` call removed from `_pool_initializer` only
+  the initializer test fails. (#213)
+
+
 ## [1.93.0] - 2026-09-12
 
 ### Changed
@@ -5023,7 +5043,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.93.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.93.1...HEAD
+[1.93.1]: https://github.com/kgdunn/process-improve/compare/v1.93.0...v1.93.1
 [1.93.0]: https://github.com/kgdunn/process-improve/compare/v1.92.0...v1.93.0
 [1.92.0]: https://github.com/kgdunn/process-improve/compare/v1.89.0...v1.92.0
 [1.89.0]: https://github.com/kgdunn/process-improve/compare/v1.88.0...v1.89.0
