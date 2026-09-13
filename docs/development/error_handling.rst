@@ -235,6 +235,30 @@ Category guide:
 the default category is ``UserWarning`` and callers cannot
 filter the warning by class.
 
+Subclass when a diagnostic has a legitimate opt-out
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``SpecificationWarning`` covers everything from a clamped
+component count to a non-converged NIPALS loop. When one of
+those conditions is something a caller might trigger *on
+purpose*, give it its own subclass, so permitting that one case
+does not mean going blind to the rest::
+
+    class UncentredDataWarning(SpecificationWarning):
+        """A model that fits no intercept got an un-centred block."""
+
+Subclassing is backwards compatible: filters and
+``pytest.warns(SpecificationWarning)`` assertions written
+against the parent keep matching. Export the subclass from the
+package ``__init__`` too, so a ``filterwarnings`` entry can name
+it without reaching into a private module.
+
+Narrower still is a constructor flag on the estimator that
+raises it (``PLS(..., warn_on_uncentred=False)``): it reaches
+one model rather than a scope, needs no global filter, and
+survives ``clone()``. Offer the flag where the caller
+constructs the object, and the subclass for when they do not.
+
 Logging vs. warning
 -------------------
 

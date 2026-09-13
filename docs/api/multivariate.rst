@@ -124,6 +124,21 @@ also bound as a convenience method on the model after :meth:`fit`.
 
 .. autofunction:: project_variables
 
+Warnings
+--------
+
+.. currentmodule:: process_improve.multivariate
+
+Both classes are importable from ``process_improve.multivariate`` as well as
+from :mod:`process_improve.multivariate.methods`, so a ``filterwarnings`` entry
+never has to name a private module.
+
+.. autoclass:: SpecificationWarning
+   :show-inheritance:
+
+.. autoclass:: UncentredDataWarning
+   :show-inheritance:
+
 Plots
 -----
 
