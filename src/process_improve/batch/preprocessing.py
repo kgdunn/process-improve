@@ -111,8 +111,8 @@ def _resolve_columns_to_align(
     if isinstance(batches, pd.DataFrame):
         raise TypeError(
             f"{caller} expects `batches` as a dict of per-batch DataFrames, keyed by batch "
-            f"identifier; got a single {type(batches).__name__} holding every batch, which is not "
-            "supported yet (tracked on #199). Split it per batch first, for example: "
+            f"identifier; got a single {type(batches).__name__} holding every batch. Either use "
+            "`BatchScaler(batch_col=...)`, which splits a melted frame itself, or split it first: "
             "`dict(tuple(df.groupby(batch_col)))`."
         )
 
