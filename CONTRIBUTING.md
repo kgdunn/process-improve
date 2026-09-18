@@ -119,6 +119,39 @@ still be rejected by CI.
 - **Prose:** do not use em-dashes in code, comments, docstrings, or commit
   messages; use a hyphen, a semicolon, or split the sentence.
 
+### Complexity budget
+
+The four complexity rules (`C901` too-complex, `PLR0912` too-many-branches,
+`PLR0913` too-many-arguments, `PLR0915` too-many-statements) are silenced
+in-line at many sites. They are a real signal: the functions carrying them are
+the ones no single reader can hold in their head, and they are where the bugs
+turn up (#307).
+
+The count is a **ratchet**, not a style preference:
+
+```bash
+python tools/complexity_budget.py        # counts, budget, and what to split next
+```
+
+The script asks ruff with `--ignore-noqa`, so it counts functions that genuinely
+breach a threshold rather than `# noqa` comments, and it ranks them by how far
+past the threshold they are. `tests/test_complexity_ratchet.py` turns that into
+a CI gate, in both directions:
+
+- A count **above** its budget fails: the change made the code worse in exactly
+  the way #307 is about. Split the function, or make the case in #307 for
+  raising the budget.
+- A count **below** its budget also fails, with the one-line fix in the message:
+  lower `BUDGET` in `tools/complexity_budget.py`. That is what stops a refactor
+  being silently spent by the next change.
+
+**Target: halve the 2026-06 baseline of 185 breaches, to 91, by v2.0.** Roughly
+one function split per release gets there; picking the top entry of the report
+is a good default.
+
+A new `# noqa` for one of these four rules needs a trailing comment saying why
+the refactor is deferred, the same as any other deliberate suppression.
+
 ### API consistency
 
 Functions and estimators that do the same job must present the same API.
