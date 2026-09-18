@@ -206,7 +206,13 @@ def _contains_nan(a: np.ndarray, nan_policy: str = "propagate") -> tuple[bool, s
     return (contains_nan, nan_policy)
 
 
-def ttest_independent(sample_A: pd.Series, sample_B: pd.Series, conflevel: float = 0.995) -> dict:
+def ttest_independent(
+    sample_A: pd.Series,
+    sample_B: pd.Series,
+    conflevel: float = 0.995,
+    *,
+    equal_var: bool = True,
+) -> dict:
     """Core calculation for a test of differences between the average of A and the average of B.
     No checking of inputs.
 
@@ -219,6 +225,13 @@ def ttest_independent(sample_A: pd.Series, sample_B: pd.Series, conflevel: float
     conflevel : float
         Value between 0 and 1 (closer to 1.0), that gives the level of confidence required for
         the 2-sided test.
+    equal_var : bool
+        ``True`` (the default) runs Student's pooled-variance test: the two samples are
+        assumed to share one variance, which is estimated from both and spent on
+        ``n_A + n_B - 2`` degrees of freedom. ``False`` runs Welch's test: each sample
+        keeps its own variance and the degrees of freedom come from the
+        Welch-Satterthwaite approximation. Matches
+        :func:`scipy.stats.ttest_ind`'s parameter of the same name.
 
     Returns
     -------
@@ -228,6 +241,8 @@ def ttest_independent(sample_A: pd.Series, sample_B: pd.Series, conflevel: float
         the t distribution on ``"Degrees of freedom"``), ``"Std error of
         difference"`` (the denominator of that statistic, and the half-width
         unit of the confidence interval), and ``"Pooled std dev"``.
+        ``"Equal variance assumed"`` records which test was run;
+        ``"Pooled std dev"`` is ``NaN`` under Welch, where no pooled estimate exists.
 
         .. deprecated:: 1.70.0
             ``"z value"`` and ``"Pooled standard deviation"`` are misleading
@@ -237,23 +252,52 @@ def ttest_independent(sample_A: pd.Series, sample_B: pd.Series, conflevel: float
             means, ``sqrt(svar * (1/nA + 1/nB))``, not the pooled standard
             deviation ``sqrt(svar)``. Use ``"t value"`` and ``"Std error of
             difference"`` instead.
+
+    Notes
+    -----
+    The default stays Student's so existing results do not move, but it is the weaker
+    choice. Pooling is only valid when the two variances really are equal; when they are
+    not, and especially when the larger variance sits with the smaller sample, Student's
+    test does not hold its nominal error rate, while Welch's does and costs almost
+    nothing when the variances *are* equal. Delacre, Lakens & Leys (2017) make the case
+    that Welch's should be the default, and it already is in R's ``t.test``:
+    https://rips-irsp.com/articles/10.5334/irsp.82
+
+    Testing the variances first and choosing on the outcome is worse than either, not
+    better: the pre-test spends its own error rate, and the conditional procedure has no
+    clean size. Pick ``equal_var`` from what is known about the measurement, not from the
+    data in hand.
     """
-    # TODO(#561): offer a Welch (unequal-variance) option. This is a pooled-variance
-    # Student's t-test; Delacre, Lakens & Leys (2017) argue Welch's should be the
-    # default. https://rips-irsp.com/articles/10.5334/irsp.82
     axis: Literal[0] = 0
     v1, v2 = sample_A.var(axis=axis, ddof=1), sample_B.var(axis=axis, ddof=1)
     n_A, n_B = sample_A.shape[axis], sample_B.shape[axis]
     m1, m2 = sample_A.mean(), sample_B.mean()
-    df = n_A + n_B - 2.0
-    ct = abs(t_value(p=(1 - conflevel) / 2.0, v=df))
     d = m2 - m1
-    svar = ((n_A - 1) * v1 + (n_B - 1) * v2) / df
 
     with np.errstate(divide="ignore", invalid="ignore"):
-        sd_z_variate = np.sqrt(svar * (np.divide(1.0, n_A) + np.divide(1.0, n_B)))
+        if equal_var:
+            df = n_A + n_B - 2.0
+            svar = ((n_A - 1) * v1 + (n_B - 1) * v2) / df
+            sd_z_variate = np.sqrt(svar * (np.divide(1.0, n_A) + np.divide(1.0, n_B)))
+            pooled_std_dev = np.sqrt(svar)
+        else:
+            # Welch: each sample contributes its own squared standard error, and the
+            # degrees of freedom are the Welch-Satterthwaite approximation, which
+            # interpolates between min(n_A, n_B) - 1 and n_A + n_B - 2 according to how
+            # unbalanced the two contributions are.
+            se2_A, se2_B = np.divide(v1, n_A), np.divide(v2, n_B)
+            sd_z_variate = np.sqrt(se2_A + se2_B)
+            df = np.divide(
+                (se2_A + se2_B) ** 2,
+                np.divide(se2_A**2, n_A - 1) + np.divide(se2_B**2, n_B - 1),
+            )
+            # No single variance is estimated, so there is no pooled standard deviation
+            # to report. NaN says that, where a number would imply a quantity the test
+            # never formed.
+            pooled_std_dev = np.nan
         z_variate = np.divide(d, sd_z_variate)
 
+    ct = abs(t_value(p=(1 - conflevel) / 2.0, v=df))
     confint_lo = d - ct * sd_z_variate
     confint_hi = d + ct * sd_z_variate
 
@@ -267,6 +311,7 @@ def ttest_independent(sample_A: pd.Series, sample_B: pd.Series, conflevel: float
         "ConfInt: Hi": confint_hi,
         "p value": 2 * t_value_cdf(-np.abs(z_variate), df),
         "Degrees of freedom": df,
+        "Equal variance assumed": bool(equal_var),
         "Pooled standard deviation": sd_z_variate,
         # Correctly named entries for the two mislabelled ones above, which are
         # kept as deprecated aliases. "z value" is a t-statistic: its p value is
@@ -275,7 +320,7 @@ def ttest_independent(sample_A: pd.Series, sample_B: pd.Series, conflevel: float
         # sqrt(svar * (1/nA + 1/nB)); the pooled standard deviation is sqrt(svar).
         "t value": z_variate,
         "Std error of difference": sd_z_variate,
-        "Pooled std dev": np.sqrt(svar),
+        "Pooled std dev": pooled_std_dev,
     }
 
 
@@ -304,12 +349,14 @@ def _apply_multiplicity_correction(output: pd.DataFrame, correction: str | None)
     return output
 
 
-def ttest_independent_from_df(
+def ttest_independent_from_df(  # noqa: PLR0913 - six is the honest width: two columns, a frame, and three switches
     df: pd.DataFrame,
     grouper_column: str,
     values_column: str,
     conflevel: float = 0.995,
     correction: str | None = None,
+    *,
+    equal_var: bool = True,
 ) -> pd.DataFrame:
     """
     Calculate the t-test for differences between two or more groups and returns a confidence
@@ -325,6 +372,10 @@ def ttest_independent_from_df(
         values_column (str): Which column contains the numeric values to calculate the test on.
         conflevel (float, optional): [description]. Defaults to 0.995.
         correction (str | None, optional): "holm", "bh", or None. Defaults to None. See below.
+        equal_var (bool, optional): Forwarded to :func:`ttest_independent` for every pair.
+            ``True`` (the default) is Student's pooled-variance test; ``False`` is Welch's.
+            Welch is the safer choice for a pairwise family, where the groups have no
+            particular reason to share one variance; see that function's Notes.
 
     Multiplicity: by default the returned p-values are UNCORRECTED. With k groups this
     runs k(k-1)/2 tests, so the chance of at least one false positive is well above the
@@ -368,7 +419,7 @@ def ttest_independent_from_df(
             sample_B = data_subset[data_subset[grouper_column].eq(groupB_name)][values_column]
             sample_A = sample_A.astype(np.float64)
             sample_B = sample_B.astype(np.float64)
-            basic_stats = ttest_independent(sample_A, sample_B, conflevel)
+            basic_stats = ttest_independent(sample_A, sample_B, conflevel, equal_var=equal_var)
             basic_stats.update(
                 {
                     "Group A name": groupA_name,
@@ -529,7 +580,18 @@ def confidence_interval(df: pd.DataFrame, column_name: str, conflevel: float = 0
                                     spread. Default: 'robust'
 
     Missing values are ignored.
+
+    Raises
+    ------
+    ValueError
+        If `style` is neither 'robust' nor 'regular', or if the column holds fewer than 2
+        non-missing values. An unrecognised `style` used to fall through to the classical
+        branch, so a typo returned a different interval with nothing to signal it (#561).
     """
+
+    known_styles = ("robust", "regular")
+    if style.lower() not in known_styles:
+        raise ValueError(f"style must be one of {known_styles}; got {style!r}.")
 
     data = df[column_name]
     n = data.count()

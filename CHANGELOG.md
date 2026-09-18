@@ -11,6 +11,40 @@ those changes.
 
 ## [Unreleased]
 
+## [1.96.0] - 2026-09-18
+
+### Added
+
+- **`ttest_independent(..., equal_var=False)`: Welch's unequal-variance t-test
+  (#561).** The function was pooled-variance Student's t only, with no switch:
+  `grep -rn "welch|equal_var|ttest_ind" src/` returned nothing. Welch is the
+  default in R's `t.test` and is what `scipy.stats.ttest_ind(equal_var=False)`
+  gives, so the library was the outlier. `equal_var=False` keeps each sample's
+  own variance and takes the Welch-Satterthwaite degrees of freedom; both modes
+  now agree with scipy to 1e-12 on the statistic, the p-value, the degrees of
+  freedom and the confidence interval.
+
+  The default stays `True`, so existing results do not move. It is the weaker
+  choice, though: pooling is only valid when the two variances really are equal,
+  and when they are not (especially with the larger variance on the smaller
+  sample) Student's test does not hold its nominal error rate while Welch's does.
+  Delacre, Lakens & Leys (2017) is now cited on the function as the case for that,
+  which is where that reference belongs; it had been parked in
+  `confidence_interval`, a single-sample interval it has nothing to do with.
+
+  `ttest_independent_from_df` forwards `equal_var` to every pair in the family,
+  and the `ttest_two_samples` tool exposes it too. Two consequences worth knowing:
+  the result dict gains an `"Equal variance assumed"` entry, and `"Pooled std
+  dev"` is `NaN` under Welch (JSON `null` through the tool layer), because Welch
+  forms no pooled estimate and a number there would imply one.
+
+### Fixed
+
+- **`confidence_interval` validates `style` (#561).** Anything other than
+  `"robust"` fell through to the classical branch, so `style="rubost"` returned a
+  different interval with nothing to signal it. Unknown values now raise
+  `ValueError` naming the two accepted ones.
+
 ## [1.94.0] - 2026-09-13
 
 ### Added
@@ -5083,7 +5117,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.94.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.96.0...HEAD
+[1.96.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.96.0
 [1.94.0]: https://github.com/kgdunn/process-improve/compare/v1.93.1...v1.94.0
 [1.93.1]: https://github.com/kgdunn/process-improve/compare/v1.93.0...v1.93.1
 [1.93.0]: https://github.com/kgdunn/process-improve/compare/v1.92.0...v1.93.0
