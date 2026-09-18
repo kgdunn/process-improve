@@ -11,46 +11,6 @@ those changes.
 
 ## [Unreleased]
 
-## [1.95.4] - 2026-09-13
-
-### Added
-
-- **A narrow opt-out from the `PLS(scale=False)` un-centred-block warning.**
-  `PLS` fits no intercept, so an un-centred block displaces every prediction and
-  `fit` warns about it. The warning is correct and stays on by default. What was
-  missing was a way to permit one deliberate un-centred fit: a caller proving
-  that some *other* centring check fires had only
-  `simplefilter("ignore", SpecificationWarning)`, which also hides clamped
-  component counts and NIPALS non-convergence, and under a
-  `filterwarnings = error` policy the warning arrived as an exception
-  indistinguishable from a failed fit.
-
-  Two escapes, narrowest first:
-
-  - `PLS(..., warn_on_uncentred=False)` skips the check for that model alone.
-    It is an ordinary constructor parameter, so it survives `clone()` and
-    reaches a fit built inside a `Pipeline` or a grid search. It has no effect
-    under `scale=True`, where the model centres both blocks itself.
-  - `UncentredDataWarning`, a new `SpecificationWarning` subclass, is the
-    category the warning is now raised under, so
-    `ignore::process_improve.multivariate.UncentredDataWarning` leaves every
-    other specification diagnostic in force. Use it when the model is
-    constructed by code you do not own.
-
-- **`SpecificationWarning` and `UncentredDataWarning` are importable from
-  `process_improve.multivariate`.** A `filterwarnings` entry no longer has to
-  name the private `multivariate._common` module. Both remain importable from
-  `process_improve.multivariate.methods`.
-
-### Changed
-
-- **The un-centred-block warning's category is now `UncentredDataWarning`
-  rather than `SpecificationWarning` itself.** It subclasses
-  `SpecificationWarning`, so `warnings.filterwarnings(...,
-  category=SpecificationWarning)`, `except SpecificationWarning` and
-  `pytest.warns(SpecificationWarning)` all keep matching. Only an exact-identity
-  test (`record[0].category is SpecificationWarning`) changes behaviour.
-
 ## [1.95.1] - 2026-09-18
 
 ### Changed
@@ -5201,8 +5161,7 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.95.4...HEAD
-[1.95.4]: https://github.com/kgdunn/process-improve/compare/v1.95.1...v1.95.4
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.95.1...HEAD
 [1.95.1]: https://github.com/kgdunn/process-improve/compare/v1.95.0...v1.95.1
 [1.95.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.95.0
 [1.94.0]: https://github.com/kgdunn/process-improve/compare/v1.93.1...v1.94.0
