@@ -1176,6 +1176,135 @@ def test_pca_parallel_analysis_recovers_known_rank() -> None:
     assert (pa.observed_eigenvalues[:true_rank] > pa.null_threshold[:true_rank]).all()
 
 
+def test_pca_parallel_analysis_permutation_null_adapts_to_the_data() -> None:
+    """#374: the Buja-Eyuboglu surrogate permutes the real columns, so the null follows them.
+
+    Horn's normal surrogate draws standard-normal matrices, so for a given shape it
+    produces the same null whatever the data looks like. That is the right null only when
+    the columns really are Gaussian. Permuting each column instead breaks the correlation
+    between columns, which is what parallel analysis is testing for, while leaving each
+    column's own distribution alone.
+    """
+    rng = np.random.default_rng(3)
+    shape = (60, 12)
+    gaussian = pd.DataFrame(rng.standard_normal(shape))
+    heavy_tailed = pd.DataFrame(rng.standard_t(2.0, size=shape))
+
+    normal_nulls = [
+        PCA.parallel_analysis(block, n_simulations=150, surrogate="normal", random_state=0).null_threshold
+        for block in (gaussian, heavy_tailed)
+    ]
+    permuted_nulls = [
+        PCA.parallel_analysis(block, n_simulations=150, surrogate="permutation", random_state=0).null_threshold
+        for block in (gaussian, heavy_tailed)
+    ]
+
+    # The normal null depends on the shape alone, so it is identical for both blocks.
+    np.testing.assert_allclose(normal_nulls[0], normal_nulls[1])
+    # The permutation null is built from the block itself, so it is not.
+    assert not np.allclose(permuted_nulls[0], permuted_nulls[1])
+
+    # Both blocks are independent columns, so the honest answer is no components at all,
+    # and both surrogates give it.
+    for surrogate in ("normal", "permutation"):
+        for block in (gaussian, heavy_tailed):
+            result = PCA.parallel_analysis(block, n_simulations=150, surrogate=surrogate, random_state=0)
+            assert result.n_components == 0
+            assert result.surrogate == surrogate
+
+
+def test_pca_parallel_analysis_surrogates_agree_on_gaussian_data() -> None:
+    """#374: on the data Horn assumed, the two nulls answer the same way."""
+    rng = np.random.default_rng(11)
+    n_samples, n_features, true_rank = 80, 10, 3
+    scores = rng.standard_normal((n_samples, true_rank))
+    loadings = rng.standard_normal((true_rank, n_features))
+    X = pd.DataFrame(scores @ loadings + 0.6 * rng.standard_normal((n_samples, n_features)))
+
+    by_normal = PCA.parallel_analysis(X, n_simulations=150, surrogate="normal", random_state=0)
+    by_permutation = PCA.parallel_analysis(X, n_simulations=150, surrogate="permutation", random_state=0)
+    assert by_normal.n_components == true_rank
+    assert by_permutation.n_components == true_rank
+    # Same observed scree either way: only the null moves.
+    np.testing.assert_allclose(by_normal.observed_eigenvalues, by_permutation.observed_eigenvalues)
+
+
+def test_pca_parallel_analysis_surrogate_is_reproducible_and_validated() -> None:
+    """#374: same seed, same null; an unknown surrogate names the two that exist."""
+    rng = np.random.default_rng(12)
+    X = pd.DataFrame(rng.standard_normal((40, 6)))
+    first = PCA.parallel_analysis(X, n_simulations=50, surrogate="permutation", random_state=5)
+    again = PCA.parallel_analysis(X, n_simulations=50, surrogate="permutation", random_state=5)
+    np.testing.assert_allclose(first.null_threshold, again.null_threshold)
+
+    with pytest.raises(ValueError, match=r"surrogate must be one of \('normal', 'permutation'\)"):
+        PCA.parallel_analysis(X, surrogate="bootstrap")
+
+
+def test_pca_select_n_components_ckf_recovers_a_known_rank() -> None:
+    """#374: column-wise k-fold bottoms out at the true rank on low-rank data."""
+    rng = np.random.default_rng(21)
+    n_samples, n_features, true_rank = 60, 12, 3
+    scores = rng.standard_normal((n_samples, true_rank))
+    loadings = rng.standard_normal((true_rank, n_features))
+    X = pd.DataFrame(
+        scores @ loadings + 0.35 * rng.standard_normal((n_samples, n_features)),
+        columns=[f"x{i}" for i in range(n_features)],
+    )
+
+    result = PCA.select_n_components(X, max_components=6, cv_scheme="ckf", random_state=0)
+    assert result.n_components == true_rank
+    # The Q2 curve peaks at the true rank and falls away once extra components fit noise.
+    q2 = result.q2.to_numpy()
+    assert int(np.argmax(q2)) + 1 == true_rank
+    assert q2[true_rank] < q2[true_rank - 1]
+    # One PRESS column per column-fold, so the 1-SE rule has a spread to work with.
+    assert result.per_fold_press.shape == (6, 5)
+    assert result.q2_per_variable.shape == (6, n_features)
+
+
+def test_pca_select_n_components_ckf_is_more_optimistic_than_ekf() -> None:
+    """#374: the documented difference between the two schemes, measured.
+
+    ckf computes the scores from the retained columns only, so no held-out value predicts
+    itself; but the loadings still come from an SVD of the whole block, so the held-out
+    columns did reach the model. ekf holds out individual cells and imputes them, so
+    nothing held out reaches it at all.
+
+    On pure noise the difference is visible rather than theoretical: ekf's Q2 is negative
+    at every component count, as it must be when there is nothing to predict, while ckf's
+    can come out **positive**. That is the leakage, measured, and it is why ekf remains
+    the default.
+    """
+    rng = np.random.default_rng(22)
+    noise = pd.DataFrame(rng.standard_normal((60, 12)), columns=[f"x{i}" for i in range(12)])
+    by_ckf = PCA.select_n_components(noise, max_components=5, cv_scheme="ckf", random_state=0)
+    by_ekf = PCA.select_n_components(noise, max_components=5, cv_scheme="ekf", random_state=0)
+
+    # ekf is honest about noise: nothing to predict, so nothing is predicted.
+    assert (by_ekf.q2.to_numpy() < 0).all()
+    # ckf is kinder at every component count, and here it goes above zero outright.
+    assert (by_ckf.q2.to_numpy() > by_ekf.q2.to_numpy()).all()
+    assert by_ckf.q2.to_numpy().max() > 0
+
+
+def test_pca_select_n_components_ckf_reproducible_and_guarded() -> None:
+    """#374: the same seed gives the same folds, and missing cells are refused by name."""
+    rng = np.random.default_rng(23)
+    X = pd.DataFrame(rng.standard_normal((40, 8)), columns=[f"x{i}" for i in range(8)])
+    first = PCA.select_n_components(X, max_components=4, cv_scheme="ckf", random_state=7)
+    again = PCA.select_n_components(X, max_components=4, cv_scheme="ckf", random_state=7)
+    np.testing.assert_allclose(first.press.to_numpy(), again.press.to_numpy())
+
+    gappy = X.copy()
+    gappy.iloc[0, 0] = np.nan
+    with pytest.raises(ValueError, match=r"cv_scheme='ckf' cannot take a block with missing cells"):
+        PCA.select_n_components(gappy, max_components=3, cv_scheme="ckf", random_state=0)
+
+    with pytest.raises(ValueError, match=r"Unknown cv_scheme 'kfold'.*'ckf'"):
+        PCA.select_n_components(X, max_components=3, cv_scheme="kfold")
+
+
 def test_pca_parallel_analysis_pure_noise_returns_zero() -> None:
     """On pure noise PA correctly retains few components (and may return 0)."""
     rng = np.random.default_rng(3)
