@@ -11,6 +11,17 @@ those changes.
 
 ## [Unreleased]
 
+## [1.95.9] - 2026-09-18
+
+### Added
+
+- **`robust_regression` is now tested with pandas `Series` inputs (#213).** It
+  accepts them, and pairs the two vectors **by position**, not by index: the
+  implementation takes `.values` from each, so the labels are discarded. The
+  obvious alternative, `pd.concat([x, y], axis=1)`, would align on the index and
+  turn two disjoint indexes into a frame of NaN, so the behaviour is now pinned
+  by a test that uses deliberately disjoint indexes.
+
 ## [1.95.1] - 2026-09-18
 
 ### Changed
@@ -5161,7 +5172,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.95.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.95.9...HEAD
+[1.95.9]: https://github.com/kgdunn/process-improve/compare/v1.95.1...v1.95.9
 [1.95.1]: https://github.com/kgdunn/process-improve/compare/v1.95.0...v1.95.1
 [1.95.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.95.0
 [1.94.0]: https://github.com/kgdunn/process-improve/compare/v1.93.1...v1.94.0
