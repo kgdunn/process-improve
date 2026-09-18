@@ -51,8 +51,10 @@ from process_improve.batch.preprocessing import (
     BatchScaler,
     batch_dtw,
     determine_scaling,
+    fill_gaps,
     find_reference_batch,
     resample_to_reference,
+    smooth_trajectories,
 )
 
 __all__ = [
@@ -89,6 +91,7 @@ __all__ = [
     "f_slope",
     "f_std",
     "f_sum",
+    "fill_gaps",
     "find_reference_batch",
     # Bundled datasets
     "load_batch_fake_data",
@@ -102,6 +105,7 @@ __all__ = [
     "midcourse_correction",
     "online_monitoring_plot",
     "resample_to_reference",
+    "smooth_trajectories",
     "time_varying_loading_plot",
     "unfolded_contribution_plot",
     "wide_to_dict",
