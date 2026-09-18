@@ -1939,7 +1939,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 dist.name = "vote_share"
                 dist.index.name = "n_components"
                 selection_distribution = dist
-                selection_mode = int(dist.idxmax())
+                # ``pandas-stubs`` types ``idxmax`` as returning ``Hashable``; this Series is
+                # indexed by component count, so the label is an integer.
+                selection_mode = int(typing.cast("int", dist.idxmax()))
                 selection_is_stable = bool(dist.max() >= stability_threshold)
 
         return Bunch(
