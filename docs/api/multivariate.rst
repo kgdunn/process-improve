@@ -22,6 +22,18 @@ PLS
    :undoc-members:
    :show-inheritance:
 
+PLS-DA
+~~~~~~
+
+PLS discriminant analysis: PLS regression against a one-hot class indicator, with
+the decision rule, the classifier diagnostics and the permutation test on top.
+Everything :class:`PLS` offers is inherited, so a fitted ``PLSDA`` also has scores,
+loadings, VIP, Hotelling's T2 and SPE.
+
+.. autoclass:: PLSDA
+   :members:
+   :show-inheritance:
+
 TPLS
 ~~~~
 
@@ -159,3 +171,5 @@ Plots
 .. autofunction:: predictions_vs_observed_plot
 
 .. autofunction:: coefficient_plot
+
+.. autofunction:: confusion_matrix_plot
