@@ -11,6 +11,29 @@ those changes.
 
 ## [Unreleased]
 
+## [1.94.5] - 2026-09-18
+
+### Fixed
+
+- **A sparse `ColumnTransformer` output now names the remedy (#399).**
+  `make_column_transformer((MCUVScaler(), numeric), (OneHotEncoder(), categorical))`
+  works, but `ColumnTransformer` flips its *whole* concatenated output to a sparse
+  matrix once the result is more than `sparse_threshold` (default 0.3) zeros,
+  which a one-hot block with a dozen levels easily is. `PLS`, `PCA` and
+  `MCUVScaler` then failed with sklearn's generic "use `.toarray()`", which is
+  the expensive way round: the dense array is built anyway, but only after the
+  sparse one. They now raise a `TypeError` naming `sparse_threshold=0` and
+  `OneHotEncoder(sparse_output=False)`, the two knobs that avoid the round trip.
+
+### Documentation
+
+- **README: mixing scaled numeric and categorical columns (#399).** The
+  `ColumnTransformer` pattern, with the two arguments that are doing real work:
+  `sparse_threshold=0` for the reason above, and
+  `set_output(transform="pandas")`, which carries `get_feature_names_out` through
+  to `x_loadings_.index` so a loading reads as "the one-hot column for
+  `batch_type == B`" rather than "column 4". The numbers are identical either way.
+
 ## [1.94.0] - 2026-09-13
 
 ### Added
@@ -5083,7 +5106,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.94.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.94.5...HEAD
+[1.94.5]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.94.5
 [1.94.0]: https://github.com/kgdunn/process-improve/compare/v1.93.1...v1.94.0
 [1.93.1]: https://github.com/kgdunn/process-improve/compare/v1.93.0...v1.93.1
 [1.93.0]: https://github.com/kgdunn/process-improve/compare/v1.92.0...v1.93.0

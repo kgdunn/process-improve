@@ -551,10 +551,11 @@ def test_pca_invalid_calls() -> None:
         _ = PCA(n_components=A, algorithm="SCP").fit(data)
 
     # Plain numpy IS accepted by design (sklearn compatibility), so the rejection
-    # below is about sparse input specifically, not about DataFrames. sklearn's own
-    # validate_data() raises this message; PCA does not roll its own.
+    # below is about sparse input specifically, not about DataFrames. PCA rejects it
+    # before validate_data does, so the message can name the ColumnTransformer knobs
+    # that avoid the sparse round trip instead of sklearn's generic `.toarray()` (#399).
     sparse_data = csr_matrix([[1, 2, 0], [0, 0, 3], [4, 0, 5]])
-    with pytest.raises(TypeError, match="Sparse data was passed for X, but dense data is required"):
+    with pytest.raises(TypeError, match=r"PCA does not accept sparse input.*sparse_threshold=0"):
         PCA(n_components=2).fit(sparse_data)
 
 

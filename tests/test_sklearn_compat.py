@@ -18,6 +18,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import sparse
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, clone
 from sklearn.cross_decomposition import PLSSVD, PLSCanonical, PLSRegression
 from sklearn.decomposition import PCA as SKLearnPCA  # noqa: N811 - aliased to avoid collision with our PCA
@@ -211,6 +212,107 @@ def test_make_column_transformer_with_mcuvscaler_and_pls() -> None:
     feature_names = ct.get_feature_names_out()
     # Three scaled numeric columns + 3 one-hot columns for batch_type:
     assert len(feature_names) == 6
+
+
+def test_column_transformer_sparse_output_is_rejected_with_the_remedy() -> None:
+    """#399: the default OneHotEncoder makes the whole ColumnTransformer output sparse.
+
+    This is the case the issue predicted and the test above dodges by passing
+    `sparse_output=False`. `ColumnTransformer` flips its *entire* concatenated output to
+    sparse once the result is more than `sparse_threshold` (default 0.3) zeros, which a
+    one-hot block with a dozen levels easily is. NIPALS centres and scales every column,
+    so there is no sparse path to take, and the message has to name the knob that avoids
+    the round trip rather than sklearn's generic advice to call `.toarray()`.
+    """
+    from sklearn.compose import make_column_transformer
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import OneHotEncoder
+
+    from process_improve.multivariate.methods import PCA, PLS, MCUVScaler
+
+    rng = np.random.default_rng(4)
+    n = 60
+    X = pd.DataFrame(
+        {
+            "temp": rng.standard_normal(n),
+            "pressure": rng.standard_normal(n),
+            "batch_type": rng.choice([f"L{i}" for i in range(12)], size=n),
+        }
+    )
+    Y = pd.DataFrame(0.5 * X["temp"] + 0.3 * X["pressure"], columns=["y"])
+
+    ct = make_column_transformer(
+        (MCUVScaler(), ["temp", "pressure"]),
+        (OneHotEncoder(), ["batch_type"]),  # sparse by default
+    )
+    assert sparse.issparse(ct.fit_transform(X)), "fixture no longer exercises the sparse path"
+
+    expected = r"PLS does not accept sparse input.*sparse_threshold=0.*sparse_output=False"
+    with pytest.raises(TypeError, match=expected):
+        Pipeline([("ct", ct), ("pls", PLS(n_components=2))]).fit(X, Y)
+
+    # The same door on the other two estimators a ColumnTransformer output can arrive at.
+    dense_sparse = sparse.csr_matrix(rng.standard_normal((20, 4)))
+    with pytest.raises(TypeError, match=r"PCA does not accept sparse input"):
+        PCA(n_components=2).fit(dense_sparse)
+    with pytest.raises(TypeError, match=r"MCUVScaler does not accept sparse input"):
+        MCUVScaler().fit(dense_sparse)
+
+    # And the remedy the message names actually works.
+    ct_dense = make_column_transformer(
+        (MCUVScaler(), ["temp", "pressure"]),
+        (OneHotEncoder(), ["batch_type"]),
+        sparse_threshold=0,
+    )
+    pipe = Pipeline([("ct", ct_dense), ("pls", PLS(n_components=2))]).fit(X, Y)
+    assert np.isfinite(np.asarray(pipe.predict(X))).all()
+
+
+def test_column_transformer_set_output_pandas_carries_names_into_pls() -> None:
+    """#399: `set_output(transform="pandas")` puts the transformed names on the loadings.
+
+    The issue expected `get_feature_names_out` to matter here, and this is the shape it
+    takes in practice: with the default ndarray output PLS can only label its loadings
+    0..K-1, because that is all it is given. Asking the ColumnTransformer for a DataFrame
+    carries `get_feature_names_out` through to `x_loadings_.index`, so a loading is
+    readable as "the one-hot column for batch_type == B" rather than "column 4".
+    """
+    from sklearn.compose import make_column_transformer
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import OneHotEncoder
+
+    from process_improve.multivariate.methods import PLS, MCUVScaler
+
+    rng = np.random.default_rng(5)
+    n = 60
+    X = pd.DataFrame(
+        {
+            "temp": rng.standard_normal(n),
+            "pressure": rng.standard_normal(n),
+            "batch_type": rng.choice(["A", "B", "C"], size=n),
+        }
+    )
+    Y = pd.DataFrame(0.5 * X["temp"] + 0.3 * X["pressure"], columns=["y"])
+
+    def _fit(ct):
+        return Pipeline([("ct", ct), ("pls", PLS(n_components=2))]).fit(X, Y).named_steps["pls"]
+
+    steps = ((MCUVScaler(), ["temp", "pressure"]), (OneHotEncoder(sparse_output=False), ["batch_type"]))
+    named = _fit(make_column_transformer(*steps).set_output(transform="pandas"))
+    positional = _fit(make_column_transformer(*steps))
+
+    expected = [
+        "mcuvscaler__temp",
+        "mcuvscaler__pressure",
+        "onehotencoder__batch_type_A",
+        "onehotencoder__batch_type_B",
+        "onehotencoder__batch_type_C",
+    ]
+    assert list(named.feature_names_in_) == expected
+    assert list(named.x_loadings_.index) == expected
+    # Without set_output the numbers are identical, only the labels are lost.
+    assert list(positional.x_loadings_.index) == list(range(len(expected)))
+    np.testing.assert_allclose(named.x_loadings_.to_numpy(), positional.x_loadings_.to_numpy())
 
 
 @pytest.mark.integration
