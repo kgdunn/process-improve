@@ -1531,8 +1531,11 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             the more conservative 95th-percentile threshold is the
             modern recommendation.
         scale : bool, default True
-            Mean-centre and unit-variance scale ``X`` before estimation
-            (matches :meth:`minka_mle`).
+            Mean-centre and unit-variance scale ``X`` before estimation.
+            Unlike :meth:`minka_mle`, which is mean-centred but never
+            unit-variance scaled, parallel analysis defaults to autoscaling
+            here so wildly different column scales do not dominate the null
+            comparison.
         random_state : int, optional
             Seed for the null-matrix simulations.
 
@@ -1760,7 +1763,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
               matrix that was passed in, for comparing prediction error
               against instrument error (pd.Series, indexed ``1..A_max``).
             - ``per_fold_press`` - per-fold PRESS contributions
-              (pd.DataFrame, ``A_max`` rows x ``n_folds`` columns).
+              (pd.DataFrame, ``A_max`` rows x ``n_folds * n_repeats`` columns
+              under ekf; a single ``fold_1`` column under row-wise).
             - ``se_press`` - standard error of the per-fold PRESS curve
               (pd.Series, indexed ``1..A_max``). Drives the 1-SE rule.
             - ``q2_se`` - the same standard error rescaled onto the Q2 scale
@@ -2066,9 +2070,11 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
         1. **Statistical limits** - observations exceeding the SPE or T² limit
            at ``conf_level`` are flagged.
-        2. **Robust ESD test** - the generalized ESD test (with robust median/MAD
-           variant) identifies observations that are unusual *relative to the
-           rest of the data*, even if they fall below the statistical limit.
+        2. **Robust ESD test** - the generalized ESD test identifies
+           observations that are unusual *relative to the rest of the data*,
+           even if they fall below the statistical limit. The mean/std variant
+           is used here; the underlying ``detect_outliers_esd`` also offers an
+           opt-in robust median/MAD variant.
 
         An observation can be flagged for one or both reasons.
 
@@ -2089,7 +2095,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             - ``hotellings_t2`` - T² value for this observation
             - ``spe_limit`` - SPE limit at the given confidence level
             - ``hotellings_t2_limit`` - T² limit at the given confidence level
-            - ``severity`` - max(spe/spe_limit, t2/t2_limit)
+            - ``severity`` - max(spe/spe_limit, t2/t2_limit), rounded to 4
+              decimals. A ratio whose denominator is 0 (perfect-fit SPE limit)
+              or non-finite (T2 limit when A == N) is treated as 0 and does
+              not contribute to the ranking.
 
         Examples
         --------
