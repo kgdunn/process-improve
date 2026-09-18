@@ -19,7 +19,12 @@ from functools import partial
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, RegressorMixin, _fit_context
-from sklearn.metrics import r2_score
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score,
+    root_mean_squared_error,
+)
 from sklearn.utils import Bunch
 from sklearn.utils.validation import check_array, check_is_fitted
 
@@ -421,7 +426,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         )
 
     @_fit_context(prefer_skip_nested_validation=True)
-    def fit(self, X: DataFrameDict, y: None = None) -> TPLS:  # noqa: ARG002, PLR0915
+    def fit(self, X: DataFrameDict, y: object = None) -> TPLS:  # noqa: PLR0915
         """Fit the preprocessing parameters and also the latent variable model from the training data.
 
         Parameters
@@ -429,11 +434,24 @@ class TPLS(RegressorMixin, BaseEstimator):
         X : {dictionary of dataframes}, keys that must be present: "F", "Z", and "Y"
             The training input samples. See documentation in the class definition for more information on each matrix.
 
+        y : object, optional
+            Must be ``None``. The signature exists only for sklearn API compatibility;
+            a T-shaped model takes its response from ``X["Y"]``. Anything else raises,
+            rather than being silently ignored as it was before #565.
+
         Returns
         -------
         self : object
             Returns self.
+
+        Raises
+        ------
+        ValueError
+            If ``y`` is not ``None``.
+        TypeError
+            If ``X`` is not a :class:`DataFrameDict`.
         """
+        _reject_separate_y(y, "TPLS.fit")
         if not isinstance(X, DataFrameDict):
             raise TypeError(f"X must be a DataFrameDict; got {type(X).__name__}.")
         self._input_data_checks(X)
@@ -863,7 +881,7 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         return output
 
-    def score(self, X: DataFrameDict, y: None = None, sample_weight: np.ndarray | None = None) -> float:  # noqa: ARG002
+    def score(self, X: DataFrameDict, y: object = None, sample_weight: np.ndarray | None = None) -> float:
         """Return the mean :func:`~sklearn.metrics.r2_score` across Y blocks on test data.
 
         See RegressorMixin.score for the general contract.
@@ -874,10 +892,11 @@ class TPLS(RegressorMixin, BaseEstimator):
             Test samples. The nested ``"Y"`` block supplies the actual response
             values; ``X["Z"]`` and ``X["F"]`` drive the prediction.
 
-        y : None
-            Ignored. The Y-data comes from ``X["Y"]``, not from a separate
+        y : object, optional
+            Must be ``None``. The Y-data comes from ``X["Y"]``, not from a separate
             argument (the sklearn ``RegressorMixin.score`` signature is preserved
-            only for API compatibility).
+            only for API compatibility). Anything else raises, rather than being
+            silently ignored as it was before #565.
 
         sample_weight : np.ndarray or None
             Optional per-sample weight forwarded to
@@ -892,35 +911,53 @@ class TPLS(RegressorMixin, BaseEstimator):
             one is an unweighted average across blocks (not a pooled multiblock
             :math:`R^2`).
 
+        Raises
+        ------
+        ValueError
+            If ``y`` is not ``None``, or if ``X["Y"]`` holds no blocks.
+
         Notes
         -----
-        Only sklearn's **default** scoring reaches this method. Cross-validation
-        helpers must therefore be called without a ``scoring=`` string::
+        Only sklearn's **default** scoring reaches this method. A named scorer *string*
+        never does::
 
             cross_val_score(TPLS(...), X=DataFrameDict(blocks), cv=5)          # works
             cross_val_score(TPLS(...), X=DataFrameDict(blocks), cv=5,
                             scoring="r2")                                      # all NaN
 
-        A named scorer such as ``scoring="r2"`` is built by sklearn as a
-        ``_Scorer``, which requires a ``y_true`` argument. TPLS carries its
-        response inside ``X["Y"]``, so ``cross_val_score`` receives no ``y`` to
-        hand the scorer, the call fails inside sklearn before this method is
-        reached, and every fold is recorded as ``NaN`` behind a ``UserWarning``.
-        Verified by instrumentation: this method is called 3 times out of 3 folds
-        under default scoring and 0 times under ``scoring="r2"``. Tracked on #565.
+        sklearn builds ``scoring="r2"`` into a ``_Scorer`` whose ``__call__`` requires a
+        ``y_true`` argument. TPLS carries its response inside ``X["Y"]``, so
+        ``cross_val_score`` receives no ``y`` to hand the scorer, and the call fails
+        inside sklearn before this method is reached: instrumentation shows this method
+        called 3 times out of 3 folds under default scoring and 0 times under
+        ``scoring="r2"``. Because TPLS never gets control it cannot turn that into a clear
+        error, and sklearn's ``error_score`` (default ``np.nan``) records every fold as
+        ``NaN`` behind a ``UserWarning``.
 
-        Because the failure happens inside sklearn, TPLS cannot intercept it and turn
-        it into a clear error. sklearn's own ``error_score`` decides whether you see
-        it: the default, ``np.nan``, is what records the folds as ``NaN``, while
-        ``error_score="raise"`` surfaces the underlying ``TypeError``::
+        Use :func:`make_tpls_scorer` for any metric other than the default. sklearn passes
+        a *callable* ``scoring=`` through untouched and calls it as
+        ``scorer(estimator, X_test)``, which a callable with an optional ``y`` accepts::
+
+            cross_val_score(TPLS(...), X=DataFrameDict(blocks), cv=5,
+                            scoring=make_tpls_scorer("r2"))                    # works
+            cross_val_score(TPLS(...), X=DataFrameDict(blocks), cv=5,
+                            scoring=make_tpls_scorer("neg_mean_squared_error"))
+
+        ``make_tpls_scorer("r2")`` reproduces this method's value fold for fold, so it is
+        a drop-in replacement for the broken string form.
+
+        If a string scorer is used anyway, pass ``error_score="raise"`` to see the
+        underlying ``TypeError`` instead of a silent ``NaN``::
 
             cross_val_score(TPLS(...), X=DataFrameDict(blocks), cv=5,
                             scoring="r2", error_score="raise")
             # TypeError: _Scorer._score() missing 1 required positional argument: 'y_true'
 
-        Pass ``error_score="raise"`` whenever a silent ``NaN`` would be worse than a
-        failure, which for a scoring run is usually.
+        See Also
+        --------
+        make_tpls_scorer : Build a ``scoring=`` callable that TPLS can honour.
         """
+        _reject_separate_y(y, "TPLS.score")
         # Use diagnose() directly to avoid emitting the predict()
         # DeprecationWarning from inside the package's own score path.
         predictions = self.diagnose(X)
@@ -1705,3 +1742,149 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         # Step 15: Calculate the final model limits (after all components have been fitted).
         self._calculate_model_statistics_and_limits()
+
+
+# Named regression metrics understood by :func:`make_tpls_scorer`, each paired with the
+# sign that turns it into a "higher is better" score. The signs and names mirror
+# sklearn's own ``neg_*`` convention, so a TPLS scorer is read the same way as the string
+# scorer it stands in for.
+_TPLS_METRICS: dict[str, tuple[Callable[..., float], int]] = {
+    "r2": (r2_score, 1),
+    "neg_mean_absolute_error": (mean_absolute_error, -1),
+    "neg_mean_squared_error": (mean_squared_error, -1),
+    "neg_root_mean_squared_error": (root_mean_squared_error, -1),
+}
+
+
+def _reject_separate_y(y: object, where: str) -> None:
+    """Raise if a caller supplies a conventional ``y`` to a T-shaped model.
+
+    TPLS reads its response out of ``X["Y"]``, so a separate ``y`` is never the target
+    it scores against. Silently ignoring it (the behaviour before #565) let callers
+    believe a response had been supplied when it had not.
+
+    Parameters
+    ----------
+    y : object
+        The value passed as ``y``. Anything other than ``None`` is an error.
+    where : str
+        Qualified name of the caller, used to open the error message.
+
+    Raises
+    ------
+    ValueError
+        If ``y`` is not ``None``.
+    """
+    if y is None:
+        return
+    msg = (
+        f"{where} does not take a separate `y`: a T-shaped model carries its response "
+        'inside X["Y"]. Put the response in the "Y" block of the DataFrameDict and leave '
+        "`y` as None. For cross-validation with a named metric, pass "
+        "scoring=make_tpls_scorer('r2') rather than scoring='r2'."
+    )
+    raise ValueError(msg)
+
+
+def make_tpls_scorer(
+    metric: str | Callable[..., float] = "r2",
+    *,
+    greater_is_better: bool = True,
+    **metric_kwargs: object,
+) -> Callable[..., float]:
+    """Build a ``scoring=`` callable that works with :class:`TPLS` (#565).
+
+    A *named* scorer string cannot be used with TPLS. sklearn turns ``scoring="r2"`` into
+    a ``_Scorer`` whose ``__call__`` takes ``y_true`` as a required positional argument,
+    but a T-shaped model carries its response inside ``X["Y"]`` rather than in a separate
+    ``y``, so :func:`~sklearn.model_selection.cross_val_score` has no ``y`` to hand over
+    and calls the scorer as ``scorer(estimator, X_test)``. The call then fails on the
+    missing argument *before TPLS is reached*, and sklearn's ``error_score`` records every
+    fold as ``NaN`` behind a ``UserWarning``.
+
+    sklearn passes a *callable* ``scoring=`` through untouched and invokes it the same
+    way, so a callable whose ``y`` is optional receives that two-argument call cleanly and
+    can read the response out of ``X["Y"]`` itself. That is what this factory returns.
+
+    Parameters
+    ----------
+    metric : str or Callable[..., float], optional
+        Either one of ``"r2"``, ``"neg_mean_absolute_error"``, ``"neg_mean_squared_error"``
+        or ``"neg_root_mean_squared_error"``, whose sign convention matches sklearn's, or
+        a callable ``metric(y_true, y_pred, **kwargs)``
+        returning a float. Default is ``"r2"``, which reproduces :meth:`TPLS.score`.
+    greater_is_better : bool, optional
+        Consulted only when ``metric`` is a callable: ``False`` flips the sign so the
+        result still obeys sklearn's "higher is better" contract. The named metrics carry
+        their own sign and ignore this. Default is True.
+    **metric_kwargs : object
+        Extra keyword arguments forwarded to ``metric`` on every call.
+
+    Returns
+    -------
+    scorer : Callable[..., float]
+        A callable with signature ``scorer(estimator, X, y=None, sample_weight=None)``,
+        usable as the ``scoring=`` argument of
+        :func:`~sklearn.model_selection.cross_val_score`,
+        :func:`~sklearn.model_selection.cross_validate` and the ``*SearchCV`` classes.
+        Several Y blocks are combined the way :meth:`TPLS.score` combines them: an
+        unweighted mean over the blocks in ``X["Y"]``, not a pooled multiblock statistic.
+
+    Raises
+    ------
+    ValueError
+        If ``metric`` is a string that is not a known metric name. The returned scorer
+        raises :class:`ValueError` in turn if it is called with a non-``None`` ``y``, or
+        with an ``X`` whose ``"Y"`` block is empty.
+
+    See Also
+    --------
+    TPLS.score : The default scoring path, equivalent to ``make_tpls_scorer("r2")``.
+
+    Examples
+    --------
+    >>> from sklearn.model_selection import cross_val_score
+    >>> scorer = make_tpls_scorer("neg_root_mean_squared_error")
+    >>> model = TPLS(n_components=2, d_matrix=d_matrix)             # doctest: +SKIP
+    >>> cross_val_score(model, X=blocks, cv=5, scoring=scorer)      # doctest: +SKIP
+    array([-1.07, -0.98, -1.11, -1.02, -1.05])
+    """
+    if callable(metric):
+        score_func: Callable[..., float] = metric
+        sign = 1 if greater_is_better else -1
+        name = getattr(metric, "__name__", "metric")
+    else:
+        try:
+            score_func, sign = _TPLS_METRICS[metric]
+        except KeyError:
+            msg = (
+                f"Unknown metric {metric!r} for make_tpls_scorer. Choose one of "
+                f"{sorted(_TPLS_METRICS)}, or pass a callable metric(y_true, y_pred)."
+            )
+            raise ValueError(msg) from None
+        name = metric
+
+    def tpls_scorer(
+        estimator: TPLS,
+        X: DataFrameDict,
+        y: object = None,
+        sample_weight: np.ndarray | None = None,
+    ) -> float:
+        """Score a fitted :class:`TPLS` model against the response inside ``X["Y"]``."""
+        _reject_separate_y(y, "A TPLS scorer")
+        check_is_fitted(estimator)
+        y_actual = X["Y"]
+        if not y_actual:
+            msg = 'X["Y"] must contain at least one block to score a TPLS model.'
+            raise ValueError(msg)
+        # diagnose() rather than the deprecated predict(), to keep the package's own
+        # scoring path free of the predict() DeprecationWarning.
+        y_pred = estimator.diagnose(X).hat
+        per_block = [
+            score_func(y_actual[key], y_pred[key], sample_weight=sample_weight, **metric_kwargs) for key in y_actual
+        ]
+        return sign * float(np.mean(per_block))
+
+    tpls_scorer.__name__ = f"tpls_scorer({name})"
+    tpls_scorer.__qualname__ = tpls_scorer.__name__
+    return tpls_scorer
