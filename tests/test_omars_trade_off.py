@@ -25,7 +25,10 @@ from process_improve.experiments.omars_trade_off import (
     CAPABILITIES,
     DEFAULT_FACTORS,
     DEFAULT_RUNS,
+    box_behnken_runs,
+    definitive_screening_runs,
     get_omars_trade_off_table_entry,
+    omars_anchor_entry,
     omars_minimum_runs,
     omars_trade_off_table,
 )
@@ -295,3 +298,156 @@ class TestPrintedTable:
     def test_the_legend_explains_every_tag(self, printed):
         for tag in ("Full:", "Quad:", "Satd:"):
             assert tag in printed
+
+
+# k -> run count of the standard designs, written down from the published tables
+# rather than computed, for the same reason as THRESHOLDS above.
+DSD_RUNS = {3: 9, 4: 9, 5: 13, 6: 13, 7: 17}
+BBD_RUNS = {3: 15, 4: 27, 5: 46, 6: 54, 7: 62}
+
+# k -> the anchor cell each row should render.
+DSD_CELLS = {3: "Quad df=2", 4: "Satd df=0", 5: "Quad df=2", 6: "Satd df=0", 7: "Quad df=2"}
+BBD_CELLS = {3: "Full df=5", 4: "Full df=12", 5: "Full df=25", 6: "Full df=26", 7: "Full df=26"}
+
+
+class TestAnchorRunCounts:
+    """The two standard designs that bracket the family."""
+
+    @pytest.mark.parametrize(("k", "expected"), DSD_RUNS.items())
+    def test_definitive_screening_runs(self, k, expected):
+        assert definitive_screening_runs(k) == expected
+
+    @pytest.mark.parametrize(("k", "expected"), BBD_RUNS.items())
+    def test_box_behnken_runs(self, k, expected):
+        assert box_behnken_runs(k) == expected
+
+    def test_box_behnken_is_absent_where_none_was_published(self):
+        assert box_behnken_runs(8) is None
+
+    @pytest.mark.parametrize("k", DEFAULT_FACTORS)
+    def test_the_dsd_is_the_smallest_design_of_its_family(self, k):
+        """No OMARS design of this factor count is smaller than its DSD."""
+        assert definitive_screening_runs(k) >= omars_minimum_runs(k, "satd")
+
+    @pytest.mark.parametrize("k", DEFAULT_FACTORS)
+    def test_the_box_behnken_design_clears_the_frontier(self, k):
+        """Every published Box-Behnken design supports the full second-order model."""
+        assert box_behnken_runs(k) >= omars_minimum_runs(k, "full")
+
+    @pytest.mark.parametrize("k", DEFAULT_FACTORS)
+    def test_the_anchors_bracket_the_family(self, k):
+        assert definitive_screening_runs(k) < box_behnken_runs(k)
+
+
+class TestAnchoredTable:
+    """The ``anchors=True`` view marks the standard designs in place."""
+
+    def test_anchors_are_off_by_default(self):
+        assert list(omars_trade_off_table(display=False).index) == list(DEFAULT_RUNS)
+
+    def test_rows_are_added_for_the_box_behnken_run_counts(self):
+        index = list(omars_trade_off_table(display=False, anchors=True).index)
+        assert index == sorted(set(DEFAULT_RUNS) | set(BBD_RUNS.values()))
+        assert index == sorted(index), "rows must stay in run-count order"
+
+    @pytest.mark.parametrize(("k", "label"), DSD_CELLS.items())
+    def test_the_dsd_is_marked_on_its_own_row(self, k, label):
+        table = omars_trade_off_table(display=False, anchors=True)
+        assert table.loc[DSD_RUNS[k], k] == f"{label} | DSD"
+
+    @pytest.mark.parametrize(("k", "label"), BBD_CELLS.items())
+    def test_the_box_behnken_is_marked_on_its_own_row(self, k, label):
+        table = omars_trade_off_table(display=False, anchors=True)
+        assert table.loc[BBD_RUNS[k], k] == f"{label} | BBD"
+
+    @pytest.mark.parametrize("k", DEFAULT_FACTORS)
+    def test_a_column_ends_at_its_box_behnken_design(self, k):
+        """Below it every row would repeat Full on more runs, so the column stops."""
+        table = omars_trade_off_table(display=False, anchors=True)
+        assert all(table.loc[n, k] == "" for n in table.index if n > BBD_RUNS[k])
+
+    def test_every_column_but_the_widest_is_truncated(self):
+        """The seven-factor Box-Behnken design is the largest, so it ends the table."""
+        table = omars_trade_off_table(display=False, anchors=True)
+        truncated = [k for k in DEFAULT_FACTORS if any(n > BBD_RUNS[k] for n in table.index)]
+        assert truncated == [3, 4, 5, 6]
+        assert table.index[-1] == BBD_RUNS[7]
+
+    @pytest.mark.parametrize("k", DEFAULT_FACTORS)
+    def test_each_column_carries_exactly_one_of_each_marker(self, k):
+        column = list(omars_trade_off_table(display=False, anchors=True)[k])
+        assert sum(cell.endswith("| DSD") for cell in column) == 1
+        assert sum(cell.endswith("| BBD") for cell in column) == 1
+
+    def test_marking_leaves_the_budget_cells_otherwise_alone(self):
+        plain = omars_trade_off_table(display=False)
+        anchored = omars_trade_off_table(display=False, anchors=True)
+        for n_runs in DEFAULT_RUNS:
+            for k in DEFAULT_FACTORS:
+                marked = anchored.loc[n_runs, k]
+                if marked == "" or " | " in marked:
+                    continue
+                assert marked == plain.loc[n_runs, k], f"{n_runs} runs, {k} factors"
+
+    def test_a_column_without_a_published_box_behnken_is_never_truncated(self):
+        table = omars_trade_off_table(runs=(31, 57), factors=(8,), display=False, anchors=True)
+        assert all(cell for cell in table[8])
+        assert not any("| BBD" in cell for cell in table[8])
+
+    def test_the_printed_view_carries_both_markers(self, capsys):
+        omars_trade_off_table(anchors=True)
+        printed = capsys.readouterr().out
+        assert "| DSD" in printed
+        assert "| BBD" in printed
+
+
+class TestAnchorEntry:
+    """``omars_anchor_entry`` is the detail behind one anchor cell."""
+
+    @pytest.mark.parametrize(("k", "label"), DSD_CELLS.items())
+    def test_dsd_entry_matches_the_cell(self, k, label):
+        assert omars_anchor_entry("dsd", k).label == label
+
+    @pytest.mark.parametrize(("k", "label"), BBD_CELLS.items())
+    def test_box_behnken_entry_matches_the_cell(self, k, label):
+        assert omars_anchor_entry("bbd", k).label == label
+
+    def test_an_even_run_count_is_still_a_design_here(self):
+        """The 2h + 1 gate is right for a budget, not for a named design.
+
+        A Box-Behnken design carries six centre runs from five factors upwards, so its total
+        is even. Asking for that count as a budget correctly reports no design; asking for the
+        named design reports what it is.
+        """
+        assert box_behnken_runs(5) % 2 == 0
+        assert not get_omars_trade_off_table_entry(46, 5, display=False).exists
+        entry = omars_anchor_entry("bbd", 5)
+        assert entry.exists
+        assert entry.capability == "full"
+        assert entry.n_runs == 46
+
+    @pytest.mark.parametrize("k", DEFAULT_FACTORS)
+    def test_error_df_is_runs_minus_parameters(self, k):
+        for design in ("dsd", "bbd"):
+            entry = omars_anchor_entry(design, k)
+            assert entry.error_df == entry.n_runs - entry.model_params
+
+    @pytest.mark.parametrize("k", DEFAULT_FACTORS)
+    def test_the_dsd_never_reaches_full(self, k):
+        """The smallest member of the family cannot support the second-order model."""
+        assert omars_anchor_entry("dsd", k).capability != "full"
+
+    def test_thresholds_travel_with_an_anchor_too(self):
+        entry = omars_anchor_entry("bbd", 6)
+        assert (entry.min_runs_satd, entry.min_runs_quad, entry.min_runs_full) == THRESHOLDS[6]
+
+    def test_absent_where_none_was_published(self):
+        assert omars_anchor_entry("bbd", 9) is None
+
+    def test_unknown_design_is_refused(self):
+        with pytest.raises(ValueError, match="design must be one of"):
+            omars_anchor_entry("ccd", 5)
+
+    def test_factor_count_is_validated(self):
+        with pytest.raises(ValueError, match="OMARS designs need"):
+            omars_anchor_entry("dsd", 2)
