@@ -17,6 +17,7 @@ from .._random import check_random_state
 from ..univariate.metrics import detect_outliers_esd
 from ..visualization.themes import REFERENCE_LINE_COLOR
 from ._adaptive import AdaptivePCA, AdaptivePLS
+from ._asca import ASCA
 from ._common import NotEnoughVarianceError, SpecificationWarning, UncentredDataWarning, epsqrt
 from ._diagnostics import (
     eigenvalue_summary,
@@ -67,6 +68,7 @@ from .plots import (
     Plot,
     coefficient_plot,
     correlation_loadings_plot,
+    effect_summary_plot,
     explained_variance_plot,
     loading_plot,
     predictions_vs_observed_plot,
@@ -76,6 +78,7 @@ from .plots import (
 )
 
 __all__ = [
+    "ASCA",
     "MBPCA",
     "MBPLS",
     "OPLS",
@@ -100,6 +103,7 @@ __all__ = [
     "correlation_loadings_plot",
     "count_discoveries_under_null",
     "detect_outliers_esd",
+    "effect_summary_plot",
     "eigenvalue_summary",
     "ellipse_coordinates",
     "epsqrt",

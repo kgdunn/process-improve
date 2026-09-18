@@ -11,6 +11,61 @@ those changes.
 
 ## [Unreleased]
 
+## [1.96.1] - 2026-09-18
+
+### Added
+
+- **`ASCA`: ANOVA-Simultaneous Component Analysis (#372).** The response matrix is
+  partitioned by its design terms the way classical ANOVA partitions a single
+  response, and each term's effect matrix then gets its own PCA. This is the bridge
+  between `experiments/` and `multivariate/` that the package has been missing: it
+  answers which *factor* owns which direction of multivariate variation, whether
+  that is more than chance, and which variables carry it.
+
+  ```python
+  from process_improve.multivariate import ASCA
+
+  model = ASCA(n_components=2).fit(X, design)
+  model.ssq_percent_                       # variation by term, read this first
+  model.permutation_test(random_state=0)   # is each term more than chance?
+  model.models_["A"].score_plot()          # the PCA of factor A's effect alone
+  model.vasca("A", random_state=0)         # which variables carry it
+  ```
+
+  `add_residuals=True` gives the APCA / ASCA+ variant, where the residual matrix is
+  added back before each PCA so a score plot shows scatter around the factor levels
+  rather than one point per cell.
+
+  Balance is checked rather than assumed: on an unbalanced design the terms are not
+  orthogonal, the sums of squares no longer partition the total, and `fit` warns and
+  reports the gap instead of presenting the percentages as a partition.
+
+- **`ASCA.vasca`: variable-selection ASCA.** The whole-matrix permutation test
+  dilutes an effect that lives in three variables out of two hundred. VASCA ranks the
+  variables by their contribution to a term and tests each nested subset of the
+  top-ranked ones, with Benjamini-Hochberg across subset sizes. On the test fixture it
+  recovers exactly the variables each effect was injected into, and returns an empty
+  selection for a term that carries nothing.
+
+- **`effect_summary_plot`.** One bar per design term showing its share of the total
+  sum of squares, annotated with the permutation p-values once they exist. Bound as a
+  method on `ASCA` and importable on its own.
+
+### Notes on two choices that are easy to get wrong
+
+- **The permutation null is the reduced-model one.** Permuting the rows of the whole
+  response leaves the other terms' variation in the data, so a term sharing a matrix
+  with a large neighbour inherits part of it and its null comes out far too high. On
+  the test fixture, where A carries 84 percent of the variation and B a real 11
+  percent, the whole-response null put B at p = 0.13 and hid a genuine effect;
+  permuting only this term's effect plus the residual puts B at p = 0.005.
+
+- **VASCA does not select on the p-value alone.** With a few hundred permutations the
+  smallest attainable p-value is reached by many subset sizes at once, and picking the
+  largest subset that clears alpha returns every variable that happened to tie at the
+  floor. The reported `z_score`, how far a subset stands above its own null, does not
+  tie: it peaks where the effect is concentrated.
+
 ## [1.95.1] - 2026-09-18
 
 ### Changed
@@ -5161,7 +5216,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.95.1...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.96.1...HEAD
+[1.96.1]: https://github.com/kgdunn/process-improve/compare/v1.95.1...v1.96.1
 [1.95.1]: https://github.com/kgdunn/process-improve/compare/v1.95.0...v1.95.1
 [1.95.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.95.0
 [1.94.0]: https://github.com/kgdunn/process-improve/compare/v1.93.1...v1.94.0
