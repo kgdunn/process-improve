@@ -11,6 +11,38 @@ those changes.
 
 ## [Unreleased]
 
+## [1.94.1] - 2026-09-18
+
+### Changed
+
+- **`MBPLS.fit` is now a sequence of named phases rather than one 404-line
+  body.** It carried `# noqa: C901, PLR0912, PLR0915`: complexity 40, 45
+  branches and 222 statements, against thresholds of 10, 12 and 50. The phases
+  were already named, in comments, inside the one function; each is now a helper
+  under that name, and `fit` reads as the sequence those comments described
+  (complexity 3, 2 branches, 23 statements, no suppression).
+
+  Nothing about a fit changes. The split is pure code motion: no expression was
+  reordered or rewritten, and the fitted attributes, `predict` and `transform`
+  were compared bit-for-bit across 17 configurations covering the `dense` and
+  `nipals` paths, one to six components, missing cells in X and in Y, a row
+  missing a whole block, and a fit that does not converge.
+
+  The helpers are private (`_fit_one_component`, `_deflate`,
+  `_reject_degenerate_missingness` and the rest), so no public API moves. The
+  one visible difference is that the non-convergence `SpecificationWarning` is
+  raised from one frame deeper, with `stacklevel` adjusted to match, so it still
+  points at the same place.
+
+### Fixed
+
+- **The type-check gate, against `pandas-stubs` 3.0.5.260914 and later.** That
+  release types `Series.idxmax()` as returning `Hashable`, so the
+  `int(dist.idxmax())` in `PLS.select_n_components` matched no `int` overload
+  and `mypy` failed. The label is a component count, and the call site now says
+  so with a `typing.cast`. Runtime behaviour is unchanged: `typing.cast`
+  compiles away.
+
 ## [1.94.0] - 2026-09-13
 
 ### Added
@@ -5083,7 +5115,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.94.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.94.1...HEAD
+[1.94.1]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.94.1
 [1.94.0]: https://github.com/kgdunn/process-improve/compare/v1.93.1...v1.94.0
 [1.93.1]: https://github.com/kgdunn/process-improve/compare/v1.93.0...v1.93.1
 [1.93.0]: https://github.com/kgdunn/process-improve/compare/v1.92.0...v1.93.0
