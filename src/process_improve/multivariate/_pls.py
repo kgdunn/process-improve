@@ -226,7 +226,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         ``scale=False`` fits **no intercept**, so both blocks must already be
         centred. A response left on its natural scale is the trap: predictions
         come out offset by the response mean, and R² / Q² go large and negative
-        on data that does contain a relationship. ``fit`` raises an
+        on data that does contain a relationship. ``fit`` emits an
         :class:`UncentredDataWarning` when either block's column means are large
         relative to their spread; it does not centre for you, because
         ``scale=False`` means "touch nothing". Set ``warn_on_uncentred=False``

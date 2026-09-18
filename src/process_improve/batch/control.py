@@ -280,8 +280,10 @@ def midcourse_correction(  # noqa: PLR0913, PLR0912, PLR0915, C901
         ``t2`` (floats for the candidate row over the observed-plus-free
         pattern), ``active_constraints`` (dict with keys ``bounds``,
         ``rate``, ``spe_cap``, ``t2_cap``), ``solver`` (Bunch with ``status``,
-        ``n_solves``, ``spe_multiplier``, ``t2_multiplier``) and
-        ``operator_condition_number``.
+        ``n_solves``, ``spe_multiplier``, ``t2_multiplier``,
+        ``spe_unconstrained`` and ``t2_unconstrained``),
+        ``operator_condition_number`` and ``spe_offset`` (the constant term
+        in the SPE quadratic, ``c_obs @ c_obs + c_free @ c_free``).
     """
     from sklearn.utils.validation import check_is_fitted  # noqa: PLC0415
 
