@@ -1362,10 +1362,19 @@ def randomization_test_mbpls(
         Indexed by component ``1..A`` with columns:
 
         - ``observed`` : the actual model's per-component statistic.
-        - ``risk_pct`` : fraction (in %) of permutations with statistic
-          ``>= observed``. Low values (e.g. < 5%) suggest the component is
-          significant; values near 50% suggest the component is no better
-          than chance.
+        - ``risk_pct`` : Monte-Carlo estimate (in %) of the right-tail
+          probability, ``100 * (n_exceed + 1) / (n_permutations + 1)``. Low
+          values (e.g. < 5%) suggest the component is significant; values near
+          50% suggest the component is no better than chance.
+
+          The ``+ 1`` on each side counts the observed statistic among the
+          permutations, which is what keeps the estimate a valid p-value: the
+          uncorrected ``n_exceed / n_permutations`` can report exactly 0, and no
+          finite permutation set can license the claim that the true tail
+          probability is zero. The floor is ``100 / (n_permutations + 1)``, so
+          the default 999 permutations cannot resolve below 0.1%. This matches
+          the convention already used by the Van der Voet test in
+          :mod:`~process_improve.multivariate._pls` (#513).
 
     References
     ----------
@@ -1404,7 +1413,8 @@ def randomization_test_mbpls(
         n_exceed += (stat >= observed).astype(int)
 
     component_names = list(range(1, a_components + 1))
-    risk_pct = 100.0 * n_exceed / n_permutations
+    # See the `risk_pct` note in the docstring for why both sides carry the + 1.
+    risk_pct = 100.0 * (n_exceed + 1) / (n_permutations + 1)
     return pd.DataFrame(
         {"observed": observed, "risk_pct": risk_pct},
         index=pd.Index(component_names, name="component"),

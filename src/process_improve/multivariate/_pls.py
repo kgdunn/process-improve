@@ -36,6 +36,7 @@ from ._common import (
     _align_to_fit_features,
     _equal_weight_r2_total,
     _model_method,
+    _nz,
     _select_n_components,
     epsqrt,
 )
@@ -572,8 +573,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 # 1: w_a = X'u_a / (u_a'u_a)
                 w_a = quick_regress(Xd, u_a)
 
-                # 2: Normalize w_a to unit length
-                w_a = w_a / np.sqrt(ssq(w_a))
+                # 2: Normalize w_a to unit length. Floor the norm: a collapsed ``w_a``
+                # would make this 0/0 -> NaN and poison every later component. `_mbpls`
+                # already guards the identical expression this way; see `_nz` (#513).
+                w_a = w_a / _nz(float(np.sqrt(ssq(w_a))))
 
                 # 3: t_a = X w_a / (w_a'w_a)
                 t_a = quick_regress(Xd, w_a)
@@ -1939,7 +1942,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 dist.name = "vote_share"
                 dist.index.name = "n_components"
                 selection_distribution = dist
-                selection_mode = int(dist.idxmax())
+                # `idxmax` is typed as returning `Hashable`; this index is `component_index`,
+                # which holds component counts, so the cast asserts what the construction guarantees.
+                selection_mode = int(typing.cast("int", dist.idxmax()))
                 selection_is_stable = bool(dist.max() >= stability_threshold)
 
         return Bunch(

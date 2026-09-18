@@ -11,6 +11,55 @@ those changes.
 
 ## [Unreleased]
 
+## [1.97.0] - 2026-09-18
+
+Five findings from the 2026-08 audit triage list (#513), all of the same shape: a
+numerical degeneracy that produced a wrong number, or a different one under
+`python -O`, without saying anything.
+
+### Fixed
+
+- **`quick_regress`'s zero-denominator guard is now relative (#513).** It compared
+  the denominator against `epsqrt` (~1.5e-8) in absolute terms, which is a
+  statement about the *scale* of the data rather than its conditioning. On a
+  well-conditioned block whose values are ~1e-5 the denominator is ~1e-9, so every
+  coefficient was silently returned as 0.0; multiplying the same data by 1e5, which
+  cannot change a ratio of the form `(x'y)/(x'x)`, made the call return the right
+  answer. The threshold is now `epsqrt * ssq(x)`. Genuine degeneracies (an all-zero
+  `x`, an all-NaN column of `Y`) are still zeroed.
+
+- **`PLS` and `PCA` floor the norm they normalise by (#513).**
+  `w_a / sqrt(ssq(w_a))` in `_pls.py` and `p_a / sqrt(ssq(p_a))` in `_pca.py` were
+  the last two unguarded NIPALS normalisations: a collapsed vector makes them 0/0,
+  and the NaN propagates through deflation into every later component. Both now use
+  `_nz`, as the identical expressions in `_mbpls.py` and `_mbpca.py` already did.
+
+- **`randomization_test_mbpls` counts the observed statistic among the
+  permutations (#513).** `risk_pct` was `100 * n_exceed / n_permutations`, which can
+  report exactly 0; no finite permutation set licenses the claim that the true tail
+  probability is zero. It is now `100 * (n_exceed + 1) / (n_permutations + 1)`,
+  matching the Van der Voet test in `_pls.py`. The floor is
+  `100 / (n_permutations + 1)`, so the default 999 permutations resolve to 0.1%.
+  **Reported values move**: every `risk_pct` shifts up by roughly one permutation's
+  worth.
+
+- **A constant column in a TPLS block is reported, not asserted (#513).**
+  `_learn_center_and_scaling_parameters` gives a no-variance column a NaN scale,
+  which excludes it from the model. That is right, but it happened in silence, and
+  the post-preprocessing check on the Z and Y blocks did not tolerate the NaN
+  statistic that exclusion produces (the F and D checks did). One constant column
+  therefore raised a message-less `AssertionError()` under normal Python and, because
+  the check was a bare `assert`, fitted silently under `python -O`. The exclusion now
+  emits a `UserWarning` naming the block and the columns, and the invariant check is a
+  `RuntimeError` naming the block, group, column and observed value.
+
+### Documentation
+
+- **`nan_to_zeros` says what it does (#513).** It promised "a NaN map"; it computes
+  one, discards it, and returns the array it was given, mutated in place. Every
+  caller in the package passes a private copy, which is why the aliasing has not
+  bitten, but the contract is now stated rather than left in the body.
+
 ## [1.94.0] - 2026-09-13
 
 ### Added
@@ -5083,7 +5132,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.94.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.97.0...HEAD
+[1.97.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.97.0
 [1.94.0]: https://github.com/kgdunn/process-improve/compare/v1.93.1...v1.94.0
 [1.93.1]: https://github.com/kgdunn/process-improve/compare/v1.93.0...v1.93.1
 [1.93.0]: https://github.com/kgdunn/process-improve/compare/v1.92.0...v1.93.0
