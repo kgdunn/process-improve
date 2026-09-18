@@ -30,6 +30,16 @@ TPLS
    :undoc-members:
    :show-inheritance:
 
+A T-shaped model carries its response inside ``X["Y"]``, so
+:func:`~sklearn.model_selection.cross_val_score` is called without a ``y`` and a
+scorer *string* such as ``scoring="r2"`` cannot be honoured: sklearn's
+``_Scorer`` needs a ``y_true`` it was never given, the call fails before TPLS is
+reached, and every fold is recorded as ``NaN``. Build the scorer with
+:func:`make_tpls_scorer` instead; sklearn passes a callable ``scoring=`` through
+untouched.
+
+.. autofunction:: make_tpls_scorer
+
 MBPLS
 ~~~~~
 

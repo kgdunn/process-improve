@@ -39,6 +39,7 @@ from process_improve.multivariate.methods import (
     ellipse_coordinates,
     epsqrt,
     explained_variance_plot,
+    make_tpls_scorer,
     nan_to_zeros,
     observation_contributions,
     predictions_vs_observed_plot,
@@ -4606,25 +4607,88 @@ def test_tpls_cross_validation(fixture_tpls_example: dict) -> None:
     )
     assert repeat == pytest.approx(scores, rel=1e-12)
 
-    # `scoring="r2"` cannot work here: the string scorer is called with a `y_true` that
-    # sklearn never received, so every fold fails and is recorded as NaN behind a
-    # UserWarning. This test used to pass `scoring="r2"` and assert nothing, so the
-    # all-NaN result went unnoticed. The failure is inside sklearn's `_Scorer.__call__`,
-    # before TPLS is reached: instrumenting `TPLS.score` shows 0 calls here against 3 of
-    # 3 folds under the default scoring above. TPLS therefore cannot intercept it, and
-    # making named scorers work would mean accepting a conventional `y`. Documented on
-    # `TPLS.score` and pinned here; tracked on #565.
-    with pytest.warns(UserWarning, match="Scoring failed"):
-        r2_scores = np.asarray(
-            cross_val_score(
-                estimator=TPLS(n_components=n_components, d_matrix=d_matrix),
-                X=blocks,
-                cv=5,
-                scoring="r2",
-                n_jobs=1,
-            )
+    # #565: a named metric now goes through `make_tpls_scorer`, which sklearn accepts as a
+    # callable `scoring=` and calls as `scorer(estimator, X_test)` -- the same two-argument
+    # call that breaks the string form. `make_tpls_scorer("r2")` computes exactly what
+    # `TPLS.score` computes, so it must reproduce the default-scoring folds bit for bit.
+    r2_scores = np.asarray(
+        cross_val_score(
+            estimator=TPLS(n_components=n_components, d_matrix=d_matrix),
+            X=blocks,
+            cv=5,
+            scoring=make_tpls_scorer("r2"),
+            n_jobs=1,
         )
-    assert np.isnan(r2_scores).all()
+    )
+    assert np.isfinite(r2_scores).all(), f"make_tpls_scorer produced non-finite folds: {r2_scores}"
+    assert r2_scores == pytest.approx(scores, rel=1e-12)
+
+
+@pytest.mark.slow
+def test_make_tpls_scorer_named_metrics(fixture_tpls_example: dict) -> None:
+    """#565: every named metric scores a fitted TPLS model and keeps sklearn's sign convention."""
+    d_matrix = fixture_tpls_example.pop("D")
+    blocks = DataFrameDict(fixture_tpls_example)
+    model = TPLS(n_components=3, d_matrix=d_matrix).fit(blocks)
+
+    # "r2" is the default and reproduces TPLS.score() exactly.
+    assert make_tpls_scorer()(model, blocks) == pytest.approx(model.score(blocks), rel=1e-12)
+
+    # The neg_* metrics are losses, so a fitted model scores at most 0.0.
+    neg_mse = make_tpls_scorer("neg_mean_squared_error")(model, blocks)
+    neg_rmse = make_tpls_scorer("neg_root_mean_squared_error")(model, blocks)
+    neg_mae = make_tpls_scorer("neg_mean_absolute_error")(model, blocks)
+    assert neg_mse <= 0.0
+    assert neg_mae <= 0.0
+    assert neg_rmse <= 0.0
+    # sklearn averages the six quality columns *after* taking each square root, so the RMSE
+    # is a mean of square roots while sqrt(MSE) is the square root of a mean. Jensen's
+    # inequality makes the first no larger than the second, and it is strictly smaller here
+    # because the columns do not share one error variance.
+    assert -neg_rmse < np.sqrt(-neg_mse)
+
+
+@pytest.mark.slow
+def test_make_tpls_scorer_accepts_a_callable_metric(fixture_tpls_example: dict) -> None:
+    """#565: a callable metric is honoured, and `greater_is_better=False` flips its sign."""
+    d_matrix = fixture_tpls_example.pop("D")
+    blocks = DataFrameDict(fixture_tpls_example)
+    model = TPLS(n_components=3, d_matrix=d_matrix).fit(blocks)
+
+    def max_abs_error(y_true: pd.DataFrame, y_pred: pd.DataFrame, sample_weight: None = None) -> float:
+        return float(np.abs(np.asarray(y_true) - np.asarray(y_pred)).max())
+
+    loss = make_tpls_scorer(max_abs_error, greater_is_better=False)(model, blocks)
+    raw = make_tpls_scorer(max_abs_error)(model, blocks)
+    assert loss < 0.0
+    assert loss == pytest.approx(-raw, rel=1e-12)
+
+    # metric_kwargs reach the metric: r2_score's `force_finite` is forwarded verbatim.
+    assert make_tpls_scorer("r2", force_finite=False)(model, blocks) == pytest.approx(model.score(blocks), rel=1e-12)
+
+
+def test_make_tpls_scorer_rejects_an_unknown_metric() -> None:
+    """#565: an unknown metric name fails at build time, naming the alternatives."""
+    with pytest.raises(ValueError, match=r"Unknown metric 'accuracy'.*neg_mean_squared_error"):
+        make_tpls_scorer("accuracy")
+
+
+@pytest.mark.slow
+def test_tpls_rejects_a_separate_y(fixture_tpls_example: dict) -> None:
+    """#565: `y` is no longer silently ignored by fit / score / the scorer."""
+    d_matrix = fixture_tpls_example.pop("D")
+    blocks = DataFrameDict(fixture_tpls_example)
+    y_elsewhere = blocks["Y"]["Quality"]
+
+    expected = r'does not take a separate `y`.*X\["Y"\].*make_tpls_scorer'
+    with pytest.raises(ValueError, match=expected):
+        TPLS(n_components=2, d_matrix=d_matrix).fit(blocks, y_elsewhere)
+
+    model = TPLS(n_components=2, d_matrix=d_matrix).fit(blocks)
+    with pytest.raises(ValueError, match=expected):
+        model.score(blocks, y_elsewhere)
+    with pytest.raises(ValueError, match=expected):
+        make_tpls_scorer()(model, blocks, y_elsewhere)
 
 
 def test_tpls_score_single_block_y(fixture_tpls_example: dict) -> None:
