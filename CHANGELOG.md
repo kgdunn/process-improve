@@ -11,6 +11,20 @@ those changes.
 
 ## [Unreleased]
 
+## [1.94.6] - 2026-09-18
+
+### Testing
+
+- **`HalvingGridSearchCV` / `HalvingRandomSearchCV` with a Pipeline-aware budget
+  (#398).** The existing coverage uses `resource="n_samples"`, the default, where
+  the budget is rows and the estimator never sees it. The issue also asked for a
+  budget spent on a pipeline parameter, which is the case that stresses what it
+  worried about: sklearn writes the resource into the step through `set_params`
+  on every candidate at every rung, and it has to survive `clone`. Both searchers
+  now run with `resource="pls__n_components"` while separately grid-searching
+  `pls__scale`. Both work; nothing needed fixing, so the test locks in the
+  working state.
+
 ## [1.94.0] - 2026-09-13
 
 ### Added
@@ -5083,7 +5097,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.94.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.94.6...HEAD
+[1.94.6]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.94.6
 [1.94.0]: https://github.com/kgdunn/process-improve/compare/v1.93.1...v1.94.0
 [1.93.1]: https://github.com/kgdunn/process-improve/compare/v1.93.0...v1.93.1
 [1.93.0]: https://github.com/kgdunn/process-improve/compare/v1.92.0...v1.93.0
