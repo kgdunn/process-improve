@@ -326,11 +326,11 @@ def _augment_add_center_points(ctx: _AugmentContext) -> dict[str, Any]:
 
 
 def _augment_replicate(ctx: _AugmentContext) -> dict[str, Any]:
-    """Append zero or more complete copies of the existing design.
+    """Append one or more complete copies of the existing design.
 
     The number of copies is ``ctx.n_additional_runs`` (default 1 when
-    ``ctx.n_additional_runs`` is ``None``); passing 0 leaves the design
-    unchanged.
+    ``ctx.n_additional_runs`` is ``None``). Passing 0 is not supported and
+    raises ``ValueError`` from the underlying ``pd.concat`` call.
     """
     df = ctx.existing_design[ctx.factor_names].copy()
     n_copies = ctx.n_additional_runs if ctx.n_additional_runs is not None else 1
