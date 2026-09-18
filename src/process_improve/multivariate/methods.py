@@ -62,7 +62,7 @@ from ._pca import PCA
 from ._pls import PLS
 from ._preprocessing import MCUVScaler, center, scale
 from ._resampling import Resampler
-from ._tpls import TPLS, DataFrameDict
+from ._tpls import TPLS, DataFrameDict, make_tpls_scorer
 from .plots import (
     Plot,
     coefficient_plot,
@@ -108,6 +108,7 @@ __all__ = [
     "hotellings_t2_limit",
     "internal_pls_nipals_fit_one_pc",
     "loading_plot",
+    "make_tpls_scorer",
     "nan_to_zeros",
     "observation_contributions",
     "permutation_q2",

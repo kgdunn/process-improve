@@ -11,6 +11,124 @@ those changes.
 
 ## [Unreleased]
 
+## [1.95.5] - 2026-09-13
+
+### Added
+
+- **A narrow opt-out from the `PLS(scale=False)` un-centred-block warning.**
+  `PLS` fits no intercept, so an un-centred block displaces every prediction and
+  `fit` warns about it. The warning is correct and stays on by default. What was
+  missing was a way to permit one deliberate un-centred fit: a caller proving
+  that some *other* centring check fires had only
+  `simplefilter("ignore", SpecificationWarning)`, which also hides clamped
+  component counts and NIPALS non-convergence, and under a
+  `filterwarnings = error` policy the warning arrived as an exception
+  indistinguishable from a failed fit.
+
+  Two escapes, narrowest first:
+
+  - `PLS(..., warn_on_uncentred=False)` skips the check for that model alone.
+    It is an ordinary constructor parameter, so it survives `clone()` and
+    reaches a fit built inside a `Pipeline` or a grid search. It has no effect
+    under `scale=True`, where the model centres both blocks itself.
+  - `UncentredDataWarning`, a new `SpecificationWarning` subclass, is the
+    category the warning is now raised under, so
+    `ignore::process_improve.multivariate.UncentredDataWarning` leaves every
+    other specification diagnostic in force. Use it when the model is
+    constructed by code you do not own.
+
+- **`SpecificationWarning` and `UncentredDataWarning` are importable from
+  `process_improve.multivariate`.** A `filterwarnings` entry no longer has to
+  name the private `multivariate._common` module. Both remain importable from
+  `process_improve.multivariate.methods`.
+
+### Changed
+
+- **The un-centred-block warning's category is now `UncentredDataWarning`
+  rather than `SpecificationWarning` itself.** It subclasses
+  `SpecificationWarning`, so `warnings.filterwarnings(...,
+  category=SpecificationWarning)`, `except SpecificationWarning` and
+  `pytest.warns(SpecificationWarning)` all keep matching. Only an exact-identity
+  test (`record[0].category is SpecificationWarning`) changes behaviour.
+
+## [1.95.1] - 2026-09-18
+
+### Changed
+
+- **`MBPLS.fit` is now a sequence of named phases rather than one 404-line
+  body.** It carried `# noqa: C901, PLR0912, PLR0915`: complexity 40, 45
+  branches and 222 statements, against thresholds of 10, 12 and 50. The phases
+  were already named, in comments, inside the one function; each is now a helper
+  under that name, and `fit` reads as the sequence those comments described
+  (complexity 3, 2 branches, 23 statements, no suppression).
+
+  Nothing about a fit changes. The split is pure code motion: no expression was
+  reordered or rewritten, and the fitted attributes, `predict` and `transform`
+  were compared bit-for-bit across 17 configurations covering the `dense` and
+  `nipals` paths, one to six components, missing cells in X and in Y, a row
+  missing a whole block, and a fit that does not converge.
+
+  The helpers are private (`_fit_one_component`, `_deflate`,
+  `_reject_degenerate_missingness` and the rest), so no public API moves. The
+  one visible difference is that the non-convergence `SpecificationWarning` is
+  raised from one frame deeper, with `stacklevel` adjusted to match, so it still
+  points at the same place.
+
+## [1.95.0] - 2026-09-18
+
+### Added
+
+- **`make_tpls_scorer`: named metrics for `TPLS` cross-validation (#565).** A
+  scorer *string* cannot be used with `TPLS`. sklearn builds `scoring="r2"` into
+  a `_Scorer` whose `__call__` takes `y_true` as a required positional argument,
+  but a T-shaped model carries its response inside `X["Y"]` rather than in a
+  separate `y`, so `cross_val_score` has no `y` to hand over and calls the
+  scorer as `scorer(estimator, X_test)`. The call fails on the missing argument
+  *before TPLS is reached* (instrumentation: `TPLS.score` is called 3 of 3 folds
+  under default scoring and 0 of 3 under `scoring="r2"`), and sklearn's
+  `error_score` default of `np.nan` records every fold as `NaN` behind a
+  `UserWarning` that is easy to miss.
+
+  sklearn passes a *callable* `scoring=` through untouched and invokes it the
+  same two-argument way, so a callable whose `y` is optional receives that call
+  cleanly and can read the response out of `X["Y"]` itself:
+
+  ```python
+  from process_improve.multivariate import TPLS, make_tpls_scorer
+
+  cross_val_score(TPLS(...), X=blocks, cv=5, scoring="r2")                 # all NaN
+  cross_val_score(TPLS(...), X=blocks, cv=5, scoring=make_tpls_scorer("r2"))  # works
+  ```
+
+  `make_tpls_scorer("r2")` reproduces `TPLS.score` fold for fold, so it is a
+  drop-in replacement for the broken string form. It also takes
+  `"neg_mean_absolute_error"`, `"neg_mean_squared_error"` and
+  `"neg_root_mean_squared_error"` (sklearn's sign convention, so higher is
+  always better), any callable `metric(y_true, y_pred)` with
+  `greater_is_better=` to set its sign, and `**metric_kwargs` forwarded to the
+  metric. Several Y blocks are combined the way `TPLS.score` combines them: an
+  unweighted mean over the blocks, not a pooled multiblock statistic.
+
+### Changed
+
+- **`TPLS.fit` and `TPLS.score` reject a non-`None` `y` (#565).** Both took `y`
+  for sklearn API compatibility and then ignored it, so a caller who supplied a
+  response there had no way to learn it was never used. They now raise
+  `ValueError` naming the constraint and pointing at `make_tpls_scorer`. No
+  correct code relied on the old behaviour, since the value had no effect.
+
+- **`test_tpls_cross_validation` asserts the working path instead of pinning the
+  broken one (#565).** It previously wrapped the all-`NaN` `scoring="r2"` call
+  in `pytest.warns(UserWarning)` as a characterisation test. It now asserts that
+  `scoring=make_tpls_scorer("r2")` gives finite folds equal to the default
+  scoring's, to a relative tolerance of 1e-12.
+
+### Documentation
+
+- **`TPLS.score`** now points at `make_tpls_scorer` as the supported route for a
+  named metric, keeping `error_score="raise"` only as the way to see the
+  underlying `TypeError` if a string scorer is used anyway.
+
 ## [1.94.0] - 2026-09-13
 
 ### Added
@@ -149,7 +267,7 @@ those changes.
 
   ```python
   breaks = f_rupture(data, tags=["DryerTemp"], batch_col="batch_id")
-  counts = breaks.map(len)  # a numeric feature for a model matrix
+  counts = breaks.map(len)          # a numeric feature for a model matrix
   ```
 
   One `<tag>_rupture` column per tag, each cell a tuple of positions. Unlike the other
@@ -232,7 +350,7 @@ those changes.
   ```python
   from process_improve.batch.alignment_helpers import sakoe_chiba, itakura
 
-  batch_dtw(..., settings={"band": sakoe_chiba(window=0.1)})  # 10% of batch duration
+  batch_dtw(..., settings={"band": sakoe_chiba(window=0.1)})   # 10% of batch duration
   batch_dtw(..., settings={"band": itakura(max_slope=2.0)})
   ```
 
@@ -3401,8 +3519,8 @@ Remaining failures are scoped to existing follow-up issues:
   spe = result.spe
 
   # after
-  y_hat = pls.predict(X)  # sklearn-compatible
-  result = pls.diagnose(X)  # rich Bunch view
+  y_hat = pls.predict(X)           # sklearn-compatible
+  result = pls.diagnose(X)         # rich Bunch view
   spe = result.spe
   ```
 
@@ -4959,7 +5077,7 @@ this entry records them together.
   package and its MCP tool-dispatch surface, ranking each finding under both an
   untrusted and a local-trusted threat model. This is a planning artifact that
   seeds follow-up hardening issues; no behaviour changes in this release.
-
+  
 ### Fixed
 
 - Docstring corrections so they match the implementation:
@@ -5083,7 +5201,10 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.94.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.95.5...HEAD
+[1.95.5]: https://github.com/kgdunn/process-improve/compare/v1.95.1...v1.95.5
+[1.95.1]: https://github.com/kgdunn/process-improve/compare/v1.95.0...v1.95.1
+[1.95.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.95.0
 [1.94.0]: https://github.com/kgdunn/process-improve/compare/v1.93.1...v1.94.0
 [1.93.1]: https://github.com/kgdunn/process-improve/compare/v1.93.0...v1.93.1
 [1.93.0]: https://github.com/kgdunn/process-improve/compare/v1.92.0...v1.93.0
