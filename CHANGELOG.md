@@ -11,6 +11,61 @@ those changes.
 
 ## [Unreleased]
 
+## [1.95.0] - 2026-09-18
+
+### Added
+
+- **`make_tpls_scorer`: named metrics for `TPLS` cross-validation (#565).** A
+  scorer *string* cannot be used with `TPLS`. sklearn builds `scoring="r2"` into
+  a `_Scorer` whose `__call__` takes `y_true` as a required positional argument,
+  but a T-shaped model carries its response inside `X["Y"]` rather than in a
+  separate `y`, so `cross_val_score` has no `y` to hand over and calls the
+  scorer as `scorer(estimator, X_test)`. The call fails on the missing argument
+  *before TPLS is reached* (instrumentation: `TPLS.score` is called 3 of 3 folds
+  under default scoring and 0 of 3 under `scoring="r2"`), and sklearn's
+  `error_score` default of `np.nan` records every fold as `NaN` behind a
+  `UserWarning` that is easy to miss.
+
+  sklearn passes a *callable* `scoring=` through untouched and invokes it the
+  same two-argument way, so a callable whose `y` is optional receives that call
+  cleanly and can read the response out of `X["Y"]` itself:
+
+  ```python
+  from process_improve.multivariate import TPLS, make_tpls_scorer
+
+  cross_val_score(TPLS(...), X=blocks, cv=5, scoring="r2")                 # all NaN
+  cross_val_score(TPLS(...), X=blocks, cv=5, scoring=make_tpls_scorer("r2"))  # works
+  ```
+
+  `make_tpls_scorer("r2")` reproduces `TPLS.score` fold for fold, so it is a
+  drop-in replacement for the broken string form. It also takes
+  `"neg_mean_absolute_error"`, `"neg_mean_squared_error"` and
+  `"neg_root_mean_squared_error"` (sklearn's sign convention, so higher is
+  always better), any callable `metric(y_true, y_pred)` with
+  `greater_is_better=` to set its sign, and `**metric_kwargs` forwarded to the
+  metric. Several Y blocks are combined the way `TPLS.score` combines them: an
+  unweighted mean over the blocks, not a pooled multiblock statistic.
+
+### Changed
+
+- **`TPLS.fit` and `TPLS.score` reject a non-`None` `y` (#565).** Both took `y`
+  for sklearn API compatibility and then ignored it, so a caller who supplied a
+  response there had no way to learn it was never used. They now raise
+  `ValueError` naming the constraint and pointing at `make_tpls_scorer`. No
+  correct code relied on the old behaviour, since the value had no effect.
+
+- **`test_tpls_cross_validation` asserts the working path instead of pinning the
+  broken one (#565).** It previously wrapped the all-`NaN` `scoring="r2"` call
+  in `pytest.warns(UserWarning)` as a characterisation test. It now asserts that
+  `scoring=make_tpls_scorer("r2")` gives finite folds equal to the default
+  scoring's, to a relative tolerance of 1e-12.
+
+### Documentation
+
+- **`TPLS.score`** now points at `make_tpls_scorer` as the supported route for a
+  named metric, keeping `error_score="raise"` only as the way to see the
+  underlying `TypeError` if a string scorer is used anyway.
+
 ## [1.94.0] - 2026-09-13
 
 ### Added
@@ -5083,7 +5138,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.94.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.95.0...HEAD
+[1.95.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.95.0
 [1.94.0]: https://github.com/kgdunn/process-improve/compare/v1.93.1...v1.94.0
 [1.93.1]: https://github.com/kgdunn/process-improve/compare/v1.93.0...v1.93.1
 [1.93.0]: https://github.com/kgdunn/process-improve/compare/v1.92.0...v1.93.0
