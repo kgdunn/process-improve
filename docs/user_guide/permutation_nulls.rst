@@ -20,7 +20,7 @@ because it looks like a statistic and is not. VIP is normalised so that
 
 *exactly*, for any model, on any data:
 
-.. code-block:: python
+.. code-block:: pycon
 
    >>> from process_improve.multivariate import PLS, vip
    >>> model = PLS(n_components=2, scale=False).fit(x_scaled, y_scaled)
@@ -74,6 +74,7 @@ Pass your own ``fit_predict`` to use a different model or a cheaper fold scheme:
        """Return out-of-sample predictions, one row per product."""
        ...  # your own CV loop; see the two responsibilities below
 
+
    check_predictive_signal(chem, sensory_means, fit_predict, n_perm=999)
 
 Two things :func:`~process_improve.multivariate.check_predictive_signal` then
@@ -109,7 +110,7 @@ Testing the whole procedure, not one model
 callable that runs filtering, transformation, scaling and selection end to end,
 and counts discoveries under a permuted response:
 
-.. code-block:: python
+.. code-block:: pycon
 
    >>> result = count_discoveries_under_null(select, chem, sensory_means, n_perm=200)
    >>> result["observed"], result["null_mean"], result["null_to_observed_ratio"]
@@ -139,7 +140,7 @@ Recovering the expected class
 question, hypergeometrically: is a chemically expected class of compounds
 over-represented at the top of a ranking?
 
-.. code-block:: python
+.. code-block:: pycon
 
    >>> class_enrichment(ranking_for_fruity, all_compounds, r"acetate|butanoate")
    {'in_top': 5, 'class_size': 9, 'n_compounds': 61, 'n_drawn': 12,

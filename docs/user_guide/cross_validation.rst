@@ -110,7 +110,7 @@ holds values out should be used instead.
 
    print(f"Recommended components: {result.n_components}")
    print(result.press)  # PRESS per component count
-   print(result.q2)     # cross-validated R2 of X
+   print(result.q2)  # cross-validated R2 of X
 
 The result is a ``Bunch`` with:
 
@@ -219,7 +219,7 @@ components are added.
    result = PLS.select_n_components(X, Y, max_components=8, cv=5)
 
    print(f"Recommended components: {result.n_components}")
-   print(result.rmsecv["total"])         # RMSECV per component count
+   print(result.rmsecv["total"])  # RMSECV per component count
    print(result.r2y_validated["total"])  # Validated R2 of Y
 
 Do not scale the blocks yourself before calling either selector. In-fold
@@ -271,9 +271,9 @@ variation *in its own units* the model predicts.
 .. code-block:: python
 
    fitted = PLS(n_components=result.n_components).fit(X, Y)
-   print(fitted.r2_y_cumulative_)                        # fitted, equal weight
-   print(result.r2y_validated["scaled_total"])           # held out, equal weight
-   print(result.r2y_validated["total"])                  # held out, original Y scale
+   print(fitted.r2_y_cumulative_)  # fitted, equal weight
+   print(result.r2y_validated["scaled_total"])  # held out, equal weight
+   print(result.r2y_validated["total"])  # held out, original Y scale
 
 ``MBPLS.select_n_components`` returns the same two columns, on the same footing.
 
@@ -305,11 +305,11 @@ Three resampling strategies are supported:
    # Jackknife (leave-one-out) cross-validation
    cv = pls.cross_validate(X_s, Y_s, cv="loo")
 
-   print(cv.significant)      # Which betas have CIs excluding zero
-   print(cv.beta_ci_lower)    # Lower 95% CI
-   print(cv.beta_ci_upper)    # Upper 95% CI
-   print(cv.q_squared)        # Cross-validated R² (Q²)
-   print(cv.rmse_cv)          # Cross-validated RMSE
+   print(cv.significant)  # Which betas have CIs excluding zero
+   print(cv.beta_ci_lower)  # Lower 95% CI
+   print(cv.beta_ci_upper)  # Upper 95% CI
+   print(cv.q_squared)  # Cross-validated R² (Q²)
+   print(cv.rmse_cv)  # Cross-validated RMSE
 
 The result is a ``Bunch`` with:
 

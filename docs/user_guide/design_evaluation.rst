@@ -172,8 +172,11 @@ G estimate, raise ``n_samples`` and fix ``random_seed``:
 .. code-block:: python
 
    metrics = evaluate_design(
-       design, model=model, metric="fds",
-       n_samples=120_000, random_seed=1,
+       design,
+       model=model,
+       metric="fds",
+       n_samples=120_000,
+       random_seed=1,
    )
    metrics["fds"]["max_prediction_variance"]  # reproducible run to run
 
@@ -194,13 +197,16 @@ endpoints equal the minimum and maximum prediction variance.
 .. code-block:: python
 
    fds = evaluate_design(
-       design, model=model, metric="fds",
-       fds_resolution=200, random_seed=1,
+       design,
+       model=model,
+       metric="fds",
+       fds_resolution=200,
+       random_seed=1,
    )["fds"]
 
    curve = fds["curve"]
-   curve["fraction"]              # 200 evenly spaced fractions in [0, 1]
-   curve["prediction_variance"]   # the FDS curve, sigma^2 units
+   curve["fraction"]  # 200 evenly spaced fractions in [0, 1]
+   curve["prediction_variance"]  # the FDS curve, sigma^2 units
    curve["scaled_prediction_variance"]  # the same, scaled by N (SPV)
 
 Setting ``fds_resolution`` is fully backward compatible: when it is ``None``

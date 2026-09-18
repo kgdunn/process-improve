@@ -65,9 +65,7 @@ The executed comparison
     from process_improve.batch.control import evaluate_control_policies
     from process_improve.simulation import BioreactorSimulator
 
-    result = evaluate_control_policies(
-        BioreactorSimulator(), y_target=8.0, random_state=0
-    )
+    result = evaluate_control_policies(BioreactorSimulator(), y_target=8.0, random_state=0)
     print(result.summary.round(3))
 
 Measured on the default configuration (200 historical training batches, 40

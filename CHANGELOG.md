@@ -149,7 +149,7 @@ those changes.
 
   ```python
   breaks = f_rupture(data, tags=["DryerTemp"], batch_col="batch_id")
-  counts = breaks.map(len)          # a numeric feature for a model matrix
+  counts = breaks.map(len)  # a numeric feature for a model matrix
   ```
 
   One `<tag>_rupture` column per tag, each cell a tuple of positions. Unlike the other
@@ -232,7 +232,7 @@ those changes.
   ```python
   from process_improve.batch.alignment_helpers import sakoe_chiba, itakura
 
-  batch_dtw(..., settings={"band": sakoe_chiba(window=0.1)})   # 10% of batch duration
+  batch_dtw(..., settings={"band": sakoe_chiba(window=0.1)})  # 10% of batch duration
   batch_dtw(..., settings={"band": itakura(max_slope=2.0)})
   ```
 
@@ -3401,8 +3401,8 @@ Remaining failures are scoped to existing follow-up issues:
   spe = result.spe
 
   # after
-  y_hat = pls.predict(X)           # sklearn-compatible
-  result = pls.diagnose(X)         # rich Bunch view
+  y_hat = pls.predict(X)  # sklearn-compatible
+  result = pls.diagnose(X)  # rich Bunch view
   spe = result.spe
   ```
 
@@ -4959,7 +4959,7 @@ this entry records them together.
   package and its MCP tool-dispatch surface, ranking each finding under both an
   untrusted and a local-trusted threat model. This is a planning artifact that
   seeds follow-up hardening issues; no behaviour changes in this release.
-  
+
 ### Fixed
 
 - Docstring corrections so they match the implementation:
