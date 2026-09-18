@@ -11,6 +11,39 @@ those changes.
 
 ## [Unreleased]
 
+## [1.94.1] - 2026-09-18
+
+### Fixed
+
+- **The `typecheck` gate is green again.** `mypy` reads `pd.Series.idxmax` as
+  returning `Hashable`, so `int(dist.idxmax())` in
+  `multivariate/_pls.py` failed to type-check under the current
+  `pandas-stubs`. The index there is `component_index`, which holds component
+  counts, so the value is an int by construction and a `typing.cast` states
+  that. No lock file is committed, so a fresh resolve picks up new stubs and CI
+  started failing on a commit that touched only a workflow file (run
+  35000616550).
+
+- **`test_mean_converges_to_deterministic_surface` no longer fails by chance.**
+  It averaged 400 unseeded draws and compared the sample mean against a
+  3.5-sigma band: correct in expectation, but roughly a 1-in-2000 failure per
+  run, and it did fail on CI at `|mean - expected| = 0.47241` against a
+  `0.47229` tolerance. The draws are now seeded, so the same band is a statement
+  about one fixed sequence rather than a random one. A companion assertion pins
+  that the draws are still noisy, so the mean cannot match trivially.
+
+### Added
+
+- **`simulate(..., random_state=...)`.** The measurement noise came from an
+  unseeded `np.random.default_rng()` inside a public function, which
+  `docs/development/reproducibility.rst` forbids: every public function touching
+  an RNG takes `random_state: int | np.random.Generator | None` and resolves it
+  through `process_improve._random.check_random_state`. The default stays
+  `None`, so a simulator standing in for a real process still returns fresh
+  noise on every call; an int or a `Generator` makes a run repeatable. It is
+  deliberately *not* part of the `simulate_process` tool contract, so a model
+  driving the simulator cannot freeze its noise.
+
 ## [1.94.0] - 2026-09-13
 
 ### Added
@@ -5083,7 +5116,8 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.94.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.94.1...HEAD
+[1.94.1]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.94.1
 [1.94.0]: https://github.com/kgdunn/process-improve/compare/v1.93.1...v1.94.0
 [1.93.1]: https://github.com/kgdunn/process-improve/compare/v1.93.0...v1.93.1
 [1.93.0]: https://github.com/kgdunn/process-improve/compare/v1.92.0...v1.93.0
