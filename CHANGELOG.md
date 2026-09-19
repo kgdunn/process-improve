@@ -48,6 +48,19 @@ those changes.
 
 ### Fixed
 
+- **A truncated dataset download now surfaces as the documented error.**
+  `fetch_remote_bytes` caught `OSError`, which covers connection, DNS and timeout
+  failures. It does not cover `http.client.IncompleteRead`, which is what
+  `response.read()` raises when a server closes the connection part way through
+  the body: that is an `HTTPException`, so it escaped raw and the one guarantee
+  the module exists to provide did not hold.
+
+  The cost was CI jobs failing on a network hiccup. The test fixtures turn a
+  `RuntimeError` from a download into a skip, so a truncated transfer errored
+  instead: one job reported `IncompleteRead(817662 bytes read, 514355 more
+  expected)` and failed with 3408 tests passing and nothing wrong with the code
+  under test.
+
 - **`test_mean_converges_to_deterministic_surface` no longer fails by chance.**
   It averaged 400 unseeded draws and compared the sample mean against a
   3.5-sigma band: correct in expectation, but roughly a 1-in-2000 failure per
