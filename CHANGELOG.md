@@ -34,7 +34,7 @@ those changes.
   `CONTRIBUTING.md`, `CLAUDE.md`, `SECURITY_AUDIT.md` and the pull request
   template are updated to match.
 
-### Testing
+### Tests
 
 - **`HalvingGridSearchCV` / `HalvingRandomSearchCV` with a Pipeline-aware budget
   (#398).** The existing coverage uses `resource="n_samples"`, the default, where
