@@ -40,11 +40,15 @@ RULES = ("C901", "PLR0912", "PLR0913", "PLR0915")
 BUDGET: dict[str, int] = {
     "C901": 47,
     "PLR0912": 26,
-    # 79, not 78: #598 merged `smooth_trajectories`, whose seven arguments are
-    # the two smoothers' settings side by side. Naming them beats a settings dict
-    # whose valid keys depend on `method`, so the width is deliberate and this is
-    # main's true count, not a regression this branch introduced.
-    "PLR0913": 79,
+    # 80, not 78, and neither one is a regression this branch introduced. #598
+    # merged `smooth_trajectories`, whose seven arguments are the two smoothers'
+    # settings side by side: naming them beats a settings dict whose valid keys
+    # depend on `method`. #581 then gave `ttest_independent_from_df` its
+    # `equal_var` switch, taking it to six, which is the honest width for two
+    # columns, a frame and three switches. Both carry a reasoned suppression,
+    # which is the discipline this ratchet exists to enforce, so the budget
+    # tracks main rather than pretending the count did not move.
+    "PLR0913": 80,
     "PLR0915": 31,
 }
 

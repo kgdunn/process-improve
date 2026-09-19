@@ -174,8 +174,8 @@ those changes.
   also fails, telling you to lower the budget. A refactor therefore cannot be
   quietly spent by the next change. The target, recorded in `CONTRIBUTING.md`,
   is to halve the 2026-06 baseline of 185 breaches to 91 by v2.0; this release
-  takes it to 183, the `MBPCA.fit` split having removed three and #598's
-  `smooth_trajectories` having added one.
+  takes it to 184, the `MBPCA.fit` split having removed three while #598's
+  `smooth_trajectories` and #581's `equal_var` switch each added one.
 
 ## [1.95.1] - 2026-09-18
 
