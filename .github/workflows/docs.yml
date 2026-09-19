@@ -16,7 +16,12 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  # Cancel a superseded run on pull requests only. A PR's docs build is a check
+  # on its head commit, so an older commit's build is dead weight the moment the
+  # next push arrives. Pushes to main are never cancelled: they share one group
+  # (no pull_request.number) and each one deploys, so cancelling would drop a
+  # published docs update rather than merely discard a stale check.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
