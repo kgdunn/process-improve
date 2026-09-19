@@ -19,8 +19,6 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import check_is_fitted
 
-from process_improve.batch._gaps import fill_gaps, smooth_trajectories  # noqa: F401 - public re-export
-
 from ..multivariate.methods import PCA, MCUVScaler
 from .alignment_helpers import backtrack_optimal_path, distance_matrix
 from .data_input import check_valid_batch_dict, dict_to_wide, melted_to_dict

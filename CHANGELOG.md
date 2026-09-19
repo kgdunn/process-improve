@@ -15,6 +15,10 @@ those changes.
 
 ### Added
 
+Both are imported from `process_improve.batch`; `_gaps` is a private module
+re-exported through the package, the same shape `_pca` / `_pls` take through
+`methods`.
+
 - **`fill_gaps` for batch trajectories (#200),** replacing the
   `bfill().ffill()` the issue quotes. That one-liner is wrong on trajectory data
   in three specific ways, and each is addressed:

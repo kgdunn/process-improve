@@ -9,6 +9,7 @@ from process_improve.batch._batch_plots import (
     unfolded_contribution_plot,
 )
 from process_improve.batch._batch_pls import BatchPLS
+from process_improve.batch._gaps import fill_gaps, smooth_trajectories
 from process_improve.batch.control import MidCourseCorrector, midcourse_correction
 from process_improve.batch.data_input import (
     check_valid_batch_dict,
@@ -51,10 +52,8 @@ from process_improve.batch.preprocessing import (
     BatchScaler,
     batch_dtw,
     determine_scaling,
-    fill_gaps,
     find_reference_batch,
     resample_to_reference,
-    smooth_trajectories,
 )
 
 __all__ = [
