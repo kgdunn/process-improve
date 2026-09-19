@@ -870,6 +870,91 @@ def test_ttest_independent_correctly_named_fields() -> None:
     assert out["Pooled standard deviation"] == out["Std error of difference"]
 
 
+@pytest.mark.parametrize("equal_var", [True, False])
+def test_ttest_independent_matches_scipy_in_both_variance_modes(equal_var: bool) -> None:
+    """#561: `equal_var=False` is Welch's test, and both modes agree with scipy exactly.
+
+    The samples are deliberately unbalanced in both size and spread (8 tight against 25
+    wide), which is where Student's and Welch's part company: here they disagree on the
+    statistic itself (0.344 against 0.587) and on the degrees of freedom (31 against
+    28.36), so the test would pass under a mislabelled implementation only by accident.
+    """
+    rng = np.random.default_rng(0)
+    a = pd.Series(rng.normal(10, 1.0, 8))
+    b = pd.Series(rng.normal(12, 4.0, 25))
+    conflevel = 0.995
+
+    out = univariate.ttest_independent(a, b, conflevel, equal_var=equal_var)
+    # Our difference is B - A, so scipy takes the samples in that order.
+    ref = stats.ttest_ind(b, a, equal_var=equal_var)
+    ref_ci = ref.confidence_interval(conflevel)
+
+    assert out["t value"] == pytest.approx(ref.statistic, rel=1e-12)
+    assert out["p value"] == pytest.approx(ref.pvalue, rel=1e-12)
+    assert out["Degrees of freedom"] == pytest.approx(ref.df, rel=1e-12)
+    assert out["ConfInt: Lo"] == pytest.approx(ref_ci.low, rel=1e-12)
+    assert out["ConfInt: Hi"] == pytest.approx(ref_ci.high, rel=1e-12)
+    assert out["Equal variance assumed"] is equal_var
+
+
+def test_ttest_independent_welch_reports_no_pooled_standard_deviation() -> None:
+    """#561: Welch estimates no common variance, so `Pooled std dev` is NaN, not a number."""
+    a = pd.Series([102.0, 98, 100, 101, 97])
+    b = pd.Series([110.0, 112, 108, 109])
+
+    student = univariate.ttest_independent(a, b)
+    welch = univariate.ttest_independent(a, b, equal_var=False)
+
+    assert np.isfinite(student["Pooled std dev"])
+    assert np.isnan(welch["Pooled std dev"])
+    # "Pooled standard deviation" is the deprecated alias for the standard ERROR of the
+    # difference, which Welch does form, so that one stays finite in both modes.
+    assert welch["Pooled standard deviation"] == welch["Std error of difference"]
+    assert np.isfinite(welch["Std error of difference"])
+
+
+def test_ttest_independent_default_stays_student() -> None:
+    """#561: the default did not move, so existing results are unchanged."""
+    a = pd.Series([102.0, 98, 100, 101, 97])
+    b = pd.Series([110.0, 112, 108, 109])
+    assert univariate.ttest_independent(a, b) == univariate.ttest_independent(a, b, equal_var=True)
+
+
+def test_ttest_from_df_forwards_equal_var() -> None:
+    """#561: the DataFrame entry point reaches Welch for every pair in the family."""
+    rng = np.random.default_rng(1)
+    df = pd.DataFrame(
+        {
+            "g": ["A"] * 6 + ["B"] * 20 + ["C"] * 9,
+            "v": np.concatenate([rng.normal(0, 1, 6), rng.normal(1, 5, 20), rng.normal(0.5, 1, 9)]),
+        }
+    )
+    student = univariate.ttest_independent_from_df(df, "g", "v")
+    welch = univariate.ttest_independent_from_df(df, "g", "v", equal_var=False)
+
+    assert len(welch) == 3  # A-B, A-C, B-C
+    assert welch["Equal variance assumed"].eq(False).all()
+    assert student["Equal variance assumed"].eq(True).all()
+    # Unequal group sizes and spreads, so the two families must not coincide.
+    assert not np.allclose(welch["Degrees of freedom"], student["Degrees of freedom"])
+    assert welch["Pooled std dev"].isna().all()
+
+
+@pytest.mark.parametrize("style", ["Robust", "REGULAR", "regular", "robust"])
+def test_confidence_interval_accepts_known_styles(style: str) -> None:
+    """#561: both documented styles work, in any case."""
+    df = pd.DataFrame({"x": [1.0, 2, 3, 4, 5, 6, 100]})
+    low, high = univariate.confidence_interval(df, "x", style=style)
+    assert low < high
+
+
+def test_confidence_interval_rejects_an_unknown_style() -> None:
+    """#561: a mistyped `style` silently took the classical branch; now it raises."""
+    df = pd.DataFrame({"x": [1.0, 2, 3, 4, 5]})
+    with pytest.raises(ValueError, match=r"style must be one of \('robust', 'regular'\); got 'rubost'"):
+        univariate.confidence_interval(df, "x", style="rubost")
+
+
 def test_ttest_from_df_skips_groups_with_no_usable_data() -> None:
     """An all-NaN group is dropped instead of yielding a silent NaN row.
 
