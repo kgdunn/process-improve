@@ -49,6 +49,22 @@ those changes.
   sum of squares, annotated with the permutation p-values once they exist. Bound as a
   method on `ASCA` and importable on its own.
 
+  #### Notes on two choices that are easy to get wrong
+
+  - **The permutation null is the reduced-model one.** Permuting the rows of the
+    whole response leaves the other terms' variation in the data, so a term
+    sharing a matrix with a large neighbour inherits part of it and its null comes
+    out far too high. On the test fixture, where A carries 84 percent of the
+    variation and B a real 11 percent, the whole-response null put B at p = 0.13
+    and hid a genuine effect; permuting only this term's effect plus the residual
+    puts B at p = 0.005.
+
+  - **VASCA does not select on the p-value alone.** With a few hundred permutations
+    the smallest attainable p-value is reached by many subset sizes at once, and
+    picking the largest subset that clears alpha returns every variable that
+    happened to tie at the floor. The reported `z_score`, how far a subset stands
+    above its own null, does not tie: it peaks where the effect is concentrated.
+
 ### Changed
 
 - **The version is no longer bumped in a pull request.** `pyproject.toml`
@@ -71,21 +87,6 @@ those changes.
 
   `CONTRIBUTING.md`, `CLAUDE.md`, `SECURITY_AUDIT.md` and the pull request
   template are updated to match.
-
-### Notes on two choices that are easy to get wrong
-
-- **The permutation null is the reduced-model one.** Permuting the rows of the whole
-  response leaves the other terms' variation in the data, so a term sharing a matrix
-  with a large neighbour inherits part of it and its null comes out far too high. On
-  the test fixture, where A carries 84 percent of the variation and B a real 11
-  percent, the whole-response null put B at p = 0.13 and hid a genuine effect;
-  permuting only this term's effect plus the residual puts B at p = 0.005.
-
-- **VASCA does not select on the p-value alone.** With a few hundred permutations the
-  smallest attainable p-value is reached by many subset sizes at once, and picking the
-  largest subset that clears alpha returns every variable that happened to tie at the
-  floor. The reported `z_score`, how far a subset stands above its own null, does not
-  tie: it peaks where the effect is concentrated.
 
 ## [1.95.1] - 2026-09-18
 
