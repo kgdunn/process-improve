@@ -52,6 +52,39 @@ those changes.
   re-exported through the package, the same shape `_pca` and `_pls` take through
   `methods`.
 
+- **`ttest_independent(..., equal_var=False)`: Welch's unequal-variance t-test
+  (#561).** The function was pooled-variance Student's t only, with no switch:
+  `grep -rn "welch|equal_var|ttest_ind" src/` returned nothing. Welch is the
+  default in R's `t.test` and is what `scipy.stats.ttest_ind(equal_var=False)`
+  gives, so the library was the outlier. `equal_var=False` keeps each sample's
+  own variance and takes the Welch-Satterthwaite degrees of freedom; both modes
+  now agree with scipy to 1e-12 on the statistic, the p-value, the degrees of
+  freedom and the confidence interval.
+
+  The default stays `True`, so existing results do not move. It is the weaker
+  choice, though: pooling is only valid when the two variances really are equal,
+  and when they are not (especially with the larger variance on the smaller
+  sample) Student's test does not hold its nominal error rate while Welch's does.
+  Delacre, Lakens & Leys (2017) is now cited on the function as the case for that,
+  which is where that reference belongs; it had been parked in
+  `confidence_interval`, a single-sample interval it has nothing to do with.
+
+  `ttest_independent_from_df` forwards `equal_var` to every pair in the family,
+  and the `ttest_two_samples` tool exposes it too. Two consequences worth knowing:
+  the result dict gains an `"Equal variance assumed"` entry, and `"Pooled std
+  dev"` is `NaN` under Welch (JSON `null` through the tool layer), because Welch
+  forms no pooled estimate and a number there would imply one.
+
+- **`simulate(..., random_state=...)`.** The measurement noise came from an
+  unseeded `np.random.default_rng()` inside a public function, which
+  `docs/development/reproducibility.rst` forbids: every public function touching
+  an RNG takes `random_state: int | np.random.Generator | None` and resolves it
+  through `process_improve._random.check_random_state`. The default stays
+  `None`, so a simulator standing in for a real process still returns fresh
+  noise on every call; an int or a `Generator` makes a run repeatable. It is
+  deliberately *not* part of the `simulate_process` tool contract, so a model
+  driving the simulator cannot freeze its noise.
+
 ### Changed
 
 - **`MBPCA.fit` is now a sequence of named phases**, the same split `MBPLS.fit`
@@ -99,6 +132,35 @@ those changes.
   rejecting outliers. It is the same implosion a median-of-differences scale
   estimator suffers under a tied majority, in a place nobody looks for it.
 
+- **`confidence_interval` validates `style` (#561).** Anything other than
+  `"robust"` fell through to the classical branch, so `style="rubost"` returned a
+  different interval with nothing to signal it. Unknown values now raise
+  `ValueError` naming the two accepted ones.
+
+- **A truncated dataset download now surfaces as the documented error.**
+  `fetch_remote_bytes` caught `OSError`, which covers connection, DNS and timeout
+  failures. It does not cover `http.client.IncompleteRead`, which is what
+  `response.read()` raises when a server closes the connection part way through
+  the body: that is an `HTTPException`, so it escaped raw and the one guarantee
+  the module exists to provide did not hold.
+
+  The cost was CI jobs failing on a network hiccup. The test fixtures turn a
+  `RuntimeError` from a download into a skip, so a truncated transfer errored
+  instead: one job reported `IncompleteRead(817662 bytes read, 514355 more
+  expected)` and failed with 3408 tests passing and nothing wrong with the code
+  under test.
+
+- **`test_mean_converges_to_deterministic_surface` no longer fails by chance.**
+  It averaged 400 unseeded draws and compared the sample mean against a
+  3.5-sigma band: correct in expectation, but roughly a 1-in-2000 failure per
+  run, and it did fail on CI at `|mean - expected| = 0.47241` against a
+  `0.47229` tolerance. The draws are now seeded, so the same band is a statement
+  about one fixed sequence rather than a random one. A companion assertion pins
+  that the draws are still noisy, so the mean cannot match trivially.
+
+  (The other half of this batch, the `typing.cast` that repaired the `typecheck`
+  gate, reached main with #579 and is no longer part of this change.)
+
 ### Tests
 
 - **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
@@ -114,7 +176,6 @@ those changes.
   is to halve the 2026-06 baseline of 185 breaches to 91 by v2.0; this release
   takes it to 183, the `MBPCA.fit` split having removed three and #598's
   `smooth_trajectories` having added one.
-
 
 ## [1.95.1] - 2026-09-18
 
