@@ -36,6 +36,7 @@ from ._common import (
     _align_to_fit_features,
     _equal_weight_r2_total,
     _model_method,
+    _reject_sparse,
     _select_n_components,
     epsqrt,
 )
@@ -710,6 +711,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             if np.any(sample_weight < 0):
                 raise ValueError("sample_weight must be non-negative.")
 
+        # Reject sparse before validate_data does, so the message names the
+        # ColumnTransformer knob rather than `.toarray()` (#399).
+        _reject_sparse(X, "PLS")
         # Capture DataFrame metadata before validate_data converts X to ndarray
         # so the downstream DataFrame view keeps its row/column labels.
         sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None

@@ -106,6 +106,44 @@ how confident the prediction is.
 | Plotly diagnostics built in                       |       -      |        ✓        |
 | Labeled `DataFrame` outputs                       |    partial   |        ✓        |
 
+### Mixing scaled numeric and categorical columns
+
+`MCUVScaler` composes with `ColumnTransformer`, so only the columns that need
+centring and scaling get it while categorical columns are encoded alongside:
+
+```python
+from sklearn.compose import make_column_transformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder
+
+from process_improve.multivariate import PLS, MCUVScaler
+
+ct = make_column_transformer(
+    (MCUVScaler(), ["temp", "pressure", "flow"]),
+    (OneHotEncoder(), ["batch_type"]),
+    sparse_threshold=0,  # see below
+)
+ct = ct.set_output(transform="pandas")  # and below
+
+pipe = Pipeline([("ct", ct), ("pls", PLS(n_components=3))]).fit(X, y)
+pipe.named_steps["pls"].x_loadings_.index
+# ['mcuvscaler__temp', ..., 'onehotencoder__batch_type_A', ...]
+```
+
+Two arguments there are doing real work:
+
+- **`sparse_threshold=0`.** `ColumnTransformer` flips its *whole* concatenated
+  output to a sparse matrix once the result is more than 30 percent zeros, which
+  a one-hot block with a dozen levels easily is. NIPALS centres and scales every
+  column, which destroys sparsity, so `PLS` and `PCA` reject sparse input rather
+  than silently densifying it. `OneHotEncoder(sparse_output=False)` does the same
+  job on one step instead of the whole transformer.
+- **`set_output(transform="pandas")`.** Without it the transformer hands over a
+  bare ndarray, so a loading can only be labelled `0`, `1`, `2`; with it,
+  `get_feature_names_out` reaches `x_loadings_.index` and a loading reads as
+  "the one-hot column for `batch_type == B`". The numbers are identical either
+  way.
+
 ## Installation
 
 ```bash
