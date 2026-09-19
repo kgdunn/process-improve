@@ -1,0 +1,28 @@
+name: Set up the project environment
+description: >
+  Install uv, pin the interpreter, and sync the project with its dev
+  dependencies and every extra. This is the sequence every job in
+  run-tests.yml and docs.yml needs before it can run anything, and it lived in
+  five copies before #449.
+
+inputs:
+  python-version:
+    description: >
+      Python version for uv to install and select, e.g. "3.13". Passed
+      straight through to astral-sh/setup-uv.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install uv and set the python version
+      uses: astral-sh/setup-uv@v7
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Install the project (editable)
+      # `defaults.run.shell` from the calling job does not reach a composite
+      # action, so the shell is named here. The jobs that set one use
+      # `bash -e {0}`; GitHub's `bash` adds `-o pipefail`, which changes nothing
+      # for a single command with no pipe.
+      shell: bash
+      run: uv sync --dev --all-extras
