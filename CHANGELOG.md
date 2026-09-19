@@ -13,19 +13,6 @@ those changes.
 
 ### Added
 
-- **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
-  counts how many functions in `src/process_improve` breach `C901`, `PLR0912`,
-  `PLR0913` or `PLR0915`, asking ruff with `--ignore-noqa` so it measures real
-  breaches rather than `# noqa` comments, and ranks them by how far past the
-  threshold they are, which is the "what do I split next?" list.
-
-  `tests/test_complexity_ratchet.py` makes it a CI gate in both directions: a
-  count above its budget fails as a regression, and a count *below* its budget
-  also fails, telling you to lower the budget. A refactor therefore cannot be
-  quietly spent by the next change. The target, recorded in `CONTRIBUTING.md`,
-  is to halve the 2026-06 baseline of 185 breaches to 91 by v2.0; this release
-  takes it to 182.
-
 - **`fill_gaps` for batch trajectories (#200),** replacing the
   `bfill().ffill()` the issue quotes. That one-liner is wrong on trajectory data
   in three specific ways, and each is addressed:
@@ -111,6 +98,23 @@ those changes.
   names the cause, and falls back to `iterations=0`, which smooths without
   rejecting outliers. It is the same implosion a median-of-differences scale
   estimator suffers under a tied majority, in a place nobody looks for it.
+
+### Tests
+
+- **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
+  counts how many functions in `src/process_improve` breach `C901`, `PLR0912`,
+  `PLR0913` or `PLR0915`, asking ruff with `--ignore-noqa` so it measures real
+  breaches rather than `# noqa` comments, and ranks them by how far past the
+  threshold they are, which is the "what do I split next?" list.
+
+  `tests/test_complexity_ratchet.py` makes it a CI gate in both directions: a
+  count above its budget fails as a regression, and a count *below* its budget
+  also fails, telling you to lower the budget. A refactor therefore cannot be
+  quietly spent by the next change. The target, recorded in `CONTRIBUTING.md`,
+  is to halve the 2026-06 baseline of 185 breaches to 91 by v2.0; this release
+  takes it to 183, the `MBPCA.fit` split having removed three and #598's
+  `smooth_trajectories` having added one.
+
 
 ## [1.95.1] - 2026-09-18
 

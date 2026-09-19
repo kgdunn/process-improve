@@ -40,7 +40,11 @@ RULES = ("C901", "PLR0912", "PLR0913", "PLR0915")
 BUDGET: dict[str, int] = {
     "C901": 47,
     "PLR0912": 26,
-    "PLR0913": 78,
+    # 79, not 78: #598 merged `smooth_trajectories`, whose seven arguments are
+    # the two smoothers' settings side by side. Naming them beats a settings dict
+    # whose valid keys depend on `method`, so the width is deliberate and this is
+    # main's true count, not a regression this branch introduced.
+    "PLR0913": 79,
     "PLR0915": 31,
 }
 
