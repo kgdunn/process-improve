@@ -263,6 +263,49 @@ def test_halving_grid_search_cv_with_mcuvscaler_and_pls() -> None:
     assert rng_search.best_params_["pls__n_components"] >= 1
 
 
+@pytest.mark.integration
+@pytest.mark.slow
+def test_halving_search_cv_with_a_pipeline_aware_budget() -> None:
+    """#398: halving can spend a *pipeline parameter* as its resource, not just samples.
+
+    The test above uses `resource="n_samples"`, the default, where the budget is rows and
+    the estimator never sees it. The issue also asks for "a Pipeline-aware budget", which
+    is the case that actually stresses what it worried about: sklearn sets the resource as
+    a hyperparameter on every candidate, so `pls__n_components` is written into the PLS
+    step through `set_params` at each rung and must survive `clone`. Here the search
+    starts every candidate at one component and doubles, while separately grid-searching
+    `pls__scale`, so both mechanisms are exercised at once.
+    """
+    from sklearn.experimental import enable_halving_search_cv  # noqa: F401
+    from sklearn.model_selection import HalvingGridSearchCV, HalvingRandomSearchCV
+    from sklearn.pipeline import Pipeline
+
+    from process_improve.multivariate.methods import PLS, MCUVScaler
+
+    X, Y = _synthetic_xy(n_samples=180, n_features=8, n_factors=3, seed=3)
+    pipe = Pipeline([("sc", MCUVScaler()), ("pls", PLS(n_components=2))])
+    budget = {"resource": "pls__n_components", "max_resources": 4, "min_resources": 1}
+
+    grid = HalvingGridSearchCV(pipe, {"pls__scale": [True, False]}, cv=3, factor=2, random_state=0, **budget)
+    grid.fit(X, Y.values.ravel())
+    # The resource really was spent on components: the rungs double from min_resources,
+    # and the winning configuration carries the component count the last rung reached.
+    assert list(grid.n_resources_) == [1, 2]
+    assert grid.best_params_["pls__n_components"] == 2
+    assert grid.best_score_ > 0.3  # synthetic data with real latent factors
+
+    rng_search = HalvingRandomSearchCV(
+        pipe, {"pls__scale": [True, False]}, n_candidates=2, cv=3, factor=2, random_state=0, **budget
+    )
+    rng_search.fit(X, Y.values.ravel())
+    assert list(rng_search.n_resources_) == [1, 2]
+    assert rng_search.best_params_["pls__n_components"] == 2
+
+    # The template's constructor parameter is untouched by the search: `clone` gave each candidate
+    # its own estimator, so the template still holds what it was built with (#505).
+    assert pipe.named_steps["pls"].n_components == 2
+
+
 # ---------------------------------------------------------------------------
 # #505: fit() must not mutate constructor parameters (clone contract)
 # ---------------------------------------------------------------------------
