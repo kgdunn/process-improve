@@ -6,6 +6,7 @@ No test here performs network access: ``urlopen`` is monkeypatched, or a
 
 from __future__ import annotations
 
+import http.client
 import io
 import re
 import sys
@@ -48,6 +49,22 @@ def _workbook_bytes() -> bytes:
         trajectories.to_excel(writer, sheet_name="X_batch", index=False)
         quality.to_excel(writer, sheet_name="Y_quality", index=False)
     return buffer.getvalue()
+
+
+class _TruncatedResponse(_FakeResponse):
+    """A response whose body stops early, as a connection dropped mid-transfer gives."""
+
+    def read(self) -> bytes:
+        raise http.client.IncompleteRead(self._payload, 514355)
+
+
+def _serve_truncated() -> Callable[..., _TruncatedResponse]:
+    """Return a ``urlopen`` stand-in whose body is cut off part way through."""
+
+    def _fake_urlopen(_url: str, timeout: float | None = None) -> _TruncatedResponse:
+        return _TruncatedResponse(b"817662 bytes of it")
+
+    return _fake_urlopen
 
 
 def _serve(payload: bytes) -> Callable[..., _FakeResponse]:
@@ -97,6 +114,20 @@ def test_read_remote_excel_wraps_network_error(monkeypatch: pytest.MonkeyPatch) 
     expected = re.escape("Could not download the sample dataset from 'https://openmv.net/file/x.xlsx'")
     with pytest.raises(RuntimeError, match=expected):
         remote_data.read_remote_excel("https://openmv.net/file/x.xlsx")
+
+
+def test_a_truncated_transfer_is_a_download_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A body the server cuts off mid-transfer must surface as the documented error.
+
+    ``http.client.IncompleteRead`` is an ``HTTPException``, not an ``OSError``, so
+    it used to escape the guard here and reach the caller raw. Test fixtures that
+    turn a download failure into a skip therefore errored instead, which is how a
+    truncated openmv.net transfer failed a whole CI job with 3408 tests passing.
+    """
+
+    monkeypatch.setattr(remote_data.urllib.request, "urlopen", _serve_truncated())
+    with pytest.raises(RuntimeError, match="Could not download the sample dataset"):
+        remote_data.fetch_remote_bytes("https://openmv.net/file/sbr-batch-reactor.xlsx")
 
 
 def test_read_remote_excel_wraps_bad_payload(monkeypatch: pytest.MonkeyPatch) -> None:
