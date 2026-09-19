@@ -151,7 +151,7 @@ class PLSDA(ClassifierMixin, PLS):
         Passed to :class:`PLS`. Default True, which mean-centres and unit-variance-scales
         both blocks. Scaling the indicator block is standard for PLS-DA: without it a
         rare class contributes less variance and is fitted less well.
-    max_iter, tol, copy, missing_data_settings
+    max_iter, tol, copy, missing_data_settings, warn_on_uncentred
         Passed through to :class:`PLS` unchanged.
 
     Attributes
@@ -218,14 +218,25 @@ class PLSDA(ClassifierMixin, PLS):
         tol: float = epsqrt,
         copy: bool = True,
         missing_data_settings: dict | None = None,
+        warn_on_uncentred: bool = True,
     ):
-        super().__init__(
+        # `PLS.__init__` rather than `super().__init__`, and the difference is only
+        # apparent. The MRO is PLSDA -> ClassifierMixin -> PLS, and `ClassifierMixin`
+        # defines no `__init__`, so `super().__init__` resolved here anyway. Naming the
+        # base says which constructor runs instead of leaving it to be read off the MRO,
+        # and it does not depend on that mixin staying `__init__`-free. It is also what
+        # CodeQL's py/missing-call-to-init can see: the query cannot follow the skip past
+        # a mixin, so the `super()` form read as "PLS is never initialised", which would
+        # have left every `n_components` unset had it been true.
+        PLS.__init__(
+            self,
             n_components=n_components,
             scale=scale,
             max_iter=max_iter,
             tol=tol,
             copy=copy,
             missing_data_settings=missing_data_settings,
+            warn_on_uncentred=warn_on_uncentred,
         )
         # Stored verbatim and read only in fit(), per the sklearn __init__ convention.
         self.decision_rule = decision_rule

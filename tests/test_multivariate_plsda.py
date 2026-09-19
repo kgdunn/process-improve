@@ -7,6 +7,7 @@ promise that everything `PLS` already offers still works on the subclass.
 
 from __future__ import annotations
 
+import inspect
 import pathlib
 
 import numpy as np
@@ -331,6 +332,49 @@ def test_plsda_satisfies_the_sklearn_classifier_contract() -> None:
     # cross_val_score with no `scoring=` goes through `score`, which must be accuracy and
     # not the R2 that PLS.score would return for the same call.
     assert pipe.fit(X, y).score(X, y) == pytest.approx(1.0)
+
+
+def test_plsda_constructor_forwards_every_pls_parameter() -> None:
+    """`PLSDA.__init__` must leave nothing `PLS.__init__` owns unset.
+
+    It names the base explicitly (`PLS.__init__(self, ...)`) rather than going through
+    `super()`, because `ClassifierMixin` sits in front of `PLS` in the MRO and defines no
+    `__init__`, so the two forms are the same call and only the explicit one says which
+    constructor runs. The risk that trades for is a parameter added to `PLS` and not
+    forwarded here, so this reads the base signature rather than a list that would go
+    stale the moment `PLS` grows an argument.
+    """
+
+    def unlike(default: object) -> object:
+        """Build a value that is definitely not `default`, so a dropped forward cannot hide.
+
+        Comparing against PLS's own defaults would not do: a parameter that PLSDA stops
+        forwarding falls back to exactly that default, so the check would pass on the
+        bug it exists to catch. `bool` is tested before `int` because it is one.
+        """
+        if isinstance(default, bool):
+            return not default
+        if isinstance(default, int):
+            return default + 7
+        if isinstance(default, float):
+            return default * 10.0 + 1.0
+        if isinstance(default, str):
+            return default + "-changed"
+        if default is None:
+            return {"md_method": "pmp"}
+        raise AssertionError(f"extend `unlike` to cover {type(default).__name__}")
+
+    empty = inspect.Parameter.empty
+    asked: dict[str, object] = {
+        name: 3 if parameter.default is empty else unlike(parameter.default)
+        for name, parameter in inspect.signature(PLS.__init__).parameters.items()
+        if name != "self" and parameter.kind is not inspect.Parameter.VAR_KEYWORD
+    }
+    assert asked, "PLS.__init__ takes no parameters; this test is checking nothing"
+
+    model = PLSDA(**asked)  # a TypeError here means PLSDA no longer accepts one of them
+    for name, expected in asked.items():
+        assert getattr(model, name, None) == expected, f"PLSDA.__init__ did not forward {name!r} to PLS"
 
 
 def test_plsda_keeps_every_pls_diagnostic() -> None:
