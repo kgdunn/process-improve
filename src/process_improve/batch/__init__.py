@@ -9,6 +9,7 @@ from process_improve.batch._batch_plots import (
     unfolded_contribution_plot,
 )
 from process_improve.batch._batch_pls import BatchPLS
+from process_improve.batch._gaps import fill_gaps, smooth_trajectories
 from process_improve.batch.control import MidCourseCorrector, midcourse_correction
 from process_improve.batch.data_input import (
     check_valid_batch_dict,
@@ -89,6 +90,7 @@ __all__ = [
     "f_slope",
     "f_std",
     "f_sum",
+    "fill_gaps",
     "find_reference_batch",
     # Bundled datasets
     "load_batch_fake_data",
@@ -102,6 +104,7 @@ __all__ = [
     "midcourse_correction",
     "online_monitoring_plot",
     "resample_to_reference",
+    "smooth_trajectories",
     "time_varying_loading_plot",
     "unfolded_contribution_plot",
     "wide_to_dict",

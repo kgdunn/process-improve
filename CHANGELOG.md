@@ -23,6 +23,45 @@ those changes.
   deliberately *not* part of the `simulate_process` tool contract, so a model
   driving the simulator cannot freeze its noise.
 
+- **`fill_gaps` for batch trajectories (#200),** replacing the
+  `bfill().ffill()` the issue quotes. That one-liner is wrong on trajectory data
+  in three specific ways, and each is addressed:
+
+  1. It holds the last value flat across a gap, so a ramp gains a step and a
+     plateau that `f_slope` and `f_rupture` then report as process events.
+     `fill_gaps` interpolates between the two observed ends instead, with
+     `"linear"`, `"time"`, `"pchip"` or `"nearest"`. `"pchip"` is offered because
+     it is shape preserving: a plain cubic overshoots to a negative concentration
+     on a rising curve, which is not a smoother answer but a wrong one.
+  2. It bridges a gap of any length without saying so. `fill_gaps` caps a filled
+     run at `limit` samples and leaves longer ones `NaN` on purpose, because PCA,
+     PLS and `BatchPCA` all have NIPALS missing-data paths and an honest hole is
+     worth more to them than an invented number.
+  3. `bfill` at the start of a batch fills from the future. Leading and trailing
+     gaps are left alone by default; `edge="nearest"` restores the old behaviour.
+
+  It returns a report of `"filled/remaining"` counts per batch and variable, so
+  how much of the modelled data was measured is on the record.
+
+- **`smooth_trajectories` with Savitzky-Golay and LOWESS (#200).** It runs one
+  batch at a time, which is the substance rather than an implementation detail:
+  filtering a concatenated frame lets the window straddle the join between two
+  batches, so the tail of one leaks into the head of the next.
+
+  Savitzky-Golay is the default because it fits a local polynomial and so
+  preserves peak height and area, which is what `f_max` and `f_area` measure
+  next; a moving average of the same width flattens a Gaussian peak by 15% where
+  Savitzky-Golay loses under 2%. LOWESS is there for trajectories with spikes,
+  which Savitzky-Golay smears across its window: on a ramp with three spikes it
+  recovers the ramp ten times more accurately.
+
+  A batch shorter than the window has its window shrunk, with a warning, since
+  batches legitimately differ in length before alignment.
+
+  Both are imported from `process_improve.batch`. `_gaps` is a private module
+  re-exported through the package, the same shape `_pca` and `_pls` take through
+  `methods`.
+
 ### Changed
 
 - **The version is no longer bumped in a pull request.** `pyproject.toml`
@@ -71,6 +110,16 @@ those changes.
 
   (The other half of this batch, the `typing.cast` that repaired the `typecheck`
   gate, reached main with #579 and is no longer part of this change.)
+
+- **LOWESS's robustness collapse is now detected rather than silently returning
+  the input.** `lowess` scales its robustness weights by `6 * median(|residual|)`.
+  On a trajectory the local fits reproduce exactly away from a few spikes, a
+  clean ramp or a flat-lined sensor, that median is zero, every weight
+  degenerates, and statsmodels hands the column straight back: finite, correct
+  length, still spiked, with nothing raised. `smooth_trajectories` detects it,
+  names the cause, and falls back to `iterations=0`, which smooths without
+  rejecting outliers. It is the same implosion a median-of-differences scale
+  estimator suffers under a tied majority, in a place nobody looks for it.
 
 ## [1.95.1] - 2026-09-18
 
