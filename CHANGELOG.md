@@ -13,6 +13,25 @@ those changes.
 
 ### Changed
 
+- **`MBPLS.fit` is now a sequence of named phases rather than one 404-line
+  body.** It carried `# noqa: C901, PLR0912, PLR0915`: complexity 40, 45
+  branches and 222 statements, against thresholds of 10, 12 and 50. The phases
+  were already named, in comments, inside the one function; each is now a helper
+  under that name, and `fit` reads as the sequence those comments described
+  (complexity 3, 2 branches, 23 statements, no suppression).
+
+  Nothing about a fit changes. The split is pure code motion: no expression was
+  reordered or rewritten, and the fitted attributes, `predict` and `transform`
+  were compared bit-for-bit across 17 configurations covering the `dense` and
+  `nipals` paths, one to six components, missing cells in X and in Y, a row
+  missing a whole block, and a fit that does not converge.
+
+  The helpers are private (`_fit_one_component`, `_deflate`,
+  `_reject_degenerate_missingness` and the rest), so no public API moves. The
+  one visible difference is that the non-convergence `SpecificationWarning` is
+  raised from one frame deeper, with `stacklevel` adjusted to match, so it still
+  points at the same place.
+
 - **The version is no longer bumped in a pull request.** `pyproject.toml`
   `version` and `CITATION.cff` are now set once, at release time, from whatever
   has accumulated under `## [Unreleased]`. A pull request adds its changelog
