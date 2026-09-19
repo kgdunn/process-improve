@@ -23,8 +23,8 @@ the validated explained variance:
 
    # Raw blocks in: each training fold fits its own scaling.
    result = PLS.select_n_components(X, Y, max_components=8, cv=5)
-   print(result.n_components)        # recommended component count
-   print(result.rmsecv["total"])     # RMSECV per component count
+   print(result.n_components)  # recommended component count
+   print(result.rmsecv["total"])  # RMSECV per component count
 
 See :doc:`cross_validation` for the full description, including
 ``PLS.cross_validate`` for beta-coefficient error bars.
@@ -108,8 +108,8 @@ multivariate generalization of a squared correlation:
 
    from process_improve.multivariate import rv_coefficient, rv2_coefficient
 
-   rv_coefficient(X, Y)     # in [0, 1]; 1 means identical configurations
-   rv2_coefficient(X, Y)    # modified RV, unbiased for high-dimensional data
+   rv_coefficient(X, Y)  # in [0, 1]; 1 means identical configurations
+   rv2_coefficient(X, Y)  # modified RV, unbiased for high-dimensional data
 
 Use ``rv2_coefficient`` when the blocks have many more variables than
 observations: the ordinary RV coefficient is biased upwards in that regime

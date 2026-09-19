@@ -90,7 +90,7 @@ Replaying the schedule does not reproduce the outcome:
 
     campaign = sim.simulate_campaign(50, policy="replay", random_state=0)
     titer = campaign.quality["titer"]
-    print(titer.mean(), titer.std(ddof=1))   # a spread of roughly 13% CV
+    print(titer.mean(), titer.std(ddof=1))  # a spread of roughly 13% CV
 
 Holding the measured initial conditions identical does not remove the spread.
 ``dataclasses.replace`` derives a configuration with the initial-condition

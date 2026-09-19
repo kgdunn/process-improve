@@ -52,6 +52,16 @@ those changes.
   re-exported through the package, the same shape `_pca` and `_pls` take through
   `methods`.
 
+- **`simulate(..., random_state=...)`.** The measurement noise came from an
+  unseeded `np.random.default_rng()` inside a public function, which
+  `docs/development/reproducibility.rst` forbids: every public function touching
+  an RNG takes `random_state: int | np.random.Generator | None` and resolves it
+  through `process_improve._random.check_random_state`. The default stays
+  `None`, so a simulator standing in for a real process still returns fresh
+  noise on every call; an int or a `Generator` makes a run repeatable. It is
+  deliberately *not* part of the `simulate_process` tool contract, so a model
+  driving the simulator cannot freeze its noise.
+
 - **`ttest_independent(..., equal_var=False)`: Welch's unequal-variance t-test
   (#561).** The function was pooled-variance Student's t only, with no switch:
   `grep -rn "welch|equal_var|ttest_ind" src/` returned nothing. Welch is the
@@ -75,29 +85,7 @@ those changes.
   dev"` is `NaN` under Welch (JSON `null` through the tool layer), because Welch
   forms no pooled estimate and a number there would imply one.
 
-- **`simulate(..., random_state=...)`.** The measurement noise came from an
-  unseeded `np.random.default_rng()` inside a public function, which
-  `docs/development/reproducibility.rst` forbids: every public function touching
-  an RNG takes `random_state: int | np.random.Generator | None` and resolves it
-  through `process_improve._random.check_random_state`. The default stays
-  `None`, so a simulator standing in for a real process still returns fresh
-  noise on every call; an int or a `Generator` makes a run repeatable. It is
-  deliberately *not* part of the `simulate_process` tool contract, so a model
-  driving the simulator cannot freeze its noise.
-
 ### Changed
-
-- **`MBPCA.fit` is now a sequence of named phases**, the same split `MBPLS.fit`
-  received in 1.95.1. It carried `# noqa: C901, PLR0912, PLR0915`; the body is
-  now `_validate_blocks`, `_resolve_algorithm`, `_preprocess`,
-  `_fit_one_component`, `_deflate` and the `_store_*` methods, called in the
-  order the old comments already named, and no complexity rule is suppressed on
-  it any more.
-
-  Nothing about a fit changes. Every fitted attribute was hashed before and
-  after the split across the `dense` and `nipals` paths; the only field that
-  differs is `fitting_info_.timing`, and two runs of *identical* code differ in
-  exactly that field and no other.
 
 - **The version is no longer bumped in a pull request.** `pyproject.toml`
   `version` and `CITATION.cff` are now set once, at release time, from whatever
@@ -120,6 +108,18 @@ those changes.
   `CONTRIBUTING.md`, `CLAUDE.md`, `SECURITY_AUDIT.md` and the pull request
   template are updated to match.
 
+- **`MBPCA.fit` is now a sequence of named phases**, the same split `MBPLS.fit`
+  received in 1.95.1. It carried `# noqa: C901, PLR0912, PLR0915`; the body is
+  now `_validate_blocks`, `_resolve_algorithm`, `_preprocess`,
+  `_fit_one_component`, `_deflate` and the `_store_*` methods, called in the
+  order the old comments already named, and no complexity rule is suppressed on
+  it any more.
+
+  Nothing about a fit changes. Every fitted attribute was hashed before and
+  after the split across the `dense` and `nipals` paths; the only field that
+  differs is `fitting_info_.timing`, and two runs of *identical* code differ in
+  exactly that field and no other.
+
 ### Fixed
 
 - **LOWESS's robustness collapse is now detected rather than silently returning
@@ -131,11 +131,6 @@ those changes.
   names the cause, and falls back to `iterations=0`, which smooths without
   rejecting outliers. It is the same implosion a median-of-differences scale
   estimator suffers under a tied majority, in a place nobody looks for it.
-
-- **`confidence_interval` validates `style` (#561).** Anything other than
-  `"robust"` fell through to the classical branch, so `style="rubost"` returned a
-  different interval with nothing to signal it. Unknown values now raise
-  `ValueError` naming the two accepted ones.
 
 - **A truncated dataset download now surfaces as the documented error.**
   `fetch_remote_bytes` caught `OSError`, which covers connection, DNS and timeout
@@ -160,6 +155,11 @@ those changes.
 
   (The other half of this batch, the `typing.cast` that repaired the `typecheck`
   gate, reached main with #579 and is no longer part of this change.)
+
+- **`confidence_interval` validates `style` (#561).** Anything other than
+  `"robust"` fell through to the classical branch, so `style="rubost"` returned a
+  different interval with nothing to signal it. Unknown values now raise
+  `ValueError` naming the two accepted ones.
 
 ### Tests
 

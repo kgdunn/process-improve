@@ -102,8 +102,8 @@ one observation at a time.
            print(f"Out of control: SPE={result.spe:.2f}, T2={result.hotellings_t2:.2f}")
 
    # Drift diagnostics accumulated over the stream
-   monitor.distance_       # subspace drift, in units of components
-   monitor.center_shift_   # operating-point migration, in training-SD units
+   monitor.distance_  # subspace drift, in units of components
+   monitor.center_shift_  # operating-point migration, in training-SD units
 
 ``AdaptivePLS`` does the same for regression and soft sensing, and supports
 infrequently-sampled responses: the X-space model adapts every step while the
@@ -160,5 +160,7 @@ Plan a multi-stage experimental strategy before running any experiments:
    )
 
    for stage in result["stages"]:
-       print(f"Stage {stage['stage_number']}: {stage['stage_name']} "
-             f"({stage['design_type']}, {stage['estimated_runs']} runs)")
+       print(
+           f"Stage {stage['stage_number']}: {stage['stage_name']} "
+           f"({stage['design_type']}, {stage['estimated_runs']} runs)"
+       )
