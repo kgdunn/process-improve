@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from process_improve.simulation.context import simulator_host_context
-from process_improve.simulation.model import materialize_model
+from process_improve.simulation.model import materialize_model, simulate
 from process_improve.simulation.tools import (
     CreateSimulatorInput,
     RevealSimulatorInput,
@@ -226,28 +226,44 @@ class TestSimulateProcess:
         assert float(np.std(recovery)) > 1e-6
 
     def test_mean_converges_to_deterministic_surface(self):
-        """Many noisy draws at the same point should average to the noiseless surface."""
+        """Many noisy draws at the same point should average to the noiseless surface.
+
+        Driven through `simulate(random_state=...)` rather than the tool wrapper, so the
+        draws are reproducible. With unseeded noise this was a 3.5-sigma band on a sample
+        mean: correct in expectation, but roughly a 1-in-2000 failure per run, and it did
+        fail on CI (run 35000616550, 3.11) at |mean - expected| = 0.47241 against a
+        0.47229 tolerance. A statistical gate on an unseeded draw cannot be made both
+        tight and reliable; seeding it makes it both.
+        """
         sim = _make_sim(seed=123, noise_level="medium")
         priv = sim["_private"]
         samples = 400
-        recovery_sum = 0.0
-        for _ in range(samples):
-            r = _simulate_process(
-                sim_id=sim["sim_id"],
-                settings=_mid_settings(),
-                simulator_state=priv,
-            )
-            recovery_sum += r["outputs"]["recovery"]
-        empirical_mean = recovery_sum / samples
+        rng = np.random.default_rng(20260918)
+        draws = [simulate(priv, _mid_settings(), random_state=rng)["outputs"]["recovery"] for _ in range(samples)]
+        empirical_mean = float(np.mean(draws))
 
         # The revealed model lets us compute the noiseless prediction.
         model = materialize_model(priv)
         # At mid-range, all coded values are 0 ==> y = intercept.
         expected = model["per_output"]["recovery"]["intercept"]
         sigma = model["per_output"]["recovery"]["noise_sigma"]
-        # 99.9 % band of the sample mean is ~3.3 * sigma / sqrt(n).
-        tol = 3.5 * sigma / np.sqrt(samples)
-        assert abs(empirical_mean - expected) < max(tol, 0.05)
+        # The band is still the 3.5-sigma one, but it is now a statement about this exact
+        # sequence of draws rather than about a random one, so it cannot fail by chance.
+        assert abs(empirical_mean - expected) < max(3.5 * sigma / np.sqrt(samples), 0.05)
+        # The draws must be noisy, not a constant the mean trivially matches.
+        assert float(np.std(draws)) == pytest.approx(sigma, rel=0.1)
+
+    def test_simulate_random_state_is_reproducible(self):
+        """Same `random_state` twice gives identical outputs; `None` gives fresh noise."""
+        priv = _make_sim(seed=123, noise_level="medium")["_private"]
+        first = simulate(priv, _mid_settings(), random_state=7)["outputs"]
+        second = simulate(priv, _mid_settings(), random_state=7)["outputs"]
+        assert first == second
+
+        # The default stays unseeded: a simulator standing in for a real process must not
+        # return the same measurement twice.
+        unseeded = [simulate(priv, _mid_settings())["outputs"]["recovery"] for _ in range(20)]
+        assert len(set(unseeded)) == len(unseeded)
 
     def test_out_of_range_settings_clipped(self):
         sim = _make_sim()
