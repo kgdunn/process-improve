@@ -203,8 +203,9 @@ The third item of #374, double cross-validation for PLS, is already provided by
   also fails, telling you to lower the budget. A refactor therefore cannot be
   quietly spent by the next change. The target, recorded in `CONTRIBUTING.md`,
   is to halve the 2026-06 baseline of 185 breaches to 91 by v2.0; this release
-  takes it to 184, the `MBPCA.fit` split having removed three while #598's
-  `smooth_trajectories` and #581's `equal_var` switch each added one.
+  takes it to 185: the `MBPCA.fit` split removed three, while #598's
+  `smooth_trajectories`, #581's `equal_var` switch and this release's
+  `parallel_analysis(surrogate=...)` each added one.
 
 ## [1.95.1] - 2026-09-18
 
