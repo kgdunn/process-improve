@@ -87,18 +87,6 @@ those changes.
 
 ### Changed
 
-- **`MBPCA.fit` is now a sequence of named phases**, the same split `MBPLS.fit`
-  received in 1.95.1. It carried `# noqa: C901, PLR0912, PLR0915`; the body is
-  now `_validate_blocks`, `_resolve_algorithm`, `_preprocess`,
-  `_fit_one_component`, `_deflate` and the `_store_*` methods, called in the
-  order the old comments already named, and no complexity rule is suppressed on
-  it any more.
-
-  Nothing about a fit changes. Every fitted attribute was hashed before and
-  after the split across the `dense` and `nipals` paths; the only field that
-  differs is `fitting_info_.timing`, and two runs of *identical* code differ in
-  exactly that field and no other.
-
 - **The version is no longer bumped in a pull request.** `pyproject.toml`
   `version` and `CITATION.cff` are now set once, at release time, from whatever
   has accumulated under `## [Unreleased]`. A pull request adds its changelog
@@ -119,6 +107,18 @@ those changes.
 
   `CONTRIBUTING.md`, `CLAUDE.md`, `SECURITY_AUDIT.md` and the pull request
   template are updated to match.
+
+- **`MBPCA.fit` is now a sequence of named phases**, the same split `MBPLS.fit`
+  received in 1.95.1. It carried `# noqa: C901, PLR0912, PLR0915`; the body is
+  now `_validate_blocks`, `_resolve_algorithm`, `_preprocess`,
+  `_fit_one_component`, `_deflate` and the `_store_*` methods, called in the
+  order the old comments already named, and no complexity rule is suppressed on
+  it any more.
+
+  Nothing about a fit changes. Every fitted attribute was hashed before and
+  after the split across the `dense` and `nipals` paths; the only field that
+  differs is `fitting_info_.timing`, and two runs of *identical* code differ in
+  exactly that field and no other.
 
 ### Fixed
 
@@ -162,6 +162,13 @@ those changes.
   gate, reached main with #579 and is no longer part of this change.)
 
 ### Tests
+
+- **`robust_regression` is now tested with pandas `Series` inputs (#213).** It
+  accepts them, and pairs the two vectors **by position**, not by index: the
+  implementation takes `.values` from each, so the labels are discarded. The
+  obvious alternative, `pd.concat([x, y], axis=1)`, would align on the index and
+  turn two disjoint indexes into a frame of NaN, so the behaviour is now pinned
+  by a test that uses deliberately disjoint indexes.
 
 - **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
   counts how many functions in `src/process_improve` breach `C901`, `PLR0912`,

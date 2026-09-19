@@ -422,6 +422,56 @@ def test_simple_robust_regression_missing_values() -> None:
     assert np.isnan(out["conf_intervals"][0][1])
 
 
+class TestRobustRegressionPandasSeriesInput:
+    """`robust_regression` accepts Series, and pairs them by position, not by index.
+
+    Internally it does `pd.DataFrame(x.values)`, which drops the index and rebuilds a
+    fresh `RangeIndex` on both vectors. That is the only correct reading of two
+    independent measurement vectors, and it is worth pinning: the obvious alternative
+    implementation, `pd.concat([x, y], axis=1)`, would align on the index instead and
+    silently turn two disjoint indexes into a frame of NaN.
+    """
+
+    @staticmethod
+    def _data() -> tuple[np.ndarray, np.ndarray]:
+        x = np.array([1.0, 2, 3, 4, 5, 6, 7])
+        y = 3.0 - 1.5 * x
+        y[4] += 20.0  # one gross outlier, which the repeated median should ignore
+        return x, y
+
+    def test_series_gives_the_same_answer_as_ndarray(self) -> None:
+        x, y = self._data()
+        from_arrays = robust_regression(x, y)
+        from_series = robust_regression(pd.Series(x, name="dose"), pd.Series(y, name="response"))
+
+        assert from_series["N"] == from_arrays["N"]
+        assert from_series["coefficients"] == pytest.approx(from_arrays["coefficients"])
+        assert from_series["intercept"] == pytest.approx(from_arrays["intercept"])
+        assert from_series["residuals"] == pytest.approx(from_arrays["residuals"])
+        assert from_series["coefficients"][0] == pytest.approx(-1.5)
+
+    def test_disjoint_indexes_are_paired_by_position(self) -> None:
+        """Index labels carry no meaning here; aligning on them would give all-NaN."""
+        x, y = self._data()
+        x_s = pd.Series(x, index=range(100, 107))
+        y_s = pd.Series(y, index=range(7))
+        assert not x_s.index.intersection(y_s.index).size  # nothing to align on
+
+        out = robust_regression(x_s, y_s)
+        assert out["N"] == 7
+        assert out["coefficients"][0] == pytest.approx(-1.5)
+
+    def test_na_rm_drops_missing_rows_from_a_series(self) -> None:
+        """`na_rm` sees Series gaps, and the surviving rows fit the same line."""
+        x, y = self._data()
+        y_with_gaps = pd.Series(y).copy()
+        y_with_gaps.iloc[[1, 3]] = np.nan
+
+        out = robust_regression(pd.Series(x), y_with_gaps)
+        assert out["N"] == 5
+        assert out["coefficients"][0] == pytest.approx(-1.5)
+
+
 def test_simple_regression_no_error() -> None:
     """Tests cases where there is perfect fit."""
     x = np.array([1, 2, 3, 4, 5])
