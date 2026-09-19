@@ -372,10 +372,11 @@ def ttest_independent_from_df(  # noqa: PLR0913 - six is the honest width: two c
         values_column (str): Which column contains the numeric values to calculate the test on.
         conflevel (float, optional): [description]. Defaults to 0.995.
         correction (str | None, optional): "holm", "bh", or None. Defaults to None. See below.
-        equal_var (bool, optional): Forwarded to :func:`ttest_independent` for every pair.
-            ``True`` (the default) is Student's pooled-variance test; ``False`` is Welch's.
-            Welch is the safer choice for a pairwise family, where the groups have no
-            particular reason to share one variance; see that function's Notes.
+        equal_var (bool, optional): Forwarded to :func:`ttest_independent`. Defaults to True.
+
+    Equal variances: ``equal_var=True`` (the default) is Student's pooled-variance test;
+    ``False`` is Welch's. Welch is the safer choice for a pairwise family, where the groups
+    have no particular reason to share one variance; see :func:`ttest_independent`'s Notes.
 
     Multiplicity: by default the returned p-values are UNCORRECTED. With k groups this
     runs k(k-1)/2 tests, so the chance of at least one false positive is well above the
