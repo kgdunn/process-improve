@@ -13,6 +13,58 @@ those changes.
 
 ### Added
 
+- **`ASCA`: ANOVA-Simultaneous Component Analysis (#372).** The response matrix is
+  partitioned by its design terms the way classical ANOVA partitions a single
+  response, and each term's effect matrix then gets its own PCA. This is the bridge
+  between `experiments/` and `multivariate/` that the package has been missing: it
+  answers which *factor* owns which direction of multivariate variation, whether
+  that is more than chance, and which variables carry it.
+
+  ```python
+  from process_improve.multivariate import ASCA
+
+  model = ASCA(n_components=2).fit(X, design)
+  model.ssq_percent_                       # variation by term, read this first
+  model.permutation_test(random_state=0)   # is each term more than chance?
+  model.models_["A"].score_plot()          # the PCA of factor A's effect alone
+  model.vasca("A", random_state=0)         # which variables carry it
+  ```
+
+  `add_residuals=True` gives the APCA / ASCA+ variant, where the residual matrix is
+  added back before each PCA so a score plot shows scatter around the factor levels
+  rather than one point per cell.
+
+  Balance is checked rather than assumed: on an unbalanced design the terms are not
+  orthogonal, the sums of squares no longer partition the total, and `fit` warns and
+  reports the gap instead of presenting the percentages as a partition.
+
+- **`ASCA.vasca`: variable-selection ASCA.** The whole-matrix permutation test
+  dilutes an effect that lives in three variables out of two hundred. VASCA ranks the
+  variables by their contribution to a term and tests each nested subset of the
+  top-ranked ones, with Benjamini-Hochberg across subset sizes. On the test fixture it
+  recovers exactly the variables each effect was injected into, and returns an empty
+  selection for a term that carries nothing.
+
+- **`effect_summary_plot`.** One bar per design term showing its share of the total
+  sum of squares, annotated with the permutation p-values once they exist. Bound as a
+  method on `ASCA` and importable on its own.
+
+  #### Notes on two choices that are easy to get wrong
+
+  - **The permutation null is the reduced-model one.** Permuting the rows of the
+    whole response leaves the other terms' variation in the data, so a term
+    sharing a matrix with a large neighbour inherits part of it and its null comes
+    out far too high. On the test fixture, where A carries 84 percent of the
+    variation and B a real 11 percent, the whole-response null put B at p = 0.13
+    and hid a genuine effect; permuting only this term's effect plus the residual
+    puts B at p = 0.005.
+
+  - **VASCA does not select on the p-value alone.** With a few hundred permutations
+    the smallest attainable p-value is reached by many subset sizes at once, and
+    picking the largest subset that clears alpha returns every variable that
+    happened to tie at the floor. The reported `z_score`, how far a subset stands
+    above its own null, does not tie: it peaks where the effect is concentrated.
+
 - **`fill_gaps` for batch trajectories (#200),** replacing the
   `bfill().ffill()` the issue quotes. That one-liner is wrong on trajectory data
   in three specific ways, and each is addressed:
@@ -52,6 +104,16 @@ those changes.
   re-exported through the package, the same shape `_pca` and `_pls` take through
   `methods`.
 
+- **`simulate(..., random_state=...)`.** The measurement noise came from an
+  unseeded `np.random.default_rng()` inside a public function, which
+  `docs/development/reproducibility.rst` forbids: every public function touching
+  an RNG takes `random_state: int | np.random.Generator | None` and resolves it
+  through `process_improve._random.check_random_state`. The default stays
+  `None`, so a simulator standing in for a real process still returns fresh
+  noise on every call; an int or a `Generator` makes a run repeatable. It is
+  deliberately *not* part of the `simulate_process` tool contract, so a model
+  driving the simulator cannot freeze its noise.
+
 - **`ttest_independent(..., equal_var=False)`: Welch's unequal-variance t-test
   (#561).** The function was pooled-variance Student's t only, with no switch:
   `grep -rn "welch|equal_var|ttest_ind" src/` returned nothing. Welch is the
@@ -75,29 +137,7 @@ those changes.
   dev"` is `NaN` under Welch (JSON `null` through the tool layer), because Welch
   forms no pooled estimate and a number there would imply one.
 
-- **`simulate(..., random_state=...)`.** The measurement noise came from an
-  unseeded `np.random.default_rng()` inside a public function, which
-  `docs/development/reproducibility.rst` forbids: every public function touching
-  an RNG takes `random_state: int | np.random.Generator | None` and resolves it
-  through `process_improve._random.check_random_state`. The default stays
-  `None`, so a simulator standing in for a real process still returns fresh
-  noise on every call; an int or a `Generator` makes a run repeatable. It is
-  deliberately *not* part of the `simulate_process` tool contract, so a model
-  driving the simulator cannot freeze its noise.
-
 ### Changed
-
-- **`MBPCA.fit` is now a sequence of named phases**, the same split `MBPLS.fit`
-  received in 1.95.1. It carried `# noqa: C901, PLR0912, PLR0915`; the body is
-  now `_validate_blocks`, `_resolve_algorithm`, `_preprocess`,
-  `_fit_one_component`, `_deflate` and the `_store_*` methods, called in the
-  order the old comments already named, and no complexity rule is suppressed on
-  it any more.
-
-  Nothing about a fit changes. Every fitted attribute was hashed before and
-  after the split across the `dense` and `nipals` paths; the only field that
-  differs is `fitting_info_.timing`, and two runs of *identical* code differ in
-  exactly that field and no other.
 
 - **The version is no longer bumped in a pull request.** `pyproject.toml`
   `version` and `CITATION.cff` are now set once, at release time, from whatever
@@ -120,6 +160,18 @@ those changes.
   `CONTRIBUTING.md`, `CLAUDE.md`, `SECURITY_AUDIT.md` and the pull request
   template are updated to match.
 
+- **`MBPCA.fit` is now a sequence of named phases**, the same split `MBPLS.fit`
+  received in 1.95.1. It carried `# noqa: C901, PLR0912, PLR0915`; the body is
+  now `_validate_blocks`, `_resolve_algorithm`, `_preprocess`,
+  `_fit_one_component`, `_deflate` and the `_store_*` methods, called in the
+  order the old comments already named, and no complexity rule is suppressed on
+  it any more.
+
+  Nothing about a fit changes. Every fitted attribute was hashed before and
+  after the split across the `dense` and `nipals` paths; the only field that
+  differs is `fitting_info_.timing`, and two runs of *identical* code differ in
+  exactly that field and no other.
+
 ### Fixed
 
 - **LOWESS's robustness collapse is now detected rather than silently returning
@@ -131,11 +183,6 @@ those changes.
   names the cause, and falls back to `iterations=0`, which smooths without
   rejecting outliers. It is the same implosion a median-of-differences scale
   estimator suffers under a tied majority, in a place nobody looks for it.
-
-- **`confidence_interval` validates `style` (#561).** Anything other than
-  `"robust"` fell through to the classical branch, so `style="rubost"` returned a
-  different interval with nothing to signal it. Unknown values now raise
-  `ValueError` naming the two accepted ones.
 
 - **A truncated dataset download now surfaces as the documented error.**
   `fetch_remote_bytes` caught `OSError`, which covers connection, DNS and timeout
@@ -160,6 +207,11 @@ those changes.
 
   (The other half of this batch, the `typing.cast` that repaired the `typecheck`
   gate, reached main with #579 and is no longer part of this change.)
+
+- **`confidence_interval` validates `style` (#561).** Anything other than
+  `"robust"` fell through to the classical branch, so `style="rubost"` returned a
+  different interval with nothing to signal it. Unknown values now raise
+  `ValueError` naming the two accepted ones.
 
 ### Tests
 
