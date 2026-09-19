@@ -11,7 +11,20 @@ those changes.
 
 ## [Unreleased]
 
-## [1.95.8] - 2026-09-18
+### Added
+
+- **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
+  counts how many functions in `src/process_improve` breach `C901`, `PLR0912`,
+  `PLR0913` or `PLR0915`, asking ruff with `--ignore-noqa` so it measures real
+  breaches rather than `# noqa` comments, and ranks them by how far past the
+  threshold they are, which is the "what do I split next?" list.
+
+  `tests/test_complexity_ratchet.py` makes it a CI gate in both directions: a
+  count above its budget fails as a regression, and a count *below* its budget
+  also fails, telling you to lower the budget. A refactor therefore cannot be
+  quietly spent by the next change. The target, recorded in `CONTRIBUTING.md`,
+  is to halve the 2026-06 baseline of 185 breaches to 91 by v2.0; this release
+  takes it to 182.
 
 ### Changed
 
@@ -27,20 +40,26 @@ those changes.
   differs is `fitting_info_.timing`, and two runs of *identical* code differ in
   exactly that field and no other.
 
-### Added
+- **The version is no longer bumped in a pull request.** `pyproject.toml`
+  `version` and `CITATION.cff` are now set once, at release time, from whatever
+  has accumulated under `## [Unreleased]`. A pull request adds its changelog
+  entry and leaves both files alone.
 
-- **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
-  counts how many functions in `src/process_improve` breach `C901`, `PLR0912`,
-  `PLR0913` or `PLR0915`, asking ruff with `--ignore-noqa` so it measures real
-  breaches rather than `# noqa` comments, and ranks them by how far past the
-  threshold they are, which is the "what do I split next?" list.
+  Every pull request was bumping the same line of `pyproject.toml`, the same
+  line of `CITATION.cff`, and inserting at the same anchor in `CHANGELOG.md`.
+  That made every open pull request conflict with every other one on three
+  lines unrelated to the work: of the 25 conflicted pull requests open when
+  this was written, 10 conflicted on nothing else.
 
-  `tests/test_complexity_ratchet.py` makes it a CI gate in both directions: a
-  count above its budget fails as a regression, and a count *below* its budget
-  also fails, telling you to lower the budget. A refactor therefore cannot be
-  quietly spent by the next change. The target, recorded in `CONTRIBUTING.md`,
-  is to halve the 2026-06 baseline of 185 breaches to 91 by v2.0; this release
-  takes it to 182.
+  The release level is now read off the `[Unreleased]` headings rather than
+  argued about: any `### Removed` means MAJOR, any `### Added` means MINOR,
+  anything else is PATCH. So the heading an entry is filed under now matters,
+  and `CONTRIBUTING.md` says so. `publish.yml` is unchanged and still refuses
+  to ship a tag that does not match `pyproject.toml`, or a version with no
+  `CHANGELOG.md` heading, so a release that forgets the bump fails loudly.
+
+  `CONTRIBUTING.md`, `CLAUDE.md`, `SECURITY_AUDIT.md` and the pull request
+  template are updated to match.
 
 ## [1.95.1] - 2026-09-18
 
@@ -5192,8 +5211,7 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.95.8...HEAD
-[1.95.8]: https://github.com/kgdunn/process-improve/compare/v1.95.1...v1.95.8
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.95.1...HEAD
 [1.95.1]: https://github.com/kgdunn/process-improve/compare/v1.95.0...v1.95.1
 [1.95.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.95.0
 [1.94.0]: https://github.com/kgdunn/process-improve/compare/v1.93.1...v1.94.0
