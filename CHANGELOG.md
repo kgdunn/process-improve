@@ -81,6 +81,16 @@ The third item of #374, double cross-validation for PLS, is already provided by
   re-exported through the package, the same shape `_pca` and `_pls` take through
   `methods`.
 
+- **`simulate(..., random_state=...)`.** The measurement noise came from an
+  unseeded `np.random.default_rng()` inside a public function, which
+  `docs/development/reproducibility.rst` forbids: every public function touching
+  an RNG takes `random_state: int | np.random.Generator | None` and resolves it
+  through `process_improve._random.check_random_state`. The default stays
+  `None`, so a simulator standing in for a real process still returns fresh
+  noise on every call; an int or a `Generator` makes a run repeatable. It is
+  deliberately *not* part of the `simulate_process` tool contract, so a model
+  driving the simulator cannot freeze its noise.
+
 ### Changed
 
 - **The version is no longer bumped in a pull request.** `pyproject.toml`
@@ -115,6 +125,30 @@ The third item of #374, double cross-validation for PLS, is already provided by
   names the cause, and falls back to `iterations=0`, which smooths without
   rejecting outliers. It is the same implosion a median-of-differences scale
   estimator suffers under a tied majority, in a place nobody looks for it.
+
+- **A truncated dataset download now surfaces as the documented error.**
+  `fetch_remote_bytes` caught `OSError`, which covers connection, DNS and timeout
+  failures. It does not cover `http.client.IncompleteRead`, which is what
+  `response.read()` raises when a server closes the connection part way through
+  the body: that is an `HTTPException`, so it escaped raw and the one guarantee
+  the module exists to provide did not hold.
+
+  The cost was CI jobs failing on a network hiccup. The test fixtures turn a
+  `RuntimeError` from a download into a skip, so a truncated transfer errored
+  instead: one job reported `IncompleteRead(817662 bytes read, 514355 more
+  expected)` and failed with 3408 tests passing and nothing wrong with the code
+  under test.
+
+- **`test_mean_converges_to_deterministic_surface` no longer fails by chance.**
+  It averaged 400 unseeded draws and compared the sample mean against a
+  3.5-sigma band: correct in expectation, but roughly a 1-in-2000 failure per
+  run, and it did fail on CI at `|mean - expected| = 0.47241` against a
+  `0.47229` tolerance. The draws are now seeded, so the same band is a statement
+  about one fixed sequence rather than a random one. A companion assertion pins
+  that the draws are still noisy, so the mean cannot match trivially.
+
+  (The other half of this batch, the `typing.cast` that repaired the `typecheck`
+  gate, reached main with #579 and is no longer part of this change.)
 
 ## [1.95.1] - 2026-09-18
 
