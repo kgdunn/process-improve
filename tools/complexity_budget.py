@@ -48,7 +48,10 @@ BUDGET: dict[str, int] = {
     # columns, a frame and three switches. Both carry a reasoned suppression,
     # which is the discipline this ratchet exists to enforce, so the budget
     # tracks main rather than pretending the count did not move.
-    "PLR0913": 80,
+    # 81: this branch adds `PLSDA.__init__`, which mirrors `PLS.__init__` and adds
+    # `decision_rule` and `priors`. Its width is inherited, not invented, and it
+    # carries a reasoned suppression.
+    "PLR0913": 81,
     "PLR0915": 31,
 }
 

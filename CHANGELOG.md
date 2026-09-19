@@ -13,6 +13,49 @@ those changes.
 
 ### Added
 
+- **`PLSDA`: PLS discriminant analysis (#375).** Classification built on the
+  existing `PLS`: the labels are one-hot encoded into an indicator `Y`, a PLS model
+  is fitted on it, and the predicted indicator values are turned back into labels.
+  `PLSDA` subclasses `PLS`, so nothing about the NIPALS fit is reimplemented and a
+  fitted classifier still has `scores_`, `x_loadings_`, `vip()`, Hotelling's T2, SPE
+  and every plot method.
+
+  ```python
+  from process_improve.multivariate import PLSDA
+
+  model = PLSDA(n_components=2).fit(X, labels)
+  model.predict(X_new)                  # labels
+  model.predict_proba(X_new)            # class posteriors
+  model.confusion(X_test, y_test)       # held-out matrix, sensitivity, specificity
+  model.permutation_test(X, labels)     # is the separation real?
+  ```
+
+  Two decision rules. `"max"` (the default) takes the largest indicator, as most
+  PLS-DA software does. `"bayes"` takes the largest posterior, built from Gaussians
+  fitted to each class's in-class and out-of-class indicator values and weighted by
+  the priors. The second matters on unbalanced data for a reason worth knowing: a
+  rare class's indicator is pulled toward zero by the nine rows in ten that want it
+  there, so `"max"` hands almost everything to the common class. On a 1:9 fixture it
+  finds two of eight rare samples while reporting 92.5% accuracy; `"bayes"` finds
+  seven, and scores higher overall.
+
+  The per-class Bayesian thresholds are exposed as `thresholds_`, solved from where
+  the two Gaussians cross rather than approximated.
+
+- **`permutation_test` on `PLSDA`.** PLS-DA on wide data separates almost anything,
+  so the model alone cannot tell a real effect from chance. The test refits on
+  shuffled labels and compares cross-validated accuracy, with the observed statistic
+  counted among the permutations (the `(1 + k) / (1 + n)` convention already used by
+  the Van der Voet and multiblock randomization tests). Measured on 40 samples of 30
+  pure-noise variables: training accuracy is **1.000**, the cross-validated test
+  correctly returns p = 0.22, and the `cv=None` variant returns p = 0.02 on data with
+  no signal in it. That is why `cv=5` is the default.
+
+- **`confusion_matrix_plot`.** A heat map of counts, or of row fractions with
+  `normalize=True`, bound as a method on `PLSDA` and importable on its own. It takes
+  an optional matrix argument so the held-out confusion matrix can be plotted rather
+  than the optimistic training one.
+
 - **`fill_gaps` for batch trajectories (#200),** replacing the
   `bfill().ffill()` the issue quotes. That one-liner is wrong on trajectory data
   in three specific ways, and each is addressed:
@@ -52,6 +95,16 @@ those changes.
   re-exported through the package, the same shape `_pca` and `_pls` take through
   `methods`.
 
+- **`simulate(..., random_state=...)`.** The measurement noise came from an
+  unseeded `np.random.default_rng()` inside a public function, which
+  `docs/development/reproducibility.rst` forbids: every public function touching
+  an RNG takes `random_state: int | np.random.Generator | None` and resolves it
+  through `process_improve._random.check_random_state`. The default stays
+  `None`, so a simulator standing in for a real process still returns fresh
+  noise on every call; an int or a `Generator` makes a run repeatable. It is
+  deliberately *not* part of the `simulate_process` tool contract, so a model
+  driving the simulator cannot freeze its noise.
+
 - **`ttest_independent(..., equal_var=False)`: Welch's unequal-variance t-test
   (#561).** The function was pooled-variance Student's t only, with no switch:
   `grep -rn "welch|equal_var|ttest_ind" src/` returned nothing. Welch is the
@@ -75,29 +128,7 @@ those changes.
   dev"` is `NaN` under Welch (JSON `null` through the tool layer), because Welch
   forms no pooled estimate and a number there would imply one.
 
-- **`simulate(..., random_state=...)`.** The measurement noise came from an
-  unseeded `np.random.default_rng()` inside a public function, which
-  `docs/development/reproducibility.rst` forbids: every public function touching
-  an RNG takes `random_state: int | np.random.Generator | None` and resolves it
-  through `process_improve._random.check_random_state`. The default stays
-  `None`, so a simulator standing in for a real process still returns fresh
-  noise on every call; an int or a `Generator` makes a run repeatable. It is
-  deliberately *not* part of the `simulate_process` tool contract, so a model
-  driving the simulator cannot freeze its noise.
-
 ### Changed
-
-- **`MBPCA.fit` is now a sequence of named phases**, the same split `MBPLS.fit`
-  received in 1.95.1. It carried `# noqa: C901, PLR0912, PLR0915`; the body is
-  now `_validate_blocks`, `_resolve_algorithm`, `_preprocess`,
-  `_fit_one_component`, `_deflate` and the `_store_*` methods, called in the
-  order the old comments already named, and no complexity rule is suppressed on
-  it any more.
-
-  Nothing about a fit changes. Every fitted attribute was hashed before and
-  after the split across the `dense` and `nipals` paths; the only field that
-  differs is `fitting_info_.timing`, and two runs of *identical* code differ in
-  exactly that field and no other.
 
 - **The version is no longer bumped in a pull request.** `pyproject.toml`
   `version` and `CITATION.cff` are now set once, at release time, from whatever
@@ -120,7 +151,30 @@ those changes.
   `CONTRIBUTING.md`, `CLAUDE.md`, `SECURITY_AUDIT.md` and the pull request
   template are updated to match.
 
+- **`MBPCA.fit` is now a sequence of named phases**, the same split `MBPLS.fit`
+  received in 1.95.1. It carried `# noqa: C901, PLR0912, PLR0915`; the body is
+  now `_validate_blocks`, `_resolve_algorithm`, `_preprocess`,
+  `_fit_one_component`, `_deflate` and the `_store_*` methods, called in the
+  order the old comments already named, and no complexity rule is suppressed on
+  it any more.
+
+  Nothing about a fit changes. Every fitted attribute was hashed before and
+  after the split across the `dense` and `nipals` paths; the only field that
+  differs is `fitting_info_.timing`, and two runs of *identical* code differ in
+  exactly that field and no other.
+
 ### Fixed
+
+- **`explained_variance_plot` labels a `PLSDA` model correctly.** It chose its axis
+  label with `type(model).__name__ == "PLS"`, which a subclass fails; `PLSDA`'s
+  `r2_per_component_` is likewise the Y-block, so the exact-name test would have
+  labelled the plot "X-variance".
+
+  The model now declares which block its `r2_per_component_` measures, through a
+  `_variance_block` class attribute that subclasses inherit, and the plot reads it,
+  defaulting to `"X"`. An `isinstance` check would have worked too, but `_pls`
+  imports `plots`, so importing `PLS` back into `plots` closes a cycle; a model
+  saying what it explains is also plainer than a plot inferring it.
 
 - **LOWESS's robustness collapse is now detected rather than silently returning
   the input.** `lowess` scales its robustness weights by `6 * median(|residual|)`.
@@ -131,11 +185,6 @@ those changes.
   names the cause, and falls back to `iterations=0`, which smooths without
   rejecting outliers. It is the same implosion a median-of-differences scale
   estimator suffers under a tied majority, in a place nobody looks for it.
-
-- **`confidence_interval` validates `style` (#561).** Anything other than
-  `"robust"` fell through to the classical branch, so `style="rubost"` returned a
-  different interval with nothing to signal it. Unknown values now raise
-  `ValueError` naming the two accepted ones.
 
 - **A truncated dataset download now surfaces as the documented error.**
   `fetch_remote_bytes` caught `OSError`, which covers connection, DNS and timeout
@@ -161,6 +210,11 @@ those changes.
   (The other half of this batch, the `typing.cast` that repaired the `typecheck`
   gate, reached main with #579 and is no longer part of this change.)
 
+- **`confidence_interval` validates `style` (#561).** Anything other than
+  `"robust"` fell through to the classical branch, so `style="rubost"` returned a
+  different interval with nothing to signal it. Unknown values now raise
+  `ValueError` naming the two accepted ones.
+
 ### Tests
 
 - **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
@@ -174,8 +228,9 @@ those changes.
   also fails, telling you to lower the budget. A refactor therefore cannot be
   quietly spent by the next change. The target, recorded in `CONTRIBUTING.md`,
   is to halve the 2026-06 baseline of 185 breaches to 91 by v2.0; this release
-  takes it to 184, the `MBPCA.fit` split having removed three while #598's
-  `smooth_trajectories` and #581's `equal_var` switch each added one.
+  takes it to 185: the `MBPCA.fit` split removed three, while #598's
+  `smooth_trajectories`, #581's `equal_var` switch and this release's `PLSDA`
+  constructor each added one.
 
 ## [1.95.1] - 2026-09-18
 
