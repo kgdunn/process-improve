@@ -16,6 +16,10 @@ import pytest
 
 _TOOL = Path(__file__).resolve().parents[1] / "tools" / "complexity_budget.py"
 
+# The ratchet measures with ruff. Without it there is nothing to measure, so the
+# whole module skips rather than each test deciding for itself.
+pytest.importorskip("ruff", reason="run `uv sync --dev` to enable the complexity ratchet")
+
 
 def _load_tool():
     """Import `tools/complexity_budget.py`, which is a script, not a package module."""
@@ -23,7 +27,8 @@ def _load_tool():
         return sys.modules["complexity_budget"]
     spec = importlib.util.spec_from_file_location("complexity_budget", _TOOL)
     if spec is None or spec.loader is None:  # pragma: no cover - only if the file is deleted
-        pytest.skip(f"cannot load {_TOOL}")
+        msg = f"cannot load {_TOOL}, so the complexity ratchet cannot run"
+        raise RuntimeError(msg)
     module = importlib.util.module_from_spec(spec)
     # Register before executing: the module uses `from __future__ import annotations`,
     # and dataclasses resolves those string annotations through ``sys.modules``.
@@ -40,13 +45,13 @@ def budget():
 
 @pytest.fixture(scope="module")
 def offenders(budget):
-    """Every complexity breach in the package, measured once for this module."""
-    if importlib.util.find_spec("ruff") is None:
-        pytest.skip("ruff is not installed; run `uv sync --dev` to enable the complexity ratchet")
-    try:
-        return budget.measure()
-    except RuntimeError as exc:  # pragma: no cover - a broken ruff install, not a code defect
-        pytest.skip(str(exc))
+    """Every complexity breach in the package, measured once for this module.
+
+    A `RuntimeError` out of `measure()` is deliberately not caught: ruff is
+    installed by this point, so a failure there means the ratchet itself is
+    broken, and that should fail rather than quietly skip.
+    """
+    return budget.measure()
 
 
 @pytest.mark.integration
@@ -97,8 +102,6 @@ def test_the_refactored_fit_methods_carry_no_suppression(offenders):
 
 def test_the_tool_runs_as_a_script():
     """`python tools/complexity_budget.py` must work standalone, outside pytest."""
-    if importlib.util.find_spec("ruff") is None:
-        pytest.skip("ruff is not installed")
     module = _load_tool()
     assert module.main(["--worst", "1"]) == 0
 
