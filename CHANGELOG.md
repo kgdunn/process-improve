@@ -34,6 +34,21 @@ those changes.
   `CONTRIBUTING.md`, `CLAUDE.md`, `SECURITY_AUDIT.md` and the pull request
   template are updated to match.
 
+### Fixed
+
+- **A truncated dataset download now surfaces as the documented error.**
+  `fetch_remote_bytes` caught `OSError`, which covers connection, DNS and timeout
+  failures. It does not cover `http.client.IncompleteRead`, which is what
+  `response.read()` raises when a server closes the connection part way through
+  the body: that is an `HTTPException`, so it escaped raw and the one guarantee
+  the module exists to provide did not hold.
+
+  The cost was CI jobs failing on a network hiccup. The test fixtures turn a
+  `RuntimeError` from a download into a skip, so a truncated transfer errored
+  instead: this pull request's 3.10 job reported `IncompleteRead(817662 bytes
+  read, 514355 more expected)` three times and failed with 3408 tests passing and
+  nothing wrong with the code under test.
+
 ## [1.95.1] - 2026-09-18
 
 ### Changed
