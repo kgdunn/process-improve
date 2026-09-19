@@ -891,12 +891,10 @@ def explained_variance_plot(
         msg = "Model is not fitted. Call fit() before plotting the explained variance."
         raise ValueError(msg)
 
-    # isinstance, not a name comparison: PLSDA is a PLS and its r2_per_component_ is
-    # likewise the Y-block (the class indicators), so an exact-name test would label its
-    # plot "X-variance" (#375). Imported here because `_pls` imports this module.
-    from ._pls import PLS  # noqa: PLC0415 - local to avoid a circular import
-
-    block_label = "Y-variance" if isinstance(model, PLS) else "X-variance"
+    # The model says which block it explains, rather than the plot inferring it from
+    # the class name: PLSDA is a PLS whose r2_per_component_ is likewise the Y block
+    # (its class indicators), so a name test would label its plot "X-variance" (#375).
+    block_label = f"{getattr(model, '_variance_block', 'X')}-variance"
 
     class Settings(BaseModel):
         """Validated display settings for the explained-variance plot."""

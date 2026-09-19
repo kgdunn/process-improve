@@ -63,7 +63,13 @@ those changes.
 - **`explained_variance_plot` labels a `PLSDA` model correctly.** It chose its axis
   label with `type(model).__name__ == "PLS"`, which a subclass fails; `PLSDA`'s
   `r2_per_component_` is likewise the Y-block, so the exact-name test would have
-  labelled the plot "X-variance". It is an `isinstance` check now.
+  labelled the plot "X-variance".
+
+  The model now declares which block its `r2_per_component_` measures, through a
+  `_variance_block` class attribute that subclasses inherit, and the plot reads it,
+  defaulting to `"X"`. An `isinstance` check would have worked too, but `_pls`
+  imports `plots`, so importing `PLS` back into `plots` closes a cycle; a model
+  saying what it explains is also plainer than a plot inferring it.
 
 ## [1.95.1] - 2026-09-18
 
