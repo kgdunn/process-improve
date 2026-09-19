@@ -13,29 +13,6 @@ those changes.
 
 ### Added
 
-- **`ttest_independent(..., equal_var=False)`: Welch's unequal-variance t-test
-  (#561).** The function was pooled-variance Student's t only, with no switch:
-  `grep -rn "welch|equal_var|ttest_ind" src/` returned nothing. Welch is the
-  default in R's `t.test` and is what `scipy.stats.ttest_ind(equal_var=False)`
-  gives, so the library was the outlier. `equal_var=False` keeps each sample's
-  own variance and takes the Welch-Satterthwaite degrees of freedom; both modes
-  now agree with scipy to 1e-12 on the statistic, the p-value, the degrees of
-  freedom and the confidence interval.
-
-  The default stays `True`, so existing results do not move. It is the weaker
-  choice, though: pooling is only valid when the two variances really are equal,
-  and when they are not (especially with the larger variance on the smaller
-  sample) Student's test does not hold its nominal error rate while Welch's does.
-  Delacre, Lakens & Leys (2017) is now cited on the function as the case for that,
-  which is where that reference belongs; it had been parked in
-  `confidence_interval`, a single-sample interval it has nothing to do with.
-
-  `ttest_independent_from_df` forwards `equal_var` to every pair in the family,
-  and the `ttest_two_samples` tool exposes it too. Two consequences worth knowing:
-  the result dict gains an `"Equal variance assumed"` entry, and `"Pooled std
-  dev"` is `NaN` under Welch (JSON `null` through the tool layer), because Welch
-  forms no pooled estimate and a number there would imply one.
-
 - **`fill_gaps` for batch trajectories (#200),** replacing the
   `bfill().ffill()` the issue quotes. That one-liner is wrong on trajectory data
   in three specific ways, and each is addressed:
@@ -75,6 +52,29 @@ those changes.
   re-exported through the package, the same shape `_pca` and `_pls` take through
   `methods`.
 
+- **`ttest_independent(..., equal_var=False)`: Welch's unequal-variance t-test
+  (#561).** The function was pooled-variance Student's t only, with no switch:
+  `grep -rn "welch|equal_var|ttest_ind" src/` returned nothing. Welch is the
+  default in R's `t.test` and is what `scipy.stats.ttest_ind(equal_var=False)`
+  gives, so the library was the outlier. `equal_var=False` keeps each sample's
+  own variance and takes the Welch-Satterthwaite degrees of freedom; both modes
+  now agree with scipy to 1e-12 on the statistic, the p-value, the degrees of
+  freedom and the confidence interval.
+
+  The default stays `True`, so existing results do not move. It is the weaker
+  choice, though: pooling is only valid when the two variances really are equal,
+  and when they are not (especially with the larger variance on the smaller
+  sample) Student's test does not hold its nominal error rate while Welch's does.
+  Delacre, Lakens & Leys (2017) is now cited on the function as the case for that,
+  which is where that reference belongs; it had been parked in
+  `confidence_interval`, a single-sample interval it has nothing to do with.
+
+  `ttest_independent_from_df` forwards `equal_var` to every pair in the family,
+  and the `ttest_two_samples` tool exposes it too. Two consequences worth knowing:
+  the result dict gains an `"Equal variance assumed"` entry, and `"Pooled std
+  dev"` is `NaN` under Welch (JSON `null` through the tool layer), because Welch
+  forms no pooled estimate and a number there would imply one.
+
 - **`simulate(..., random_state=...)`.** The measurement noise came from an
   unseeded `np.random.default_rng()` inside a public function, which
   `docs/development/reproducibility.rst` forbids: every public function touching
@@ -86,6 +86,18 @@ those changes.
   driving the simulator cannot freeze its noise.
 
 ### Changed
+
+- **`MBPCA.fit` is now a sequence of named phases**, the same split `MBPLS.fit`
+  received in 1.95.1. It carried `# noqa: C901, PLR0912, PLR0915`; the body is
+  now `_validate_blocks`, `_resolve_algorithm`, `_preprocess`,
+  `_fit_one_component`, `_deflate` and the `_store_*` methods, called in the
+  order the old comments already named, and no complexity rule is suppressed on
+  it any more.
+
+  Nothing about a fit changes. Every fitted attribute was hashed before and
+  after the split across the `dense` and `nipals` paths; the only field that
+  differs is `fitting_info_.timing`, and two runs of *identical* code differ in
+  exactly that field and no other.
 
 - **The version is no longer bumped in a pull request.** `pyproject.toml`
   `version` and `CITATION.cff` are now set once, at release time, from whatever
@@ -110,11 +122,6 @@ those changes.
 
 ### Fixed
 
-- **`confidence_interval` validates `style` (#561).** Anything other than
-  `"robust"` fell through to the classical branch, so `style="rubost"` returned a
-  different interval with nothing to signal it. Unknown values now raise
-  `ValueError` naming the two accepted ones.
-
 - **LOWESS's robustness collapse is now detected rather than silently returning
   the input.** `lowess` scales its robustness weights by `6 * median(|residual|)`.
   On a trajectory the local fits reproduce exactly away from a few spikes, a
@@ -124,6 +131,11 @@ those changes.
   names the cause, and falls back to `iterations=0`, which smooths without
   rejecting outliers. It is the same implosion a median-of-differences scale
   estimator suffers under a tied majority, in a place nobody looks for it.
+
+- **`confidence_interval` validates `style` (#561).** Anything other than
+  `"robust"` fell through to the classical branch, so `style="rubost"` returned a
+  different interval with nothing to signal it. Unknown values now raise
+  `ValueError` naming the two accepted ones.
 
 - **A truncated dataset download now surfaces as the documented error.**
   `fetch_remote_bytes` caught `OSError`, which covers connection, DNS and timeout
@@ -148,6 +160,22 @@ those changes.
 
   (The other half of this batch, the `typing.cast` that repaired the `typecheck`
   gate, reached main with #579 and is no longer part of this change.)
+
+### Tests
+
+- **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
+  counts how many functions in `src/process_improve` breach `C901`, `PLR0912`,
+  `PLR0913` or `PLR0915`, asking ruff with `--ignore-noqa` so it measures real
+  breaches rather than `# noqa` comments, and ranks them by how far past the
+  threshold they are, which is the "what do I split next?" list.
+
+  `tests/test_complexity_ratchet.py` makes it a CI gate in both directions: a
+  count above its budget fails as a regression, and a count *below* its budget
+  also fails, telling you to lower the budget. A refactor therefore cannot be
+  quietly spent by the next change. The target, recorded in `CONTRIBUTING.md`,
+  is to halve the 2026-06 baseline of 185 breaches to 91 by v2.0; this release
+  takes it to 184, the `MBPCA.fit` split having removed three while #598's
+  `smooth_trajectories` and #581's `equal_var` switch each added one.
 
 ## [1.95.1] - 2026-09-18
 
