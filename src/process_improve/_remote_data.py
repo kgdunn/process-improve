@@ -12,14 +12,15 @@ through :func:`fetch_remote_bytes`, so one place enforces the contract:
 - the download is bounded by ``settings.dataset_fetch_timeout`` (30 s by
   default; ``PROCESS_IMPROVE_DATASET_FETCH_TIMEOUT`` overrides it), so a
   black-holing host raises instead of hanging the caller indefinitely (#508);
-- network failures, timeouts and parse failures surface as one clear
-  ``RuntimeError`` naming the URL, rather than a lower-level error.
+- network failures, timeouts, truncated transfers and parse failures surface
+  as one clear ``RuntimeError`` naming the URL, rather than a lower-level error.
 
 The content is trusted only as far as the remote host is.
 """
 
 from __future__ import annotations
 
+import http.client
 import io
 import urllib.request
 import zipfile
@@ -58,16 +59,20 @@ def fetch_remote_bytes(url: str, timeout: float | None = None) -> bytes:
     Raises
     ------
     RuntimeError
-        On any network failure or timeout (``TimeoutError`` and
-        ``urllib.error.URLError`` are both ``OSError`` subclasses), with the
-        URL in the message.
+        On any network failure or timeout, with the URL in the message.
+        ``TimeoutError`` and ``urllib.error.URLError`` are both ``OSError``
+        subclasses, so that covers connection and DNS failures. A transfer the
+        server cuts off mid-body raises ``http.client.IncompleteRead``, which is
+        an ``HTTPException`` and *not* an ``OSError``, so it is caught
+        explicitly: without that it escaped as a raw ``IncompleteRead`` and the
+        one guarantee this module exists to provide did not hold.
     """
     if timeout is None:
         timeout = settings.dataset_fetch_timeout
     try:
         with urllib.request.urlopen(url, timeout=timeout) as response:  # noqa: S310 - fixed https or file URLs
             return response.read()
-    except OSError as exc:
+    except (OSError, http.client.HTTPException) as exc:
         raise _download_error(url, exc) from exc
 
 
