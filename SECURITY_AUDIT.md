@@ -463,5 +463,5 @@ YAML loading uses `yaml.safe_load`.
    robustness").
 2. For each: write a failing repro/test, apply the minimal fix, convert the
    repro to a regression test, run the relevant `pytest` plus `ruff check .`,
-   bump the version per `CLAUDE.md`, update `CHANGELOG.md`, then close the issue
+   update `CHANGELOG.md` under `## [Unreleased]`, then close the issue
    and set its row above to `done` (or remove it).

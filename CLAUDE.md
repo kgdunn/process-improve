@@ -173,18 +173,20 @@ Version lives in `pyproject.toml` under `[project] version`, 3-part semver.
 The full policy, including what counts as a breaking change, is in
 [`CONTRIBUTING.md`](CONTRIBUTING.md#versioning-policy).
 
-**Auto-bump the version with every PR that changes code or configuration:**
-- **PATCH**: bug fixes, CI/workflow changes, docs updates, dependency bumps, small refactors.
-- **MINOR**: new features, new modules, significant API additions, meaningful behavioural changes. Resets PATCH to 0.
-- **MAJOR**: incompatible removals, which are only permitted after the
-  `docs/development/deprecation_policy.rst` schedule has run. Resets MINOR and PATCH to 0.
-- **If unsure which level applies, ask the user** before bumping.
+**Do not bump the version in a PR.** `pyproject.toml` `version` and
+`CITATION.cff` are set once, at release time, from whatever accumulated under
+`## [Unreleased]`. A PR that touches either file for the sake of a bump is
+wrong: it makes that PR conflict with every other open PR on three lines that
+have nothing to do with the work. The level (MAJOR / MINOR / PATCH) is read off
+the `[Unreleased]` headings at release; the rule and the release steps are in
+[`CONTRIBUTING.md`](CONTRIBUTING.md#versioning-policy).
 
-**Keep `CITATION.cff` in sync.** In the *same commit* as a version bump, set its `version:` to the identical value and `date-released:` to the current date. The two files must never disagree.
+The one thing a PR owes the release is a correctly *filed* changelog entry,
+because the heading it sits under is what picks the level.
 
-`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com). **Prompt the user to confirm whether an entry is required.** User-facing changes (features, API changes, bug fixes, behavioural changes) generally need one; internal-only changes (refactors, CI tweaks, edits to this file) generally do not. New lines go under `## [Unreleased]`. When bumping the version, in the same commit rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, add a fresh empty `## [Unreleased]` above it, and update the link-reference footer (the `[Unreleased]` compare link plus a new `[X.Y.Z]` link).
+`CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com). **Prompt the user to confirm whether an entry is required.** User-facing changes (features, API changes, bug fixes, behavioural changes) generally need one; internal-only changes (refactors, CI tweaks, edits to this file) generally do not. New lines go under `## [Unreleased]`, under the heading that describes them: `Added` for new public surface, `Removed` for a removal, `Changed` / `Fixed` / `Deprecated` / `Security` / `Documentation` otherwise.
 
-Publishing is **manually gated** (ENG-21 / #303): `publish.yml` runs only on a `v*` tag or a maintainer's `workflow_dispatch`. Bumping the version in a PR does not publish. Releases carry a sigstore attestation (PEP 740) and a CycloneDX SBOM, with notes pulled from the matching `CHANGELOG.md` section.
+Publishing is **manually gated** (ENG-21 / #303): `publish.yml` runs only on a `v*` tag or a maintainer's `workflow_dispatch`. Nothing in a PR publishes; the release commit and its tag do. Releases carry a sigstore attestation (PEP 740) and a CycloneDX SBOM, with notes pulled from the matching `CHANGELOG.md` section.
 
 ## CI/CD
 
