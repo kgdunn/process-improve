@@ -11,15 +11,6 @@ those changes.
 
 ## [Unreleased]
 
-### Added
-
-- **`robust_regression` is now tested with pandas `Series` inputs (#213).** It
-  accepts them, and pairs the two vectors **by position**, not by index: the
-  implementation takes `.values` from each, so the labels are discarded. The
-  obvious alternative, `pd.concat([x, y], axis=1)`, would align on the index and
-  turn two disjoint indexes into a frame of NaN, so the behaviour is now pinned
-  by a test that uses deliberately disjoint indexes.
-
 ### Changed
 
 - **The version is no longer bumped in a pull request.** `pyproject.toml`
@@ -42,6 +33,15 @@ those changes.
 
   `CONTRIBUTING.md`, `CLAUDE.md`, `SECURITY_AUDIT.md` and the pull request
   template are updated to match.
+
+### Tests
+
+- **`robust_regression` is now tested with pandas `Series` inputs (#213).** It
+  accepts them, and pairs the two vectors **by position**, not by index: the
+  implementation takes `.values` from each, so the labels are discarded. The
+  obvious alternative, `pd.concat([x, y], axis=1)`, would align on the index and
+  turn two disjoint indexes into a frame of NaN, so the behaviour is now pinned
+  by a test that uses deliberately disjoint indexes.
 
 ## [1.95.1] - 2026-09-18
 
