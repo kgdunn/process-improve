@@ -11,8 +11,6 @@ those changes.
 
 ## [Unreleased]
 
-## [1.98.0] - 2026-09-18
-
 ### Added
 
 - **`PLSDA`: PLS discriminant analysis (#375).** Classification built on the
@@ -57,6 +55,29 @@ those changes.
   `normalize=True`, bound as a method on `PLSDA` and importable on its own. It takes
   an optional matrix argument so the held-out confusion matrix can be plotted rather
   than the optimistic training one.
+
+### Changed
+
+- **The version is no longer bumped in a pull request.** `pyproject.toml`
+  `version` and `CITATION.cff` are now set once, at release time, from whatever
+  has accumulated under `## [Unreleased]`. A pull request adds its changelog
+  entry and leaves both files alone.
+
+  Every pull request was bumping the same line of `pyproject.toml`, the same
+  line of `CITATION.cff`, and inserting at the same anchor in `CHANGELOG.md`.
+  That made every open pull request conflict with every other one on three
+  lines unrelated to the work: of the 25 conflicted pull requests open when
+  this was written, 10 conflicted on nothing else.
+
+  The release level is now read off the `[Unreleased]` headings rather than
+  argued about: any `### Removed` means MAJOR, any `### Added` means MINOR,
+  anything else is PATCH. So the heading an entry is filed under now matters,
+  and `CONTRIBUTING.md` says so. `publish.yml` is unchanged and still refuses
+  to ship a tag that does not match `pyproject.toml`, or a version with no
+  `CHANGELOG.md` heading, so a release that forgets the bump fails loudly.
+
+  `CONTRIBUTING.md`, `CLAUDE.md`, `SECURITY_AUDIT.md` and the pull request
+  template are updated to match.
 
 ### Fixed
 
@@ -5221,8 +5242,7 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.98.0...HEAD
-[1.98.0]: https://github.com/kgdunn/process-improve/compare/v1.95.1...v1.98.0
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.95.1...HEAD
 [1.95.1]: https://github.com/kgdunn/process-improve/compare/v1.95.0...v1.95.1
 [1.95.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.95.0
 [1.94.0]: https://github.com/kgdunn/process-improve/compare/v1.93.1...v1.94.0
