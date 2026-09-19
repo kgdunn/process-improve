@@ -6,6 +6,7 @@ Holds :class:`MBPCA`, the hierarchical / superblock multi-block PCA transformer.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import time
 import typing
@@ -34,6 +35,252 @@ except ImportError:  # pragma: no cover - exercised via env-without-plotly
 
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_blocks(X: dict[str, pd.DataFrame]) -> None:
+    """Reject anything that is not a non-empty dict of equally tall DataFrames."""
+    if not isinstance(X, dict) or len(X) == 0:
+        raise TypeError("X must be a non-empty dict[str, pd.DataFrame].")
+    for name, block in X.items():
+        if not isinstance(block, pd.DataFrame):
+            raise TypeError(f"X['{name}'] must be a pandas DataFrame; got {type(block).__name__}.")
+    names = list(X)
+    n_samples = X[names[0]].shape[0]
+    for name in names:
+        if X[name].shape[0] != n_samples:
+            raise ValueError(
+                f"All X-blocks must have the same row count. Block '{name}' has "
+                f"{X[name].shape[0]} rows; expected {n_samples}."
+            )
+
+
+def _resolve_missing_data_settings(missing_data_settings: dict | None, algo: str) -> dict:
+    """Resolve and validate the iterative-algorithm settings for the NIPALS path."""
+    settings = {"md_tol": epsqrt, "md_max_iter": 1000}
+    if isinstance(missing_data_settings, dict):
+        settings.update(missing_data_settings)
+    settings["md_max_iter"] = int(settings["md_max_iter"])
+    if algo == "nipals":
+        if not settings["md_tol"] < 10:  # the historical ceiling, kept verbatim
+            raise ValueError("Tolerance should not be too large.")
+        if not settings["md_tol"] > epsqrt**1.95:
+            raise ValueError("Tolerance must exceed machine precision.")
+    return settings
+
+
+def _reject_degenerate_missingness(X: dict[str, pd.DataFrame], block_names: Sequence[str]) -> None:
+    """Refuse a block with an all-missing column or row.
+
+    Either one leaves the masked NIPALS denominator at zero, which would silently produce
+    a spurious score or loading. Refusing is better than coercing the caller into a
+    misleading result.
+    """
+    for name in block_names:
+        values = X[name].values
+        col_all_nan = np.all(np.isnan(values), axis=0)
+        if np.any(col_all_nan):
+            bad = X[name].columns[col_all_nan].tolist()
+            raise ValueError(
+                f"Block '{name}' has columns with all values missing: {bad}. Drop these columns before fitting."
+            )
+        row_all_nan = np.all(np.isnan(values), axis=1)
+        if np.any(row_all_nan):
+            bad_rows = np.where(row_all_nan)[0].tolist()
+            raise ValueError(
+                f"Block '{name}' has rows with all values missing at positions {bad_rows}. "
+                "Drop these observations or impute them before fitting."
+            )
+
+
+class _MBPCALoopContext(typing.NamedTuple):
+    """Everything the component loop needs that does not change between components."""
+
+    algo: str
+    block_names: list[str]
+    #: Algorithmic block weighting: X_b / sqrt(K_b), so blocks of unequal width contribute fairly.
+    sqrt_kb: dict[str, float]
+    tol: float
+    max_iter: int
+    n_samples: int
+
+    @property
+    def n_blocks(self) -> int:
+        """How many X-blocks this fit is over."""
+        return len(self.block_names)
+
+
+class _MBPCAComponent(typing.NamedTuple):
+    """One converged component, before deflation."""
+
+    super_scores: np.ndarray
+    super_loadings: np.ndarray
+    block_loadings: dict[str, np.ndarray]
+    block_scores: dict[str, np.ndarray]
+    iterations: int
+
+
+def _seed_super_score(x_def: dict[str, np.ndarray], context: _MBPCALoopContext) -> np.ndarray:
+    """Deterministic start (#503): the column, across all blocks, with the largest sum of squares.
+
+    Mirrors the single-block PCA / PLS seeding (#195). No RNG is involved, so the fit is
+    reproducible without a ``random_state``, and the highest-variance column is closest to
+    the leading component. The sign convention applied after convergence makes the fitted
+    signs independent of this seed. NaN is replaced by 0 for the missing-data path.
+    """
+    col_ssq = {name: np.nansum(x_def[name] ** 2, axis=0) for name in context.block_names}
+    start_block = max(context.block_names, key=lambda name: float(np.max(col_ssq[name], initial=0.0)))
+    start_col = int(np.argmax(col_ssq[start_block]))
+    return np.nan_to_num(x_def[start_block][:, start_col].astype(float).copy())
+
+
+def _fit_one_component(x_def: dict[str, np.ndarray], context: _MBPCALoopContext) -> _MBPCAComponent:
+    """Iterate the super-score to convergence on the currently deflated blocks."""
+    t_super = _seed_super_score(x_def, context)
+    prev = t_super + 1.0
+    t_b_summary = np.zeros((context.n_samples, context.n_blocks))
+    local_loadings: dict[str, np.ndarray] = {}
+    local_scores: dict[str, np.ndarray] = {}
+    p_s = np.zeros(context.n_blocks)
+    itern = 0
+
+    # Relative convergence criterion (#504): the change between two successive super-score
+    # iterations is judged against the size of the current super-score, so the decision is
+    # invariant to a global rescaling of the data. The denominator is floored via ``_nz``
+    # so an all-zero super-score cannot divide by zero.
+    while (
+        np.linalg.norm(prev - t_super) / _nz(float(np.linalg.norm(t_super))) > context.tol and itern < context.max_iter
+    ):
+        prev = t_super
+        if context.algo == "nipals":
+            # Mask-aware NIPALS: each projection is a per-column (or per-row) regression
+            # that uses only the entries that are not NaN, and divides by the masked sum of
+            # squares. Reuses the same primitives as single-block PCA NIPALS.
+            t_super_col = t_super.reshape(-1, 1)
+            for b_idx, name in enumerate(context.block_names):
+                p_b = quick_regress(x_def[name], t_super_col).flatten()
+                p_b = p_b / _nz(float(np.sqrt(ssq(p_b.reshape(-1, 1)))))
+                t_b = quick_regress(x_def[name], p_b.reshape(-1, 1)).flatten() / context.sqrt_kb[name]
+                local_loadings[name] = p_b
+                local_scores[name] = t_b
+                t_b_summary[:, b_idx] = t_b
+        else:
+            for b_idx, name in enumerate(context.block_names):
+                p_b = x_def[name].T @ t_super / _nz(float(t_super @ t_super))
+                p_b = p_b / _nz(float(np.linalg.norm(p_b)))
+                t_b = x_def[name] @ p_b / _nz(float(p_b @ p_b)) / context.sqrt_kb[name]
+                local_loadings[name] = p_b
+                local_scores[name] = t_b
+                t_b_summary[:, b_idx] = t_b
+        p_s = t_b_summary.T @ t_super / _nz(float(t_super @ t_super))
+        p_s = p_s / _nz(float(np.linalg.norm(p_s)))
+        t_super = t_b_summary @ p_s / _nz(float(p_s @ p_s))
+        itern += 1
+
+    # Sign convention: largest |super_loading| element positive.
+    flip_idx = int(np.argmax(np.abs(p_s)))
+    if p_s[flip_idx] < 0:
+        p_s = -p_s
+        t_super = -t_super
+        for name in context.block_names:
+            local_loadings[name] = -local_loadings[name]
+            local_scores[name] = -local_scores[name]
+
+    return _MBPCAComponent(
+        super_scores=t_super,
+        super_loadings=p_s,
+        block_loadings=local_loadings,
+        block_scores=local_scores,
+        iterations=itern,
+    )
+
+
+def _deflate(
+    x_def: dict[str, np.ndarray], component: _MBPCAComponent, context: _MBPCALoopContext
+) -> dict[str, np.ndarray]:
+    """Remove this component from every block, using the super-score and the scaled block loading."""
+    deflated = {}
+    for b_idx, name in enumerate(context.block_names):
+        p_deflate = component.block_loadings[name] * component.super_loadings[b_idx] * context.sqrt_kb[name]
+        deflated[name] = x_def[name] - np.outer(component.super_scores, p_deflate)
+    return deflated
+
+
+@dataclasses.dataclass
+class _MBPCAArrays:
+    """The numpy workspace a fit fills in, one column per component, wrapped in pandas at the end."""
+
+    super_scores: np.ndarray
+    super_loadings: np.ndarray
+    block_scores: dict[str, np.ndarray]
+    block_loadings: dict[str, np.ndarray]
+    block_spe: dict[str, np.ndarray]
+    r2_x_block_cum: np.ndarray
+    r2_x_var_cum: dict[str, np.ndarray]
+    timing: np.ndarray
+    iterations: np.ndarray
+
+    @classmethod
+    def allocate(cls, block_widths: dict[str, int], n_samples: int, n_components: int) -> _MBPCAArrays:
+        """Allocate the workspace for a fit of the given shape."""
+        n_blocks = len(block_widths)
+        per_block = {name: np.zeros((n_samples, n_components)) for name in block_widths}
+        per_variable = {name: np.zeros((width, n_components)) for name, width in block_widths.items()}
+        return cls(
+            super_scores=np.zeros((n_samples, n_components)),
+            super_loadings=np.zeros((n_blocks, n_components)),
+            block_scores={name: values.copy() for name, values in per_block.items()},
+            block_loadings={name: values.copy() for name, values in per_variable.items()},
+            block_spe={name: values.copy() for name, values in per_block.items()},
+            r2_x_block_cum=np.zeros((n_blocks, n_components)),
+            r2_x_var_cum={name: values.copy() for name, values in per_variable.items()},
+            timing=np.zeros(n_components),
+            iterations=np.zeros(n_components, dtype=int),
+        )
+
+    def record_component(self, a: int, component: _MBPCAComponent, context: _MBPCALoopContext) -> None:
+        """Store one converged component's scores and loadings."""
+        for b_idx, name in enumerate(context.block_names):
+            self.block_loadings[name][:, a] = component.block_loadings[name]
+            self.block_scores[name][:, a] = component.block_scores[name]
+            self.super_loadings[b_idx, a] = component.super_loadings[b_idx]
+        self.super_scores[:, a] = component.super_scores
+        self.iterations[a] = component.iterations
+
+    def record_explained_variation(
+        self,
+        a: int,
+        x_def: dict[str, np.ndarray],
+        initial: _InitialSumsOfSquares,
+        context: _MBPCALoopContext,
+    ) -> None:
+        """Store the cumulative R2X and SPE left after this component was removed."""
+        for b_idx, name in enumerate(context.block_names):
+            ssq_remain_per_var = np.nansum(x_def[name] ** 2, axis=0)
+            # R^2 is undefined for a zero-variance block/column; report NaN rather than
+            # dividing by zero (inf/nan + warning) or 1.0.
+            self.r2_x_block_cum[b_idx, a] = (
+                1 - np.sum(ssq_remain_per_var) / initial.per_block[name] if initial.per_block[name] > 0 else np.nan
+            )
+            per_var = initial.per_variable[name]
+            self.r2_x_var_cum[name][:, a] = np.where(
+                per_var > 0, 1 - ssq_remain_per_var / np.where(per_var > 0, per_var, 1.0), np.nan
+            )
+            self.block_spe[name][:, a] = np.sqrt(np.nansum(x_def[name] ** 2, axis=1))
+
+
+class _InitialSumsOfSquares(typing.NamedTuple):
+    """What each block held before any component was removed, the reference every R2X is against."""
+
+    per_block: dict[str, float]
+    per_variable: dict[str, np.ndarray]
+
+    @classmethod
+    def of(cls, x_blocks_pp: dict[str, np.ndarray]) -> _InitialSumsOfSquares:
+        """Measure the preprocessed blocks before the first deflation."""
+        return cls(
+            per_block={name: float(np.nansum(values**2)) for name, values in x_blocks_pp.items()},
+            per_variable={name: np.nansum(values**2, axis=0) for name, values in x_blocks_pp.items()},
+        )
 
 
 class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
@@ -209,43 +456,76 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         self.missing_data_settings = missing_data_settings
 
     @_fit_context(prefer_skip_nested_validation=True)
-    def fit(self, X: dict[str, pd.DataFrame], y: None = None) -> MBPCA:  # noqa: ARG002, C901, PLR0912, PLR0915
-        """Fit the multi-block PCA model."""
-        if not isinstance(X, dict) or len(X) == 0:
-            raise TypeError("X must be a non-empty dict[str, pd.DataFrame].")
-        for name, block in X.items():
-            if not isinstance(block, pd.DataFrame):
-                raise TypeError(f"X['{name}'] must be a pandas DataFrame; got {type(block).__name__}.")
+    def fit(self, X: dict[str, pd.DataFrame], y: None = None) -> MBPCA:  # noqa: ARG002
+        """Fit the multi-block PCA model.
 
+        Parameters
+        ----------
+        X : dict[str, pd.DataFrame]
+            X-blocks. Keys are block names; values are DataFrames sharing the same row
+            index (and row count). Each block is preprocessed independently.
+        y : None
+            Ignored; accepted so the transformer plugs into a sklearn Pipeline.
+        """
+        _validate_blocks(X)
+        self._record_data_shape(X)
+        algo = self._resolve_algorithm(X)
+        # Resolve the iterative-algorithm settings. Only the validation inside is
+        # load-bearing today: the resolved ``md_tol`` / ``md_max_iter`` do not yet reach
+        # the NIPALS path, which uses ``tol`` and ``max_iter``.
+        _resolve_missing_data_settings(self.missing_data_settings, algo)
+        if algo == "nipals":
+            _reject_degenerate_missingness(X, self.block_names_)
+
+        x_blocks_pp = self._preprocess(X)
+        context = _MBPCALoopContext(
+            algo=algo,
+            block_names=self.block_names_,
+            sqrt_kb={name: float(np.sqrt(width)) for name, width in self.block_widths_.items()},
+            tol=epsqrt if self.tol is None else float(self.tol),
+            max_iter=self.max_iter,
+            n_samples=self.n_samples_,
+        )
+
+        work = _MBPCAArrays.allocate(self.block_widths_, self.n_samples_, self.n_components_)
+        initial = _InitialSumsOfSquares.of(x_blocks_pp)
+        x_def = {name: values.copy() for name, values in x_blocks_pp.items()}
+
+        for a in range(self.n_components_):
+            start = time.time()
+            component = _fit_one_component(x_def, context)
+            x_def = _deflate(x_def, component, context)
+            work.record_component(a, component, context)
+            work.record_explained_variation(a, x_def, initial, context)
+            work.timing[a] = time.time() - start
+
+        self._store_latent_frames(work)
+        self._report_convergence(work)
+        self._store_explained_variation(work)
+        self._store_diagnostics(work)
+        return self
+
+    def _record_data_shape(self, X: dict[str, pd.DataFrame]) -> None:
+        """Record the block names, widths, row and column labels, and counts this fit is over."""
         self.block_names_: list[str] = list(X.keys())
         first = X[self.block_names_[0]]
-        n_samples = first.shape[0]
-        for name in self.block_names_:
-            if X[name].shape[0] != n_samples:
-                raise ValueError(
-                    f"All X-blocks must have the same row count. Block '{name}' has "
-                    f"{X[name].shape[0]} rows; expected {n_samples}."
-                )
-
         self.block_widths_: dict[str, int] = {name: int(X[name].shape[1]) for name in self.block_names_}
         self._sample_index = first.index
         self._block_columns: dict[str, pd.Index] = {name: X[name].columns for name in self.block_names_}
-
-        self.n_samples_ = int(n_samples)
+        self.n_samples_ = int(first.shape[0])
         self.n_features_in_ = int(sum(self.block_widths_.values()))
-        # feature_names_in_: sklearn convention (#392). Flat concatenation of
-        # all blocks' column names in block-iteration order. Lets
-        # ``Pipeline.get_feature_names_out`` and SHAP / eli5 / model-card
-        # tooling introspect a multiblock fit through the same surface as a
-        # single-block estimator.
+        # feature_names_in_: sklearn convention (#392). Flat concatenation of all blocks'
+        # column names in block-iteration order. Lets ``Pipeline.get_feature_names_out``
+        # and SHAP / eli5 / model-card tooling introspect a multiblock fit through the
+        # same surface as a single-block estimator.
         self.feature_names_in_ = np.concatenate([self._block_columns[name].to_numpy() for name in self.block_names_])
-        n_components = int(self.n_components)
-        # Fitted mirror of the constructor parameter, so shared helpers (the
-        # T2 limit mixin, spe_limit, the plot pre-checks) read one resolved
-        # attribute across PCA / PLS / MBPCA / MBPLS (#505).
-        self.n_components_ = n_components
-        n_blocks = len(self.block_names_)
+        # Fitted mirror of the constructor parameter, so shared helpers (the T2 limit
+        # mixin, spe_limit, the plot pre-checks) read one resolved attribute across
+        # PCA / PLS / MBPCA / MBPLS (#505).
+        self.n_components_ = int(self.n_components)
 
+    def _resolve_algorithm(self, X: dict[str, pd.DataFrame]) -> str:
+        """Pick between the dense and NIPALS paths, and record what was picked."""
         self.has_missing_data_ = any(np.any(X[name].isna().values) for name in self.block_names_)
         algo = self.algorithm.lower()
         if algo not in self._valid_algorithms:
@@ -257,202 +537,71 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         if algo == "dense" and self.has_missing_data_:
             raise ValueError("Algorithm 'dense' cannot handle missing data. Use 'nipals' or 'auto' instead.")
         self.algorithm_ = algo
+        return algo
 
-        # Resolve iterative-algorithm settings (used by the 'nipals' path).
-        settings = {"md_tol": epsqrt, "md_max_iter": 1000}
-        if isinstance(self.missing_data_settings, dict):
-            settings.update(self.missing_data_settings)
-        settings["md_max_iter"] = int(settings["md_max_iter"])
-        if algo == "nipals":
-            if not settings["md_tol"] < 10:
-                raise ValueError("Tolerance should not be too large.")
-            if not settings["md_tol"] > epsqrt**1.95:
-                raise ValueError("Tolerance must exceed machine precision.")
-            # Degeneracy guards: any column or any (block, row) entirely NaN
-            # leaves the masked NIPALS denominator at zero, which would
-            # silently produce a spurious score or loading. Refuse the fit
-            # rather than coerce the user into a misleading result.
-            for name in self.block_names_:
-                values = X[name].values
-                col_all_nan = np.all(np.isnan(values), axis=0)
-                if np.any(col_all_nan):
-                    bad = X[name].columns[col_all_nan].tolist()
-                    raise ValueError(
-                        f"Block '{name}' has columns with all values missing: {bad}. Drop these columns before fitting."
-                    )
-                row_all_nan = np.all(np.isnan(values), axis=1)
-                if np.any(row_all_nan):
-                    bad_rows = np.where(row_all_nan)[0].tolist()
-                    raise ValueError(
-                        f"Block '{name}' has rows with all values missing at positions {bad_rows}. "
-                        "Drop these observations or impute them before fitting."
-                    )
-
-        # Preprocess each block independently
+    def _preprocess(self, X: dict[str, pd.DataFrame]) -> dict[str, np.ndarray]:
+        """Mean-centre and unit-variance scale each block independently."""
         self.preproc_: dict[str, MCUVScaler] = {name: MCUVScaler().fit(X[name]) for name in self.block_names_}
-        x_blocks_pp: dict[str, np.ndarray] = {
-            name: self.preproc_[name].transform(X[name]).values.astype(float) for name in self.block_names_
-        }
-        sqrt_kb = {name: float(np.sqrt(self.block_widths_[name])) for name in self.block_names_}
+        return {name: self.preproc_[name].transform(X[name]).values.astype(float) for name in self.block_names_}
 
-        # Working copies for deflation and stats accumulation
-        x_def: dict[str, np.ndarray] = {name: x_blocks_pp[name].copy() for name in self.block_names_}
-        ssq_x_init = {name: float(np.nansum(x_blocks_pp[name] ** 2)) for name in self.block_names_}
-        ssq_x_init_per_var = {name: np.nansum(x_blocks_pp[name] ** 2, axis=0) for name in self.block_names_}
+    def _component_names(self) -> list[int]:
+        """Column labels for every per-component frame: 1-based component numbers."""
+        return list(range(1, self.n_components_ + 1))
 
-        super_scores_np = np.zeros((n_samples, n_components))
-        super_loadings_np = np.zeros((n_blocks, n_components))
-        block_scores_np: dict[str, np.ndarray] = {
-            name: np.zeros((n_samples, n_components)) for name in self.block_names_
-        }
-        block_loadings_np: dict[str, np.ndarray] = {
-            name: np.zeros((self.block_widths_[name], n_components)) for name in self.block_names_
-        }
-        r2_x_block_cum = np.zeros((n_blocks, n_components))
-        r2_x_var_cum: dict[str, np.ndarray] = {
-            name: np.zeros((self.block_widths_[name], n_components)) for name in self.block_names_
-        }
-        block_spe_np: dict[str, np.ndarray] = {name: np.zeros((n_samples, n_components)) for name in self.block_names_}
-
-        tol = epsqrt if self.tol is None else float(self.tol)
-        timing = np.zeros(n_components)
-        iterations = np.zeros(n_components, dtype=int)
-
-        for a in range(n_components):
-            start = time.time()
-            # Deterministic start (#503): seed the super-score from the column,
-            # across all blocks, with the largest sum of squares, mirroring the
-            # single-block PCA / PLS seeding (#195). No RNG is involved, so the
-            # fit is reproducible without a random_state parameter, and the
-            # highest-variance column is closest to the leading component. The
-            # sign convention applied after convergence makes the fitted signs
-            # independent of this seed. (NaN is replaced by 0 for the
-            # missing-data path.)
-            col_ssq = {name: np.nansum(x_def[name] ** 2, axis=0) for name in self.block_names_}
-            start_block = max(self.block_names_, key=lambda name: float(np.max(col_ssq[name], initial=0.0)))
-            start_col = int(np.argmax(col_ssq[start_block]))
-            t_super = np.nan_to_num(x_def[start_block][:, start_col].astype(float).copy())
-            prev = t_super + 1.0
-            t_b_summary = np.zeros((n_samples, n_blocks))
-            local_loadings: dict[str, np.ndarray] = {}
-            local_scores: dict[str, np.ndarray] = {}
-            p_s = np.zeros(n_blocks)
-            itern = 0
-            # Relative convergence criterion (#504): the change between two
-            # successive super-score iterations is judged against the size of
-            # the current super-score, so the decision is invariant to a
-            # global rescaling of the data. The denominator is floored via
-            # ``_nz`` so an all-zero super-score cannot divide by zero.
-            while np.linalg.norm(prev - t_super) / _nz(float(np.linalg.norm(t_super))) > tol and itern < self.max_iter:
-                prev = t_super
-                if algo == "nipals":
-                    # Mask-aware NIPALS: each projection is a per-column (or
-                    # per-row) regression that uses only the entries that
-                    # are not NaN, and divides by the masked sum of squares.
-                    # Reuses the same primitives as single-block PCA NIPALS.
-                    t_super_col = t_super.reshape(-1, 1)
-                    for b_idx, name in enumerate(self.block_names_):
-                        p_b = quick_regress(x_def[name], t_super_col).flatten()
-                        p_b = p_b / _nz(float(np.sqrt(ssq(p_b.reshape(-1, 1)))))
-                        t_b = quick_regress(x_def[name], p_b.reshape(-1, 1)).flatten() / sqrt_kb[name]
-                        local_loadings[name] = p_b
-                        local_scores[name] = t_b
-                        t_b_summary[:, b_idx] = t_b
-                else:
-                    for b_idx, name in enumerate(self.block_names_):
-                        p_b = x_def[name].T @ t_super / _nz(float(t_super @ t_super))
-                        p_b = p_b / _nz(float(np.linalg.norm(p_b)))
-                        t_b = x_def[name] @ p_b / _nz(float(p_b @ p_b)) / sqrt_kb[name]
-                        local_loadings[name] = p_b
-                        local_scores[name] = t_b
-                        t_b_summary[:, b_idx] = t_b
-                p_s = t_b_summary.T @ t_super / _nz(float(t_super @ t_super))
-                p_s = p_s / _nz(float(np.linalg.norm(p_s)))
-                t_super = t_b_summary @ p_s / _nz(float(p_s @ p_s))
-                itern += 1
-
-            # Sign convention: largest |super_loading| element positive
-            flip_idx = int(np.argmax(np.abs(p_s)))
-            if p_s[flip_idx] < 0:
-                p_s = -p_s
-                t_super = -t_super
-                for name in self.block_names_:
-                    local_loadings[name] = -local_loadings[name]
-                    local_scores[name] = -local_scores[name]
-
-            # Deflate each block using the super-score and block loading scaled by super-loading
-            for b_idx, name in enumerate(self.block_names_):
-                p_deflate = local_loadings[name] * p_s[b_idx] * sqrt_kb[name]
-                x_def[name] = x_def[name] - np.outer(t_super, p_deflate)
-                block_loadings_np[name][:, a] = local_loadings[name]
-                block_scores_np[name][:, a] = local_scores[name]
-
-            super_scores_np[:, a] = t_super
-            super_loadings_np[:, a] = p_s
-
-            # Per-block cumulative R²X and SPE
-            for b_idx, name in enumerate(self.block_names_):
-                ssq_remain_per_var = np.nansum(x_def[name] ** 2, axis=0)
-                # R^2 is undefined for a zero-variance block/column; report NaN
-                # rather than dividing by zero (inf/nan + warning) or 1.0.
-                r2_x_block_cum[b_idx, a] = (
-                    1 - np.sum(ssq_remain_per_var) / ssq_x_init[name] if ssq_x_init[name] > 0 else np.nan
-                )
-                r2_x_var_cum[name][:, a] = np.where(
-                    ssq_x_init_per_var[name] > 0,
-                    1 - ssq_remain_per_var / np.where(ssq_x_init_per_var[name] > 0, ssq_x_init_per_var[name], 1.0),
-                    np.nan,
-                )
-                block_spe_np[name][:, a] = np.sqrt(np.nansum(x_def[name] ** 2, axis=1))
-
-            timing[a] = time.time() - start
-            iterations[a] = itern
-
-        # Wrap in pandas containers
-        component_names = list(range(1, n_components + 1))
-        self.super_scores_ = pd.DataFrame(super_scores_np, index=self._sample_index, columns=component_names)
-        self.super_loadings_ = pd.DataFrame(super_loadings_np, index=self.block_names_, columns=component_names)
+    def _store_latent_frames(self, work: _MBPCAArrays) -> None:
+        """Wrap the scores and loadings in labelled pandas containers."""
+        component_names = self._component_names()
+        self.super_scores_ = pd.DataFrame(work.super_scores, index=self._sample_index, columns=component_names)
+        self.super_loadings_ = pd.DataFrame(work.super_loadings, index=self.block_names_, columns=component_names)
         self.block_scores_ = {
-            name: pd.DataFrame(block_scores_np[name], index=self._sample_index, columns=component_names)
+            name: pd.DataFrame(work.block_scores[name], index=self._sample_index, columns=component_names)
             for name in self.block_names_
         }
         self.block_loadings_ = {
-            name: pd.DataFrame(block_loadings_np[name], index=self._block_columns[name], columns=component_names)
+            name: pd.DataFrame(work.block_loadings[name], index=self._block_columns[name], columns=component_names)
             for name in self.block_names_
         }
-
-        self.explained_variance_ = np.diag(super_scores_np.T @ super_scores_np) / max(1, n_samples - 1)
+        self.explained_variance_ = np.diag(work.super_scores.T @ work.super_scores) / max(1, self.n_samples_ - 1)
         self.scaling_factor_for_super_scores_ = pd.Series(
             np.sqrt(self.explained_variance_), index=component_names, name="Standard deviation per super-score"
         )
-        converged = iterations < self.max_iter
-        self.fitting_info_ = {"timing": timing, "iterations": iterations, "converged": converged}
-        logger.debug("MBPCA (%s): iterations per component = %s", self.algorithm_, list(iterations))
-        if not np.all(converged):
-            failed = [int(i + 1) for i, ok in enumerate(converged) if not ok]
-            warnings.warn(
-                f"MBPCA NIPALS did not converge within max_iter={self.max_iter} for "
-                f"component(s) {failed}; results for those components may be unreliable.",
-                SpecificationWarning,
-                stacklevel=2,
-            )
 
-        # Per-component (incremental) R²X
-        r2_x_block_per_a = np.zeros_like(r2_x_block_cum)
-        r2_x_block_per_a[:, 0] = r2_x_block_cum[:, 0]
-        if n_components > 1:
-            r2_x_block_per_a[:, 1:] = np.diff(r2_x_block_cum, axis=1)
+    def _report_convergence(self, work: _MBPCAArrays) -> None:
+        """Record the per-component timing and iteration counts, and warn about any that did not converge."""
+        converged = work.iterations < self.max_iter
+        self.fitting_info_ = {"timing": work.timing, "iterations": work.iterations, "converged": converged}
+        logger.debug("MBPCA (%s): iterations per component = %s", self.algorithm_, list(work.iterations))
+        if np.all(converged):
+            return
+        failed = [int(i + 1) for i, ok in enumerate(converged) if not ok]
+        warnings.warn(
+            f"MBPCA NIPALS did not converge within max_iter={self.max_iter} for "
+            f"component(s) {failed}; results for those components may be unreliable.",
+            SpecificationWarning,
+            stacklevel=3,
+        )
 
-        self.r2_x_per_block_cumulative_ = pd.DataFrame(r2_x_block_cum, index=self.block_names_, columns=component_names)
+    def _store_explained_variation(self, work: _MBPCAArrays) -> None:
+        """Turn the cumulative R2X into the cumulative, per-component and per-variable frames."""
+        component_names = self._component_names()
+        r2_x_block_per_a = np.zeros_like(work.r2_x_block_cum)
+        r2_x_block_per_a[:, 0] = work.r2_x_block_cum[:, 0]
+        if self.n_components_ > 1:
+            r2_x_block_per_a[:, 1:] = np.diff(work.r2_x_block_cum, axis=1)
+
+        self.r2_x_per_block_cumulative_ = pd.DataFrame(
+            work.r2_x_block_cum, index=self.block_names_, columns=component_names
+        )
         self.r2_x_per_block_per_component_ = pd.DataFrame(
             r2_x_block_per_a, index=self.block_names_, columns=component_names
         )
         self.r2_x_per_variable_ = {
-            name: pd.DataFrame(r2_x_var_cum[name], index=self._block_columns[name], columns=component_names)
+            name: pd.DataFrame(work.r2_x_var_cum[name], index=self._block_columns[name], columns=component_names)
             for name in self.block_names_
         }
 
-        # VIPs (per-block: variance-of-X explanation; super: same on super-loadings)
+        # VIPs (per-block: variance-of-X explanation; the super VIP is the same idea on
+        # the super-loadings).
         self.block_vip_: dict[str, pd.Series] = {}
         for b_idx, name in enumerate(self.block_names_):
             r2 = r2_x_block_per_a[b_idx, :]
@@ -463,9 +612,11 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
                 vip_b = np.zeros(self.block_widths_[name])
             self.block_vip_[name] = pd.Series(vip_b, index=self._block_columns[name], name=f"VIP[{name}]")
 
-        # Per-block SPE / T² and super T²
+    def _store_diagnostics(self, work: _MBPCAArrays) -> None:
+        """Build the per-block SPE and Hotelling's T2 frames, and the super-block T2."""
+        component_names = self._component_names()
         self.block_spe_ = {
-            name: pd.DataFrame(block_spe_np[name], index=self._sample_index, columns=component_names)
+            name: pd.DataFrame(work.block_spe[name], index=self._sample_index, columns=component_names)
             for name in self.block_names_
         }
         block_t2: dict[str, np.ndarray] = {}
@@ -479,10 +630,8 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             for name in self.block_names_
         }
         super_score_var = np.where(self.explained_variance_ > 0, self.explained_variance_, 1.0)
-        super_t2 = np.cumsum((super_scores_np**2) / super_score_var, axis=1)
+        super_t2 = np.cumsum((work.super_scores**2) / super_score_var, axis=1)
         self.super_hotellings_t2_ = pd.DataFrame(super_t2, index=self._sample_index, columns=component_names)
-
-        return self
 
     def transform(self, X: dict[str, pd.DataFrame]) -> pd.DataFrame:
         """Project new data to super-scores using the fitted model."""

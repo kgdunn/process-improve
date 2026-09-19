@@ -9,6 +9,20 @@ on:
     # Weekly run so new advisories applied to unchanged code still surface.
     - cron: "0 6 * * 1"
 
+# Supersede a PR's own in-flight analysis when a new commit lands on it. Without
+# this, every push to a branch left its predecessor's CodeQL database build
+# running, and a handful of quick successive pushes could occupy the whole
+# concurrent-job allowance with analyses whose results nobody would read.
+#
+# The group keys on the PR number when there is one, so a `push` to main and the
+# Monday `schedule` run share a single group and queue behind each other rather
+# than racing two SARIF uploads into the same category. Only pull requests
+# cancel: a main-branch or scheduled analysis always runs to completion, because
+# its results are what the security tab reports.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
