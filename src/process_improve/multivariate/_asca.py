@@ -206,9 +206,10 @@ class ASCA(BaseEstimator):
         X : array-like of shape (n_samples, n_features)
             The multivariate response. Must be complete: ASCA solves a least-squares
             problem over every column at once and has no missing-data path.
-        design : pd.DataFrame of shape (n_samples, n_factors)
-            One column per experimental factor, holding that factor's level for each
-            row. Values may be strings or numbers; they are treated as categorical.
+        design : pd.DataFrame
+            One row per sample and one column per experimental factor, holding that
+            factor's level for each row. Values may be strings or numbers; they are
+            treated as categorical.
         y : object, optional
             Ignored, for sklearn API compatibility.
 
