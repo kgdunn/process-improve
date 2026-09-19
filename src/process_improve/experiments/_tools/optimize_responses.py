@@ -42,6 +42,8 @@ class OptimizeResponsesInput(BaseModel):
         "steepest_descent",
         "stationary_point",
         "canonical_analysis",
+        "ridge_analysis",
+        "pareto_front",
     ] = Field(
         "desirability",
         description="Optimisation method (default: 'desirability').",
@@ -60,7 +62,10 @@ class OptimizeResponsesInput(BaseModel):
     n_steps: int = Field(
         10,
         ge=1,
-        description="Number of steps for steepest ascent/descent (default 10).",
+        description=(
+            "Number of steps along a path: the steepest ascent/descent steps, or the radii reported "
+            "by ridge analysis over and above the centre (default 10)."
+        ),
     )
     response_importance: list[float] | None = Field(
         None,
@@ -90,6 +95,18 @@ class OptimizeResponsesInput(BaseModel):
         None,
         description="Deprecated alias for 'response_importance'. Use 'response_importance' instead.",
     )
+    ridge_direction: Literal["maximize", "minimize"] = Field(
+        "maximize",
+        description="Which ridge method='ridge_analysis' traces (default 'maximize').",
+    )
+    n_pareto_points: int = Field(
+        21,
+        ge=2,
+        description=(
+            "Target number of weight vectors for method='pareto_front' (default 21). The front returned "
+            "is usually smaller, since dominated and duplicate solutions are dropped."
+        ),
+    )
 
 
 def _as_bounds(
@@ -110,7 +127,11 @@ def _as_bounds(
         "Supports several methods: 'desirability' (Derringer-Suich desirability functions for single or "
         "multi-response optimisation), 'steepest_ascent' / 'steepest_descent' (move along the gradient "
         "of a first-order model), 'stationary_point' (locate the optimum of a second-order model), "
-        "'canonical_analysis' (eigenvalue decomposition to classify the response surface shape). "
+        "'canonical_analysis' (eigenvalue decomposition to classify the response surface shape), "
+        "'ridge_analysis' (trace the best point on spheres of increasing radius from the centre, which is "
+        "what to use when the stationary point falls outside the region the experiment covered, or is a "
+        "saddle), and 'pareto_front' (the set of non-dominated compromises across two or more responses, "
+        "when the trade-off itself is the thing worth seeing rather than one desirability-weighted point). "
         "Each fitted_model must include coefficients (as returned by analyze_experiment with "
         "analysis_type='coefficients'), factor_names, and response_name. "
         "For desirability, each goal specifies whether to maximize, minimize, or target a value. "
@@ -145,6 +166,16 @@ def _as_bounds(
         -> ``optimize_responses(fitted_models=[model],
                 method="steepest_ascent", step_size=0.5, n_steps=8,
                 factor_ranges={"Temperature": {"low": 150, "high": 200}})``
+
+    # "The optimum is outside my design space - how good can I get within the region I explored?"
+        -> ``optimize_responses(fitted_models=[model], method="ridge_analysis",
+                n_steps=10, search_bounds=[-1.41, 1.41])``
+
+    # "Show me the trade-off between yield and cost, not a single weighted answer"
+        -> ``optimize_responses(fitted_models=[model1, model2],
+                goals=[{"response": "yield", "goal": "maximize"},
+                       {"response": "cost", "goal": "minimize"}],
+                method="pareto_front", n_pareto_points=21)``
     """,
     category="experiments",
 )
@@ -164,6 +195,8 @@ def optimize_responses_tool(spec: OptimizeResponsesInput) -> dict[str, Any]:
             significance_level=spec.significance_level,
             search_bounds=_as_bounds(spec.search_bounds),
             desirability_weights=spec.desirability_weights,
+            ridge_direction=spec.ridge_direction,
+            n_pareto_points=spec.n_pareto_points,
         )
         return clean(result)
     except _TOOL_EXPECTED_EXCEPTIONS as e:

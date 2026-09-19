@@ -438,7 +438,7 @@ class RidgeTracePlot(BasePlot):
     second-order (quadratic) model.
     """
 
-    def to_spec(self) -> ChartSpec:  # noqa: C901
+    def to_spec(self) -> ChartSpec:
         """Build a ridge trace ChartSpec.
 
         Returns
@@ -456,41 +456,27 @@ class RidgeTracePlot(BasePlot):
         coef_map = _build_coef_map(coefficients)
         b0, b_vec, b_mat = self._extract_b_and_B(coef_map, factors)
 
+        # Solve the ridge exactly, rather than scanning multipliers and rescaling
+        # the result onto the sphere: a rescaled point is not the constrained
+        # optimum unless the multiplier happened to be the right one. See
+        # :func:`~process_improve.experiments.optimization._ridge_point`.
+        from process_improve.experiments.optimization import _ridge_point  # noqa: PLC0415
+
+        eigenvalues, eigenvectors = np.linalg.eigh(b_mat)
         radii = np.linspace(0, 1.5, 30)
         response_trace: list[float] = []
         factor_traces: dict[str, list[float]] = {f: [] for f in factors}
 
         for r in radii:
-            if r == 0:
-                # At centre
-                response_trace.append(b0)
-                for f in factors:
-                    factor_traces[f].append(0.0)
-                continue
+            if r == 0 or np.allclose(b_mat, 0):
+                # At the centre, and for a model with no curvature to trace.
+                x_r = np.zeros(len(factors))
+            else:
+                x_r, _mu = _ridge_point(b_vec, eigenvalues, eigenvectors, float(r), maximise=True)
 
-            # Solve (B + mu*I)x = -b/2 for x on sphere ||x|| = r
-            # Use eigenvalue approach: find mu such that ||x(mu)|| = r
-            best_y = float("-inf")
-            best_x = np.zeros(len(factors))
-            for mu in np.linspace(-10, 10, 200):
-                try:
-                    mat = b_mat + mu * np.eye(len(factors))
-                    x_opt = np.linalg.solve(mat, -0.5 * b_vec)
-                    norm_x = float(np.linalg.norm(x_opt))
-                    if norm_x > 0:  # noqa: SIM108
-                        x_scaled = x_opt * (r / norm_x)
-                    else:
-                        x_scaled = x_opt
-                    y_val = b0 + float(b_vec @ x_scaled) + float(x_scaled @ b_mat @ x_scaled)
-                    if y_val > best_y:
-                        best_y = y_val
-                        best_x = x_scaled
-                except np.linalg.LinAlgError:  # noqa: PERF203
-                    continue
-
-            response_trace.append(float(best_y))
+            response_trace.append(float(b0 + b_vec @ x_r + x_r @ b_mat @ x_r))
             for j, f in enumerate(factors):
-                factor_traces[f].append(float(best_x[j]))
+                factor_traces[f].append(float(x_r[j]))
 
         # Panel 1: Response vs radius
         resp_data = [
