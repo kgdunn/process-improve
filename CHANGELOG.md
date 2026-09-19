@@ -59,6 +59,13 @@ those changes.
   land inside the spectrum, which yields saddle points rather than maxima. It now
   calls the same solver as `ridge_analysis`, so the plot and the numbers agree.
 
+  The visible consequence: on a surface with no linear terms, such as
+  `5 - 2*A**2 - 3*B**2`, the plot used to draw a flat line at the centre for
+  every radius, because it could not rescale a zero vector onto the sphere. The
+  centre is not on the sphere of radius 1, so it was answering a different
+  question from the one it asked. It now runs the ridge along the flattest
+  direction, which is the answer.
+
 ## [1.95.1] - 2026-09-18
 
 ### Changed
