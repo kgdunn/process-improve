@@ -48,10 +48,14 @@ BUDGET: dict[str, int] = {
     # columns, a frame and three switches. Both carry a reasoned suppression,
     # which is the discipline this ratchet exists to enforce, so the budget
     # tracks main rather than pretending the count did not move.
-    # 81: this branch adds `PLSDA.__init__`, which mirrors `PLS.__init__` and adds
-    # `decision_rule` and `priors`. Its width is inherited, not invented, and it
-    # carries a reasoned suppression.
-    "PLR0913": 81,
+    # 82: two different breaches, one from each side of this merge. main gained
+    # `surrogate` on `PCA.parallel_analysis` (#374), taking it from four arguments
+    # to five plus self; a null choice is a first-class option of the method, not a
+    # settings bag, so it is named. This branch adds `PLSDA.__init__`, which mirrors
+    # `PLS.__init__` and adds `decision_rule` and `priors`, so its width is inherited
+    # rather than invented. Both carry a reasoned suppression, which is the
+    # discipline this ratchet exists to enforce.
+    "PLR0913": 82,
     "PLR0915": 31,
 }
 
