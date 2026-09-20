@@ -31,6 +31,8 @@ from ._common import (
     SelectionRule,
     SpecificationWarning,
     _align_to_fit_features,
+    _nz,
+    _reject_sparse,
     _select_n_components,
     epsqrt,
 )
@@ -790,6 +792,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # code expects. validate_data also sets n_features_in_ / feature_
         # names_in_ and runs the sklearn input rejections (sparse, complex,
         # empty, dtype-object) with the standard error messages.
+        # Reject sparse before validate_data does, so the message names the
+        # ColumnTransformer knob rather than `.toarray()` (#399).
+        _reject_sparse(X, "PCA")
         sample_index = X.index if isinstance(X, pd.DataFrame) else None
         feature_columns = X.columns if isinstance(X, pd.DataFrame) else None
         X_arr = validate_data(
@@ -1041,7 +1046,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
                 # Regress X onto t_a to get loadings p_a
                 p_a = quick_regress(Xd, t_a)
-                p_a = p_a / np.sqrt(ssq(p_a))
+                # Floor the norm: a collapsed ``p_a`` would make this 0/0 -> NaN and
+                # poison every later component. `_mbpca` already guards the identical
+                # expression this way; see `_nz` (#513).
+                p_a = p_a / _nz(float(np.sqrt(ssq(p_a))))
 
                 # Regress X onto p_a to get scores t_a
                 t_a = quick_regress(Xd, p_a)

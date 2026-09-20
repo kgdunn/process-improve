@@ -190,9 +190,9 @@ translate to native formats. See `process_improve/experiments/visualization/`.
 {
     "plot_type": "pareto",
     "title": "Pareto Chart of Effects",
-    "plotly": { "data": [...], "layout": {...} },   # Plotly figure dict
-    "echarts": { "series": [...], "xAxis": {...} },  # ECharts option dict
-    "data": { "panels": [...] },                     # Raw computed data
+    "plotly": {"data": [...], "layout": {...}},  # Plotly figure dict
+    "echarts": {"series": [...], "xAxis": {...}},  # ECharts option dict
+    "data": {"panels": [...]},  # Raw computed data
 }
 ```
 

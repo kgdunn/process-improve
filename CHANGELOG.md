@@ -52,6 +52,16 @@ those changes.
   re-exported through the package, the same shape `_pca` and `_pls` take through
   `methods`.
 
+- **`simulate(..., random_state=...)`.** The measurement noise came from an
+  unseeded `np.random.default_rng()` inside a public function, which
+  `docs/development/reproducibility.rst` forbids: every public function touching
+  an RNG takes `random_state: int | np.random.Generator | None` and resolves it
+  through `process_improve._random.check_random_state`. The default stays
+  `None`, so a simulator standing in for a real process still returns fresh
+  noise on every call; an int or a `Generator` makes a run repeatable. It is
+  deliberately *not* part of the `simulate_process` tool contract, so a model
+  driving the simulator cannot freeze its noise.
+
 - **`ttest_independent(..., equal_var=False)`: Welch's unequal-variance t-test
   (#561).** The function was pooled-variance Student's t only, with no switch:
   `grep -rn "welch|equal_var|ttest_ind" src/` returned nothing. Welch is the
@@ -74,16 +84,6 @@ those changes.
   the result dict gains an `"Equal variance assumed"` entry, and `"Pooled std
   dev"` is `NaN` under Welch (JSON `null` through the tool layer), because Welch
   forms no pooled estimate and a number there would imply one.
-
-- **`simulate(..., random_state=...)`.** The measurement noise came from an
-  unseeded `np.random.default_rng()` inside a public function, which
-  `docs/development/reproducibility.rst` forbids: every public function touching
-  an RNG takes `random_state: int | np.random.Generator | None` and resolves it
-  through `process_improve._random.check_random_state`. The default stays
-  `None`, so a simulator standing in for a real process still returns fresh
-  noise on every call; an int or a `Generator` makes a run repeatable. It is
-  deliberately *not* part of the `simulate_process` tool contract, so a model
-  driving the simulator cannot freeze its noise.
 
 ### Changed
 
@@ -122,6 +122,50 @@ those changes.
 
 ### Fixed
 
+- **A sparse `ColumnTransformer` output now names the remedy (#399).**
+  `make_column_transformer((MCUVScaler(), numeric), (OneHotEncoder(), categorical))`
+  works, but `ColumnTransformer` flips its *whole* concatenated output to a sparse
+  matrix once the result is more than `sparse_threshold` (default 0.3) zeros,
+  which a one-hot block with a dozen levels easily is. `PLS`, `PCA` and
+  `MCUVScaler` then failed with sklearn's generic "use `.toarray()`", which is
+  the expensive way round: the dense array is built anyway, but only after the
+  sparse one. They now raise a `TypeError` naming `sparse_threshold=0` and
+  `OneHotEncoder(sparse_output=False)`, the two knobs that avoid the round trip.
+
+- **`quick_regress`'s zero-denominator guard is now relative (#513).** It compared
+  the denominator against `epsqrt` (~1.5e-8) in absolute terms, which is a
+  statement about the *scale* of the data rather than its conditioning. On a
+  well-conditioned block whose values are ~1e-5 the denominator is ~1e-9, so every
+  coefficient was silently returned as 0.0; multiplying the same data by 1e5, which
+  cannot change a ratio of the form `(x'y)/(x'x)`, made the call return the right
+  answer. The threshold is now `epsqrt * ssq(x)`. Genuine degeneracies (an all-zero
+  `x`, an all-NaN column of `Y`) are still zeroed.
+
+- **`PLS` and `PCA` floor the norm they normalise by (#513).**
+  `w_a / sqrt(ssq(w_a))` in `_pls.py` and `p_a / sqrt(ssq(p_a))` in `_pca.py` were
+  the last two unguarded NIPALS normalisations: a collapsed vector makes them 0/0,
+  and the NaN propagates through deflation into every later component. Both now use
+  `_nz`, as the identical expressions in `_mbpls.py` and `_mbpca.py` already did.
+
+- **`randomization_test_mbpls` counts the observed statistic among the
+  permutations (#513).** `risk_pct` was `100 * n_exceed / n_permutations`, which can
+  report exactly 0; no finite permutation set licenses the claim that the true tail
+  probability is zero. It is now `100 * (n_exceed + 1) / (n_permutations + 1)`,
+  matching the Van der Voet test in `_pls.py`. The floor is
+  `100 / (n_permutations + 1)`, so the default 999 permutations resolve to 0.1%.
+  **Reported values move**: every `risk_pct` shifts up by roughly one permutation's
+  worth.
+
+- **A constant column in a TPLS block is reported, not asserted (#513).**
+  `_learn_center_and_scaling_parameters` gives a no-variance column a NaN scale,
+  which excludes it from the model. That is right, but it happened in silence, and
+  the post-preprocessing check on the Z and Y blocks did not tolerate the NaN
+  statistic that exclusion produces (the F and D checks did). One constant column
+  therefore raised a message-less `AssertionError()` under normal Python and, because
+  the check was a bare `assert`, fitted silently under `python -O`. The exclusion now
+  emits a `UserWarning` naming the block and the columns, and the invariant check is a
+  `RuntimeError` naming the block, group, column and observed value.
+
 - **LOWESS's robustness collapse is now detected rather than silently returning
   the input.** `lowess` scales its robustness weights by `6 * median(|residual|)`.
   On a trajectory the local fits reproduce exactly away from a few spikes, a
@@ -131,11 +175,6 @@ those changes.
   names the cause, and falls back to `iterations=0`, which smooths without
   rejecting outliers. It is the same implosion a median-of-differences scale
   estimator suffers under a tied majority, in a place nobody looks for it.
-
-- **`confidence_interval` validates `style` (#561).** Anything other than
-  `"robust"` fell through to the classical branch, so `style="rubost"` returned a
-  different interval with nothing to signal it. Unknown values now raise
-  `ValueError` naming the two accepted ones.
 
 - **A truncated dataset download now surfaces as the documented error.**
   `fetch_remote_bytes` caught `OSError`, which covers connection, DNS and timeout
@@ -161,6 +200,25 @@ those changes.
   (The other half of this batch, the `typing.cast` that repaired the `typecheck`
   gate, reached main with #579 and is no longer part of this change.)
 
+- **`confidence_interval` validates `style` (#561).** Anything other than
+  `"robust"` fell through to the classical branch, so `style="rubost"` returned a
+  different interval with nothing to signal it. Unknown values now raise
+  `ValueError` naming the two accepted ones.
+
+### Documentation
+
+- **README: mixing scaled numeric and categorical columns (#399).** The
+  `ColumnTransformer` pattern, with the two arguments that are doing real work:
+  `sparse_threshold=0` for the reason above, and
+  `set_output(transform="pandas")`, which carries `get_feature_names_out` through
+  to `x_loadings_.index` so a loading reads as "the one-hot column for
+  `batch_type == B`" rather than "column 4". The numbers are identical either way.
+
+- **`nan_to_zeros` says what it does (#513).** It promised "a NaN map"; it computes
+  one, discards it, and returns the array it was given, mutated in place. Every
+  caller in the package passes a private copy, which is why the aliasing has not
+  bitten, but the contract is now stated rather than left in the body.
+
 ### Tests
 
 - **`robust_regression` is now tested with pandas `Series` inputs (#213).** It
@@ -169,6 +227,16 @@ those changes.
   obvious alternative, `pd.concat([x, y], axis=1)`, would align on the index and
   turn two disjoint indexes into a frame of NaN, so the behaviour is now pinned
   by a test that uses deliberately disjoint indexes.
+
+- **`HalvingGridSearchCV` / `HalvingRandomSearchCV` with a Pipeline-aware budget
+  (#398).** The existing coverage uses `resource="n_samples"`, the default, where
+  the budget is rows and the estimator never sees it. The issue also asked for a
+  budget spent on a pipeline parameter, which is the case that stresses what it
+  worried about: sklearn writes the resource into the step through `set_params`
+  on every candidate at every rung, and it has to survive `clone`. Both searchers
+  now run with `resource="pls__n_components"` while separately grid-searching
+  `pls__scale`. Both work; nothing needed fixing, so the test locks in the
+  working state.
 
 - **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
   counts how many functions in `src/process_improve` breach `C901`, `PLR0912`,

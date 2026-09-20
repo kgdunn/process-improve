@@ -9,6 +9,11 @@ repos:
           - id: fix-byte-order-marker
           - id: check-case-conflict
           - id: check-docstring-first
+            # `batch/datasets.py` documents its three URL constants with PEP 258
+            # attribute docstrings, which Sphinx autodoc renders. The hook's heuristic
+            # reads any second module-level string as a second module docstring, so it
+            # reports a style the repo uses on purpose.
+            exclude: ^src/process_improve/batch/datasets\.py$
           - id: debug-statements
           - id: detect-private-key
           - id: detect-aws-credentials
@@ -22,6 +27,9 @@ repos:
           - id: mixed-line-ending
           - id: name-tests-test
             args: ["--django"]
+            # Helpers and fixture builders that live beside the tests but are not tests:
+            # pytest must not collect them, which is why they are named this way.
+            exclude: ^tests/(_[^/]+\.py|fixtures/.*/prepare_fixture\.py)$
 
     - repo: https://github.com/pre-commit/mirrors-mypy
       rev: v1.19.1

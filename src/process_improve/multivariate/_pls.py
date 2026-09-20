@@ -36,6 +36,8 @@ from ._common import (
     _align_to_fit_features,
     _equal_weight_r2_total,
     _model_method,
+    _nz,
+    _reject_sparse,
     _select_n_components,
     epsqrt,
 )
@@ -572,8 +574,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 # 1: w_a = X'u_a / (u_a'u_a)
                 w_a = quick_regress(Xd, u_a)
 
-                # 2: Normalize w_a to unit length
-                w_a = w_a / np.sqrt(ssq(w_a))
+                # 2: Normalize w_a to unit length. Floor the norm: a collapsed ``w_a``
+                # would make this 0/0 -> NaN and poison every later component. `_mbpls`
+                # already guards the identical expression this way; see `_nz` (#513).
+                w_a = w_a / _nz(float(np.sqrt(ssq(w_a))))
 
                 # 3: t_a = X w_a / (w_a'w_a)
                 t_a = quick_regress(Xd, w_a)
@@ -710,6 +714,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             if np.any(sample_weight < 0):
                 raise ValueError("sample_weight must be non-negative.")
 
+        # Reject sparse before validate_data does, so the message names the
+        # ColumnTransformer knob rather than `.toarray()` (#399).
+        _reject_sparse(X, "PLS")
         # Capture DataFrame metadata before validate_data converts X to ndarray
         # so the downstream DataFrame view keeps its row/column labels.
         sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
