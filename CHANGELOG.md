@@ -171,6 +171,16 @@ those changes.
   question from the one it asked. It now runs the ridge along the flattest
   direction, which is the answer.
 
+- **A sparse `ColumnTransformer` output now names the remedy (#399).**
+  `make_column_transformer((MCUVScaler(), numeric), (OneHotEncoder(), categorical))`
+  works, but `ColumnTransformer` flips its *whole* concatenated output to a sparse
+  matrix once the result is more than `sparse_threshold` (default 0.3) zeros,
+  which a one-hot block with a dozen levels easily is. `PLS`, `PCA` and
+  `MCUVScaler` then failed with sklearn's generic "use `.toarray()`", which is
+  the expensive way round: the dense array is built anyway, but only after the
+  sparse one. They now raise a `TypeError` naming `sparse_threshold=0` and
+  `OneHotEncoder(sparse_output=False)`, the two knobs that avoid the round trip.
+
 - **`quick_regress`'s zero-denominator guard is now relative (#513).** It compared
   the denominator against `epsqrt` (~1.5e-8) in absolute terms, which is a
   statement about the *scale* of the data rather than its conditioning. On a
@@ -245,6 +255,13 @@ those changes.
   `ValueError` naming the two accepted ones.
 
 ### Documentation
+
+- **README: mixing scaled numeric and categorical columns (#399).** The
+  `ColumnTransformer` pattern, with the two arguments that are doing real work:
+  `sparse_threshold=0` for the reason above, and
+  `set_output(transform="pandas")`, which carries `get_feature_names_out` through
+  to `x_loadings_.index` so a loading reads as "the one-hot column for
+  `batch_type == B`" rather than "column 4". The numbers are identical either way.
 
 - **`nan_to_zeros` says what it does (#513).** It promised "a NaN map"; it computes
   one, discards it, and returns the array it was given, mutated in place. Every

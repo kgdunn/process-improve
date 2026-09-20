@@ -24,7 +24,7 @@ that needs products where A is high and B is low, and products where the reverse
 holds, as well as the two agreeing corners. With one corner empty the term is
 fitted from three points of support and will report whatever noise lives there.
 
-.. code-block:: python
+.. code-block:: pycon
 
    >>> from process_improve.interactions import pair_coverage
    >>> covered, detail = pair_coverage(x["linalool"].to_numpy(), x["geraniol"].to_numpy())
@@ -73,7 +73,7 @@ A selection made once on all the data is a selection made once.
 :func:`~process_improve.interactions.stability_selection` repeats it on
 complementary half-samples and reports how often each name comes back:
 
-.. code-block:: python
+.. code-block:: pycon
 
    >>> stability_selection(select, x_scaled, sensory_means, n_iter=50).head(3)
        name  n_selected  n_subsamples  selection_frequency
