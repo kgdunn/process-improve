@@ -40,18 +40,17 @@ RULES = ("C901", "PLR0912", "PLR0913", "PLR0915")
 BUDGET: dict[str, int] = {
     "C901": 47,
     "PLR0912": 26,
-    # 80, not 78, and neither one is a regression this branch introduced. #598
-    # merged `smooth_trajectories`, whose seven arguments are the two smoothers'
-    # settings side by side: naming them beats a settings dict whose valid keys
-    # depend on `method`. #581 then gave `ttest_independent_from_df` its
-    # `equal_var` switch, taking it to six, which is the honest width for two
-    # columns, a frame and three switches. Both carry a reasoned suppression,
-    # which is the discipline this ratchet exists to enforce, so the budget
-    # tracks main rather than pretending the count did not move.
-    # 81: this branch adds `surrogate` to `PCA.parallel_analysis`, taking it from
-    # four arguments to five plus self. A null choice is a first-class option of
-    # the method, not a settings bag, so it is named; it carries a reasoned
-    # suppression.
+    # 81, and none of the three moves is a regression any one branch introduced.
+    # #598 merged `smooth_trajectories`, whose seven arguments are the two
+    # smoothers' settings side by side: naming them beats a settings dict whose
+    # valid keys depend on `method`. #581 gave `ttest_independent_from_df` its
+    # `equal_var` switch, the honest width for two columns, a frame and three
+    # switches. #374 added `surrogate` to `PCA.parallel_analysis`, because which
+    # null a permutation test draws from is a first-class option of the method
+    # rather than something to hide in a settings bag. All three carry a reasoned
+    # suppression, which is the discipline this ratchet exists to enforce, so the
+    # budget tracks what is really there rather than pretending the count did not
+    # move.
     "PLR0913": 81,
     "PLR0915": 31,
 }
