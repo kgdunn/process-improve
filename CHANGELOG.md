@@ -176,6 +176,40 @@ those changes.
   imports `plots`, so importing `PLS` back into `plots` closes a cycle; a model
   saying what it explains is also plainer than a plot inferring it.
 
+- **`quick_regress`'s zero-denominator guard is now relative (#513).** It compared
+  the denominator against `epsqrt` (~1.5e-8) in absolute terms, which is a
+  statement about the *scale* of the data rather than its conditioning. On a
+  well-conditioned block whose values are ~1e-5 the denominator is ~1e-9, so every
+  coefficient was silently returned as 0.0; multiplying the same data by 1e5, which
+  cannot change a ratio of the form `(x'y)/(x'x)`, made the call return the right
+  answer. The threshold is now `epsqrt * ssq(x)`. Genuine degeneracies (an all-zero
+  `x`, an all-NaN column of `Y`) are still zeroed.
+
+- **`PLS` and `PCA` floor the norm they normalise by (#513).**
+  `w_a / sqrt(ssq(w_a))` in `_pls.py` and `p_a / sqrt(ssq(p_a))` in `_pca.py` were
+  the last two unguarded NIPALS normalisations: a collapsed vector makes them 0/0,
+  and the NaN propagates through deflation into every later component. Both now use
+  `_nz`, as the identical expressions in `_mbpls.py` and `_mbpca.py` already did.
+
+- **`randomization_test_mbpls` counts the observed statistic among the
+  permutations (#513).** `risk_pct` was `100 * n_exceed / n_permutations`, which can
+  report exactly 0; no finite permutation set licenses the claim that the true tail
+  probability is zero. It is now `100 * (n_exceed + 1) / (n_permutations + 1)`,
+  matching the Van der Voet test in `_pls.py`. The floor is
+  `100 / (n_permutations + 1)`, so the default 999 permutations resolve to 0.1%.
+  **Reported values move**: every `risk_pct` shifts up by roughly one permutation's
+  worth.
+
+- **A constant column in a TPLS block is reported, not asserted (#513).**
+  `_learn_center_and_scaling_parameters` gives a no-variance column a NaN scale,
+  which excludes it from the model. That is right, but it happened in silence, and
+  the post-preprocessing check on the Z and Y blocks did not tolerate the NaN
+  statistic that exclusion produces (the F and D checks did). One constant column
+  therefore raised a message-less `AssertionError()` under normal Python and, because
+  the check was a bare `assert`, fitted silently under `python -O`. The exclusion now
+  emits a `UserWarning` naming the block and the columns, and the invariant check is a
+  `RuntimeError` naming the block, group, column and observed value.
+
 - **LOWESS's robustness collapse is now detected rather than silently returning
   the input.** `lowess` scales its robustness weights by `6 * median(|residual|)`.
   On a trajectory the local fits reproduce exactly away from a few spikes, a
@@ -215,6 +249,13 @@ those changes.
   different interval with nothing to signal it. Unknown values now raise
   `ValueError` naming the two accepted ones.
 
+### Documentation
+
+- **`nan_to_zeros` says what it does (#513).** It promised "a NaN map"; it computes
+  one, discards it, and returns the array it was given, mutated in place. Every
+  caller in the package passes a private copy, which is why the aliasing has not
+  bitten, but the contract is now stated rather than left in the body.
+
 ### Tests
 
 - **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
@@ -231,6 +272,20 @@ those changes.
   takes it to 185: the `MBPCA.fit` split removed three, while #598's
   `smooth_trajectories`, #581's `equal_var` switch and this release's `PLSDA`
   constructor each added one.
+
+- **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
+  counts how many functions in `src/process_improve` breach `C901`, `PLR0912`,
+  `PLR0913` or `PLR0915`, asking ruff with `--ignore-noqa` so it measures real
+  breaches rather than `# noqa` comments, and ranks them by how far past the
+  threshold they are, which is the "what do I split next?" list.
+
+  `tests/test_complexity_ratchet.py` makes it a CI gate in both directions: a
+  count above its budget fails as a regression, and a count *below* its budget
+  also fails, telling you to lower the budget. A refactor therefore cannot be
+  quietly spent by the next change. The target, recorded in `CONTRIBUTING.md`,
+  is to halve the 2026-06 baseline of 185 breaches to 91 by v2.0; this release
+  takes it to 184, the `MBPCA.fit` split having removed three while #598's
+  `smooth_trajectories` and #581's `equal_var` switch each added one.
 
 ## [1.95.1] - 2026-09-18
 
