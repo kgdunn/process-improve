@@ -161,8 +161,8 @@ component accounts for.
 
 .. code-block:: python
 
-   model.squared_cosine()                  # all components
-   model.squared_cosine(n_components=2)     # first two components only
+   model.squared_cosine()  # all components
+   model.squared_cosine(n_components=2)  # first two components only
 
 Score Contributions
 -------------------
@@ -195,8 +195,8 @@ diagnostic exists (Miller, Swanson and Heckler, 1994).
 
    # Why does each observation score where it does on component 1?
    contrib = model.score_contributions(X_scaled, component=1)
-   contrib.sum(axis=1)          # equals model.scores_[1]
-   contrib.iloc[5].sort_values() # the drivers for observation 5
+   contrib.sum(axis=1)  # equals model.scores_[1]
+   contrib.iloc[5].sort_values()  # the drivers for observation 5
 
 Pass the same preprocessed data used to fit the model. To compare *groups* of
 observations rather than one at a time, average the rows first with
@@ -246,7 +246,7 @@ across observations.
 
 .. code-block:: python
 
-   model.observation_contributions()              # all components
+   model.observation_contributions()  # all components
    model.observation_contributions(n_components=2)
 
 Outlier Detection

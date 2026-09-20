@@ -16,7 +16,7 @@ import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import _check_feature_names_in, check_is_fitted, validate_data
 
-from ._common import DataMatrix, SpecificationWarning
+from ._common import DataMatrix, SpecificationWarning, _reject_sparse
 
 
 class MCUVScaler(TransformerMixin, BaseEstimator):
@@ -72,7 +72,15 @@ class MCUVScaler(TransformerMixin, BaseEstimator):
         ``y`` is accepted (and ignored) so the scaler plugs into
         :class:`sklearn.pipeline.Pipeline`, which threads ``y`` through every
         step's ``fit`` even when (as for a transformer) it is unused.
+
+        Raises
+        ------
+        TypeError
+            If ``X`` is a SciPy sparse matrix. Centring makes every zero non-zero, so
+            there is no sparse path to take; see :func:`_reject_sparse` for the remedy
+            the message names (#399).
         """
+        _reject_sparse(X, "MCUVScaler")
         # Convenience: accept a 1-D Series (a single-column y, common when
         # the scaler is used for the target side of a PLS fit). validate_data
         # itself requires 2-D input, so promote here before it sees X.

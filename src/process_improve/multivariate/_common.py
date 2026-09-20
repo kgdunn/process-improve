@@ -17,6 +17,7 @@ from typing import Any, Literal, TypeAlias
 
 import numpy as np
 import pandas as pd
+from scipy import sparse
 
 # Names re-exported to the rest of the package. Declared explicitly so CodeQL
 # does not flag the ``DataMatrix`` type alias (only ever referenced in lazy
@@ -85,6 +86,46 @@ def _nz(denominator: float) -> float:
     projection, since the numerator collapses with the same vector.
     """
     return max(_DENOM_FLOOR, denominator)
+
+
+def _reject_sparse(X: object, estimator_name: str) -> None:
+    """Raise if ``X`` is a SciPy sparse matrix, naming the remedy that actually helps.
+
+    NIPALS centres and scales every column, which destroys sparsity, so there is nothing
+    to gain from a sparse representation here and every estimator in this package sets
+    ``accept_sparse=False``. sklearn's own message for that says to call ``.toarray()``,
+    which is the expensive way round when the sparsity came from a one-hot block: the
+    dense array is materialised anyway, but only after the sparse one has been built.
+
+    The usual source is a :class:`~sklearn.compose.ColumnTransformer` whose one-hot block
+    pushed the result over ``sparse_threshold`` (default 0.3), which flips the *whole*
+    concatenated output to sparse. Two knobs at that level avoid the round trip
+    altogether, and the message names both (#399).
+
+    Parameters
+    ----------
+    X : object
+        The candidate input. Anything SciPy does not consider sparse passes through.
+    estimator_name : str
+        Named in the message, so a Pipeline failure says which step rejected the input.
+
+    Raises
+    ------
+    TypeError
+        If ``X`` is sparse.
+    """
+    if not sparse.issparse(X):
+        return
+    msg = (
+        f"{estimator_name} does not accept sparse input: NIPALS centres and scales every "
+        "column, which destroys sparsity, so there is nothing to gain from it. This usually "
+        "arrives from a ColumnTransformer whose one-hot block pushed the concatenated output "
+        "over `sparse_threshold` (default 0.3). Pass `sparse_threshold=0` to the "
+        "ColumnTransformer, or `OneHotEncoder(sparse_output=False)`, so it hands over a dense "
+        "array directly. `X.toarray()` also works, but on a wide one-hot block it builds the "
+        "sparse matrix first and then the dense one anyway."
+    )
+    raise TypeError(msg)
 
 
 class SpecificationWarning(UserWarning):

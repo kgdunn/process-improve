@@ -41,6 +41,7 @@ Step by step
 
       from pydantic import BaseModel, ConfigDict, Field
 
+
       class SummariseInput(BaseModel):
           model_config = ConfigDict(extra="forbid")
           data: list[float] = Field(..., min_length=1, description="The values to summarise.")
@@ -52,6 +53,7 @@ Step by step
    .. code-block:: python
 
       from process_improve.tool_spec import clean, tool_spec
+
 
       @tool_spec(
           name="summarise_values",
