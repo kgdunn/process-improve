@@ -11,7 +11,67 @@ those changes.
 
 ## [Unreleased]
 
+### Deprecated
+
+- **`OPLS(max_iter=...)` and `OPLS(tol=...)` are deprecated and ignored
+  (#588).** Both were assigned in `__init__` and never read. The
+  single-response Trygg-Wold algorithm is closed form: the predictive weight is
+  `X'y` normalised, and the orthogonal components come from a loop that runs
+  exactly `n_orthogonal_components` times. Nothing iterates to convergence, so
+  an iteration cap has no loop to bound and a convergence tolerance has no
+  convergence to judge.
+
+  `tol`'s docstring claimed it guarded rank-deficient projections. The only such
+  guard is the `safe_inverse` of `P_o' W_o`, which takes a condition-number
+  ceiling (default `1/eps`, about 4.5e15), not a magnitude floor like `tol`
+  (about 1.5e-8); the two are different quantities and the value never reached
+  that guard.
+
+  Both stay on the signature through the deprecation window, so `get_params`,
+  `set_params` and `clone` keep working for code that already passes them.
+  Setting either to a non-default value now raises a `DeprecationWarning`.
+  Removal is scheduled for 2.0, per
+  `docs/development/deprecation_policy.rst`.
+
+### Fixed
+
+- **`PLS(tol=...)` is no longer dropped when the data has missing cells (#588).**
+  The missing-data branch of the settings resolution hard-coded the NIPALS
+  tolerance to `epsqrt` while taking the iteration cap from the constructor, so
+  a caller's `tol` governed a fit on complete data and was silently ignored as
+  soon as one cell went missing. Both cases now resolve from the same place:
+  `tol` and `max_iter` supply the defaults, and an explicit
+  `missing_data_settings` overrides individual keys on top.
+
+  A model built with default arguments fits exactly as before, `PLS` defaulting
+  `tol` to the `epsqrt` the branch used to hard-code. Only a caller who set
+  `tol` and has missing data sees a change, which is the point.
+
+- **A partial `missing_data_settings` no longer raises `KeyError` (#588).** On
+  complete data the caller's dict was passed through as the entire settings
+  mapping, so `PLS(missing_data_settings={"md_tol": 1e-3}).fit(...)` reached
+  `settings["md_max_iter"]` inside the NIPALS fit and died. Every key is now
+  filled from the constructor before the dict is applied.
+
 ### Changed
+
+- **`### Deprecated` maps to MINOR, not PATCH, when choosing a release's
+  version level.** The table added in #591 put it under PATCH, which
+  contradicted `docs/development/deprecation_policy.rst`: that document
+  announces a deprecation in an `X.Y.0` release, and a deprecation message has
+  to name the version that announced it, so it needs a version of its own to
+  name. Corrected in `CONTRIBUTING.md`. The `OPLS` deprecation above is the
+  first entry the rule applies to.
+
+- **An unrecognised fit-time `md_method` is refused instead of quietly running
+  NIPALS (#588).** The dispatch knew `"tsr"` and `"pmp"`, both raising
+  `NotImplementedError`, and sent everything else to NIPALS without a word. The
+  trap was `"scp"`: a real method name for `project()` and the contribution
+  helpers, so asking for it at fit time looked reasonable and ran a different
+  algorithm. Unknown values now raise `ValueError` naming the accepted set, and
+  the docstring no longer lists `"scp"` among them. Two tests in the suite were
+  passing `md_method="scp"` and silently getting NIPALS; they now say so.
+
 
 - **The version is no longer bumped in a pull request.** `pyproject.toml`
   `version` and `CITATION.cff` are now set once, at release time, from whatever

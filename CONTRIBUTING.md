@@ -227,12 +227,16 @@ changelog rather than argued about:
 | Highest heading present under `[Unreleased]` | Level |
 |---|---|
 | `### Removed` | MAJOR |
-| `### Added` | MINOR |
-| anything else (`Changed`, `Fixed`, `Deprecated`, `Security`, `Documentation`) | PATCH |
+| `### Added` or `### Deprecated` | MINOR |
+| anything else (`Changed`, `Fixed`, `Security`, `Documentation`) | PATCH |
 
-`### Deprecated` is a MINOR-or-lower matter: announcing a deprecation
-breaks nothing. The removal it schedules is the MAJOR, and it lands in a
-later release under `### Removed`.
+`### Deprecated` sits at MINOR to match
+[`docs/development/deprecation_policy.rst`](docs/development/deprecation_policy.rst),
+which announces a deprecation in an `X.Y.0` release. Announcing one breaks
+nothing, but it does add a warning the caller did not get before, and the
+message has to name the version that announced it, so it needs a version of
+its own to name. The removal it schedules is the MAJOR, and lands later
+under `### Removed`.
 
 This makes the level a consequence of how each entry was filed, which is
 the decision the author already made when writing it. If an entry is
