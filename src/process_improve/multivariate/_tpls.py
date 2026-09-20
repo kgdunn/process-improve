@@ -486,17 +486,17 @@ class TPLS(RegressorMixin, BaseEstimator):
         for key in X["Y"]:
             self.preproc_["Y"][key] = {}
             self.preproc_["Y"][key]["center"], self.preproc_["Y"][key]["scale"] = (
-                self._learn_center_and_scaling_parameters(X["Y"][key])
+                self._learn_center_and_scaling_parameters(X["Y"][key], f'Y["{key}"]')
             )
         for key in X["Z"]:
             self.preproc_["Z"][key] = {}
             self.preproc_["Z"][key]["center"], self.preproc_["Z"][key]["scale"] = (
-                self._learn_center_and_scaling_parameters(X["Z"][key])
+                self._learn_center_and_scaling_parameters(X["Z"][key], f'Z["{key}"]')
             )
         for key, df_d in self.d_matrix.items():
             self.preproc_["D"][key] = {}
             self.preproc_["D"][key]["center"], self.preproc_["D"][key]["scale"] = (
-                self._learn_center_and_scaling_parameters(df_d)
+                self._learn_center_and_scaling_parameters(df_d, f'D["{key}"]')
             )
             # Block-scale each D-block by 1 / sqrt(P_i * M_i), where P_i = number of lots (rows) and
             # M_i = number of properties (columns). After column-wise auto-scaling this makes
@@ -508,7 +508,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             # Also do the same for the formula matrix
             self.preproc_["F"][key] = {}
             self.preproc_["F"][key]["center"], self.preproc_["F"][key]["scale"] = (
-                self._learn_center_and_scaling_parameters(X["F"][key])
+                self._learn_center_and_scaling_parameters(X["F"][key], f'F["{key}"]')
             )
 
         # Then implement the preprocessing on the raw data
@@ -1027,14 +1027,17 @@ class TPLS(RegressorMixin, BaseEstimator):
                 raise ValueError(f"Block/group name '{key}' in D must also be present in F.")
             self._validate_df(X["F"][key])  # this also ensures the keys in F are the same as in D
 
-    def _learn_center_and_scaling_parameters(self, y: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+    def _learn_center_and_scaling_parameters(self, y: pd.DataFrame, label: str = "") -> tuple[pd.Series, pd.Series]:
         """
-        Learn the centering and scaling parameters for the output space.
+        Learn the centering and scaling parameters for one block.
 
         Parameters
         ----------
         y : pd.DataFrame
-            The output space.
+            The block to learn from.
+        label : str
+            Where this block sits, e.g. ``'Z["Conditions"]'``, used only in the
+            zero-variance warning.
 
         Returns
         -------
@@ -1043,10 +1046,28 @@ class TPLS(RegressorMixin, BaseEstimator):
 
         scaling : pd.Series
             The scaling parameters.
+
+        Warns
+        -----
+        UserWarning
+            If any column has no variance. Its scale is set to ``NaN``, which makes the
+            whole column ``NaN`` and then zero, so the column is silently excluded from
+            the fit. That is the right thing to do with a constant column, but it used to
+            happen without a word (#513): the only sign was a message-less
+            ``AssertionError`` further down, or, under ``python -O``, nothing at all.
         """
         centering = y.mean(axis="index")
         scaling = y.std(ddof=1, axis="index") if y.shape[0] > 1 else pd.Series(1.0, index=y.columns)
-        scaling[scaling < self.tolerance_] = float("nan")  # columns with little/no variance: set as nan
+        degenerate = scaling < self.tolerance_
+        if degenerate.any():
+            named = ", ".join(repr(col) for col in y.columns[degenerate])
+            warnings.warn(
+                f"Block {label or '?'} has columns with no variance, which carry no information and are "
+                f"excluded from the model: {named}. Drop them, or check the data for a stuck sensor.",
+                UserWarning,
+                stacklevel=3,
+            )
+        scaling[degenerate] = float("nan")  # columns with little/no variance: set as nan
         return centering, scaling
 
     def _validate_df(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -1531,43 +1552,78 @@ class TPLS(RegressorMixin, BaseEstimator):
                 self.y_mats[key] - self.preproc_["Y"][key]["center"].to_numpy()[None, :]
             ) / self.preproc_["Y"][key]["scale"].to_numpy()[None, :]
 
-        # Test that all blocks and groups within a block have a mean of 0 and a standard deviation of 1.
-        # Note the extra complexity for checking columns that have perfectly zero variance.
-        # Internal invariants on the just-preprocessed matrices, not user input.
-        for key in self.z_mats:
-            assert np.allclose(np.nanmean(self.z_mats[key], axis=0), 0, atol=1e-6)  # post-centering invariant
-            for item in np.nanstd(self.z_mats[key], axis=0, ddof=1):
-                if item != 0:
-                    assert np.isclose(item, 1)  # post-scaling invariant
-
+        # Every block must now be centred to 0 and scaled to unit standard deviation, except
+        # in the columns deliberately excluded by `_learn_center_and_scaling_parameters`,
+        # which sets a NaN scale for a column with no variance to leave it out of the model.
+        # Dividing by that NaN makes the whole column NaN, so the checks below have to
+        # tolerate a NaN statistic; treating one as a failure was what made a single
+        # constant Z or Y column raise a message-less AssertionError (#513).
         with warnings.catch_warnings():
+            # An all-NaN column makes nanmean / nanstd warn about an empty slice. That is
+            # the excluded-column case the checks are written to accept.
             warnings.simplefilter("ignore", category=RuntimeWarning)
+
+            for key in self.z_mats:
+                self._check_preprocessed(np.nanmean(self.z_mats[key], axis=0), 0.0, "Z", key, "centre")
+                self._check_preprocessed(np.nanstd(self.z_mats[key], axis=0, ddof=1), 1.0, "Z", key, "scale")
 
             for key in self.f_mats:
                 if not self.skip_f_matrix_preprocessing:
-                    vector = np.nanmean(self.f_mats[key], axis=0)
-                    vector[np.isnan(vector)] = 0
-                    assert np.allclose(vector, 0, atol=1e-6)  # post-centering invariant
+                    self._check_preprocessed(np.nanmean(self.f_mats[key], axis=0), 0.0, "F", key, "centre")
+                    self._check_preprocessed(np.nanstd(self.f_mats[key], axis=0, ddof=1), 1.0, "F", key, "scale")
 
-                    vector = np.nanstd(self.f_mats[key], axis=0, ddof=1)
-                    vector[np.isnan(vector)] = 1
-                    assert np.allclose(vector, 1)  # post-scaling invariant
+                self._check_preprocessed(np.nanmean(self.d_mats[key], axis=0), 0.0, "D", key, "centre")
+                self._check_preprocessed(
+                    np.nanstd(self.d_mats[key], axis=0, ddof=1) * self.preproc_["D"][key]["block"],
+                    1.0,
+                    "D",
+                    key,
+                    "scale",
+                )
 
-                vector = np.nanmean(self.d_mats[key], axis=0)
-                vector[np.isnan(vector)] = 0
-                assert np.allclose(vector, 0, atol=1e-6)  # post-centering invariant
-                vector = np.nanstd(self.d_mats[key], axis=0, ddof=1) * self.preproc_["D"][key]["block"]
-                vector[np.isnan(vector)] = 1
-                assert np.allclose(vector, 1)  # post-scaling invariant
+            for key in self.y_mats:
+                self._check_preprocessed(np.nanmean(self.y_mats[key], axis=0), 0.0, "Y", key, "centre")
+                self._check_preprocessed(np.nanstd(self.y_mats[key], axis=0, ddof=1), 1.0, "Y", key, "scale")
 
-        # Checks on the Y-block: post-centering / post-scaling invariants.
-        assert all(  # post-centering invariant on every Y block
-            np.allclose(np.nanmean(self.y_mats[key], axis=0), 0, atol=1e-6) for key in self.y_mats
-        )
-        assert all(  # post-scaling invariant on every Y block
-            np.allclose(np.where((in_array := np.nanstd(self.y_mats[key], axis=0, ddof=1)) == 0, 1, in_array), 1)
-            for key in self.y_mats
-        )
+    @staticmethod
+    def _check_preprocessed(observed: np.ndarray, expected: float, block: str, group: str, stage: str) -> None:
+        """Verify one post-preprocessing invariant, naming what failed if it does.
+
+        Parameters
+        ----------
+        observed : np.ndarray
+            One statistic per column: the column means after centring, or the column
+            standard deviations after scaling. ``NaN`` entries are the columns
+            `_learn_center_and_scaling_parameters` deliberately excluded for having no
+            variance, and a zero standard deviation is the same case seen from the other
+            side; both are skipped.
+        expected : float
+            0.0 after centring, 1.0 after scaling.
+        block, group : str
+            Which block ("D", "F", "Y", "Z") and which group inside it, for the message.
+        stage : str
+            "centre" or "scale", for the message.
+
+        Raises
+        ------
+        RuntimeError
+            If a column that was not excluded misses its target. This was a bare
+            ``assert`` before #513, so it carried no message and vanished entirely under
+            ``python -O``: the same constant column raised ``AssertionError()`` under
+            normal Python and fitted silently under ``-O``. The repo runs a ``-O`` CI job
+            precisely to catch that shape of bug, so the check is a real exception now.
+        """
+        observed = np.asarray(observed, dtype=float)
+        checkable = ~np.isnan(observed)
+        if stage == "scale":
+            checkable &= observed != 0.0
+        if checkable.any() and not np.allclose(observed[checkable], expected, atol=1e-6):
+            worst = int(np.argmax(np.abs(np.where(checkable, observed - expected, 0.0))))
+            msg = (
+                f"internal: block {block!r} group {group!r} is not {stage}d after preprocessing. "
+                f"Column {worst} has {observed[worst]:.6g}, expected {expected:.6g}. This is a bug."
+            )
+            raise RuntimeError(msg)
 
     def _fit_iterative_regressions(self) -> None:
         """Fit the model via iterative regressions and store the model coefficients in the class instance."""
