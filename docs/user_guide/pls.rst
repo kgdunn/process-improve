@@ -177,7 +177,9 @@ for you, because ``scale=False`` means "touch nothing".
 
    # ... or scale them yourself and tell the model not to repeat the work.
    scaler_x, scaler_y = MCUVScaler().fit(X), MCUVScaler().fit(Y)
-   model = PLS(n_components=2, scale=False).fit(scaler_x.transform(X), scaler_y.transform(Y))
+   model = PLS(n_components=2, scale=False).fit(
+       scaler_x.transform(X), scaler_y.transform(Y)
+   )
 
 Fitting un-centred on purpose
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -307,16 +309,16 @@ intervals.
    cv = pls.cross_validate(X_s, Y_s, cv="loo")
 
    # Beta coefficient uncertainty
-   print(cv.beta_mean)        # Mean beta across resamples
-   print(cv.beta_std)         # Standard error
-   print(cv.beta_ci_lower)    # Lower 95% CI bound
-   print(cv.beta_ci_upper)    # Upper 95% CI bound
-   print(cv.significant)      # True where CI excludes zero
+   print(cv.beta_mean)  # Mean beta across resamples
+   print(cv.beta_std)  # Standard error
+   print(cv.beta_ci_lower)  # Lower 95% CI bound
+   print(cv.beta_ci_upper)  # Upper 95% CI bound
+   print(cv.significant)  # True where CI excludes zero
 
    # Prediction metrics
-   print(cv.q_squared)        # Cross-validated R² (Q²) per Y variable
-   print(cv.rmse_cv)          # Cross-validated RMSE per Y variable
-   print(cv.press)            # Total PRESS
+   print(cv.q_squared)  # Cross-validated R² (Q²) per Y variable
+   print(cv.rmse_cv)  # Cross-validated RMSE per Y variable
+   print(cv.press)  # Total PRESS
 
 **Interpreting the results:**
 
@@ -334,7 +336,8 @@ intervals.
 .. code-block:: python
 
    cv = pls.cross_validate(
-       X_s, Y_s,
+       X_s,
+       Y_s,
        n_bootstrap=200,
        conf_level=0.99,
        random_state=42,

@@ -32,6 +32,7 @@ from ._common import (
     SpecificationWarning,
     _align_to_fit_features,
     _nz,
+    _reject_sparse,
     _select_n_components,
     epsqrt,
 )
@@ -791,6 +792,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # code expects. validate_data also sets n_features_in_ / feature_
         # names_in_ and runs the sklearn input rejections (sparse, complex,
         # empty, dtype-object) with the standard error messages.
+        # Reject sparse before validate_data does, so the message names the
+        # ColumnTransformer knob rather than `.toarray()` (#399).
+        _reject_sparse(X, "PCA")
         sample_index = X.index if isinstance(X, pd.DataFrame) else None
         feature_columns = X.columns if isinstance(X, pd.DataFrame) else None
         X_arr = validate_data(

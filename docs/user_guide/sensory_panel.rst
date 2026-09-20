@@ -98,7 +98,7 @@ corrupting the analysis silently.
        layout="wide_by_attribute",
        mapping={"panelist_id": "Assessor", "product": "Sample", "replicate": "Rep"},
    )
-   assert checks["ok"]   # grand / per-attribute / per-panelist means preserved
+   assert checks["ok"]  # grand / per-attribute / per-panelist means preserved
 
 Already-long data passes through with ``layout="long"`` and an ``attribute`` /
 ``score`` mapping. Means-only tables (no panelist column) are refused, since the
@@ -122,10 +122,16 @@ returns a result whose ``ok`` flag gates the rest of the pipeline.
    # descriptors: one row per product, with the measured (e.g. instrumental)
    # covariates for each product.
    descriptors = pd.DataFrame(
-       {"product": ["A", "B", "C", "D"], "sodium": [0.2, 0.5, 0.8, 1.0], "fat": [3.1, 3.0, 2.9, 3.2]}
+       {
+           "product": ["A", "B", "C", "D"],
+           "sodium": [0.2, 0.5, 0.8, 1.0],
+           "fat": [3.1, 3.0, 2.9, 3.2],
+       }
    )
 
-   validated = validate_descriptive(panel, descriptors, mode="observational", score_min=0, score_max=10)
+   validated = validate_descriptive(
+       panel, descriptors, mode="observational", score_min=0, score_max=10
+   )
    print(validated.ok, validated.warnings)
 
 Step 2 and 3: check the panel and relate
@@ -145,12 +151,12 @@ product conclusions.
 
    result = analyze_descriptive(validated, drop_panelists="auto")
 
-   print(result.panel.flagged)          # panelists flagged as anomalous
-   print(result.dropped)                # panelists actually removed
+   print(result.panel.flagged)  # panelists flagged as anomalous
+   print(result.dropped)  # panelists actually removed
 
    # Observational relate: which descriptors are associated with which attributes.
-   drivers = pd.DataFrame(result.relate["vip"])             # PLS descriptor importance
-   assoc = pd.DataFrame(result.relate["associations"])      # attribute-descriptor links
+   drivers = pd.DataFrame(result.relate["vip"])  # PLS descriptor importance
+   assoc = pd.DataFrame(result.relate["associations"])  # attribute-descriptor links
    print(assoc[assoc["significant"]])
 
 The observational relate output is:
@@ -279,8 +285,8 @@ artefact. ``analyze_descriptive`` exposes this through ``correction``:
    from process_improve.sensory import mixed_assessor_model, align_scores
 
    mam = mixed_assessor_model(validated.normalized_df)
-   print(mam.scaling.sort_values("beta").head())   # who compresses / expands
-   print(mam.ftests)                                # MAM vs classical F per attribute
+   print(mam.scaling.sort_values("beta").head())  # who compresses / expands
+   print(mam.ftests)  # MAM vs classical F per attribute
 
    # Align all panelists onto a common scale, then relate to the product.
    result = analyze_descriptive(validated, correction="align")
@@ -327,15 +333,15 @@ some formulations more than others.
        panel,
        factors=["formulation", "condition"],
        block="panelist_id",
-       within="condition",     # run the post-hoc tests within each condition (simple effects)
-       control="Control",      # the reference level for Dunnett
+       within="condition",  # run the post-hoc tests within each condition (simple effects)
+       control="Control",  # the reference level for Dunnett
    )
 
-   result.anova     # Type III ANOVA table, one row per (attribute, source)
-   result.tukey     # all-pairwise Tukey HSD contrasts
-   result.dunnett   # each formulation vs the Control
-   result.letters   # compact-letter display: shared letter => not separable
-   result.means     # per-level mean with a confidence interval
+   result.anova  # Type III ANOVA table, one row per (attribute, source)
+   result.tukey  # all-pairwise Tukey HSD contrasts
+   result.dunnett  # each formulation vs the Control
+   result.letters  # compact-letter display: shared letter => not separable
+   result.means  # per-level mean with a confidence interval
 
 Set ``within="condition"`` to run the post-hoc tests as *simple effects*
 separately within each aging condition, which is the right follow-up once the
@@ -457,8 +463,11 @@ per-attribute, and per-assessor means are unchanged.
 .. code-block:: python
 
    from process_improve.sensory import (
-       reshape_to_long, validate_descriptive, panel_scorecard,
-       mixed_assessor_model, analyze_descriptive,
+       reshape_to_long,
+       validate_descriptive,
+       panel_scorecard,
+       mixed_assessor_model,
+       analyze_descriptive,
    )
 
    long_df, checks = reshape_to_long(
@@ -487,7 +496,7 @@ product F-test exceeds the classical one (the disagreement error term shrinks).
 .. code-block:: python
 
    card = panel_scorecard(long_df)
-   print(card.flagged)                       # ['J07']
+   print(card.flagged)  # ['J07']
    mam = mixed_assessor_model(long_df)
    print(mam.scaling.sort_values("beta").head())
 
@@ -499,6 +508,7 @@ measurements.
 
    result = analyze_descriptive(validated, correction="align")
    import pandas as pd
+
    assoc = pd.DataFrame(result.relate["associations"])
    print(assoc[assoc["significant"]])
 
@@ -516,8 +526,8 @@ evidence.
 .. code-block:: python
 
    disc = result.relate["predictive_descriptors"]
-   gate = pd.DataFrame(disc["per_attribute"])      # cross-validated Q-squared per attribute
-   drivers = pd.DataFrame(disc["descriptors"])     # selectivity ratio, q-value, cluster id
+   gate = pd.DataFrame(disc["per_attribute"])  # cross-validated Q-squared per attribute
+   drivers = pd.DataFrame(disc["descriptors"])  # selectivity ratio, q-value, cluster id
    print(drivers[drivers["is_predictive"]])
 
 It narrows the sixteen marginal hits to twelve:
