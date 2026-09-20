@@ -52,7 +52,8 @@ those changes.
   no signal in it. That is why `cv=5` is the default.
 
 - **`confusion_matrix_plot`.** A heat map of counts, or of row fractions with
-  `normalize=True`, bound as a method on `PLSDA` and importable on its own. It takes
+  `{"normalize": True}` in its settings, bound as a method on `PLSDA` and
+  importable on its own. It takes
   an optional matrix argument so the held-out confusion matrix can be plotted rather
   than the optimistic training one.
 
