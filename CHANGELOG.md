@@ -48,6 +48,35 @@ those changes.
   Both methods are now in the `optimize_responses` tool enum, and
   `search_bounds`, `n_steps`, `ridge_direction` and `n_pareto_points` drive them.
 
+- **`PCA.parallel_analysis(surrogate="permutation")` (#374).** Horn's original
+  null draws standard-normal matrices, so for a given shape it produces the same
+  null whatever the data looks like. Buja and Eyuboglu (1992) instead permute each
+  column of the real data independently: that breaks the correlation between
+  columns, which is what parallel analysis tests for, while leaving each column's
+  own distribution alone. Prefer it on process data, where a tag may be skewed,
+  heavy-tailed, bounded at zero or quantised by its instrument, and a Gaussian null
+  answers a question about Gaussian data rather than about this block. The default
+  stays `"normal"`, and the returned `Bunch` now echoes which null was used.
+
+- **`PCA.select_n_components(cv_scheme="ckf")` (#374).** Column-wise k-fold
+  cross-validation. Groups of columns are held out and predicted from scores
+  computed on the retained columns only, so no held-out value appears in the score
+  that predicts it.
+
+  The documented caveat is the point of having it stated: the loadings still come
+  from an SVD of the whole block, so information reaches the model through `P` even
+  though it does not reach it through `T`. On a 60-by-12 block of pure noise, `ekf`
+  returns a negative Q2 at every component count, as it must when there is nothing
+  to predict, while `ckf` returns +0.017 at one component. `ekf` therefore remains
+  the default. `ckf` is offered because a great deal of published chemometrics uses
+  it, so a number that has to line up with a paper may need it, and because it
+  costs one decomposition rather than `n_folds * n_repeats * max_components`.
+
+The third item of #374, double cross-validation for PLS, is already provided by
+`PLS.nested_cv`: an outer loop for unbiased performance, an inner
+`select_n_components` per outer fold, and `selected_components_per_fold` /
+`selected_components_distribution` in the result.
+
 - **`fill_gaps` for batch trajectories (#200),** replacing the
   `bfill().ffill()` the issue quotes. That one-liner is wrong on trajectory data
   in three specific ways, and each is addressed:
@@ -281,10 +310,21 @@ those changes.
   also fails, telling you to lower the budget. A refactor therefore cannot be
   quietly spent by the next change. The target, recorded in `CONTRIBUTING.md`,
   is to halve the 2026-06 baseline of 185 breaches to 91 by v2.0; this release
-  takes it to 184, the `MBPCA.fit` split having removed three while #598's
-  `smooth_trajectories` and #581's `equal_var` switch each added one. #208 is
-  then net neutral: `_pareto_front` adds a `PLR0913` breach and the
-  `to_spec` simplification removes a `C901` one.
+  takes it to 185: the `MBPCA.fit` split removed three, while #598's
+  `smooth_trajectories`, #581's `equal_var` switch and #374's
+  `parallel_analysis(surrogate=...)` each added one. #208 is then net neutral:
+  `_pareto_front` adds a `PLR0913` breach and the `to_spec` simplification
+  removes a `C901` one.
+
+- **`HalvingGridSearchCV` / `HalvingRandomSearchCV` with a Pipeline-aware budget
+  (#398).** The existing coverage uses `resource="n_samples"`, the default, where
+  the budget is rows and the estimator never sees it. The issue also asked for a
+  budget spent on a pipeline parameter, which is the case that stresses what it
+  worried about: sklearn writes the resource into the step through `set_params`
+  on every candidate at every rung, and it has to survive `clone`. Both searchers
+  now run with `resource="pls__n_components"` while separately grid-searching
+  `pls__scale`. Both work; nothing needed fixing, so the test locks in the
+  working state.
 
 ## [1.95.1] - 2026-09-18
 
