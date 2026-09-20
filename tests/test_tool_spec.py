@@ -459,6 +459,24 @@ class TestTtestTwoSamples:
         result = execute_tool_call("ttest_two_samples", {"group_a": [1, 2, 3], "group_b": [4, 5, 6]})
         json.dumps(result)
 
+    def test_equal_var_false_runs_welch(self) -> None:
+        """#561: the tool exposes Welch's test, and reports no pooled estimate for it."""
+        groups = {"group_a": [1.0, 2, 3, 4], "group_b": [10.0, 20, 30]}
+        student = execute_tool_call("ttest_two_samples", {**groups, "equal_var": True})
+        welch = execute_tool_call("ttest_two_samples", {**groups, "equal_var": False})
+
+        assert student["equal_var"] is True
+        assert welch["equal_var"] is False
+        # Student spends n_a + n_b - 2 = 5; Welch-Satterthwaite gives far fewer here,
+        # because the wider spread sits with the smaller group.
+        assert student["degrees_of_freedom"] == pytest.approx(5.0)
+        assert welch["degrees_of_freedom"] < student["degrees_of_freedom"]
+        # `clean` turns the NaN into a JSON null rather than a number that would imply a
+        # pooled estimate Welch never formed.
+        assert student["pooled_std_dev"] is not None
+        assert welch["pooled_std_dev"] is None
+        json.dumps(welch)
+
 
 # ---------------------------------------------------------------------------
 # ttest_paired_samples

@@ -1433,6 +1433,17 @@ class TestMBPLSOnLDPE:
         # beaten by random permutations.
         assert result.loc[1, "risk_pct"] < 50.0
 
+        # #513: the estimate counts the observed statistic among the permutations, so it
+        # is 100 * (n_exceed + 1) / (n_permutations + 1) and can never report exactly 0.
+        # No finite permutation set licenses a claim of zero tail probability, and 20
+        # permutations cannot resolve below 100 / 21 = 4.76%. This is the convention the
+        # Van der Voet test in `_pls` already uses.
+        floor = 100.0 / 21.0
+        assert (result["risk_pct"] >= floor).all()
+        # Every value must sit on the (n_exceed + 1) / 21 lattice, for integer n_exceed.
+        lattice = result["risk_pct"].to_numpy() * 21.0 / 100.0
+        assert lattice == pytest.approx(np.round(lattice), abs=1e-12)
+
     def test_super_score_matches_single_block_pls_with_block_weighting(self, ldpe) -> None:
         """When all variables are in one big-X with sqrt(K_b) weighting per block,
         single-block PLS produces the same super-score as MBPLS. Holds for any

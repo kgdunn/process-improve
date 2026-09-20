@@ -57,6 +57,15 @@ autodoc_default_options = {
     "show-inheritance": True,
 }
 
+# `process_improve.mcp_server` imports `mcp` at module import time, and autodoc imports a
+# module with ``try_reload=True``. `mcp_types` does not survive a reload: rebuilding its
+# pydantic models raises ``PydanticSchemaGenerationError: The type annotation for
+# `__pydantic_extra__` must be `dict[str, ...]```. The module itself imports perfectly
+# well in an ordinary interpreter, so this is autodoc's reload, not a broken dependency.
+# Mocking the third-party package lets `mcp_server`'s own docstrings be documented; only
+# names reached through `mcp` render as mocks.
+autodoc_mock_imports = ["mcp"]
+
 # -- Intersphinx mapping ----------------------------------------------------
 
 intersphinx_mapping = {

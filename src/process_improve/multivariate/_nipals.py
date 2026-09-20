@@ -20,10 +20,17 @@ logger = logging.getLogger(__name__)
 
 
 def nan_to_zeros(in_array: np.ndarray) -> np.ndarray:
-    """Convert NaN to zero and return a NaN map."""
+    """Replace NaN with zero **in place**, and return the same array.
 
-    nan_map = np.isnan(in_array)
-    in_array[nan_map] = 0.0
+    The name and the previous docstring ("return a NaN map") both promised something
+    this never did: the NaN map is computed and discarded, and the array handed in is
+    the array handed back, mutated. Callers that still need the map must take
+    ``np.isnan(x)`` themselves *before* calling, and callers holding a view of user data
+    must copy first. Every caller in this package passes a private ``.values.copy()``,
+    which is why the aliasing has not bitten; the contract is stated here so the next
+    caller does not have to read the body to learn it (#513).
+    """
+    in_array[np.isnan(in_array)] = 0.0
     return in_array
 
 
@@ -118,9 +125,29 @@ def quick_regress(Y: np.ndarray, x: np.ndarray) -> np.ndarray:
 
     There may be missing data in ``Y``, but not in ``x``. The ``x`` vector
     *must* be a column vector. Raises ``ValueError`` if neither case matches.
+
+    Degenerate denominators
+    -----------------------
+    The denominator is ``x'x`` restricted to the cells of ``Y`` that are present, so it
+    is bounded above by ``ssq(x)`` and falls to zero only when the masked ``x`` carries
+    no signal. The guard is therefore taken **relative to** ``ssq(x)``: a denominator
+    below ``epsqrt * ssq(x)`` means the mask has thrown away all but a vanishing
+    fraction of ``x``, whatever the units happen to be, and the coefficient is returned
+    as ``0.0`` rather than as a ratio of noise.
+
+    It used to be an absolute comparison against ``epsqrt`` (~1.5e-8), which is a
+    statement about the *scale* of the data rather than its conditioning: on a
+    well-conditioned block whose values are ~1e-5, the denominator is ~1e-9 and every
+    coefficient was silently zeroed (#513). Scaling such a block by 1e5, which cannot
+    change a ratio of the form ``(x'y)/(x'x)``, made the same call return the right
+    answer.
     """
     Ny, K = Y.shape
     Nx = x.shape[0]
+    # One reference scale for the whole call: the unmasked energy in ``x``. A non-finite
+    # or zero value makes every comparison below False, so the degenerate branch is taken,
+    # which is the right answer for an ``x`` that is all zero or has already overflowed.
+    denom_floor = epsqrt * float(ssq(x))
     if Ny == Nx:  # Case A: b' = (x'Y)/(x'x): (1xN)(NxK) = (1xK)
         b = np.zeros((K, 1))
         for k in np.arange(K):
@@ -132,7 +159,8 @@ def quick_regress(Y: np.ndarray, x: np.ndarray) -> np.ndarray:
             # column ``Y[:, k]`` is all NaN. Return 0.0 (no contribution)
             # rather than the un-normalised numerator, which the previous
             # code returned silently. SEC-21 (#270) sub-item 7.
-            b[k] = numer / denom if np.abs(denom) > epsqrt else 0.0
+            # The threshold is relative to ssq(x); see "Degenerate denominators" above.
+            b[k] = numer / denom if denom > denom_floor else 0.0
         return b
 
     elif Nx == K:  # Case B: b = (Yx)/(x'x): (NxK)(Kx1) = (Nx1)
@@ -147,8 +175,8 @@ def quick_regress(Y: np.ndarray, x: np.ndarray) -> np.ndarray:
             # real fits: 1.0 for every complete-data PCA call, but only half of the
             # complete-data PLS calls and 46% of the calls with missing data.
             denom = ssq(~np.isnan(Y[n, :]) * x.T)
-            # See sub-item 7 note above (mirror of Case A).
-            b[n] = numer / denom if np.abs(denom) > epsqrt else 0.0
+            # See sub-item 7 note above (mirror of Case A), relative threshold included.
+            b[n] = numer / denom if denom > denom_floor else 0.0
         return b
 
     else:

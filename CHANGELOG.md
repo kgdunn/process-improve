@@ -11,6 +11,134 @@ those changes.
 
 ## [Unreleased]
 
+### Added
+
+- **`fill_gaps` for batch trajectories (#200),** replacing the
+  `bfill().ffill()` the issue quotes. That one-liner is wrong on trajectory data
+  in three specific ways, and each is addressed:
+
+  1. It holds the last value flat across a gap, so a ramp gains a step and a
+     plateau that `f_slope` and `f_rupture` then report as process events.
+     `fill_gaps` interpolates between the two observed ends instead, with
+     `"linear"`, `"time"`, `"pchip"` or `"nearest"`. `"pchip"` is offered because
+     it is shape preserving: a plain cubic overshoots to a negative concentration
+     on a rising curve, which is not a smoother answer but a wrong one.
+  2. It bridges a gap of any length without saying so. `fill_gaps` caps a filled
+     run at `limit` samples and leaves longer ones `NaN` on purpose, because PCA,
+     PLS and `BatchPCA` all have NIPALS missing-data paths and an honest hole is
+     worth more to them than an invented number.
+  3. `bfill` at the start of a batch fills from the future. Leading and trailing
+     gaps are left alone by default; `edge="nearest"` restores the old behaviour.
+
+  It returns a report of `"filled/remaining"` counts per batch and variable, so
+  how much of the modelled data was measured is on the record.
+
+- **`smooth_trajectories` with Savitzky-Golay and LOWESS (#200).** It runs one
+  batch at a time, which is the substance rather than an implementation detail:
+  filtering a concatenated frame lets the window straddle the join between two
+  batches, so the tail of one leaks into the head of the next.
+
+  Savitzky-Golay is the default because it fits a local polynomial and so
+  preserves peak height and area, which is what `f_max` and `f_area` measure
+  next; a moving average of the same width flattens a Gaussian peak by 15% where
+  Savitzky-Golay loses under 2%. LOWESS is there for trajectories with spikes,
+  which Savitzky-Golay smears across its window: on a ramp with three spikes it
+  recovers the ramp ten times more accurately.
+
+  A batch shorter than the window has its window shrunk, with a warning, since
+  batches legitimately differ in length before alignment.
+
+  Both are imported from `process_improve.batch`. `_gaps` is a private module
+  re-exported through the package, the same shape `_pca` and `_pls` take through
+  `methods`.
+
+- **`simulate(..., random_state=...)`.** The measurement noise came from an
+  unseeded `np.random.default_rng()` inside a public function, which
+  `docs/development/reproducibility.rst` forbids: every public function touching
+  an RNG takes `random_state: int | np.random.Generator | None` and resolves it
+  through `process_improve._random.check_random_state`. The default stays
+  `None`, so a simulator standing in for a real process still returns fresh
+  noise on every call; an int or a `Generator` makes a run repeatable. It is
+  deliberately *not* part of the `simulate_process` tool contract, so a model
+  driving the simulator cannot freeze its noise.
+
+- **`ttest_independent(..., equal_var=False)`: Welch's unequal-variance t-test
+  (#561).** The function was pooled-variance Student's t only, with no switch:
+  `grep -rn "welch|equal_var|ttest_ind" src/` returned nothing. Welch is the
+  default in R's `t.test` and is what `scipy.stats.ttest_ind(equal_var=False)`
+  gives, so the library was the outlier. `equal_var=False` keeps each sample's
+  own variance and takes the Welch-Satterthwaite degrees of freedom; both modes
+  now agree with scipy to 1e-12 on the statistic, the p-value, the degrees of
+  freedom and the confidence interval.
+
+  The default stays `True`, so existing results do not move. It is the weaker
+  choice, though: pooling is only valid when the two variances really are equal,
+  and when they are not (especially with the larger variance on the smaller
+  sample) Student's test does not hold its nominal error rate while Welch's does.
+  Delacre, Lakens & Leys (2017) is now cited on the function as the case for that,
+  which is where that reference belongs; it had been parked in
+  `confidence_interval`, a single-sample interval it has nothing to do with.
+
+  `ttest_independent_from_df` forwards `equal_var` to every pair in the family,
+  and the `ttest_two_samples` tool exposes it too. Two consequences worth knowing:
+  the result dict gains an `"Equal variance assumed"` entry, and `"Pooled std
+  dev"` is `NaN` under Welch (JSON `null` through the tool layer), because Welch
+  forms no pooled estimate and a number there would imply one.
+
+
+### Changed
+
+- **`### Deprecated` maps to MINOR, not PATCH, when choosing a release's
+  version level.** The table added in #591 put it under PATCH, which
+  contradicted `docs/development/deprecation_policy.rst`: that document
+  announces a deprecation in an `X.Y.0` release, and a deprecation message has
+  to name the version that announced it, so it needs a version of its own to
+  name. Corrected in `CONTRIBUTING.md`. The `OPLS` deprecation above is the
+  first entry the rule applies to.
+
+- **An unrecognised fit-time `md_method` is refused instead of quietly running
+  NIPALS (#588).** The dispatch knew `"tsr"` and `"pmp"`, both raising
+  `NotImplementedError`, and sent everything else to NIPALS without a word. The
+  trap was `"scp"`: a real method name for `project()` and the contribution
+  helpers, so asking for it at fit time looked reasonable and ran a different
+  algorithm. Unknown values now raise `ValueError` naming the accepted set, and
+  the docstring no longer lists `"scp"` among them. Two tests in the suite were
+  passing `md_method="scp"` and silently getting NIPALS; they now say so.
+
+
+- **The version is no longer bumped in a pull request.** `pyproject.toml`
+  `version` and `CITATION.cff` are now set once, at release time, from whatever
+  has accumulated under `## [Unreleased]`. A pull request adds its changelog
+  entry and leaves both files alone.
+
+  Every pull request was bumping the same line of `pyproject.toml`, the same
+  line of `CITATION.cff`, and inserting at the same anchor in `CHANGELOG.md`.
+  That made every open pull request conflict with every other one on three
+  lines unrelated to the work: of the 25 conflicted pull requests open when
+  this was written, 10 conflicted on nothing else.
+
+  The release level is now read off the `[Unreleased]` headings rather than
+  argued about: any `### Removed` means MAJOR, any `### Added` means MINOR,
+  anything else is PATCH. So the heading an entry is filed under now matters,
+  and `CONTRIBUTING.md` says so. `publish.yml` is unchanged and still refuses
+  to ship a tag that does not match `pyproject.toml`, or a version with no
+  `CHANGELOG.md` heading, so a release that forgets the bump fails loudly.
+
+  `CONTRIBUTING.md`, `CLAUDE.md`, `SECURITY_AUDIT.md` and the pull request
+  template are updated to match.
+
+- **`MBPCA.fit` is now a sequence of named phases**, the same split `MBPLS.fit`
+  received in 1.95.1. It carried `# noqa: C901, PLR0912, PLR0915`; the body is
+  now `_validate_blocks`, `_resolve_algorithm`, `_preprocess`,
+  `_fit_one_component`, `_deflate` and the `_store_*` methods, called in the
+  order the old comments already named, and no complexity rule is suppressed on
+  it any more.
+
+  Nothing about a fit changes. Every fitted attribute was hashed before and
+  after the split across the `dense` and `nipals` paths; the only field that
+  differs is `fitting_info_.timing`, and two runs of *identical* code differ in
+  exactly that field and no other.
+
 ### Deprecated
 
 - **`OPLS(max_iter=...)` and `OPLS(tol=...)` are deprecated and ignored
@@ -53,46 +181,101 @@ those changes.
   `settings["md_max_iter"]` inside the NIPALS fit and died. Every key is now
   filled from the constructor before the dict is applied.
 
-### Changed
+- **`quick_regress`'s zero-denominator guard is now relative (#513).** It compared
+  the denominator against `epsqrt` (~1.5e-8) in absolute terms, which is a
+  statement about the *scale* of the data rather than its conditioning. On a
+  well-conditioned block whose values are ~1e-5 the denominator is ~1e-9, so every
+  coefficient was silently returned as 0.0; multiplying the same data by 1e5, which
+  cannot change a ratio of the form `(x'y)/(x'x)`, made the call return the right
+  answer. The threshold is now `epsqrt * ssq(x)`. Genuine degeneracies (an all-zero
+  `x`, an all-NaN column of `Y`) are still zeroed.
 
-- **`### Deprecated` maps to MINOR, not PATCH, when choosing a release's
-  version level.** The table added in #591 put it under PATCH, which
-  contradicted `docs/development/deprecation_policy.rst`: that document
-  announces a deprecation in an `X.Y.0` release, and a deprecation message has
-  to name the version that announced it, so it needs a version of its own to
-  name. Corrected in `CONTRIBUTING.md`. The `OPLS` deprecation above is the
-  first entry the rule applies to.
+- **`PLS` and `PCA` floor the norm they normalise by (#513).**
+  `w_a / sqrt(ssq(w_a))` in `_pls.py` and `p_a / sqrt(ssq(p_a))` in `_pca.py` were
+  the last two unguarded NIPALS normalisations: a collapsed vector makes them 0/0,
+  and the NaN propagates through deflation into every later component. Both now use
+  `_nz`, as the identical expressions in `_mbpls.py` and `_mbpca.py` already did.
 
-- **An unrecognised fit-time `md_method` is refused instead of quietly running
-  NIPALS (#588).** The dispatch knew `"tsr"` and `"pmp"`, both raising
-  `NotImplementedError`, and sent everything else to NIPALS without a word. The
-  trap was `"scp"`: a real method name for `project()` and the contribution
-  helpers, so asking for it at fit time looked reasonable and ran a different
-  algorithm. Unknown values now raise `ValueError` naming the accepted set, and
-  the docstring no longer lists `"scp"` among them. Two tests in the suite were
-  passing `md_method="scp"` and silently getting NIPALS; they now say so.
+- **`randomization_test_mbpls` counts the observed statistic among the
+  permutations (#513).** `risk_pct` was `100 * n_exceed / n_permutations`, which can
+  report exactly 0; no finite permutation set licenses the claim that the true tail
+  probability is zero. It is now `100 * (n_exceed + 1) / (n_permutations + 1)`,
+  matching the Van der Voet test in `_pls.py`. The floor is
+  `100 / (n_permutations + 1)`, so the default 999 permutations resolve to 0.1%.
+  **Reported values move**: every `risk_pct` shifts up by roughly one permutation's
+  worth.
 
+- **A constant column in a TPLS block is reported, not asserted (#513).**
+  `_learn_center_and_scaling_parameters` gives a no-variance column a NaN scale,
+  which excludes it from the model. That is right, but it happened in silence, and
+  the post-preprocessing check on the Z and Y blocks did not tolerate the NaN
+  statistic that exclusion produces (the F and D checks did). One constant column
+  therefore raised a message-less `AssertionError()` under normal Python and, because
+  the check was a bare `assert`, fitted silently under `python -O`. The exclusion now
+  emits a `UserWarning` naming the block and the columns, and the invariant check is a
+  `RuntimeError` naming the block, group, column and observed value.
 
-- **The version is no longer bumped in a pull request.** `pyproject.toml`
-  `version` and `CITATION.cff` are now set once, at release time, from whatever
-  has accumulated under `## [Unreleased]`. A pull request adds its changelog
-  entry and leaves both files alone.
+- **LOWESS's robustness collapse is now detected rather than silently returning
+  the input.** `lowess` scales its robustness weights by `6 * median(|residual|)`.
+  On a trajectory the local fits reproduce exactly away from a few spikes, a
+  clean ramp or a flat-lined sensor, that median is zero, every weight
+  degenerates, and statsmodels hands the column straight back: finite, correct
+  length, still spiked, with nothing raised. `smooth_trajectories` detects it,
+  names the cause, and falls back to `iterations=0`, which smooths without
+  rejecting outliers. It is the same implosion a median-of-differences scale
+  estimator suffers under a tied majority, in a place nobody looks for it.
 
-  Every pull request was bumping the same line of `pyproject.toml`, the same
-  line of `CITATION.cff`, and inserting at the same anchor in `CHANGELOG.md`.
-  That made every open pull request conflict with every other one on three
-  lines unrelated to the work: of the 25 conflicted pull requests open when
-  this was written, 10 conflicted on nothing else.
+- **A truncated dataset download now surfaces as the documented error.**
+  `fetch_remote_bytes` caught `OSError`, which covers connection, DNS and timeout
+  failures. It does not cover `http.client.IncompleteRead`, which is what
+  `response.read()` raises when a server closes the connection part way through
+  the body: that is an `HTTPException`, so it escaped raw and the one guarantee
+  the module exists to provide did not hold.
 
-  The release level is now read off the `[Unreleased]` headings rather than
-  argued about: any `### Removed` means MAJOR, any `### Added` means MINOR,
-  anything else is PATCH. So the heading an entry is filed under now matters,
-  and `CONTRIBUTING.md` says so. `publish.yml` is unchanged and still refuses
-  to ship a tag that does not match `pyproject.toml`, or a version with no
-  `CHANGELOG.md` heading, so a release that forgets the bump fails loudly.
+  The cost was CI jobs failing on a network hiccup. The test fixtures turn a
+  `RuntimeError` from a download into a skip, so a truncated transfer errored
+  instead: one job reported `IncompleteRead(817662 bytes read, 514355 more
+  expected)` and failed with 3408 tests passing and nothing wrong with the code
+  under test.
 
-  `CONTRIBUTING.md`, `CLAUDE.md`, `SECURITY_AUDIT.md` and the pull request
-  template are updated to match.
+- **`test_mean_converges_to_deterministic_surface` no longer fails by chance.**
+  It averaged 400 unseeded draws and compared the sample mean against a
+  3.5-sigma band: correct in expectation, but roughly a 1-in-2000 failure per
+  run, and it did fail on CI at `|mean - expected| = 0.47241` against a
+  `0.47229` tolerance. The draws are now seeded, so the same band is a statement
+  about one fixed sequence rather than a random one. A companion assertion pins
+  that the draws are still noisy, so the mean cannot match trivially.
+
+  (The other half of this batch, the `typing.cast` that repaired the `typecheck`
+  gate, reached main with #579 and is no longer part of this change.)
+
+- **`confidence_interval` validates `style` (#561).** Anything other than
+  `"robust"` fell through to the classical branch, so `style="rubost"` returned a
+  different interval with nothing to signal it. Unknown values now raise
+  `ValueError` naming the two accepted ones.
+
+### Documentation
+
+- **`nan_to_zeros` says what it does (#513).** It promised "a NaN map"; it computes
+  one, discards it, and returns the array it was given, mutated in place. Every
+  caller in the package passes a private copy, which is why the aliasing has not
+  bitten, but the contract is now stated rather than left in the body.
+
+### Tests
+
+- **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
+  counts how many functions in `src/process_improve` breach `C901`, `PLR0912`,
+  `PLR0913` or `PLR0915`, asking ruff with `--ignore-noqa` so it measures real
+  breaches rather than `# noqa` comments, and ranks them by how far past the
+  threshold they are, which is the "what do I split next?" list.
+
+  `tests/test_complexity_ratchet.py` makes it a CI gate in both directions: a
+  count above its budget fails as a regression, and a count *below* its budget
+  also fails, telling you to lower the budget. A refactor therefore cannot be
+  quietly spent by the next change. The target, recorded in `CONTRIBUTING.md`,
+  is to halve the 2026-06 baseline of 185 breaches to 91 by v2.0; this release
+  takes it to 184, the `MBPCA.fit` split having removed three while #598's
+  `smooth_trajectories` and #581's `equal_var` switch each added one.
 
 ## [1.95.1] - 2026-09-18
 
