@@ -23,6 +23,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import Bunch
 
+from process_improve.multivariate._common import _nz
 from process_improve.multivariate._pca import _leverage_corrected_press, _pca_ekf_press
 from process_improve.multivariate.methods import (
     PCA,
@@ -341,6 +342,66 @@ def test_quick_regress(fixture_mv_utilities: tuple[np.ndarray, np.ndarray]) -> N
 
     # Checked against what is expected: (1 + 3^2 + 5^2)/(1 + 3^2 + 5^2)
     assert pytest.approx(out[4], abs=1e-14) == 1.0
+
+
+def test_quick_regress_degeneracy_guard_is_scale_free() -> None:
+    """#513: the zero-denominator guard is relative to ssq(x), not an absolute epsqrt.
+
+    A coefficient `(x'y) / (x'x)` is invariant under rescaling both inputs, so the same
+    data expressed in different units must give the same answer. The guard used to be an
+    absolute comparison against `epsqrt` (~1.5e-8), which is a statement about the scale
+    of the data rather than its conditioning: at a scale of 1e-5 the denominator falls to
+    ~1e-9 and every coefficient was silently returned as 0.0.
+    """
+    rng = np.random.default_rng(0)
+    n_rows, n_cols = 10, 3
+    for magnitude in (1.0, 1e-3, 1e-5, 1e-12):
+        x = rng.standard_normal((n_rows, 1)) * magnitude
+        Y = rng.standard_normal((n_rows, n_cols)) * magnitude
+        coefficients = quick_regress(Y, x).ravel()
+        # Same numbers, expressed in units where the old absolute guard never fired.
+        rescaled = quick_regress(Y / magnitude, x / magnitude).ravel()
+        assert coefficients == pytest.approx(rescaled, rel=1e-12)
+        assert np.isfinite(coefficients).all()
+        assert not np.allclose(coefficients, 0.0), f"all coefficients zeroed at magnitude {magnitude}"
+
+
+def test_quick_regress_still_zeroes_a_genuine_degeneracy() -> None:
+    """#513: the relative guard must not stop catching the cases the absolute one caught."""
+    rng = np.random.default_rng(1)
+    n_rows = 8
+
+    # `x` carries no signal at all: every coefficient is undefined.
+    assert np.all(quick_regress(rng.standard_normal((n_rows, 2)), np.zeros((n_rows, 1))) == 0.0)
+
+    # One column of `Y` is entirely missing, so the mask empties `x` for that column only.
+    Y = rng.standard_normal((n_rows, 2))
+    Y[:, 1] = np.nan
+    coefficients = quick_regress(Y, rng.standard_normal((n_rows, 1))).ravel()
+    assert coefficients[0] != 0.0
+    assert coefficients[1] == 0.0
+
+
+def test_nipals_unit_normalisation_is_floored() -> None:
+    """#513: `_pls` and `_pca` now floor the norm they divide by, as `_mbpls`/`_mbpca` do.
+
+    A loading or weight vector that collapses during NIPALS makes the unguarded
+    `v / sqrt(ssq(v))` a 0/0, and the resulting NaN propagates through deflation into
+    every later component. `_nz` floors the denominator to the smallest positive float,
+    which leaves every well-conditioned norm untouched and turns the degenerate case into
+    a finite (zero) vector.
+    """
+    collapsed = np.zeros((4, 1))
+    with np.errstate(invalid="ignore"):
+        unguarded = collapsed / np.sqrt(ssq(collapsed))
+    assert np.isnan(unguarded).all(), "the unguarded form is what produced the NaNs"
+    guarded = collapsed / _nz(float(np.sqrt(ssq(collapsed))))
+    assert np.isfinite(guarded).all()
+    assert np.all(guarded == 0.0)
+
+    # A well-conditioned vector is untouched by the floor: still exactly unit length.
+    ordinary = np.array([[3.0], [4.0]])
+    assert float(np.sqrt(ssq(ordinary / _nz(float(np.sqrt(ssq(ordinary))))))) == pytest.approx(1.0, rel=1e-15)
 
 
 @pytest.fixture
@@ -4688,6 +4749,56 @@ def test_tpls_rejects_a_separate_y(fixture_tpls_example: dict) -> None:
         model.score(blocks, y_elsewhere)
     with pytest.raises(ValueError, match=expected):
         make_tpls_scorer()(model, blocks, y_elsewhere)
+
+
+def test_tpls_constant_column_warns_instead_of_asserting() -> None:
+    """#513: a constant column is excluded from the fit, and says so.
+
+    `_learn_center_and_scaling_parameters` gives a no-variance column a NaN scale, which
+    makes the whole column NaN and then zero: the column is excluded, which is the right
+    thing to do. What was missing was any word of it. The post-preprocessing check on the
+    Z and Y blocks did not tolerate the NaN statistic that exclusion produces (the F and D
+    checks did), so a single constant column raised a message-less `AssertionError()`
+    under normal Python and, because the check was a bare `assert`, fitted silently under
+    `python -O`. Two behaviours for one input.
+    """
+    rng = np.random.default_rng(0)
+    n_blends, n_materials = 20, 4
+    index = [f"blend{i}" for i in range(n_blends)]
+    materials = [f"mat{j}" for j in range(n_materials)]
+    d_matrix = {"G": pd.DataFrame(rng.normal(size=(n_materials, 3)), index=materials, columns=list("pqr"))}
+    blocks = DataFrameDict(
+        {
+            "F": {"G": pd.DataFrame(rng.random((n_blends, n_materials)), index=index, columns=materials)},
+            "Z": {"Z1": pd.DataFrame({"moves": rng.normal(size=n_blends), "stuck": np.ones(n_blends)}, index=index)},
+            "Y": {"Y1": pd.DataFrame({"y": rng.normal(size=n_blends)}, index=index)},
+        }
+    )
+
+    with pytest.warns(UserWarning, match=r"Block Z\[\"Z1\"\] has columns with no variance.*'stuck'"):
+        model = TPLS(n_components=2, d_matrix=d_matrix).fit(blocks)
+
+    # The fit completes, and the excluded column leaves no NaN behind in the scores.
+    assert np.isfinite(model.t_scores_super.to_numpy()).all()
+    assert np.isfinite(model.z_mats["Z1"]).all()
+
+
+def test_tpls_preprocessing_invariant_names_what_failed() -> None:
+    """#513: the invariant check raises with a message, and survives `python -O`.
+
+    It was a bare `assert`, so a violation gave `AssertionError()` with nothing in it,
+    and `-O` removed the check altogether. The repo runs a `-O` CI job precisely to catch
+    that, so this is a `RuntimeError` now.
+    """
+    # Columns 0 and 2 are fine; column 1 is off-centre by 0.5, and must be the one named.
+    observed = np.array([0.0, 0.5, 1e-9])
+    with pytest.raises(RuntimeError, match=r"block 'Z' group 'Z1' is not centred.*Column 1 has 0.5"):
+        TPLS._check_preprocessed(observed, 0.0, "Z", "Z1", "centre")
+
+    # A NaN entry is an excluded column, and a zero standard deviation is the same case
+    # seen after scaling; neither is a failure.
+    TPLS._check_preprocessed(np.array([0.0, np.nan]), 0.0, "Z", "Z1", "centre")
+    TPLS._check_preprocessed(np.array([1.0, np.nan, 0.0]), 1.0, "Y", "Y1", "scale")
 
 
 def test_tpls_score_single_block_y(fixture_tpls_example: dict) -> None:

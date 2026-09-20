@@ -488,6 +488,17 @@ class TtestTwoSamplesInput(BaseModel):
         lt=1,
         description="Confidence level for the interval (default 0.95).",
     )
+    equal_var: bool = Field(
+        True,
+        description=(
+            "True (default) pools the two variances into one estimate (Student's t-test). "
+            "False keeps each group's own variance and uses Welch-Satterthwaite degrees of "
+            "freedom (Welch's t-test), which is the safer choice when the groups may differ "
+            "in spread, and especially when the larger spread sits with the smaller group. "
+            "Choose from what is known about the measurement, not by testing the variances "
+            "first."
+        ),
+    )
 
 
 @tool_spec(
@@ -500,6 +511,8 @@ class TtestTwoSamplesInput(BaseModel):
         "(group_b_mean - group_a_mean), and degrees of freedom. "
         "`z_value` and `pooled_std` are deprecated aliases of `t_value` and "
         "`std_error_of_difference`; prefer the new names. "
+        "Set `equal_var=False` for Welch's unequal-variance test; `pooled_std_dev` is then "
+        "null, because Welch forms no pooled estimate. "
         "The groups must be independent (different subjects/items). "
         "Use ttest_paired_samples instead when each observation in group A is matched to one in B."
     ),
@@ -510,6 +523,9 @@ class TtestTwoSamplesInput(BaseModel):
 
     # "t-test at 99% confidence level"
         -> ``ttest_two_samples(group_a=[...], group_b=[...], confidence_level=0.99)``
+
+    # "The two batches have very different spread; compare their means anyway"
+        -> ``ttest_two_samples(group_a=[...], group_b=[...], equal_var=False)``
     """,
     category="univariate",
 )
@@ -517,7 +533,7 @@ def ttest_two_samples(spec: TtestTwoSamplesInput) -> dict:
     """Unpaired t-test for two independent samples; see tool spec for details."""
     a = pd.Series(np.asarray(spec.group_a, dtype=float)).dropna()
     b = pd.Series(np.asarray(spec.group_b, dtype=float)).dropna()
-    raw = ttest_independent(a, b, conflevel=spec.confidence_level)
+    raw = ttest_independent(a, b, conflevel=spec.confidence_level, equal_var=spec.equal_var)
 
     # Remap keys to snake_case
     result = {
@@ -538,6 +554,7 @@ def ttest_two_samples(spec: TtestTwoSamplesInput) -> dict:
         "conf_int_upper": raw["ConfInt: Hi"],
         "p_value": raw["p value"],
         "degrees_of_freedom": raw["Degrees of freedom"],
+        "equal_var": raw["Equal variance assumed"],
         "pooled_std": raw["Pooled standard deviation"],
         "confidence_level": spec.confidence_level,
     }
