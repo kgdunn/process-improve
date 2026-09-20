@@ -181,6 +181,16 @@ those changes.
   `settings["md_max_iter"]` inside the NIPALS fit and died. Every key is now
   filled from the constructor before the dict is applied.
 
+- **A sparse `ColumnTransformer` output now names the remedy (#399).**
+  `make_column_transformer((MCUVScaler(), numeric), (OneHotEncoder(), categorical))`
+  works, but `ColumnTransformer` flips its *whole* concatenated output to a sparse
+  matrix once the result is more than `sparse_threshold` (default 0.3) zeros,
+  which a one-hot block with a dozen levels easily is. `PLS`, `PCA` and
+  `MCUVScaler` then failed with sklearn's generic "use `.toarray()`", which is
+  the expensive way round: the dense array is built anyway, but only after the
+  sparse one. They now raise a `TypeError` naming `sparse_threshold=0` and
+  `OneHotEncoder(sparse_output=False)`, the two knobs that avoid the round trip.
+
 - **`quick_regress`'s zero-denominator guard is now relative (#513).** It compared
   the denominator against `epsqrt` (~1.5e-8) in absolute terms, which is a
   statement about the *scale* of the data rather than its conditioning. On a
@@ -256,12 +266,29 @@ those changes.
 
 ### Documentation
 
+- **README: mixing scaled numeric and categorical columns (#399).** The
+  `ColumnTransformer` pattern, with the two arguments that are doing real work:
+  `sparse_threshold=0` for the reason above, and
+  `set_output(transform="pandas")`, which carries `get_feature_names_out` through
+  to `x_loadings_.index` so a loading reads as "the one-hot column for
+  `batch_type == B`" rather than "column 4". The numbers are identical either way.
+
 - **`nan_to_zeros` says what it does (#513).** It promised "a NaN map"; it computes
   one, discards it, and returns the array it was given, mutated in place. Every
   caller in the package passes a private copy, which is why the aliasing has not
   bitten, but the contract is now stated rather than left in the body.
 
 ### Tests
+
+- **`HalvingGridSearchCV` / `HalvingRandomSearchCV` with a Pipeline-aware budget
+  (#398).** The existing coverage uses `resource="n_samples"`, the default, where
+  the budget is rows and the estimator never sees it. The issue also asked for a
+  budget spent on a pipeline parameter, which is the case that stresses what it
+  worried about: sklearn writes the resource into the step through `set_params`
+  on every candidate at every rung, and it has to survive `clone`. Both searchers
+  now run with `resource="pls__n_components"` while separately grid-searching
+  `pls__scale`. Both work; nothing needed fixing, so the test locks in the
+  working state.
 
 - **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
   counts how many functions in `src/process_improve` breach `C901`, `PLR0912`,

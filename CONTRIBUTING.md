@@ -81,9 +81,9 @@ function (or above the `class` to tag the whole class):
 ```python
 import pytest
 
+
 @pytest.mark.dataset
-def test_loads_real_data():
-    ...
+def test_loads_real_data(): ...
 ```
 
 ## Linting and formatting

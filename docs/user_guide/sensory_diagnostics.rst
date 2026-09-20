@@ -29,9 +29,11 @@ over is reported as disagreement.
 :func:`~process_improve.sensory.boundary_occupancy` measures how much of each
 attribute lives against the floor or the ceiling:
 
-.. code-block:: python
+.. code-block:: pycon
 
-   >>> boundary_occupancy(panel).query("frac_floor > 0.5")[["attribute", "frac_floor", "frac_exact_zero"]]
+   >>> boundary_occupancy(panel).query("frac_floor > 0.5")[
+   ...     ["attribute", "frac_floor", "frac_exact_zero"]
+   ... ]
         attribute  frac_floor  frac_exact_zero
    2       burnt        0.78             0.71
    5   medicinal        0.64             0.00
@@ -50,7 +52,7 @@ answer, but "how often is it perceived at all" does.
 :func:`~process_improve.sensory.detection_rate` gives a product-by-attribute
 table of detection probabilities:
 
-.. code-block:: python
+.. code-block:: pycon
 
    >>> detection_rate(panel)["burnt"].sort_values(ascending=False).head(3)
    product
@@ -85,7 +87,7 @@ removes the genuine product effects that would otherwise dominate the spread;
 Levene's test (median-centred, the Brown-Forsythe variant) then compares
 assessors:
 
-.. code-block:: python
+.. code-block:: pycon
 
    >>> assessor_variance_equality(panel).query("p_equal_variance < 0.05")
        attribute  levene_stat  p_equal_variance  spread_ratio_max_min  n_assessors

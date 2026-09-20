@@ -106,6 +106,44 @@ how confident the prediction is.
 | Plotly diagnostics built in                       |       -      |        ✓        |
 | Labeled `DataFrame` outputs                       |    partial   |        ✓        |
 
+### Mixing scaled numeric and categorical columns
+
+`MCUVScaler` composes with `ColumnTransformer`, so only the columns that need
+centring and scaling get it while categorical columns are encoded alongside:
+
+```python
+from sklearn.compose import make_column_transformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder
+
+from process_improve.multivariate import PLS, MCUVScaler
+
+ct = make_column_transformer(
+    (MCUVScaler(), ["temp", "pressure", "flow"]),
+    (OneHotEncoder(), ["batch_type"]),
+    sparse_threshold=0,  # see below
+)
+ct = ct.set_output(transform="pandas")  # and below
+
+pipe = Pipeline([("ct", ct), ("pls", PLS(n_components=3))]).fit(X, y)
+pipe.named_steps["pls"].x_loadings_.index
+# ['mcuvscaler__temp', ..., 'onehotencoder__batch_type_A', ...]
+```
+
+Two arguments there are doing real work:
+
+- **`sparse_threshold=0`.** `ColumnTransformer` flips its *whole* concatenated
+  output to a sparse matrix once the result is more than 30 percent zeros, which
+  a one-hot block with a dozen levels easily is. NIPALS centres and scales every
+  column, which destroys sparsity, so `PLS` and `PCA` reject sparse input rather
+  than silently densifying it. `OneHotEncoder(sparse_output=False)` does the same
+  job on one step instead of the whole transformer.
+- **`set_output(transform="pandas")`.** Without it the transformer hands over a
+  bare ndarray, so a loading can only be labelled `0`, `1`, `2`; with it,
+  `get_feature_names_out` reaches `x_loadings_.index` and a loading reads as
+  "the one-hot column for `batch_type == B`". The numbers are identical either
+  way.
+
 ## Installation
 
 ```bash
@@ -156,8 +194,8 @@ X = pd.read_csv("your_data.csv", index_col=0)
 X_scaled = MCUVScaler().fit_transform(X)
 
 pca = PCA(n_components=3).fit(X_scaled)
-print(pca.r2_cumulative_)         # cumulative R² per component
-pca.score_plot()                  # interactive Plotly figure
+print(pca.r2_cumulative_)  # cumulative R² per component
+pca.score_plot()  # interactive Plotly figure
 
 # Flag outliers using combined T² and SPE limits at 95% confidence
 outliers = pca.detect_outliers(conf_level=0.95)
@@ -177,29 +215,29 @@ scaler_y = MCUVScaler().fit(Y)
 X_s, Y_s = scaler_x.transform(X), scaler_y.transform(Y)
 
 pls = PLS(n_components=3).fit(X_s, Y_s)
-print(pls.beta_coefficients_)     # regression coefficients (K x M)
-print(pls.r2_cumulative_)         # cumulative R² for Y
-print(pls.vip())                  # VIP scores per X variable
+print(pls.beta_coefficients_)  # regression coefficients (K x M)
+print(pls.r2_cumulative_)  # cumulative R² for Y
+print(pls.vip())  # VIP scores per X variable
 
 # Predict new observations (sklearn-compatible: returns just y_hat)
 y_pred = pls.predict(scaler_x.transform(X_new))
 
 # Predict with full per-row diagnostics (scores, T², SPE, plus y_hat)
 result = pls.diagnose(scaler_x.transform(X_new))
-result.y_hat                      # point predictions
-result.spe                        # squared prediction error
-result.hotellings_t2              # Hotelling's T² for new observations
+result.y_hat  # point predictions
+result.spe  # squared prediction error
+result.hotellings_t2  # Hotelling's T² for new observations
 
 # Cross-validated component selection: raw blocks in, each fold scales itself
 cv_select = PLS.select_n_components(X, Y, max_components=6)
-print(cv_select.n_components)     # recommended number of components
-print(cv_select.rmsecv)           # RMSECV per component count
+print(cv_select.n_components)  # recommended number of components
+print(cv_select.rmsecv)  # RMSECV per component count
 
 # Cross-validation with beta-coefficient confidence intervals
 cv = pls.cross_validate(X_s, Y_s, cv="loo")
-print(cv.beta_ci_lower, cv.beta_ci_upper)   # 95% CI for each beta
-print(cv.significant)                       # betas significantly != 0
-print(cv.q_squared)                         # cross-validated R² (Q²)
+print(cv.beta_ci_lower, cv.beta_ci_upper)  # 95% CI for each beta
+print(cv.significant)  # betas significantly != 0
+print(cv.q_squared)  # cross-validated R² (Q²)
 ```
 
 ### Model inversion - design the inputs for a quality you choose
@@ -211,9 +249,9 @@ from process_improve.multivariate.methods import PLS, OPLS
 pls = PLS(n_components=2).fit(X, y)
 
 design = pls.invert(y_desired=20.9)
-print(design.x_new.round(2).to_list())   # [5.52, 5.56, 1.4], in the original units
-print(design.hotellings_t2.round(2))     # 0.06: well inside the calibration data
-print(design.null_space_dimension)       # 1: a line of designs, not a single recipe
+print(design.x_new.round(2).to_list())  # [5.52, 5.56, 1.4], in the original units
+print(design.hotellings_t2.round(2))  # 0.06: well inside the calibration data
+print(design.null_space_dimension)  # 1: a line of designs, not a single recipe
 
 # Walk that line. The recipe changes; the predicted taste does not.
 for step in (-1.0, 0.0, 1.0):
@@ -224,7 +262,7 @@ for step in (-1.0, 0.0, 1.0):
 
 # O-PLS separates that freedom while fitting, so inversion becomes one division.
 opls = OPLS(n_orthogonal_components=1).fit(X, y)
-print(opls.invert(y_desired=20.9).x_new.round(2).to_list())   # [5.46, 5.62, 1.39]
+print(opls.invert(y_desired=20.9).x_new.round(2).to_list())  # [5.46, 5.62, 1.39]
 ```
 
 Both routes describe the same set of designs, and differ only in which point on
@@ -271,7 +309,9 @@ design = generate_design(factors, design_type="omars")
 
 # Or a run-budgeted D-optimal design, then grade its quality
 d_opt = generate_design(factors, design_type="d_optimal", budget=14)
-print(evaluate_design(d_opt, metric="all"))   # D/I/G-efficiency, aliasing, prediction variance
+print(
+    evaluate_design(d_opt, metric="all")
+)  # D/I/G-efficiency, aliasing, prediction variance
 ```
 
 ### On-line monitoring with Adaptive PCA
@@ -290,11 +330,13 @@ monitor = AdaptivePCA(n_components=3).fit(X_reference)
 for _, row in X_stream.iterrows():
     result = monitor.update(row.to_numpy())
     if not result.in_control:
-        print(f"Out-of-control point: SPE={result.spe:.2f}, T²={result.hotellings_t2:.2f}")
+        print(
+            f"Out-of-control point: SPE={result.spe:.2f}, T²={result.hotellings_t2:.2f}"
+        )
 
 # How far has the model drifted from its training subspace? (in units of components)
 print(monitor.distance_.tail())
-print(monitor.center_shift_.tail())   # operating-point migration, in training-SD units
+print(monitor.center_shift_.tail())  # operating-point migration, in training-SD units
 ```
 
 `AdaptivePLS` does the same for regression and soft sensing, and handles
