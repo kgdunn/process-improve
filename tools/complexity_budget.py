@@ -48,7 +48,11 @@ BUDGET: dict[str, int] = {
     # columns, a frame and three switches. Both carry a reasoned suppression,
     # which is the discipline this ratchet exists to enforce, so the budget
     # tracks main rather than pretending the count did not move.
-    "PLR0913": 80,
+    # 81: this branch adds `surrogate` to `PCA.parallel_analysis`, taking it from
+    # four arguments to five plus self. A null choice is a first-class option of
+    # the method, not a settings bag, so it is named; it carries a reasoned
+    # suppression.
+    "PLR0913": 81,
     "PLR0915": 31,
 }
 
