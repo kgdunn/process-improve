@@ -221,6 +221,16 @@ those changes.
 
 ### Tests
 
+- **`HalvingGridSearchCV` / `HalvingRandomSearchCV` with a Pipeline-aware budget
+  (#398).** The existing coverage uses `resource="n_samples"`, the default, where
+  the budget is rows and the estimator never sees it. The issue also asked for a
+  budget spent on a pipeline parameter, which is the case that stresses what it
+  worried about: sklearn writes the resource into the step through `set_params`
+  on every candidate at every rung, and it has to survive `clone`. Both searchers
+  now run with `resource="pls__n_components"` while separately grid-searching
+  `pls__scale`. Both work; nothing needed fixing, so the test locks in the
+  working state.
+
 - **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
   counts how many functions in `src/process_improve` breach `C901`, `PLR0912`,
   `PLR0913` or `PLR0915`, asking ruff with `--ignore-noqa` so it measures real
