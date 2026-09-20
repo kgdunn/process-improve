@@ -170,8 +170,10 @@ adjusts stage complexity accordingly:
 
    for b in [60, 40, 20, None]:
        result = recommend_strategy(factors=factors, budget=b, domain="fermentation")
-       print(f"Budget={str(b):>4s}: {result['total_estimated_runs']:>2d} runs, "
-             f"{len(result['stages'])} stages")
+       print(
+           f"Budget={str(b):>4s}: {result['total_estimated_runs']:>2d} runs, "
+           f"{len(result['stages'])} stages"
+       )
 
 ::
 
@@ -210,17 +212,20 @@ entirely:
 
    # Low confidence - still screens
    s2 = recommend_strategy(
-       factors=factors, budget=40, domain="fermentation",
+       factors=factors,
+       budget=40,
+       domain="fermentation",
        prior_knowledge="We suspect Temperature and pH are important.",
    )
    print(f"Low confidence: {len(s2['stages'])} stages")
 
    # High confidence - screening skipped
    s3 = recommend_strategy(
-       factors=factors, budget=40, domain="fermentation",
+       factors=factors,
+       budget=40,
+       domain="fermentation",
        prior_knowledge=(
-           "Published and validated results confirm Temperature "
-           "and pH are significant."
+           "Published and validated results confirm Temperature " "and pH are significant."
        ),
    )
    print(f"High confidence: {len(s3['stages'])} stages")
@@ -277,8 +282,10 @@ Comparing two domains on the same factors shows how design choices differ:
    for domain in ["fermentation", "cell_culture"]:
        result = recommend_strategy(factors=factors, budget=40, domain=domain)
        screening = result["stages"][0]
-       print(f"{domain:>15s}: {screening['design_type']}, "
-             f"{screening['estimated_runs']} screening runs")
+       print(
+           f"{domain:>15s}: {screening['design_type']}, "
+           f"{screening['estimated_runs']} screening runs"
+       )
 
 ::
 

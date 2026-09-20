@@ -56,7 +56,7 @@ invents chemistry that is not there. The distinction cannot be recovered from
 an exported table, so :func:`~process_improve.chemistry.classify_zero_states`
 does not guess:
 
-.. code-block:: python
+.. code-block:: pycon
 
    >>> classify_zero_states(chem).set_index("compound")["zero_state"].unique()
    array(['unknown'], dtype=object)
@@ -95,7 +95,7 @@ between, the honest answer is ``"ambiguous"``, and
 :func:`~process_improve.chemistry.apply_transform` resolves it with a
 caller-chosen default rather than a coin toss:
 
-.. code-block:: python
+.. code-block:: pycon
 
    >>> choose_transform(chem["limonene"])
    'log'
