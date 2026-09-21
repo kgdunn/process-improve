@@ -38,20 +38,24 @@ RULES = ("C901", "PLR0912", "PLR0913", "PLR0915")
 #: never raise them. A pull request that pushes a count over its budget has made
 #: the code worse in the specific way #307 is about, and CI says so.
 BUDGET: dict[str, int] = {
-    "C901": 47,
+    # 46: #208's `to_spec` in optimization_plots.py no longer branches enough to
+    # breach C901, and its suppression went with it. The ratchet fails on a count
+    # *below* budget precisely so the saving is banked here rather than left as
+    # headroom for the next change to spend silently.
+    "C901": 46,
     "PLR0912": 26,
-    # 81, and none of the three moves is a regression any one branch introduced.
+    # 82, and none of the four moves is a regression any one branch introduced.
     # #598 merged `smooth_trajectories`, whose seven arguments are the two
     # smoothers' settings side by side: naming them beats a settings dict whose
     # valid keys depend on `method`. #581 gave `ttest_independent_from_df` its
     # `equal_var` switch, the honest width for two columns, a frame and three
     # switches. #374 added `surrogate` to `PCA.parallel_analysis`, because which
-    # null a permutation test draws from is a first-class option of the method
-    # rather than something to hide in a settings bag. All three carry a reasoned
-    # suppression, which is the discipline this ratchet exists to enforce, so the
-    # budget tracks what is really there rather than pretending the count did not
-    # move.
-    "PLR0913": 81,
+    # null a permutation test draws from is a first-class option of the method.
+    # #208 added `_pareto_front`, whose models, goals, naming and search region are
+    # four separate inputs. All four carry a reasoned suppression, which is the
+    # discipline this ratchet exists to enforce, so the budget tracks what is
+    # really there rather than pretending the count did not move.
+    "PLR0913": 82,
     "PLR0915": 31,
 }
 
