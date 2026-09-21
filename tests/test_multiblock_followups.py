@@ -189,6 +189,42 @@ class TestBlockSet:
         with pytest.raises(ValueError, match="At least one block"):
             BlockSet({})
 
+    def test_equal_content_compares_equal(self, two_blocks: dict[str, dict]) -> None:
+        """The inherited dict.__eq__ raised here: it asked a DataFrame for its truth value."""
+        left = BlockSet(unfold_blocks(two_blocks))
+        right = BlockSet(unfold_blocks(two_blocks))
+        assert left is not right
+        assert left == right
+        assert (left != right) is False
+
+    def test_differing_content_compares_unequal(self, two_blocks: dict[str, dict]) -> None:
+        wide = unfold_blocks(two_blocks)
+        changed = {name: block.copy() for name, block in wide.items()}
+        changed["spectra"].iloc[0, 0] += 1.0
+        assert BlockSet(wide) != BlockSet(changed)
+        assert BlockSet(wide) != BlockSet({"spectra": wide["spectra"]})
+
+    def test_compares_against_the_plain_dict_it_came_from(self, two_blocks: dict[str, dict]) -> None:
+        """Symmetric: Python tries the subclass's __eq__ first, so both orders answer."""
+        wide = unfold_blocks(two_blocks)
+        assert BlockSet(wide) == wide
+        assert wide == BlockSet(wide)
+        assert BlockSet(wide) != {"spectra": 1, "process": 2}
+
+    def test_foreign_types_compare_unequal_rather_than_raising(self, two_blocks: dict[str, dict]) -> None:
+        blocks = BlockSet(unfold_blocks(two_blocks))
+        assert blocks != 7
+        assert (blocks == 7) is False
+
+    def test_unhashable_like_a_dict(self, two_blocks: dict[str, dict]) -> None:
+        with pytest.raises(TypeError, match="unhashable"):
+            hash(BlockSet(unfold_blocks(two_blocks)))
+
+    def test_bad_row_lookup_is_rejected(self, two_blocks: dict[str, dict]) -> None:
+        """Not a str (a block name) and not a row lookup: say so instead of failing deeper in pandas."""
+        with pytest.raises(TypeError, match="must be an int, a list of ints, or an ndarray"):
+            BlockSet(unfold_blocks(two_blocks))[{0, 1}]  # type: ignore[index]
+
 
 # ---------------------------------------------------------------------------
 # Resampler over multi-block data: the #193 item itself

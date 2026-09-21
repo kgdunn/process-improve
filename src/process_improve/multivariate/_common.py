@@ -507,20 +507,70 @@ class BlockSet(dict):
             return cast("pd.DataFrame", super().__getitem__(lookup))
         return BlockSet({name: _row_slice(block, lookup, name) for name, block in self.items()})
 
+    def __eq__(self, other: object) -> bool:
+        """Value-based equality over the held blocks.
+
+        The inherited ``dict.__eq__`` compares the values with ``==``, which for
+        two DataFrames returns an element-wise frame; Python then asks that frame
+        for its truth value and pandas raises ``ValueError``. Equality therefore
+        appeared to work only when the two operands were the *same object* (and
+        the identity short-circuit fired) and blew up otherwise. Comparing with
+        :meth:`pandas.DataFrame.equals` makes the answer depend on the content,
+        as it must for a class that also carries ``n_samples`` and ``shape``
+        (CodeQL ``py/missing-equals``).
+
+        Any mapping is accepted on the other side, not just a ``BlockSet``, so
+        that comparing against the plain ``dict[str, DataFrame]`` the caller
+        started from answers instead of raising. That stays symmetric: Python
+        tries the subclass's ``__eq__`` first, so ``plain_dict == block_set``
+        reaches this method too.
+        """
+        if self is other:
+            return True
+        if not isinstance(other, dict):
+            return NotImplemented
+        return self.keys() == other.keys() and all(_block_equal(block, other[name]) for name, block in self.items())
+
+    def __ne__(self, other: object) -> bool:
+        """Negation of :meth:`__eq__`.
+
+        Defined explicitly because the C-level ``dict.__ne__`` would otherwise
+        bypass the Python ``__eq__`` above and compare the raw dict values again.
+        """
+        result = self.__eq__(other)
+        return result if result is NotImplemented else not result
+
+    # Blocks are mutable frames, so a ``BlockSet`` is unhashable just as ``dict``
+    # is; make that explicit now that ``__eq__`` is defined.
+    __hash__ = None  # type: ignore[assignment]  # reason: intentionally unhashable, mirrors dict
+
+
+def _block_equal(mine: pd.DataFrame, theirs: object) -> bool:
+    """Compare one block against the other side's value for the same name.
+
+    ``theirs`` is a DataFrame whenever the other side is a :class:`BlockSet`, but
+    an arbitrary object when it is a plain dict, and ``mine == theirs`` would then
+    hand pandas' element-wise result to :func:`bool`.
+    """
+    return isinstance(theirs, pd.DataFrame) and mine.equals(theirs)
+
 
 def _row_slice(block: pd.DataFrame, lookup: int | list | np.ndarray, name: str) -> pd.DataFrame:
-    """Take rows from one block, keeping the result two-dimensional."""
-    match lookup:
-        case int() | np.integer():
-            # A list, not a scalar: a single row still has to come back as a frame,
-            # otherwise a one-row resample would arrive at ``fit`` as a Series.
-            return block.iloc[[int(lookup)]]
-        case list():
-            return block.iloc[[int(index) for index in lookup]]
-        case np.ndarray():
-            return block.iloc[lookup.tolist()]
-        case _:
-            raise TypeError(
-                f"Row lookup must be an int, a list of ints, or an ndarray; "
-                f"got {type(lookup).__name__} while slicing block {name!r}."
-            )
+    """Take rows from one block, keeping the result two-dimensional.
+
+    Every branch normalises the lookup to a *list* of row positions and the
+    function has a single exit, so a scalar can never leak out as a Series: one
+    row must still arrive at ``fit`` as a one-row frame.
+    """
+    if isinstance(lookup, int | np.integer):
+        rows = [int(lookup)]
+    elif isinstance(lookup, np.ndarray):
+        rows = lookup.tolist()
+    elif isinstance(lookup, list):
+        rows = [int(index) for index in lookup]
+    else:
+        raise TypeError(
+            f"Row lookup must be an int, a list of ints, or an ndarray; "
+            f"got {type(lookup).__name__} while slicing block {name!r}."
+        )
+    return block.iloc[rows]
