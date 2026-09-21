@@ -1,9 +1,11 @@
 """Multivariate analysis: PCA, PLS, TPLS, scaling, and diagnostic plots."""
 
 from process_improve.multivariate.methods import (
+    ASCA,
     OPLS,
     PCA,
     PLS,
+    PLSDA,
     TPLS,
     AdaptivePCA,
     AdaptivePLS,
@@ -42,9 +44,11 @@ from process_improve.multivariate.plots import (
 )
 
 __all__ = [
+    "ASCA",
     "OPLS",
     "PCA",
     "PLS",
+    "PLSDA",
     "TPLS",
     "AdaptivePCA",
     "AdaptivePLS",

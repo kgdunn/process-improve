@@ -13,6 +13,102 @@ those changes.
 
 ### Added
 
+- **`ASCA`: ANOVA-Simultaneous Component Analysis (#372).** The response matrix is
+  partitioned by its design terms the way classical ANOVA partitions a single
+  response, and each term's effect matrix then gets its own PCA. This is the bridge
+  between `experiments/` and `multivariate/` that the package has been missing: it
+  answers which *factor* owns which direction of multivariate variation, whether
+  that is more than chance, and which variables carry it.
+
+  ```python
+  from process_improve.multivariate import ASCA
+
+  model = ASCA(n_components=2).fit(X, design)
+  model.ssq_percent_                       # variation by term, read this first
+  model.permutation_test(random_state=0)   # is each term more than chance?
+  model.models_["A"].score_plot()          # the PCA of factor A's effect alone
+  model.vasca("A", random_state=0)         # which variables carry it
+  ```
+
+  `add_residuals=True` gives the APCA / ASCA+ variant, where the residual matrix is
+  added back before each PCA so a score plot shows scatter around the factor levels
+  rather than one point per cell.
+
+  Balance is checked rather than assumed: on an unbalanced design the terms are not
+  orthogonal, the sums of squares no longer partition the total, and `fit` warns and
+  reports the gap instead of presenting the percentages as a partition.
+
+- **`ASCA.vasca`: variable-selection ASCA.** The whole-matrix permutation test
+  dilutes an effect that lives in three variables out of two hundred. VASCA ranks the
+  variables by their contribution to a term and tests each nested subset of the
+  top-ranked ones, with Benjamini-Hochberg across subset sizes. On the test fixture it
+  recovers exactly the variables each effect was injected into, and returns an empty
+  selection for a term that carries nothing.
+
+- **`effect_summary_plot`.** One bar per design term showing its share of the total
+  sum of squares, annotated with the permutation p-values once they exist. Bound as a
+  method on `ASCA` and importable on its own.
+
+  #### Notes on two choices that are easy to get wrong
+
+  - **The permutation null is the reduced-model one.** Permuting the rows of the
+    whole response leaves the other terms' variation in the data, so a term
+    sharing a matrix with a large neighbour inherits part of it and its null comes
+    out far too high. On the test fixture, where A carries 84 percent of the
+    variation and B a real 11 percent, the whole-response null put B at p = 0.13
+    and hid a genuine effect; permuting only this term's effect plus the residual
+    puts B at p = 0.005.
+
+  - **VASCA does not select on the p-value alone.** With a few hundred permutations
+    the smallest attainable p-value is reached by many subset sizes at once, and
+    picking the largest subset that clears alpha returns every variable that
+    happened to tie at the floor. The reported `z_score`, how far a subset stands
+    above its own null, does not tie: it peaks where the effect is concentrated.
+
+- **`PLSDA`: PLS discriminant analysis (#375).** Classification built on the
+  existing `PLS`: the labels are one-hot encoded into an indicator `Y`, a PLS model
+  is fitted on it, and the predicted indicator values are turned back into labels.
+  `PLSDA` subclasses `PLS`, so nothing about the NIPALS fit is reimplemented and a
+  fitted classifier still has `scores_`, `x_loadings_`, `vip()`, Hotelling's T2, SPE
+  and every plot method.
+
+  ```python
+  from process_improve.multivariate import PLSDA
+
+  model = PLSDA(n_components=2).fit(X, labels)
+  model.predict(X_new)                  # labels
+  model.predict_proba(X_new)            # class posteriors
+  model.confusion(X_test, y_test)       # held-out matrix, sensitivity, specificity
+  model.permutation_test(X, labels)     # is the separation real?
+  ```
+
+  Two decision rules. `"max"` (the default) takes the largest indicator, as most
+  PLS-DA software does. `"bayes"` takes the largest posterior, built from Gaussians
+  fitted to each class's in-class and out-of-class indicator values and weighted by
+  the priors. The second matters on unbalanced data for a reason worth knowing: a
+  rare class's indicator is pulled toward zero by the nine rows in ten that want it
+  there, so `"max"` hands almost everything to the common class. On a 1:9 fixture it
+  finds two of eight rare samples while reporting 92.5% accuracy; `"bayes"` finds
+  seven, and scores higher overall.
+
+  The per-class Bayesian thresholds are exposed as `thresholds_`, solved from where
+  the two Gaussians cross rather than approximated.
+
+- **`permutation_test` on `PLSDA`.** PLS-DA on wide data separates almost anything,
+  so the model alone cannot tell a real effect from chance. The test refits on
+  shuffled labels and compares cross-validated accuracy, with the observed statistic
+  counted among the permutations (the `(1 + k) / (1 + n)` convention already used by
+  the Van der Voet and multiblock randomization tests). Measured on 40 samples of 30
+  pure-noise variables: training accuracy is **1.000**, the cross-validated test
+  correctly returns p = 0.22, and the `cv=None` variant returns p = 0.02 on data with
+  no signal in it. That is why `cv=5` is the default.
+
+- **`confusion_matrix_plot`.** A heat map of counts, or of row fractions with
+  `{"normalize": True}` in its settings, bound as a method on `PLSDA` and
+  importable on its own. It takes
+  an optional matrix argument so the held-out confusion matrix can be plotted rather
+  than the optimistic training one.
+
 - **`optimize_responses(method="ridge_analysis")` (#208).** Traces the best
   attainable point on spheres of increasing radius from the design centre, which
   is the question worth asking when a second-order model's stationary point lands
@@ -245,6 +341,17 @@ The third item of #374, double cross-validation for PLS, is already provided by
   `settings["md_max_iter"]` inside the NIPALS fit and died. Every key is now
   filled from the constructor before the dict is applied.
 
+- **`explained_variance_plot` labels a `PLSDA` model correctly.** It chose its axis
+  label with `type(model).__name__ == "PLS"`, which a subclass fails; `PLSDA`'s
+  `r2_per_component_` is likewise the Y-block, so the exact-name test would have
+  labelled the plot "X-variance".
+
+  The model now declares which block its `r2_per_component_` measures, through a
+  `_variance_block` class attribute that subclasses inherit, and the plot reads it,
+  defaulting to `"X"`. An `isinstance` check would have worked too, but `_pls`
+  imports `plots`, so importing `PLS` back into `plots` closes a cycle; a model
+  saying what it explains is also plainer than a plot inferring it.
+
 - **The `ridge_trace` plot now solves the ridge instead of approximating it.** It
   scanned 200 values of the Lagrange multiplier, then rescaled whichever solution
   it liked onto the requested radius. A rescaled point is not the constrained
@@ -358,6 +465,13 @@ The third item of #374, double cross-validation for PLS, is already provided by
 
 ### Tests
 
+- **`robust_regression` is now tested with pandas `Series` inputs (#213).** It
+  accepts them, and pairs the two vectors **by position**, not by index: the
+  implementation takes `.values` from each, so the labels are discarded. The
+  obvious alternative, `pd.concat([x, y], axis=1)`, would align on the index and
+  turn two disjoint indexes into a frame of NaN, so the behaviour is now pinned
+  by a test that uses deliberately disjoint indexes.
+
 - **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
   counts how many functions in `src/process_improve` breach `C901`, `PLR0912`,
   `PLR0913` or `PLR0915`, asking ruff with `--ignore-noqa` so it measures real
@@ -369,11 +483,11 @@ The third item of #374, double cross-validation for PLS, is already provided by
   also fails, telling you to lower the budget. A refactor therefore cannot be
   quietly spent by the next change. The target, recorded in `CONTRIBUTING.md`,
   is to halve the 2026-06 baseline of 185 breaches to 91 by v2.0; this release
-  takes it to 185: the `MBPCA.fit` split removed three, while #598's
-  `smooth_trajectories`, #581's `equal_var` switch and #374's
-  `parallel_analysis(surrogate=...)` each added one. #208 is then net neutral:
-  `_pareto_front` adds a `PLR0913` breach and the `to_spec` simplification
-  removes a `C901` one.
+  takes it to 186: the `MBPCA.fit` split removed three, while #598's
+  `smooth_trajectories`, #581's `equal_var` switch, #374's
+  `parallel_analysis(surrogate=...)`, #208's `_pareto_front` and this release's
+  `PLSDA` constructor each added one, and #208's `to_spec` simplification took a
+  `C901` breach back off.
 
 - **`HalvingGridSearchCV` / `HalvingRandomSearchCV` with a Pipeline-aware budget
   (#398).** The existing coverage uses `resource="n_samples"`, the default, where

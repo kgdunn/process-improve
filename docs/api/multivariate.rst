@@ -22,6 +22,18 @@ PLS
    :undoc-members:
    :show-inheritance:
 
+PLS-DA
+~~~~~~
+
+PLS discriminant analysis: PLS regression against a one-hot class indicator, with
+the decision rule, the classifier diagnostics and the permutation test on top.
+Everything :class:`PLS` offers is inherited, so a fitted ``PLSDA`` also has scores,
+loadings, VIP, Hotelling's T2 and SPE.
+
+.. autoclass:: PLSDA
+   :members:
+   :show-inheritance:
+
 TPLS
 ~~~~
 
@@ -39,6 +51,19 @@ reached, and every fold is recorded as ``NaN``. Build the scorer with
 untouched.
 
 .. autofunction:: make_tpls_scorer
+
+ASCA
+~~~~
+
+ANOVA-Simultaneous Component Analysis: partition a response matrix by its design terms,
+then give each term's effect matrix its own PCA. This is the bridge between
+:mod:`process_improve.experiments` and the latent-variable models: it answers which
+*factor* owns which direction of multivariate variation, whether that is more than
+chance, and which variables carry it.
+
+.. autoclass:: ASCA
+   :members:
+   :show-inheritance:
 
 MBPLS
 ~~~~~
@@ -169,3 +194,6 @@ Plots
 .. autofunction:: predictions_vs_observed_plot
 
 .. autofunction:: coefficient_plot
+
+.. autofunction:: confusion_matrix_plot
+.. autofunction:: effect_summary_plot
