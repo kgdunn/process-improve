@@ -939,12 +939,21 @@ class MidCourseCorrector:
         scale = model.scale_.to_numpy(dtype=float)
         loadings = model.x_loadings_.to_numpy(dtype=float)
         guide = model.direct_weights_.to_numpy(dtype=float)
+        weights = model.x_weights_.to_numpy(dtype=float)
         variances = np.asarray(model.explained_variance_, dtype=float)
+        residuals = model._x_residuals
 
-        row = np.full(len(features), np.nan)
-        positions = features.get_indexer(observed.index)
-        row[positions] = (observed.to_numpy(dtype=float) - center[positions]) / scale[positions]
-        so_far = project_rows(loadings, guide, variances, row[None, :], method=self.method, ridge=self.ridge)
+        row = scaled_row(model, observed)
+        so_far = project_rows(
+            loadings,
+            guide,
+            variances,
+            row[None, :],
+            method=self.method,
+            ridge=self.ridge,
+            x_weights=weights,
+            x_residuals=residuals,
+        )
         spe_so_far = float(so_far.spe[0])
 
         candidate = row.copy()
@@ -953,7 +962,16 @@ class MidCourseCorrector:
             free_labels = list(features[masks.free])
             planned = np.array([float(schedule.iloc[s][tag]) for (tag, s) in free_labels])
             candidate[free_positions] = (planned - center[free_positions]) / scale[free_positions]
-        projected = project_rows(loadings, guide, variances, candidate[None, :], method=self.method, ridge=self.ridge)
+        projected = project_rows(
+            loadings,
+            guide,
+            variances,
+            candidate[None, :],
+            method=self.method,
+            ridge=self.ridge,
+            x_weights=weights,
+            x_residuals=residuals,
+        )
         scores = projected.scores[0]
         s_inv = safe_inverse(limits.score_covariance, what="score_covariance")
         t2 = float(scores @ s_inv @ scores)
