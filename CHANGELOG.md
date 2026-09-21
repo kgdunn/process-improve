@@ -13,6 +13,49 @@ those changes.
 
 ### Added
 
+- **`unfold_blocks`: batchwise unfolding into several blocks (#193).** Aligned batch
+  data has been unfoldable for a long time, one block at a time, via `dict_to_wide`.
+  What was missing was a way to hand several blocks to a multi-block model.
+  `BatchPCA` and `BatchPLS` unfold too, but they concatenate the initial-conditions
+  block onto the trajectories to make one wide frame, because the model beneath them
+  is single-block; a block's column count then decides its weight in the fit, which is
+  not a modelling decision anyone made.
+
+  ```python
+  from process_improve.batch.preprocessing import unfold_blocks
+  from process_improve.multivariate.methods import MBPCA
+
+  blocks = unfold_blocks(
+      {"spectra": spectra_batches, "process": process_batches},
+      initial_conditions=Z,          # its own block, not a prefix on another one
+  )
+  MBPCA(n_components=2).fit(blocks)
+  ```
+
+  Blocks may differ in width and in trajectory length; they only have to describe the
+  same batches, and that is checked rather than assumed. Every returned block shares
+  one row order, so row *i* is the same batch everywhere.
+
+- **`BlockSet`: a `dict[str, DataFrame]` with a row axis (#193).** `MBPCA` and `MBPLS`
+  take a plain dict of blocks, which is easy to build and impossible to resample: a dict
+  has no notion of "row 7 of every block". `BlockSet` subclasses `dict`, so everything
+  that already accepts the plain dict keeps working, and adds row indexing.
+
+  That unblocks `Resampler`, which previously accepted only TPLS's `DataFrameDict` and so
+  could not touch a multi-block model at all:
+
+  ```python
+  Resampler(
+      estimator=MBPCA(n_components=2),
+      x=BlockSet(blocks),
+      accessor=lambda model: model.super_loadings_[1].to_numpy(),
+  ).resample()
+  ```
+
+  Note that `len(blocks)` is the number of **rows**, not blocks. That is surprising for a
+  dict and it is deliberate: it is the convention `DataFrameDict` already set, and it is
+  what the resampling code means by the length of a dataset.
+
 - **`ASCA`: ANOVA-Simultaneous Component Analysis (#372).** The response matrix is
   partitioned by its design terms the way classical ANOVA partitions a single
   response, and each term's effect matrix then gets its own PCA. This is the bridge

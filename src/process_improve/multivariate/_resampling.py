@@ -16,6 +16,7 @@ from sklearn.base import BaseEstimator, clone
 from tqdm import tqdm
 
 from .._random import check_random_state
+from ._common import BlockSet
 from ._tpls import DataFrameDict
 
 try:
@@ -76,8 +77,16 @@ class Resampler:
             raise TypeError("estimator must be a BaseEstimator instance.")
         self.estimator = estimator
 
-        if not isinstance(x, DataFrameDict):
-            raise TypeError("x must be a DataFrameDict instance.")
+        # Both containers offer the only two things resampling needs: ``len(x)`` rows
+        # and ``x[indices]`` row-slicing. ``DataFrameDict`` is TPLS's nested Z/F/Y
+        # layout; ``BlockSet`` is the flat ``dict[str, DataFrame]`` that MBPCA and
+        # MBPLS take (#193). A plain dict is still refused: it silently has no row
+        # axis, and guessing one for the caller is how a resample ends up misaligned.
+        if not isinstance(x, DataFrameDict | BlockSet):
+            raise TypeError(
+                "x must be a DataFrameDict instance (TPLS) or a BlockSet instance (multi-block); "
+                f"got {type(x).__name__}. Wrap a plain dict[str, DataFrame] in BlockSet(...)."
+            )
         self.x = x
 
         if not callable(accessor):

@@ -104,6 +104,19 @@ Analysis
 
 .. autofunction:: rv2_coefficient
 
+Containers
+----------
+
+.. autoclass:: BlockSet
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. autoclass:: DataFrameDict
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Preprocessing
 -------------
 

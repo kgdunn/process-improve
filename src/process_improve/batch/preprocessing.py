@@ -1287,3 +1287,130 @@ def find_reference_batch(
     if requested == 1:
         return spe_metrics.index[0]  # returns a single entry from the index
     return spe_metrics.index[0:requested].to_list()
+
+
+def unfold_blocks(
+    blocks: dict[str, dict],
+    *,
+    initial_conditions: pd.DataFrame | None = None,
+    group_by_batch: bool = False,
+) -> dict[str, pd.DataFrame]:
+    """Unfold several aligned batch blocks batchwise, ready for a multi-block model (#193).
+
+    :func:`~process_improve.batch.data_input.dict_to_wide` already unfolds one
+    block of aligned batches into a one-row-per-batch matrix. What it cannot do
+    is keep several blocks side by side and *separate*, which is what
+    :meth:`~process_improve.multivariate.methods.MBPCA.fit` and
+    :meth:`~process_improve.multivariate.methods.MBPLS.fit` want: they take a
+    ``dict[str, pd.DataFrame]`` and preprocess each block on its own.
+
+    ``BatchPCA`` and ``BatchPLS`` unfold too, but they concatenate the
+    initial-conditions block onto the trajectories to make a single wide frame,
+    because the model underneath them is single-block. Here the blocks stay
+    apart, so a block's own variance decides its weight in the fit rather than
+    its column count deciding it by accident.
+
+    Parameters
+    ----------
+    blocks : dict[str, dict]
+        One entry per block. Keys are block names, carried through to the
+        result. Values are standard batch-data dictionaries: keys are batch
+        identifiers, values are per-batch dataframes with identical numeric
+        columns and the same number of rows within a block. Blocks may have
+        different numbers of columns and different trajectory lengths from one
+        another; they only have to describe the same batches.
+    initial_conditions : pd.DataFrame, optional
+        One row per batch, indexed by batch identifier: measurements taken
+        before the batch ran, which have no time axis. Added as its own block
+        under the name ``"initial_conditions"``, not glued onto a trajectory
+        block.
+    group_by_batch : bool, optional
+        Passed to :func:`dict_to_wide` for every block. ``False`` (default)
+        orders each block's columns ``(tag, sequence)``; ``True`` swaps them to
+        ``(sequence, tag)``.
+
+    Returns
+    -------
+    dict[str, pd.DataFrame]
+        One wide dataframe per block, every one sharing the same row index in
+        the same order, so row *i* is the same batch in every block.
+
+    Raises
+    ------
+    ValueError
+        If ``blocks`` is empty, if a block name collides with the
+        ``initial_conditions`` block, or if the blocks do not all cover exactly
+        the same batches.
+
+    Examples
+    --------
+    >>> wide = unfold_blocks({"spectra": spectra, "process": process})  # doctest: +SKIP
+    >>> MBPCA(n_components=2).fit(wide)                                # doctest: +SKIP
+    """
+    if not blocks:
+        raise ValueError("At least one block is required.")
+
+    ic_name = "initial_conditions"
+    if initial_conditions is not None and ic_name in blocks:
+        raise ValueError(
+            f"Block name {ic_name!r} is reserved for the `initial_conditions` argument; "
+            "rename that block or pass its data as `initial_conditions`."
+        )
+
+    unfolded: dict[str, pd.DataFrame] = {}
+    for name, batches in blocks.items():
+        check_valid_batch_dict(batches, no_nan=True)
+        unfolded[name] = dict_to_wide(batches, group_by_batch=group_by_batch)
+
+    # Every block must describe the same batches. Comparing as sets first gives a
+    # message naming what is missing where; the reindex below then puts them all
+    # in one order, since `dict_to_wide` sorts by batch id and a caller's dicts
+    # need not have been built in the same order.
+    reference_name, reference = next(iter(unfolded.items()))
+    expected = set(reference.index)
+    for name, wide in unfolded.items():
+        if set(wide.index) != expected:
+            missing = expected - set(wide.index)
+            extra = set(wide.index) - expected
+            raise ValueError(
+                f"Every block must cover the same batches. Block {name!r} differs from "
+                f"{reference_name!r}: missing {sorted(missing, key=str)}; "
+                f"unexpected {sorted(extra, key=str)}."
+            )
+
+    if initial_conditions is not None:
+        unfolded[ic_name] = _validated_initial_conditions(initial_conditions, reference.index)
+
+    # The single place row alignment happens. The trajectory blocks already agree,
+    # because `dict_to_wide` pivots on batch_id and so comes back sorted; the
+    # initial-conditions block is the one that arrives in the caller's order and has
+    # to be moved. Reindexing all of them keeps the guarantee in one line and stops
+    # it depending on `dict_to_wide` continuing to sort.
+    order = reference.index
+    return {name: wide.reindex(order) for name, wide in unfolded.items()}
+
+
+def _validated_initial_conditions(initial_conditions: pd.DataFrame, batch_ids: pd.Index) -> pd.DataFrame:
+    """Check the initial-conditions block covers exactly ``batch_ids``, and is numeric and complete.
+
+    Row *order* is not this function's business: ``unfold_blocks`` puts every
+    block into the reference order on the way out, this one included.
+    """
+    if not isinstance(initial_conditions, pd.DataFrame):
+        raise TypeError(
+            "initial_conditions must be a pandas DataFrame indexed by batch identifier; "
+            f"got {type(initial_conditions).__name__}."
+        )
+    if set(initial_conditions.index) != set(batch_ids):
+        missing = set(batch_ids) - set(initial_conditions.index)
+        extra = set(initial_conditions.index) - set(batch_ids)
+        raise ValueError(
+            "initial_conditions must have exactly one row per batch. "
+            f"Missing batch ids: {sorted(missing, key=str)}; unmatched extra ids: {sorted(extra, key=str)}."
+        )
+    z_wide = initial_conditions
+    if z_wide.select_dtypes(include="number").shape[1] != z_wide.shape[1]:
+        raise ValueError("All initial_conditions columns must be numeric.")
+    if z_wide.isna().to_numpy().sum() > 0:
+        raise ValueError("No missing values allowed in initial_conditions.")
+    return z_wide
