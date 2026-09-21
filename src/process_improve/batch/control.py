@@ -1205,7 +1205,68 @@ def _oracle_remaining(  # noqa: PLR0913 - explicit oracle inputs
     return float(-min(first.fun, second.fun))
 
 
-def evaluate_control_policies(  # noqa: PLR0912, PLR0913, PLR0915, C901 - one executed comparison, kept linear
+def _run_decision_points(
+    simulator: object,
+    corrector: MidCourseCorrector,
+    z_row: pd.Series,
+    decision_points: tuple[int, ...],
+    seed: int,
+) -> dict:
+    """Run one test batch under replay and under mid-course correction, with the same seed.
+
+    The batch is first run on the nominal schedule (the replay titer), then
+    walked through the decision points: each correction is executed by
+    re-simulating the batch under the corrected schedule with the identical
+    disturbance history, and the next decision point sees that executed
+    batch. Returns the record fields of the comparison: the replay and
+    mid-course titers, whether and where the batch was first corrected, the
+    corrector's reason, the predicted titer of the first corrected schedule,
+    and the no-change prediction and interval half-width at the first
+    decision point.
+    """
+    base = simulator.simulate_batch(z_row, random_state=seed)  # type: ignore[attr-defined]
+    nominal_index = simulator.nominal_trajectory().index  # type: ignore[attr-defined]
+    schedule = None
+    corrected = False
+    reason = None
+    first_k = None
+    y_hat_predicted = np.nan
+    y_hat_no_change = np.nan
+    half_width = np.nan
+    current = base
+    for k in decision_points:
+        outcome = corrector.correct(
+            current.tags.iloc[:k].reset_index(drop=True),
+            initial_conditions=z_row,
+            implemented_schedule=schedule,
+            k=int(k),
+        )
+        if np.isnan(y_hat_no_change) and "y_hat_no_change" in outcome:
+            y_hat_no_change = float(outcome.y_hat_no_change.iloc[0])
+            half_width = float(outcome.half_width.iloc[0])
+        reason = outcome.reason if reason is None or not corrected else reason
+        if outcome.corrected:
+            schedule = outcome.schedule
+            if not corrected:
+                first_k = int(k)
+                y_hat_predicted = float(outcome.y_hat.iloc[0])
+            corrected = True
+            trajectory = schedule.copy()
+            trajectory.index = nominal_index
+            current = simulator.simulate_batch(z_row, trajectory, random_state=seed)  # type: ignore[attr-defined]
+    return {
+        "replay": float(base.titer),
+        "midcourse": float(current.titer),
+        "corrected": corrected,
+        "reason": reason,
+        "decision_point": first_k,
+        "y_hat_predicted": y_hat_predicted,
+        "y_hat_no_change": y_hat_no_change,
+        "half_width": half_width,
+    }
+
+
+def evaluate_control_policies(  # noqa: PLR0913, PLR0915, C901 - one executed comparison, kept linear
     simulator: object,
     *,
     y_target: float,
@@ -1399,53 +1460,10 @@ def evaluate_control_policies(  # noqa: PLR0912, PLR0913, PLR0915, C901 - one ex
     for position, batch_id in enumerate(z_test.index):
         seed = int(batch_seeds[position])
         z_row = z_test.loc[batch_id]
-        base = simulator.simulate_batch(z_row, random_state=seed)  # type: ignore[attr-defined]
         group = _assign(z_row)
-        corrector = correctors[group]
-
-        schedule = None
-        corrected = False
-        reason = None
-        first_k = None
-        y_hat_predicted = np.nan
-        y_hat_no_change = np.nan
-        half_width = np.nan
-        current = base
-        for k in decision_points:
-            outcome = corrector.correct(
-                current.tags.iloc[:k].reset_index(drop=True),
-                initial_conditions=z_row,
-                implemented_schedule=schedule,
-                k=int(k),
-            )
-            if np.isnan(y_hat_no_change) and "y_hat_no_change" in outcome:
-                y_hat_no_change = float(outcome.y_hat_no_change.iloc[0])
-                half_width = float(outcome.half_width.iloc[0])
-            reason = outcome.reason if reason is None or not corrected else reason
-            if outcome.corrected:
-                schedule = outcome.schedule
-                if not corrected:
-                    first_k = int(k)
-                    y_hat_predicted = float(outcome.y_hat.iloc[0])
-                corrected = True
-                trajectory = schedule.copy()
-                trajectory.index = nominal.index
-                current = simulator.simulate_batch(z_row, trajectory, random_state=seed)  # type: ignore[attr-defined]
-        mcc_titer = float(current.titer)
-
-        record = {
-            "batch_id": batch_id,
-            "class_true": list(test.classes)[position],
-            "class_assigned": group,
-            "replay": float(base.titer),
-            "midcourse": mcc_titer,
-            "corrected": corrected,
-            "reason": reason,
-            "decision_point": first_k,
-            "y_hat_predicted": y_hat_predicted,
-            "y_hat_no_change": y_hat_no_change,
-            "half_width": half_width,
-        }
+        record = {"batch_id": batch_id, "class_true": list(test.classes)[position], "class_assigned": group}
+        record.update(_run_decision_points(simulator, correctors[group], z_row, decision_points, seed))
+        corrected, first_k = record["corrected"], record["decision_point"]
         if include_adapted:
             best = simulator.optimal_trajectory(  # type: ignore[attr-defined]
                 z_row, n_knots=adapted_n_knots, n_starts=adapted_n_starts, random_state=0

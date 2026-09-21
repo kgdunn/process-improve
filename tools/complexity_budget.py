@@ -61,7 +61,12 @@ BUDGET: dict[str, int] = {
     # and adds its own options (the three that control the reweighting loop), so
     # its width is inherited rather than invented.
     "PLR0913": 84,
-    "PLR0915": 31,
+    # 30: #541 moved the SPE validity gate and the no-change prediction out of
+    # `MidCourseCorrector.correct` into `predict`, so `correct` no longer breaches
+    # PLR0915; the per-batch loop of `evaluate_control_policies` went into
+    # `_run_decision_points` at the same time, which kept that function under
+    # PLR0912 after it gained the no-change record.
+    "PLR0915": 30,
 }
 
 #: Where the ratchet is headed: half of the 2026-06 baseline of 185, by v2.0.
