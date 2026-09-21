@@ -65,6 +65,50 @@ those changes.
     happened to tie at the floor. The reported `z_score`, how far a subset stands
     above its own null, does not tie: it peaks where the effect is concentrated.
 
+- **`PLSDA`: PLS discriminant analysis (#375).** Classification built on the
+  existing `PLS`: the labels are one-hot encoded into an indicator `Y`, a PLS model
+  is fitted on it, and the predicted indicator values are turned back into labels.
+  `PLSDA` subclasses `PLS`, so nothing about the NIPALS fit is reimplemented and a
+  fitted classifier still has `scores_`, `x_loadings_`, `vip()`, Hotelling's T2, SPE
+  and every plot method.
+
+  ```python
+  from process_improve.multivariate import PLSDA
+
+  model = PLSDA(n_components=2).fit(X, labels)
+  model.predict(X_new)                  # labels
+  model.predict_proba(X_new)            # class posteriors
+  model.confusion(X_test, y_test)       # held-out matrix, sensitivity, specificity
+  model.permutation_test(X, labels)     # is the separation real?
+  ```
+
+  Two decision rules. `"max"` (the default) takes the largest indicator, as most
+  PLS-DA software does. `"bayes"` takes the largest posterior, built from Gaussians
+  fitted to each class's in-class and out-of-class indicator values and weighted by
+  the priors. The second matters on unbalanced data for a reason worth knowing: a
+  rare class's indicator is pulled toward zero by the nine rows in ten that want it
+  there, so `"max"` hands almost everything to the common class. On a 1:9 fixture it
+  finds two of eight rare samples while reporting 92.5% accuracy; `"bayes"` finds
+  seven, and scores higher overall.
+
+  The per-class Bayesian thresholds are exposed as `thresholds_`, solved from where
+  the two Gaussians cross rather than approximated.
+
+- **`permutation_test` on `PLSDA`.** PLS-DA on wide data separates almost anything,
+  so the model alone cannot tell a real effect from chance. The test refits on
+  shuffled labels and compares cross-validated accuracy, with the observed statistic
+  counted among the permutations (the `(1 + k) / (1 + n)` convention already used by
+  the Van der Voet and multiblock randomization tests). Measured on 40 samples of 30
+  pure-noise variables: training accuracy is **1.000**, the cross-validated test
+  correctly returns p = 0.22, and the `cv=None` variant returns p = 0.02 on data with
+  no signal in it. That is why `cv=5` is the default.
+
+- **`confusion_matrix_plot`.** A heat map of counts, or of row fractions with
+  `{"normalize": True}` in its settings, bound as a method on `PLSDA` and
+  importable on its own. It takes
+  an optional matrix argument so the held-out confusion matrix can be plotted rather
+  than the optimistic training one.
+
 - **`optimize_responses(method="ridge_analysis")` (#208).** Traces the best
   attainable point on spheres of increasing radius from the design centre, which
   is the question worth asking when a second-order model's stationary point lands
@@ -238,6 +282,17 @@ The third item of #374, double cross-validation for PLS, is already provided by
 
 ### Fixed
 
+- **`explained_variance_plot` labels a `PLSDA` model correctly.** It chose its axis
+  label with `type(model).__name__ == "PLS"`, which a subclass fails; `PLSDA`'s
+  `r2_per_component_` is likewise the Y-block, so the exact-name test would have
+  labelled the plot "X-variance".
+
+  The model now declares which block its `r2_per_component_` measures, through a
+  `_variance_block` class attribute that subclasses inherit, and the plot reads it,
+  defaulting to `"X"`. An `isinstance` check would have worked too, but `_pls`
+  imports `plots`, so importing `PLS` back into `plots` closes a cycle; a model
+  saying what it explains is also plainer than a plot inferring it.
+
 - **The `ridge_trace` plot now solves the ridge instead of approximating it.** It
   scanned 200 values of the Lagrange multiplier, then rescaled whichever solution
   it liked onto the requested radius. A rescaled point is not the constrained
@@ -362,11 +417,11 @@ The third item of #374, double cross-validation for PLS, is already provided by
   also fails, telling you to lower the budget. A refactor therefore cannot be
   quietly spent by the next change. The target, recorded in `CONTRIBUTING.md`,
   is to halve the 2026-06 baseline of 185 breaches to 91 by v2.0; this release
-  takes it to 185: the `MBPCA.fit` split removed three, while #598's
-  `smooth_trajectories`, #581's `equal_var` switch and #374's
-  `parallel_analysis(surrogate=...)` each added one. #208 is then net neutral:
-  `_pareto_front` adds a `PLR0913` breach and the `to_spec` simplification
-  removes a `C901` one.
+  takes it to 186: the `MBPCA.fit` split removed three, while #598's
+  `smooth_trajectories`, #581's `equal_var` switch, #374's
+  `parallel_analysis(surrogate=...)`, #208's `_pareto_front` and this release's
+  `PLSDA` constructor each added one, and #208's `to_spec` simplification took a
+  `C901` breach back off.
 
 - **`HalvingGridSearchCV` / `HalvingRandomSearchCV` with a Pipeline-aware budget
   (#398).** The existing coverage uses `resource="n_samples"`, the default, where
