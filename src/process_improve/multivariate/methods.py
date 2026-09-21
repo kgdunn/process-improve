@@ -63,6 +63,7 @@ from ._pca import PCA
 from ._pls import PLS
 from ._plsda import PLSDA
 from ._preprocessing import MCUVScaler, center, scale
+from ._prm import PRM
 from ._resampling import Resampler
 from ._tpls import TPLS, DataFrameDict, make_tpls_scorer
 from .plots import (
@@ -87,6 +88,7 @@ __all__ = [
     "PCA",
     "PLS",
     "PLSDA",
+    "PRM",
     "REFERENCE_LINE_COLOR",
     "TPLS",
     "AdaptivePCA",
