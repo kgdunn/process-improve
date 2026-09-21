@@ -610,6 +610,14 @@ The third item of #374, double cross-validation for PLS, is already provided by
   caller in the package passes a private copy, which is why the aliasing has not
   bitten, but the contract is now stated rather than left in the body.
 
+- Two attributions corrected (#541). The SPE limit's docstring called the
+  moment-matched weighted chi-square approximation (Box, 1954; Nomikos and
+  MacGregor, 1995) "Jackson-Mudholkar"; that limit needs the eigenvalues of
+  the residual covariance, which a batchwise-unfolded matrix with far more
+  columns than rows cannot supply, and was never what the function computed.
+  `batch_dtw` dated Kassidas, MacGregor and Taylor to 2004; the DOI it cites
+  is their 1998 AIChE Journal paper.
+
 ### Tests
 
 - **`robust_regression` is now tested with pandas `Series` inputs (#213).** It
