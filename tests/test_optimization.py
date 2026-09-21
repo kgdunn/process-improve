@@ -920,31 +920,48 @@ class TestSearchBounds:
 # ---------------------------------------------------------------------------
 
 
-class TestStubs:
-    """Verify stub methods return appropriate not-implemented messages."""
+class TestFormerStubs:
+    """Both methods were stubs returning ``status: "stub"`` until #208.
 
-    def test_ridge_analysis_stub(self) -> None:
-        """Ridge analysis returns error with stub status."""
+    The behaviour they now have is covered in
+    ``tests/test_optimization_ridge_pareto.py``; these only pin that the stub
+    reply is gone, so nothing downstream is still branching on it.
+    """
+
+    def test_ridge_analysis_traces_a_path(self) -> None:
         model = {
             "response_name": "yield",
             "coefficients": _quadratic_2f_coeffs(),
             "factor_names": FACTOR_NAMES_2F,
         }
-        result = optimize_responses([model], method="ridge_analysis")
-        assert "error" in result["ridge_analysis"]
-        assert result["ridge_analysis"]["status"] == "stub"
+        result = optimize_responses([model], method="ridge_analysis", n_steps=5)["ridge_analysis"]
+        assert "status" not in result
+        assert len(result["path"]) == 6
+        assert result["path"][0]["radius"] == 0.0
 
-    def test_pareto_front_stub(self) -> None:
-        """Pareto front returns error with stub status."""
+    def test_pareto_front_returns_a_front(self) -> None:
+        models = [
+            {"response_name": "yield", "coefficients": _quadratic_2f_coeffs(), "factor_names": FACTOR_NAMES_2F},
+            {"response_name": "cost", "coefficients": _linear_2f_coeffs(), "factor_names": FACTOR_NAMES_2F},
+        ]
+        goals = [
+            {"response": "yield", "goal": "maximize", "low": 30.0, "high": 50.0},
+            {"response": "cost", "goal": "minimize", "low": 10.0, "high": 40.0},
+        ]
+        result = optimize_responses(models, goals=goals, method="pareto_front", n_pareto_points=9)["pareto_front"]
+        assert "status" not in result
+        assert len(result["front"]) >= 2
+
+    def test_pareto_front_still_refuses_a_single_response(self) -> None:
+        """One response has nothing to trade off against."""
         model = {
             "response_name": "yield",
             "coefficients": _quadratic_2f_coeffs(),
             "factor_names": FACTOR_NAMES_2F,
         }
         goals = [{"response": "yield", "goal": "maximize", "low": 30.0, "high": 50.0}]
-        result = optimize_responses([model], goals=goals, method="pareto_front")
-        assert "error" in result["pareto_front"]
-        assert result["pareto_front"]["status"] == "stub"
+        with pytest.raises(ValueError, match="at least two responses"):
+            optimize_responses([model], goals=goals, method="pareto_front")
 
 
 # ---------------------------------------------------------------------------
