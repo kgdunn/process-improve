@@ -18,7 +18,7 @@ from ..univariate.metrics import detect_outliers_esd
 from ..visualization.themes import REFERENCE_LINE_COLOR
 from ._adaptive import AdaptivePCA, AdaptivePLS
 from ._asca import ASCA
-from ._common import NotEnoughVarianceError, SpecificationWarning, UncentredDataWarning, epsqrt
+from ._common import BlockSet, NotEnoughVarianceError, SpecificationWarning, UncentredDataWarning, epsqrt
 from ._diagnostics import (
     eigenvalue_summary,
     group_contributions,
@@ -91,6 +91,7 @@ __all__ = [
     "TPLS",
     "AdaptivePCA",
     "AdaptivePLS",
+    "BlockSet",
     "DataFrameDict",
     "MCUVScaler",
     "NotEnoughVarianceError",

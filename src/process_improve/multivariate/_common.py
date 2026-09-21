@@ -13,7 +13,7 @@ from __future__ import annotations
 import functools
 import warnings
 from collections.abc import Callable
-from typing import Any, Literal, TypeAlias
+from typing import Any, Literal, TypeAlias, cast
 
 import numpy as np
 import pandas as pd
@@ -427,3 +427,100 @@ def _scale_block_contributions(blocks: dict[str, np.ndarray], scaling: str) -> d
         return {name: values / per_row for name, values in blocks.items()}
     msg = f"scaling must be one of 'none', 'maximum' or 'within', got {scaling!r}."
     raise ValueError(msg)
+
+
+class BlockSet(dict):
+    """A ``dict[str, pd.DataFrame]`` of equal-height blocks that can also be sliced by row (#193).
+
+    :meth:`MBPCA.fit <process_improve.multivariate.methods.MBPCA.fit>` and
+    :meth:`MBPLS.fit <process_improve.multivariate.methods.MBPLS.fit>` take a
+    plain ``dict[str, pd.DataFrame]``, which is convenient to build and
+    impossible to resample: a dict has no notion of "row 7 of every block". Any
+    resampling or cross-validation pass needs exactly that. ``Resampler``, for
+    instance, asks its data only for ``len(x)`` and ``x[indices]``.
+
+    TPLS already has :class:`~process_improve.multivariate.methods.DataFrameDict`
+    for this, but it is hardwired to the ``Z``/``F``/``Y`` block names and to a
+    nested ``dict[str, dict[str, DataFrame]]`` layout, so the multi-block models
+    could not borrow it. ``BlockSet`` is the flat equivalent: a real ``dict``
+    subclass, so anything that already accepts the plain dict keeps working,
+    plus row indexing.
+
+    .. warning::
+       ``len(blocks)`` is the number of **rows**, not the number of blocks. That
+       is surprising for a dict, and it is deliberate: it is the convention
+       ``DataFrameDict`` already set, and it is what the resampling code means
+       by the length of a dataset. Use ``len(blocks.keys())`` to count blocks.
+
+    Parameters
+    ----------
+    blocks : dict[str, pd.DataFrame]
+        One entry per block. Every block must be a DataFrame with the same
+        number of rows; widths may differ.
+
+    Raises
+    ------
+    ValueError
+        If ``blocks`` is empty, or the blocks disagree on their row count.
+    TypeError
+        If any value is not a DataFrame.
+
+    Examples
+    --------
+    >>> blocks = BlockSet({"a": df_a, "b": df_b})   # doctest: +SKIP
+    >>> len(blocks)                                 # rows, not blocks  # doctest: +SKIP
+    40
+    >>> blocks[[0, 1, 2]].keys()                    # a 3-row BlockSet  # doctest: +SKIP
+    dict_keys(['a', 'b'])
+    """
+
+    def __init__(self, blocks: dict[str, pd.DataFrame]):
+        if not isinstance(blocks, dict):
+            raise TypeError(f"blocks must be a dict of DataFrames, one per block; got {type(blocks).__name__}.")
+        if not blocks:
+            raise ValueError("At least one block is required.")
+
+        first_name, first = next(iter(blocks.items()))
+        if not isinstance(first, pd.DataFrame):
+            raise TypeError(f"Block {first_name!r} must be a pandas DataFrame; got {type(first).__name__}.")
+        n_samples = first.shape[0]
+        for name, block in blocks.items():
+            if not isinstance(block, pd.DataFrame):
+                raise TypeError(f"Block {name!r} must be a pandas DataFrame; got {type(block).__name__}.")
+            if block.shape[0] != n_samples:
+                raise ValueError(
+                    f"Every block must have the same number of rows ({n_samples}, from block {first_name!r}). "
+                    f"Block {name!r} has {block.shape[0]}."
+                )
+
+        super().__init__(blocks)
+        self.n_samples = int(n_samples)
+        self.shape = (self.n_samples, len(blocks))
+
+    def __len__(self) -> int:
+        """Return the number of rows; see the warning in the class docstring."""
+        return self.n_samples
+
+    def __getitem__(self, lookup: str | int | list | np.ndarray) -> pd.DataFrame | BlockSet:
+        """Look a block up by name, or slice every block to the same rows."""
+        if isinstance(lookup, str):
+            return cast("pd.DataFrame", super().__getitem__(lookup))
+        return BlockSet({name: _row_slice(block, lookup, name) for name, block in self.items()})
+
+
+def _row_slice(block: pd.DataFrame, lookup: int | list | np.ndarray, name: str) -> pd.DataFrame:
+    """Take rows from one block, keeping the result two-dimensional."""
+    match lookup:
+        case int() | np.integer():
+            # A list, not a scalar: a single row still has to come back as a frame,
+            # otherwise a one-row resample would arrive at ``fit`` as a Series.
+            return block.iloc[[int(lookup)]]
+        case list():
+            return block.iloc[[int(index) for index in lookup]]
+        case np.ndarray():
+            return block.iloc[lookup.tolist()]
+        case _:
+            raise TypeError(
+                f"Row lookup must be an int, a list of ints, or an ndarray; "
+                f"got {type(lookup).__name__} while slicing block {name!r}."
+            )
