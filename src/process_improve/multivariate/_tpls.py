@@ -266,8 +266,6 @@ class TPLS(RegressorMixin, BaseEstimator):
         Number of quality-indicator columns summed across Y blocks.
     is_fitted_ : bool
         Set to True once ``fit()`` completes.
-    tolerance_ : float
-        Deprecated since 1.96.0; reads ``tol`` and warns. Removed in 2.0.
     fitting_statistics : dict
         Per-component ``iterations``, ``convergance_tolerance`` and
         ``milliseconds`` lists.
