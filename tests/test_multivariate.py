@@ -1830,7 +1830,7 @@ def test_pls_structural_identities_split_under_missing_data(
     assert isinstance(data["A"], int)
     x_gapped = pd.DataFrame(data["X"]).copy()
     x_gapped.iloc[11, 0] = np.nan
-    model = PLS(n_components=int(data["A"]), missing_data_settings=dict(md_method="scp")).fit(
+    model = PLS(n_components=int(data["A"]), missing_data_settings=dict(md_method="nipals")).fit(
         MCUVScaler().fit_transform(x_gapped),
         MCUVScaler().fit_transform(pd.DataFrame(data["Y"])),
     )
@@ -2817,7 +2817,7 @@ def test_pls_simca_ldpe_missing_data(
     assert isinstance(data["Y"], np.ndarray)
     assert isinstance(data["A"], int)
     data["X"][11, 0] = float("nan")
-    plsmodel = PLS(n_components=int(data["A"]), missing_data_settings=dict(md_method="scp"))
+    plsmodel = PLS(n_components=int(data["A"]), missing_data_settings=dict(md_method="nipals"))
     X_mcuv = MCUVScaler().fit(data["X"])
     Y_mcuv = MCUVScaler().fit(data["Y"])
     plsmodel = plsmodel.fit(X_mcuv.transform(data["X"]), Y_mcuv.transform(pd.DataFrame(data["Y"])))
@@ -6207,3 +6207,88 @@ def test_a_criterion_that_never_turns_over_says_so() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error", SpecificationWarning)
         PCA.select_n_components(_known_rank_block(), max_components=8, cv=7, n_repeats=5, random_state=0)
+
+
+class TestPlsMissingDataSettingsResolution:
+    """The fit-time resolution of ``missing_data_settings`` (#588).
+
+    Three defects, each verified by a test that fails against the previous code.
+    """
+
+    @staticmethod
+    def _xy(*, gapped: bool) -> tuple[pd.DataFrame, pd.DataFrame]:
+        rng = np.random.default_rng(0)
+        x = pd.DataFrame(rng.standard_normal((30, 5)))
+        y = pd.DataFrame(x.to_numpy() @ rng.standard_normal((5, 1)) + 0.1 * rng.standard_normal((30, 1)))
+        if gapped:
+            x = x.copy()
+            x.iloc[0, 0] = np.nan
+        return x, y
+
+    def test_partial_settings_do_not_raise_key_error(self) -> None:
+        """A dict giving only ``md_tol`` leaves ``md_max_iter`` to the constructor.
+
+        Previously the complete-data branch passed the caller's dict through as the whole
+        settings mapping, so ``_fit_nipals`` hit ``settings["md_max_iter"]`` and raised
+        ``KeyError``.
+        """
+        x, y = self._xy(gapped=False)
+        model = PLS(n_components=2, max_iter=321, missing_data_settings={"md_tol": 1e-3}).fit(x, y)
+        assert model.n_components_ == 2
+
+    def test_tol_reaches_the_nipals_loop_when_data_has_gaps(self) -> None:
+        """``PLS(tol=...)`` governs convergence whether or not a cell is missing.
+
+        The missing-data branch used to hard-code ``md_tol=epsqrt`` while taking
+        ``md_max_iter`` from the constructor, so ``tol`` applied to complete data and was
+        dropped the moment a cell went missing. A loose tolerance must now stop sooner
+        than a tight one.
+        """
+        x, y = self._xy(gapped=True)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tight = PLS(n_components=2, tol=1e-14, max_iter=500).fit(x, y)
+            loose = PLS(n_components=2, tol=5e-1, max_iter=500).fit(x, y)
+        assert loose.fitting_info_["iterations"][0] < tight.fitting_info_["iterations"][0]
+
+    def test_explicit_md_tol_still_wins_over_tol(self) -> None:
+        """The dict overrides the constructor, which is the point of passing one."""
+        x, y = self._xy(gapped=True)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            via_ctor = PLS(n_components=2, tol=5e-1, max_iter=500).fit(x, y)
+            overridden = PLS(n_components=2, tol=5e-1, max_iter=500, missing_data_settings={"md_tol": 1e-14}).fit(x, y)
+        assert overridden.fitting_info_["iterations"][0] > via_ctor.fitting_info_["iterations"][0]
+
+    @pytest.mark.parametrize("bad", ["scp", "rubbish", "NIPALs "])
+    def test_unknown_md_method_is_refused(self, bad: str) -> None:
+        """An unrecognised value used to fall through to NIPALS without a word.
+
+        ``"scp"`` is the trap: it is a real method name for ``project()`` and the
+        contribution helpers, so asking for it here looked reasonable and quietly ran a
+        different algorithm.
+        """
+        x, y = self._xy(gapped=True)
+        with pytest.raises(ValueError, match="md_method must be one of"):
+            PLS(n_components=2, missing_data_settings={"md_method": bad}).fit(x, y)
+
+    @pytest.mark.parametrize("method", ["tsr", "pmp"])
+    def test_recognised_but_unbuilt_methods_still_raise_not_implemented(self, method: str) -> None:
+        """``tsr`` and ``pmp`` are named in the fit-time set so they keep their own error."""
+        x, y = self._xy(gapped=True)
+        with pytest.raises(NotImplementedError, match=f"{method.upper()} for PLS"):
+            PLS(n_components=2, missing_data_settings={"md_method": method}).fit(x, y)
+
+    def test_default_construction_is_unchanged(self) -> None:
+        """The defaults resolve to what the old code resolved to.
+
+        ``PLS`` defaults ``tol`` to ``epsqrt``, which is the value the missing-data branch
+        used to hard-code, so a model built without arguments fits exactly as before.
+        """
+        x, y = self._xy(gapped=True)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            model = PLS(n_components=2).fit(x, y)
+            pinned = PLS(n_components=2, missing_data_settings={"md_tol": epsqrt}).fit(x, y)
+        np.testing.assert_array_equal(model.fitting_info_["iterations"], pinned.fitting_info_["iterations"])
+        np.testing.assert_allclose(model.predictions_.to_numpy(), pinned.predictions_.to_numpy(), rtol=0, atol=0)

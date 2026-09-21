@@ -59,6 +59,29 @@ from .plots import (
 
 logger = logging.getLogger(__name__)
 
+# The ``md_method`` values ``_fit_nipals`` recognises. Deliberately smaller than
+# ``_projection.PROJECTION_METHODS``: that tuple is the projection-time set, which also
+# offers ``"scp"``. Only ``"nipals"`` is implemented here; the other two are recognised so
+# a caller asking for them gets NotImplementedError rather than a silent NIPALS fit.
+_FIT_TIME_MD_METHODS = frozenset({"nipals", "tsr", "pmp"})
+
+
+def _check_md_method(settings: dict) -> None:
+    """Refuse a ``md_method`` the fit cannot carry out, before any work is done.
+
+    An unrecognised value used to fall through to NIPALS silently, so a typo, or the
+    projection-time name ``"scp"``, ran a different algorithm than the caller asked for.
+    """
+    md_method = settings.get("md_method", "nipals").lower()
+    if md_method not in _FIT_TIME_MD_METHODS:
+        raise ValueError(
+            f"md_method must be one of {sorted(_FIT_TIME_MD_METHODS)}; got '{md_method}'. "
+            "This is the fit-time setting, a smaller set than the method= accepted by "
+            "project() and the contribution helpers."
+        )
+    if md_method != "nipals":
+        raise NotImplementedError(f"{md_method.upper()} for PLS not implemented yet")
+
 
 def _vandervoet_randomization(
     per_obs_sse: np.ndarray,
@@ -262,9 +285,18 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         deliberately un-centred fit stays quiet inside a ``Pipeline`` or a
         grid search.
     missing_data_settings : dict or None, default=None
-        Settings for missing data algorithms (NIPALS/TSR for PLS).
-        Keys: ``md_method`` (``"tsr"``, ``"scp"``, ``"nipals"``),
-        ``md_tol``, ``md_max_iter``.
+        Settings for the NIPALS fit when the data has missing cells. Keys:
+
+        - ``md_method``: ``"nipals"`` (the default, and the only one
+          implemented), or ``"tsr"`` / ``"pmp"``, which are recognised and
+          raise :class:`NotImplementedError`. Any other value is refused. This
+          is a different and smaller set than the ``method=`` accepted by
+          :meth:`project` and the contribution helpers, which do implement
+          ``"tsr"``, ``"scp"`` and ``"pmp"``.
+        - ``md_tol`` and ``md_max_iter``: the NIPALS convergence tolerance and
+          iteration cap. They default to this model's ``tol`` and ``max_iter``,
+          so set those instead unless you need the fit and the missing-data
+          path to differ.
 
     Attributes (after fitting)
     --------------------------
@@ -502,11 +534,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         K = self.n_features_in_
         M = self.n_targets_
 
-        md_method = settings.get("md_method", "nipals").lower()
-        if md_method == "tsr":
-            raise NotImplementedError("TSR for PLS not implemented yet")
-        if md_method == "pmp":
-            raise NotImplementedError("PMP for PLS not implemented yet")
+        _check_md_method(settings)
 
         Xd = np.asarray(X, dtype=float).copy()
         Yd = np.asarray(Y, dtype=float).copy()
@@ -821,24 +849,27 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # it, per the sklearn clone/get_params contract (#505).
         self.n_components_ = A
 
-        resolved_mds = self.missing_data_settings
         if np.any(Y.isna()) or np.any(X.isna()):
             self.has_missing_data_ = True
-            # Default to the NIPALS path because TSR / PMP for PLS are still
-            # NotImplementedError in _fit_nipals; NIPALS handles per-cell NaN
-            # directly via skipna sums inside the NIPALS iterations.  The
-            # resolved settings stay local: mutating the constructor parameter
-            # would leak into clone() (#505).
-            default_mds = dict(md_method="nipals", md_tol=epsqrt, md_max_iter=self.max_iter)
-            if isinstance(self.missing_data_settings, dict):
-                default_mds.update(self.missing_data_settings)
-            resolved_mds = default_mds
 
-        settings = resolved_mds or {
-            "md_method": "nipals",
-            "md_tol": self.tol,
-            "md_max_iter": self.max_iter,
-        }
+        # One resolution, whether or not the data has gaps. The defaults come from this
+        # model's own ``tol`` and ``max_iter``, and an explicit ``missing_data_settings``
+        # overrides individual keys on top.
+        #
+        # Seeding from ``self`` is what makes ``PLS(tol=...)`` reach the NIPALS loop in
+        # both cases: the missing-data branch used to hard-code ``md_tol=epsqrt`` while
+        # taking ``md_max_iter`` from the constructor, so a caller's ``tol`` applied to
+        # complete data and was dropped as soon as a cell went missing. Filling every key
+        # here also means a partial dict (say ``{"md_tol": 1e-3}``) can no longer leave
+        # ``md_max_iter`` absent, which used to raise ``KeyError`` from ``_fit_nipals``.
+        #
+        # ``md_method`` defaults to NIPALS because TSR / PMP for PLS are still
+        # NotImplementedError in ``_fit_nipals``; NIPALS handles per-cell NaN directly via
+        # skipna sums inside its iterations. The resolved settings stay local: mutating the
+        # constructor parameter would leak into clone() (#505).
+        settings = {"md_method": "nipals", "md_tol": self.tol, "md_max_iter": self.max_iter}
+        if isinstance(self.missing_data_settings, dict):
+            settings.update(self.missing_data_settings)
         self._fit_nipals(X, Y, A, settings, sample_weight=sample_weight)
 
         # --- Common post-fit path: wrap numpy arrays into pandas ---
