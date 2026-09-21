@@ -32,6 +32,14 @@ end-to-end, on-line workflows. Highlights (full history in [CHANGELOG.md](CHANGE
   [user guide](https://kgdunn.github.io/process-improve/user_guide/model_inversion.html)
   or the longer
   [book chapter](https://learnche.org/pid/latent-variable-modelling/projection-to-latent-structures/pls-model-inversion-and-the-orthogonal-space).
+- **Classification, on the same PLS model you already trust.** `PLSDA`
+  one-hot encodes the labels, fits a PLS on the indicator, and turns the
+  predictions back into labels, so a fitted classifier still has `scores_`,
+  `vip()`, Hotelling's T2, SPE and every plot method. Its `"bayes"` decision
+  rule matters on unbalanced data: a rare class's indicator is pulled toward
+  zero by the rows that want it there, so the usual largest-indicator rule hands
+  almost everything to the common class. On a 1:9 fixture it finds two of eight
+  rare samples at a reported 92.5% accuracy; `"bayes"` finds seven.
 - **Models that keep up with a drifting process.** `AdaptivePCA` and
   `AdaptivePLS` (v1.55) fit once, then stream one observation at a time,
   re-learning the correlation structure and reporting how far the process has
@@ -55,6 +63,9 @@ practitioners actually use on real plant and lab data:
   Score Regression
 - **PLS** regression with a fully sklearn-compatible API, VIP scores, and
   cross-validated diagnostics
+- **PLS-DA** - classification on a PLS model, with a max or Bayesian decision
+  rule, class posteriors, a held-out confusion matrix, and a permutation test
+  that says whether the separation is real
 - **TPLS** - PLS for *T-shaped (multi-block) data structures*
 - **Model inversion** - `PLS.invert()` and `OPLS` solve for the inputs that
   reach a target quality, return the null space of equally valid designs, and
@@ -238,6 +249,36 @@ cv = pls.cross_validate(X_s, Y_s, cv="loo")
 print(cv.beta_ci_lower, cv.beta_ci_upper)  # 95% CI for each beta
 print(cv.significant)  # betas significantly != 0
 print(cv.q_squared)  # cross-validated R² (Q²)
+```
+
+### PLS-DA - classification on a PLS model
+
+```python
+from process_improve.multivariate import PLSDA
+
+# `labels` is any 1-D array of class labels; PLSDA one-hot encodes it for you
+model = PLSDA(n_components=2).fit(X, labels)
+
+model.predict(X_new)  # labels
+model.predict_proba(X_new)  # class posteriors
+model.score(X_test, y_test)  # accuracy (sklearn convention: higher is better)
+
+# Judge it on held-out data, not on the training fit
+cm = model.confusion(X_test, y_test)
+print(cm.matrix, cm.sensitivity, cm.specificity)
+model.confusion_matrix_plot(cm.matrix, {"normalize": True})
+
+# Wide data separates almost anything, so ask whether the separation is real
+print(model.permutation_test(X, labels).p_value)
+
+# On unbalanced classes, take the largest posterior rather than the largest
+# indicator: the rare class's indicator is pulled toward zero by everything else
+balanced = PLSDA(n_components=2, decision_rule="bayes").fit(X, labels)
+print(balanced.thresholds_)  # where each class's two Gaussians cross
+
+# Everything PLS gives you is still here
+model.vip()
+model.score_plot()
 ```
 
 ### Model inversion - design the inputs for a quality you choose
