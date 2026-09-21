@@ -38,15 +38,12 @@ RULES = ("C901", "PLR0912", "PLR0913", "PLR0915")
 #: never raise them. A pull request that pushes a count over its budget has made
 #: the code worse in the specific way #307 is about, and CI says so.
 BUDGET: dict[str, int] = {
-    # 46: this branch's `to_spec` in optimization_plots.py no longer branches
-    # enough to breach C901, and its suppression went with it. The ratchet fails on
-    # a count *below* budget precisely so the saving is banked here rather than
-    # left as headroom for the next change to spend silently.
+    # 46: #208's `to_spec` in optimization_plots.py no longer branches enough to
+    # breach C901, and its suppression went with it. The ratchet fails on a count
+    # *below* budget precisely so the saving is banked here rather than left as
+    # headroom for the next change to spend silently.
     "C901": 46,
     "PLR0912": 26,
-    # 82, and none of the four moves is a regression this branch introduced. #598
-    # merged `smooth_trajectories`, whose seven arguments are the two smoothers'
-    # settings side by side: naming them beats a settings dict whose valid keys
     # 83, and none of the five moves is a regression any one branch introduced.
     # #598 merged `smooth_trajectories`, whose seven arguments are the two
     # smoothers' settings side by side: naming them beats a settings dict whose
@@ -55,7 +52,7 @@ BUDGET: dict[str, int] = {
     # switches. #374 added `surrogate` to `PCA.parallel_analysis`, because which
     # null a permutation test draws from is a first-class option of the method.
     # #208 added `_pareto_front`, whose models, goals, naming and search region are
-    # four separate inputs. This branch adds `PLSDA.__init__`, which mirrors
+    # four separate inputs. #375 added `PLSDA.__init__`, which mirrors
     # `PLS.__init__` and adds `decision_rule` and `priors`, so its width is
     # inherited rather than invented. All five carry a reasoned suppression, which
     # is the discipline this ratchet exists to enforce, so the budget tracks what

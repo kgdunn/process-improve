@@ -354,6 +354,13 @@ The third item of #374, double cross-validation for PLS, is already provided by
 
 ### Tests
 
+- **`robust_regression` is now tested with pandas `Series` inputs (#213).** It
+  accepts them, and pairs the two vectors **by position**, not by index: the
+  implementation takes `.values` from each, so the labels are discarded. The
+  obvious alternative, `pd.concat([x, y], axis=1)`, would align on the index and
+  turn two disjoint indexes into a frame of NaN, so the behaviour is now pinned
+  by a test that uses deliberately disjoint indexes.
+
 - **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
   counts how many functions in `src/process_improve` breach `C901`, `PLR0912`,
   `PLR0913` or `PLR0915`, asking ruff with `--ignore-noqa` so it measures real
