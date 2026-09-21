@@ -133,6 +133,29 @@ class TestUnfoldBlocks:
         with pytest.raises(ValueError, match="reserved"):
             unfold_blocks(blocks, initial_conditions=z)
 
+    def test_initial_conditions_must_be_a_frame(self, two_blocks: dict[str, dict], ids: list[str]) -> None:
+        with pytest.raises(TypeError, match="must be a pandas DataFrame indexed by batch identifier"):
+            unfold_blocks(two_blocks, initial_conditions=dict.fromkeys(ids, 0.0))  # type: ignore[arg-type]
+
+    def test_initial_conditions_must_cover_every_batch(self, two_blocks: dict[str, dict], ids: list[str]) -> None:
+        """The message names both directions, so a typo'd id is diagnosable, not just 'mismatch'."""
+        z = pd.DataFrame({"charge": np.zeros(N_BATCHES)}, index=[*ids[:-1], "typo"])
+        with pytest.raises(ValueError, match="exactly one row per batch") as caught:
+            unfold_blocks(two_blocks, initial_conditions=z)
+        assert ids[-1] in str(caught.value)
+        assert "typo" in str(caught.value)
+
+    def test_initial_conditions_must_be_numeric(self, two_blocks: dict[str, dict], ids: list[str]) -> None:
+        z = pd.DataFrame({"charge": np.zeros(N_BATCHES), "operator": ["ann"] * N_BATCHES}, index=ids)
+        with pytest.raises(ValueError, match="columns must be numeric"):
+            unfold_blocks(two_blocks, initial_conditions=z)
+
+    def test_initial_conditions_must_be_complete(self, two_blocks: dict[str, dict], ids: list[str]) -> None:
+        z = pd.DataFrame({"charge": np.zeros(N_BATCHES)}, index=ids)
+        z.iloc[2, 0] = np.nan
+        with pytest.raises(ValueError, match="No missing values allowed"):
+            unfold_blocks(two_blocks, initial_conditions=z)
+
     def test_feeds_mbpca_directly(self, two_blocks: dict[str, dict]) -> None:
         """The acceptance criterion: aligned batches into a multi-block model, no reshaping."""
         model = MBPCA(n_components=2).fit(unfold_blocks(two_blocks))
@@ -188,6 +211,19 @@ class TestBlockSet:
     def test_empty_rejected(self) -> None:
         with pytest.raises(ValueError, match="At least one block"):
             BlockSet({})
+
+    def test_non_dict_rejected(self) -> None:
+        with pytest.raises(TypeError, match="must be a dict of DataFrames"):
+            BlockSet([pd.DataFrame(np.zeros((4, 2)))])  # type: ignore[arg-type]
+
+    def test_first_block_is_type_checked_too(self) -> None:
+        """The row count is read off the first block, so that one must be a frame as well."""
+        with pytest.raises(TypeError, match="Block 'a' must be a pandas DataFrame"):
+            BlockSet({"a": np.zeros((4, 2)), "b": pd.DataFrame(np.zeros((4, 2)))})  # type: ignore[dict-item]
+
+    def test_identical_object_compares_equal(self, two_blocks: dict[str, dict]) -> None:
+        blocks = BlockSet(unfold_blocks(two_blocks))
+        assert blocks == blocks  # noqa: PLR0124  # reason: the identity short-circuit is the point
 
     def test_equal_content_compares_equal(self, two_blocks: dict[str, dict]) -> None:
         """The inherited dict.__eq__ raised here: it asked a DataFrame for its truth value."""

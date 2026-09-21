@@ -480,13 +480,16 @@ class BlockSet(dict):
         if not blocks:
             raise ValueError("At least one block is required.")
 
-        first_name, first = next(iter(blocks.items()))
-        if not isinstance(first, pd.DataFrame):
-            raise TypeError(f"Block {first_name!r} must be a pandas DataFrame; got {type(first).__name__}.")
-        n_samples = first.shape[0]
+        # Two passes, so the "is it a frame?" message lives in one place: the row
+        # count has to come from a block already known to be a DataFrame, and
+        # checking the first one separately would mean writing that message twice.
         for name, block in blocks.items():
             if not isinstance(block, pd.DataFrame):
                 raise TypeError(f"Block {name!r} must be a pandas DataFrame; got {type(block).__name__}.")
+
+        first_name, first = next(iter(blocks.items()))
+        n_samples = first.shape[0]
+        for name, block in blocks.items():
             if block.shape[0] != n_samples:
                 raise ValueError(
                     f"Every block must have the same number of rows ({n_samples}, from block {first_name!r}). "
