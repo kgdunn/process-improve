@@ -446,6 +446,15 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     }
     _RENAME_CONTEXT: typing.ClassVar[str] = "PLS"
 
+    #: Which block ``r2_per_component_`` measures the variance of. PLS explains the
+    #: Y block, PCA the X block, and subclasses inherit the right answer: PLSDA's
+    #: r2_per_component_ is the variance of its class indicators, which is Y. Read by
+    #: :func:`~process_improve.multivariate.plots.explained_variance_plot`, which
+    #: defaults to "X" for any model that does not declare one. A class attribute
+    #: rather than an ``isinstance`` check because ``_pls`` imports ``plots``, so the
+    #: reverse import would close a cycle (#375).
+    _variance_block: typing.ClassVar[str] = "Y"
+
     # Y-side fitted attributes: ndarrays while NIPALS fills them in, then wrapped
     # into the documented public DataFrames at the end of fit().
     y_scores_: np.ndarray | pd.DataFrame
