@@ -108,8 +108,8 @@ The natural multi-block split is:
 
    # Natural 4-block split
    x_blocks = {
-       "zone1":    values.iloc[:, [0, 1, 2, 5, 7, 9, 11]],
-       "zone2":    values.iloc[:, [3, 4, 6, 8, 10, 12]],
+       "zone1": values.iloc[:, [0, 1, 2, 5, 7, 9, 11]],
+       "zone2": values.iloc[:, [3, 4, 6, 8, 10, 12]],
        "pressure": values.iloc[:, [13]],
    }
    y_df = values.iloc[:, 14:]

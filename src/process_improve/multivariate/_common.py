@@ -13,10 +13,11 @@ from __future__ import annotations
 import functools
 import warnings
 from collections.abc import Callable
-from typing import Any, Literal, TypeAlias
+from typing import Any, Literal, TypeAlias, cast
 
 import numpy as np
 import pandas as pd
+from scipy import sparse
 
 # Names re-exported to the rest of the package. Declared explicitly so CodeQL
 # does not flag the ``DataMatrix`` type alias (only ever referenced in lazy
@@ -85,6 +86,46 @@ def _nz(denominator: float) -> float:
     projection, since the numerator collapses with the same vector.
     """
     return max(_DENOM_FLOOR, denominator)
+
+
+def _reject_sparse(X: object, estimator_name: str) -> None:
+    """Raise if ``X`` is a SciPy sparse matrix, naming the remedy that actually helps.
+
+    NIPALS centres and scales every column, which destroys sparsity, so there is nothing
+    to gain from a sparse representation here and every estimator in this package sets
+    ``accept_sparse=False``. sklearn's own message for that says to call ``.toarray()``,
+    which is the expensive way round when the sparsity came from a one-hot block: the
+    dense array is materialised anyway, but only after the sparse one has been built.
+
+    The usual source is a :class:`~sklearn.compose.ColumnTransformer` whose one-hot block
+    pushed the result over ``sparse_threshold`` (default 0.3), which flips the *whole*
+    concatenated output to sparse. Two knobs at that level avoid the round trip
+    altogether, and the message names both (#399).
+
+    Parameters
+    ----------
+    X : object
+        The candidate input. Anything SciPy does not consider sparse passes through.
+    estimator_name : str
+        Named in the message, so a Pipeline failure says which step rejected the input.
+
+    Raises
+    ------
+    TypeError
+        If ``X`` is sparse.
+    """
+    if not sparse.issparse(X):
+        return
+    msg = (
+        f"{estimator_name} does not accept sparse input: NIPALS centres and scales every "
+        "column, which destroys sparsity, so there is nothing to gain from it. This usually "
+        "arrives from a ColumnTransformer whose one-hot block pushed the concatenated output "
+        "over `sparse_threshold` (default 0.3). Pass `sparse_threshold=0` to the "
+        "ColumnTransformer, or `OneHotEncoder(sparse_output=False)`, so it hands over a dense "
+        "array directly. `X.toarray()` also works, but on a wide one-hot block it builds the "
+        "sparse matrix first and then the dense one anyway."
+    )
+    raise TypeError(msg)
 
 
 class SpecificationWarning(UserWarning):
@@ -386,3 +427,153 @@ def _scale_block_contributions(blocks: dict[str, np.ndarray], scaling: str) -> d
         return {name: values / per_row for name, values in blocks.items()}
     msg = f"scaling must be one of 'none', 'maximum' or 'within', got {scaling!r}."
     raise ValueError(msg)
+
+
+class BlockSet(dict):
+    """A ``dict[str, pd.DataFrame]`` of equal-height blocks that can also be sliced by row (#193).
+
+    :meth:`MBPCA.fit <process_improve.multivariate.methods.MBPCA.fit>` and
+    :meth:`MBPLS.fit <process_improve.multivariate.methods.MBPLS.fit>` take a
+    plain ``dict[str, pd.DataFrame]``, which is convenient to build and
+    impossible to resample: a dict has no notion of "row 7 of every block". Any
+    resampling or cross-validation pass needs exactly that. ``Resampler``, for
+    instance, asks its data only for ``len(x)`` and ``x[indices]``.
+
+    TPLS already has :class:`~process_improve.multivariate.methods.DataFrameDict`
+    for this, but it is hardwired to the ``Z``/``F``/``Y`` block names and to a
+    nested ``dict[str, dict[str, DataFrame]]`` layout, so the multi-block models
+    could not borrow it. ``BlockSet`` is the flat equivalent: a real ``dict``
+    subclass, so anything that already accepts the plain dict keeps working,
+    plus row indexing.
+
+    .. warning::
+       ``len(blocks)`` is the number of **rows**, not the number of blocks. That
+       is surprising for a dict, and it is deliberate: it is the convention
+       ``DataFrameDict`` already set, and it is what the resampling code means
+       by the length of a dataset. Use ``len(blocks.keys())`` to count blocks.
+
+    Parameters
+    ----------
+    blocks : dict[str, pd.DataFrame]
+        One entry per block. Every block must be a DataFrame with the same
+        number of rows; widths may differ.
+
+    Raises
+    ------
+    ValueError
+        If ``blocks`` is empty, or the blocks disagree on their row count.
+    TypeError
+        If any value is not a DataFrame.
+
+    Examples
+    --------
+    >>> blocks = BlockSet({"a": df_a, "b": df_b})   # doctest: +SKIP
+    >>> len(blocks)                                 # rows, not blocks  # doctest: +SKIP
+    40
+    >>> blocks[[0, 1, 2]].keys()                    # a 3-row BlockSet  # doctest: +SKIP
+    dict_keys(['a', 'b'])
+    """
+
+    def __init__(self, blocks: dict[str, pd.DataFrame]):
+        if not isinstance(blocks, dict):
+            raise TypeError(f"blocks must be a dict of DataFrames, one per block; got {type(blocks).__name__}.")
+        if not blocks:
+            raise ValueError("At least one block is required.")
+
+        # Two passes, so the "is it a frame?" message lives in one place: the row
+        # count has to come from a block already known to be a DataFrame, and
+        # checking the first one separately would mean writing that message twice.
+        for name, block in blocks.items():
+            if not isinstance(block, pd.DataFrame):
+                raise TypeError(f"Block {name!r} must be a pandas DataFrame; got {type(block).__name__}.")
+
+        first_name, first = next(iter(blocks.items()))
+        n_samples = first.shape[0]
+        for name, block in blocks.items():
+            if block.shape[0] != n_samples:
+                raise ValueError(
+                    f"Every block must have the same number of rows ({n_samples}, from block {first_name!r}). "
+                    f"Block {name!r} has {block.shape[0]}."
+                )
+
+        super().__init__(blocks)
+        self.n_samples = int(n_samples)
+        self.shape = (self.n_samples, len(blocks))
+
+    def __len__(self) -> int:
+        """Return the number of rows; see the warning in the class docstring."""
+        return self.n_samples
+
+    def __getitem__(self, lookup: str | int | list | np.ndarray) -> pd.DataFrame | BlockSet:
+        """Look a block up by name, or slice every block to the same rows."""
+        if isinstance(lookup, str):
+            return cast("pd.DataFrame", super().__getitem__(lookup))
+        return BlockSet({name: _row_slice(block, lookup, name) for name, block in self.items()})
+
+    def __eq__(self, other: object) -> bool:
+        """Value-based equality over the held blocks.
+
+        The inherited ``dict.__eq__`` compares the values with ``==``, which for
+        two DataFrames returns an element-wise frame; Python then asks that frame
+        for its truth value and pandas raises ``ValueError``. Equality therefore
+        appeared to work only when the two operands were the *same object* (and
+        the identity short-circuit fired) and blew up otherwise. Comparing with
+        :meth:`pandas.DataFrame.equals` makes the answer depend on the content,
+        as it must for a class that also carries ``n_samples`` and ``shape``
+        (CodeQL ``py/missing-equals``).
+
+        Any mapping is accepted on the other side, not just a ``BlockSet``, so
+        that comparing against the plain ``dict[str, DataFrame]`` the caller
+        started from answers instead of raising. That stays symmetric: Python
+        tries the subclass's ``__eq__`` first, so ``plain_dict == block_set``
+        reaches this method too.
+        """
+        if self is other:
+            return True
+        if not isinstance(other, dict):
+            return NotImplemented
+        return self.keys() == other.keys() and all(_block_equal(block, other[name]) for name, block in self.items())
+
+    def __ne__(self, other: object) -> bool:
+        """Negation of :meth:`__eq__`.
+
+        Defined explicitly because the C-level ``dict.__ne__`` would otherwise
+        bypass the Python ``__eq__`` above and compare the raw dict values again.
+        """
+        result = self.__eq__(other)
+        return result if result is NotImplemented else not result
+
+    # Blocks are mutable frames, so a ``BlockSet`` is unhashable just as ``dict``
+    # is; make that explicit now that ``__eq__`` is defined.
+    __hash__ = None  # type: ignore[assignment]  # reason: intentionally unhashable, mirrors dict
+
+
+def _block_equal(mine: pd.DataFrame, theirs: object) -> bool:
+    """Compare one block against the other side's value for the same name.
+
+    ``theirs`` is a DataFrame whenever the other side is a :class:`BlockSet`, but
+    an arbitrary object when it is a plain dict, and ``mine == theirs`` would then
+    hand pandas' element-wise result to :func:`bool`.
+    """
+    return isinstance(theirs, pd.DataFrame) and mine.equals(theirs)
+
+
+def _row_slice(block: pd.DataFrame, lookup: int | list | np.ndarray, name: str) -> pd.DataFrame:
+    """Take rows from one block, keeping the result two-dimensional.
+
+    Every branch normalises the lookup to a *list* of row positions and the
+    function has a single exit, so a scalar can never leak out as a Series: one
+    row must still arrive at ``fit`` as a one-row frame.
+    """
+    if isinstance(lookup, int | np.integer):
+        rows = [int(lookup)]
+    elif isinstance(lookup, np.ndarray):
+        rows = lookup.tolist()
+    elif isinstance(lookup, list):
+        rows = [int(index) for index in lookup]
+    else:
+        raise TypeError(
+            f"Row lookup must be an int, a list of ints, or an ndarray; "
+            f"got {type(lookup).__name__} while slicing block {name!r}."
+        )
+    return block.iloc[rows]

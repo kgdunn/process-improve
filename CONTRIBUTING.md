@@ -81,9 +81,9 @@ function (or above the `class` to tag the whole class):
 ```python
 import pytest
 
+
 @pytest.mark.dataset
-def test_loads_real_data():
-    ...
+def test_loads_real_data(): ...
 ```
 
 ## Linting and formatting
@@ -118,6 +118,39 @@ still be rejected by CI.
   data before fitting models.
 - **Prose:** do not use em-dashes in code, comments, docstrings, or commit
   messages; use a hyphen, a semicolon, or split the sentence.
+
+### Complexity budget
+
+The four complexity rules (`C901` too-complex, `PLR0912` too-many-branches,
+`PLR0913` too-many-arguments, `PLR0915` too-many-statements) are silenced
+in-line at many sites. They are a real signal: the functions carrying them are
+the ones no single reader can hold in their head, and they are where the bugs
+turn up (#307).
+
+The count is a **ratchet**, not a style preference:
+
+```bash
+python tools/complexity_budget.py        # counts, budget, and what to split next
+```
+
+The script asks ruff with `--ignore-noqa`, so it counts functions that genuinely
+breach a threshold rather than `# noqa` comments, and it ranks them by how far
+past the threshold they are. `tests/test_complexity_ratchet.py` turns that into
+a CI gate, in both directions:
+
+- A count **above** its budget fails: the change made the code worse in exactly
+  the way #307 is about. Split the function, or make the case in #307 for
+  raising the budget.
+- A count **below** its budget also fails, with the one-line fix in the message:
+  lower `BUDGET` in `tools/complexity_budget.py`. That is what stops a refactor
+  being silently spent by the next change.
+
+**Target: halve the 2026-06 baseline of 185 breaches, to 91, by v2.0.** Roughly
+one function split per release gets there; picking the top entry of the report
+is a good default.
+
+A new `# noqa` for one of these four rules needs a trailing comment saying why
+the refactor is deferred, the same as any other deliberate suppression.
 
 ### API consistency
 
@@ -179,8 +212,9 @@ change; a divergence introduced quietly is expensive to find later.
 
 - Open a pull request against `main` with a clear description of the change
   and why it is needed.
-- The version in `pyproject.toml` is bumped with every PR that changes code
-  or configuration (see "Versioning policy" below).
+- Do not bump the version. Add your entry under `## [Unreleased]` in
+  `CHANGELOG.md` and leave `pyproject.toml` and `CITATION.cff` alone; the
+  version is set at release time (see "Versioning policy" below).
 - Bugs and feature requests can also be filed on the
   [issue tracker](https://github.com/kgdunn/process-improve/issues).
 
@@ -204,8 +238,59 @@ Reset rules:
 - Bumping MINOR resets PATCH to 0 (`1.22.9 -> 1.23.0`).
 - Bumping MAJOR resets MINOR and PATCH to 0 (`1.23.4 -> 2.0.0`).
 
-If you are unsure whether a change is a PATCH or a MINOR, ask in the
-PR; the maintainer decides on the boundary case.
+### When the version is bumped
+
+**Not in your pull request.** A pull request adds its entry under
+`## [Unreleased]` in `CHANGELOG.md` and leaves `pyproject.toml` and
+`CITATION.cff` alone. The version is set once, at release time, from
+everything that accumulated under `[Unreleased]`.
+
+This is deliberate. Every pull request bumping the same line of
+`pyproject.toml`, the same line of `CITATION.cff`, and inserting at the
+same anchor in `CHANGELOG.md` makes every open pull request conflict with
+every other one, on three lines that have nothing to do with the work.
+The conflicts are not telling you anything, and resolving them costs a
+rebase per merge.
+
+### Choosing the level at release
+
+The headings under `[Unreleased]` decide it, so the level is read off the
+changelog rather than argued about:
+
+| Highest heading present under `[Unreleased]` | Level |
+|---|---|
+| `### Removed` | MAJOR |
+| `### Added` or `### Deprecated` | MINOR |
+| anything else (`Changed`, `Fixed`, `Security`, `Documentation`) | PATCH |
+
+`### Deprecated` sits at MINOR to match
+[`docs/development/deprecation_policy.rst`](docs/development/deprecation_policy.rst),
+which announces a deprecation in an `X.Y.0` release. Announcing one breaks
+nothing, but it does add a warning the caller did not get before, and the
+message has to name the version that announced it, so it needs a version of
+its own to name. The removal it schedules is the MAJOR, and lands later
+under `### Removed`.
+
+This makes the level a consequence of how each entry was filed, which is
+the decision the author already made when writing it. If an entry is
+filed under the wrong heading the level comes out wrong, so file it where
+it belongs; that is easier to review in a pull request than a version
+number is.
+
+### Cutting a release
+
+1. Read the headings under `[Unreleased]` and pick the level from the
+   table above.
+2. In one commit: set `pyproject.toml` `version`, set `CITATION.cff`
+   `version` to the identical value and `date-released` to today, rename
+   `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, open a fresh empty
+   `## [Unreleased]` above it, and add the compare link to the footer.
+3. Tag `vX.Y.Z` and push the tag.
+
+`publish.yml` refuses to ship if the tag does not equal
+`v<pyproject version>`, or if `CHANGELOG.md` has no `## [X.Y.Z]` heading,
+so a release that skips step 2 fails loudly rather than shipping a wrong
+version.
 
 ### What counts as a breaking change
 

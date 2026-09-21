@@ -17,7 +17,8 @@ from .._random import check_random_state
 from ..univariate.metrics import detect_outliers_esd
 from ..visualization.themes import REFERENCE_LINE_COLOR
 from ._adaptive import AdaptivePCA, AdaptivePLS
-from ._common import NotEnoughVarianceError, SpecificationWarning, UncentredDataWarning, epsqrt
+from ._asca import ASCA
+from ._common import BlockSet, NotEnoughVarianceError, SpecificationWarning, UncentredDataWarning, epsqrt
 from ._diagnostics import (
     eigenvalue_summary,
     group_contributions,
@@ -60,13 +61,16 @@ from ._null import (
 from ._opls import OPLS
 from ._pca import PCA
 from ._pls import PLS
+from ._plsda import PLSDA
 from ._preprocessing import MCUVScaler, center, scale
 from ._resampling import Resampler
-from ._tpls import TPLS, DataFrameDict
+from ._tpls import TPLS, DataFrameDict, make_tpls_scorer
 from .plots import (
     Plot,
     coefficient_plot,
+    confusion_matrix_plot,
     correlation_loadings_plot,
+    effect_summary_plot,
     explained_variance_plot,
     loading_plot,
     predictions_vs_observed_plot,
@@ -76,15 +80,18 @@ from .plots import (
 )
 
 __all__ = [
+    "ASCA",
     "MBPCA",
     "MBPLS",
     "OPLS",
     "PCA",
     "PLS",
+    "PLSDA",
     "REFERENCE_LINE_COLOR",
     "TPLS",
     "AdaptivePCA",
     "AdaptivePLS",
+    "BlockSet",
     "DataFrameDict",
     "MCUVScaler",
     "NotEnoughVarianceError",
@@ -97,9 +104,11 @@ __all__ = [
     "check_random_state",
     "class_enrichment",
     "coefficient_plot",
+    "confusion_matrix_plot",
     "correlation_loadings_plot",
     "count_discoveries_under_null",
     "detect_outliers_esd",
+    "effect_summary_plot",
     "eigenvalue_summary",
     "ellipse_coordinates",
     "epsqrt",
@@ -108,6 +117,7 @@ __all__ = [
     "hotellings_t2_limit",
     "internal_pls_nipals_fit_one_pc",
     "loading_plot",
+    "make_tpls_scorer",
     "nan_to_zeros",
     "observation_contributions",
     "permutation_q2",

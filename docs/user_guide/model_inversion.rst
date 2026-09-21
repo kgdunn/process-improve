@@ -40,10 +40,10 @@ response on its original scale and returns a
     pls = PLS(n_components=2).fit(X, y)
     result = pls.invert(y_desired=20.9)
 
-    result.x_new                  # the proposed inputs, in original units
-    result.null_space_dimension   # 1: a line of equally valid designs
-    result.null_space_basis       # the direction along that line
-    result.hotellings_t2          # how far the design sits from the data
+    result.x_new  # the proposed inputs, in original units
+    result.null_space_dimension  # 1: a line of equally valid designs
+    result.null_space_basis  # the direction along that line
+    result.hotellings_t2  # how far the design sits from the data
 
 The point returned is the **direct-inversion** solution, the one of smallest
 score norm. Because a step along the null space is at right angles to it,
@@ -126,7 +126,7 @@ algebra. One equation in one unknown gives the predictive score by division:
     opls = OPLS(n_orthogonal_components=1).fit(X, y)
     opls_result = opls.invert(y_desired=20.9)
 
-    opls_result.predictive_score        # y_desired / q_p
+    opls_result.predictive_score  # y_desired / q_p
     opls_result.orthogonal_space_basis  # the freedom, handed back as an axis
 
 Both routes describe the same set of designs. They report different

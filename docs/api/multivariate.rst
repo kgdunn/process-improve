@@ -22,12 +22,47 @@ PLS
    :undoc-members:
    :show-inheritance:
 
+PLS-DA
+~~~~~~
+
+PLS discriminant analysis: PLS regression against a one-hot class indicator, with
+the decision rule, the classifier diagnostics and the permutation test on top.
+Everything :class:`PLS` offers is inherited, so a fitted ``PLSDA`` also has scores,
+loadings, VIP, Hotelling's T2 and SPE.
+
+.. autoclass:: PLSDA
+   :members:
+   :show-inheritance:
+
 TPLS
 ~~~~
 
 .. autoclass:: TPLS
    :members:
    :undoc-members:
+   :show-inheritance:
+
+A T-shaped model carries its response inside ``X["Y"]``, so
+:func:`~sklearn.model_selection.cross_val_score` is called without a ``y`` and a
+scorer *string* such as ``scoring="r2"`` cannot be honoured: sklearn's
+``_Scorer`` needs a ``y_true`` it was never given, the call fails before TPLS is
+reached, and every fold is recorded as ``NaN``. Build the scorer with
+:func:`make_tpls_scorer` instead; sklearn passes a callable ``scoring=`` through
+untouched.
+
+.. autofunction:: make_tpls_scorer
+
+ASCA
+~~~~
+
+ANOVA-Simultaneous Component Analysis: partition a response matrix by its design terms,
+then give each term's effect matrix its own PCA. This is the bridge between
+:mod:`process_improve.experiments` and the latent-variable models: it answers which
+*factor* owns which direction of multivariate variation, whether that is more than
+chance, and which variables carry it.
+
+.. autoclass:: ASCA
+   :members:
    :show-inheritance:
 
 MBPLS
@@ -68,6 +103,19 @@ Analysis
 .. autofunction:: rv_coefficient
 
 .. autofunction:: rv2_coefficient
+
+Containers
+----------
+
+.. autoclass:: BlockSet
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. autoclass:: DataFrameDict
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 Preprocessing
 -------------
@@ -159,3 +207,6 @@ Plots
 .. autofunction:: predictions_vs_observed_plot
 
 .. autofunction:: coefficient_plot
+
+.. autofunction:: confusion_matrix_plot
+.. autofunction:: effect_summary_plot

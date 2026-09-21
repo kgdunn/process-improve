@@ -12,4 +12,6 @@ API Reference
    batch
    bivariate
    visualization
+   sensory
    simulation
+   tooling

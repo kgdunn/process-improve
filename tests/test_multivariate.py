@@ -23,6 +23,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import Bunch
 
+from process_improve.multivariate._common import _nz
 from process_improve.multivariate._pca import _leverage_corrected_press, _pca_ekf_press
 from process_improve.multivariate.methods import (
     PCA,
@@ -39,6 +40,7 @@ from process_improve.multivariate.methods import (
     ellipse_coordinates,
     epsqrt,
     explained_variance_plot,
+    make_tpls_scorer,
     nan_to_zeros,
     observation_contributions,
     predictions_vs_observed_plot,
@@ -342,6 +344,66 @@ def test_quick_regress(fixture_mv_utilities: tuple[np.ndarray, np.ndarray]) -> N
     assert pytest.approx(out[4], abs=1e-14) == 1.0
 
 
+def test_quick_regress_degeneracy_guard_is_scale_free() -> None:
+    """#513: the zero-denominator guard is relative to ssq(x), not an absolute epsqrt.
+
+    A coefficient `(x'y) / (x'x)` is invariant under rescaling both inputs, so the same
+    data expressed in different units must give the same answer. The guard used to be an
+    absolute comparison against `epsqrt` (~1.5e-8), which is a statement about the scale
+    of the data rather than its conditioning: at a scale of 1e-5 the denominator falls to
+    ~1e-9 and every coefficient was silently returned as 0.0.
+    """
+    rng = np.random.default_rng(0)
+    n_rows, n_cols = 10, 3
+    for magnitude in (1.0, 1e-3, 1e-5, 1e-12):
+        x = rng.standard_normal((n_rows, 1)) * magnitude
+        Y = rng.standard_normal((n_rows, n_cols)) * magnitude
+        coefficients = quick_regress(Y, x).ravel()
+        # Same numbers, expressed in units where the old absolute guard never fired.
+        rescaled = quick_regress(Y / magnitude, x / magnitude).ravel()
+        assert coefficients == pytest.approx(rescaled, rel=1e-12)
+        assert np.isfinite(coefficients).all()
+        assert not np.allclose(coefficients, 0.0), f"all coefficients zeroed at magnitude {magnitude}"
+
+
+def test_quick_regress_still_zeroes_a_genuine_degeneracy() -> None:
+    """#513: the relative guard must not stop catching the cases the absolute one caught."""
+    rng = np.random.default_rng(1)
+    n_rows = 8
+
+    # `x` carries no signal at all: every coefficient is undefined.
+    assert np.all(quick_regress(rng.standard_normal((n_rows, 2)), np.zeros((n_rows, 1))) == 0.0)
+
+    # One column of `Y` is entirely missing, so the mask empties `x` for that column only.
+    Y = rng.standard_normal((n_rows, 2))
+    Y[:, 1] = np.nan
+    coefficients = quick_regress(Y, rng.standard_normal((n_rows, 1))).ravel()
+    assert coefficients[0] != 0.0
+    assert coefficients[1] == 0.0
+
+
+def test_nipals_unit_normalisation_is_floored() -> None:
+    """#513: `_pls` and `_pca` now floor the norm they divide by, as `_mbpls`/`_mbpca` do.
+
+    A loading or weight vector that collapses during NIPALS makes the unguarded
+    `v / sqrt(ssq(v))` a 0/0, and the resulting NaN propagates through deflation into
+    every later component. `_nz` floors the denominator to the smallest positive float,
+    which leaves every well-conditioned norm untouched and turns the degenerate case into
+    a finite (zero) vector.
+    """
+    collapsed = np.zeros((4, 1))
+    with np.errstate(invalid="ignore"):
+        unguarded = collapsed / np.sqrt(ssq(collapsed))
+    assert np.isnan(unguarded).all(), "the unguarded form is what produced the NaNs"
+    guarded = collapsed / _nz(float(np.sqrt(ssq(collapsed))))
+    assert np.isfinite(guarded).all()
+    assert np.all(guarded == 0.0)
+
+    # A well-conditioned vector is untouched by the floor: still exactly unit length.
+    ordinary = np.array([[3.0], [4.0]])
+    assert float(np.sqrt(ssq(ordinary / _nz(float(np.sqrt(ssq(ordinary))))))) == pytest.approx(1.0, rel=1e-15)
+
+
 @pytest.fixture
 def fixture_tablet_spectra_data() -> tuple[pd.DataFrame, np.ndarray]:
     """Verify the PCA model for the case of no missing data.
@@ -551,10 +613,11 @@ def test_pca_invalid_calls() -> None:
         _ = PCA(n_components=A, algorithm="SCP").fit(data)
 
     # Plain numpy IS accepted by design (sklearn compatibility), so the rejection
-    # below is about sparse input specifically, not about DataFrames. sklearn's own
-    # validate_data() raises this message; PCA does not roll its own.
+    # below is about sparse input specifically, not about DataFrames. PCA rejects it
+    # before validate_data does, so the message can name the ColumnTransformer knobs
+    # that avoid the sparse round trip instead of sklearn's generic `.toarray()` (#399).
     sparse_data = csr_matrix([[1, 2, 0], [0, 0, 3], [4, 0, 5]])
-    with pytest.raises(TypeError, match="Sparse data was passed for X, but dense data is required"):
+    with pytest.raises(TypeError, match=r"PCA does not accept sparse input.*sparse_threshold=0"):
         PCA(n_components=2).fit(sparse_data)
 
 
@@ -1176,6 +1239,135 @@ def test_pca_parallel_analysis_recovers_known_rank() -> None:
     assert (pa.observed_eigenvalues[:true_rank] > pa.null_threshold[:true_rank]).all()
 
 
+def test_pca_parallel_analysis_permutation_null_adapts_to_the_data() -> None:
+    """#374: the Buja-Eyuboglu surrogate permutes the real columns, so the null follows them.
+
+    Horn's normal surrogate draws standard-normal matrices, so for a given shape it
+    produces the same null whatever the data looks like. That is the right null only when
+    the columns really are Gaussian. Permuting each column instead breaks the correlation
+    between columns, which is what parallel analysis is testing for, while leaving each
+    column's own distribution alone.
+    """
+    rng = np.random.default_rng(3)
+    shape = (60, 12)
+    gaussian = pd.DataFrame(rng.standard_normal(shape))
+    heavy_tailed = pd.DataFrame(rng.standard_t(2.0, size=shape))
+
+    normal_nulls = [
+        PCA.parallel_analysis(block, n_simulations=150, surrogate="normal", random_state=0).null_threshold
+        for block in (gaussian, heavy_tailed)
+    ]
+    permuted_nulls = [
+        PCA.parallel_analysis(block, n_simulations=150, surrogate="permutation", random_state=0).null_threshold
+        for block in (gaussian, heavy_tailed)
+    ]
+
+    # The normal null depends on the shape alone, so it is identical for both blocks.
+    np.testing.assert_allclose(normal_nulls[0], normal_nulls[1])
+    # The permutation null is built from the block itself, so it is not.
+    assert not np.allclose(permuted_nulls[0], permuted_nulls[1])
+
+    # Both blocks are independent columns, so the honest answer is no components at all,
+    # and both surrogates give it.
+    for surrogate in ("normal", "permutation"):
+        for block in (gaussian, heavy_tailed):
+            result = PCA.parallel_analysis(block, n_simulations=150, surrogate=surrogate, random_state=0)
+            assert result.n_components == 0
+            assert result.surrogate == surrogate
+
+
+def test_pca_parallel_analysis_surrogates_agree_on_gaussian_data() -> None:
+    """#374: on the data Horn assumed, the two nulls answer the same way."""
+    rng = np.random.default_rng(11)
+    n_samples, n_features, true_rank = 80, 10, 3
+    scores = rng.standard_normal((n_samples, true_rank))
+    loadings = rng.standard_normal((true_rank, n_features))
+    X = pd.DataFrame(scores @ loadings + 0.6 * rng.standard_normal((n_samples, n_features)))
+
+    by_normal = PCA.parallel_analysis(X, n_simulations=150, surrogate="normal", random_state=0)
+    by_permutation = PCA.parallel_analysis(X, n_simulations=150, surrogate="permutation", random_state=0)
+    assert by_normal.n_components == true_rank
+    assert by_permutation.n_components == true_rank
+    # Same observed scree either way: only the null moves.
+    np.testing.assert_allclose(by_normal.observed_eigenvalues, by_permutation.observed_eigenvalues)
+
+
+def test_pca_parallel_analysis_surrogate_is_reproducible_and_validated() -> None:
+    """#374: same seed, same null; an unknown surrogate names the two that exist."""
+    rng = np.random.default_rng(12)
+    X = pd.DataFrame(rng.standard_normal((40, 6)))
+    first = PCA.parallel_analysis(X, n_simulations=50, surrogate="permutation", random_state=5)
+    again = PCA.parallel_analysis(X, n_simulations=50, surrogate="permutation", random_state=5)
+    np.testing.assert_allclose(first.null_threshold, again.null_threshold)
+
+    with pytest.raises(ValueError, match=r"surrogate must be one of \('normal', 'permutation'\)"):
+        PCA.parallel_analysis(X, surrogate="bootstrap")
+
+
+def test_pca_select_n_components_ckf_recovers_a_known_rank() -> None:
+    """#374: column-wise k-fold bottoms out at the true rank on low-rank data."""
+    rng = np.random.default_rng(21)
+    n_samples, n_features, true_rank = 60, 12, 3
+    scores = rng.standard_normal((n_samples, true_rank))
+    loadings = rng.standard_normal((true_rank, n_features))
+    X = pd.DataFrame(
+        scores @ loadings + 0.35 * rng.standard_normal((n_samples, n_features)),
+        columns=[f"x{i}" for i in range(n_features)],
+    )
+
+    result = PCA.select_n_components(X, max_components=6, cv_scheme="ckf", random_state=0)
+    assert result.n_components == true_rank
+    # The Q2 curve peaks at the true rank and falls away once extra components fit noise.
+    q2 = result.q2.to_numpy()
+    assert int(np.argmax(q2)) + 1 == true_rank
+    assert q2[true_rank] < q2[true_rank - 1]
+    # One PRESS column per column-fold, so the 1-SE rule has a spread to work with.
+    assert result.per_fold_press.shape == (6, 5)
+    assert result.q2_per_variable.shape == (6, n_features)
+
+
+def test_pca_select_n_components_ckf_is_more_optimistic_than_ekf() -> None:
+    """#374: the documented difference between the two schemes, measured.
+
+    ckf computes the scores from the retained columns only, so no held-out value predicts
+    itself; but the loadings still come from an SVD of the whole block, so the held-out
+    columns did reach the model. ekf holds out individual cells and imputes them, so
+    nothing held out reaches it at all.
+
+    On pure noise the difference is visible rather than theoretical: ekf's Q2 is negative
+    at every component count, as it must be when there is nothing to predict, while ckf's
+    can come out **positive**. That is the leakage, measured, and it is why ekf remains
+    the default.
+    """
+    rng = np.random.default_rng(22)
+    noise = pd.DataFrame(rng.standard_normal((60, 12)), columns=[f"x{i}" for i in range(12)])
+    by_ckf = PCA.select_n_components(noise, max_components=5, cv_scheme="ckf", random_state=0)
+    by_ekf = PCA.select_n_components(noise, max_components=5, cv_scheme="ekf", random_state=0)
+
+    # ekf is honest about noise: nothing to predict, so nothing is predicted.
+    assert (by_ekf.q2.to_numpy() < 0).all()
+    # ckf is kinder at every component count, and here it goes above zero outright.
+    assert (by_ckf.q2.to_numpy() > by_ekf.q2.to_numpy()).all()
+    assert by_ckf.q2.to_numpy().max() > 0
+
+
+def test_pca_select_n_components_ckf_reproducible_and_guarded() -> None:
+    """#374: the same seed gives the same folds, and missing cells are refused by name."""
+    rng = np.random.default_rng(23)
+    X = pd.DataFrame(rng.standard_normal((40, 8)), columns=[f"x{i}" for i in range(8)])
+    first = PCA.select_n_components(X, max_components=4, cv_scheme="ckf", random_state=7)
+    again = PCA.select_n_components(X, max_components=4, cv_scheme="ckf", random_state=7)
+    np.testing.assert_allclose(first.press.to_numpy(), again.press.to_numpy())
+
+    gappy = X.copy()
+    gappy.iloc[0, 0] = np.nan
+    with pytest.raises(ValueError, match=r"cv_scheme='ckf' cannot take a block with missing cells"):
+        PCA.select_n_components(gappy, max_components=3, cv_scheme="ckf", random_state=0)
+
+    with pytest.raises(ValueError, match=r"Unknown cv_scheme 'kfold'.*'ckf'"):
+        PCA.select_n_components(X, max_components=3, cv_scheme="kfold")
+
+
 def test_pca_parallel_analysis_pure_noise_returns_zero() -> None:
     """On pure noise PA correctly retains few components (and may return 0)."""
     rng = np.random.default_rng(3)
@@ -1638,7 +1830,7 @@ def test_pls_structural_identities_split_under_missing_data(
     assert isinstance(data["A"], int)
     x_gapped = pd.DataFrame(data["X"]).copy()
     x_gapped.iloc[11, 0] = np.nan
-    model = PLS(n_components=int(data["A"]), missing_data_settings=dict(md_method="scp")).fit(
+    model = PLS(n_components=int(data["A"]), missing_data_settings=dict(md_method="nipals")).fit(
         MCUVScaler().fit_transform(x_gapped),
         MCUVScaler().fit_transform(pd.DataFrame(data["Y"])),
     )
@@ -2625,7 +2817,7 @@ def test_pls_simca_ldpe_missing_data(
     assert isinstance(data["Y"], np.ndarray)
     assert isinstance(data["A"], int)
     data["X"][11, 0] = float("nan")
-    plsmodel = PLS(n_components=int(data["A"]), missing_data_settings=dict(md_method="scp"))
+    plsmodel = PLS(n_components=int(data["A"]), missing_data_settings=dict(md_method="nipals"))
     X_mcuv = MCUVScaler().fit(data["X"])
     Y_mcuv = MCUVScaler().fit(data["Y"])
     plsmodel = plsmodel.fit(X_mcuv.transform(data["X"]), Y_mcuv.transform(pd.DataFrame(data["Y"])))
@@ -4605,25 +4797,138 @@ def test_tpls_cross_validation(fixture_tpls_example: dict) -> None:
     )
     assert repeat == pytest.approx(scores, rel=1e-12)
 
-    # `scoring="r2"` cannot work here: the string scorer is called with a `y_true` that
-    # sklearn never received, so every fold fails and is recorded as NaN behind a
-    # UserWarning. This test used to pass `scoring="r2"` and assert nothing, so the
-    # all-NaN result went unnoticed. The failure is inside sklearn's `_Scorer.__call__`,
-    # before TPLS is reached: instrumenting `TPLS.score` shows 0 calls here against 3 of
-    # 3 folds under the default scoring above. TPLS therefore cannot intercept it, and
-    # making named scorers work would mean accepting a conventional `y`. Documented on
-    # `TPLS.score` and pinned here; tracked on #565.
-    with pytest.warns(UserWarning, match="Scoring failed"):
-        r2_scores = np.asarray(
-            cross_val_score(
-                estimator=TPLS(n_components=n_components, d_matrix=d_matrix),
-                X=blocks,
-                cv=5,
-                scoring="r2",
-                n_jobs=1,
-            )
+    # #565: a named metric now goes through `make_tpls_scorer`, which sklearn accepts as a
+    # callable `scoring=` and calls as `scorer(estimator, X_test)` -- the same two-argument
+    # call that breaks the string form. `make_tpls_scorer("r2")` computes exactly what
+    # `TPLS.score` computes, so it must reproduce the default-scoring folds bit for bit.
+    r2_scores = np.asarray(
+        cross_val_score(
+            estimator=TPLS(n_components=n_components, d_matrix=d_matrix),
+            X=blocks,
+            cv=5,
+            scoring=make_tpls_scorer("r2"),
+            n_jobs=1,
         )
-    assert np.isnan(r2_scores).all()
+    )
+    assert np.isfinite(r2_scores).all(), f"make_tpls_scorer produced non-finite folds: {r2_scores}"
+    assert r2_scores == pytest.approx(scores, rel=1e-12)
+
+
+@pytest.mark.slow
+def test_make_tpls_scorer_named_metrics(fixture_tpls_example: dict) -> None:
+    """#565: every named metric scores a fitted TPLS model and keeps sklearn's sign convention."""
+    d_matrix = fixture_tpls_example.pop("D")
+    blocks = DataFrameDict(fixture_tpls_example)
+    model = TPLS(n_components=3, d_matrix=d_matrix).fit(blocks)
+
+    # "r2" is the default and reproduces TPLS.score() exactly.
+    assert make_tpls_scorer()(model, blocks) == pytest.approx(model.score(blocks), rel=1e-12)
+
+    # The neg_* metrics are losses, so a fitted model scores at most 0.0.
+    neg_mse = make_tpls_scorer("neg_mean_squared_error")(model, blocks)
+    neg_rmse = make_tpls_scorer("neg_root_mean_squared_error")(model, blocks)
+    neg_mae = make_tpls_scorer("neg_mean_absolute_error")(model, blocks)
+    assert neg_mse <= 0.0
+    assert neg_mae <= 0.0
+    assert neg_rmse <= 0.0
+    # sklearn averages the six quality columns *after* taking each square root, so the RMSE
+    # is a mean of square roots while sqrt(MSE) is the square root of a mean. Jensen's
+    # inequality makes the first no larger than the second, and it is strictly smaller here
+    # because the columns do not share one error variance.
+    assert -neg_rmse < np.sqrt(-neg_mse)
+
+
+@pytest.mark.slow
+def test_make_tpls_scorer_accepts_a_callable_metric(fixture_tpls_example: dict) -> None:
+    """#565: a callable metric is honoured, and `greater_is_better=False` flips its sign."""
+    d_matrix = fixture_tpls_example.pop("D")
+    blocks = DataFrameDict(fixture_tpls_example)
+    model = TPLS(n_components=3, d_matrix=d_matrix).fit(blocks)
+
+    def max_abs_error(y_true: pd.DataFrame, y_pred: pd.DataFrame, sample_weight: None = None) -> float:
+        return float(np.abs(np.asarray(y_true) - np.asarray(y_pred)).max())
+
+    loss = make_tpls_scorer(max_abs_error, greater_is_better=False)(model, blocks)
+    raw = make_tpls_scorer(max_abs_error)(model, blocks)
+    assert loss < 0.0
+    assert loss == pytest.approx(-raw, rel=1e-12)
+
+    # metric_kwargs reach the metric: r2_score's `force_finite` is forwarded verbatim.
+    assert make_tpls_scorer("r2", force_finite=False)(model, blocks) == pytest.approx(model.score(blocks), rel=1e-12)
+
+
+def test_make_tpls_scorer_rejects_an_unknown_metric() -> None:
+    """#565: an unknown metric name fails at build time, naming the alternatives."""
+    with pytest.raises(ValueError, match=r"Unknown metric 'accuracy'.*neg_mean_squared_error"):
+        make_tpls_scorer("accuracy")
+
+
+@pytest.mark.slow
+def test_tpls_rejects_a_separate_y(fixture_tpls_example: dict) -> None:
+    """#565: `y` is no longer silently ignored by fit / score / the scorer."""
+    d_matrix = fixture_tpls_example.pop("D")
+    blocks = DataFrameDict(fixture_tpls_example)
+    y_elsewhere = blocks["Y"]["Quality"]
+
+    expected = r'does not take a separate `y`.*X\["Y"\].*make_tpls_scorer'
+    with pytest.raises(ValueError, match=expected):
+        TPLS(n_components=2, d_matrix=d_matrix).fit(blocks, y_elsewhere)
+
+    model = TPLS(n_components=2, d_matrix=d_matrix).fit(blocks)
+    with pytest.raises(ValueError, match=expected):
+        model.score(blocks, y_elsewhere)
+    with pytest.raises(ValueError, match=expected):
+        make_tpls_scorer()(model, blocks, y_elsewhere)
+
+
+def test_tpls_constant_column_warns_instead_of_asserting() -> None:
+    """#513: a constant column is excluded from the fit, and says so.
+
+    `_learn_center_and_scaling_parameters` gives a no-variance column a NaN scale, which
+    makes the whole column NaN and then zero: the column is excluded, which is the right
+    thing to do. What was missing was any word of it. The post-preprocessing check on the
+    Z and Y blocks did not tolerate the NaN statistic that exclusion produces (the F and D
+    checks did), so a single constant column raised a message-less `AssertionError()`
+    under normal Python and, because the check was a bare `assert`, fitted silently under
+    `python -O`. Two behaviours for one input.
+    """
+    rng = np.random.default_rng(0)
+    n_blends, n_materials = 20, 4
+    index = [f"blend{i}" for i in range(n_blends)]
+    materials = [f"mat{j}" for j in range(n_materials)]
+    d_matrix = {"G": pd.DataFrame(rng.normal(size=(n_materials, 3)), index=materials, columns=list("pqr"))}
+    blocks = DataFrameDict(
+        {
+            "F": {"G": pd.DataFrame(rng.random((n_blends, n_materials)), index=index, columns=materials)},
+            "Z": {"Z1": pd.DataFrame({"moves": rng.normal(size=n_blends), "stuck": np.ones(n_blends)}, index=index)},
+            "Y": {"Y1": pd.DataFrame({"y": rng.normal(size=n_blends)}, index=index)},
+        }
+    )
+
+    with pytest.warns(UserWarning, match=r"Block Z\[\"Z1\"\] has columns with no variance.*'stuck'"):
+        model = TPLS(n_components=2, d_matrix=d_matrix).fit(blocks)
+
+    # The fit completes, and the excluded column leaves no NaN behind in the scores.
+    assert np.isfinite(model.t_scores_super.to_numpy()).all()
+    assert np.isfinite(model.z_mats["Z1"]).all()
+
+
+def test_tpls_preprocessing_invariant_names_what_failed() -> None:
+    """#513: the invariant check raises with a message, and survives `python -O`.
+
+    It was a bare `assert`, so a violation gave `AssertionError()` with nothing in it,
+    and `-O` removed the check altogether. The repo runs a `-O` CI job precisely to catch
+    that, so this is a `RuntimeError` now.
+    """
+    # Columns 0 and 2 are fine; column 1 is off-centre by 0.5, and must be the one named.
+    observed = np.array([0.0, 0.5, 1e-9])
+    with pytest.raises(RuntimeError, match=r"block 'Z' group 'Z1' is not centred.*Column 1 has 0.5"):
+        TPLS._check_preprocessed(observed, 0.0, "Z", "Z1", "centre")
+
+    # A NaN entry is an excluded column, and a zero standard deviation is the same case
+    # seen after scaling; neither is a failure.
+    TPLS._check_preprocessed(np.array([0.0, np.nan]), 0.0, "Z", "Z1", "centre")
+    TPLS._check_preprocessed(np.array([1.0, np.nan, 0.0]), 1.0, "Y", "Y1", "scale")
 
 
 def test_tpls_score_single_block_y(fixture_tpls_example: dict) -> None:
@@ -5902,3 +6207,88 @@ def test_a_criterion_that_never_turns_over_says_so() -> None:
     with warnings.catch_warnings():
         warnings.simplefilter("error", SpecificationWarning)
         PCA.select_n_components(_known_rank_block(), max_components=8, cv=7, n_repeats=5, random_state=0)
+
+
+class TestPlsMissingDataSettingsResolution:
+    """The fit-time resolution of ``missing_data_settings`` (#588).
+
+    Three defects, each verified by a test that fails against the previous code.
+    """
+
+    @staticmethod
+    def _xy(*, gapped: bool) -> tuple[pd.DataFrame, pd.DataFrame]:
+        rng = np.random.default_rng(0)
+        x = pd.DataFrame(rng.standard_normal((30, 5)))
+        y = pd.DataFrame(x.to_numpy() @ rng.standard_normal((5, 1)) + 0.1 * rng.standard_normal((30, 1)))
+        if gapped:
+            x = x.copy()
+            x.iloc[0, 0] = np.nan
+        return x, y
+
+    def test_partial_settings_do_not_raise_key_error(self) -> None:
+        """A dict giving only ``md_tol`` leaves ``md_max_iter`` to the constructor.
+
+        Previously the complete-data branch passed the caller's dict through as the whole
+        settings mapping, so ``_fit_nipals`` hit ``settings["md_max_iter"]`` and raised
+        ``KeyError``.
+        """
+        x, y = self._xy(gapped=False)
+        model = PLS(n_components=2, max_iter=321, missing_data_settings={"md_tol": 1e-3}).fit(x, y)
+        assert model.n_components_ == 2
+
+    def test_tol_reaches_the_nipals_loop_when_data_has_gaps(self) -> None:
+        """``PLS(tol=...)`` governs convergence whether or not a cell is missing.
+
+        The missing-data branch used to hard-code ``md_tol=epsqrt`` while taking
+        ``md_max_iter`` from the constructor, so ``tol`` applied to complete data and was
+        dropped the moment a cell went missing. A loose tolerance must now stop sooner
+        than a tight one.
+        """
+        x, y = self._xy(gapped=True)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tight = PLS(n_components=2, tol=1e-14, max_iter=500).fit(x, y)
+            loose = PLS(n_components=2, tol=5e-1, max_iter=500).fit(x, y)
+        assert loose.fitting_info_["iterations"][0] < tight.fitting_info_["iterations"][0]
+
+    def test_explicit_md_tol_still_wins_over_tol(self) -> None:
+        """The dict overrides the constructor, which is the point of passing one."""
+        x, y = self._xy(gapped=True)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            via_ctor = PLS(n_components=2, tol=5e-1, max_iter=500).fit(x, y)
+            overridden = PLS(n_components=2, tol=5e-1, max_iter=500, missing_data_settings={"md_tol": 1e-14}).fit(x, y)
+        assert overridden.fitting_info_["iterations"][0] > via_ctor.fitting_info_["iterations"][0]
+
+    @pytest.mark.parametrize("bad", ["scp", "rubbish", "NIPALs "])
+    def test_unknown_md_method_is_refused(self, bad: str) -> None:
+        """An unrecognised value used to fall through to NIPALS without a word.
+
+        ``"scp"`` is the trap: it is a real method name for ``project()`` and the
+        contribution helpers, so asking for it here looked reasonable and quietly ran a
+        different algorithm.
+        """
+        x, y = self._xy(gapped=True)
+        with pytest.raises(ValueError, match="md_method must be one of"):
+            PLS(n_components=2, missing_data_settings={"md_method": bad}).fit(x, y)
+
+    @pytest.mark.parametrize("method", ["tsr", "pmp"])
+    def test_recognised_but_unbuilt_methods_still_raise_not_implemented(self, method: str) -> None:
+        """``tsr`` and ``pmp`` are named in the fit-time set so they keep their own error."""
+        x, y = self._xy(gapped=True)
+        with pytest.raises(NotImplementedError, match=f"{method.upper()} for PLS"):
+            PLS(n_components=2, missing_data_settings={"md_method": method}).fit(x, y)
+
+    def test_default_construction_is_unchanged(self) -> None:
+        """The defaults resolve to what the old code resolved to.
+
+        ``PLS`` defaults ``tol`` to ``epsqrt``, which is the value the missing-data branch
+        used to hard-code, so a model built without arguments fits exactly as before.
+        """
+        x, y = self._xy(gapped=True)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            model = PLS(n_components=2).fit(x, y)
+            pinned = PLS(n_components=2, missing_data_settings={"md_tol": epsqrt}).fit(x, y)
+        np.testing.assert_array_equal(model.fitting_info_["iterations"], pinned.fitting_info_["iterations"])
+        np.testing.assert_allclose(model.predictions_.to_numpy(), pinned.predictions_.to_numpy(), rtol=0, atol=0)

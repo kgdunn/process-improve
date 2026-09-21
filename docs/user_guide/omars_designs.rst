@@ -34,12 +34,12 @@ Quick start
    # Smallest foldover OMARS design that still leaves error degrees of freedom.
    result = generate_omars(factors)
    print(result.metadata["n_runs_selected"], result.metadata["expected_error_df"])
-   print(result.metadata["omars_verified"])   # True
+   print(result.metadata["omars_verified"])  # True
 
    # The design is ready for the staged OMARS analysis.
    design = result.design[result.factor_names]
    # ... collect responses y, then:
-   analysis = analyze_omars(design, y)         # analysis.success is True
+   analysis = analyze_omars(design, y)  # analysis.success is True
 
 You can pin an exact (odd) run size or search a window:
 

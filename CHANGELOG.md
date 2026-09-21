@@ -11,6 +11,615 @@ those changes.
 
 ## [Unreleased]
 
+### Added
+
+- **`unfold_blocks`: batchwise unfolding into several blocks (#193).** Aligned batch
+  data has been unfoldable for a long time, one block at a time, via `dict_to_wide`.
+  What was missing was a way to hand several blocks to a multi-block model.
+  `BatchPCA` and `BatchPLS` unfold too, but they concatenate the initial-conditions
+  block onto the trajectories to make one wide frame, because the model beneath them
+  is single-block; a block's column count then decides its weight in the fit, which is
+  not a modelling decision anyone made.
+
+  ```python
+  from process_improve.batch.preprocessing import unfold_blocks
+  from process_improve.multivariate.methods import MBPCA
+
+  blocks = unfold_blocks(
+      {"spectra": spectra_batches, "process": process_batches},
+      initial_conditions=Z,          # its own block, not a prefix on another one
+  )
+  MBPCA(n_components=2).fit(blocks)
+  ```
+
+  Blocks may differ in width and in trajectory length; they only have to describe the
+  same batches, and that is checked rather than assumed. Every returned block shares
+  one row order, so row *i* is the same batch everywhere.
+
+- **`BlockSet`: a `dict[str, DataFrame]` with a row axis (#193).** `MBPCA` and `MBPLS`
+  take a plain dict of blocks, which is easy to build and impossible to resample: a dict
+  has no notion of "row 7 of every block". `BlockSet` subclasses `dict`, so everything
+  that already accepts the plain dict keeps working, and adds row indexing.
+
+  That unblocks `Resampler`, which previously accepted only TPLS's `DataFrameDict` and so
+  could not touch a multi-block model at all:
+
+  ```python
+  Resampler(
+      estimator=MBPCA(n_components=2),
+      x=BlockSet(blocks),
+      accessor=lambda model: model.super_loadings_[1].to_numpy(),
+  ).resample()
+  ```
+
+  Note that `len(blocks)` is the number of **rows**, not blocks. That is surprising for a
+  dict and it is deliberate: it is the convention `DataFrameDict` already set, and it is
+  what the resampling code means by the length of a dataset.
+
+- **`ASCA`: ANOVA-Simultaneous Component Analysis (#372).** The response matrix is
+  partitioned by its design terms the way classical ANOVA partitions a single
+  response, and each term's effect matrix then gets its own PCA. This is the bridge
+  between `experiments/` and `multivariate/` that the package has been missing: it
+  answers which *factor* owns which direction of multivariate variation, whether
+  that is more than chance, and which variables carry it.
+
+  ```python
+  from process_improve.multivariate import ASCA
+
+  model = ASCA(n_components=2).fit(X, design)
+  model.ssq_percent_                       # variation by term, read this first
+  model.permutation_test(random_state=0)   # is each term more than chance?
+  model.models_["A"].score_plot()          # the PCA of factor A's effect alone
+  model.vasca("A", random_state=0)         # which variables carry it
+  ```
+
+  `add_residuals=True` gives the APCA / ASCA+ variant, where the residual matrix is
+  added back before each PCA so a score plot shows scatter around the factor levels
+  rather than one point per cell.
+
+  Balance is checked rather than assumed: on an unbalanced design the terms are not
+  orthogonal, the sums of squares no longer partition the total, and `fit` warns and
+  reports the gap instead of presenting the percentages as a partition.
+
+- **`ASCA.vasca`: variable-selection ASCA.** The whole-matrix permutation test
+  dilutes an effect that lives in three variables out of two hundred. VASCA ranks the
+  variables by their contribution to a term and tests each nested subset of the
+  top-ranked ones, with Benjamini-Hochberg across subset sizes. On the test fixture it
+  recovers exactly the variables each effect was injected into, and returns an empty
+  selection for a term that carries nothing.
+
+- **`effect_summary_plot`.** One bar per design term showing its share of the total
+  sum of squares, annotated with the permutation p-values once they exist. Bound as a
+  method on `ASCA` and importable on its own.
+
+  #### Notes on two choices that are easy to get wrong
+
+  - **The permutation null is the reduced-model one.** Permuting the rows of the
+    whole response leaves the other terms' variation in the data, so a term
+    sharing a matrix with a large neighbour inherits part of it and its null comes
+    out far too high. On the test fixture, where A carries 84 percent of the
+    variation and B a real 11 percent, the whole-response null put B at p = 0.13
+    and hid a genuine effect; permuting only this term's effect plus the residual
+    puts B at p = 0.005.
+
+  - **VASCA does not select on the p-value alone.** With a few hundred permutations
+    the smallest attainable p-value is reached by many subset sizes at once, and
+    picking the largest subset that clears alpha returns every variable that
+    happened to tie at the floor. The reported `z_score`, how far a subset stands
+    above its own null, does not tie: it peaks where the effect is concentrated.
+
+- **`PLSDA`: PLS discriminant analysis (#375).** Classification built on the
+  existing `PLS`: the labels are one-hot encoded into an indicator `Y`, a PLS model
+  is fitted on it, and the predicted indicator values are turned back into labels.
+  `PLSDA` subclasses `PLS`, so nothing about the NIPALS fit is reimplemented and a
+  fitted classifier still has `scores_`, `x_loadings_`, `vip()`, Hotelling's T2, SPE
+  and every plot method.
+
+  ```python
+  from process_improve.multivariate import PLSDA
+
+  model = PLSDA(n_components=2).fit(X, labels)
+  model.predict(X_new)                  # labels
+  model.predict_proba(X_new)            # class posteriors
+  model.confusion(X_test, y_test)       # held-out matrix, sensitivity, specificity
+  model.permutation_test(X, labels)     # is the separation real?
+  ```
+
+  Two decision rules. `"max"` (the default) takes the largest indicator, as most
+  PLS-DA software does. `"bayes"` takes the largest posterior, built from Gaussians
+  fitted to each class's in-class and out-of-class indicator values and weighted by
+  the priors. The second matters on unbalanced data for a reason worth knowing: a
+  rare class's indicator is pulled toward zero by the nine rows in ten that want it
+  there, so `"max"` hands almost everything to the common class. On a 1:9 fixture it
+  finds two of eight rare samples while reporting 92.5% accuracy; `"bayes"` finds
+  seven, and scores higher overall.
+
+  The per-class Bayesian thresholds are exposed as `thresholds_`, solved from where
+  the two Gaussians cross rather than approximated.
+
+- **`permutation_test` on `PLSDA`.** PLS-DA on wide data separates almost anything,
+  so the model alone cannot tell a real effect from chance. The test refits on
+  shuffled labels and compares cross-validated accuracy, with the observed statistic
+  counted among the permutations (the `(1 + k) / (1 + n)` convention already used by
+  the Van der Voet and multiblock randomization tests). Measured on 40 samples of 30
+  pure-noise variables: training accuracy is **1.000**, the cross-validated test
+  correctly returns p = 0.22, and the `cv=None` variant returns p = 0.02 on data with
+  no signal in it. That is why `cv=5` is the default.
+
+- **`confusion_matrix_plot`.** A heat map of counts, or of row fractions with
+  `{"normalize": True}` in its settings, bound as a method on `PLSDA` and
+  importable on its own. It takes
+  an optional matrix argument so the held-out confusion matrix can be plotted rather
+  than the optimistic training one.
+
+- **`optimize_responses(method="ridge_analysis")` (#208).** Traces the best
+  attainable point on spheres of increasing radius from the design centre, which
+  is the question worth asking when a second-order model's stationary point lands
+  outside the region the experiment covered, or is a saddle.
+
+  It solves Draper's secular equation rather than searching. The Lagrange
+  condition is `(B - mu*I) x = -b/2`, and the Hessian of the Lagrangian is
+  `2 (B - mu*I)`, so a constrained maximum needs `mu` above the spectrum of `B`.
+  On that interval the radius is strictly monotone in `mu`, so the multiplier for
+  a given radius is unique and a one-dimensional root-find finds it exactly. The
+  trust-region "hard case", where `b` has no component along the leading
+  eigenvector, is handled as well; a model whose stationary point sits at the
+  centre is the common instance, and its ridge runs along that eigenvector.
+
+  Each returned point was checked against 200,000 samples of its own sphere,
+  across an interior maximum, a saddle, three factors, and both hard cases, in
+  both directions.
+
+- **`optimize_responses(method="pareto_front")` (#208).** Returns the whole set of
+  non-dominated compromises over two or more responses, rather than the single
+  point a desirability weighting happens to pick.
+
+  It uses augmented weighted Chebyshev scalarisation over a Das-Dennis weight
+  lattice, solved with SLSQP from several starts, then filtered to the
+  non-dominated set. NSGA-II, which the stub proposed, is built for expensive
+  black-box objectives; these are low-order polynomials over a box, evaluated in
+  microseconds and differentiable everywhere, so a gradient solver reaches each
+  front point to solver tolerance with no seed or generation count to tune. A
+  weighted sum was not used because it can only ever reach the convex hull of the
+  front: on the quadratic pair in the tests, a sweep of 2001 weights returns just
+  two distinct answers while this returns 16.
+
+  Both methods are now in the `optimize_responses` tool enum, and
+  `search_bounds`, `n_steps`, `ridge_direction` and `n_pareto_points` drive them.
+
+- **`PCA.parallel_analysis(surrogate="permutation")` (#374).** Horn's original
+  null draws standard-normal matrices, so for a given shape it produces the same
+  null whatever the data looks like. Buja and Eyuboglu (1992) instead permute each
+  column of the real data independently: that breaks the correlation between
+  columns, which is what parallel analysis tests for, while leaving each column's
+  own distribution alone. Prefer it on process data, where a tag may be skewed,
+  heavy-tailed, bounded at zero or quantised by its instrument, and a Gaussian null
+  answers a question about Gaussian data rather than about this block. The default
+  stays `"normal"`, and the returned `Bunch` now echoes which null was used.
+
+- **`PCA.select_n_components(cv_scheme="ckf")` (#374).** Column-wise k-fold
+  cross-validation. Groups of columns are held out and predicted from scores
+  computed on the retained columns only, so no held-out value appears in the score
+  that predicts it.
+
+  The documented caveat is the point of having it stated: the loadings still come
+  from an SVD of the whole block, so information reaches the model through `P` even
+  though it does not reach it through `T`. On a 60-by-12 block of pure noise, `ekf`
+  returns a negative Q2 at every component count, as it must when there is nothing
+  to predict, while `ckf` returns +0.017 at one component. `ekf` therefore remains
+  the default. `ckf` is offered because a great deal of published chemometrics uses
+  it, so a number that has to line up with a paper may need it, and because it
+  costs one decomposition rather than `n_folds * n_repeats * max_components`.
+
+The third item of #374, double cross-validation for PLS, is already provided by
+`PLS.nested_cv`: an outer loop for unbiased performance, an inner
+`select_n_components` per outer fold, and `selected_components_per_fold` /
+`selected_components_distribution` in the result.
+
+- **`fill_gaps` for batch trajectories (#200),** replacing the
+  `bfill().ffill()` the issue quotes. That one-liner is wrong on trajectory data
+  in three specific ways, and each is addressed:
+
+  1. It holds the last value flat across a gap, so a ramp gains a step and a
+     plateau that `f_slope` and `f_rupture` then report as process events.
+     `fill_gaps` interpolates between the two observed ends instead, with
+     `"linear"`, `"time"`, `"pchip"` or `"nearest"`. `"pchip"` is offered because
+     it is shape preserving: a plain cubic overshoots to a negative concentration
+     on a rising curve, which is not a smoother answer but a wrong one.
+  2. It bridges a gap of any length without saying so. `fill_gaps` caps a filled
+     run at `limit` samples and leaves longer ones `NaN` on purpose, because PCA,
+     PLS and `BatchPCA` all have NIPALS missing-data paths and an honest hole is
+     worth more to them than an invented number.
+  3. `bfill` at the start of a batch fills from the future. Leading and trailing
+     gaps are left alone by default; `edge="nearest"` restores the old behaviour.
+
+  It returns a report of `"filled/remaining"` counts per batch and variable, so
+  how much of the modelled data was measured is on the record.
+
+- **`smooth_trajectories` with Savitzky-Golay and LOWESS (#200).** It runs one
+  batch at a time, which is the substance rather than an implementation detail:
+  filtering a concatenated frame lets the window straddle the join between two
+  batches, so the tail of one leaks into the head of the next.
+
+  Savitzky-Golay is the default because it fits a local polynomial and so
+  preserves peak height and area, which is what `f_max` and `f_area` measure
+  next; a moving average of the same width flattens a Gaussian peak by 15% where
+  Savitzky-Golay loses under 2%. LOWESS is there for trajectories with spikes,
+  which Savitzky-Golay smears across its window: on a ramp with three spikes it
+  recovers the ramp ten times more accurately.
+
+  A batch shorter than the window has its window shrunk, with a warning, since
+  batches legitimately differ in length before alignment.
+
+  Both are imported from `process_improve.batch`. `_gaps` is a private module
+  re-exported through the package, the same shape `_pca` and `_pls` take through
+  `methods`.
+
+- **`simulate(..., random_state=...)`.** The measurement noise came from an
+  unseeded `np.random.default_rng()` inside a public function, which
+  `docs/development/reproducibility.rst` forbids: every public function touching
+  an RNG takes `random_state: int | np.random.Generator | None` and resolves it
+  through `process_improve._random.check_random_state`. The default stays
+  `None`, so a simulator standing in for a real process still returns fresh
+  noise on every call; an int or a `Generator` makes a run repeatable. It is
+  deliberately *not* part of the `simulate_process` tool contract, so a model
+  driving the simulator cannot freeze its noise.
+
+- **`ttest_independent(..., equal_var=False)`: Welch's unequal-variance t-test
+  (#561).** The function was pooled-variance Student's t only, with no switch:
+  `grep -rn "welch|equal_var|ttest_ind" src/` returned nothing. Welch is the
+  default in R's `t.test` and is what `scipy.stats.ttest_ind(equal_var=False)`
+  gives, so the library was the outlier. `equal_var=False` keeps each sample's
+  own variance and takes the Welch-Satterthwaite degrees of freedom; both modes
+  now agree with scipy to 1e-12 on the statistic, the p-value, the degrees of
+  freedom and the confidence interval.
+
+  The default stays `True`, so existing results do not move. It is the weaker
+  choice, though: pooling is only valid when the two variances really are equal,
+  and when they are not (especially with the larger variance on the smaller
+  sample) Student's test does not hold its nominal error rate while Welch's does.
+  Delacre, Lakens & Leys (2017) is now cited on the function as the case for that,
+  which is where that reference belongs; it had been parked in
+  `confidence_interval`, a single-sample interval it has nothing to do with.
+
+  `ttest_independent_from_df` forwards `equal_var` to every pair in the family,
+  and the `ttest_two_samples` tool exposes it too. Two consequences worth knowing:
+  the result dict gains an `"Equal variance assumed"` entry, and `"Pooled std
+  dev"` is `NaN` under Welch (JSON `null` through the tool layer), because Welch
+  forms no pooled estimate and a number there would imply one.
+
+
+### Changed
+
+- **`### Deprecated` maps to MINOR, not PATCH, when choosing a release's
+  version level.** The table added in #591 put it under PATCH, which
+  contradicted `docs/development/deprecation_policy.rst`: that document
+  announces a deprecation in an `X.Y.0` release, and a deprecation message has
+  to name the version that announced it, so it needs a version of its own to
+  name. Corrected in `CONTRIBUTING.md`. The `OPLS` deprecation above is the
+  first entry the rule applies to.
+
+- **An unrecognised fit-time `md_method` is refused instead of quietly running
+  NIPALS (#588).** The dispatch knew `"tsr"` and `"pmp"`, both raising
+  `NotImplementedError`, and sent everything else to NIPALS without a word. The
+  trap was `"scp"`: a real method name for `project()` and the contribution
+  helpers, so asking for it at fit time looked reasonable and ran a different
+  algorithm. Unknown values now raise `ValueError` naming the accepted set, and
+  the docstring no longer lists `"scp"` among them. Two tests in the suite were
+  passing `md_method="scp"` and silently getting NIPALS; they now say so.
+
+
+- **The version is no longer bumped in a pull request.** `pyproject.toml`
+  `version` and `CITATION.cff` are now set once, at release time, from whatever
+  has accumulated under `## [Unreleased]`. A pull request adds its changelog
+  entry and leaves both files alone.
+
+  Every pull request was bumping the same line of `pyproject.toml`, the same
+  line of `CITATION.cff`, and inserting at the same anchor in `CHANGELOG.md`.
+  That made every open pull request conflict with every other one on three
+  lines unrelated to the work: of the 25 conflicted pull requests open when
+  this was written, 10 conflicted on nothing else.
+
+  The release level is now read off the `[Unreleased]` headings rather than
+  argued about: any `### Removed` means MAJOR, any `### Added` means MINOR,
+  anything else is PATCH. So the heading an entry is filed under now matters,
+  and `CONTRIBUTING.md` says so. `publish.yml` is unchanged and still refuses
+  to ship a tag that does not match `pyproject.toml`, or a version with no
+  `CHANGELOG.md` heading, so a release that forgets the bump fails loudly.
+
+  `CONTRIBUTING.md`, `CLAUDE.md`, `SECURITY_AUDIT.md` and the pull request
+  template are updated to match.
+
+- **`MBPCA.fit` is now a sequence of named phases**, the same split `MBPLS.fit`
+  received in 1.95.1. It carried `# noqa: C901, PLR0912, PLR0915`; the body is
+  now `_validate_blocks`, `_resolve_algorithm`, `_preprocess`,
+  `_fit_one_component`, `_deflate` and the `_store_*` methods, called in the
+  order the old comments already named, and no complexity rule is suppressed on
+  it any more.
+
+  Nothing about a fit changes. Every fitted attribute was hashed before and
+  after the split across the `dense` and `nipals` paths; the only field that
+  differs is `fitting_info_.timing`, and two runs of *identical* code differ in
+  exactly that field and no other.
+
+### Deprecated
+
+- **`OPLS(max_iter=...)` and `OPLS(tol=...)` are deprecated and ignored
+  (#588).** Both were assigned in `__init__` and never read. The
+  single-response Trygg-Wold algorithm is closed form: the predictive weight is
+  `X'y` normalised, and the orthogonal components come from a loop that runs
+  exactly `n_orthogonal_components` times. Nothing iterates to convergence, so
+  an iteration cap has no loop to bound and a convergence tolerance has no
+  convergence to judge.
+
+  `tol`'s docstring claimed it guarded rank-deficient projections. The only such
+  guard is the `safe_inverse` of `P_o' W_o`, which takes a condition-number
+  ceiling (default `1/eps`, about 4.5e15), not a magnitude floor like `tol`
+  (about 1.5e-8); the two are different quantities and the value never reached
+  that guard.
+
+  Both stay on the signature through the deprecation window, so `get_params`,
+  `set_params` and `clone` keep working for code that already passes them.
+  Setting either to a non-default value now raises a `DeprecationWarning`.
+  Removal is scheduled for 2.0, per
+  `docs/development/deprecation_policy.rst`.
+
+### Fixed
+
+- **`PLS(tol=...)` is no longer dropped when the data has missing cells (#588).**
+  The missing-data branch of the settings resolution hard-coded the NIPALS
+  tolerance to `epsqrt` while taking the iteration cap from the constructor, so
+  a caller's `tol` governed a fit on complete data and was silently ignored as
+  soon as one cell went missing. Both cases now resolve from the same place:
+  `tol` and `max_iter` supply the defaults, and an explicit
+  `missing_data_settings` overrides individual keys on top.
+
+  A model built with default arguments fits exactly as before, `PLS` defaulting
+  `tol` to the `epsqrt` the branch used to hard-code. Only a caller who set
+  `tol` and has missing data sees a change, which is the point.
+
+- **A partial `missing_data_settings` no longer raises `KeyError` (#588).** On
+  complete data the caller's dict was passed through as the entire settings
+  mapping, so `PLS(missing_data_settings={"md_tol": 1e-3}).fit(...)` reached
+  `settings["md_max_iter"]` inside the NIPALS fit and died. Every key is now
+  filled from the constructor before the dict is applied.
+
+- **`explained_variance_plot` labels a `PLSDA` model correctly.** It chose its axis
+  label with `type(model).__name__ == "PLS"`, which a subclass fails; `PLSDA`'s
+  `r2_per_component_` is likewise the Y-block, so the exact-name test would have
+  labelled the plot "X-variance".
+
+  The model now declares which block its `r2_per_component_` measures, through a
+  `_variance_block` class attribute that subclasses inherit, and the plot reads it,
+  defaulting to `"X"`. An `isinstance` check would have worked too, but `_pls`
+  imports `plots`, so importing `PLS` back into `plots` closes a cycle; a model
+  saying what it explains is also plainer than a plot inferring it.
+
+- **The `ridge_trace` plot now solves the ridge instead of approximating it.** It
+  scanned 200 values of the Lagrange multiplier, then rescaled whichever solution
+  it liked onto the requested radius. A rescaled point is not the constrained
+  optimum unless the multiplier happened to be the right one, and the scan could
+  land inside the spectrum, which yields saddle points rather than maxima. It now
+  calls the same solver as `ridge_analysis`, so the plot and the numbers agree.
+
+  The visible consequence: on a surface with no linear terms, such as
+  `5 - 2*A**2 - 3*B**2`, the plot used to draw a flat line at the centre for
+  every radius, because it could not rescale a zero vector onto the sphere. The
+  centre is not on the sphere of radius 1, so it was answering a different
+  question from the one it asked. It now runs the ridge along the flattest
+  direction, which is the answer.
+
+- **A sparse `ColumnTransformer` output now names the remedy (#399).**
+  `make_column_transformer((MCUVScaler(), numeric), (OneHotEncoder(), categorical))`
+  works, but `ColumnTransformer` flips its *whole* concatenated output to a sparse
+  matrix once the result is more than `sparse_threshold` (default 0.3) zeros,
+  which a one-hot block with a dozen levels easily is. `PLS`, `PCA` and
+  `MCUVScaler` then failed with sklearn's generic "use `.toarray()`", which is
+  the expensive way round: the dense array is built anyway, but only after the
+  sparse one. They now raise a `TypeError` naming `sparse_threshold=0` and
+  `OneHotEncoder(sparse_output=False)`, the two knobs that avoid the round trip.
+
+- **`quick_regress`'s zero-denominator guard is now relative (#513).** It compared
+  the denominator against `epsqrt` (~1.5e-8) in absolute terms, which is a
+  statement about the *scale* of the data rather than its conditioning. On a
+  well-conditioned block whose values are ~1e-5 the denominator is ~1e-9, so every
+  coefficient was silently returned as 0.0; multiplying the same data by 1e5, which
+  cannot change a ratio of the form `(x'y)/(x'x)`, made the call return the right
+  answer. The threshold is now `epsqrt * ssq(x)`. Genuine degeneracies (an all-zero
+  `x`, an all-NaN column of `Y`) are still zeroed.
+
+- **`PLS` and `PCA` floor the norm they normalise by (#513).**
+  `w_a / sqrt(ssq(w_a))` in `_pls.py` and `p_a / sqrt(ssq(p_a))` in `_pca.py` were
+  the last two unguarded NIPALS normalisations: a collapsed vector makes them 0/0,
+  and the NaN propagates through deflation into every later component. Both now use
+  `_nz`, as the identical expressions in `_mbpls.py` and `_mbpca.py` already did.
+
+- **`randomization_test_mbpls` counts the observed statistic among the
+  permutations (#513).** `risk_pct` was `100 * n_exceed / n_permutations`, which can
+  report exactly 0; no finite permutation set licenses the claim that the true tail
+  probability is zero. It is now `100 * (n_exceed + 1) / (n_permutations + 1)`,
+  matching the Van der Voet test in `_pls.py`. The floor is
+  `100 / (n_permutations + 1)`, so the default 999 permutations resolve to 0.1%.
+  **Reported values move**: every `risk_pct` shifts up by roughly one permutation's
+  worth.
+
+- **A constant column in a TPLS block is reported, not asserted (#513).**
+  `_learn_center_and_scaling_parameters` gives a no-variance column a NaN scale,
+  which excludes it from the model. That is right, but it happened in silence, and
+  the post-preprocessing check on the Z and Y blocks did not tolerate the NaN
+  statistic that exclusion produces (the F and D checks did). One constant column
+  therefore raised a message-less `AssertionError()` under normal Python and, because
+  the check was a bare `assert`, fitted silently under `python -O`. The exclusion now
+  emits a `UserWarning` naming the block and the columns, and the invariant check is a
+  `RuntimeError` naming the block, group, column and observed value.
+
+- **LOWESS's robustness collapse is now detected rather than silently returning
+  the input.** `lowess` scales its robustness weights by `6 * median(|residual|)`.
+  On a trajectory the local fits reproduce exactly away from a few spikes, a
+  clean ramp or a flat-lined sensor, that median is zero, every weight
+  degenerates, and statsmodels hands the column straight back: finite, correct
+  length, still spiked, with nothing raised. `smooth_trajectories` detects it,
+  names the cause, and falls back to `iterations=0`, which smooths without
+  rejecting outliers. It is the same implosion a median-of-differences scale
+  estimator suffers under a tied majority, in a place nobody looks for it.
+
+- **A truncated dataset download now surfaces as the documented error.**
+  `fetch_remote_bytes` caught `OSError`, which covers connection, DNS and timeout
+  failures. It does not cover `http.client.IncompleteRead`, which is what
+  `response.read()` raises when a server closes the connection part way through
+  the body: that is an `HTTPException`, so it escaped raw and the one guarantee
+  the module exists to provide did not hold.
+
+  The cost was CI jobs failing on a network hiccup. The test fixtures turn a
+  `RuntimeError` from a download into a skip, so a truncated transfer errored
+  instead: one job reported `IncompleteRead(817662 bytes read, 514355 more
+  expected)` and failed with 3408 tests passing and nothing wrong with the code
+  under test.
+
+- **`test_mean_converges_to_deterministic_surface` no longer fails by chance.**
+  It averaged 400 unseeded draws and compared the sample mean against a
+  3.5-sigma band: correct in expectation, but roughly a 1-in-2000 failure per
+  run, and it did fail on CI at `|mean - expected| = 0.47241` against a
+  `0.47229` tolerance. The draws are now seeded, so the same band is a statement
+  about one fixed sequence rather than a random one. A companion assertion pins
+  that the draws are still noisy, so the mean cannot match trivially.
+
+  (The other half of this batch, the `typing.cast` that repaired the `typecheck`
+  gate, reached main with #579 and is no longer part of this change.)
+
+- **`confidence_interval` validates `style` (#561).** Anything other than
+  `"robust"` fell through to the classical branch, so `style="rubost"` returned a
+  different interval with nothing to signal it. Unknown values now raise
+  `ValueError` naming the two accepted ones.
+
+### Documentation
+
+- **README: mixing scaled numeric and categorical columns (#399).** The
+  `ColumnTransformer` pattern, with the two arguments that are doing real work:
+  `sparse_threshold=0` for the reason above, and
+  `set_output(transform="pandas")`, which carries `get_feature_names_out` through
+  to `x_loadings_.index` so a loading reads as "the one-hot column for
+  `batch_type == B`" rather than "column 4". The numbers are identical either way.
+
+- **`nan_to_zeros` says what it does (#513).** It promised "a NaN map"; it computes
+  one, discards it, and returns the array it was given, mutated in place. Every
+  caller in the package passes a private copy, which is why the aliasing has not
+  bitten, but the contract is now stated rather than left in the body.
+
+### Tests
+
+- **`robust_regression` is now tested with pandas `Series` inputs (#213).** It
+  accepts them, and pairs the two vectors **by position**, not by index: the
+  implementation takes `.values` from each, so the labels are discarded. The
+  obvious alternative, `pd.concat([x, y], axis=1)`, would align on the index and
+  turn two disjoint indexes into a frame of NaN, so the behaviour is now pinned
+  by a test that uses deliberately disjoint indexes.
+
+- **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
+  counts how many functions in `src/process_improve` breach `C901`, `PLR0912`,
+  `PLR0913` or `PLR0915`, asking ruff with `--ignore-noqa` so it measures real
+  breaches rather than `# noqa` comments, and ranks them by how far past the
+  threshold they are, which is the "what do I split next?" list.
+
+  `tests/test_complexity_ratchet.py` makes it a CI gate in both directions: a
+  count above its budget fails as a regression, and a count *below* its budget
+  also fails, telling you to lower the budget. A refactor therefore cannot be
+  quietly spent by the next change. The target, recorded in `CONTRIBUTING.md`,
+  is to halve the 2026-06 baseline of 185 breaches to 91 by v2.0; this release
+  takes it to 186: the `MBPCA.fit` split removed three, while #598's
+  `smooth_trajectories`, #581's `equal_var` switch, #374's
+  `parallel_analysis(surrogate=...)`, #208's `_pareto_front` and this release's
+  `PLSDA` constructor each added one, and #208's `to_spec` simplification took a
+  `C901` breach back off.
+
+- **`HalvingGridSearchCV` / `HalvingRandomSearchCV` with a Pipeline-aware budget
+  (#398).** The existing coverage uses `resource="n_samples"`, the default, where
+  the budget is rows and the estimator never sees it. The issue also asked for a
+  budget spent on a pipeline parameter, which is the case that stresses what it
+  worried about: sklearn writes the resource into the step through `set_params`
+  on every candidate at every rung, and it has to survive `clone`. Both searchers
+  now run with `resource="pls__n_components"` while separately grid-searching
+  `pls__scale`. Both work; nothing needed fixing, so the test locks in the
+  working state.
+
+## [1.95.1] - 2026-09-18
+
+### Changed
+
+- **`MBPLS.fit` is now a sequence of named phases rather than one 404-line
+  body.** It carried `# noqa: C901, PLR0912, PLR0915`: complexity 40, 45
+  branches and 222 statements, against thresholds of 10, 12 and 50. The phases
+  were already named, in comments, inside the one function; each is now a helper
+  under that name, and `fit` reads as the sequence those comments described
+  (complexity 3, 2 branches, 23 statements, no suppression).
+
+  Nothing about a fit changes. The split is pure code motion: no expression was
+  reordered or rewritten, and the fitted attributes, `predict` and `transform`
+  were compared bit-for-bit across 17 configurations covering the `dense` and
+  `nipals` paths, one to six components, missing cells in X and in Y, a row
+  missing a whole block, and a fit that does not converge.
+
+  The helpers are private (`_fit_one_component`, `_deflate`,
+  `_reject_degenerate_missingness` and the rest), so no public API moves. The
+  one visible difference is that the non-convergence `SpecificationWarning` is
+  raised from one frame deeper, with `stacklevel` adjusted to match, so it still
+  points at the same place.
+
+## [1.95.0] - 2026-09-18
+
+### Added
+
+- **`make_tpls_scorer`: named metrics for `TPLS` cross-validation (#565).** A
+  scorer *string* cannot be used with `TPLS`. sklearn builds `scoring="r2"` into
+  a `_Scorer` whose `__call__` takes `y_true` as a required positional argument,
+  but a T-shaped model carries its response inside `X["Y"]` rather than in a
+  separate `y`, so `cross_val_score` has no `y` to hand over and calls the
+  scorer as `scorer(estimator, X_test)`. The call fails on the missing argument
+  *before TPLS is reached* (instrumentation: `TPLS.score` is called 3 of 3 folds
+  under default scoring and 0 of 3 under `scoring="r2"`), and sklearn's
+  `error_score` default of `np.nan` records every fold as `NaN` behind a
+  `UserWarning` that is easy to miss.
+
+  sklearn passes a *callable* `scoring=` through untouched and invokes it the
+  same two-argument way, so a callable whose `y` is optional receives that call
+  cleanly and can read the response out of `X["Y"]` itself:
+
+  ```python
+  from process_improve.multivariate import TPLS, make_tpls_scorer
+
+  cross_val_score(TPLS(...), X=blocks, cv=5, scoring="r2")                 # all NaN
+  cross_val_score(TPLS(...), X=blocks, cv=5, scoring=make_tpls_scorer("r2"))  # works
+  ```
+
+  `make_tpls_scorer("r2")` reproduces `TPLS.score` fold for fold, so it is a
+  drop-in replacement for the broken string form. It also takes
+  `"neg_mean_absolute_error"`, `"neg_mean_squared_error"` and
+  `"neg_root_mean_squared_error"` (sklearn's sign convention, so higher is
+  always better), any callable `metric(y_true, y_pred)` with
+  `greater_is_better=` to set its sign, and `**metric_kwargs` forwarded to the
+  metric. Several Y blocks are combined the way `TPLS.score` combines them: an
+  unweighted mean over the blocks, not a pooled multiblock statistic.
+
+### Changed
+
+- **`TPLS.fit` and `TPLS.score` reject a non-`None` `y` (#565).** Both took `y`
+  for sklearn API compatibility and then ignored it, so a caller who supplied a
+  response there had no way to learn it was never used. They now raise
+  `ValueError` naming the constraint and pointing at `make_tpls_scorer`. No
+  correct code relied on the old behaviour, since the value had no effect.
+
+- **`test_tpls_cross_validation` asserts the working path instead of pinning the
+  broken one (#565).** It previously wrapped the all-`NaN` `scoring="r2"` call
+  in `pytest.warns(UserWarning)` as a characterisation test. It now asserts that
+  `scoring=make_tpls_scorer("r2")` gives finite folds equal to the default
+  scoring's, to a relative tolerance of 1e-12.
+
+### Documentation
+
+- **`TPLS.score`** now points at `make_tpls_scorer` as the supported route for a
+  named metric, keeping `error_score="raise"` only as the way to see the
+  underlying `TypeError` if a string scorer is used anyway.
+
 ## [1.94.0] - 2026-09-13
 
 ### Added
@@ -5083,7 +5692,9 @@ this entry records them together.
 - Reworked the README with a sharper value proposition and a
   "Why not scikit-learn?" comparison table.
 
-[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.94.0...HEAD
+[Unreleased]: https://github.com/kgdunn/process-improve/compare/v1.95.1...HEAD
+[1.95.1]: https://github.com/kgdunn/process-improve/compare/v1.95.0...v1.95.1
+[1.95.0]: https://github.com/kgdunn/process-improve/compare/v1.94.0...v1.95.0
 [1.94.0]: https://github.com/kgdunn/process-improve/compare/v1.93.1...v1.94.0
 [1.93.1]: https://github.com/kgdunn/process-improve/compare/v1.93.0...v1.93.1
 [1.93.0]: https://github.com/kgdunn/process-improve/compare/v1.92.0...v1.93.0

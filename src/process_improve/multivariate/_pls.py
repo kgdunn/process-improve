@@ -36,6 +36,8 @@ from ._common import (
     _align_to_fit_features,
     _equal_weight_r2_total,
     _model_method,
+    _nz,
+    _reject_sparse,
     _select_n_components,
     epsqrt,
 )
@@ -56,6 +58,29 @@ from .plots import (
 )
 
 logger = logging.getLogger(__name__)
+
+# The ``md_method`` values ``_fit_nipals`` recognises. Deliberately smaller than
+# ``_projection.PROJECTION_METHODS``: that tuple is the projection-time set, which also
+# offers ``"scp"``. Only ``"nipals"`` is implemented here; the other two are recognised so
+# a caller asking for them gets NotImplementedError rather than a silent NIPALS fit.
+_FIT_TIME_MD_METHODS = frozenset({"nipals", "tsr", "pmp"})
+
+
+def _check_md_method(settings: dict) -> None:
+    """Refuse a ``md_method`` the fit cannot carry out, before any work is done.
+
+    An unrecognised value used to fall through to NIPALS silently, so a typo, or the
+    projection-time name ``"scp"``, ran a different algorithm than the caller asked for.
+    """
+    md_method = settings.get("md_method", "nipals").lower()
+    if md_method not in _FIT_TIME_MD_METHODS:
+        raise ValueError(
+            f"md_method must be one of {sorted(_FIT_TIME_MD_METHODS)}; got '{md_method}'. "
+            "This is the fit-time setting, a smaller set than the method= accepted by "
+            "project() and the contribution helpers."
+        )
+    if md_method != "nipals":
+        raise NotImplementedError(f"{md_method.upper()} for PLS not implemented yet")
 
 
 def _vandervoet_randomization(
@@ -260,9 +285,18 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         deliberately un-centred fit stays quiet inside a ``Pipeline`` or a
         grid search.
     missing_data_settings : dict or None, default=None
-        Settings for missing data algorithms (NIPALS/TSR for PLS).
-        Keys: ``md_method`` (``"tsr"``, ``"scp"``, ``"nipals"``),
-        ``md_tol``, ``md_max_iter``.
+        Settings for the NIPALS fit when the data has missing cells. Keys:
+
+        - ``md_method``: ``"nipals"`` (the default, and the only one
+          implemented), or ``"tsr"`` / ``"pmp"``, which are recognised and
+          raise :class:`NotImplementedError`. Any other value is refused. This
+          is a different and smaller set than the ``method=`` accepted by
+          :meth:`project` and the contribution helpers, which do implement
+          ``"tsr"``, ``"scp"`` and ``"pmp"``.
+        - ``md_tol`` and ``md_max_iter``: the NIPALS convergence tolerance and
+          iteration cap. They default to this model's ``tol`` and ``max_iter``,
+          so set those instead unless you need the fit and the missing-data
+          path to differ.
 
     Attributes (after fitting)
     --------------------------
@@ -444,6 +478,15 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
     }
     _RENAME_CONTEXT: typing.ClassVar[str] = "PLS"
 
+    #: Which block ``r2_per_component_`` measures the variance of. PLS explains the
+    #: Y block, PCA the X block, and subclasses inherit the right answer: PLSDA's
+    #: r2_per_component_ is the variance of its class indicators, which is Y. Read by
+    #: :func:`~process_improve.multivariate.plots.explained_variance_plot`, which
+    #: defaults to "X" for any model that does not declare one. A class attribute
+    #: rather than an ``isinstance`` check because ``_pls`` imports ``plots``, so the
+    #: reverse import would close a cycle (#375).
+    _variance_block: typing.ClassVar[str] = "Y"
+
     # Y-side fitted attributes: ndarrays while NIPALS fills them in, then wrapped
     # into the documented public DataFrames at the end of fit().
     y_scores_: np.ndarray | pd.DataFrame
@@ -491,11 +534,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         K = self.n_features_in_
         M = self.n_targets_
 
-        md_method = settings.get("md_method", "nipals").lower()
-        if md_method == "tsr":
-            raise NotImplementedError("TSR for PLS not implemented yet")
-        if md_method == "pmp":
-            raise NotImplementedError("PMP for PLS not implemented yet")
+        _check_md_method(settings)
 
         Xd = np.asarray(X, dtype=float).copy()
         Yd = np.asarray(Y, dtype=float).copy()
@@ -572,8 +611,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 # 1: w_a = X'u_a / (u_a'u_a)
                 w_a = quick_regress(Xd, u_a)
 
-                # 2: Normalize w_a to unit length
-                w_a = w_a / np.sqrt(ssq(w_a))
+                # 2: Normalize w_a to unit length. Floor the norm: a collapsed ``w_a``
+                # would make this 0/0 -> NaN and poison every later component. `_mbpls`
+                # already guards the identical expression this way; see `_nz` (#513).
+                w_a = w_a / _nz(float(np.sqrt(ssq(w_a))))
 
                 # 3: t_a = X w_a / (w_a'w_a)
                 t_a = quick_regress(Xd, w_a)
@@ -710,6 +751,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             if np.any(sample_weight < 0):
                 raise ValueError("sample_weight must be non-negative.")
 
+        # Reject sparse before validate_data does, so the message names the
+        # ColumnTransformer knob rather than `.toarray()` (#399).
+        _reject_sparse(X, "PLS")
         # Capture DataFrame metadata before validate_data converts X to ndarray
         # so the downstream DataFrame view keeps its row/column labels.
         sample_index: pd.Index | None = X.index if isinstance(X, pd.DataFrame) else None
@@ -805,24 +849,27 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         # it, per the sklearn clone/get_params contract (#505).
         self.n_components_ = A
 
-        resolved_mds = self.missing_data_settings
         if np.any(Y.isna()) or np.any(X.isna()):
             self.has_missing_data_ = True
-            # Default to the NIPALS path because TSR / PMP for PLS are still
-            # NotImplementedError in _fit_nipals; NIPALS handles per-cell NaN
-            # directly via skipna sums inside the NIPALS iterations.  The
-            # resolved settings stay local: mutating the constructor parameter
-            # would leak into clone() (#505).
-            default_mds = dict(md_method="nipals", md_tol=epsqrt, md_max_iter=self.max_iter)
-            if isinstance(self.missing_data_settings, dict):
-                default_mds.update(self.missing_data_settings)
-            resolved_mds = default_mds
 
-        settings = resolved_mds or {
-            "md_method": "nipals",
-            "md_tol": self.tol,
-            "md_max_iter": self.max_iter,
-        }
+        # One resolution, whether or not the data has gaps. The defaults come from this
+        # model's own ``tol`` and ``max_iter``, and an explicit ``missing_data_settings``
+        # overrides individual keys on top.
+        #
+        # Seeding from ``self`` is what makes ``PLS(tol=...)`` reach the NIPALS loop in
+        # both cases: the missing-data branch used to hard-code ``md_tol=epsqrt`` while
+        # taking ``md_max_iter`` from the constructor, so a caller's ``tol`` applied to
+        # complete data and was dropped as soon as a cell went missing. Filling every key
+        # here also means a partial dict (say ``{"md_tol": 1e-3}``) can no longer leave
+        # ``md_max_iter`` absent, which used to raise ``KeyError`` from ``_fit_nipals``.
+        #
+        # ``md_method`` defaults to NIPALS because TSR / PMP for PLS are still
+        # NotImplementedError in ``_fit_nipals``; NIPALS handles per-cell NaN directly via
+        # skipna sums inside its iterations. The resolved settings stay local: mutating the
+        # constructor parameter would leak into clone() (#505).
+        settings = {"md_method": "nipals", "md_tol": self.tol, "md_max_iter": self.max_iter}
+        if isinstance(self.missing_data_settings, dict):
+            settings.update(self.missing_data_settings)
         self._fit_nipals(X, Y, A, settings, sample_weight=sample_weight)
 
         # --- Common post-fit path: wrap numpy arrays into pandas ---
@@ -1939,7 +1986,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                 dist.name = "vote_share"
                 dist.index.name = "n_components"
                 selection_distribution = dist
-                selection_mode = int(dist.idxmax())
+                # `idxmax` is typed as returning `Hashable`; this index is `component_index`,
+                # which holds component counts, so the cast asserts what the construction guarantees.
+                selection_mode = int(typing.cast("int", dist.idxmax()))
                 selection_is_stable = bool(dist.max() >= stability_threshold)
 
         return Bunch(

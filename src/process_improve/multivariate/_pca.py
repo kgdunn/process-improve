@@ -31,6 +31,8 @@ from ._common import (
     SelectionRule,
     SpecificationWarning,
     _align_to_fit_features,
+    _nz,
+    _reject_sparse,
     _select_n_components,
     epsqrt,
 )
@@ -386,6 +388,115 @@ def _preprocess_for_cell_schemes(X: np.ndarray, scheme: str) -> np.ndarray:
     spread = X.std(axis=0, ddof=1)
     spread[spread < epsqrt] = 1.0
     return (X - centre) / spread
+
+
+def _pca_ckf_press(
+    Z: np.ndarray,
+    max_components: int,
+    *,
+    n_folds: int = 5,
+    random_state: int | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, float, np.ndarray]:
+    """Column-wise k-fold (ckf) PCA cross-validation (#374).
+
+    The columns are split into ``n_folds`` groups. For each group ``g`` and each candidate
+    component count ``a``, the loadings ``P`` come from an SVD of the whole block, but the
+    scores used to predict the held-out columns are computed from the *retained* columns
+    only::
+
+        T_g = Z[:, -g] P[-g, :] (P[-g, :]' P[-g, :])^-1
+        Zhat[:, g] = T_g P[g, :]'
+
+    so no held-out value ever appears in the score that predicts it. The reference is the
+    column mean, which is zero in this centred space, so ``Q2 = 1 - PRESS / SS(Z)``.
+
+    **ckf is not as clean as ekf, and the difference is measurable.** The loadings are
+    still fitted on a matrix that includes the held-out columns, so information leaks
+    through ``P`` even though it does not leak through ``T``. Camacho and Ferrer (2012)
+    make exactly this point, and it is why ``cv_scheme="ekf"`` remains the default here:
+    ekf holds out individual cells and imputes them, so nothing held out reaches the model
+    at all.
+
+    On a 60-by-12 block of pure noise, ekf returns a negative Q2 at every component count,
+    as it must when there is nothing to predict; ckf on the same block returns **+0.017**
+    at one component. That is the leakage, and a test pins it.
+
+    ckf is offered anyway, for two reasons: a great deal of published chemometrics uses
+    it, so a number that has to line up with a paper may need it, and it costs one
+    decomposition rather than ``n_folds * n_repeats * max_components``, which matters on a
+    block with far more columns than samples.
+
+    Parameters
+    ----------
+    Z : np.ndarray of shape (n_samples, n_features)
+        Centred and scaled data, as produced by :func:`_preprocess_for_cell_schemes`.
+    max_components : int
+        PRESS is computed for ``1 .. max_components``.
+    n_folds : int, default 5
+        Number of column groups. Capped at the number of columns, since a group cannot be
+        empty; ``n_folds == n_features`` is leave-one-variable-out.
+    random_state : int, optional
+        Seed for the column permutation that forms the groups.
+
+    Returns
+    -------
+    press : np.ndarray of shape (max_components,)
+        Total held-out sum of squared errors per component count.
+    per_fold_press : np.ndarray of shape (max_components, n_folds)
+        The same total, split by column group, so the 1-SE rule has a spread to work with.
+    per_column_press : np.ndarray of shape (max_components, n_features)
+        The same total, split by variable.
+    null_model_ss : float
+        ``SS(Z)``: what predicting every held-out value by its column mean gets wrong.
+    per_column_null_ss : np.ndarray of shape (n_features,)
+        That reference, split by variable.
+
+    References
+    ----------
+    Camacho, J., & Ferrer, A. (2012). Cross-validation in PCA models with the
+    element-wise k-fold (ekf) algorithm: theoretical aspects. *J. Chemometrics*,
+    26(7), 361-373. DOI 10.1002/cem.2440.
+    """
+    n_features = Z.shape[1]
+    n_folds = max(1, min(int(n_folds), n_features))
+    rng = np.random.default_rng(random_state)
+    groups = np.array_split(rng.permutation(n_features), n_folds)
+
+    # One SVD serves every component count: the rank-a loadings are the first a columns of
+    # V, so the whole curve costs one decomposition rather than max_components of them.
+    _, _, vt = np.linalg.svd(Z, full_matrices=False)
+    available = min(max_components, vt.shape[0])
+
+    press = np.zeros(max_components)
+    per_fold_press = np.full((max_components, n_folds), np.nan)
+    per_column_press = np.zeros((max_components, n_features))
+    for a in range(1, available + 1):
+        loadings = vt[:a, :].T  # (n_features, a)
+        for fold, held_out in enumerate(groups):
+            if held_out.size == 0:
+                continue
+            keep = np.setdiff1d(np.arange(n_features), held_out, assume_unique=False)
+            if keep.size < a:
+                # Fewer retained columns than components: the least-squares score is not
+                # determined. Leave this fold's contribution as NaN rather than inventing
+                # one, which is what `per_fold_press` being NaN-initialised is for.
+                continue
+            scores = np.linalg.lstsq(loadings[keep, :], Z[:, keep].T, rcond=None)[0].T
+            residual = Z[:, held_out] - scores @ loadings[held_out, :].T
+            squared = residual**2
+            per_column_press[a - 1, held_out] = squared.sum(axis=0)
+            per_fold_press[a - 1, fold] = float(squared.sum())
+        press[a - 1] = float(np.nansum(per_fold_press[a - 1, :]))
+
+    if available < max_components:
+        # Beyond the rank of Z there is nothing left to fit; carry the last honest value
+        # forward rather than reporting a zero error the model did not earn.
+        press[available:] = press[available - 1] if available else np.nan
+        per_fold_press[available:, :] = per_fold_press[available - 1, :] if available else np.nan
+        per_column_press[available:, :] = per_column_press[available - 1, :] if available else np.nan
+
+    per_column_null_ss = (Z**2).sum(axis=0)
+    return press, per_fold_press, per_column_press, float(per_column_null_ss.sum()), per_column_null_ss
 
 
 def _leverage_corrected_press(
@@ -790,6 +901,9 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         # code expects. validate_data also sets n_features_in_ / feature_
         # names_in_ and runs the sklearn input rejections (sparse, complex,
         # empty, dtype-object) with the standard error messages.
+        # Reject sparse before validate_data does, so the message names the
+        # ColumnTransformer knob rather than `.toarray()` (#399).
+        _reject_sparse(X, "PCA")
         sample_index = X.index if isinstance(X, pd.DataFrame) else None
         feature_columns = X.columns if isinstance(X, pd.DataFrame) else None
         X_arr = validate_data(
@@ -1041,7 +1155,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
 
                 # Regress X onto t_a to get loadings p_a
                 p_a = quick_regress(Xd, t_a)
-                p_a = p_a / np.sqrt(ssq(p_a))
+                # Floor the norm: a collapsed ``p_a`` would make this 0/0 -> NaN and
+                # poison every later component. `_mbpca` already guards the identical
+                # expression this way; see `_nz` (#513).
+                p_a = p_a / _nz(float(np.sqrt(ssq(p_a))))
 
                 # Regress X onto p_a to get scores t_a
                 t_a = quick_regress(Xd, p_a)
@@ -1501,12 +1618,13 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         return int(sk.n_components_)
 
     @classmethod
-    def parallel_analysis(
+    def parallel_analysis(  # noqa: PLR0913 - one argument per knob the method has
         cls,
         X: DataMatrix,
         *,
         n_simulations: int = 200,
         quantile: float = 0.95,
+        surrogate: typing.Literal["normal", "permutation"] = "normal",
         scale: bool = True,
         random_state: int | None = None,
     ) -> Bunch:
@@ -1525,6 +1643,20 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         n_simulations : int, default 200
             Number of random matrices drawn to build the null
             eigenvalue distribution.
+        surrogate : {"normal", "permutation"}, default "normal"
+            How the null matrices are built.
+
+            - ``"normal"``: independent standard-normal entries, which is
+              Horn's original proposal. Fast, and exactly right when the
+              columns really are Gaussian.
+            - ``"permutation"``: each column of the real data is permuted
+              independently (Buja and Eyuboglu, 1992). This breaks the
+              correlation between columns, which is what parallel analysis
+              is testing for, while leaving every column's own distribution
+              untouched. Prefer it on process data, where a tag may be
+              skewed, heavy-tailed, bounded at zero or quantised by its
+              instrument: a Gaussian null then answers a question about
+              Gaussian data rather than about this block.
         quantile : float, default 0.95
             Quantile of the null eigenvalues used as the retention
             threshold. Horn's original proposal was the mean (0.5);
@@ -1550,12 +1682,19 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
               centring/scaling (np.ndarray of length ``min(n, p)``).
             - ``null_threshold`` - per-rank ``quantile`` of the null
               eigenvalue distribution (same length as
-              ``observed_eigenvalues``).
+              ``observed_eigenvalues``). Plot it against
+              ``observed_eigenvalues`` for the scree-versus-null picture the
+              method is usually read from.
+            - ``surrogate`` - which null was used, echoed back so a stored
+              result says how it was produced.
 
         References
         ----------
         Horn, J. L. (1965). A rationale and test for the number of
         factors in factor analysis. *Psychometrika*, 30(2), 179-185.
+
+        Buja, A., & Eyuboglu, N. (1992). Remarks on parallel analysis.
+        *Multivariate Behavioral Research*, 27(4), 509-540.
 
         See Also
         --------
@@ -1577,10 +1716,20 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         _, S, _ = np.linalg.svd(Xc, full_matrices=False)
         observed = (S**2) / max(1, n - 1)
 
+        known_surrogates = ("normal", "permutation")
+        if surrogate not in known_surrogates:
+            msg = f"surrogate must be one of {known_surrogates}; got {surrogate!r}."
+            raise ValueError(msg)
+
         rng = np.random.default_rng(random_state)
         null_eigs = np.zeros((n_simulations, k))
         for i in range(n_simulations):
-            R = rng.standard_normal((n, p))
+            if surrogate == "normal":
+                R = rng.standard_normal((n, p))
+            else:
+                # Permute each column on its own. Shuffling whole rows would leave the
+                # correlation structure exactly as it is and produce no null at all.
+                R = np.column_stack([rng.permutation(X_arr[:, j]) for j in range(p)])
             Rc = R - R.mean(axis=0)
             _, S_r, _ = np.linalg.svd(Rc, full_matrices=False)
             null_eigs[i, : S_r.shape[0]] = (S_r**2) / max(1, n - 1)
@@ -1601,6 +1750,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             n_components=int(n_retained),
             observed_eigenvalues=observed,
             null_threshold=null_threshold,
+            surrogate=surrogate,
         )
 
     @classmethod
@@ -1610,7 +1760,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         *,
         max_components: int | None = None,
         cv: int | BaseCrossValidator = 5,
-        cv_scheme: typing.Literal["ekf", "ek", "sacv", "gcv", "row_wise"] = "ekf",
+        cv_scheme: typing.Literal["ekf", "ckf", "ek", "sacv", "gcv", "row_wise"] = "ekf",
         n_repeats: int = 1,
         selection_rule: SelectionRule = "min",
         min_q2_increase: float = Q2_MIN_INCREMENT,
@@ -1650,7 +1800,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             of row groups, and of column groups. For ``cv_scheme="row_wise"``:
             either an integer K (fed to ``KFold``) or any sklearn splitter.
             Ignored by ``"sacv"`` and ``"gcv"``, which hold nothing out.
-        cv_scheme : {"ekf", "ek", "sacv", "gcv", "row_wise"}, default "ekf"
+        cv_scheme : {"ekf", "ckf", "ek", "sacv", "gcv", "row_wise"}, default "ekf"
             How a held-out value is produced. Every one of these except
             ``"row_wise"`` keeps the prediction independent of the value being
             predicted; they differ in what they hold out and what they cost.
@@ -1661,6 +1811,16 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
               fold, and is the only scheme here that takes a block with
               missing cells. Cost: ``n_folds * n_repeats * max_components``
               decompositions.
+            - ``"ckf"``: column-wise k-fold. Groups of columns are held out,
+              and their values are predicted from scores computed on the
+              retained columns only, so no held-out value appears in the score
+              that predicts it. Information still reaches the model through the
+              loadings, which are fitted on the whole block, and that is the
+              respect in which ``"ekf"`` is stricter. Offered because a great
+              deal of published chemometrics uses it, so a number that has to
+              line up with a paper may need it, and because on a block with far
+              more columns than samples it costs one decomposition rather than
+              ``n_folds * n_repeats * max_components``.
             - ``"ek"``: the two-model scheme of Eastment and Krzanowski
               (1982). An element is predicted by a score from a model without
               its column and a loading from a model without its row. This is
@@ -1892,6 +2052,28 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             safe_null = np.where(per_column_null_ss > epsqrt, per_column_null_ss, np.nan)
             per_variable = 1.0 - ekf.per_column_press / safe_null
             q2_per_variable = pd.DataFrame(per_variable, index=component_index, columns=list(X.columns))
+        elif cv_scheme == "ckf":
+            n_folds = cv if isinstance(cv, int) else 5
+            Z = _preprocess_for_cell_schemes(X_arr, cv_scheme)
+            raw_press, raw_per_fold, raw_per_column, null_model_ss, per_column_null = _pca_ckf_press(
+                Z, max_components, n_folds=n_folds, random_state=random_state
+            )
+            press = pd.Series(raw_press, index=component_index, name="PRESS")
+            per_fold_press = pd.DataFrame(
+                raw_per_fold,
+                index=component_index,
+                columns=[f"fold_{i + 1}" for i in range(raw_per_fold.shape[1])],
+            )
+            cv_scores = per_fold_press
+            # ckf scales the whole block once, like its cell-scheme siblings, so the PRESS
+            # it reports is already in the scaled space and there is no separate one to
+            # report in the caller's units.
+            press_input_units = press.rename("PRESS (input units)")
+            q2 = 1.0 - press / null_model_ss if null_model_ss > epsqrt else press * np.nan
+            safe_null = np.where(per_column_null > epsqrt, per_column_null, np.nan)
+            q2_per_variable = pd.DataFrame(
+                1.0 - raw_per_column / safe_null, index=component_index, columns=list(X.columns)
+            )
         elif cv_scheme in {"ek", "sacv", "gcv"}:
             Z = _preprocess_for_cell_schemes(X_arr, cv_scheme)
             if cv_scheme == "ek":
@@ -1959,7 +2141,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             q2_per_variable = pd.DataFrame(np.nan, index=component_index, columns=list(X.columns))
         else:
             raise ValueError(
-                f"Unknown cv_scheme {cv_scheme!r}; expected one of 'ekf', 'ek', 'sacv', 'gcv' or 'row_wise'."
+                f"Unknown cv_scheme {cv_scheme!r}; expected one of 'ekf', 'ckf', 'ek', 'sacv', 'gcv' or 'row_wise'."
             )
 
         q2 = q2.rename("Q2")

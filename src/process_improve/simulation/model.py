@@ -34,6 +34,8 @@ from typing import Any
 
 import numpy as np
 
+from process_improve._random import check_random_state
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -402,6 +404,8 @@ def simulate(
     private_state: dict[str, Any],
     settings: dict[str, float],
     timestamp_offset_days: float = 0.0,
+    *,
+    random_state: int | np.random.Generator | None = None,
 ) -> dict[str, Any]:
     """Evaluate the hidden response surface at *settings*, with fresh noise.
 
@@ -418,6 +422,17 @@ def simulate(
     timestamp_offset_days:
         Optional time axis passed by the caller when ``time_drift`` is
         enabled on the simulator.  Ignored otherwise.
+    random_state:
+        Seeds the measurement noise, per the
+        :doc:`reproducibility contract </development/reproducibility>`.
+        The default, ``None``, draws fresh entropy on every call, which is
+        what a simulator standing in for a real process should do: two runs
+        at the same settings must not return the same number. Pass an int or
+        a :class:`numpy.random.Generator` when a run has to be repeatable,
+        for example to pin a test or to hand a reader a worked example they
+        can reproduce. It is deliberately *not* part of the
+        ``simulate_process`` tool contract, so a model driving the simulator
+        cannot freeze its noise.
 
     Returns
     -------
@@ -435,8 +450,9 @@ def simulate(
         effective_settings[name] = val
         coded[name] = _coded_setting(val, low, high)
 
-    # Fresh (unseeded) RNG - noise is genuinely different on every call.
-    noise_rng = np.random.default_rng()
+    # `random_state=None` (the default) resolves to a fresh, unseeded generator, so
+    # noise is genuinely different on every call.
+    noise_rng = check_random_state(random_state)
     outputs: dict[str, float] = {
         out_name: float(_evaluate_surface(out_coefs, coded, timestamp_offset_days, noise_rng))
         for out_name, out_coefs in model["per_output"].items()
