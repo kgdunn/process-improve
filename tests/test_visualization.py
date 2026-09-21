@@ -1353,12 +1353,13 @@ class TestRidgeTracePlotEdgeCases:
         spec = plot.to_spec()
         assert "no factors" in spec.title.lower()
 
-    def test_singular_matrix_branch(self) -> None:
-        """The mu grid includes -10 exactly, making B + mu*I singular there.
+    def test_repeated_eigenvalues_still_trace(self) -> None:
+        """Equal quadratic coefficients make B a multiple of the identity.
 
-        With quadratic coefficients of 10.0 for both factors, the matrix
-        ``b_mat + (-10) * I`` is exactly zero, so ``np.linalg.solve`` raises
-        LinAlgError and the loop must continue to the next mu value.
+        Every eigenvalue is then the leading one. The multiplier is still
+        unique above the spectrum, so the whole trace solves; this used to be
+        the case that made ``B + mu*I`` singular at one point of a scan over
+        mu, which the old implementation had to skip over.
         """
         coefficients = [
             {"term": "A", "coefficient": 1.0},
@@ -1374,11 +1375,24 @@ class TestRidgeTracePlotEdgeCases:
         spec = plot.to_spec()
         assert spec.plot_type == "ridge_trace"
         assert len(spec.panels) == 2
-        # All 30 radii still produce a response trace despite the singular mu
+        # All 30 radii produce a response trace.
         assert len(spec.panels[0].layers[0].data) == 30
 
-    def test_zero_linear_terms_keep_centre_solution(self) -> None:
-        """With b = 0 the solved x is the zero vector; factor traces stay at 0."""
+    def test_zero_linear_terms_follow_the_flattest_direction(self) -> None:
+        """With b = 0 the ridge runs along the leading eigenvector, not the centre.
+
+        This test previously asserted the trace stayed at the centre for every
+        radius. That was the old implementation showing: it solved
+        ``(B + mu*I) x = -b/2``, got the zero vector for ``b = 0``, and could
+        not rescale a zero vector onto the sphere, so it drew a flat line at
+        the origin. The origin is not on the sphere of radius 1, so the plot
+        was answering a different question from the one it asked.
+
+        The surface here is ``5 - 2*A**2 - 3*B**2``. Its flattest direction is
+        A, so the best point at radius r is ``(+/-r, 0)`` with response
+        ``5 - 2*r**2``. That is what #208 made the plot show, by giving it the
+        same solver ``optimize_responses(method="ridge_analysis")`` uses.
+        """
         coefficients = [
             {"term": "Intercept", "coefficient": 5.0},
             {"term": "I(A ** 2)", "coefficient": -2.0},
@@ -1390,9 +1404,15 @@ class TestRidgeTracePlotEdgeCases:
             factors_to_plot=["A", "B"],
         )
         spec = plot.to_spec()
-        factor_panel = spec.panels[1]
-        for layer in factor_panel.layers:
-            assert all(row["coded_level"] == 0.0 for row in layer.data)
+
+        traces = {layer.name: layer.data for layer in spec.panels[1].layers}
+        for row in traces["A"]:
+            assert abs(row["coded_level"]) == pytest.approx(row["radius"], abs=1e-9)
+        for row in traces["B"]:
+            assert row["coded_level"] == pytest.approx(0.0, abs=1e-9)
+
+        for row in spec.panels[0].layers[0].data:
+            assert row["response"] == pytest.approx(5.0 - 2.0 * row["radius"] ** 2, abs=1e-9)
 
 
 class TestSteepestAscentPathEdgeCases:

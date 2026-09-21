@@ -13,6 +13,70 @@ those changes.
 
 ### Added
 
+- **`optimize_responses(method="ridge_analysis")` (#208).** Traces the best
+  attainable point on spheres of increasing radius from the design centre, which
+  is the question worth asking when a second-order model's stationary point lands
+  outside the region the experiment covered, or is a saddle.
+
+  It solves Draper's secular equation rather than searching. The Lagrange
+  condition is `(B - mu*I) x = -b/2`, and the Hessian of the Lagrangian is
+  `2 (B - mu*I)`, so a constrained maximum needs `mu` above the spectrum of `B`.
+  On that interval the radius is strictly monotone in `mu`, so the multiplier for
+  a given radius is unique and a one-dimensional root-find finds it exactly. The
+  trust-region "hard case", where `b` has no component along the leading
+  eigenvector, is handled as well; a model whose stationary point sits at the
+  centre is the common instance, and its ridge runs along that eigenvector.
+
+  Each returned point was checked against 200,000 samples of its own sphere,
+  across an interior maximum, a saddle, three factors, and both hard cases, in
+  both directions.
+
+- **`optimize_responses(method="pareto_front")` (#208).** Returns the whole set of
+  non-dominated compromises over two or more responses, rather than the single
+  point a desirability weighting happens to pick.
+
+  It uses augmented weighted Chebyshev scalarisation over a Das-Dennis weight
+  lattice, solved with SLSQP from several starts, then filtered to the
+  non-dominated set. NSGA-II, which the stub proposed, is built for expensive
+  black-box objectives; these are low-order polynomials over a box, evaluated in
+  microseconds and differentiable everywhere, so a gradient solver reaches each
+  front point to solver tolerance with no seed or generation count to tune. A
+  weighted sum was not used because it can only ever reach the convex hull of the
+  front: on the quadratic pair in the tests, a sweep of 2001 weights returns just
+  two distinct answers while this returns 16.
+
+  Both methods are now in the `optimize_responses` tool enum, and
+  `search_bounds`, `n_steps`, `ridge_direction` and `n_pareto_points` drive them.
+
+- **`PCA.parallel_analysis(surrogate="permutation")` (#374).** Horn's original
+  null draws standard-normal matrices, so for a given shape it produces the same
+  null whatever the data looks like. Buja and Eyuboglu (1992) instead permute each
+  column of the real data independently: that breaks the correlation between
+  columns, which is what parallel analysis tests for, while leaving each column's
+  own distribution alone. Prefer it on process data, where a tag may be skewed,
+  heavy-tailed, bounded at zero or quantised by its instrument, and a Gaussian null
+  answers a question about Gaussian data rather than about this block. The default
+  stays `"normal"`, and the returned `Bunch` now echoes which null was used.
+
+- **`PCA.select_n_components(cv_scheme="ckf")` (#374).** Column-wise k-fold
+  cross-validation. Groups of columns are held out and predicted from scores
+  computed on the retained columns only, so no held-out value appears in the score
+  that predicts it.
+
+  The documented caveat is the point of having it stated: the loadings still come
+  from an SVD of the whole block, so information reaches the model through `P` even
+  though it does not reach it through `T`. On a 60-by-12 block of pure noise, `ekf`
+  returns a negative Q2 at every component count, as it must when there is nothing
+  to predict, while `ckf` returns +0.017 at one component. `ekf` therefore remains
+  the default. `ckf` is offered because a great deal of published chemometrics uses
+  it, so a number that has to line up with a paper may need it, and because it
+  costs one decomposition rather than `n_folds * n_repeats * max_components`.
+
+The third item of #374, double cross-validation for PLS, is already provided by
+`PLS.nested_cv`: an outer loop for unbiased performance, an inner
+`select_n_components` per outer fold, and `selected_components_per_fold` /
+`selected_components_distribution` in the result.
+
 - **`fill_gaps` for batch trajectories (#200),** replacing the
   `bfill().ffill()` the issue quotes. That one-liner is wrong on trajectory data
   in three specific ways, and each is addressed:
@@ -181,6 +245,20 @@ those changes.
   `settings["md_max_iter"]` inside the NIPALS fit and died. Every key is now
   filled from the constructor before the dict is applied.
 
+- **The `ridge_trace` plot now solves the ridge instead of approximating it.** It
+  scanned 200 values of the Lagrange multiplier, then rescaled whichever solution
+  it liked onto the requested radius. A rescaled point is not the constrained
+  optimum unless the multiplier happened to be the right one, and the scan could
+  land inside the spectrum, which yields saddle points rather than maxima. It now
+  calls the same solver as `ridge_analysis`, so the plot and the numbers agree.
+
+  The visible consequence: on a surface with no linear terms, such as
+  `5 - 2*A**2 - 3*B**2`, the plot used to draw a flat line at the centre for
+  every radius, because it could not rescale a zero vector onto the sphere. The
+  centre is not on the sphere of radius 1, so it was answering a different
+  question from the one it asked. It now runs the ridge along the flattest
+  direction, which is the answer.
+
 - **A sparse `ColumnTransformer` output now names the remedy (#399).**
   `make_column_transformer((MCUVScaler(), numeric), (OneHotEncoder(), categorical))`
   works, but `ColumnTransformer` flips its *whole* concatenated output to a sparse
@@ -280,16 +358,6 @@ those changes.
 
 ### Tests
 
-- **`HalvingGridSearchCV` / `HalvingRandomSearchCV` with a Pipeline-aware budget
-  (#398).** The existing coverage uses `resource="n_samples"`, the default, where
-  the budget is rows and the estimator never sees it. The issue also asked for a
-  budget spent on a pipeline parameter, which is the case that stresses what it
-  worried about: sklearn writes the resource into the step through `set_params`
-  on every candidate at every rung, and it has to survive `clone`. Both searchers
-  now run with `resource="pls__n_components"` while separately grid-searching
-  `pls__scale`. Both work; nothing needed fixing, so the test locks in the
-  working state.
-
 - **A complexity budget with a ratchet (#307).** `tools/complexity_budget.py`
   counts how many functions in `src/process_improve` breach `C901`, `PLR0912`,
   `PLR0913` or `PLR0915`, asking ruff with `--ignore-noqa` so it measures real
@@ -301,8 +369,21 @@ those changes.
   also fails, telling you to lower the budget. A refactor therefore cannot be
   quietly spent by the next change. The target, recorded in `CONTRIBUTING.md`,
   is to halve the 2026-06 baseline of 185 breaches to 91 by v2.0; this release
-  takes it to 184, the `MBPCA.fit` split having removed three while #598's
-  `smooth_trajectories` and #581's `equal_var` switch each added one.
+  takes it to 185: the `MBPCA.fit` split removed three, while #598's
+  `smooth_trajectories`, #581's `equal_var` switch and #374's
+  `parallel_analysis(surrogate=...)` each added one. #208 is then net neutral:
+  `_pareto_front` adds a `PLR0913` breach and the `to_spec` simplification
+  removes a `C901` one.
+
+- **`HalvingGridSearchCV` / `HalvingRandomSearchCV` with a Pipeline-aware budget
+  (#398).** The existing coverage uses `resource="n_samples"`, the default, where
+  the budget is rows and the estimator never sees it. The issue also asked for a
+  budget spent on a pipeline parameter, which is the case that stresses what it
+  worried about: sklearn writes the resource into the step through `set_params`
+  on every candidate at every rung, and it has to survive `clone`. Both searchers
+  now run with `resource="pls__n_components"` while separately grid-searching
+  `pls__scale`. Both work; nothing needed fixing, so the test locks in the
+  working state.
 
 ## [1.95.1] - 2026-09-18
 
