@@ -755,10 +755,24 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         - ``"nipals"``: Non-linear Iterative Partial Least Squares. Handles missing data.
         - ``"tsr"``: Trimmed Score Regression. Handles missing data.
 
+    tol : float, default=``epsqrt`` (about 1.5e-8)
+        Relative convergence tolerance for the iterative algorithms: the loop
+        stops once the norm of the difference between two successive score
+        vectors, relative to the norm of the score vector, falls below this.
+        See :func:`terminate_check`. Ignored by ``algorithm="svd"``, which is
+        direct rather than iterative.
+
+    max_iter : int, default=1000
+        Maximum number of iterations per component for the iterative
+        algorithms. A component that reaches the cap without converging emits
+        a :class:`SpecificationWarning`. Ignored by ``algorithm="svd"``.
+
     missing_data_settings : dict or None, default=None
-        Settings for iterative missing data algorithms (NIPALS, TSR).
-        Keys: ``md_tol`` (relative convergence tolerance on successive score
-        vectors; see :func:`terminate_check`), ``md_max_iter`` (max iterations).
+        Settings for the iterative algorithms (NIPALS, TSR), overriding the
+        constructor for this fit. Keys: ``md_tol`` and ``md_max_iter``, which
+        default to this model's ``tol`` and ``max_iter``. Prefer setting those
+        two directly; this dict exists for the case where the missing-data
+        path needs to differ from the fit.
 
     Attributes (after fitting)
     --------------------------
@@ -805,6 +819,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
     _parameter_constraints: typing.ClassVar = {
         "n_components": [int, None],
         "algorithm": [str],
+        "tol": [float],
+        "max_iter": [int],
         "missing_data_settings": [dict, None],
     }
 
@@ -813,10 +829,14 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         n_components: int,
         *,
         algorithm: str = "auto",
+        tol: float = epsqrt,
+        max_iter: int = 1000,
         missing_data_settings: dict | None = None,
     ):
         self.n_components = n_components
         self.algorithm = algorithm
+        self.tol = tol
+        self.max_iter = max_iter
         self.missing_data_settings = missing_data_settings
 
     # ENG-17: the convenience methods (score_plot, vip, spe_limit, ...),
@@ -963,8 +983,15 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             raise ValueError("SVD algorithm cannot handle missing data. Use 'nipals', 'tsr', or 'auto'.")
         self.algorithm_ = algo
 
-        # Build settings for iterative algorithms
-        settings = {"md_tol": epsqrt, "md_max_iter": 1000}
+        # Build settings for the iterative algorithms. The defaults come from this
+        # model's own ``tol`` and ``max_iter``, and an explicit
+        # ``missing_data_settings`` overrides individual keys on top (#588).
+        #
+        # These two used to be reachable only through that dict, so a caller had to
+        # describe a convergence setting as a missing-data setting even on complete
+        # data. The literals the dict was seeded with, ``epsqrt`` and 1000, are now
+        # the constructor defaults, so a model built either way fits identically.
+        settings = {"md_tol": self.tol, "md_max_iter": self.max_iter}
         if isinstance(self.missing_data_settings, dict):
             settings.update(self.missing_data_settings)
         settings["md_max_iter"] = int(settings["md_max_iter"])

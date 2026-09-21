@@ -13,6 +13,24 @@ those changes.
 
 ### Added
 
+- **`PCA(tol=..., max_iter=...)` and `TPLS(tol=...)`: the loop settings are now
+  constructor parameters (#588).** Six iterative estimators spelled their
+  convergence tolerance and iteration cap five different ways, and these two were
+  the ones a caller could not reach at all.
+
+  `PCA` read both from `missing_data_settings`, so setting a convergence tolerance
+  meant describing it as a missing-data setting even on complete data, where
+  nothing is missing. `tol` and `max_iter` now sit on the constructor and supply
+  the defaults; an explicit `missing_data_settings` still overrides individual keys
+  on top, so existing callers are unaffected. The dict was seeded with `epsqrt` and
+  1000, which are now the parameter defaults, so a model built either way fits
+  identically.
+
+  `TPLS` had no way to reach its tolerance: it was a hard-coded `tolerance_`
+  attribute. It is now `tol`, defaulting to the same `epsqrt` that was hard-coded.
+  It is the last parameter in the signature so that no existing positional argument
+  changed position.
+
 - **`unfold_blocks`: batchwise unfolding into several blocks (#193).** Aligned batch
   data has been unfoldable for a long time, one block at a time, via `dict_to_wide`.
   What was missing was a way to hand several blocks to a multi-block model.
@@ -343,6 +361,23 @@ The third item of #374, double cross-validation for PLS, is already provided by
   exactly that field and no other.
 
 ### Deprecated
+
+- **`TPLS.tolerance_` is deprecated in favour of `TPLS.tol` (#588).** Reading it
+  returns `tol` and raises a `DeprecationWarning`; removal is scheduled for 2.0, per
+  `docs/development/deprecation_policy.rst`.
+
+  It is worth knowing what the rename hides, because the old attribute did two
+  unrelated jobs. It was the convergence tolerance for the per-component loop, which
+  is what `tol` inherits. It was also the floor a column's standard deviation had to
+  clear to count as carrying any variance, which `tol` deliberately does not
+  inherit: that threshold is now fixed and independent of convergence.
+
+  The two were tied together only by sharing an attribute. A caller who loosened the
+  tolerance to converge sooner also raised the bar a column had to clear to stay in
+  the model, so `tolerance_ = 1e-2` would have silently excluded any column with a
+  standard deviation below 1e-2, which is a long way above machine precision. Since
+  the attribute was not reachable from the constructor, no caller could have hit
+  this; exposing `tol` is what made the separation necessary.
 
 - **`OPLS(max_iter=...)` and `OPLS(tol=...)` are deprecated and ignored
   (#588).** Both were assigned in `__init__` and never read. The
