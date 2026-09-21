@@ -1,5 +1,6 @@
 # (c) Kevin Dunn, 2010-2026. MIT License.
 
+import copy
 import io
 import pathlib
 import urllib.request
@@ -6292,3 +6293,142 @@ class TestPlsMissingDataSettingsResolution:
             pinned = PLS(n_components=2, missing_data_settings={"md_tol": epsqrt}).fit(x, y)
         np.testing.assert_array_equal(model.fitting_info_["iterations"], pinned.fitting_info_["iterations"])
         np.testing.assert_allclose(model.predictions_.to_numpy(), pinned.predictions_.to_numpy(), rtol=0, atol=0)
+
+
+class TestPcaIterationParameters:
+    """`PCA(tol=..., max_iter=...)`: the loop settings are constructor parameters (#588).
+
+    They used to be reachable only through ``missing_data_settings``, so a caller had to
+    describe a convergence setting as a missing-data setting even on complete data. The
+    literals that dict was seeded with, ``epsqrt`` and 1000, are now the defaults, so the
+    change is additive: these tests pin both halves of that claim.
+    """
+
+    @staticmethod
+    def _x(gapped: bool = False) -> pd.DataFrame:
+        """Build a small, well-conditioned block, optionally with one cell removed."""
+        rng = np.random.default_rng(seed=13)
+        x = pd.DataFrame(rng.normal(size=(40, 6)), columns=[f"x{i}" for i in range(6)])
+        x = MCUVScaler().fit_transform(x)
+        if gapped:
+            x.iloc[3, 2] = np.nan
+        return x
+
+    def test_the_default_fit_is_unchanged(self) -> None:
+        """A model built with no arguments must fit exactly as it did before the parameters existed."""
+        x = self._x()
+        model = PCA(n_components=3, algorithm="nipals").fit(x)
+        pinned = PCA(
+            n_components=3, algorithm="nipals", missing_data_settings={"md_tol": epsqrt, "md_max_iter": 1000}
+        ).fit(x)
+        np.testing.assert_array_equal(model.fitting_info_["iterations"], pinned.fitting_info_["iterations"])
+        np.testing.assert_array_equal(model.scores_.to_numpy(), pinned.scores_.to_numpy())
+
+    @pytest.mark.parametrize("gapped", [False, True], ids=["complete", "missing"])
+    def test_tol_reaches_the_loop(self, gapped: bool) -> None:
+        """A looser tolerance must stop the loop sooner, whether or not the data has gaps.
+
+        Both cases are checked because this is exactly where ``PLS`` was broken: it honoured
+        ``tol`` on complete data and dropped it as soon as a cell went missing.
+        """
+        x = self._x(gapped=gapped)
+        tight = PCA(n_components=3, algorithm="nipals", tol=epsqrt).fit(x)
+        loose = PCA(n_components=3, algorithm="nipals", tol=1e-1).fit(x)
+        assert np.sum(loose.fitting_info_["iterations"]) < np.sum(tight.fitting_info_["iterations"])
+
+    def test_max_iter_caps_the_loop_and_says_so(self) -> None:
+        """A cap low enough to bite must stop the loop there and warn, not fail silently."""
+        x = self._x()
+        with pytest.warns(SpecificationWarning, match="without converging"):
+            model = PCA(n_components=2, algorithm="nipals", max_iter=2).fit(x)
+        np.testing.assert_array_equal(model.fitting_info_["iterations"], [2, 2])
+
+    def test_missing_data_settings_still_wins(self) -> None:
+        """The dict keeps overriding the constructor, so existing callers are unaffected."""
+        x = self._x()
+        model = PCA(n_components=3, algorithm="nipals", tol=1e-1, missing_data_settings={"md_tol": epsqrt}).fit(x)
+        pinned = PCA(n_components=3, algorithm="nipals", tol=epsqrt).fit(x)
+        np.testing.assert_array_equal(model.fitting_info_["iterations"], pinned.fitting_info_["iterations"])
+
+    def test_a_partial_missing_data_settings_is_filled_in(self) -> None:
+        """Half a dict must not leave the other key unset; the constructor supplies it."""
+        x = self._x(gapped=True)
+        with pytest.warns(SpecificationWarning, match=r"maximum number of iterations \(7\)"):
+            model = PCA(n_components=2, algorithm="nipals", max_iter=7, missing_data_settings={"md_tol": 1e-3}).fit(x)
+        assert np.all(model.fitting_info_["iterations"] <= 7)
+
+    def test_clone_carries_both_parameters(self) -> None:
+        """Sklearn's contract: the constructor parameters survive get_params / clone."""
+        model = PCA(n_components=2, tol=1e-3, max_iter=42)
+        assert clone(model).get_params()["tol"] == 1e-3
+        assert clone(model).get_params()["max_iter"] == 42
+
+    def test_svd_ignores_them_rather_than_refusing(self) -> None:
+        """SVD is direct, not iterative, so the two parameters have no loop to govern."""
+        x = self._x()
+        direct = PCA(n_components=3, algorithm="svd", tol=1e-1, max_iter=3).fit(x)
+        plain = PCA(n_components=3, algorithm="svd").fit(x)
+        np.testing.assert_array_equal(direct.scores_.to_numpy(), plain.scores_.to_numpy())
+
+
+class TestTplsToleranceParameter:
+    """`TPLS(tol=...)`: the convergence tolerance is a constructor parameter (#588).
+
+    It was a hard-coded ``tolerance_`` attribute assigned in ``__init__`` and read at two
+    unrelated sites: the convergence test, and a test for columns with no variance. Those
+    are different quantities, so ``tol`` now owns the first and a fixed floor owns the
+    second. These tests pin that separation as much as the parameter itself.
+    """
+
+    @staticmethod
+    def _fit(fixture: dict, **kwargs) -> TPLS:
+        d_matrix = fixture["D"]
+        blocks = {key: value for key, value in fixture.items() if key != "D"}
+        return TPLS(n_components=2, d_matrix=d_matrix, **kwargs).fit(DataFrameDict(blocks))
+
+    def test_the_default_is_unchanged(self, fixture_tpls_example: dict) -> None:
+        """``epsqrt`` is the value that was hard-coded, so the default fit does not move."""
+        model = self._fit(copy.deepcopy(fixture_tpls_example))
+        assert model.tol == epsqrt
+
+    def test_tol_reaches_the_loop(self, fixture_tpls_example: dict) -> None:
+        """A looser tolerance stops the per-component loop sooner, a tighter one later."""
+        loose = self._fit(copy.deepcopy(fixture_tpls_example), tol=1e-2)
+        default = self._fit(copy.deepcopy(fixture_tpls_example))
+        tight = self._fit(copy.deepcopy(fixture_tpls_example), tol=1e-12)
+        assert sum(loose.fitting_statistics["iterations"]) < sum(default.fitting_statistics["iterations"])
+        assert sum(default.fitting_statistics["iterations"]) < sum(tight.fitting_statistics["iterations"])
+
+    @pytest.mark.parametrize("bad", [0.0, -1e-3])
+    def test_a_non_positive_tolerance_is_refused(self, fixture_tpls_example: dict, bad: float) -> None:
+        """A tolerance of zero or less can never be met, so the loop would always run to the cap."""
+        with pytest.raises(ValueError, match="tol must be positive"):
+            self._fit(copy.deepcopy(fixture_tpls_example), tol=bad)
+
+    def test_the_old_attribute_still_works_and_warns(self, fixture_tpls_example: dict) -> None:
+        """``tolerance_`` is deprecated, not deleted: one cycle of warning before removal."""
+        model = self._fit(copy.deepcopy(fixture_tpls_example), tol=1e-5)
+        with pytest.warns(DeprecationWarning, match=r"TPLS.tolerance_ is deprecated since 1\.96\.0"):
+            value = model.tolerance_
+        assert value == model.tol == 1e-5
+
+    def test_a_loose_tolerance_does_not_start_discarding_columns(self) -> None:
+        """The separation, stated as a test.
+
+        The zero-variance check compares a column's standard deviation against a floor. It
+        used to read the same attribute as the convergence test, so raising the tolerance to
+        converge sooner also raised the bar a column had to clear to stay in the model. A
+        column with a standard deviation of 1e-4 is far above machine precision and carries
+        information; a caller asking for ``tol=1e-2`` must not lose it.
+        """
+        rng = np.random.default_rng(seed=7)
+        y = pd.DataFrame(rng.normal(size=(30, 3)), columns=["a", "b", "c"])
+        y["c"] = y["c"] * 1e-4  # small, but far above epsqrt and not constant
+
+        model = TPLS(n_components=1, d_matrix={"g": pd.DataFrame({"p": [1.0]})}, tol=1e-2)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            centering, scaling = model._learn_center_and_scaling_parameters(y, label="Y")
+
+        assert not scaling.isna().any(), "a column with real variance was dropped as degenerate"
+        assert centering.notna().all()
