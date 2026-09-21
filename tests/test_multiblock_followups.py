@@ -12,6 +12,8 @@ rather than around its signature:
 
 from __future__ import annotations
 
+import operator
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -222,16 +224,17 @@ class TestBlockSet:
             BlockSet({"a": np.zeros((4, 2)), "b": pd.DataFrame(np.zeros((4, 2)))})  # type: ignore[dict-item]
 
     def test_identical_object_compares_equal(self, two_blocks: dict[str, dict]) -> None:
+        """Covers the identity short-circuit, which skips the per-block work entirely."""
         blocks = BlockSet(unfold_blocks(two_blocks))
-        assert blocks == blocks  # noqa: PLR0124  # reason: the identity short-circuit is the point
+        assert operator.eq(blocks, blocks) is True
 
     def test_equal_content_compares_equal(self, two_blocks: dict[str, dict]) -> None:
         """The inherited dict.__eq__ raised here: it asked a DataFrame for its truth value."""
         left = BlockSet(unfold_blocks(two_blocks))
         right = BlockSet(unfold_blocks(two_blocks))
         assert left is not right
-        assert left == right
-        assert (left != right) is False
+        assert operator.eq(left, right) is True
+        assert operator.ne(left, right) is False
 
     def test_differing_content_compares_unequal(self, two_blocks: dict[str, dict]) -> None:
         wide = unfold_blocks(two_blocks)
@@ -248,13 +251,23 @@ class TestBlockSet:
         assert BlockSet(wide) != {"spectra": 1, "process": 2}
 
     def test_foreign_types_compare_unequal_rather_than_raising(self, two_blocks: dict[str, dict]) -> None:
-        blocks = BlockSet(unfold_blocks(two_blocks))
-        assert blocks != 7
-        assert (blocks == 7) is False
+        """__ne__ has to pass NotImplemented back, not negate it.
 
-    def test_unhashable_like_a_dict(self, two_blocks: dict[str, dict]) -> None:
-        with pytest.raises(TypeError, match="unhashable"):
-            hash(BlockSet(unfold_blocks(two_blocks)))
+        A naive ``return not self.__eq__(other)`` looks right and is wrong here:
+        ``not NotImplemented`` is ``False``, so a BlockSet would report itself
+        *equal* to an int.
+        """
+        blocks = BlockSet(unfold_blocks(two_blocks))
+        assert operator.ne(blocks, 7) is True
+        assert operator.eq(blocks, 7) is False
+
+    def test_unhashable_like_a_dict(self) -> None:
+        """``__hash__`` being None is the language-level declaration of unhashability.
+
+        It is what ``hash()`` itself looks at before raising ``TypeError``, so
+        asserting the attribute pins the behaviour at its source.
+        """
+        assert BlockSet.__hash__ is None
 
     def test_bad_row_lookup_is_rejected(self, two_blocks: dict[str, dict]) -> None:
         """Not a str (a block name) and not a row lookup: say so instead of failing deeper in pandas."""
