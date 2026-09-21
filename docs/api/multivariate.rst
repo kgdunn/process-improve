@@ -52,6 +52,19 @@ untouched.
 
 .. autofunction:: make_tpls_scorer
 
+ASCA
+~~~~
+
+ANOVA-Simultaneous Component Analysis: partition a response matrix by its design terms,
+then give each term's effect matrix its own PCA. This is the bridge between
+:mod:`process_improve.experiments` and the latent-variable models: it answers which
+*factor* owns which direction of multivariate variation, whether that is more than
+chance, and which variables carry it.
+
+.. autoclass:: ASCA
+   :members:
+   :show-inheritance:
+
 MBPLS
 ~~~~~
 
@@ -183,3 +196,4 @@ Plots
 .. autofunction:: coefficient_plot
 
 .. autofunction:: confusion_matrix_plot
+.. autofunction:: effect_summary_plot
