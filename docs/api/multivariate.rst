@@ -18,7 +18,7 @@ PLS
 ~~~
 
 .. autoclass:: PLS
-   :members: fit, transform, fit_transform, predict, score, select_n_components, score_contributions, group_contributions, detect_outliers, cross_validate
+   :members: fit, transform, fit_transform, predict, score, select_n_components, compare_cv_criteria, pseudo_validation_set, score_contributions, group_contributions, detect_outliers, cross_validate
    :undoc-members:
    :show-inheritance:
 
@@ -116,6 +116,16 @@ Analysis
 .. autofunction:: rv_coefficient
 
 .. autofunction:: rv2_coefficient
+
+Model selection
+---------------
+
+Predictive cross-validation (:math:`Q^2`, the 1-SE rule, van der Voet) placed beside
+tests of the latent structure itself; see :doc:`../user_guide/cross_validation`.
+
+.. autofunction:: compare_cv_criteria
+
+.. autofunction:: pseudo_validation_set
 
 Containers
 ----------
@@ -220,6 +230,8 @@ Plots
 .. autofunction:: predictions_vs_observed_plot
 
 .. autofunction:: coefficient_plot
+
+.. autofunction:: cv_criteria_plot
 
 .. autofunction:: confusion_matrix_plot
 .. autofunction:: effect_summary_plot

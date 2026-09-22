@@ -803,63 +803,61 @@ def compare_cv_criteria(  # noqa: PLR0913
     Returns
     -------
     result : sklearn.utils.Bunch
-        ``table`` : pandas.DataFrame, indexed by ``n_components``
-            ``r2y``, ``q2y``, ``q2y_se``
-                In-sample :math:`R^2_Y` (pooled in scaled units), cross-validated
-                :math:`Q^2_Y` (every target weighted equally, which for one target is
-                the ordinary :math:`Q^2`), and its standard error across folds.
-            ``vdv_p``
-                Van der Voet *p*-value against the minimum-PRESS model.
-            ``cv_anova_p``
-                CV-ANOVA *p*-value for the whole model, one response only (NaN otherwise).
-                It is a monotone function of :math:`Q^2`.
-            ``r_train``, ``r_cv``, ``r_cv_threshold``, ``r_cv_p``
-                Correlation of :math:`t_a` and :math:`u_a` on the training rows, the same
-                correlation pooled over the held-out rows (about the training-fold
-                centre, so it is unaffected by sign flips between folds), the
-                :math:`1-\alpha` quantile of its null distribution under permuted Y, and
-                its one-sided permutation *p*-value.
-            ``slope_ratio``
-                :math:`s_a`, the held-out slope of the deflated response on
-                :math:`t_a` relative to the training slope. PRESS falls exactly when
-                :math:`s_a > 1/2`; see the module notes.
-            ``cov_perm_p``
-                Sequential permutation *p*-value for the covariance of component ``a``.
-            ``angle_component_deg``, ``angle_subspace_deg``
-                Angle between each fold's weight vector :math:`w_a` and the full-data
-                one, and the largest principal angle between the spans of the first
-                ``a`` weights, each scaled by the delete-d jackknife
-                (:math:`\tan\theta \to \sqrt{G-1}\,\text{rms}(\tan\theta_k)`) so it
-                estimates how far the full-data direction may lie from the population
-                one. Raw fold angles shrink as the number of folds grows (fold models
-                share most of their rows); the scaled ones do not. A large component
-                angle with a small subspace angle means the components swap or mix
-                inside a stable space: loadings are then not interpretable one by one,
-                but SPE, :math:`T^2` and inversion, which depend on the span, are.
-            ``d_ratio_median``, ``d_ratio_min``
-                Procrustes D ratios :math:`c_{ka}^\top c_a / c_a^\top c_a` across folds;
-                a negative minimum means some fold reversed the component's inner relation.
-            ``pv_spe_alarm_rate``, ``pv_t2_alarm_rate``
-                Fraction of the Procrustes pseudo-validation rows above the full-data
-                model's SPE and :math:`T^2` limits at ``conf_level``; nominally
-                ``1 - conf_level``.
-        ``recommendations`` : pandas.DataFrame
-            One row per selection rule (``q2_max``, ``q2_1se``, ``van_der_voet``,
-            ``score_correlation``, ``covariance_permutation``, ``subspace_stability``,
-            ``pv_spe_alarm``) with the recommended ``n_components``, the ``rule`` and
-            the ``question`` it answers. The structural rules count leading components
-            that pass, stopping at the first failure, and can return 0.
-        ``press`` : pandas.Series
-            Cross-validated PRESS in original Y units.
-        ``press_baseline`` : float
-            PRESS of predicting each held-out row by its training fold's mean.
-        ``d_ratios`` : pandas.DataFrame
-            Procrustes D ratio per fold and component.
-        ``cv_splits`` : list of (train, test) index arrays
-        ``global_model`` : PLS
-            Model fitted to all rows with ``max_components`` components.
-        ``alpha``, ``conf_level``, ``angle_threshold``, ``alarm_rate_upper`` : float
-            The settings used, and the binomial upper bound for the alarm rates.
+        With these fields:
+
+        - ``table`` (pandas.DataFrame, indexed by ``n_components``), with columns:
+
+          - ``r2y``, ``q2y``, ``q2y_se``: in-sample :math:`R^2_Y` (pooled in scaled
+            units), cross-validated :math:`Q^2_Y` (every target weighted equally, which
+            for one target is the ordinary :math:`Q^2`), and its standard error across
+            folds.
+          - ``vdv_p``: van der Voet *p*-value against the minimum-PRESS model.
+          - ``cv_anova_p``: CV-ANOVA *p*-value for the whole model, one response only
+            (NaN otherwise). It is a monotone function of :math:`Q^2`.
+          - ``r_train``, ``r_cv``, ``r_cv_threshold``, ``r_cv_p``: correlation of
+            :math:`t_a` and :math:`u_a` on the training rows; the same correlation
+            pooled over the held-out rows (about the training-fold centre, so it is
+            unaffected by sign flips between folds); the :math:`1-\alpha` quantile of
+            its null distribution under permuted Y; and its one-sided permutation
+            *p*-value.
+          - ``slope_ratio``: :math:`s_a`, the held-out slope of the deflated response
+            on :math:`t_a` relative to the training slope. PRESS falls exactly when
+            :math:`s_a > 1/2`; see the module notes.
+          - ``cov_perm_p``: sequential permutation *p*-value for the covariance of
+            component ``a``.
+          - ``angle_component_deg``, ``angle_subspace_deg``: angle between each fold's
+            weight vector :math:`w_a` and the full-data one, and the largest principal
+            angle between the spans of the first ``a`` weights, each scaled by the
+            delete-d jackknife (:math:`\tan\theta \to \sqrt{G-1}\,\text{rms}(\tan\theta_k)`)
+            so that it estimates how far the full-data direction may lie from the
+            population one. Raw fold angles shrink as the number of folds grows (fold
+            models share most of their rows); the scaled ones do not. A large
+            component angle with a small subspace angle means the components swap or
+            mix inside a stable space: loadings are then not interpretable one by one,
+            but SPE, :math:`T^2` and inversion, which depend on the span, are.
+          - ``d_ratio_median``, ``d_ratio_min``: Procrustes D ratios
+            :math:`c_{ka}^\top c_a / c_a^\top c_a` across folds; a negative minimum
+            means some fold reversed the component's inner relation.
+          - ``pv_spe_alarm_rate``, ``pv_t2_alarm_rate``: fraction of the Procrustes
+            pseudo-validation rows above the full-data model's SPE and :math:`T^2`
+            limits at ``conf_level``; nominally ``1 - conf_level``.
+
+        - ``recommendations`` (pandas.DataFrame): one row per selection rule
+          (``q2_max``, ``q2_1se``, ``van_der_voet``, ``score_correlation``,
+          ``covariance_permutation``, ``subspace_stability``, ``pv_spe_alarm``) with
+          the recommended ``n_components``, the ``rule`` and the ``question`` it
+          answers. The structural rules count leading components that pass, stopping
+          at the first failure, and can return 0.
+        - ``press`` (pandas.Series): cross-validated PRESS in original Y units.
+        - ``press_baseline`` (float): PRESS of predicting each held-out row by its
+          training fold's mean.
+        - ``d_ratios`` (pandas.DataFrame): Procrustes D ratio per fold and component.
+        - ``cv_splits`` (list of (train, test) index arrays): the folds used.
+        - ``global_model`` (PLS): the model fitted to all rows with
+          ``max_components`` components.
+        - ``alpha``, ``conf_level``, ``angle_threshold``, ``alarm_rate_upper``
+          (float): the settings used, and the binomial upper bound for the alarm
+          rates.
 
     Raises
     ------
@@ -1011,21 +1009,19 @@ def pseudo_validation_set(  # noqa: PLR0913
     Returns
     -------
     result : sklearn.utils.Bunch
-        ``X_pv`` : pandas.DataFrame
-            Pseudo-validation predictors, on the raw scale of ``X``.
-        ``Y_pv`` : pandas.DataFrame
-            ``Y``, unchanged.
-        ``scores`` : pandas.DataFrame
-            Scores the full-data model gives ``X_pv``.
-        ``local_spe`` : pandas.Series
-            SPE of each held-out row in its fold model; the full-data model gives
-            ``X_pv`` the same values.
-        ``d_ratios`` : pandas.DataFrame
-            D ratio per fold and component.
-        ``cv_splits`` : list of (train, test) index arrays
-        ``global_model`` : PLS
-            Model fitted to all rows; apply it to ``X_pv`` with ``diagnose``.
-        ``scope`` : str
+        With these fields:
+
+        - ``X_pv`` (pandas.DataFrame): pseudo-validation predictors, on the raw scale
+          of ``X``.
+        - ``Y_pv`` (pandas.DataFrame): ``Y``, unchanged.
+        - ``scores`` (pandas.DataFrame): the scores the full-data model gives ``X_pv``.
+        - ``local_spe`` (pandas.Series): SPE of each held-out row in its fold model;
+          the full-data model gives ``X_pv`` the same values.
+        - ``d_ratios`` (pandas.DataFrame): D ratio per fold and component.
+        - ``cv_splits`` (list of (train, test) index arrays): the folds used.
+        - ``global_model`` (PLS): the model fitted to all rows; apply it to ``X_pv``
+          with ``diagnose``.
+        - ``scope`` (str): the scope used.
 
     See Also
     --------

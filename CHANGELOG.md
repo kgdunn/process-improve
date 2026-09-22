@@ -13,6 +13,28 @@ those changes.
 
 ### Added
 
+- **`compare_cv_criteria`, `pseudo_validation_set` and `cv_criteria_plot`: validate a
+  PLS model's latent structure, not only its predictions (#605).** Cross-validated
+  Q2 asks whether the model predicts Y. A model used for SPE / T2 monitoring or for
+  inversion also needs components that are a reproducible property of the process,
+  and the two questions can have different answers. `compare_cv_criteria` runs one
+  K-fold loop and reports, per component, Q2 with the 1-SE rule, van der Voet and
+  CV-ANOVA beside:
+  - the held-out t-u score correlation, calibrated by permuting Y (kernel-PLS
+    refits keep this under a second on typical data);
+  - the out-of-sample slope ratio `s_a`, for which `PRESS[a-1] - PRESS[a] =
+    (2 s_a - 1) w_a` holds exactly, so Q2 rises only when `s_a > 1/2`;
+  - a sequential covariance permutation test on the deflated `X_a'Y_a`;
+  - jackknife-scaled per-component and subspace angles of the weights, which,
+    unlike raw fold angles, do not shrink as the number of folds grows;
+  - Procrustes cross-validation (Kucheryavskiy et al., 2023) D ratios and
+    out-of-sample SPE / T2 alarm rates against the full-data model's limits.
+
+  Each selection rule reports its own recommended number of components.
+  `pseudo_validation_set` builds the Procrustes pseudo-validation set for any
+  component count; `PLS.compare_cv_criteria` and `PLS.pseudo_validation_set` are the
+  classmethod forms. `_vandervoet_randomization` now also accepts a numpy Generator.
+
 - **`PCA(tol=..., max_iter=...)` and `TPLS(tol=...)`: the loop settings are now
   constructor parameters (#588).** Six iterative estimators spelled their
   convergence tolerance and iteration cap five different ways, and these two were
