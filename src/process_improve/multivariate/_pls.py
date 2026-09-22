@@ -257,8 +257,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         relative to their spread; it does not centre for you, because
         ``scale=False`` means "touch nothing". Set ``warn_on_uncentred=False``
         when that fit is deliberate.
-    max_iter : int, default=1000
-        Maximum number of iterations for the NIPALS algorithm.
+    max_iter : int, default=500
+        Maximum number of iterations per component for the NIPALS algorithm.
+        The same default as every other iterative estimator in the package; it
+        was 1000 before 1.96.0 (#588).
     tol : float, default=sqrt(machine epsilon)
         Relative convergence tolerance for the NIPALS algorithm: the change
         between two successive score-vector iterations, relative to the norm
@@ -387,7 +389,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         n_components: int,
         *,
         scale: bool = True,
-        max_iter: int = 1000,
+        max_iter: int = 500,
         tol: float = epsqrt,
         copy: bool = True,
         warn_on_uncentred: bool = True,

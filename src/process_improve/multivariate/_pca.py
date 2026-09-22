@@ -763,17 +763,18 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         See :func:`terminate_check`. Ignored by ``algorithm="svd"``, which is
         direct rather than iterative.
 
-    max_iter : int, default=1000
+    max_iter : int, default=500
         Maximum number of iterations per component for the iterative
         algorithms. A component that reaches the cap without converging emits
-        a :class:`SpecificationWarning`. Ignored by ``algorithm="svd"``.
+        a :class:`SpecificationWarning`. Ignored by ``algorithm="svd"``. The
+        same default as every other iterative estimator in the package (#588).
 
     missing_data_settings : dict or None, default=None
-        Settings for the iterative algorithms (NIPALS, TSR), overriding the
-        constructor for this fit. Keys: ``md_tol`` and ``md_max_iter``, which
-        default to this model's ``tol`` and ``max_iter``. Prefer setting those
-        two directly; this dict exists for the case where the missing-data
-        path needs to differ from the fit.
+        Deprecated keys ``md_tol`` and ``md_max_iter``, which override ``tol``
+        and ``max_iter`` for this fit and warn when used. They are removed in
+        2.0; set ``tol`` and ``max_iter`` instead. The dict itself stays: it is
+        where the imputation method is named on the estimators that offer a
+        choice.
 
     Attributes (after fitting)
     --------------------------
@@ -831,7 +832,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         *,
         algorithm: str = "auto",
         tol: float = epsqrt,
-        max_iter: int = 1000,
+        max_iter: int = 500,
         missing_data_settings: dict | None = None,
     ):
         self.n_components = n_components
