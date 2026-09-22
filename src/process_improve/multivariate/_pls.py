@@ -39,7 +39,14 @@ from ._common import (
     _nz,
     _reject_sparse,
     _select_n_components,
+    _vandervoet_randomization,
     epsqrt,
+)
+from ._cv_criteria import (
+    _compare_cv_criteria,
+    _CompareSettings,
+    _pseudo_validation_set,
+    _PseudoValidationSettings,
 )
 from ._diagnostics import (
     selectivity_ratio as _selectivity_ratio,
@@ -81,90 +88,6 @@ def _check_md_method(settings: dict) -> None:
         )
     if md_method != "nipals":
         raise NotImplementedError(f"{md_method.upper()} for PLS not implemented yet")
-
-
-def _vandervoet_randomization(
-    per_obs_sse: np.ndarray,
-    *,
-    total_rmsecv: np.ndarray,
-    n_permutations: int = 999,
-    alpha: float = 0.01,
-    random_state: int | np.random.Generator | None = None,
-) -> tuple[int, np.ndarray]:
-    """Van der Voet (1994) randomization test for PLS component selection.
-
-    Compares every candidate model against the reference (argmin-RMSECV)
-    model under the null that the two have the same predictive ability.
-    For each observation the paired difference of squared residuals
-    ``D_i = sse[a, i] - sse[a*, i]`` is computed; under the null its sign
-    is random, so the permutation distribution of ``T = sum_i D_i`` is
-    obtained by flipping each ``D_i``'s sign with probability 1/2 over
-    ``n_permutations`` draws. The *p*-value is the right-tail probability
-    of seeing a sum as large as the observed one (``T_obs >= T_perm``);
-    the recommendation is the smallest ``a`` whose ``p > alpha`` -
-    statistically indistinguishable from the reference, but more
-    parsimonious.
-
-    Parameters
-    ----------
-    per_obs_sse : np.ndarray of shape (n_components, n_samples)
-        Out-of-fold per-observation squared total residual at every
-        component count, summed across Y columns. Rows that are NaN
-        (observation never held out) are dropped.
-    total_rmsecv : np.ndarray of shape (n_components,)
-        Pooled total RMSECV per component count; used to pick the
-        reference model ``a*`` = ``nanargmin(total_rmsecv) + 1``.
-    n_permutations : int, default 999
-        Number of sign-flip permutations.
-    alpha : float, default 0.01
-        Significance level. Smaller values are more parsimonious.
-    random_state : int, numpy.random.Generator or None, optional
-        Seed or generator for reproducible permutations.
-
-    Returns
-    -------
-    recommended : int
-        Smallest 1-based component count with ``p > alpha``.
-    p_values : np.ndarray of shape (n_components,)
-        Right-tail *p*-value per candidate; the reference model gets
-        ``1.0`` by construction (paired differences are all zero).
-
-    References
-    ----------
-    Van der Voet, H. (1994). Comparing the predictive accuracy of
-    models using a simple randomization test. *Chemom. Intell. Lab.
-    Syst.*, 25(2), 313-323.
-    """
-    a_count = per_obs_sse.shape[0]
-    a_ref = int(np.nanargmin(total_rmsecv))
-    rng = np.random.default_rng(random_state)
-    p_values = np.zeros(a_count)
-    p_values[a_ref] = 1.0
-    sse_ref = per_obs_sse[a_ref]
-    for a in range(a_count):
-        if a == a_ref:
-            continue
-        d = per_obs_sse[a] - sse_ref
-        # Drop observations with NaN (a custom splitter may have left some
-        # rows unheld), since the paired difference is undefined there.
-        d = d[np.isfinite(d)]
-        if d.size == 0:
-            p_values[a] = 1.0
-            continue
-        t_obs = float(d.sum())
-        signs = rng.choice([-1.0, 1.0], size=(n_permutations, d.size))
-        t_perm = (signs * d).sum(axis=1)
-        # Right-tail probability under the null. Add 1 to both numerator
-        # and denominator (the "permutation test +1" correction) so the
-        # p-value is strictly positive even at the extreme.
-        p_values[a] = float((np.sum(t_perm >= t_obs) + 1) / (n_permutations + 1))
-
-    recommended = a_ref + 1  # fall back to the reference if nothing qualifies
-    for a in range(a_count):
-        if p_values[a] > alpha:
-            recommended = a + 1
-            break
-    return recommended, p_values
 
 
 def _format_labels(labels: list, limit: int = 4) -> str:
@@ -2037,7 +1960,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         )
 
     @classmethod
-    def compare_cv_criteria(  # noqa: PLR0913
+    def compare_cv_criteria(  # noqa: PLR0913 - each setting controls a named criterion (#605)
         cls,
         X: DataMatrix,
         Y: DataMatrix | pd.Series,
@@ -2052,23 +1975,133 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         conf_level: float = 0.95,
         **pls_kwargs,
     ) -> Bunch:
-        """Compare predictive and latent-structure validation criteria, per component.
+        r"""Compare predictive and latent-structure validation criteria for a PLS model.
 
-        Classmethod form of :func:`process_improve.multivariate.compare_cv_criteria`;
-        every fit uses ``cls``, so a subclass of :class:`PLS` is validated as itself.
-        See that function for the parameters and the returned fields.
+        Runs one K-fold cross-validation (one fit of this class per fold at
+        ``max_components``, truncated for smaller counts) and reports, for every number of
+        components, criteria that each answer a different question, together with the
+        number of components each one recommends. Disagreement between them is the point:
+        a component can predict Y without being stable, or be stable and real without
+        improving the prediction.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Predictor block, on its raw scale. Each training fold is autoscaled with its
+            own :class:`MCUVScaler`, as in :meth:`PLS.select_n_components`.
+        Y : array-like of shape (n_samples,) or (n_samples, n_targets)
+            Response block.
+        max_components : int, optional
+            Largest number of components to evaluate. Capped at one fewer than the
+            smallest training fold, and at the number of features.
+        cv : int or sklearn splitter, default=7
+            Number of shuffled K-fold segments, or a splitter that holds out every row
+            exactly once (``KFold``, ``LeaveOneOut``, ``GroupKFold``, ...). With an integer
+            ``random_state`` the folds are those of
+            ``PLS.select_n_components(..., cv=cv, n_repeats=1, random_state=random_state)``.
+        random_state : int, numpy.random.Generator or None, default=None
+            Seed for the fold assignment and for the permutation tests.
+        n_permutations : int, default=999
+            Permutations for the van der Voet and the covariance tests (cheap: no refits).
+        n_cv_permutations : int, default=199
+            Permutations of the rows of Y used to calibrate the held-out score correlation
+            of each component. Each one repeats the cross-validation with kernel PLS refits from the
+            folds' ``X'X`` and ``X'Y`` (fast for tens to hundreds of features). With ``0``
+            the normal approximation
+            :math:`r \sim N(0, 1/N)` is used instead; it is quick but too permissive,
+            because fold models share rows and a strong low-rank X widens the null
+            distribution of a pooled cross-validated correlation.
+        alpha : float, default=0.05
+            Significance level for the tests and for the score-correlation threshold.
+            :meth:`PLS.select_n_components` uses 0.01 for van der Voet.
+        angle_threshold : float, default=30.0
+            Jackknife-scaled subspace angle, in degrees, above which the leading weights
+            are judged unstable.
+        conf_level : float, default=0.95
+            Confidence level of the SPE and Hotelling's :math:`T^2` limits whose
+            out-of-sample alarm rates are checked.
+        **pls_kwargs
+            Passed to every fit of this class (for example ``max_iter``, ``tol``).
+            ``scale=False`` is rejected: every fold is autoscaled.
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With these fields:
+
+            - ``table`` (pandas.DataFrame, indexed by ``n_components``), with columns:
+
+              - ``r2y``, ``q2y``, ``q2y_se``: in-sample :math:`R^2_Y` (pooled in scaled
+                units), cross-validated :math:`Q^2_Y` (every target weighted equally, which
+                for one target is the ordinary :math:`Q^2`), and its standard error across
+                folds.
+              - ``vdv_p``: van der Voet *p*-value against the minimum-PRESS model.
+              - ``cv_anova_p``: CV-ANOVA *p*-value for the whole model, one response only
+                (NaN otherwise). It is a monotone function of :math:`Q^2`.
+              - ``r_train``, ``r_cv``, ``r_cv_threshold``, ``r_cv_p``: correlation of
+                :math:`t_a` and :math:`u_a` on the training rows; the same correlation
+                pooled over the held-out rows (about the training-fold centre, so it is
+                unaffected by sign flips between folds); the :math:`1-\alpha` quantile of
+                its null distribution under permuted Y; and its one-sided permutation
+                *p*-value.
+              - ``slope_ratio``: :math:`s_a`, the held-out slope of the deflated response
+                on :math:`t_a` relative to the training slope. PRESS falls exactly when
+                :math:`s_a > 1/2`; see the module notes.
+              - ``cov_perm_p``: sequential permutation *p*-value for the covariance of
+                component ``a``.
+              - ``angle_component_deg``, ``angle_subspace_deg``: angle between each fold's
+                weight vector :math:`w_a` and the full-data one, and the largest principal
+                angle between the spans of the first ``a`` weights, each scaled by the
+                delete-d jackknife (:math:`\tan\theta \to \sqrt{G-1}\,\text{rms}(\tan\theta_k)`)
+                so that it estimates how far the full-data direction may lie from the
+                population one. Raw fold angles shrink as the number of folds grows (fold
+                models share most of their rows); the scaled ones do not. A large
+                component angle with a small subspace angle means the components swap or
+                mix inside a stable space: loadings are then not interpretable one by one,
+                but SPE, :math:`T^2` and inversion, which depend on the span, are.
+              - ``d_ratio_median``, ``d_ratio_min``: Procrustes D ratios
+                :math:`c_{ka}^\top c_a / c_a^\top c_a` across folds; a negative minimum
+                means some fold reversed the component's inner relation.
+              - ``pv_spe_alarm_rate``, ``pv_t2_alarm_rate``: fraction of the Procrustes
+                pseudo-validation rows above the full-data model's SPE and :math:`T^2`
+                limits at ``conf_level``; nominally ``1 - conf_level``.
+
+            - ``recommendations`` (pandas.DataFrame): one row per selection rule
+              (``q2_max``, ``q2_1se``, ``van_der_voet``, ``score_correlation``,
+              ``covariance_permutation``, ``subspace_stability``, ``pv_spe_alarm``) with
+              the recommended ``n_components``, the ``rule`` and the ``question`` it
+              answers. The structural rules count leading components that pass, stopping
+              at the first failure, and can return 0.
+            - ``press`` (pandas.Series): cross-validated PRESS in original Y units.
+            - ``press_baseline`` (float): PRESS of predicting each held-out row by its
+              training fold's mean.
+            - ``d_ratios`` (pandas.DataFrame): Procrustes D ratio per fold and component.
+            - ``cv_splits`` (list of (train, test) index arrays): the folds used.
+            - ``global_model`` (PLS): the model fitted to all rows with
+              ``max_components`` components.
+            - ``alpha``, ``conf_level``, ``angle_threshold``, ``alarm_rate_upper``
+              (float): the settings used, and the binomial upper bound for the alarm
+              rates.
+
+        Raises
+        ------
+        ValueError
+            For missing values, a splitter that does not hold out every row exactly once,
+            or an out-of-range setting.
+
+        See Also
+        --------
+        select_n_components : Choose the number of components from prediction alone.
+        pseudo_validation_set : Build the Procrustes pseudo-validation set explicitly.
+        process_improve.multivariate.plots.cv_criteria_plot : Plot the ``table``.
 
         Examples
         --------
         >>> result = PLS.compare_cv_criteria(X, y, max_components=6, random_state=0)
         >>> result.recommendations["n_components"]
+        >>> result.table[["q2y", "r_cv", "slope_ratio", "angle_subspace_deg"]]
         """
-        from ._cv_criteria import _compare_cv_criteria  # noqa: PLC0415 - _cv_criteria imports this module
-
-        return _compare_cv_criteria(
-            cls,
-            X,
-            Y,
+        settings = _CompareSettings(
             max_components=max_components,
             cv=cv,
             random_state=random_state,
@@ -2077,11 +2110,11 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             alpha=alpha,
             angle_threshold=angle_threshold,
             conf_level=conf_level,
-            pls_kwargs=pls_kwargs,
         )
+        return _compare_cv_criteria(cls, X, Y, settings, pls_kwargs)
 
     @classmethod
-    def pseudo_validation_set(  # noqa: PLR0913
+    def pseudo_validation_set(  # noqa: PLR0913 - mirrors the published pcvpls settings (#605)
         cls,
         X: DataMatrix,
         Y: DataMatrix | pd.Series,
@@ -2092,29 +2125,72 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         random_state: int | np.random.Generator | None = None,
         **pls_kwargs,
     ) -> Bunch:
-        """Build a Procrustes pseudo-validation set for a model of this class.
+        r"""Build a Procrustes pseudo-validation set for a PLS model.
 
-        Classmethod form of :func:`process_improve.multivariate.pseudo_validation_set`;
-        every fit uses ``cls``. See that function for the parameters and the returned
-        fields.
+        Procrustes cross-validation (Kucheryavskiy, Rodionova and Pomerantsev, 2023) turns
+        the variation between cross-validation fold models into a data set, ``X_pv``, of
+        the same size as ``X``, which the model fitted to all rows can be applied to like an
+        independent test set. For every held-out row, the full-data model returns:
+
+        * scores equal to the row's scores in its fold model, multiplied per component by
+          the D ratio :math:`c_{ka}^\top c_a / c_a^\top c_a`;
+        * an SPE equal to the row's SPE in its fold model.
+
+        With one response and ``scope="global"``, the full-data model's predictions for
+        ``X_pv`` also equal the fold models' predictions for the held-out rows. ``Y_pv``
+        is ``Y`` unchanged.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Predictor block, raw scale.
+        Y : array-like of shape (n_samples,) or (n_samples, n_targets)
+            Response block.
+        n_components : int
+            Number of components of the model being validated.
+        cv : int or sklearn splitter, default=7
+            Number of shuffled K-fold segments, or a splitter that holds out every row
+            exactly once.
+        scope : {"global", "local"}, default="global"
+            ``"global"`` (the published default) fits the fold models on rows of the fully
+            autoscaled data without re-centring them; the prediction property above is
+            then exact. ``"local"`` autoscales each training fold separately, as
+            :meth:`PLS.select_n_components` does; scores and SPE are still reproduced
+            exactly, predictions approximately.
+        random_state : int, numpy.random.Generator or None, default=None
+            Seed for the fold assignment and the random directions of the residual part.
+        **pls_kwargs
+            Passed to every fit of this class. ``scale=False`` is rejected.
+
+        Returns
+        -------
+        result : sklearn.utils.Bunch
+            With these fields:
+
+            - ``X_pv`` (pandas.DataFrame): pseudo-validation predictors, on the raw scale
+              of ``X``.
+            - ``Y_pv`` (pandas.DataFrame): ``Y``, unchanged.
+            - ``scores`` (pandas.DataFrame): the scores the full-data model gives ``X_pv``.
+            - ``local_spe`` (pandas.Series): SPE of each held-out row in its fold model;
+              the full-data model gives ``X_pv`` the same values.
+            - ``d_ratios`` (pandas.DataFrame): D ratio per fold and component.
+            - ``cv_splits`` (list of (train, test) index arrays): the folds used.
+            - ``global_model`` (PLS): the model fitted to all rows; apply it to ``X_pv``
+              with ``diagnose``.
+            - ``scope`` (str): the scope used.
+
+        See Also
+        --------
+        compare_cv_criteria : Uses the same construction to report alarm rates per component.
 
         Examples
         --------
         >>> pv = PLS.pseudo_validation_set(X, y, n_components=2, random_state=0)
-        >>> pv.global_model.diagnose(pv.X_pv).spe
+        >>> diagnostics = pv.global_model.diagnose(pv.X_pv)
+        >>> (diagnostics.spe > pv.global_model.spe_limit()).mean()   # out-of-sample SPE alarm rate
         """
-        from ._cv_criteria import _pseudo_validation_set  # noqa: PLC0415 - _cv_criteria imports this module
-
-        return _pseudo_validation_set(
-            cls,
-            X,
-            Y,
-            n_components=n_components,
-            cv=cv,
-            scope=scope,
-            random_state=random_state,
-            pls_kwargs=pls_kwargs,
-        )
+        settings = _PseudoValidationSettings(n_components=n_components, cv=cv, scope=scope, random_state=random_state)
+        return _pseudo_validation_set(cls, X, Y, settings, pls_kwargs)
 
     @classmethod
     def nested_cv(  # noqa: PLR0913, PLR0915
@@ -2782,3 +2858,64 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         lower = pd.DataFrame(y_hat.values - half_width, index=y_hat.index, columns=y_hat.columns)
         upper = pd.DataFrame(y_hat.values + half_width, index=y_hat.index, columns=y_hat.columns)
         return Bunch(y_hat=y_hat, lower=lower, upper=upper, conf_level=conf_level)
+
+
+def compare_cv_criteria(X: DataMatrix, Y: DataMatrix | pd.Series, **kwargs) -> Bunch:
+    """Compare predictive and latent-structure validation criteria for a PLS model.
+
+    Function form of :meth:`PLS.compare_cv_criteria`, which documents the settings and
+    the returned fields: Q2, the 1-SE rule, van der Voet and CV-ANOVA beside the
+    held-out score correlation, the out-of-sample slope ratio, a covariance permutation
+    test, weight-subspace angles and Procrustes cross-validation, per component, with
+    the number of components each rule recommends.
+
+    Parameters
+    ----------
+    X : array-like of shape (n_samples, n_features)
+        Predictor block, on its raw scale.
+    Y : array-like of shape (n_samples,) or (n_samples, n_targets)
+        Response block.
+    **kwargs
+        The keyword arguments of :meth:`PLS.compare_cv_criteria`.
+
+    Returns
+    -------
+    sklearn.utils.Bunch
+        See :meth:`PLS.compare_cv_criteria`.
+
+    Examples
+    --------
+    >>> from process_improve.multivariate import compare_cv_criteria
+    >>> result = compare_cv_criteria(X, y, max_components=6, random_state=0)
+    >>> result.recommendations["n_components"]
+    """
+    return PLS.compare_cv_criteria(X, Y, **kwargs)
+
+
+def pseudo_validation_set(X: DataMatrix, Y: DataMatrix | pd.Series, **kwargs) -> Bunch:
+    """Build a Procrustes pseudo-validation set for a PLS model.
+
+    Function form of :meth:`PLS.pseudo_validation_set`, which documents the settings
+    and the returned fields.
+
+    Parameters
+    ----------
+    X : array-like of shape (n_samples, n_features)
+        Predictor block, raw scale.
+    Y : array-like of shape (n_samples,) or (n_samples, n_targets)
+        Response block.
+    **kwargs
+        The keyword arguments of :meth:`PLS.pseudo_validation_set`; ``n_components`` is
+        required.
+
+    Returns
+    -------
+    sklearn.utils.Bunch
+        See :meth:`PLS.pseudo_validation_set`.
+
+    Examples
+    --------
+    >>> pv = pseudo_validation_set(X, y, n_components=2, random_state=0)
+    >>> pv.global_model.diagnose(pv.X_pv).spe
+    """
+    return PLS.pseudo_validation_set(X, Y, **kwargs)

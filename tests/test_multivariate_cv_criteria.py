@@ -12,6 +12,7 @@ from sklearn.model_selection import GroupKFold, KFold, LeaveOneOut, RepeatedKFol
 
 from process_improve._random import check_random_state
 from process_improve.multivariate import PLS, MCUVScaler, compare_cv_criteria, pseudo_validation_set
+from process_improve.multivariate._common import _vandervoet_randomization
 from process_improve.multivariate._cv_criteria import (
     CV_ANOVA_DF_PER_COMPONENT,
     _cv_anova_pvalues,
@@ -21,7 +22,6 @@ from process_improve.multivariate._cv_criteria import (
     _partition_splits,
     _procrustes_scores,
 )
-from process_improve.multivariate._pls import _vandervoet_randomization
 
 LDPE = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate" / "LDPE" / "LDPE.csv"
 
@@ -39,7 +39,7 @@ def _two_component_data(n: int = 60, k: int = 10, m: int = 1, seed: int = 1) -> 
 
 def _folds(X: pd.DataFrame, Y: pd.DataFrame, n_components: int, cv: object = 7, scope: str = "local") -> list:
     splits = _partition_splits(cv, X, Y, rng=np.random.default_rng(0), random_state=0)
-    return _fit_folds(PLS, X, Y, splits, n_components, {}, scope=scope)
+    return _fit_folds(lambda: PLS(n_components=n_components), X, Y, splits, scope=scope)
 
 
 @pytest.fixture(scope="module")
@@ -72,7 +72,7 @@ def test_slope_ratio_is_one_in_sample() -> None:
     """Scoring the training rows themselves gives s_a = 1: the fitted slope is the in-sample slope."""
     X, Y = _two_component_data()
     splits = [(np.arange(len(X)), np.arange(len(X)))]
-    folds = _fit_folds(PLS, X, Y, splits, 4, {}, scope="local")
+    folds = _fit_folds(lambda: PLS(n_components=4), X, Y, splits, scope="local")
     held = _heldout_pass(folds, Y.to_numpy(), 4)
     np.testing.assert_allclose(held.slope_ratio, 1.0, rtol=1e-8)
 

@@ -19,7 +19,6 @@ from ..visualization.themes import REFERENCE_LINE_COLOR
 from ._adaptive import AdaptivePCA, AdaptivePLS
 from ._asca import ASCA
 from ._common import BlockSet, NotEnoughVarianceError, SpecificationWarning, UncentredDataWarning, epsqrt
-from ._cv_criteria import compare_cv_criteria, pseudo_validation_set
 from ._diagnostics import (
     eigenvalue_summary,
     group_contributions,
@@ -61,7 +60,7 @@ from ._null import (
 )
 from ._opls import OPLS
 from ._pca import PCA
-from ._pls import PLS
+from ._pls import PLS, compare_cv_criteria, pseudo_validation_set
 from ._plsda import PLSDA
 from ._preprocessing import MCUVScaler, center, scale
 from ._prm import PRM

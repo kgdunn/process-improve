@@ -58,8 +58,9 @@ from __future__ import annotations
 
 import typing
 import warnings
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -70,16 +71,21 @@ from sklearn.model_selection import BaseCrossValidator, KFold, check_cv
 from sklearn.utils import Bunch
 
 from .._random import check_random_state
-from ._adaptive import _kernel_pls, _sign_align
-from ._common import _equal_weight_r2_total, _select_n_components
+from ._common import _equal_weight_r2_total, _select_n_components, _vandervoet_randomization
 from ._limits import hotellings_t2_limit, spe_calculation
-from ._pls import PLS, _vandervoet_randomization
+from ._nipals import _kernel_pls, _sign_align
 from ._preprocessing import MCUVScaler, _warn_scaling_traps
 
 if typing.TYPE_CHECKING:
     from ._common import DataMatrix
 
-__all__ = ["compare_cv_criteria", "pseudo_validation_set"]
+# The public entry points are ``PLS.compare_cv_criteria`` / ``PLS.pseudo_validation_set``
+# and the module-level functions of the same names in ``_pls``. This module takes the
+# estimator class as an argument instead of importing ``PLS``, so ``_pls`` can import it
+# without an import cycle.
+
+#: A zero-argument callable returning an unfitted PLS-family estimator.
+ModelFactory = Callable[[], Any]
 
 #: Degrees of freedom charged per PLS component by CV-ANOVA (Eriksson, Trygg and Wold, 2008).
 CV_ANOVA_DF_PER_COMPONENT = 2
@@ -178,25 +184,23 @@ def _component_cap(splits: list[tuple[np.ndarray, np.ndarray]], K: int, requeste
     return A
 
 
-def _fold_from_model(  # noqa: PLR0913
-    model: PLS,
-    train: np.ndarray,
-    test: np.ndarray,
+def _fold_from_model(
+    model: Any,  # noqa: ANN401 - any fitted PLS-family estimator
+    split: tuple[np.ndarray, np.ndarray],
     x_test: np.ndarray,
-    y_centre: np.ndarray,
-    y_scale: np.ndarray,
+    y_map: tuple[np.ndarray, np.ndarray],
 ) -> _Fold:
-    """Collect the fitted matrices a fold contributes to the criteria."""
+    """Collect the fitted matrices a fold contributes; ``y_map`` is the (centre, scale) of Y."""
     return _Fold(
-        train=train,
-        test=test,
+        train=split[0],
+        test=split[1],
         x_test=x_test,
-        y_centre=np.asarray(y_centre, dtype=float),
-        y_scale=np.asarray(y_scale, dtype=float),
+        y_centre=np.asarray(y_map[0], dtype=float),
+        y_scale=np.asarray(y_map[1], dtype=float),
         weights=model.x_weights_.to_numpy(),
         direct_weights=model.direct_weights_.to_numpy(),
         x_loadings=model.x_loadings_.to_numpy(),
-        y_loadings=typing.cast("pd.DataFrame", model.y_loadings_).to_numpy(),
+        y_loadings=model.y_loadings_.to_numpy(),
     )
 
 
@@ -205,44 +209,38 @@ def _global_scaling(X: pd.DataFrame, Y: pd.DataFrame) -> tuple[MCUVScaler, MCUVS
     return MCUVScaler().fit(X), MCUVScaler().fit(Y)
 
 
-def _fit_folds(  # noqa: PLR0913
-    estimator: type[PLS],
+def _fit_folds(
+    make_model: ModelFactory,
     X: pd.DataFrame,
     Y: pd.DataFrame,
     splits: list[tuple[np.ndarray, np.ndarray]],
-    n_components: int,
-    pls_kwargs: dict,
     *,
     scope: Literal["local", "global"],
 ) -> list[_Fold]:
-    """Fit one model per fold.
+    """Fit one model per fold, each made by ``make_model()``.
 
     ``"local"`` scope autoscales each training fold with its own :class:`MCUVScaler`,
     exactly as :meth:`PLS.select_n_components` does. ``"global"`` scope fits the fold
     models on rows of the fully autoscaled data without re-centring them, which is the
-    default of the published Procrustes cross-validation.
+    default of the published Procrustes cross-validation; ``make_model`` must then build
+    an estimator with ``scale=False``.
     """
     folds: list[_Fold] = []
     if scope == "global":
         x_scaler, y_scaler = _global_scaling(X, Y)
         Xs, Ys = x_scaler.transform(X), y_scaler.transform(Y)
-        y_centre, y_scale = y_scaler.center_.to_numpy(), y_scaler.scale_.to_numpy()
-        fold_kwargs = {**pls_kwargs, "scale": False, "warn_on_uncentred": False}
+        y_map = (y_scaler.center_.to_numpy(), y_scaler.scale_.to_numpy())
         for train, test in splits:
-            model = estimator(n_components=n_components, **fold_kwargs).fit(Xs.iloc[train], Ys.iloc[train])
-            folds.append(_fold_from_model(model, train, test, Xs.iloc[test].to_numpy(), y_centre, y_scale))
+            model = make_model().fit(Xs.iloc[train], Ys.iloc[train])
+            folds.append(_fold_from_model(model, (train, test), Xs.iloc[test].to_numpy(), y_map))
         return folds
 
     for train, test in splits:
         scaler_x = MCUVScaler().fit(X.iloc[train])
         scaler_y = MCUVScaler().fit(Y.iloc[train])
-        model = estimator(n_components=n_components, **pls_kwargs).fit(
-            scaler_x.transform(X.iloc[train]), scaler_y.transform(Y.iloc[train])
-        )
-        x_test = scaler_x.transform(X.iloc[test]).to_numpy()
-        folds.append(
-            _fold_from_model(model, train, test, x_test, scaler_y.center_.to_numpy(), scaler_y.scale_.to_numpy())
-        )
+        model = make_model().fit(scaler_x.transform(X.iloc[train]), scaler_y.transform(Y.iloc[train]))
+        y_map = (scaler_y.center_.to_numpy(), scaler_y.scale_.to_numpy())
+        folds.append(_fold_from_model(model, (train, test), scaler_x.transform(X.iloc[test]).to_numpy(), y_map))
     return folds
 
 
@@ -330,16 +328,16 @@ def _autoscale_parameters(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return centre, np.where(~np.isfinite(scale) | (scale <= tiny), 1.0, scale)
 
 
-def _score_correlation_pvalues(  # noqa: PLR0913
+def _null_score_correlations(
     x_values: np.ndarray,
     y_values: np.ndarray,
     splits: list[tuple[np.ndarray, np.ndarray]],
-    observed: np.ndarray,
-    n_permutations: int,
-    alpha: float,
+    shape: tuple[int, int],
     rng: np.random.Generator,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Permutation test of the held-out t-u correlation of every component.
+) -> np.ndarray:
+    """Held-out t-u correlations of every component, with the rows of Y permuted.
+
+    ``shape`` is ``(n_permutations, n_components)``, the shape of the returned array.
 
     Each permutation shuffles the rows of Y and repeats the whole cross-validation,
     with the folds refitted by kernel PLS (Dayal and MacGregor, 1997) from the fold's
@@ -358,11 +356,10 @@ def _score_correlation_pvalues(  # noqa: PLR0913
 
     Returns
     -------
-    p_values : np.ndarray of shape (A,)
-    thresholds : np.ndarray of shape (A,)
-        The ``1 - alpha`` quantile of each component's null distribution.
+    np.ndarray of shape (n_permutations, n_components)
+        For each permutation, the held-out correlation of every component.
     """
-    A = len(observed)
+    n_permutations, A = shape
     folds = []
     for train, test in splits:
         centre, scale = _autoscale_parameters(x_values[train])
@@ -390,13 +387,17 @@ def _score_correlation_pvalues(  # noqa: PLR0913
         with np.errstate(divide="ignore", invalid="ignore"):
             return np.where(tt * uu > 0, tu / np.sqrt(tt * uu), np.nan)
 
-    null = np.array([_heldout_correlations(y_values[rng.permutation(len(y_values))]) for _ in range(n_permutations)])
-    p_values = np.full(A, np.nan)
-    thresholds = np.full(A, np.nan)
-    for a in range(A):
+    return np.array([_heldout_correlations(y_values[rng.permutation(len(y_values))]) for _ in range(n_permutations)])
+
+
+def _permutation_summary(null: np.ndarray, observed: np.ndarray, alpha: float) -> tuple[np.ndarray, np.ndarray]:
+    """One-sided permutation *p*-value and the ``1 - alpha`` null quantile, per column."""
+    p_values = np.full(null.shape[1], np.nan)
+    thresholds = np.full(null.shape[1], np.nan)
+    for a in range(null.shape[1]):
         finite = null[np.isfinite(null[:, a]), a]
         if np.isfinite(observed[a]) and finite.size:
-            p_values[a] = (np.sum(finite >= observed[a]) + 1) / (n_permutations + 1)
+            p_values[a] = (np.sum(finite >= observed[a]) + 1) / (null.shape[0] + 1)
             thresholds[a] = np.quantile(finite, 1.0 - alpha, method="higher")
     return p_values, thresholds
 
@@ -404,7 +405,7 @@ def _score_correlation_pvalues(  # noqa: PLR0913
 def _covariance_permutation_pvalues(
     x_scaled: np.ndarray,
     y_scaled: np.ndarray,
-    model: PLS,
+    model: Any,  # noqa: ANN401 - any fitted PLS-family estimator
     n_permutations: int,
     rng: np.random.Generator,
 ) -> np.ndarray:
@@ -422,7 +423,7 @@ def _covariance_permutation_pvalues(
     M = y_scaled.shape[1]
     scores = model.scores_.to_numpy()
     x_loadings = model.x_loadings_.to_numpy()
-    y_loadings = typing.cast("pd.DataFrame", model.y_loadings_).to_numpy()
+    y_loadings = model.y_loadings_.to_numpy()
     x_a = x_scaled.copy()
     y_a = y_scaled.copy()
     p_values = np.empty(scores.shape[1])
@@ -482,7 +483,7 @@ def _weight_angles(global_weights: np.ndarray, folds: list[_Fold]) -> tuple[np.n
     return _jackknife_angle(component, len(folds)), _jackknife_angle(subspace, len(folds))
 
 
-def _procrustes_scores(model: PLS, folds: list[_Fold]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _procrustes_scores(model: Any, folds: list[_Fold]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:  # noqa: ANN401
     """Pseudo-validation scores, local squared SPE, and D ratios (Kucheryavskiy et al., 2023).
 
     Each fold model is sign-aligned to the full-data model. The held-out scores in the
@@ -498,7 +499,7 @@ def _procrustes_scores(model: PLS, folds: list[_Fold]) -> tuple[np.ndarray, np.n
     d_ratios : np.ndarray of shape (n_folds, A)
     """
     global_direct = model.direct_weights_.to_numpy()
-    global_y_loadings = typing.cast("pd.DataFrame", model.y_loadings_).to_numpy()
+    global_y_loadings = model.y_loadings_.to_numpy()
     N = sum(len(fold.test) for fold in folds)
     A = global_direct.shape[1]
     cc = np.sum(global_y_loadings**2, axis=0)
@@ -570,105 +571,205 @@ def _check_probability(name: str, value: float) -> None:
         raise ValueError(f"{name} must lie in (0, 1); got {value}.")
 
 
-def _compare_cv_criteria(  # noqa: PLR0913, PLR0915
-    estimator: type[PLS],
-    X: DataMatrix,
-    Y: DataMatrix | pd.Series,
-    *,
-    max_components: int | None,
-    cv: int | BaseCrossValidator,
-    random_state: int | np.random.Generator | None,
-    n_permutations: int,
-    n_cv_permutations: int,
-    alpha: float,
-    angle_threshold: float,
-    conf_level: float,
-    pls_kwargs: dict,
+@dataclass(frozen=True)
+class _CompareSettings:
+    """Settings of :meth:`PLS.compare_cv_criteria`; see that method for their meaning."""
+
+    max_components: int | None = None
+    cv: int | BaseCrossValidator = 7
+    random_state: int | np.random.Generator | None = None
+    n_permutations: int = 999
+    n_cv_permutations: int = 199
+    alpha: float = 0.05
+    angle_threshold: float = 30.0
+    conf_level: float = 0.95
+
+    def validate(self) -> None:
+        """Raise ``ValueError`` for an out-of-range setting."""
+        if int(self.n_permutations) < 1:
+            raise ValueError(f"n_permutations must be >= 1; got {self.n_permutations}.")
+        if int(self.n_cv_permutations) < 0:
+            raise ValueError(f"n_cv_permutations must be >= 0; got {self.n_cv_permutations}.")
+        _check_probability("alpha", self.alpha)
+        _check_probability("conf_level", self.conf_level)
+        if not 0.0 < self.angle_threshold <= 90.0:
+            raise ValueError(f"angle_threshold must lie in (0, 90] degrees; got {self.angle_threshold}.")
+
+
+@dataclass(frozen=True)
+class _PseudoValidationSettings:
+    """Settings of :meth:`PLS.pseudo_validation_set`; see that method for their meaning."""
+
+    n_components: int
+    cv: int | BaseCrossValidator = 7
+    scope: Literal["global", "local"] = "global"
+    random_state: int | np.random.Generator | None = None
+
+
+def _predictive_criteria(
+    held: Bunch, y_values: np.ndarray, settings: _CompareSettings, rng: np.random.Generator
 ) -> Bunch:
-    """Shared implementation of :func:`compare_cv_criteria` and :meth:`PLS.compare_cv_criteria`."""
-    X_df, Y_df = _as_frames(X, Y)
-    _check_scale(pls_kwargs)
-    if int(n_permutations) < 1:
-        raise ValueError(f"n_permutations must be >= 1; got {n_permutations}.")
-    if int(n_cv_permutations) < 0:
-        raise ValueError(f"n_cv_permutations must be >= 0; got {n_cv_permutations}.")
-    _check_probability("alpha", alpha)
-    _check_probability("conf_level", conf_level)
-    if not 0.0 < angle_threshold <= 90.0:
-        raise ValueError(f"angle_threshold must lie in (0, 90] degrees; got {angle_threshold}.")
-    _warn_scaling_traps(X_df, scale_inside_folds=True, fold="CV fold", metric="Q2")
-
-    N, K = X_df.shape
-    M = Y_df.shape[1]
-    rng = check_random_state(random_state)
-    splits = _partition_splits(cv, X_df, Y_df, rng=rng, random_state=random_state)
-    rng_vdv, rng_perm, rng_null = rng.spawn(3)
-    A = _component_cap(splits, K, max_components)
-    folds = _fit_folds(estimator, X_df, Y_df, splits, A, pls_kwargs, scope="local")
-    model = estimator(n_components=A, **pls_kwargs).fit(X_df, Y_df)
-    component_index = pd.Index(range(1, A + 1), name="n_components")
-
-    # Prediction: PRESS, Q2, the 1-SE rule, van der Voet and CV-ANOVA.
-    y_values = Y_df.to_numpy()
-    held = _heldout_pass(folds, y_values, A)
+    """Q2 and its SE, RMSECV and its SE, van der Voet and CV-ANOVA, from the held-out pass."""
+    N, M = y_values.shape
+    A, n_folds = held.per_fold_press.shape
     tss_y = np.sum((y_values - y_values.mean(axis=0)) ** 2, axis=0)
     with np.errstate(divide="ignore", invalid="ignore"):
         q2_per_target = np.where(tss_y > 0, 1.0 - held.press_y / np.where(tss_y > 0, tss_y, 1.0), np.nan)
     q2_total = 1.0 - held.press_y.sum(axis=1) / tss_y.sum() if tss_y.sum() > 0 else np.full(A, np.nan)
-    q2y = _equal_weight_r2_total(q2_per_target)
-    n_folds = len(folds)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)
         se_press = np.nanstd(held.per_fold_press, axis=1, ddof=1) / np.sqrt(n_folds)
         se_rmsecv = np.nanstd(held.per_fold_rmse, axis=1, ddof=1) / np.sqrt(n_folds)
-    q2y_se = se_press * n_folds / tss_y.sum() if tss_y.sum() > 0 else np.full(A, np.nan)
     rmsecv = np.sqrt(held.press_y.sum(axis=1) / (N * M))
     vdv_recommended, vdv_p = _vandervoet_randomization(
-        held.per_obs_sse, total_rmsecv=rmsecv, n_permutations=int(n_permutations), alpha=alpha, random_state=rng_vdv
+        held.per_obs_sse,
+        total_rmsecv=rmsecv,
+        n_permutations=int(settings.n_permutations),
+        alpha=settings.alpha,
+        random_state=rng,
+    )
+    return Bunch(
+        q2y=_equal_weight_r2_total(q2_per_target),
+        q2y_se=se_press * n_folds / tss_y.sum() if tss_y.sum() > 0 else np.full(A, np.nan),
+        cv_anova_p=_cv_anova_pvalues(q2_total, N, M),
+        vdv_p=vdv_p,
+        vdv_recommended=int(vdv_recommended),
+        rmsecv=rmsecv,
+        se_rmsecv=se_rmsecv,
     )
 
-    # Inner relation and covariance.
-    t_scores = np.asarray(model.scores_)
-    u_scores = np.asarray(model.y_scores_)
-    r_train = np.array([_correlation_about_origin(t_scores[:, a], u_scores[:, a]) for a in range(A)])
-    x_scaler, y_scaler = _global_scaling(X_df, Y_df)
-    x_scaled = x_scaler.transform(X_df).to_numpy()
-    y_scaled = y_scaler.transform(Y_df).to_numpy()
-    if int(n_cv_permutations) > 0:
-        r_cv_p, r_cv_threshold = _score_correlation_pvalues(
-            X_df.to_numpy(), y_values, splits, held.r_cv, int(n_cv_permutations), alpha, rng_null
-        )
-    else:
-        r_cv_p = norm.sf(held.r_cv * np.sqrt(N))
-        r_cv_threshold = np.full(A, norm.ppf(1.0 - alpha) / np.sqrt(N))
-    cov_perm_p = _covariance_permutation_pvalues(x_scaled, y_scaled, model, int(n_permutations), rng_perm)
 
-    # Stability of the weights, and Procrustes cross-validation.
-    angle_component, angle_subspace = _weight_angles(model.x_weights_.to_numpy(), folds)
+def _monitoring_criteria(model: Any, folds: list[_Fold], conf_level: float, alpha: float) -> Bunch:  # noqa: ANN401
+    """Procrustes D ratios, and pseudo-validation SPE / T2 alarm rates against the full-data limits."""
+    N = sum(len(fold.test) for fold in folds)
     pv_scores, squared_spe, d_ratios = _procrustes_scores(model, folds)
     score_sd = model.scaling_factor_for_scores_.to_numpy()
     with np.errstate(divide="ignore", invalid="ignore"):
         pv_t2 = np.cumsum((pv_scores / np.where(score_sd > 0, score_sd, np.nan)) ** 2, axis=1)
     pv_spe = np.sqrt(squared_spe)
-    pv_spe_alarm = np.full(A, np.nan)
-    pv_t2_alarm = np.full(A, np.nan)
+    A = pv_scores.shape[1]
+    spe_alarm = np.full(A, np.nan)
+    t2_alarm = np.full(A, np.nan)
     for a in range(A):
         spe_lim = float(spe_calculation(model.spe_.iloc[:, a].to_numpy(), conf_level=conf_level))
         t2_lim = hotellings_t2_limit(conf_level=conf_level, n_components=a + 1, n_rows=N)
         if np.isfinite(spe_lim):
-            pv_spe_alarm[a] = float(np.mean(pv_spe[:, a] > spe_lim))
+            spe_alarm[a] = float(np.mean(pv_spe[:, a] > spe_lim))
         if np.isfinite(t2_lim) and np.all(np.isfinite(pv_t2[:, a])):
-            pv_t2_alarm[a] = float(np.mean(pv_t2[:, a] > t2_lim))
-    alarm_rate_upper = float(binom.ppf(1.0 - alpha, N, 1.0 - conf_level) / N)
+            t2_alarm[a] = float(np.mean(pv_t2[:, a] > t2_lim))
+    return Bunch(
+        d_ratios=d_ratios,
+        spe_alarm=spe_alarm,
+        t2_alarm=t2_alarm,
+        alarm_rate_upper=float(binom.ppf(1.0 - alpha, N, 1.0 - conf_level) / N),
+    )
 
+
+def _recommendations(
+    table: pd.DataFrame, predictive: Bunch, settings: _CompareSettings, alarm_rate_upper: float
+) -> pd.DataFrame:
+    """One row per selection rule: the recommended component count, the rule, and its question."""
+    alpha = settings.alpha
+    q2y = table["q2y"].to_numpy()
+    rules = {
+        "q2_max": (
+            int(np.nanargmax(q2y)) + 1 if np.isfinite(q2y).any() else 1,
+            "Largest cumulative Q2.",
+            "Does the model predict Y?",
+        ),
+        "q2_1se": (
+            _select_n_components("1se", mean_error=predictive.rmsecv, se_error=predictive.se_rmsecv),
+            "Fewest components whose RMSECV is within one standard error of the minimum.",
+            "Does the model predict Y?",
+        ),
+        "van_der_voet": (
+            predictive.vdv_recommended,
+            f"Fewest components whose predictions are not worse than the minimum-PRESS model (p > {alpha}).",
+            "Is the gain over fewer components real?",
+        ),
+        "score_correlation": (
+            _leading_count(table["r_cv_p"].to_numpy() < alpha),
+            f"Leading components whose held-out t-u correlation beats the Y-permutation null (p < {alpha}).",
+            "Does each component's inner relation hold on new rows?",
+        ),
+        "covariance_permutation": (
+            _leading_count(table["cov_perm_p"].to_numpy() < alpha),
+            f"Leading components whose covariance beats {int(settings.n_permutations)} row permutations (p < {alpha}).",
+            "Is each component's covariance larger than chance?",
+        ),
+        "subspace_stability": (
+            _leading_count(table["angle_subspace_deg"].to_numpy() < settings.angle_threshold),
+            f"Leading components whose jackknife-scaled subspace angle is below {settings.angle_threshold} degrees.",
+            "Does the model's latent space survive a change of rows?",
+        ),
+        "pv_spe_alarm": (
+            _leading_count(table["pv_spe_alarm_rate"].to_numpy() <= alarm_rate_upper),
+            (
+                f"Leading components whose out-of-sample SPE alarm rate is at most {alarm_rate_upper:.3g}, "
+                f"the upper {1 - alpha:.3g} binomial quantile of the nominal rate {1 - settings.conf_level:.3g}."
+            ),
+            "Are the monitoring limits right on new rows?",
+        ),
+    }
+    return pd.DataFrame(
+        [(name, n, rule, question) for name, (n, rule, question) in rules.items()],
+        columns=["criterion", "n_components", "rule", "question"],
+    ).set_index("criterion")
+
+
+def _compare_cv_criteria(
+    estimator: Callable[..., Any],
+    X: DataMatrix,
+    Y: DataMatrix | pd.Series,
+    settings: _CompareSettings,
+    pls_kwargs: dict,
+) -> Bunch:
+    """Run :meth:`PLS.compare_cv_criteria` for the estimator class ``estimator``."""
+    X_df, Y_df = _as_frames(X, Y)
+    _check_scale(pls_kwargs)
+    settings.validate()
+    _warn_scaling_traps(X_df, scale_inside_folds=True, fold="CV fold", metric="Q2")
+
+    N = X_df.shape[0]
+    rng = check_random_state(settings.random_state)
+    splits = _partition_splits(settings.cv, X_df, Y_df, rng=rng, random_state=settings.random_state)
+    rng_vdv, rng_perm, rng_null = rng.spawn(3)
+    A = _component_cap(splits, X_df.shape[1], settings.max_components)
+    folds = _fit_folds(lambda: estimator(n_components=A, **pls_kwargs), X_df, Y_df, splits, scope="local")
+    model = estimator(n_components=A, **pls_kwargs).fit(X_df, Y_df)
+    y_values = Y_df.to_numpy()
+    held = _heldout_pass(folds, y_values, A)
+    predictive = _predictive_criteria(held, y_values, settings, rng_vdv)
+
+    if int(settings.n_cv_permutations) > 0:
+        null = _null_score_correlations(
+            X_df.to_numpy(), y_values, splits, (int(settings.n_cv_permutations), A), rng_null
+        )
+        r_cv_p, r_cv_threshold = _permutation_summary(null, held.r_cv, settings.alpha)
+    else:
+        r_cv_p = norm.sf(held.r_cv * np.sqrt(N))
+        r_cv_threshold = np.full(A, norm.ppf(1.0 - settings.alpha) / np.sqrt(N))
+    x_scaler, y_scaler = _global_scaling(X_df, Y_df)
+    cov_perm_p = _covariance_permutation_pvalues(
+        x_scaler.transform(X_df).to_numpy(),
+        y_scaler.transform(Y_df).to_numpy(),
+        model,
+        int(settings.n_permutations),
+        rng_perm,
+    )
+    angle_component, angle_subspace = _weight_angles(model.x_weights_.to_numpy(), folds)
+    monitoring = _monitoring_criteria(model, folds, settings.conf_level, settings.alpha)
+    t_scores, u_scores = np.asarray(model.scores_), np.asarray(model.y_scores_)
+
+    component_index = pd.Index(range(1, A + 1), name="n_components")
     table = pd.DataFrame(
         {
             "r2y": model.r2_cumulative_.to_numpy(),
-            "q2y": q2y,
-            "q2y_se": q2y_se,
-            "vdv_p": vdv_p,
-            "cv_anova_p": _cv_anova_pvalues(q2_total, N, M),
-            "r_train": r_train,
+            "q2y": predictive.q2y,
+            "q2y_se": predictive.q2y_se,
+            "vdv_p": predictive.vdv_p,
+            "cv_anova_p": predictive.cv_anova_p,
+            "r_train": [_correlation_about_origin(t_scores[:, a], u_scores[:, a]) for a in range(A)],
             "r_cv": held.r_cv,
             "r_cv_threshold": r_cv_threshold,
             "r_cv_p": r_cv_p,
@@ -676,228 +777,26 @@ def _compare_cv_criteria(  # noqa: PLR0913, PLR0915
             "cov_perm_p": cov_perm_p,
             "angle_component_deg": angle_component,
             "angle_subspace_deg": angle_subspace,
-            "d_ratio_median": np.median(d_ratios, axis=0),
-            "d_ratio_min": np.min(d_ratios, axis=0),
-            "pv_spe_alarm_rate": pv_spe_alarm,
-            "pv_t2_alarm_rate": pv_t2_alarm,
+            "d_ratio_median": np.median(monitoring.d_ratios, axis=0),
+            "d_ratio_min": np.min(monitoring.d_ratios, axis=0),
+            "pv_spe_alarm_rate": monitoring.spe_alarm,
+            "pv_t2_alarm_rate": monitoring.t2_alarm,
         },
         index=component_index,
     )
-
-    finite_q2 = np.isfinite(q2y)
-    rules = {
-        "q2_max": (
-            int(np.nanargmax(q2y)) + 1 if finite_q2.any() else 1,
-            "Largest cumulative Q2.",
-            "Does the model predict Y?",
-        ),
-        "q2_1se": (
-            _select_n_components("1se", mean_error=rmsecv, se_error=se_rmsecv),
-            "Fewest components whose RMSECV is within one standard error of the minimum.",
-            "Does the model predict Y?",
-        ),
-        "van_der_voet": (
-            int(vdv_recommended),
-            f"Fewest components whose predictions are not worse than the minimum-PRESS model (p > {alpha}).",
-            "Is the gain over fewer components real?",
-        ),
-        "score_correlation": (
-            _leading_count(r_cv_p < alpha),
-            f"Leading components whose held-out t-u correlation beats the Y-permutation null (p < {alpha}).",
-            "Does each component's inner relation hold on new rows?",
-        ),
-        "covariance_permutation": (
-            _leading_count(cov_perm_p < alpha),
-            f"Leading components whose covariance beats {int(n_permutations)} row permutations (p < {alpha}).",
-            "Is each component's covariance larger than chance?",
-        ),
-        "subspace_stability": (
-            _leading_count(angle_subspace < angle_threshold),
-            f"Leading components whose jackknife-scaled weight subspace angle is below {angle_threshold} degrees.",
-            "Does the model's latent space survive a change of rows?",
-        ),
-        "pv_spe_alarm": (
-            _leading_count(pv_spe_alarm <= alarm_rate_upper),
-            (
-                f"Leading components whose out-of-sample SPE alarm rate is at most {alarm_rate_upper:.3g}, "
-                f"the upper {1 - alpha:.3g} binomial quantile of the nominal rate {1 - conf_level:.3g}."
-            ),
-            "Are the monitoring limits right on new rows?",
-        ),
-    }
-    recommendations = pd.DataFrame(
-        [(name, n, rule, question) for name, (n, rule, question) in rules.items()],
-        columns=["criterion", "n_components", "rule", "question"],
-    ).set_index("criterion")
-
+    fold_index = [f"fold_{k + 1}" for k in range(len(folds))]
     return Bunch(
         table=table,
-        recommendations=recommendations,
+        recommendations=_recommendations(table, predictive, settings, monitoring.alarm_rate_upper),
         press=pd.Series(held.press_y.sum(axis=1), index=component_index, name="PRESS"),
         press_baseline=held.press_baseline,
-        d_ratios=pd.DataFrame(d_ratios, index=[f"fold_{k + 1}" for k in range(n_folds)], columns=component_index),
+        d_ratios=pd.DataFrame(monitoring.d_ratios, index=fold_index, columns=component_index),
         cv_splits=splits,
         global_model=model,
-        alpha=alpha,
-        conf_level=conf_level,
-        angle_threshold=angle_threshold,
-        alarm_rate_upper=alarm_rate_upper,
-    )
-
-
-def compare_cv_criteria(  # noqa: PLR0913
-    X: DataMatrix,
-    Y: DataMatrix | pd.Series,
-    *,
-    max_components: int | None = None,
-    cv: int | BaseCrossValidator = 7,
-    random_state: int | np.random.Generator | None = None,
-    n_permutations: int = 999,
-    n_cv_permutations: int = 199,
-    alpha: float = 0.05,
-    angle_threshold: float = 30.0,
-    conf_level: float = 0.95,
-    **pls_kwargs,
-) -> Bunch:
-    r"""Compare predictive and latent-structure validation criteria for a PLS model.
-
-    Runs one K-fold cross-validation (one :class:`PLS` fit per fold at
-    ``max_components``, truncated for smaller counts) and reports, for every number of
-    components, criteria that each answer a different question, together with the
-    number of components each one recommends. Disagreement between them is the point:
-    a component can predict Y without being stable, or be stable and real without
-    improving the prediction.
-
-    Parameters
-    ----------
-    X : array-like of shape (n_samples, n_features)
-        Predictor block, on its raw scale. Each training fold is autoscaled with its
-        own :class:`MCUVScaler`, as in :meth:`PLS.select_n_components`.
-    Y : array-like of shape (n_samples,) or (n_samples, n_targets)
-        Response block.
-    max_components : int, optional
-        Largest number of components to evaluate. Capped at one fewer than the
-        smallest training fold, and at the number of features.
-    cv : int or sklearn splitter, default=7
-        Number of shuffled K-fold segments, or a splitter that holds out every row
-        exactly once (``KFold``, ``LeaveOneOut``, ``GroupKFold``, ...). With an integer
-        ``random_state`` the folds are those of
-        ``PLS.select_n_components(..., cv=cv, n_repeats=1, random_state=random_state)``.
-    random_state : int, numpy.random.Generator or None, default=None
-        Seed for the fold assignment and for the permutation tests.
-    n_permutations : int, default=999
-        Permutations for the van der Voet and the covariance tests (cheap: no refits).
-    n_cv_permutations : int, default=199
-        Permutations of the rows of Y used to calibrate the held-out score correlation
-        of each component. Each one repeats the cross-validation with kernel PLS refits from the
-        folds' ``X'X`` and ``X'Y`` (fast for tens to hundreds of features). With ``0``
-        the normal approximation
-        :math:`r \sim N(0, 1/N)` is used instead; it is quick but too permissive,
-        because fold models share rows and a strong low-rank X widens the null
-        distribution of a pooled cross-validated correlation.
-    alpha : float, default=0.05
-        Significance level for the tests and for the score-correlation threshold.
-        :meth:`PLS.select_n_components` uses 0.01 for van der Voet.
-    angle_threshold : float, default=30.0
-        Jackknife-scaled subspace angle, in degrees, above which the leading weights
-        are judged unstable.
-    conf_level : float, default=0.95
-        Confidence level of the SPE and Hotelling's :math:`T^2` limits whose
-        out-of-sample alarm rates are checked.
-    **pls_kwargs
-        Passed to :class:`PLS` for every fit (for example ``max_iter``, ``tol``).
-
-    Returns
-    -------
-    result : sklearn.utils.Bunch
-        With these fields:
-
-        - ``table`` (pandas.DataFrame, indexed by ``n_components``), with columns:
-
-          - ``r2y``, ``q2y``, ``q2y_se``: in-sample :math:`R^2_Y` (pooled in scaled
-            units), cross-validated :math:`Q^2_Y` (every target weighted equally, which
-            for one target is the ordinary :math:`Q^2`), and its standard error across
-            folds.
-          - ``vdv_p``: van der Voet *p*-value against the minimum-PRESS model.
-          - ``cv_anova_p``: CV-ANOVA *p*-value for the whole model, one response only
-            (NaN otherwise). It is a monotone function of :math:`Q^2`.
-          - ``r_train``, ``r_cv``, ``r_cv_threshold``, ``r_cv_p``: correlation of
-            :math:`t_a` and :math:`u_a` on the training rows; the same correlation
-            pooled over the held-out rows (about the training-fold centre, so it is
-            unaffected by sign flips between folds); the :math:`1-\alpha` quantile of
-            its null distribution under permuted Y; and its one-sided permutation
-            *p*-value.
-          - ``slope_ratio``: :math:`s_a`, the held-out slope of the deflated response
-            on :math:`t_a` relative to the training slope. PRESS falls exactly when
-            :math:`s_a > 1/2`; see the module notes.
-          - ``cov_perm_p``: sequential permutation *p*-value for the covariance of
-            component ``a``.
-          - ``angle_component_deg``, ``angle_subspace_deg``: angle between each fold's
-            weight vector :math:`w_a` and the full-data one, and the largest principal
-            angle between the spans of the first ``a`` weights, each scaled by the
-            delete-d jackknife (:math:`\tan\theta \to \sqrt{G-1}\,\text{rms}(\tan\theta_k)`)
-            so that it estimates how far the full-data direction may lie from the
-            population one. Raw fold angles shrink as the number of folds grows (fold
-            models share most of their rows); the scaled ones do not. A large
-            component angle with a small subspace angle means the components swap or
-            mix inside a stable space: loadings are then not interpretable one by one,
-            but SPE, :math:`T^2` and inversion, which depend on the span, are.
-          - ``d_ratio_median``, ``d_ratio_min``: Procrustes D ratios
-            :math:`c_{ka}^\top c_a / c_a^\top c_a` across folds; a negative minimum
-            means some fold reversed the component's inner relation.
-          - ``pv_spe_alarm_rate``, ``pv_t2_alarm_rate``: fraction of the Procrustes
-            pseudo-validation rows above the full-data model's SPE and :math:`T^2`
-            limits at ``conf_level``; nominally ``1 - conf_level``.
-
-        - ``recommendations`` (pandas.DataFrame): one row per selection rule
-          (``q2_max``, ``q2_1se``, ``van_der_voet``, ``score_correlation``,
-          ``covariance_permutation``, ``subspace_stability``, ``pv_spe_alarm``) with
-          the recommended ``n_components``, the ``rule`` and the ``question`` it
-          answers. The structural rules count leading components that pass, stopping
-          at the first failure, and can return 0.
-        - ``press`` (pandas.Series): cross-validated PRESS in original Y units.
-        - ``press_baseline`` (float): PRESS of predicting each held-out row by its
-          training fold's mean.
-        - ``d_ratios`` (pandas.DataFrame): Procrustes D ratio per fold and component.
-        - ``cv_splits`` (list of (train, test) index arrays): the folds used.
-        - ``global_model`` (PLS): the model fitted to all rows with
-          ``max_components`` components.
-        - ``alpha``, ``conf_level``, ``angle_threshold``, ``alarm_rate_upper``
-          (float): the settings used, and the binomial upper bound for the alarm
-          rates.
-
-    Raises
-    ------
-    ValueError
-        For missing values, a splitter that does not hold out every row exactly once,
-        or an out-of-range setting.
-
-    See Also
-    --------
-    PLS.select_n_components : Choose the number of components from prediction alone.
-    pseudo_validation_set : Build the Procrustes pseudo-validation set explicitly.
-    process_improve.multivariate.plots.cv_criteria_plot : Plot the ``table``.
-
-    Examples
-    --------
-    >>> from process_improve.multivariate import compare_cv_criteria
-    >>> result = compare_cv_criteria(X, y, max_components=6, random_state=0)
-    >>> result.recommendations["n_components"]
-    >>> result.table[["q2y", "r_cv", "slope_ratio", "angle_subspace_deg"]]
-    """
-    return _compare_cv_criteria(
-        PLS,
-        X,
-        Y,
-        max_components=max_components,
-        cv=cv,
-        random_state=random_state,
-        n_permutations=n_permutations,
-        n_cv_permutations=n_cv_permutations,
-        alpha=alpha,
-        angle_threshold=angle_threshold,
-        conf_level=conf_level,
-        pls_kwargs=pls_kwargs,
+        alpha=settings.alpha,
+        conf_level=settings.conf_level,
+        angle_threshold=settings.angle_threshold,
+        alarm_rate_upper=monitoring.alarm_rate_upper,
     )
 
 
@@ -906,32 +805,31 @@ def _column_normalise(values: np.ndarray) -> np.ndarray:
     return values / np.where(norms > 0, norms, 1.0)
 
 
-def _pseudo_validation_set(  # noqa: PLR0913
-    estimator: type[PLS],
+def _pseudo_validation_set(
+    estimator: Callable[..., Any],
     X: DataMatrix,
     Y: DataMatrix | pd.Series,
-    *,
-    n_components: int,
-    cv: int | BaseCrossValidator,
-    scope: Literal["global", "local"],
-    random_state: int | np.random.Generator | None,
+    settings: _PseudoValidationSettings,
     pls_kwargs: dict,
 ) -> Bunch:
-    """Shared implementation of :func:`pseudo_validation_set` and :meth:`PLS.pseudo_validation_set`."""
-    if scope not in ("global", "local"):
-        raise ValueError(f"scope must be 'global' or 'local'; got {scope!r}.")
+    """Run :meth:`PLS.pseudo_validation_set` for the estimator class ``estimator``."""
+    if settings.scope not in ("global", "local"):
+        raise ValueError(f"scope must be 'global' or 'local'; got {settings.scope!r}.")
     X_df, Y_df = _as_frames(X, Y)
     _check_scale(pls_kwargs)
     N, K = X_df.shape
-    rng = check_random_state(random_state)
-    splits = _partition_splits(cv, X_df, Y_df, rng=rng, random_state=random_state)
+    rng = check_random_state(settings.random_state)
+    splits = _partition_splits(settings.cv, X_df, Y_df, rng=rng, random_state=settings.random_state)
     (rng_pcv,) = rng.spawn(1)
     cap = _component_cap(splits, K, None)
-    if int(n_components) < 1 or int(n_components) > cap:
-        raise ValueError(f"n_components must lie in [1, {cap}] for these folds; got {n_components}.")
-    A = int(n_components)
+    A = int(settings.n_components)
+    if not 1 <= A <= cap:
+        raise ValueError(f"n_components must lie in [1, {cap}] for these folds; got {settings.n_components}.")
 
-    folds = _fit_folds(estimator, X_df, Y_df, splits, A, pls_kwargs, scope=scope)
+    fold_kwargs = (
+        {**pls_kwargs, "scale": False, "warn_on_uncentred": False} if settings.scope == "global" else pls_kwargs
+    )
+    folds = _fit_folds(lambda: estimator(n_components=A, **fold_kwargs), X_df, Y_df, splits, scope=settings.scope)
     model = estimator(n_components=A, **pls_kwargs).fit(X_df, Y_df)
     pv_scores, squared_spe, d_ratios = _procrustes_scores(model, folds)
 
@@ -951,101 +849,14 @@ def _pseudo_validation_set(  # noqa: PLR0913
         x_pv[fold.test] = pv_scores[fold.test] @ x_loadings.T + residual * factor[:, None]
 
     x_scaler, _ = _global_scaling(X_df, Y_df)
-    X_pv = x_scaler.inverse_transform(pd.DataFrame(x_pv, index=X_df.index, columns=X_df.columns))
     component_index = pd.Index(range(1, A + 1), name="n_components")
     return Bunch(
-        X_pv=X_pv,
+        X_pv=x_scaler.inverse_transform(pd.DataFrame(x_pv, index=X_df.index, columns=X_df.columns)),
         Y_pv=Y_df.copy(),
         scores=pd.DataFrame(pv_scores, index=X_df.index, columns=component_index),
         local_spe=pd.Series(np.sqrt(squared_spe[:, A - 1]), index=X_df.index, name="SPE"),
         d_ratios=pd.DataFrame(d_ratios, index=[f"fold_{k + 1}" for k in range(len(folds))], columns=component_index),
         cv_splits=splits,
         global_model=model,
-        scope=scope,
-    )
-
-
-def pseudo_validation_set(  # noqa: PLR0913
-    X: DataMatrix,
-    Y: DataMatrix | pd.Series,
-    *,
-    n_components: int,
-    cv: int | BaseCrossValidator = 7,
-    scope: Literal["global", "local"] = "global",
-    random_state: int | np.random.Generator | None = None,
-    **pls_kwargs,
-) -> Bunch:
-    r"""Build a Procrustes pseudo-validation set for a PLS model.
-
-    Procrustes cross-validation (Kucheryavskiy, Rodionova and Pomerantsev, 2023) turns
-    the variation between cross-validation fold models into a data set, ``X_pv``, of
-    the same size as ``X``, which the model fitted to all rows can be applied to like an
-    independent test set. For every held-out row, the full-data model returns:
-
-    * scores equal to the row's scores in its fold model, multiplied per component by
-      the D ratio :math:`c_{ka}^\top c_a / c_a^\top c_a`;
-    * an SPE equal to the row's SPE in its fold model.
-
-    With one response and ``scope="global"``, the full-data model's predictions for
-    ``X_pv`` also equal the fold models' predictions for the held-out rows. ``Y_pv``
-    is ``Y`` unchanged.
-
-    Parameters
-    ----------
-    X : array-like of shape (n_samples, n_features)
-        Predictor block, raw scale.
-    Y : array-like of shape (n_samples,) or (n_samples, n_targets)
-        Response block.
-    n_components : int
-        Number of components of the model being validated.
-    cv : int or sklearn splitter, default=7
-        Number of shuffled K-fold segments, or a splitter that holds out every row
-        exactly once.
-    scope : {"global", "local"}, default="global"
-        ``"global"`` (the published default) fits the fold models on rows of the fully
-        autoscaled data without re-centring them; the prediction property above is
-        then exact. ``"local"`` autoscales each training fold separately, as
-        :meth:`PLS.select_n_components` does; scores and SPE are still reproduced
-        exactly, predictions approximately.
-    random_state : int, numpy.random.Generator or None, default=None
-        Seed for the fold assignment and the random directions of the residual part.
-    **pls_kwargs
-        Passed to :class:`PLS` for every fit.
-
-    Returns
-    -------
-    result : sklearn.utils.Bunch
-        With these fields:
-
-        - ``X_pv`` (pandas.DataFrame): pseudo-validation predictors, on the raw scale
-          of ``X``.
-        - ``Y_pv`` (pandas.DataFrame): ``Y``, unchanged.
-        - ``scores`` (pandas.DataFrame): the scores the full-data model gives ``X_pv``.
-        - ``local_spe`` (pandas.Series): SPE of each held-out row in its fold model;
-          the full-data model gives ``X_pv`` the same values.
-        - ``d_ratios`` (pandas.DataFrame): D ratio per fold and component.
-        - ``cv_splits`` (list of (train, test) index arrays): the folds used.
-        - ``global_model`` (PLS): the model fitted to all rows; apply it to ``X_pv``
-          with ``diagnose``.
-        - ``scope`` (str): the scope used.
-
-    See Also
-    --------
-    compare_cv_criteria : Uses the same construction to report alarm rates per component.
-
-    Examples
-    --------
-    >>> pv = pseudo_validation_set(X, y, n_components=2, random_state=0)
-    >>> diagnostics = pv.global_model.diagnose(pv.X_pv)
-    >>> (diagnostics.spe > pv.global_model.spe_limit()).mean()   # out-of-sample SPE alarm rate
-    """
-    return _pseudo_validation_set(
-        PLS,
-        X,
-        Y,
-        n_components=n_components,
-        cv=cv,
-        scope=scope,
-        random_state=random_state,
-        pls_kwargs=pls_kwargs,
+        scope=settings.scope,
     )
