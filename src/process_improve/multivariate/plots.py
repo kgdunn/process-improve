@@ -1585,6 +1585,25 @@ _CV_CRITERIA_PANELS: dict[str, tuple[int, int, str]] = {
 }
 
 
+def _legends_below_panels(fig: go.Figure, panel_legend: dict[tuple[int, int], str]) -> dict[str, dict]:
+    """Layout for one horizontal legend per subplot, in the gap below that subplot."""
+    legends = {}
+    for (row, col), name in panel_legend.items():
+        axis_suffix = "" if (row, col) == (1, 1) else str((row - 1) * 2 + col)
+        x_domain = fig.layout[f"xaxis{axis_suffix}"].domain
+        y_domain = fig.layout[f"yaxis{axis_suffix}"].domain
+        legends[name] = dict(
+            orientation="h",
+            x=x_domain[0],
+            xanchor="left",
+            y=y_domain[0] - (0.05 if row == 1 else 0.1),
+            yanchor="top",
+            font=dict(size=10),
+            borderwidth=0,
+        )
+    return legends
+
+
 def cv_criteria_plot(result: typing.Any, settings: dict | None = None) -> go.Figure:  # noqa: ANN401
     """Plot the per-component table of :func:`compare_cv_criteria` as four small multiples.
 
@@ -1648,7 +1667,7 @@ def cv_criteria_plot(result: typing.Any, settings: dict | None = None) -> go.Fig
         cols=2,
         shared_xaxes=True,
         horizontal_spacing=0.09,
-        vertical_spacing=0.14,
+        vertical_spacing=0.2,
         subplot_titles=[
             "Does the model predict Y?",
             "Does the inner relation hold on new rows?",
@@ -1699,6 +1718,7 @@ def cv_criteria_plot(result: typing.Any, settings: dict | None = None) -> go.Fig
             y=np.r_[q2 + q2_se, (q2 - q2_se)[::-1]],
             fill="toself",
             fillcolor="rgba(213, 94, 0, 0.15)",
+            mode="lines",
             line=dict(width=0),
             hoverinfo="skip",
             name="Q2 +/- 1 SE",
@@ -1732,32 +1752,29 @@ def cv_criteria_plot(result: typing.Any, settings: dict | None = None) -> go.Fig
         if rule in _CV_CRITERIA_PANELS:
             row, col, label = _CV_CRITERIA_PANELS[rule]
             picks.setdefault((row, col, int(n_components)), []).append(label)
-    for (row, col, n_components), labels in picks.items():
-        text = ", ".join(labels)
-        if n_components == 0:
-            fig.add_annotation(
-                text=f"{text}: none validated",
-                xref="x domain" if (row, col) == (1, 1) else f"x{(row - 1) * 2 + col} domain",
-                yref="y domain" if (row, col) == (1, 1) else f"y{(row - 1) * 2 + col} domain",
-                x=0.02,
-                y=0.02,
-                xanchor="left",
-                yanchor="bottom",
-                showarrow=False,
-                font=dict(size=10),
-            )
-            continue
-        fig.add_vline(
-            x=n_components,
-            line=dict(color=REFERENCE_LINE_COLOR, width=1, dash="dot"),
-            annotation_text=text,
-            annotation_font_size=10,
-            annotation_position="top",
-            row=row,
-            col=col,
+    captions: dict[tuple[int, int], list[str]] = {}
+    for (row, col, n_components), labels in sorted(picks.items(), key=lambda item: item[0][2]):
+        captions.setdefault((row, col), []).append(f"{n_components} ({', '.join(labels)})")
+        if n_components > 0:
+            fig.add_vline(x=n_components, line=dict(color=REFERENCE_LINE_COLOR, width=1, dash="dot"), row=row, col=col)
+    for (row, col), parts in captions.items():
+        axis_suffix = "" if (row, col) == (1, 1) else str((row - 1) * 2 + col)
+        fig.add_annotation(
+            text="Recommended: " + "; ".join(parts),
+            xref=f"x{axis_suffix} domain",
+            yref=f"y{axis_suffix} domain",
+            x=0.0,
+            y=1.0,
+            xanchor="left",
+            yanchor="bottom",
+            showarrow=False,
+            font=dict(size=10),
         )
 
-    legend_style = dict(font=dict(size=10), bgcolor="rgba(255,255,255,0.7)", xanchor="right", yanchor="top")
+    legends = _legends_below_panels(fig, panel_legend)
+    # Lift the panel titles clear of the "Recommended" caption drawn above each panel.
+    for annotation in fig.layout.annotations[:4]:
+        annotation.update(yshift=16, font=dict(size=13))
     fig.update_layout(
         template=setdict["template"],
         title_text=setdict["title"],
@@ -1765,12 +1782,11 @@ def cv_criteria_plot(result: typing.Any, settings: dict | None = None) -> go.Fig
         autosize=False,
         width=setdict["html_aspect_ratio_w_over_h"] * setdict["html_image_height"],
         height=setdict["html_image_height"],
-        legend=dict(**legend_style, x=0.45, y=0.98),
-        legend2=dict(**legend_style, x=1.0, y=0.98),
-        legend3=dict(**legend_style, x=0.45, y=0.40),
-        legend4=dict(**legend_style, x=1.0, y=0.40),
+        margin=dict(t=90, b=110),
     )
-    fig.update_xaxes(dtick=1, title_text="Number of components", row=2)
+    fig.update_layout(legends)
+    fig.update_xaxes(dtick=1)
+    fig.update_xaxes(title_text="Number of components", row=2)
     fig.update_yaxes(title_text="Fraction of Y explained", row=1, col=1)
     fig.update_yaxes(title_text="Correlation", row=1, col=2)
     fig.update_yaxes(title_text="Angle (degrees)", range=[0, 90], row=2, col=1)
