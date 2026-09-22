@@ -301,6 +301,7 @@ def test_max_components_is_capped() -> None:
         ({"n_cv_permutations": -1}, "n_cv_permutations"),
         ({"angle_threshold": 120.0}, "angle_threshold"),
         ({"max_components": 0}, "max_components"),
+        ({"scale": False}, "scale=False"),
     ],
 )
 def test_invalid_settings_raise(kwargs: dict, message: str) -> None:
@@ -324,6 +325,8 @@ def test_pseudo_validation_set_rejects_bad_arguments() -> None:
         pseudo_validation_set(X, Y, n_components=2, scope="elsewhere")  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="n_components"):
         pseudo_validation_set(X, Y, n_components=50)
+    with pytest.raises(ValueError, match="scale=False"):
+        pseudo_validation_set(X, Y, n_components=2, scale=False)
 
 
 def test_classmethods_fit_with_the_subclass() -> None:

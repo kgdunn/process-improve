@@ -200,10 +200,8 @@ def _fold_from_model(  # noqa: PLR0913
     )
 
 
-def _global_scaling(X: pd.DataFrame, Y: pd.DataFrame, pls_kwargs: dict) -> tuple[MCUVScaler | None, MCUVScaler | None]:
-    """Return the scalers that map raw data into the full-data model's space (None if unscaled)."""
-    if not pls_kwargs.get("scale", True):
-        return None, None
+def _global_scaling(X: pd.DataFrame, Y: pd.DataFrame) -> tuple[MCUVScaler, MCUVScaler]:
+    """Scalers mapping raw data into the space of the model fitted to all rows."""
     return MCUVScaler().fit(X), MCUVScaler().fit(Y)
 
 
@@ -226,11 +224,9 @@ def _fit_folds(  # noqa: PLR0913
     """
     folds: list[_Fold] = []
     if scope == "global":
-        x_scaler, y_scaler = _global_scaling(X, Y, pls_kwargs)
-        Xs = x_scaler.transform(X) if x_scaler is not None else X
-        Ys = y_scaler.transform(Y) if y_scaler is not None else Y
-        y_centre = y_scaler.center_.to_numpy() if y_scaler is not None else np.zeros(Y.shape[1])
-        y_scale = y_scaler.scale_.to_numpy() if y_scaler is not None else np.ones(Y.shape[1])
+        x_scaler, y_scaler = _global_scaling(X, Y)
+        Xs, Ys = x_scaler.transform(X), y_scaler.transform(Y)
+        y_centre, y_scale = y_scaler.center_.to_numpy(), y_scaler.scale_.to_numpy()
         fold_kwargs = {**pls_kwargs, "scale": False, "warn_on_uncentred": False}
         for train, test in splits:
             model = estimator(n_components=n_components, **fold_kwargs).fit(Xs.iloc[train], Ys.iloc[train])
@@ -559,6 +555,16 @@ def _cv_anova_pvalues(q2: np.ndarray, N: int, M: int) -> np.ndarray:
     return p_values
 
 
+def _check_scale(pls_kwargs: dict) -> None:
+    """Reject ``scale=False``: every fold is autoscaled, so the full-data model must be too."""
+    if pls_kwargs.get("scale", True) is False:
+        raise ValueError(
+            "scale=False is not supported: each training fold is autoscaled, and the model fitted to all "
+            "rows must live in the same space for the angles and the Procrustes step to compare them. "
+            "Pass X and Y on their raw scale."
+        )
+
+
 def _check_probability(name: str, value: float) -> None:
     if not 0.0 < value < 1.0:
         raise ValueError(f"{name} must lie in (0, 1); got {value}.")
@@ -581,6 +587,7 @@ def _compare_cv_criteria(  # noqa: PLR0913, PLR0915
 ) -> Bunch:
     """Shared implementation of :func:`compare_cv_criteria` and :meth:`PLS.compare_cv_criteria`."""
     X_df, Y_df = _as_frames(X, Y)
+    _check_scale(pls_kwargs)
     if int(n_permutations) < 1:
         raise ValueError(f"n_permutations must be >= 1; got {n_permutations}.")
     if int(n_cv_permutations) < 0:
@@ -624,9 +631,9 @@ def _compare_cv_criteria(  # noqa: PLR0913, PLR0915
     t_scores = np.asarray(model.scores_)
     u_scores = np.asarray(model.y_scores_)
     r_train = np.array([_correlation_about_origin(t_scores[:, a], u_scores[:, a]) for a in range(A)])
-    x_scaler, y_scaler = _global_scaling(X_df, Y_df, pls_kwargs)
-    x_scaled = (x_scaler.transform(X_df) if x_scaler is not None else X_df).to_numpy()
-    y_scaled = (y_scaler.transform(Y_df) if y_scaler is not None else Y_df).to_numpy()
+    x_scaler, y_scaler = _global_scaling(X_df, Y_df)
+    x_scaled = x_scaler.transform(X_df).to_numpy()
+    y_scaled = y_scaler.transform(Y_df).to_numpy()
     if int(n_cv_permutations) > 0:
         r_cv_p, r_cv_threshold = _score_correlation_pvalues(
             X_df.to_numpy(), y_values, splits, held.r_cv, int(n_cv_permutations), alpha, rng_null
@@ -914,6 +921,7 @@ def _pseudo_validation_set(  # noqa: PLR0913
     if scope not in ("global", "local"):
         raise ValueError(f"scope must be 'global' or 'local'; got {scope!r}.")
     X_df, Y_df = _as_frames(X, Y)
+    _check_scale(pls_kwargs)
     N, K = X_df.shape
     rng = check_random_state(random_state)
     splits = _partition_splits(cv, X_df, Y_df, rng=rng, random_state=random_state)
@@ -942,10 +950,8 @@ def _pseudo_validation_set(  # noqa: PLR0913
         factor = np.where(norms > 0, target / np.where(norms > 0, norms, 1.0), 0.0)
         x_pv[fold.test] = pv_scores[fold.test] @ x_loadings.T + residual * factor[:, None]
 
-    x_scaler, _ = _global_scaling(X_df, Y_df, pls_kwargs)
-    X_pv = pd.DataFrame(x_pv, index=X_df.index, columns=X_df.columns)
-    if x_scaler is not None:
-        X_pv = x_scaler.inverse_transform(X_pv)
+    x_scaler, _ = _global_scaling(X_df, Y_df)
+    X_pv = x_scaler.inverse_transform(pd.DataFrame(x_pv, index=X_df.index, columns=X_df.columns))
     component_index = pd.Index(range(1, A + 1), name="n_components")
     return Bunch(
         X_pv=X_pv,
