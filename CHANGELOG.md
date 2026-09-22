@@ -309,6 +309,31 @@ The third item of #374, double cross-validation for PLS, is already provided by
 
 ### Changed
 
+- **`max_iter` defaults to 500 on every iterative estimator (#588).** `PCA`, `PLS` and
+  `OPLS` used 1000; `MBPCA`, `MBPLS` and `TPLS` already used 500. One number now, so a
+  caller carrying a mental model between two estimators is not surprised.
+
+  This was measured before it was changed. Instrumenting every fit in the test suite,
+  20,536 components across 8,717 fits: the median component converges in 6 iterations,
+  p99 is 79, p99.9 is 335, and only 15 exceed 500. Fourteen of those already fail to
+  converge at 1000, so they emit the non-convergence warning today and a lower cap only
+  makes them say so sooner. Exactly one converges in the 501-1000 band, at 803
+  iterations, inside a permutation null where slow convergence is expected because there
+  is no dominant direction to find.
+
+  A caller whose data is well conditioned will not notice. A caller whose data is not
+  already gets a `SpecificationWarning` naming the cap.
+
+- **`MBPCA(tol=...)` and `MBPLS(tol=...)` default to `epsqrt` instead of `None` (#588).**
+  Both declared `tol: float | None = None` and substituted `epsqrt` inside `fit`. Same
+  value, one less branch, and `get_params()["tol"]` now reports what the fit will use
+  rather than `None`, which is what an sklearn caller inspecting a cloned estimator
+  expects.
+
+- **One resolver for the loop settings (#588).** `PCA`, `PLS`, `MBPCA` and `MBPLS` each
+  carried their own copy of the precedence rule and the tolerance-bounds check. They now
+  share `resolve_loop_settings`, so the contract is defined once.
+
 - **`### Deprecated` maps to MINOR, not PATCH, when choosing a release's
   version level.** The table added in #591 put it under PATCH, which
   contradicted `docs/development/deprecation_policy.rst`: that document
@@ -362,6 +387,30 @@ The third item of #374, double cross-validation for PLS, is already provided by
 
 ### Deprecated
 
+- **`missing_data_settings["md_tol"]` and `["md_max_iter"]` are deprecated (#588)**, on
+  `PCA`, `PLS`, `MBPCA` and `MBPLS`. Pass `tol` and `max_iter` to the constructor
+  instead. They predate those parameters existing on these estimators, and they describe
+  a convergence setting as a missing-data setting, which it is not: the loop runs, and
+  needs a tolerance, whether or not a cell is missing.
+
+  They still take effect and still override the constructor, because silently demoting a
+  value a caller set would be worse than warning about it. Removal in 2.0.
+
+  `md_method` is **not** deprecated, and neither is `missing_data_settings` itself: that
+  key names the imputation algorithm, which is the one axis the dict still owns.
+
+- **`PCA.select_n_components(n_iter=..., tol=...)` are deprecated in favour of
+  `ekf_max_iter` and `ekf_tol` (#588).** They bound the EM loop of the element-wise
+  k-fold imputation, which is a different loop from the per-component NIPALS loop that
+  `PCA(tol=..., max_iter=...)` governs.
+
+  `tol` had become a collision rather than a mere inconsistency: a parameter captured in
+  that signature can never reach the `PCA` constructor through `**pca_kwargs`, so the
+  name meant the EM loop here and the per-component loop everywhere else, with no way to
+  set the latter from here. Once the aliases are removed in 2.0, `tol` and `max_iter`
+  will pass through to `PCA` like any other keyword. Until then the old names still
+  work, still win, and warn.
+
 - **`TPLS.tolerance_` is deprecated in favour of `TPLS.tol` (#588).** Reading it
   returns `tol` and raises a `DeprecationWarning`; removal is scheduled for 2.0, per
   `docs/development/deprecation_policy.rst`.
@@ -400,6 +449,15 @@ The third item of #374, double cross-validation for PLS, is already provided by
   `docs/development/deprecation_policy.rst`.
 
 ### Fixed
+
+- **`MBPCA` and `MBPLS` no longer ignore `missing_data_settings` (#588).** Both resolved
+  the dict at the top of `fit` and threw the result away, keeping only the validation it
+  performed on the way, so a caller's settings were checked and then had no effect.
+
+  Measured on `MBPCA` before the change, two components on a 30-row two-block fit:
+  `{"md_tol": 1e-1, "md_max_iter": 3}` ran 180 and 85 iterations, exactly what passing
+  nothing ran, while `tol=1e-1, max_iter=3` ran 3 and 3. The dict now gives 3 and 3 too,
+  with the deprecation warning above. A default fit is unchanged.
 
 - **`PLS(tol=...)` is no longer dropped when the data has missing cells (#588).**
   The missing-data branch of the settings resolution hard-coded the NIPALS
