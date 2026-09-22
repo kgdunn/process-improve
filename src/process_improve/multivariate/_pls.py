@@ -2037,6 +2037,84 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         )
 
     @classmethod
+    def compare_cv_criteria(  # noqa: PLR0913
+        cls,
+        X: DataMatrix,
+        Y: DataMatrix | pd.Series,
+        *,
+        max_components: int | None = None,
+        cv: int | BaseCrossValidator = 7,
+        random_state: int | np.random.Generator | None = None,
+        n_permutations: int = 999,
+        alpha: float = 0.05,
+        angle_threshold: float = 30.0,
+        conf_level: float = 0.95,
+        **pls_kwargs,
+    ) -> Bunch:
+        """Compare predictive and latent-structure validation criteria, per component.
+
+        Classmethod form of :func:`process_improve.multivariate.compare_cv_criteria`;
+        every fit uses ``cls``, so a subclass of :class:`PLS` is validated as itself.
+        See that function for the parameters and the returned fields.
+
+        Examples
+        --------
+        >>> result = PLS.compare_cv_criteria(X, y, max_components=6, random_state=0)
+        >>> result.recommendations["n_components"]
+        """
+        from ._cv_criteria import _compare_cv_criteria  # noqa: PLC0415 - _cv_criteria imports this module
+
+        return _compare_cv_criteria(
+            cls,
+            X,
+            Y,
+            max_components=max_components,
+            cv=cv,
+            random_state=random_state,
+            n_permutations=n_permutations,
+            alpha=alpha,
+            angle_threshold=angle_threshold,
+            conf_level=conf_level,
+            pls_kwargs=pls_kwargs,
+        )
+
+    @classmethod
+    def pseudo_validation_set(  # noqa: PLR0913
+        cls,
+        X: DataMatrix,
+        Y: DataMatrix | pd.Series,
+        *,
+        n_components: int,
+        cv: int | BaseCrossValidator = 7,
+        scope: typing.Literal["global", "local"] = "global",
+        random_state: int | np.random.Generator | None = None,
+        **pls_kwargs,
+    ) -> Bunch:
+        """Build a Procrustes pseudo-validation set for a model of this class.
+
+        Classmethod form of :func:`process_improve.multivariate.pseudo_validation_set`;
+        every fit uses ``cls``. See that function for the parameters and the returned
+        fields.
+
+        Examples
+        --------
+        >>> pv = PLS.pseudo_validation_set(X, y, n_components=2, random_state=0)
+        >>> pv.global_model.diagnose(pv.X_pv).spe
+        """
+        from ._cv_criteria import _pseudo_validation_set  # noqa: PLC0415 - _cv_criteria imports this module
+
+        return _pseudo_validation_set(
+            cls,
+            X,
+            Y,
+            n_components=n_components,
+            cv=cv,
+            scope=scope,
+            random_state=random_state,
+            pls_kwargs=pls_kwargs,
+        )
+
+    @classmethod
     def nested_cv(  # noqa: PLR0913, PLR0915
         cls,
         X: DataMatrix,
