@@ -48,7 +48,7 @@ from ._preprocessing import MCUVScaler
 #: iteration cap nor a convergence tolerance has anything to bind to. They stay on the
 #: signature through the deprecation window so ``get_params`` / ``set_params`` / ``clone``
 #: keep working for code that already passes them.
-_DEPRECATED_INERT_PARAMS: typing.Final = {"max_iter": 1000, "tol": epsqrt}
+_DEPRECATED_INERT_PARAMS: typing.Final = {"max_iter": 500, "tol": epsqrt}
 
 
 def _warn_about_inert_parameters(model: OPLS) -> None:
@@ -88,7 +88,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         (with :class:`MCUVScaler`). Predictions and ``beta_coefficients_`` are
         returned on the original data scale. Set ``False`` when the inputs are
         already scaled.
-    max_iter : int, default=1000
+    max_iter : int, default=500
         Deprecated since 1.96.0 and ignored; it will be removed in 2.0. The
         single-response Trygg-Wold algorithm used here is closed form: the
         predictive weight is :math:`X'y` normalised, and the orthogonal
@@ -180,7 +180,7 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         n_orthogonal_components: int,
         *,
         scale: bool = True,
-        max_iter: int = 1000,
+        max_iter: int = 500,
         tol: float = epsqrt,
         copy: bool = True,
     ):

@@ -1,6 +1,7 @@
 # (c) Kevin Dunn, 2010-2026. MIT License.
 
 import copy
+import inspect
 import io
 import pathlib
 import urllib.request
@@ -27,6 +28,9 @@ from sklearn.utils import Bunch
 from process_improve.multivariate._common import _nz
 from process_improve.multivariate._pca import _leverage_corrected_press, _pca_ekf_press
 from process_improve.multivariate.methods import (
+    MBPCA,
+    MBPLS,
+    OPLS,
     PCA,
     PLS,
     TPLS,
@@ -6432,3 +6436,169 @@ class TestTplsToleranceParameter:
 
         assert not scaling.isna().any(), "a column with real variance was dropped as degenerate"
         assert centering.notna().all()
+
+
+class TestIterationSettingsAreConsistentAcrossEstimators:
+    """One contract for `tol` and `max_iter`, checked across every estimator that has them.
+
+    #588 found five spellings of the same two settings. These tests are written over the
+    set of estimators rather than one each, so an estimator added later that forgets the
+    contract fails here rather than passing quietly.
+    """
+
+    #: Every estimator that iterates per component, with a factory that builds one with
+    #: the given keyword arguments and fits it. Kept as callables because the fit
+    #: signatures differ: PLS and MBPLS need a Y, the multiblock pair take dicts.
+    @staticmethod
+    def _blocks() -> tuple[dict[str, pd.DataFrame], pd.DataFrame, pd.DataFrame]:
+        rng = np.random.default_rng(seed=21)
+        x = pd.DataFrame(rng.normal(size=(30, 5)), columns=[f"x{i}" for i in range(5)])
+        y = pd.DataFrame(rng.normal(size=(30, 1)), columns=["y"])
+        blocks = {"a": x.iloc[:, :3], "b": x.iloc[:, 3:]}
+        return blocks, x, y
+
+    def _fitters(self) -> dict:
+        blocks, x, y = self._blocks()
+        return {
+            "PCA": lambda **kw: PCA(n_components=2, algorithm="nipals", **kw).fit(x),
+            "PLS": lambda **kw: PLS(n_components=2, **kw).fit(x, y),
+            "MBPCA": lambda **kw: MBPCA(n_components=2, **kw).fit(blocks),
+            "MBPLS": lambda **kw: MBPLS(n_components=2, **kw).fit(blocks, y),
+        }
+
+    @pytest.mark.parametrize("name", ["PCA", "PLS", "MBPCA", "MBPLS"])
+    def test_the_defaults_are_the_same_everywhere(self, name: str) -> None:
+        """`tol` is epsqrt and `max_iter` is 500 on every one of them."""
+        model = self._fitters()[name]()
+        assert model.tol == epsqrt, f"{name}.tol is not epsqrt"
+        assert model.max_iter == 500, f"{name}.max_iter is not 500"
+
+    @pytest.mark.parametrize("name", ["PCA", "PLS", "MBPCA", "MBPLS", "OPLS", "TPLS"])
+    def test_no_estimator_uses_a_none_sentinel(self, name: str) -> None:
+        """A default of `None` would hide the value `get_params` should report.
+
+        `MBPCA` and `MBPLS` used to declare `tol: float | None = None` and substitute
+        `epsqrt` inside `fit`, so a caller inspecting a cloned estimator saw `None` and
+        could not tell what the fit would use.
+        """
+        classes = {"PCA": PCA, "PLS": PLS, "MBPCA": MBPCA, "MBPLS": MBPLS, "OPLS": OPLS, "TPLS": TPLS}
+        signature = inspect.signature(classes[name].__init__)
+        for parameter_name in ("tol", "max_iter"):
+            parameter = signature.parameters.get(parameter_name)
+            if parameter is None:  # TPLS has no missing-data path; OPLS's are deprecated
+                continue
+            assert parameter.default is not None, f"{name}.{parameter_name} still defaults to None"
+            assert isinstance(parameter.default, (int, float)), (
+                f"{name}.{parameter_name} default is {parameter.default!r}, not a number"
+            )
+
+    @pytest.mark.parametrize("name", ["PCA", "PLS", "MBPCA", "MBPLS"])
+    def test_max_iter_caps_the_loop_on_every_estimator(self, name: str) -> None:
+        """A cap low enough to bite stops the loop there, and says so."""
+        with pytest.warns(SpecificationWarning):
+            model = self._fitters()[name](max_iter=2)
+        iterations = np.asarray(model.fitting_info_["iterations"], dtype=float)
+        assert np.all(iterations <= 2), f"{name} ran past max_iter: {iterations}"
+
+    @pytest.mark.parametrize("name", ["PCA", "PLS", "MBPCA", "MBPLS"])
+    def test_tol_reaches_the_loop_on_every_estimator(self, name: str) -> None:
+        """A looser tolerance converges in no more iterations than a tighter one.
+
+        Stated as "no more" rather than "strictly fewer" because an estimator whose
+        default already converges in two iterations on this data has no room to improve;
+        the strict version is checked per estimator elsewhere.
+        """
+        fit = self._fitters()[name]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", SpecificationWarning)
+            loose = np.sum(np.asarray(fit(tol=1e-1).fitting_info_["iterations"], dtype=float))
+            tight = np.sum(np.asarray(fit(tol=1e-10).fitting_info_["iterations"], dtype=float))
+        assert loose <= tight, f"{name}: tol=1e-1 took {loose} iterations, tol=1e-10 took {tight}"
+
+    @pytest.mark.parametrize("key", ["md_tol", "md_max_iter"])
+    @pytest.mark.parametrize("name", ["PCA", "PLS", "MBPCA", "MBPLS"])
+    def test_the_md_keys_warn_but_still_take_effect(self, name: str, key: str) -> None:
+        """Deprecated, not ignored: silently demoting a value a caller set would be worse."""
+        value = 1e-1 if key == "md_tol" else 2
+        fit = self._fitters()[name]
+        with pytest.warns(DeprecationWarning, match=rf"missing_data_settings\['{key}'\]"):
+            model = fit(missing_data_settings={key: value})
+        iterations = np.asarray(model.fitting_info_["iterations"], dtype=float)
+        if key == "md_max_iter":
+            assert np.all(iterations <= value), f"{name}: md_max_iter did not cap the loop"
+
+    @pytest.mark.parametrize("name", ["PCA", "PLS", "MBPCA", "MBPLS"])
+    def test_a_default_fit_does_not_warn(self, name: str) -> None:
+        """None of the deprecations fire for a caller who passes nothing."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            warnings.simplefilter("ignore", SpecificationWarning)
+            self._fitters()[name]()
+
+    @pytest.mark.parametrize("name", ["MBPCA", "MBPLS"])
+    def test_the_multiblock_pair_no_longer_discards_the_dict(self, name: str) -> None:
+        """They resolved `missing_data_settings` and threw the result away (#588).
+
+        Measured before the fix: `md_max_iter=3` ran the same 180 and 85 iterations as
+        passing nothing. The dict has to change the fit, or it is decoration.
+        """
+        fit = self._fitters()[name]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            ignored_before = np.asarray(fit().fitting_info_["iterations"], dtype=float)
+            honoured = np.asarray(
+                fit(missing_data_settings={"md_max_iter": 1}).fitting_info_["iterations"], dtype=float
+            )
+        # A cap of 1 bites for both: MBPLS needs 2 iterations per component on this data
+        # and MBPCA far more, so anything above 1 would leave MBPLS unable to go lower.
+        assert np.all(honoured <= 1)
+        assert np.sum(honoured) < np.sum(ignored_before), f"{name}: the dict still has no effect"
+
+
+class TestEkfLoopKnobsWereRenamed:
+    """`select_n_components` took `n_iter` and `tol` for the ekf EM loop (#588).
+
+    `tol` in particular collided once `PCA` itself gained one: a parameter captured in
+    that signature can never reach the `PCA` constructor through `**pca_kwargs`, so the
+    name meant the EM loop here and the per-component loop everywhere else.
+    """
+
+    @staticmethod
+    def _x() -> pd.DataFrame:
+        rng = np.random.default_rng(seed=4)
+        return pd.DataFrame(rng.normal(size=(30, 5)))
+
+    def test_the_new_names_are_silent(self) -> None:
+        """No deprecation fires for a caller who has moved to `ekf_max_iter` / `ekf_tol`."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            PCA.select_n_components(self._x(), max_components=3, cv=3, ekf_max_iter=5, ekf_tol=1e-4, random_state=0)
+
+    @pytest.mark.parametrize(("old_name", "new_name"), [("n_iter", "ekf_max_iter"), ("tol", "ekf_tol")])
+    def test_each_old_name_warns(self, old_name: str, new_name: str) -> None:
+        """Deprecated for one cycle, naming the replacement."""
+        value = 5 if old_name == "n_iter" else 1e-4
+        with pytest.warns(DeprecationWarning, match=rf"select_n_components\({old_name}=\.\.\.\).*{new_name}"):
+            PCA.select_n_components(self._x(), max_components=3, cv=3, random_state=0, **{old_name: value})
+
+    def test_the_old_names_still_do_what_they_did(self) -> None:
+        """Deprecation must not change the answer while the alias is still accepted."""
+        x = self._x()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            old = PCA.select_n_components(x, max_components=3, cv=3, n_iter=5, tol=1e-4, random_state=0)
+        new = PCA.select_n_components(x, max_components=3, cv=3, ekf_max_iter=5, ekf_tol=1e-4, random_state=0)
+        np.testing.assert_allclose(old.q2.to_numpy(), new.q2.to_numpy())
+        assert old.n_components == new.n_components
+
+    def test_the_ekf_cap_actually_bounds_the_em_loop(self) -> None:
+        """Otherwise the rename would be cosmetic: the parameter has to reach the loop.
+
+        A cap of one EM iteration leaves the imputation far from converged, so the
+        cross-validated Q-squared differs from a well-converged run. Equality would mean
+        the value is being ignored.
+        """
+        x = self._x()
+        stingy = PCA.select_n_components(x, max_components=3, cv=3, ekf_max_iter=1, random_state=0)
+        patient = PCA.select_n_components(x, max_components=3, cv=3, ekf_max_iter=50, random_state=0)
+        assert not np.allclose(stingy.q2.to_numpy(), patient.q2.to_numpy()), "ekf_max_iter did not reach the EM loop"

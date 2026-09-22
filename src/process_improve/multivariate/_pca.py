@@ -35,6 +35,7 @@ from ._common import (
     _reject_sparse,
     _select_n_components,
     epsqrt,
+    resolve_loop_settings,
 )
 from ._nipals import quick_regress, ssq, terminate_check
 from ._preprocessing import MCUVScaler, _warn_scaling_traps
@@ -60,8 +61,8 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
     *,
     n_folds: int = 5,
     n_repeats: int = 1,
-    n_iter: int = 50,
-    tol: float = 1e-6,
+    ekf_max_iter: int = 50,
+    ekf_tol: float = 1e-6,
     scale_inside_folds: bool = True,
     random_state: int | None = None,
 ) -> _EkfPress:
@@ -94,11 +95,14 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
         permutation. Each repeat covers every cell exactly once; ``n_repeats
         > 1`` averages over different element-fold partitions, narrowing
         the per-component PRESS standard error at extra runtime.
-    n_iter : int, default 50
-        Maximum number of EM iterations per fold and component count.
-    tol : float, default 1e-6
+    ekf_max_iter : int, default 50
+        Maximum number of EM iterations per fold and component count. Named
+        for the loop it bounds: this is the imputation EM inside one fold, a
+        different loop from the per-component NIPALS loop that ``PCA.max_iter``
+        caps (#588).
+    ekf_tol : float, default 1e-6
         Relative change in the held-out cell predictions below which EM
-        stops early.
+        stops early. Likewise distinct from ``PCA.tol``.
     scale_inside_folds : bool, default True
         If True, fit per-column mean and unit-variance constants on each
         fold's in-fold cells and apply them to the whole matrix before
@@ -250,7 +254,7 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
                 # how many EM iterations are taken (#546). Under
                 # scale_inside_folds=False the divisor is 1 throughout.
                 prev_held = Xa[impute] / np.broadcast_to(col_scale, X.shape)[impute]
-                for _iteration in range(n_iter):
+                for _iteration in range(ekf_max_iter):
                     if scale_inside_folds:
                         # Centre and scale by the FIXED in-fold constants; the
                         # in-fold cells now sit on the analysis scale and the
@@ -274,7 +278,7 @@ def _pca_ekf_press(  # noqa: PLR0913, PLR0915, PLR0912, C901
                     held = Xa[impute] / np.broadcast_to(col_scale, X.shape)[impute]
                     delta = np.linalg.norm(held - prev_held)
                     scale = max(1.0, float(np.linalg.norm(prev_held)))
-                    if delta < tol * scale:
+                    if delta < ekf_tol * scale:
                         break
                     prev_held = held
 
@@ -762,17 +766,18 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         See :func:`terminate_check`. Ignored by ``algorithm="svd"``, which is
         direct rather than iterative.
 
-    max_iter : int, default=1000
+    max_iter : int, default=500
         Maximum number of iterations per component for the iterative
         algorithms. A component that reaches the cap without converging emits
-        a :class:`SpecificationWarning`. Ignored by ``algorithm="svd"``.
+        a :class:`SpecificationWarning`. Ignored by ``algorithm="svd"``. The
+        same default as every other iterative estimator in the package (#588).
 
     missing_data_settings : dict or None, default=None
-        Settings for the iterative algorithms (NIPALS, TSR), overriding the
-        constructor for this fit. Keys: ``md_tol`` and ``md_max_iter``, which
-        default to this model's ``tol`` and ``max_iter``. Prefer setting those
-        two directly; this dict exists for the case where the missing-data
-        path needs to differ from the fit.
+        Deprecated keys ``md_tol`` and ``md_max_iter``, which override ``tol``
+        and ``max_iter`` for this fit and warn when used. They are removed in
+        2.0; set ``tol`` and ``max_iter`` instead. The dict itself stays: it is
+        where the imputation method is named on the estimators that offer a
+        choice.
 
     Attributes (after fitting)
     --------------------------
@@ -830,7 +835,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         *,
         algorithm: str = "auto",
         tol: float = epsqrt,
-        max_iter: int = 1000,
+        max_iter: int = 500,
         missing_data_settings: dict | None = None,
     ):
         self.n_components = n_components
@@ -901,7 +906,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         return np.asarray([f"PC{a}" for a in self._component_names])
 
     @_fit_context(prefer_skip_nested_validation=True)
-    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA:  # noqa: ARG002, PLR0912, PLR0915, C901
+    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA:  # noqa: ARG002, PLR0915, C901
         """Fit a principal component analysis (PCA) model to the data.
 
         Parameters
@@ -983,24 +988,18 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             raise ValueError("SVD algorithm cannot handle missing data. Use 'nipals', 'tsr', or 'auto'.")
         self.algorithm_ = algo
 
-        # Build settings for the iterative algorithms. The defaults come from this
-        # model's own ``tol`` and ``max_iter``, and an explicit
-        # ``missing_data_settings`` overrides individual keys on top (#588).
-        #
-        # These two used to be reachable only through that dict, so a caller had to
-        # describe a convergence setting as a missing-data setting even on complete
-        # data. The literals the dict was seeded with, ``epsqrt`` and 1000, are now
-        # the constructor defaults, so a model built either way fits identically.
-        settings = {"md_tol": self.tol, "md_max_iter": self.max_iter}
-        if isinstance(self.missing_data_settings, dict):
-            settings.update(self.missing_data_settings)
-        settings["md_max_iter"] = int(settings["md_max_iter"])
-
-        if algo in ("nipals", "tsr"):
-            if not settings["md_tol"] < 10:
-                raise ValueError("Tolerance should not be too large.")
-            if not settings["md_tol"] > epsqrt**1.95:
-                raise ValueError("Tolerance must exceed machine precision.")
+        # One resolver for every iterative estimator, so the precedence and the
+        # deprecation of the ``md_*`` keys are defined in a single place (#588). The
+        # bounds are checked only for the iterative algorithms: under ``"svd"`` the
+        # tolerance governs nothing, and rejecting a value that cannot matter would
+        # refuse a fit that is perfectly well posed.
+        settings = resolve_loop_settings(
+            tol=self.tol,
+            max_iter=self.max_iter,
+            missing_data_settings=self.missing_data_settings,
+            validate=algo in ("nipals", "tsr"),
+            estimator_name="PCA",
+        )
 
         # Storage for numpy results (set by _fit_* methods)
         X_values = np.asarray(X.copy())
@@ -1792,8 +1791,10 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         selection_rule: SelectionRule = "min",
         min_q2_increase: float = Q2_MIN_INCREMENT,
         scale_inside_folds: bool = True,
-        n_iter: int = 50,
-        tol: float = 1e-6,
+        ekf_max_iter: int = 50,
+        ekf_tol: float = 1e-6,
+        n_iter: int | None = None,
+        tol: float | None = None,
         random_state: int | None = None,
         return_consensus: bool = False,
         threshold: float | None = None,
@@ -1912,9 +1913,20 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             detectable half of that case; a block scaled some other way
             cannot be recognised, so the rule is the caller's to keep.
             Same contract as :meth:`PLS.select_n_components`.
-        n_iter, tol : int and float, default 50 and 1e-6
+        ekf_max_iter, ekf_tol : int and float, default 50 and 1e-6
             EM iteration cap and convergence tolerance for the ekf imputation
-            step. Ignored under ``cv_scheme="row_wise"``.
+            step. Ignored under ``cv_scheme="row_wise"``. Named for the loop
+            they bound: that EM loop is not the per-component NIPALS loop, which
+            ``PCA(tol=..., max_iter=...)`` governs (#588).
+        n_iter, tol : int and float, optional
+            Deprecated since 1.96.0 aliases for ``ekf_max_iter`` and ``ekf_tol``;
+            they still take effect and warn, and are removed in 2.0. ``tol`` was
+            renamed because ``PCA`` itself gained a ``tol``, and a parameter
+            captured here can never reach the ``PCA`` constructor through
+            ``**pca_kwargs``: one name meaning two loops, depending on which
+            function you call, is the inconsistency this closes. Once these are
+            removed, ``tol`` and ``max_iter`` will pass through to ``PCA`` like
+            any other keyword.
         random_state : int, optional
             Seed for the ekf element-fold permutation.
         return_consensus : bool, default False
@@ -2028,6 +2040,31 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                 stacklevel=2,
             )
 
+        # ``n_iter`` and ``tol`` named the ekf EM loop's cap and tolerance. They are
+        # now ``ekf_max_iter`` and ``ekf_tol``, so that ``tol`` and ``max_iter`` mean
+        # the estimator's own per-component loop everywhere in the package (#588).
+        # A sentinel default distinguishes an explicit pass from an absent one, and an
+        # explicit one still wins so existing calls keep their behaviour.
+        for old_name, old_value, new_name in (
+            ("n_iter", n_iter, "ekf_max_iter"),
+            ("tol", tol, "ekf_tol"),
+        ):
+            if old_value is None:
+                continue
+            warnings.warn(
+                f"PCA.select_n_components({old_name}=...) is deprecated since 1.96.0 "
+                f"and will be removed in 2.0; use {new_name}={old_value!r} instead. "
+                f"It was renamed because PCA itself now has tol and max_iter for its "
+                f"per-component loop, which is a different loop from the ekf "
+                f"imputation EM this bounds.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        if n_iter is not None:
+            ekf_max_iter = n_iter
+        if tol is not None:
+            ekf_tol = tol
+
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
 
@@ -2059,8 +2096,8 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
                 max_components,
                 n_folds=n_folds,
                 n_repeats=n_repeats,
-                n_iter=n_iter,
-                tol=tol,
+                ekf_max_iter=ekf_max_iter,
+                ekf_tol=ekf_tol,
                 scale_inside_folds=scale_inside_folds,
                 random_state=random_state,
             )
