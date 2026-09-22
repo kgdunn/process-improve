@@ -13,6 +13,24 @@ those changes.
 
 ### Added
 
+- **`PCA(tol=..., max_iter=...)` and `TPLS(tol=...)`: the loop settings are now
+  constructor parameters (#588).** Six iterative estimators spelled their
+  convergence tolerance and iteration cap five different ways, and these two were
+  the ones a caller could not reach at all.
+
+  `PCA` read both from `missing_data_settings`, so setting a convergence tolerance
+  meant describing it as a missing-data setting even on complete data, where
+  nothing is missing. `tol` and `max_iter` now sit on the constructor and supply
+  the defaults; an explicit `missing_data_settings` still overrides individual keys
+  on top, so existing callers are unaffected. The dict was seeded with `epsqrt` and
+  1000, which are now the parameter defaults, so a model built either way fits
+  identically.
+
+  `TPLS` had no way to reach its tolerance: it was a hard-coded `tolerance_`
+  attribute. It is now `tol`, defaulting to the same `epsqrt` that was hard-coded.
+  It is the last parameter in the signature so that no existing positional argument
+  changed position.
+
 - **`unfold_blocks`: batchwise unfolding into several blocks (#193).** Aligned batch
   data has been unfoldable for a long time, one block at a time, via `dict_to_wide`.
   What was missing was a way to hand several blocks to a multi-block model.
@@ -288,7 +306,26 @@ The third item of #374, double cross-validation for PLS, is already provided by
   dev"` is `NaN` under Welch (JSON `null` through the tool layer), because Welch
   forms no pooled estimate and a number there would imply one.
 
+
 ### Changed
+
+- **`### Deprecated` maps to MINOR, not PATCH, when choosing a release's
+  version level.** The table added in #591 put it under PATCH, which
+  contradicted `docs/development/deprecation_policy.rst`: that document
+  announces a deprecation in an `X.Y.0` release, and a deprecation message has
+  to name the version that announced it, so it needs a version of its own to
+  name. Corrected in `CONTRIBUTING.md`. The `OPLS` deprecation above is the
+  first entry the rule applies to.
+
+- **An unrecognised fit-time `md_method` is refused instead of quietly running
+  NIPALS (#588).** The dispatch knew `"tsr"` and `"pmp"`, both raising
+  `NotImplementedError`, and sent everything else to NIPALS without a word. The
+  trap was `"scp"`: a real method name for `project()` and the contribution
+  helpers, so asking for it at fit time looked reasonable and ran a different
+  algorithm. Unknown values now raise `ValueError` naming the accepted set, and
+  the docstring no longer lists `"scp"` among them. Two tests in the suite were
+  passing `md_method="scp"` and silently getting NIPALS; they now say so.
+
 
 - **The version is no longer bumped in a pull request.** `pyproject.toml`
   `version` and `CITATION.cff` are now set once, at release time, from whatever
@@ -323,7 +360,64 @@ The third item of #374, double cross-validation for PLS, is already provided by
   differs is `fitting_info_.timing`, and two runs of *identical* code differ in
   exactly that field and no other.
 
+### Deprecated
+
+- **`TPLS.tolerance_` is deprecated in favour of `TPLS.tol` (#588).** Reading it
+  returns `tol` and raises a `DeprecationWarning`; removal is scheduled for 2.0, per
+  `docs/development/deprecation_policy.rst`.
+
+  It is worth knowing what the rename hides, because the old attribute did two
+  unrelated jobs. It was the convergence tolerance for the per-component loop, which
+  is what `tol` inherits. It was also the floor a column's standard deviation had to
+  clear to count as carrying any variance, which `tol` deliberately does not
+  inherit: that threshold is now fixed and independent of convergence.
+
+  The two were tied together only by sharing an attribute. A caller who loosened the
+  tolerance to converge sooner also raised the bar a column had to clear to stay in
+  the model, so `tolerance_ = 1e-2` would have silently excluded any column with a
+  standard deviation below 1e-2, which is a long way above machine precision. Since
+  the attribute was not reachable from the constructor, no caller could have hit
+  this; exposing `tol` is what made the separation necessary.
+
+- **`OPLS(max_iter=...)` and `OPLS(tol=...)` are deprecated and ignored
+  (#588).** Both were assigned in `__init__` and never read. The
+  single-response Trygg-Wold algorithm is closed form: the predictive weight is
+  `X'y` normalised, and the orthogonal components come from a loop that runs
+  exactly `n_orthogonal_components` times. Nothing iterates to convergence, so
+  an iteration cap has no loop to bound and a convergence tolerance has no
+  convergence to judge.
+
+  `tol`'s docstring claimed it guarded rank-deficient projections. The only such
+  guard is the `safe_inverse` of `P_o' W_o`, which takes a condition-number
+  ceiling (default `1/eps`, about 4.5e15), not a magnitude floor like `tol`
+  (about 1.5e-8); the two are different quantities and the value never reached
+  that guard.
+
+  Both stay on the signature through the deprecation window, so `get_params`,
+  `set_params` and `clone` keep working for code that already passes them.
+  Setting either to a non-default value now raises a `DeprecationWarning`.
+  Removal is scheduled for 2.0, per
+  `docs/development/deprecation_policy.rst`.
+
 ### Fixed
+
+- **`PLS(tol=...)` is no longer dropped when the data has missing cells (#588).**
+  The missing-data branch of the settings resolution hard-coded the NIPALS
+  tolerance to `epsqrt` while taking the iteration cap from the constructor, so
+  a caller's `tol` governed a fit on complete data and was silently ignored as
+  soon as one cell went missing. Both cases now resolve from the same place:
+  `tol` and `max_iter` supply the defaults, and an explicit
+  `missing_data_settings` overrides individual keys on top.
+
+  A model built with default arguments fits exactly as before, `PLS` defaulting
+  `tol` to the `epsqrt` the branch used to hard-code. Only a caller who set
+  `tol` and has missing data sees a change, which is the point.
+
+- **A partial `missing_data_settings` no longer raises `KeyError` (#588).** On
+  complete data the caller's dict was passed through as the entire settings
+  mapping, so `PLS(missing_data_settings={"md_tol": 1e-3}).fit(...)` reached
+  `settings["md_max_iter"]` inside the NIPALS fit and died. Every key is now
+  filled from the constructor before the dict is applied.
 
 - **`explained_variance_plot` labels a `PLSDA` model correctly.** It chose its axis
   label with `type(model).__name__ == "PLS"`, which a subclass fails; `PLSDA`'s

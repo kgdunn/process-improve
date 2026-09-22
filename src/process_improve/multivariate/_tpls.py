@@ -35,6 +35,13 @@ from ._limits import spe_calculation
 from ._nipals import internal_pls_nipals_fit_one_pc, nan_to_zeros, regress_a_space_on_b_row
 from .plots import Plot
 
+#: Standard deviations below this count as "no variance", so the column carries no
+#: information and is excluded from the fit. It used to share the attribute that also
+#: held the convergence tolerance, which tied two unrelated quantities together: a
+#: caller loosening convergence would also have started discarding low-variance
+#: columns. It is deliberately not user-tunable (#588).
+_ZERO_VARIANCE_FLOOR = epsqrt
+
 
 class DataFrameDict(dict):
     """Container for the partitionable (Z, F) and static (Y) data blocks used by TPLS."""
@@ -227,6 +234,14 @@ class TPLS(RegressorMixin, BaseEstimator):
         If True, the F (formula) matrices are used as-is, skipping the internal
         centering and scaling of the F block. Default is False.
 
+    tol : float, optional
+        Relative convergence tolerance for the per-component super-score loop: the
+        component is converged once the norm of the difference between two successive
+        super-score vectors, relative to the norm of the previous one, falls below
+        this. Default is ``epsqrt`` (about 1.5e-8), which is the value that was
+        hard-coded before this became a parameter, so the default fit is unchanged.
+        It is listed last so that no existing positional argument changed position.
+
     Notes
     -----
     The input ``X`` passed to :meth:`fit` and :meth:`predict` is a dictionary with 3 keys:
@@ -251,9 +266,6 @@ class TPLS(RegressorMixin, BaseEstimator):
         Number of quality-indicator columns summed across Y blocks.
     is_fitted_ : bool
         Set to True once ``fit()`` completes.
-    tolerance_ : float
-        Convergence tolerance used by the inner NIPALS loop
-        (``sqrt(np.finfo(float).eps)``).
     fitting_statistics : dict
         Per-component ``iterations``, ``convergance_tolerance`` and
         ``milliseconds`` lists.
@@ -323,9 +335,8 @@ class TPLS(RegressorMixin, BaseEstimator):
        ``*_loadings_*`` family are written without the trailing ``_``
        to keep the chemometrics symbol names readable. Attributes
        that are set in ``__init__`` and refined during ``fit`` (for
-       example ``is_fitted_``, ``preproc_``, ``tolerance_``,
-       ``required_blocks_``, ``required_inputs_``) do carry the
-       underscore.
+       example ``is_fitted_``, ``preproc_``, ``required_blocks_``,
+       ``required_inputs_``) do carry the underscore.
 
     Example
     -------
@@ -359,6 +370,7 @@ class TPLS(RegressorMixin, BaseEstimator):
     _parameter_constraints: typing.ClassVar = {
         "n_components": [int],
         "max_iter": [int],
+        "tol": [float],
         "d_matrix": [dict, None],
     }
 
@@ -368,6 +380,9 @@ class TPLS(RegressorMixin, BaseEstimator):
         d_matrix: dict,
         max_iter: int = 500,
         skip_f_matrix_preprocessing: bool = False,
+        # Appended rather than slotted in beside ``max_iter`` so that no existing
+        # positional argument changes position (#588).
+        tol: float = epsqrt,
     ):
         super().__init__()
         if n_components <= 0:
@@ -384,16 +399,37 @@ class TPLS(RegressorMixin, BaseEstimator):
         if self.max_iter <= 0:
             raise ValueError(f"max_iter must be positive; got {self.max_iter}.")
 
+        self.tol = tol
+        if self.tol <= 0:
+            raise ValueError(f"tol must be positive; got {self.tol}.")
+
         self.skip_f_matrix_preprocessing = skip_f_matrix_preprocessing
 
         self.is_fitted_ = False
         self.n_substances = 0
         self.n_samples = 0
-        self.tolerance_ = np.sqrt(np.finfo(float).eps)
         self.required_blocks_ = {"D", "F", "Y", "Z"}  # "Z" block is optional; an empty one is added if not provided
         # "required_inputs" used in the sense of inputs to this class; not in the sense of a "model input"
         self.required_inputs_ = {"F", "Y", "Z"}
         self.plot = Plot(self)
+
+    @property
+    def tolerance_(self) -> float:
+        """Deprecated alias for :attr:`tol`, kept for one deprecation cycle.
+
+        It was assigned in ``__init__`` and read at two unrelated sites: the
+        convergence test, which ``tol`` now owns, and a zero-variance column
+        test, which has its own floor (``_ZERO_VARIANCE_FLOOR``).
+        """
+        warnings.warn(
+            "process_improve.multivariate.TPLS.tolerance_ is deprecated since 1.96.0 "
+            "and will be removed in 2.0; use TPLS.tol instead. Note that tolerance_ "
+            "also governed the zero-variance column test, which tol does not: that "
+            "threshold is now fixed and independent of convergence.",
+            category=DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.tol
 
     # ENG-05: convenience methods forwarding to the standalone functions. These
     # used to be ``functools.partial`` instances bound in ``fit``; defining them
@@ -1058,7 +1094,7 @@ class TPLS(RegressorMixin, BaseEstimator):
         """
         centering = y.mean(axis="index")
         scaling = y.std(ddof=1, axis="index") if y.shape[0] > 1 else pd.Series(1.0, index=y.columns)
-        degenerate = scaling < self.tolerance_
+        degenerate = scaling < _ZERO_VARIANCE_FLOOR
         if degenerate.any():
             named = ", ".join(repr(col) for col in y.columns[degenerate])
             warnings.warn(
@@ -1109,7 +1145,7 @@ class TPLS(RegressorMixin, BaseEstimator):
             np.linalg.norm(starting_vector - revised_vector, ord=None)
             / _nz(float(np.linalg.norm(starting_vector, ord=None)))
         )
-        converged = delta_gap < self.tolerance_
+        converged = delta_gap < self.tol
         max_iter = iterations >= self.max_iter
         return bool(np.any([max_iter, converged]))
 
