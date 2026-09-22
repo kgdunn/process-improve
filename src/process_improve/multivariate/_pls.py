@@ -89,7 +89,7 @@ def _vandervoet_randomization(
     total_rmsecv: np.ndarray,
     n_permutations: int = 999,
     alpha: float = 0.01,
-    random_state: int | None = None,
+    random_state: int | np.random.Generator | None = None,
 ) -> tuple[int, np.ndarray]:
     """Van der Voet (1994) randomization test for PLS component selection.
 
@@ -118,8 +118,8 @@ def _vandervoet_randomization(
         Number of sign-flip permutations.
     alpha : float, default 0.01
         Significance level. Smaller values are more parsimonious.
-    random_state : int, optional
-        Seed for reproducible permutations.
+    random_state : int, numpy.random.Generator or None, optional
+        Seed or generator for reproducible permutations.
 
     Returns
     -------
