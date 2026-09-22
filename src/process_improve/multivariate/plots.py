@@ -16,10 +16,12 @@ from ._limits import hotellings_t2_limit, spe_calculation
 
 try:
     import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
 except ImportError:  # pragma: no cover - exercised via env-without-plotly
     from process_improve._extras import _MissingExtra
 
     go = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
+    make_subplots = _MissingExtra("plotly", "plotting")  # type: ignore[assignment]
 
 from process_improve.visualization.themes import (
     DEFAULT_THEME,
@@ -1569,3 +1571,208 @@ class Plot:
     def loadings(self, pc_horiz: int = 1, pc_vert: int = 2, **kwargs) -> go.Figure:
         """Generate a loading plot."""
         return loading_plot(self, pc_horiz=pc_horiz, pc_vert=pc_vert, **kwargs)
+
+
+#: Which panel of :func:`cv_criteria_plot` shows each selection rule's recommendation.
+_CV_CRITERIA_PANELS: dict[str, tuple[int, int, str]] = {
+    "q2_max": (1, 1, "Q2 max"),
+    "q2_1se": (1, 1, "1-SE"),
+    "van_der_voet": (1, 1, "van der Voet"),
+    "score_correlation": (1, 2, "held-out r"),
+    "covariance_permutation": (1, 2, "covariance"),
+    "subspace_stability": (2, 1, "subspace"),
+    "pv_spe_alarm": (2, 2, "SPE alarms"),
+}
+
+
+def cv_criteria_plot(result: typing.Any, settings: dict | None = None) -> go.Figure:  # noqa: ANN401
+    """Plot the per-component table of :func:`compare_cv_criteria` as four small multiples.
+
+    Each panel answers one question and marks the component count the matching
+    selection rules recommend with a dashed vertical line:
+
+    1. *Does the model predict Y?* In-sample :math:`R^2_Y` and cross-validated
+       :math:`Q^2_Y` with a one-standard-error band (rules ``q2_max``, ``q2_1se``,
+       ``van_der_voet``).
+    2. *Does the inner relation hold on new rows?* Training and held-out correlation of
+       the :math:`t_a` and :math:`u_a` scores, with the permutation-null threshold
+       (rules ``score_correlation``, ``covariance_permutation``).
+    3. *Do the weights stay put?* Jackknife-scaled per-component and subspace angles,
+       with the stability threshold (rule ``subspace_stability``).
+    4. *Are the monitoring limits right on new rows?* Out-of-sample SPE and
+       :math:`T^2` alarm rates from Procrustes cross-validation, with the nominal rate
+       and its binomial upper bound (rule ``pv_spe_alarm``).
+
+    Parameters
+    ----------
+    result : sklearn.utils.Bunch
+        The return value of :func:`compare_cv_criteria`.
+    settings : dict, optional
+        Default settings::
+
+            {
+                "title": "Validation criteria per component",  # str: overall title
+                "html_image_height": 720,          # int: image height in pixels
+                "html_aspect_ratio_w_over_h": 1.5, # float: width as ratio of height
+                "template": "pi_journal",          # str: registered Plotly theme name
+            }
+
+    Returns
+    -------
+    go.Figure
+
+    Examples
+    --------
+    >>> result = compare_cv_criteria(X, y, max_components=6, random_state=0)
+    >>> cv_criteria_plot(result)
+    """
+    if not hasattr(result, "table") or not hasattr(result, "recommendations"):
+        msg = "cv_criteria_plot expects the Bunch returned by compare_cv_criteria."
+        raise ValueError(msg)
+
+    class Settings(BaseModel):
+        """Validated display settings for the validation-criteria plot."""
+
+        title: str = "Validation criteria per component"
+        html_image_height: float = 720.0
+        html_aspect_ratio_w_over_h: float = 1.5
+        template: str = DEFAULT_THEME
+
+    setdict = Settings(**settings).model_dump() if settings else Settings().model_dump()
+    table = result.table
+    components = table.index.to_numpy()
+    first, second = "#0072B2", "#D55E00"  # the first two slots of the pi_journal colorway
+
+    fig = make_subplots(
+        rows=2,
+        cols=2,
+        shared_xaxes=True,
+        horizontal_spacing=0.09,
+        vertical_spacing=0.14,
+        subplot_titles=[
+            "Does the model predict Y?",
+            "Does the inner relation hold on new rows?",
+            "Do the weights stay put?",
+            "Are the monitoring limits right on new rows?",
+        ],
+    )
+
+    panel_legend = {(1, 1): "legend", (1, 2): "legend2", (2, 1): "legend3", (2, 2): "legend4"}
+
+    def _line(name: str, values: object, color: str, cell: tuple[int, int]) -> None:
+        fig.add_trace(
+            go.Scatter(
+                x=components,
+                y=np.asarray(values, dtype=float),
+                name=name,
+                mode="lines+markers",
+                line=dict(color=color, width=2),
+                marker=dict(size=8, color=color),
+                legend=panel_legend[cell],
+                hovertemplate="%{y:.3g}",
+            ),
+            row=cell[0],
+            col=cell[1],
+        )
+
+    def _reference(name: str, values: object, color: str, cell: tuple[int, int]) -> None:
+        fig.add_trace(
+            go.Scatter(
+                x=components,
+                y=np.broadcast_to(np.asarray(values, dtype=float), components.shape),
+                name=name,
+                mode="lines",
+                line=dict(color=color, width=1.5, dash="dash", shape="hvh"),
+                legend=panel_legend[cell],
+                hovertemplate="%{y:.3g}",
+            ),
+            row=cell[0],
+            col=cell[1],
+        )
+
+    # 1. Prediction, with a +/- 1 SE band around Q2.
+    q2 = table["q2y"].to_numpy(dtype=float)
+    q2_se = np.nan_to_num(table["q2y_se"].to_numpy(dtype=float))
+    fig.add_trace(
+        go.Scatter(
+            x=np.r_[components, components[::-1]],
+            y=np.r_[q2 + q2_se, (q2 - q2_se)[::-1]],
+            fill="toself",
+            fillcolor="rgba(213, 94, 0, 0.15)",
+            line=dict(width=0),
+            hoverinfo="skip",
+            name="Q2 +/- 1 SE",
+            legend="legend",
+        ),
+        row=1,
+        col=1,
+    )
+    _line("R2Y (training)", table["r2y"], first, (1, 1))
+    _line("Q2Y (cross-validated)", q2, second, (1, 1))
+
+    # 2. Inner relation.
+    _line("r(t, u) training", table["r_train"], first, (1, 2))
+    _line("r(t, u) held-out", table["r_cv"], second, (1, 2))
+    _reference("null threshold", table["r_cv_threshold"], REFERENCE_LINE_COLOR, (1, 2))
+
+    # 3. Stability of the weights.
+    _line("per component", table["angle_component_deg"], first, (2, 1))
+    _line("subspace", table["angle_subspace_deg"], second, (2, 1))
+    _reference("threshold", result.angle_threshold, REFERENCE_LINE_COLOR, (2, 1))
+
+    # 4. Monitoring.
+    _line("SPE", table["pv_spe_alarm_rate"], first, (2, 2))
+    _line("T2", table["pv_t2_alarm_rate"], second, (2, 2))
+    _reference("nominal", 1 - result.conf_level, REFERENCE_LINE_COLOR, (2, 2))
+    _reference("binomial upper", result.alarm_rate_upper, LIMIT_LINE_COLOR, (2, 2))
+
+    # Recommendations: one dashed line per distinct pick in a panel, labelled with the rules.
+    picks: dict[tuple[int, int, int], list[str]] = {}
+    for rule, n_components in result.recommendations["n_components"].items():
+        if rule in _CV_CRITERIA_PANELS:
+            row, col, label = _CV_CRITERIA_PANELS[rule]
+            picks.setdefault((row, col, int(n_components)), []).append(label)
+    for (row, col, n_components), labels in picks.items():
+        text = ", ".join(labels)
+        if n_components == 0:
+            fig.add_annotation(
+                text=f"{text}: none validated",
+                xref="x domain" if (row, col) == (1, 1) else f"x{(row - 1) * 2 + col} domain",
+                yref="y domain" if (row, col) == (1, 1) else f"y{(row - 1) * 2 + col} domain",
+                x=0.02,
+                y=0.02,
+                xanchor="left",
+                yanchor="bottom",
+                showarrow=False,
+                font=dict(size=10),
+            )
+            continue
+        fig.add_vline(
+            x=n_components,
+            line=dict(color=REFERENCE_LINE_COLOR, width=1, dash="dot"),
+            annotation_text=text,
+            annotation_font_size=10,
+            annotation_position="top",
+            row=row,
+            col=col,
+        )
+
+    legend_style = dict(font=dict(size=10), bgcolor="rgba(255,255,255,0.7)", xanchor="right", yanchor="top")
+    fig.update_layout(
+        template=setdict["template"],
+        title_text=setdict["title"],
+        hovermode="x unified",
+        autosize=False,
+        width=setdict["html_aspect_ratio_w_over_h"] * setdict["html_image_height"],
+        height=setdict["html_image_height"],
+        legend=dict(**legend_style, x=0.45, y=0.98),
+        legend2=dict(**legend_style, x=1.0, y=0.98),
+        legend3=dict(**legend_style, x=0.45, y=0.40),
+        legend4=dict(**legend_style, x=1.0, y=0.40),
+    )
+    fig.update_xaxes(dtick=1, title_text="Number of components", row=2)
+    fig.update_yaxes(title_text="Fraction of Y explained", row=1, col=1)
+    fig.update_yaxes(title_text="Correlation", row=1, col=2)
+    fig.update_yaxes(title_text="Angle (degrees)", range=[0, 90], row=2, col=1)
+    fig.update_yaxes(title_text="Alarm rate", rangemode="tozero", row=2, col=2)
+    return fig
