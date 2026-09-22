@@ -62,6 +62,28 @@ def _as_frame(data: DataMatrix) -> pd.DataFrame:
     return pd.DataFrame(np.asarray(data, dtype=float))
 
 
+def _checked_prior(sample_weight: np.ndarray | None, n_samples: int) -> np.ndarray:
+    """Resolve the caller's ``sample_weight`` into a usable prior-weight vector.
+
+    Validated up front because the reweighting uses it as a mask, not only as a
+    multiplier: a bad length would otherwise surface several iterations later as
+    a confusing broadcasting error.
+
+    Raises
+    ------
+    ValueError
+        If the length does not match, or no row is left with positive weight.
+    """
+    if sample_weight is None:
+        return np.ones(n_samples)
+    prior = np.asarray(sample_weight, dtype=float).ravel()
+    if prior.shape[0] != n_samples:
+        raise ValueError(f"sample_weight has {prior.shape[0]} entries; expected {n_samples} to match X / Y.")
+    if not np.any(prior > 0):
+        raise ValueError("sample_weight must leave at least one row with a positive weight.")
+    return prior
+
+
 class PRM(PLS):
     r"""Partial Robust M-regression: PLS with a bounded influence per observation.
 
@@ -172,6 +194,21 @@ class PRM(PLS):
         self.max_weight_iter = max_weight_iter
         self.weight_tol = weight_tol
 
+    def _check_settings(self) -> None:
+        """Validate the loop controls before any fitting happens.
+
+        Raises
+        ------
+        ValueError
+            If ``cutoff``, ``max_weight_iter`` or ``weight_tol`` is out of range.
+        """
+        if not np.isfinite(self.cutoff) or self.cutoff <= 0:
+            raise ValueError(f"cutoff must be a positive finite number; got {self.cutoff!r}.")
+        if int(self.max_weight_iter) < 1:
+            raise ValueError(f"max_weight_iter must be at least 1; got {self.max_weight_iter!r}.")
+        if not np.isfinite(self.weight_tol) or self.weight_tol <= 0:
+            raise ValueError(f"weight_tol must be a positive finite number; got {self.weight_tol!r}.")
+
     def _make_scalers(
         self,
         X: pd.DataFrame,
@@ -195,7 +232,7 @@ class PRM(PLS):
             _WeightedMCUVScaler().fit(Y, sample_weight=sample_weight),
         )
 
-    def _starting_weights(self, X: np.ndarray, Y: np.ndarray) -> np.ndarray:
+    def _starting_weights(self, X: np.ndarray, Y: np.ndarray, prior: np.ndarray) -> np.ndarray:
         """Weights for the first iteration, from the data alone.
 
         The loop needs a starting point that is already resistant, because an
@@ -204,17 +241,25 @@ class PRM(PLS):
         search. So leverage is measured against the L1 median of X and the
         residual against the median of Y, neither of which the outliers control.
         """
-        leverage = np.linalg.norm(X - l1_median(X), axis=1)
-        median_leverage = max(float(np.median(leverage)), epsqrt)
+        active = prior > 0
+        leverage = np.linalg.norm(X - l1_median(X[active]), axis=1)
+        median_leverage = max(float(np.median(leverage[active])), epsqrt)
         weights = fair_weights(leverage / median_leverage, self.cutoff)
 
         for column in Y.T:
-            deviation = column - np.median(column)
-            weights = weights * fair_weights(deviation / _robust_scale(deviation), self.cutoff)
+            deviation = column - np.median(column[active])
+            weights = weights * fair_weights(deviation / _robust_scale(deviation[active]), self.cutoff)
         return weights
 
-    def _updated_weights(self, X: pd.DataFrame, Y: pd.DataFrame) -> np.ndarray:
-        """Recompute the row weights from the fit that is currently in place."""
+    def _updated_weights(self, X: pd.DataFrame, Y: pd.DataFrame, prior: np.ndarray) -> np.ndarray:
+        """Recompute the row weights from the fit that is currently in place.
+
+        ``prior`` is the caller's ``sample_weight``. Rows it zeroes are excluded
+        from the medians below, not merely from the fit: PLS documents a
+        zero weight as equivalent to dropping the row, and a row that still
+        moved the median residual scale or the median score distance would not
+        be dropped, only silenced.
+        """
         # Residuals in the scaled space, so that targets measured in different
         # units contribute comparably to a multi-target row's residual.
         # ``scale=False`` says the caller has already put Y into modelling units,
@@ -225,11 +270,13 @@ class PRM(PLS):
         # row norm is the reading of it that keeps one bad target from being
         # averaged away by several good ones.
         per_row = np.linalg.norm(residuals, axis=1)
-        residual_weights = fair_weights(per_row / _robust_scale(per_row), self.cutoff)
+        active = prior > 0
+        residual_weights = fair_weights(per_row / _robust_scale(per_row[active]), self.cutoff)
 
         scores = np.asarray(self.scores_, dtype=float)
-        distances = np.linalg.norm(scores - l1_median(scores), axis=1)
-        leverage_weights = fair_weights(distances / max(float(np.median(distances)), epsqrt), self.cutoff)
+        distances = np.linalg.norm(scores - l1_median(scores[active]), axis=1)
+        median_distance = max(float(np.median(distances[active])), epsqrt)
+        leverage_weights = fair_weights(distances / median_distance, self.cutoff)
 
         return residual_weights * leverage_weights
 
@@ -268,13 +315,7 @@ class PRM(PLS):
         underlying :class:`~process_improve.multivariate.methods.PLS` does handle
         missing data; use it, or impute first.
         """
-        if not np.isfinite(self.cutoff) or self.cutoff <= 0:
-            raise ValueError(f"cutoff must be a positive finite number; got {self.cutoff!r}.")
-        if int(self.max_weight_iter) < 1:
-            raise ValueError(f"max_weight_iter must be at least 1; got {self.max_weight_iter!r}.")
-        if not np.isfinite(self.weight_tol) or self.weight_tol <= 0:
-            raise ValueError(f"weight_tol must be a positive finite number; got {self.weight_tol!r}.")
-
+        self._check_settings()
         X_df, Y_df = _as_frame(X), _as_frame(Y)
         if np.any(np.isnan(X_df.to_numpy(dtype=float))) or np.any(np.isnan(Y_df.to_numpy(dtype=float))):
             raise ValueError(
@@ -284,8 +325,8 @@ class PRM(PLS):
                 "through NIPALS, or impute first."
             )
 
-        prior = np.ones(X_df.shape[0]) if sample_weight is None else np.asarray(sample_weight, dtype=float).ravel()
-        weights = self._starting_weights(X_df.to_numpy(dtype=float), Y_df.to_numpy(dtype=float))
+        prior = _checked_prior(sample_weight, X_df.shape[0])
+        weights = self._starting_weights(X_df.to_numpy(dtype=float), Y_df.to_numpy(dtype=float), prior)
 
         self.weights_converged_ = False
         self.n_weight_iter_ = 0
@@ -294,7 +335,7 @@ class PRM(PLS):
         for iteration in range(1, int(self.max_weight_iter) + 1):
             self.n_weight_iter_ = iteration
             PLS.fit(self, X_df, Y_df, sample_weight=prior * weights)
-            updated = self._updated_weights(X_df, Y_df)
+            updated = self._updated_weights(X_df, Y_df, prior)
             shift = float(np.max(np.abs(updated - weights)))
             weights = updated
             self.weight_shift_ = shift

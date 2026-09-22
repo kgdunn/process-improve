@@ -56,8 +56,11 @@ BUDGET: dict[str, int] = {
     # `PLS.__init__` and adds `decision_rule` and `priors`, so its width is
     # inherited rather than invented. All five carry a reasoned suppression, which
     # is the discipline this ratchet exists to enforce, so the budget tracks what
-    # is really there rather than pretending the count did not move.
-    "PLR0913": 83,
+    # is really there rather than pretending the count did not move. #191 makes it
+    # 84 with `PRM.__init__`, which like `PLSDA.__init__` mirrors `PLS.__init__`
+    # and adds its own options (the three that control the reweighting loop), so
+    # its width is inherited rather than invented.
+    "PLR0913": 84,
     "PLR0915": 31,
 }
 
