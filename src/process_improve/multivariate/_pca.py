@@ -35,6 +35,7 @@ from ._common import (
     _reject_sparse,
     _select_n_components,
     epsqrt,
+    resolve_loop_settings,
 )
 from ._nipals import quick_regress, ssq, terminate_check
 from ._preprocessing import MCUVScaler, _warn_scaling_traps
@@ -901,7 +902,7 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
         return np.asarray([f"PC{a}" for a in self._component_names])
 
     @_fit_context(prefer_skip_nested_validation=True)
-    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA:  # noqa: ARG002, PLR0912, PLR0915, C901
+    def fit(self, X: DataMatrix, y: DataMatrix | None = None) -> PCA:  # noqa: ARG002, PLR0915, C901
         """Fit a principal component analysis (PCA) model to the data.
 
         Parameters
@@ -983,24 +984,18 @@ class PCA(_LatentVariableModel, TransformerMixin, BaseEstimator):
             raise ValueError("SVD algorithm cannot handle missing data. Use 'nipals', 'tsr', or 'auto'.")
         self.algorithm_ = algo
 
-        # Build settings for the iterative algorithms. The defaults come from this
-        # model's own ``tol`` and ``max_iter``, and an explicit
-        # ``missing_data_settings`` overrides individual keys on top (#588).
-        #
-        # These two used to be reachable only through that dict, so a caller had to
-        # describe a convergence setting as a missing-data setting even on complete
-        # data. The literals the dict was seeded with, ``epsqrt`` and 1000, are now
-        # the constructor defaults, so a model built either way fits identically.
-        settings = {"md_tol": self.tol, "md_max_iter": self.max_iter}
-        if isinstance(self.missing_data_settings, dict):
-            settings.update(self.missing_data_settings)
-        settings["md_max_iter"] = int(settings["md_max_iter"])
-
-        if algo in ("nipals", "tsr"):
-            if not settings["md_tol"] < 10:
-                raise ValueError("Tolerance should not be too large.")
-            if not settings["md_tol"] > epsqrt**1.95:
-                raise ValueError("Tolerance must exceed machine precision.")
+        # One resolver for every iterative estimator, so the precedence and the
+        # deprecation of the ``md_*`` keys are defined in a single place (#588). The
+        # bounds are checked only for the iterative algorithms: under ``"svd"`` the
+        # tolerance governs nothing, and rejecting a value that cannot matter would
+        # refuse a fit that is perfectly well posed.
+        settings = resolve_loop_settings(
+            tol=self.tol,
+            max_iter=self.max_iter,
+            missing_data_settings=self.missing_data_settings,
+            validate=algo in ("nipals", "tsr"),
+            estimator_name="PCA",
+        )
 
         # Storage for numpy results (set by _fit_* methods)
         X_values = np.asarray(X.copy())

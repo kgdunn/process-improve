@@ -88,6 +88,93 @@ def _nz(denominator: float) -> float:
     return max(_DENOM_FLOOR, denominator)
 
 
+#: The version that announced the ``md_*`` deprecation, quoted in its warning message so
+#: the reader can tell which release started the clock. See
+#: ``docs/development/deprecation_policy.rst``.
+_MD_DEPRECATED_SINCE = "1.96.0"
+
+#: The ``missing_data_settings`` keys that duplicate a constructor parameter, and the
+#: parameter each one forwards to. ``md_method`` is not here: it names the imputation
+#: algorithm, which is the one axis ``missing_data_settings`` still owns.
+_DEPRECATED_MD_KEYS: dict[str, str] = {"md_tol": "tol", "md_max_iter": "max_iter"}
+
+#: The historical bounds on the NIPALS tolerance, kept verbatim from the per-estimator
+#: checks this helper replaced. The ceiling is arbitrary but catches a caller who passed a
+#: percentage; the floor is where a relative comparison stops being meaningful.
+_TOL_CEILING = 10.0
+
+
+def resolve_loop_settings(
+    *,
+    tol: float,
+    max_iter: int,
+    missing_data_settings: dict | None,
+    validate: bool = True,
+    estimator_name: str = "",
+) -> dict:
+    """Resolve one estimator's ``tol`` and ``max_iter`` into the mapping its NIPALS loop reads.
+
+    Every latent-variable estimator that iterates resolves its loop settings here, so the
+    precedence is defined once instead of five times (#588). The rule: the constructor's
+    ``tol`` and ``max_iter`` supply the values, and a caller's ``missing_data_settings``
+    overrides individual keys on top, which is what keeps existing code working.
+
+    The two overriding keys are deprecated. ``md_tol`` and ``md_max_iter`` predate ``tol``
+    and ``max_iter`` existing on these estimators, and they describe a convergence setting
+    as a missing-data setting, which it is not: the loop runs, and needs a tolerance,
+    whether or not a cell is missing. They still win when passed, because silently
+    demoting a value a caller set would be worse than warning about it.
+
+    Parameters
+    ----------
+    tol : float
+        The estimator's convergence tolerance, relative to the norm of the score vector.
+    max_iter : int
+        The estimator's per-component iteration cap.
+    missing_data_settings : dict or None
+        The caller's dict, or None. Keys other than the deprecated two are passed through
+        untouched, so an estimator with its own keys (``md_method`` on ``PLS``) still sees
+        them.
+    validate : bool, default=True
+        Whether to check the resolved tolerance against its historical bounds. Passed as
+        False by the paths that do not iterate (a direct SVD fit), where the tolerance
+        governs nothing and an out-of-range value is harmless.
+    estimator_name : str
+        Used in the deprecation message, so the reader knows which class to change.
+
+    Returns
+    -------
+    dict
+        ``md_tol`` and ``md_max_iter``, plus any other keys the caller supplied.
+    """
+    settings: dict = {"md_tol": tol, "md_max_iter": max_iter}
+    if isinstance(missing_data_settings, dict):
+        deprecated_used = [key for key in _DEPRECATED_MD_KEYS if key in missing_data_settings]
+        for key in deprecated_used:
+            prefix = f"{estimator_name}." if estimator_name else ""
+            warnings.warn(
+                f"{prefix}missing_data_settings['{key}'] is deprecated since "
+                f"{_MD_DEPRECATED_SINCE} and will be removed in 2.0; pass "
+                f"{_DEPRECATED_MD_KEYS[key]}={missing_data_settings[key]!r} to the "
+                "constructor instead. It still takes effect for now, overriding "
+                f"{_DEPRECATED_MD_KEYS[key]}.",
+                category=DeprecationWarning,
+                # 1 is this helper, 2 is the fit() that called it, so 3 is the caller's
+                # own line, which is the one they can act on. Every estimator calls this
+                # directly from fit(), keeping that depth the same for all of them.
+                stacklevel=3,
+            )
+        settings.update(missing_data_settings)
+
+    settings["md_max_iter"] = int(settings["md_max_iter"])
+    if validate:
+        if not settings["md_tol"] < _TOL_CEILING:
+            raise ValueError(f"Tolerance should not be too large; got {settings['md_tol']}.")
+        if not settings["md_tol"] > epsqrt**1.95:
+            raise ValueError(f"Tolerance must exceed machine precision; got {settings['md_tol']}.")
+    return settings
+
+
 def _reject_sparse(X: object, estimator_name: str) -> None:
     """Raise if ``X`` is a SciPy sparse matrix, naming the remedy that actually helps.
 
