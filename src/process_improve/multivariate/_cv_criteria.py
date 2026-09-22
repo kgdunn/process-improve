@@ -70,7 +70,7 @@ from sklearn.model_selection import BaseCrossValidator, KFold, check_cv
 from sklearn.utils import Bunch
 
 from .._random import check_random_state
-from ._adaptive import _sign_align
+from ._adaptive import _kernel_pls, _sign_align
 from ._common import _equal_weight_r2_total, _select_n_components
 from ._limits import hotellings_t2_limit, spe_calculation
 from ._pls import PLS, _vandervoet_randomization
@@ -250,12 +250,17 @@ def _fit_folds(  # noqa: PLR0913
     return folds
 
 
-def _pearson(x: np.ndarray, y: np.ndarray) -> float:
-    """Pearson correlation, NaN when either vector has no spread."""
-    xc = x - x.mean()
-    yc = y - y.mean()
-    denominator = float(np.sqrt((xc @ xc) * (yc @ yc)))
-    return float(xc @ yc) / denominator if denominator > 0 else float("nan")
+def _correlation_about_origin(x: np.ndarray, y: np.ndarray) -> float:
+    """Correlation about zero (uncentred), NaN when either vector is zero.
+
+    Held-out rows are centred on their training fold's means, the reference the model
+    predicts from; re-centring them on their own means would hide an offset. About the
+    origin, the correlation is also unchanged when a fold flips the sign of a component
+    (t and u flip together). On training scores, which have zero mean, it equals the
+    Pearson correlation.
+    """
+    denominator = float(np.sqrt((x @ x) * (y @ y)))
+    return float(x @ y) / denominator if denominator > 0 else float("nan")
 
 
 def _heldout_pass(folds: list[_Fold], y_values: np.ndarray, n_components: int) -> Bunch:
@@ -308,7 +313,7 @@ def _heldout_pass(folds: list[_Fold], y_values: np.ndarray, n_components: int) -
 
     with np.errstate(divide="ignore", invalid="ignore"):
         slope_ratio = np.where(slope_weight > 0, slope_numerator / slope_weight, np.nan)
-    r_cv = np.array([_pearson(np.concatenate(t_pool[a]), np.concatenate(u_pool[a])) for a in range(A)])
+    r_cv = np.array([_correlation_about_origin(np.concatenate(t_pool[a]), np.concatenate(u_pool[a])) for a in range(A)])
     return Bunch(
         press_y=press_y,
         per_obs_sse=per_obs_sse,
@@ -319,6 +324,85 @@ def _heldout_pass(folds: list[_Fold], y_values: np.ndarray, n_components: int) -
         slope_weight=slope_weight,
         r_cv=r_cv,
     )
+
+
+def _autoscale_parameters(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Column means and ``ddof=1`` standard deviations, with the :class:`MCUVScaler` guard."""
+    centre = values.mean(axis=0)
+    scale = values.std(axis=0, ddof=1)
+    tiny = float(np.finfo(float).tiny) ** 0.5
+    return centre, np.where(~np.isfinite(scale) | (scale <= tiny), 1.0, scale)
+
+
+def _score_correlation_pvalues(  # noqa: PLR0913
+    x_values: np.ndarray,
+    y_values: np.ndarray,
+    splits: list[tuple[np.ndarray, np.ndarray]],
+    observed: np.ndarray,
+    n_permutations: int,
+    alpha: float,
+    rng: np.random.Generator,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Permutation test of the held-out t-u correlation of every component.
+
+    Each permutation shuffles the rows of Y and repeats the whole cross-validation,
+    with the folds refitted by kernel PLS (Dayal and MacGregor, 1997) from the fold's
+    ``X'X``, which a permutation of Y leaves unchanged, and the new ``X'Y``; for
+    complete data the kernel algorithm gives the NIPALS model.
+
+    The whole of Y is permuted, not the residual of the first ``a - 1`` components.
+    A residual permutation is not a valid null here: PLS components form a Krylov
+    sequence, so "the first ``a - 1`` components plus noise" still holds structure that
+    the refitted fold models need further components to reproduce.
+
+    The normal approximation ``r ~ N(0, 1/N)`` is not used either. Each held-out score
+    is a weighted sum of the other folds' responses, so the pooled correlation is a
+    quadratic form in Y whose null spread depends on the structure of X, and is
+    typically wider.
+
+    Returns
+    -------
+    p_values : np.ndarray of shape (A,)
+    thresholds : np.ndarray of shape (A,)
+        The ``1 - alpha`` quantile of each component's null distribution.
+    """
+    A = len(observed)
+    folds = []
+    for train, test in splits:
+        centre, scale = _autoscale_parameters(x_values[train])
+        x_train = (x_values[train] - centre) / scale
+        folds.append((train, test, x_train, (x_values[test] - centre) / scale, x_train.T @ x_train))
+
+    def _heldout_correlations(y: np.ndarray) -> np.ndarray:
+        tu = np.zeros(A)
+        tt = np.zeros(A)
+        uu = np.zeros(A)
+        for train, test, x_train, x_test, xtx in folds:
+            centre, scale = _autoscale_parameters(y[train])
+            _, _, direct, y_loadings, _ = _kernel_pls(xtx, x_train.T @ ((y[train] - centre) / scale), A)
+            t_test = x_test @ direct
+            residual = (y[test] - centre) / scale
+            for a in range(A):
+                c = y_loadings[:, a]
+                cc = float(c @ c)
+                t = t_test[:, a]
+                u = residual @ c / cc if cc > 0 else np.zeros_like(t)
+                tu[a] += float(t @ u)
+                tt[a] += float(t @ t)
+                uu[a] += float(u @ u)
+                residual = residual - np.outer(t, c)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.where(tt * uu > 0, tu / np.sqrt(tt * uu), np.nan)
+
+    null = np.array([_heldout_correlations(y_values[rng.permutation(len(y_values))]) for _ in range(n_permutations)])
+    p_values = np.full(A, np.nan)
+    thresholds = np.full(A, np.nan)
+    for a in range(A):
+        finite = null[np.isfinite(null[:, a]), a]
+        if np.isfinite(observed[a]) and finite.size:
+            p_values[a] = (np.sum(finite >= observed[a]) + 1) / (n_permutations + 1)
+            thresholds[a] = np.quantile(finite, 1.0 - alpha, method="higher")
+    return p_values, thresholds
 
 
 def _covariance_permutation_pvalues(
@@ -489,6 +573,7 @@ def _compare_cv_criteria(  # noqa: PLR0913, PLR0915
     cv: int | BaseCrossValidator,
     random_state: int | np.random.Generator | None,
     n_permutations: int,
+    n_cv_permutations: int,
     alpha: float,
     angle_threshold: float,
     conf_level: float,
@@ -498,6 +583,8 @@ def _compare_cv_criteria(  # noqa: PLR0913, PLR0915
     X_df, Y_df = _as_frames(X, Y)
     if int(n_permutations) < 1:
         raise ValueError(f"n_permutations must be >= 1; got {n_permutations}.")
+    if int(n_cv_permutations) < 0:
+        raise ValueError(f"n_cv_permutations must be >= 0; got {n_cv_permutations}.")
     _check_probability("alpha", alpha)
     _check_probability("conf_level", conf_level)
     if not 0.0 < angle_threshold <= 90.0:
@@ -508,7 +595,7 @@ def _compare_cv_criteria(  # noqa: PLR0913, PLR0915
     M = Y_df.shape[1]
     rng = check_random_state(random_state)
     splits = _partition_splits(cv, X_df, Y_df, rng=rng, random_state=random_state)
-    rng_vdv, rng_perm = rng.spawn(2)
+    rng_vdv, rng_perm, rng_null = rng.spawn(3)
     A = _component_cap(splits, K, max_components)
     folds = _fit_folds(estimator, X_df, Y_df, splits, A, pls_kwargs, scope="local")
     model = estimator(n_components=A, **pls_kwargs).fit(X_df, Y_df)
@@ -536,11 +623,17 @@ def _compare_cv_criteria(  # noqa: PLR0913, PLR0915
     # Inner relation and covariance.
     t_scores = np.asarray(model.scores_)
     u_scores = np.asarray(model.y_scores_)
-    r_train = np.array([_pearson(t_scores[:, a], u_scores[:, a]) for a in range(A)])
-    r_cv_threshold = float(norm.ppf(1.0 - alpha) / np.sqrt(N))
+    r_train = np.array([_correlation_about_origin(t_scores[:, a], u_scores[:, a]) for a in range(A)])
     x_scaler, y_scaler = _global_scaling(X_df, Y_df, pls_kwargs)
     x_scaled = (x_scaler.transform(X_df) if x_scaler is not None else X_df).to_numpy()
     y_scaled = (y_scaler.transform(Y_df) if y_scaler is not None else Y_df).to_numpy()
+    if int(n_cv_permutations) > 0:
+        r_cv_p, r_cv_threshold = _score_correlation_pvalues(
+            X_df.to_numpy(), y_values, splits, held.r_cv, int(n_cv_permutations), alpha, rng_null
+        )
+    else:
+        r_cv_p = norm.sf(held.r_cv * np.sqrt(N))
+        r_cv_threshold = np.full(A, norm.ppf(1.0 - alpha) / np.sqrt(N))
     cov_perm_p = _covariance_permutation_pvalues(x_scaled, y_scaled, model, int(n_permutations), rng_perm)
 
     # Stability of the weights, and Procrustes cross-validation.
@@ -571,6 +664,7 @@ def _compare_cv_criteria(  # noqa: PLR0913, PLR0915
             "r_train": r_train,
             "r_cv": held.r_cv,
             "r_cv_threshold": r_cv_threshold,
+            "r_cv_p": r_cv_p,
             "slope_ratio": held.slope_ratio,
             "cov_perm_p": cov_perm_p,
             "angle_component_deg": angle_component,
@@ -601,8 +695,8 @@ def _compare_cv_criteria(  # noqa: PLR0913, PLR0915
             "Is the gain over fewer components real?",
         ),
         "score_correlation": (
-            _leading_count(held.r_cv > r_cv_threshold),
-            "Leading components whose held-out t-u correlation exceeds z(1 - alpha) / sqrt(N).",
+            _leading_count(r_cv_p < alpha),
+            f"Leading components whose held-out t-u correlation beats the Y-permutation null (p < {alpha}).",
             "Does each component's inner relation hold on new rows?",
         ),
         "covariance_permutation": (
@@ -652,6 +746,7 @@ def compare_cv_criteria(  # noqa: PLR0913
     cv: int | BaseCrossValidator = 7,
     random_state: int | np.random.Generator | None = None,
     n_permutations: int = 999,
+    n_cv_permutations: int = 199,
     alpha: float = 0.05,
     angle_threshold: float = 30.0,
     conf_level: float = 0.95,
@@ -684,7 +779,15 @@ def compare_cv_criteria(  # noqa: PLR0913
     random_state : int, numpy.random.Generator or None, default=None
         Seed for the fold assignment and for the permutation tests.
     n_permutations : int, default=999
-        Permutations for the van der Voet and the covariance tests.
+        Permutations for the van der Voet and the covariance tests (cheap: no refits).
+    n_cv_permutations : int, default=199
+        Permutations of the rows of Y used to calibrate the held-out score correlation
+        of each component. Each one repeats the cross-validation with kernel PLS refits from the
+        folds' ``X'X`` and ``X'Y`` (fast for tens to hundreds of features). With ``0``
+        the normal approximation
+        :math:`r \sim N(0, 1/N)` is used instead; it is quick but too permissive,
+        because fold models share rows and a strong low-rank X widens the null
+        distribution of a pooled cross-validated correlation.
     alpha : float, default=0.05
         Significance level for the tests and for the score-correlation threshold.
         :meth:`PLS.select_n_components` uses 0.01 for van der Voet.
@@ -710,10 +813,12 @@ def compare_cv_criteria(  # noqa: PLR0913
             ``cv_anova_p``
                 CV-ANOVA *p*-value for the whole model, one response only (NaN otherwise).
                 It is a monotone function of :math:`Q^2`.
-            ``r_train``, ``r_cv``, ``r_cv_threshold``
+            ``r_train``, ``r_cv``, ``r_cv_threshold``, ``r_cv_p``
                 Correlation of :math:`t_a` and :math:`u_a` on the training rows, the same
-                correlation pooled over the held-out rows, and the one-sided threshold
-                :math:`z_{1-\alpha}/\sqrt{N}` it must exceed.
+                correlation pooled over the held-out rows (about the training-fold
+                centre, so it is unaffected by sign flips between folds), the
+                :math:`1-\alpha` quantile of its null distribution under permuted Y, and
+                its one-sided permutation *p*-value.
             ``slope_ratio``
                 :math:`s_a`, the held-out slope of the deflated response on
                 :math:`t_a` relative to the training slope. PRESS falls exactly when
@@ -783,6 +888,7 @@ def compare_cv_criteria(  # noqa: PLR0913
         cv=cv,
         random_state=random_state,
         n_permutations=n_permutations,
+        n_cv_permutations=n_cv_permutations,
         alpha=alpha,
         angle_threshold=angle_threshold,
         conf_level=conf_level,
