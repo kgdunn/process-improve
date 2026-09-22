@@ -30,6 +30,7 @@ space in latent variable regression modeling", Journal of Chemometrics, 39
 from __future__ import annotations
 
 import typing
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -42,12 +43,34 @@ from ._base import _LatentVariableModel, _LazyFrame
 from ._common import epsqrt
 from ._preprocessing import MCUVScaler
 
+#: Constructor parameters OPLS accepts for API parity with PLS but does not use, mapped to
+#: their defaults. The Trygg-Wold single-response algorithm is closed form, so neither an
+#: iteration cap nor a convergence tolerance has anything to bind to. They stay on the
+#: signature through the deprecation window so ``get_params`` / ``set_params`` / ``clone``
+#: keep working for code that already passes them.
+_DEPRECATED_INERT_PARAMS: typing.Final = {"max_iter": 1000, "tol": epsqrt}
+
+
+def _warn_about_inert_parameters(model: OPLS) -> None:
+    """Warn once per fit for each inert parameter the caller set away from its default."""
+    for name, default in _DEPRECATED_INERT_PARAMS.items():
+        if getattr(model, name) != default:
+            warnings.warn(
+                f"process_improve.multivariate.OPLS(..., {name}=...) is deprecated since "
+                f"1.96.0 and has no effect; it will be removed in 2.0. The single-response "
+                f"O-PLS algorithm is closed form and never iterates, so {name} has nothing "
+                f"to act on. Remove the argument.",
+                category=DeprecationWarning,
+                stacklevel=3,
+            )
+
+
 if typing.TYPE_CHECKING:
     from ._pls import DataMatrix
 
 
 class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator):
-    """Orthogonal PLS for a single response, O-PLS(1; ``n_orthogonal_components``).
+    r"""Orthogonal PLS for a single response, O-PLS(1; ``n_orthogonal_components``).
 
     Extracts one Y-predictive component and ``n_orthogonal_components``
     Y-orthogonal components from ``X`` via the Trygg-Wold NIPALS algorithm. The
@@ -66,10 +89,21 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         returned on the original data scale. Set ``False`` when the inputs are
         already scaled.
     max_iter : int, default=1000
-        Reserved for API parity with :class:`PLS`; the closed-form single-
-        response algorithm here does not iterate.
+        Deprecated since 1.96.0 and ignored; it will be removed in 2.0. The
+        single-response Trygg-Wold algorithm used here is closed form: the
+        predictive weight is :math:`X'y` normalised, and the orthogonal
+        components come from a loop that runs exactly
+        ``n_orthogonal_components`` times. Nothing iterates to convergence, so
+        there is no loop for a cap to bound. Setting it to anything but the
+        default raises a :class:`DeprecationWarning`.
     tol : float, default=sqrt(machine epsilon)
-        Numerical tolerance used when guarding rank-deficient projections.
+        Deprecated since 1.96.0 and ignored; it will be removed in 2.0. It was
+        documented as guarding rank-deficient projections, but the only such
+        guard is the :func:`safe_inverse` of ``P_o' W_o``, which takes a
+        condition-number ceiling (default :math:`1/\epsilon`, about 4.5e15),
+        not a magnitude floor like this one (about 1.5e-8). The two are
+        different quantities, so this value never reached that guard. Setting
+        it to anything but the default raises a :class:`DeprecationWarning`.
     copy : bool, default=True
         Whether to copy X and y before fitting.
 
@@ -183,6 +217,8 @@ class OPLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator
         OPLS
             The fitted model (``self``).
         """
+        _warn_about_inert_parameters(self)
+
         if hasattr(Y, "ndim") and Y.ndim == 1:
             Y = Y.to_frame() if isinstance(Y, pd.Series) else pd.DataFrame(np.asarray(Y).reshape(-1, 1))
 
