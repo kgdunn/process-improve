@@ -405,6 +405,25 @@ The third item of #374, double cross-validation for PLS, is already provided by
   after the split across the `dense` and `nipals` paths; the only field that
   differs is `fitting_info_.timing`, and two runs of *identical* code differ in
   exactly that field and no other.
+- **The no-correction dead band of `MidCourseCorrector.correct` is measured
+  against the interval at the decision point (#541).** It was measured against
+  an interval built from the full-row training RMSE, which cannot see that a
+  score estimate resting on a few observed columns is far less certain than
+  one resting on the whole row, nor that the estimator can be ill-conditioned
+  early in the batch; that interval declared nonsensical early projections
+  precise and let them trigger harmful corrections. The band now comes from
+  `predict`, so an early decision point is held to a correspondingly wider
+  interval. With the interval calibrated at the decision point,
+  `evaluate_control_policies` and the two agent tools default to
+  `dead_band=1.0` (the class default: correct only when the whole interval
+  falls short of the target) instead of the 2.5 that compensated for the old
+  interval.
+
+  The no-change prediction and the movement penalty use the currently planned
+  remainder (the implemented schedule after an earlier decision point) rather
+  than always the nominal schedule. `correct` reports `y_hat_no_change`,
+  `half_width` and `condition_number` on every outcome, and the `y_target`
+  check moved from the constructor to `correct`.
 
 ### Deprecated
 
@@ -444,25 +463,6 @@ The third item of #374, double cross-validation for PLS, is already provided by
   Setting either to a non-default value now raises a `DeprecationWarning`.
   Removal is scheduled for 2.0, per
   `docs/development/deprecation_policy.rst`.
-- **The no-correction dead band of `MidCourseCorrector.correct` is measured
-  against the interval at the decision point (#541).** It was measured against
-  an interval built from the full-row training RMSE, which cannot see that a
-  score estimate resting on a few observed columns is far less certain than
-  one resting on the whole row, nor that the estimator can be ill-conditioned
-  early in the batch; that interval declared nonsensical early projections
-  precise and let them trigger harmful corrections. The band now comes from
-  `predict`, so an early decision point is held to a correspondingly wider
-  interval. With the interval calibrated at the decision point,
-  `evaluate_control_policies` and the two agent tools default to
-  `dead_band=1.0` (the class default: correct only when the whole interval
-  falls short of the target) instead of the 2.5 that compensated for the old
-  interval.
-
-  The no-change prediction and the movement penalty use the currently planned
-  remainder (the implemented schedule after an earlier decision point) rather
-  than always the nominal schedule. `correct` reports `y_hat_no_change`,
-  `half_width` and `condition_number` on every outcome, and the `y_target`
-  check moved from the constructor to `correct`.
 
 ### Fixed
 
