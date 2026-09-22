@@ -20,7 +20,13 @@ from sklearn.utils import Bunch
 from sklearn.utils.validation import check_is_fitted
 
 from ._base import _HotellingsT2LimitMixin
-from ._common import SpecificationWarning, _nz, _scale_block_contributions, epsqrt
+from ._common import (
+    SpecificationWarning,
+    _nz,
+    _scale_block_contributions,
+    epsqrt,
+    resolve_loop_settings,
+)
 from ._diagnostics import _select_rows
 from ._limits import spe_calculation
 from ._nipals import quick_regress, ssq
@@ -52,20 +58,6 @@ def _validate_blocks(X: dict[str, pd.DataFrame]) -> None:
                 f"All X-blocks must have the same row count. Block '{name}' has "
                 f"{X[name].shape[0]} rows; expected {n_samples}."
             )
-
-
-def _resolve_missing_data_settings(missing_data_settings: dict | None, algo: str) -> dict:
-    """Resolve and validate the iterative-algorithm settings for the NIPALS path."""
-    settings = {"md_tol": epsqrt, "md_max_iter": 1000}
-    if isinstance(missing_data_settings, dict):
-        settings.update(missing_data_settings)
-    settings["md_max_iter"] = int(settings["md_max_iter"])
-    if algo == "nipals":
-        if not settings["md_tol"] < 10:  # the historical ceiling, kept verbatim
-            raise ValueError("Tolerance should not be too large.")
-        if not settings["md_tol"] > epsqrt**1.95:
-            raise ValueError("Tolerance must exceed machine precision.")
-    return settings
 
 
 def _reject_degenerate_missingness(X: dict[str, pd.DataFrame], block_names: Sequence[str]) -> None:
@@ -305,14 +297,17 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         Number of super-components (consensus latent variables) to extract.
     max_iter : int, default=500
         Maximum NIPALS iterations per component in the hierarchical outer loop.
-    tol : float or None, default=None
+    tol : float, default=``epsqrt`` (about 1.5e-8)
         Relative convergence tolerance on the super-score change: the norm of
         the change between two successive super-score iterations, divided by
-        the norm of the current super-score vector (#504). ``None`` uses
-        ``epsqrt`` (about 1.49e-8), the same default as PCA / PLS / TPLS. The
-        legacy absolute tolerance ``np.finfo(float).eps ** (9/10)`` (about
-        8.2e-15) sits below the floating-point oscillation floor of a relative
-        criterion, so it would never be reached in practice.
+        the norm of the current super-score vector (#504). The same default,
+        and the same meaning, as on PCA / PLS / TPLS. It used to default to
+        ``None`` and be resolved to ``epsqrt`` inside ``fit``; the literal is
+        the default now, which removes a branch and lets ``get_params`` report
+        the value that will actually be used (#588). The legacy absolute
+        tolerance ``np.finfo(float).eps ** (9/10)`` (about 8.2e-15) sits below
+        the floating-point oscillation floor of a relative criterion, so it
+        would never be reached in practice.
     algorithm : str, default="auto"
         Algorithm to use for fitting the model.
 
@@ -430,7 +425,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
     _parameter_constraints: typing.ClassVar = {
         "n_components": [int],
         "max_iter": [int],
-        "tol": [float, None],
+        "tol": [float],
         "algorithm": [str],
         "missing_data_settings": [dict, None],
     }
@@ -440,7 +435,7 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         n_components: int,
         *,
         max_iter: int = 500,
-        tol: float | None = None,
+        tol: float = epsqrt,
         algorithm: str = "auto",
         missing_data_settings: dict | None = None,
     ):
@@ -470,10 +465,17 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
         _validate_blocks(X)
         self._record_data_shape(X)
         algo = self._resolve_algorithm(X)
-        # Resolve the iterative-algorithm settings. Only the validation inside is
-        # load-bearing today: the resolved ``md_tol`` / ``md_max_iter`` do not yet reach
-        # the NIPALS path, which uses ``tol`` and ``max_iter``.
-        _resolve_missing_data_settings(self.missing_data_settings, algo)
+        # The resolved settings now reach the loop. They used to be computed here and
+        # dropped, so a caller's ``missing_data_settings`` was validated and then
+        # ignored: measured before this change, ``md_tol=1e-1, md_max_iter=3`` gave the
+        # same 180 and 85 iterations as passing nothing at all (#588).
+        settings = resolve_loop_settings(
+            tol=self.tol,
+            max_iter=self.max_iter,
+            missing_data_settings=self.missing_data_settings,
+            validate=algo == "nipals",
+            estimator_name="MBPCA",
+        )
         if algo == "nipals":
             _reject_degenerate_missingness(X, self.block_names_)
 
@@ -482,8 +484,8 @@ class MBPCA(_HotellingsT2LimitMixin, TransformerMixin, BaseEstimator):
             algo=algo,
             block_names=self.block_names_,
             sqrt_kb={name: float(np.sqrt(width)) for name, width in self.block_widths_.items()},
-            tol=epsqrt if self.tol is None else float(self.tol),
-            max_iter=self.max_iter,
+            tol=float(settings["md_tol"]),
+            max_iter=int(settings["md_max_iter"]),
             n_samples=self.n_samples_,
         )
 
