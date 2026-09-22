@@ -697,6 +697,42 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
                     self.y_scores_[:, a] = (Y_deflated @ c_a / denom).flatten()
                 Y_deflated = Y_deflated - (self._scores[:, [a]] @ c_a.T)
 
+    def _make_scalers(
+        self,
+        X: pd.DataFrame,
+        Y: pd.DataFrame,
+        sample_weight: np.ndarray | None,
+    ) -> tuple[MCUVScaler, MCUVScaler]:
+        """Build the (X, Y) centring / scaling pair that ``fit`` will use.
+
+        Split out as its own method so a resistant subclass can substitute a
+        different notion of "middle" and "spread" without reimplementing
+        ``fit``: :class:`~process_improve.multivariate.methods.PRM` centres and
+        scales by *weighted* statistics, because the ordinary mean and standard
+        deviation are exactly as fragile as the fit they are preparing (#191).
+
+        The scalers are fitted on the rows that actually enter the fit. With
+        ``sample_weight``, zero-weight rows are excluded from NIPALS (via the
+        ``sqrt(w)`` rescale), so they must not influence the center / scale
+        either; otherwise a zero-weight row would stop being equivalent to a
+        dropped row. All rows are then transformed with those statistics.
+
+        Parameters
+        ----------
+        X, Y : pd.DataFrame
+            The training blocks, before any scaling.
+        sample_weight : np.ndarray of shape (n_samples,) or None
+            Row weights, as passed to :meth:`fit`.
+
+        Returns
+        -------
+        tuple[MCUVScaler, MCUVScaler]
+            Fitted scalers for X and Y respectively.
+        """
+        x_fit_rows = X if sample_weight is None else X[sample_weight > 0]
+        y_fit_rows = Y if sample_weight is None else Y[sample_weight > 0]
+        return MCUVScaler().fit(x_fit_rows), MCUVScaler().fit(y_fit_rows)
+
     def fit(  # noqa: PLR0912, PLR0915, C901
         self,
         X: DataMatrix,
@@ -816,15 +852,7 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         self._x_scaler: MCUVScaler | None = None
         self._y_scaler: MCUVScaler | None = None
         if self.scale:
-            # Fit the scalers on the rows that actually enter the fit. With
-            # sample_weight, zero-weight rows are excluded from NIPALS (via the
-            # sqrt(w) rescale), so they must not influence the center/scale
-            # either - otherwise a zero-weight row would stop being equivalent to
-            # a dropped row. All rows are then transformed with those statistics.
-            x_fit_rows = X if sample_weight is None else X[sample_weight > 0]
-            y_fit_rows = Y if sample_weight is None else Y[sample_weight > 0]
-            self._x_scaler = MCUVScaler().fit(x_fit_rows)
-            self._y_scaler = MCUVScaler().fit(y_fit_rows)
+            self._x_scaler, self._y_scaler = self._make_scalers(X, Y, sample_weight)
             X = self._x_scaler.transform(X)
             Y = self._y_scaler.transform(Y)
         elif self.warn_on_uncentred:

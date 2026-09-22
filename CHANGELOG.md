@@ -31,6 +31,36 @@ those changes.
   It is the last parameter in the signature so that no existing positional argument
   changed position.
 
+- **`PRM`: Partial Robust M-regression, a PLS that outliers cannot capture (#191).**
+  Ordinary PLS minimises a sum of squares, so its breakdown point is zero: one wild
+  row moves the fit without limit. `PRM` gives every row a weight that falls off
+  with how badly the current model misses it and with how far its scores sit from
+  the middle of the cloud, then recomputes fit and weights from each other until
+  they settle. It subclasses `PLS`, so scores, loadings, VIP, Hotelling's T2, SPE,
+  `Pipeline` and `cross_val_score` all keep working.
+
+  ```python
+  from process_improve.multivariate.methods import PRM
+
+  model = PRM(n_components=2).fit(X, y)
+  model.outlier_summary(threshold=0.1)   # the rows it declined to be led by
+  ```
+
+  Measured on a fixture where 15% of the rows are vertical outliers, scoring each
+  fit on clean held-out data: PLS on the clean data gives 2.543, PLS on the
+  contaminated data 4.489, and `PRM` on the contaminated data 2.549. On clean data
+  `PRM` costs nothing measurable, so it is not a trade.
+
+  Two supporting pieces came with it. `PLS._make_scalers` is now an overridable
+  method, which is the single extension point a resistant subclass needs; the base
+  class returns exactly what `fit` built inline before, so nothing else changes.
+  And weighting only the *fit* turns out to recover none of the damage above: the
+  mean and standard deviation have a breakdown point of zero too, so `PRM` also
+  centres and scales by weighted statistics.
+
+  Reference: S. Serneels, C. Croux, P. Filzmoser and P.J. Van Espen, "Partial Robust
+  M-regression", Chemometrics and Intelligent Laboratory Systems, 79 (2005), 55-64.
+
 - **`unfold_blocks`: batchwise unfolding into several blocks (#193).** Aligned batch
   data has been unfoldable for a long time, one block at a time, via `dict_to_wide`.
   What was missing was a way to hand several blocks to a multi-block model.

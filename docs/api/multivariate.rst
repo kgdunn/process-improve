@@ -34,6 +34,19 @@ loadings, VIP, Hotelling's T2 and SPE.
    :members:
    :show-inheritance:
 
+PRM
+~~~
+
+Partial Robust M-regression: PLS with a bounded influence per observation, so that
+a handful of outlying rows move the fit a little instead of a lot. Each row carries
+the product of a residual weight and a leverage weight, and the fit and the weights
+are recomputed from each other until they settle. Everything :class:`PLS` offers is
+inherited, so a fitted ``PRM`` also has scores, loadings, VIP, Hotelling's T2 and SPE.
+
+.. autoclass:: PRM
+   :members: fit, outlier_summary
+   :show-inheritance:
+
 TPLS
 ~~~~
 
