@@ -1581,7 +1581,6 @@ _CV_CRITERIA_PANELS: dict[str, tuple[int, int, str]] = {
     "score_correlation": (1, 2, "held-out r"),
     "covariance_permutation": (1, 2, "covariance"),
     "subspace_stability": (2, 1, "subspace"),
-    "pv_spe_alarm": (2, 2, "SPE alarms"),
 }
 
 
@@ -1604,6 +1603,37 @@ def _legends_below_panels(fig: go.Figure, panel_legend: dict[tuple[int, int], st
     return legends
 
 
+def _annotate_cv_criteria(fig: go.Figure, result: typing.Any) -> None:  # noqa: ANN401
+    """Mark each panel's recommended component counts, and caption the SPE-limit ratio in panel 4."""
+    picks: dict[tuple[int, int, int], list[str]] = {}
+    for rule, n_components in result.recommendations["n_components"].items():
+        if rule in _CV_CRITERIA_PANELS:
+            row, col, label = _CV_CRITERIA_PANELS[rule]
+            picks.setdefault((row, col, int(n_components)), []).append(label)
+    captions: dict[tuple[int, int], str] = {}
+    for (row, col, n_components), labels in sorted(picks.items(), key=lambda item: item[0][2]):
+        part = f"{n_components} ({', '.join(labels)})"
+        captions[(row, col)] = f"{captions[(row, col)]}; {part}" if (row, col) in captions else f"Recommended: {part}"
+        if n_components > 0:
+            fig.add_vline(x=n_components, line=dict(color=REFERENCE_LINE_COLOR, width=1, dash="dot"), row=row, col=col)
+    ratio = result.table["pv_spe_limit_ratio"].to_numpy(dtype=float)
+    if np.isfinite(ratio).any():
+        captions[(2, 2)] = f"SPE limit refitted to held-out rows: {np.nanmin(ratio):.2f}x to {np.nanmax(ratio):.2f}x"
+    for (row, col), text in captions.items():
+        axis_suffix = "" if (row, col) == (1, 1) else str((row - 1) * 2 + col)
+        fig.add_annotation(
+            text=text,
+            xref=f"x{axis_suffix} domain",
+            yref=f"y{axis_suffix} domain",
+            x=0.0,
+            y=1.0,
+            xanchor="left",
+            yanchor="bottom",
+            showarrow=False,
+            font=dict(size=10),
+        )
+
+
 def cv_criteria_plot(result: typing.Any, settings: dict | None = None) -> go.Figure:  # noqa: ANN401
     """Plot the per-component table of :func:`compare_cv_criteria` as four small multiples.
 
@@ -1620,7 +1650,9 @@ def cv_criteria_plot(result: typing.Any, settings: dict | None = None) -> go.Fig
        with the stability threshold (rule ``subspace_stability``).
     4. *Are the monitoring limits right on new rows?* Out-of-sample SPE and
        :math:`T^2` alarm rates from Procrustes cross-validation, with the nominal rate
-       and its binomial upper bound (rule ``pv_spe_alarm``).
+       and its binomial upper bound. The caption gives the range of
+       ``pv_spe_limit_ratio``, the factor by which the SPE limit refitted to held-out
+       rows exceeds the full-data one.
 
     Parameters
     ----------
@@ -1746,30 +1778,7 @@ def cv_criteria_plot(result: typing.Any, settings: dict | None = None) -> go.Fig
     _reference("nominal", 1 - result.conf_level, REFERENCE_LINE_COLOR, (2, 2))
     _reference("binomial upper", result.alarm_rate_upper, LIMIT_LINE_COLOR, (2, 2))
 
-    # Recommendations: one dashed line per distinct pick in a panel, labelled with the rules.
-    picks: dict[tuple[int, int, int], list[str]] = {}
-    for rule, n_components in result.recommendations["n_components"].items():
-        if rule in _CV_CRITERIA_PANELS:
-            row, col, label = _CV_CRITERIA_PANELS[rule]
-            picks.setdefault((row, col, int(n_components)), []).append(label)
-    captions: dict[tuple[int, int], list[str]] = {}
-    for (row, col, n_components), labels in sorted(picks.items(), key=lambda item: item[0][2]):
-        captions.setdefault((row, col), []).append(f"{n_components} ({', '.join(labels)})")
-        if n_components > 0:
-            fig.add_vline(x=n_components, line=dict(color=REFERENCE_LINE_COLOR, width=1, dash="dot"), row=row, col=col)
-    for (row, col), parts in captions.items():
-        axis_suffix = "" if (row, col) == (1, 1) else str((row - 1) * 2 + col)
-        fig.add_annotation(
-            text="Recommended: " + "; ".join(parts),
-            xref=f"x{axis_suffix} domain",
-            yref=f"y{axis_suffix} domain",
-            x=0.0,
-            y=1.0,
-            xanchor="left",
-            yanchor="bottom",
-            showarrow=False,
-            font=dict(size=10),
-        )
+    _annotate_cv_criteria(fig, result)
 
     legends = _legends_below_panels(fig, panel_legend)
     # Lift the panel titles clear of the "Recommended" caption drawn above each panel.

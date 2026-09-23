@@ -1984,13 +1984,20 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         a component can predict Y without being stable, or be stable and real without
         improving the prediction.
 
+        Missing values (NaN) are handled as the NIPALS fit handles them. Every held-out
+        row is scored the way NIPALS scores a training row, from its observed cells, and
+        a missing Y cell is left out of PRESS, of the slope ratio and of the score
+        correlation. The PRESS identity and ``s_a = 1`` in sample stay exact.
+
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            Predictor block, on its raw scale. Each training fold is autoscaled with its
-            own :class:`MCUVScaler`, as in :meth:`PLS.select_n_components`.
+            Predictor block, on its raw scale, NaN where missing. Each training fold is
+            autoscaled with its own :class:`MCUVScaler`, as in
+            :meth:`PLS.select_n_components`.
         Y : array-like of shape (n_samples,) or (n_samples, n_targets)
-            Response block.
+            Response block, NaN where missing. A row with no observed response still helps
+            fit X.
         max_components : int, optional
             Largest number of components to evaluate. Capped at one fewer than the
             smallest training fold, and at the number of features.
@@ -2065,17 +2072,27 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
               - ``pv_spe_alarm_rate``, ``pv_t2_alarm_rate``: fraction of the Procrustes
                 pseudo-validation rows above the full-data model's SPE and :math:`T^2`
                 limits at ``conf_level``; nominally ``1 - conf_level``.
+              - ``pv_spe_limit_ratio``: the SPE limit fitted to the pseudo-validation
+                (held-out) SPE, divided by the full-data limit. The full-data limit is
+                fitted to training residuals, which are smaller than those of new rows,
+                so the ratio is above 1, and more so the fewer rows per variable.
 
             - ``recommendations`` (pandas.DataFrame): one row per selection rule
               (``q2_max``, ``q2_1se``, ``van_der_voet``, ``score_correlation``,
-              ``covariance_permutation``, ``subspace_stability``, ``pv_spe_alarm``) with
-              the recommended ``n_components``, the ``rule`` and the ``question`` it
-              answers. The structural rules count leading components that pass, stopping
-              at the first failure, and can return 0.
+              ``covariance_permutation``, ``subspace_stability``) with the recommended
+              ``n_components``, the ``rule`` and the ``question`` it answers. The
+              structural rules count leading components that pass, stopping at the first
+              failure, and can return 0. For ``subspace_stability``, a pair of components
+              that swap inside a stable span (the span of the first fails, the span of
+              both passes) counts as two.
             - ``press`` (pandas.Series): cross-validated PRESS in original Y units.
             - ``press_baseline`` (float): PRESS of predicting each held-out row by its
               training fold's mean.
             - ``d_ratios`` (pandas.DataFrame): Procrustes D ratio per fold and component.
+            - ``spe_limits`` (pandas.DataFrame, indexed by ``n_components``): the SPE limit
+              at ``conf_level`` fitted to the training residuals (``full_data``, what
+              ``global_model`` reports) and to the pseudo-validation SPE
+              (``pseudo_validation``). Use the second to monitor new rows.
             - ``cv_splits`` (list of (train, test) index arrays): the folds used.
             - ``global_model`` (PLS): the model fitted to all rows with
               ``max_components`` components.
@@ -2086,8 +2103,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         Raises
         ------
         ValueError
-            For missing values, a splitter that does not hold out every row exactly once,
-            or an out-of-range setting.
+            For a row whose X is entirely missing, a column that is entirely missing, a
+            training fold with fewer than two observed values in a column, a splitter that
+            does not hold out every row exactly once, or an out-of-range setting.
 
         See Also
         --------
@@ -2140,12 +2158,16 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
         ``X_pv`` also equal the fold models' predictions for the held-out rows. ``Y_pv``
         is ``Y`` unchanged.
 
+        With missing values in X, the held-out rows are scored from their observed cells,
+        ``X_pv`` has the same missing cells as ``X``, and the properties above are exact
+        for the complete rows.
+
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            Predictor block, raw scale.
+            Predictor block, raw scale, NaN where missing.
         Y : array-like of shape (n_samples,) or (n_samples, n_targets)
-            Response block.
+            Response block, NaN where missing.
         n_components : int
             Number of components of the model being validated.
         cv : int or sklearn splitter, default=7
@@ -2172,7 +2194,9 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             - ``Y_pv`` (pandas.DataFrame): ``Y``, unchanged.
             - ``scores`` (pandas.DataFrame): the scores the full-data model gives ``X_pv``.
             - ``local_spe`` (pandas.Series): SPE of each held-out row in its fold model;
-              the full-data model gives ``X_pv`` the same values.
+              the full-data model gives ``X_pv`` the same values. A limit fitted to these,
+              ``spe_calculation(pv.local_spe, conf_level=0.95)``, is calibrated for new
+              rows; the full-data model's own limit is too tight for them.
             - ``d_ratios`` (pandas.DataFrame): D ratio per fold and component.
             - ``cv_splits`` (list of (train, test) index arrays): the folds used.
             - ``global_model`` (PLS): the model fitted to all rows; apply it to ``X_pv``

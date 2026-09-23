@@ -7,6 +7,7 @@ import pathlib
 import numpy as np
 import pandas as pd
 import pytest
+from scipy.linalg import hadamard
 from scipy.stats import f as f_dist
 from sklearn.model_selection import GroupKFold, KFold, LeaveOneOut, RepeatedKFold
 
@@ -19,9 +20,13 @@ from process_improve.multivariate._cv_criteria import (
     _fit_folds,
     _heldout_pass,
     _jackknife_angle,
+    _leading_count,
+    _nipals_scores,
     _partition_splits,
     _procrustes_scores,
+    _swapped_pairs,
 )
+from process_improve.multivariate._limits import spe_calculation
 
 LDPE = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate" / "LDPE" / "LDPE.csv"
 
@@ -34,6 +39,35 @@ def _two_component_data(n: int = 60, k: int = 10, m: int = 1, seed: int = 1) -> 
     X.columns = [f"x{i}" for i in range(k)]
     Y = pd.DataFrame(scores @ rng.standard_normal((2, m)) + 0.3 * rng.standard_normal((n, m)))
     Y.columns = [f"y{i}" for i in range(m)]
+    return X, Y
+
+
+def _latent_data(  # noqa: PLR0913 - one argument per property of the simulated process
+    n: int,
+    x_sd: list[float],
+    y_coef: list[list[float]],
+    *,
+    k: int = 16,
+    noise: float = 0.3,
+    seed: int = 0,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """X = T P' + E and Y = T B + F, with latent variable ``j`` of standard deviation ``x_sd[j]``.
+
+    ``y_coef`` is B, one row per latent variable; a zero row is variation in X that Y
+    does not see. The loadings are columns of a Hadamard matrix scaled to unit length
+    (entries +-1/sqrt(k)), so every X column has the same variance and autoscaling is a
+    uniform rescale. With unequal column variances, autoscaling makes the noise
+    heteroscedastic and the population PLS model then needs more components than there
+    are latent variables, so the "true" count would not be the one simulated.
+    """
+    rng = np.random.default_rng(seed)
+    scores = rng.standard_normal((n, len(x_sd))) * np.asarray(x_sd)
+    loadings = hadamard(k)[:, 1 : len(x_sd) + 1] / np.sqrt(k)
+    B = np.asarray(y_coef, dtype=float)
+    X = pd.DataFrame(scores @ loadings.T + noise * rng.standard_normal((n, k)))
+    Y = pd.DataFrame(scores @ B + noise * rng.standard_normal((n, B.shape[1])))
+    X.columns = [f"x{i}" for i in range(k)]
+    Y.columns = [f"y{i}" for i in range(B.shape[1])]
     return X, Y
 
 
@@ -163,7 +197,7 @@ def test_fold_sign_flip_changes_nothing() -> None:
     model = PLS(n_components=4).fit(X, Y)
     before = _heldout_pass(folds, Y.to_numpy(), 4)
     pv_before = _procrustes_scores(model, folds)
-    for attribute in ("weights", "direct_weights", "x_loadings", "y_loadings"):
+    for attribute in ("scores", "weights", "direct_weights", "x_loadings", "y_loadings"):
         getattr(folds[2], attribute)[:, 1] *= -1.0
     after = _heldout_pass(folds, Y.to_numpy(), 4)
     pv_after = _procrustes_scores(model, folds)
@@ -188,7 +222,6 @@ def test_structural_rules_find_two_components(two_component_result: object) -> N
     assert picks["covariance_permutation"] == 2
     assert picks["subspace_stability"] == 2
     assert picks["score_correlation"] >= 1
-    assert picks["pv_spe_alarm"] >= 2  # the monitoring limits hold at least for the real components
     table = two_component_result.table
     assert table.loc[1, "r_cv_p"] < 0.05
     assert table.loc[3, "angle_subspace_deg"] > 30 > table.loc[2, "angle_subspace_deg"]
@@ -221,6 +254,57 @@ def test_false_positive_rates_under_the_null() -> None:
             fired[rule] += int(picks[rule] > 0)
     assert fired["score_correlation"] / n_datasets <= 0.2
     assert fired["covariance_permutation"] / n_datasets <= 0.2
+
+
+def test_every_rule_recovers_two_latent_variables() -> None:
+    """Two latent variables drive y, and every rule finds exactly two components."""
+    X, Y = _latent_data(60, [3, 1], [[1], [1]], seed=0)
+    result = compare_cv_criteria(X, Y, max_components=5, random_state=0, n_permutations=199, n_cv_permutations=99)
+    assert set(result.recommendations["n_components"]) == {2}
+
+
+def test_a_swapping_pair_keeps_its_stable_span() -> None:
+    """Two equally strong components swap between folds: each direction is unstable, their span is not."""
+    X, Y = _latent_data(60, [1, 1], [[1, 0], [0, 1]], seed=0)
+    result = compare_cv_criteria(X, Y, max_components=4, random_state=0, n_permutations=99, n_cv_permutations=19)
+    table = result.table
+    assert table.loc[1, "angle_subspace_deg"] > result.angle_threshold > table.loc[2, "angle_subspace_deg"]
+    assert result.recommendations.loc["subspace_stability", "n_components"] == 2
+
+
+def test_leading_count_carries_a_swapped_pair() -> None:
+    passes = np.array([False, True, False, True])
+    assert _leading_count(passes) == 0
+    swaps = _swapped_pairs(np.array([50.0, 10.0, 60.0, 20.0]), 30.0)
+    np.testing.assert_array_equal(swaps, [True, False, True, False])
+    assert _leading_count(passes, swaps) == 4
+    assert _leading_count(np.array([True, False, False]), _swapped_pairs(np.array([5.0, 50.0, 60.0]), 30.0)) == 1
+
+
+@pytest.mark.slow
+def test_spe_limit_refitted_to_held_out_rows_holds_on_new_rows() -> None:
+    """The training-residual SPE limit is too tight for new rows; the pseudo-validation limit is not.
+
+    Fresh rows from the same simulated process are the ground truth: a limit at 95%
+    should flag about 5% of them.
+    """
+    X, Y = _latent_data(30, [3, 1], [[1], [1]], seed=4)
+    X_new, _ = _latent_data(4000, [3, 1], [[1], [1]], seed=1004)
+    result = compare_cv_criteria(X, Y, max_components=2, random_state=0, n_permutations=19, n_cv_permutations=0)
+    spe_new = result.global_model.diagnose(X_new).spe.to_numpy()
+    limits = result.spe_limits.loc[2]
+    assert np.mean(spe_new > limits["full_data"]) > 0.1
+    assert np.mean(spe_new > limits["pseudo_validation"]) < 0.075
+    assert result.table.loc[2, "pv_spe_limit_ratio"] == pytest.approx(limits["pseudo_validation"] / limits["full_data"])
+
+
+def test_spe_limits_are_fitted_to_training_and_held_out_spe() -> None:
+    X, Y = _two_component_data()
+    result = compare_cv_criteria(X, Y, max_components=3, random_state=0, n_permutations=9, n_cv_permutations=0)
+    pv = pseudo_validation_set(X, Y, n_components=3, scope="local", random_state=0)
+    limits = result.spe_limits.loc[3]
+    assert limits["full_data"] == pytest.approx(spe_calculation(result.global_model.spe_.iloc[:, 2].to_numpy()))
+    assert limits["pseudo_validation"] == pytest.approx(spe_calculation(pv.local_spe.to_numpy()))
 
 
 def test_angles_do_not_depend_on_the_number_of_folds() -> None:
@@ -310,12 +394,92 @@ def test_invalid_settings_raise(kwargs: dict, message: str) -> None:
         compare_cv_criteria(X, Y, **kwargs)
 
 
-def test_missing_values_raise() -> None:
+# --- Missing values ------------------------------------------------------------------------
+
+
+def _with_gaps(X: pd.DataFrame, Y: pd.DataFrame, fraction: float = 0.15, seed: int = 7) -> tuple:
+    """Delete a random ``fraction`` of the cells of X and of Y (missing completely at random)."""
+    rng = np.random.default_rng(seed)
+    return X.mask(rng.random(X.shape) < fraction), Y.mask(rng.random(Y.shape) < fraction)
+
+
+def test_nipals_scores_equal_direct_weights_on_complete_data() -> None:
+    """With complete training data, P'W is unit upper triangular and NIPALS scoring is x @ W*."""
+    X, Y = _two_component_data()
+    model = PLS(n_components=4).fit(MCUVScaler().fit_transform(X), MCUVScaler().fit_transform(Y))
+    x = MCUVScaler().fit_transform(X).to_numpy()
+    scores = _nipals_scores(x, model.x_weights_.to_numpy(), model.x_loadings_.to_numpy())
+    np.testing.assert_allclose(scores, x @ model.direct_weights_.to_numpy(), atol=1e-10)
+
+
+def test_nipals_scores_reproduce_the_training_scores_with_gaps() -> None:
+    """With gaps, x @ W* is not how the model scored its rows; the NIPALS step reproduces the fit exactly."""
+    X, Y = _with_gaps(*_two_component_data())
+    x = MCUVScaler().fit_transform(X)
+    model = PLS(n_components=3).fit(x, MCUVScaler().fit_transform(Y))
+    scores = _nipals_scores(x.to_numpy(), model.x_weights_.to_numpy(), model.x_loadings_.to_numpy())
+    np.testing.assert_allclose(scores, model.scores_.to_numpy(), atol=1e-10)
+    complete = x.notna().all(axis=1).to_numpy()
+    direct = x.to_numpy()[complete] @ model.direct_weights_.to_numpy()
+    assert np.abs(direct - model.scores_.to_numpy()[complete]).max() > 1e-3  # P'W is no longer triangular
+
+
+@pytest.mark.parametrize("m", [1, 3])
+def test_identity_and_in_sample_slope_hold_with_gaps(m: int) -> None:
+    """Missing X and Y cells: the PRESS identity stays exact, and s_a = 1 on the training rows."""
+    X, Y = _with_gaps(*_two_component_data(m=m))
+    held = _heldout_pass(_folds(X, Y, 4), Y.to_numpy(), 4)
+    press = np.r_[held.press_baseline, held.press_y.sum(axis=1)]
+    np.testing.assert_allclose(-np.diff(press), (2 * held.slope_ratio - 1) * held.slope_weight, rtol=1e-10)
+
+    everything = [(np.arange(len(X)), np.arange(len(X)))]
+    in_sample = _heldout_pass(_fit_folds(lambda: PLS(n_components=4), X, Y, everything, scope="local"), Y.to_numpy(), 4)
+    np.testing.assert_allclose(in_sample.slope_ratio, 1.0, rtol=1e-8)
+
+
+def test_compare_cv_criteria_runs_with_gaps_and_a_row_without_y() -> None:
+    X, Y = _with_gaps(*_two_component_data())
+    Y.iloc[5] = np.nan  # this row helps fit X and is left out of every Y criterion
+    result = compare_cv_criteria(X, Y, max_components=4, random_state=0, n_permutations=99, n_cv_permutations=39)
+    table = result.table
+    assert np.isfinite(table.drop(columns="cv_anova_p").to_numpy()).all()
+    assert result.recommendations.loc["covariance_permutation", "n_components"] == 2
+    assert table.loc[1, "q2y"] > 0.5
+
+
+def test_pseudo_validation_set_keeps_the_missing_pattern() -> None:
+    """X_pv has the gaps of X; its complete rows keep the exact scores and SPE of the construction."""
+    X, Y = _with_gaps(*_two_component_data(), fraction=0.05)
+    pv = pseudo_validation_set(X, Y, n_components=2, scope="global", random_state=0)
+    assert pv.X_pv.isna().equals(X.isna())
+    complete = X.notna().all(axis=1)
+    diagnostics = pv.global_model.diagnose(pv.X_pv[complete])
+    np.testing.assert_allclose(diagnostics.scores.to_numpy(), pv.scores[complete].to_numpy(), atol=1e-10)
+    np.testing.assert_allclose(diagnostics.spe.to_numpy(), pv.local_spe[complete].to_numpy(), atol=1e-10)
+
+
+@pytest.mark.parametrize(
+    ("where", "message"),
+    [
+        ("x_row", "every X value missing"),
+        ("x_column", "Columns of X"),
+        ("y_column", "Columns of Y"),
+        ("sparse", "fold"),
+    ],
+)
+def test_unusable_gaps_raise(where: str, message: str) -> None:
     X, Y = _two_component_data(n=30)
-    X.iloc[3, 2] = np.nan
-    with pytest.raises(ValueError, match="missing values"):
+    if where == "x_row":
+        X.iloc[3] = np.nan
+    elif where == "x_column":
+        X["x2"] = np.nan
+    elif where == "y_column":
+        Y["y0"] = np.nan
+    else:
+        X.iloc[2:, 0] = np.nan  # two observed values: some training fold keeps fewer than two
+    with pytest.raises(ValueError, match=message):
         compare_cv_criteria(X, Y)
-    with pytest.raises(ValueError, match="missing values"):
+    with pytest.raises(ValueError, match=message):
         pseudo_validation_set(X, Y, n_components=2)
 
 
@@ -351,7 +515,7 @@ def test_ldpe_runs_and_recommends_within_range() -> None:
     values = pd.read_csv(LDPE, index_col=0)
     X, Y = values.iloc[:, :14], values.iloc[:, 14:]
     result = compare_cv_criteria(X, Y, max_components=6, random_state=0, n_permutations=199, n_cv_permutations=49)
-    assert result.table.shape == (6, 17)
+    assert result.table.shape == (6, 18)
     assert result.recommendations["n_components"].between(0, 6).all()
     assert result.table["q2y"].iloc[0] > 0  # LDPE has real signal in the first component
     assert result.recommendations.loc["covariance_permutation", "n_components"] >= 1
@@ -365,6 +529,7 @@ def test_cv_criteria_plot_draws_four_panels(two_component_result: object) -> Non
     assert isinstance(fig, go.Figure)
     assert len(fig.data) == 13  # 9 series and bands, 4 reference lines
     assert {trace.legend for trace in fig.data} == {"legend", "legend2", "legend3", "legend4"}
-    assert len(fig.layout.shapes) >= 4  # one dashed line per distinct recommendation
+    assert len(fig.layout.shapes) >= 3  # one dotted line per distinct recommendation in panels 1 to 3
+    assert any("SPE limit refitted" in annotation.text for annotation in fig.layout.annotations)
     with pytest.raises(ValueError, match="compare_cv_criteria"):
         cv_criteria_plot(object())

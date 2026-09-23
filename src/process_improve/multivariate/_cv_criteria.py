@@ -39,8 +39,17 @@ rows, with :math:`\mathbf{R}_{a-1}` the residuals after :math:`a-1` components a
 On the training rows :math:`s_a = 1`. On new rows, :math:`Q^2` rises only when
 :math:`s_a > 1/2`, while the held-out score correlation is positive as soon as
 :math:`s_a > 0`. A component with :math:`0 < s_a < 1/2` points the right way on new
-data but its training slope is more than twice too steep: the score correlation
-keeps it and :math:`Q^2` drops it.
+data, but its training slope is more than twice too steep. Positive is not
+significant, though: in simulations with a real but weak component, 4 of 83
+components in this band beat the permutation null at the 5% level, no more than
+chance would give. Tested against its null, the score correlation is not more
+sensitive than :math:`Q^2`; the band marks a direction that is real but cannot yet be
+told from noise with this many rows.
+
+Missing values are handled as the NIPALS fit handles them. Every held-out row is
+scored the way NIPALS scores an incomplete training row (regression on the observed
+part of each weight vector, then deflation), and a missing Y cell is left out of every
+sum. The identity above and :math:`s_a = 1` in sample hold exactly with gaps.
 
 References
 ----------
@@ -100,7 +109,8 @@ class _Fold:
 
     train: np.ndarray
     test: np.ndarray
-    x_test: np.ndarray  # held-out X in the fold model's scaled space, (n_test, K)
+    x_test: np.ndarray  # held-out X in the fold model's scaled space, NaN where missing, (n_test, K)
+    scores: np.ndarray  # held-out scores, scored as NIPALS scores its training rows, (n_test, A)
     y_centre: np.ndarray  # maps the fold's scaled Y back to original units, (M,)
     y_scale: np.ndarray  # (M,)
     weights: np.ndarray  # W, (K, A)
@@ -110,7 +120,13 @@ class _Fold:
 
 
 def _as_frames(X: DataMatrix, Y: DataMatrix | pd.Series) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Coerce X and Y to float DataFrames with one row per observation, and reject gaps."""
+    """Coerce X and Y to float DataFrames with one row per observation.
+
+    Missing cells (NaN) are allowed, with two exceptions that leave nothing to work
+    with: a row whose X is entirely missing cannot be scored, and a column that is
+    entirely missing cannot be scaled. A row whose Y is entirely missing is kept; it
+    helps fit the X side and is left out of every Y-based criterion.
+    """
     X_df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(np.asarray(X, dtype=float))
     if isinstance(Y, pd.Series):
         Y_df = Y.to_frame()
@@ -123,12 +139,27 @@ def _as_frames(X: DataMatrix, Y: DataMatrix | pd.Series) -> tuple[pd.DataFrame, 
         raise ValueError(f"X and Y must have the same number of rows; got {X_df.shape[0]} and {Y_df.shape[0]}.")
     X_df = X_df.astype(float)
     Y_df = Y_df.astype(float)
-    # Held-out scores are X_test @ W*, which is undefined for a missing cell, and the
-    # NIPALS missing-data path breaks the triangular P'W that the angle and Procrustes
-    # calculations rely on.
-    if X_df.isna().to_numpy().any() or Y_df.isna().to_numpy().any():
-        raise ValueError("X and Y must not contain missing values; impute or remove them first.")
+    empty_rows = X_df.index[X_df.isna().all(axis=1)]
+    if len(empty_rows):
+        raise ValueError(f"Rows with every X value missing cannot be scored; remove them: {list(empty_rows)[:5]}.")
+    for name, frame in (("X", X_df), ("Y", Y_df)):
+        empty_columns = frame.columns[frame.isna().all(axis=0)]
+        if len(empty_columns):
+            raise ValueError(f"Columns of {name} with every value missing: {list(empty_columns)[:5]}.")
     return X_df, Y_df
+
+
+def _check_fold_coverage(X: pd.DataFrame, Y: pd.DataFrame, splits: list[tuple[np.ndarray, np.ndarray]]) -> None:
+    """Every training fold needs two observed values per column to centre and scale it."""
+    for k, (train, _) in enumerate(splits, start=1):
+        for name, frame in (("X", X), ("Y", Y)):
+            counts = frame.iloc[train].notna().sum(axis=0)
+            sparse = counts.index[counts < 2]
+            if len(sparse):
+                raise ValueError(
+                    f"Training fold {k} has fewer than two observed values in {name} column(s) "
+                    f"{list(sparse)[:5]}; use fewer folds or impute."
+                )
 
 
 def _partition_splits(
@@ -184,17 +215,48 @@ def _component_cap(splits: list[tuple[np.ndarray, np.ndarray]], K: int, requeste
     return A
 
 
+def _nipals_scores(x: np.ndarray, weights: np.ndarray, x_loadings: np.ndarray) -> np.ndarray:
+    """Score rows the way NIPALS scores its training rows, using only the observed cells.
+
+    For each component in turn, the score is the regression of the row's deflated
+    observed cells on the matching cells of ``w_a``, and the row is then deflated by
+    ``t_a p_a'``. A missing cell stays out of every step.
+
+    With complete training data, ``P'W`` is unit upper triangular, and on a complete row
+    this equals ``x @ W*``, the projection :meth:`PLS.select_n_components` uses. With
+    gaps in the training data, ``P'W`` is not triangular, so ``x @ W*`` is not how the
+    model scored its own rows, even for a complete row. Scoring held-out rows this way
+    keeps them on the same footing as the training scores the model was fitted to, so
+    scoring the training rows gives ``s_a = 1``. It is sequential, so the first ``a``
+    scores are those of the ``a``-component model, and it inverts no matrix. Trimmed
+    score regression has neither property: its estimate of the first ``a`` scores
+    changes with ``A``, and its ``A x A`` matrix is singular once ``A`` exceeds the
+    number of observed cells in a row.
+    """
+    observed = ~np.isnan(x)
+    residual = np.where(observed, x, 0.0)
+    scores = np.zeros((x.shape[0], weights.shape[1]))
+    for a in range(weights.shape[1]):
+        w = weights[:, a]
+        denominator = observed @ w**2
+        with np.errstate(divide="ignore", invalid="ignore"):
+            scores[:, a] = np.where(denominator > 0, residual @ w / denominator, 0.0)
+        residual = np.where(observed, residual - np.outer(scores[:, a], x_loadings[:, a]), 0.0)
+    return scores
+
+
 def _fold_from_model(
     model: Any,  # noqa: ANN401 - any fitted PLS-family estimator
     split: tuple[np.ndarray, np.ndarray],
-    x_test: np.ndarray,
+    x_test: pd.DataFrame,
     y_map: tuple[np.ndarray, np.ndarray],
 ) -> _Fold:
     """Collect the fitted matrices a fold contributes; ``y_map`` is the (centre, scale) of Y."""
     return _Fold(
         train=split[0],
         test=split[1],
-        x_test=x_test,
+        x_test=x_test.to_numpy(dtype=float),
+        scores=_nipals_scores(x_test.to_numpy(dtype=float), model.x_weights_.to_numpy(), model.x_loadings_.to_numpy()),
         y_centre=np.asarray(y_map[0], dtype=float),
         y_scale=np.asarray(y_map[1], dtype=float),
         weights=model.x_weights_.to_numpy(),
@@ -225,6 +287,7 @@ def _fit_folds(
     default of the published Procrustes cross-validation; ``make_model`` must then build
     an estimator with ``scale=False``.
     """
+    _check_fold_coverage(X, Y, splits)
     folds: list[_Fold] = []
     if scope == "global":
         x_scaler, y_scaler = _global_scaling(X, Y)
@@ -232,7 +295,7 @@ def _fit_folds(
         y_map = (y_scaler.center_.to_numpy(), y_scaler.scale_.to_numpy())
         for train, test in splits:
             model = make_model().fit(Xs.iloc[train], Ys.iloc[train])
-            folds.append(_fold_from_model(model, (train, test), Xs.iloc[test].to_numpy(), y_map))
+            folds.append(_fold_from_model(model, (train, test), Xs.iloc[test], y_map))
         return folds
 
     for train, test in splits:
@@ -240,7 +303,7 @@ def _fit_folds(
         scaler_y = MCUVScaler().fit(Y.iloc[train])
         model = make_model().fit(scaler_x.transform(X.iloc[train]), scaler_y.transform(Y.iloc[train]))
         y_map = (scaler_y.center_.to_numpy(), scaler_y.scale_.to_numpy())
-        folds.append(_fold_from_model(model, (train, test), scaler_x.transform(X.iloc[test]).to_numpy(), y_map))
+        folds.append(_fold_from_model(model, (train, test), scaler_x.transform(X.iloc[test]), y_map))
     return folds
 
 
@@ -258,11 +321,16 @@ def _correlation_about_origin(x: np.ndarray, y: np.ndarray) -> float:
 
 
 def _heldout_pass(folds: list[_Fold], y_values: np.ndarray, n_components: int) -> Bunch:
-    """Project every held-out fold and accumulate PRESS, the slope ratio and the pooled scores.
+    """Accumulate PRESS, the slope ratio and the pooled scores over every held-out fold.
 
     PRESS is computed in original Y units, the same way :meth:`PLS.select_n_components`
     computes it. The slope ratio is accumulated in the same units, so that
     ``PRESS[a-1] - PRESS[a] == (2 * slope_ratio[a] - 1) * slope_weight[a]`` exactly.
+
+    A missing Y cell has no residual. It is left out of PRESS, and the identity stays
+    exact because the slope ratio uses the same observed cells: each row's weight is
+    ``t_i^2`` times the sum of ``c~_m^2`` over the responses observed in that row. A
+    row with no observed response is left out of the pooled t-u scores.
     """
     N, M = y_values.shape
     A = n_components
@@ -279,30 +347,32 @@ def _heldout_pass(folds: list[_Fold], y_values: np.ndarray, n_components: int) -
 
     for k, fold in enumerate(folds):
         y_test = y_values[fold.test]
-        scores = fold.x_test @ fold.direct_weights
-        y_loadings = fold.y_loadings
-        residual_prev = y_test - fold.y_centre  # a = 0: predict the training-fold mean
+        observed = ~np.isnan(y_test)
+        has_y = observed.any(axis=1)
+        n_cells = max(1, int(observed.sum()))
+        # a = 0 predicts the training-fold mean; a missing cell's residual is zero.
+        residual_prev = np.where(observed, y_test - fold.y_centre, 0.0)
         press_baseline += float(np.sum(residual_prev**2))
         for a in range(A):
-            t = scores[:, a]
-            c = y_loadings[:, a]
+            t = fold.scores[:, a]
+            c = fold.y_loadings[:, a]
             c_original = c * fold.y_scale
             slope_numerator[a] += float(t @ residual_prev @ c_original)
-            slope_weight[a] += float(c_original @ c_original) * float(t @ t)
-            # u_a = Y_res c_a / (c_a'c_a), with Y_res the held-out Y deflated by the
-            # earlier held-out components, in the fold model's scaled units.
-            cc = float(c @ c)
-            u = (residual_prev / fold.y_scale) @ c / cc if cc > 0 else np.zeros_like(t)
-            t_pool[a].append(t)
-            u_pool[a].append(u)
+            slope_weight[a] += float(t**2 @ (observed @ c_original**2))
+            # u_a = Y_res c_a / (c_a'c_a) over the observed responses, with Y_res the
+            # held-out Y deflated by the earlier held-out components, in scaled units.
+            cc = observed @ c**2
+            with np.errstate(divide="ignore", invalid="ignore"):
+                u = np.where(cc > 0, (residual_prev / fold.y_scale) @ c / cc, 0.0)
+            t_pool[a].append(t[has_y])
+            u_pool[a].append(u[has_y])
 
-            y_hat = scores[:, : a + 1] @ y_loadings[:, : a + 1].T * fold.y_scale + fold.y_centre
-            residual = y_test - y_hat
+            residual = np.where(observed, residual_prev - np.outer(t, c_original), 0.0)
             squared = residual**2
             press_y[a] += squared.sum(axis=0)
-            per_obs_sse[a, fold.test] = squared.sum(axis=1)
+            per_obs_sse[a, fold.test] = np.where(has_y, squared.sum(axis=1), np.nan)
             per_fold_press[a, k] = float(squared.sum())
-            per_fold_rmse[a, k] = float(np.sqrt(squared.sum() / max(1, len(fold.test) * M)))
+            per_fold_rmse[a, k] = float(np.sqrt(squared.sum() / n_cells))
             residual_prev = residual
 
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -321,28 +391,39 @@ def _heldout_pass(folds: list[_Fold], y_values: np.ndarray, n_components: int) -
 
 
 def _autoscale_parameters(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Column means and ``ddof=1`` standard deviations, with the :class:`MCUVScaler` guard."""
-    centre = values.mean(axis=0)
-    scale = values.std(axis=0, ddof=1)
+    """Column means and ``ddof=1`` standard deviations over observed cells, with the :class:`MCUVScaler` guard."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        centre = np.nanmean(values, axis=0)
+        scale = np.nanstd(values, axis=0, ddof=1)
     tiny = float(np.finfo(float).tiny) ** 0.5
     return centre, np.where(~np.isfinite(scale) | (scale <= tiny), 1.0, scale)
 
 
-def _null_score_correlations(
+def _score_correlation_null(
     x_values: np.ndarray,
     y_values: np.ndarray,
     splits: list[tuple[np.ndarray, np.ndarray]],
     shape: tuple[int, int],
     rng: np.random.Generator,
-) -> np.ndarray:
-    """Held-out t-u correlations of every component, with the rows of Y permuted.
+) -> tuple[np.ndarray, np.ndarray]:
+    """Held-out t-u correlation of every component, on Y as given and with its rows permuted.
 
-    ``shape`` is ``(n_permutations, n_components)``, the shape of the returned array.
+    ``shape`` is ``(n_permutations, n_components)``, the shape of the null array.
 
     Each permutation shuffles the rows of Y and repeats the whole cross-validation,
     with the folds refitted by kernel PLS (Dayal and MacGregor, 1997) from the fold's
     ``X'X``, which a permutation of Y leaves unchanged, and the new ``X'Y``; for
-    complete data the kernel algorithm gives the NIPALS model.
+    complete data the kernel algorithm gives the NIPALS model. The observed statistic
+    is computed by the same pipeline on the unpermuted Y, so that the two are compared
+    like with like. For complete data it equals the NIPALS ``r_cv``.
+
+    A missing training cell is set to zero after autoscaling (the fold mean), in X and in
+    Y, so it adds nothing to a cross-product. Held-out rows are scored from their
+    observed cells, as the NIPALS fit scores its rows, rather than from mean-filled ones,
+    which would shrink the score of every incomplete row. A Y row carries its missing
+    cells with it when the rows are permuted. ``u`` is regressed on the observed
+    responses only, and a row with no observed response is left out.
 
     The whole of Y is permuted, not the residual of the first ``a - 1`` components.
     A residual permutation is not a valid null here: PLS components form a Krylov
@@ -356,14 +437,16 @@ def _null_score_correlations(
 
     Returns
     -------
-    np.ndarray of shape (n_permutations, n_components)
+    observed : np.ndarray of shape (n_components,)
+        The held-out correlation of every component on Y as given.
+    null : np.ndarray of shape (n_permutations, n_components)
         For each permutation, the held-out correlation of every component.
     """
     n_permutations, A = shape
     folds = []
     for train, test in splits:
         centre, scale = _autoscale_parameters(x_values[train])
-        x_train = (x_values[train] - centre) / scale
+        x_train = np.nan_to_num((x_values[train] - centre) / scale)
         folds.append((train, test, x_train, (x_values[test] - centre) / scale, x_train.T @ x_train))
 
     def _heldout_correlations(y: np.ndarray) -> np.ndarray:
@@ -372,22 +455,27 @@ def _null_score_correlations(
         uu = np.zeros(A)
         for train, test, x_train, x_test, xtx in folds:
             centre, scale = _autoscale_parameters(y[train])
-            _, _, direct, y_loadings, _ = _kernel_pls(xtx, x_train.T @ ((y[train] - centre) / scale), A)
-            t_test = x_test @ direct
-            residual = (y[test] - centre) / scale
+            y_train = np.nan_to_num((y[train] - centre) / scale)
+            weights, x_loadings, _, y_loadings, _ = _kernel_pls(xtx, x_train.T @ y_train, A)
+            t_test = _nipals_scores(x_test, weights, x_loadings)
+            observed = ~np.isnan(y[test])
+            has_y = observed.any(axis=1)
+            residual = np.nan_to_num((y[test] - centre) / scale)
             for a in range(A):
                 c = y_loadings[:, a]
-                cc = float(c @ c)
-                t = t_test[:, a]
-                u = residual @ c / cc if cc > 0 else np.zeros_like(t)
+                cc = observed @ c**2
+                t = np.where(has_y, t_test[:, a], 0.0)
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    u = np.where(cc > 0, residual @ c / cc, 0.0)
                 tu[a] += float(t @ u)
                 tt[a] += float(t @ t)
                 uu[a] += float(u @ u)
-                residual = residual - np.outer(t, c)
+                residual = np.where(observed, residual - np.outer(t, c), 0.0)
         with np.errstate(divide="ignore", invalid="ignore"):
             return np.where(tt * uu > 0, tu / np.sqrt(tt * uu), np.nan)
 
-    return np.array([_heldout_correlations(y_values[rng.permutation(len(y_values))]) for _ in range(n_permutations)])
+    null = np.array([_heldout_correlations(y_values[rng.permutation(len(y_values))]) for _ in range(n_permutations)])
+    return _heldout_correlations(y_values), null
 
 
 def _permutation_summary(null: np.ndarray, observed: np.ndarray, alpha: float) -> tuple[np.ndarray, np.ndarray]:
@@ -418,14 +506,19 @@ def _covariance_permutation_pvalues(
     :math:`\mathbf{X}_a` is orthogonal to the earlier scores, this is the Freedman-Lane
     scheme. A test on the undeflated :math:`\mathbf{X}^\top\mathbf{Y}` could not reach
     past the first component for a single response, since that matrix has rank one.
+
+    A missing cell is held at zero through every deflation, so it adds nothing to the
+    cross-product; a Y row carries its missing cells with it when the rows are permuted.
     """
     N = x_scaled.shape[0]
     M = y_scaled.shape[1]
     scores = model.scores_.to_numpy()
     x_loadings = model.x_loadings_.to_numpy()
     y_loadings = model.y_loadings_.to_numpy()
-    x_a = x_scaled.copy()
-    y_a = y_scaled.copy()
+    x_observed = ~np.isnan(x_scaled)
+    y_observed = ~np.isnan(y_scaled)
+    x_a = np.where(x_observed, x_scaled, 0.0)
+    y_a = np.where(y_observed, y_scaled, 0.0)
     p_values = np.empty(scores.shape[1])
     for a in range(scores.shape[1]):
         observed = float(np.linalg.norm(x_a.T @ y_a, ord=2))
@@ -440,8 +533,8 @@ def _covariance_permutation_pvalues(
             done += batch
         p_values[a] = (exceed + 1) / (n_permutations + 1)
         t = scores[:, [a]]
-        x_a = x_a - t @ x_loadings[:, [a]].T
-        y_a = y_a - t @ y_loadings[:, [a]].T
+        x_a = np.where(x_observed, x_a - t @ x_loadings[:, [a]].T, 0.0)
+        y_a = np.where(y_observed, y_a - t @ y_loadings[:, [a]].T, 0.0)
     return p_values
 
 
@@ -487,10 +580,11 @@ def _procrustes_scores(model: Any, folds: list[_Fold]) -> tuple[np.ndarray, np.n
     """Pseudo-validation scores, local squared SPE, and D ratios (Kucheryavskiy et al., 2023).
 
     Each fold model is sign-aligned to the full-data model. The held-out scores in the
-    fold model, ``T_k = X_k W*_k``, are scaled per component by
-    ``d_ka = c_ka'c_a / c_a'c_a``, the ratio of the fold's Y loading to the full-data one,
-    giving the pseudo-validation scores. The local squared SPE of each held-out row is
-    what the pseudo-validation row's residual is built to reproduce.
+    fold model (``T_k = X_k W*_k``, or trimmed score regression for a row with missing
+    cells) are scaled per component by ``d_ka = c_ka'c_a / c_a'c_a``, the ratio of the
+    fold's Y loading to the full-data one, giving the pseudo-validation scores. The
+    local squared SPE of each held-out row, summed over its observed cells, is what the
+    pseudo-validation row's residual is built to reproduce.
 
     Returns
     -------
@@ -507,26 +601,50 @@ def _procrustes_scores(model: Any, folds: list[_Fold]) -> tuple[np.ndarray, np.n
     squared_spe = np.zeros((N, A))
     d_ratios = np.zeros((len(folds), A))
     for k, fold in enumerate(folds):
-        # _sign_align only reports the signs; apply them to W*, P and C together.
+        # _sign_align only reports the signs; apply them to the scores, P and C together.
         signs = _sign_align(fold.direct_weights, global_direct)
-        direct = fold.direct_weights * signs
         x_loadings = fold.x_loadings * signs
         y_loadings = fold.y_loadings * signs
-        local_scores = fold.x_test @ direct
+        local_scores = fold.scores * signs
         with np.errstate(divide="ignore", invalid="ignore"):
             d = np.where(cc > 0, np.sum(y_loadings * global_y_loadings, axis=0) / cc, np.nan)
         d_ratios[k] = d
         pv_scores[fold.test] = local_scores * d
         for a in range(A):
             residual = fold.x_test - local_scores[:, : a + 1] @ x_loadings[:, : a + 1].T
-            squared_spe[fold.test, a] = np.sum(residual**2, axis=1)
+            squared_spe[fold.test, a] = np.nansum(residual**2, axis=1)  # observed cells only
     return pv_scores, squared_spe, d_ratios
 
 
-def _leading_count(passes: np.ndarray) -> int:
-    """Count the leading components that pass, stopping at the first failure (or NaN)."""
-    failures = np.flatnonzero(~passes)
-    return int(failures[0]) if failures.size else len(passes)
+def _leading_count(passes: np.ndarray, swaps: np.ndarray | None = None) -> int:
+    """Count the leading components that pass, stopping at the first failure (or NaN).
+
+    ``swaps[a]`` marks components ``a`` and ``a + 1`` (0-based) as a pair that mixes
+    between folds inside a stable two-dimensional span. A failure at ``a`` does not stop
+    the count when ``swaps[a]`` holds and ``a + 1`` passes: the pair is counted together.
+    """
+    count = 0
+    a = 0
+    while a < len(passes):
+        if passes[a]:
+            count, a = a + 1, a + 1
+        elif swaps is not None and swaps[a] and a + 1 < len(passes) and passes[a + 1]:
+            count, a = a + 2, a + 2
+        else:
+            break
+    return count
+
+
+def _swapped_pairs(angle_subspace_deg: np.ndarray, threshold: float) -> np.ndarray:
+    """Where the span of the first ``a`` weights is unstable but the span of ``a + 1`` is stable.
+
+    Two components of nearly equal strength can swap or rotate into each other from
+    fold to fold. The span of the first of them is then unstable, while the span of the
+    pair is not; the per-component angles of both are large.
+    """
+    unstable = ~(angle_subspace_deg < threshold)
+    stable_next = np.r_[angle_subspace_deg[1:] < threshold, False]
+    return unstable & stable_next
 
 
 def _cv_anova_pvalues(q2: np.ndarray, N: int, M: int) -> np.ndarray:
@@ -609,10 +727,14 @@ class _PseudoValidationSettings:
 def _predictive_criteria(
     held: Bunch, y_values: np.ndarray, settings: _CompareSettings, rng: np.random.Generator
 ) -> Bunch:
-    """Q2 and its SE, RMSECV and its SE, van der Voet and CV-ANOVA, from the held-out pass."""
-    N, M = y_values.shape
+    """Q2 and its SE, RMSECV and its SE, van der Voet and CV-ANOVA, from the held-out pass.
+
+    Every sum runs over the observed Y cells, the ones PRESS is summed over.
+    """
+    observed = ~np.isnan(y_values)
+    M = y_values.shape[1]
     A, n_folds = held.per_fold_press.shape
-    tss_y = np.sum((y_values - y_values.mean(axis=0)) ** 2, axis=0)
+    tss_y = np.nansum((y_values - np.nanmean(y_values, axis=0)) ** 2, axis=0)
     with np.errstate(divide="ignore", invalid="ignore"):
         q2_per_target = np.where(tss_y > 0, 1.0 - held.press_y / np.where(tss_y > 0, tss_y, 1.0), np.nan)
     q2_total = 1.0 - held.press_y.sum(axis=1) / tss_y.sum() if tss_y.sum() > 0 else np.full(A, np.nan)
@@ -620,7 +742,7 @@ def _predictive_criteria(
         warnings.simplefilter("ignore", RuntimeWarning)
         se_press = np.nanstd(held.per_fold_press, axis=1, ddof=1) / np.sqrt(n_folds)
         se_rmsecv = np.nanstd(held.per_fold_rmse, axis=1, ddof=1) / np.sqrt(n_folds)
-    rmsecv = np.sqrt(held.press_y.sum(axis=1) / (N * M))
+    rmsecv = np.sqrt(held.press_y.sum(axis=1) / max(1, int(observed.sum())))
     vdv_recommended, vdv_p = _vandervoet_randomization(
         held.per_obs_sse,
         total_rmsecv=rmsecv,
@@ -631,7 +753,7 @@ def _predictive_criteria(
     return Bunch(
         q2y=_equal_weight_r2_total(q2_per_target),
         q2y_se=se_press * n_folds / tss_y.sum() if tss_y.sum() > 0 else np.full(A, np.nan),
-        cv_anova_p=_cv_anova_pvalues(q2_total, N, M),
+        cv_anova_p=_cv_anova_pvalues(q2_total, int(observed[:, 0].sum()), M),
         vdv_p=vdv_p,
         vdv_recommended=int(vdv_recommended),
         rmsecv=rmsecv,
@@ -640,7 +762,13 @@ def _predictive_criteria(
 
 
 def _monitoring_criteria(model: Any, folds: list[_Fold], conf_level: float, alpha: float) -> Bunch:  # noqa: ANN401
-    """Procrustes D ratios, and pseudo-validation SPE / T2 alarm rates against the full-data limits."""
+    """Procrustes D ratios, pseudo-validation SPE / T2 alarm rates, and the SPE limit refitted to held-out rows.
+
+    The full-data SPE limit is fitted to training residuals, which are smaller than the
+    residuals of rows the model has not seen, so it is too tight for new rows, and more
+    so the fewer rows there are per variable. The pseudo-validation SPE is the
+    held-out residual, so a limit fitted to it is calibrated for new rows.
+    """
     N = sum(len(fold.test) for fold in folds)
     pv_scores, squared_spe, d_ratios = _procrustes_scores(model, folds)
     score_sd = model.scaling_factor_for_scores_.to_numpy()
@@ -650,8 +778,10 @@ def _monitoring_criteria(model: Any, folds: list[_Fold], conf_level: float, alph
     A = pv_scores.shape[1]
     spe_alarm = np.full(A, np.nan)
     t2_alarm = np.full(A, np.nan)
+    spe_limits = np.full((A, 2), np.nan)
     for a in range(A):
         spe_lim = float(spe_calculation(model.spe_.iloc[:, a].to_numpy(), conf_level=conf_level))
+        spe_limits[a] = spe_lim, float(spe_calculation(pv_spe[:, a], conf_level=conf_level))
         t2_lim = hotellings_t2_limit(conf_level=conf_level, n_components=a + 1, n_rows=N)
         if np.isfinite(spe_lim):
             spe_alarm[a] = float(np.mean(pv_spe[:, a] > spe_lim))
@@ -661,16 +791,16 @@ def _monitoring_criteria(model: Any, folds: list[_Fold], conf_level: float, alph
         d_ratios=d_ratios,
         spe_alarm=spe_alarm,
         t2_alarm=t2_alarm,
+        spe_limits=spe_limits,
         alarm_rate_upper=float(binom.ppf(1.0 - alpha, N, 1.0 - conf_level) / N),
     )
 
 
-def _recommendations(
-    table: pd.DataFrame, predictive: Bunch, settings: _CompareSettings, alarm_rate_upper: float
-) -> pd.DataFrame:
+def _recommendations(table: pd.DataFrame, predictive: Bunch, settings: _CompareSettings) -> pd.DataFrame:
     """One row per selection rule: the recommended component count, the rule, and its question."""
     alpha = settings.alpha
     q2y = table["q2y"].to_numpy()
+    swaps = _swapped_pairs(table["angle_subspace_deg"].to_numpy(), settings.angle_threshold)
     rules = {
         "q2_max": (
             int(np.nanargmax(q2y)) + 1 if np.isfinite(q2y).any() else 1,
@@ -698,17 +828,12 @@ def _recommendations(
             "Is each component's covariance larger than chance?",
         ),
         "subspace_stability": (
-            _leading_count(table["angle_subspace_deg"].to_numpy() < settings.angle_threshold),
-            f"Leading components whose jackknife-scaled subspace angle is below {settings.angle_threshold} degrees.",
-            "Does the model's latent space survive a change of rows?",
-        ),
-        "pv_spe_alarm": (
-            _leading_count(table["pv_spe_alarm_rate"].to_numpy() <= alarm_rate_upper),
+            _leading_count(table["angle_subspace_deg"].to_numpy() < settings.angle_threshold, swaps),
             (
-                f"Leading components whose out-of-sample SPE alarm rate is at most {alarm_rate_upper:.3g}, "
-                f"the upper {1 - alpha:.3g} binomial quantile of the nominal rate {1 - settings.conf_level:.3g}."
+                f"Leading components whose jackknife-scaled subspace angle is below {settings.angle_threshold} "
+                "degrees; a pair of components that swap inside a stable span counts as two."
             ),
-            "Are the monitoring limits right on new rows?",
+            "Does the model's latent space survive a change of rows?",
         ),
     }
     return pd.DataFrame(
@@ -730,7 +855,6 @@ def _compare_cv_criteria(
     settings.validate()
     _warn_scaling_traps(X_df, scale_inside_folds=True, fold="CV fold", metric="Q2")
 
-    N = X_df.shape[0]
     rng = check_random_state(settings.random_state)
     splits = _partition_splits(settings.cv, X_df, Y_df, rng=rng, random_state=settings.random_state)
     rng_vdv, rng_perm, rng_null = rng.spawn(3)
@@ -742,13 +866,14 @@ def _compare_cv_criteria(
     predictive = _predictive_criteria(held, y_values, settings, rng_vdv)
 
     if int(settings.n_cv_permutations) > 0:
-        null = _null_score_correlations(
+        observed, null = _score_correlation_null(
             X_df.to_numpy(), y_values, splits, (int(settings.n_cv_permutations), A), rng_null
         )
-        r_cv_p, r_cv_threshold = _permutation_summary(null, held.r_cv, settings.alpha)
+        r_cv_p, r_cv_threshold = _permutation_summary(null, observed, settings.alpha)
     else:
-        r_cv_p = norm.sf(held.r_cv * np.sqrt(N))
-        r_cv_threshold = np.full(A, norm.ppf(1.0 - settings.alpha) / np.sqrt(N))
+        n_with_y = int((~np.isnan(y_values).all(axis=1)).sum())
+        r_cv_p = norm.sf(held.r_cv * np.sqrt(n_with_y))
+        r_cv_threshold = np.full(A, norm.ppf(1.0 - settings.alpha) / np.sqrt(n_with_y))
     x_scaler, y_scaler = _global_scaling(X_df, Y_df)
     cov_perm_p = _covariance_permutation_pvalues(
         x_scaler.transform(X_df).to_numpy(),
@@ -759,7 +884,8 @@ def _compare_cv_criteria(
     )
     angle_component, angle_subspace = _weight_angles(model.x_weights_.to_numpy(), folds)
     monitoring = _monitoring_criteria(model, folds, settings.conf_level, settings.alpha)
-    t_scores, u_scores = np.asarray(model.scores_), np.asarray(model.y_scores_)
+    rows_with_y = ~np.isnan(y_values).all(axis=1)  # a row with no response has u = 0 by construction
+    t_scores, u_scores = np.asarray(model.scores_)[rows_with_y], np.asarray(model.y_scores_)[rows_with_y]
 
     component_index = pd.Index(range(1, A + 1), name="n_components")
     table = pd.DataFrame(
@@ -781,16 +907,20 @@ def _compare_cv_criteria(
             "d_ratio_min": np.min(monitoring.d_ratios, axis=0),
             "pv_spe_alarm_rate": monitoring.spe_alarm,
             "pv_t2_alarm_rate": monitoring.t2_alarm,
+            "pv_spe_limit_ratio": monitoring.spe_limits[:, 1] / monitoring.spe_limits[:, 0],
         },
         index=component_index,
     )
     fold_index = [f"fold_{k + 1}" for k in range(len(folds))]
     return Bunch(
         table=table,
-        recommendations=_recommendations(table, predictive, settings, monitoring.alarm_rate_upper),
+        recommendations=_recommendations(table, predictive, settings),
         press=pd.Series(held.press_y.sum(axis=1), index=component_index, name="PRESS"),
         press_baseline=held.press_baseline,
         d_ratios=pd.DataFrame(monitoring.d_ratios, index=fold_index, columns=component_index),
+        spe_limits=pd.DataFrame(
+            monitoring.spe_limits, index=component_index, columns=["full_data", "pseudo_validation"]
+        ),
         cv_splits=splits,
         global_model=model,
         alpha=settings.alpha,
@@ -835,19 +965,22 @@ def _pseudo_validation_set(
 
     # X_pv = T_pv P' + E, with E orthogonal to the model (E W* = 0) and each row of E
     # carrying the fold model's residual norm, so the full-data model reports exactly
-    # the held-out scores (rescaled by D) and the held-out SPE for every row.
+    # the held-out scores (rescaled by D) and the held-out SPE for every complete row.
+    # E mixes the held-out rows at random (missing cells at the mean), and the missing
+    # cells of X are missing again in X_pv.
     direct = model.direct_weights_.to_numpy()
     x_loadings = model.x_loadings_.to_numpy()
     x_pv = np.zeros((N, K))
     for fold in folds:
         n_test = len(fold.test)
-        mixed = _column_normalise(rng_pcv.standard_normal((n_test, n_test)) @ fold.x_test)
+        mixed = _column_normalise(rng_pcv.standard_normal((n_test, n_test)) @ np.nan_to_num(fold.x_test))
         residual = mixed - (mixed @ direct) @ x_loadings.T
         norms = np.linalg.norm(residual, axis=1)
         target = np.sqrt(squared_spe[fold.test, A - 1])
         factor = np.where(norms > 0, target / np.where(norms > 0, norms, 1.0), 0.0)
         x_pv[fold.test] = pv_scores[fold.test] @ x_loadings.T + residual * factor[:, None]
 
+    x_pv[X_df.isna().to_numpy()] = np.nan
     x_scaler, _ = _global_scaling(X_df, Y_df)
     component_index = pd.Index(range(1, A + 1), name="n_components")
     return Bunch(
