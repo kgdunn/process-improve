@@ -404,6 +404,30 @@ Points to keep in mind when reading the table
 - CV-ANOVA (``cv_anova_p``, one response) is a monotone function of :math:`Q^2` for
   fixed degrees of freedom, so it ranks models as :math:`Q^2` does.
 
+Checking the criteria on a process with a known structure
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The simulated results quoted in this section come from
+:class:`~process_improve.simulation.latent.LatentStructure`, which draws data from a linear
+latent-variable process whose structure is set by the caller, and from fresh rows of the
+same process, which are the ground truth for any cross-validated estimate. The best that
+any linear model can do on those fresh rows is known in closed form.
+
+.. code-block:: python
+
+   from process_improve.multivariate import compare_cv_criteria
+   from process_improve.simulation import LatentStructure
+
+   # Two latent variables drive y, so a PLS model should need two components.
+   process = LatentStructure(x_sd=[3.0, 1.0], y_coefficients=[1.0, 1.0])
+   train = process.sample(60, random_state=0)
+   result = compare_cv_criteria(train.X, train.Y, max_components=5, random_state=0)
+   print(result.recommendations["n_components"])   # 2 from every rule
+   print(process.population_r2())                  # the Q2 a perfect linear model reaches
+
+The script ``scripts/cv_criteria_recovery.py`` repeats this for every scenario quoted
+above, 30 data sets each, and prints how often each rule recovers the simulated count.
+
 Procrustes pseudo-validation set
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

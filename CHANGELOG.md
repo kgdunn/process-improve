@@ -46,6 +46,16 @@ those changes.
   `PLS.pseudo_validation_set` are the classmethod forms.
   `_vandervoet_randomization` now also accepts a numpy Generator.
 
+- **`simulation.LatentStructure`: data with a known latent structure (#605).** A linear
+  process `X = T P' + E`, `Y = T B + F` whose number of latent variables, their
+  strengths, and which of them drive Y are set by the caller; `sample` draws rows,
+  optionally with cells missing at random, and fresh draws give the ground truth.
+  The best linear predictor on new rows is returned in closed form
+  (`population_coefficients`, `population_r2`). The loadings are Hadamard columns,
+  so every X column has the same variance and autoscaling leaves the structure
+  intact. `scripts/cv_criteria_recovery.py` uses it to check every
+  `compare_cv_criteria` rule against the simulated truth.
+
 - **`PCA(tol=..., max_iter=...)` and `TPLS(tol=...)`: the loop settings are now
   constructor parameters (#588).** Six iterative estimators spelled their
   convergence tolerance and iteration cap five different ways, and these two were
