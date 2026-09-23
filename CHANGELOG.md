@@ -31,7 +31,7 @@ those changes.
     out-of-sample SPE / T2 alarm rates against the full-data model's limits, and
     `spe_limits`: the SPE limit refitted to the held-out (pseudo-validation) SPE.
     The full-data limit is fitted to training residuals and is too tight for new
-    rows; on simulated data with 16 variables it flagged 18% of fresh rows at a
+    rows; on simulated data with 16 variables it flagged 17% of fresh rows at a
     nominal 5% with 30 training rows, where the refitted limit flagged 4%. The
     refitted limit is for complete rows: a held-out row with gaps has its squared
     SPE scaled by `K / n_observed`.

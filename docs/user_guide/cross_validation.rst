@@ -336,7 +336,7 @@ training residuals (``full_data``, the one the model reports) and the limit fitt
 to the Procrustes pseudo-validation SPE (``pseudo_validation``). Training residuals
 are smaller than the residuals of new rows, so the first limit is too tight. On
 simulated data with two latent variables and 16 variables, the full-data limit at
-95% flagged 18% of fresh rows with 30 training rows and 10% with 60, while the
+95% flagged 17% of fresh rows with 30 training rows and 10% with 60, while the
 pseudo-validation limit flagged 4% to 5%. The ``pv_spe_limit_ratio`` column is the
 ratio of the two limits.
 
