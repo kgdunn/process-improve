@@ -768,9 +768,18 @@ def _monitoring_criteria(model: Any, folds: list[_Fold], conf_level: float, alph
     residuals of rows the model has not seen, so it is too tight for new rows, and more
     so the fewer rows there are per variable. The pseudo-validation SPE is the
     held-out residual, so a limit fitted to it is calibrated for new rows.
+
+    The refitted limit is for complete rows. A held-out row with missing cells has its
+    squared SPE summed over fewer cells, so it is scaled by ``K / n_observed``, its
+    expected value had the row been complete; the SPE of a new row with gaps is scaled
+    the same way before it is compared with the limit.
     """
     N = sum(len(fold.test) for fold in folds)
     pv_scores, squared_spe, d_ratios = _procrustes_scores(model, folds)
+    to_complete = np.ones(N)
+    for fold in folds:
+        observed = (~np.isnan(fold.x_test)).sum(axis=1)
+        to_complete[fold.test] = fold.x_test.shape[1] / np.maximum(observed, 1)
     score_sd = model.scaling_factor_for_scores_.to_numpy()
     with np.errstate(divide="ignore", invalid="ignore"):
         pv_t2 = np.cumsum((pv_scores / np.where(score_sd > 0, score_sd, np.nan)) ** 2, axis=1)
@@ -781,7 +790,8 @@ def _monitoring_criteria(model: Any, folds: list[_Fold], conf_level: float, alph
     spe_limits = np.full((A, 2), np.nan)
     for a in range(A):
         spe_lim = float(spe_calculation(model.spe_.iloc[:, a].to_numpy(), conf_level=conf_level))
-        spe_limits[a] = spe_lim, float(spe_calculation(pv_spe[:, a], conf_level=conf_level))
+        complete_spe = np.sqrt(squared_spe[:, a] * to_complete)
+        spe_limits[a] = spe_lim, float(spe_calculation(complete_spe, conf_level=conf_level))
         t2_lim = hotellings_t2_limit(conf_level=conf_level, n_components=a + 1, n_rows=N)
         if np.isfinite(spe_lim):
             spe_alarm[a] = float(np.mean(pv_spe[:, a] > spe_lim))

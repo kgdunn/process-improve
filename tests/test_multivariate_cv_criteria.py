@@ -283,13 +283,18 @@ def test_leading_count_carries_a_swapped_pair() -> None:
 
 
 @pytest.mark.slow
-def test_spe_limit_refitted_to_held_out_rows_holds_on_new_rows() -> None:
+@pytest.mark.parametrize(("n", "gaps"), [(30, 0.0), (60, 0.2)])
+def test_spe_limit_refitted_to_held_out_rows_holds_on_new_rows(n: int, gaps: float) -> None:
     """The training-residual SPE limit is too tight for new rows; the pseudo-validation limit is not.
 
-    Fresh rows from the same simulated process are the ground truth: a limit at 95%
-    should flag about 5% of them.
+    Fresh, complete rows from the same simulated process are the ground truth: a limit
+    at 95% should flag about 5% of them. With gaps in the training data, the training
+    and held-out SPE are summed over fewer cells, which makes the model's own limit
+    tighter still; the refitted limit scales each held-out row to its complete-row value.
     """
-    X, Y = _latent_data(30, [3, 1], [[1], [1]], seed=4)
+    X, Y = _latent_data(n, [3, 1], [[1], [1]], seed=4)
+    if gaps:
+        X, Y = _with_gaps(X, Y, fraction=gaps)
     X_new, _ = _latent_data(4000, [3, 1], [[1], [1]], seed=1004)
     result = compare_cv_criteria(X, Y, max_components=2, random_state=0, n_permutations=19, n_cv_permutations=0)
     spe_new = result.global_model.diagnose(X_new).spe.to_numpy()
@@ -299,13 +304,18 @@ def test_spe_limit_refitted_to_held_out_rows_holds_on_new_rows() -> None:
     assert result.table.loc[2, "pv_spe_limit_ratio"] == pytest.approx(limits["pseudo_validation"] / limits["full_data"])
 
 
-def test_spe_limits_are_fitted_to_training_and_held_out_spe() -> None:
+@pytest.mark.parametrize("gaps", [0.0, 0.1])
+def test_spe_limits_are_fitted_to_training_and_held_out_spe(gaps: float) -> None:
+    """The refitted limit is fitted to the held-out SPE, each row scaled to K cells when it has gaps."""
     X, Y = _two_component_data()
+    if gaps:
+        X, Y = _with_gaps(X, Y, fraction=gaps)
     result = compare_cv_criteria(X, Y, max_components=3, random_state=0, n_permutations=9, n_cv_permutations=0)
     pv = pseudo_validation_set(X, Y, n_components=3, scope="local", random_state=0)
+    to_complete = np.sqrt(X.shape[1] / X.notna().sum(axis=1).to_numpy())
     limits = result.spe_limits.loc[3]
     assert limits["full_data"] == pytest.approx(spe_calculation(result.global_model.spe_.iloc[:, 2].to_numpy()))
-    assert limits["pseudo_validation"] == pytest.approx(spe_calculation(pv.local_spe.to_numpy()))
+    assert limits["pseudo_validation"] == pytest.approx(spe_calculation(pv.local_spe.to_numpy() * to_complete))
 
 
 def test_angles_do_not_depend_on_the_number_of_folds() -> None:

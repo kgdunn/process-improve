@@ -340,6 +340,14 @@ simulated data with two latent variables and 16 variables, the full-data limit a
 pseudo-validation limit flagged 4% to 5%. The ``pv_spe_limit_ratio`` column is the
 ratio of the two limits.
 
+With missing values, a row's SPE is summed over its observed cells only, so it is
+smaller than the SPE of the same row with nothing missing. The pseudo-validation limit
+is a limit for complete rows: each held-out row's squared SPE is scaled by
+:math:`K / K_\text{observed}` before the limit is fitted, and the SPE of a new row with
+gaps should be scaled the same way before the comparison. On the simulated data with
+60 rows and 15% or 30% of the cells missing, the model's own limit flagged 19% or 34%
+of fresh complete rows at a nominal 5%, and the refitted limit 3.5% or 2.8%.
+
 How Q2 and the held-out correlation are related
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -2092,7 +2092,10 @@ class PLS(_LatentVariableModel, RegressorMixin, TransformerMixin, BaseEstimator)
             - ``spe_limits`` (pandas.DataFrame, indexed by ``n_components``): the SPE limit
               at ``conf_level`` fitted to the training residuals (``full_data``, what
               ``global_model`` reports) and to the pseudo-validation SPE
-              (``pseudo_validation``). Use the second to monitor new rows.
+              (``pseudo_validation``). Use the second to monitor new rows. It is a limit
+              for complete rows: a held-out row with missing cells has its squared SPE
+              scaled by ``K / n_observed`` before the fit, and the SPE of a new row with
+              gaps should be scaled the same way before the comparison.
             - ``cv_splits`` (list of (train, test) index arrays): the folds used.
             - ``global_model`` (PLS): the model fitted to all rows with
               ``max_components`` components.
