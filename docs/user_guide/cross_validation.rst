@@ -322,12 +322,23 @@ Each selection rule answers one question.
    * - ``subspace_stability``
      - Does the latent space survive a change of rows?
      - Largest principal angle between the fold and the full-data weights.
-   * - ``pv_spe_alarm``
-     - Are the SPE limits right on rows the model has not seen?
-     - Alarm rate of Procrustes pseudo-validation rows against the full-data limit.
 
 The predictive rules never return fewer than one component. The structural rules
-count the leading components that pass and return 0 when none does.
+count the leading components that pass and return 0 when none does. Two components
+of nearly equal strength can swap from fold to fold: the span of the first is then
+unstable while the span of the pair is not, and ``subspace_stability`` counts the
+pair as two.
+
+The monitoring question, whether the SPE limit is right for rows the model has not
+seen, is answered by a limit rather than by a component count.
+``result.spe_limits`` holds, per component count, the SPE limit fitted to the
+training residuals (``full_data``, the one the model reports) and the limit fitted
+to the Procrustes pseudo-validation SPE (``pseudo_validation``). Training residuals
+are smaller than the residuals of new rows, so the first limit is too tight. On
+simulated data with two latent variables and 16 variables, the full-data limit at
+95% flagged 18% of fresh rows with 30 training rows and 10% with 60, while the
+pseudo-validation limit flagged 4% to 5%. The ``pv_spe_limit_ratio`` column is the
+ratio of the two limits.
 
 How Q2 and the held-out correlation are related
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -344,7 +355,11 @@ exactly 1 on the training rows, and on held-out rows
 PRESS therefore falls, and :math:`Q^2` rises, only when :math:`s_a > 1/2`. The
 held-out correlation is positive as soon as :math:`s_a > 0`. A component with
 :math:`0 < s_a < 1/2` points the right way on new rows, but its fitted slope is
-more than twice too steep: the correlation keeps it and :math:`Q^2` drops it.
+more than twice too steep. Tested against its permutation null, the correlation
+does not keep such a component either: in simulations with a real but weak
+component, 4 of 83 components in this band reached :math:`p < 0.05`, no more than
+chance. The band marks a direction that is real but cannot yet be told from noise
+with this many rows.
 
 Points to keep in mind when reading the table
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -363,8 +378,21 @@ Points to keep in mind when reading the table
   the first weight vector :math:`\mathbf{w} \propto \mathbf{X}^\top\mathbf{y}` is
   still drawn towards the dominant directions of X, so ``subspace_stability`` can
   pass where the two tests of a Y relationship do not.
-- ``pv_spe_alarm`` concerns the X model only. It can pass for components that do
-  not predict Y, and fail for components that do.
+- The SPE limits concern the X model only; they say nothing about whether a
+  component predicts Y.
+- Strong variation in X that Y does not see leaks into the first PLS weight vector
+  in a finite sample, and a second component is then needed to cancel it. On
+  simulated data with 60 rows, one Y-related latent variable and a stronger
+  Y-orthogonal one, the first weight vector was tilted by a median of 9 degrees
+  towards the Y-orthogonal direction, and two components predicted 4000 fresh rows
+  better than one in 25 of 30 data sets. The predictive rules and the covariance test
+  mostly chose two components, which is the right answer for prediction, though the
+  process has one Y-related latent variable. This is the motivation for O-PLS, which
+  moves the Y-orthogonal variation out of the predictive component.
+- Missing values (NaN) are handled as the NIPALS fit handles them: each held-out row
+  is scored from its observed cells the way NIPALS scores an incomplete training
+  row, and a missing Y cell is left out of every sum. A row whose X is entirely
+  missing, or a column that is, raises ``ValueError``.
 - CV-ANOVA (``cv_anova_p``, one response) is a monotone function of :math:`Q^2` for
   fixed degrees of freedom, so it ranks models as :math:`Q^2` does.
 

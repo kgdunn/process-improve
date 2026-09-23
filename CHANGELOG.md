@@ -27,13 +27,22 @@ those changes.
   - a sequential covariance permutation test on the deflated `X_a'Y_a`;
   - jackknife-scaled per-component and subspace angles of the weights, which,
     unlike raw fold angles, do not shrink as the number of folds grows;
-  - Procrustes cross-validation (Kucheryavskiy et al., 2023) D ratios and
-    out-of-sample SPE / T2 alarm rates against the full-data model's limits.
+  - Procrustes cross-validation (Kucheryavskiy et al., 2023) D ratios,
+    out-of-sample SPE / T2 alarm rates against the full-data model's limits, and
+    `spe_limits`: the SPE limit refitted to the held-out (pseudo-validation) SPE.
+    The full-data limit is fitted to training residuals and is too tight for new
+    rows; on simulated data with 16 variables it flagged 18% of fresh rows at a
+    nominal 5% with 30 training rows, where the refitted limit flagged 4%.
 
-  Each selection rule reports its own recommended number of components.
+  Each selection rule reports its own recommended number of components; a pair of
+  components that swap inside a stable span counts as two for
+  `subspace_stability`. Missing values (NaN) in X and Y are handled as the NIPALS
+  fit handles them: held-out rows are scored from their observed cells, and missing
+  Y cells are left out of every sum, with the PRESS identity still exact.
   `pseudo_validation_set` builds the Procrustes pseudo-validation set for any
-  component count; `PLS.compare_cv_criteria` and `PLS.pseudo_validation_set` are the
-  classmethod forms. `_vandervoet_randomization` now also accepts a numpy Generator.
+  component count, with the missing cells of X; `PLS.compare_cv_criteria` and
+  `PLS.pseudo_validation_set` are the classmethod forms.
+  `_vandervoet_randomization` now also accepts a numpy Generator.
 
 - **`PCA(tol=..., max_iter=...)` and `TPLS(tol=...)`: the loop settings are now
   constructor parameters (#588).** Six iterative estimators spelled their
