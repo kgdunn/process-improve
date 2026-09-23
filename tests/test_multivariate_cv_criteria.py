@@ -7,7 +7,6 @@ import pathlib
 import numpy as np
 import pandas as pd
 import pytest
-from scipy.linalg import hadamard
 from scipy.stats import f as f_dist
 from sklearn.model_selection import GroupKFold, KFold, LeaveOneOut, RepeatedKFold
 
@@ -28,6 +27,7 @@ from process_improve.multivariate._cv_criteria import (
     _swapped_pairs,
 )
 from process_improve.multivariate._limits import spe_calculation
+from process_improve.simulation import LatentStructure
 
 LDPE = pathlib.Path(__file__).parents[1] / "src" / "process_improve" / "datasets" / "multivariate" / "LDPE" / "LDPE.csv"
 
@@ -43,33 +43,13 @@ def _two_component_data(n: int = 60, k: int = 10, m: int = 1, seed: int = 1) -> 
     return X, Y
 
 
-def _latent_data(  # noqa: PLR0913 - one argument per property of the simulated process
-    n: int,
-    x_sd: list[float],
-    y_coef: list[list[float]],
-    *,
-    k: int = 16,
-    noise: float = 0.3,
-    seed: int = 0,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """X = T P' + E and Y = T B + F, with latent variable ``j`` of standard deviation ``x_sd[j]``.
+#: Two latent variables drive y (LatentStructure uses Hadamard loadings, so the count is exact).
+TWO_LATENT = LatentStructure(x_sd=[3.0, 1.0], y_coefficients=[1.0, 1.0])
 
-    ``y_coef`` is B, one row per latent variable; a zero row is variation in X that Y
-    does not see. The loadings are columns of a Hadamard matrix scaled to unit length
-    (entries +-1/sqrt(k)), so every X column has the same variance and autoscaling is a
-    uniform rescale. With unequal column variances, autoscaling makes the noise
-    heteroscedastic and the population PLS model then needs more components than there
-    are latent variables, so the "true" count would not be the one simulated.
-    """
-    rng = np.random.default_rng(seed)
-    scores = rng.standard_normal((n, len(x_sd))) * np.asarray(x_sd)
-    loadings = hadamard(k)[:, 1 : len(x_sd) + 1] / np.sqrt(k)
-    B = np.asarray(y_coef, dtype=float)
-    X = pd.DataFrame(scores @ loadings.T + noise * rng.standard_normal((n, k)))
-    Y = pd.DataFrame(scores @ B + noise * rng.standard_normal((n, B.shape[1])))
-    X.columns = [f"x{i}" for i in range(k)]
-    Y.columns = [f"y{i}" for i in range(B.shape[1])]
-    return X, Y
+
+def _sample(process: LatentStructure, n: int, seed: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+    drawn = process.sample(n, random_state=seed)
+    return drawn.X, drawn.Y
 
 
 def _folds(X: pd.DataFrame, Y: pd.DataFrame, n_components: int, cv: object = 7, scope: str = "local") -> list:
@@ -259,14 +239,14 @@ def test_false_positive_rates_under_the_null() -> None:
 
 def test_every_rule_recovers_two_latent_variables() -> None:
     """Two latent variables drive y, and every rule finds exactly two components."""
-    X, Y = _latent_data(60, [3, 1], [[1], [1]], seed=0)
+    X, Y = _sample(TWO_LATENT, 60, seed=0)
     result = compare_cv_criteria(X, Y, max_components=5, random_state=0, n_permutations=199, n_cv_permutations=99)
     assert set(result.recommendations["n_components"]) == {2}
 
 
 def test_a_swapping_pair_keeps_its_stable_span() -> None:
     """Two equally strong components swap between folds: each direction is unstable, their span is not."""
-    X, Y = _latent_data(60, [1, 1], [[1, 0], [0, 1]], seed=0)
+    X, Y = _sample(LatentStructure(x_sd=[1.0, 1.0], y_coefficients=np.eye(2)), 60, seed=0)
     result = compare_cv_criteria(X, Y, max_components=4, random_state=0, n_permutations=99, n_cv_permutations=19)
     table = result.table
     assert table.loc[1, "angle_subspace_deg"] > result.angle_threshold > table.loc[2, "angle_subspace_deg"]
@@ -292,10 +272,10 @@ def test_spe_limit_refitted_to_held_out_rows_holds_on_new_rows(n: int, gaps: flo
     and held-out SPE are summed over fewer cells, which makes the model's own limit
     tighter still; the refitted limit scales each held-out row to its complete-row value.
     """
-    X, Y = _latent_data(n, [3, 1], [[1], [1]], seed=4)
+    X, Y = _sample(TWO_LATENT, n, seed=4)
     if gaps:
         X, Y = _with_gaps(X, Y, fraction=gaps)
-    X_new, _ = _latent_data(4000, [3, 1], [[1], [1]], seed=1004)
+    X_new, _ = _sample(TWO_LATENT, 4000, seed=1004)
     result = compare_cv_criteria(X, Y, max_components=2, random_state=0, n_permutations=19, n_cv_permutations=0)
     spe_new = result.global_model.diagnose(X_new).spe.to_numpy()
     limits = result.spe_limits.loc[2]
