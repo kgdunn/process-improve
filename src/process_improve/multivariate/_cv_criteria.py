@@ -580,10 +580,10 @@ def _procrustes_scores(model: Any, folds: list[_Fold]) -> tuple[np.ndarray, np.n
     """Pseudo-validation scores, local squared SPE, and D ratios (Kucheryavskiy et al., 2023).
 
     Each fold model is sign-aligned to the full-data model. The held-out scores in the
-    fold model (``T_k = X_k W*_k``, or trimmed score regression for a row with missing
-    cells) are scaled per component by ``d_ka = c_ka'c_a / c_a'c_a``, the ratio of the
-    fold's Y loading to the full-data one, giving the pseudo-validation scores. The
-    local squared SPE of each held-out row, summed over its observed cells, is what the
+    fold model (``T_k = X_k W*_k`` for complete data; see :func:`_nipals_scores`) are
+    scaled per component by ``d_ka = c_ka'c_a / c_a'c_a``, the ratio of the fold's Y
+    loading to the full-data one, giving the pseudo-validation scores. The local squared
+    SPE of each held-out row, summed over its observed cells, is what the
     pseudo-validation row's residual is built to reproduce.
 
     Returns

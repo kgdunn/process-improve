@@ -24,6 +24,7 @@ from process_improve.multivariate._cv_criteria import (
     _nipals_scores,
     _partition_splits,
     _procrustes_scores,
+    _score_correlation_null,
     _swapped_pairs,
 )
 from process_improve.multivariate._limits import spe_calculation
@@ -422,6 +423,20 @@ def test_nipals_scores_reproduce_the_training_scores_with_gaps() -> None:
     complete = x.notna().all(axis=1).to_numpy()
     direct = x.to_numpy()[complete] @ model.direct_weights_.to_numpy()
     assert np.abs(direct - model.scores_.to_numpy()[complete]).max() > 1e-3  # P'W is no longer triangular
+
+
+@pytest.mark.parametrize("gaps", [False, True])
+def test_kernel_null_statistic_matches_the_fold_models(gaps: bool) -> None:
+    """The permutation test's observed statistic is r_cv itself for complete data, and close to it with gaps."""
+    X, Y = _two_component_data()
+    if gaps:
+        X, Y = _with_gaps(X, Y, fraction=0.05)
+    folds = _folds(X, Y, 3)
+    splits = [(fold.train, fold.test) for fold in folds]
+    held = _heldout_pass(folds, Y.to_numpy(), 3)
+    observed, null = _score_correlation_null(X.to_numpy(), Y.to_numpy(), splits, (5, 3), np.random.default_rng(0))
+    assert null.shape == (5, 3)
+    np.testing.assert_allclose(observed[:2], held.r_cv[:2], atol=0.02 if gaps else 1e-8)
 
 
 @pytest.mark.parametrize("m", [1, 3])
